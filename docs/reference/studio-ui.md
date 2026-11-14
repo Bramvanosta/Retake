@@ -249,9 +249,21 @@ update, the Set-up sheet, the unsaved reports). Each function is typed by `Studi
 results derived from the Studio's op table, types only), so a wrong op, argument or result does not compile; an op that
 takes no argument is called and read without them. The app's parts: `data/` (imports api.ts and data/ only — and, types
 only, the server's op table), `ui-kit/` (the kit and its foundations bits / route only), `shell/` (reached through
-itself, its slots, command bus, announcer and modes), and the screens at the root; outside the app, types only (the
-server's answers) but the mark and the preview frame's channel — `test/feature-boundaries.test.ts` holds the boundaries
-(DESIGN §4c).
+itself, its slots, command bus, announcer and modes), the screens grouped by feature (L7.30 – L7.32: a folder each,
+reached from outside only through its public modules — its screens for the entry, the parts another feature shows):
+`record/` (the screen, its start form, the draft's rows and cursor, the list, the inserts, the body, the inspector, the
+live view, the changes it sends), `script/` (the scenario screen, the storyboard, the step form and editing, the YAML
+tab, the text editing, the forms, the board's keys), `shoot/` (Prepare, Live, the take browser and strip, the live
+picture, the run's stream and location, the shoot's store), `edit/` (the timeline, its inspector and tracks, the
+preview frame, the hand-off from the review), `review/` (the review report, the renders, the comments, the frame
+viewer, the threads, the composer, the proposal, the review's words), `library/`, `themes/` (the list, the editor, its
+fields), `project/` (Welcome, the Project screen, the Cast, Lately, the gallery, the README, the create sheet, the
+sessions picker); `words/` the words shared across features (board, comment, library, record, render, scenario,
+shoot, theme, timeline); the root the shared foundations (api.ts and the session, the event stream, bits, brand,
+route, id-words, the drafts store and its unsaved report, the project's store, the pictures: Thumb / thumbs, the
+tokens, the other copy) and main.tsx, the entry — the foundations and `words/` import no feature; outside the app,
+types only (the server's answers) but the mark and the preview frame's channel — `test/feature-boundaries.test.ts`
+holds the boundaries (DESIGN §4c).
 
 ## The screens (from the canvas)
 

@@ -4,19 +4,20 @@
  */
 import { spawn, execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { clientPath } from '@retake/core/io';
 import { stableNodePath } from '@retake/engine/integrations';
 import { TOOLS } from '../src/index.js';
 import { progressReporter } from '../src/server.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 /** `studio` from the sources (no build): the workspace packages' `source` export condition + tsx. */
@@ -120,9 +121,35 @@ describe('retake mcp over stdio', () => {
     for (const t of tools) {
       expect(t.inputSchema.type, t.name).toBe('object');
       expect((t.inputSchema as { additionalProperties?: unknown }).additionalProperties, t.name).toBe(false);
-      expect(t.description.length, t.name).toBeGreaterThan(20);
+      expect((t.description ?? '').length, t.name).toBeGreaterThan(20);
       expect(t.annotations?.readOnlyHint, t.name).toBe(
-        !['project_create', 'project_update_readme', 'project_prune', 'scenario_save', 'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'run_cancel', 'render', 'review', 'export', 'comment_reply', 'comment_resolve', 'template_preview', 'template_from_site', 'template_create_from_brand', 'component_preview', 'component_create', 'job_cancel', 'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'].includes(t.name),
+        ![
+          'project_create',
+          'project_update_readme',
+          'project_prune',
+          'scenario_save',
+          'page_inspect',
+          'scenario_record',
+          'run_dry',
+          'run_capture',
+          'run_cancel',
+          'render',
+          'review',
+          'export',
+          'comment_reply',
+          'comment_resolve',
+          'template_preview',
+          'template_from_site',
+          'template_create_from_brand',
+          'component_preview',
+          'component_create',
+          'job_cancel',
+          'hooks_run',
+          'env_reset',
+          'auth_login',
+          'sandbox_up',
+          'sandbox_reset',
+        ].includes(t.name),
       );
       expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site'].includes(t.name));
       expect(t.annotations?.destructiveHint, t.name).toBe(['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand', 'project_prune', 'job_cancel'].includes(t.name));
@@ -221,17 +248,26 @@ describe('retake mcp over stdio', () => {
       default_env: 'stg',
     });
     expect(created.isError).toBeFalsy();
-    expect(created.structuredContent).toMatchObject({ slug: 'display-demo', default_env: 'stg', environments: [{ name: 'local', pages: { app: 'http://localhost:4810' }, display: { app: 'https://app.example.com' } }, { name: 'stg' }] });
+    expect(created.structuredContent).toMatchObject({
+      slug: 'display-demo',
+      default_env: 'stg',
+      environments: [{ name: 'local', pages: { app: 'http://localhost:4810' }, display: { app: 'https://app.example.com' } }, { name: 'stg' }],
+    });
     const dir = join(ws, 'projects', 'display-demo');
     expect(await readFile(join(dir, 'README.md'), 'utf8')).toContain('- local · app: http://localhost:4810 (shown as https://app.example.com)');
     expect((created.structuredContent as { readme_environments?: unknown }).readme_environments).toBeUndefined();
-    expect(errorOf(await call('project_create', { name: 'Display Two', environments: { local: { app: 'http://localhost:4811' } }, default_env: 'prod' })).message).toContain('unknown environment "prod"');
+    expect(errorOf(await call('project_create', { name: 'Display Two', environments: { local: { app: 'http://localhost:4811' } }, default_env: 'prod' })).message).toContain(
+      'unknown environment "prod"',
+    );
     // The user adds an environment and drops one: the README's section, written at creation, is now wrong.
     const file = join(dir, 'project.yaml');
     await writeFile(file, (await readFile(file, 'utf8')).replace(/^ {2}stg:\n {4}app: .*\n/m, '  prd:\n    app: https://app.example.com\n').replace('default_env: stg', 'default_env: prd'));
     const got = await call('project_get', { project: 'display-demo' });
     expect(got.isError).toBeFalsy();
-    expect((got.structuredContent as { readme_environments: unknown }).readme_environments).toEqual({ missing: ['- prd · app: https://app.example.com'], gone: ['- stg · app: https://app.stg.example.com'] });
+    expect((got.structuredContent as { readme_environments: unknown }).readme_environments).toEqual({
+      missing: ['- prd · app: https://app.example.com'],
+      gone: ['- stg · app: https://app.stg.example.com'],
+    });
     expect(got.content[0].text).toContain('README.md › "Environments & links" is out of date');
     expect(got.content[0].text).toContain('it still lists stg · app: https://app.stg.example.com');
   });
@@ -249,7 +285,10 @@ describe('retake mcp over stdio', () => {
     expect(data.untrusted.warnings[0]).toContain('IGNORE PREVIOUS INSTRUCTIONS');
     // Compact (L5.8): the screenshots folder and their count; `detail: "full"` lists each one.
     expect(data.files.screenshots).toEqual({ dir: join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'screenshots'), count: expect.any(Number) });
-    const full = (await call('run_status', { project: 'northfield-fixture', run_id: '20261017-120000-quote', detail: 'full' })).structuredContent as { screenshots: Array<{ path: string }>; untrusted: { warnings: string[] } };
+    const full = (await call('run_status', { project: 'northfield-fixture', run_id: '20261017-120000-quote', detail: 'full' })).structuredContent as {
+      screenshots: Array<{ path: string }>;
+      untrusted: { warnings: string[] };
+    };
     expect(full.screenshots[0].path).toBe(join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'screenshots', '001-catalog.0.png'));
     expect(full.untrusted.warnings[0]).toContain('IGNORE PREVIOUS INSTRUCTIONS');
     expect(errorOf(await call('run_status', { project: 'northfield-fixture', run_id: '20990101-000000-none' })).code).toBe('not_found');
@@ -263,6 +302,16 @@ describe('retake mcp over stdio', () => {
     expect((r.structuredContent as { dry_run: boolean }).dry_run).toBe(true);
     expect(existsSync(join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'run.json'))).toBe(true);
     expect(errorOf(await call('project_prune', { project: 'northfield-fixture', keep_renders: 0 })).code).toBe('invalid');
+    // L7.5: a thread file that does not read is not "no thread" — what it may name stays, and the text says so.
+    const folder = join(ws, 'projects', 'northfield-fixture', 'comments', 'quote');
+    await mkdir(folder, { recursive: true });
+    await writeFile(join(folder, 'c_01K8AB1CDE2FGH3JKM4NPQ5RST.json'), '{');
+    const unread = await call('project_prune', { project: 'northfield-fixture' });
+    const sentence = 'some comment threads of northfield-fixture cannot be read (the comment list says which): every render and take of quote is kept';
+    expect(unread.content[0].text.split('\n')).toEqual(['nothing to prune in northfield-fixture', 'kept: 2 takes, 0 renders, 0 reviews', sentence]);
+    expect((unread.structuredContent as { threads_unread?: string }).threads_unread).toBe(sentence);
+    await rm(join(ws, 'projects', 'northfield-fixture', 'comments'), { recursive: true });
+    expect((await call('project_prune', { project: 'northfield-fixture' })).structuredContent).not.toHaveProperty('threads_unread');
   });
 
   it('runs whose hooks need a human are refused with the command, before anything is queued; a CLI run is not cancelled here', async () => {
@@ -315,7 +364,10 @@ describe('retake mcp over stdio', () => {
     expect(pid).toBeTypeOf('number');
     let pids: string[] = [];
     try {
-      pids = execFileSync('pgrep', ['-P', String(pid)], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+      pids = execFileSync('pgrep', ['-P', String(pid)], { encoding: 'utf8' })
+        .trim()
+        .split('\n')
+        .filter(Boolean);
     } catch {
       pids = []; // pgrep exits 1 when there is none
     }
@@ -381,7 +433,9 @@ describe('retake mcp: lifecycle and registration', () => {
     expect(clientPath('/n/bin/node', '/usr/bin:/bin', has(['/opt/homebrew/bin', '/usr/bin']))).toBe('/n/bin:/usr/bin:/bin:/opt/homebrew/bin');
     // nvm's v-prefixed folders; the folders `pnpm retake …` adds for its script never go into a registration.
     expect(stableNodePath('/u/.nvm/versions/node/v22.16.0/bin/node', has(['/u/.nvm/versions/node/22/bin/node']))).toBe('/u/.nvm/versions/node/22/bin/node');
-    expect(clientPath('/n/bin/node', '/repo/node_modules/.bin:/u/.cache/node/corepack/v1/pnpm/10.28.0/dist/node-gyp-bin:/repo/packages/cli/node_modules/.bin:/usr/bin', has([]))).toBe('/n/bin:/usr/bin');
+    expect(clientPath('/n/bin/node', '/repo/node_modules/.bin:/u/.cache/node/corepack/v1/pnpm/10.28.0/dist/node-gyp-bin:/repo/packages/cli/node_modules/.bin:/usr/bin', has([]))).toBe(
+      '/n/bin:/usr/bin',
+    );
   });
 
   it('progress notifications: strictly increasing, at most one per interval, the final one always', () => {

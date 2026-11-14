@@ -1,4 +1,4 @@
-import type { ScrollArgs } from '@retake/core';
+import type { ScrollArgs } from '@retake/core/model';
 import { StepError } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { Resolved } from '../resolve.js';

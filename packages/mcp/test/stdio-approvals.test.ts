@@ -12,8 +12,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { readWorkerLock } from '@retake/engine';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const SOURCE_ARGS = ['--conditions=source', '--import', 'tsx', BIN];
@@ -81,12 +82,17 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     home = join(ws, '.home');
     await fixtureWorkspace(ws);
     const project = join(ws, 'projects', 'northfield-fixture');
-    const yaml = (await readFile(join(project, 'project.yaml'), 'utf8'))
-      .replaceAll('http://localhost:4401', fixture.urls.console)
-      .replaceAll('http://localhost:4402', fixture.urls.shop);
+    const yaml = (await readFile(join(project, 'project.yaml'), 'utf8')).replaceAll('http://localhost:4401', fixture.urls.console).replaceAll('http://localhost:4402', fixture.urls.shop);
     await writeFile(join(project, 'project.yaml'), yaml);
     await mkdir(join(project, 'hooks'), { recursive: true });
     await writeFile(join(project, 'hooks', 'post.yaml'), `- name: post\n  shell: {run: "curl -s -X POST ${fixture.urls.console}/api/reset"}\n  writes: false\n`);
+    // L7.15: a dry run whose setup hook runs a shell command (run_dry hooks: "run" needs a human for it), twice.
+    for (const n of ['say-accept', 'say-decline']) {
+      await writeFile(
+        join(project, 'scenarios', `${n}.yaml`),
+        `setup:\n  - name: say\n    shell: {run: "echo hello"}\nvideo: ${n}\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n`,
+      );
+    }
   });
 
   afterAll(async () => {
@@ -109,7 +115,9 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     expect(r.isError, JSON.stringify(r)).toBeFalsy();
     expect(asked).toEqual([]);
     expect(r.structuredContent).toMatchObject({ state: 'succeeded', input: { kind: 'hooks', dry: true }, result: { kind: 'hooks', dry: true, ok: true } });
-    expect(r.content[0].text).toContain('2. free-registry-ref (free-registry-ref: http DELETE {{console}}/api/products/finca-quenaro/refs): checked, not executed — needs a human approval to run: HTTP DELETE');
+    expect(r.content[0].text).toContain(
+      '2. free-registry-ref (free-registry-ref: http DELETE {{console}}/api/products/finca-quenaro/refs): checked, not executed — needs a human approval to run: HTTP DELETE',
+    );
     expect(r.content[0].text).toContain('A real run (dry: false) asks the user to approve the hooks marked above.');
   });
 
@@ -126,7 +134,11 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     expect(msg).toContain('"confirm: true" in a file written through MCP does not count');
     expect(msg).toContain(`retake -C ${ws} hooks run northfield-fixture catalogue:setup`);
     expect(asked[0].requestedSchema).toMatchObject({ type: 'object', properties: { approve: { type: 'boolean' } }, required: ['approve'] });
-    const job = r.structuredContent as { state: string; input: { approvals: Array<{ by: string }> }; result: { ok: boolean; results: Array<{ name: string; status: string }>; journal: { pending: number } } };
+    const job = r.structuredContent as {
+      state: string;
+      input: { approvals: Array<{ by: string }> };
+      result: { ok: boolean; results: Array<{ name: string; status: string }>; journal: { pending: number } };
+    };
     expect(job.state).toBe('succeeded');
     expect(job.input.approvals).toEqual([expect.objectContaining({ by: 'human-elicitation' })]);
     expect(job.result.results.map((x) => [x.name, x.status])).toEqual([
@@ -174,7 +186,7 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     const r = await call(client, 'env_reset', { project: 'northfield-fixture', dry: false, wait_s: 25 });
     expect(r.isError, JSON.stringify(r)).toBeFalsy();
     expect(asked).toEqual([]);
-    const res = (r.structuredContent as { state: string; result: { ok: boolean; rollbacks: Array<{ results: Array<{ status: string }> }>; reset: Array<{ name: string; status: string }> } });
+    const res = r.structuredContent as { state: string; result: { ok: boolean; rollbacks: Array<{ results: Array<{ status: string }> }>; reset: Array<{ name: string; status: string }> } };
     expect(res.state).toBe('succeeded');
     expect(res.result.ok).toBe(true);
     expect(res.result.rollbacks.flatMap((j) => j.results.map((x) => x.status))).toEqual(['ok']);
@@ -187,7 +199,26 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     const runs = join(ws, 'projects', 'northfield-fixture', 'runs');
     const take = join(runs, '20261018-080000-quote');
     await mkdir(take, { recursive: true });
-    await writeFile(join(take, 'run.json'), JSON.stringify({ version: 1, id: '20261018-080000-quote', project: 'northfield-fixture', scenario: 'quote', mode: 'capture', status: 'failed', started_at: '2026-10-18T08:00:00.000Z', dir: take, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 0, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }));
+    await writeFile(
+      join(take, 'run.json'),
+      JSON.stringify({
+        version: 1,
+        id: '20261018-080000-quote',
+        project: 'northfield-fixture',
+        scenario: 'quote',
+        mode: 'capture',
+        status: 'failed',
+        started_at: '2026-10-18T08:00:00.000Z',
+        dir: take,
+        env: 'local',
+        options: { hooks: 'run', headed: false },
+        steps_total: 1,
+        steps_done: 0,
+        screenshots: [],
+        hooks: { setup: 'none', teardown: 'none' },
+        warnings: [],
+      }),
+    );
     const left = async () => (await readdir(runs)).filter((n) => n.startsWith('2026')).sort();
     const before = await left();
     expect(before).toContain('20261018-080000-quote');
@@ -207,5 +238,36 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     expect(r.content[0].text).toMatch(/^2 items of northfield-fixture deleted \(\d+ kB freed\), as the user approved/);
     expect(await left()).toEqual(before.filter((n) => n !== '20261018-080000-quote' && n !== '20261017-120000-quote'));
     expect(protocolErrors).toEqual([]);
+  });
+
+  it("run_dry {hooks: 'run'} and run_capture: the client's user is asked once and the run is queued with the approval; a decline queues nothing (L7.15; last: its run folder would count for project_prune)", async () => {
+    const yes = await connect('accept');
+    const r = await call(yes.client, 'run_dry', { project: 'northfield-fixture', scenario: 'say-accept', hooks: 'run', wait_s: 0 });
+    expect(r.isError, JSON.stringify(r)).toBeFalsy();
+    expect(yes.asked).toHaveLength(1);
+    expect(yes.asked[0].message).toContain('setup hook 1 "say"');
+    const jobId = /\(job (j_[0-9A-Z]{26})\)/.exec(r.content[0].text)![1]!;
+    const job = (await call(yes.client, 'job_status', { job_id: jobId })).structuredContent as { input: { kind: string; approvals?: Array<{ by: string }> } };
+    expect(job.input.kind).toBe('run');
+    expect(job.input.approvals).toEqual([expect.objectContaining({ by: 'human-elicitation' })]);
+    await call(yes.client, 'job_cancel', { job_id: jobId });
+    const no = await connect('decline');
+    const before = ((await call(no.client, 'job_list', {})).structuredContent as { jobs: unknown[] }).jobs.length;
+    const e = errorOf(await call(no.client, 'run_dry', { project: 'northfield-fixture', scenario: 'say-decline', hooks: 'run', wait_s: 0 }));
+    expect(no.asked).toHaveLength(1);
+    expect(e.code).toBe('refused');
+    expect(e.message).toContain('the user declined');
+    expect(e.fix).toBe(`retake -C ${ws} run northfield-fixture say-decline --dry --hooks run`);
+    expect(((await call(no.client, 'job_list', {})).structuredContent as { jobs: unknown[] }).jobs.length).toBe(before);
+    // run_capture takes the same approver: asked once, queued with the approval.
+    const cap = await connect('accept');
+    const c = await call(cap.client, 'run_capture', { project: 'northfield-fixture', scenario: 'say-decline' });
+    expect(c.isError, JSON.stringify(c)).toBeFalsy();
+    expect(cap.asked).toHaveLength(1);
+    const capJob = /\(job (j_[0-9A-Z]{26})\)/.exec(c.content[0].text)![1]!;
+    const cj = (await call(cap.client, 'job_status', { job_id: capJob })).structuredContent as { input: { mode: string; approvals?: Array<{ by: string }> } };
+    expect(cj.input.mode).toBe('capture');
+    expect(cj.input.approvals).toEqual([expect.objectContaining({ by: 'human-elicitation' })]);
+    await call(cap.client, 'job_cancel', { job_id: capJob });
   });
 });

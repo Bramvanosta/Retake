@@ -7,7 +7,8 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": { "source": "./src/index.ts", "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./thumbs": { "source": "./src/thumbs.ts", "types": "./dist/thumbs.d.ts", "default": "./dist/thumbs.js" }
+    "./thumbs": { "source": "./src/thumbs.ts", "types": "./dist/thumbs.d.ts", "default": "./dist/thumbs.js" },
+    "./checks": { "source": "./src/checks-entry.ts", "types": "./dist/checks-entry.d.ts", "default": "./dist/checks-entry.js" }
   },
   "files": ["dist", "src"],
   "dependencies": {

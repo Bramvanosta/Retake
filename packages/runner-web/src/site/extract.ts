@@ -40,8 +40,10 @@ import { isIP } from 'node:net';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page, Response, Route } from 'playwright-core';
-import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, SITE_RESERVED_SUFFIXES } from '@retake/core';
-import type { BrowserConfig, SiteTestTarget, WorkPolicy } from '@retake/core';
+import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, SITE_RESERVED_SUFFIXES } from '@retake/core/theme';
+import type { BrowserConfig } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { SiteTestTarget } from '@retake/core/theme';
 import { CancelledError, RunnerError } from '../errors.js';
 import { launchOptions, refuseUnsandboxed } from '../launch.js';
 import { DEFAULT_BROWSER_ARGS, launchTarget } from '../session.js';
@@ -254,7 +256,10 @@ export function requestUrlProblem(raw: string, testHosts: ReadonlyMap<string, un
   return null;
 }
 
-const HEADERS = { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8' };
+const HEADERS = {
+  'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+  accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+};
 
 /** One GET of a top-level hop on the checked address (pinned: the name is not resolved again); its status and Location. */
 async function hop(proxy: SiteProxy, url: string, signal?: AbortSignal): Promise<{ status: number; location?: string }> {
@@ -339,7 +344,12 @@ async function evaluateIsolated<T>(page: Page, fn: (cfg: never) => T, cfg: unkno
   try {
     const { frameTree } = (await cdp.send('Page.getFrameTree')) as { frameTree: { frame: { id: string } } };
     const { executionContextId } = (await cdp.send('Page.createIsolatedWorld', { frameId: frameTree.frame.id, worldName: WORLD, grantUniveralAccess: false })) as { executionContextId: number };
-    const r = (await cdp.send('Runtime.evaluate', { contextId: executionContextId, expression: `(() => { var __name = (f) => f; return (${fn.toString()})(${JSON.stringify(cfg)}); })()`, returnByValue: true, awaitPromise: true })) as {
+    const r = (await cdp.send('Runtime.evaluate', {
+      contextId: executionContextId,
+      expression: `(() => { var __name = (f) => f; return (${fn.toString()})(${JSON.stringify(cfg)}); })()`,
+      returnByValue: true,
+      awaitPromise: true,
+    })) as {
       result: { value?: T };
       exceptionDetails?: { exception?: { description?: string }; text?: string };
     };
@@ -424,7 +434,14 @@ export async function extractSite(o: SiteExtractOptions): Promise<SiteReport> {
     stopped(stop.signal);
 
     o.onPhase?.('loading');
-    browser = await chromium.launch({ ...launchTarget(o.browser, { policy: o.policy }), headless: true, handleSIGINT: false, handleSIGTERM: false, handleSIGHUP: false, ...launchOptions({ args: siteBrowserArgs(port), policy: o.policy }) });
+    browser = await chromium.launch({
+      ...launchTarget(o.browser, { policy: o.policy }),
+      headless: true,
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      handleSIGHUP: false,
+      ...launchOptions({ args: siteBrowserArgs(port), policy: o.policy }),
+    });
     const launched = browser;
     await refuseUnsandboxed(launched, () => launched.close(), 'The extraction browser');
     stopped(stop.signal);
@@ -550,7 +567,9 @@ export async function extractSite(o: SiteExtractOptions): Promise<SiteReport> {
     report.untrusted.fonts = {
       display: families(facts.fonts.display),
       body: families(facts.fonts.body),
-      faces: facts.faces.slice(0, 40).map((f) => ({ family: String(f.family).slice(0, 200), weight: String(f.weight).slice(0, 40), style: String(f.style).slice(0, 40), status: String(f.status).slice(0, 20) })),
+      faces: facts.faces
+        .slice(0, 40)
+        .map((f) => ({ family: String(f.family).slice(0, 200), weight: String(f.weight).slice(0, 40), style: String(f.style).slice(0, 40), status: String(f.status).slice(0, 20) })),
     };
     stopped(stop.signal);
 
@@ -617,7 +636,10 @@ export async function extractSite(o: SiteExtractOptions): Promise<SiteReport> {
       const mime = b ? imageMime(b) : null;
       if (!b || !mime) continue;
       const src = `data:${mime};base64,${b.toString('base64')}`;
-      await call(rp.setContent(`<!doctype html><html><head><style>html,body{margin:0;background:transparent}img{display:block}</style></head><body><img id="i" alt=""></body></html>`), 'drawing a logo candidate');
+      await call(
+        rp.setContent(`<!doctype html><html><head><style>html,body{margin:0;background:transparent}img{display:block}</style></head><body><img id="i" alt=""></body></html>`),
+        'drawing a logo candidate',
+      );
       const loaded = await call(
         rp.evaluate(async (s: string) => {
           const i = document.getElementById('i') as HTMLImageElement;
@@ -683,7 +705,7 @@ export async function extractSite(o: SiteExtractOptions): Promise<SiteReport> {
         `the page redirects to another host (its URL is the last of untrusted.redirect_chain): only ${o.host} and its www / apex sibling are read — that URL is extracted only once the user approves it (template_from_site with it)`,
       );
     }
-    report.untrusted.error = (why instanceof ProxyRefusalError ? why.message : (why as Error).message ?? String(why)).split('\n')[0].slice(0, 500);
+    report.untrusted.error = (why instanceof ProxyRefusalError ? why.message : ((why as Error).message ?? String(why))).split('\n')[0].slice(0, 500);
     log(`site extraction of ${o.host} failed: ${report.untrusted.error}`);
   } finally {
     clearTimeout(deadline);

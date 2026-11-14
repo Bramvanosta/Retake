@@ -1,5 +1,7 @@
-import { LOCAL_HOSTS, allowedHosts, hostRefusalMessage, isHostAllowed, normalizeAllowEntry, normalizeHost, protectedBy, protectedHostMessage, shellHostRefs } from '@retake/core';
-import type { HookAccess, LoadedProject } from '@retake/core';
+import { LOCAL_HOSTS, allowedHosts, hostRefusalMessage, isHostAllowed, normalizeAllowEntry, normalizeHost, protectedBy, protectedHostMessage } from '@retake/core/environment';
+import { shellHostRefs } from '@retake/core/hooks';
+import type { LoadedProject } from '@retake/core/model';
+import type { HookAccess } from '@retake/core/environment';
 
 /** The pure allow-list helpers live in @retake/core (project validation uses them too). */
 export { LOCAL_HOSTS, allowedHosts, isHostAllowed, normalizeAllowEntry, normalizeHost };
@@ -42,12 +44,7 @@ export function checkHostAllowed(url: string, project: Pick<LoadedProject, 'conf
  * `$VARS` expanded from `vars` — the environment sh gets —, database-client hosts and PGHOST, ssh / scp / rsync
  * destinations, the hook's own `env` values), or a host computed when it runs (`$(…)`, backticks).
  */
-export function checkShellHosts(
-  cmd: string,
-  vars: NodeJS.ProcessEnv,
-  env: Record<string, string> | undefined,
-  project: Pick<LoadedProject, 'config'> & { slug?: string },
-): void {
+export function checkShellHosts(cmd: string, vars: NodeJS.ProcessEnv, env: Record<string, string> | undefined, project: Pick<LoadedProject, 'config'> & { slug?: string }): void {
   for (const ref of shellHostRefs(cmd, { vars, env })) {
     if (ref.unresolved) {
       throw new HookSecurityError(`refusing a shell command whose host is computed at run time (${ref.via}): write the host, or use an http hook`, 'host');

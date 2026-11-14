@@ -110,7 +110,22 @@ describe('retake doctor (mocked environment)', () => {
     const r = await doctor(macProbes(), { project: 'acme' });
     await rm(prodProfile, { recursive: true });
     expect(r.code, r.err).toBe(EXIT.ok);
-    for (const name of ['Node.js', 'Chromium', 'Chromium sandbox', 'GPU', 'ffmpeg', 'ffprobe', 'Capture encoder', 'Display', 'Secrets', 'Notifications', 'Docker', 'Workspace', 'Template default', 'Project acme']) {
+    for (const name of [
+      'Node.js',
+      'Chromium',
+      'Chromium sandbox',
+      'GPU',
+      'ffmpeg',
+      'ffprobe',
+      'Capture encoder',
+      'Display',
+      'Secrets',
+      'Notifications',
+      'Docker',
+      'Workspace',
+      'Template default',
+      'Project acme',
+    ]) {
       expect(r.err).toMatch(new RegExp(`OK +${name.replace('.', '\\.')} `));
     }
     expect(r.err).toContain('141.0.7390.37');
@@ -132,7 +147,8 @@ describe('retake doctor (mocked environment)', () => {
     const { code, checks: list } = await checks(
       macProbes({
         chromium: probe,
-        exec: async (cmd, args) => (cmd === '/opt/media/bin/ffmpeg' && args.includes('h264_videotoolbox') ? { code: 1, stdout: '', stderr: 'Unknown encoder h264_videotoolbox\n' } : macProbes().exec(cmd, args, 1000)),
+        exec: async (cmd, args) =>
+          cmd === '/opt/media/bin/ffmpeg' && args.includes('h264_videotoolbox') ? { code: 1, stdout: '', stderr: 'Unknown encoder h264_videotoolbox\n' } : macProbes().exec(cmd, args, 1000),
       }),
     );
     expect(code).toBe(EXIT.ok);
@@ -141,7 +157,11 @@ describe('retake doctor (mocked environment)', () => {
       detail: 'the capture browser renders in software · ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device)) · in software: gpu_compositing, rasterization',
       hint: expect.stringContaining('choppy'),
     });
-    expect(byName(list, 'Capture encoder')).toMatchObject({ status: 'warn', detail: expect.stringContaining('Unknown encoder h264_videotoolbox'), hint: expect.stringContaining('brew install ffmpeg') });
+    expect(byName(list, 'Capture encoder')).toMatchObject({
+      status: 'warn',
+      detail: expect.stringContaining('Unknown encoder h264_videotoolbox'),
+      hint: expect.stringContaining('brew install ffmpeg'),
+    });
     // A Chromium that did not launch has no GPU line; Linux encodes with libx264.
     const down = await checks(macProbes({ chromium: async () => ({ path: '/c/Chromium', source: 'playwright', exists: true, launched: false, error: 'boom' }) }));
     expect(down.checks.some((c) => c.name === 'GPU')).toBe(false);
@@ -150,7 +170,16 @@ describe('retake doctor (mocked environment)', () => {
   });
 
   it("the capture browser's sandbox, read from its own command line: on, off through a wrapper executable, not reported", async () => {
-    const at = (over: Partial<ChromiumProbe>) => async (): Promise<ChromiumProbe> => ({ path: '/c/Chromium', source: 'playwright', exists: true, launched: true, version: '141', ms: 500, gpu: { accelerated: true }, ...over });
+    const at = (over: Partial<ChromiumProbe>) => async (): Promise<ChromiumProbe> => ({
+      path: '/c/Chromium',
+      source: 'playwright',
+      exists: true,
+      launched: true,
+      version: '141',
+      ms: 500,
+      gpu: { accelerated: true },
+      ...over,
+    });
     const on = await checks(macProbes({ chromium: at({ sandbox: { on: true, off: [] } }) }));
     expect(byName(on.checks, 'Chromium sandbox')).toMatchObject({ status: 'ok', detail: "on · read from the capture browser's command line" });
     const wrapped = await checks(macProbes({ chromium: at({ source: 'RETAKE_CHROMIUM', sandbox: { on: false, off: ['--no-sandbox'] } }) }));
@@ -211,7 +240,7 @@ describe('retake doctor (mocked environment)', () => {
     expect(byName(missing.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringContaining('playwright-core install chromium') });
   });
 
-  it('Docker (L1.8): missing, too old or stopped is a warning — a failure only when the --project\'s default sandbox is a docker-compose one (I6)', async () => {
+  it("Docker (L1.8): missing, too old or stopped is a warning — a failure only when the --project's default sandbox is a docker-compose one (I6)", async () => {
     const noDocker = macProbes({ which: (c) => (c === 'docker' ? null : `/usr/bin/${c}`), exists: () => false });
     // Not on PATH: the places the sandbox package looks in too — OrbStack's xbin among them (K10).
     const xbin = '/Applications/OrbStack.app/Contents/MacOS/xbin/docker';
@@ -226,14 +255,17 @@ describe('retake doctor (mocked environment)', () => {
       detail: 'not found — only needed by docker-compose sandboxes',
       hint: expect.stringContaining('Docker Desktop or OrbStack'),
     });
-    const answer = (over: Record<string, ExecResult>) =>
-      macProbes({ exec: async (cmd, args) => over[args.join(' ').split(' ').slice(0, 2).join(' ')] ?? (await dockerAnswers(cmd, args)) });
+    const answer = (over: Record<string, ExecResult>) => macProbes({ exec: async (cmd, args) => over[args.join(' ').split(' ').slice(0, 2).join(' ')] ?? (await dockerAnswers(cmd, args)) });
     expect(byName((await checks(answer({ 'compose version': { code: 0, stdout: '2.12.0', stderr: '' } }))).checks, 'Docker')).toMatchObject({
       status: 'warn',
       detail: expect.stringContaining('Compose 2.12.0 (needs 2.17.0+)'),
     });
     const stopped = answer({ 'info --format': { code: 1, stdout: '', stderr: 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock.' } });
-    expect(byName((await checks(stopped)).checks, 'Docker')).toMatchObject({ status: 'warn', detail: expect.stringMatching(/^Compose 2\.29\.1, but the daemon is not running \(Cannot connect/), hint: 'start Docker Desktop or OrbStack' });
+    expect(byName((await checks(stopped)).checks, 'Docker')).toMatchObject({
+      status: 'warn',
+      detail: expect.stringMatching(/^Compose 2\.29\.1, but the daemon is not running \(Cannot connect/),
+      hint: 'start Docker Desktop or OrbStack',
+    });
     // A project with a docker-compose sandbox needs it.
     const dir = join(ws, 'projects', 'boxed');
     await mkdir(join(dir, 'sandbox'), { recursive: true });
@@ -247,12 +279,21 @@ describe('retake doctor (mocked environment)', () => {
       expect(byName((await checks(macProbes(), 'boxed')).checks, 'Docker').status).toBe('ok');
       // A process sandbox first (the default one), the docker-compose one optional — the fixture's layout: a warning.
       await mkdir(join(dir, 'sandbox', 'local'), { recursive: true });
-      await writeFile(join(dir, 'sandbox', 'local', 'sandbox.yaml'), 'version: 1\nprovider: process\nservices:\n  app: {command: x, url: "http://localhost:4610", pages: {app: "http://localhost:4610"}}\n');
+      await writeFile(
+        join(dir, 'sandbox', 'local', 'sandbox.yaml'),
+        'version: 1\nprovider: process\nservices:\n  app: {command: x, url: "http://localhost:4610", pages: {app: "http://localhost:4610"}}\n',
+      );
       await writeFile(join(dir, 'project.yaml'), 'name: Boxed\nenvironments:\n  local: {app: "http://localhost:9"}\nsandboxes: {box: sandbox/local/sandbox.yaml, demo: sandbox/sandbox.yaml}\n');
       const optional = await checks(stopped, 'boxed');
-      expect(byName(optional.checks, 'Docker')).toMatchObject({ status: 'warn', detail: expect.stringMatching(/the daemon is not running .* — needed by the docker-compose sandbox demo of project boxed$/) });
+      expect(byName(optional.checks, 'Docker')).toMatchObject({
+        status: 'warn',
+        detail: expect.stringMatching(/the daemon is not running .* — needed by the docker-compose sandbox demo of project boxed$/),
+      });
       // default_env naming the docker-compose one makes it the default sandbox again.
-      await writeFile(join(dir, 'project.yaml'), 'name: Boxed\nenvironments:\n  local: {app: "http://localhost:9"}\nsandboxes: {box: sandbox/local/sandbox.yaml, demo: sandbox/sandbox.yaml}\ndefault_env: demo\n');
+      await writeFile(
+        join(dir, 'project.yaml'),
+        'name: Boxed\nenvironments:\n  local: {app: "http://localhost:9"}\nsandboxes: {box: sandbox/local/sandbox.yaml, demo: sandbox/sandbox.yaml}\ndefault_env: demo\n',
+      );
       expect(byName((await checks(stopped, 'boxed')).checks, 'Docker').status).toBe('fail');
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -279,6 +320,87 @@ describe('retake doctor (mocked environment)', () => {
     expect(byName(unknown.checks, 'Project nope')).toMatchObject({ status: 'fail' });
   });
 
+  it('the lines come in display order, one check each (L7.29): the machine, the workspace and its themes, then the project, its browser, its profiles, its hosts', async () => {
+    const dir = join(ws, 'projects', 'ordered');
+    await mkdir(join(dir, 'scenarios'), { recursive: true });
+    await writeFile(
+      join(dir, 'project.yaml'),
+      [
+        'name: Ordered',
+        'environments:',
+        '  staging: {app: "https://app.staging.example.com"}',
+        '  prod: {app: "https://app.example.com"}',
+        'browser: {executable: ./tools/chrome}',
+        'auth:',
+        `  staging: {profile: ${JSON.stringify(profile)}}`,
+        '',
+      ].join('\n'),
+    );
+    try {
+      const { checks: list } = await checks(macProbes(), 'ordered');
+      const names = list.map((c) => c.name);
+      const themes = names.filter((n) => n.startsWith('Template '));
+      expect(themes.length).toBeGreaterThan(0);
+      expect(names).toEqual([
+        'Node.js',
+        'Chromium',
+        'Chromium sandbox',
+        'GPU',
+        'ffmpeg',
+        'ffprobe',
+        'Capture encoder',
+        'Display',
+        'Secrets',
+        'Notifications',
+        'Docker',
+        'Workspace',
+        ...themes,
+        'MCP',
+        'Project ordered',
+        'Project ordered: Studio and MCP jobs',
+        'Profile (staging)',
+        'Host staging·app',
+        'Host prod·app',
+      ]);
+      // A project with a profile and no persona has no "none configured" line; one with neither has it, after its browser.
+      await writeFile(join(dir, 'project.yaml'), ['name: Ordered', 'environments:', '  staging: {app: "https://app.staging.example.com"}', 'browser: {executable: ./tools/chrome}', ''].join('\n'));
+      const bare = (await checks(macProbes(), 'ordered')).checks.map((c) => c.name);
+      expect(bare.slice(bare.indexOf('Project ordered'))).toEqual(['Project ordered', 'Project ordered: Studio and MCP jobs', 'Profile', 'Host staging·app']);
+      expect(byName((await checks(macProbes(), 'ordered')).checks, 'Profile')).toMatchObject({ status: 'ok', detail: 'none configured (a fresh temporary profile per run)' });
+      // A damaged app bundle: its line right after Node.js.
+      const damaged = (await checks(macProbes({ bundleProblems: () => ['manifest unreadable'] }))).checks.map((c) => c.name);
+      expect(damaged.slice(0, 3)).toEqual(['Node.js', 'App bundle', 'Chromium']);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('projects or themes that cannot be listed: a failure saying why, never "no projects" or "no themes"', async () => {
+    const broken = await mkdtemp(join(tmpdir(), 'studio-doctor-list-'));
+    try {
+      // A file where the folders should be: listing them fails (ENOTDIR).
+      await writeFile(join(broken, 'projects'), 'not a folder\n');
+      await writeFile(join(broken, 'themes'), 'not a folder\n');
+      await writeFile(join(broken, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: themes\n');
+      const io = memoryIo();
+      const code = await doctorCommand(new Ui(io), { root: broken }, { json: true }, macProbes());
+      const list = (JSON.parse(io.stdout()) as { checks: DoctorCheck[] }).checks;
+      expect(code).toBe(EXIT.failure);
+      expect(byName(list, 'Workspace')).toMatchObject({
+        status: 'fail',
+        detail: expect.stringContaining('the projects cannot be listed: ENOTDIR'),
+        hint: expect.stringContaining(join(broken, 'projects')),
+      });
+      expect(byName(list, 'Templates')).toMatchObject({
+        status: 'fail',
+        detail: expect.stringContaining('the themes cannot be listed: ENOTDIR'),
+        hint: expect.stringContaining(join(broken, 'themes')),
+      });
+    } finally {
+      await rm(broken, { recursive: true, force: true });
+    }
+  });
+
   it('a template whose fonts are missing is a failure', async () => {
     const broken = await mkdtemp(join(tmpdir(), 'studio-doctor-tpl-'));
     try {
@@ -286,7 +408,12 @@ describe('retake doctor (mocked environment)', () => {
       await rm(join(broken, 'templates', 'plain', 'fonts', 'Inter-Bold.ttf'));
       await writeFile(join(broken, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
       const io = memoryIo();
-      const code = await doctorCommand(new Ui(io), { root: broken }, { json: true }, macProbes({ exec: async (cmd) => ({ code: 0, stdout: `${cmd.endsWith('ffprobe') ? 'ffprobe' : 'ffmpeg'} version 7.1\n`, stderr: '' }), which: (c) => `/usr/bin/${c}` }));
+      const code = await doctorCommand(
+        new Ui(io),
+        { root: broken },
+        { json: true },
+        macProbes({ exec: async (cmd) => ({ code: 0, stdout: `${cmd.endsWith('ffprobe') ? 'ffprobe' : 'ffmpeg'} version 7.1\n`, stderr: '' }), which: (c) => `/usr/bin/${c}` }),
+      );
       const list = (JSON.parse(io.stdout()) as { checks: DoctorCheck[] }).checks;
       expect(code).toBe(EXIT.failure);
       expect(byName(list, 'Template plain')).toMatchObject({ status: 'fail', detail: expect.stringContaining('fonts/Inter-Bold.ttf') });
@@ -302,7 +429,9 @@ describe('retake doctor (mocked environment)', () => {
 describe('retake doctor: what jobs of the Studio, the desktop app or an MCP client would refuse; the render browser', () => {
   it('a program inside the workspace or by a relative path, a browser.args entry that is no switch or loads files: one WARN line naming each', () => {
     const ws = { root: '/w', projectsDir: '/w/projects', templatesDir: '/t', componentsDir: '/w/components', ffmpeg: '/w/tools/ffmpeg' };
-    const c = agentJobsCheck({ RETAKE_CHROMIUM: 'chrome/Chromium', RETAKE_FFPROBE: '/usr/bin/ffprobe', RETAKE_DOCKER: '/w/bin/docker', PLAYWRIGHT_BROWSERS_PATH: '/t/browsers' }, ws, { args: ['--lang=fr', '--load-extension=/w/ext', 'https://example.com/'] });
+    const c = agentJobsCheck({ RETAKE_CHROMIUM: 'chrome/Chromium', RETAKE_FFPROBE: '/usr/bin/ffprobe', RETAKE_DOCKER: '/w/bin/docker', PLAYWRIGHT_BROWSERS_PATH: '/t/browsers' }, ws, {
+      args: ['--lang=fr', '--load-extension=/w/ext', 'https://example.com/'],
+    });
     expect(c).toMatchObject({ status: 'warn', name: 'Studio and MCP jobs', hint: expect.stringMatching(/a run typed in a terminal .* is not affected/) });
     expect(c?.detail).toMatch(/^would refuse: \$RETAKE_CHROMIUM \(chrome\/Chromium\) is a relative path/);
     expect(c?.detail).toMatch(/ · `ffmpeg:` of retake\.yaml \(\/w\/tools\/ffmpeg\) lies inside the workspace \(\/w\)/);
@@ -317,7 +446,11 @@ describe('retake doctor: what jobs of the Studio, the desktop app or an MCP clie
   it('no headless shell outside an app: the Render browser line FAILs with the install command (Remotion never downloads its own)', async () => {
     const r = await checks(macProbes({ renderBrowser: () => ({ path: null, source: 'none' }) }));
     expect(r.code).toBe(EXIT.failure);
-    expect(byName(r.checks, 'Render browser')).toMatchObject({ status: 'fail', detail: 'no headless shell: renders do not start', hint: expect.stringContaining('playwright-core install chromium-headless-shell') });
+    expect(byName(r.checks, 'Render browser')).toMatchObject({
+      status: 'fail',
+      detail: 'no headless shell: renders do not start',
+      hint: expect.stringContaining('playwright-core install chromium-headless-shell'),
+    });
   });
 });
 
@@ -328,13 +461,24 @@ describe('retake doctor from an app bundle (L5.16a): every tool line names its s
     manifest: {} as BundleInfo['manifest'],
     paths: { node: '/R/node/bin/node', engine: '/R/engine', browsers: '/R/browsers', ffmpeg: '/R/ffmpeg/bin', templates: '/R/engine/templates', plugin: '/R/plugin' },
   };
-  const appChromium = async (): Promise<ChromiumProbe> => ({ path: '/R/browsers/chromium-1194/chrome-mac/Chromium.app/Contents/MacOS/Chromium', source: 'bundled', exists: true, launched: true, version: '141.0.7390.37', ms: 500, gpu: { accelerated: true }, sandbox: { on: true, off: [] } });
-  const answers = (bins: Record<string, string>) => async (cmd: string, args: string[]): Promise<ExecResult | null> => {
-    const tool = Object.entries(bins).find(([, path]) => path === cmd)?.[0];
-    if (!tool) return dockerAnswers(cmd, args);
-    if (args.includes('h264_videotoolbox')) return { code: 0, stdout: '', stderr: '' };
-    return { code: 0, stdout: `${tool.startsWith('ffprobe') ? 'ffprobe' : 'ffmpeg'} version 9.0.2 Copyright\n`, stderr: '' };
-  };
+  const appChromium = async (): Promise<ChromiumProbe> => ({
+    path: '/R/browsers/chromium-1194/chrome-mac/Chromium.app/Contents/MacOS/Chromium',
+    source: 'bundled',
+    exists: true,
+    launched: true,
+    version: '141.0.7390.37',
+    ms: 500,
+    gpu: { accelerated: true },
+    sandbox: { on: true, off: [] },
+  });
+  const answers =
+    (bins: Record<string, string>) =>
+    async (cmd: string, args: string[]): Promise<ExecResult | null> => {
+      const tool = Object.entries(bins).find(([, path]) => path === cmd)?.[0];
+      if (!tool) return dockerAnswers(cmd, args);
+      if (args.includes('h264_videotoolbox')) return { code: 0, stdout: '', stderr: '' };
+      return { code: 0, stdout: `${tool.startsWith('ffprobe') ? 'ffprobe' : 'ffmpeg'} version 9.0.2 Copyright\n`, stderr: '' };
+    };
   let bare: string;
   beforeAll(async () => {
     bare = await mkdtemp(join(tmpdir(), 'studio-doctor-bundle-'));
@@ -348,7 +492,14 @@ describe('retake doctor from an app bundle (L5.16a): every tool line names its s
   };
 
   it('bundled tools: ffmpeg, ffprobe, Chromium and the render browser say "bundled"', async () => {
-    const r = await run(macProbes({ bundle, chromium: appChromium, exec: answers({ ffmpeg: '/R/ffmpeg/bin/ffmpeg', ffprobe: '/R/ffmpeg/bin/ffprobe' }), renderBrowser: () => ({ path: '/R/browsers/chromium_headless_shell-1194/chrome-mac/headless_shell', source: 'bundled' }) }));
+    const r = await run(
+      macProbes({
+        bundle,
+        chromium: appChromium,
+        exec: answers({ ffmpeg: '/R/ffmpeg/bin/ffmpeg', ffprobe: '/R/ffmpeg/bin/ffprobe' }),
+        renderBrowser: () => ({ path: '/R/browsers/chromium_headless_shell-1194/chrome-mac/headless_shell', source: 'bundled' }),
+      }),
+    );
     expect(byName(r.checks, 'ffmpeg')).toMatchObject({ status: 'ok', detail: '9.0.2 · /R/ffmpeg/bin/ffmpeg · bundled' });
     expect(byName(r.checks, 'ffprobe').detail).toBe('9.0.2 · /R/ffmpeg/bin/ffprobe · bundled');
     expect(byName(r.checks, 'Chromium').detail).toContain(' · bundled · new headless');
@@ -356,7 +507,16 @@ describe('retake doctor from an app bundle (L5.16a): every tool line names its s
   });
 
   it('the order: retake.yaml, then $RETAKE_FFMPEG, then the bundle, then PATH', async () => {
-    const all = { ffmpeg: '/opt/media/bin/ffmpeg', ffprobe: '/opt/media/bin/ffprobe', envff: '/env/ffmpeg', envfp: '/env/ffprobe', bff: '/R/ffmpeg/bin/ffmpeg', bfp: '/R/ffmpeg/bin/ffprobe', pff: '/usr/local/bin/ffmpeg', pfp: '/usr/local/bin/ffprobe' };
+    const all = {
+      ffmpeg: '/opt/media/bin/ffmpeg',
+      ffprobe: '/opt/media/bin/ffprobe',
+      envff: '/env/ffmpeg',
+      envfp: '/env/ffprobe',
+      bff: '/R/ffmpeg/bin/ffmpeg',
+      bfp: '/R/ffmpeg/bin/ffprobe',
+      pff: '/usr/local/bin/ffmpeg',
+      pfp: '/usr/local/bin/ffprobe',
+    };
     const probes = (over: Partial<DoctorProbes>) => macProbes({ chromium: appChromium, exec: answers(all), which: (c) => (c === 'ffmpeg' ? all.pff : c === 'ffprobe' ? all.pfp : null), ...over });
     expect(byName((await run(probes({ bundle, env: { RETAKE_FFMPEG: '/env/ffmpeg' } }), ws)).checks, 'ffmpeg').detail).toMatch(/\/opt\/media\/bin\/ffmpeg · retake\.yaml$/);
     expect(byName((await run(probes({ bundle, env: { RETAKE_FFMPEG: '/env/ffmpeg' } }))).checks, 'ffmpeg').detail).toMatch(/\/env\/ffmpeg · \$RETAKE_FFMPEG$/);
@@ -365,12 +525,14 @@ describe('retake doctor from an app bundle (L5.16a): every tool line names its s
   });
 
   it('a damaged app: FAIL with "reinstall Retake", never a pnpm / brew command', async () => {
-    const r = await run(macProbes({
-      bundle,
-      exec: async () => null,
-      chromium: async () => ({ path: '/R/browsers/chromium-1194/x/Chromium', source: 'bundled', exists: false, launched: false }),
-      renderBrowser: () => ({ path: null, source: 'none', note: "the app's headless shell is missing" }),
-    }));
+    const r = await run(
+      macProbes({
+        bundle,
+        exec: async () => null,
+        chromium: async () => ({ path: '/R/browsers/chromium-1194/x/Chromium', source: 'bundled', exists: false, launched: false }),
+        renderBrowser: () => ({ path: null, source: 'none', note: "the app's headless shell is missing" }),
+      }),
+    );
     expect(r.code).toBe(EXIT.failure);
     for (const name of ['ffmpeg', 'ffprobe', 'Chromium', 'Render browser']) {
       const c = byName(r.checks, name);
@@ -382,13 +544,15 @@ describe('retake doctor from an app bundle (L5.16a): every tool line names its s
 
   it('an app without its own ffmpeg, or with $RETAKE_CHROMIUM pointing nowhere: still no pnpm / brew / Homebrew hint', async () => {
     const noFfmpeg: BundleInfo = { ...bundle, paths: { ...bundle.paths, ffmpeg: null } };
-    const r = await run(macProbes({
-      bundle: noFfmpeg,
-      exec: async () => null,
-      which: () => null,
-      chromium: async () => ({ path: '/nowhere/Chromium', source: 'RETAKE_CHROMIUM', exists: false, launched: false }),
-      renderBrowser: () => ({ path: '/R/browsers/chromium_headless_shell-1194/chrome-mac/headless_shell', source: 'bundled' }),
-    }));
+    const r = await run(
+      macProbes({
+        bundle: noFfmpeg,
+        exec: async () => null,
+        which: () => null,
+        chromium: async () => ({ path: '/nowhere/Chromium', source: 'RETAKE_CHROMIUM', exists: false, launched: false }),
+        renderBrowser: () => ({ path: '/R/browsers/chromium_headless_shell-1194/chrome-mac/headless_shell', source: 'bundled' }),
+      }),
+    );
     expect(byName(r.checks, 'ffmpeg')).toMatchObject({ status: 'fail', hint: expect.stringContaining('this app carries no ffmpeg of its own') });
     expect(byName(r.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringContaining("remove it to use the app's own") });
     for (const c of r.checks) expect(`${c.name}: ${c.detail} ${c.hint ?? ''}`).not.toMatch(/\bpnpm\b|\bbrew\b|Homebrew/);
@@ -425,14 +589,35 @@ describe('retake doctor (this machine)', () => {
     const bare = await checks(macProbes({ execPath: versioned, worker: async () => null }));
     expect(byName(bare.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('names a patch version'), hint: expect.stringContaining('retake mcp --print-config') });
     expect(byName(bare.checks, 'MCP').detail).toContain('worker idle');
+    // A worker lock that cannot be read: said, never "idle".
+    const unread = await checks(
+      macProbes({
+        exists: (p) => p === alias || existsSync(p),
+        execPath: versioned,
+        worker: async () => {
+          throw new Error('EACCES: permission denied, open worker.lock');
+        },
+      }),
+    );
+    expect(byName(unread.checks, 'MCP')).toMatchObject({
+      status: 'warn',
+      detail: expect.stringContaining("the jobs worker's state cannot be read: EACCES"),
+      hint: expect.stringContaining('can be read'),
+    });
+    expect(byName(unread.checks, 'MCP').detail).toContain('worker state unknown');
+    expect(byName(unread.checks, 'MCP').detail).not.toContain('worker idle');
     // nvm / fnm name their folders v22.16.0: a patch version too.
     const nvm = await checks(macProbes({ execPath: '/Users/me/.nvm/versions/node/v22.16.0/bin/node', worker: async () => null }));
     expect(byName(nvm.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('names a patch version') });
     // A workspace in a git work tree whose .gitignore misses .retake/.
     await mkdir(join(ws, '.git'), { recursive: true });
     try {
-      const git = await checks(macProbes({ exec: async (cmd, args) => (cmd === 'git' ? { code: 1, stdout: '', stderr: '' } : null) }));
-      expect(byName(git.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('.retake (the job queue and history of this machine) is not ignored by git'), hint: expect.stringContaining('.retake/') });
+      const git = await checks(macProbes({ exec: async (cmd) => (cmd === 'git' ? { code: 1, stdout: '', stderr: '' } : null) }));
+      expect(byName(git.checks, 'MCP')).toMatchObject({
+        status: 'warn',
+        detail: expect.stringContaining('.retake (the job queue and history of this machine) is not ignored by git'),
+        hint: expect.stringContaining('.retake/'),
+      });
       const ignored = await checks(macProbes({ exec: async (cmd, args) => (cmd === 'git' && args.includes('.retake/') ? { code: 0, stdout: '', stderr: '' } : null) }));
       expect(byName(ignored.checks, 'MCP').status).toBe('ok');
     } finally {
@@ -500,14 +685,25 @@ describe('retake doctor --project: personas (R-AUTH-02)', () => {
       const probes = macProbes({ env: { RETAKE_HOME: home }, exec: (cmd, args, ms) => (cmd === 'git' ? real.exec(cmd, args, ms) : macProbes().exec(cmd, args, ms)) });
       const outside = await checks(probes, 'shop');
       expect(byName(outside.checks, 'Session home')).toMatchObject({ status: 'ok', detail: `${home} (RETAKE_HOME) · outside any git work tree` });
-      expect(byName(outside.checks, 'Persona staging·editor')).toMatchObject({ status: 'ok', detail: expect.stringMatching(/^valid · checked (just now|\d+ s ago) \(preflight of run 20261013-101010-quote\) · profile$/) });
-      expect(byName(outside.checks, 'Persona staging·viewer')).toMatchObject({ status: 'warn', detail: 'its profile is in use by a browser', hint: expect.stringContaining('close the retake login window') });
+      expect(byName(outside.checks, 'Persona staging·editor')).toMatchObject({
+        status: 'ok',
+        detail: expect.stringMatching(/^valid · checked (just now|\d+ s ago) \(preflight of run 20261013-101010-quote\) · profile$/),
+      });
+      expect(byName(outside.checks, 'Persona staging·viewer')).toMatchObject({
+        status: 'warn',
+        detail: 'its profile is in use by a browser',
+        hint: expect.stringContaining('close the retake login window'),
+      });
       expect(byName(outside.checks, 'Persona staging·ops')).toMatchObject({
         status: 'warn',
         detail: expect.stringMatching(/^expired · checked .* \(auth status --check\): app:\/ops landed on the sign-in page/),
         hint: `sign in again: retake -C ${ws} login shop --env staging --persona ops`,
       });
-      expect(byName(outside.checks, 'Persona staging·newbie')).toMatchObject({ status: 'warn', detail: 'never signed in', hint: `sign in once: retake -C ${ws} login shop --env staging --persona newbie` });
+      expect(byName(outside.checks, 'Persona staging·newbie')).toMatchObject({
+        status: 'warn',
+        detail: 'never signed in',
+        hint: `sign in once: retake -C ${ws} login shop --env staging --persona newbie`,
+      });
       expect(byName(outside.checks, 'Persona staging·quiet')).toMatchObject({ status: 'ok', detail: `snapshot saved, not checked yet (retake -C ${ws} auth status --project shop --check)` });
       expect(outside.checks.find((c) => c.name === 'Profile')).toBeUndefined();
       // The Retake home inside a git work tree: a warning, unless git ignores it.

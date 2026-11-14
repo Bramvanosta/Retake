@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
-import { canonicalJson, hookFileRefs, nestedShellScript, projectFileProblem, shellCommands, shellWords } from '@retake/core';
-import type { HookStep, ShellHookSpec } from '@retake/core';
+import { canonicalJson, nestedShellScript, shellCommands, shellWords } from '@retake/core/base';
+import { hookFileRefs, projectFileProblem } from '@retake/core/scenario';
+import type { HookStep, ShellHookSpec } from '@retake/core/model';
 import { nodeFileFacts } from '@retake/core/io';
 import type { HookPhase } from './types.js';
 
@@ -50,19 +51,21 @@ function isFile(file: string): boolean {
   }
 }
 
-/** Words of a shell command that may name a file: each word, and the value of `--opt=value`. */
-function shellFileWords(run: string): string[] {
+/** Words of a shell command that may name a file: each word, and the value of `--opt=value` (also in its substitutions). */
+function shellFileWords(run: string, depth = 0): string[] {
   const out: string[] = [];
-  for (const { args } of shellCommands(shellWords(run))) {
+  const scripts: string[] = [];
+  for (const { args } of shellCommands(shellWords(run, depth < 8 ? (script) => scripts.push(script) : undefined))) {
     args.forEach((w, i) => {
       const nested = nestedShellScript(args, i);
-      if (nested !== undefined) out.push(...shellFileWords(nested));
+      if (nested !== undefined) out.push(...shellFileWords(nested, depth + 1));
       if (i === 0 && !w.includes('/')) return; // a command looked up on PATH
       out.push(w);
       const eq = w.indexOf('=');
       if (w.startsWith('-') && eq > 0) out.push(w.slice(eq + 1));
     });
   }
+  for (const script of scripts) out.push(...shellFileWords(script, depth + 1));
   return out.filter((w) => w && !w.includes('{{') && !w.startsWith('-') && !isAbsolute(w) && !w.startsWith('~'));
 }
 
@@ -77,7 +80,8 @@ function shellFileWords(run: string): string[] {
  */
 export function hookFiles(hook: HookStep, o: { projectDir: string; baseDir?: string; agentWritten?: boolean }): { files: Record<string, string>; problems: string[] } {
   const baseDir = o.baseDir ?? o.projectDir;
-  const files: Record<string, string> = {};
+  // No prototype: a file named `__proto__` is a key like any other.
+  const files: Record<string, string> = Object.create(null) as Record<string, string>;
   const problems: string[] = [];
   for (const { ref, what } of hookFileRefs(hook)) {
     const problem = projectFileProblem(o.projectDir, ref, { baseDir, code: true, files: nodeFileFacts });

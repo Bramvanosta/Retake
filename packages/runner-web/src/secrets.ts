@@ -1,6 +1,8 @@
-import { collectSecretRefs, redact, secretForms } from '@retake/core';
+import { collectSecretRefs, redact, secretForms } from '@retake/core/base';
 import { resolveSecretRef } from '@retake/core/io';
-import type { RunProgress, RunRecord, SecretResolver, Timeline } from '@retake/core';
+import type { SecretResolver } from '@retake/core/base';
+import type { Timeline } from '@retake/core/model';
+import type { RunProgress, RunRecord } from '@retake/core/run';
 
 /**
  * Where a run file keeps its strings as written (R-RUN-17), key by key along the file's shape: `keep` keeps the subtree
@@ -24,19 +26,59 @@ const PAGE_SEGMENT: RedactPolicy = { id: K };
 const EVENT_DATA: RedactPolicy = (v) =>
   isRecord(v)
     ? {
-        name: K, artefact: K, file: K, path: K, page: K, how: K, via: K, mime: K, clear: K, rate: K, close: K, key: K,
-        delivered: K, days: K, quick_runs: K, park: K, clicks: { role: K, strategy: K }, navigation: { kind: K },
+        name: K,
+        artefact: K,
+        file: K,
+        path: K,
+        page: K,
+        how: K,
+        via: K,
+        mime: K,
+        clear: K,
+        rate: K,
+        close: K,
+        key: K,
+        delivered: K,
+        days: K,
+        quick_runs: K,
+        park: K,
+        clicks: { role: K, strategy: K },
+        navigation: { kind: K },
       }
     : 'all';
 
 export const TIMELINE_POLICY: RedactPolicy = {
-  version: K, run_id: K, project: K, scenario: K, created_at: K, mode: K, capture: K, video: K,
+  version: K,
+  run_id: K,
+  project: K,
+  scenario: K,
+  created_at: K,
+  mode: K,
+  capture: K,
+  video: K,
   scenes: {
-    id: K, kind: K, page: K, caption: K, transition: TRANSITION, frame: K, interstitial: K, card: { '*': K, transition: TRANSITION },
-    tutorial: K, status: K, pages: { id: K, page: K, label: K, viewport: K, track: K },
+    id: K,
+    kind: K,
+    page: K,
+    caption: K,
+    transition: TRANSITION,
+    frame: K,
+    interstitial: K,
+    card: { '*': K, transition: TRANSITION },
+    tutorial: K,
+    status: K,
+    pages: { id: K, page: K, label: K, viewport: K, track: K },
   },
   events: {
-    scene: K, id: K, action: K, mark: K, caption: K, tutorial: K, page: K, status: K, strategy: K,
+    scene: K,
+    id: K,
+    action: K,
+    mark: K,
+    caption: K,
+    tutorial: K,
+    page: K,
+    status: K,
+    strategy: K,
     camera: { ease: K, until: K, target: (v) => (v === 'cursor' || v === 'step' ? K : 'all') },
     overlay: { component: K, slots: K, params: K, at: K, box: K },
     data: EVENT_DATA,
@@ -50,7 +92,12 @@ export const TIMELINE_POLICY: RedactPolicy = {
   // L1.7: names, enums, the display bases (literal in project.yaml) and the clock are kept; the real URLs of the
   // display table and of the writes, and the patterns that matched them, are redacted like any URL.
   environment: {
-    name: K, production: K, access: K, allow_writes: K, display: { page: K, display: K }, clock: K,
+    name: K,
+    production: K,
+    access: K,
+    allow_writes: K,
+    display: { page: K, display: K },
+    clock: K,
     writes: { t: K, method: K, operation: K, outcome: K, status: K, via: K, protected_by: K },
     // L1.8: names, enums, numbers and the seed hash of the sandbox reset made before the take.
     sandbox: K,
@@ -58,14 +105,38 @@ export const TIMELINE_POLICY: RedactPolicy = {
 };
 
 export const RECORD_POLICY: RedactPolicy = {
-  version: K, id: K, project: K, scenario: K, mode: K, status: K, started_at: K, finished_at: K, dir: K, env: K, options: K, current: K,
-  capture: K, timeline: K, screenshots: K, hooks: K, stopped_at: K, error: { scene: K, action: K, screenshot: K, dom: K },
-  environment: K, engine: K,
+  version: K,
+  id: K,
+  project: K,
+  scenario: K,
+  mode: K,
+  status: K,
+  started_at: K,
+  finished_at: K,
+  dir: K,
+  env: K,
+  options: K,
+  current: K,
+  capture: K,
+  timeline: K,
+  screenshots: K,
+  hooks: K,
+  stopped_at: K,
+  error: { scene: K, action: K, screenshot: K, dom: K },
+  environment: K,
+  engine: K,
 };
 
 /** Progress events (log.jsonl, the terminal): a hook's `name` is its name, else its description (redacted by hooks). */
 export const PROGRESS_POLICY: RedactPolicy = {
-  type: K, phase: K, name: K, status: K, scene: K, action: K, level: K, run: RECORD_POLICY,
+  type: K,
+  phase: K,
+  name: K,
+  status: K,
+  scene: K,
+  action: K,
+  level: K,
+  run: RECORD_POLICY,
 };
 
 /**
@@ -91,9 +162,12 @@ export class RunSecrets {
     }
   }
 
-  /** The synchronous lookup of TemplateContext.secrets: a prefetched value, else the environment; each one registered. */
+  /**
+   * The synchronous lookup of TemplateContext.secrets: a prefetched value only (another reference is unresolved —
+   * interpolate refuses it —, never read from the environment on the way); each one registered.
+   */
   readonly resolver: SecretResolver = (ref) => {
-    const v = this.cache.get(ref) ?? (ref.startsWith('env:') ? process.env[ref.slice(4)] : undefined);
+    const v = this.cache.get(ref);
     if (v !== undefined) this.register(v);
     return v;
   };
@@ -135,7 +209,7 @@ export class RunSecrets {
     return this.redactDeep(tl, TIMELINE_POLICY);
   }
 
-  redactRecord(r: RunRecord): RunRecord {
+  redactRecord<R extends RunRecord>(r: R): R {
     return this.redactDeep(r, RECORD_POLICY);
   }
 

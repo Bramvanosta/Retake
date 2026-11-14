@@ -6,8 +6,9 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { APIResponse, Download, Page } from 'playwright-core';
-import { mailPersona, mailboxFor, personaEmail, sandboxOf } from '@retake/core';
-import type { DocumentArtefact, NormalizedArgsMap, WaitForEmailArgs } from '@retake/core';
+import { mailPersona, personaEmail } from '@retake/core/environment';
+import { mailboxFor, sandboxOf } from '@retake/core/sandbox';
+import type { DocumentArtefact, NormalizedArgsMap, WaitForEmailArgs } from '@retake/core/model';
 import { MailboxClient, formatAddress, mailMatches } from '../artefacts/mailbox.js';
 import type { MailSummary } from '../artefacts/mailbox.js';
 import { imageSize, sniffMime } from '../artefacts/store.js';
@@ -19,6 +20,7 @@ import { closePage } from '../write-guard.js';
 import { clickResolved } from './click.js';
 import type { ClickRun } from './click.js';
 import type { ActionResult } from './types.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Default seconds of wait_for_email / download. */
 export const ARTEFACT_TIMEOUT_S = 30;
@@ -175,7 +177,9 @@ async function fetchDocument(ctx: StepContext, url: string, timeoutMs: number, a
       why = `HTTP ${res.status()}`;
     } catch (e) {
       if (e instanceof StepError || isCancelled(e)) throw e;
-      why = errorMessage(e).split('\n')[0].replace(/^apiRequestContext\.\w+:\s*/, '');
+      why = errorMessage(e)
+        .split('\n')[0]
+        .replace(/^apiRequestContext\.\w+:\s*/, '');
       if (!isTransientNetworkError(why)) throw new StepError(`download: the document at ${url} could not be fetched with the session (${why})`);
     }
     if (attempt >= DOWNLOAD_ATTEMPTS) {
@@ -210,7 +214,7 @@ export async function download(ctx: StepContext, args: NormalizedArgsMap['downlo
         await new Promise((res) => setTimeout(res, 50));
       }
       if (p.isClosed() || p.url() === 'about:blank' || p.url() === '') return;
-      await p.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => undefined);
+      await bestEffort(p.waitForLoadState('domcontentloaded', { timeout: 5000 }), 'a page that does not load in time is captured as it is');
       await new Promise((res) => setTimeout(res, 300));
       settle({ via: 'tab', page: p });
     })();
@@ -350,11 +354,7 @@ export async function captureText(ctx: StepContext, args: NormalizedArgsMap['cap
     value = text ? captureValue(text, args.pattern) : null;
     if (value !== null && value !== '') break;
     if (wallNow() >= deadline) {
-      throw new StepError(
-        args.pattern
-          ? `capture_text: the text of ${r.desc} does not match ${args.pattern} (text: ${JSON.stringify(text.slice(0, 160))})`
-          : `capture_text: ${r.desc} has no text`,
-      );
+      throw new StepError(args.pattern ? `capture_text: the text of ${r.desc} does not match ${args.pattern} (text: ${JSON.stringify(text.slice(0, 160))})` : `capture_text: ${r.desc} has no text`);
     }
     await rt.sleep(150);
   }

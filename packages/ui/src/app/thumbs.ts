@@ -91,9 +91,7 @@ export function jpegDataUrl(base64: unknown, max: ImageCap = THUMB_DATA_MAX): st
 
 export type MissingReason = 'no_step' | 'not_reached' | 'no_picture' | 'unreadable' | 'too_large' | 'budget' | 'cancelled' | 'failed';
 
-export type ThumbEntry =
-  | { state: 'ok'; base64: string; width: number; height: number; from: string }
-  | { state: 'missing'; reason: MissingReason };
+export type ThumbEntry = { state: 'ok'; base64: string; width: number; height: number; from: string } | { state: 'missing'; reason: MissingReason };
 
 /** One `run_thumbs` call. A rejection after `signal` aborted is a cancellation. */
 export type ThumbFetch = (run: string, keys: string[], signal: AbortSignal) => Promise<ThumbAnswer>;
@@ -249,7 +247,8 @@ export class ThumbLoader {
       seen.add(k);
       const w = Number(t.width);
       const h = Number(t.height);
-      if (jpegDataUrl(t.base64) !== null && Number.isInteger(w) && Number.isInteger(h) && w > 0 && h > 0 && w <= 4096 && h <= 4096) this.set(k, { state: 'ok', base64: t.base64, width: w, height: h, from: String(t.from) });
+      if (jpegDataUrl(t.base64) !== null && Number.isInteger(w) && Number.isInteger(h) && w > 0 && h > 0 && w <= 4096 && h <= 4096)
+        this.set(k, { state: 'ok', base64: t.base64, width: w, height: h, from: String(t.from) });
       else this.set(k, { state: 'missing', reason: 'unreadable' });
     }
     let retry = 0;

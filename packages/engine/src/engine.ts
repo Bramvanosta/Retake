@@ -13,7 +13,7 @@ import { agentChecks, callerOf } from './caller.js';
 import type { EngineClient } from './caller.js';
 import { thumbnail } from './reviews.js';
 import { usageCounts } from './history.js';
-import { FileJobQueue } from './jobs/queue.js';
+import { enginePorts } from './ports.js';
 import { authApi } from './facade/auth-api.js';
 import { commentsApi } from './facade/comments-api.js';
 import { engineContext } from './facade/context.js';
@@ -60,12 +60,14 @@ export function agentTrust(client: EngineClient): boolean {
 }
 
 export async function createEngine(opts: EngineOptions): Promise<Engine> {
-  const ctx = await engineContext(opts, (root, cli) => new FileJobQueue(root, cli));
-  const { ws, queue, studio } = ctx;
-  return {
+  // The façade's composition root: the ports a test hands, else the product's (the MCP server and the Studio hand none).
+  const ports = enginePorts(opts.ports);
+  const ctx = await engineContext(opts, ports);
+  const { ws, queue, jobFiles, studio } = ctx;
+  const engine: Omit<Engine, 'caller' | 'clock' | 'envVars'> = {
     root: ws.root,
     queue,
-    jobFiles: queue.files,
+    jobFiles,
     workspace: ws,
     cli: studio,
     info: infoOf(ctx),
@@ -85,8 +87,13 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     components: componentsApi(ctx),
     inspect: inspectApi(ctx),
     record: recordApi(ctx),
-    thumbnail: (file, maxPx) => thumbnail(ws, file, maxPx),
+    thumbnail: (file, maxPx) => thumbnail(ws, ctx.ports.reviewer.frames, file, maxPx),
     comments: commentsApi(ctx),
     sandbox: sandboxApi(ctx),
   };
+  // Who drives this engine: the context's frozen caller, a read-only member (not writable, not configurable); and its
+  // clock (L7.18: the Clock port its composition root chose), read-only the same way.
+  Object.defineProperty(engine, 'caller', { value: ctx.caller, enumerable: true, writable: false, configurable: false });
+  Object.defineProperty(engine, 'envVars', { value: ports.env, enumerable: true, writable: false, configurable: false });
+  return Object.defineProperty(engine, 'clock', { value: ports.clock, enumerable: true, writable: false, configurable: false }) as Engine;
 }

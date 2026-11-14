@@ -47,8 +47,9 @@ import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { STOP_FLOOD } from '../src/player/parent.js';
 import { workspaceComponents } from '../src/player/bundle-player.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { REPO, hasTool } from '../../editor/test/render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { REPO, hasTool } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg');
 const PROJECT = 'demo';
@@ -64,7 +65,7 @@ let udpPackets = 0;
 let parentJs = '';
 let netlog = '';
 let launches = 0;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const hostileSource = () => `import { useEffect } from 'react';
 import { AbsoluteFill } from 'remotion';
@@ -222,7 +223,10 @@ async function scenarioWithRun(name: string, cards: Array<{ id: string; componen
     '    open: /',
     '    steps:',
     '      - hold: 1',
-    ...cards.flatMap((c) => [c.lottie ? `  - card: {lottie: ${c.lottie}, duration: 2}` : `  - card: {${c.component ? `component: ${c.component}, ` : ''}slots: {title: Card ${c.id}}}`, `    id: ${c.id}`]),
+    ...cards.flatMap((c) => [
+      c.lottie ? `  - card: {lottie: ${c.lottie}, duration: 2}` : `  - card: {${c.component ? `component: ${c.component}, ` : ''}slots: {title: Card ${c.id}}}`,
+      `    id: ${c.id}`,
+    ]),
     '',
   ].join('\n');
   const run = `20260101-120000-${name}`;
@@ -230,7 +234,10 @@ async function scenarioWithRun(name: string, cards: Array<{ id: string; componen
   await mkdir(runDir, { recursive: true });
   const t = synthTimeline({
     duration: 3,
-    entries: [{ id: 'a', t_start: 0.5, t_end: 2.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 2.5 }] }, ...cards.map((c) => ({ card: { id: c.id, ...(c.lottie ? { duration: 2 } : { slots: { title: `Card ${c.id}` } }), ...(c.component ? { component: c.component } : {}) } }))],
+    entries: [
+      { id: 'a', t_start: 0.5, t_end: 2.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 2.5 }] },
+      ...cards.map((c) => ({ card: { id: c.id, ...(c.lottie ? { duration: 2 } : { slots: { title: `Card ${c.id}` } }), ...(c.component ? { component: c.component } : {}) } })),
+    ],
     video: { title: { text: name }, intro: false, outro: false, template: 'editorial', music: { file: 'assets/bed.wav' } },
   });
   Object.assign(t, { run_id: run, project: PROJECT, scenario: name });
@@ -240,9 +247,47 @@ async function scenarioWithRun(name: string, cards: Array<{ id: string; componen
   await writeFile(join(runDir, 'scenario.yaml'), text);
   await writeFile(
     join(runDir, 'run.json'),
-    JSON.stringify({ version: 1, id: run, project: PROJECT, scenario: name, mode: 'capture', status: 'succeeded', started_at: '2026-01-01T12:00:00.000Z', finished_at: '2026-01-01T12:01:00.000Z', dir: runDir, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'ok', teardown: 'ok' }, warnings: [] }),
+    JSON.stringify({
+      version: 1,
+      id: run,
+      project: PROJECT,
+      scenario: name,
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: '2026-01-01T12:00:00.000Z',
+      finished_at: '2026-01-01T12:01:00.000Z',
+      dir: runDir,
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 1,
+      steps_done: 1,
+      screenshots: [],
+      hooks: { setup: 'ok', teardown: 'ok' },
+      warnings: [],
+    }),
   );
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=30', '-t', '3', '-c:v', 'libvpx-vp9', '-deadline', 'realtime', '-cpu-used', '8', '-b:v', '200k', '-pix_fmt', 'yuv420p', join(runDir, 'capture.mp4')]);
+  execFileSync('ffmpeg', [
+    '-v',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    'testsrc2=size=320x180:rate=30',
+    '-t',
+    '3',
+    '-c:v',
+    'libvpx-vp9',
+    '-deadline',
+    'realtime',
+    '-cpu-used',
+    '8',
+    '-b:v',
+    '200k',
+    '-pix_fmt',
+    'yuv420p',
+    join(runDir, 'capture.mp4'),
+  ]);
   await writeFile(join(dir, 'scenarios', `${name}.yaml`), text);
 }
 
@@ -319,7 +364,7 @@ const previewFrame = (page: Page): Frame => page.frames().find((f) => f.url().st
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-sandbox-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   other = createServer((req, res) => {
     otherHits.push(`${req.method} ${req.url}`);
     res.writeHead(200, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
@@ -349,7 +394,16 @@ beforeAll(async () => {
   await cp(join(REPO, 'projects', 'northfield-fixture', 'assets', 'cup-steam.json'), join(dir, 'assets', 'anim.json'));
   await scenarioWithRun('ff', [{ id: 'c1' }, { id: 'c2', lottie: 'assets/anim.json' }]);
   const { build } = await import('esbuild');
-  const out = await build({ entryPoints: [join(import.meta.dirname, '..', 'src', 'player', 'parent.ts')], bundle: true, write: false, format: 'iife', globalName: '__dsParent', platform: 'browser', target: 'chrome120', logLevel: 'silent' });
+  const out = await build({
+    entryPoints: [join(import.meta.dirname, '..', 'src', 'player', 'parent.ts')],
+    bundle: true,
+    write: false,
+    format: 'iife',
+    globalName: '__dsParent',
+    platform: 'browser',
+    target: 'chrome120',
+    logLevel: 'silent',
+  });
   parentJs = `${out.outputFiles[0].text}\nwindow.__dsParent = __dsParent;`;
   browser = await launch();
 }, 120_000);
@@ -374,8 +428,7 @@ afterAll(async () => {
   await studio?.close();
   await new Promise<void>((ok) => (other ? other.close(() => ok()) : ok()));
   udp?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -421,10 +474,14 @@ describe.skipIf(!canRun)('the preview sandbox in Chromium', () => {
     await until('settled', async () => (await msgs(page)).some((m) => m.type === 'settled' && m.frame === at));
 
     // B1: the positive control — the hostile component ran, was drawn, and loaded an allowed capability URL.
-    const done = await until('the attacks', async () => {
-      const r = await reports(page);
-      return r.some((x) => x.k === 'done') && r;
-    }, 90_000);
+    const done = await until(
+      'the attacks',
+      async () => {
+        const r = await reports(page);
+        return r.some((x) => x.k === 'done') && r;
+      },
+      90_000,
+    );
     const got = Object.fromEntries(done.map((x) => [x.k, x.v]));
     expect(got.ran).toBe('module');
     expect(Number(got.allowed)).toBeGreaterThan(10_000);
@@ -444,7 +501,8 @@ describe.skipIf(!canRun)('the preview sandbox in Chromium', () => {
     expect(got.referrer).toBe('""');
     expect(got.spoof).toBe('posted');
     // Review A H1 a / b, L2: no prerender link, custom element or child frame can be made (boot.ts, Trusted Types).
-    for (const k of ['prerenderHead', 'prerenderBody', 'prerenderName', 'prerenderHtml', 'prerenderSetAttribute', 'prerenderRelList', 'prerenderAttrValue', 'customElement']) expect(got[k], k).toBe('throws TypeError');
+    for (const k of ['prerenderHead', 'prerenderBody', 'prerenderName', 'prerenderHtml', 'prerenderSetAttribute', 'prerenderRelList', 'prerenderAttrValue', 'customElement'])
+      expect(got[k], k).toBe('throws TypeError');
     for (const k of ['childFrame', 'object', 'rtcChild', 'srcdoc', 'srcdocBundle']) expect(got[k], k).toBe('throws TypeError');
     expect(got.childHello).toBeUndefined();
     expect(await previewFrame(page).evaluate(() => document.querySelectorAll('link[rel~="prerender" i], iframe, object, embed').length)).toBe(0);
@@ -566,12 +624,13 @@ describe.skipIf(!canRun)('the preview sandbox in Chromium', () => {
     const page = await studioPage();
     await openPreview(page, frame_url, plan_url, segFrame(view, 'c1'), false);
     await until('loaded', async () => (await msgs(page)).find((m) => m.type === 'loaded'));
-    const gaps = () => page.evaluate(() => {
-      const w = window as unknown as { __gaps: number[]; __stopped: string | null };
-      const gap = Math.max(0, ...w.__gaps);
-      w.__gaps = [];
-      return { gap, stopped: w.__stopped, frames: document.querySelectorAll('iframe').length };
-    });
+    const gaps = () =>
+      page.evaluate(() => {
+        const w = window as unknown as { __gaps: number[]; __stopped: string | null };
+        const gap = Math.max(0, ...w.__gaps);
+        w.__gaps = [];
+        return { gap, stopped: w.__stopped, frames: document.querySelectorAll('iframe').length };
+      });
     await gaps();
     // 100,000 messages on window: no listener of the page sees them; the preview goes on.
     await new Promise((r) => setTimeout(r, 2500));

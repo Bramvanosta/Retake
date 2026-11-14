@@ -3,13 +3,14 @@ import type { WriteStream } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CDPSession, Page } from 'playwright-core';
-import type { TimelineLoading } from '@retake/core';
+import type { TimelineLoading } from '@retake/core/model';
 import { LoadHold } from './hold.js';
 import { STREAM_LAG_S } from './stream.js';
 import type { StreamFrame } from './stream.js';
 import type { HoldKind } from './hold.js';
 import type { CaptureClock } from './timeline.js';
 import { pad, round3 } from './util.js';
+import { bestEffort } from '@retake/core/base';
 
 /** One captured frame: file name inside frames/ and capture time in seconds. */
 export interface FrameIndexEntry {
@@ -146,10 +147,10 @@ export class ScreencastRecorder {
   private refresh(): void {
     const s = this.session;
     if (!s) return;
-    void s
-      .send('Page.stopScreencast')
-      .then(() => (this.session === s && !this.stopped ? s.send('Page.startScreencast', this.screencastParams()) : undefined))
-      .catch(() => undefined);
+    void bestEffort(
+      s.send('Page.stopScreencast').then(() => (this.session === s && !this.stopped ? s.send('Page.startScreencast', this.screencastParams()) : undefined)),
+      'a refresh of a page that is closing is not needed; the next frame refreshes otherwise',
+    );
   }
 
   private screencastParams(): Record<string, unknown> {
@@ -236,9 +237,10 @@ export class ScreencastRecorder {
    */
   private emulate(session: CDPSession): Promise<unknown> {
     const { width, height, scale } = this.opts;
-    return session
-      .send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: this.opts.mobile ?? false, screenWidth: width, screenHeight: height })
-      .catch(() => undefined);
+    return bestEffort(
+      session.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: this.opts.mobile ?? false, screenWidth: width, screenHeight: height }),
+      'a page that is closing keeps its viewport: its frames end with it',
+    );
   }
 
   private async attach(page: Page): Promise<void> {
@@ -501,9 +503,7 @@ export class ScreencastRecorder {
 
   /** Holds that ran into the time limit (HOLD_MAX_MS): capture time, page and what was held. */
   limitedLoads(): Array<{ t: number; page?: string; kind: HoldKind }> {
-    return this.hold.records
-      .filter((r) => r.how === 'limit')
-      .map((r) => ({ t: round3(this.opts.clock.at(r.since)), ...(r.page !== undefined ? { page: r.page } : {}), kind: r.kind }));
+    return this.hold.records.filter((r) => r.how === 'limit').map((r) => ({ t: round3(this.opts.clock.at(r.since)), ...(r.page !== undefined ? { page: r.page } : {}), kind: r.kind }));
   }
 
   /** Stop capturing and wait for every pending frame write. Returns the frames sorted by time. */

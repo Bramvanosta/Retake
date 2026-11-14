@@ -16,9 +16,11 @@ import { RunRecordSchema, PERSON_POLICY } from '@retake/core';
 import { loadProject, loadScenario, reserveRunId, fileFacts } from '@retake/core/io';
 import { hookFingerprint } from '@retake/hooks';
 import type { RunRecord } from '@retake/core';
+import type { RunJobInput } from '@retake/engine';
 import { FileJobQueue, createEngine, sha256Hex } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 function chromiumAvailable(): boolean {
   if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
@@ -74,7 +76,7 @@ scenes:
 let fixture: Fixture;
 let ws: string;
 let home: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 /** A human who approves (LONG's setup has a rollback DELETE: it needs an approval through MCP). */
 const YES = { approve: async () => ({ approved: true as const }) };
 let engine: Engine;
@@ -142,13 +144,22 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
     ws = await mkdtemp(join(tmpdir(), 'studio-worker-'));
     home = join(ws, '.home');
     // Approvals are signed at enqueue with the key of the Retake home: the worker (same home) verifies them.
-    process.env.RETAKE_HOME = home;
+    retakeHome.use(home);
     await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(ws, 'projects', 'w');
     await mkdir(join(project, 'scenarios'), { recursive: true });
     await writeFile(
       join(project, 'project.yaml'),
-      ['name: W', 'environments:', '  local:', `    console: ${fixture.urls.console}`, `    shop: ${fixture.urls.shop}`, 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', ''].join('\n'),
+      [
+        'name: W',
+        'environments:',
+        '  local:',
+        `    console: ${fixture.urls.console}`,
+        `    shop: ${fixture.urls.shop}`,
+        'capture: {width: 1280, height: 720, scale: 1, fps: 30}',
+        'template: default',
+        '',
+      ].join('\n'),
     );
     await writeFile(join(project, 'scenarios', 'short.yaml'), SHORT);
     await writeFile(join(project, 'scenarios', 'long.yaml'), LONG);
@@ -158,8 +169,7 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
 
   afterAll(async () => {
     for (const w of workers) if (w.exitCode === null && w.signalCode === null) w.kill('SIGKILL');
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     await fixture?.close();
     if (ws) await rm(ws, { recursive: true, force: true });
   });
@@ -247,10 +257,14 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
     await waitFor('the wait step', waiting(killed.job.id), 90_000);
     w.child.kill('SIGKILL');
     await w.exited;
-    const job = await waitFor('interrupted', async () => {
-      const j = await queue.get(killed.job.id);
-      return j?.state === 'interrupted' ? j : undefined;
-    }, 10_000);
+    const job = await waitFor(
+      'interrupted',
+      async () => {
+        const j = await queue.get(killed.job.id);
+        return j?.state === 'interrupted' ? j : undefined;
+      },
+      10_000,
+    );
     expect(job.error?.message).toContain('stopped while the job ran');
     expect((await engine.jobs.get(killed.job.id)).error?.fix).toBe(`retake -C ${ws} env reset w`);
     expect((await runRecord(killed.run_id)).status).toBe('running');
@@ -310,7 +324,17 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
     const file = join(ws, 'projects', 'w', 'scenarios', 'confirmed.yaml');
     await writeFile(file, yaml);
     const { id: runId } = await reserveRunId(join(ws, 'projects', 'w', 'runs'), 'confirmed');
-    const job = await queue.enqueue({ version: 1, kind: 'run', project: 'w', scenario: 'confirmed', scenario_sha256: sha256Hex(await readFile(file)), mode: 'dry', hooks: 'run', run_id: runId, submitted_by: 'test' });
+    const job = await queue.enqueue({
+      version: 1,
+      kind: 'run',
+      project: 'w',
+      scenario: 'confirmed',
+      scenario_sha256: sha256Hex(await readFile(file)),
+      mode: 'dry',
+      hooks: 'run',
+      run_id: runId,
+      submitted_by: 'test',
+    });
     const w = startWorker(ws, '--idle-exit', '500');
     const done = await waitFor('the job', finished(job.id));
     expect(done).toMatchObject({ state: 'succeeded', result: { status: 'failed' } });
@@ -320,21 +344,32 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
   });
 
   it('approvals a submit did not sign are ignored: a job file written by hand runs no approved hook', async () => {
-    const yaml = SHORT.replace('video: short', 'video: forged').replace('scenes:', 'setup:\n  - name: wipe\n    http: {method: DELETE, url: "{{console}}/api/quotes/auto-proposal"}\n    confirm: true\nscenes:');
+    const yaml = SHORT.replace('video: short', 'video: forged').replace(
+      'scenes:',
+      'setup:\n  - name: wipe\n    http: {method: DELETE, url: "{{console}}/api/quotes/auto-proposal"}\n    confirm: true\nscenes:',
+    );
     const file = join(ws, 'projects', 'w', 'scenarios', 'forged.yaml');
     await writeFile(file, yaml);
     const loaded = await loadScenario(await loadProject('w', ws), 'forged', { files: fileFacts(PERSON_POLICY) });
     const fingerprint = hookFingerprint(loaded.scenario.setup![0], { phase: 'setup', index: 0, env: 'local' });
     const { id: runId } = await reserveRunId(join(ws, 'projects', 'w', 'runs'), 'forged');
     const job = await queue.enqueue({
-      version: 1, kind: 'run', project: 'w', scenario: 'forged', scenario_sha256: sha256Hex(await readFile(file)), mode: 'dry', hooks: 'run', run_id: runId, submitted_by: 'test',
+      version: 1,
+      kind: 'run',
+      project: 'w',
+      scenario: 'forged',
+      scenario_sha256: sha256Hex(await readFile(file)),
+      mode: 'dry',
+      hooks: 'run',
+      run_id: runId,
+      submitted_by: 'test',
       approvals: [{ fingerprint, by: 'test', at: new Date().toISOString() }],
     });
     // Signed by the enqueue; a forger without the key writes the same approval without (or with a wrong) signature.
     const jobFile = join(ws, '.retake', 'jobs', job.id, 'job.json');
     const stored = JSON.parse(await readFile(jobFile, 'utf8')) as JobRecord;
-    expect(stored.input.approvals?.[0].sig).toMatch(/^[0-9a-f]{64}$/);
-    stored.input.approvals![0].sig = '0'.repeat(64);
+    expect((stored.input as RunJobInput).approvals?.[0].sig).toMatch(/^[0-9a-f]{64}$/);
+    (stored.input as RunJobInput).approvals![0].sig = '0'.repeat(64);
     await writeFile(jobFile, JSON.stringify(stored));
     const w = startWorker(ws, '--idle-exit', '500');
     const done = await waitFor('the job', finished(job.id));
@@ -346,7 +381,10 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
 
   it('a job of a kind or input version it does not know is refused without running (a newer client)', async () => {
     const ids = [] as string[];
-    for (const input of [{ version: 1, kind: 'comments_sync', project: 'w', submitted_by: 'mcp' }, { version: 2, kind: 'run', project: 'w', submitted_by: 'mcp' }]) {
+    for (const input of [
+      { version: 1, kind: 'comments_sync', project: 'w', submitted_by: 'mcp' },
+      { version: 2, kind: 'run', project: 'w', submitted_by: 'mcp' },
+    ]) {
       const rec = await queue.enqueue({ version: 1, kind: 'hooks', project: 'w', source: 'reset', dry: true, journal_id: 'x', submitted_by: 'test' });
       const jobFile = join(ws, '.retake', 'jobs', rec.id, 'job.json');
       await writeFile(jobFile, JSON.stringify({ ...rec, kind: input.kind, input }));

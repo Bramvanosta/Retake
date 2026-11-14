@@ -98,9 +98,38 @@ function rec(...bodies: Array<Record<string, unknown> & { kind: string; t: numbe
   });
 }
 const start = (path = '/', page_key = 'shop', t = 10) => ({ kind: 'navigation', t, path, cause: 'start', same_document: false, where: 'environment', page_key });
-const nav = (t: number, path: string, cause: string, o: Record<string, unknown> = {}) => ({ kind: 'navigation', t, path, cause, same_document: cause === 'spa', where: 'environment', page_key: 'shop', ...o });
-const press = (t: number, o: Over | null, extra: Record<string, unknown> = {}) => ({ kind: 'pointer', t, button: 'left', via: 'pointer', el: o === null ? null : elOf(o), quiet_ms: 500, ms: 2, ...extra });
-const typing = (t: number, o: Over, extra: Record<string, unknown>) => ({ kind: 'type', t, el: elOf(o), secret: false, field_kind: 'text', clear: false, enter: false, pasted: false, autofill: false, ...extra });
+const nav = (t: number, path: string, cause: string, o: Record<string, unknown> = {}) => ({
+  kind: 'navigation',
+  t,
+  path,
+  cause,
+  same_document: cause === 'spa',
+  where: 'environment',
+  page_key: 'shop',
+  ...o,
+});
+const press = (t: number, o: Over | null, extra: Record<string, unknown> = {}) => ({
+  kind: 'pointer',
+  t,
+  button: 'left',
+  via: 'pointer',
+  el: o === null ? null : elOf(o),
+  quiet_ms: 500,
+  ms: 2,
+  ...extra,
+});
+const typing = (t: number, o: Over, extra: Record<string, unknown>) => ({
+  kind: 'type',
+  t,
+  el: elOf(o),
+  secret: false,
+  field_kind: 'text',
+  clear: false,
+  enter: false,
+  pasted: false,
+  autofill: false,
+  ...extra,
+});
 const stop = (t: number) => ({ kind: 'stop', t, reason: 'closed' });
 
 const CTX: DraftContext = { name: 'recorded', env: 'local', envIsDefault: true, pages: { shop: 'http://127.0.0.1:4402', console: 'http://127.0.0.1:4401/admin' }, persona: null, access: 'read-write' };
@@ -121,12 +150,23 @@ function withAlternatives(events: RecordedEvent[]): RecordedEvent[] {
     return RecordedEventSchema.parse({ ...e, el });
   });
 }
-const outputOf = (d: ReturnType<typeof draftFromRecording>) => ({ yaml: d.yaml, scenario: d.scenario, issues: d.issues, writes: d.writes, firstWrite: d.firstWrite, stats: d.stats, placeholders: d.placeholders });
+const outputOf = (d: ReturnType<typeof draftFromRecording>) => ({
+  yaml: d.yaml,
+  scenario: d.scenario,
+  issues: d.issues,
+  writes: d.writes,
+  firstWrite: d.firstWrite,
+  stats: d.stats,
+  placeholders: d.placeholders,
+});
 
 function draft(events: RecordedEvent[], ctx: Partial<DraftContext> = {}, annotations?: RecordAnnotations) {
   const d = draftFromRecording(events, { ...CTX, ...ctx }, annotations);
   const { scenario, issues } = parseScenario(d.yaml);
-  expect(issues.filter((i) => i.severity === 'error'), d.yaml).toEqual([]);
+  expect(
+    issues.filter((i) => i.severity === 'error'),
+    d.yaml,
+  ).toEqual([]);
   expect(scenario).toBeDefined();
   expect(d.issues.filter((i) => i.severity === 'error')).toEqual([]);
   if (annotations === undefined) {
@@ -143,7 +183,16 @@ function draft(events: RecordedEvent[], ctx: Partial<DraftContext> = {}, annotat
 
 describe('draftFromRecording: steps', () => {
   it('clicks on verified targets; two separate presses on one control are both kept; a press on nothing is dropped', () => {
-    const d = draft(rec(start(), press(500, { target: { role: 'button', name: 'Increase' }, in: 'dialog' }), press(700, { target: { role: 'button', name: 'Increase' }, in: 'dialog' }), press(900, null), press(1100, { target: { text: 'Save' } }), stop(1500)));
+    const d = draft(
+      rec(
+        start(),
+        press(500, { target: { role: 'button', name: 'Increase' }, in: 'dialog' }),
+        press(700, { target: { role: 'button', name: 'Increase' }, in: 'dialog' }),
+        press(900, null),
+        press(1100, { target: { text: 'Save' } }),
+        stop(1500),
+      ),
+    );
     expect(d.steps).toEqual([{ click: { role: 'button', name: 'Increase' } }, { click: { role: 'button', name: 'Increase' } }, { click: 'Save' }]);
     expect(d.stats.noise).toBe(1);
     expect(d.yaml).toContain('version: 1');
@@ -178,13 +227,23 @@ describe('draftFromRecording: steps', () => {
 
   it('one-time-code boxes typed one by one: one typing step on the first box, with a warning', () => {
     const box = (n: number) => ({ target: { label: `Digit ${n}` }, secret: true });
-    const d = draft(rec(start(), ...[1, 2, 3, 4].map((n) => typing(400 + n * 100, box(n), { secret: true, field_kind: 'one_time_code', text: undefined })), press(1500, { target: { text: 'Verify' } }), stop(2000)));
+    const d = draft(
+      rec(start(), ...[1, 2, 3, 4].map((n) => typing(400 + n * 100, box(n), { secret: true, field_kind: 'one_time_code', text: undefined })), press(1500, { target: { text: 'Verify' } }), stop(2000)),
+    );
     expect(d.steps).toEqual([{ type: { into: { label: 'Digit 1' }, text: '{{vars.one_time_code_1}}' } }, { click: 'Verify' }]);
     expect(d.issues.map((i) => i.code)).toContain('one_time_code');
   });
 
   it('keys: Escape, Enter on a field, a shortcut, Space', () => {
-    const d = draft(rec(start(), { kind: 'key', t: 400, key: 'Escape', modifiers: [], el: null }, { kind: 'key', t: 500, key: 'k', modifiers: ['Meta'], el: null }, { kind: 'key', t: 600, key: ' ', modifiers: [], el: null }, stop(900)));
+    const d = draft(
+      rec(
+        start(),
+        { kind: 'key', t: 400, key: 'Escape', modifiers: [], el: null },
+        { kind: 'key', t: 500, key: 'k', modifiers: ['Meta'], el: null },
+        { kind: 'key', t: 600, key: ' ', modifiers: [], el: null },
+        stop(900),
+      ),
+    );
     expect(d.steps).toEqual([{ press: 'Escape' }, { press: 'Meta+k' }, { press: 'Space' }]);
   });
 
@@ -206,7 +265,17 @@ describe('draftFromRecording: lists, menus, files', () => {
 
   it('a select trigger and one option → select {field}; a search typed in the list → search', () => {
     const trigger = { target: { label: 'Bag size' }, role: 'combobox', label: 'Bag size', in: 'dialog' as const, action: { kind: 'select' as const, field: 'Bag size' } };
-    const d = draft(rec(start(), press(400, trigger), opt(800, '5 kg', { text: '5 kg€36.40 / kg' }), press(1200, trigger), typing(1500, { target: { role: 'searchbox' }, in: 'listbox' }, { text: 'Who' }), opt(1900, 'Whole bean'), stop(2500)));
+    const d = draft(
+      rec(
+        start(),
+        press(400, trigger),
+        opt(800, '5 kg', { text: '5 kg€36.40 / kg' }),
+        press(1200, trigger),
+        typing(1500, { target: { role: 'searchbox' }, in: 'listbox' }, { text: 'Who' }),
+        opt(1900, 'Whole bean'),
+        stop(2500),
+      ),
+    );
     expect(d.steps).toEqual([{ select: { field: 'Bag size', option: '5 kg' } }, { select: { field: 'Bag size', option: 'Whole bean', search: 'Who' } }]);
   });
 
@@ -224,17 +293,30 @@ describe('draftFromRecording: lists, menus, files', () => {
     expect(one.steps).toEqual([{ select: { combobox: { role: 'button', name: 'Bag sizes' }, option: 'Espresso' } }, { click: 'Save' }]);
   });
 
-  it('a row menu → menu {row, item}, with the confirmation dialog\'s button as confirm; another dialog is not a confirm', () => {
+  it("a row menu → menu {row, item}, with the confirmation dialog's button as confirm; another dialog is not a confirm", () => {
     const trigger = (row: string) => ({ target: { role: 'button', name: 'Row actions', in: { row } }, in: 'row' as const, action: { kind: 'menu' as const, row } });
     const item = (t: number, name: string) => press(t, { target: { text: name }, in: 'menu', role: 'menuitem', name, appeared: true });
     const dialogButton = (t: number, name: string) => press(t, { target: { text: name }, in: 'dialog', role: 'button', name, appeared: true });
-    const d = draft(rec(start(), press(400, trigger('Iceland')), item(800, 'Pause'), dialogButton(1200, 'Pause'), press(1600, trigger('Sweden')), item(2000, 'Edit'), press(2500, { target: { role: 'button', name: 'Bag sizes' }, in: 'dialog', role: 'button', name: 'Bag sizes', appeared: true }), stop(3000)));
+    const d = draft(
+      rec(
+        start(),
+        press(400, trigger('Iceland')),
+        item(800, 'Pause'),
+        dialogButton(1200, 'Pause'),
+        press(1600, trigger('Sweden')),
+        item(2000, 'Edit'),
+        press(2500, { target: { role: 'button', name: 'Bag sizes' }, in: 'dialog', role: 'button', name: 'Bag sizes', appeared: true }),
+        stop(3000),
+      ),
+    );
     expect(d.steps).toEqual([{ menu: { row: 'Iceland', item: 'Pause', confirm: 'Pause' } }, { menu: { row: 'Sweden', item: 'Edit' } }, { click: { role: 'button', name: 'Bag sizes' } }]);
   });
 
   it('a file zone and the file chosen → drop_file (a placeholder named like it); a zone pressed without a file is dropped', () => {
     const zone = { target: { text: 'Drop your price list here' }, action: { kind: 'drop_file' as const } };
-    const d = draft(rec(start(), press(400, zone), { kind: 'file', t: 600, el: elOf(zone), via: 'input', names: ['prices.csv'] }, press(900, zone), press(1400, { target: { text: 'Start import' } }), stop(2000)));
+    const d = draft(
+      rec(start(), press(400, zone), { kind: 'file', t: 600, el: elOf(zone), via: 'input', names: ['prices.csv'] }, press(900, zone), press(1400, { target: { text: 'Start import' } }), stop(2000)),
+    );
     expect(d.steps).toEqual([{ drop_file: { zone: 'Drop your price list here', name: 'prices.csv', fake: true } }, { click: 'Start import' }]);
     expect(d.issues.map((i) => i.code)).toEqual(expect.arrayContaining(['fake_file', 'file_cancelled']));
   });
@@ -249,7 +331,18 @@ describe('draftFromRecording: lists, menus, files', () => {
 describe('draftFromRecording: scrolls, waits, noise', () => {
   it('a scroll before a press → scroll to its target; jitter dropped; a trailing scroll → scroll by', () => {
     const scroll = (t: number, dy: number) => ({ kind: 'scroll', t, container: 'document', el: null, dx: 0, dy });
-    const d = draft(rec(start(), scroll(300, 400), scroll(700, 260), press(1000, { target: { text: 'Fresh arrivals' } }), scroll(1200, 60), press(1400, { target: { text: 'Next' } }), scroll(1700, -300), stop(2500)));
+    const d = draft(
+      rec(
+        start(),
+        scroll(300, 400),
+        scroll(700, 260),
+        press(1000, { target: { text: 'Fresh arrivals' } }),
+        scroll(1200, 60),
+        press(1400, { target: { text: 'Next' } }),
+        scroll(1700, -300),
+        stop(2500),
+      ),
+    );
     expect(d.steps).toEqual([{ scroll: { to: 'Fresh arrivals' } }, { click: 'Fresh arrivals' }, { click: 'Next' }, { scroll: { by: -300 } }]);
   });
 
@@ -278,7 +371,7 @@ describe('draftFromRecording: scrolls, waits, noise', () => {
     expect(d.yaml).not.toMatch(/^\s*- (wait|hold):/m);
   });
 
-  it('no verified target: a fallback from the element\'s own text (warned); a container or a masked text is dropped', () => {
+  it("no verified target: a fallback from the element's own text (warned); a container or a masked text is dropped", () => {
     const d = draft(
       rec(
         start(),
@@ -319,7 +412,7 @@ describe('draftFromRecording: scenes, pages, writes', () => {
     expect(d.issues.map((i) => i.code)).toContain('opened_by_address');
   });
 
-  it('open paths are relative to the page\'s base path; a navigation right after an action is caused by it; env and persona written when not the defaults', () => {
+  it("open paths are relative to the page's base path; a navigation right after an action is caused by it; env and persona written when not the defaults", () => {
     const d = draft(
       rec(
         { ...start('/admin/imports', 'console') },
@@ -376,7 +469,9 @@ describe('draftFromRecording: scenes, pages, writes', () => {
       ['POST shop:/api/quotes', 1],
       ['POST telemetry.example/collect', 1],
     ]);
-    const guarded = draft(rec(start('/'), press(400, { target: { text: 'Send' } }), { kind: 'write', t: 420, method: 'POST', label: 'POST shop:/api/quotes', outcome: 'blocked' }, stop(900)), { access: 'read-only' });
+    const guarded = draft(rec(start('/'), press(400, { target: { text: 'Send' } }), { kind: 'write', t: 420, method: 'POST', label: 'POST shop:/api/quotes', outcome: 'blocked' }, stop(900)), {
+      access: 'read-only',
+    });
     expect(guarded.steps[0].note).toBe('sends POST shop:/api/quotes (stopped: read-only)');
   });
 
@@ -415,7 +510,7 @@ describe('draftFromRecording: scenes, pages, writes', () => {
 });
 
 describe('draftFromRecording: recorded templates, issue positions', () => {
-  it('a recorded string holding {{…}} never reaches the draft: typed text, a button\'s name, an option, a field — left out, each with an issue at its place', () => {
+  it("a recorded string holding {{…}} never reaches the draft: typed text, a button's name, an option, a field — left out, each with an issue at its place", () => {
     const msg = { target: { label: 'Message' }, action: { kind: 'type' as const } };
     const d = draft(
       rec(
@@ -478,7 +573,7 @@ describe('draftFromRecording: recorded templates, issue positions', () => {
     ]);
   });
 
-  it('a validation error of a draft: a fixed message with its line, scene and step from its path — never the validator\'s text', () => {
+  it("a validation error of a draft: a fixed message with its line, scene and step from its path — never the validator's text", () => {
     const x = { severity: 'error' as const, path: ['scenes', 1, 'steps', 3, 'click'], message: 'unknown target "Secret Lot"', line: 12 };
     expect(draftInvalidIssue(x, ['home', 'products'], 'the draft does not validate in the project')).toEqual({
       severity: 'error',
@@ -487,7 +582,9 @@ describe('draftFromRecording: recorded templates, issue positions', () => {
       scene: 'products',
       step: 3,
     });
-    expect(draftInvalidIssue({ path: ['vars'], message: 'x' }, ['home'], 'w')).toEqual({ severity: 'error', code: 'invalid', message: 'w: run validate on the draft to see why' });
+    // A validation issue as the validator gives it: its message is never read.
+    const bare = { path: ['vars'], message: 'x' };
+    expect(draftInvalidIssue(bare, ['home'], 'w')).toEqual({ severity: 'error', code: 'invalid', message: 'w: run validate on the draft to see why' });
   });
 });
 
@@ -515,7 +612,8 @@ describe('draftFromRecording: target picks (L4.8)', () => {
     expect(recordedAlternatives({ ...el, secret: true })).toEqual([]);
     expect(recordedAlternatives({ ...el, target: null })).toEqual([]);
     // The schema itself: at most three, never `nth` / `last_visible`, never the `nth` flag.
-    const ev = (x: unknown) => RecordedEventSchema.safeParse({ seq: 1, t: 1, page: 'p1', path: '/', kind: 'pointer', button: 'left', via: 'pointer', el: { ...el, alternatives: x }, quiet_ms: 1, ms: 1 }).success;
+    const ev = (x: unknown) =>
+      RecordedEventSchema.safeParse({ seq: 1, t: 1, page: 'p1', path: '/', kind: 'pointer', button: 'left', via: 'pointer', el: { ...el, alternatives: x }, quiet_ms: 1, ms: 1 }).success;
     expect(ev(alts({ text: 'A' }, { text: 'B' }, { text: 'C' }))).toBe(true);
     expect(ev(alts({ text: 'A' }, { text: 'B' }, { text: 'C' }, { text: 'D' }))).toBe(false);
     expect(ev(alts({ text: 'A', nth: 1 }))).toBe(false);
@@ -542,14 +640,18 @@ describe('draftFromRecording: target picks (L4.8)', () => {
     expect(draft(events, {}, ann({ 2: 3 })).steps[0]).toEqual({ type: { into: { label: 'Customer' }, text: 'Acme' } });
   });
 
-  it('the recorder\'s own wait_for and scroll before the action follow the pick; a right click keeps its button; a select combobox and a file zone take one', () => {
+  it("the recorder's own wait_for and scroll before the action follow the pick; a right click keeps its button; a select combobox and a file zone take one", () => {
     const late = { ...field, appeared: true };
     const scroll = { kind: 'scroll', t: 2600, container: 'document', el: null, dx: 0, dy: 600 };
     const ev = rec(start(), press(400, { target: { text: 'New quote' } }), scroll, press(3000, late), typing(3400, late, { text: 'Acme' }), stop(4000));
     const plain = draft(ev);
     expect(plain.steps.slice(1, 3)).toEqual([{ wait_for: { target: { label: 'Customer' }, timeout: 15 } }, { scroll: { to: { label: 'Customer' } } }]);
     const d = draft(ev, {}, ann({ 3: 2 }));
-    expect(d.steps.slice(1)).toEqual([{ wait_for: { target: { testid: 'customer' }, timeout: 15 } }, { scroll: { to: { testid: 'customer' } } }, { type: { into: { testid: 'customer' }, text: 'Acme' } }]);
+    expect(d.steps.slice(1)).toEqual([
+      { wait_for: { target: { testid: 'customer' }, timeout: 15 } },
+      { scroll: { to: { testid: 'customer' } } },
+      { type: { into: { testid: 'customer' }, text: 'Acme' } },
+    ]);
     expect(d.sources.slice(1).map((x) => x.role)).toEqual(['helper', 'helper', 'action']);
     expect(d.sources[1]).toEqual({ scene: 'home', step: 1, seqs: [3, 3], role: 'helper', helper: 'wait', row: 'w3' });
     expect(d.sources[2].seqs).toEqual([2, 2]);
@@ -557,18 +659,26 @@ describe('draftFromRecording: target picks (L4.8)', () => {
     const right = draft(rec(start(), press(400, { target: { text: 'Lot 7' }, alternatives: alts({ testid: 'lot-7' }) }, { button: 'right' }), stop(900)), {}, ann({ 1: 1 }));
     expect(right.steps).toEqual([{ click: { testid: 'lot-7', button: 'right' } }]);
     const sel = { target: { label: 'Roast level' }, tag: 'select', alternatives: alts({ testid: 'roast' }) };
-    expect(draft(rec(start(), press(400, sel), { kind: 'select_native', t: 900, el: elOf(sel), option: 'Dark' }, stop(1500)), {}, ann({ 2: 1 })).steps).toEqual([{ select: { combobox: { testid: 'roast' }, option: 'Dark' } }]);
+    expect(draft(rec(start(), press(400, sel), { kind: 'select_native', t: 900, el: elOf(sel), option: 'Dark' }, stop(1500)), {}, ann({ 2: 1 })).steps).toEqual([
+      { select: { combobox: { testid: 'roast' }, option: 'Dark' } },
+    ]);
     const zone = { target: { text: 'Drop your price list here' }, action: { kind: 'drop_file' as const }, alternatives: alts({ testid: 'drop' }) };
-    expect(draft(rec(start(), press(400, zone), { kind: 'file', t: 600, el: elOf(zone), via: 'input', names: ['prices.csv'] }, stop(1000)), {}, ann({ 1: 1 })).steps).toEqual([{ drop_file: { zone: { testid: 'drop' }, name: 'prices.csv', fake: true } }]);
+    expect(draft(rec(start(), press(400, zone), { kind: 'file', t: 600, el: elOf(zone), via: 'input', names: ['prices.csv'] }, stop(1000)), {}, ann({ 1: 1 })).steps).toEqual([
+      { drop_file: { zone: { testid: 'drop' }, name: 'prices.csv', fake: true } },
+    ]);
   });
 
-  it('no pick where the step\'s target is not the element\'s target: a list pick (its label), a select by field, a row menu, a guessed target', () => {
+  it("no pick where the step's target is not the element's target: a list pick (its label), a select by field, a row menu, a guessed target", () => {
     const trigger = { target: { role: 'button', name: 'Bag sizes' }, label: 'Bag sizes', role: 'button', in: 'dialog' as const, alternatives: alts({ testid: 'bags' }) };
     const opt = (t: number, name: string) => press(t, { target: { text: name }, in: 'listbox', role: 'option', name });
     const d = draft(rec(start(), press(400, trigger), opt(800, '1 kg'), opt(1100, '5 kg'), stop(2500)), {}, ann({ 1: 1 }));
     expect(d.steps).toEqual([{ pick: { field: 'Bag sizes', option: ['1 kg', '5 kg'], close: 'none' } }]);
     expect(d.sources[0]).toEqual({ scene: 'home', step: 0, seqs: [1, 3], role: 'action', row: 'a1' });
-    const guessed = draft(rec(start(), press(400, { target: null, matches: 0, name: 'Selowa Ridge', in: 'listbox', desc: 'option', action: { verified: false }, alternatives: alts({ testid: 'x' }) }), stop(900)), {}, ann({ 1: 1 }));
+    const guessed = draft(
+      rec(start(), press(400, { target: null, matches: 0, name: 'Selowa Ridge', in: 'listbox', desc: 'option', action: { verified: false }, alternatives: alts({ testid: 'x' }) }), stop(900)),
+      {},
+      ann({ 1: 1 }),
+    );
     expect(guessed.steps).toEqual([{ click: { text: 'Selowa Ridge', in: 'listbox' } }]);
     expect(guessed.sources[0].target_seqs).toBeUndefined();
   });
@@ -621,9 +731,16 @@ describe('draftFromRecording: quick inserts (L4.8)', () => {
     expect(d.steps).toEqual([{ click: 'New quote' }, { hold: 1 }, { type: { into: { label: 'Note' }, text: 'Two bags' }, caption: 'Type a note' }, { click: 'Save' }]);
   });
 
-  it('a step insert goes before the action\'s helpers, a modifier on the action — never on its wait_for or scroll', () => {
+  it("a step insert goes before the action's helpers, a modifier on the action — never on its wait_for or scroll", () => {
     const late = { ...field, appeared: true };
-    const ev = rec(start(), press(400, { target: { text: 'New quote' } }), { kind: 'scroll', t: 2500, container: 'document', el: null, dx: 0, dy: 500 }, press(3000, late), typing(3400, late, { text: 'Hi' }), stop(4000));
+    const ev = rec(
+      start(),
+      press(400, { target: { text: 'New quote' } }),
+      { kind: 'scroll', t: 2500, container: 'document', el: null, dx: 0, dy: 500 },
+      press(3000, late),
+      typing(3400, late, { text: 'Hi' }),
+      stop(4000),
+    );
     const d = draft(ev, {}, ann({}, { after_seq: 1, kind: 'hold', seconds: 2 }, { after_seq: 1, kind: 'caption', text: 'Now the note' }));
     expect(d.steps).toEqual([
       { click: 'New quote' },
@@ -638,10 +755,13 @@ describe('draftFromRecording: quick inserts (L4.8)', () => {
     expect(w.sources[1]).toMatchObject({ role: 'insert', insert: 'i1' });
     expect(w.issues.find((i) => i.code === 'insert_replaced')).toMatchObject({ severity: 'info', scene: 'home', step: 1 });
     const picked = rec(start(), press(400, { target: { text: 'New quote' } }), press(3000, { ...late, alternatives: alts({ testid: 'note' }) }), stop(4000));
-    expect(draft(picked, {}, ann({ 2: 1 }, { after_seq: 1, kind: 'wait_for', until: 'next_target' })).steps.slice(1)).toEqual([{ wait_for: { target: { testid: 'note' }, timeout: 15 } }, { click: { testid: 'note' } }]);
+    expect(draft(picked, {}, ann({ 2: 1 }, { after_seq: 1, kind: 'wait_for', until: 'next_target' })).steps.slice(1)).toEqual([
+      { wait_for: { target: { testid: 'note' }, timeout: 15 } },
+      { click: { testid: 'note' } },
+    ]);
   });
 
-  it('after the last action: a step insert ends the scene current at its position — a new page\'s scene when made after a page change', () => {
+  it("after the last action: a step insert ends the scene current at its position — a new page's scene when made after a page change", () => {
     const ev = rec(start(), press(400, { target: { text: 'Coffees' } }), nav(500, '/products', 'link'), stop(3000));
     const d = draft(ev, {}, ann({}, { after_seq: 2, kind: 'hold', seconds: 3 }));
     expect(d.scenes.map((s) => [s.id, s.steps])).toEqual([
@@ -666,7 +786,7 @@ describe('draftFromRecording: quick inserts (L4.8)', () => {
     expect(over.steps.at(-1)).toEqual({ click: 'Save', caption: 'Done' });
     expect(over.issues.find((i) => i.code === 'insert_moved')).toMatchObject({ severity: 'info', scene: 'home', step: 2 });
     // `final` says so for a recording that ended without its stop event (the worker stopped).
-    expect(draft(open, {}, ann({}, { after_seq: 4, kind: 'caption', text: 'Done' }), ).pending).toEqual(['i1']);
+    expect(draft(open, {}, ann({}, { after_seq: 4, kind: 'caption', text: 'Done' })).pending).toEqual(['i1']);
     expect(draftFromRecording(open, CTX, ann({}, { after_seq: 4, kind: 'caption', text: 'Done' }), { final: true }).pending).toEqual([]);
     const none = draftFromRecording(rec(start(), stop(500)), CTX, ann({}, { after_seq: 0, kind: 'mark', name: 'm1' }));
     expect(none.issues.find((i) => i.code === 'insert_unplaced')).toMatchObject({ severity: 'warning' });
@@ -681,7 +801,13 @@ describe('draftFromRecording: quick inserts (L4.8)', () => {
   });
 
   it('issue positions and the check bound count the inserted steps; writes are never attributed to an inserted step', () => {
-    const ev = rec(start(), press(400, { target: { text: 'Cart' } }), press(900, { target: { text: 'Place order' } }), { kind: 'write', t: 950, method: 'POST', label: 'POST shop:/api/orders', outcome: 'passed' }, stop(2000));
+    const ev = rec(
+      start(),
+      press(400, { target: { text: 'Cart' } }),
+      press(900, { target: { text: 'Place order' } }),
+      { kind: 'write', t: 950, method: 'POST', label: 'POST shop:/api/orders', outcome: 'passed' },
+      stop(2000),
+    );
     const d = draft(ev, {}, ann({}, { after_seq: 1, kind: 'hold', seconds: 2 }));
     expect(d.steps).toEqual([{ click: 'Cart' }, { hold: 2 }, { click: 'Place order', note: 'sends POST shop:/api/orders' }]);
     expect(d.firstWrite).toEqual({ scene: 'home', step: 2 });
@@ -691,7 +817,8 @@ describe('draftFromRecording: quick inserts (L4.8)', () => {
 
 describe('draftFromRecording: typing split by a visit to the Studio (L4.8)', () => {
   const field = { target: { label: 'Message' }, action: { kind: 'type' as const } };
-  const split = (second: Record<string, unknown>) => rec(start(), press(400, field), typing(900, field, { text: 'Two b' }), typing(5000, field, second), press(5600, { target: { text: 'Send' } }), stop(6000));
+  const split = (second: Record<string, unknown>) =>
+    rec(start(), press(400, field), typing(900, field, { text: 'Two b' }), typing(5000, field, second), press(5600, { target: { text: 'Send' } }), stop(6000));
 
   it('two typing events on one field with nothing between them are one typing step', () => {
     const d = draft(split({ text: 'ags', enter: true }));
@@ -707,14 +834,25 @@ describe('draftFromRecording: typing split by a visit to the Studio (L4.8)', () 
     expect(draft(rec(start(), press(400, field), typing(900, field, { text: 'Two b', enter: true }), typing(5000, field, { text: 'ags' }), stop(6000))).steps).toHaveLength(2);
     const templ = draft(rec(start(), press(400, field), typing(900, field, { text: 'Hi {' }), typing(5000, field, { text: '{vars.x}}' }), stop(6000)));
     expect(templ.steps).toEqual([{ type: { into: { label: 'Message' }, text: 'Hi {' } }, { type: { into: { label: 'Message' }, text: '{vars.x}}' } }]);
-    expect(draft(rec(start(), press(400, field), typing(900, field, { text: 'a' }), { kind: 'key', t: 950, key: 'Escape', modifiers: [], el: null }, typing(5000, field, { text: 'b' }), stop(6000))).steps).toHaveLength(3);
+    expect(
+      draft(rec(start(), press(400, field), typing(900, field, { text: 'a' }), { kind: 'key', t: 950, key: 'Escape', modifiers: [], el: null }, typing(5000, field, { text: 'b' }), stop(6000))).steps,
+    ).toHaveLength(3);
   });
 });
 
 describe('draftFromRecording: placeholders (L4.8)', () => {
   it('each secret placeholder with its kind and step, never a value; a project var of that name is said so', () => {
     const pw = { target: { label: 'Password' }, secret: true };
-    const d = draft(rec(start(), press(300, { target: { text: 'Sign up' } }), typing(500, pw, { secret: true, field_kind: 'password', text: undefined }), typing(900, { target: { label: 'API token' }, secret: true }, { secret: true, field_kind: 'api_key', text: undefined }), stop(2000)), { projectVars: { api_key_1: 'demo-token' } });
+    const d = draft(
+      rec(
+        start(),
+        press(300, { target: { text: 'Sign up' } }),
+        typing(500, pw, { secret: true, field_kind: 'password', text: undefined }),
+        typing(900, { target: { label: 'API token' }, secret: true }, { secret: true, field_kind: 'api_key', text: undefined }),
+        stop(2000),
+      ),
+      { projectVars: { api_key_1: 'demo-token' } },
+    );
     expect(d.placeholders).toEqual([
       { name: 'password_1', kind: 'password', project_var: false, scene: 'home', step: 1 },
       { name: 'api_key_1', kind: 'api_key', project_var: true, scene: 'home', step: 2 },
@@ -768,7 +906,9 @@ describe('draftFromRecording: hidden characters never reach a draft (review A-M3
     expect(listed.steps).toEqual([{ click: 'Save' }]);
     expect(listed.issues.map((i) => i.code)).toContain('hidden_text');
     // A text without one is unchanged (a line break in a multi-line field stays).
-    expect(draft(rec(start(), press(600, field), typing(900, field, { text: 'line one\nline two', field_kind: 'multiline' }), stop(1500))).steps).toEqual([{ type: { into: { label: 'Note' }, text: 'line one\nline two' } }]);
+    expect(draft(rec(start(), press(600, field), typing(900, field, { text: 'line one\nline two', field_kind: 'multiline' }), stop(1500))).steps).toEqual([
+      { type: { into: { label: 'Note' }, text: 'line one\nline two' } },
+    ]);
   });
 });
 
@@ -781,7 +921,7 @@ describe('draftFromRecording: inserts placed after the row they were made on (re
   const waited = rec(start(), press(400, { target: { text: 'Unlock the last step' } }), press(3000, late), stop(3500));
   const hold = (after_seq: number, extra: Record<string, unknown> = {}) => ({ after_seq, kind: 'hold', seconds: 2, ...extra });
 
-  it('rows have stable identities: a<first seq> an action, s<first seq> the recorder\'s scroll, w<seq> its wait, i:<id> an insert', () => {
+  it("rows have stable identities: a<first seq> an action, s<first seq> the recorder's scroll, w<seq> its wait, i:<id> an insert", () => {
     expect(draft(scrolled).sources.map((x) => [x.row, x.role, x.helper ?? null])).toEqual([
       ['a1', 'action', null],
       ['s2', 'helper', 'scroll'],
@@ -804,7 +944,7 @@ describe('draftFromRecording: inserts placed after the row they were made on (re
     expect(draft(scrolled, {}, ann({}, hold(1))).steps).toEqual([{ click: 'Coffees' }, { hold: 2 }, { scroll: { to: 'Far away' } }, { click: 'Far away' }]);
   });
 
-  it('after the recorder\'s wait row (`row: wait`): between the wait and its action — a caption made there goes on that action', () => {
+  it("after the recorder's wait row (`row: wait`): between the wait and its action — a caption made there goes on that action", () => {
     const d = draft(waited, {}, ann({}, hold(2, { row: 'wait' }), { after_seq: 2, row: 'wait', kind: 'caption', text: 'Here it is' }));
     expect(d.steps).toEqual([{ click: 'Unlock the last step' }, { wait_for: { target: 'Delayed control', timeout: 15 } }, { hold: 2 }, { click: 'Delayed control', caption: 'Here it is' }]);
     // Right after the wait, also when the recorder's scroll follows it (wait, scroll, action).
@@ -826,7 +966,15 @@ describe('draftFromRecording: inserts placed after the row they were made on (re
   it('after an insert row (`after_insert`): right after it, even between two inserts; once it is removed, where it was', () => {
     const d = draft(scrolled, {}, ann({}, { ...hold(1), seconds: 1 }, { ...hold(1), seconds: 2 }, { ...hold(1, { after_insert: 'i1' }), seconds: 3 }));
     expect(d.steps.slice(0, 4)).toEqual([{ click: 'Coffees' }, { hold: 1 }, { hold: 3 }, { hold: 2 }]);
-    const gone: RecordAnnotations = { v: 1, rev: 4, choices: {}, inserts: [{ id: 'i2', after_seq: 1, kind: 'hold', seconds: 2 }, { id: 'i3', after_seq: 1, after_insert: 'i1', kind: 'hold', seconds: 3 }] };
+    const gone: RecordAnnotations = {
+      v: 1,
+      rev: 4,
+      choices: {},
+      inserts: [
+        { id: 'i2', after_seq: 1, kind: 'hold', seconds: 2 },
+        { id: 'i3', after_seq: 1, after_insert: 'i1', kind: 'hold', seconds: 3 },
+      ],
+    };
     expect(draft(scrolled, {}, gone).steps.slice(0, 3)).toEqual([{ click: 'Coffees' }, { hold: 2 }, { hold: 3 }]);
   });
 });
@@ -842,9 +990,16 @@ describe('draftFromRecording: a wait for the next target before a select by fiel
 });
 
 describe('draftFromRecording: a Studio draft has no YAML alias (review B-M2)', () => {
-  it('`aliases: false`: a target shared by the recorder\'s wait, its scroll and its action is written each time; the block editor can delete or duplicate the helper', () => {
+  it("`aliases: false`: a target shared by the recorder's wait, its scroll and its action is written each time; the block editor can delete or duplicate the helper", () => {
     const late = { target: { label: 'Customer' }, label: 'Customer', role: 'textbox', appeared: true, action: { kind: 'type' as const } };
-    const ev = rec(start(), press(400, { target: { text: 'New quote' } }), { kind: 'scroll', t: 2600, container: 'document', el: null, dx: 0, dy: 600 }, press(3000, late), typing(3400, late, { text: 'Acme' }), stop(4000));
+    const ev = rec(
+      start(),
+      press(400, { target: { text: 'New quote' } }),
+      { kind: 'scroll', t: 2600, container: 'document', el: null, dx: 0, dy: 600 },
+      press(3000, late),
+      typing(3400, late, { text: 'Acme' }),
+      stop(4000),
+    );
     // The recorder's own draft (CLI / MCP) is unchanged: L3.4 wrote the shared target once, with an alias.
     expect(draft(ev).yaml).toMatch(/&a1/);
     const studioDraft = draftFromRecording(ev, CTX, null, { aliases: false });
@@ -858,7 +1013,10 @@ describe('draftFromRecording: a Studio draft has no YAML alias (review B-M2)', (
       ['duplicate_step', 2],
     ] as const) {
       const r = applyStepEdit(studioDraft.yaml, { kind, at: { scene: 'home', index, guard: stepGuard(steps[index] as never) } } as never);
-      expect(parseScenario(r.text).issues.filter((i) => i.severity === 'error'), `${kind} ${index}`).toEqual([]);
+      expect(
+        parseScenario(r.text).issues.filter((i) => i.severity === 'error'),
+        `${kind} ${index}`,
+      ).toEqual([]);
     }
   });
 });
@@ -874,7 +1032,9 @@ describe('draftFromRecording: more of the typing merge (review A-L2, A-N6, B-L6)
     expect(d.placeholders.map((x) => x.name)).toEqual(['password_1']);
     expect(d.scenario.vars).toEqual({ password_1: 'CHANGE-ME' });
     // A secret part and a plain part on one field are never one step.
-    expect(draft(rec(start(), press(400, field), typing(900, field, { text: 'abc' }), typing(5000, { ...field, secret: true }, { secret: true, field_kind: 'secret', text: undefined }), stop(6000))).steps).toHaveLength(2);
+    expect(
+      draft(rec(start(), press(400, field), typing(900, field, { text: 'abc' }), typing(5000, { ...field, secret: true }, { secret: true, field_kind: 'secret', text: undefined }), stop(6000))).steps,
+    ).toHaveLength(2);
   });
 
   it('a merged typing longer than the longest recorded text stays two steps', () => {
@@ -882,17 +1042,19 @@ describe('draftFromRecording: more of the typing merge (review A-L2, A-N6, B-L6)
     expect(draft(rec(start(), press(400, field), typing(900, field, { text: a }), typing(5000, field, { text: a }), stop(6000))).steps).toHaveLength(2);
   });
 
-  it('a write that follows either part of a merged typing is the typing step\'s', () => {
+  it("a write that follows either part of a merged typing is the typing step's", () => {
     const write = (t: number) => ({ kind: 'write', t, method: 'POST', label: 'POST shop:/api/draft', outcome: 'passed' });
-    const d = draft(rec(start(), press(400, field), typing(900, field, { text: 'Two b' }), write(1200), typing(5000, field, { text: 'ags' }), write(5300), press(9000, { target: { text: 'Send' } }), stop(9500)));
+    const d = draft(
+      rec(start(), press(400, field), typing(900, field, { text: 'Two b' }), write(1200), typing(5000, field, { text: 'ags' }), write(5300), press(9000, { target: { text: 'Send' } }), stop(9500)),
+    );
     expect(d.steps[0]).toEqual({ type: { into: { label: 'Message' }, text: 'Two bags' }, note: 'sends POST shop:/api/draft; sends POST shop:/api/draft' });
     expect(d.writes.map((w) => w.step)).toEqual([0, 0]);
     expect(d.firstWrite).toEqual({ scene: 'home', step: 0 });
   });
 });
 
-describe('shownStep: the check\'s failing step on screen (review B-M4)', () => {
-  it('the row of the recorded draft\'s step in the arranged draft: an insert before it moves it; a step that is gone is null', () => {
+describe("shownStep: the check's failing step on screen (review B-M4)", () => {
+  it("the row of the recorded draft's step in the arranged draft: an insert before it moves it; a step that is gone is null", () => {
     const late = { target: { text: 'Delayed control' }, appeared: true };
     const ev = rec(start(), press(400, { target: { text: 'Unlock the last step' } }), press(3000, late), press(3500, { target: { text: 'Save' } }), stop(4000));
     const bare = draftFromRecording(ev, CTX);
@@ -905,12 +1067,14 @@ describe('shownStep: the check\'s failing step on screen (review B-M4)', () => {
   });
 });
 
-describe('L3.4\'s drafts, byte for byte (review B-N1)', () => {
+describe("L3.4's drafts, byte for byte (review B-N1)", () => {
   // Real recordings of the fixture product (headless, trusted input; alternatives on) and the drafts L3.4's generator
   // made of them (core at the L4.7 commit, compiled apart): the L4.8 generator, without annotations or with empty ones,
   // gives the same YAML, issues, writes, check bound and stats.
   const dir = new URL('./fixtures/recordings/', import.meta.url);
-  const names = readdirSync(dir).filter((f) => f.endsWith('.events.jsonl')).map((f) => f.replace(/\.events\.jsonl$/, ''));
+  const names = readdirSync(dir)
+    .filter((f) => f.endsWith('.events.jsonl'))
+    .map((f) => f.replace(/\.events\.jsonl$/, ''));
 
   it('has the golden recordings', () => {
     expect(names.sort()).toEqual(['imports', 'lab', 'products', 'signup']);
@@ -926,7 +1090,12 @@ describe('L3.4\'s drafts, byte for byte (review B-N1)', () => {
       const golden = JSON.parse(readFileSync(new URL(`${name}.l34.json`, dir), 'utf8')) as { ctx: DraftContext; yaml: string; issues: unknown; writes: unknown; firstWrite: unknown; stats: unknown };
       for (const d of [draftFromRecording(events, golden.ctx), draftFromRecording(events, golden.ctx, emptyRecordAnnotations())]) {
         expect(d.yaml).toBe(golden.yaml);
-        expect({ issues: d.issues, writes: d.writes, firstWrite: d.firstWrite, stats: d.stats }).toEqual({ issues: golden.issues, writes: golden.writes, firstWrite: golden.firstWrite, stats: golden.stats });
+        expect({ issues: d.issues, writes: d.writes, firstWrite: d.firstWrite, stats: d.stats }).toEqual({
+          issues: golden.issues,
+          writes: golden.writes,
+          firstWrite: golden.firstWrite,
+          stats: golden.stats,
+        });
       }
     });
   }

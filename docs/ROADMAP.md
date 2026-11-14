@@ -90,6 +90,58 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.17 | Hardening before the first release: approvals and agent-written hooks, the URLs a scenario opens, sandboxed capture and render browsers, the release workflow | L | **done**, pending the person's review of the pull request (2026-11-05; the first of two lots, L5.18 next) |
 | L5.18 | Hardening before the first release, the rest: one flag for the processes that serve agents, the programs, browser switches and environment their jobs get, the production guard's addresses, the Studio's token and link, MCP over HTTP's port | M | **done**, pending the person's review of the pull request (2026-11-09; next: the first release v0.2.0) |
 | L6.1 – L6.13 | Architecture series after the 2026-11-04 audit (action plan T1 – T14): the import-rules ratchet and glossary, the job queue port, one operation catalogue, admission and one caller in the engine, one project store and journal, the CLI on the engine's pipeline, a pure core with its I/O apart and the work policy passed explicitly, the planner apart from the renderer, the in-page kit from modules, the Studio's typed data layer, the worker in parts | L+, in 13 lots | **done**, pending the person's review of the pull request (2026-11-10; no behaviour change beyond the CHANGELOG's [Unreleased]) |
+| L7.1 | A `Renderer` port in the engine (2026-11-10 action plan, U6 first slice): video, stills, previews; the editor's driver and an in-memory adapter under one contract suite; ratchet rules R9 and `render-call` | M | **done** (2026-11-10, branch `claude/arch-l7`; no behaviour change; the full suite runs once at the end of the branch) |
+| L7.2 | The renderer seam (action plan U12): five seam files name the rendering library, ratchet rule R10; composition ids once and versioned render props; built-ins on the kit only; `components preview` on the port | M | **done** (2026-11-10, branch `claude/arch-l7`; previews and a fixture video byte-identical before and after on the software path) |
+| L7.3 | This machine's ffmpeg for a render's frame encode, behind `render.ffmpeg`; measured on a fixture render | S | **done** (2026-11-10, branch `claude/arch-l7`; the default on the GPU path only: about a fifth less CPU, no measured gain in wall time) |
+| L7.4 | Action plan U1, U2 (in part), U4: the test files type-checked (`pnpm typecheck`, CI), ratchet rules R11 – R13, pure entries `@retake/review/checks` and geometry | M | **done** (2026-11-10, branch `claude/arch-l7`; 312 type errors in 81 test files fixed; ratchet 59 → 84 with R11 pinned at 27) |
+| L7.5 | Action plan U3: one id module in the domain (run, render, job, theme: one grammar each, brands, generators), every copy replaced, ratchet check `id-grammar` | M | **done** (2026-11-10, branch `claude/arch-l7`; old and new code compared on 8 372 strings; the decided changes are all stricter) |
+| L7.6a | Action plan U5, first half: the run record as a union with a tolerant reader, one "usable capture" rule and one "latest run" rule in the domain, ratchet check `record-read` | M–L | **done** (2026-11-10, branch `claude/arch-l7`; 200 crafted projects compared with the code before; prune unchanged) |
+| L7.6b | Action plan U5, second half: the render record as a union with one tolerant reader, a render is the record of its own file, prune leaves every other file of `renders/` alone with what it names | M–L | **done** (2026-11-11, branch `claude/arch-l7`; prune only keeps more, shown on two generators of 3 000 layouts against the code before; three readers left to L7.6c) |
+| L7.7 | Prune keeps the capture that can be edited: the newest succeeded take, the newest usable one and the newest complete one; linked folders and newer records left alone | S | **done** (2026-11-11, branch `claude/arch-l7`; it only keeps more, shown on 3 000 generated layouts against the code before and held by the suite) |
+| L7.8 | Five small items: the hooks journal checks a rollback's shape; `project_prune`'s description; the board compares a theme by its identity (BL-164); `render_status` by its id holds only checked values outside `untrusted`; shell reset hooks are approval items | S | **done** (2026-11-11, branch `claude/arch-l7`; 72 mutations red; the MCP tool list changes in two descriptions) |
+| L7.9 | Two backlog tickets: the board compares a theme by its folder (render records hold template_folder; BL-164's rest), and an export's re-render plans with that folder; non-shell reset hooks get the seed steps' treatment, a sql reset hook's database checked as a seed's | S | **done** (2026-11-11, claude/arch-l7) |
+| L7.6c | Action plan U5, end: the search index, the timeline's version matcher and the frame service on the one reader of `renders/` and core's rules (`renderOfFile`, `quotableRender`, new `sameRender`); the ratchet back to 93 | M | **done** (2026-11-11; a copied record no longer stops the Studio's updates, a deeply nested plan no longer breaks the render list) |
+| L7.10 | U6 slices Clock and ProjectStore: the engine's clock and the project store are ports chosen at the composition roots (`EnginePorts`; `createEngine` / worker / job process / CLI), two adapters and a contract suite each, every stamp through the clock, the ratchet's `clock-read`, `store-new` and clock-less `queue` checks | M | **done** (2026-11-11; differential vs 019e5e9 equal; baseline 93 → 116; full suite not run) |
+| L7.11 | U6 slices HookRunner and Reviewer: hooks outside a capture and the review (with the façade's frames and thumbnails) run on ports chosen at the composition roots (`EnginePorts.hooks` / `.reviewer`), package and in-memory adapters with a contract suite each, hook types in core, `@retake/hooks/describe`, the ratchet's `loader-use` and `port-types` checks | M | **done** (2026-11-11; differentials vs 2537130 equal, fingerprints as literals; R11 27 → 21, baseline 116 → 110; full suite not run) |
+| L7.12 | U6's last slice, CaptureRunner: runs, recordings, persona sessions, js-hook pages and site extraction through `EnginePorts.capture` (`runnerWebCapture`, an in-memory runner, two contract suites), its vocabulary through `@retake/runner-web/types`, the capture's hooks through the handed HookRunner (runner-web's own hooks import gone), the synchronous cancel and session-copy clean-up after the roots' `load()` | L | **done** (2026-11-12; real-capture A/B and sessions differential vs 81cfc35 equal within noise; R11 21 → 12, baseline 110 → 100; full suite not run) |
+| L7.13 | U7 first slice: `invoke()` in the engine (served by the shell → parse → caller rules → handler, never throws; `callTool` deprecated alias; read-only, frozen `Engine.caller`) and the eleven operations the Studio borrowed from MCP moved into `packages/engine/src/operations/` (MCP's TOOLS hold the engine's objects, the Studio's table them or their pins; the Studio server imports nothing of MCP), the `shell-op` ratchet line | S | **done** (2026-11-12; characterization recorded on efb98ad equal after the move, tool list / op table byte-identical; R3 → 0, R6 −1, baseline 100 → 121 with 23 `shell-op` entries; `@retake/mcp` kept in ui dependencies (lockfile churn); full suite not run) |
+| L7.14 | U7 second slice: the read-only queries of runs, renders, reviews and scenarios as engine operations — MCP's scenario_get, plan_preview, render_status, review_get and the Studio's ten screen reads (projects_overview, project_board, scenario_blocks, scenario_actions, run_thumbs, scenario_forms, scenario_sessions, scenario_renders, render_review, review_image) in `packages/engine/src/operations/` (reads, renders, reviews, board, scenario-screen, render-screen, studio-schema), the shells serving the engine's objects | S–M | **done** (2026-11-12; characterization recorded on 4c45325 equal after the move, L7.13's too; tool list / op table byte-identical; `shell-op` MCP 34 → 30, Studio 65 → 55, 121 entries; job_status deferred until its record / site / inspect outputs are the engine's; full suite not run) |
+| L7.17 | U7: themes, components and the library as engine operations (MCP's nine template_* / component_*, the Studio's eleven theme / library ops; `serialize` on the engine's operation chain after the caller rules; theme_edit's MCP refusal as its `callers`; theme_preview's spec built by the engine; library-watch and `pathFree` into the engine) | M | **done** (2026-11-12; characterization recorded on 4c45325 equal after the move, tool list / op table byte-identical; R4 −4, R6 −3, shell-op MCP 30 → 21 / Studio 55 → 44 (on top of L7.14), baseline 121 → 111; full suite not run) |
+| L7.15 | U7: submitting and controlling jobs as engine operations (MCP's run_dry, run_capture, render, review, export, page_inspect, job_cancel; the Studio's scenario_run, run_pause, sign_in_cancel, scenario_render, render_cancel, review_export in operations/submit.ts, inspect.ts, jobs.ts, studio-jobs.ts; scenario_render on the engine's operation chain with the Studio's scenario keys, which the Studio's remaining scenario writes share; admission once per call inside the submits, tested) | M | **done** (2026-11-12; characterization recorded on 14731b9 equal after the move, chain ordering held through the server before and after; tool list / op table byte-identical; shell-op MCP 21 → 14, Studio 44 → 38, baseline 111 → 106; job_status left until recordOutput is the engine's; full suite not run) |
+| L7.19 | U7: MCP's hooks, environment-reset and sandbox tools as engine operations (hooks_run, env_reset, sandbox_status, sandbox_up, sandbox_reset; HOOK_JOB / SANDBOX_JOB into the engine; the approver handed through exactly as before) | S | **done** (2026-11-12; characterization of 51 stdio calls with four elicitation clients recorded on 14731b9, equal after the move; tool list / op table byte-identical; shell-op MCP −5 (14 → 9 on top of L7.15), baseline 106 → 104; full suite not run) |
+| L7.16 | U7: the comments as engine operations (MCP's comments_list, comment_reply, comment_resolve in operations/comments.ts; the Studio's twelve comment ops in operations/comment-screen.ts; the comments façade's caller rules as their `callers`, the façade keeping its copy for the CLI; the thread writes on their thread's key of the engine's chain, thread_apply chaining its scenario's key then its thread's in its handler; render_frame's 429 + Retry-After kept) | S–M | **done** (2026-11-12; characterization recorded on 6c0dfd6 equal after the move but for three deliberate lines — "entrys", and thread_apply by a non-person engine now refused before the load; tool list / op table byte-identical; shell-op MCP 9 → 6, Studio 38 → 26, baseline 104 → 102; full suite not run) |
+| L7.18 | U7: authoring, recording and project writes as engine operations (MCP's scenario_save, scenario_from_script, scenario_record, project_create, project_prune, and job_status with `recordOutput`; the Studio's scenario_edit and its seven record_* ops; the Record screen rule as `callers` through `recordScreenRefused`, scenario_edit / record_save on the scenario key and record_start ordered by the façade's chain; `Engine.clock` for the suggested draft name; the façade's copies kept for its direct callers) | S–M | **done** (2026-11-12; characterization of 49 MCP stdio, 39 Studio and 18 invoke calls recorded on 6c0dfd6, equal after the move; tool list / op table byte-identical; shell-op MCP 9 → 3, Studio 38 → 30, baseline 104 → 99; activity_list says "entries"; full suite not run) |
+| L7.21 | End of U7's mechanics and U8.0: the deprecated `callTool` removed (`invoke` the one call; `@retake/mcp` is private, no outside importer) and the CLI commands U8 moves — plan, hooks run / rollback, env reset, sandbox, components, export-capture and their help — characterized (operations-cli.json, 130 cases, adapters faked at their package boundary, hooks run for real) | S | **done** (2026-11-12; recorded on 596f693's sources, stable over 3 runs, no machine data; 3 renamed test titles; 5 findings pinned for the lead; full suite not run) |
+| L7.22 | U8a + U8e: `retake plan` on the engine's `planOfRun` (findRunOf, then planWork — the planning of a render and plan_preview — for a plan alone) and the raw export (`export-capture`, `run --raw`) on `rawExportWork` over a new capture-port member `raw` (gate + package; RawExportError → EngineError; in-memory adapter); R4 −4, R6 −1 (baseline 97 → 92); boy scout: `plan --out` now writes the plan `--json` prints | S–M | **done** (2026-11-12; operations-cli and pipeline-cli byte-identical, a real export A/B equal, 11 mutations red; validate-raw.py not run (no opentimelineio); full suite not run) |
+| L7.23 | U8b: `hooks run`, `hooks rollback` and `env reset` on engine orchestrations shared with the jobs (hooks-work.ts `hooksRunWork`, `rollbackWork`, `envResetWork`: trust, confirm, replayUnsigned, the jobs' protection only, callbacks for the CLI's printing, Ctrl-C) and a new ratchet `hook-call` (CLI 6 → 0) | S–M | **done** (2026-11-12; operations-cli and MCP environment-ops / job-ops fixtures byte-identical; 21 mutations caught; full suite not run) |
+| L7.24 | U8d: the CLI's `components list / validate / create / preview` on engine use cases (shell forms under their own names: componentListEntries, componentValidateShell — an id or a folder, every workspace component —, componentCreateShell — over a built-in —, componentPreviewTargets, componentPreviewTheme — loadPreviewTheme behind the engine —, componentReadmeWriter; R4 −2, R6 −1) and `--check-cites` reading titles that hold apostrophes | S–M | **done** (2026-11-12; operations-cli and pipeline-cli fixtures byte-identical, MCP / UI characterizations and snapshots unchanged; 14 mutations caught; 17 cites now checked whole, none broken; no preview regenerated; full suite not run) |
+| L7.26 | U15: one append discipline for the journal and the history (store/append-log.ts: whole lines under a lock, torn line closed, fsync, never through a link, one reader; the history no longer swallows its failures) and the admission rules checked under the job queue's lock (`JobQueue.exclusive`, a lock file per rule key) so they hold across processes | M | **done** (2026-11-12; two-process race and killed-writer tests, mutation-checked; normal log lines and every characterization unchanged; full suite not run) |
+| L7.25 | U14: sandbox and hooks seams — the engine's `Sandboxes` port (the SandboxProvider: package adapter, in-memory fake, one contract suite on the process and docker-compose providers and the fake), the providers' optional methods as `ProviderCapabilities`, the OS utilities (process table, lock file, listeners) and `SandboxError` / `sandboxPaths` in core, runner-web on core's hook-run types (mirror gone), one browser-discovery module (core/io browsers.ts, ratchet `browser-registry`); R11 12 → 1 | M | **done** (2026-11-12; environment-ops and operations-cli byte-identical; Docker contract run; 15 mutations caught; full suite not run) |
+| L7.28 | U8c: the CLI's `sandbox init / up / down / reset / status / logs` on engine use cases (`sandboxWork`, sandbox-work.ts) over the Sandboxes port, shared with the sandbox jobs and `sandboxStatus` (interrupt scope with killStartedSync, options key for key with the scope's signal last, seed trust bound to the trust as `Protected`, seed run as the caller, status pages, scaffold read back); composeOnly by capabilities; the characterization's fake at the port boundary; R4 `sandbox.ts → @retake/sandbox` gone (doctor's stays: dockerPlaces) | M | **done** (2026-11-12; operations-cli and environment-ops byte-identical; real A/B vs bc5d8ec on a process and a docker-compose sandbox identical; 25 mutations caught (8 in the fix pass: seed trust bound to the trust, the scope's signal last); full suite not run) |
+| L7.29 | U16 (first part): the job runner's switch → one handler per kind (`JOB_HANDLERS`, job-handlers.ts, typed by the kind, no default); the worker's test hooks → ports (`WorkerPorts`, worker-ports.ts: renderer, recordWindow, freeBytes, processes; no `recordTest` / `previewTest` / `jobProcessTest` / `inlineHeavy`; heavy jobs in process only for a heavy-job port); `draftFromRecording` → an event walk and named steps; `doctor` → one check per function | M | **done** (2026-11-12; characterizations, operations-cli, pipeline-cli unchanged; draft differential 347 / 347 equal; `retake doctor` before / after identical but for the launch time; full suite not run) |
+| L7.27 | Security: `retake run` and `hooks run <scenario>:setup\|teardown` list, rendered as they will run (cwd, env, vars, run id), the shell hooks of a scenario whose hooks an agent wrote last (the project's record of hook surfaces, the journals before it; asked when unknown) and run them only on a person's yes (terminal, or `--yes`; refused otherwise); `retake hooks trust` makes them the person's | S | **done** (2026-11-12; two review fix passes F1–F3, F5, F6, N1–N5, and `retake hooks trust`; 52 mutations red; operations-cli: `hooks run --help` changed, 7 `hooks trust` cases added) |
+| L7.20 | One name per use case (S2): the catalogue links each use case served under two shells' names (`useCase`, 18 groups, one name per shell), the Studio's three narrowings marked (`narrows`); nothing renamed (option C) | S | **done** (2026-11-12; 11 mutations red; no fixture changed; R-ARCH-40) |
+| L7.30 | U16 (second part): `buildProgram` → ten command families registering their commands (cli src/program/, `ProgramContext`); the Record screen → a folder of parts (ui src/app/record/: start form, draft, list, inserts, body, inspector, live view, the changes it sends as hooks); the rest of the front end by feature proposed as its own lot | M | **done** (2026-11-12; every `--help` and usage error byte-identical with 65d4243's build; pipeline-cli, operations-cli unchanged; Studio screenshots equal but for the workspace path; full suite not run) |
+| L7.32 | U16 (last part, S12): the Studio front end by feature — ui src/app/ in record/, script/, shoot/, edit/, review/, library/, themes/, project/, the shared words in words/, the foundations at the root; feature-boundaries checks each feature is reached only through its listed public modules and that the foundations and words import no feature | M | **done** (2026-11-12; moves and imports only; 14 Studio routes equal to c1b889b's build but for the workspace path and the recording name's minute; op table and fixtures unchanged; full suite not run) |
+| L7.33 | Security: an sql hook an agent wrote is treated like its shell hooks — under trust `mcp` every one needs a person's approval (same reason path, items and fingerprint, its file's bytes bound; also a person's hook whose file, rollback file or database URL renders the scenario's vars; the form shows each statement as it will run), and a person's `retake run` / `hooks run` / `hooks trust` list it with the shell hooks and ask; a person's sql hooks, the destructive rule and sandbox seeds unchanged | S | **done** (2026-11-12; security review fix pass H1, M1, L1, L2; 20 mutations red; operations-cli: 3 cases changed, pipeline-cli: `run --help`) |
+| L7.31 | U11 (X2, X3): the capture runner split into a runner-agnostic lifecycle (runner-web capture/lifecycle.ts `runCapture`: run folder, record, log, secrets, cancel, until, hook phases, filming notices, timeline) and the browser driver (capture/browser-driver.ts) behind an internal `CaptureDriver` (capture/driver.ts); ffmpeg / ffprobe started in one module (core io media-run.ts: runMediaTool / runMediaToolSync / startMediaTool, one `MediaToolError`), every ffprobe answer read by core ffprobe.ts; ratchet rule `media-call` (1 entry: doctor) | M–L | **done** (2026-11-12; real-capture A/B against 65d4243 identical within the bounds, render / review equal but for the renderer's own pixel noise, raw export 14 / 14 equal; a synthetic render byte-identical A / B; full suite not run) |
+| L7.34 | U9 in part (P3 / C3, C4, D8): `files` required by type where a core rule reaches the disk (`FilesWith`; boy scout: a read-only run's sql file hook threw instead of being refused); the source-text guards that pinned exact statements replaced by behaviour tests across engine, editor, components, cli and the Studio (166 inventoried; lists, bans and lints kept); run-live-pause and render-jobs' cancel on the in-memory ports; the test-support package and the second half of the engine moves handed off | L | **done** (U9's first slice; R-ARCH-46 partial; 52 mutations; test-guard no decrease) |
+| L7.35 | U10: core's contexts as sub-path entries with a ratchet between them (`core-context`, `core-root`), the job vocabulary moved to the engine, a neutral confinement value instead of channel names in the domain (audit 2026-11-10 D1, D7, D6) | L | **done** (fifteen entries `@retake/core/<context>`, the root kept for tests; 388 source files on the entries; jobs/job-input.ts; core `Confinement`; baseline 78 → 80; a differential of the refusal words and the job contract byte-identical) |
+| L7.36 | U13 (C2, C6, C7): Biome 2.5.15 as linter and formatter (`biome.json` measured on the code: width 200; the recommended rules, eleven off with reasons) and a lint ratchet (`scripts/lint.mjs`, `scripts/lint-baseline.json`: 541 diagnostics that only go down; `pnpm lint` in the CI's guards; `pnpm format`, `format:check`); the code formatted once in a commit of its own (1,022 files, AST-equal); lot and requirement ids out of the published schema descriptions (four schema files, the Studio's op table; MCP's tool list had none); the hand-off cut to 237 lines with its history verbatim in `docs/archive/HANDOFF-history.md` | M | **done** (2026-11-12, `claude/arch-l7`; R-ARCH-48) |
+| L7.37 | U9's second part (C5; P3 / C3's second half): `packages/test-support` (private, no build, never shipped) holds the helpers the tests of several packages share (268 cross-package helper imports → 0; one home each, moved not copied) and `scratchHome()` for a test's own RETAKE_HOME (hand-written save / restore in 160 files → 0 but the helper's own test); ratchet rules `test-reach` and `home-restore` (the record corpus and the Studio stand-ins pinned with reasons); review-export-jobs, record-studio, site-job, journal-trust and preview-jobs partly on the in-memory ports | M | **done** (R-ARCH-49; 17 mutations; test-guard no decrease) |
+| L7.38 | U9's end: the workspace-read port — core's workspace loaders read through a disk port (`WorkspaceDisk`; node's and an in-memory one, the plain-file rule shared), the engine handed them bound to a disk (`EnginePorts.reads`, carried by the opened workspace; 38 of 42 call sites switched), a `MemoryWorkspace` sharing its files with the memory store, a contract suite on both adapters, ratchet rule `workspace-read`, the first engine tests on a workspace in memory | M | **done** (R-ARCH-46 completed, R-ARCH-50; 20 mutations; test-guard no decrease) |
+| L7.39 | Security: `retake hooks trust` binds, besides the hook surface, the bytes of the files the trusted hooks read (code strictly — sql / js files, a shell command's own script; data when it exists); a file not as trusted makes `retake run` / `hooks run` ask again whatever the hook kinds, naming it, and the run is held to the files checked (each hook re-checked, sql / js bytes checked as read); a person's own scenario unchanged | S | **done** (2026-11-13; security review fix pass F1–F7 and re-reviews R1, G1–G3 and H1–H2, I1–I2; 61 mutations red; no CLI fixture changed; closes SECURITY-open L3) |
+| L7.40 | Security: one shell lexer in core (shell-words.ts) read by the destructive-hook guard, the host scan and the trust scan of a hook's files; the guard follows every script a command makes a program run (substitutions, any shell's `-c`, `eval`, `trap`, `alias`, `env -S`, `watch`, `su`, `sudo -s`, `xargs`, `parallel`, `find -exec`, a shell's standard input) under one rule — a script not exactly in the command counts as destructive —, psql in them too, in linear time; the trust and approvals bind files named the same way; the missing security tests (redaction order and minimum, malformed signatures, the site approval's error path, two policy boundaries, a non-http port, a Windows path) | S | **done** (2026-11-13; R-SEC-04, R-SEC-40; review fix passes V1–V9, V11, R1–R4; 99 mutations red; test-guard no decrease) |
+| L7.43 | Tests in CI and the test tooling (final tests audit T-1, T-6, T-8, T-9, T-11–T-15) | done | `pnpm test:ci` (358 files, ≈ 4 min on the Mac) in ci.yml's checks job, every test file listed in or out with a reason; Postgres tests by default when Docker + image are here; kernel-sandbox check by default; goldens fail after recording; test-guard reads soft / each / matcher downgrades; free ports; `scripts/coverage.mjs`; release checklist of the gated tests |
+| L7.41 | The ports bag complete: the job queue (a factory) and the renderer in `EnginePorts` (createEngine on a memory queue), the CLI on `cliPorts.renderer`; the worker's in-process heavy mode explicit (`heavyInProcess`, the list typed over every port, `reads` added); a `Secrets` port (system, memory, contract suite) handed to runs, sign-ins and hooks, core filling secrets through a resolver only; a monotonic side on the Clock port for the scheduler; the engine's environment a value of the bag (ratchet `env-read`); the scenario-writes record through the stores port | M | **done** (R-ARCH-52 new, R-ARCH-42 text; baseline 115 → 108) |
+| L7.42 | Hygiene: `noUnusedLocals` / `noUnusedParameters` on (63 findings fixed), 30 dead exports, `mcp/src/compact.ts` and the Studio's library-watch shim removed, the inert eslint comments gone; lot ids out of five runtime strings; the four non-hook `use*` renamed; six client mistakes refused as `invalid` / `unavailable` instead of `internal`; `bestEffort(p, why)` at 90 swallowed rejections and the ones that hid a failure surfaced (doctor listings, worker yield / held / progress, render lock, runs index, Postgres snapshot); `ui → mcp`, `runner-web → hooks` as dev dependencies | S | **done** (2026-11-13; lint baseline 541 → 466; 14 mutations red; CHANGELOG [Unreleased] lists the changed outputs) |
+
+- Review fixes (H1–H5): three untrue `bestEffort` reasons reworded (widgets search field, review / project-store
+  folder swap); `WORKSPACE_LOADERS` (scripts/audit/lib.mjs) lists `loadSandboxesOn` / `accountsComposeEnvOn` and no
+  deleted name; DESIGN-phase2.md names the engine's library-watch.ts; the two twins converted (`cli/commands/export.ts`
+  findRenderOf, `engine/jobs/record-job.ts` settleDiscardAtJobEnd); the jobs' log handlers print `errorMessage(e)`
+  (now one engine helper in `errors.ts`, execute-run's local copy gone; also `record-job.ts` and the jobs' older
+  `e.message` log lines in the same files).
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1021,6 +1073,186 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   checked tarball, pnpm by its hash, a sign job that unpacks and runs only what it checked, the app's version checked
   before anything is signed. Requirements R-SEC-11 – R-SEC-28. Cuts: BL-160, BL-161. Next: L5.18, then the first
   release v0.2.0 (the person tags).
+
+### L7.1 — A `Renderer` port in the engine (M; decided 2026-11-10)
+- **Goal:** the engine renders through a port it owns, so that the renderer seam (L7.2) and any later change of renderer start from one place; the existing behaviour is kept.
+- **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.1)". Requirement R-ARCH-12. Import-rules ratchet 59 → 60 entries (one `render-call` entry for L7.2). Next on the branch: L7.2, L7.3, then U1 – U16.
+
+### L7.2 — The renderer seam (M; decided 2026-11-10)
+- **Goal:** the rendering library is reached from a few named files held by a ratchet, so a change of renderer has a known surface; pixels unchanged.
+- **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.2)". Requirement R-ARCH-13. Import-rules ratchet 60 → 59 entries, R10 at none.
+
+### L7.3 — Our ffmpeg for the frame encode (S; decided 2026-11-10)
+- **Goal:** the colour conversion of a render's frames costs less with this machine's ffmpeg than with the rendering library's; use it where a real render shows the gain, keep the library's elsewhere.
+- **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.3)". Requirement R-RND-15. The plain viewport screenshot was not built (it needs the library patched).
+
+### L7.4 — Guard rails: type-checked tests, ratchet, pure entries (M; decided 2026-11-10)
+- **Goal:** the guard rails the rest of the 2026-11-10 action plan relies on (U1, U2, U4); behaviour unchanged.
+- **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.4)". Requirements R-ARCH-14 – R-ARCH-17. The Studio's operations shared with MCP (the last R3 entry) move with U7.
+
+### L7.5 — One id module in the domain (M; decided 2026-11-10)
+- **Goal:** the grammar of each id is written once (finding D3); behaviour unchanged but for the decided, stricter changes.
+- **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.5)". Requirements R-ARCH-18 and R-RND-16; R-MCP-10 and R-FLD-28 completed.
+
+### L7.6a — The run record, the take and the two rules (M–L; decided 2026-11-10)
+- **Goal:** "is this capture usable" and "which run is the latest" are each decided once (finding D2); a run record cannot be in an impossible state.
+- **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.6a)". Requirements R-ARCH-19 and R-ARCH-20; R-PRIN-13 updated. Next: prune's rule (decided: keep both), then L7.6b (render records).
+
+### L7.6b — The render record and its one reader (M–L; decided 2026-11-10)
+- **Goal:** a render record cannot be in an impossible state, and what counts as a render, `latest` and what prune keeps are each decided once (finding D2, U5's second half).
+- **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.6b)". Requirement R-ARCH-21; R-FLD-28 and R-ARCH-19 updated. Left to L7.6c: the search index, the timeline's version matcher and the frame service.
+
+### L7.7 — Prune keeps the capture that can be edited (S; decided 2026-11-10)
+- **Goal:** prune never offers the only capture that can still be edited for deletion; it never lists anything it kept before.
+- **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.7)". Requirement R-FLD-28 updated. Renders renamed by hand wait for L7.6b.
+
+### L7.8 — Five small items after L7.6b (S; decided 2026-11-11)
+- **Goal:** what the earlier lots left and the person asked to fix here: the journal's rollback shape, prune's MCP description, BL-164, the render status's trusted part, approvals for shell reset hooks.
+- **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.8)". Requirement R-ARCH-22; R-HOOK-02, R-MCP-35, R-FLD-28, R-ARCH-18 and R-ARCH-21 updated.
+
+### L7.9 — Two backlog tickets (S; decided 2026-11-11)
+- **Goal:** the board tells two theme folders of one name apart, and the reset hooks of other kinds get the seed steps' treatment.
+- **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.9)". Requirement R-ARCH-23; R-MCP-35, R-SBX-05 and R-ARCH-18 updated; BL-164 closed, BL-170 opened.
+
+### L7.6c — The last readers of renders/ (M; decided 2026-11-10)
+- **Goal:** the search index, the timeline's version matcher and the frame service read renders/ through the one reader of L7.6b (the rest of U5).
+- **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.6c)". Requirements R-ARCH-21 and R-ARCH-19 updated; U5 done.
+
+### L7.10 — Clock and ProjectStore ports (M; decided 2026-11-11)
+- **Goal:** the engine's wall clock and its project store become ports with memory fakes, handed by the composition roots (U6, after the Renderer slice).
+- **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.10)". Requirement R-ARCH-24; BL-171 opened.
+
+### L7.11 — HookRunner and Reviewer ports (M; decided 2026-11-11)
+- **Goal:** the engine runs hooks and reviews through two ports with memory fakes, the hook-run vocabulary in core and two pure entries (U6).
+- **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.11)". Requirement R-ARCH-25; R-ARCH-12 updated.
+
+### L7.12 — CaptureRunner port (L; decided 2026-11-11)
+- **Goal:** the engine captures, inspects, records, signs in and extracts sites through one port with memory fakes, and hands its hook runner into the capture (U6's last slice).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.12)". Requirement R-ARCH-26; R-PRIN-11 and R-ARCH-25 updated; U6 done (nine ports of twelve).
+
+### L7.13 — invoke() and the eleven shared operations (S; decided 2026-11-11)
+- **Goal:** an operation is defined once in the engine and run through one invoke() by MCP and the Studio, starting with the eleven the Studio borrowed from MCP (U7's first slice).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.13)". Requirement R-ARCH-27; R-ARCH-16 updated; R3 at 0.
+
+### L7.14 — The read-only queries as operations (S–M; decided 2026-11-11)
+- **Goal:** the reads of scenarios, plans, render status, reviews, the board and the scenario and render screens become engine operations (U7).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.14)". Requirement R-ARCH-28; R-ARCH-27, R-UI-37 and R-UI-42 updated.
+
+### L7.17 — Themes, components and the library as operations (M; decided 2026-11-11)
+- **Goal:** the theme, component and library operations of MCP and the Studio are defined once in the engine; the theme-edit rule is the operation's caller rule, and edits of one theme or one library run one at a time through the engine's chain (U7).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.17)". Requirement R-ARCH-29; R-ARCH-27 and R-ARCH-28 updated.
+
+### L7.15 — Job submits and controls as operations (M; decided 2026-11-11)
+- **Goal:** the submits of runs, renders, reviews, exports and inspections and the job controls of MCP and the Studio are defined once in the engine; the Studio's scenario chain is the engine's (U7).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.15)". Requirement R-ARCH-30; R-ARCH-28, R-ARCH-29, R-MCP-23, R-MCP-25, R-MCP-29 and R-MCP-36 updated.
+
+### L7.19 — Hooks, environment resets and sandboxes as operations (S; decided 2026-11-11)
+- **Goal:** MCP's hooks_run, env_reset and sandbox tools are defined once in the engine, their approvals unchanged (U7).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.19)". Requirement R-ARCH-32.
+
+### L7.16 — Comments as operations (S–M; decided 2026-11-11)
+- **Goal:** MCP's comment tools and the Studio's thread operations are defined once in the engine; the comment rules are the operations' caller rules, written once beside the comment store (U7).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.16)". Requirement R-ARCH-31; R-MCP-17 and R-UI-27 updated.
+
+### L7.18 — Authoring, recording and project writes as operations (S–M; decided 2026-11-11)
+- **Goal:** MCP's scenario writes, recording, project create and prune and job status, and the Studio's scenario edit and record screen, are defined once in the engine; MCP defines no operation of its own (U7).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.18)". Requirement R-ARCH-33; R-ARCH-28, R-ARCH-30, R-SEC-16, R-MCP-22, R-MCP-24 and R-UI-20 updated; BL-173.
+
+### L7.21 — callTool removed, the CLI's other commands characterized (S; decided 2026-11-11)
+- **Goal:** the deprecated alias goes, invoke is the one way to run an operation, and the CLI commands U8 will move are pinned byte for byte (end of U7, U8.0).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.21)". Requirement R-ARCH-34; R-ARCH-27 and R-ARCH-29 updated; BL-174.
+
+### L7.22 — The CLI's plan and raw export on the engine (S–M; decided 2026-11-11)
+- **Goal:** retake plan calls the engine's planOfRun, shared with the plan preview and the render jobs; export-capture and run --raw call rawExportWork over the capture port's new raw member (U8a, U8e).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.22)". Requirement R-ARCH-35; BL-174 extended.
+
+### L7.23 — The CLI's hooks on the engine (S–M; decided 2026-11-11)
+- **Goal:** retake hooks run, hooks rollback and env reset and the hooks and env_reset jobs call one engine orchestration per use case; the jobs' protection is required by type under the engine's trust (U8b).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.23)". Requirement R-ARCH-36; R-ARCH-32 and R-CLI-05 updated.
+
+### L7.24 — The CLI's components on the engine (S–M; decided 2026-11-11)
+- **Goal:** retake components list, validate, create and preview call the engine's shell forms beside the MCP forms; the requirements' cite check reads a quoted title whole (U8d).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.24)". Requirement R-ARCH-37.
+
+### L7.26 — One event log and admission under the queue lock (M; decided 2026-11-11)
+- **Goal:** the journal and the history share one crash-safe append, and admission is checked under the job queue's lock so it holds across processes (U15).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.26)". Requirement R-ARCH-39.
+
+### L7.25 — Sandbox and hooks seams (M; decided 2026-11-11)
+- **Goal:** a Sandboxes port with explicit capabilities and one contract suite on both providers; the OS utilities in core/io; runner-web on core's hook types; one browser-discovery module (U14).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.25)". Requirement R-ARCH-38; R11 at 1.
+
+### L7.28 — The CLI's sandbox on the engine (M; decided 2026-11-11)
+- **Goal:** retake sandbox init, up, reset, down, status and logs and the sandbox jobs call the engine's sandboxWork over the Sandboxes port; the seed trust is required by type under the engine's trust (U8c).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.28)". Requirement R-ARCH-41; R-ARCH-32, R-ARCH-34, R-ARCH-36 and R-ARCH-38 updated.
+
+### L7.29 — Function splits, first part (M; decided 2026-11-11)
+- **Goal:** the job runner's switch becomes one handler per job kind, the worker takes its test doubles as ports, draftFromRecording and doctor are split into named steps (U16).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.29)". Requirement R-ARCH-42.
+
+### L7.27 — A person's run asks before an agent's shell hooks (S; decided 2026-11-12)
+- **Goal:** retake run and retake hooks run list the shell hooks an agent wrote, rendered as they will run, and ask before running any; retake hooks trust lets the person adopt them (security fix).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.27)". Requirement R-SEC-38.
+
+### L7.20 — One name per use case, linked (S; decided 2026-11-12)
+- **Goal:** the operations that serve one use case under different names in MCP and the Studio are linked in the catalogue; the three Studio narrowings are marked with why they stay apart; nothing is renamed (U7).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.20)". Requirement R-ARCH-40; U7 done.
+
+### L7.30 — Function splits, second part (M; decided 2026-11-11)
+- **Goal:** the CLI's buildProgram by command family, the Studio's record screen in its own folder of parts; the rest of the front end by feature left to its own lot (U16).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.30)". Requirement R-ARCH-43.
+
+### L7.32 — The Studio front end by feature (M; decided 2026-11-11)
+- **Goal:** the Studio's modules live in one folder per feature, shared words and foundations apart, and the feature-boundary test holds the new parts (U16, finding S12).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.32)". Requirement R-ARCH-45; 17 evidences repointed.
+
+### L7.33 — An agent's sql hooks are asked about (S; decided 2026-11-12)
+- **Goal:** an sql hook an agent wrote, or a person's sql hook whose statement, file or database the agent's vars steer, needs a person's approval like an agent's shell hook, in the jobs and at a person's terminal (security fix).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.33)". Requirement R-SEC-39.
+
+### L7.31 — The capture's lifecycle and driver, one media wrapper (M–L; decided 2026-11-11)
+- **Goal:** runner-web's capture is a runner-agnostic lifecycle and a browser driver behind an internal seam; ffmpeg and ffprobe are started through one wrapper with one error type and one probe reader (U11).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.31)". Requirement R-ARCH-44.
+
+### L7.34 — Tests without a disk, first part (L; decided 2026-11-11)
+- **Goal:** files required wherever a place is named, source-text guards replaced by behaviour tests where they pinned behaviour, some engine tests on the memory ports; the shared test-support package and the rest of the moves handed on (U9).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.34)". Requirement R-ARCH-46.
+
+### L7.35 — The domain in context entries (L; decided 2026-11-11)
+- **Goal:** core is fifteen context entries with a ratchet between them, the job vocabulary is the engine's, and channels are a neutral confinement value inside the domain (U10).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.35)". Requirement R-ARCH-47; R-CORE-07, R-MCP-24, R-MCP-29, R-MCP-36, R-ARC-02 and R-CAP-01 updated.
+
+### L7.36 — Tooling and documents (M; decided 2026-11-12)
+- **Goal:** Biome lints and formats the code against a shrinking baseline, the first format in a commit of its own, lot ids out of the published descriptions, the hand-off cut to its current state with its history archived (U13).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.36)". Requirement R-ARCH-48.
+
+### L7.37 — Tests without a disk, second part (M; decided 2026-11-11)
+- **Goal:** one private test-support package for the helpers the tests of several packages share, one home helper, two ratchet checks, more engine tests on the memory ports (U9).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.37)". Requirement R-ARCH-49; R-ARCH-46 updated.
+
+### L7.38 — The workspace-read port (M; decided 2026-11-11)
+- **Goal:** core's workspace loaders run on a disk port, the engine reads workspaces through WorkspaceReads with a memory fake on one contract suite (the end of U9).
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.38)". Requirement R-ARCH-50; R-ARCH-46 done.
+
+### L7.39 — Trust bound to the files the hooks read (S; decided 2026-11-13)
+- **Goal:** a person's trust in an agent-written scenario's hooks covers the bytes of the scripts and data files they read, and a run is held to those bytes.
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.39)". Requirement R-SEC-40; R-SEC-39 updated.
+
+### L7.40 — Security: one shell lexer, the guard, the missing tests (S; decided 2026-11-13)
+- **Goal:** core reads shell commands with one lexer, and the destructive-hook guard counts every script it cannot read exactly as destructive; the audit's missing security tests are added.
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.40)". Requirement R-SEC-04 updated; R-SEC-40's evidence.
+
+### L7.43 — Tests in CI and the test tooling (M; decided 2026-11-13)
+- **Goal:** a deterministic tier of the tests runs in CI; Postgres and the kernel-sandbox check run by default where they can; the test guard, golden switches, free ports and coverage on demand are tightened.
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.43)". Requirement R-ARCH-51; R-ARCH-14 and R-SEC-20 updated.
+
+### L7.41 — The ports bag complete (M; decided 2026-11-13)
+- **Goal:** the job queue, the renderer, secrets, the environment and a monotonic clock are ports the composition root hands the engine; heavy jobs in process are an explicit worker option.
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.41)". Requirement R-ARCH-52; R-ARCH-42 updated.
+
+### L7.42 — Hygiene (M; decided 2026-11-13)
+- **Goal:** no dead code (the compiler now refuses unused locals and parameters), client mistakes reported as refusals, and every swallowed rejection either says why or surfaces the failure.
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.42)". No requirement change.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

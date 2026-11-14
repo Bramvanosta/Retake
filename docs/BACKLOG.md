@@ -2471,6 +2471,33 @@ a time stalled after 62 files and ran past two hours. So `ci.yml` runs the build
 - **Why one file at a time stalled**: a test that never ends (a browser or ffprobe left behind, a wait with no
   limit) — every wait in the suite needs a limit, and a file that outlives it fails with what it was waiting for.
 - Then the suite (or its fast tier) goes back into `ci.yml`, and the release can wait for main's green run (BL-144).
+### BL-165 — Runs and takes: what the one rule left
+*From:* L7.6a. Small pieces, any order.
+
+- Run ids compared as text where "is this run newer" is asked — the board's "failed after the capture" and its
+  poster, the scenario view's "newer partial run" note, the front end's board words: with a run folder named by hand
+  the text order and the one order of runs (dated ids first) disagree. One `isNewerRun(a, b)` in the domain, used by
+  the four places.
+- `--json` output of `render`, `still`, `plan` and `export-capture` carries nothing of what `latest` passed over or
+  did not consider (the line is on stderr only): a member for scripts.
+- A run record that says `running` whose process is gone is never closed: lists show it running, prune keeps it for
+  ever, and `latest` can only say "not finished, or interrupted". A liveness fact in the record (or a sweep that
+  closes such records) would let each say which.
+- A run id's date stamp is not compared with its record's `started_at`: a complete capture folder with a future date
+  is the latest capture everywhere.
+- The head of a timeline is read by parsing the whole file: the Studio's scenario view parses one timeline per listed
+  succeeded capture the first time it is shown (not measurable at tens of KB; about 0.6 s once with twenty captures of
+  7 MB), and the timeline view's default asks the rule on each call (one run.json per newer run). A head read that
+  stops early, or a memo for the default.
+- `latest` reads one run.json per newer run (about 0.1 ms each): a project with hundreds of failed or foreign runs
+  above its last capture pays it on every `render`, twice (the "scenario changed" note resolves the run too).
+- `run_status` reads the record of a run folder that is a symbolic link, which the lists skip.
+- Through MCP a capture whose film has more than one name (a hard link) is picked as `latest` and then refused by the
+  plan: it could be passed over like a linked film, so that an older capture renders.
+- `retake plan` resolves `latest` with the editor's rule but plans on its own (it reads no film): a named run without
+  its film still plans there and fails at `render`.
+- The raw export's manifest for a run whose run.json is no record: `run.status` / `run.env` are absent with no word
+  in the package's notes.
 
 ### BL-166 — The app's native menus, reworked
 *M–L · founder's request (2026-11-11) · builds on: L5.2, L5.9, L5.11a, L5.16c · see BL-126*
@@ -2649,3 +2676,71 @@ Recorded for the founder; nothing here changes the roadmap until they decide.
 - Agent-channel listings parked; the GitHub Action stays a candidate for our own CI. From the competitive study: fold the GitHub Action (BL-45) and the agent-channel listings (BL-52) into L3.7 packaging. *Why:* Both are small, and they are how the open-source rivals are found. *L3.7:* not folded (own use; BL-77).
 - Parked (commercialisation). From the competitive study: consider a first public release (CLI + MCP) at the end of phase 3, before the nine Studio lots, and decide the open-core question then. *Why:* It tests the market early; free MIT engines set the developer price at zero, so what is sold must sit above the engine (Studio, packs, team features).
 - From the competitive study: do not trim L1.6 (personas) or L1.8 (sandbox). *Why:* Reproducible data preparation with rollback and a sandbox is the one capability no checked competitor has.
+
+### BL-169 — Render records: what the one reader left
+*From:* L7.6b. Small pieces, any order.
+
+- The Studio's render list and the board disagree on a render record whose variant Retake never writes: the list shows
+  it as landscape, the board passes it over. Pick one rule (a slug-shaped word shown, anything else `unknown`) when
+  the views stop being flat (U7).
+- A video in `renders/` without its record is never listed nor pruned.
+- A lock left by a killed terminal render burns its version number.
+- `nextVersion` reads file names only, which is what frees the number of a render renamed by hand (the root of a
+  number reused).
+- The `variant` a render record holds is never compared with its id's suffix.
+- The board's "render failed" is fed by failed records, which no version writes.
+- Prune has no option to list or free a file of `renders/` it left alone (nor the take it keeps for it).
+- A terminal's `retake review|export … latest --json` carries nothing of what `latest` passed over (stderr only).
+- `retake review|export <name>` reads a named record twice (once for the renamed line, once to work on it): an
+  `onFound` callback on the export and review options would read it once (it moves the CLI golden).
+- The folder of exports/ or review/ of a render named is compared with the other files of `renders/` only, not with a
+  folder an earlier, deleted render left in `exports/` or `review/`.
+- The lists of renders check each record against its schema: 7–10 % slower than before at 2 000 records; a cache by
+  file signature (as the board's) would take it back.
+- `retake prune --json`'s `kept.renders` counts every record file that stays, a file that is no render included (the
+  text counts them apart).
+
+### BL-170 — The Studio's other screens compare a render's theme by its folder
+The project board compares a scenario's theme with its renders' by the theme's folder (`template_folder`, L7.9). The
+Studio's other screens still compare it by name — `sameVersion` in `packages/ui/src/app/render-words.ts`, used by the
+Render screen (`Renders.tsx`) to say whether a render shows today's file —, so a render made with another folder of the
+same name reads as current there. They should use `template_folder` as the board does (a record of before L7.9 by its
+name). *From:* L7.9.
+
+### BL-171 — Elapsed time on the monotonic clock
+The engine's stamps go through its Clock port (L7.10); its elapsed time does not, on purpose: the jobs worker's idle and
+build-check timers, its cancel and orphan grace periods, the waits and deadlines (`jobs.wait`, the project lock, the
+frame probes), the memos' lifetimes (the board, the scenario view, the bootstrap codes), a history line's `ms`. They
+read `Date.now()` and are pinned file by file by the import-rules ratchet's `clock-read` check (19 files). Measured on
+`performance.now()` (monotonic: a clock set back or forward moves none of them) most of these pins would go, about 8
+left (the file times and the app set-up). It touches the worker's scheduler and the tests that set `idleSince` by
+`Date.now()`, so it is a lot of its own. *From:* L7.10.
+
+### BL-172 — `retake auth status --check` through the engine
+`retake auth status` reads every persona's state through the engine and its capture runner (L7.12); its `--check`
+still imports the runner package itself (`packages/cli/src/commands/auth.ts`: `checkSavedSession`, `profileLock`,
+`writeStatus`, `PreflightError`) — the CLI's one R4 entry of a session. Moving it means an engine operation for a
+live check of saved sessions that also writes each persona's status file, and a member of the CaptureRunner port's
+sessions for that write: sessions are security-sensitive, so it is a change of its own, with its tests. *From:* L7.12.
+
+### BL-173 — A queued Studio recording's annotate and save say "not started from the Studio"
+`record_annotate` and `record_save` on a recording the Studio started that is still queued (no folder, no meta.json
+yet) answer 403 "this recording was not started from the Studio: it is read-only here": the refusal reads who started
+it from the folder's meta.json, which does not exist yet, so the starter is unknown (`record-studio.ts` `studioWords(null)`).
+The refusal itself is right (there is no draft to arrange or save); its words should say the recording has not opened
+yet, from the job's `submitted_by`. Seen in the L7.18 characterization (fixtures/authoring-ops.json). *From:* L7.18.
+
+### BL-174 — The CLI's hooks and export: what the characterization pinned
+*From:* L7.21 (U8.0). Each is pinned as it is today in `packages/cli/test/operations-cli.test.ts`.
+
+- `retake hooks run --yes` and its destructive-hook prompt cannot be reached from a hooks file: core's check refuses a
+  destructive hook without `confirm: true` when the file loads. Either the flag's words or the check should change.
+- Run and journal ids are stamped to the second: two `hooks run` of one source, or two `env reset`, in the same second
+  share one id and one journal.
+- `retake export-capture --json` drops the template note: it reaches no stream and not the manifest.
+- `plan` and `export-capture` word the "no timeline" refusal differently.
+- (L7.22) `findRun`'s refusal of a run whose run.json a newer Retake wrote says "render" for `plan` and
+  `export-capture` too (its verb is fixed).
+- (L7.22) The raw export's dry-run sentence names the timeline's `run_id`, not the folder that was named.
+- A scaffolded `component.yaml` names its `$schema` by a path relative to the Retake checkout, which breaks when either
+  folder moves.

@@ -1,14 +1,14 @@
 /** Types of the render API (DESIGN-phase2 §2: renderVideo, renderStill, listRenders). */
-import type { RenderRecord } from '../render-record.js';
-import { GUIDE } from '@retake/core';
-import type { ErrorKind } from '@retake/core';
+import type { RenderAttempt, RenderRecord } from '../render-record.js';
+import { GUIDE } from '@retake/core/base';
+import type { ErrorKind } from '@retake/core/base';
 
 /** A render that cannot start or failed (message written for the user). */
 export class RenderError extends Error {
   constructor(
     message: string,
-    /** The record of the failed/cancelled render (not written to disk). */
-    readonly record?: RenderRecord,
+    /** The record of the failed/cancelled render (never written to a disk). */
+    readonly record?: RenderAttempt,
   ) {
     super(message);
     this.name = 'RenderError';
@@ -22,7 +22,10 @@ export class RenderError extends Error {
   get errorDocs(): string {
     return GUIDE.editing;
   }
-  /** A failed render (renderPlan): the path it tried — the GPU path, its fallback and why (the record's `policy`). */
+  /**
+   * A failed render (renderPlan): the path it tried — the GPU path, its fallback and why (the record's `policy`).
+   * The `Renderer` port and this package's driver call it `renderPath`: planDriver (render.ts) maps the name.
+   */
   path?: RenderRecord['policy'];
   /** A failed render (renderPlan): its warnings so far (a fallback's, a guard's blocked origins). */
   renderWarnings?: string[];
@@ -30,7 +33,7 @@ export class RenderError extends Error {
 
 /** The render was cancelled through its AbortSignal: nothing was written under the final name. */
 export class RenderCancelledError extends RenderError {
-  constructor(record?: RenderRecord) {
+  constructor(record?: RenderAttempt) {
     super('render cancelled: no output written', record);
     this.name = 'CancelledError';
   }
@@ -46,6 +49,9 @@ export class RenderCancelledError extends RenderError {
  * jobs worker turns it into "the disk has N MB free".
  */
 export class RenderDiskFullError extends RenderError {
+  /** Read by name (isDiskFullError): a render driver's own failure may say it too. */
+  readonly diskFull = true as const;
+
   constructor(detail: string) {
     super(`the disk is full (${detail})`);
     this.name = 'DiskFullError';
@@ -57,10 +63,10 @@ export class RenderDiskFullError extends RenderError {
   }
 }
 
-/** An ENOSPC from Node (its `code`) or from a tool's message (ffmpeg, Chromium, Remotion). */
+/** A failure that says the disk is full (`diskFull`), an ENOSPC from Node (its `code`) or from a tool's message (ffmpeg, Chromium, Remotion). */
 export function isDiskFullError(e: unknown): boolean {
-  if (e instanceof RenderDiskFullError) return true;
   if (!e || typeof e !== 'object') return false;
+  if ((e as { diskFull?: unknown }).diskFull === true) return true;
   if ((e as { code?: unknown }).code === 'ENOSPC') return true;
   const message = (e as { message?: unknown }).message;
   return typeof message === 'string' && /\bENOSPC\b|no space left on device/i.test(message);

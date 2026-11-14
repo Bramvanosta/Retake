@@ -407,7 +407,8 @@ scenes:
 
 - **The same hooks as setup and teardown**: `http`, `sql`, `shell`, `js` entries with their keys, the allow-list, the
   read-only refusals (a read-only run refuses a named hook that writes before anything runs), destructive entries need
-  `confirm: true`, and through MCP or the Studio every shell or destructive entry needs a person's approval — bound to
+  `confirm: true`, and through MCP or the Studio every shell or destructive entry, and every sql entry of the scenario's
+  own named hooks, needs a person's approval — bound to
   the entry, its phase (`step`) and its position, asked once whatever the number of steps that run it. A scenario's
   name wins over project.yaml's; validation refuses a step naming a hook neither declares and warns about a named hook
   no step runs, and about a `caption`, `mark`, `overlay`, `camera`, `speed` or `tutorial` on a hook step (the edit

@@ -10,11 +10,13 @@
  * Studio), JobQueue adds the submit (the engine's operations, after their checks) and the worker's writes (the claiming
  * worker only). The import-rules ratchet keeps those calls inside packages/engine/src (its `queue-call` rule).
  *
- * Only the composition roots build a queue: the engine (createEngine), the worker (runWorker), the job process
- * (job-child.ts) and the CLI's in-process commands (packages/cli/src/workspace.ts), plus the file queue's own
- * withOwnMemory(); everything else is handed one (the ratchet's `queue` rule).
+ * A queue is made by the ports bag's factory (ports.ts EnginePorts `queues`, JobQueues): the composition roots (the
+ * engine, the worker, the job process, the CLI's in-process commands) call the one their ports hold, and only the
+ * ports' defaults build the file queue (with the file queue's own withOwnMemory(): the ratchet's `queue` rule).
  */
-import type { JobInput, JobKind, JobState } from '@retake/core';
+import type { EngineEnv } from '../env.js';
+import type { Clock } from '../clock.js';
+import type { JobInput, JobKind, JobState } from './job-input.js';
 import type { PlainFileProblem } from '@retake/core/io';
 import type { ProcessIdentity } from './proc.js';
 import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
@@ -59,9 +61,7 @@ export interface JobPosition {
 }
 
 /** What the worker of a running heavy job says while the job yields to a filming take (cleared with null). */
-export type YieldMark =
-  | { state: 'background'; since: string; cause: 'here' | 'elsewhere' }
-  | { state: 'past_cap'; since: string; cause: 'here' | 'elsewhere'; cap_min: number };
+export type YieldMark = { state: 'background'; since: string; cause: 'here' | 'elsewhere' } | { state: 'past_cap'; since: string; cause: 'here' | 'elsewhere'; cap_min: number };
 
 /** `hold`: what holds heavy work now, read once for a whole list (takeHold). */
 export interface DeriveOptions {
@@ -145,6 +145,15 @@ export interface JobQueue extends JobQueueView {
    * first (by name, created once: a render's edit snapshot), so a worker that sees the job sees them (jobFile).
    */
   enqueue(input: JobInput, opts?: { files?: Record<string, string> }): Promise<JobRecord>;
+  /**
+   * Run `fn` while holding the queue's lock of `key` (L7.26): one holder at a time per key — across processes for the
+   * file queue (the Studio, an MCP server, a terminal on one workspace), within its process for the in-memory one; other
+   * keys are not held. The engine's admission rules (admission.ts) check and submit under it, so two processes cannot
+   * both pass a rule and both enqueue. Released when `fn` settles (a throw too); a holder that died releases it.
+   * Not re-entrant: `fn` must not take `exclusive` again (the same key would wait for itself — in the file queue, until
+   * its wait ends `busy`; another key may wait on a holder that waits on this one).
+   */
+  exclusive<T>(key: string, fn: () => Promise<T>): Promise<T>;
 
   // ── the worker's ──
   /** Take a job: true for exactly one caller. */
@@ -164,3 +173,31 @@ export interface JobQueue extends JobQueueView {
    */
   append(id: string, seq: number, events: readonly JobEventBody[]): Promise<number>;
 }
+
+/**
+ * The paths of a workspace's job files (queue.ts JobFiles, the file queue's file part): what a worker, a live channel
+ * and the Studio's live run read or write themselves, beside the queue. Each refuses anything but a job id.
+ */
+export interface JobFilePaths {
+  /** <workspace>/.retake/jobs. */
+  readonly dir: string;
+  job(id: string): string;
+  record(id: string): string;
+  browser(id: string): string;
+  live(id: string): string;
+  yield(id: string): string;
+  events(id: string): string;
+}
+
+/** A workspace's queue as a composition root is handed it, and the paths of its job files. */
+export interface WorkspaceQueue {
+  queue: JobQueue;
+  files: JobFilePaths;
+}
+
+/**
+ * The port as the ports bag holds it (ports.ts EnginePorts `queues`): the queue of a workspace `root`, whose derived fix
+ * texts start with `cli`, stamped by `clock`, its approvals signed with the key of `env`'s Retake home. The product's makes a file queue; memory-queue.ts `memoryJobQueues` one
+ * map per workspace for tests.
+ */
+export type JobQueues = (root: string, cli: string, clock: Clock, env: EngineEnv) => WorkspaceQueue;

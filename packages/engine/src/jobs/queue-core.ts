@@ -10,8 +10,13 @@
  * jobFile. Readers never write: what a dead worker cannot write is derived when reading (queue.ts says how the next
  * worker persists it).
  */
-import { JOB_ID_RE, JobInputSchema, isFilming, jobClass } from '@retake/core';
-import type { JobInput } from '@retake/core';
+import type { EngineEnv } from '../env.js';
+import { parseJobId } from '@retake/core/ids';
+import { JobInputSchema, isFilming, jobClass } from './job-input.js';
+import type { JobId } from '@retake/core/ids';
+import type { JobInput } from './job-input.js';
+import { stampOf } from '../clock.js';
+import type { Clock } from '../clock.js';
 import { EngineError } from '../errors.js';
 import { newJobId } from './ids.js';
 import { isAlive } from './proc.js';
@@ -21,11 +26,13 @@ import { FINISHED_JOB_STATES, JOB_RECORD_VERSION } from './types.js';
 import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
 import { interrupted } from './interrupted.js';
 import type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, TakeHold, YieldMark } from './job-queue.js';
+import { bestEffort } from '@retake/core/base';
 
 /** A job's id, checked (never a path): the id itself, else `invalid`. */
-export function checkJobId(id: string): string {
-  if (!JOB_ID_RE.test(id)) throw new EngineError('invalid', `invalid job id "${id}": j_ followed by 26 characters (job_list names them)`);
-  return id;
+export function checkJobId(id: string): JobId {
+  const job = parseJobId(id);
+  if (job === null) throw new EngineError('invalid', `invalid job id "${id}": j_ followed by 26 characters (job_list names them)`);
+  return job;
 }
 
 /**
@@ -76,12 +83,19 @@ export abstract class StoredJobQueue implements JobQueue {
     readonly root: string,
     readonly cli: string,
     protected readonly entries: JobEntries,
+    /** What the queue stamps its records and markers with (the composition root's clock). */
+    protected readonly clock: Clock,
+    /** The environment its composition root read (env.ts): the Retake home whose key signs the approvals, the captures folder. */
+    protected readonly env: EngineEnv,
   ) {}
 
   /** A filming marker of this user that holds heavy work (`here`: its workspace is this one), else undefined. */
   protected abstract filming(): Promise<TakeHold>;
 
   abstract withOwnMemory(cli?: string): JobQueue;
+
+  /** `fn` under the queue's lock of `key` (JobQueue.exclusive): the adapter's lock. */
+  abstract exclusive<T>(key: string, fn: () => Promise<T>): Promise<T>;
 
   private async json<T>(id: string, name: string): Promise<T | undefined> {
     const text = await this.entries.read(id, name);
@@ -98,12 +112,12 @@ export abstract class StoredJobQueue implements JobQueue {
     if (!parsed.success) {
       throw new EngineError('invalid', `invalid job input: ${parsed.error.issues.map((i) => `${i.path.join('.') || '(input)'}: ${i.message}`).join('; ')}`);
     }
-    const id = newJobId();
+    const id = newJobId(this.clock.now());
     // Its approvals are signed for this job (signing.ts): the worker honours no approval a submit did not write for it.
-    const signed = await signApprovals(parsed.data, { jobId: id, root: this.root });
+    const signed = await signApprovals(parsed.data, { jobId: id, root: this.root, env: this.env });
     await this.entries.make(id);
     for (const [name, text] of Object.entries(opts.files ?? {})) await this.entries.add(id, checkJobFile(name), text);
-    const rec: JobRecord = { version: JOB_RECORD_VERSION, id, kind: signed.kind, input: signed, state: 'queued', created_at: new Date().toISOString() };
+    const rec: JobRecord = { version: JOB_RECORD_VERSION, id, kind: signed.kind, input: signed, state: 'queued', created_at: stampOf(this.clock) };
     await this.entries.replace(id, 'job.json', JSON.stringify(rec, null, 2) + '\n');
     return rec;
   }
@@ -190,7 +204,7 @@ export abstract class StoredJobQueue implements JobQueue {
   async takeHold(): Promise<TakeHold> {
     for (const id of await this.ids()) {
       if (this.finished.has(id)) continue;
-      const s = await this.stored(id).catch(() => undefined);
+      const s = await bestEffort(this.stored(id), 'a job removed meanwhile reads as gone');
       if (s?.state === 'queued' && isFilming(s.input) && (await this.cancelOf(id)) === undefined && (await this.claimOf(id)) === undefined) return 'here';
     }
     return this.filming();
@@ -238,7 +252,7 @@ export abstract class StoredJobQueue implements JobQueue {
     const rec = await this.get(id);
     if (!rec) throw new EngineError('not_found', `job ${id} not found (job_list names the jobs)`);
     if (FINISHED_JOB_STATES.has(rec.state)) return rec;
-    await this.entries.create(id, 'cancel', JSON.stringify({ at: new Date().toISOString(), by, ...(reason ? { reason } : {}) }) + '\n');
+    await this.entries.create(id, 'cancel', JSON.stringify({ at: stampOf(this.clock), by, ...(reason ? { reason } : {}) }) + '\n');
     return (await this.get(id)) ?? rec;
   }
 
@@ -248,7 +262,7 @@ export abstract class StoredJobQueue implements JobQueue {
    */
   async requestPause(id: string, on: boolean, by: string): Promise<void> {
     checkJobId(id);
-    if (on) await this.entries.create(id, 'pause', JSON.stringify({ at: new Date().toISOString(), by }) + '\n');
+    if (on) await this.entries.create(id, 'pause', JSON.stringify({ at: stampOf(this.clock), by }) + '\n');
     else await this.entries.remove(id, 'pause');
   }
 
@@ -269,7 +283,7 @@ export abstract class StoredJobQueue implements JobQueue {
    * by a finished job is inert.
    */
   async requestStop(id: string, by: string): Promise<void> {
-    await this.entries.create(checkJobId(id), 'stop', JSON.stringify({ at: new Date().toISOString(), by }) + '\n');
+    await this.entries.create(checkJobId(id), 'stop', JSON.stringify({ at: stampOf(this.clock), by }) + '\n');
   }
 
   async stopOf(id: string): Promise<JobMark | undefined> {
@@ -277,7 +291,7 @@ export abstract class StoredJobQueue implements JobQueue {
   }
 
   async claim(id: string, who: ProcessIdentity): Promise<boolean> {
-    const claim: ClaimRecord = { ...who, at: new Date().toISOString() };
+    const claim: ClaimRecord = { ...who, at: stampOf(this.clock) };
     try {
       return await this.entries.create(checkJobId(id), 'claim', JSON.stringify(claim) + '\n');
     } catch (e) {
@@ -307,7 +321,7 @@ export abstract class StoredJobQueue implements JobQueue {
   async append(id: string, seq: number, events: readonly JobEventBody[]): Promise<number> {
     if (!events.length) return seq;
     checkJobId(id);
-    const t = new Date().toISOString();
+    const t = stampOf(this.clock);
     const lines = events.map((e) => JSON.stringify({ seq: ++seq, t, ...e })).join('\n') + '\n';
     await this.entries.append(id, 'events.jsonl', lines);
     return seq;

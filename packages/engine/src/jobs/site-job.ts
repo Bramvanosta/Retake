@@ -23,25 +23,38 @@
  * `untrusted`; every string goes under it. The job's own warnings are shown as the tool's text only when they are one
  * of the tool's sentences (`isSiteWarning`); anything else in a job.json goes under `untrusted`.
  */
+import type { EngineEnv } from '../env.js';
 import { closeSync, lstatSync, openSync, readSync } from 'node:fs';
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { BRAND_IMAGE_MAX_BYTES, JOB_INPUT_VERSION, SITE_ID_RE, TEMPLATE_FILE, insideFolder, normalizeHost, parseSiteUrl, parseYaml, realPathOf, resolveEnvironment, siteApprovalFingerprint, siteThemeName, unsafeTestResolve, statePath, STATE_DIR, STATE_DIRS } from '@retake/core';
-import { listProjects, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
-import type { JobApproval, LoadedProject, SiteJobInput, SiteUrl, TemplateFile } from '@retake/core';
-import type { SiteReport } from '@retake/runner-web';
+import { parseYaml, bestEffort } from '@retake/core/base';
+import { SITE_ID_RE, newUlidId } from '@retake/core/ids';
+import { normalizeHost, resolveEnvironment } from '@retake/core/environment';
+import { realPathOf } from '@retake/core/policy';
+import { statePath, STATE_DIR, STATE_DIRS } from '@retake/core/project';
+import { insideFolder } from '@retake/core/scenario';
+import { BRAND_IMAGE_MAX_BYTES, TEMPLATE_FILE, parseSiteUrl, siteApprovalFingerprint, siteThemeName, unsafeTestResolve } from '@retake/core/theme';
+import { JOB_INPUT_VERSION } from './job-input.js';
+import { nodeFileFacts } from '@retake/core/io';
+import type { LoadedProject } from '@retake/core/model';
+import type { SiteUrl, TemplateFile } from '@retake/core/theme';
+import type { JobApproval, SiteJobInput } from './job-input.js';
+import type { SiteReport } from '@retake/runner-web/types';
+import type { CaptureRunner } from '../capture/runner.js';
+import { stampOf } from '../clock.js';
+import type { Clock } from '../clock.js';
 import { takeSiteApproval } from '../approvals.js';
 import type { Approver } from '../approvals.js';
 import { components } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { protectedHostOf, workspaceProtectedHosts } from '../protected-hosts.js';
 import { openProject } from '../workspace.js';
-import { newJobId } from './ids.js';
 import type { JobQueueView } from './job-queue.js';
 import type { SubmitContext } from './run-job.js';
 import { verifiedApprovals } from './signing.js';
 import type { JobEventBody, JobProgress, JobRecord, SiteCandidateResult, SiteJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 /** Site extractions kept per workspace (the newest). */
 export const SITE_KEEP = 10;
@@ -58,12 +71,13 @@ export function siteRoot(ws: OpenedWorkspace): string {
 
 /** <workspace>/.retake/site/<id> (the id checked: never a path). */
 export function siteDir(ws: OpenedWorkspace, id: string): string {
-  if (typeof id !== 'string' || !SITE_ID_RE.test(id)) throw new EngineError('invalid', `invalid site extraction id "${String(id)}": s_ followed by 26 characters (template_from_site returns it), never a path`);
+  if (typeof id !== 'string' || !SITE_ID_RE.test(id))
+    throw new EngineError('invalid', `invalid site extraction id "${String(id)}": s_ followed by 26 characters (template_from_site returns it), never a path`);
   return join(siteRoot(ws), id);
 }
 
 export function newSiteId(): string {
-  return `s_${newJobId().slice(2)}`;
+  return newUlidId('site');
 }
 
 /**
@@ -82,7 +96,8 @@ export async function makeSiteDir(ws: OpenedWorkspace, id: string): Promise<stri
     const st = await lstat(parent);
     if (!st.isDirectory()) throw new EngineError('refused', `${parent} is not a folder (a link or a file): site extractions are written only into plain folders of the workspace — remove it`);
   }
-  if (!insideFolder(realPathOf(resolve(ws.root), nodeFileFacts), realPathOf(parent, nodeFileFacts), nodeFileFacts)) throw new EngineError('refused', `${parent} leaves the workspace: site extractions stay in it`);
+  if (!insideFolder(realPathOf(resolve(ws.root), nodeFileFacts), realPathOf(parent, nodeFileFacts), nodeFileFacts))
+    throw new EngineError('refused', `${parent} leaves the workspace: site extractions stay in it`);
   try {
     await mkdir(dir);
   } catch (e) {
@@ -163,7 +178,7 @@ export function checkSiteUrl(url: string, fix?: string): SiteUrl {
  */
 export async function siteHostConflicts(ws: OpenedWorkspace, host: string): Promise<string[]> {
   const out: string[] = [];
-  for (const p of await listProjects(ws.root)) {
+  for (const p of await ws.reads.listProjects(ws.root)) {
     let project: LoadedProject;
     try {
       project = await openProject(ws, p.dir);
@@ -204,7 +219,7 @@ async function activeSites(queue: JobQueueView): Promise<string[]> {
  * running in `queue` (the workspace's) are never removed.
  */
 export async function pruneSites(ws: OpenedWorkspace, queue: JobQueueView, keep = SITE_KEEP, except: readonly string[] = []): Promise<string[]> {
-  const active = await activeSites(queue).catch(() => null);
+  const active = await bestEffort(activeSites(queue), 'jobs that cannot be read: null, and nothing is pruned on a guess', null);
   if (active === null) return [];
   const spared = new Set([...except, ...active]);
   // Never through a link: .retake/ and site/ must be real folders.
@@ -215,7 +230,11 @@ export async function pruneSites(ws: OpenedWorkspace, queue: JobQueueView, keep 
   } catch {
     return [];
   }
-  const old = names.sort().reverse().slice(keep).filter((n) => !spared.has(n));
+  const old = names
+    .sort()
+    .reverse()
+    .slice(keep)
+    .filter((n) => !spared.has(n));
   for (const n of old) await rm(join(siteRoot(ws), n), { recursive: true, force: true }).catch(() => undefined);
   return old;
 }
@@ -239,14 +258,19 @@ export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, ap
   const fix = siteCommandLine(ctx.cli, first.href);
   const conflicts = await siteHostConflicts(ctx.ws, first.host);
   if (conflicts.length) {
-    throw new EngineError('refused', `url: ${first.host} is ${conflicts.join('; ')}: an environment of a project is filmed through runs and page_inspect (with its access rules), never extracted as a site`, {
-      fix: 'page_inspect {project, url} reads an environment page',
-    });
+    throw new EngineError(
+      'refused',
+      `url: ${first.host} is ${conflicts.join('; ')}: an environment of a project is filmed through runs and page_inspect (with its access rules), never extracted as a site`,
+      {
+        fix: 'page_inspect {project, url} reads an environment page',
+      },
+    );
   }
   const approvals: JobApproval[] = await takeSiteApproval(
     { what: 'site extraction', href: first.href, host: first.host, unicode_host: first.unicode_host, fingerprint: siteApprovalFingerprint(first.href), fix },
     approver,
     ctx.client,
+    ctx.clock,
   );
   // The folder is made by the worker (makeSiteDir), new: nothing is reserved on disk here.
   const id = newSiteId();
@@ -254,11 +278,12 @@ export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, ap
   await pruneSites(ctx.ws, ctx.queue, SITE_KEEP, [id]);
   const input: SiteJobInput = { version: JOB_INPUT_VERSION, kind: 'site', site_id: id, url: first.href, submitted_by: ctx.client, approvals };
   const job = await ctx.queue.enqueue(input);
-  const warnings = unsafeTestResolve().map.size ? ['the unsafe test resolver (RETAKE_UNSAFE_TEST_RESOLVE) is set in this server\'s environment'] : [];
+  const warnings = unsafeTestResolve().map.size ? ["the unsafe test resolver (RETAKE_UNSAFE_TEST_RESOLVE) is set in this server's environment"] : [];
   return { job, site_id: id, url: first.href, host: first.host, unicode_host: first.unicode_host, dir, warnings };
 }
 
-export interface SiteJobContext {
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
+export interface SiteJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   /** The workspace's job queue (the folders of extractions queued or running are never pruned). */
@@ -272,14 +297,14 @@ export interface SiteJobContext {
 }
 
 /** Whether the job carries a verified (signed) human approval of exactly its URL. */
-export async function siteApproved(input: SiteJobInput, jobId: string, root: string): Promise<boolean> {
-  const { approvals } = await verifiedApprovals(input, { jobId, root });
+export async function siteApproved(input: SiteJobInput, jobId: string, root: string, env: EngineEnv): Promise<boolean> {
+  const { approvals } = await verifiedApprovals(input, { jobId, root, env });
   const want = siteApprovalFingerprint(input.url);
   return approvals.some((a) => a.fingerprint === want);
 }
 
-/** A draft brand input and the template.yaml it would make, from an extraction's colours and first candidate. */
-export async function siteDraft(ws: OpenedWorkspace, siteId: string, view: Pick<SiteJobResult, 'host' | 'palette' | 'candidates' | 'status'>): Promise<SiteJobResult['draft']> {
+/** A draft brand input and the template.yaml it would make, from an extraction's colours and first candidate, dated by `clock`. */
+export async function siteDraft(ws: OpenedWorkspace, view: Pick<SiteJobResult, 'host' | 'palette' | 'candidates' | 'status'>, clock: Clock): Promise<SiteJobResult['draft']> {
   if (view.status !== 'ok' || !view.palette) return null;
   const { roles, swatches } = view.palette;
   const lib = await components();
@@ -288,7 +313,7 @@ export async function siteDraft(ws: OpenedWorkspace, siteId: string, view: Pick<
   const baseName = tone === 'dark' ? 'motion' : 'editorial';
   let base;
   try {
-    base = await loadTemplate(baseName, ws.root, { files: fileFacts(ws.policy) });
+    base = await ws.reads.loadTemplate(baseName, ws.root, { files: ws.reads.fileFacts(ws.policy) });
   } catch {
     return null;
   }
@@ -305,7 +330,7 @@ export async function siteDraft(ws: OpenedWorkspace, siteId: string, view: Pick<
     logo: 'logo.png',
     fonts: { display: `fonts/${basename(base.assets.display)}`, body: base.assets.body.map((b) => `fonts/${basename(b)}`) },
     brand: { url: view.host },
-    date: new Date().toISOString().slice(0, 10),
+    date: stampOf(clock).slice(0, 10),
   });
   return { base: baseName, brand_input: { name, base: baseName, colors, ...(logo ? { logo } : {}), brand: { url: view.host } }, template_yaml: generated.yaml };
 }
@@ -315,7 +340,11 @@ const ratio = (v: unknown): number => (typeof v === 'number' && Number.isFinite(
 const contrastOf = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(1, Math.min(21, Math.round(v * 100) / 100)) : 1);
 const hexOr = <T>(v: unknown, d: T): string | T => (typeof v === 'string' && HEX.test(v) ? v : d);
 const counts = (v: unknown): Record<string, number> =>
-  Object.fromEntries(Object.entries(v && typeof v === 'object' ? (v as Record<string, unknown>) : {}).filter(([k]) => /^[a-z_]{1,20}$/.test(k)).map(([k, n]) => [k, int(n)]));
+  Object.fromEntries(
+    Object.entries(v && typeof v === 'object' ? (v as Record<string, unknown>) : {})
+      .filter(([k]) => /^[a-z_]{1,20}$/.test(k))
+      .map(([k, n]) => [k, int(n)]),
+  );
 
 /**
  * An extraction as a result shows it, from its report (in memory, or site.json read back): hex colours, numbers,
@@ -336,7 +365,13 @@ export function siteView(ws: OpenedWorkspace, siteId: string, url: SiteUrl, raw:
           swatches: (Array.isArray(pal?.swatches) ? pal.swatches : [])
             .slice(0, 8)
             .filter((s) => s && typeof s === 'object' && typeof (s as { hex?: unknown }).hex === 'string' && HEX.test(s.hex))
-            .map((s) => ({ hex: s.hex, background: ratio(s.background), text: ratio(s.text), interactive: ratio(s.interactive), contrast: { paper: contrastOf(s.contrast?.paper), text: contrastOf(s.contrast?.text) } })),
+            .map((s) => ({
+              hex: s.hex,
+              background: ratio(s.background),
+              text: ratio(s.text),
+              interactive: ratio(s.interactive),
+              contrast: { paper: contrastOf(s.contrast?.paper), text: contrastOf(s.contrast?.text) },
+            })),
         }
       : null;
   const candidates: SiteCandidateResult[] = [];
@@ -377,10 +412,14 @@ export function siteView(ws: OpenedWorkspace, siteId: string, url: SiteUrl, raw:
 /** Execute a `site` job: the approval and the URL checked again, the extraction, the draft, the pruning. */
 export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult> {
   const { input } = ctx;
-  if (!(await siteApproved(input, ctx.jobId, ctx.ws.root))) {
-    throw new EngineError('refused', `refused without running: a site job runs only with a human's approval of its exact URL, signed when it was submitted — this one has none (a job file not written by a submit, or edited since)`, {
-      fix: siteCommandLine(ctx.cli, input.url),
-    });
+  if (!(await siteApproved(input, ctx.jobId, ctx.ws.root, ctx.env))) {
+    throw new EngineError(
+      'refused',
+      `refused without running: a site job runs only with a human's approval of its exact URL, signed when it was submitted — this one has none (a job file not written by a submit, or edited since)`,
+      {
+        fix: siteCommandLine(ctx.cli, input.url),
+      },
+    );
   }
   const url = checkSiteUrl(input.url, siteCommandLine(ctx.cli, input.url));
   const conflicts = await siteHostConflicts(ctx.ws, url.host);
@@ -389,11 +428,12 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
   const test = unsafeTestResolve();
   if (test.map.size) ctx.event({ type: 'log', level: 'warn', message: `the unsafe test resolver is set: ${[...test.map.keys()].join(', ')} reach loopback ports` });
   if (test.ignored.length) ctx.event({ type: 'log', level: 'warn', message: `RETAKE_UNSAFE_TEST_RESOLVE entries ignored (not <name>.test=127.0.0.1:<port>): ${test.ignored.length}` });
-  const { extractSite } = await import('@retake/runner-web');
+  // The runner loaded before the extraction (a load that fails is not the extraction's error).
+  await ctx.capture.load();
   const steps = ['redirects', 'loading', 'reading', 'logos', 'writing'];
   let report: SiteReport;
   try {
-    report = await extractSite({
+    report = await ctx.capture.site.extract({
       policy: ctx.ws.policy,
       url: url.href,
       host: url.host,
@@ -401,41 +441,53 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
       signal: ctx.signal,
       testResolve: test.map,
       log: (m) => ctx.event({ type: 'log', level: 'info', message: m }),
-      onPhase: (phase) => ctx.progress({ steps_done: steps.indexOf(phase), steps_total: steps.length, phase, updated_at: new Date().toISOString() }),
+      onPhase: (phase) => ctx.progress({ steps_done: steps.indexOf(phase), steps_total: steps.length, phase, updated_at: stampOf(ctx.clock) }),
     });
   } catch (e) {
     throw toEngineError(e);
   }
   await pruneSites(ctx.ws, ctx.queue, SITE_KEEP, [input.site_id]);
   const view = siteView(ctx.ws, input.site_id, url, report);
-  return { kind: 'site', ...view, warnings: report.warnings, untrusted: report.untrusted as Record<string, unknown>, draft: await siteDraft(ctx.ws, input.site_id, view) };
+  return { kind: 'site', ...view, warnings: report.warnings, untrusted: report.untrusted as Record<string, unknown>, draft: await siteDraft(ctx.ws, view, ctx.clock) };
 }
 
 /**
  * `retake theme from-site <url>` (trust `author`): the same extraction in-process, never a job and never an approval
  * (the human typed the URL). The same network rules; an environment page or a protected host is a warning here.
  */
-export async function extractSiteForAuthor(ws: OpenedWorkspace, rawUrl: string, o: { queue: JobQueueView; signal?: AbortSignal; onPhase?: (phase: string) => void }): Promise<SiteJobResult> {
+export async function extractSiteForAuthor(
+  ws: OpenedWorkspace,
+  rawUrl: string,
+  o: { queue: JobQueueView; clock: Clock; capture: CaptureRunner; signal?: AbortSignal; onPhase?: (phase: string) => void },
+): Promise<SiteJobResult> {
   const url = checkSiteUrl(rawUrl);
   const conflicts = await siteHostConflicts(ws, url.host);
   const id = newSiteId();
   const dir = await makeSiteDir(ws, id);
   const test = unsafeTestResolve();
-  const { extractSite } = await import('@retake/runner-web');
+  await o.capture.load();
   let report: SiteReport;
   try {
-    report = await extractSite({ policy: ws.policy, url: url.href, host: url.host, outDir: dir, testResolve: test.map, ...(o.signal ? { signal: o.signal } : {}), ...(o.onPhase ? { onPhase: o.onPhase } : {}) });
+    report = await o.capture.site.extract({
+      policy: ws.policy,
+      url: url.href,
+      host: url.host,
+      outDir: dir,
+      testResolve: test.map,
+      ...(o.signal ? { signal: o.signal } : {}),
+      ...(o.onPhase ? { onPhase: o.onPhase } : {}),
+    });
   } catch (e) {
     throw toEngineError(e);
   }
   await pruneSites(ws, o.queue, SITE_KEEP, [id]);
   const view = siteView(ws, id, url, report);
   const warnings = [...conflicts.map((c) => `${url.host} is ${c}: environments are filmed through runs, not extracted (done anyway: you typed it)`), ...report.warnings];
-  return { kind: 'site', ...view, warnings, untrusted: report.untrusted as Record<string, unknown>, draft: await siteDraft(ws, id, view) };
+  return { kind: 'site', ...view, warnings, untrusted: report.untrusted as Record<string, unknown>, draft: await siteDraft(ws, view, o.clock) };
 }
 
 /** An extraction read back from its folder (site.json as a file of the workspace), with its draft; null report when absent. */
-export async function readSite(ws: OpenedWorkspace, siteId: string, url: string): Promise<{ dir: string; view: SiteJobResult | null }> {
+export async function readSite(ws: OpenedWorkspace, siteId: string, url: string, clock: Clock): Promise<{ dir: string; view: SiteJobResult | null }> {
   const dir = siteDir(ws, siteId);
   let raw: unknown;
   try {
@@ -446,5 +498,5 @@ export async function readSite(ws: OpenedWorkspace, siteId: string, url: string)
   const parsed = parseSiteUrl(url, unsafeTestResolve().map);
   if (!parsed.ok) return { dir, view: null };
   const view = siteView(ws, siteId, parsed.url, raw);
-  return { dir, view: { kind: 'site', ...view, draft: await siteDraft(ws, siteId, view) } };
+  return { dir, view: { kind: 'site', ...view, draft: await siteDraft(ws, view, clock) } };
 }

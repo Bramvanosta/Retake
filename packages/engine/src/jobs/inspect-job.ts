@@ -14,23 +14,21 @@
  * When the replay ends before the page could be inspected (a preflight or sign-in failure, a refused scenario), the job
  * still succeeds and reports the run's error under `untrusted` (and which persona must sign in); a cancel cancels it.
  */
+import type { Secrets } from '../secrets/secrets.js';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  INSPECT_ID_RE,
-  JOB_INPUT_VERSION,
-  inspectPathProblem,
-  inspectScenario,
-  isPageOrigin,
-  pageOrigins,
-  resolveEnvironment,
-  statePath,
-  projectRef,
-} from '@retake/core';
-import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkPolicy } from '@retake/core';
-import type { InspectReport } from '@retake/runner-web';
-import { fileFacts } from '@retake/core/io';
+import { INSPECT_ID_RE, newUlidId } from '@retake/core/ids';
+import { resolveEnvironment } from '@retake/core/environment';
+import { statePath, projectRef } from '@retake/core/project';
+import { inspectPathProblem, inspectScenario, isPageOrigin, pageOrigins } from '@retake/core/run';
+import { JOB_INPUT_VERSION } from './job-input.js';
+import type { LoadedProject, LoadedScenario, TargetSpec } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { RunProgress, RunRecord } from '@retake/core/run';
+import type { InspectJobInput } from './job-input.js';
+import type { InspectReport } from '@retake/runner-web/types';
+import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';
 import { agentChannel, checkAgentTrust } from '../approvals.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
@@ -39,12 +37,15 @@ import { openProjectBySlug } from '../projects.js';
 import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { sha256Hex } from '../storage.js';
-import { newJobId } from './ids.js';
 import type { JobQueueView } from './job-queue.js';
-import { review } from './review-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { InspectJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
+import type { FrameTools } from '../review/reviewer.js';
+import type { CaptureRunner } from '../capture/runner.js';
+import type { HookRunner } from '../hook-run/runner.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Inspections kept per project (the newest). */
 export const INSPECT_KEEP = 20;
@@ -79,7 +80,7 @@ export function inspectDir(project: LoadedProject, id: string): string {
 }
 
 export function newInspectId(): string {
-  return `i_${newJobId().slice(2)}`;
+  return newUlidId('inspect');
 }
 
 /** The inspections of a project whose job is queued or running (their folders are in use). */
@@ -93,7 +94,7 @@ export async function activeInspections(queue: JobQueueView, slug: string): Prom
  * given the workspace's job queue — the folder of an inspection whose job is still queued or running.
  */
 export async function pruneInspections(project: LoadedProject, keep = INSPECT_KEEP, except: readonly string[] = [], queue?: JobQueueView): Promise<string[]> {
-  const active = queue !== undefined ? await activeInspections(queue, project.slug).catch(() => null) : [];
+  const active = queue !== undefined ? await bestEffort(activeInspections(queue, project.slug), 'jobs that cannot be read: null, and nothing is pruned on a guess', null) : [];
   // The jobs could not be read: nothing is pruned (a folder in use is never removed on a guess).
   if (active === null) return [];
   except = [...except, ...active];
@@ -103,7 +104,11 @@ export async function pruneInspections(project: LoadedProject, keep = INSPECT_KE
   } catch {
     return [];
   }
-  const old = names.sort().reverse().slice(keep).filter((n) => !except.includes(n));
+  const old = names
+    .sort()
+    .reverse()
+    .slice(keep)
+    .filter((n) => !except.includes(n));
   for (const n of old) await rm(join(inspectRoot(project), n), { recursive: true, force: true }).catch(() => undefined);
   return old;
 }
@@ -148,7 +153,10 @@ export function pageOfUrl(url: string, pages: Record<string, string>, envName: s
   if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new EngineError('refused', `url: only http(s) URLs of environment ${envName}'s pages are inspected (not ${u.protocol})`);
   if (u.username || u.password) throw new EngineError('refused', 'url: a URL with credentials is never opened through an inspection');
   if (!isPageOrigin(url, pages)) {
-    throw new EngineError('refused', `url: its origin is not one of environment ${envName}'s pages (${pageOrigins(pages).join(', ') || 'none'}): an inspection opens only the environment's own origins — another port of localhost is another app`);
+    throw new EngineError(
+      'refused',
+      `url: its origin is not one of environment ${envName}'s pages (${pageOrigins(pages).join(', ') || 'none'}): an inspection opens only the environment's own origins — another port of localhost is another app`,
+    );
   }
   let best: { page: string; base: string } | null = null;
   for (const [page, base] of Object.entries(pages)) {
@@ -218,7 +226,10 @@ export async function prepareInspect(ws: OpenedWorkspace, project: LoadedProject
       if (!isPageOrigin(env.pages[source.page], env.pages)) throw new EngineError('refused', `page ${source.page} of environment ${env.name} is not an http(s) URL: nothing to inspect`);
       let scenario: LoadedScenario;
       try {
-        scenario = inspectScenario(source.page, source.path, { ...(source.persona !== undefined ? { persona: source.persona } : {}), check: { project, env: env.name, files: fileFacts(ws.policy) } });
+        scenario = inspectScenario(source.page, source.path, {
+          ...(source.persona !== undefined ? { persona: source.persona } : {}),
+          check: { project, env: env.name, files: ws.reads.fileFacts(ws.policy) },
+        });
       } catch (e) {
         throw new EngineError('invalid', (e as Error).message);
       }
@@ -242,7 +253,10 @@ export async function prepareInspect(ws: OpenedWorkspace, project: LoadedProject
 }
 
 /** Check, reserve the inspection's folder and queue an `inspect` job. */
-export async function submitInspectJob(ctx: SubmitContext, req: InspectSubmitRequest): Promise<{ job: JobRecord; inspect_id: string; dir: string; env: string; source: InspectJobInput['source']; warnings: string[] }> {
+export async function submitInspectJob(
+  ctx: SubmitContext,
+  req: InspectSubmitRequest,
+): Promise<{ job: JobRecord; inspect_id: string; dir: string; env: string; source: InspectJobInput['source']; warnings: string[] }> {
   checkProjectSlug(req.project);
   const project = await openProjectBySlug(ctx.ws, req.project);
   let env: ReturnType<typeof resolveEnvironment>;
@@ -308,6 +322,14 @@ export interface InspectionOptions {
   targets?: TargetSpec[];
   limit?: number;
   images: 'marked' | 'none';
+  /** What draws the marks on the screenshot (its composition root's reviewer, review/reviewer.ts). */
+  frames: Pick<FrameTools, 'marks'>;
+  /** What replays the scenario (its composition root's capture runner, capture/runner.ts). */
+  capture: CaptureRunner;
+  /** What its secret references are resolved with (its composition root's Secrets port). */
+  secrets: Secrets;
+  /** Its hook runner, handed to every run (an inspection skips the scenario's hooks: nothing runs through it). */
+  hooks: HookRunner;
   /** Who stands behind the replayed scenario (`mcp`: agent trust in the runner). */
   hookTrust?: 'author' | 'mcp';
   signal?: AbortSignal;
@@ -321,10 +343,10 @@ export interface InspectionOptions {
  */
 export async function runInspection(o: InspectionOptions): Promise<InspectionRun> {
   const { prepared } = o;
-  const { runScenario } = await import('@retake/runner-web');
   let report: InspectReport | null = null;
   let signIn: InspectionRun['signIn'] = null;
-  const record = await runScenario({
+  const record = await o.capture.run({
+    resolveSecret: (ref) => o.secrets.resolve(ref),
     policy: o.policy,
     project: prepared.project,
     scenario: prepared.scenario,
@@ -347,13 +369,13 @@ export async function runInspection(o: InspectionOptions): Promise<InspectionRun
       onResult: (r) => void (report = r),
     },
     ...(o.onProgress ? { onProgress: o.onProgress } : {}),
+    hookRunner: o.hooks,
   });
   const r = report as InspectReport | null;
   let marked: string | null = null;
   if (r && r.status === 'ok' && r.screenshot && o.images === 'marked') {
-    const rv = await review();
     const out = join(o.runsDir, o.id, 'marked.jpg');
-    await rv.drawMarks(r.screenshot, markBoxes(r), out, { scale: r.scale });
+    await o.frames.marks(r.screenshot, markBoxes(r), out, { scale: r.scale });
     marked = out;
   }
   return { record, report: r, marked, signIn: r ? null : signIn };
@@ -364,9 +386,7 @@ export async function runInspection(o: InspectionOptions): Promise<InspectionRun
  * over (a modal over the page) — their number would sit on the cover, on what a click there would really hit.
  */
 export function markBoxes(r: Pick<InspectReport, 'elements' | 'scale'>): Array<{ mark: number; x: number; y: number; w: number; h: number }> {
-  return r.elements
-    .filter((e) => e.in_view && !e.state.covered)
-    .map((e) => ({ mark: e.mark, x: e.bbox.x * r.scale, y: e.bbox.y * r.scale, w: e.bbox.w * r.scale, h: e.bbox.h * r.scale }));
+  return r.elements.filter((e) => e.in_view && !e.state.covered).map((e) => ({ mark: e.mark, x: e.bbox.x * r.scale, y: e.bbox.y * r.scale, w: e.bbox.w * r.scale, h: e.bbox.h * r.scale }));
 }
 
 /** The job's result from an inspection (counts and booleans; page text only under `untrusted`). */
@@ -395,7 +415,8 @@ export function inspectResult(id: string, dir: string, run: InspectionRun): Insp
   };
 }
 
-export interface InspectJobContext {
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
+export interface InspectJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: InspectJobInput;
@@ -411,10 +432,10 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
   const dir = inspectDir(project, input.inspect_id);
   const prepared = await prepareInspect(ctx.ws, project, input.source, input.env);
   await checkWorkspaceProtection(ctx.ws, project, prepared.env);
-  await checkSandboxEnv(project, prepared.env, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy);
-  const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'replay', updated_at: new Date().toISOString() };
+  await checkSandboxEnv(project, prepared.env, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy, ctx.sandboxes);
+  const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'replay', updated_at: stampOf(ctx.clock) };
   const update = (patch: Partial<JobProgress>) => {
-    Object.assign(progress, patch, { updated_at: new Date().toISOString() });
+    Object.assign(progress, patch, { updated_at: stampOf(ctx.clock) });
     ctx.progress({ ...progress });
   };
   const run = await runInspection({
@@ -426,6 +447,10 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
     ...(input.targets ? { targets: input.targets } : {}),
     ...(input.limit !== undefined ? { limit: input.limit } : {}),
     images: input.images,
+    frames: ctx.reviewer.frames,
+    capture: ctx.capture,
+    secrets: ctx.secrets,
+    hooks: ctx.hooks,
     hookTrust: ENGINE_TRUST,
     signal: ctx.signal,
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,

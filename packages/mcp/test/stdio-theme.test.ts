@@ -17,9 +17,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { LIBRARY_DIR } from '@retake/components';
 import { readWorkerLock } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -42,7 +43,10 @@ const imagesOf = (r: Result) => r.content.filter((b) => b.type === 'image');
 
 async function folderHash(dir: string): Promise<string> {
   const h = createHash('sha256');
-  for (const e of (await readdir(dir, { withFileTypes: true, recursive: true })).filter((x) => x.isFile()).map((x) => join(x.parentPath, x.name)).sort()) {
+  for (const e of (await readdir(dir, { withFileTypes: true, recursive: true }))
+    .filter((x) => x.isFile())
+    .map((x) => join(x.parentPath, x.name))
+    .sort()) {
     h.update(`${e}\0`).update(await readFile(e));
   }
   return h.digest('hex');
@@ -130,19 +134,25 @@ describe('retake mcp: a theme from brand files', () => {
     const l = await call('template_list', {});
     expect(l.content[0].text).toMatch(/- harbor \(workspace, real\): intro studio\/intro-stack/);
     const d = await call('template_list', { template: 'harbor' });
-    expect(d.content[0].text).toMatch(/Themes are never edited through this server \(a human edits them\): template_create_from_brand makes new ones, and replaces only one it made through MCP that nobody changed — its brand name and URL are text an agent gave/);
+    expect(d.content[0].text).toMatch(
+      /Themes are never edited through this server \(a human edits them\): template_create_from_brand makes new ones, and replaces only one it made through MCP that nobody changed — its brand name and URL are text an agent gave/,
+    );
   });
 
-  it.skipIf(!can)('template_preview renders its stills through the preview job', async () => {
-    const r = await call('template_preview', { project: 'demo', template: 'harbor', wait_s: 25 });
-    expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
-    expect(r.structuredContent).toMatchObject({ theme: 'harbor', job: { state: 'succeeded' } });
-    const stills = (r.structuredContent as { stills: Array<{ kind: string; file: string; bytes: number }> }).stills;
-    expect(stills.map((s) => s.kind)).toEqual(['intro', 'layout', 'card', 'interstitial', 'outro']);
-    for (const s of stills) expect(s.bytes).toBeGreaterThan(5_000);
-    expect(imagesOf(r).length).toBeGreaterThanOrEqual(4);
-    expect(stderr).not.toMatch(/font.*fail|cancelRender/i);
-  }, LONG);
+  it.skipIf(!can)(
+    'template_preview renders its stills through the preview job',
+    async () => {
+      const r = await call('template_preview', { project: 'demo', template: 'harbor', wait_s: 25 });
+      expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
+      expect(r.structuredContent).toMatchObject({ theme: 'harbor', job: { state: 'succeeded' } });
+      const stills = (r.structuredContent as { stills: Array<{ kind: string; file: string; bytes: number }> }).stills;
+      expect(stills.map((s) => s.kind)).toEqual(['intro', 'layout', 'card', 'interstitial', 'outro']);
+      for (const s of stills) expect(s.bytes).toBeGreaterThan(5_000);
+      expect(imagesOf(r).length).toBeGreaterThanOrEqual(4);
+      expect(stderr).not.toMatch(/font.*fail|cancelRender/i);
+    },
+    LONG,
+  );
 
   it('replace: true changes it while nobody edited it; after a human edit it is refused', async () => {
     const r = await call('template_create_from_brand', { ...brand, colors: { accent: '#0e7c66' }, replace: true });

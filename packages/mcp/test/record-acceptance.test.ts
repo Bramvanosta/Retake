@@ -19,9 +19,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { historyFile, jobsDir, readWorkerLock, runWorker, workersDir } from '@retake/engine';
-import type { RecordJobTestHooks } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import type { RecordWindow } from '@retake/engine';
+import { REPO } from '@retake/test-support/repo';
+import { testChildEnv } from '@retake/test-support/child-env';
+import { scratchHome } from '@retake/test-support/home';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
@@ -31,7 +32,7 @@ const KEEP = process.env.RETAKE_ACCEPTANCE_KEEP;
 const PROJECT = 'northfield-fixture';
 const STEP = 300_000;
 
-type Page = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
+type Page = Parameters<NonNullable<RecordWindow['drive']>>[0];
 type Block = { type: string; text?: string };
 type Result = { content: Block[]; structuredContent?: Record<string, unknown>; isError?: boolean };
 
@@ -45,7 +46,7 @@ let root: string;
 let client: Client;
 let stderr = '';
 const outputs: string[] = [];
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 async function call(name: string, args: Record<string, unknown>): Promise<Result> {
   const r = (await client.callTool({ name, arguments: args }, undefined, { timeout: STEP })) as Result;
@@ -58,7 +59,12 @@ const summary = (r: Result) => r.content[0]?.text ?? '';
 /** Everything but the `untrusted` subtrees. */
 function trustedPart(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(trustedPart);
-  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'untrusted').map(([k, x]) => [k, trustedPart(x)]));
+  if (v && typeof v === 'object')
+    return Object.fromEntries(
+      Object.entries(v)
+        .filter(([k]) => k !== 'untrusted')
+        .map(([k, x]) => [k, trustedPart(x)]),
+    );
   return v;
 }
 
@@ -126,7 +132,7 @@ describe.skipIf(!ENABLED)('recording acceptance through MCP: scenario_record →
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'studio-mcp-record-acc-'));
-    process.env.RETAKE_HOME = join(root, '.home');
+    retakeHome.use(join(root, '.home'));
     await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(root, 'projects', PROJECT);
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
@@ -161,8 +167,7 @@ describe.skipIf(!ENABLED)('recording acceptance through MCP: scenario_record →
     }
     await fixture?.close();
     if (root) await rm(root, { recursive: true, force: true });
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
   });
 
   it('the person records the quote flow; the draft validates and dry-runs; the typed password is nowhere', async () => {
@@ -174,7 +179,7 @@ describe.skipIf(!ENABLED)('recording acceptance through MCP: scenario_record →
       idleExitMs: 5_000,
       pollMs: 100,
       log: () => undefined,
-      recordTest: { headless: true, windowSize: { width: 1400, height: 1000 }, drive: (page) => person(page, sentinel) },
+      ports: { recordWindow: { headless: true, windowSize: { width: 1400, height: 1000 }, drive: (page) => person(page, sentinel) } },
     });
     await new Promise((r) => setTimeout(r, 300));
 

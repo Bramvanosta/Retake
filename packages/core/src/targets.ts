@@ -28,13 +28,7 @@ export function normalizeTarget(t: TargetSpec): TargetObject {
 }
 
 export function isPoint(v: unknown): v is PointSpec {
-  return (
-    typeof v === 'object' &&
-    v !== null &&
-    typeof (v as PointSpec).x === 'number' &&
-    typeof (v as PointSpec).y === 'number' &&
-    Object.keys(v).every((k) => k === 'x' || k === 'y')
-  );
+  return typeof v === 'object' && v !== null && typeof (v as PointSpec).x === 'number' && typeof (v as PointSpec).y === 'number' && Object.keys(v).every((k) => k === 'x' || k === 'y');
 }
 
 function q(s: string): string {
@@ -73,21 +67,7 @@ export function describeTarget(t: TargetSpec | PointSpec): string {
 }
 
 /** Keys of TargetObject (used to split targets from click options). */
-export const TARGET_KEYS = [
-  'text',
-  'contains',
-  'role',
-  'name',
-  'label',
-  'aria',
-  'placeholder',
-  'css',
-  'testid',
-  'in',
-  'nth',
-  'last_visible',
-  'exact',
-] as const;
+export const TARGET_KEYS = ['text', 'contains', 'role', 'name', 'label', 'aria', 'placeholder', 'css', 'testid', 'in', 'nth', 'last_visible', 'exact'] as const;
 
 /** True if the object carries at least one locating key (text, css, role…). */
 export function hasLocator(o: TargetObject): boolean {

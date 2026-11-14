@@ -2,7 +2,7 @@
  * A step of `planEdit`: the layouts — the chain of candidates of a segment's layout (render overrides, the scenario's
  * frames, the theme, the built-in), a layout use's geometry in this variant, and the video's main layout.
  */
-import type { FrameSpec } from '@retake/core';
+import type { FrameSpec } from '@retake/core/model';
 import { GEOMETRY_KEYS, evalLayoutGeometry } from '@retake/components/geometry';
 import type { LayoutGeometry } from '@retake/components/geometry';
 import { FALLBACK_GEOMETRY, RAW_GEOMETRY, geometryOutside, planLayout } from '../layout.js';

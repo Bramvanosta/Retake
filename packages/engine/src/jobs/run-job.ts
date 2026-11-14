@@ -7,13 +7,24 @@
  * (runs/<id>/run.json `queued`) and queues the input. The worker re-checks the hash, runs, and finalises a reserved
  * run.json that an early exit left `queued` (cancelled before it started, a refused or failed start).
  */
+import type { EngineEnv } from '../env.js';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { FORMAT_VERSIONS, JOB_INPUT_VERSION, listSteps, loginCommand as coreLoginCommand, resolveEnvironment, resolveStepRef, usedNamedHooks, projectPath, statePath, projectRef } from '@retake/core';
+import { FORMAT_VERSIONS } from '@retake/core/base';
+import { listSteps, resolveStepRef } from '@retake/core/language';
+import { loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core/environment';
+import { usedNamedHooks } from '@retake/core/hooks';
+import { projectPath, statePath, projectRef } from '@retake/core/project';
+import { closeReservedRun, queuedRun } from '@retake/core/run';
+import { JOB_INPUT_VERSION } from './job-input.js';
 import { reserveRunId, writeJson } from '@retake/core/io';
-import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus } from '@retake/core';
-import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
+import type { LoadedProject, RunStatus } from '@retake/core/model';
+import type { RunProgress } from '@retake/core/run';
+import type { JobApproval, JobClient, RunJobInput } from './job-input.js';
+import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web/types';
+import { stampOf } from '../clock.js';
+import type { Clock } from '../clock.js';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
 import type { RunAdmit } from '../admission.js';
@@ -31,6 +42,7 @@ import { sha256Hex } from '../storage.js';
 import type { JobQueue } from './job-queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RunJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 export interface RunSubmitRequest {
   project: string;
@@ -52,7 +64,8 @@ export interface RunSubmitRequest {
   sessions_ack?: readonly string[];
 }
 
-export interface SubmitContext {
+/** What a job submission is handed; its ports (ports.ts EnginePorts) are the engine's (createEngine, ports.ts). */
+export interface SubmitContext extends EnginePorts {
   ws: OpenedWorkspace;
   queue: JobQueue;
   /** "retake -C <root>": how the commands a human is asked to run start. */
@@ -89,9 +102,14 @@ function stepsTotal(prepared: PreparedRun, until: string | undefined): number {
   return u ? listed.filter((s) => s.sceneIndex < u.sceneIndex || (s.sceneIndex === u.sceneIndex && s.step.index <= u.stepIndex)).length : listed.length;
 }
 
-async function runRecordOf(dir: string): Promise<RunRecord | undefined> {
+/**
+ * run.json of a reserved run as it lies there, read leniently on purpose: a record the reader of run folders would
+ * refuse (a member it does not know how to read) must still be closed, or it would say `running` for ever.
+ */
+async function runRecordOf(dir: string): Promise<Record<string, unknown> | undefined> {
   try {
-    return JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as RunRecord;
+    const value: unknown = JSON.parse(await readFile(join(dir, 'run.json'), 'utf8'));
+    return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
   } catch {
     return undefined;
   }
@@ -101,10 +119,10 @@ async function runRecordOf(dir: string): Promise<RunRecord | undefined> {
  * Close a reserved run whose run.json an early exit left `queued` (or a runner that threw left `running`): it gets its
  * final status and the reason. A run the runner finished is never touched.
  */
-export async function finaliseReservedRun(dir: string, status: Extract<RunStatus, 'failed' | 'cancelled'>, message: string): Promise<void> {
+export async function finaliseReservedRun(dir: string, status: Extract<RunStatus, 'failed' | 'cancelled'>, message: string, clock: Clock): Promise<void> {
   const rec = await runRecordOf(dir);
   if (!rec || (rec.status !== 'queued' && rec.status !== 'running')) return;
-  await writeJson(join(dir, 'run.json'), { ...rec, status, finished_at: new Date().toISOString(), error: { ...(rec.error ?? {}), message } });
+  await writeJson(join(dir, 'run.json'), closeReservedRun({ ...rec, status: rec.status }, { status, at: stampOf(clock), message }));
 }
 
 /** A run request opened and prepared once (its project, its scenario loaded and checked against its environment). */
@@ -155,7 +173,17 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
             { phase: 'teardown', hooks: sc.teardown ?? [], agentWritten: true },
             ...named.map((h) => ({ phase: 'step' as const, hooks: h.hooks, agentWritten: h.source === 'scenario' })),
           ],
-          { policy: ctx.ws.policy, env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client) },
+          {
+            policy: ctx.ws.policy,
+            env: env.name,
+            ...(sc.vars ? { vars: sc.vars } : {}),
+            scenario: sc,
+            journalFile: preflightJournal(project),
+            via: agentChannel(ctx.client),
+            hooks: ctx.hooks,
+            pages: ctx.capture.hookPages,
+            secrets: ctx.secrets,
+          },
         ).catch((e: unknown) => {
           throw toEngineError(e);
         })
@@ -169,10 +197,11 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
     },
     async () => {
       // `sandbox`: the reset before the take may run the seed — its shell steps need a human too.
-      const seedItems = prepared.sandboxEnv ? await seedApprovalItems(project, prepared.sandboxEnv) : [];
+      const seedItems = prepared.sandboxEnv ? await seedApprovalItems(project, prepared.sandboxEnv, ctx.hooks) : [];
       const p = await preflight();
-      if (p) return takeApprovals({ what, project: project.slug, env: p.env, items: [...seedItems, ...p.items], fix }, approver, ctx.client);
-      if (seedItems.length) return takeApprovals({ what, project: project.slug, env: { name: env.name, production: false, access: 'read-write' }, items: seedItems, fix }, approver, ctx.client);
+      if (p) return takeApprovals({ what, project: project.slug, env: p.env, items: [...seedItems, ...p.items], fix }, approver, ctx.client, ctx.clock);
+      if (seedItems.length)
+        return takeApprovals({ what, project: project.slug, env: { name: env.name, production: false, access: 'read-write' }, items: seedItems, fix }, approver, ctx.client, ctx.clock);
       return [];
     },
   ];
@@ -278,7 +307,8 @@ export function blockerKind(err: EngineError, gate: number | null): { kind: RunB
 /**
  * Check, reserve the run id and queue a `run` job. `admit` (the engine's admission rules, admission.ts, for the callers
  * it admits): `prepared` once the request is opened and its scenario parsed — on the environment the take uses —,
- * `reserve` after the gates (and any human approval they waited for), just before the run id is reserved.
+ * `reserve` after the gates (and any human approval they waited for): the run rule again, then the run id's reserve
+ * and the enqueue, under the job queue's lock of the scenario.
  */
 export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, approver?: Approver, admit?: RunAdmit): Promise<{ job: JobRecord; run_id: string; dir: string; warnings: string[] }> {
   const s = await prepareSubmit(ctx, req);
@@ -300,48 +330,51 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
       details: { shown: req.expect_sha256, current: sha },
     });
   }
-  await admit?.reserve();
-  const { id: runId, dir } = await reserveRunId(projectPath(project.dir, 'runs'), prepared.scenario.name);
-  const queued: RunRecord = {
-    version: FORMAT_VERSIONS.run,
-    id: runId,
-    project: project.slug,
-    scenario: prepared.scenario.name,
-    mode: req.mode,
-    status: 'queued',
-    started_at: new Date().toISOString(),
-    dir,
-    env: env.name,
-    options: { hooks: hooksMode, headed: false, ...(req.until !== undefined ? { until: req.until } : {}) },
-    steps_total: stepsTotal(prepared, req.until),
-    steps_done: 0,
-    screenshots: [],
-    hooks: { setup: 'none', teardown: 'none' },
-    warnings: [],
+  // The run id's reserve and the enqueue: under the admission's reserve (its run rule again, under the queue's lock) when admitted.
+  const reserveAndQueue = async (): Promise<{ job: JobRecord; runId: string; dir: string }> => {
+    const { id: runId, dir } = await reserveRunId(projectPath(project.dir, 'runs'), prepared.scenario.name);
+    const queued = queuedRun({
+      version: FORMAT_VERSIONS.run,
+      id: runId,
+      project: project.slug,
+      scenario: prepared.scenario.name,
+      mode: req.mode,
+      started_at: stampOf(ctx.clock),
+      dir,
+      env: env.name,
+      options: { hooks: hooksMode, headed: false, ...(req.until !== undefined ? { until: req.until } : {}) },
+      steps_total: stepsTotal(prepared, req.until),
+      steps_done: 0,
+      screenshots: [],
+      hooks: { setup: 'none', teardown: 'none' },
+      warnings: [],
+    });
+    await writeJson(join(dir, 'run.json'), queued);
+    const input: RunJobInput = {
+      version: JOB_INPUT_VERSION,
+      kind: 'run',
+      project: project.slug,
+      scenario: prepared.scenario.name,
+      scenario_sha256: sha,
+      mode: req.mode,
+      ...(req.env !== undefined ? { env: req.env } : {}),
+      ...(req.until !== undefined ? { until: req.until } : {}),
+      ...(req.hooks !== undefined ? { hooks: req.hooks } : {}),
+      ...(req.sandbox ? { sandbox: true } : {}),
+      run_id: runId,
+      submitted_by: ctx.client,
+      ...(approvals.length ? { approvals } : {}),
+    };
+    let job: JobRecord;
+    try {
+      job = await ctx.queue.enqueue(input);
+    } catch (e) {
+      await finaliseReservedRun(dir, 'failed', `not queued: ${(e as Error).message}`, ctx.clock);
+      throw e;
+    }
+    return { job, runId, dir };
   };
-  await writeJson(join(dir, 'run.json'), queued);
-  const input: RunJobInput = {
-    version: JOB_INPUT_VERSION,
-    kind: 'run',
-    project: project.slug,
-    scenario: prepared.scenario.name,
-    scenario_sha256: sha,
-    mode: req.mode,
-    ...(req.env !== undefined ? { env: req.env } : {}),
-    ...(req.until !== undefined ? { until: req.until } : {}),
-    ...(req.hooks !== undefined ? { hooks: req.hooks } : {}),
-    ...(req.sandbox ? { sandbox: true } : {}),
-    run_id: runId,
-    submitted_by: ctx.client,
-    ...(approvals.length ? { approvals } : {}),
-  };
-  let job: JobRecord;
-  try {
-    job = await ctx.queue.enqueue(input);
-  } catch (e) {
-    await finaliseReservedRun(dir, 'failed', `not queued: ${(e as Error).message}`);
-    throw e;
-  }
+  const { job, runId, dir } = admit ? await admit.reserve(reserveAndQueue) : await reserveAndQueue();
   const warnings = [...prepared.scenario.issues.map((i) => i.message), ...(prepared.templateWarning ? [prepared.templateWarning] : [])];
   if (req.mode === 'dry' && req.hooks === undefined && (sc.setup?.length ?? 0) > 0) {
     warnings.push('dry run without its setup hooks: steps that need prepared data may fail (hooks: "run" executes them)');
@@ -349,7 +382,8 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
   return { job, run_id: runId, dir, warnings };
 }
 
-export interface RunJobContext {
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
+export interface RunJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: RunJobInput;
@@ -371,7 +405,7 @@ export interface RunJobContext {
 export const PAUSE_MAX_ENV = 'RETAKE_PAUSE_MAX_MIN';
 
 /** The longest pause (ms): RETAKE_PAUSE_MAX_MIN when set (minutes, more than 0 to 1440), else undefined (30 min). */
-export function pauseMaxMs(env: NodeJS.ProcessEnv = process.env): number | undefined {
+export function pauseMaxMs(env: EngineEnv): number | undefined {
   const raw = env[PAUSE_MAX_ENV];
   if (raw === undefined || raw.trim() === '') return undefined;
   const n = Number(raw);
@@ -386,13 +420,20 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
   const runDir = projectPath(project.dir, 'runs', input.run_id);
   try {
     // One read of the file: only bytes with the submitted hash are parsed and run (core loadScenario's expectSha256).
-    const prepared = await prepareRun(ctx.ws, project, input.scenario, { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox, expectSha256: input.scenario_sha256 }).catch((e: unknown) => {
+    const prepared = await prepareRun(ctx.ws, project, input.scenario, {
+      dry: input.mode === 'dry',
+      until: input.until,
+      hooks: input.hooks,
+      env: input.env,
+      sandbox: input.sandbox,
+      expectSha256: input.scenario_sha256,
+    }).catch((e: unknown) => {
       throw scenarioChangedConflict(e, `${projectRef('scenarios', input.scenario)} changed since the run was submitted: submit it again (what was checked is what runs)`);
     });
     await checkWorkspaceProtection(ctx.ws, project, resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name, undefined, agentChannel(input.submitted_by));
-    const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: new Date().toISOString() };
+    const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: stampOf(ctx.clock) };
     const update = (patch: Partial<JobProgress>) => {
-      Object.assign(progress, patch, { updated_at: new Date().toISOString() });
+      Object.assign(progress, patch, { updated_at: stampOf(ctx.clock) });
       if (patch.paused === undefined && 'paused' in patch) delete progress.paused;
       ctx.progress({ ...progress });
     };
@@ -423,7 +464,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
             if (e.status === 'start') update({ phase: 'encode' });
             break;
           case 'pause':
-            if (e.state === 'paused') update({ paused: { scene: e.scene, step: e.step, since: new Date().toISOString() } });
+            if (e.state === 'paused') update({ paused: { scene: e.scene, step: e.step, since: stampOf(ctx.clock) } });
             else if (e.state === 'resumed') update({ paused: undefined });
             break;
           case 'run_end':
@@ -438,6 +479,10 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
       { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox },
       {
         policy: ctx.ws.policy,
+        capture: ctx.capture,
+        secrets: ctx.secrets,
+        hooks: ctx.hooks,
+        sandboxes: ctx.sandboxes,
         runId: input.run_id,
         signal: ctx.signal,
         loginCommand: (p) => coreLoginCommand(p).replace(/^retake /, `${ctx.cli} `),
@@ -445,7 +490,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
         hookTrust: ENGINE_TRUST,
         hookVia: agentChannel(input.submitted_by),
         confirmHook: approvalChecker(input.approvals),
-        recordAs: callerOf(input.submitted_by),
+        recordAs: { caller: callerOf(input.submitted_by), clock: ctx.clock },
         ...(ctx.live ? { live: ctx.live } : {}),
         ...(ctx.pause ? { pause: ctx.pause } : {}),
         ...(ctx.onFilming ? { onFilming: ctx.onFilming } : {}),
@@ -468,7 +513,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
     };
   } catch (e) {
     const cancelled = ctx.signal.aborted || toEngineError(e).code === 'cancelled';
-    await finaliseReservedRun(runDir, cancelled ? 'cancelled' : 'failed', (e as Error)?.message ?? String(e));
+    await finaliseReservedRun(runDir, cancelled ? 'cancelled' : 'failed', (e as Error)?.message ?? String(e), ctx.clock);
     throw e;
   }
 }

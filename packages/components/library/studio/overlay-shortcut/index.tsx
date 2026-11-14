@@ -1,4 +1,3 @@
-import { useCurrentFrame } from 'remotion';
 import {
   CapText,
   KEY_GLYPHS,
@@ -17,6 +16,7 @@ import {
   safeAreaRect,
   shortcutPlateBox,
   shortcutPlateLayout,
+  useCurrentFrame,
   withAlpha,
 } from '@retake/components/kit';
 import type { ComponentProps, KeyPlatform } from '@retake/components/kit';

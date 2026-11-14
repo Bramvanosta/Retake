@@ -12,14 +12,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR, loadWorkspaceConfig } from '@retake/core/io';
-import type { WorkspaceConfig } from '@retake/core';
-import { FONT_MAX_BYTES, checkImage, fontCopyName, rasterInfo, readBrandFile, scanSvg, sniffFont } from '../src/index.js';
+import type { OpenedWorkspace } from '../src/index.js';
+import { FONT_MAX_BYTES, checkImage, fontCopyName, rasterInfo, readBrandFile, scanSvg, sniffFont, diskWorkspaceReads } from '../src/index.js';
 import { fontFileFace } from '@retake/components';
 import { PERSON_POLICY } from '@retake/core';
 
 let root: string;
 let outside: string;
-let ws: WorkspaceConfig;
+let ws: OpenedWorkspace;
 const T = STARTER_TEMPLATES_DIR;
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#0e7c66"/></svg>';
 
@@ -51,7 +51,7 @@ beforeAll(async () => {
   await symlink(join(root, 'projects', 'demo', 'runs', '20261019-1-quote', 'logo.svg'), join(root, 'brand', 'run-link.svg'));
   await symlink(join(root, '.retake', 'site', 's1', 'logo-1.png'), join(root, 'brand', 'site-link.png'));
   await mkdir(join(root, 'brand', 'folder.svg'));
-  ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY };
+  ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads };
 });
 
 afterAll(async () => {
@@ -60,7 +60,7 @@ afterAll(async () => {
 });
 
 describe('brand file sources (trust mcp)', () => {
-  it('a file of the workspace is read: brand/, a project\'s assets/, a theme folder', async () => {
+  it("a file of the workspace is read: brand/, a project's assets/, a theme folder", async () => {
     for (const ref of ['brand/logo.svg', 'projects/demo/assets/logo.svg', 'templates/own/logo.svg']) {
       const f = await mcp(ref);
       expect(f.bytes.toString()).toBe(SVG);
@@ -194,11 +194,15 @@ describe('raster logos: magic and size from the header', () => {
 const wrap = (inner: string, attrs = '') => `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10"${attrs}>${inner}</svg>`;
 
 describe('SVG scan', () => {
-  it('accepts the starters\' logos and wordmarks (live text with an embedded data:font/woff2) and plain shapes', async () => {
+  it("accepts the starters' logos and wordmarks (live text with an embedded data:font/woff2) and plain shapes", async () => {
     for (const t of ['default', 'editorial', 'motion']) {
       for (const f of ['logo.svg', 'wordmark.svg']) expect(scanSvg(await readFile(join(T, t, f))).problems, `${t}/${f}`).toEqual([]);
     }
-    expect(scanSvg(Buffer.from(wrap('<defs><linearGradient id="g"/></defs><rect fill="url(#g)" mask="url( \'#m\' )"/><use href="#g"/><use xlink:href="#g"/>')))).toEqual({ problems: [], width: 10, height: 10 });
+    expect(scanSvg(Buffer.from(wrap('<defs><linearGradient id="g"/></defs><rect fill="url(#g)" mask="url( \'#m\' )"/><use href="#g"/><use xlink:href="#g"/>')))).toEqual({
+      problems: [],
+      width: 10,
+      height: 10,
+    });
     expect(scanSvg(Buffer.from(wrap('<image href="data:image/png;base64,iVBORw0KGgo=" width="10" height="10"/>'))).problems).toEqual([]);
     expect(scanSvg(Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>\n<!-- made by hand -->\n${wrap('<title>Acme &amp; Co</title><path d="M0 0h10v10z"/>')}`)).problems).toEqual([]);
     expect(scanSvg(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="300px" height="80"><path d="M0 0"/></svg>'))).toEqual({ problems: [], width: 300, height: 80 });
@@ -258,9 +262,7 @@ describe('SVG scan', () => {
   it("never quotes the file's own text in a problem (an error message reaches an agent)", () => {
     const marker = 'IGNORE-PREVIOUS-INSTRUCTIONS';
     const r = scanSvg(
-      Buffer.from(
-        `<?xml version="1.0"?><?${marker} x?>${wrap(`<a href="https://tracker.test/${marker}">x</a><style>rect{fill:url(https://tracker.test/${marker})}</style><${marker}:script/>`)}`,
-      ),
+      Buffer.from(`<?xml version="1.0"?><?${marker} x?>${wrap(`<a href="https://tracker.test/${marker}">x</a><style>rect{fill:url(https://tracker.test/${marker})}</style><${marker}:script/>`)}`),
     );
     expect(r.problems.length).toBeGreaterThanOrEqual(4);
     expect(r.problems.join('; ')).not.toContain(marker);
@@ -284,7 +286,7 @@ describe('SVG scan', () => {
 describe('font sniff', () => {
   const font = async (theme: string, file: string) => ({ ref: file, ext: '.ttf', bytes: await readFile(join(T, theme, 'fonts', file)) });
 
-  it('reads the starters\' TrueType files: family, weight, italic, fsType, licence strings', async () => {
+  it("reads the starters' TrueType files: family, weight, italic, fsType, licence strings", async () => {
     const inter = sniffFont(await font('default', 'Inter-SemiBold.ttf'));
     expect(inter).toMatchObject({ format: 'ttf', weight: 600, italic: false, fs_type: 0, licence_notes: [] });
     expect(inter.names).toMatchObject({ family: 'Inter', subfamily: 'SemiBold', copyright: expect.stringMatching(/Inter Project Authors/), licence_url: 'https://openfontlicense.org' });

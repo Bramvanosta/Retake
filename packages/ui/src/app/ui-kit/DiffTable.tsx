@@ -50,7 +50,9 @@ function Line({ pieces }: { pieces: DiffPiece[] }) {
             <span className="k-diff-mark" aria-hidden="true" title={p.count === 1 ? 'a space' : `${p.count} spaces`}>
               {visibleControls('·'.repeat(p.count))}
             </span>
-            <span className="k-sr">{visibleControls(pieces.length === 1 ? spacesWords(p.count, 'only') : i === 0 ? `${spacesWords(p.count, 'leading')}, ` : `, ${spacesWords(p.count, 'trailing')}`)}</span>
+            <span className="k-sr">
+              {visibleControls(pieces.length === 1 ? spacesWords(p.count, 'only') : i === 0 ? `${spacesWords(p.count, 'leading')}, ` : `, ${spacesWords(p.count, 'trailing')}`)}
+            </span>
           </span>
         ) : p.kind === 'tab' ? (
           <span key={i}>
@@ -69,7 +71,21 @@ function Line({ pieces }: { pieces: DiffPiece[] }) {
   );
 }
 
-export function DiffTable({ rows, label, title, testId, boxTestId }: { rows: DiffRow[]; /** The table's name ("The proposed change, line by line"). */ label: string; /** A head line over the table (the file and its first line). */ title?: ReactNode; testId?: string; boxTestId?: string }) {
+export function DiffTable({
+  rows,
+  label,
+  title,
+  testId,
+  boxTestId,
+}: {
+  rows: DiffRow[];
+  /** The table's name ("The proposed change, line by line"). */
+  label: string;
+  /** A head line over the table (the file and its first line). */
+  title?: ReactNode;
+  testId?: string;
+  boxTestId?: string;
+}) {
   const titleId = useId();
   return (
     <div className="k-diff" data-testid={boxTestId}>

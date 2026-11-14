@@ -12,7 +12,26 @@ import { shown } from '../bits.js';
  * L5.10b: `layout="row"` — the inspector's row (B32's modifiers): the label in the 96 px right-aligned column, the hint
  * and the switch on the right.
  */
-export function Switch({ label, checked, onChange, hint, disabled, layout, dataField, testId }: { label: ReactNode; checked: boolean; onChange: (on: boolean) => void; hint?: ReactNode; disabled?: boolean; layout?: 'row'; dataField?: string; /** L5.11a: a test id on the input. */ testId?: string }) {
+export function Switch({
+  label,
+  checked,
+  onChange,
+  hint,
+  disabled,
+  layout,
+  dataField,
+  testId,
+}: {
+  label: ReactNode;
+  checked: boolean;
+  onChange: (on: boolean) => void;
+  hint?: ReactNode;
+  disabled?: boolean;
+  layout?: 'row';
+  dataField?: string;
+  /** L5.11a: a test id on the input. */
+  testId?: string;
+}) {
   const hintId = useId();
   const labelId = useId();
   if (layout === 'row') {
@@ -25,7 +44,18 @@ export function Switch({ label, checked, onChange, hint, disabled, layout, dataF
           {shown(hint ?? '')}
         </span>
         <span className="k-switch">
-          <input type="checkbox" role="switch" className="k-switch-input" checked={checked} disabled={disabled} aria-labelledby={labelId} aria-describedby={hint ? hintId : undefined} data-switch={dataField} data-testid={testId} onChange={(e) => onChange(e.currentTarget.checked)} />
+          <input
+            type="checkbox"
+            role="switch"
+            className="k-switch-input"
+            checked={checked}
+            disabled={disabled}
+            aria-labelledby={labelId}
+            aria-describedby={hint ? hintId : undefined}
+            data-switch={dataField}
+            data-testid={testId}
+            onChange={(e) => onChange(e.currentTarget.checked)}
+          />
           <span className="k-switch-knob" aria-hidden="true" />
         </span>
       </label>
@@ -44,7 +74,17 @@ export function Switch({ label, checked, onChange, hint, disabled, layout, dataF
         )}
       </span>
       <span className="k-switch">
-        <input type="checkbox" role="switch" className="k-switch-input" checked={checked} disabled={disabled} aria-labelledby={labelId} aria-describedby={hint ? hintId : undefined} data-testid={testId} onChange={(e) => onChange(e.currentTarget.checked)} />
+        <input
+          type="checkbox"
+          role="switch"
+          className="k-switch-input"
+          checked={checked}
+          disabled={disabled}
+          aria-labelledby={labelId}
+          aria-describedby={hint ? hintId : undefined}
+          data-testid={testId}
+          onChange={(e) => onChange(e.currentTarget.checked)}
+        />
         <span className="k-switch-knob" aria-hidden="true" />
       </span>
     </label>

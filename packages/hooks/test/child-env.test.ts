@@ -38,7 +38,12 @@ async function seen(): Promise<Record<string, string>> {
   const res = await runHooks([{ name: 'env', shell: { run: 'env > env.txt', env: { OWN: `{{env:${SECRET}}}` } }, writes: false }], makeContext(project, { policy }).ctx, { phase: 'setup', journal });
   expect(res.ok, JSON.stringify(res.results)).toBe(true);
   const text = await readFile(join(tmp.dir, 'env.txt'), 'utf8');
-  return Object.fromEntries(text.split('\n').filter((l) => l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
+  return Object.fromEntries(
+    text
+      .split('\n')
+      .filter((l) => l.includes('='))
+      .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]),
+  );
 }
 
 async function failure(): Promise<string> {
@@ -50,7 +55,7 @@ async function failure(): Promise<string> {
 }
 
 describe('the environment of a shell hook', () => {
-  it('under the agent policy: the shell\'s own variables, pass_env, its own env — never an exported secret', async () => {
+  it("under the agent policy: the shell's own variables, pass_env, its own env — never an exported secret", async () => {
     policy = workPolicyFrom([tmp.dir]);
     const env = await seen();
     expect(env[SECRET]).toBeUndefined();

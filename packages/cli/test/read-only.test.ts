@@ -57,10 +57,7 @@ reset:
     http: {method: POST, url: "{{app}}/api/reset"}
 `,
   );
-  await writeFile(
-    join(project, 'hooks', 'arm.yaml'),
-    '- name: arm\n  http:\n    method: POST\n    url: "{{app}}/api/arm"\n    rollback: {method: DELETE, url: "{{app}}/api/arm"}\n',
-  );
+  await writeFile(join(project, 'hooks', 'arm.yaml'), '- name: arm\n  http:\n    method: POST\n    url: "{{app}}/api/arm"\n    rollback: {method: DELETE, url: "{{app}}/api/arm"}\n');
   await writeFile(join(project, 'hooks', 'read.yaml'), '- name: health\n  http: {url: "{{app}}/api/health"}\n- name: count\n  shell: "true"\n  writes: false\n');
   await writeFile(
     join(project, 'scenarios', 'frozen.yaml'),
@@ -119,7 +116,7 @@ describe('retake hooks run on read-only environments', () => {
   });
 });
 
-describe('journal replays take the access of each entry\'s environment', () => {
+describe("journal replays take the access of each entry's environment", () => {
   it('env reset on local does not replay a production rollback without --allow-writes', async () => {
     const journals = join(root, 'projects', 'shop', '.retake', 'journals');
     await rm(journals, { recursive: true, force: true });

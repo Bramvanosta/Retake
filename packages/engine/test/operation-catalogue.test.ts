@@ -4,7 +4,8 @@
  * Studio's pins and statuses only where the Studio serves it; the facets' hints (the table the shells' annotations are
  * held to); the counts pinned (a new operation is a deliberate change of this file). The shells' own lists are held to
  * it by their own tests: packages/mcp/test/, packages/ui/test/ and packages/cli/test/operation-catalogue.test.ts. The
- * catalogue's entry imports nothing at run time (a page may import it).
+ * catalogue's entry imports nothing at run time (a page may import it). The use cases served under more than one name
+ * (S2, L7.20: linked, nothing renamed) are counted and named here, one name per shell, the Studio's narrowings marked.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -19,21 +20,25 @@ import {
   EFFECTS,
   SHELLS,
   annotationProblem,
-  callTool,
   capUntrusted,
   catalogueOperation,
   cliCommandsOf,
+  defineTool,
   facetProblem,
   hintsOf,
+  invoke,
   pinArguments,
   servedBy,
   servedNames,
   studioPins,
   studioStatus,
+  useCaseGroups,
+  useCaseProblem,
 } from '@retake/engine/contract';
-import type { Facets, NotServed, Operation, StudioServe, ToolDef } from '@retake/engine/contract';
+import type { Facets, NotServed, Operation, StudioServe } from '@retake/engine/contract';
 import { ENGINE_ERROR_CODES, EngineError, SUBMIT_RULES } from '../src/index.js';
 
+const R0 = { effect: 'read', job: false, code: 'none' } as const;
 const why = (v: unknown): string | undefined => (v && typeof v === 'object' && 'why' in v ? (v as NotServed).why : undefined);
 
 describe('the operation catalogue', () => {
@@ -123,7 +128,11 @@ describe('the operation catalogue', () => {
       export: { submit: 'export' },
       review_export: { submit: 'export' },
     };
-    expect(CATALOGUE.filter((o) => o.admission).map((o) => o.name).sort()).toEqual(Object.keys(SUBMIT).sort());
+    expect(
+      CATALOGUE.filter((o) => o.admission)
+        .map((o) => o.name)
+        .sort(),
+    ).toEqual(Object.keys(SUBMIT).sort());
     for (const o of CATALOGUE.filter((x) => x.admission)) {
       const { submit, dry } = SUBMIT[o.name]!;
       // A dry run meets every rule of the run submit but the capture's sessions acknowledgement.
@@ -164,12 +173,32 @@ describe('the operation catalogue', () => {
     visit('catalogue.ts');
     expect([...seen]).toEqual(['catalogue.ts']);
     // The entry is the catalogue itself (functions and data, no class or engine).
-    expect(Object.keys(catalogueEntry).sort()).toEqual(['ADMISSION_RULES', 'CATALOGUE', 'CODE_RUNS', 'EFFECTS', 'SHELLS', 'annotationProblem', 'catalogueOperation', 'cliCommandsOf', 'facetProblem', 'hintsOf', 'servedBy', 'servedNames', 'studioPins', 'studioStatus']);
+    expect(Object.keys(catalogueEntry).sort()).toEqual([
+      'ADMISSION_RULES',
+      'CATALOGUE',
+      'CODE_RUNS',
+      'EFFECTS',
+      'SHELLS',
+      'annotationProblem',
+      'catalogueOperation',
+      'cliCommandsOf',
+      'facetProblem',
+      'hintsOf',
+      'servedBy',
+      'servedNames',
+      'studioPins',
+      'studioStatus',
+      'useCaseGroups',
+      'useCaseProblem',
+    ]);
   });
 
   it('gives every shell that does not serve an operation a one-line reason, and some shell serves each one', () => {
     for (const o of CATALOGUE) {
-      expect(SHELLS.some((s) => servedBy(o, s)), o.name).toBe(true);
+      expect(
+        SHELLS.some((s) => servedBy(o, s)),
+        o.name,
+      ).toBe(true);
       for (const s of SHELLS) {
         if (servedBy(o, s)) continue;
         const reason = why(o[s]);
@@ -188,7 +217,7 @@ describe('the operation catalogue', () => {
     for (const p of cliCommandsOf()) expect(p).toMatch(/^[a-z][a-z-]*( [a-z][a-z-]*)?$/);
   });
 
-  it("pins arguments and maps statuses only where the Studio serves the operation, to valid values", () => {
+  it('pins arguments and maps statuses only where the Studio serves the operation, to valid values', () => {
     const codes = new Set<string>(ENGINE_ERROR_CODES);
     for (const o of CATALOGUE) {
       if (!servedBy(o, 'studio')) {
@@ -208,34 +237,166 @@ describe('the operation catalogue', () => {
       }
     }
     expect(studioPins('run_status').map((p) => [p.arg, p.value, p.absent])).toEqual([['wait_s', 0, 'optional']]);
-    expect(studioPins('auth_login').map((p) => [p.arg, p.value, p.absent])).toEqual([['mode', 'headed', 'default'], ['wait_s', 0, 'default']]);
+    expect(studioPins('auth_login').map((p) => [p.arg, p.value, p.absent])).toEqual([
+      ['mode', 'headed', 'default'],
+      ['wait_s', 0, 'default'],
+    ]);
     expect(studioStatus('render_frame', 'busy')).toBe(429);
     expect(studioStatus('render_frame', 'invalid')).toBeUndefined();
     expect(studioStatus('run_capture', 'busy')).toBeUndefined();
-    expect(CATALOGUE.filter((o) => servedBy(o, 'studio') && ((o.studio as StudioServe).pins?.length || (o.studio as StudioServe).status)).map((o) => o.name)).toEqual(['run_status', 'auth_login', 'render_frame']);
+    expect(CATALOGUE.filter((o) => servedBy(o, 'studio') && ((o.studio as StudioServe).pins?.length || (o.studio as StudioServe).status)).map((o) => o.name)).toEqual([
+      'run_status',
+      'auth_login',
+      'render_frame',
+    ]);
   });
 
-  it('counts 123 operations: 45 MCP tools, 76 Studio ops, 55 served by 45 CLI commands; 56 read, 56 write, 11 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
-    expect(CATALOGUE).toHaveLength(123);
+  it('counts 124 operations: 45 MCP tools, 76 Studio ops, 56 served by 46 CLI commands; 56 read, 57 write, 11 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
+    expect(CATALOGUE).toHaveLength(124);
     expect(servedNames('mcp')).toHaveLength(45);
     expect(servedNames('studio')).toHaveLength(76);
-    expect(servedNames('cli')).toHaveLength(55);
-    expect(cliCommandsOf()).toHaveLength(45);
+    expect(servedNames('cli')).toHaveLength(56);
+    expect(cliCommandsOf()).toHaveLength(46);
     const count = (f: (o: Operation) => boolean) => CATALOGUE.filter(f).length;
-    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 56, write: 56, destructive: 11 });
-    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 106, project: 9, workspace: 8 });
+    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 56, write: 57, destructive: 11 });
+    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 107, project: 9, workspace: 8 });
     expect(CATALOGUE.filter((o) => o.job).map((o) => o.name)).toEqual([
-      'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'render', 'review', 'export', 'template_preview', 'template_from_site', 'component_preview',
-      'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'scenario_run', 'scenario_render', 'review_export', 'library_render', 'record_start',
+      'page_inspect',
+      'scenario_record',
+      'run_dry',
+      'run_capture',
+      'render',
+      'review',
+      'export',
+      'template_preview',
+      'template_from_site',
+      'component_preview',
+      'hooks_run',
+      'env_reset',
+      'auth_login',
+      'sandbox_up',
+      'sandbox_reset',
+      'scenario_run',
+      'scenario_render',
+      'review_export',
+      'library_render',
+      'record_start',
     ]);
-    expect(CATALOGUE.filter((o) => o.code === 'project').map((o) => o.name)).toEqual(['run_dry', 'run_capture', 'hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'scenario_run', 'hooks_rollback', 'sandbox_down']);
+    expect(CATALOGUE.filter((o) => o.code === 'project').map((o) => o.name)).toEqual([
+      'run_dry',
+      'run_capture',
+      'hooks_run',
+      'env_reset',
+      'sandbox_up',
+      'sandbox_reset',
+      'scenario_run',
+      'hooks_rollback',
+      'sandbox_down',
+    ]);
     expect(CATALOGUE.filter((o) => o.effect === 'destructive').map((o) => o.name)).toEqual([
-      'project_prune', 'template_create_from_brand', 'job_cancel', 'hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'record_discard', 'setup_cli_remove', 'hooks_rollback', 'sandbox_down',
+      'project_prune',
+      'template_create_from_brand',
+      'job_cancel',
+      'hooks_run',
+      'env_reset',
+      'sandbox_up',
+      'sandbox_reset',
+      'record_discard',
+      'setup_cli_remove',
+      'hooks_rollback',
+      'sandbox_down',
     ]);
     expect(CATALOGUE.filter((o) => o.serves).map((o) => o.name)).toEqual(['mcp_serve', 'studio_serve', 'worker_run']);
     // Served by all three, by two, by one.
     const by = (n: number) => CATALOGUE.filter((o) => SHELLS.filter((s) => servedBy(o, s)).length === n).length;
-    expect([by(3), by(2), by(1)]).toEqual([5, 43, 75]);
+    expect([by(3), by(2), by(1)]).toEqual([5, 43, 76]);
+  });
+
+  it('links 18 use cases served under two names (S2, L7.20: nothing renamed), one name per shell, and names each', () => {
+    expect(useCaseProblem()).toBeUndefined();
+    const groups = useCaseGroups();
+    expect(groups).toEqual({
+      'scenario.read': ['scenario_get', 'scenario_blocks'],
+      'scenario.save': ['scenario_save', 'scenario_edit'],
+      'scenario.run': ['run_capture', 'scenario_run'],
+      'plan.view': ['plan_preview', 'timeline_view'],
+      'render.queue': ['render', 'scenario_render'],
+      'render.status': ['render_status', 'scenario_renders'],
+      'review.read': ['review_get', 'render_review'],
+      'export.queue': ['export', 'review_export'],
+      'comments.list': ['comments_list', 'threads_list'],
+      'comments.reply': ['comment_reply', 'thread_reply'],
+      'comments.resolve': ['comment_resolve', 'thread_resolve'],
+      'themes.list': ['template_list', 'theme_list'],
+      'themes.create': ['template_create_from_brand', 'theme_create'],
+      'themes.preview': ['template_preview', 'theme_preview'],
+      'components.list': ['component_list', 'library_view'],
+      'components.get': ['component_get', 'library_component'],
+      'components.preview': ['component_preview', 'library_render'],
+      'recording.start': ['scenario_record', 'record_start'],
+    });
+    // Every linked name is an operation of the catalogue, and each group is an MCP tool and a Studio op (one each).
+    for (const [key, names] of Object.entries(groups)) {
+      for (const n of names) expect(catalogueOperation(n), `${key} ${n}`).toBeDefined();
+      expect(
+        names.map((n) => [servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')]),
+        key,
+      ).toEqual([
+        [true, false],
+        [false, true],
+      ]);
+    }
+    // Not linked on purpose: a shell's split of one use case by an argument (a use case holds one name per shell).
+    for (const n of ['run_dry', 'job_cancel', 'render_cancel', 'sign_in_cancel', 'template_from_site', 'site_list', 'theme_view', 'review_image', 'library_images'])
+      expect(catalogueOperation(n)?.useCase, n).toBeUndefined();
+  });
+
+  it('marks the three Studio narrowings of an MCP tool, each with why they stay apart (a later lot may merge them)', () => {
+    const narrowings = CATALOGUE.filter((o) => o.narrows).map((o) => [o.name, o.narrows!.of]);
+    expect(narrowings).toEqual([
+      ['thread_reply', 'comment_reply'],
+      ['thread_resolve', 'comment_resolve'],
+      ['theme_create', 'template_create_from_brand'],
+    ]);
+    for (const o of CATALOGUE.filter((x) => x.narrows)) {
+      expect(catalogueOperation(o.narrows!.of)?.useCase, o.name).toBe(o.useCase);
+      expect(o.narrows!.apart, o.name).toMatch(/^[^\n]{40,320}$/);
+    }
+    // The reasons name what differs: the answer, the chain, and for the theme the effect.
+    expect(catalogueOperation('thread_reply')!.narrows!.apart).toMatch(/threadKey/);
+    expect(catalogueOperation('thread_resolve')!.narrows!.apart).toMatch(/latest/);
+    expect(catalogueOperation('theme_create')!.narrows!.apart).toMatch(/destructive/);
+    expect([catalogueOperation('template_create_from_brand')!.effect, catalogueOperation('theme_create')!.effect]).toEqual(['destructive', 'write']);
+  });
+
+  it('useCaseProblem bites on each rule: a key, two names, one name per shell, a narrowing of its own use case', () => {
+    const op = (name: string, more: Partial<Operation>): Operation => ({ name, ...R0, cli: { why: 'none' }, mcp: { why: 'none' }, studio: { why: 'none' }, ...more });
+    const mcp = op('a_tool', { mcp: true, useCase: 'x.read', cli: ['x'] });
+    const studio = op('a_op', { studio: {}, useCase: 'x.read', cli: ['x'] });
+    expect(useCaseProblem([mcp, studio])).toBeUndefined();
+    expect(
+      useCaseProblem([
+        { ...mcp, useCase: 'X read' },
+        { ...studio, useCase: 'X read' },
+      ]),
+    ).toMatch(/family\.verb/);
+    expect(useCaseProblem([mcp])).toMatch(/one operation \(a_tool\) is no other name/);
+    expect(useCaseProblem([mcp, { ...studio, mcp: true }])).toMatch(/mcp serves a_tool and a_op: one name per shell/);
+    expect(useCaseProblem([{ ...mcp, studio: {} }, studio])).toMatch(/studio serves a_tool and a_op/);
+    expect(useCaseProblem([mcp, { ...studio, cli: ['y'] }])).toMatch(/the CLI serves it under x and y/);
+    expect(useCaseProblem([mcp, { ...studio, cli: { why: 'none' } }])).toBeUndefined();
+    const apart = 'their answers differ, and the Studio chains its writes';
+    expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'a_tool', apart } }])).toBeUndefined();
+    expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'nope', apart } }])).toMatch(/does not hold/);
+    expect(useCaseProblem([mcp, studio, op('c', { studio: {}, narrows: { of: 'a_tool', apart } })])).toMatch(/of its own use case/);
+    expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'a_op', apart } }])).toMatch(/of its own use case/);
+    // A narrowing of an MCP tool of another use case.
+    expect(useCaseProblem([mcp, studio, op('b_tool', { mcp: true, useCase: 'y.read' }), op('b_op', { studio: {}, useCase: 'y.read', narrows: { of: 'a_tool', apart } })])).toMatch(
+      /b_op narrows a_tool: a narrowing names another operation of its own use case/,
+    );
+    expect(useCaseProblem([{ ...mcp, narrows: { of: 'a_op', apart } }, studio])).toMatch(/a Studio op of an MCP operation/);
+    expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'a_tool', apart: 'short' } }])).toMatch(/why they stay apart/);
+    expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'a_tool', apart: `${apart}\nmore` } }])).toMatch(/why they stay apart/);
   });
 
   it('looks operations up by name; servedBy reads a reason as not served', () => {
@@ -245,19 +406,24 @@ describe('the operation catalogue', () => {
     expect(SHELLS.map((s) => servedBy(op, s))).toEqual([false, false, true]);
     expect(servedBy({ ...op, studio: { why: 'none' } }, 'studio')).toBe(false);
     expect(servedBy({ ...op, cli: ['run'] }, 'cli')).toBe(true);
-    expect(cliCommandsOf([{ ...op, cli: ['run'] }, { ...op, cli: ['run', 'still'] }])).toEqual(['run', 'still']);
+    expect(
+      cliCommandsOf([
+        { ...op, cli: ['run'] },
+        { ...op, cli: ['run', 'still'] },
+      ]),
+    ).toEqual(['run', 'still']);
   });
 });
 
 describe('the operation contract', () => {
-  const tool: ToolDef = {
+  const tool = defineTool({
     name: 'probe',
     title: 'Probe',
     description: 'A probe.',
     input: z.object({ project: z.string(), wait_s: z.number().int().min(0).max(25).default(5), mode: z.enum(['headed', 'auto']).default('auto') }).strict(),
     annotations: { readOnlyHint: true },
     run: async (args) => ({ summary: 'ok', data: { args, untrusted: { text: 'x'.repeat(2100) } } }),
-  };
+  });
   const engine = async () => ({}) as never;
 
   it('pinArguments: a pinned argument accepts its one value only, absent or (default) filled in; the others stay', () => {
@@ -271,22 +437,38 @@ describe('the operation contract', () => {
     expect(t.input.safeParse({ project: 'p', mode: 'auto' }).success).toBe(false);
     expect(t.input.safeParse({ wait_s: 0 }).success).toBe(false);
     expect(t.input.safeParse({ project: 'p', other: 1 }).success).toBe(false);
-    expect(z.toJSONSchema(t.input, { io: 'input' }).properties).toMatchObject({ wait_s: { const: 0, description: 'Always 0 here.' }, mode: { const: 'headed', default: 'headed', description: 'Always headed here.' } });
+    expect(z.toJSONSchema(t.input, { io: 'input' }).properties).toMatchObject({
+      wait_s: { const: 0, description: 'Always 0 here.' },
+      mode: { const: 'headed', default: 'headed', description: 'Always headed here.' },
+    });
     expect(tool.input.parse({ project: 'p' })).toEqual({ project: 'p', wait_s: 5, mode: 'auto' });
     expect(pinArguments(tool, []).input.parse({ project: 'p', wait_s: 25 })).toMatchObject({ wait_s: 25 });
   });
 
-  it('callTool: arguments named per problem as an invalid EngineError; a handler error typed; never throws', async () => {
-    const bad = await callTool(tool, engine, { wait_s: 99, extra: 1 }, { signal: new AbortController().signal });
+  it('invoke: arguments named per problem as an invalid EngineError; a handler error typed; never throws (L7.21: was callTool)', async () => {
+    // The probe under a catalogue name the CLI serves (invoke refuses a name the catalogue does not hold).
+    const probe = { ...tool, name: 'job_list' as const };
+    const o = { shell: 'cli' as const, signal: new AbortController().signal };
+    const bad = await invoke(probe, engine, { wait_s: 99, extra: 1 }, o);
     expect(bad.ok).toBe(false);
     if (bad.ok) return;
     expect(bad.error).toBeInstanceOf(EngineError);
     expect(bad.error.code).toBe('invalid');
-    expect(bad.error.message).toMatch(/^invalid arguments for probe:\n/);
+    expect(bad.error.message).toMatch(/^invalid arguments for job_list:\n/);
     expect(bad.error.details?.arguments).toEqual(expect.arrayContaining(['project: Invalid input: expected string, received undefined', '(arguments): unknown argument extra']));
-    const thrown = await callTool({ ...tool, run: async () => { throw new EngineError('conflict', 'changed'); } }, engine, { project: 'p' }, { signal: new AbortController().signal });
+    const thrown = await invoke(
+      {
+        ...probe,
+        run: async () => {
+          throw new EngineError('conflict', 'changed');
+        },
+      },
+      engine,
+      { project: 'p' },
+      o,
+    );
     expect(!thrown.ok && thrown.error.code).toBe('conflict');
-    const ok = await callTool(tool, engine, { project: 'p' }, { signal: new AbortController().signal });
+    const ok = await invoke(probe, engine, { project: 'p' }, o);
     expect(ok.ok && ok.output.data.args).toEqual({ project: 'p', wait_s: 5, mode: 'auto' });
   });
 

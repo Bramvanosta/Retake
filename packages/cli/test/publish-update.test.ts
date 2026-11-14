@@ -85,7 +85,24 @@ const gh = {
   nextId: 1,
 };
 function reset() {
-  Object.assign(gh, { repo: { private: false, visibility: 'public' }, releases: [], assets: [], created: [], requests: [], timeline: [], digests: true, location: 'https://objects.github.test', onDelete: null, before: null, hops: 0, chunked: false, uploads: 'https://uploads.github.test', sleeps: [], logs: [], nextId: 1 });
+  Object.assign(gh, {
+    repo: { private: false, visibility: 'public' },
+    releases: [],
+    assets: [],
+    created: [],
+    requests: [],
+    timeline: [],
+    digests: true,
+    location: 'https://objects.github.test',
+    onDelete: null,
+    before: null,
+    hops: 0,
+    chunked: false,
+    uploads: 'https://uploads.github.test',
+    sleeps: [],
+    logs: [],
+    nextId: 1,
+  });
 }
 const releaseOf = (tag: string) => gh.releases.find((r) => r.tag_name === tag);
 function addRelease(tag: string, o: { draft?: boolean; prerelease?: boolean } = {}) {
@@ -98,10 +115,27 @@ function addAsset(tag: string, name: string, body: Buffer | string, type = 'appl
   gh.assets.push(a);
   return a;
 }
-const names = (tag: string) => gh.assets.filter((a) => a.release === releaseOf(tag)?.id).map((a) => a.name).sort();
+const names = (tag: string) =>
+  gh.assets
+    .filter((a) => a.release === releaseOf(tag)?.id)
+    .map((a) => a.name)
+    .sort();
 const assetJson = (tag: string, name: string) => JSON.parse(gh.assets.find((a) => a.release === releaseOf(tag)?.id && a.name === name)!.body.toString('utf8'));
-const releaseJson = (r: Release) => ({ id: r.id, tag_name: r.tag_name, draft: r.draft, prerelease: r.prerelease, upload_url: `${gh.uploads}/repos/${REPOSITORY}/releases/${r.id}/assets{?name,label}` });
-const assetOut = (a: Asset) => ({ id: a.id, name: a.name, size: a.body.length, state: a.state ?? 'uploaded', content_type: a.type, ...(gh.digests ? { digest: `sha256:${createHash('sha256').update(a.body).digest('hex')}` } : {}) });
+const releaseJson = (r: Release) => ({
+  id: r.id,
+  tag_name: r.tag_name,
+  draft: r.draft,
+  prerelease: r.prerelease,
+  upload_url: `${gh.uploads}/repos/${REPOSITORY}/releases/${r.id}/assets{?name,label}`,
+});
+const assetOut = (a: Asset) => ({
+  id: a.id,
+  name: a.name,
+  size: a.body.length,
+  state: a.state ?? 'uploaded',
+  content_type: a.type,
+  ...(gh.digests ? { digest: `sha256:${createHash('sha256').update(a.body).digest('hex')}` } : {}),
+});
 const writes = () => gh.requests.filter((q) => q.method !== 'GET').map((q) => `${q.method} ${q.path}`);
 
 let server: Server;
@@ -196,10 +230,13 @@ beforeAll(async () => {
   const a = server.address();
   origin = `http://127.0.0.1:${typeof a === 'object' && a ? a.port : 0}`;
 });
-afterAll(() => new Promise<void>((r) => {
-  server.closeAllConnections();
-  server.close(() => r());
-}));
+afterAll(
+  () =>
+    new Promise<void>((r) => {
+      server.closeAllConnections();
+      server.close(() => r());
+    }),
+);
 beforeEach(reset);
 
 /** The script's https addresses, served by the local stand-in; any other address is refused (no network). */
@@ -244,7 +281,7 @@ describe('versions, notes, where the feed lives', () => {
     expect(() => pub.compareVersions('0.2.0', 'soon')).toThrow(/cannot compare/);
   });
 
-  it('release notes: the summary paragraph as plain text, else the bullets\' leads; the repository\'s CHANGELOG has one for 0.2.0', () => {
+  it("release notes: the summary paragraph as plain text, else the bullets' leads; the repository's CHANGELOG has one for 0.2.0", () => {
     expect(pub.extractNotes(readFileSync(changelog, 'utf8'), '0.2.1')).toBe('Faster renders and a clearer doctor.');
     expect(pub.extractNotes('## [0.3.0]\n\n### Fixed\n- **One.** x\n- two: y\n', '0.3.0')).toBe('• One\n• two');
     expect(pub.extractNotes('## [0.2.1]\n', '0.2.10')).toBeNull();
@@ -254,14 +291,15 @@ describe('versions, notes, where the feed lives', () => {
     expect(ours).not.toMatch(/\*\*|`|^- /m);
   });
 
-  it('GitHub\'s own addresses by default, https only, <owner>/<repo> checked; the feed of each channel on the update-feed release', () => {
+  it("GitHub's own addresses by default, https only, <owner>/<repo> checked; the feed of each channel on the update-feed release", () => {
     expect(pub.checkUrl('https://github.example.test/a/', 'X')).toBe('https://github.example.test/a');
     expect(() => pub.checkUrl('http://github.example.test', 'X')).toThrow(/must be https/);
     expect(() => pub.checkUrl('https://u:p@github.example.test', 'X')).toThrow(/user, a query/);
     expect(() => pub.checkUrl('https://github.example.test/?t=1', 'X')).toThrow(/user, a query/);
     expect(() => pub.checkUrl('', 'X')).toThrow(/not a URL/);
     for (const good of ['o/r', 'a-b/c.d_e', `${'a'.repeat(39)}/${'r'.repeat(100)}`]) expect(pub.checkRepository(good), good).toBe(good);
-    for (const bad of ['o', 'o/r/x', '-o/r', 'o/..', 'o/.', 'o/r?x', 'o /r', `${'a'.repeat(40)}/r`, 'https://github.example.test/o/r', '']) expect(() => pub.checkRepository(bad), bad).toThrow(/is not <owner>\/<repo>/);
+    for (const bad of ['o', 'o/r/x', '-o/r', 'o/..', 'o/.', 'o/r?x', 'o /r', `${'a'.repeat(40)}/r`, 'https://github.example.test/o/r', ''])
+      expect(() => pub.checkRepository(bad), bad).toThrow(/is not <owner>\/<repo>/);
     for (const v of ['GITHUB_TOKEN', 'GITHUB_REPOSITORY', 'RETAKE_UPDATE_PUBKEY']) expect(() => pub.settings(env({ [v]: undefined })), v).toThrow(new RegExp(`${v} is not set`));
     const s = pub.settings(env({ GITHUB_API_URL: undefined, GITHUB_SERVER_URL: ' ' }));
     expect([s.api, s.server, s.repository]).toEqual(['https://api.github.com', 'https://github.com', REPOSITORY]);
@@ -272,18 +310,25 @@ describe('versions, notes, where the feed lives', () => {
     expect(pub.feedUrl('0.3.0-rc.1', loc)).toBe(dl('update-feed', 'rc.json'));
     expect(pub.channelsFor('0.3.0-rc.1')).toEqual(['rc.json']);
     expect(pub.channelsFor('0.3.0')).toEqual(['rc.json', 'latest.json']);
-    expect(pub.uploadUrl('https://uploads.github.test/repos/o/r/releases/7/assets{?name,label}', 'rc.json.tmp-1', 'https://api.github.test')).toBe('https://uploads.github.test/repos/o/r/releases/7/assets?name=rc.json.tmp-1');
+    expect(pub.uploadUrl('https://uploads.github.test/repos/o/r/releases/7/assets{?name,label}', 'rc.json.tmp-1', 'https://api.github.test')).toBe(
+      'https://uploads.github.test/repos/o/r/releases/7/assets?name=rc.json.tmp-1',
+    );
     expect(() => pub.uploadUrl('http://uploads.github.test/x{?name}', 'a', 'https://api.github.test')).toThrow(/not https/);
     // Review f A-L4: the token goes to the API's own upload host only — GitHub's, or a server's own (Enterprise Server).
     expect(pub.uploadOrigin('https://api.github.com')).toBe('https://uploads.github.com');
     expect(pub.uploadOrigin('https://git.example.test/api/v3')).toBe('https://git.example.test');
-    expect(pub.uploadUrl('https://git.example.test/api/uploads/repos/o/r/releases/7/assets{?name,label}', 'a', 'https://git.example.test/api/v3')).toBe('https://git.example.test/api/uploads/repos/o/r/releases/7/assets?name=a');
-    for (const elsewhere of ['https://uploads.example.test/x{?name}', 'https://github.test/x{?name}', 'https://uploads.github.test:8443/x{?name}', 'https://api.github.test/x{?name}']) expect(() => pub.uploadUrl(elsewhere, 'a', 'https://api.github.test'), elsewhere).toThrow(/is not on https:\/\/uploads\.github\.test, the API's upload host/);
+    expect(pub.uploadUrl('https://git.example.test/api/uploads/repos/o/r/releases/7/assets{?name,label}', 'a', 'https://git.example.test/api/v3')).toBe(
+      'https://git.example.test/api/uploads/repos/o/r/releases/7/assets?name=a',
+    );
+    for (const elsewhere of ['https://uploads.example.test/x{?name}', 'https://github.test/x{?name}', 'https://uploads.github.test:8443/x{?name}', 'https://api.github.test/x{?name}'])
+      expect(() => pub.uploadUrl(elsewhere, 'a', 'https://api.github.test'), elsewhere).toThrow(/is not on https:\/\/uploads\.github\.test, the API's upload host/);
   });
 
-  it('arguments: the version first, the default platform; --force is gone (a public release\'s files are never replaced); an unknown flag refused', () => {
+  it("arguments: the version first, the default platform; --force is gone (a public release's files are never replaced); an unknown flag refused", () => {
     expect(pub.parseArgs(['0.2.1', '--artifact', 'a', '--signature', 'a.sig'])).toEqual({ version: '0.2.1', platforms: ['darwin-aarch64'], artifact: 'a', signature: 'a.sig', notes: null });
-    expect(() => pub.parseArgs(['0.2.1', '--force', '--artifact', 'a', '--signature', 'a.sig'])).toThrow(/--force is gone: a public release's files are never replaced — a fixed build is a new version/);
+    expect(() => pub.parseArgs(['0.2.1', '--force', '--artifact', 'a', '--signature', 'a.sig'])).toThrow(
+      /--force is gone: a public release's files are never replaced — a fixed build is a new version/,
+    );
     expect(() => pub.parseArgs(['0.2.1', '--upload-to', 'x'])).toThrow(/unknown argument/);
   });
 });
@@ -306,6 +351,7 @@ describe('the signature, checked in Node before anything is written', () => {
   });
 
   it('a signature made by the pinned Tauri CLI (`signer generate` + `signer sign --app-version`) checks with its public key', async () => {
+    // @ts-expect-error — a build script in plain JavaScript (.mjs): it has no declaration file
     const { tauriCli } = await import('../../../apps/desktop/scripts/bundle.mjs');
     let cliJs: string;
     try {
@@ -319,15 +365,25 @@ describe('the signature, checked in Node before anything is written', () => {
     const g = spawnSync(process.execPath, [cliJs, 'signer', 'generate', '--ci', '-p', 'test-password', '-w', join(dir, 'test.key')], { encoding: 'utf8', env: cliEnv, cwd: dir });
     expect(g.status, g.stderr).toBe(0);
     writeFileSync(join(dir, 'Retake.app.tar.gz'), archive);
-    const s = spawnSync(process.execPath, [cliJs, 'signer', 'sign', '--app-version', '0.2.1', join(dir, 'Retake.app.tar.gz')], { encoding: 'utf8', cwd: dir, env: { ...cliEnv, TAURI_SIGNING_PRIVATE_KEY: readFileSync(join(dir, 'test.key'), 'utf8'), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'test-password' } });
+    const s = spawnSync(process.execPath, [cliJs, 'signer', 'sign', '--app-version', '0.2.1', join(dir, 'Retake.app.tar.gz')], {
+      encoding: 'utf8',
+      cwd: dir,
+      env: { ...cliEnv, TAURI_SIGNING_PRIVATE_KEY: readFileSync(join(dir, 'test.key'), 'utf8'), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'test-password' },
+    });
     expect(s.status, s.stderr).toBe(0);
-    const trusted = pub.verifyMinisign({ data: archive, signatureB64: readFileSync(join(dir, 'Retake.app.tar.gz.sig'), 'utf8'), pubkeyB64: readFileSync(join(dir, 'test.key.pub'), 'utf8'), version: '0.2.1' });
+    const trusted = pub.verifyMinisign({
+      data: archive,
+      signatureB64: readFileSync(join(dir, 'Retake.app.tar.gz.sig'), 'utf8'),
+      pubkeyB64: readFileSync(join(dir, 'test.key.pub'), 'utf8'),
+      version: '0.2.1',
+    });
     expect(trusted).toMatch(/\tversion:0\.2\.1$/);
-    expect(() => pub.verifyMinisign({ data: archive, signatureB64: readFileSync(join(dir, 'Retake.app.tar.gz.sig'), 'utf8'), pubkeyB64: readFileSync(join(dir, 'test.key.pub'), 'utf8'), version: '0.2.2' })).toThrow(/signed for version/);
+    expect(() =>
+      pub.verifyMinisign({ data: archive, signatureB64: readFileSync(join(dir, 'Retake.app.tar.gz.sig'), 'utf8'), pubkeyB64: readFileSync(join(dir, 'test.key.pub'), 'utf8'), version: '0.2.2' }),
+    ).toThrow(/signed for version/);
   });
 
-
-  it('refusals happen before any request: no token, no or a bad repository, an http API or server, a bad signature, another version, not a gzip, another platform, the other channel\'s feed', async () => {
+  it("refusals happen before any request: no token, no or a bad repository, an http API or server, a bad signature, another version, not a gzip, another platform, the other channel's feed", async () => {
     attached('0.2.1');
     await expect(run(files('0.2.1'), { GITHUB_TOKEN: undefined })).rejects.toThrow(/GITHUB_TOKEN is not set/);
     await expect(run(files('0.2.1'), { GITHUB_REPOSITORY: ' ' })).rejects.toThrow(/GITHUB_REPOSITORY is not set/);
@@ -342,14 +398,16 @@ describe('the signature, checked in Node before anything is written', () => {
     await expect(run({ ...files('0.2.1'), platforms: ['darwin-x86_64'] })).rejects.toThrow(/cannot be published for darwin-x86_64 \(only darwin-aarch64 for now\)/);
     await expect(run({ ...files('0.2.1'), platforms: ['darwin-aarch64', 'windows-x86_64'] })).rejects.toThrow(/cannot be published for windows-x86_64/);
     // Review d B-L3: the feed the apps were built with must be this version's channel on this repository.
-    await expect(run(files('0.2.1'), { RETAKE_UPDATE_FEED: dl('update-feed', 'rc.json') })).rejects.toThrow(new RegExp(`RETAKE_UPDATE_FEED is ${dl('update-feed', 'rc.json').replace(/[./]/g, '\\$&')}, but 0\\.2\\.1 belongs to ${dl('update-feed', 'latest.json').replace(/[./]/g, '\\$&')}`));
+    await expect(run(files('0.2.1'), { RETAKE_UPDATE_FEED: dl('update-feed', 'rc.json') })).rejects.toThrow(
+      new RegExp(`RETAKE_UPDATE_FEED is ${dl('update-feed', 'rc.json').replace(/[./]/g, '\\$&')}, but 0\\.2\\.1 belongs to ${dl('update-feed', 'latest.json').replace(/[./]/g, '\\$&')}`),
+    );
     await expect(run(files('0.3.0-rc.1'), { RETAKE_UPDATE_FEED: dl('update-feed', 'latest.json') })).rejects.toThrow(/belongs to .*\/update-feed\/rc\.json/);
     await expect(run(files('0.2.1'), { RETAKE_UPDATE_FEED: `${SERVER}/someone-else/example-repo/releases/download/update-feed/latest.json` })).rejects.toThrow(/belongs to/);
     expect(gh.requests).toEqual([]);
   });
 });
 
-describe('publishing to a stand-in of GitHub\'s REST API', () => {
+describe("publishing to a stand-in of GitHub's REST API", () => {
   it('a stable version as the workflow leaves it: its archive and .sig kept, its platform file added, update-feed created (a pre-release, never latest), rc.json and latest.json written — the notes from the CHANGELOG', async () => {
     attached('0.2.1');
     const kept = gh.assets.map((a) => `${a.id} ${a.name}`);
@@ -371,7 +429,9 @@ describe('publishing to a stand-in of GitHub\'s REST API', () => {
     // The version's release only gained a file (the attached ones are the same assets); the token went to the API and
     // the uploads, never to the storage.
     expect(gh.assets.filter((a) => a.release === releaseOf('v0.2.1')!.id && a.name !== 'platform-darwin-aarch64.json').map((a) => `${a.id} ${a.name}`)).toEqual(kept);
-    expect(writes().filter((w) => w.includes(`/releases/${releaseOf('v0.2.1')!.id}/`))).toEqual([`POST /repos/${REPOSITORY}/releases/${releaseOf('v0.2.1')!.id}/assets?name=platform-darwin-aarch64.json`]);
+    expect(writes().filter((w) => w.includes(`/releases/${releaseOf('v0.2.1')!.id}/`))).toEqual([
+      `POST /repos/${REPOSITORY}/releases/${releaseOf('v0.2.1')!.id}/assets?name=platform-darwin-aarch64.json`,
+    ]);
     expect(gh.requests.filter((q) => q.host !== 'objects').every((q) => q.auth === 'Bearer test-token')).toBe(true);
     expect(gh.requests.filter((q) => q.host === 'objects').length).toBeGreaterThan(0);
     expect(gh.requests.filter((q) => q.host === 'objects').every((q) => q.auth === undefined)).toBe(true);
@@ -440,7 +500,9 @@ describe('publishing to a stand-in of GitHub\'s REST API', () => {
     const before = writes().length;
     const otherData = gzipSync(Buffer.from('another build of 0.2.1'));
     const otherFiles = files('0.2.1', { data: otherData, sig: key.signFile(otherData, tc('0.2.1')) });
-    await expect(run(otherFiles)).rejects.toThrow(/v0\.2\.1's Retake\.app\.tar\.gz is not the archive checked here \(\d+ bytes on the release, \d+ here\): a public release's files are never replaced — a fixed build is a new version/);
+    await expect(run(otherFiles)).rejects.toThrow(
+      /v0\.2\.1's Retake\.app\.tar\.gz is not the archive checked here \(\d+ bytes on the release, \d+ here\): a public release's files are never replaced — a fixed build is a new version/,
+    );
     // Same size, other bytes: GitHub's sha256 digest tells them apart.
     const twin = Buffer.from(archive);
     twin[twin.length - 1] ^= 1;
@@ -452,7 +514,9 @@ describe('publishing to a stand-in of GitHub\'s REST API', () => {
     // A platform file naming another signature (the archive and .sig themselves absent: a by-hand release).
     addRelease('v0.2.2');
     addAsset('v0.2.2', 'platform-darwin-aarch64.json', JSON.stringify({ signature: 'b3RoZXI=', url: dl('v0.2.2', 'Retake.app.tar.gz') }), 'application/json');
-    await expect(run(files('0.2.2'))).rejects.toThrow(/0\.2\.2 is published already for darwin-aarch64 with another archive \(v0\.2\.2\/platform-darwin-aarch64\.json\): a public release's files are never replaced/);
+    await expect(run(files('0.2.2'))).rejects.toThrow(
+      /0\.2\.2 is published already for darwin-aarch64 with another archive \(v0\.2\.2\/platform-darwin-aarch64\.json\): a public release's files are never replaced/,
+    );
     expect(writes().length).toBe(before);
     expect(gh.assets.find((a) => a.name === 'Retake.app.tar.gz' && a.release === releaseOf('v0.2.1')!.id)!.body.equals(archive)).toBe(true);
     // Without digests (an older API): the size still tells another archive apart; the same bits pass.
@@ -477,7 +541,7 @@ describe('publishing to a stand-in of GitHub\'s REST API', () => {
     expect(releaseOf('update-feed')).toBeUndefined();
   });
 
-  it('a channel is never missing longer than the old one\'s DELETE and the rename: the new feed uploaded whole first; an interrupted run\'s temporary file removed', async () => {
+  it("a channel is never missing longer than the old one's DELETE and the rename: the new feed uploaded whole first; an interrupted run's temporary file removed", async () => {
     attached('0.2.0');
     await run(files('0.2.0'));
     addAsset('update-feed', 'rc.json.tmp-123-dead', '{"half":', 'application/json');
@@ -506,7 +570,7 @@ describe('publishing to a stand-in of GitHub\'s REST API', () => {
     expect(writes().some((x) => /\?name=latest\.json\.tmp-4242-[0-9a-f]{8}$/.test(x))).toBe(true);
   });
 
-  it('a rename that loses to another run is tried again (theirs deleted, ours renamed); reading a file follows GitHub\'s redirect with no token, and only to https', async () => {
+  it("a rename that loses to another run is tried again (theirs deleted, ours renamed); reading a file follows GitHub's redirect with no token, and only to https", async () => {
     attached('0.2.0');
     await run(files('0.2.0'));
     attached('0.2.1');
@@ -530,7 +594,10 @@ describe('publishing to a stand-in of GitHub\'s REST API', () => {
 
   it('the command refuses without its environment and touches no network', () => {
     const f = files('0.2.1');
-    const r = spawnSync(process.execPath, [join(REPO, 'scripts', 'publish-update.mjs'), '0.2.1', '--artifact', f.artifact, '--signature', f.signature], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '' } });
+    const r = spawnSync(process.execPath, [join(REPO, 'scripts', 'publish-update.mjs'), '0.2.1', '--artifact', f.artifact, '--signature', f.signature], {
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH ?? '' },
+    });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/^publish-update: GITHUB_TOKEN is not set/);
     const forced = spawnSync(process.execPath, [join(REPO, 'scripts', 'publish-update.mjs'), '0.2.1', '--force'], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '' } });
@@ -604,7 +671,7 @@ describe('the feed under races and failures (review f)', () => {
     attached('0.2.1');
     // A 502 on the first rename, a 429 (Retry-After: 3) on a DELETE, a 403 rate limit with no request left.
     const seen: string[] = [];
-    gh.before = (q) => {
+    gh.before = (q): Canned => {
       const k = `${q.method} ${q.path.replace(/\d+/g, 'N')}`;
       seen.push(k);
       const n = seen.filter((x) => x === k).length;
@@ -663,7 +730,9 @@ describe('the feed under races and failures (review f)', () => {
     gh.before = (q) => (q.method === 'PATCH' ? { status: 422, body: { errors: [{ code: 'already_exists' }] } } : undefined);
     const err = await run(files('0.2.1')).catch((e: Error) => e);
     expect(err).toBeInstanceOf(pub.PublishError);
-    expect((err as Error).message).toMatch(/^could not rename update-feed\/rc\.json\.tmp-[0-9a-f]{8} to rc\.json \(4 tries, the name refused though no file holds it\): update-feed\/rc\.json is MISSING — every app's check fails until it is back\. This run's feed of 0\.2\.1 is kept as update-feed\/rc\.json\.tmp-[0-9a-f]{8}: re-run this publication \(the workflow: the run's publish job › Re-run failed jobs; by hand: the same command\) — it writes rc\.json again and removes the temporary file$/);
+    expect((err as Error).message).toMatch(
+      /^could not rename update-feed\/rc\.json\.tmp-[0-9a-f]{8} to rc\.json \(4 tries, the name refused though no file holds it\): update-feed\/rc\.json is MISSING — every app's check fails until it is back\. This run's feed of 0\.2\.1 is kept as update-feed\/rc\.json\.tmp-[0-9a-f]{8}: re-run this publication \(the workflow: the run's publish job › Re-run failed jobs; by hand: the same command\) — it writes rc\.json again and removes the temporary file$/,
+    );
     expect(gh.requests.filter((q) => q.method === 'PATCH')).toHaveLength(4);
     expect(gh.sleeps).toEqual([1000, 2000, 4000]);
     const left = feedNames();
@@ -680,7 +749,9 @@ describe('the feed under races and failures (review f)', () => {
     await feedAt('0.2.0');
     attached('0.2.1');
     gh.before = (q) => (q.method === 'PATCH' ? 'hang' : undefined);
-    await expect(run(files('0.2.1'), {}, { timeoutMs: 200, retryDelays: [0] })).rejects.toThrow(/PATCH \/repos\/.*: no answer in 0\.2 s — while replacing update-feed\/rc\.json: it may be MISSING .* kept as update-feed\/rc\.json\.tmp-[0-9a-f]{8}: re-run this publication/);
+    await expect(run(files('0.2.1'), {}, { timeoutMs: 200, retryDelays: [0] })).rejects.toThrow(
+      /PATCH \/repos\/.*: no answer in 0\.2 s — while replacing update-feed\/rc\.json: it may be MISSING .* kept as update-feed\/rc\.json\.tmp-[0-9a-f]{8}: re-run this publication/,
+    );
     expect(feedNames().filter(isTmp)).toHaveLength(1);
     // Another publication keeps writing an older feed onto the name: ours kept, and the error says so.
     reset();
@@ -690,11 +761,13 @@ describe('the feed under races and failures (review f)', () => {
       if (a.name === 'rc.json') addAsset('update-feed', 'rc.json', '{"version":"0.1.0","platforms":{}}', 'application/json');
       return false;
     };
-    await expect(run(files('0.2.1'))).rejects.toThrow(/^could not replace update-feed\/rc\.json: another publication keeps writing an older feed there \(4 tries\)\. This run's feed of 0\.2\.1 is kept as update-feed\/rc\.json\.tmp-[0-9a-f]{8}: re-run/);
+    await expect(run(files('0.2.1'))).rejects.toThrow(
+      /^could not replace update-feed\/rc\.json: another publication keeps writing an older feed there \(4 tries\)\. This run's feed of 0\.2\.1 is kept as update-feed\/rc\.json\.tmp-[0-9a-f]{8}: re-run/,
+    );
     expect(feedNames().filter(isTmp)).toHaveLength(1);
   });
 
-  it('this version\'s feed entry is the one checked: its platform file read back must equal it (A-L1); a platform file raced at upload passes when the same, fails when not (B-L3)', async () => {
+  it("this version's feed entry is the one checked: its platform file read back must equal it (A-L1); a platform file raced at upload passes when the same, fails when not (B-L3)", async () => {
     attached('0.2.1');
     // Read back with another signature (a concurrent writer): nothing written to the feed.
     gh.before = (q) => {
@@ -704,7 +777,9 @@ describe('the feed under races and failures (review f)', () => {
       }
       return undefined;
     };
-    await expect(run(files('0.2.1'))).rejects.toThrow(/^v0\.2\.1\/platform-darwin-aarch64\.json read back is not the platform file checked here \(changed meanwhile\?\): nothing written to the feed — run this again$/);
+    await expect(run(files('0.2.1'))).rejects.toThrow(
+      /^v0\.2\.1\/platform-darwin-aarch64\.json read back is not the platform file checked here \(changed meanwhile\?\): nothing written to the feed — run this again$/,
+    );
     expect(releaseOf('update-feed')).toBeUndefined();
     // Read back as something that is not JSON: the same.
     reset();
@@ -738,7 +813,7 @@ describe('the feed under races and failures (review f)', () => {
     expect(releaseOf('update-feed')).toBeUndefined();
   });
 
-  it('a half-uploaded file (GitHub\'s `starter` state) on the version\'s release is deleted and uploaded again; another one is left alone (A-L7)', async () => {
+  it("a half-uploaded file (GitHub's `starter` state) on the version's release is deleted and uploaded again; another one is left alone (A-L7)", async () => {
     addRelease('v0.2.1');
     const half = addAsset('v0.2.1', 'Retake.app.tar.gz', 'half an archi', 'application/octet-stream', 'starter');
     addAsset('v0.2.1', 'notes.txt', 'half', 'text/plain', 'starter');
@@ -750,7 +825,7 @@ describe('the feed under races and failures (review f)', () => {
     expect(gh.logs.join('\n')).toMatch(/removed v0\.2\.1\/Retake\.app\.tar\.gz: a half-uploaded file \(an interrupted upload, never downloadable\) — uploaded again/);
   });
 
-  it('reading a file follows up to three redirects, https only, never with the token; the release\'s upload address must be the API\'s upload host (B-L1, A-L4)', async () => {
+  it("reading a file follows up to three redirects, https only, never with the token; the release's upload address must be the API's upload host (B-L1, A-L4)", async () => {
     attached('0.2.1');
     gh.hops = 2;
     await run(files('0.2.1'));
@@ -775,8 +850,13 @@ describe('the feed under races and failures (review f)', () => {
 
   it('creating update-feed: a 422 is "exists" only when GitHub says already_exists (then a draft is said), any other is the error (B-L2); a feed release that is not a pre-release is warned about', async () => {
     attached('0.2.1');
-    gh.before = (q) => (q.method === 'POST' && q.path === `/repos/${REPOSITORY}/releases` ? { status: 422, body: { message: 'Validation Failed', errors: [{ resource: 'Release', code: 'invalid', field: 'make_latest' }] } } : undefined);
-    await expect(run(files('0.2.1'))).rejects.toThrow(/^POST \/repos\/example-owner\/example-repo\/releases: 422 \{"message":"Validation Failed","errors":\[\{"resource":"Release","code":"invalid","field":"make_latest"\}\]\}$/);
+    gh.before = (q) =>
+      q.method === 'POST' && q.path === `/repos/${REPOSITORY}/releases`
+        ? { status: 422, body: { message: 'Validation Failed', errors: [{ resource: 'Release', code: 'invalid', field: 'make_latest' }] } }
+        : undefined;
+    await expect(run(files('0.2.1'))).rejects.toThrow(
+      /^POST \/repos\/example-owner\/example-repo\/releases: 422 \{"message":"Validation Failed","errors":\[\{"resource":"Release","code":"invalid","field":"make_latest"\}\]\}$/,
+    );
     gh.before = null;
     addRelease('update-feed', { draft: true });
     await expect(run(files('0.2.1'))).rejects.toThrow(/a release update-feed exists but is not published \(a draft\?\)/);
@@ -815,7 +895,9 @@ describe('the feed under races and failures (review f)', () => {
     expect(r.channels).toEqual({ 'rc.json': 'kept 999.0.0', 'latest.json': 'kept 999.0.0' });
     expect(r.warnings).toHaveLength(2);
     expect(r.warnings[0]).toBe(pub.frozen('rc.json', '999.0.0', REPOSITORY));
-    expect(r.warnings[0]).toMatch(/^update-feed\/rc\.json names 999\.0\.0, newer than this version, but example-owner\/example-repo has no published release v999\.0\.0: every app reading rc\.json is stuck .* stays green .* delete the wrong rc\.json, then re-run the publish job of the newest real version$/);
+    expect(r.warnings[0]).toMatch(
+      /^update-feed\/rc\.json names 999\.0\.0, newer than this version, but example-owner\/example-repo has no published release v999\.0\.0: every app reading rc\.json is stuck .* stays green .* delete the wrong rc\.json, then re-run the publish job of the newest real version$/,
+    );
     expect(gh.logs.filter((l) => l.startsWith('::warning::update-feed/'))).toHaveLength(2);
     // The command line prints it at the start of a line (GitHub's annotation) and exits 0: tested through publish's log.
     reset();

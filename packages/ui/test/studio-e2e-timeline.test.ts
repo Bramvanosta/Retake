@@ -1,7 +1,7 @@
 /**
  * L4.5 part C: the timeline screen end to end in headless Chromium (playwright-core's build: it plays VP9, not H.264),
  * against a real Studio server, its player origin and the real preview bundle, on a synthetic take whose every
- * capture frame shows its own index in binary (timeline-take.ts):
+ * capture frame shows its own index in binary (test-support take.ts):
  * - the scenario screen's "Open timeline" (R-UI-15: disabled with why without a capture) → the timeline route; the
  *   tracks from the view (segments, captions, steps, camera, speed and cuts, markers, comment pins at their frames, a
  *   comment of another take beside the track); one iframe, with PREVIEW_FRAME_ATTRS and a frame URL of the player origin;
@@ -25,10 +25,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { TimelineViewResult } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { FRAME_URL_RE, landingOf } from '../src/app/timeline-words.js';
+import { FRAME_URL_RE, landingOf } from '../src/app/words/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { BITS_TEXT, bitsTimeline, readBits, takeWorkspace, writeTake, writeThread } from './timeline-take.js';
+import { hasTool } from '@retake/test-support/repo';
+import { BITS_TEXT, bitsTimeline, readBits, takeWorkspace, writeTake, writeThread } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -42,7 +43,7 @@ let browser: Browser;
 let context: BrowserContext;
 let page: Page;
 let plan: Extract<TimelineViewResult, { view: unknown }>;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const consoleErrors: string[] = [];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -82,7 +83,7 @@ const blur = () => page.evaluate(() => (document.activeElement as HTMLElement | 
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-timeline-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 8 });
   await writeTake(dir, 'h264', { run: H264_RUN, text: BITS_TEXT.replace('video: Bits', 'video: H264'), timeline: bitsTimeline(), codec: 'h264-x264', seconds: 8 });
@@ -93,8 +94,22 @@ beforeAll(async () => {
   if (!('view' in v)) throw new Error(`blocked: ${JSON.stringify(v.blocked)}`);
   plan = v;
   // A comment on this take at step a.1, and one made on another take (beside the track).
-  await writeThread(dir, { id: 'c_01JAAAAAAAAAAAAAAAAAAAAAAA', scenario: 'bits', run: RUN, frames: v.plan.durationInFrames, text: 'The zoom starts <b>too early</b>', anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 1 } });
-  await writeThread(dir, { id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', scenario: 'bits', run: '20250101-120000-bits', frames: 100, text: 'An older take', anchor: { segment: 'b', kind: 'clip', scene: 'b', step: 0 } });
+  await writeThread(dir, {
+    id: 'c_01JAAAAAAAAAAAAAAAAAAAAAAA',
+    scenario: 'bits',
+    run: RUN,
+    frames: v.plan.durationInFrames,
+    text: 'The zoom starts <b>too early</b>',
+    anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 1 },
+  });
+  await writeThread(dir, {
+    id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB',
+    scenario: 'bits',
+    run: '20250101-120000-bits',
+    frames: 100,
+    text: 'An older take',
+    anchor: { segment: 'b', kind: 'clip', scene: 'b', step: 0 },
+  });
   const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1360, height: 900 } });
@@ -113,8 +128,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -195,7 +209,14 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
         const tracks = box.top - pane.top;
         // L5.12a: Edit's stage fills what the tracks leave — the tracks' whole height in the pane counts as "as much".
         const whole = box.bottom - pane.top <= pane.height + 1;
-        return { now: tops.filter((t) => t < pane.height - 8).length, then: tops.filter((t) => t + before < innerHeight - 8).length, seen: whole ? Infinity : pane.height - tracks, seenThen: innerHeight - (tracks + before), preview, whole };
+        return {
+          now: tops.filter((t) => t < pane.height - 8).length,
+          then: tops.filter((t) => t + before < innerHeight - 8).length,
+          seen: whole ? Infinity : pane.height - tracks,
+          seenThen: innerHeight - (tracks + before),
+          preview,
+          whole,
+        };
       });
       await shot(`timeline-shell-dark-${width}`);
       const why = `${width}×${height}: ${JSON.stringify(rows)}`;
@@ -207,7 +228,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     await page.emulateMedia({ colorScheme: 'light' });
   });
 
-  it('muted at first; Unmute asks the frame; clicks, a scrubber drag and the keys show exactly the plan\'s frames', async () => {
+  it("muted at first; Unmute asks the frame; clicks, a scrubber drag and the keys show exactly the plan's frames", async () => {
     const mute = page.getByTestId('mute');
     expect(await mute.innerText()).toBe('Unmute');
     await mute.click();
@@ -282,7 +303,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     await page.keyboard.press('ArrowLeft');
     expect(await shown()).toBe(2);
     expect(await page.getByTestId('scrubber').getAttribute('aria-valuetext')).toBe(`0:00.07 · scene a · step 1 ${plan.view.untrusted.steps['a.0']}`);
-    await check('the scrubber\'s own arrow');
+    await check("the scrubber's own arrow");
     // Space plays (the frame says so) and pauses; the frame shown afterwards is exact again.
     await page.keyboard.press('Home');
     await blur();

@@ -7,11 +7,38 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { ScenarioRenderJobView, ScenarioRendersView } from '@retake/engine';
-import { findingAt, findingFrame, heldShortWords, heldWords, jobVersionNote, jobWords, phaseWords, rendersEventAction, reviewBadge, sameVersion, shownJobsOf, versionNote, versionWords, yieldWords } from '../src/app/render-words.js';
+import { renderNotWords } from '@retake/core';
+import type { RenderNot } from '@retake/core';
+import {
+  RENDER_NOT_WORDS,
+  findingAt,
+  findingFrame,
+  heldShortWords,
+  heldWords,
+  jobVersionNote,
+  jobWords,
+  notShownWords,
+  phaseWords,
+  rendersEventAction,
+  reviewBadge,
+  sameVersion,
+  shownJobsOf,
+  versionNote,
+  versionWords,
+  yieldWords,
+} from '../src/app/words/render-words.js';
 
 const H = 'a'.repeat(64);
 const job = (o: Partial<ScenarioRenderJobView> = {}): ScenarioRenderJobView => ({
-  id: 'j_1', render_id: 'quote-v3', run_id: 'r1', state: 'running', created_at: '2026-01-01T00:00:00.000Z', submitted_by: 'ui', reviewing: false, cancel_requested: false, ...o,
+  id: 'j_1',
+  render_id: 'quote-v3',
+  run_id: 'r1',
+  state: 'running',
+  created_at: '2026-01-01T00:00:00.000Z',
+  submitted_by: 'ui',
+  reviewing: false,
+  cancel_requested: false,
+  ...o,
 });
 
 describe('render list events (re-read only what is shown)', () => {
@@ -87,9 +114,15 @@ describe('versions and words', () => {
     expect(jobWords(job({ phase: 'review:sheets', fraction: 0.5, reviewing: true }))).toBe('v3 · reviewing: making the contact sheets');
     expect(jobWords(job({ cancel_requested: true }))).toBe('v3 · stopping…');
     // L5.14b: what a take does to it — waiting (where), slowed (no time left said: it would be wrong), past the cap.
-    expect(jobWords(job({ state: 'queued', queue: { ahead: 0, held_by: 'take' }, yield: { state: 'waiting', cause: 'elsewhere' } }))).toBe('v3 · queued — waiting for a take to finish (elsewhere on this Mac)');
-    expect(jobWords(job({ phase: 'rendering', fraction: 0.431, eta_s: 12.2, yield: { state: 'background', cause: 'here', since: '2026-11-04T14:02:00.000Z' } }))).toBe('v3 · rendering 43 % · slowed during a take (in this workspace)');
-    expect(jobWords(job({ phase: 'rendering', fraction: 0.5, eta_s: 30, yield: { state: 'past_cap', cause: 'here', cap_min: 60 } }))).toBe('v3 · rendering 50 % · about 30 s left · going on: a take (in this workspace) has held heavy work for over 60 min');
+    expect(jobWords(job({ state: 'queued', queue: { ahead: 0, held_by: 'take' }, yield: { state: 'waiting', cause: 'elsewhere' } }))).toBe(
+      'v3 · queued — waiting for a take to finish (elsewhere on this Mac)',
+    );
+    expect(jobWords(job({ phase: 'rendering', fraction: 0.431, eta_s: 12.2, yield: { state: 'background', cause: 'here', since: '2026-11-04T14:02:00.000Z' } }))).toBe(
+      'v3 · rendering 43 % · slowed during a take (in this workspace)',
+    );
+    expect(jobWords(job({ phase: 'rendering', fraction: 0.5, eta_s: 30, yield: { state: 'past_cap', cause: 'here', cap_min: 60 } }))).toBe(
+      'v3 · rendering 50 % · about 30 s left · going on: a take (in this workspace) has held heavy work for over 60 min',
+    );
     expect(heldWords({ state: 'background', cause: 'elsewhere', kind: 'render', count: 1 })).toBe('a render is slowed during a take (elsewhere on this Mac)');
     expect(heldWords({ state: 'waiting', cause: 'here', kind: 'review', count: 2 })).toBe('2 jobs wait for a take to finish (in this workspace)');
     // Review B L6: the narrow status bar's short form.
@@ -104,6 +137,29 @@ describe('versions and words', () => {
     expect(reviewBadge({ state: 'none' }).words).toBe('not reviewed');
     expect(findingAt({ frame: 96, segment: 'a', step: 0 }, 30)).toBe('at 0:03.2 · segment a · step 1');
     expect(findingFrame({ time: 1.5 }, 30)).toBe(45);
-    expect(findingFrame({ segment: 'a' }, 30)).toBeUndefined();
+    // A finding placed by its segment only (a review finding's `at` carries more than the frame and the time).
+    const bySegment: { frame?: number; segment?: string } = { segment: 'a' };
+    expect(findingFrame(bySegment, 30)).toBeUndefined();
+  });
+});
+
+describe('the files of renders/ the list does not show (L7.6b)', () => {
+  it("one line per reason, counts and fixed words only; the words are core's", () => {
+    expect(notShownWords(undefined)).toEqual([]);
+    expect(
+      notShownWords({
+        count: 3,
+        reasons: [
+          { why: 'unknown-status', count: 1 },
+          { why: 'renamed', count: 2 },
+        ],
+      }),
+    ).toEqual([
+      '1 file of renders/ is not shown as a render: its status is not one Retake writes',
+      '2 files of renders/ are not shown as renders — for each, its record says another id', // fix pass: "files … its" (review B L-8)
+    ]);
+    // The mirror of core's words (the app imports core's types only): every reason, word for word.
+    for (const why of Object.keys(RENDER_NOT_WORDS) as RenderNot[]) expect(RENDER_NOT_WORDS[why], why).toBe(renderNotWords(why));
+    expect(Object.keys(RENDER_NOT_WORDS)).toHaveLength(10);
   });
 });

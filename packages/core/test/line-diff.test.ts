@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { LineDiffError, applyHunks, diffLines, hunkOrderProblem, hunkStats, invertHunks, joinLines, lineBreaks, sameHunks, textLines } from '../src/index.js';
 import type { LineHunk } from '../src/index.js';
+import { perCallMs } from '@retake/test-support/timing';
 
 /** A small deterministic generator (mulberry32). */
 function rng(seed: number): () => number {
@@ -94,19 +95,39 @@ describe('diffLines / applyHunks (T9)', () => {
     expect(lineBreaks('a\r\nb\nc\rd')).toEqual({ crlf: 1, lf: 1, cr: 1 });
   });
 
-  it('⚑ applyHunks is strict: removed lines not the base\'s, out of order, touching, empty, past the end — all throw', () => {
+  it("⚑ applyHunks is strict: removed lines not the base's, out of order, touching, empty, past the end — all throw", () => {
     const base = ['a', 'b', 'c', 'd', 'e'];
     expect(() => applyHunks(base, [{ at: 2, del: ['x'], add: ['y'] }])).toThrow(LineDiffError);
     expect(() => applyHunks(base, [{ at: 2, del: ['x'], add: ['y'] }])).toThrow(/line 2 is not the line it removes/);
     // Out of order: displayed in one order, applied in another (critique B1 b).
-    expect(() => applyHunks(base, [{ at: 4, del: ['d'], add: ['D'] }, { at: 2, del: ['b'], add: ['B'] }])).toThrow(/not after hunk 1/);
+    expect(() =>
+      applyHunks(base, [
+        { at: 4, del: ['d'], add: ['D'] },
+        { at: 2, del: ['b'], add: ['B'] },
+      ]),
+    ).toThrow(/not after hunk 1/);
     // Touching: no unchanged line between (one canonical hunk would hold both).
-    expect(() => applyHunks(base, [{ at: 2, del: ['b'], add: ['B'] }, { at: 3, del: ['c'], add: ['C'] }])).toThrow(/not after hunk 1/);
-    expect(() => applyHunks(base, [{ at: 2, del: [], add: ['x'] }, { at: 2, del: ['b'], add: [] }])).toThrow(/not after hunk 1/);
+    expect(() =>
+      applyHunks(base, [
+        { at: 2, del: ['b'], add: ['B'] },
+        { at: 3, del: ['c'], add: ['C'] },
+      ]),
+    ).toThrow(/not after hunk 1/);
+    expect(() =>
+      applyHunks(base, [
+        { at: 2, del: [], add: ['x'] },
+        { at: 2, del: ['b'], add: [] },
+      ]),
+    ).toThrow(/not after hunk 1/);
     expect(() => applyHunks(base, [{ at: 2, del: [], add: [] }])).toThrow(/changes nothing/);
     expect(() => applyHunks(base, [{ at: 0, del: [], add: ['x'] }])).toThrow(/from 1/);
     expect(() => applyHunks(base, [{ at: 5, del: ['e', 'f'], add: [] }])).toThrow(/past the end/);
-    expect(applyHunks(base, [{ at: 2, del: ['b'], add: ['B'] }, { at: 4, del: ['d'], add: ['D'] }])).toEqual(['a', 'B', 'c', 'D', 'e']);
+    expect(
+      applyHunks(base, [
+        { at: 2, del: ['b'], add: ['B'] },
+        { at: 4, del: ['d'], add: ['D'] },
+      ]),
+    ).toEqual(['a', 'B', 'c', 'D', 'e']);
     // A valid but non-canonical list applies (strictness is about the base), and the canonical check tells it apart.
     const split: LineHunk[] = [{ at: 2, del: ['b'], add: ['b'] }];
     expect(applyHunks(base, split)).toEqual(base);
@@ -116,9 +137,19 @@ describe('diffLines / applyHunks (T9)', () => {
   it('the cap stops the search: past maxChanged changed lines, null', () => {
     const a = Array.from({ length: 3000 }, (_, i) => `line ${i}`);
     const b = a.map((l) => `${l} changed`);
-    const t0 = performance.now();
+    /** A capped search over `n` lines that all changed, per call (repeated until a round lasts 20 ms; best of 3). */
+    const capped = (n: number) => {
+      const x = Array.from({ length: n }, (_, i) => `line ${i}`);
+      const y = x.map((l) => `${l} changed`);
+      expect(diffLines(x, y, { maxChanged: 200 })).toBeNull();
+      return perCallMs(() => diffLines(x, y, { maxChanged: 200 }));
+    };
     expect(diffLines(a, b, { maxChanged: 200 })).toBeNull();
-    expect(performance.now() - t0).toBeLessThan(2000);
+    // The cap bounds the search, whatever the machine's speed: four times the lines cost at most about four times as
+    // much, far from the sixteen times an uncapped search over lines that all changed would.
+    const [n1, n4] = [capped(3000), capped(12_000)];
+    console.log(`capped diff: 3,000 lines ${n1.toFixed(3)} ms, 12,000 lines ${n4.toFixed(3)} ms`);
+    expect(n4 / n1).toBeLessThan(8);
     const small = [...a];
     small[1500] = 'one change';
     expect(diffLines(a, small, { maxChanged: 200 })).toEqual([{ at: 1501, del: ['line 1500'], add: ['one change'] }]);

@@ -60,12 +60,7 @@ export function fadeOut(frame: number, fps: number, durationInFrames: number, op
 }
 
 /** Opacity of something that fades in at the start and out at the end of the component. */
-export function fade(
-  frame: number,
-  fps: number,
-  durationInFrames: number,
-  opts: { in?: TweenOptions; out?: Omit<TweenOptions, 'delay'> | false } = {},
-): number {
+export function fade(frame: number, fps: number, durationInFrames: number, opts: { in?: TweenOptions; out?: Omit<TweenOptions, 'delay'> | false } = {}): number {
   const a = fadeIn(frame, fps, opts.in);
   const b = opts.out === false ? 1 : fadeOut(frame, fps, durationInFrames, opts.out);
   return Math.min(a, b);

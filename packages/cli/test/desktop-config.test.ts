@@ -63,7 +63,11 @@ function files(dir = APP): string[] {
   return out;
 }
 
-const rustSources = () => readdirSync(join(APP, 'src')).filter((f) => f.endsWith('.rs')).map((f) => read(join('src', f))).join('\n');
+const rustSources = () =>
+  readdirSync(join(APP, 'src'))
+    .filter((f) => f.endsWith('.rs'))
+    .map((f) => read(join('src', f)))
+    .join('\n');
 
 /** The `[section]` of a Cargo.toml as `name → value text` (one line per entry). */
 function section(toml: string, name: string): Map<string, string> {
@@ -101,7 +105,9 @@ describe('desktop shell configuration (L5.2, static)', () => {
     // L5.16d: one plugin, the updater, in a build with the `updater` feature and a configured feed only (its commands
     // stay unreachable: no capability grants them).
     expect([...src.matchAll(/\.plugin\(/g)].length).toBe(1);
-    expect(read('src/update.rs')).toMatch(/#\[cfg\(feature = "updater"\)\]\s*\{\s*let _ = BUILT\.set\(configured\);\s*if configured \{\s*return builder\.plugin\(tauri_plugin_updater::Builder::new\(\)\.build\(\)\);/);
+    expect(read('src/update.rs')).toMatch(
+      /#\[cfg\(feature = "updater"\)\]\s*\{\s*let _ = BUILT\.set\(configured\);\s*if configured \{\s*return builder\.plugin\(tauri_plugin_updater::Builder::new\(\)\.build\(\)\);/,
+    );
   });
 
   it('the window: ephemeral WebKit store, WebKit drag & drop, every download cancelled, every capture denied, no new-window handler, one init script and two evals, one Command (node)', () => {
@@ -139,7 +145,9 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(src.match(/std::process::Command::new\(&exe\)/g)).toHaveLength(1);
     expect(src).not.toMatch(/"sh"|"\/bin\/sh"|"bash"|"-c"|osascript/);
     // Review A L4: a release build removes the code loaders from the child's environment.
-    expect(read('src/child.rs')).toMatch(/if !cfg!\(debug_assertions\) \{\n\s*for \(k, _\) in std::env::vars_os\(\) \{\n\s*if k\.to_str\(\)\.is_some_and\(child_env_dropped\) \{\n\s*cmd\.env_remove\(&k\);/);
+    expect(read('src/child.rs')).toMatch(
+      /if !cfg!\(debug_assertions\) \{\n\s*for \(k, _\) in std::env::vars_os\(\) \{\n\s*if k\.to_str\(\)\.is_some_and\(child_env_dropped\) \{\n\s*cmd\.env_remove\(&k\);/,
+    );
     // Review A L3: the origins are emptied when the owned server exits (before its alert), and an attached server is
     // probed on navigation (desktop-core navigation_decision → ServerGone).
     expect(src).toMatch(/fn server_exited\([\s\S]*?\*lock\(&shell\.allowed\) = dc::Allowed::NONE;[\s\S]*?restart_or_quit\(/);
@@ -156,7 +164,18 @@ describe('desktop shell configuration (L5.2, static)', () => {
 
   it('Cargo.toml: a short dependency allow-list, Tauri with no extra feature, objc2-app-kit without default features; the rules crate has no dependency', () => {
     const toml = read('Cargo.toml');
-    expect([...section(toml, 'dependencies').keys()].sort()).toEqual(['block2', 'desktop-core', 'libc', 'objc2', 'objc2-app-kit', 'objc2-foundation', 'objc2-user-notifications', 'serde_json', 'tauri', 'tauri-plugin-updater']);
+    expect([...section(toml, 'dependencies').keys()].sort()).toEqual([
+      'block2',
+      'desktop-core',
+      'libc',
+      'objc2',
+      'objc2-app-kit',
+      'objc2-foundation',
+      'objc2-user-notifications',
+      'serde_json',
+      'tauri',
+      'tauri-plugin-updater',
+    ]);
     // L5.16d: the updater pinned and optional — only the `updater` feature (bundle.mjs, with a feed and a key) has it.
     expect(section(toml, 'dependencies').get('tauri-plugin-updater')).toBe('{ version = "=2.14.0", optional = true }');
     // serde_json: tauri::generate_context! embeds the config's `plugins` as serde_json values (an updater build only).
@@ -273,7 +292,7 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(read('src/child.rs')).toContain('self.proc.as_ref().map(|_| lock(&self.pending).clone())');
   });
 
-  it('⚑ L5.12d: the quit question in the page — the detail\'s keys, events and id rule the same in Rust and the page; no TerminateLater; the page only for a plain Quit on the Studio\'s origin; every exit closes it', () => {
+  it("⚑ L5.12d: the quit question in the page — the detail's keys, events and id rule the same in Rust and the page; no TerminateLater; the page only for a plain Quit on the Studio's origin; every exit closes it", () => {
     const flow = read('core/src/guard_flow.rs');
     const guard = read('src/guard.rs');
     const main = read('src/main.rs');
@@ -337,7 +356,11 @@ describe('desktop shell configuration (L5.2, static)', () => {
       ['PIPE_OUTCOMES', 'Outcome'],
       ['PIPE_REASONS', 'Reason'],
     ];
-    for (const [ts, rs] of pairs) expect(rsList(rs).map((x) => x[1]), `${ts} / ${rs}`).toEqual(tsList(supervise, ts));
+    for (const [ts, rs] of pairs)
+      expect(
+        rsList(rs).map((x) => x[1]),
+        `${ts} / ${rs}`,
+      ).toEqual(tsList(supervise, ts));
     expect(rsList('JobState').map((x) => x[1])).toEqual(['running', 'queued']);
     const unsaved = tsList(ui('server/unsaved.ts'), 'UNSAVED_KINDS');
     expect(rsList('UnsavedKind').map((x) => x[1])).toEqual(unsaved);
@@ -346,7 +369,13 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect([...union.matchAll(/'([a-z_]+)'/g)].map((x) => x[1])).toEqual(unsaved);
     // Each Rust variant is its wire name in CamelCase (yaml_draft is YamlDraft).
     for (const rs of ['JobKind', 'Outcome', 'Reason', 'UnsavedKind', 'JobState']) {
-      for (const [variant, wire] of rsList(rs)) expect(variant, rs).toBe(wire.split('_').map((w) => w[0]!.toUpperCase() + w.slice(1)).join(''));
+      for (const [variant, wire] of rsList(rs))
+        expect(variant, rs).toBe(
+          wire
+            .split('_')
+            .map((w) => w[0]!.toUpperCase() + w.slice(1))
+            .join(''),
+        );
     }
   });
 
@@ -374,7 +403,7 @@ describe('desktop shell configuration (L5.2, static)', () => {
     for (const p of ['apps/desktop/target/', 'apps/desktop/core/target/', 'apps/desktop/gen/']) expect(ignore).toContain(p);
   });
 
-  it('⚑ L5.13b: the icns\'s 16 and 32 pt slots are the drawn icons — all four required, each a PNG of its slot\'s size (no silent sips fallback)', async () => {
+  it("⚑ L5.13b: the icns's 16 and 32 pt slots are the drawn icons — all four required, each a PNG of its slot's size (no silent sips fallback)", async () => {
     type Drawn = { DRAWN_ICONS: Record<string, number>; drawnIconProblems: (dir?: string) => string[] };
     const { DRAWN_ICONS, drawnIconProblems } = (await import(join(APP, 'scripts', 'desktop.mjs'))) as Drawn;
     expect(DRAWN_ICONS).toEqual({ 'icon_16x16.png': 16, 'icon_16x16@2x.png': 32, 'icon_32x32.png': 32, 'icon_32x32@2x.png': 64 });
@@ -402,12 +431,25 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(js).toContain("if (file in DRAWN_ICONS) copyFileSync(join(APP_DIR, 'icons', 'iconset', file), join(set, file));");
   });
 
-  it('prepared for the redesign: one command table, the Scenario menu\'s keys as page commands only, ⌘S and ⌘Enter left free, one title-bar switch, no forced theme, name and id in one place', () => {
+  it("prepared for the redesign: one command table, the Scenario menu's keys as page commands only, ⌘S and ⌘Enter left free, one title-bar switch, no forced theme, name and id in one place", () => {
     const menu = read('src/menu.rs');
     const accelerators = [...menu.matchAll(/accelerator: Some\("([^"]+)"\)/g)].map((m) => m[1]);
     // L5.9: the View menu's page commands (⌘K, ⌘1 – ⌘4, ⌥⌘I); L5.11a: the Scenario menu's Rehearse ⌘R, Capture ⇧⌘R,
     // Render ⌘B and Stop ⌘. (page commands: the page's bus gives them to their owner).
-    expect(accelerators).toEqual(['CmdOrCtrl+O', 'CmdOrCtrl+K', 'CmdOrCtrl+1', 'CmdOrCtrl+2', 'CmdOrCtrl+3', 'CmdOrCtrl+4', 'Alt+CmdOrCtrl+I', 'CmdOrCtrl+R', 'Shift+CmdOrCtrl+R', 'CmdOrCtrl+B', 'CmdOrCtrl+.', 'CmdOrCtrl+0']);
+    expect(accelerators).toEqual([
+      'CmdOrCtrl+O',
+      'CmdOrCtrl+K',
+      'CmdOrCtrl+1',
+      'CmdOrCtrl+2',
+      'CmdOrCtrl+3',
+      'CmdOrCtrl+4',
+      'Alt+CmdOrCtrl+I',
+      'CmdOrCtrl+R',
+      'Shift+CmdOrCtrl+R',
+      'CmdOrCtrl+B',
+      'CmdOrCtrl+.',
+      'CmdOrCtrl+0',
+    ]);
     const scenario = /\(\s*"Scenario",\s*&\[([\s\S]*?)\],\s*\),/.exec(menu)?.[1] ?? '';
     expect([...scenario.matchAll(/Item::Page \{ id: "([^"]+)", label: "([^"]+)", accelerator: Some\("([^"]+)"\) \}/g)].map((m) => [m[1], m[2], m[3]])).toEqual([
       ['rehearse', 'Rehearse', 'CmdOrCtrl+R'],
@@ -427,7 +469,11 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(menu).toMatch(/^pub const TITLE_BAR: TitleBar = TitleBar::Standard;$/m);
     expect(src.match(/title_bar_style\(/g)).toHaveLength(1);
     expect(src).not.toMatch(/\.theme\(/);
-    const code = (text: string) => text.split('\n').filter((l) => !/^\s*(?:\/\/|\*|\/\*)/.test(l)).join('\n');
+    const code = (text: string) =>
+      text
+        .split('\n')
+        .filter((l) => !/^\s*(?:\/\/|\*|\/\*)/.test(l))
+        .join('\n');
     for (const f of [...readdirSync(join(APP, 'src')).map((x) => join('src', x)), 'scripts/desktop.mjs']) {
       expect(code(read(f)), f).not.toMatch(/Retake|local\.retake|retake-desktop/);
     }
@@ -435,13 +481,13 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(read('src/main.rs')).toContain('pub const BIN: &str = env!("CARGO_PKG_NAME");');
   });
 
-  it('⚑ L5.9: the menu\'s page commands are the page\'s MENU_COMMANDS (one list each side, compared); the flag script is a constant', () => {
+  it("⚑ L5.9: the menu's page commands are the page's MENU_COMMANDS (one list each side, compared); the flag script is a constant", () => {
     const menu = read('src/menu.rs');
     const page = [...menu.matchAll(/Item::Page \{ id: "([^"]+)", label: "[^"]+", accelerator: Some\("[^"]+"\) \}/g)].map((m) => m[1]);
     expect(page.sort()).toEqual([...MENU_COMMANDS].sort());
     expect(page).toHaveLength(MENU_COMMANDS.length);
     // The dispatch: only a Page id of MENUS, JSON-quoted into one constant shape.
-    expect(menu).toContain("known.then(|| format!(\"window.dispatchEvent(new CustomEvent('studio:command', {{ detail: {{ id: {} }} }}))\", desktop_core::json::quote(id)))");
+    expect(menu).toContain('known.then(|| format!("window.dispatchEvent(new CustomEvent(\'studio:command\', {{ detail: {{ id: {} }} }}))", desktop_core::json::quote(id)))');
     expect(menu).toContain('matches!(i, Item::Page { id: p, .. } if *p == id)');
     expect(menu).toContain(`TitleBar::Standard => "window.__studioShell = Object.freeze({ titleBar: 'standard' });",`);
     expect(menu).toContain(`TitleBar::Overlay { .. } => "window.__studioShell = Object.freeze({ titleBar: 'overlay' });",`);
@@ -451,8 +497,8 @@ describe('desktop shell configuration (L5.2, static)', () => {
   });
 });
 
-describe('L5.16c: the installed app\'s first run and Set-up sheet, shell side (static)', () => {
-  it('the Help menu: Set Up …, Install / Uninstall the retake Command…, no keys, through the page\'s Set-up sheet', () => {
+describe("L5.16c: the installed app's first run and Set-up sheet, shell side (static)", () => {
+  it("the Help menu: Set Up …, Install / Uninstall the retake Command…, no keys, through the page's Set-up sheet", () => {
     const menu = read('src/menu.rs');
     const help = /\(\s*"Help",\s*&\[([\s\S]*?)\],\s*\),/.exec(menu)?.[1] ?? '';
     expect([...help.matchAll(/Item::Cmd \{ id: ([A-Z_]+), label: "([^"]+)", accelerator: None, enabled: true \}/g)].map((m) => [m[1], m[2]])).toEqual([
@@ -478,7 +524,7 @@ describe('L5.16c: the installed app\'s first run and Set-up sheet, shell side (s
     expect(actions).toEqual([...SETUP_ACTIONS]);
   });
 
-  it('the first run: a bundled app without a workspace asks (Create ~/Retake · Choose a Folder… · Quit), Create runs the app\'s own retake init', () => {
+  it("the first run: a bundled app without a workspace asks (Create ~/Retake · Choose a Folder… · Quit), Create runs the app's own retake init", () => {
     const main = read('src/main.rs');
     expect(main).toMatch(/None if bundled => match first_run\(&shell\)/);
     expect(main).toContain('macos::ask(dc::setup::FIRST_RUN_TITLE, &text, &dc::setup::FIRST_RUN_BUTTONS, 2, &[])');
@@ -489,7 +535,6 @@ describe('L5.16c: the installed app\'s first run and Set-up sheet, shell side (s
     expect(main).toContain('picked.as_deref().and_then(dc::setup::cli_folder_line)');
   });
 });
-
 
 describe('L5.16d: the updater, shell side (static)', () => {
   it('Help › Check for Updates…, the update click from the pipe, Install and Restart through the quit guard, the swap at the exit', () => {
@@ -510,9 +555,12 @@ describe('L5.16d: the updater, shell side (static)', () => {
     const upd = read('src/update.rs');
     // Review d A-L1: the update never arms while a quit question is up in the page (its answer would install).
     expect(upd).toContain('if guard::GUARD_OPEN.load(Ordering::SeqCst) || macos::modal_up() || guard::page_question_up() {');
-    // Test mode restarts the binary directly; LaunchServices (Tauri's restart) only outside it, the log filter flushed
-    // first (review d A-L6: the restart exits the process).
-    expect(upd).toMatch(/fn restart\(app: &AppHandle\) \{\s*if test_mode\(\) \{[\s\S]*?std::process::Command::new\(&exe\)[\s\S]*?return;\s*\}\s*crate::logfilter::finish\(\);\s*app\.restart\(\);/);
+    // Test mode restarts the binary directly. Outside it (hotfix v0.2.4, BL-168) a detached relaunch of the bundle once
+    // this process has ended (the app keeps its Dock icon); Tauri's restart only when that cannot start, the log filter
+    // flushed first (review d A-L6: the restart exits the process).
+    expect(upd).toMatch(
+      /fn restart\(app: &AppHandle\) \{\s*if test_mode\(\) \{[\s\S]*?std::process::Command::new\(&exe\)[\s\S]*?return;\s*\}\s*let bundle = [^\n]*dc::relaunch::is_bundle\(b\)\);\s*if let Some\(bundle\) = bundle \{[\s\S]*?dc::relaunch::Relaunch::after_this_process\(bundle, args\)\.spawn\(\) \{\s*Ok\(c\) => \{\s*log\([\s\S]*?\);\s*return;\s*\}\s*Err\(e\) => log\([\s\S]*?\),\s*\}\s*\}\s*crate::logfilter::finish\(\);\s*app\.restart\(\);\s*\}/,
+    );
     expect(upd).not.toMatch(/\/usr\/bin\/open|osascript/);
     // …with the real stderr: the log filter's pipe dies with the old process (the e2e test's first run lost every line).
     expect(upd).toContain('if let Some(err) = crate::logfilter::real_stderr() {\n            cmd.stderr(err);');
@@ -540,10 +588,12 @@ describe('L5.16d: the updater, shell side (static)', () => {
       const redirect = join(registry, index, 'reqwest-0.13.3', 'src', 'redirect.rs');
       if (existsSync(redirect)) expect(readFileSync(redirect, 'utf8')).toMatch(/if self\.https_only && next_url\.scheme\(\) != "https" \{\s*return Err\(crate::error::redirect\(/);
       const updater = join(registry, index, 'tauri-plugin-updater-2.14.0', 'src', 'updater.rs');
-      if (existsSync(updater)) expect([...readFileSync(updater, 'utf8').matchAll(/if let Some\(ref configure_client\) = self\.context\.configure_client \{\s*request = configure_client\(request\);/g)].length).toBe(2);
+      if (existsSync(updater))
+        expect([...readFileSync(updater, 'utf8').matchAll(/if let Some\(ref configure_client\) = self\.context\.configure_client \{\s*request = configure_client\(request\);/g)].length).toBe(2);
     }
     expect(upd).toContain('f.timeout = None;');
-    expect(upd).toContain('let stop = uf::watch(&progress, &uf::DOWNLOAD, || task.inner().is_finished(), || GEN.load(Ordering::SeqCst) != gen);');
+    // Hotfix v0.2.4 (BL-167): the same limits, each new byte count reported to the Studio (`watch_reporting`).
+    expect(upd).toContain('let stop = uf::watch_reporting(&progress, &uf::DOWNLOAD, || task.inner().is_finished(), || GEN.load(Ordering::SeqCst) != gen, report);');
     expect(upd).toMatch(/Some\(s\) => \{\s*task\.abort\(\);/);
     expect(upd).toMatch(/if f\.download_url\.scheme\(\) != "https" && !\(test_feed\(\) && f\.download_url\.as_str\(\)\.starts_with\("http:\/\/127\.0\.0\.1:"\)\) \{\s*return Err/);
     expect(upd).toContain('uf::write_archive(&cache, std::process::id(), &bytes)');

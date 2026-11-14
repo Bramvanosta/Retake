@@ -219,9 +219,7 @@ describe('shell hooks', () => {
       { phase: 'setup', journal },
     );
     expect(res.ok).toBe(true);
-    expect(await lines('out.txt')).toEqual([
-      `Welcome to Northfield (${api.base})|local|20261011-142233-catalogue|${tmp.dir.split('/').pop()}|home`,
-    ]);
+    expect(await lines('out.txt')).toEqual([`Welcome to Northfield (${api.base})|local|20261011-142233-catalogue|${tmp.dir.split('/').pop()}|home`]);
     expect((await lines('scripts/where.txt'))[0].endsWith('/scripts')).toBe(true);
   });
 
@@ -262,10 +260,7 @@ describe('js hooks', () => {
     await writeFiles(tmp.dir, { 'hooks/count.js': 'return { count: document.querySelectorAll("{{vars.banner}}").length }' });
     const journal = await Journal.open(journalFile());
     const res = await runHooks(
-      [
-        { js: { code: 'localStorage.setItem("{{vars.banner}}", "dismissed")', page: 'console', rollback: 'localStorage.removeItem("{{vars.banner}}")' } },
-        { js: { file: 'hooks/count.js' } },
-      ],
+      [{ js: { code: 'localStorage.setItem("{{vars.banner}}", "dismissed")', page: 'console', rollback: 'localStorage.removeItem("{{vars.banner}}")' } }, { js: { file: 'hooks/count.js' } }],
       ctx,
       { phase: 'setup', journal },
     );
@@ -280,7 +275,7 @@ describe('js hooks', () => {
     ]);
   });
 
-  it('a host the runner\'s hook tab blocked is a refusal (R-SEC-06): kept message, not tolerated by optional, rollbacks too', async () => {
+  it("a host the runner's hook tab blocked is a refusal (R-SEC-06): kept message, not tolerated by optional, rollbacks too", async () => {
     const { ctx, project } = env();
     const blocked = () => new HostRefusedError(['elsewhere.example.net'], project, 'blocked while the js hook ran', { detail: 'the hook threw: TypeError: Failed to fetch' });
     ctx.evalInPage = async (_page, code) => {

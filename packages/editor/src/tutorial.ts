@@ -6,8 +6,10 @@
  * region); the whole video gets a chapter progress bar. Everything is anchored in source CSS px and mapped per frame by
  * the composition through layout, camera and reframe.
  */
-import { BADGE_ACTIONS, SPOTLIGHT_ACTIONS, TUTORIAL_COMPONENTS, applyTutorial, resolveTutorial, tutorialOff } from '@retake/core';
-import type { BBox, ResolvedTutorial, Timeline, TimelineEvent, TimelineScene, TutorialFeatureName, TutorialFeatureState, TutorialSwitch } from '@retake/core';
+import { TUTORIAL_COMPONENTS } from '@retake/core/model';
+import { BADGE_ACTIONS, SPOTLIGHT_ACTIONS, applyTutorial, resolveTutorial, tutorialOff } from '@retake/core/language';
+import type { BBox, Timeline, TimelineEvent, TimelineScene, TutorialFeatureName, TutorialSwitch } from '@retake/core/model';
+import type { ResolvedTutorial, TutorialFeatureState } from '@retake/core/language';
 import type { ReframeTarget } from './camera.js';
 import type { OverlayUse, PlanTutorial, ResolvedComponent } from './plan-types.js';
 import { round, stepEnd } from './util.js';
@@ -50,8 +52,6 @@ export const TUTORIAL_TIMING = {
 
 /** Glide between two boxes of an overlay track (output seconds): see remotion/frames.ts `trackBoxAt`. */
 export { TRACK_GLIDE_S };
-
-export type ClipTutorialFeature = Exclude<TutorialFeatureName, 'progress'>;
 
 /** Resolves a tutorial overlay use (the planner's ComponentResolver behind it). */
 export type TutorialResolve = (feature: TutorialFeatureName, state: TutorialFeatureState, slots: Record<string, string>, where: string) => ResolvedComponent | null;
@@ -258,7 +258,17 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
       .map((k) => ({ at: Math.max(0, rel(k.t) - from), bbox: { ...k.bbox } }))
       .filter((k, i, all) => i === 0 || JSON.stringify(k.bbox) !== JSON.stringify(all[i - 1].bbox));
     track[0].at = 0;
-    out.spotlight.push({ component: rc, from, durationInFrames: to - from, scene, step: first.ev.step, anchor: { bbox: { ...track[0].bbox } }, tutorial: 'spotlight', layer: 'screen', ...(track.length > 1 ? { track } : {}) });
+    out.spotlight.push({
+      component: rc,
+      from,
+      durationInFrames: to - from,
+      scene,
+      step: first.ev.step,
+      anchor: { bbox: { ...track[0].bbox } },
+      tutorial: 'spotlight',
+      layer: 'screen',
+      ...(track.length > 1 ? { track } : {}),
+    });
     count(input, 'spotlight');
   }
 

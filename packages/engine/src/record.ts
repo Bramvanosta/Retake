@@ -29,36 +29,37 @@
  * - a recording the Studio started (`submittedBy: 'ui'`, L4.8) is never saved here (`not_saved: 'studio'`): the person
  *   arranges the draft and saves it from the Record screen (record-studio.ts).
  */
+import type { Secrets } from './secrets/secrets.js';
+import { noDisplay } from './env.js';
+import type { EngineEnv } from './env.js';
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  PERSONA_NONE,
-  RECORD_ID_RE,
-  draftFromRecording,
-  draftInvalidIssue,
-  inspectPathProblem,
-  isPageOrigin,
-  parseScenario,
-  parseYaml,
-  resolveEnvironment,
-  resolvePersonas,
-  resolveRunAccess,
-  projectPath,
-  statePath,
-} from '@retake/core';
-import type { DraftIssue, JobClient, LoadedProject, LoadedScenario, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunProgress, RunRecord, WorkPolicy } from '@retake/core';
-import type { RecordSessionOptions, RecordSessionResult } from '@retake/runner-web';
-import { retakeHome, fileFacts } from '@retake/core/io';
+import { parseYaml, bestEffort } from '@retake/core/base';
+import { RECORD_ID_RE, newUlidId } from '@retake/core/ids';
+import { PERSONA_NONE, resolveEnvironment, resolvePersonas, resolveRunAccess } from '@retake/core/environment';
+import { projectPath, statePath } from '@retake/core/project';
+import { parseScenario } from '@retake/core/scenario';
+import { INSPECT_PACING, draftFromRecording, draftInvalidIssue, inspectPathProblem, isPageOrigin } from '@retake/core/run';
+import type { LoadedProject, LoadedScenario, ResolvedEnvironment } from '@retake/core/model';
+import type { ResolvedPersona } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { DraftIssue, RecordedEvent, RunProgress, RunRecord } from '@retake/core/run';
+import type { JobClient } from './jobs/job-input.js';
+import type { RecordSessionOptions, RecordSessionResult } from '@retake/runner-web/types';
+import { lockAlive, readLock, retakeHome, fileFacts } from '@retake/core/io';
+import type { CaptureRunner } from './capture/runner.js';
+import type { HookRunner } from './hook-run/runner.js';
 import { callerOf, submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { appendHistory } from './history.js';
 import { pageOfUrl } from './jobs/inspect-job.js';
-import { newJobId } from './jobs/ids.js';
 import type { JobQueueView } from './jobs/job-queue.js';
+import { dateOf, stampOf } from './clock.js';
+import type { Clock } from './clock.js';
+import type { ProjectStores } from './store/store.js';
 import { selfIdentity } from './jobs/proc.js';
-import { lockAlive, readLock } from '@retake/sandbox';
 import { RECORD_UNSAVED_KEEP_MS, readRecordAnnotations, readRecordMeta, recordLockFile, writeRecordMeta } from './record-files.js';
 import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';
@@ -81,7 +82,7 @@ export function recordDir(project: LoadedProject, id: string): string {
 }
 
 export function newRecordId(): string {
-  return `rec_${newJobId().slice(2)}`;
+  return newUlidId('record');
 }
 
 /** The recordings of a project whose `record` job is queued or running (their folders are in use or reserved). */
@@ -96,8 +97,8 @@ export async function activeRecords(queue: JobQueueView, slug: string): Promise<
  * (an annotate, a Save or a Discard in progress), nor an unsaved, undiscarded Studio recording younger than
  * RECORD_UNSAVED_KEEP_MS.
  */
-export async function pruneRecords(project: LoadedProject, keep = RECORD_KEEP, except: readonly string[] = [], queue?: JobQueueView): Promise<string[]> {
-  const active = queue !== undefined ? await activeRecords(queue, project.slug).catch(() => null) : [];
+export async function pruneRecords(project: LoadedProject, clock: Clock, keep = RECORD_KEEP, except: readonly string[] = [], queue?: JobQueueView): Promise<string[]> {
+  const active = queue !== undefined ? await bestEffort(activeRecords(queue, project.slug), 'jobs that cannot be read: null, and nothing is pruned on a guess', null) : [];
   // The jobs could not be read: nothing is pruned (a folder in use is never removed on a guess).
   if (active === null) return [];
   except = [...except, ...active];
@@ -107,7 +108,7 @@ export async function pruneRecords(project: LoadedProject, keep = RECORD_KEEP, e
   } catch {
     return [];
   }
-  const now = Date.now();
+  const now = clock.now();
   const old = names
     .sort()
     .reverse()
@@ -141,7 +142,7 @@ export function fileSha256(file: string): Promise<string> {
 }
 
 /** The longest recording (ms): RETAKE_RECORD_MAX_MIN when set (minutes), else undefined (the runner's 30 min). */
-export function recordMaxMs(env: NodeJS.ProcessEnv = process.env): number | undefined {
+export function recordMaxMs(env: EngineEnv): number | undefined {
   const raw = env[RECORD_MAX_ENV];
   if (raw === undefined || raw.trim() === '') return undefined;
   const n = Number(raw);
@@ -150,7 +151,7 @@ export function recordMaxMs(env: NodeJS.ProcessEnv = process.env): number | unde
 }
 
 /** The default name of a recorded scenario: recorded-YYYYMMDD-HHMM (local time), "-2"… when taken. */
-export function defaultRecordName(project: LoadedProject, now = new Date()): string {
+export function defaultRecordName(project: LoadedProject, now: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   const base = `recorded-${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}`;
   let name = base;
@@ -190,6 +191,18 @@ export interface RecordRequest {
 export interface RecordPorts {
   /** The workspace's job queue: a recording whose job is queued or running is never pruned. */
   queue: JobQueueView;
+  /** What the recording is stamped with (its composition root's clock). */
+  clock: Clock;
+  /** The environment its composition root read (env.ts): the time limit a person set, whether a window has a display. */
+  env: EngineEnv;
+  /** What the draft scenario is saved through. */
+  stores: ProjectStores;
+  /** What opens the window, checks and signs the persona in, and replays the draft (its composition root's). */
+  capture: CaptureRunner;
+  /** What its secret references are resolved with (its composition root's Secrets port). */
+  secrets: Secrets;
+  /** What the check replay's hooks would run through (a dry replay: none run). */
+  hooks: HookRunner;
   log?: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
   /** What the recording does now. */
   onPhase?: (phase: 'preflight' | 'recording' | 'draft' | 'check') => void;
@@ -332,13 +345,19 @@ const isCancel = (e: unknown) => e instanceof Error && (e.name === 'CancelledErr
  * the command that signs it in.
  */
 async function preflight(project: LoadedProject, env: ResolvedEnvironment, persona: ResolvedPersona, ports: RecordPorts, policy: WorkPolicy): Promise<void> {
-  const { checkSavedSession, signIn } = await import('@retake/runner-web');
+  // The runner loaded before the check (a load that fails is not the session's state).
+  await ports.capture.load();
+  const { sessions } = ports.capture;
   const log = ports.log ?? (() => undefined);
-  const command = (ports.loginCommand ?? ((p) => `retake login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`))({ project: project.slug, env: env.name, persona: persona.name });
+  const command = (ports.loginCommand ?? ((p) => `retake login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`))({
+    project: project.slug,
+    env: env.name,
+    persona: persona.name,
+  });
   let status: string;
   let detail = '';
   try {
-    const r = await checkSavedSession({ project, policy, env, persona, log, ...(ports.signal ? { signal: ports.signal } : {}) });
+    const r = await sessions.check({ project, policy, env, persona, log, ...(ports.signal ? { signal: ports.signal } : {}) });
     status = r.status;
     detail = r.detail;
   } catch (e) {
@@ -352,7 +371,7 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
   }
   log('info', `persona ${persona.name}: session ${status} — signing in with its login steps (headless)`);
   try {
-    const r = await signIn({ project, policy, env, persona, mode: 'auto', log, ...(ports.signal ? { signal: ports.signal } : {}) });
+    const r = await sessions.signIn({ resolveSecret: (ref) => ports.secrets.resolve(ref), project, policy, env, persona, mode: 'auto', log, ...(ports.signal ? { signal: ports.signal } : {}) });
     if (r.check.status !== 'valid' && r.check.status !== 'unchecked') {
       throw new EngineError('refused', `persona ${persona.name} could not be signed in by its login steps (${r.check.detail}): sign it in by hand — ${command}`, { fix: command });
     }
@@ -365,7 +384,9 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
 
 /** Record a scenario (see the module comment). EngineError on a refusal before the window opens, or on a cancel. */
 export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject, req: RecordRequest, ports: RecordPorts): Promise<RecordOutcome> {
-  const started = Date.now();
+  // The history line's `ms` is elapsed time (the ports' clock's monotonic side); the record's `started_at` is a stamp of its wall side.
+  const started = ports.clock.monotonic();
+  const startedAt = stampOf(ports.clock);
   const log = ports.log ?? (() => undefined);
   const start = recordStart(project, req);
   const { env, persona } = start;
@@ -376,12 +397,12 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   } catch (e) {
     throw toEngineError(e);
   }
-  const maxMs = recordMaxMs();
-  const name = req.name ?? defaultRecordName(project);
+  const maxMs = recordMaxMs(ports.env);
+  const name = req.name ?? defaultRecordName(project, dateOf(ports.clock));
   const warnings: string[] = [];
   if (scenarioTaken(project, name)) warnings.push(`scenario ${name} exists: the draft is kept in the recording's folder only (not saved)`);
 
-  if (!ports.drive && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+  if (!ports.drive && noDisplay(ports.env)) {
     throw new EngineError('unavailable', 'a recording opens a browser window and no display is available (DISPLAY / WAYLAND_DISPLAY are not set): record on a machine with a screen');
   }
   ports.onPhase?.('preflight');
@@ -405,18 +426,18 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
     access: access.mode,
     page: start.page,
     path: start.path,
-    started_at: new Date(started).toISOString(),
+    started_at: startedAt,
     max_ms: maxMs ?? null,
     owner: await selfIdentity(),
   });
-  await pruneRecords(project, RECORD_KEEP, [id], ports.queue);
+  await pruneRecords(project, ports.clock, RECORD_KEEP, [id], ports.queue);
   const eventsFile = join(dir, 'events.jsonl');
 
   ports.onPhase?.('recording');
-  const { recordSession, INSPECT_PACING, runScenario } = await import('@retake/runner-web');
+  await ports.capture.load();
   let session: RecordSessionResult;
   try {
-    session = await recordSession({
+    session = await ports.capture.record({
       policy: ws.policy,
       project,
       env,
@@ -437,7 +458,7 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   } catch (e) {
     if (isCancel(e) || ports.signal?.aborted) {
       await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-      await history(ws, project, req, 'cancelled', started, id, 0, false, ports.history !== false);
+      await history(ws, ports.clock, project, req, 'cancelled', started, id, 0, false, ports.history !== false);
       throw new EngineError('cancelled', 'recording cancelled: nothing was kept');
     }
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
@@ -481,7 +502,7 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
 
   if (session.counts.actions === 0) {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-    await history(ws, project, req, 'succeeded', started, id, 0, false, ports.history !== false);
+    await history(ws, ports.clock, project, req, 'succeeded', started, id, 0, false, ports.history !== false);
     return { ...base, dir: null, draft: null, saved: null, not_saved: 'nothing_recorded', check: { status: 'skipped', scope: null, reason: 'nothing_recorded', steps_passed: 0, steps_total: 0 } };
   }
 
@@ -492,7 +513,7 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   // Valid in the project (its vars, pages, personas), not only as a scenario: else it is neither saved nor checked.
   if (!draft.issues.some((i) => i.severity === 'error')) {
     const ids = base.scenes.map((x) => x.id);
-    for (const x of parseScenario(draft.yaml, { files: fileFacts(ws.policy), project, file: draftFile, env: env.name }).issues) {
+    for (const x of parseScenario(draft.yaml, { files: ws.reads.fileFacts(ws.policy), project, file: draftFile, env: env.name }).issues) {
       if (x.severity === 'error') draft.issues.push(draftInvalidIssue(x, ids, 'the draft does not validate in the project'));
     }
   }
@@ -500,7 +521,7 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   const recordJson = (extra: Record<string, unknown>) =>
     writePrivate(
       join(dir, 'record.json'),
-      `${JSON.stringify({ version: 1, ...base, started_at: new Date(started).toISOString(), page: start.page, path: start.path, max_ms: maxMs ?? null, writes: draft.writes, first_write: draft.firstWrite, events_sha256: eventsSha256, ...extra }, null, 1)}\n`,
+      `${JSON.stringify({ version: 1, ...base, started_at: startedAt, page: start.page, path: start.path, max_ms: maxMs ?? null, writes: draft.writes, first_write: draft.firstWrite, events_sha256: eventsSha256, ...extra }, null, 1)}\n`,
     );
   await recordJson({ saved: null, check: null });
 
@@ -512,7 +533,13 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   else if (scenarioTaken(project, name)) notSaved = 'name_taken';
   else {
     try {
-      const r = await saveScenarioText(project, name, draft.yaml, { files: fileFacts(ws.policy), ifMatch: null, agent: req.agent === true, scope: { workspace: ws.root, caller: callerOf(req.submittedBy ?? 'cli') } });
+      const r = await saveScenarioText(project, name, draft.yaml, {
+        files: ws.reads.fileFacts(ws.policy),
+        reads: ws.reads,
+        ifMatch: null,
+        agent: req.agent === true,
+        scope: { workspace: ws.root, caller: callerOf(req.submittedBy ?? 'cli'), clock: ports.clock, stores: ports.stores },
+      });
       saved = { file: r.file, path: r.path, hash: r.hash };
     } catch (e) {
       const err = toEngineError(e);
@@ -531,24 +558,42 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   else if (!valid) check = { status: 'skipped', scope: null, reason: 'invalid_draft', steps_passed: 0, steps_total: 0 };
   else {
     ports.onPhase?.('check');
-    check = await checkReplay({ project, policy: ws.policy, envName: env.name, dir, draftFile, yaml: draft.yaml, firstWrite: draft.firstWrite, pacing: INSPECT_PACING, runScenario, ports });
+    check = await checkReplay({ project, policy: ws.policy, envName: env.name, dir, draftFile, yaml: draft.yaml, firstWrite: draft.firstWrite, pacing: INSPECT_PACING, ports });
   }
   await recordJson({ saved: saved ? saved.file : null, not_saved: notSaved ?? null, check });
-  await history(ws, project, req, 'succeeded', started, id, draft.stats.steps, saved !== null, ports.history !== false);
+  await history(ws, ports.clock, project, req, 'succeeded', started, id, draft.stats.steps, saved !== null, ports.history !== false);
   return { ...base, dir, draft: draftFile, saved, ...(notSaved ? { not_saved: notSaved } : {}), check };
 }
 
-async function history(ws: OpenedWorkspace, project: LoadedProject, req: RecordRequest, state: string, started: number, id: string, steps: number, saved: boolean, on = true): Promise<void> {
+async function history(
+  ws: OpenedWorkspace,
+  clock: Clock,
+  project: LoadedProject,
+  req: RecordRequest,
+  state: string,
+  started: number,
+  id: string,
+  steps: number,
+  saved: boolean,
+  on = true,
+): Promise<void> {
   if (!on) return;
-  await appendHistory(ws.root, {
-    kind: 'record',
-    project: project.slug,
-    submitted_by: req.submittedBy ?? 'cli',
-    state,
-    ms: Date.now() - started,
-    record: { id, steps, saved },
-    counted: { captures: 0, dry_runs: 0, renders: 0 },
-  }).catch(() => undefined);
+  await bestEffort(
+    appendHistory(
+      ws.root,
+      {
+        kind: 'record',
+        project: project.slug,
+        submitted_by: req.submittedBy ?? 'cli',
+        state,
+        ms: Math.round(clock.monotonic() - started),
+        record: { id, steps, saved },
+        counted: { captures: 0, dry_runs: 0, renders: 0 },
+      },
+      clock,
+    ),
+    'the history line only feeds the activity list and its counts: the recording itself is saved',
+  );
 }
 
 /** The dry replay of a fresh draft (see the module comment). Never throws: a failure is the check's result. */
@@ -561,7 +606,6 @@ async function checkReplay(o: {
   yaml: string;
   firstWrite: { scene: string; step: number } | null;
   pacing: Record<string, unknown>;
-  runScenario: typeof import('@retake/runner-web').runScenario;
   ports: RecordPorts;
 }): Promise<RecordCheck> {
   const { project, ports } = o;
@@ -584,7 +628,8 @@ async function checkReplay(o: {
   const loaded: LoadedScenario = { name: 'record-check', file: o.draftFile, text, scenario, issues };
   let record: RunRecord;
   try {
-    record = await o.runScenario({
+    record = await ports.capture.run({
+      resolveSecret: (ref) => ports.secrets.resolve(ref),
       policy: o.policy,
       project,
       scenario: loaded,
@@ -597,6 +642,7 @@ async function checkReplay(o: {
       ...(ports.loginCommand ? { loginCommand: ports.loginCommand } : {}),
       ...(ports.signal ? { signal: ports.signal } : {}),
       ...(ports.onCheckProgress ? { onProgress: ports.onCheckProgress } : {}),
+      hookRunner: ports.hooks,
     });
   } catch (e) {
     return { status: isCancel(e) ? 'cancelled' : 'failed', scope, ...(until ? { until } : {}), steps_passed: 0, steps_total: total, untrusted: { error: (e as Error).message } };

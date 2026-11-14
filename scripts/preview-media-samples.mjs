@@ -28,7 +28,11 @@ const size = (file) => {
 };
 try {
   await fetch(`${SHOP}/api/reset`, { method: 'POST' });
-  await fetch(`${SHOP}/api/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ cafe: 'Café Lumen', name: 'Noa Brandt', email: 'noa@cafe-lumen.example' }) });
+  await fetch(`${SHOP}/api/signup`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ cafe: 'Café Lumen', name: 'Noa Brandt', email: 'noa@cafe-lumen.example' }),
+  });
   await new Promise((r) => setTimeout(r, 900));
   const box = `${SHOP}/mailbox/api/v1`;
   const list = await (await fetch(`${box}/messages`)).json();

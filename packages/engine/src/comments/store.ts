@@ -2,32 +2,19 @@
  * The comment store's files (see ../comments.ts): thread files `<project>/comments/<scenario>/<id>.json`, their stills
  * and locks under `<project>/.retake/`, read by id (never a path from a file), written through the project store.
  */
+import type { EngineEnv } from '../env.js';
 import { lstat, readFile, readdir } from 'node:fs/promises';
 import { userInfo } from 'node:os';
-import { basename, join, relative } from 'node:path';
-import {
-  COMMENTS_DIR,
-  COMMENT_ENTRIES_MAX,
-  COMMENT_ID_RE,
-  CommentThreadSchema,
-  SLUG_RE,
-  commentAuthorName,
-  commentText,
-  commentTextProblem,
-  newCommentEntryId,
-  statePath,
-} from '@retake/core';
-import type { CommentAuthor, CommentEntry, CommentThread, LoadedProject } from '@retake/core';
-import type { TakeLock } from '@retake/sandbox';
-import { callerOf } from '../caller.js';
+import { basename, join } from 'node:path';
+import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';
+import { COMMENT_ID_RE, ulidFileRe } from '@retake/core/ids';
+import { statePath } from '@retake/core/project';
+import { COMMENT_ENTRIES_MAX, CommentThreadSchema, commentAuthorName, commentText, commentTextProblem, newCommentEntryId } from '@retake/core/comments';
+import type { CommentAuthor, CommentEntry, CommentThread } from '@retake/core/comments';
+import type { TakeLock } from '@retake/core/io';
 import { EngineError } from '../errors.js';
-import { ProjectStore } from '../store/project-store.js';
-import type { StoreScope } from '../store/project-store.js';
-import { lockHolder, takeProjectLock, toolDir } from '../project-lock.js';
+import { lockHolder, takeProjectLock } from '../project-lock.js';
 import { sha256Hex } from '../storage.js';
-
-// The lazy @retake/review and @retake/editor (lazy.ts), for the comment modules.
-export { editor, review } from '../lazy.js';
 
 /**
  * A thread file larger than this is not read, and an entry that would make it larger is refused (500 entries of 2000
@@ -45,7 +32,8 @@ export const MCP_AUTHOR_NAME = 'agent';
 /** A scenario snapshot or a timeline larger than this is not read for an anchor. */
 export const RUN_FILE_MAX_BYTES = 64 * 1024 * 1024;
 
-export const THREAD_FILE_RE = /^c_[0-9A-HJKMNP-TV-Z]{26}\.json$/;
+/** The name of a thread file: its id + ".json". */
+export const THREAD_FILE_RE = ulidFileRe('comment', 'json');
 export const VARIANTS: readonly string[] = ['landscape', 'vertical', 'square'];
 
 /** `comments/<scenario>/<id>.json`, the thread's project-relative ref. */
@@ -67,8 +55,8 @@ export function commentLockFile(projectDir: string, id: string): string {
  * The name of the person at this terminal for `retake comment` (no `--author`): $RETAKE_AUTHOR, else the OS user
  * name (never git config: a subprocess and often a full name), printable, ≤ 80 characters.
  */
-export function defaultAuthorName(): string {
-  const env = process.env.RETAKE_AUTHOR;
+export function defaultAuthorName(vars: EngineEnv): string {
+  const env = vars.RETAKE_AUTHOR;
   if (env !== undefined && env.trim() !== '') {
     const name = commentAuthorName(env);
     if (name) return name;
@@ -148,7 +136,8 @@ export interface ThreadFile {
   path: string;
 }
 
-export type ReadResult = { ok: true; thread: CommentThread; hash: string } | { ok: false; problem: string };
+/** A thread file that is not read as a thread: why; `scenario`, the scenario a well-formed thread in the wrong place names. */
+export type ReadResult = { ok: true; thread: CommentThread; hash: string } | { ok: false; problem: string; scenario?: string };
 
 /** Read and check one thread file (its folders and the file itself real, not links; name = id; folder = scenario). */
 export async function readThread(projectDir: string, f: ThreadFile): Promise<ReadResult> {
@@ -179,8 +168,8 @@ export async function readThread(projectDir: string, f: ThreadFile): Promise<Rea
     return { ok: false, problem: `${f.ref} is not a valid thread: ${where.join(', ')}` };
   }
   const thread = parsed.data;
-  if (thread.id !== f.id) return { ok: false, problem: `${f.ref} holds another thread's id (the file name must be its id)` };
-  if (thread.scenario !== f.scenario) return { ok: false, problem: `${f.ref} holds a thread of another scenario (the folder must be its scenario)` };
+  if (thread.id !== f.id) return { ok: false, problem: `${f.ref} holds another thread's id (the file name must be its id)`, scenario: thread.scenario };
+  if (thread.scenario !== f.scenario) return { ok: false, problem: `${f.ref} holds a thread of another scenario (the folder must be its scenario)`, scenario: thread.scenario };
   return { ok: true, thread, hash };
 }
 
@@ -239,14 +228,18 @@ export function appendedThread(id: string, r: { thread: CommentThread }, entry: 
   const next = CommentThreadSchema.safeParse({ ...r.thread, entries: [...r.thread.entries, entry] });
   if (!next.success) throw new EngineError('invalid', `the entry does not make a valid thread: ${next.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   const text = `${JSON.stringify(next.data, null, 2)}\n`;
-  if (Buffer.byteLength(text) > COMMENT_FILE_MAX_BYTES) throw new EngineError('refused', `comment ${id} would grow past ${COMMENT_FILE_MAX_BYTES / 1024 / 1024} MB with this entry: start a new thread`);
+  if (Buffer.byteLength(text) > COMMENT_FILE_MAX_BYTES)
+    throw new EngineError('refused', `comment ${id} would grow past ${COMMENT_FILE_MAX_BYTES / 1024 / 1024} MB with this entry: start a new thread`);
   return { thread: next.data, text };
 }
 
-/** The apply entry of a proposal (L4.6): the reply it applies and the sha256 of the file written. */
-export function applyEntryOf(author: CommentAuthor, applies: string, scenarioSha256: string): CommentEntry {
-  return { id: newCommentEntryId(), kind: 'apply', author, text: '', created_at: new Date().toISOString(), applies, scenario_sha256: scenarioSha256 };
+/** The apply entry of a proposal (L4.6): the reply it applies and the sha256 of the file written, made at `at`. */
+export function applyEntryOf(author: CommentAuthor, applies: string, scenarioSha256: string, at: string): CommentEntry {
+  return { id: newCommentEntryId(), kind: 'apply', author, text: '', created_at: at, applies, scenario_sha256: scenarioSha256 };
 }
+
+/** A stamp of the length every `created_at` has: what an entry not written (a fit check) is made at. */
+export const FIT_STAMP = '1970-01-01T00:00:00.000Z';
 
 /** `ifMatch` (the thread's hash as the caller read it) against the hash read under the lock: a conflict naming it. */
 export function checkIfMatch(f: ThreadFile, hash: string, ifMatch: string | undefined): void {
@@ -256,12 +249,4 @@ export function checkIfMatch(f: ThreadFile, hash: string, ifMatch: string | unde
       fix: `read the thread again and pass if_match: "${hash}"`,
     });
   }
-}
-
-/**
- * The project store a thread is written through, journaled as `scope`'s caller — by default the caller its author's
- * channel stands for (`cli`, the Studio's `ui`, else `mcp`): the engine and the CLI pass their own.
- */
-export function threadStore(project: LoadedProject, author: CommentAuthor, scope?: StoreScope): ProjectStore {
-  return ProjectStore.of(project, scope ?? { workspace: project.root, caller: callerOf(author.via === 'cli' ? 'cli' : author.via === 'studio' ? 'ui' : 'mcp') });
 }

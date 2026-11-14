@@ -37,7 +37,6 @@ export const SCENARIO_EDIT_MAX_CHARS = 500_000;
  * kinds, with step-edits.ts StepEdit and field-edits.ts FieldEdit).
  */
 export const SCENARIO_EDIT_KINDS = ['replace_text', 'restore', 'move_step', 'delete_step', 'duplicate_step', 'set_step', 'insert_step', 'set_field'] as const;
-export type ScenarioEditKind = (typeof SCENARIO_EDIT_KINDS)[number];
 
 // Characters the Studio never adds (see the header): controls, format and default-ignorable characters, line /
 // paragraph separators, the Hangul fillers and the braille blank; tab, line feed and a CR LF's carriage return are left
@@ -141,7 +140,10 @@ export function newHiddenCharProblem(text: string, base: string): string | null 
   };
   const baseLines = new Set(base.split('\n'));
   const lines = text.split('\n');
-  const lineNos = linesOf(text, found.map((f) => f.at));
+  const lineNos = linesOf(
+    text,
+    found.map((f) => f.at),
+  );
   const moved = found.findIndex((_, i) => !baseLines.has(lines[lineNos[i] - 1] ?? ''));
   if (moved !== -1) return say(found[moved]);
   const have = new Map<string, number>();

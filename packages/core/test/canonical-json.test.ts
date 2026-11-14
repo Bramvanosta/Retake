@@ -51,7 +51,9 @@ function scenarioCanonical(value: unknown): string {
 }
 /** The localeCompare copies (core template.ts `sortedJson`, components json-schema.ts `canonical`), for the contrast. */
 const localeSorted = (v: unknown) =>
-  JSON.stringify(v, (_k, x: unknown) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))) : x));
+  JSON.stringify(v, (_k, x: unknown) =>
+    x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))) : x,
+  );
 
 const REPO = resolve(__dirname, '../../..');
 

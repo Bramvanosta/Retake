@@ -192,7 +192,7 @@ running: the MCP server keeps working without it.
   the one last opened or selected in the project), the status bar says its state — *Rehearsing · step 3 of 7 · Watch*,
   *Capture paused*, *Last take succeeded · 2 h ago*, *Idle*; its name first off its own screens; *on staging* when the
   tab chose another location — and holds **Rehearse** (no hooks, a screenshot per step), **Capture** (the setup and
-  teardown hooks, the video) and **Render** (the newest finished capture — the timeline's own on the Edit screen —
+  teardown hooks, the video) and **Render** ([the latest capture](editing.md#the-latest-capture) — the timeline's own on the Edit screen —
   with the file as shown), with **Pause** and **Stop** while a run of it is queued or running. *Rehearse* is the
   Studio's word for a **dry run** (`retake run … --dry`, MCP `run_dry`); the engine's own messages may still say "dry
   run". What would stop each is said before any click: one line in the status bar names the gate in a few words — *1
@@ -308,7 +308,7 @@ running: the MCP server keeps working without it.
   most at once; followed here and in the activity), and the raw capture for an editing tool is a command to copy
   (`retake export-capture <project> <run>`, see [Raw export for editors](editing.md#raw-export-for-editors)). The status bar:
   *Rendered · when · vN* (a neutral mark: what the render did, not a verdict), **Open in Edit**, **Render again** (the
-  latest capture with the file on disk; a render you start here opens its report once reviewed). An unknown render says so and reads nothing. Not yet: Show in
+  latest capture with the file on disk; a render you start here opens its report once reviewed). An unknown render says so and reads nothing. A file of `renders/` named like a render of the scenario that is not shown as one (its status is not one Retake writes, it lacks its scenario, its creation time or its plan, it is a link, it says another scenario or id, it does not read) is said under the list in one line per reason, with a count: *1 file of renders/ is not shown as a render: its status is not one Retake writes* (several: *2 files of renders/ are not shown as renders — for each, …*). Not yet: Show in
   Finder, other formats, "Open the step", the checks that ran (BACKLOG BL-132).
 - **The timeline** (L4.5). The **Edit** mode (⌘3: the newest finished capture), **Open in Edit** after a capture on
   its live screen or on Prepare's last take, or **Show in timeline** on a
@@ -442,7 +442,7 @@ running: the MCP server keeps working without it.
   library) lists every theme — your workspace's, the starters, the project's own theme folder — with its colours, where
   it comes from, what uses it and whether the Studio edits it: a starter (or anything shipped with Retake, or a
   project's own folder theme) is read-only, and **Copy to edit…** copies a listed one into your workspace first (a sheet
-  asks the copy's name; Return in it copies). A theme's editor (`#/p/<project>/themes/<theme>`) changes its brand (name, URL and the outro's URL as shown —
+  asks the copy's name — lower-case letters, digits and `-`, at most 60 characters; Return in it copies). A theme's editor (`#/p/<project>/themes/<theme>`) changes its brand (name, URL and the outro's URL as shown —
   `example.com/path`, no `https://` —, the outro's tagline; the logo
   and wordmark among the theme folder's own image files — add one there to pick it), colours (picker or hex, with the
   contrast checks; the cursor ripple can follow the accent), background (solid, radial or linear), type pair (the

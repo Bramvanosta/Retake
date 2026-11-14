@@ -13,8 +13,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { resolveEnvironment, resolvePersonas, PERSON_POLICY } from '@retake/core';
 import { recordSession, runScenario, signIn } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
 import { retakeHome } from '@retake/core/io';
+import { scratchHome } from '@retake/test-support/home';
 
 const USER = 'demo-viewer';
 const PASSWORD = 'staging-pass-8317';
@@ -39,7 +41,11 @@ async function serve(port: number, handle: (req: IncomingMessage, res: ServerRes
 }
 
 const challenge = (res: ServerResponse, cors?: string) => {
-  res.writeHead(401, { 'www-authenticate': 'Basic realm="staging"', 'content-type': 'text/plain', ...(cors ? { 'access-control-allow-origin': cors, 'access-control-allow-credentials': 'true' } : {}) });
+  res.writeHead(401, {
+    'www-authenticate': 'Basic realm="staging"',
+    'content-type': 'text/plain',
+    ...(cors ? { 'access-control-allow-origin': cors, 'access-control-allow-credentials': 'true' } : {}),
+  });
   res.end('sign in');
 };
 
@@ -78,7 +84,8 @@ describe('an environment page URL with sign-in details', () => {
   it('opens the page, signed in to its origin only; the details are nowhere in what the run writes', async () => {
     const project = makeProject(dir, { app: `http://${USER}:${PASSWORD}@127.0.0.1:${app.port}`, other: other.url });
     const events: unknown[] = [];
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       scenario: makeScenario('staging', { pacing: FAST, scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ wait_for: { text: 'Signed in to staging' } }, { wait: 0.8 }] as never }] }),
       mode: 'dry',
@@ -115,8 +122,8 @@ describe('an environment page URL with sign-in details', () => {
     await writeFile(eventsFile, '');
     await recordSession({ policy: PERSON_POLICY, project, env, url: `${app.url}/`, eventsFile, headless: true, windowSize: { width: 800, height: 600 }, drive: read });
     const home = await tempDir('rw-credentials-home-');
-    const saved = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = home;
+    const testHome = scratchHome();
+    testHome.use(home);
     try {
       project.config.auth = { login_url: '/', personas: { viewer: { pages: ['app'] } } };
       const persona = resolvePersonas(project, 'test', { home: retakeHome() }).find((p) => p.name === 'viewer')!;
@@ -126,7 +133,7 @@ describe('an environment page URL with sign-in details', () => {
       const checked = resolvePersonas(project, 'test', { home: retakeHome() }).find((p) => p.name === 'viewer')!;
       expect((await signIn({ policy: PERSON_POLICY, project, env, persona: checked, mode: 'auto' })).check.status).toBe('valid');
     } finally {
-      process.env.RETAKE_HOME = saved;
+      testHome.restore();
       await rm(home, { recursive: true, force: true });
     }
     expect(seen).toEqual(['Signed in to staging', 'Signed in to staging']);
@@ -135,7 +142,8 @@ describe('an environment page URL with sign-in details', () => {
   it('details on two origins are refused before any browser opens, without showing them', async () => {
     const project = makeProject(dir, { app: `http://${USER}:${PASSWORD}@127.0.0.1:${app.port}`, other: `http://other-user:other-pass@127.0.0.1:${other.port}` });
     const before = app.auth.length + other.auth.length;
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       scenario: makeScenario('two', { pacing: FAST, scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ wait: 0.1 }] as never }] }),
       mode: 'dry',

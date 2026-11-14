@@ -23,7 +23,7 @@ import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import type { Route } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { hasTool } from '../../editor/test/render-helpers.js';
+import { hasTool } from '@retake/test-support/repo';
 import { dialogCheck } from './a11y.js';
 import { N, POLL, RUN, THREAD, WIDTHS, go, startTour, station } from './a11y-tour.js';
 import type { Tour } from './a11y-tour.js';
@@ -43,7 +43,7 @@ afterAll(async () => {
 const at = (hash: string) => `${t.studio.url}#${hash}`;
 
 describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 part C)', () => {
-  it('projects, a project with its Sessions panel, the README\'s conflict panel', async () => {
+  it("projects, a project with its Sessions panel, the README's conflict panel", async () => {
     const { page } = t;
     // L5.10a: Welcome; the Project screen with nothing selected (the project inspector), a production selected, a
     // smart group, a location in the inspector; the Cast (the Sessions panel).
@@ -66,7 +66,12 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
         await page.locator('[role="option"][data-id="bits"]').click();
         await page.getByTestId('scenario-link').waitFor(POLL);
       },
-      { schemes: [{ scheme: 'dark', widths: [900] }, { scheme: 'light', widths: [900] }] },
+      {
+        schemes: [
+          { scheme: 'dark', widths: [900] },
+          { scheme: 'light', widths: [900] },
+        ],
+      },
     );
     expect(r.findings, r.report).toEqual([]);
     r = await station(t, 'group', () => go(page, at(`/p/${N}/g/shoot`), '[role="option"]'));
@@ -75,15 +80,25 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(r.findings, r.report).toEqual([]);
     r = await station(t, 'project', () => go(page, at(`/p/${N}/cast`), '[data-testid="sessions-panel"] [data-testid="session-row"]'));
     expect(r.findings, r.report).toEqual([]);
-    r = await station(t, 'readme-conflict', async () => {
-      await go(page, at(`/p/${N}/readme`), 'main textarea');
-      await page.locator('main textarea').first().fill('# Mine\n\nMy version.\n');
-      await writeFile(join(t.ws, 'projects', N, 'README.md'), '# Theirs\n\nWritten meanwhile.\n');
-      await page.getByRole('alert').filter({ hasText: 'README.md changed on disk' }).waitFor(POLL);
-      await page.getByRole('button', { name: 'Save', exact: true }).click();
-      await page.getByTestId('conflict').waitFor(POLL);
-      // L5.12b (M4): the README on the kit — dark at 1280, 1440 and 900, light at 1280.
-    }, { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }] });
+    r = await station(
+      t,
+      'readme-conflict',
+      async () => {
+        await go(page, at(`/p/${N}/readme`), 'main textarea');
+        await page.locator('main textarea').first().fill('# Mine\n\nMy version.\n');
+        await writeFile(join(t.ws, 'projects', N, 'README.md'), '# Theirs\n\nWritten meanwhile.\n');
+        await page.getByRole('alert').filter({ hasText: 'README.md changed on disk' }).waitFor(POLL);
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        await page.getByTestId('conflict').waitFor(POLL);
+        // L5.12b (M4): the README on the kit — dark at 1280, 1440 and 900, light at 1280.
+      },
+      {
+        schemes: [
+          { scheme: 'dark', widths: [1280, 1440, 900] },
+          { scheme: 'light', widths: [1280] },
+        ],
+      },
+    );
     expect(r.findings, r.report).toEqual([]);
   }, 180_000);
 
@@ -119,7 +134,12 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
       );
       expect(r.findings, r.report).toEqual([]);
       // L5.10b: the frames wait with a dashed edge, never a fade.
-      expect(await page.locator('[data-testid="step"]').first().evaluate((el) => [getComputedStyle(el).outlineStyle, getComputedStyle(el.closest('.k-frames')!).opacity])).toEqual(['dashed', '1']);
+      expect(
+        await page
+          .locator('[data-testid="step"]')
+          .first()
+          .evaluate((el) => [getComputedStyle(el).outlineStyle, getComputedStyle(el.closest('.k-frames')!).opacity]),
+      ).toEqual(['dashed', '1']);
     } finally {
       release();
       await passed;
@@ -146,7 +166,12 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     let r = await station(t, 'blocks', selectStep);
     expect(r.findings, r.report).toEqual([]);
     // L5.10b: the desktop app's narrowest window — two frames a row, the title bar's Location without its label.
-    r = await station(t, 'blocks-900', selectStep, { schemes: [{ scheme: 'dark', widths: [900] }, { scheme: 'light', widths: [900] }] });
+    r = await station(t, 'blocks-900', selectStep, {
+      schemes: [
+        { scheme: 'dark', widths: [900] },
+        { scheme: 'light', widths: [900] },
+      ],
+    });
     expect(r.findings, r.report).toEqual([]);
     r = await station(t, 'blocks-row-card', async () => {
       await go(page, at(`/p/${N}/s/quote`), '[data-testid="before-filming"]');
@@ -179,18 +204,19 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     // at 900 too (the overflow rule: nothing scrolls sideways), and in the light appearance.
     r = await station(t, 'run-preflight-ready', () => go(page, at('/p/demo/s/bits/run'), '[data-testid="start-dry"]'));
     expect(r.findings, r.report).toEqual([]);
-    r = await station(t, 'status-actions', () => go(page, at(`/p/${N}/s/quote`), '[data-testid="blockers-capture"]'), { schemes: [{ scheme: 'dark', widths: [900, 1280, 1440] }, { scheme: 'light', widths: [900, 1280] }] });
+    r = await station(t, 'status-actions', () => go(page, at(`/p/${N}/s/quote`), '[data-testid="blockers-capture"]'), {
+      schemes: [
+        { scheme: 'dark', widths: [900, 1280, 1440] },
+        { scheme: 'light', widths: [900, 1280] },
+      ],
+    });
     expect(r.findings, r.report).toEqual([]);
-    r = await station(
-      t,
-      'confirm-sessions',
-      async () => {
-        await go(page, at('/p/board/s/members/run'), '[data-testid="preflight-sessions"]');
-        await expect.poll(() => page.getByTestId('preflight-sessions').innerText(), POLL).toContain('Missing session');
-        await page.getByTestId('start-capture').click();
-        await page.getByTestId('confirm-sessions').waitFor(POLL);
-      },
-    );
+    r = await station(t, 'confirm-sessions', async () => {
+      await go(page, at('/p/board/s/members/run'), '[data-testid="preflight-sessions"]');
+      await expect.poll(() => page.getByTestId('preflight-sessions').innerText(), POLL).toContain('Missing session');
+      await page.getByTestId('start-capture').click();
+      await page.getByTestId('confirm-sessions').waitFor(POLL);
+    });
     expect(r.findings, r.report).toEqual([]);
     expect(r.result.walk!.stops).toBeGreaterThanOrEqual(2);
     await page.keyboard.press('Escape');
@@ -216,7 +242,12 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
         await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
         await page.locator('[data-testid="switch"]').first().waitFor(POLL);
       },
-      { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }] },
+      {
+        schemes: [
+          { scheme: 'dark', widths: [1280, 1440, 900] },
+          { scheme: 'light', widths: [1280] },
+        ],
+      },
     );
     expect(r.findings, r.report).toEqual([]);
     // L5.12a (M4): the Review report with a check selected (its frame in the inspector) — the same widths.
@@ -229,12 +260,17 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
         await page.keyboard.press('ArrowDown');
         await page.locator('[data-testid="review-frame"][data-state="ok"]').waitFor(POLL);
       },
-      { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }] },
+      {
+        schemes: [
+          { scheme: 'dark', widths: [1280, 1440, 900] },
+          { scheme: 'light', widths: [1280] },
+        ],
+      },
     );
     expect(r.findings, r.report).toEqual([]);
   }, 240_000);
 
-  it('Comments: the list, a thread with Claude\'s proposal (its diff), none yet; the timeline previewing the proposal', async () => {
+  it("Comments: the list, a thread with Claude's proposal (its diff), none yet; the timeline previewing the proposal", async () => {
     const { page } = t;
     let r = await station(t, 'comments', () => go(page, at('/p/demo/s/bits/comments'), '[data-testid="viewer"][data-shown]'));
     expect(r.findings, r.report).toEqual([]);
@@ -249,7 +285,12 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
         expect(await page.locator('[data-testid="proposal"] .k-diff-mark').count()).toBeGreaterThan(0);
         await page.getByTestId('proposal').scrollIntoViewIfNeeded();
       },
-      { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }] },
+      {
+        schemes: [
+          { scheme: 'dark', widths: [1280, 1440, 900] },
+          { scheme: 'light', widths: [1280] },
+        ],
+      },
     );
     expect(r.findings, r.report).toEqual([]);
     r = await station(t, 'comments-none', () => go(page, at(`/p/${N}/s/quote/comments`), '[data-testid="no-render"]'));
@@ -263,7 +304,13 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
         await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));
         await page.locator('dialog.k-palette[open] [role="option"]').first().waitFor(POLL);
       },
-      { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }], exemptMax: 45 },
+      {
+        schemes: [
+          { scheme: 'dark', widths: [1280, 1440, 900] },
+          { scheme: 'light', widths: [1280] },
+        ],
+        exemptMax: 45,
+      },
     );
     await page.keyboard.press('Escape');
     await page.locator('dialog.k-palette[open]').waitFor({ state: 'detached' });
@@ -279,23 +326,34 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
         await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));
         await page.locator('dialog.k-palette[open] [role="option"]').first().waitFor(POLL);
       },
-      { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }], exemptMax: 45 },
+      {
+        schemes: [
+          { scheme: 'dark', widths: [1280, 1440, 900] },
+          { scheme: 'light', widths: [1280] },
+        ],
+        exemptMax: 45,
+      },
     );
     await page.keyboard.press('Escape');
     await page.locator('dialog.k-palette[open]').waitFor({ state: 'detached' });
     expect(r.findings, r.report).toEqual([]);
     expect(r.result.walk!.stops).toBe(1);
-    r = await station(t, 'timeline-preview-change', async () => {
-      await go(page, at(`/p/demo/s/bits/proposal/${THREAD}/${t.entry}`), '[data-testid="proposal-banner"]');
-      await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
-      await page.locator('[data-testid="inspector"] [role="radiogroup"][aria-disabled="true"]').first().waitFor(POLL);
-    }, { exemptMax: 45 });
+    r = await station(
+      t,
+      'timeline-preview-change',
+      async () => {
+        await go(page, at(`/p/demo/s/bits/proposal/${THREAD}/${t.entry}`), '[data-testid="proposal-banner"]');
+        await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
+        await page.locator('[data-testid="inspector"] [role="radiogroup"][aria-disabled="true"]').first().waitFor(POLL);
+      },
+      { exemptMax: 45 },
+    );
     expect(r.findings, r.report).toEqual([]);
     expect(await page.evaluate(() => (window as unknown as { __csp: number }).__csp)).toBe(0);
     expect(t.consoleErrors).toEqual([]);
   }, 180_000);
 
-  it('⚑ L5.12d: the desktop app\'s quit sheet (its event dispatched in a page with the app\'s flag) and the not-found screen, in dark and light', async () => {
+  it("⚑ L5.12d: the desktop app's quit sheet (its event dispatched in a page with the app's flag) and the not-found screen, in dark and light", async () => {
     const tab = t.page;
     // An app page: the shell's init-script flag, desktop_answer answered here (this server is not supervised).
     const app = await tab.context().newPage();
@@ -307,10 +365,37 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     await app.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
     t.page = app;
     try {
-      const SCHEMES_D = [{ scheme: 'dark' as const, widths: [1280, 1440, 900] }, { scheme: 'light' as const, widths: [1280] }];
+      const SCHEMES_D = [
+        { scheme: 'dark' as const, widths: [1280, 1440, 900] },
+        { scheme: 'light' as const, widths: [1280] },
+      ];
       for (const [name, detail] of [
-        ['quit-sheet-unsaved', { id: 'quitQuestionTour000000', action: 'quit', title: 'Quit Retake?', text: 'Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• README.md of northfield-fixture\n• A comment being written (northfield-fixture · quote)', buttons: ['Cancel', 'Quit Anyway'], proceed: 1, cancel: 0, destructive: true }],
-        ['quit-sheet-jobs', { id: 'quitQuestionTour000001', action: 'quit', title: 'Quit Retake?', text: 'These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of northfield-fixture · quote (running)', buttons: ['Quit Anyway', 'Cancel'], proceed: 0, cancel: 1, destructive: false }],
+        [
+          'quit-sheet-unsaved',
+          {
+            id: 'quitQuestionTour000000',
+            action: 'quit',
+            title: 'Quit Retake?',
+            text: 'Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• README.md of northfield-fixture\n• A comment being written (northfield-fixture · quote)',
+            buttons: ['Cancel', 'Quit Anyway'],
+            proceed: 1,
+            cancel: 0,
+            destructive: true,
+          },
+        ],
+        [
+          'quit-sheet-jobs',
+          {
+            id: 'quitQuestionTour000001',
+            action: 'quit',
+            title: 'Quit Retake?',
+            text: 'These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of northfield-fixture · quote (running)',
+            buttons: ['Quit Anyway', 'Cancel'],
+            proceed: 0,
+            cancel: 1,
+            destructive: false,
+          },
+        ],
       ] as const) {
         const r = await station(
           t,
@@ -351,25 +436,40 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(r.result.walk!.stops).toBeGreaterThan(80);
     for (const scope of ['dark', 'light'] as const) {
       const col = page.getByTestId(`scope-${scope}`);
-      r = await station(t, `gallery-sheet-${scope}`, async () => {
-        await col.getByRole('button', { name: 'Discard the take…' }).click();
-        await page.locator('dialog.k-sheet[open]').waitFor(POLL);
-      }, { schemes: both, exemptMax: 26 });
+      r = await station(
+        t,
+        `gallery-sheet-${scope}`,
+        async () => {
+          await col.getByRole('button', { name: 'Discard the take…' }).click();
+          await page.locator('dialog.k-sheet[open]').waitFor(POLL);
+        },
+        { schemes: both, exemptMax: 26 },
+      );
       expect(r.findings, r.report).toEqual([]);
       expect(r.result.walk!.stops).toBe(2);
       await page.keyboard.press('Escape');
       await page.locator('dialog.k-sheet[open]').waitFor({ state: 'detached' });
       expect(await dialogCheck(page, col.getByRole('button', { name: 'Discard the take…' }), () => page.keyboard.press('Enter'))).toEqual([]);
-      r = await station(t, `gallery-menu-${scope}`, async () => {
-        await col.getByRole('button', { name: 'Take', exact: true }).click();
-        await col.getByRole('menuitem', { name: 'Duplicate' }).waitFor(POLL);
-      }, { schemes: both, walk: false, exemptMax: 27 });
+      r = await station(
+        t,
+        `gallery-menu-${scope}`,
+        async () => {
+          await col.getByRole('button', { name: 'Take', exact: true }).click();
+          await col.getByRole('menuitem', { name: 'Duplicate' }).waitFor(POLL);
+        },
+        { schemes: both, walk: false, exemptMax: 27 },
+      );
       expect(r.findings, r.report).toEqual([]);
       await page.keyboard.press('Escape');
-      r = await station(t, `gallery-palette-${scope}`, async () => {
-        await col.getByRole('button', { name: 'Open the palette' }).click();
-        await page.locator('dialog.k-palette[open]').waitFor(POLL);
-      }, { schemes: both, exemptMax: 26 });
+      r = await station(
+        t,
+        `gallery-palette-${scope}`,
+        async () => {
+          await col.getByRole('button', { name: 'Open the palette' }).click();
+          await page.locator('dialog.k-palette[open]').waitFor(POLL);
+        },
+        { schemes: both, exemptMax: 26 },
+      );
       expect(r.findings, r.report).toEqual([]);
       expect(r.result.walk!.stops).toBe(1);
       await page.keyboard.press('Escape');

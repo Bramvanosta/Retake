@@ -3,22 +3,14 @@ import { clockError } from '../clock.js';
 import { displayError } from '../display.js';
 import { hostPatternError } from '../hosts.js';
 import { ENVIRONMENT_ACCESS, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, SANDBOX_PROVIDERS } from '../types.js';
-import { RENDER_CONCURRENCY_MAX, RENDER_ENCODER_SETTINGS, RENDER_GL_SETTINGS } from '../render-settings.js';
+import { RENDER_CONCURRENCY_MAX, RENDER_ENCODER_SETTINGS, RENDER_FFMPEG_SETTINGS, RENDER_GL_SETTINGS } from '../render-settings.js';
 import { requestPatternError } from '../writes.js';
 import { HookStepSchema, NamedHooksSchema } from './hooks.js';
 import { keyedUnion } from './keyed.js';
 import { FrameSpecSchema, fileVersion, nonEmpty } from './primitives.js';
-import {
-  AuthConfigSchema,
-  BrowserConfigSchema,
-  CapturePartialSchema,
-  CaptureSettingsSchema,
-  PacingPartialSchema,
-  RunDefaultsSchema,
-} from './settings.js';
+import { AuthConfigSchema, BrowserConfigSchema, CapturePartialSchema, CaptureSettingsSchema, PacingPartialSchema, RunDefaultsSchema } from './settings.js';
 
-export const httpUrl = () =>
-  z.url({ protocol: /^https?$/, error: 'expected an absolute http(s) URL, e.g. "https://app.staging.example.com"' });
+export const httpUrl = () => z.url({ protocol: /^https?$/, error: 'expected an absolute http(s) URL, e.g. "https://app.staging.example.com"' });
 
 /** A string checked by a function returning the reason it is refused (positioned like any schema issue). */
 export const checkedString = (why: (s: string) => string | null) =>
@@ -30,13 +22,16 @@ export const checkedString = (why: (s: string) => string | null) =>
 /** `clock:` (L1.7): an ISO 8601 date-time, or {at, freeze}. */
 export const ClockSpecSchema = z
   .union([
-    checkedString(clockError).describe('ISO 8601 date and time, e.g. 2026-11-02T10:24:00 (without an offset: wall time in the browser\'s time zone).'),
+    checkedString(clockError).describe("ISO 8601 date and time, e.g. 2026-11-02T10:24:00 (without an offset: wall time in the browser's time zone)."),
     z.strictObject({
       at: checkedString(clockError).describe('ISO 8601 date and time, e.g. 2026-11-02T10:24:00.'),
-      freeze: z.boolean().describe('true: the clock never moves (timers still run; code measuring time with Date stalls). Default false: it starts at `at` when the capture starts and runs.').optional(),
+      freeze: z
+        .boolean()
+        .describe('true: the clock never moves (timers still run; code measuring time with Date stalls). Default false: it starts at `at` when the capture starts and runs.')
+        .optional(),
     }),
   ])
-  .describe('The date and time the product\'s browser clock reads when the capture starts, so every take shows the same dates and times.');
+  .describe("The date and time the product's browser clock reads when the capture starts, so every take shows the same dates and times.");
 
 /** `[METHOD ]<page>:/path` or `[METHOD ]/path` (globs * and **), as in read_only.allow and mocks. */
 const requestPattern = () =>
@@ -73,7 +68,7 @@ const ReadOnlySchema = z
       )
       .optional(),
     allow: z.array(WriteRuleSchema).describe('Writes let through (a token refresh, a search sent as POST…).').optional(),
-    mocks: z.array(WriteMockSchema).describe('Answers to stopped writes, for every scenario on this environment (a scenario\'s own mocks come first).').optional(),
+    mocks: z.array(WriteMockSchema).describe("Answers to stopped writes, for every scenario on this environment (a scenario's own mocks come first).").optional(),
   })
   .describe('Used only when a run on this environment is read-only (its hosts are also never written to from runs on other environments).');
 
@@ -82,9 +77,7 @@ export const PageValueSchema = z.union([
   httpUrl(),
   z.strictObject({
     url: httpUrl(),
-    display: checkedString(displayError)
-      .describe('The URL the video shows instead (address bar, captions): a host such as shop.example.com (https implied) or an http(s) URL.')
-      .optional(),
+    display: checkedString(displayError).describe('The URL the video shows instead (address bar, captions): a host such as shop.example.com (https implied) or an http(s) URL.').optional(),
   }),
 ]);
 
@@ -124,10 +117,7 @@ export const mailboxShape = {
   provider: z.enum(['mailpit', 'http']).describe('mailpit: the Mailpit API; http: the generic JSON shape (see docs/guide/scenarios.md).'),
   url: httpUrl().describe('Base URL of the mailbox API, e.g. http://localhost:8025 (its host must be allowed).'),
   poll_ms: z.number().int().min(100).max(10_000).describe('Polling interval in ms (default 500).').optional(),
-  headers: z
-    .record(z.string(), z.string())
-    .describe('Extra request headers, e.g. an API token ({{env:VAR}} references are expanded).')
-    .optional(),
+  headers: z.record(z.string(), z.string()).describe('Extra request headers, e.g. an API token ({{env:VAR}} references are expanded).').optional(),
 };
 
 const MailboxSchema = z.strictObject(mailboxShape);
@@ -163,15 +153,10 @@ const projectShape = {
     .describe('Global auth, or per environment name. Never passwords.')
     .optional(),
   capture: CapturePartialSchema.optional(),
-  frame: FrameSpecSchema.describe(
-    'Default frame of every scenario (default card): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".',
-  ).optional(),
+  frame: FrameSpecSchema.describe('Default frame of every scenario (default card): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".').optional(),
   template: nonEmpty().describe('Theme name (the workspace templates/<name>, else a starter theme: default, editorial, motion) or a path relative to the project dir.').optional(),
   locale: nonEmpty().optional(),
-  allow_hosts: z
-    .array(nonEmpty())
-    .describe('Extra hosts hooks (every kind) and the mailbox may contact; environment hosts and localhost are always allowed.')
-    .optional(),
+  allow_hosts: z.array(nonEmpty()).describe('Extra hosts hooks (every kind) and the mailbox may contact; environment hosts and localhost are always allowed.').optional(),
   pass_env: z
     .array(nonEmpty())
     .describe(
@@ -190,11 +175,11 @@ const projectShape = {
   raw: z
     .strictObject({
       format: z.enum(RAW_FORMATS).describe('Clip codec: mp4 (H.264 high, CRF 14) or prores (ProRes 422 HQ .mov). Default mp4.').optional(),
-      fps: z.union([z.literal(30), z.literal(60)]).describe('Clip frame rate (default 30).').optional(),
-      cursor: z
-        .enum(RAW_CURSOR_MODES)
-        .describe('baked (as captured), none (captured without the cursor; cursor data only) or layer (a transparent cursor video per clip). Default baked.')
+      fps: z
+        .union([z.literal(30), z.literal(60)])
+        .describe('Clip frame rate (default 30).')
         .optional(),
+      cursor: z.enum(RAW_CURSOR_MODES).describe('baked (as captured), none (captured without the cursor; cursor data only) or layer (a transparent cursor video per clip). Default baked.').optional(),
       layer: z.enum(RAW_LAYER_FORMATS).describe('Cursor layer codec: prores (ProRes 4444) or webm (VP9 alpha). Default prores.').optional(),
       selects: z.boolean().describe('Also write one continuous selects file of the clips (default false).').optional(),
       cuts: z.boolean().describe('Cut the loading inside scenes (default true).').optional(),
@@ -204,15 +189,13 @@ const projectShape = {
   sandboxes: z
     .record(z.string(), nonEmpty())
     .describe(
-      'Sandbox environments (L1.8): environment name → its sandbox.yaml, relative to the project dir. Each one is an environment of its own (pages, display URLs, personas from its accounts, mailbox, databases), local, never production.',
+      'Sandbox environments: environment name → its sandbox.yaml, relative to the project dir. Each one is an environment of its own (pages, display URLs, personas from its accounts, mailbox, databases), local, never production.',
     )
     .optional(),
 };
 
 /** project.yaml as written (defaults not applied). */
-export const ProjectFileSchema = z
-  .strictObject(projectShape)
-  .meta({ id: 'Project', title: 'Retake project', description: 'projects/<slug>/project.yaml' });
+export const ProjectFileSchema = z.strictObject(projectShape).meta({ id: 'Project', title: 'Retake project', description: 'projects/<slug>/project.yaml' });
 
 /** ProjectConfig after defaults (what loadProject returns). */
 export const ProjectConfigSchema = z.strictObject({
@@ -230,18 +213,30 @@ export const RenderSettingsSchema = z
   .strictObject({
     gl: z
       .enum(RENDER_GL_SETTINGS)
-      .describe('How the render browser draws: auto (the GPU on macOS, software elsewhere; software when no GPU is found), gpu (always the GPU: ANGLE), software (Chromium\'s software raster, the renders of before L5.15). Default: $RETAKE_RENDER_GL, else auto.')
+      .describe(
+        "How the render browser draws: auto (the GPU on macOS, software elsewhere; software when no GPU is found), gpu (always the GPU: ANGLE), software (Chromium's software raster, the path every render took before the GPU one). Default: $RETAKE_RENDER_GL, else auto.",
+      )
       .optional(),
     encoder: z
       .enum(RENDER_ENCODER_SETTINGS)
-      .describe('Which H.264 encoder writes the video: auto (the Mac\'s VideoToolbox with the GPU path when it works at the render\'s size, else libx264), videotoolbox (macOS only), libx264 (CRF 16). Default: $RETAKE_RENDER_ENCODER, else auto.')
+      .describe(
+        "Which H.264 encoder writes the video: auto (the Mac's VideoToolbox with the GPU path when it works at the render's size, else libx264), videotoolbox (macOS only), libx264 (CRF 16). Default: $RETAKE_RENDER_ENCODER, else auto.",
+      )
       .optional(),
     concurrency: z
       .number()
       .int()
       .min(1)
       .max(RENDER_CONCURRENCY_MAX)
-      .describe('Frames rendered at a time, 1-16 (retake render --concurrency wins for its command). Default: $RETAKE_RENDER_CONCURRENCY, else 3 on the GPU path and three quarters of the CPUs (at most 8) in software.')
+      .describe(
+        'Frames rendered at a time, 1-16 (retake render --concurrency wins for its command). Default: $RETAKE_RENDER_CONCURRENCY, else 3 on the GPU path and three quarters of the CPUs (at most 8) in software.',
+      )
+      .optional(),
+    ffmpeg: z
+      .enum(RENDER_FFMPEG_SETTINGS)
+      .describe(
+        "Which ffmpeg encodes the frames of a render: auto (this machine's ffmpeg — retake.yaml ffmpeg:, $RETAKE_FFMPEG, PATH — for a render on the GPU path, when it is 5.1 or later and runs the frame encode; the rendering library's own otherwise, on the software path and inside the desktop app), own (this machine's ffmpeg on any path, in the desktop app too; the library's when it does not qualify, with a warning that says why), library (the rendering library's own: how every frame encode ran before this setting). macOS only: elsewhere the library's. Audio and the final file are always the library's. Default: $RETAKE_RENDER_FFMPEG, else auto.",
+      )
       .optional(),
   })
   .meta({ id: 'RenderSettings', title: 'Render settings' });
@@ -252,9 +247,7 @@ export const WorkspaceFileSchema = z
     version: fileVersion(),
     projects_dir: nonEmpty().describe('Projects directory, relative to the workspace root (default "projects").').optional(),
     templates_dir: nonEmpty().describe('Templates directory, relative to the workspace root (default "templates").').optional(),
-    components_dir: nonEmpty()
-      .describe('Workspace components directory (<namespace>/<name>/component.yaml), relative to the workspace root (default "components").')
-      .optional(),
+    components_dir: nonEmpty().describe('Workspace components directory (<namespace>/<name>/component.yaml), relative to the workspace root (default "components").').optional(),
     browser: BrowserConfigSchema.optional(),
     ffmpeg: nonEmpty().describe('ffmpeg binary (ffprobe is looked for beside it); default: $RETAKE_FFMPEG, the app\'s own, else "ffmpeg" on PATH.').optional(),
     render: RenderSettingsSchema.optional(),

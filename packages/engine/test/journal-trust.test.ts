@@ -4,7 +4,7 @@
  *   journal placed by hand (in runs/<id>/ or .retake/journals/), which it refuses and says;
  * - a journal placed in a run's reserved folder between its submit and its start is not replayed by the run;
  * - approvals are bound to their job: a job.json copied under another id runs no approved hook, and a job folder made
- *   again under the id of a job that already ran is refused at its claim.
+ *   again under the id of a job that already ran is refused at its claim (L7.37: on the in-memory hook runner).
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -19,14 +19,16 @@ import { ulid } from '@retake/core';
 import type { EnvResetJobResult, HooksJobResult } from '../src/index.js';
 import { FileJobQueue, createEngine, runWorker } from '../src/index.js';
 import type { Engine } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
 let project: string;
 let engine: Engine;
 let queue: FileJobQueue;
 let server: Server;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const accept = { approver: { approve: async () => ({ approved: true as const }) } };
 const logs: string[] = [];
 const work = () => runWorker({ root, idleExitMs: 300, pollMs: 50, log: (m) => logs.push(m) });
@@ -62,8 +64,8 @@ async function place(rel: string, text: string): Promise<void> {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-journal-trust-'));
-  process.env.RETAKE_HOME = join(root, '.home');
-  server = createServer((req, res) => {
+  retakeHome.use(join(root, '.home'));
+  server = createServer((_req, res) => {
     res.setHeader('content-type', 'text/html');
     res.end('<!doctype html><title>Placed</title><body><h1>A page</h1></body>');
   });
@@ -77,15 +79,16 @@ beforeAll(async () => {
   await writeFile(join(project, 'hooks', 'mark.yaml'), '- name: mark\n  shell: {run: "printf x >> marks.log", rollback: "printf u >> undo.log"}\n');
   await writeFile(
     join(project, 'scenarios', 'short.yaml'),
-    ['video: short', 'setup:', '  - name: ping', '    http: {method: GET, url: "{{app}}/ping"}', 'scenes:', '  - id: one', '    page: app', '    open: /', '    steps:', '      - hold: 0.2', ''].join('\n'),
+    ['video: short', 'setup:', '  - name: ping', '    http: {method: GET, url: "{{app}}/ping"}', 'scenes:', '  - id: one', '    page: app', '    open: /', '    steps:', '      - hold: 0.2', ''].join(
+      '\n',
+    ),
   );
   engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
   queue = new FileJobQueue(root);
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await new Promise<void>((r) => server.close(() => r()));
   if (root) await rm(root, { recursive: true, force: true });
 });
@@ -164,40 +167,55 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('a run replays only its own 
   }, 120_000);
 });
 
-describe('approvals are bound to their job (L5.14)', () => {
+/**
+ * L7.37: the approvals are the engine's (signed for their job at submit, taken once at the claim): the hooks job runs on
+ * the in-memory hook runner, whose executions stand for marks.log. An approved shell hook that really runs is the
+ * environment reset case above.
+ */
+describe('approvals are bound to their job (L5.14), on the in-memory hook runner', () => {
+  const hooks = new MemoryHookRunner();
+  let mengine: Engine;
+  /** How many times the mark hook ran (marks.log's length on the hooks package). */
+  const marks = () => hooks.executed.filter((e) => e.name === 'mark' && e.phase !== 'rollback').length;
+  const mwork = (at = root) => runWorker({ root: at, idleExitMs: 300, pollMs: 50, log: (m) => logs.push(m), heavyInProcess: true, ports: { hooks } });
+
+  beforeAll(async () => {
+    mengine = await createEngine({ root, client: 'mcp', autoStartWorker: false, ports: { hooks } });
+  });
+
   it('a job.json copied under another id runs no approved hook; a job folder made again under a used id is refused at its claim', async () => {
-    const before = read('marks.log');
-    const sub = await engine.hooks.submit({ project: 'w', source: 'hooks/mark.yaml', dry: false }, accept);
+    const before = marks();
+    const sub = await mengine.hooks.submit({ project: 'w', source: 'hooks/mark.yaml', dry: false }, accept);
     const original = (await queue.stored(sub.job.id))!;
     const copyId = `j_${ulid()}`;
     await mkdir(queue.files.job(copyId), { recursive: true });
     await writeFile(join(queue.files.job(copyId), 'job.json'), JSON.stringify({ ...original, id: copyId }));
-    expect(await work()).toBe(0);
+    expect(await mwork()).toBe(0);
     expect((await queue.stored(sub.job.id))?.state).toBe('succeeded');
     const copy = (await queue.stored(copyId))!;
     expect((copy.result as HooksJobResult | undefined)?.results.map((r) => r.status)).toEqual(['refused']);
     expect(JSON.stringify(await queue.events(copyId))).toMatch(/approval\(s\) of this job are not signed for it/);
-    expect(read('marks.log')).toBe(`${before}x`);
+    expect(marks()).toBe(before + 1);
     // The original's folder made again (queued, no claim): refused at its claim, its hook never runs again.
     await rm(join(queue.files.job(sub.job.id), 'claim'), { force: true });
     await rm(join(queue.files.job(sub.job.id), 'events.jsonl'), { force: true });
     await writeFile(join(queue.files.job(sub.job.id), 'job.json'), JSON.stringify(original));
-    expect(await work()).toBe(0);
+    expect(await mwork()).toBe(0);
     const again = (await queue.stored(sub.job.id))!;
     expect(again.state).toBe('failed');
     expect(again.error?.message).toMatch(/refused without running: the approvals of job .* were taken by an earlier claim of that id/);
-    expect(read('marks.log')).toBe(`${before}x`);
+    expect(marks()).toBe(before + 1);
     expect(JSON.parse(await readFile(join(root, '.home', 'approvals-used', sub.job.id), 'utf8'))).toMatchObject({ digest: expect.stringMatching(/^[0-9a-f]{64}$/) });
   }, 60_000);
 
   it('review B L4: a record of taken approvals that cannot be written fails the job with that reason, not as approvals taken before', async () => {
-    const before = read('marks.log');
-    const sub = await engine.hooks.submit({ project: 'w', source: 'hooks/mark.yaml', dry: false }, accept);
+    const before = marks();
+    const sub = await mengine.hooks.submit({ project: 'w', source: 'hooks/mark.yaml', dry: false }, accept);
     const used = join(root, '.home', 'approvals-used');
     await mkdir(used, { recursive: true });
     await chmod(used, 0o500);
     try {
-      expect(await work()).toBe(0);
+      expect(await mwork()).toBe(0);
     } finally {
       await chmod(used, 0o700);
     }
@@ -205,12 +223,12 @@ describe('approvals are bound to their job (L5.14)', () => {
     expect(end.state).toBe('failed');
     expect(end.error?.message).toMatch(/not run: the record of the approvals workers took \(.*approvals-used\) cannot be written \(.*(EACCES|permission).*\)/i);
     expect(end.error?.message).not.toMatch(/taken by an earlier claim/);
-    expect(read('marks.log')).toBe(before);
+    expect(marks()).toBe(before);
   }, 60_000);
 
   it('review A L1: a queued job folder copied into another workspace of the same home runs no approved hook there', async () => {
-    const before = read('marks.log');
-    const sub = await engine.hooks.submit({ project: 'w', source: 'hooks/mark.yaml', dry: false }, accept);
+    const before = marks();
+    const sub = await mengine.hooks.submit({ project: 'w', source: 'hooks/mark.yaml', dry: false }, accept);
     // Another workspace with a project of the same name and the same hook (the same fingerprint).
     const root2 = await mkdtemp(join(tmpdir(), 'retake-journal-trust-ws2-'));
     try {
@@ -222,16 +240,16 @@ describe('approvals are bound to their job (L5.14)', () => {
       const q2 = new FileJobQueue(root2);
       await mkdir(q2.files.job(sub.job.id), { recursive: true });
       await writeFile(join(q2.files.job(sub.job.id), 'job.json'), await readFile(join(queue.files.job(sub.job.id), 'job.json'), 'utf8'));
-      expect(await runWorker({ root: root2, idleExitMs: 300, pollMs: 50, log: (m) => logs.push(m) })).toBe(0);
+      expect(await mwork(root2)).toBe(0);
       expect(((await q2.stored(sub.job.id))?.result as HooksJobResult | undefined)?.results.map((r) => r.status)).toEqual(['refused']);
       expect(JSON.stringify(await q2.events(sub.job.id))).toMatch(/approval\(s\) of this job are not signed for it/);
-      expect(existsSync(join(project2, 'marks.log'))).toBe(false);
+      expect(marks()).toBe(before);
     } finally {
       await rm(root2, { recursive: true, force: true });
     }
     // In its own workspace it is not run either: its claim there took its approvals (the copy was claimed first).
-    expect(await work()).toBe(0);
+    expect(await mwork()).toBe(0);
     expect((await queue.stored(sub.job.id))?.error?.message).toMatch(/taken by an earlier claim of that id/);
-    expect(read('marks.log')).toBe(before);
+    expect(marks()).toBe(before);
   }, 60_000);
 });

@@ -46,8 +46,7 @@ function clampInto(b: Box, bounds: Box): Box {
   };
 }
 
-const overlapArea = (a: Box, b: Box) =>
-  Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+const overlapArea = (a: Box, b: Box) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
 
 /**
  * A `w × h` box beside `target` (gap `gap`), on the first side of `order` where it lies inside `bounds` without

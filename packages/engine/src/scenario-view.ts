@@ -23,23 +23,31 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SLUG_RE, environmentAccess, filmedChanges, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo, projectPath } from '@retake/core';
-import { loadProjectTemplate, fileFacts, nodeFileFacts } from '@retake/core/io';
-import type { AgentChannel, LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { isRunId } from '@retake/core/ids';
+import { environmentAccess, resolveEnvironment } from '@retake/core/environment';
+import { projectPath } from '@retake/core/project';
+import { filmedChanges, parseScenario, matchRunSteps, movedSteps, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@retake/core/scenario';
+import { orderRuns, parseRunRecord } from '@retake/core/run';
+import { nodeFileFacts } from '@retake/core/io';
+import type { LoadedProject, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core/model';
+import type { ScenarioBlocks, ScenarioIdentity, SceneBlock } from '@retake/core/scenario';
+import type { StoredRunRecord } from '@retake/core/run';
+import type { AgentChannel } from './caller.js';
 import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';
 import type { RunBlocker } from './jobs/run-job.js';
-import { RUN_ID_RE } from './refs.js';
 import { errorScreenshotName, fileSlug, stepScreenshotName } from './run-data.js';
 import type { RunData, RunDataCache } from './run-data.js';
 import { RUN_JSON_MAX, runPictures } from './run-data.js';
 import { RunFolder, lsig } from './run-files.js';
 import type { ThumbSource } from './run-thumbs.js';
-import { listRuns } from './runs.js';
-import type { RunSummary } from './runs.js';
+import { isReadRun, latestCapture, listRuns, takeVerdict } from './runs.js';
+import type { RunRecordOnDisk, RunSummary } from './runs.js';
 import { getScenario, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
 import type { ScenarioText } from './scenarios.js';
 import type { OpenedWorkspace } from './workspace.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /** Runs of the scenario in the picker, at most. */
 export const VIEW_RUNS_MAX = 20;
@@ -85,6 +93,11 @@ export interface ScenarioRunChoice {
   complete: boolean;
   /** It kept a copy of the scenario (scenario.yaml): its steps can be matched to today's file. */
   snapshot: boolean;
+  /**
+   * A capture an edit can work on (core takeOf: it succeeded, its timeline reads and is of this scenario, its film is
+   * in its folder, which lies in the project). The first such run is the take a render edits and the timeline shows.
+   */
+  take: boolean;
   /** Why it is partial, steps 1-based as the screen numbers them: "until step 4 of request", "failed at step 3 of proposal", "cancelled", "interrupted". */
   partial?: string;
   /**
@@ -112,7 +125,10 @@ export interface ScenarioActions {
   content: { scenes: number; steps: number };
   runs: ScenarioRunChoice[];
   running: ScenarioRunChoice | null;
-  /** The newest succeeded capture with its video: the take a render edits (the timeline's rule). */
+  /**
+   * The capture a render edits and the timeline shows by default: `latest` by the one rule (core latestTake) — the
+   * first run of `runs` that is a take, or, past the runs listed, the first older one.
+   */
   capture?: { id: string; finished_at?: string };
   render_job?: { job: string; state: 'queued' | 'running'; fraction?: number };
 }
@@ -140,7 +156,7 @@ export interface ScenarioSource {
    */
   notice?: 'changed' | 'edit_changed' | 'cannot_tell';
   /** The hooks' outcome in that run. */
-  hooks?: RunRecord['hooks'];
+  hooks?: StoredRunRecord['hooks'];
   /** Finished runs newer than the default source that are partial or left no picture (the picker names them). */
   newer_partial: Array<{ id: string; mode: RunSummary['mode']; partial: string; pictures: ScenarioRunChoice['pictures'] }>;
 }
@@ -202,6 +218,8 @@ export interface ScenarioView {
   environment: ScenarioEnvironmentFacts | null;
   scenes: Record<string, SceneFacts>;
   runs: ScenarioRunChoice[];
+  /** The capture a render edits and the timeline shows by default (as ScenarioActions.capture); absent: none yet. */
+  capture?: { id: string; finished_at?: string };
   source: ScenarioSource | null;
   running: ScenarioRunChoice | null;
   /** Today's step key → its binding to the source run. */
@@ -273,6 +291,7 @@ interface BindLayer {
 interface RunFacts {
   pictures: ScenarioRunChoice['pictures'];
   snapshot: boolean;
+  take: boolean;
   failedAt?: string;
 }
 
@@ -315,12 +334,13 @@ export class ScenarioViews {
   private readonly lists = new Map<string, RunListMemo>();
   private readonly facts = new Map<string, RunFacts>();
   /** Counters for tests: text layers, actions layers and bindings computed, run lists read. */
-  readonly stats = { text: 0, actions: 0, bind: 0, list: 0 };
+  /** `takes`: run folders read for the usable-capture rule (a repeat reads none). */
+  readonly stats = { text: 0, actions: 0, bind: 0, list: 0, takes: 0 };
 
   constructor(private readonly ctx: ScenarioViewContext) {}
 
   async view(slug: string, name: string, o: { run?: string; env?: string } = {}): Promise<ScenarioView> {
-    if (o.run !== undefined && !RUN_ID_RE.test(o.run)) throw new EngineError('invalid', `"${o.run.slice(0, 60)}" is not a run id`);
+    if (o.run !== undefined && !isRunId(o.run)) throw new EngineError('invalid', `"${String(o.run).slice(0, 60)}" is not a run id`);
     const p = await this.ctx.project(slug);
     const file = await getScenario(p, name);
     const text = await this.textLayer(p, slug, name, file, o.env);
@@ -372,6 +392,7 @@ export class ScenarioViews {
     const steps = bind?.steps ?? {};
     const untrusted = bind?.untrusted ?? { steps: {} };
     const issues = text.issues.length > VIEW_ISSUES_MAX ? text.issues.slice(0, VIEW_ISSUES_MAX) : text.issues;
+    const capture = await this.captureOf(p, name, runs);
     return {
       project: slug,
       name,
@@ -386,6 +407,7 @@ export class ScenarioViews {
       environment: text.environment,
       scenes,
       runs,
+      ...(capture ? { capture } : {}),
       source,
       running,
       steps: keys ? Object.fromEntries(Object.entries(steps).filter(([k]) => keys.has(k))) : steps,
@@ -407,7 +429,7 @@ export class ScenarioViews {
     const layer = await this.actionsLayer(p, slug, name, file, o.env);
     const runs = await this.runChoices(p, slug, name);
     const running = runningOf(runs);
-    const cap = runs.find((r) => r.mode === 'capture' && r.status === 'succeeded' && r.pictures === 'video');
+    const cap = await this.captureOf(p, name, runs);
     const render_job = this.ctx.renderJob ? await this.ctx.renderJob(slug, name) : undefined;
     return {
       project: slug,
@@ -438,7 +460,12 @@ export class ScenarioViews {
     if (pending) return pending;
     const job = (async () => {
       this.stats.actions++;
-      const { ok, issues } = await validateScenarioText(p, file.yaml, { files: fileFacts(this.ctx.ws.policy), name, ...(env !== undefined ? { env } : {}) });
+      const { ok, issues } = await validateScenarioText(p, file.yaml, {
+        files: this.ctx.ws.reads.fileFacts(this.ctx.ws.policy),
+        reads: this.ctx.ws.reads,
+        name,
+        ...(env !== undefined ? { env } : {}),
+      });
       const blocks = scenarioBlocks(file.yaml, { issues, hookFiles: { projectDir: p.dir, files: nodeFileFacts } });
       const run_blockers = studioBlockers(await this.ctx.blockers({ project: slug, scenario: name, ...(env !== undefined ? { env } : {}) }), blocks, ok, issues);
       return remember(this.acts, key, { at: Date.now(), ok, run_blockers, environment: environmentFacts(p, env ?? blocks.video.env), content: contentOf(blocks) }, 64);
@@ -477,7 +504,7 @@ export class ScenarioViews {
   private async computeText(p: LoadedProject, slug: string, name: string, file: ScenarioText, env: string | undefined, key: string): Promise<TextLayer> {
     const { yaml } = file;
     this.stats.text++;
-    const { ok, issues } = await validateScenarioText(p, yaml, { files: fileFacts(this.ctx.ws.policy), name, ...(env !== undefined ? { env } : {}) });
+    const { ok, issues } = await validateScenarioText(p, yaml, { files: this.ctx.ws.reads.fileFacts(this.ctx.ws.policy), reads: this.ctx.ws.reads, name, ...(env !== undefined ? { env } : {}) });
     const blocks = scenarioBlocks(yaml, { issues, hookFiles: { projectDir: p.dir, files: nodeFileFacts } });
     const run_blockers = studioBlockers(await this.ctx.blockers({ project: slug, scenario: name, ...(env !== undefined ? { env } : {}) }), blocks, ok, issues);
     let environment: ScenarioEnvironmentFacts | null = null;
@@ -525,11 +552,25 @@ export class ScenarioViews {
         else if (previous) facts.continues_from = previous;
         scenes[s.id] = facts;
       }
-      if (!identity.has(s.id)) identity.set(s.id, { context: s.context, steps: s.steps.map((st) => ({ ...(st.fingerprint ? { fp: st.fingerprint } : {}), ...(st.fingerprint && st.action ? { action: st.action } : {}), ...(st.picture ? { picture: st.picture } : {}), n: st.occurrence })) });
+      if (!identity.has(s.id))
+        identity.set(s.id, {
+          context: s.context,
+          steps: s.steps.map((st) => ({
+            ...(st.fingerprint ? { fp: st.fingerprint } : {}),
+            ...(st.fingerprint && st.action ? { action: st.action } : {}),
+            ...(st.picture ? { picture: st.picture } : {}),
+            n: st.occurrence,
+          })),
+        });
       previous = s.id;
     }
     const shown = trimBlocks(blocks, VIEW_STEPS_MAX);
-    const edit = await editAbility(p, file, { agent: this.ctx.agent ?? false, via: this.ctx.via ?? 'studio', files: fileFacts(this.ctx.ws.policy) }, { parsed: blocks.parsed, ok, truncated: shown.keys !== null });
+    const edit = await editAbility(
+      p,
+      file,
+      { agent: this.ctx.agent ?? false, via: this.ctx.via ?? 'studio', files: this.ctx.ws.reads.fileFacts(this.ctx.ws.policy), reads: this.ctx.ws.reads },
+      { parsed: blocks.parsed, ok, truncated: shown.keys !== null },
+    );
     return remember(this.texts, key, { at: Date.now(), blocks, shown, ok, issues, run_blockers, environment, scenes, identity, edit });
   }
 
@@ -540,7 +581,7 @@ export class ScenarioViews {
     const dir = projectPath(p.dir, 'runs');
     let names: string[] = [];
     try {
-      names = (await readdir(dir)).filter((n) => RUN_ID_RE.test(n)).sort().reverse().slice(0, 8);
+      names = orderRuns(await readdir(dir)).slice(0, 8);
     } catch {
       return '-';
     }
@@ -557,7 +598,7 @@ export class ScenarioViews {
     let list = memo && memo.sig === sig ? memo.runs : undefined;
     if (!list) {
       this.stats.list++;
-      list = (await listRuns(p, { scenario: name, limit: VIEW_RUNS_MAX })).filter((r) => !r.newer);
+      list = (await listRuns(p, { scenario: name, limit: VIEW_RUNS_MAX })).filter(isReadRun);
       remember(this.lists, key, { sig, runs: list }, 64);
     }
     return Promise.all(
@@ -575,8 +616,9 @@ export class ScenarioViews {
    * What the picker says of a run beyond run.json's summary — its pictures and where a failed run failed — held while
    * the run folder's signature holds (a finished run's files do not change; deleting frames changes the folder).
    */
-  private async factsOf(projectDir: string, id: string, mode: string, finished: boolean, failed: boolean): Promise<RunFacts> {
-    const key = `${projectDir}\0${id}\0${await lsig(projectPath(projectDir, 'runs', id))}`;
+  private async factsOf(projectDir: string, id: string, mode: string, finished: boolean, failed: boolean, capture: boolean): Promise<RunFacts> {
+    // A succeeded capture's verdict also reads its timeline's head: that file's signature is in its key.
+    const key = `${projectDir}\0${id}\0${await lsig(projectPath(projectDir, 'runs', id))}${capture ? `\0${await lsig(projectPath(projectDir, 'runs', id, 'timeline.json'))}` : ''}`;
     const hit = finished ? this.facts.get(key) : undefined;
     if (hit) return hit;
     const pictures = await runPictures(projectDir, id, mode);
@@ -586,13 +628,18 @@ export class ScenarioViews {
       const folder = await RunFolder.open(projectDir, id);
       const r = folder ? await folder.read('run.json', RUN_JSON_MAX) : undefined;
       try {
-        const err = r?.ok ? (JSON.parse(r.bytes.toString('utf8')) as RunRecord).error : undefined;
+        const record = r?.ok ? parseRunRecord(JSON.parse(r.bytes.toString('utf8'))) : undefined;
+        const err = record?.ok ? record.value.error : undefined;
         if (err && typeof err.scene === 'string') failedAt = stepRef(err.scene, err.step);
       } catch {
         /* not a run.json the runner wrote */
       }
     }
-    const facts: RunFacts = { pictures, snapshot, ...(failedAt ? { failedAt } : {}) };
+    // Only a capture whose record says it succeeded can be a take: the rule is asked for those alone (one read, held;
+    // runs.ts takeVerdict: a take is a run folder that really lies in the project).
+    if (capture) this.stats.takes++;
+    const take = capture ? (await takeVerdict(projectDir, id)).usable : false;
+    const facts: RunFacts = { pictures, snapshot, take, ...(failedAt ? { failedAt } : {}) };
     if (finished) remember(this.facts, key, facts, 512);
     return facts;
   }
@@ -601,7 +648,7 @@ export class ScenarioViews {
     // run.json is a file anyone may write: a status the runner never writes is `unknown`, never shown as written.
     const status: ViewRunStatus = KNOWN_STATUSES.has(raw) ? raw : 'unknown';
     const finished = FINISHED.has(status);
-    const { pictures, snapshot, failedAt } = await this.factsOf(projectDir, r.id, r.mode, finished, status === 'failed');
+    const { pictures, snapshot, failedAt, take } = await this.factsOf(projectDir, r.id, r.mode, finished, status === 'failed', r.mode === 'capture' && status === 'succeeded');
     let partial: string | undefined;
     if (status === 'cancelled') partial = 'cancelled';
     else if (status === 'interrupted') partial = 'interrupted';
@@ -619,12 +666,27 @@ export class ScenarioViews {
       pictures,
       complete: finished && status === 'succeeded' && partial === undefined && pictures !== null,
       snapshot,
+      take,
       ...(partial ? { partial } : {}),
     };
   }
 
+  /**
+   * `latest` of the scenario for the Studio — what Render edits, what the timeline shows without a chosen take: the
+   * one rule (core latestTake, through runs.ts), with no window. The runs listed are the scenario's newest in the
+   * rule's own order and each says whether it is a take, so the first that does is the answer; when none does and the
+   * list is full, older runs exist that it does not show, and the rule is asked over all of them.
+   */
+  private async captureOf(p: LoadedProject, name: string, runs: readonly ScenarioRunChoice[]): Promise<{ id: string; finished_at?: string } | undefined> {
+    const listed = runs.find((r) => r.take);
+    if (listed) return { id: listed.id, ...(listed.finished_at ? { finished_at: listed.finished_at } : {}) };
+    if (runs.length < VIEW_RUNS_MAX) return undefined;
+    const take = (await latestCapture(p, name)).take;
+    return take ? { id: take.run, finished_at: take.finished_at } : undefined;
+  }
+
   /** A picked run older than the picker's list. */
-  private choiceOf(projectDir: string, id: string, rec: RunRecord): Promise<ScenarioRunChoice> {
+  private choiceOf(projectDir: string, id: string, rec: RunRecordOnDisk): Promise<ScenarioRunChoice> {
     const summary: RunSummary = {
       id,
       scenario: rec.scenario,
@@ -637,7 +699,7 @@ export class ScenarioViews {
       steps_total: rec.steps_total,
       ...(rec.stopped_at ? { stopped_at: rec.stopped_at } : {}),
     };
-    return this.choice(projectDir, summary, rec.status);
+    return this.choice(projectDir, summary, summary.status);
   }
 
   // ── Binding ─────────────────────────────────────────────────────────────
@@ -713,7 +775,12 @@ function studioBlockers(b: { dry: RunBlocker[]; capture: RunBlocker[] }, blocks:
   const errors = issues.filter((i) => i.severity === 'error').length;
   const one = (x: RunBlocker): RunBlocker => {
     if (!ok && x.code === 'invalid') {
-      return { code: 'invalid', kind: 'invalid', message: `the file has ${errors} error${errors === 1 ? '' : 's'} (listed with the blocks): fix the file first — a run from the terminal refuses it too`, fix_file: true };
+      return {
+        code: 'invalid',
+        kind: 'invalid',
+        message: `the file has ${errors} error${errors === 1 ? '' : 's'} (listed with the blocks): fix the file first — a run from the terminal refuses it too`,
+        fix_file: true,
+      };
     }
     const fixNode = x.fix ? nodeCommand(x.fix) : undefined;
     return { ...x, message: humanPaths(x.message, blocks), ...(fixNode ? { fix_node: fixNode } : {}) };
@@ -863,12 +930,12 @@ async function bindSteps(yaml: string, text: TextLayer, run: RunData): Promise<B
 async function editAbility(
   p: LoadedProject,
   file: ScenarioText,
-  o: { agent: boolean; via: AgentChannel; files: WorkFileFacts },
+  o: { agent: boolean; via: AgentChannel; files: WorkFileFacts; reads: WorkspaceReads },
   facts: { parsed: boolean; ok: boolean; truncated: boolean },
 ): Promise<ScenarioView['edit']> {
   let scenario;
   if (o.agent && file.utf8) {
-    const template = await loadProjectTemplate(p, undefined, { files: o.files }).then(
+    const template = await o.reads.loadProjectTemplate(p, undefined, { files: o.files }).then(
       (t) => t.template,
       () => undefined,
     );

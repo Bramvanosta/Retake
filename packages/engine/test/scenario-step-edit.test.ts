@@ -16,8 +16,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ScenarioError, parseYaml, stepGuard } from '@retake/core';
 import { EngineError, createEngine } from '../src/index.js';
 import type { Engine, StepBinding } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
-import { BLOCKS_YAML, capture, writeRun } from './synthetic-runs.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { BLOCKS_YAML, capture, writeRun } from '@retake/test-support/runs';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const P = 'northfield-fixture';
@@ -26,7 +27,7 @@ const RLO = String.fromCodePoint(0x202e);
 let ws: string;
 let dir: string;
 let ui: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const file = (name: string) => join(dir, 'scenarios', `${name}.yaml`);
 const stepsOf = (t: string, scene: string) => (parseYaml(t).value as { scenes: Array<{ id: string; steps: unknown[] }> }).scenes.find((s) => s.id === scene)!.steps;
 const at = (t: string, scene: string, index: number) => ({ scene, index, guard: stepGuard(stepsOf(t, scene)[index]) });
@@ -37,7 +38,10 @@ async function put(name: string, text: string): Promise<string> {
 }
 
 async function failure(p: Promise<unknown>): Promise<EngineError> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(EngineError);
   return e as EngineError;
 }
@@ -48,7 +52,7 @@ async function snapshot(name: string): Promise<{ bytes: string; mtime: number }>
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-step-edit-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   dir = join(ws, 'projects', P);
   await writeFile(file('blocks'), BLOCKS_YAML);
@@ -57,8 +61,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -90,7 +93,11 @@ describe('move, delete, duplicate through scenarios.edit', () => {
     const steps = stepsOf(t0, 'proposal');
     const i = steps.findIndex((s) => typeof s === 'object' && s !== null && 'download' in s);
     const d = await ui.scenarios.edit(P, 'quote', { hash: sha(t0), edit: { kind: 'duplicate_step', at: at(t0, 'proposal', i) } });
-    expect(d).toMatchObject({ label: `Duplicated step ${i + 1} of proposal`, select: `proposal.${i + 1}`, notices: ['The copy saves its document as "quote-2": names of captures are unique (the original keeps "quote").'] });
+    expect(d).toMatchObject({
+      label: `Duplicated step ${i + 1} of proposal`,
+      select: `proposal.${i + 1}`,
+      notices: ['The copy saves its document as "quote-2": names of captures are unique (the original keeps "quote").'],
+    });
     const t1 = await readFile(file('quote'), 'utf8');
     expect(stepsOf(t1, 'proposal')[i + 1]).toEqual({ download: { click: { text: 'Download quote PDF' }, as: 'quote-2' } });
     const x = await ui.scenarios.edit(P, 'quote', { hash: d.hash, edit: { kind: 'delete_step', at: at(t1, 'proposal', i + 1) } });
@@ -146,7 +153,10 @@ describe('move, delete, duplicate through scenarios.edit', () => {
     const q = await readFile(file('quote'), 'utf8');
     const i = stepsOf(q, 'proposal').findIndex((s) => typeof s === 'object' && s !== null && 'download' in s);
     const before = await snapshot('quote');
-    const e3 = await ui.scenarios.edit(P, 'quote', { hash: sha(q), edit: { kind: 'delete_step', at: at(q, 'proposal', i) } }).then(() => undefined, (x: unknown) => x);
+    const e3 = await ui.scenarios.edit(P, 'quote', { hash: sha(q), edit: { kind: 'delete_step', at: at(q, 'proposal', i) } }).then(
+      () => undefined,
+      (x: unknown) => x,
+    );
     expect(e3).toBeInstanceOf(ScenarioError);
     expect((e3 as ScenarioError).issues.some((x) => x.severity === 'error' && /quote/.test(x.message))).toBe(true);
     expect(await snapshot('quote')).toEqual(before);

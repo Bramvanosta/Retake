@@ -2,10 +2,14 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { canonicalJson, collectSandboxRefs, collectSecretRefs, interpolateDeep, readOnlyHookMessage, rollbackWriteReason, sandboxOf, projectPath, projectRef, runPath, STATE_DIR, STATE_DIRS, statePath, stateRef } from '@retake/core';
+import { canonicalJson, bestEffort } from '@retake/core/base';
+import { readOnlyHookMessage } from '@retake/core/environment';
+import { rollbackWriteReason } from '@retake/core/hooks';
+import { projectPath, projectRef, runPath, STATE_DIR, STATE_DIRS, statePath, stateRef } from '@retake/core/project';
+import { sandboxOf } from '@retake/core/sandbox';
 import { homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, writeJson } from '@retake/core/io';
 import { HookSecurityError, JournalError, errorMessage } from './errors.js';
-import { actionLines, fieldLines, shownRollback } from './shown.js';
+import { referencesSecrets } from './shown.js';
 import { executeRollback } from './kinds/index.js';
 import { recordHookRun } from './record.js';
 import { logger, redactText } from './secrets.js';
@@ -53,6 +57,51 @@ export function isPending(e: JournalEntry): boolean {
   return e.status === 'ok' && e.rollback !== undefined && e.superseded === undefined;
 }
 
+const optional = (v: unknown, ok: (x: unknown) => boolean): boolean => v === undefined || ok(v);
+const isString = (v: unknown): boolean => typeof v === 'string';
+const isStringMap = (v: unknown): boolean => isRecord(v) && Object.values(v).every(isString);
+
+/**
+ * Why a journaled rollback does not have the shape of a RollbackAction (types.ts), or null: the members its replay, its
+ * listing and its description read, each of the type it is read as. Members no reader looks at are not checked (a journal
+ * of an older Retake that wrote more still reads).
+ */
+function rollbackShapeProblem(r: Record<string, unknown>): string | null {
+  if (!isString(r.description)) return '`description` must be a string';
+  if (!isRecord(r.data)) return '`data` must be an object';
+  switch (r.kind) {
+    case 'http': {
+      const q = r.request;
+      if (!isRecord(q)) return '`request` must be an object';
+      if (!isString(q.url)) return '`request.url` must be a string';
+      if (!optional(q.method, isString)) return '`request.method` must be a string';
+      if (!optional(q.headers, isStringMap)) return '`request.headers` must map names to strings';
+      if (!optional(q.auth, (a) => isRecord(a) && isString(a.persona))) return '`request.auth.persona` must be a string';
+      if (!optional(q.body, isString)) return '`request.body` must be a string';
+      if (!optional(q.expect, (x) => typeof x === 'number' || (Array.isArray(x) && x.every((n) => typeof n === 'number')))) return '`request.expect` must be a number or a list of numbers';
+      return null;
+    }
+    case 'sql':
+      if (!isString(r.db)) return '`db` must be a string';
+      if (!isString(r.query)) return '`query` must be a string';
+      if (!optional(r.file, isString)) return '`file` must be a string';
+      return null;
+    case 'shell':
+      if (!isString(r.run)) return '`run` must be a string';
+      if (!optional(r.cwd, isString)) return '`cwd` must be a string';
+      if (!optional(r.env, isStringMap)) return '`env` must map names to strings';
+      if (!optional(r.timeout, (t) => typeof t === 'number' && Number.isFinite(t))) return '`timeout` must be a number';
+      if (!optional(r.agent, (a) => a === true)) return '`agent` must be true';
+      return null;
+    case 'js':
+      if (!isString(r.code)) return '`code` must be a string';
+      if (!optional(r.page, isString)) return '`page` must be a string';
+      return null;
+    default:
+      return '`kind` is unknown';
+  }
+}
+
 function validate(value: unknown, file: string): JournalFile {
   const bad = (why: string) => new JournalError(`hooks journal ${file} is malformed: ${why}`, file);
   if (!isRecord(value)) throw bad('expected a JSON object');
@@ -67,6 +116,10 @@ function validate(value: unknown, file: string): JournalFile {
     if (e.rollback !== undefined && (!isRecord(e.rollback) || !KINDS.has(e.rollback.kind as string))) {
       throw bad(`entries[${i}].rollback is invalid`);
     }
+    // A rollback of the wrong shape is refused as the whole journal is (nothing of it is replayed), never met later as a
+    // TypeError while it is listed or replayed.
+    const shape = e.rollback === undefined ? null : rollbackShapeProblem(e.rollback as Record<string, unknown>);
+    if (shape) throw bad(`entries[${i}] (#${String(e.seq)}) has a malformed ${String((e.rollback as Record<string, unknown>).kind)} rollback: ${shape}`);
   });
   const now = nowIso();
   return {
@@ -162,29 +215,6 @@ export async function pruneDoneRollbacks(keyFile: string = homeKeyFile(), now: n
     const st = await stat(join(dir, name)).catch(() => undefined);
     if (st && now - st.mtimeMs > ROLLBACKS_DONE_KEEP_MS) await rm(join(dir, name), { force: true }).catch(() => undefined);
   }
-}
-
-/** Whether a rollback needs a secret to replay: a reference (the sandbox's too), or an http one sent as a persona. */
-function referencesSecrets(action: RollbackAction): boolean {
-  return collectSecretRefs(action).size > 0 || collectSandboxRefs(action).size > 0 || (action.kind === 'http' && action.request.auth !== undefined);
-}
-
-/**
- * A rollback action in full, as it would run — its templates filled from the data the entry carries (a secret is never
- * resolved: an action that references one is shown as written) — one line per field, every character visible
- * (shown.ts; L5.14: what a person reads before replaying an entry Retake did not sign).
- */
-export function rollbackActionLines(action: RollbackAction): string[] {
-  let a: RollbackAction = action;
-  if (!referencesSecrets(action)) {
-    try {
-      const d = action.data ?? {};
-      a = interpolateDeep(action, { pages: d.pages ?? {}, vars: d.vars ?? {}, hooks: d.hooks ?? {}, run: d.run, extra: d.extra, secrets: () => undefined });
-    } catch {
-      a = action;
-    }
-  }
-  return [...fieldLines('kind', a.kind), ...actionLines(shownRollback(a))];
 }
 
 /**
@@ -303,7 +333,7 @@ export class Journal {
       }
       await writeJson(this.file, this.data);
     };
-    const next = this.writing.catch(() => undefined).then(run);
+    const next = bestEffort(this.writing, "the previous write's failure is its own caller's: the chain only orders the writes").then(run);
     this.writing = next;
     return next.catch((e) => {
       throw new JournalError(`cannot write hooks journal ${this.file}: ${errorMessage(e)}`, this.file);
@@ -352,7 +382,7 @@ export class Journal {
       }
       return results;
     };
-    const next = this.rolling.catch(() => undefined).then(run);
+    const next = bestEffort(this.rolling, "the previous rollback's failure is its own caller's: the chain only orders them").then(run);
     this.rolling = next;
     return next;
   }
@@ -512,12 +542,7 @@ export async function findPendingJournals(projectDir: string, opts: JournalLocat
  * journal locations. Journals that cannot be read are left as they are (their error surfaces when they are replayed).
  * Returns the journals changed and how many entries each.
  */
-export async function supersedePendingJournals(
-  projectDir: string,
-  env: string,
-  by: string,
-  opts: JournalLocations = {},
-): Promise<Array<{ file: string; count: number }>> {
+export async function supersedePendingJournals(projectDir: string, env: string, by: string, opts: JournalLocations = {}): Promise<Array<{ file: string; count: number }>> {
   const out: Array<{ file: string; count: number }> = [];
   const at = nowIso();
   for (const file of await findPendingJournals(projectDir, opts)) {

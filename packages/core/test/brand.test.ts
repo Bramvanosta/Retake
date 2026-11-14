@@ -36,7 +36,8 @@ describe('brand file references (trust mcp)', () => {
   });
 
   it('plain workspace paths and well-formed site references pass the syntax rules (the disk rules come after)', () => {
-    for (const ref of ['brand/logo.svg', 'brand/fonts/Brand-Bold.woff2', 'projects/demo/assets/logo.png', 'site:s_01HZY3J8Q4M2V6P0R9T7W5X1ZB/logo-2']) expect(brandRefSyntaxProblem(ref), ref).toBeNull();
+    for (const ref of ['brand/logo.svg', 'brand/fonts/Brand-Bold.woff2', 'projects/demo/assets/logo.png', 'site:s_01HZY3J8Q4M2V6P0R9T7W5X1ZB/logo-2'])
+      expect(brandRefSyntaxProblem(ref), ref).toBeNull();
     expect(siteRef('site:abc/logo-1')).toEqual({ site_id: 'abc', candidate: 'logo-1' });
     expect(siteRef('brand/site:x')).toBeNull();
   });

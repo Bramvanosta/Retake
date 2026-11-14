@@ -11,13 +11,27 @@ export type { PauseGate, PausePoint, PauseTake } from './pause.js';
 export { INSPECT_BUDGET_MS, INSPECT_LIMIT, INSPECT_LIMIT_MAX, INSPECT_PACING, INSPECT_TARGETS_MAX, inspectElement, inspectPage } from './inspect.js';
 export { INSPECT_PAUSE_CAP_S } from './inspect-limits.js';
 export type { InspectContext, InspectElement, InspectReport, InspectRequest, InspectStepHint, InspectTargetCheck } from './inspect.js';
-export { SERVICE_WORKER_BLOCK, UNROUTED_APIS_BLOCK, SITE_CALL_TIMEOUT_MS, SITE_CANDIDATES_MAX, SITE_DEADLINE_MS, SITE_REPORT_FILE, SITE_REPORT_VERSION, SITE_SCREENSHOT_FILE, extractSite, imageMime, requestUrlProblem, sameSiteHost, siteBrowserArgs } from './site/extract.js';
+export {
+  SERVICE_WORKER_BLOCK,
+  UNROUTED_APIS_BLOCK,
+  SITE_CALL_TIMEOUT_MS,
+  SITE_CANDIDATES_MAX,
+  SITE_DEADLINE_MS,
+  SITE_REPORT_FILE,
+  SITE_REPORT_VERSION,
+  SITE_SCREENSHOT_FILE,
+  extractSite,
+  imageMime,
+  requestUrlProblem,
+  sameSiteHost,
+  siteBrowserArgs,
+} from './site/extract.js';
 export type { BlockedReason, SiteCandidateView, SiteExtractOptions, SiteReport } from './site/extract.js';
 export { ProxyRefusalError, SITE_PROXY_CAPS, SiteProxy } from './site/proxy.js';
 export type { ProxyRefusal, ResolvedAddress, SiteProxyCaps, SiteProxyOptions, SiteProxyStats } from './site/proxy.js';
 export { chroma, contrast, luminance, mergeSamples, sitePalette } from './site/palette.js';
 export type { SitePalette, SiteRoles, Swatch } from './site/palette.js';
-export type { ConfirmHook, HookApprovalRequestLike } from './hooks-bridge.js';
+export type { ConfirmHook } from './hooks-bridge.js';
 export { openSession, BrowserSession, KitClient, DEFAULT_BROWSER_ARGS, frameRateArgs, scaleArgs } from './session.js';
 export { gpuInfoOf } from './session.js';
 export type { GpuInfo, RealmSpec, SessionOptions, StorageStateFile, SystemInfoReply } from './session.js';
@@ -37,12 +51,12 @@ export type { FrameIndexEntry, RecorderOptions } from './recorder.js';
 export { KICK_GAP_MS, KICK_WINDOW_MS, ScreencastRecorder } from './recorder.js';
 export { kitSource, kitConfigFor, DEFAULT_CURSOR_SIZE, DEFAULT_RIPPLE_COLOR, CURSOR_STORAGE_KEY } from './kit/source.js';
 export type * from './kit/types.js';
-export { checkSavedSession, openLoginBrowser, seedProfilePreferences, signIn } from './login.js';
+export { checkSavedSession, seedProfilePreferences, signIn } from './login.js';
 export { RECORD_ALT_BUDGET_MS, RECORD_BUDGET_MS, RECORD_MAX_MS, disableAutofill, looksLikeSecretSegment, maskPathSecrets, recordSession } from './record-session.js';
 export type { RecordSessionOptions, RecordSessionResult } from './record-session.js';
 export { SECRET_MASK, SECRET_MIN, demoRecorder, looksLikeToken, recorderSource, secretHash } from './kit/record-script.js';
 export type { RecorderConfig, SecretHash } from './kit/record-script.js';
-export type { LoginOptions, SignInOptions, SignInResult } from './login.js';
+export type { SignInOptions, SignInResult } from './login.js';
 export { mergePacing, mergeCapture, mergeBrowser, projectBrowser, resolveAuth } from './config.js';
 export { CaptureClock, STALL_MIN_S, TimelineBuilder, computeIdle, motionCapture } from './timeline.js';
 export type { CaptureStall, MotionCapture } from './timeline.js';
@@ -54,7 +68,7 @@ export type { PersonaAuthSource, PersonaRequestAuth } from './persona-auth.js';
 export type { HookPageOptions } from './hook-page.js';
 export { armWriteGuard, closePage, unloadGuardScript, unloadPages } from './write-guard.js';
 export type { GuardedWrite, PageRole, WriteGuardOptions, WriteVia } from './write-guard.js';
-export { REAL_TIME_SCRIPT, isRealTimePage, productClock, productClockScript, useRealTime } from './product-clock.js';
+export { REAL_TIME_SCRIPT, isRealTimePage, productClock, productClockScript, keepRealTime } from './product-clock.js';
 export type { ProductClockConfig } from './product-clock.js';
 export { RunnerError, StepError, CancelledError, EncodeError, PreflightError, LoginPageError } from './errors.js';
 export {
@@ -95,6 +109,8 @@ export { ARTEFACT_TIMEOUT_S, captureValue, textPattern } from './actions/artefac
 export { NOTIFICATION_BINDING, launchTarget } from './session.js';
 export type { NotificationPayload } from './session.js';
 export * from './raw/index.js';
+// Named too (L7.22): the raw export's vocabulary that the types entry names (types-entry.test reads named exports).
+export type { ExportCaptureOptions, RawExportProgress, RawExportResult, RawManifest, RawManifestClip } from './raw/export.js';
 export { CURSOR_BINDING } from './session.js';
 export { pushCursorEffect } from './timeline.js';
 export { materialize, runFfmpeg } from './encode.js';

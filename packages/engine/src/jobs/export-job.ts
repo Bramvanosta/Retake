@@ -9,21 +9,29 @@
  * must lie in the project folder. No output location: the folder is fixed. A cancel stops between formats and kills
  * ffmpeg or the re-render; a killed worker's leftovers (the re-render's browser, partial files) are removed by the next.
  */
-import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, JOB_INPUT_VERSION, projectPath } from '@retake/core';
-import type { ExportFormatName, ExportJobInput } from '@retake/core';
+import { projectPath } from '@retake/core/project';
+import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES } from '@retake/core/render';
+import { JOB_INPUT_VERSION } from './job-input.js';
+import type { ExportFormatName } from '@retake/core/render';
+import type { ExportJobInput } from './job-input.js';
 import type { BrowserProcessInfo, ExportProgress } from '@retake/editor';
+import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
+import { latestRenderMembers } from '../render-records.js';
+import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { renderForWork } from '../renders.js';
 import { editor } from '../lazy.js';
 import { exportWork, planWork } from '../pipeline.js';
+import type { Renderer } from '../render/renderer.js';
 import { killRecordedBrowser, removePartials } from './render-job.js';
 import type { JobFiles } from './queue.js';
 import type { SubmitContext } from './run-job.js';
 import type { ExportJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 /** Formats exported when none are named (derived from the master: no re-render): core's one list. */
 export const DEFAULT_JOB_EXPORT_FORMATS: readonly ExportFormatName[] = DEFAULT_EXPORT_FORMAT_NAMES;
@@ -59,7 +67,7 @@ export async function submitExportJob(
   ctx: SubmitContext,
   req: ExportRequest,
   o: { admit?: (renderId: string) => Promise<void> } = {},
-): Promise<{ job: JobRecord; render_id: string; formats: ExportFormatName[]; rerendered: ExportFormatName[] }> {
+): Promise<{ job: JobRecord; render_id: string; formats: ExportFormatName[]; rerendered: ExportFormatName[] } & LatestRenderNotice & { untrusted?: { renders_passed_over: PassedOverRenders } }> {
   checkProjectSlug(req.project);
   if (req.scenario !== undefined) checkScenarioName(req.scenario);
   const formats = checkFormats(req.formats);
@@ -69,15 +77,35 @@ export async function submitExportJob(
   }
   const project = await openProjectBySlug(ctx.ws, req.project);
   const fix = (id: string) => exportCommandLine(ctx.cli, { project: req.project, render_id: id, formats });
-  const record = await renderForWork(project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix });
+  // With `latest`: what it passed over on the way (a count, and the names for `untrusted`).
+  let latest: Parameters<typeof latestRenderMembers>[0];
+  const record = await renderForWork(project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix, latest: (pick) => (latest = pick) });
   // The admission rules see the render this export is of once `latest` is resolved (admission.ts export_cap).
   await o.admit?.(record.id);
   const ed = await editor();
-  const rerendered = formats.filter((f) => ed.exportMethod(record, f) === 'render');
+  // (A variant this version does not write has no size: the editor's sentence in fixed words, as the engine's error.)
+  let rerendered: ExportFormatName[];
+  try {
+    rerendered = formats.filter((f) => ed.exportMethod(record, f, { trust: ENGINE_TRUST }) === 'render');
+  } catch (e) {
+    throw toEngineError(e);
+  }
   if (rerendered.length) {
-    // A re-render plans the master's run with its theme and overrides: through the same gates as a render job.
+    // A re-render plans the master's run with its theme (its folder, as the project can name it: exportThemeRef) and
+    // overrides: through the same gates as a render job.
     try {
-      await planWork({ workPolicy: ctx.ws.policy, project, run: record.run_dir, scenario: record.scenario, template: record.template, overrides: record.overrides, root: ctx.ws.root, trust: ENGINE_TRUST, measureMusic: false, ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }) });
+      await planWork({
+        workPolicy: ctx.ws.policy,
+        project,
+        run: record.run_dir,
+        scenario: record.scenario,
+        template: await ed.exportThemeRef(project, record, { trust: ENGINE_TRUST }),
+        overrides: record.overrides,
+        root: ctx.ws.root,
+        trust: ENGINE_TRUST,
+        measureMusic: false,
+        ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }),
+      });
     } catch (e) {
       if (e instanceof ed.PlanTrustError) throw new EngineError('refused', e.message, { fix: fix(record.id), details: { problems: e.problems } });
       throw toEngineError(e);
@@ -89,10 +117,12 @@ export async function submitExportJob(
     project: project.slug,
     render_id: record.id,
     formats,
-    ...(gif && (gif.start_s !== undefined || gif.duration_s !== undefined) ? { gif: { ...(gif.start_s !== undefined ? { start_s: gif.start_s } : {}), ...(gif.duration_s !== undefined ? { duration_s: gif.duration_s } : {}) } } : {}),
+    ...(gif && (gif.start_s !== undefined || gif.duration_s !== undefined)
+      ? { gif: { ...(gif.start_s !== undefined ? { start_s: gif.start_s } : {}), ...(gif.duration_s !== undefined ? { duration_s: gif.duration_s } : {}) } }
+      : {}),
     submitted_by: ctx.client,
   };
-  return { job: await ctx.queue.enqueue(input), render_id: record.id, formats, rerendered };
+  return { job: await ctx.queue.enqueue(input), render_id: record.id, formats, rerendered, ...latestRenderMembers(latest) };
 }
 
 /**
@@ -113,7 +143,8 @@ export async function cleanupInterruptedExport(ws: OpenedWorkspace, files: JobFi
   }
 }
 
-export interface ExportJobContext {
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
+export interface ExportJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: ExportJobInput;
@@ -122,6 +153,8 @@ export interface ExportJobContext {
   progress(p: JobProgress): void;
   /** A re-render's browser runs: the worker records it (job folder, browser.json). */
   browser(b: BrowserProcessInfo): void;
+  /** What the export re-renders formats with (the runner's: render/renderer.ts). */
+  renderer: Renderer;
 }
 
 /** Execute an `export` job: the pipeline's export (pipeline.ts) with trust `mcp` and the network guard (re-rendered formats). */
@@ -134,6 +167,7 @@ export async function executeExportJob(ctx: ExportJobContext): Promise<ExportJob
   let last = '';
   // The pipeline's export that the CLI's `retake export` runs too, with the trust of work submitted through MCP.
   const result = await exportWork({
+    renderer: ctx.renderer,
     workPolicy: ctx.ws.policy,
     project,
     root: ctx.ws.root,
@@ -151,7 +185,7 @@ export async function executeExportJob(ctx: ExportJobContext): Promise<ExportJob
       const key = `${p.format}:${p.stage}:${fraction}`;
       if (key === last) return;
       last = key;
-      ctx.progress({ steps_done: done, steps_total: total, phase: p.format, fraction, updated_at: new Date().toISOString() });
+      ctx.progress({ steps_done: done, steps_total: total, phase: p.format, fraction, updated_at: stampOf(ctx.clock) });
     },
   });
   // The manifest also keeps formats exported earlier: this export's files are the formats asked that did not fail.

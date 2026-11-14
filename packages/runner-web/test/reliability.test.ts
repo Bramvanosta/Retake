@@ -17,7 +17,8 @@ import { chromium } from 'playwright-core';
 import type { EmailArtefact, LoadedProject, RunProgress, RunRecord, Scenario, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
@@ -222,7 +223,8 @@ async function run(
 ): Promise<{ rec: RunRecord; events: TimelineEvent[]; progress: RunProgress[]; warnings: string[]; ms: number }> {
   const progress: RunProgress[] = [];
   const t0 = Date.now();
-  const rec = await runScenario({ policy: PERSON_POLICY,
+  const rec = await runScenario({
+    policy: PERSON_POLICY,
     project: opts.project ?? project(),
     scenario: makeScenario(name, { pacing: FAST, ...scenario }),
     mode: 'dry',
@@ -236,17 +238,13 @@ async function run(
 }
 
 describe('type into the right field (R-FLD-11)', () => {
-  it('a field below the fold of a scrolling modal dialog, with a field of the same label behind it: types into the dialog\'s, scrolled into view', async () => {
+  it("a field below the fold of a scrolling modal dialog, with a field of the same label behind it: types into the dialog's, scrolled into view", async () => {
     const { rec, events } = await run('dialog-type', {
       scenes: [
         {
           id: 'pf',
           open: '/dialog.html',
-          steps: [
-            { click: 'New pro forma' },
-            { type: { into: { label: 'Quantity (kg)' }, text: '300' } },
-            { assert: { text: 'qty=300 date= bg=' } },
-          ],
+          steps: [{ click: 'New pro forma' }, { type: { into: { label: 'Quantity (kg)' }, text: '300' } }, { assert: { text: 'qty=300 date= bg=' } }],
         },
       ],
     });
@@ -289,10 +287,7 @@ describe('type into the right field (R-FLD-11)', () => {
         {
           id: 'f',
           open: '/fields.html',
-          steps: [
-            { type: { into: { label: 'Bags' }, text: '300' } },
-            { type: { into: { label: 'Amount' }, text: '1500' } },
-          ],
+          steps: [{ type: { into: { label: 'Bags' }, text: '300' } }, { type: { into: { label: 'Amount' }, text: '1500' } }],
         },
       ],
     });
@@ -322,10 +317,7 @@ describe('every missing target of a scene in one take (R-FLD-10)', () => {
     expect(rec.status).toBe('failed');
     expect(rec.error?.step).toBe(1);
     const missing = rec.error!.missing_targets!;
-    expect(missing.map((m) => `${m.step} ${m.action} ${m.target}`)).toEqual([
-      '2 type label="Customer name"',
-      '4 click role=button name="Send reminder" exact',
-    ]);
+    expect(missing.map((m) => `${m.step} ${m.action} ${m.target}`)).toEqual(['2 type label="Customer name"', '4 click role=button name="Send reminder" exact']);
     expect(missing[0].near[0]).toMatchObject({ role: 'textbox', name: 'Customer' });
     expect(missing[1].near[0]).toMatchObject({ role: 'button', name: 'Send a reminder' });
     expect(rec.error!.message).toMatch(/2 later targets of scene quotes not on this page either/);
@@ -340,15 +332,7 @@ describe('dead clicks (R-FLD-12)', () => {
         {
           id: 'c',
           open: '/clicks.html',
-          steps: [
-            { click: '#dead' },
-            { wait: 1.8 },
-            { click: '#live' },
-            { click: '#dom' },
-            { click: 'Gift wrap' },
-            { click: { label: 'Notes' } },
-            { click: '#dead' },
-          ],
+          steps: [{ click: '#dead' }, { wait: 1.8 }, { click: '#live' }, { click: '#dom' }, { click: 'Gift wrap' }, { click: { label: 'Notes' } }, { click: '#dead' }],
         },
       ],
     });
@@ -413,7 +397,7 @@ describe('download retries (R-FLD-13)', () => {
 });
 
 describe('defaults.timeout_s (R-FLD-14)', () => {
-  it('the project\'s default timeout applies to every step without one; the scenario\'s wins', async () => {
+  it("the project's default timeout applies to every step without one; the scenario's wins", async () => {
     const short = project();
     short.config.defaults = { timeout_s: 0.6 };
     const a = await run(
@@ -447,42 +431,48 @@ describe('defaults.timeout_s (R-FLD-14)', () => {
 });
 
 describe('persona mail addresses and mailbox diagnostics (R-FLD-15)', () => {
-  it.skipIf(!MAC_TIMING)('to: persona:<name> matches its address; no match lists what came; several matches warn; the artefact keeps the persona', async () => {
-    messages.length = 0;
-    const p = project();
-    p.config.auth = { personas: { buyer: { email: 'orders@cafe.example' }, supplier: { email: 'maja@northfield.example' } } };
-    const { rec, warnings } = await run(
-      'mail',
-      {
-        scenes: [
-          {
-            id: 'm',
-            open: '/files.html',
-            steps: [
-              { click: 'Send to customer' },
-              { wait_for_email: { to: 'persona:buyer', subject: 'Pro forma', timeout: 1.5, as: 'buyer' }, optional: true },
-              { wait_for_email: { subject: 'Pro forma', as: 'any' } },
-              { wait_for_email: { to: 'persona:supplier', as: 'copy' } },
-            ],
-          },
-        ],
-      },
-      { project: p },
-    );
-    expect(rec.status, rec.error?.message).toBe('succeeded');
-    const err = rec.optional_failures![0].error;
-    expect(err).toMatch(/no new message \(to persona:buyer, subject Pro forma = orders@cafe\.example\) within 1\.5 s/);
-    expect(err).toMatch(/received during the wait: "Pro forma PF-2043" from maja@northfield\.example to accounts@cafe\.example; "Pro forma PF-2043" from maja@northfield\.example to maja@northfield\.example/);
-    expect(warnings.filter((w) => w.includes('new messages match'))).toEqual([
-      expect.stringMatching(/^m\.2: wait_for_email: 2 new messages match \(subject Pro forma\): "Pro forma PF-2043" from maja@northfield\.example to accounts@cafe\.example; .* took the first one/),
-    ]);
-    const tl = await readTimeline(rec.timeline!);
-    const mails = (tl.artefacts ?? []).filter((a): a is EmailArtefact => a.kind === 'email');
-    expect(mails.map((a) => [a.name, a.to[0], a.persona ?? null])).toEqual([
-      ['any', 'accounts@cafe.example', null],
-      ['copy', 'maja@northfield.example', 'supplier'],
-    ]);
-  }, 60_000);
+  it.skipIf(!MAC_TIMING)(
+    'to: persona:<name> matches its address; no match lists what came; several matches warn; the artefact keeps the persona',
+    async () => {
+      messages.length = 0;
+      const p = project();
+      p.config.auth = { personas: { buyer: { email: 'orders@cafe.example' }, supplier: { email: 'maja@northfield.example' } } };
+      const { rec, warnings } = await run(
+        'mail',
+        {
+          scenes: [
+            {
+              id: 'm',
+              open: '/files.html',
+              steps: [
+                { click: 'Send to customer' },
+                { wait_for_email: { to: 'persona:buyer', subject: 'Pro forma', timeout: 1.5, as: 'buyer' }, optional: true },
+                { wait_for_email: { subject: 'Pro forma', as: 'any' } },
+                { wait_for_email: { to: 'persona:supplier', as: 'copy' } },
+              ],
+            },
+          ],
+        },
+        { project: p },
+      );
+      expect(rec.status, rec.error?.message).toBe('succeeded');
+      const err = rec.optional_failures![0].error;
+      expect(err).toMatch(/no new message \(to persona:buyer, subject Pro forma = orders@cafe\.example\) within 1\.5 s/);
+      expect(err).toMatch(
+        /received during the wait: "Pro forma PF-2043" from maja@northfield\.example to accounts@cafe\.example; "Pro forma PF-2043" from maja@northfield\.example to maja@northfield\.example/,
+      );
+      expect(warnings.filter((w) => w.includes('new messages match'))).toEqual([
+        expect.stringMatching(/^m\.2: wait_for_email: 2 new messages match \(subject Pro forma\): "Pro forma PF-2043" from maja@northfield\.example to accounts@cafe\.example; .* took the first one/),
+      ]);
+      const tl = await readTimeline(rec.timeline!);
+      const mails = (tl.artefacts ?? []).filter((a): a is EmailArtefact => a.kind === 'email');
+      expect(mails.map((a) => [a.name, a.to[0], a.persona ?? null])).toEqual([
+        ['any', 'accounts@cafe.example', null],
+        ['copy', 'maja@northfield.example', 'supplier'],
+      ]);
+    },
+    60_000,
+  );
 
   it('a persona without an email fails the step and says where to add it', async () => {
     const p = project();

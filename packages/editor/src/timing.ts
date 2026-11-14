@@ -10,8 +10,8 @@
  * output positions `q` are output frames (float). Speeds `v` are playback speeds (×); `u`/`w` are the slopes
  * dp/dq = v · srcFps / outFps at the start / end of a map piece (linear in q on a ramp, constant otherwise).
  */
-import { LOADING_CUT_MIN_S } from '@retake/core';
-import type { TimelineEvent } from '@retake/core';
+import { LOADING_CUT_MIN_S } from '@retake/core/model';
+import type { TimelineEvent } from '@retake/core/model';
 import type { Interval } from './util.js';
 import { intersect, mergeIntervals, stepEnd, subtractIntervals } from './util.js';
 
@@ -349,7 +349,10 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
   for (let n = 0; n < pieces.length; n++) {
     const x = pieces[n];
     if (x.cut || x.protected || x.b - x.a >= 1) continue;
-    const before = pieces.slice(0, n).reverse().find((y) => !y.cut);
+    const before = pieces
+      .slice(0, n)
+      .reverse()
+      .find((y) => !y.cut);
     const after = pieces.slice(n + 1).find((y) => !y.cut);
     const ref = before ?? after;
     if (ref) x.v = ref.v;

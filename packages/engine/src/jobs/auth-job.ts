@@ -8,9 +8,13 @@
  * L4.4: a headed window run by the worker closes after AUTH_HEADED_MAX_ENV minutes (default 30) — the single worker is
  * held while it is open, and a click in the Studio opens it — and `cancelSignIn` stops one (an `auth_login` job only).
  */
+import { noDisplay } from '../env.js';
+import type { EngineEnv } from '../env.js';
 import { readdir } from 'node:fs/promises';
-import { JOB_INPUT_VERSION, SLUG_RE, resolveEnvironment } from '@retake/core';
-import type { AuthLoginJobInput } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { resolveEnvironment } from '@retake/core/environment';
+import { JOB_INPUT_VERSION } from './job-input.js';
+import type { AuthLoginJobInput } from './job-input.js';
 import { EngineError, toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
 import type { JobQueueView } from './job-queue.js';
@@ -21,6 +25,7 @@ import { checkEnvName } from './hooks-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { AuthLoginJobResult, JobEventBody, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 /** The environment variable that changes how long a headed sign-in window of a job may stay open (minutes). */
 export const AUTH_HEADED_MAX_ENV = 'RETAKE_SIGNIN_MAX_MIN';
@@ -28,7 +33,7 @@ export const AUTH_HEADED_MAX_ENV = 'RETAKE_SIGNIN_MAX_MIN';
 export const AUTH_HEADED_MAX_MS = 30 * 60_000;
 
 /** The longest headed sign-in of a job (ms): RETAKE_SIGNIN_MAX_MIN (minutes, more than 0 to 1440), else 30 min. */
-export function headedSignInMaxMs(env: NodeJS.ProcessEnv = process.env): number {
+export function headedSignInMaxMs(env: EngineEnv): number {
   const raw = env[AUTH_HEADED_MAX_ENV];
   if (raw === undefined || raw.trim() === '') return AUTH_HEADED_MAX_MS;
   const n = Number(raw);
@@ -71,9 +76,7 @@ export function signInStoppedText(r: { timed_out?: boolean; profile_kept?: boole
 }
 
 const stoppedLeft = (profileKept: boolean) =>
-  profileKept
-    ? "; the saved session and its status were not updated, but what the window changed stays in the persona's browser profile (the next run starts from it)"
-    : ', nothing was saved';
+  profileKept ? "; the saved session and its status were not updated, but what the window changed stays in the persona's browser profile (the next run starts from it)" : ', nothing was saved';
 
 /** Stop a sign-in (its window closes; signInStoppedText says what stays): an `auth_login` job only — never a run or any other job. */
 export async function cancelSignIn(queue: JobQueueView, jobId: string, by: string): Promise<JobRecord> {
@@ -98,11 +101,20 @@ function q(s: string): string {
 
 /** The `retake login` command a human runs for the same sign-in. */
 export function loginCommandLine(cli: string, r: AuthLoginSubmitRequest): string {
-  return [cli, 'login', r.project, ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(r.persona !== undefined ? ['--persona', q(r.persona)] : []), ...(r.mode === 'auto' ? ['--auto'] : [])].join(' ');
+  return [cli, 'login', r.project, ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(r.persona !== undefined ? ['--persona', q(r.persona)] : []), ...(r.mode === 'auto' ? ['--auto'] : [])].join(
+    ' ',
+  );
 }
 
 function loginError(e: unknown): EngineError {
-  if (e instanceof LoginOptionError) return new EngineError('invalid', e.message.replace(/--persona /g, 'persona ').replace(/--env /g, 'env ').replace(/--auto/g, 'mode "auto"'));
+  if (e instanceof LoginOptionError)
+    return new EngineError(
+      'invalid',
+      e.message
+        .replace(/--persona /g, 'persona ')
+        .replace(/--env /g, 'env ')
+        .replace(/--auto/g, 'mode "auto"'),
+    );
   return toEngineError(e);
 }
 
@@ -121,7 +133,7 @@ export async function submitAuthLoginJob(ctx: SubmitContext, req: AuthLoginSubmi
   } catch (e) {
     throw loginError(e);
   }
-  if (mode === 'headed' && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+  if (mode === 'headed' && noDisplay(ctx.env)) {
     throw new EngineError('unavailable', 'a headed sign-in opens a browser window and this machine has no display (DISPLAY / WAYLAND_DISPLAY are not set)', {
       fix: loginCommandLine(ctx.cli, { ...req, mode: 'auto' }),
     });
@@ -138,7 +150,8 @@ export async function submitAuthLoginJob(ctx: SubmitContext, req: AuthLoginSubmi
   return { job: await ctx.queue.enqueue(input), persona: target.persona.name, env: target.env.name };
 }
 
-export interface AuthLoginJobContext {
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
+export interface AuthLoginJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: AuthLoginJobInput;
@@ -162,35 +175,50 @@ export async function executeAuthLoginJob(ctx: AuthLoginJobContext): Promise<Aut
   const base = { kind: 'auth_login' as const, env: env.name, persona: target.persona.name, mode: input.mode, command };
   // A profile persona that already has a browser profile signs in on it: a stop leaves what the window changed there.
   const dir = target.persona.session === 'profile' ? target.persona.profileDir : undefined;
-  const profileKept = dir !== undefined && (await readdir(dir).then((l) => l.length > 0, () => false));
+  const profileKept =
+    dir !== undefined &&
+    (await readdir(dir).then(
+      (l) => l.length > 0,
+      () => false,
+    ));
   // A headed window holds the single worker while it is open: it closes at its time limit.
   let timedOut = false;
   let maxMs = AUTH_HEADED_MAX_MS;
   if (input.mode === 'headed') {
     try {
-      maxMs = headedSignInMaxMs();
+      maxMs = headedSignInMaxMs(ctx.env);
     } catch (e) {
       ctx.event({ type: 'log', level: 'warn', message: `${(e as Error).message}: the default (30 min) applies` });
     }
   }
   const interrupts = input.mode === 'headed' ? withTimeLimit(ctx.interrupts, maxMs, () => (timedOut = true)) : ctx.interrupts;
-  const outcome = await signInPersona(project, env, target.persona, { mode: input.mode, policy: ctx.ws.policy }, {
-    interrupts,
-    log: (level, message) => {
-      if (level !== 'debug') ctx.event({ type: 'log', level, message });
+  const outcome = await signInPersona(
+    project,
+    env,
+    target.persona,
+    { mode: input.mode, policy: ctx.ws.policy },
+    {
+      interrupts,
+      sessions: ctx.capture.sessions,
+      env: ctx.env,
+      secrets: ctx.secrets,
+      log: (level, message) => {
+        if (level !== 'debug') ctx.event({ type: 'log', level, message });
+      },
+      onOpen: () =>
+        ctx.event({
+          type: 'log',
+          level: 'info',
+          message:
+            input.mode === 'auto'
+              ? `${target.persona.name}: checking its saved session, else signing in with its login steps, headless`
+              : `${target.persona.name}: a browser window is open on this machine — the user signs in, then closes the window (it closes by itself after ${formatLimit(maxMs)})`,
+        }),
     },
-    onOpen: (url) =>
-      ctx.event({
-        type: 'log',
-        level: 'info',
-        message:
-          input.mode === 'auto'
-            ? `${target.persona.name}: checking its saved session, else signing in with its login steps, headless`
-            : `${target.persona.name}: a browser window is open on this machine — the user signs in, then closes the window (it closes by itself after ${formatLimit(maxMs)})`,
-      }),
-  });
+  );
   if (outcome.interrupted) {
-    if (timedOut) ctx.event({ type: 'log', level: 'warn', message: `${target.persona.name}: the sign-in window stayed open longer than ${formatLimit(maxMs)}: it was closed${stoppedLeft(profileKept)}` });
+    if (timedOut)
+      ctx.event({ type: 'log', level: 'warn', message: `${target.persona.name}: the sign-in window stayed open longer than ${formatLimit(maxMs)}: it was closed${stoppedLeft(profileKept)}` });
     return { ...base, status: 'never', signed_in: false, cookies: 0, interrupted: true, ...(timedOut ? { timed_out: true as const } : {}), ...(profileKept ? { profile_kept: true as const } : {}) };
   }
   const res = outcome.result;

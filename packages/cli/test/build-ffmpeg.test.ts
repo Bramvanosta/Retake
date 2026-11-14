@@ -121,11 +121,22 @@ describe('the configure lines', () => {
     for (const f of REQUIRED_FLAGS) expect(ff, f).toContain(f);
     for (const f of FORBIDDEN_FLAGS) expect(ff, f).not.toContain(f);
     expect(ff.filter((a: string) => /nonfree|fdk/.test(a))).toEqual(['--disable-nonfree']);
-    for (const f of ['--enable-static', '--disable-shared', '--arch=arm64', '--target-os=darwin', '--disable-ffplay', '--disable-doc', '--enable-zlib', '--extra-cflags=-mmacosx-version-min=15.0', '--extra-ldflags=-mmacosx-version-min=15.0']) expect(ff, f).toContain(f);
+    for (const f of [
+      '--enable-static',
+      '--disable-shared',
+      '--arch=arm64',
+      '--target-os=darwin',
+      '--disable-ffplay',
+      '--disable-doc',
+      '--enable-zlib',
+      '--extra-cflags=-mmacosx-version-min=15.0',
+      '--extra-ldflags=-mmacosx-version-min=15.0',
+    ])
+      expect(ff, f).toContain(f);
     expect(checkConfiguration(ff.join(' '))).toEqual([]);
   });
 
-  it('no folder of the build machine is compiled in: no path in ffmpeg\'s line, no prefix in libvpx\'s (it embeds its own line)', () => {
+  it("no folder of the build machine is compiled in: no path in ffmpeg's line, no prefix in libvpx's (it embeds its own line)", () => {
     expect(ff.filter((a: string) => a.includes('/'))).toEqual([]);
     const lv = libvpxConfigureArgs({ deps: '/scratch/deps', minMacos: '15.0' });
     expect(lv.join(' ')).not.toContain('/scratch');
@@ -146,7 +157,10 @@ describe('the configure lines', () => {
   it('linkage: only /usr/lib and /System; a Homebrew or build-folder library is reported', () => {
     const ok = 'ffmpeg:\n\t/usr/lib/libz.1.dylib (compatibility version 1.0.0)\n\t/System/Library/Frameworks/VideoToolbox.framework/Versions/A/VideoToolbox (compatibility version 1.0.0)\n';
     expect(checkLinkage(ok)).toEqual([]);
-    expect(checkLinkage(`${ok}\t/opt/homebrew/opt/x264/lib/libx264.165.dylib (compatibility version 0.0.0)\n\t@rpath/libvpx.dylib (x)\n`)).toEqual(['links /opt/homebrew/opt/x264/lib/libx264.165.dylib', 'links @rpath/libvpx.dylib']);
+    expect(checkLinkage(`${ok}\t/opt/homebrew/opt/x264/lib/libx264.165.dylib (compatibility version 0.0.0)\n\t@rpath/libvpx.dylib (x)\n`)).toEqual([
+      'links /opt/homebrew/opt/x264/lib/libx264.165.dylib',
+      'links @rpath/libvpx.dylib',
+    ]);
   });
 });
 
@@ -155,7 +169,10 @@ describe('the configure lines', () => {
 const EXTENSION_MUXERS: Record<string, string> = { m4a: 'ipod', mp4: 'mp4', m4v: 'mp4', mov: 'mov', webm: 'webm', mkv: 'matroska', gif: 'gif' };
 
 function engineArguments(): { codecs: Map<string, string>; formats: Map<string, string>; filters: Map<string, string>; muxers: Map<string, string> } {
-  const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '--', 'packages/*/src/*.ts', 'packages/*/src/**/*.ts'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
+  // The tests' shared helpers (packages/test-support) are test code: their ffmpeg arguments are no engine's.
+  const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '--', 'packages/*/src/*.ts', 'packages/*/src/**/*.ts'], { cwd: ROOT, encoding: 'utf8' })
+    .split('\n')
+    .filter((f) => f && !f.startsWith('packages/test-support/'));
   const codecs = new Map<string, string>();
   const formats = new Map<string, string>();
   const filters = new Map<string, string>();
@@ -186,7 +203,10 @@ describe('the build never writes into the checkout (review A L7)', () => {
     const link = join(tmp, 'looks-outside');
     symlinkSync(join(repo, 'scripts'), link);
     expect(foldersInsideRepo({ 'the source cache': join(tmp, 'cache'), '--out': join(tmp, 'out'), '--work': undefined }, repo)).toEqual([]);
-    expect(foldersInsideRepo({ '--out': join(link, 'ffmpeg-out'), '--work': join(repo, 'build'), 'the source cache': join(tmp, 'cache') }, repo)).toEqual([`--out (${join(link, 'ffmpeg-out')})`, `--work (${join(repo, 'build')})`]);
+    expect(foldersInsideRepo({ '--out': join(link, 'ffmpeg-out'), '--work': join(repo, 'build'), 'the source cache': join(tmp, 'cache') }, repo)).toEqual([
+      `--out (${join(link, 'ffmpeg-out')})`,
+      `--work (${join(repo, 'build')})`,
+    ]);
   });
 });
 
@@ -206,6 +226,30 @@ describe("the engine's needs", () => {
     const compositorOnly: Record<string, string[]> = { 'packages/editor/src/render/policy.ts': ['nullsrc'] };
     for (const file of Object.keys(compositorOnly)) expect(readFileSync(join(ROOT, file), 'utf8')).toMatch(/callFf/);
     expect([...filters].filter(([c, f]) => !ENGINE_NEEDS.filters.includes(c) && !compositorOnly[f]?.includes(c))).toEqual([]);
+  });
+
+  it("L7.3: what a render's frame encode asks of our ffmpeg — its colour filter, and what its probe makes and reads three frames with — is in ENGINE_NEEDS", () => {
+    const tools = readFileSync(join(ROOT, 'packages/editor/src/render/encode-tools.ts'), 'utf8');
+    const name = /export const OWN_FRAME_FILTER_NAME = '([a-z0-9_]+)';/.exec(tools)?.[1];
+    expect(name).toBe('colorspace');
+    expect(tools).toMatch(new RegExp(`export const OWN_FRAME_FILTER = '${name}=`));
+    expect(ENGINE_NEEDS.filters).toContain(name);
+    // The probe (probeFrameEncode): three `color` frames written as JPEG to the image pipe, then the frame encode on
+    // them, written nowhere.
+    expect(/`(color)=c=gray:s=/.exec(tools)?.[1]).toBe('color');
+    // The argument lists read on one line, however the formatter lays them out.
+    const flat = tools.replace(/\s+/g, ' ').replace(/, \]/g, ']');
+    expect(flat).toMatch(/'-c:v', 'mjpeg', .*'-f', 'image2pipe', '-'\]/);
+    expect(flat).toMatch(/'-f', 'image2pipe', .*'-vcodec', 'mjpeg', '-i', '-'/);
+    expect(flat).toMatch(/'-f', 'null', '-'/);
+    expect(ENGINE_NEEDS.filters).toContain('color');
+    expect(ENGINE_NEEDS.encoders).toEqual(expect.arrayContaining(['mjpeg', 'libx264', 'h264_videotoolbox', 'wrapped_avframe']));
+    expect(ENGINE_NEEDS.decoders).toContain('mjpeg');
+    expect(ENGINE_NEEDS.muxers).toEqual(expect.arrayContaining(['image2pipe', 'null']));
+    expect(ENGINE_NEEDS.demuxers).toEqual(expect.arrayContaining(['image2pipe', 'lavfi']));
+    // The library's own probe (`nullsrc`) stays the library's ffmpeg's: ours is never asked for that source.
+    expect(ENGINE_NEEDS.filters).not.toContain('nullsrc');
+    expect(readFileSync(join(ROOT, 'packages/editor/src/render/policy.ts'), 'utf8')).toMatch(/probeFrameEncode\(path, s, frameEncodeCodecArgs\(encoder, s\)\)/);
   });
 
   it('the muxers of the files it writes (by extension: .m4a needs ipod) and the decoders of the videos a person may bring (core VIDEO_CODECS)', () => {
@@ -239,12 +283,18 @@ describe.skipIf(!BUILT)('the built ffmpeg (RETAKE_TEST_FFMPEG_DIR)', () => {
       ['hq.mov', [...src, '-c:v', 'prores_ks', '-profile:v', '3', '-vendor', 'apl0', '-pix_fmt', 'yuv422p10le', '-an']],
       ['alpha.mov', ['-f', 'lavfi', '-i', 'testsrc2=s=320x180:r=30:d=1,format=rgba', '-vf', 'format=yuva444p10le', '-c:v', 'prores_aw', '-profile:v', '4', '-pix_fmt', 'yuva444p10le', '-an']],
       ['web.webm', [...src, '-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '4', '-pix_fmt', 'yuv420p', '-c:a', 'libopus', '-b:a', '128k']],
-      ['preview.gif', ['-f', 'lavfi', '-i', 'testsrc2=s=320x180:r=12:d=1', '-filter_complex', 'split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4', '-loop', '0']],
+      [
+        'preview.gif',
+        ['-f', 'lavfi', '-i', 'testsrc2=s=320x180:r=12:d=1', '-filter_complex', 'split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4', '-loop', '0'],
+      ],
     ] as const) {
       const r = run([...args, out(name)]);
       expect(r.status, `${name}: ${r.stderr}`).toBe(0);
     }
-    const probe = (f: string) => execFileSync(join(dir, 'ffprobe'), ['-v', 'error', '-show_entries', 'stream=codec_name,profile', '-of', 'csv=p=0', out(f)], { encoding: 'utf8' }).trim().split('\n');
+    const probe = (f: string) =>
+      execFileSync(join(dir, 'ffprobe'), ['-v', 'error', '-show_entries', 'stream=codec_name,profile', '-of', 'csv=p=0', out(f)], { encoding: 'utf8' })
+        .trim()
+        .split('\n');
     expect(probe('x264.mp4')).toEqual(['h264,High', 'aac,LC']);
     expect(probe('hq.mov')).toEqual(['prores,HQ']);
     expect(probe('alpha.mov')).toEqual(['prores,4444']);

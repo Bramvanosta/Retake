@@ -4,8 +4,9 @@ import type { LoadedProject, Scenario, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { LATE_DIALOG_PAGE, NAV2_PAGE, NAV_PAGE, STRATEGY_PAGE, localePage } from './pages.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 
 let server: TestServer;
@@ -81,13 +82,7 @@ describe('pacing from the field notes', () => {
         {
           id: 'nav',
           open: '/nav.html',
-          steps: [
-            { click: 'Plain' },
-            { click: 'Open view two' },
-            { assert: { text: 'View two', url: '?view=2' } },
-            { click: 'Go to page two' },
-            { assert: { text: 'Page two' } },
-          ],
+          steps: [{ click: 'Plain' }, { click: 'Open view two' }, { assert: { text: 'View two', url: '?view=2' } }, { click: 'Go to page two' }, { assert: { text: 'Page two' } }],
         },
       ],
     });
@@ -108,14 +103,7 @@ describe('pacing from the field notes', () => {
         {
           id: 'widgets',
           open: '/strategies.html',
-          steps: [
-            { click: { css: '#a' } },
-            { click: { outside: true } },
-            { click: { css: '#b' } },
-            { click: { outside: true } },
-            { click: { css: '#c' } },
-            { click: { outside: true } },
-          ],
+          steps: [{ click: { css: '#a' } }, { click: { outside: true } }, { click: { css: '#b' } }, { click: { outside: true } }, { click: { css: '#c' } }, { click: { outside: true } }],
         },
       ],
     });

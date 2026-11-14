@@ -17,9 +17,10 @@
  */
 import { copyFileSync, existsSync, statSync, truncateSync } from 'node:fs';
 import { isIP } from 'node:net';
-import { sandboxNames } from '@retake/core';
+import { sandboxNames } from '@retake/core/sandbox';
 import { seedHash } from '@retake/core/io';
-import type { LoadedProject, LoadedSandbox, RunSandbox, SandboxResetStrategy, WorkPolicy } from '@retake/core';
+import type { LoadedProject, LoadedSandbox, RunSandbox, SandboxResetStrategy } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import { SandboxError, interrupted } from './errors.js';
 import { TakeLock, lockAlive, readLock } from './lock.js';
 import type { LockRecord } from './lock.js';
@@ -27,7 +28,20 @@ import { sandboxPaths, shownPath } from './paths.js';
 import type { SandboxPaths } from './paths.js';
 import { ComposeProvider } from './compose.js';
 import { ProcessProvider, tailLines } from './process.js';
-import type { DownResult, Provider, ProviderContext, SandboxLog, SandboxProgress, SeedRecorder, SeedTrust, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
+import type {
+  DownResult,
+  Provider,
+  SecretRefResolver,
+  ProviderCapabilities,
+  ProviderContext,
+  SandboxLog,
+  SandboxProgress,
+  SeedRecorder,
+  SeedTrust,
+  ServiceLogFile,
+  ServiceStatus,
+  UpResult,
+} from './provider.js';
 import { checkMailbox, checkSeedDatabases, clearMailbox, runSeed, supersede } from './seed.js';
 import { killGroupSync } from './proc.js';
 import { PostgresSnapshot, describeDatabase, snapshotTarget } from './snapshot-postgres.js';
@@ -35,6 +49,7 @@ import type { SnapshotState } from './snapshot-postgres.js';
 import { readState, writeState } from './state.js';
 import { FirebaseAuthSnapshot } from './firebase-auth.js';
 import type { SandboxState } from './state.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Logs above this size are cut (kept as `<log>.1`) before a take: a sandbox may stay up for days. */
 export const LOG_CAP_BYTES = 20 * 1024 * 1024;
@@ -120,13 +135,13 @@ export function providerFor(sandbox: LoadedSandbox, policy: WorkPolicy): Provide
 }
 
 /** The sandbox of environment `env` (default: the first project.yaml declares), for work under `policy` (core WorkPolicy). */
-export function openSandbox(project: LoadedProject, env: string | undefined, policy: WorkPolicy): Sandbox {
+export function openSandbox(project: LoadedProject, env: string | undefined, policy: WorkPolicy, resolveSecret: SecretRefResolver): Sandbox {
   const names = sandboxNames(project);
   if (!names.length) throw new SandboxError(`project ${project.slug} has no sandbox: add \`sandboxes: {sandbox: sandbox/sandbox.yaml}\` to project.yaml`);
   const name = env ?? names[0];
   const loaded = project.sandboxes?.[name];
   if (!loaded) throw new SandboxError(`${name} is not a sandbox of project ${project.slug} (sandboxes: ${names.join(', ')})`);
-  return new Sandbox(project, loaded, policy);
+  return new Sandbox(project, loaded, policy, resolveSecret);
 }
 
 export class Sandbox {
@@ -143,6 +158,8 @@ export class Sandbox {
     readonly sandbox: LoadedSandbox,
     /** What the work runs under (core WorkPolicy). */
     readonly policy: WorkPolicy,
+    /** What its secret references are resolved with (its opener's: ProviderContext.resolveSecret). */
+    private readonly resolveSecret: SecretRefResolver,
   ) {
     this.env = sandbox.env;
     this.paths = sandboxPaths(project.dir, sandbox.env);
@@ -158,6 +175,11 @@ export class Sandbox {
     return this.sandbox.manifest.reset?.strategy ?? 'reseed';
   }
 
+  /** What its provider can do beyond what every provider does (ProviderCapabilities: exec, logs, followLogs, snapshots, build, volumes…). */
+  get capabilities(): Readonly<ProviderCapabilities> {
+    return this.provider.capabilities;
+  }
+
   /** A provider context on the state as it is on disk now. */
   private context(opts: SandboxCallOptions): ProviderContext {
     const log = opts.log ?? quiet;
@@ -171,6 +193,7 @@ export class Sandbox {
       state,
       save: () => writeState(this.paths.state, ctx.state),
       log,
+      resolveSecret: this.resolveSecret,
       signal: opts.signal,
       ...(opts.progress ? { progress: opts.progress } : {}),
       ...(opts.seedTrust ? { seedTrust: opts.seedTrust } : {}),
@@ -195,7 +218,7 @@ export class Sandbox {
       if (ctx.signal?.aborted) throw interrupted(`sandbox ${this.env} ${what}`);
       return out;
     } catch (e) {
-      const stopped = await this.provider.stopStarted({ ...ctx, signal: undefined }).catch(() => []);
+      const stopped = await bestEffort(this.provider.stopStarted({ ...ctx, signal: undefined }), 'the stop is best effort on a sandbox that failed to start: its own error is the one reported', []);
       if (stopped.length) ctx.log('warn', `stopped what this command had started: ${stopped.join(', ')}`);
       throw e;
     }
@@ -203,19 +226,24 @@ export class Sandbox {
 
   /** The seed hash (core seedHash) with the provider's inputs (docker-compose: the services' image ids). */
   private async hashOf(ctx: ProviderContext): Promise<string> {
-    return seedHash(this.sandbox, (await this.provider.hashInputs?.(ctx)) ?? []);
+    return seedHash(this.sandbox, this.provider.capabilities.hashInputs ? await this.provider.hashInputs(ctx) : []);
+  }
+
+  /** Where to connect to a port the sandbox's services publish (capability `address`), else undefined: the URL's own host. */
+  private addressOf(ctx: ProviderContext, port: number): Promise<string | undefined> {
+    return this.provider.capabilities.address ? this.provider.address(ctx, port) : Promise.resolve(undefined);
   }
 
   /** The Postgres snapshot of a snapshot reset: its database must be published by the sandbox's own services. */
   private async openSnapshot(ctx: ProviderContext): Promise<PostgresSnapshot> {
-    if (!this.provider.publishedBy) {
+    if (!this.provider.capabilities.snapshots) {
       throw new SandboxError(`sandbox ${this.env}: snapshot resets need provider docker-compose (the database must belong to the sandbox): use strategy reseed`);
     }
-    const target = await snapshotTarget(this.project, this.sandbox);
+    const target = await snapshotTarget(this.project, this.sandbox, this.resolveSecret);
     await this.provider.publishedBy(ctx, target.port);
     // A host name: on the address Docker publishes the port on, never `localhost` (another container may publish the
     // same port on ::1); an address is used as written.
-    const address = isIP(target.host) ? undefined : await this.provider.address?.(ctx, target.port);
+    const address = isIP(target.host) ? undefined : await this.addressOf(ctx, target.port);
     return PostgresSnapshot.open(address ? { ...target, host: address } : target, this.env);
   }
 
@@ -227,11 +255,13 @@ export class Sandbox {
   private async resetLocked(ctx: ProviderContext, by: string, opts: { reseed?: boolean } = {}): Promise<ResetResult> {
     const t0 = Date.now();
     const hash = await this.hashOf(ctx);
-    // Before anything changes: what the reset empties must be the sandbox's own.
+    // Before anything changes: what the reset empties must be the sandbox's own — the mailbox, and the databases its
+    // reset hooks rewrite (they run at every reset; the seed's are checked before the seed runs).
     await checkMailbox(ctx, this.provider);
+    await checkSeedDatabases(ctx, this.provider, 'reset hooks');
     const snap = this.strategy === 'snapshot' ? await this.openSnapshot(ctx) : null;
     // Hotfix v0.2.5: a Firebase Auth emulator keeps its accounts in memory — saved after the seed, put back below.
-    const fa = await FirebaseAuthSnapshot.open(this.sandbox, ctx.paths, (port) => this.provider.address?.(ctx, port) ?? Promise.resolve(undefined));
+    const fa = await FirebaseAuthSnapshot.open(this.sandbox, ctx.paths, (port) => this.addressOf(ctx, port));
     let seed = { steps: 0, ms: 0 };
     let snapshot: ResetResult['snapshot'];
     let superseded = 0;
@@ -239,7 +269,8 @@ export class Sandbox {
       const recorded = ctx.state.provider_state?.snapshot as SnapshotState | undefined;
       if (snap) {
         if (await snap.repair()) ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} accepted no connections (an interrupted reset): repaired`);
-        const valid = !opts.reseed && ctx.state.seed?.hash === hash && recorded?.hash === hash && recorded.database === snap.target.database && (fa === null || fa.valid(hash)) && (await snap.valid(hash));
+        const valid =
+          !opts.reseed && ctx.state.seed?.hash === hash && recorded?.hash === hash && recorded.database === snap.target.database && (fa === null || fa.valid(hash)) && (await snap.valid(hash));
         if (valid) {
           ctx.progress?.step('snapshot', `restoring ${describeDatabase(snap.target)}`);
           const r = await snap.restore(recorded.owner);
@@ -256,7 +287,8 @@ export class Sandbox {
           delete ctx.state.seed;
           ctx.save();
         }
-        if (snap && (await snap.ensureDatabase(recorded?.owner))) ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} was missing (an interrupted restore): created empty before the seed`);
+        if (snap && (await snap.ensureDatabase(recorded?.owner)))
+          ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} was missing (an interrupted restore): created empty before the seed`);
         if (fa) {
           // The seed creates its accounts on an empty emulator (an account of an earlier take would collide).
           fa.forget();
@@ -284,7 +316,7 @@ export class Sandbox {
     } finally {
       await snap?.close();
     }
-    const mailbox = await clearMailbox(this.project, this.sandbox, (port) => this.provider.address?.(ctx, port) ?? Promise.resolve(undefined));
+    const mailbox = await clearMailbox(this.project, this.sandbox, this.resolveSecret, (port) => this.addressOf(ctx, port));
     if (mailbox === 'not-mailpit') ctx.log('info', `sandbox ${this.env}: an http mailbox has no generic way to be emptied — empty it in a seed step`);
     const restarted: string[] = [];
     for (const name of this.sandbox.manifest.reset?.restart ?? []) {
@@ -309,7 +341,20 @@ export class Sandbox {
     const restored = snapshot?.action === 'restored';
     ctx.state.last_reset = { strategy: this.strategy, at, ms, restored, by };
     ctx.save();
-    return { strategy: this.strategy, restored, ms, hash, at, seed, mailbox, ...(snapshot ? { snapshot } : {}), restarted, superseded, ...(firebaseAuth ? { firebase_auth: firebaseAuth } : {}), hooks };
+    return {
+      strategy: this.strategy,
+      restored,
+      ms,
+      hash,
+      at,
+      seed,
+      mailbox,
+      ...(snapshot ? { snapshot } : {}),
+      restarted,
+      superseded,
+      ...(firebaseAuth ? { firebase_auth: firebaseAuth } : {}),
+      hooks,
+    };
   }
 
   /**
@@ -448,7 +493,7 @@ export class Sandbox {
   async logs(opts: { service?: string; lines?: number } = {}): Promise<SandboxLogs[]> {
     const ctx = this.context({});
     const lines = opts.lines ?? 50;
-    if (this.provider.logs) {
+    if (this.provider.capabilities.logs) {
       const out = await this.provider.logs(ctx, { service: opts.service, lines });
       return out.map((l) => ({ service: l.service, file: '', source: l.source, exists: true, text: l.text }));
     }
@@ -462,7 +507,7 @@ export class Sandbox {
 
   /** Follow the logs until `signal` aborts (docker-compose; a process sandbox's are files: tail -f them). */
   async followLogs(opts: { service?: string; lines?: number; signal: AbortSignal; write: (line: string) => void }): Promise<void> {
-    if (!this.provider.followLogs) throw new SandboxError(`sandbox ${this.env}: following logs is for docker-compose sandboxes — tail -f ${shownPath(this.paths.logs)}/<service>.log`);
+    if (!this.provider.capabilities.followLogs) throw new SandboxError(`sandbox ${this.env}: following logs is for docker-compose sandboxes — tail -f ${shownPath(this.paths.logs)}/<service>.log`);
     await this.provider.followLogs(this.context({}), { service: opts.service, lines: opts.lines ?? 50, signal: opts.signal, write: opts.write });
   }
 

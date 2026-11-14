@@ -1,5 +1,5 @@
 /** The planner's fixed values: lengths, windows and defaults the steps of `planEdit` share. */
-import type { OverlayAnchor } from '@retake/core';
+import type { OverlayAnchor } from '@retake/core/model';
 
 /** Seconds before the end of a clip during which an overlay still counts as "showing" for a tap-open anchor. */
 export const ANCHOR_OVERLAY_WINDOW_S = 1;

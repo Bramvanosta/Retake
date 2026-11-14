@@ -24,7 +24,7 @@ export function templatesApi(ctx: EngineContext): Engine['templates'] {
       const worker = await startWorker();
       return { ...r, ...(worker ? { worker } : {}) };
     },
-    site: (siteId, url) => readSite(ws, siteId, url),
+    site: (siteId, url) => readSite(ws, siteId, url, scope.clock),
     view: (name) => templateView(ws, name),
     edit: (name, req) => editTemplate(ws, name, req, { client: opts.client, scope }),
     copy: (req) => copyTheme(ws, req, { scope }),

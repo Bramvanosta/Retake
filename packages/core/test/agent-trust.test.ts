@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { agentTrustProblems, agentWritable, insideFolder, isTemplatePath, projectFileProblem, renderFileProblems, rollbackApprovalReason, scenarioFileRefs, templateRefProblem } from '../src/index.js';
 import type { HookStep, Scenario } from '../src/index.js';
 import { nodeFileFacts } from '@retake/core/io';
+import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
 
 let root: string;
 let project: string;
@@ -57,8 +58,7 @@ describe('projectFileProblem', () => {
 });
 
 describe('agentTrustProblems', () => {
-  const scenario = (extra: Partial<Scenario>): Scenario =>
-    ({ video: 'x', scenes: [{ id: 'a', page: 'console', steps: [{ click: { text: 'Go' } }] }], ...extra }) as Scenario;
+  const scenario = (extra: Partial<Scenario>): Scenario => ({ video: 'x', scenes: [{ id: 'a', page: 'console', steps: [{ click: { text: 'Go' } }] }], ...extra }) as Scenario;
 
   it('a scenario that names a secret anywhere (a step, a hook, its vars) is refused; `note` is never templated', () => {
     expect(agentTrustProblems({ dir: project }, scenario({}), { files: nodeFileFacts })).toEqual([]);
@@ -67,7 +67,9 @@ describe('agentTrustProblems', () => {
     const hook = scenario({ setup: [{ http: { method: 'POST', url: '{{console}}/x', headers: { authorization: 'Bearer {{ keychain:svc/acct }}' } } }] });
     expect(agentTrustProblems({ dir: project }, hook, { files: nodeFileFacts })[0]).toContain('{{keychain:svc/acct}}');
     expect(agentTrustProblems({ dir: project }, scenario({ vars: { k: '{{secret:env:X}}' } }), { files: nodeFileFacts })[0]).toContain('{{env:X}}');
-    expect(agentTrustProblems({ dir: project }, scenario({ scenes: [{ id: 'a', page: 'console', note: '{{env:X}}', steps: [] }] as unknown as Scenario['scenes'] }), { files: nodeFileFacts })).toEqual([]);
+    expect(agentTrustProblems({ dir: project }, scenario({ scenes: [{ id: 'a', page: 'console', note: '{{env:X}}', steps: [] }] as unknown as Scenario['scenes'] }), { files: nodeFileFacts })).toEqual(
+      [],
+    );
   });
 
   it('the files a scenario names: drop_file.path inside the project; eval.file and hook files also not agent-writable', () => {
@@ -94,9 +96,11 @@ describe('agentTrustProblems', () => {
     const sc = scenario({
       template: '../themes/x',
       vars: { k: '{{env:TOKEN}}' },
-      scenes: [{ id: 'a', page: 'console', steps: [{ drop_file: { zone: { css: 'body' }, path: '../outside.txt' } }, { eval: { file: 'scenarios/x.js' } }, { eval: { file: '/etc/hosts' } }] }] as Scenario['scenes'],
+      scenes: [
+        { id: 'a', page: 'console', steps: [{ drop_file: { zone: { css: 'body' }, path: '../outside.txt' } }, { eval: { file: 'scenarios/x.js' } }, { eval: { file: '/etc/hosts' } }] },
+      ] as Scenario['scenes'],
     });
-    const studio = agentTrustProblems({ dir: project, config: {} }, sc, { files: nodeFileFacts, via: 'studio' });
+    const studio = agentTrustProblems({ dir: project, config: {} }, sc, { files: nodeFileFacts, via: STUDIO_CONFINEMENT });
     const mcp = agentTrustProblems({ dir: project, config: {} }, sc, { files: nodeFileFacts });
     expect(studio).toHaveLength(5);
     expect(mcp).toHaveLength(5);
@@ -122,7 +126,7 @@ describe('rollbackApprovalReason', () => {
 });
 
 describe('render trust rules (L3.2)', () => {
-  it('a theme is named; a folder only when it is project.yaml\'s own template', () => {
+  it("a theme is named; a folder only when it is project.yaml's own template", () => {
     for (const ref of ['./template', '../x', '/abs/t', 'a/b', '~/t', '.hidden']) expect(isTemplatePath(ref), ref).toBe(true);
     for (const ref of ['editorial', 'Motion_2']) expect(isTemplatePath(ref), ref).toBe(false);
     expect(templateRefProblem('editorial', undefined, 'the theme')).toBeNull();
@@ -139,7 +143,9 @@ describe('render trust rules (L3.2)', () => {
 
   it('files a render reads: project files; a Lottie file (.json) is code, never agent-writable', () => {
     expect(renderFileProblems(project, [{ ref: 'assets/data.csv', where: 'scene a, card slot data' }], nodeFileFacts)).toEqual([]);
-    expect(renderFileProblems(project, [{ ref: '../outside.txt', where: 'scene a, card slot data' }], nodeFileFacts)).toEqual([expect.stringMatching(/^scene a, card slot data: \.\.\/outside\.txt resolves outside/)]);
+    expect(renderFileProblems(project, [{ ref: '../outside.txt', where: 'scene a, card slot data' }], nodeFileFacts)).toEqual([
+      expect.stringMatching(/^scene a, card slot data: \.\.\/outside\.txt resolves outside/),
+    ]);
     expect(renderFileProblems(project, [{ ref: 'scenarios/anim.json', where: 'video intro (lottie file)' }], nodeFileFacts)[0]).toContain('a Lottie file is code');
     expect(renderFileProblems(project, [{ ref: 'scenarios/shot.png', where: 'video intro (image file)' }], nodeFileFacts)).toEqual([]);
     expect(renderFileProblems(project, [{ ref: 'assets/anim.json', where: 'video intro (lottie file)' }], nodeFileFacts)).toEqual([]);

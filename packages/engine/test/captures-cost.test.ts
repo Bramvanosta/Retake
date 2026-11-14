@@ -55,7 +55,10 @@ beforeAll(async () => {
   for (let i = 0; i < 3; i++) {
     const id = `j_${ulid()}`;
     await mkdir(join(jobs, id), { recursive: true });
-    await writeFile(join(jobs, id, 'job.json'), JSON.stringify({ version: JOB_RECORD_VERSION, id, kind: 'render', input: { ...input, render_id: `quote-v${i + 2}` }, state: 'queued', created_at: at }));
+    await writeFile(
+      join(jobs, id, 'job.json'),
+      JSON.stringify({ version: JOB_RECORD_VERSION, id, kind: 'render', input: { ...input, render_id: `quote-v${i + 2}` }, state: 'queued', created_at: at }),
+    );
   }
 }, 120_000);
 
@@ -68,18 +71,18 @@ afterAll(async () => {
 });
 
 describe('the cost of a take beside a long history (review A H1, A M1, B L8)', () => {
-  it('a take\'s sampler reads no job folder: the worker\'s own hold, else its one held file', async () => {
+  it("a take's sampler reads no job folder: the worker's own hold, else its one held file", async () => {
     let asked = 0;
-    const inWorker = new TakeBeside({ root, own: () => undefined, slowed: () => (asked++, true) });
+    const inWorker = new TakeBeside({ env: process.env, root, own: () => undefined, slowed: () => (asked++, true) });
     expect(await touched(() => inWorker.sample())).toEqual([]);
     expect(inWorker.stop()).toEqual({ takes_beside: 0, heavy_slowed: true });
     expect(asked).toBe(1);
-    const cli = new TakeBeside({ root, own: () => undefined });
+    const cli = new TakeBeside({ env: process.env, root, own: () => undefined });
     expect(await touched(() => cli.sample())).toEqual([]);
     expect(cli.stop().heavy_slowed).toBe(false);
     await mkdir(join(root, '.retake', 'workers'), { recursive: true });
     await writeFile(heldFile(root), JSON.stringify({ v: 1, state: 'background', since: new Date().toISOString() }));
-    const held = new TakeBeside({ root, own: () => undefined });
+    const held = new TakeBeside({ env: process.env, root, own: () => undefined });
     expect(await touched(() => held.sample())).toEqual([]);
     expect(held.stop().heavy_slowed).toBe(true);
     await rm(heldFile(root));

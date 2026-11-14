@@ -1,4 +1,4 @@
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,12 +6,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { scenarioChangedMessage } from '@retake/core';
 import type { EditPlan } from '@retake/editor';
 import { EXIT, main, memoryIo } from '../src/index.js';
+import { syntheticRunRecord } from '@retake/test-support/render';
 
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('../../editor/test/fixtures', import.meta.url));
 
 let ws: string;
 let runs: string;
+
+/** The record of a capture of `scenario` that succeeded (run.json's text). */
+const record = (id: string, scenario: string): string => JSON.stringify(syntheticRunRecord(join(runs, id), { id, scenario, project: 'demo' }));
 
 async function retake(...args: string[]) {
   const io = memoryIo();
@@ -33,8 +37,12 @@ beforeAll(async () => {
   ]) {
     await mkdir(join(runs, id));
     await copyFile(join(FIXTURES, `${name}.timeline.json`), join(runs, id, 'timeline.json'));
+    // A whole capture: its record and its film too (L7.6a: `latest` is the newest capture an edit can work on).
+    await writeFile(join(runs, id, 'run.json'), record(id, name));
+    await writeFile(join(runs, id, 'capture.mp4'), 'never read');
   }
   await mkdir(join(runs, '20261011-190000-quote'));
+  await writeFile(join(runs, '20261011-190000-quote', 'run.json'), JSON.stringify({ ...(JSON.parse(record('20261011-190000-quote', 'quote')) as object), mode: 'dry' }));
   const dry = JSON.parse(await readFile(join(FIXTURES, 'quote.timeline.json'), 'utf8')) as { mode: string };
   dry.mode = 'dry';
   await writeFile(join(runs, '20261011-190000-quote', 'timeline.json'), JSON.stringify(dry));
@@ -114,15 +122,13 @@ describe('retake plan', () => {
       await writeFile(join(dir, 'run.json'), JSON.stringify({ version: 2, id: '20261011-182524-catalogue', env: 'local' }));
       const newer = await retake('plan', 'demo', '20261011-182524-catalogue');
       expect(newer.code).toBe(EXIT.failure);
-      expect(newer.err).toContain(
-        'run 20261011-182524-catalogue: this run.json is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
-      );
+      expect(newer.err).toContain('run 20261011-182524-catalogue: this run.json is version 2: it was made for a newer Retake (this one reads version 1) — update Retake');
     } finally {
-      await rm(join(dir, 'run.json'), { force: true });
+      await writeFile(join(dir, 'run.json'), record('20261011-182524-catalogue', 'catalogue'));
     }
   });
 
-  it('warns when the filmed part of the scenario changed since the run was captured: the plan is the run\'s (L3.8, L5.5; stderr, --json too)', async () => {
+  it("warns when the filmed part of the scenario changed since the run was captured: the plan is the run's (L3.8, L5.5; stderr, --json too)", async () => {
     const run = '20261011-182706-quote';
     const snapshot = 'video: quote\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hold: 1\n';
     const file = join(ws, 'projects', 'demo', 'scenarios', 'quote.yaml');
@@ -148,6 +154,47 @@ describe('retake plan', () => {
       expect((JSON.parse(json.out) as EditPlan).meta.run_id).toBe(run);
     } finally {
       await rm(file, { force: true });
+      await rm(join(runs, run, 'scenario.yaml'), { force: true });
+    }
+  });
+
+  it('takes a theme folder of the project by its ./path at the terminal (L7.22: trust author): the plan names the theme', async () => {
+    const theme = join(ws, 'projects', 'demo', 'themes', 'house');
+    await cp(join(TEMPLATES, 'motion'), theme, { recursive: true });
+    await writeFile(join(theme, 'template.yaml'), (await readFile(join(theme, 'template.yaml'), 'utf8')).replace(/^name: motion$/m, 'name: house'));
+    const out = join(ws, 'house-plan.json');
+    try {
+      const r = await retake('plan', 'demo', '20261011-182706-quote', '--theme', './themes/house', '--json', '--out', out);
+      expect(r.code, r.err).toBe(EXIT.ok);
+      const plan = JSON.parse(r.out) as EditPlan;
+      expect(plan.meta.theme).toBe('house');
+      expect((JSON.parse(await readFile(out, 'utf8')) as EditPlan).meta.theme).toBe('house');
+    } finally {
+      await rm(join(ws, 'projects', 'demo', 'themes'), { recursive: true, force: true });
+      await rm(out, { force: true });
+    }
+  });
+
+  it('--out writes the plan --json prints, with the note and warnings of where its edit came from (L7.22: the file was written before them)', async () => {
+    const run = '20261011-182706-quote';
+    // A snapshot whose scenes are not the ones the run filmed, and today's file the same but for a caption (no filmed
+    // change): the edit is the run's as captured, and the plan says why in a warning.
+    const snapshot = 'video: quote\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hold: 1\n';
+    const file = join(ws, 'projects', 'demo', 'scenarios', 'quote.yaml');
+    const out = join(ws, 'noted-plan.json');
+    await writeFile(join(runs, run, 'scenario.yaml'), snapshot);
+    await mkdir(join(ws, 'projects', 'demo', 'scenarios'), { recursive: true });
+    try {
+      await writeFile(file, snapshot.replace('    open: /\n', '    open: /\n    caption: Hello\n'));
+      const r = await retake('plan', 'demo', run, '--json', '--out', out);
+      expect(r.code, r.err).toBe(EXIT.ok);
+      const printed = JSON.parse(r.out) as EditPlan;
+      const written = JSON.parse(await readFile(out, 'utf8')) as EditPlan;
+      expect(printed.warnings.some((w) => w.includes(`the snapshot of run ${run} does not describe the scenes its timeline filmed`))).toBe(true);
+      expect(written).toEqual(printed);
+    } finally {
+      await rm(file, { force: true });
+      await rm(out, { force: true });
       await rm(join(runs, run, 'scenario.yaml'), { force: true });
     }
   });

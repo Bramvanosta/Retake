@@ -16,11 +16,14 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RenderJobInput } from '@retake/core';
-import { EDIT_SNAPSHOT_FILE, FileJobQueue, createEngine, executeRenderJob, reviewInline } from '../src/index.js';
+import type { RenderJobInput } from '@retake/engine';
+import { EDIT_SNAPSHOT_FILE, FileJobQueue, createEngine, executeRenderJob, reviewInline, enginePorts } from '../src/index.js';
+import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { Engine, JobRecord } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES } from '../../editor/test/render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES } from '@retake/test-support/repo';
+import { syntheticRunRecord } from '@retake/test-support/render';
+import { scratchHome } from '@retake/test-support/home';
 
 const SCENARIO = 'snap';
 const RUN = '20260101-120000-snap';
@@ -44,12 +47,12 @@ let root: string;
 let dir: string;
 let engine: Engine;
 let queue: FileJobQueue;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const scenarioFile = () => join(dir, 'scenarios', `${SCENARIO}.yaml`);
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-render-snapshot-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
@@ -68,6 +71,8 @@ beforeAll(async () => {
   t.project = 'demo';
   t.scenario = SCENARIO;
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
+  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: RUN, scenario: SCENARIO, project: 'demo' })));
   await writeFile(join(runDir, 'scenario.yaml'), TEXT);
   await writeFile(join(runDir, 'capture.mp4'), 'never read before the render stage');
   await writeFile(scenarioFile(), TEXT);
@@ -76,8 +81,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 
@@ -85,6 +89,7 @@ afterAll(async () => {
 async function renderUntilStage(job: JobRecord, snapshot: boolean): Promise<Error> {
   const events: unknown[] = [];
   const e = await executeRenderJob({
+    ...enginePorts(),
     ws: engine.workspace,
     cli: 'retake',
     input: job.input as RenderJobInput,
@@ -92,6 +97,7 @@ async function renderUntilStage(job: JobRecord, snapshot: boolean): Promise<Erro
     event: (x) => events.push(x),
     progress: () => undefined,
     browser: () => undefined,
+    renderer: new MemoryRenderer(),
     ...(snapshot ? { jobFile: (name: string, max: number) => queue.jobFile(job.id, name, max) } : {}),
   }).then(
     () => new Error('rendered'),
@@ -101,7 +107,7 @@ async function renderUntilStage(job: JobRecord, snapshot: boolean): Promise<Erro
 }
 
 describe('render job snapshot (critique B5)', () => {
-  it('submit writes edit.yaml (0600) before job.json: the planned text, its sha256 the job\'s edit_sha256; the review option is carried', async () => {
+  it("submit writes edit.yaml (0600) before job.json: the planned text, its sha256 the job's edit_sha256; the review option is carried", async () => {
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 }, review: { fps: 1 } });
     const input = sub.job.input as RenderJobInput;
     expect(input).toMatchObject({ edit_sha256: sha(TEXT), review: { fps: 1 } });
@@ -131,8 +137,18 @@ describe('render job snapshot (critique B5)', () => {
     await engine.jobs.cancel(sub.job.id);
   });
 
-  it('a job folder takes only plain file names from a submit (no path, no file of the queue\'s own)', async () => {
-    const input: RenderJobInput = { version: 1, kind: 'render', project: 'demo', scenario: SCENARIO, run_id: RUN, timeline_sha256: sha('x'), render_id: `${SCENARIO}-v9`, overrides: {}, submitted_by: 'test' };
+  it("a job folder takes only plain file names from a submit (no path, no file of the queue's own)", async () => {
+    const input: RenderJobInput = {
+      version: 1,
+      kind: 'render',
+      project: 'demo',
+      scenario: SCENARIO,
+      run_id: RUN,
+      timeline_sha256: sha('x'),
+      render_id: `${SCENARIO}-v9`,
+      overrides: {},
+      submitted_by: 'test',
+    };
     for (const name of ['../edit.yaml', 'job.json', 'claim', 'cancel', '.hidden.yaml', 'a/b.yaml', 'edit.sh']) {
       await expect(queue.enqueue(input, { files: { [name]: 'x' } }), name).rejects.toThrow(/invalid job file name/);
     }
@@ -148,10 +164,47 @@ describe('render job snapshot (critique B5)', () => {
     await engine.jobs.cancel(sub.job.id);
     await writeFile(scenarioFile(), TEXT);
   });
+
+  it('a refused render whose lock cannot be removed says so on the job (its version number stays taken)', async () => {
+    await writeFile(scenarioFile(), TEXT);
+    const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
+    const lock = join(dir, 'renders', `.${sub.render_id}.lock`);
+    // A lock that rm cannot remove: a folder with a file in it.
+    await rm(lock, { force: true });
+    await mkdir(lock);
+    await writeFile(join(lock, 'x'), '');
+    const events: Array<{ type: string; level?: string; message?: string }> = [];
+    const input = { ...(sub.job.input as RenderJobInput), timeline_sha256: 'ab'.repeat(32) };
+    const e = await executeRenderJob({
+      ...enginePorts(),
+      ws: engine.workspace,
+      cli: 'retake',
+      input,
+      signal: AbortSignal.abort(),
+      event: (x) => void events.push(x as (typeof events)[number]),
+      progress: () => undefined,
+      browser: () => undefined,
+      renderer: new MemoryRenderer(),
+    }).then(
+      () => new Error('rendered'),
+      (x: Error) => x,
+    );
+    expect(e.message).toMatch(/changed since the render was submitted/);
+    expect(events).toEqual([
+      {
+        type: 'log',
+        level: 'warn',
+        message: expect.stringMatching(new RegExp(`^the lock of ${sub.render_id} could not be removed \\(.+\\): its version number stays taken, the next render uses the next one$`)),
+      },
+    ]);
+    await rm(lock, { recursive: true, force: true });
+    await engine.jobs.cancel(sub.job.id);
+  });
 });
 
 describe('the inline review of a render (critique B12)', () => {
   const ctx = (signal: AbortSignal, log: unknown[]) => ({
+    ...enginePorts(),
     ws: engine.workspace,
     cli: 'retake',
     signal,

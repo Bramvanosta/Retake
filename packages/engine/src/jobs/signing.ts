@@ -14,20 +14,21 @@
  * The key protects against a job file forged without access to the home folder; whoever can read the home folder (the
  * sessions live there too) can sign.
  */
+import type { EngineEnv } from '../env.js';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { canonicalJson } from '@retake/core';
-import { HOME_KEY_FILE, homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, retakeHome } from '@retake/core/io';
-import type { JobApproval, JobInput } from '@retake/core';
+import { canonicalJson } from '@retake/core/base';
+import { ULID_PREFIXES, isJobId, ulidTime } from '@retake/core/ids';
+import { homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, retakeHome } from '@retake/core/io';
+import type { JobApproval, JobInput } from './job-input.js';
 
-export const APPROVAL_KEY_FILE = HOME_KEY_FILE;
 /** `<RETAKE_HOME>/approvals-used/<job id>`: the jobs whose approvals a worker took (claimed). */
 export const APPROVALS_USED_DIR = 'approvals-used';
 /** A consumed approval's record is kept this long (a job id older than this carries no approval: consumeApprovals). */
 export const APPROVALS_USED_KEEP_MS = 365 * 24 * 3600_000;
 
-export function approvalKeyFile(env: NodeJS.ProcessEnv = process.env): string {
+export function approvalKeyFile(env: EngineEnv): string {
   return homeKeyFile(env);
 }
 
@@ -50,19 +51,26 @@ async function realRoot(root: string): Promise<string> {
   return realpath(root).catch(() => resolve(root));
 }
 
-export interface SigningOptions {
+/** The job and workspace the approvals belong to, and where the key is: the Retake home of `env` (its composition root's, env.ts), or `keyFile`. */
+export type SigningOptions = {
   /** The job the approvals belong to (its id, given at enqueue). */
   jobId: string;
   /** The root of the job's workspace (its queue's). */
   root: string;
-  keyFile?: string;
+} & ({ env: EngineEnv; keyFile?: string } | { keyFile: string; env?: EngineEnv });
+
+/** The key's file: the one given, else the Retake home's of the environment given. */
+function keyFileOf(o: SigningOptions): string {
+  if (o.keyFile !== undefined) return o.keyFile;
+  if (o.env === undefined) throw new Error('signing: neither a key file nor an environment was handed');
+  return approvalKeyFile(o.env);
 }
 
 /** The input with each approval signed for job `jobId` (unchanged when it has none: no key is created). */
 export async function signApprovals<T extends JobInput>(input: T, o: SigningOptions): Promise<T> {
   const approvals = approvalsOf(input);
   if (!approvals?.length) return input;
-  const key = await homeKey(o.keyFile ?? approvalKeyFile());
+  const key = await homeKey(keyFileOf(o));
   const ws = await realRoot(o.root);
   return { ...input, approvals: approvals.map((a) => ({ ...a, sig: homeSign(key, payload(ws, o.jobId, input, a)) })) };
 }
@@ -71,7 +79,7 @@ export async function signApprovals<T extends JobInput>(input: T, o: SigningOpti
 export async function verifiedApprovals(input: JobInput, o: SigningOptions): Promise<{ approvals: JobApproval[]; rejected: number }> {
   const all = approvalsOf(input) ?? [];
   if (!all.length) return { approvals: [], rejected: 0 };
-  const key = await readHomeKey(o.keyFile ?? approvalKeyFile());
+  const key = await readHomeKey(keyFileOf(o));
   const ws = await realRoot(o.root);
   const approvals = all.filter((a) => homeSigned(key, payload(ws, o.jobId, input, a), a.sig));
   return { approvals, rejected: all.length - approvals.length };
@@ -79,33 +87,30 @@ export async function verifiedApprovals(input: JobInput, o: SigningOptions): Pro
 
 /** sha256 of a job's id and input (canonical JSON): what the worker claimed, checked again by the job process. */
 export function recordDigest(rec: { id: string; input: unknown }): string {
-  return createHash('sha256').update(canonicalJson({ id: rec.id, input: rec.input })).digest('hex');
+  return createHash('sha256')
+    .update(canonicalJson({ id: rec.id, input: rec.input }))
+    .digest('hex');
 }
 
-const JOB_ID_RE = /^j_[0-9A-HJKMNP-TV-Z]{26}$/;
-const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-
 /** `<RETAKE_HOME>/approvals-used`. */
-export function approvalsUsedDir(env: NodeJS.ProcessEnv = process.env): string {
+export function approvalsUsedDir(env: EngineEnv): string {
   return join(retakeHome(env), APPROVALS_USED_DIR);
 }
 const usedDir = approvalsUsedDir;
 
 /** The time of a job id (`j_` + a ULID: its first 10 characters), or NaN. */
 function idTime(id: string): number {
-  if (!JOB_ID_RE.test(id)) return NaN;
-  let t = 0;
-  for (const ch of id.slice(2, 12)) t = t * 32 + CROCKFORD.indexOf(ch);
-  return t;
+  return isJobId(id) ? ulidTime(id.slice(ULID_PREFIXES.job.length)) : NaN;
 }
 
 /**
  * The worker takes a job's approvals as it claims it: `<RETAKE_HOME>/approvals-used/<id>` is created once (with the
  * claimed record's digest). False when this job id's approvals were taken before (a job folder made again under the
  * same id) or the job's id is older than APPROVALS_USED_KEEP_MS (its record may be gone): the job is then refused.
- * A job without approvals consumes nothing (true). Throws when the record cannot be written.
+ * A job without approvals consumes nothing (true). Throws when the record cannot be written. `now`: the
+ * time of the worker's clock (epoch milliseconds), what the record is stamped with.
  */
-export async function consumeApprovals(rec: { id: string; input: JobInput }, env: NodeJS.ProcessEnv = process.env, now: number = Date.now()): Promise<boolean> {
+export async function consumeApprovals(rec: { id: string; input: JobInput }, env: EngineEnv, now: number): Promise<boolean> {
   if (!approvalsOf(rec.input)?.length) return true;
   const t = idTime(rec.id);
   if (!Number.isFinite(t) || now - t > APPROVALS_USED_KEEP_MS) return false;
@@ -121,13 +126,13 @@ export async function consumeApprovals(rec: { id: string; input: JobInput }, env
 }
 
 /** Give a claim's approvals back (the worker gave the job back to the queue unrun: another build). */
-export async function restoreApprovals(id: string, env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  if (!JOB_ID_RE.test(id)) return;
+export async function restoreApprovals(id: string, env: EngineEnv): Promise<void> {
+  if (!isJobId(id)) return;
   await rm(join(usedDir(env), id), { force: true });
 }
 
-/** Remove the records of approvals taken longer ago than APPROVALS_USED_KEEP_MS (a worker's start). */
-export async function pruneUsedApprovals(env: NodeJS.ProcessEnv = process.env, now: number = Date.now()): Promise<void> {
+/** Remove the records of approvals taken longer ago than APPROVALS_USED_KEEP_MS before `now` (a worker's start, on its clock). */
+export async function pruneUsedApprovals(env: EngineEnv, now: number): Promise<void> {
   const dir = usedDir(env);
   let names: string[];
   try {
@@ -136,7 +141,7 @@ export async function pruneUsedApprovals(env: NodeJS.ProcessEnv = process.env, n
     return;
   }
   for (const name of names) {
-    if (!JOB_ID_RE.test(name)) continue;
+    if (!isJobId(name)) continue;
     const file = join(dir, name);
     const st = await stat(file).catch(() => undefined);
     if (st && now - st.mtimeMs > APPROVALS_USED_KEEP_MS) await rm(file, { force: true }).catch(() => undefined);

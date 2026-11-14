@@ -55,8 +55,8 @@ import {
   transitionSpans,
 } from '../src/index.js';
 import type { CheckContext } from '../src/index.js';
-import { FIXTURES, realTimeline, synthTimeline } from '../../editor/test/helpers.js';
-import { REPO } from './helpers.js';
+import { FIXTURES, realTimeline, synthTimeline } from '@retake/test-support/timeline';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 
 let registry: ComponentRegistry;
@@ -86,7 +86,17 @@ function ctxPlanned(timeline: Timeline, overrides: EditOverrides = {}): CheckCon
   const plan = planEdit({ timeline, template: editorial, project, registry, captureFile: '/captures/capture.mp4', overrides });
   const record = { version: 1, id: 'x-v1', scenario: 'x', run_id: timeline.run_id, template: 'editorial', status: 'succeeded', overrides, variant: 'landscape', plan } as unknown as RenderRecord;
   const spans = segmentSpans(plan);
-  return { record, plan, timeline, rules: { ...DEFAULT_RULES }, spans, transitions: transitionSpans(plan), clicks: outputClicks(plan, timeline), registry, measure: fontFileMeasurer(planFontFiles(plan)) };
+  return {
+    record,
+    plan,
+    timeline,
+    rules: { ...DEFAULT_RULES },
+    spans,
+    transitions: transitionSpans(plan),
+    clicks: outputClicks(plan, timeline),
+    registry,
+    measure: fontFileMeasurer(planFontFiles(plan)),
+  };
 }
 
 beforeAll(async () => {
@@ -96,7 +106,17 @@ beforeAll(async () => {
   for (const name of ['catalogue', 'quote'] as const) {
     const timeline = realTimeline(name);
     const plan = planEdit({ timeline, template: editorial, project, registry, captureFile: '/captures/capture.mp4' });
-    const record = { version: 1, id: `${name}-v1`, scenario: name, run_id: timeline.run_id, template: 'editorial', status: 'succeeded', overrides: {}, variant: 'landscape', plan } as unknown as RenderRecord;
+    const record = {
+      version: 1,
+      id: `${name}-v1`,
+      scenario: name,
+      run_id: timeline.run_id,
+      template: 'editorial',
+      status: 'succeeded',
+      overrides: {},
+      variant: 'landscape',
+      plan,
+    } as unknown as RenderRecord;
     plans[name] = { plan, timeline, record };
   }
 });
@@ -123,9 +143,19 @@ describe('spans of the fixture plans', () => {
     const { plan, timeline } = plans.catalogue;
     const clicks = outputClicks(plan, timeline);
     expect([...new Set(clicks.map((c) => `${c.scene}:${c.step}`))]).toEqual([
-      'import:0', 'import:1', 'import:2', 'import:3',
-      'availability:1', 'availability:2', 'availability:3', 'availability:4', 'availability:5', 'availability:6',
-      'add-product:0', 'add-product:1', 'add-product:2',
+      'import:0',
+      'import:1',
+      'import:2',
+      'import:3',
+      'availability:1',
+      'availability:2',
+      'availability:3',
+      'availability:4',
+      'availability:5',
+      'availability:6',
+      'add-product:0',
+      'add-product:1',
+      'add-product:2',
     ]);
     // Widgets (selects, date picks) are placed click by click, each with the box it clicked.
     const widget = clicks.filter((c) => c.click !== undefined);
@@ -234,6 +264,62 @@ describe('plan checks on the fixture plans', () => {
     expect(findings.some((f) => f.code === 'caption-scene-mismatch' && f.message.includes('stays'))).toBe(true);
   });
 
+  it('flags captions that overlap by one frame (in a clip and across the video), not captions that touch', () => {
+    const ctx = ctxOf('quote');
+    const overlaps = (plan: EditPlan) => checkCaptions({ ...ctx, plan, spans: segmentSpans(plan), transitions: transitionSpans(plan) }).filter((f) => f.code === 'caption-overlap');
+    const withCues = (shift: number) => {
+      const plan = structuredClone(ctx.plan);
+      const clip = plan.segments.find((x): x is ClipSegment => x.id === 'request')!;
+      clip.cues = [
+        { from: 100, to: 140 + shift, text: 'A first line.', scene: clip.scene },
+        { from: 140, to: 200, text: 'A second line.', scene: clip.scene },
+      ];
+      return plan;
+    };
+    expect(overlaps(withCues(0))).toEqual([]);
+    expect(overlaps(withCues(1)).map((f) => f.message)).toEqual([expect.stringMatching(/overlap for 1 frames/)]);
+    // Two video-level cues of one scene (no crossfade between them allows any overlap): touching is fine, one frame more
+    // is an overlap.
+    const withCaptions = (shift: number) => {
+      const plan = structuredClone(ctx.plan);
+      const [first, second] = [...plan.captions].sort((x, y) => x.from - y.from);
+      second.scene = first.scene;
+      first.to = second.from + shift;
+      return plan;
+    };
+    expect(overlaps(withCaptions(0))).toEqual([]);
+    expect(overlaps(withCaptions(1)).map((f) => f.message)).toEqual([expect.stringMatching(/both on screen for 0\.0\d s/)]);
+  });
+
+  it('checks the probed video against the plan: a duration off by more than the tolerance, another size', () => {
+    const ctx = ctxOf('quote');
+    const { plan } = ctx;
+    const expected = plan.durationInFrames / plan.fps;
+    const tolerance = Math.max(0.15, 2 / plan.fps);
+    const codes = (probed: { duration_s: number; width: number; height: number }) =>
+      checkRender(ctx, probed)
+        .map((f) => f.code)
+        .filter((c) => c !== 'plan-warning');
+    const size = { width: plan.width, height: plan.height };
+    expect(codes({ duration_s: expected, ...size })).toEqual([]);
+    expect(codes({ duration_s: expected + tolerance - 0.001, ...size })).toEqual([]);
+    expect(codes({ duration_s: expected - tolerance + 0.001, ...size })).toEqual([]);
+    expect(codes({ duration_s: expected + 0.2, ...size })).toEqual(['duration-mismatch']);
+    expect(codes({ duration_s: expected - 0.2, ...size })).toEqual(['duration-mismatch']);
+    const [long] = checkRender(ctx, { duration_s: expected + 0.2, ...size }).filter((f) => f.code === 'duration-mismatch');
+    expect(long).toMatchObject({ severity: 'warning', message: `the video lasts ${(expected + 0.2).toFixed(2)} s but the plan ${expected.toFixed(2)} s` });
+    expect(codes({ duration_s: expected, width: plan.width, height: plan.height + 2 })).toEqual(['size-mismatch']);
+    expect(codes({ duration_s: expected, width: plan.width / 2, height: plan.height / 2 })).toEqual(['size-mismatch']);
+    const [other] = checkRender(ctx, { duration_s: expected, width: 1280, height: 720 }).filter((f) => f.code === 'size-mismatch');
+    expect(other).toMatchObject({ severity: 'warning', message: `the video is 1280×720, the plan ${plan.width}×${plan.height}` });
+    // No probe (the video could not be read): neither check runs.
+    expect(
+      checkRender(ctx)
+        .map((f) => f.code)
+        .filter((c) => c !== 'plan-warning'),
+    ).toEqual([]);
+  });
+
   it('flags a zoom reset at a same-page join', () => {
     const ctx = ctxOf('catalogue');
     const plan = structuredClone(ctx.plan);
@@ -285,7 +371,9 @@ describe('environment (L1.7): the report line, stopped writes, hidden and local 
     expect(environmentLine({ name: 'local', access: 'read-write', writes: { blocked: 0, mocked: 0, allowed: 0, passed: 0 } })).toBe('local · read-write');
     // A read-write run whose guard stopped writes to the hosts of a read-only environment says so.
     expect(environmentLine({ name: 'local', access: 'read-write', writes: { blocked: 2, mocked: 0, allowed: 0, passed: 0 } })).toBe('local · read-write · 2 stopped (hosts of read-only environments)');
-    expect(environmentLine({ name: 'live', production: true, access: 'read-write', allow_writes: true, writes: { blocked: 0, mocked: 0, allowed: 0, passed: 0 } })).toBe('live · production · read-write (--allow-writes)');
+    expect(environmentLine({ name: 'live', production: true, access: 'read-write', allow_writes: true, writes: { blocked: 0, mocked: 0, allowed: 0, passed: 0 } })).toBe(
+      'live · production · read-write (--allow-writes)',
+    );
     const ctx = ctxPlanned(tl);
     const f = checkEnvironment(ctx);
     expect(f.map((x) => x.code)).toEqual(['write-blocked', 'write-blocked', 'write-blocked']);
@@ -301,9 +389,13 @@ describe('environment (L1.7): the report line, stopped writes, hidden and local 
     expect(JSON.stringify(f)).not.toMatch(/localhost/);
     // A write a read-write run stopped because it went to another environment's host names that environment.
     const rw = checkEnvironment(
-      ctxPlanned(withEnv({ name: 'local', access: 'read-write', writes: [{ t: 20.2, method: 'POST', url: 'https://api.example.com/reset', outcome: 'blocked', via: 'page', protected_by: 'production' }] })),
+      ctxPlanned(
+        withEnv({ name: 'local', access: 'read-write', writes: [{ t: 20.2, method: 'POST', url: 'https://api.example.com/reset', outcome: 'blocked', via: 'page', protected_by: 'production' }] }),
+      ),
     );
-    expect(rw.map((x) => x.message)).toEqual(['a write was stopped: POST https://api.example.com/reset — a host of read-only environment production: the app saw a network error and may show it (docs/guide/environments.md)']);
+    expect(rw.map((x) => x.message)).toEqual([
+      'a write was stopped: POST https://api.example.com/reset — a host of read-only environment production: the app saw a network error and may show it (docs/guide/environments.md)',
+    ]);
   });
 
   it('url-hidden: only where the layout draws the URL, at the first local address, never naming the local host', () => {
@@ -316,7 +408,9 @@ describe('environment (L1.7): the report line, stopped writes, hidden and local 
       ['url-hidden', 'request'],
       ['url-hidden', 'proposal'],
     ]);
-    expect(browser[0].message).toBe('discover: the browser bar shows no address while the page is at / (a local page) — a local URL without a display URL: add display: to its page in project.yaml environments and render again (docs/guide/environments.md)');
+    expect(browser[0].message).toBe(
+      'discover: the browser bar shows no address while the page is at / (a local page) — a local URL without a display URL: add display: to its page in project.yaml environments and render again (docs/guide/environments.md)',
+    );
     expect(JSON.stringify(browser)).not.toMatch(/localhost/);
     // The plan's warning about it reaches the report masked (V4).
     const planned = ctxPlanned(local, { frame: 'browser' });
@@ -341,7 +435,9 @@ describe('environment (L1.7): the report line, stopped writes, hidden and local 
       'discover: the browser bar shows no address while the page is at / (a local page) — a local URL without a display URL: add display: to its page in the sandbox.yaml of sandbox sandbox (services.<service>.pages) and render again (docs/guide/sandbox.md)',
     );
     expect(sandbox.plan.warnings).toEqual([
-      expect.stringMatching(/^a local URL outside the pages of environment sandbox has no display URL \(http:\/\/localhost:4402\): the browser bar shows no address for it — declare it as a page with a display: in sandbox\/sandbox\.yaml \(services\.<service>\.pages\) and render again \(docs\/guide\/sandbox\.md\)$/),
+      expect.stringMatching(
+        /^a local URL outside the pages of environment sandbox has no display URL \(http:\/\/localhost:4402\): the browser bar shows no address for it — declare it as a page with a display: in sandbox\/sandbox\.yaml \(services\.<service>\.pages\) and render again \(docs\/guide\/sandbox\.md\)$/,
+      ),
     ]);
   });
 
@@ -356,7 +452,9 @@ describe('environment (L1.7): the report line, stopped writes, hidden and local 
       ['local-url-text', 'discover'],
       ['local-url-text', 'chapter-request'],
     ]);
-    expect(f[0].message).toBe('caption of discover shows a local URL (/coffees): it is burnt into the video — write {{page}} and give that page a display URL in project.yaml, or write the public address');
+    expect(f[0].message).toBe(
+      'caption of discover shows a local URL (/coffees): it is burnt into the video — write {{page}} and give that page a display URL in project.yaml, or write the public address',
+    );
     expect(f[1].message).toMatch(/^card chapter-request \("title"\) shows a local URL \(\/quotes\)/);
     expect(JSON.stringify(f)).not.toMatch(/localhost|127\.0\.0\.1/);
   });
@@ -377,7 +475,10 @@ describe('variants (vertical, square) and the theme zoom', () => {
       for (const variant of ['vertical', 'square'] as const) {
         const ctx = await variantCtx(name, variant);
         const f = [...checkCursor(ctx), ...checkCamera(ctx), ...checkCaptions(ctx)].filter((x) => x.severity !== 'info');
-        expect(f.map((x) => `${x.code}: ${x.message}`), `${name} ${variant}`).toEqual([]);
+        expect(
+          f.map((x) => `${x.code}: ${x.message}`),
+          `${name} ${variant}`,
+        ).toEqual([]);
         // Widget clicks are checked one by one (a select clicks its trigger, then its option).
         expect(ctx.clicks.filter((c) => c.click !== undefined).length).toBeGreaterThan(0);
         expect(ctx.clicks.filter((c) => c.bbox !== undefined).length).toBeGreaterThan(ctx.clicks.length / 2);
@@ -417,7 +518,9 @@ describe('variants (vertical, square) and the theme zoom', () => {
     a.zooms = [theme];
     a.camera = a.srcFrames.map((_, f) => [f < 30 ? 1 : f >= n ? 1 : 1.12, 900, 500] as [number, number, number]);
     // Smooth enough for the camera-jump check: ease the camera in and out linearly.
-    a.camera = a.camera.map((c, f) => [f < 30 ? 1 : f < 130 ? 1 + (0.12 * (f - 30)) / 100 : f < n - 36 ? 1.12 : f < n ? 1.12 - (0.12 * (f - (n - 36) + 1)) / 36 : 1, 900, 500] as [number, number, number]);
+    a.camera = a.camera.map(
+      (_c, f) => [f < 30 ? 1 : f < 130 ? 1 + (0.12 * (f - 30)) / 100 : f < n - 36 ? 1.12 : f < n ? 1.12 - (0.12 * (f - (n - 36) + 1)) / 36 : 1, 900, 500] as [number, number, number],
+    );
     const c2 = { ...ctx, plan, spans: segmentSpans(plan), transitions: transitionSpans(plan) };
     let f = checkCamera(c2);
     expect(f.filter((x) => x.code === 'zoom-count')).toEqual([]); // 1 hint + 1 theme zoom
@@ -458,8 +561,19 @@ describe('helpers', () => {
     const spans = segmentSpans(plans.quote.plan);
     const k = keyframePlan(spans, plans.quote.plan.markers, plans.quote.plan.durationInFrames);
     expect([...k.keys()]).toEqual([
-      'proposal', 'intro-hold', 'discover-first', 'discover-last', 'chapter-request-first', 'chapter-request-last',
-      'request-first', 'request-last', 'interstitial-3-first', 'interstitial-3-last', 'proposal-first', 'proposal-last', 'outro-hold',
+      'proposal',
+      'intro-hold',
+      'discover-first',
+      'discover-last',
+      'chapter-request-first',
+      'chapter-request-last',
+      'request-first',
+      'request-last',
+      'interstitial-3-first',
+      'interstitial-3-last',
+      'proposal-first',
+      'proposal-last',
+      'outro-hold',
     ]);
     // A marker's key frame is the screen once the marked step is done (its `done` frame).
     expect(k.get('proposal')).toBe(plans.quote.plan.markers[0].done);
@@ -489,7 +603,7 @@ describe('helpers', () => {
 });
 
 describe('L5.5 review rules: target length, cards too short for their text, a mail or document before its step', () => {
-  it('the scenario\'s target_length replaces the reference 60–120 s unless the caller set the rule (R-FLD-05)', () => {
+  it("the scenario's target_length replaces the reference 60–120 s unless the caller set the rule (R-FLD-05)", () => {
     expect(reviewRules({})).toEqual({ ...DEFAULT_RULES });
     expect(reviewRules({ target_length: { min_s: 30, max_s: 45 } })).toMatchObject({ video_min_s: 30, video_max_s: 45, video_target: 'scenario' });
     expect(reviewRules({ target_length: { min_s: 30, max_s: 45 } }, { video_max_s: 200 })).toMatchObject({ video_min_s: 60, video_max_s: 200 });
@@ -510,7 +624,11 @@ describe('L5.5 review rules: target length, cards too short for their text, a ma
     const short = ctxPlanned(synthTimeline({ entries: entries(2), duration: 5 }));
     const found = checkDurations(short, segmentDurations(short)).filter((f) => f.code === 'card-too-short');
     expect(found).toEqual([
-      expect.objectContaining({ severity: 'warning', message: 'card "why" is on screen 2.0 s: its 30 words need about 8.7 s (250 words a minute + 1.5 s) — remove its `duration` (the default follows the text) or make it longer, or shorten the text' }),
+      expect.objectContaining({
+        severity: 'warning',
+        message:
+          'card "why" is on screen 2.0 s: its 30 words need about 8.7 s (250 words a minute + 1.5 s) — remove its `duration` (the default follows the text) or make it longer, or shorten the text',
+      }),
     ]);
     const auto = ctxPlanned(synthTimeline({ entries: entries(), duration: 5 }));
     expect(checkDurations(auto, segmentDurations(auto)).filter((f) => f.code === 'card-too-short')).toEqual([]);
@@ -595,6 +713,13 @@ describe('client demo retro checks (hotfix v0.2.6)', () => {
     expect(found[0].message).toContain('(skeleton ×4)');
     ctx.timeline.loading_ui = [{ t_start: 99_999, t_end: 100_000, what: 'spinner' }];
     expect(checkLoadingFilmed(ctx)).toEqual([]);
+    // A timeline edited by hand: the reader checks the lists every timeline has, not this optional one — nothing throws.
+    const kept = { t_start: src / fps, t_end: src / fps + 1.2, what: 'spinner' };
+    const handMade = (v: unknown) => Object.assign(ctx.timeline, { loading_ui: v });
+    handMade({ t_start: 0 });
+    expect(checkLoadingFilmed(ctx)).toEqual([]);
+    handMade([null, 'skeleton', { t_start: '1', t_end: 2, what: 'x' }, kept]);
+    expect(checkLoadingFilmed(ctx).map((f) => f.code)).toEqual(['loading-filmed']);
   });
 
   it('zoom-during-scroll: a zoom still on while a scroll step runs', () => {
@@ -609,7 +734,7 @@ describe('client demo retro checks (hotfix v0.2.6)', () => {
     expect(checkZoomScroll(ctx)).toEqual([]);
   });
 
-  it("caption-contradicts-ui: a caption that denies a word the page shows (a note)", () => {
+  it('caption-contradicts-ui: a caption that denies a word the page shows (a note)', () => {
     const ctx = clean(ctxOf('catalogue'));
     const clip = firstClip(ctx);
     expect(checkCaptionContradictions(ctx)).toEqual([]);
@@ -622,6 +747,10 @@ describe('client demo retro checks (hotfix v0.2.6)', () => {
     expect(found[0].message).toContain('"Request a quote"');
     clip.cues = [{ from: 0, to: 30, text: 'No card needed', scene: clip.scene }];
     expect(checkCaptionContradictions(ctx)).toEqual([]);
+    // A target description that is no text (a timeline edited by hand) is no text the page shows: nothing throws.
+    (ev as { target?: { desc: unknown } }).target = { desc: 42 };
+    clip.cues = [{ from: 0, to: 30, text: 'Not a quote: an order', scene: clip.scene }];
+    expect(checkCaptionContradictions(ctx)).toEqual([]);
   });
 
   it('overlay-lost / overlay-cut: a step overlay left out of the video, or cut by the end of its scene', () => {
@@ -632,8 +761,14 @@ describe('client demo retro checks (hotfix v0.2.6)', () => {
     ev.overlay = { component: 'studio/overlay-lower-third', slots: { title: 'x' }, params: {} };
     clip.overlays = clip.overlays.filter((o) => !(o.scene === ev.scene && o.step === ev.step));
     expect(checkOverlaysKept(ctx).map((f) => f.code)).toEqual(['overlay-lost']);
-    clip.overlays.push({ component: { id: 'studio/overlay-lower-third', version: '1.0.0', kind: 'overlay', params: {}, slots: {}, source: 'scenario' }, from: clip.durationInFrames - 20, durationInFrames: 20, componentFrames: 100, scene: ev.scene, step: ev.step } as never);
+    clip.overlays.push({
+      component: { id: 'studio/overlay-lower-third', version: '1.0.0', kind: 'overlay', params: {}, slots: {}, source: 'scenario' },
+      from: clip.durationInFrames - 20,
+      durationInFrames: 20,
+      componentFrames: 100,
+      scene: ev.scene,
+      step: ev.step,
+    } as never);
     expect(checkOverlaysKept(ctx).map((f) => f.code)).toEqual(['overlay-cut']);
   });
 });
-

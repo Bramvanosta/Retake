@@ -10,33 +10,67 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
-import type { HooksJobInput, RunJobInput } from '@retake/core';
-import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, executeRunJob, openWorkspace, pruneUsedApprovals, restoreApprovals, setProtectedHostResolver, sha256Hex, signApprovals, signalInterrupts, verifiedApprovals } from '../src/index.js';
+import type { HooksJobInput, RunJobInput } from '@retake/engine';
+import {
+  APPROVALS_USED_DIR,
+  EngineError,
+  buildDirs,
+  consumeApprovals,
+  createEngine,
+  executeHooksJob,
+  executeRunJob,
+  openWorkspace,
+  pruneUsedApprovals,
+  restoreApprovals,
+  setProtectedHostResolver,
+  sha256Hex,
+  signApprovals,
+  signalInterrupts,
+  verifiedApprovals,
+  enginePorts,
+  diskWorkspaceReads,
+} from '../src/index.js';
 import type { Engine } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let mcp: Engine;
 let cli: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const project = (name: string, envs: string[]) => ['name: ' + name, 'environments:', ...envs, 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', ''].join('\n');
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n';
-const LEAK = SHORT.replace('video: short', 'video: leak').replace('      - hold: 0.2', "      - eval: {js: \"throw new Error(btoa('{{env:HOME}}'))\"}");
+const LEAK = SHORT.replace('video: short', 'video: leak').replace('      - hold: 0.2', '      - eval: {js: "throw new Error(btoa(\'{{env:HOME}}\'))"}');
 const PLAIN_HOOK = SHORT.replace('video: short', 'video: plain').replace('scenes:', 'setup:\n  - http: {method: POST, url: "{{console}}/x"}\nscenes:');
-const LEAK_HOOK = SHORT.replace('video: short', 'video: leakhook').replace('scenes:', 'setup:\n  - http: {method: POST, url: "{{console}}/x", headers: {authorization: "Bearer {{env:HOME}}"}}\nscenes:');
+const LEAK_HOOK = SHORT.replace('video: short', 'video: leakhook').replace(
+  'scenes:',
+  'setup:\n  - http: {method: POST, url: "{{console}}/x", headers: {authorization: "Bearer {{env:HOME}}"}}\nscenes:',
+);
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(EngineError);
   return e as EngineError;
 }
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-agent-safety-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   const files: Record<string, string> = {
-    'prod/project.yaml': project('Prod', ['  production:', '    production: true', '    pages:', '      console: http://127.0.0.1:4999', '  frozen:', '    access: read-only', '    pages:', '      console: https://frozen.example.com']),
+    'prod/project.yaml': project('Prod', [
+      '  production:',
+      '    production: true',
+      '    pages:',
+      '      console: http://127.0.0.1:4999',
+      '  frozen:',
+      '    access: read-only',
+      '    pages:',
+      '      console: https://frozen.example.com',
+    ]),
     // A human made it: its staging points at prod's production host (as a project_create of an older build could).
     'twin/project.yaml': project('Twin', ['  staging:', '    console: http://localhost:4999', '  other:', '    console: http://127.0.0.1:4998']),
     'twin/scenarios/short.yaml': SHORT.replace('video: short', 'video: short\nenv: staging'),
@@ -60,14 +94,16 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
 describe('secrets: a scenario written or run through MCP never names one', () => {
   it('save and validate through MCP refuse it; the engine of another client saves it', async () => {
-    const e = await mcp.scenarios.save('w', 'leak2', LEAK).then(() => undefined, (x: unknown) => x as Error);
+    const e = await mcp.scenarios.save('w', 'leak2', LEAK).then(
+      () => undefined,
+      (x: unknown) => x as Error,
+    );
     expect(e?.message).toContain('the scenario uses {{env:HOME}}: through MCP a scenario never resolves a secret');
     expect((await mcp.scenarios.validate('w', LEAK)).ok).toBe(false);
     expect((await cli.scenarios.validate('w', LEAK)).ok).toBe(true);
@@ -91,8 +127,8 @@ describe('secrets: a scenario written or run through MCP never names one', () =>
     await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), leak);
     try {
       const input = sub.job.input as HooksJobInput;
-      const wsc = await openWorkspace({ root: ws });
-      const exec = (i: HooksJobInput) => refusal(executeHooksJob({ ws: wsc, cli: 'retake', input: i, signal: new AbortController().signal, event: () => undefined }));
+      const wsc = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads });
+      const exec = (i: HooksJobInput) => refusal(executeHooksJob({ ...enginePorts(), ws: wsc, cli: 'retake', input: i, signal: new AbortController().signal, event: () => undefined }));
       // Other bytes than submitted: a conflict before they are parsed.
       expect((await exec(input)).code).toBe('conflict');
       // A job pinned to the changed bytes (queued without a submit): their agent trust is checked again here.
@@ -111,7 +147,10 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
 
   it('save and validate: a file: URL is an error for every client; another origin is saved (save checks the scheme only)', async () => {
     for (const engine of [mcp, cli]) {
-      const e = await engine.scenarios.save('w', 'file', FILE).then(() => undefined, (x: unknown) => x as Error);
+      const e = await engine.scenarios.save('w', 'file', FILE).then(
+        () => undefined,
+        (x: unknown) => x as Error,
+      );
       expect(e?.message).toContain('opens a file: URL: a scenario opens only http: and https: pages (or about:blank)');
       const v = await engine.scenarios.validate('w', FILE);
       expect(v.ok).toBe(false);
@@ -121,7 +160,7 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
     expect((await mcp.scenarios.validate('w', FOREIGN)).ok).toBe(true);
   });
 
-  it('validate on a known environment (its `env`, or the scenario\'s own) says what the run would refuse, at the line', async () => {
+  it("validate on a known environment (its `env`, or the scenario's own) says what the run would refuse, at the line", async () => {
     for (const v of [await mcp.scenarios.validate('w', FOREIGN, { env: 'local' }), await mcp.scenarios.validate('w', FOREIGN.replace('video: foreign', 'video: foreign\nenv: local'))]) {
       expect(v.ok).toBe(false);
       expect(v.issues.filter((i) => i.severity === 'error')).toEqual([
@@ -154,7 +193,10 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
     expect(check.run_blockers.dry).toEqual([expect.objectContaining({ kind: 'opens_other_site', message: expect.stringContaining('from the Studio a scenario opens only its environment') })]);
     expect(check.run_blockers.dry[0].message).toContain('add its origin as a page of environment local in project.yaml');
     // Another reason beside it: the gate's general words, never "opens another site" alone.
-    await writeFile(join(ws, 'projects', 'w', 'scenarios', 'foreign-secret.yaml'), FOREIGN.replace('video: foreign', 'video: foreign-secret').replace('url: "{{console}}/x"}', 'url: "{{console}}/x", headers: {authorization: "Bearer {{env:HOME}}"}}'));
+    await writeFile(
+      join(ws, 'projects', 'w', 'scenarios', 'foreign-secret.yaml'),
+      FOREIGN.replace('video: foreign', 'video: foreign-secret').replace('url: "{{console}}/x"}', 'url: "{{console}}/x", headers: {authorization: "Bearer {{env:HOME}}"}}'),
+    );
     const mixed = await ui.scenarios.check('w', 'foreign-secret');
     expect(mixed.run_blockers.dry).toEqual([expect.objectContaining({ kind: 'agent_trust' })]);
   });
@@ -167,7 +209,8 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
     try {
       const input = { ...(sub.job.input as RunJobInput), scenario_sha256: sha256Hex(swapped) };
       const out = await executeRunJob({
-        ws: await openWorkspace({ root: ws }),
+        ...enginePorts(),
+        ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads }),
         cli: 'retake',
         input,
         signal: new AbortController().signal,
@@ -215,7 +258,14 @@ describe("production across projects: another project's production / read-only h
   it('addresses compare canonically: an IPv4-mapped IPv6 address is its IPv4 form, the unspecified address is loopback', async () => {
     const dns = resolveWith({});
     try {
-      for (const url of ['http://[::ffff:127.0.0.1]:4999/app', 'http://[::ffff:7f00:1]:4999', 'http://[0:0:0:0:0:ffff:7f00:1]:4999', 'http://[::]:4999', 'http://[::ffff:0.0.0.0]:4999', 'http://0x7f.1:4999']) {
+      for (const url of [
+        'http://[::ffff:127.0.0.1]:4999/app',
+        'http://[::ffff:7f00:1]:4999',
+        'http://[0:0:0:0:0:ffff:7f00:1]:4999',
+        'http://[::]:4999',
+        'http://[::ffff:0.0.0.0]:4999',
+        'http://0x7f.1:4999',
+      ]) {
         const e = await refusal(mcp.projects.create({ name: 'Mapped', slug: 'mapped', environments: { staging: { console: url } } }));
         expect(e.code, url).toBe('refused');
         expect(e.message, url).toContain('points at a host of production environment production of project');
@@ -295,17 +345,31 @@ describe("production across projects: another project's production / read-only h
 
   it('the names of one check are resolved together, under one deadline', async () => {
     const asked: string[] = [];
+    // Together, shown by the lookups themselves rather than by a clock: each answers only once every name was asked
+    // (one after the other, the first would wait for the others until the deadline and the check would fail), and the
+    // most lookups in flight at once is all five.
+    let inFlight = 0;
+    let most = 0;
+    const waiting: Array<() => void> = [];
     const before = setProtectedHostResolver({
-      lookup: (name) => (asked.push(name), new Promise((r) => setTimeout(() => r(['192.0.2.50']), 400))),
-      timeoutMs: 2000,
+      lookup: (name) => {
+        asked.push(name);
+        most = Math.max(most, ++inFlight);
+        return new Promise((r) => {
+          waiting.push(() => {
+            inFlight--;
+            r(['192.0.2.50']);
+          });
+          if (waiting.length === 5) for (const go of waiting.splice(0)) go();
+        });
+      },
+      timeoutMs: 10_000,
     });
     try {
-      const started = Date.now();
       const pages = Object.fromEntries(['a', 'b', 'c', 'd'].map((k) => [k, `http://${k}.slow.example.test:4999/`]));
       expect((await mcp.projects.create({ name: 'Many', slug: 'many', environments: { staging: pages, preview: { e: 'http://e.slow.example.test:4999/' } } })).slug).toBe('many');
       expect([...asked].sort()).toEqual(['a', 'b', 'c', 'd', 'e'].map((k) => `${k}.slow.example.test`));
-      // One after the other would take 5 × 400 ms.
-      expect(Date.now() - started).toBeLessThan(1600);
+      expect(most).toBe(5);
     } finally {
       setProtectedHostResolver(before);
     }
@@ -339,7 +403,14 @@ describe('a run whose job was cancelled before any worker took it', () => {
 describe('approvals are signed with the Retake home key, for their job', () => {
   const jobId = 'j_01K9AZ0000000000000000000A';
   const input: RunJobInput = {
-    version: 1, kind: 'run', project: 'w', scenario: 'short', scenario_sha256: 'a'.repeat(64), mode: 'dry', run_id: '20261017-120000-short', submitted_by: 'mcp',
+    version: 1,
+    kind: 'run',
+    project: 'w',
+    scenario: 'short',
+    scenario_sha256: 'a'.repeat(64),
+    mode: 'dry',
+    run_id: '20261017-120000-short',
+    submitted_by: 'mcp',
     approvals: [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation', at: '2026-10-17T12:00:00.000Z' }],
   };
 
@@ -371,7 +442,14 @@ describe('approvals are signed with the Retake home key, for their job', () => {
   it('a hooks job: the sha256 of its scenario bytes is signed with its approvals', async () => {
     const keyFile = join(ws, 'sign-home', 'approvals.key');
     const hooks: HooksJobInput = {
-      version: 1, kind: 'hooks', project: 'w', source: 'short:setup', scenario_sha256: 'a'.repeat(64), dry: false, journal_id: '20261017-120000-hooks-short-setup', submitted_by: 'mcp',
+      version: 1,
+      kind: 'hooks',
+      project: 'w',
+      source: 'short:setup',
+      scenario_sha256: 'a'.repeat(64),
+      dry: false,
+      journal_id: '20261017-120000-hooks-short-setup',
+      submitted_by: 'mcp',
       approvals: [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation', at: '2026-10-17T12:00:00.000Z' }],
     };
     const signed = await signApprovals(hooks, { jobId, root: ws, keyFile });
@@ -381,28 +459,45 @@ describe('approvals are signed with the Retake home key, for their job', () => {
       expect((await verifiedApprovals(forged, { jobId, root: ws, keyFile })).rejected).toBe(1);
     }
   });
+
+  it('a malformed signature (short, not hex) is rejected without throwing; the well-signed one beside it still counts', async () => {
+    const keyFile = join(ws, 'sign-home', 'approvals.key');
+    const two = { ...input, approvals: [input.approvals![0]!, { ...input.approvals![0]!, fingerprint: 'c'.repeat(64) }] };
+    const signed = await signApprovals(two, { jobId, root: ws, keyFile });
+    const [ok, other] = signed.approvals!;
+    for (const sig of ['zz', other!.sig!.slice(0, 63), 'g'.repeat(64)]) {
+      const forged = { ...signed, approvals: [ok!, { ...other!, sig }] };
+      expect(await verifiedApprovals(forged, { jobId, root: ws, keyFile }), sig).toEqual({ approvals: [ok], rejected: 1 });
+    }
+  });
 });
 
-describe('a claim takes its job\'s approvals once (L5.14, review B M1)', () => {
+describe("a claim takes its job's approvals once (L5.14, review B M1)", () => {
   const approvals = [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation' as const, at: '2026-10-17T12:00:00.000Z' }];
-  const rec = (id: string, withApprovals = true) => ({ id, input: { version: 1, kind: 'hooks', project: 'w', source: 'hooks/x.yaml', dry: false, submitted_by: 'mcp', ...(withApprovals ? { approvals } : {}) } as never });
+  const rec = (id: string, withApprovals = true) => ({
+    id,
+    input: { version: 1, kind: 'hooks', project: 'w', source: 'hooks/x.yaml', dry: false, submitted_by: 'mcp', ...(withApprovals ? { approvals } : {}) } as never,
+  });
 
   it('once per id; none without approvals; an id older than the record kept is refused; restore gives them back; a record that cannot be written throws', async () => {
     const env = { ...process.env, RETAKE_HOME: join(ws, 'consume-home') };
     const id = `j_${ulid()}`;
-    expect(await consumeApprovals(rec(`j_${ulid()}`, false), env)).toBe(true);
+    expect(await consumeApprovals(rec(`j_${ulid()}`, false), env, Date.now())).toBe(true);
     await expect(stat(join(ws, 'consume-home', APPROVALS_USED_DIR))).rejects.toThrow(); // nothing taken, nothing written
-    expect(await consumeApprovals(rec(id), env)).toBe(true);
-    expect(await consumeApprovals(rec(id), env)).toBe(false);
+    // The record is stamped with the time the worker hands (its clock), not read here.
+    const now = Date.now() + 1234;
+    expect(await consumeApprovals(rec(id), env, now)).toBe(true);
+    expect(JSON.parse(await readFile(join(ws, 'consume-home', APPROVALS_USED_DIR, id), 'utf8')).at).toBe(new Date(now).toISOString());
+    expect(await consumeApprovals(rec(id), env, Date.now())).toBe(false);
     await restoreApprovals(id, env);
-    expect(await consumeApprovals(rec(id), env)).toBe(true);
+    expect(await consumeApprovals(rec(id), env, Date.now())).toBe(true);
     // A job id older than a year: its record may be pruned — refused.
     expect(await consumeApprovals(rec(`j_${ulid()}`), env, Date.now() + 366 * 24 * 3600_000)).toBe(false);
-    expect(await consumeApprovals(rec('not-a-job-id'), env)).toBe(false);
+    expect(await consumeApprovals(rec('not-a-job-id'), env, Date.now())).toBe(false);
     // The record's folder not writable: an error, never "taken before".
     await chmod(join(ws, 'consume-home', APPROVALS_USED_DIR), 0o500);
     try {
-      await expect(consumeApprovals(rec(`j_${ulid()}`), env)).rejects.toThrow(/EACCES|permission/i);
+      await expect(consumeApprovals(rec(`j_${ulid()}`), env, Date.now())).rejects.toThrow(/EACCES|permission/i);
     } finally {
       await chmod(join(ws, 'consume-home', APPROVALS_USED_DIR), 0o700);
     }
@@ -412,14 +507,14 @@ describe('a claim takes its job\'s approvals once (L5.14, review B M1)', () => {
     const env = { ...process.env, RETAKE_HOME: join(ws, 'prune-home') };
     const fresh = `j_${ulid()}`;
     const old = `j_${ulid()}`;
-    await consumeApprovals(rec(fresh), env);
-    await consumeApprovals(rec(old), env);
+    await consumeApprovals(rec(fresh), env, Date.now());
+    await consumeApprovals(rec(old), env, Date.now());
     const dir = join(ws, 'prune-home', APPROVALS_USED_DIR);
     await writeFile(join(dir, 'notes.txt'), '');
     const then = new Date(Date.now() - 366 * 24 * 3600_000);
     await utimes(join(dir, old), then, then);
     await utimes(join(dir, 'notes.txt'), then, then);
-    await pruneUsedApprovals(env);
+    await pruneUsedApprovals(env, Date.now());
     expect((await readdir(dir)).sort()).toEqual([fresh, 'notes.txt'].sort());
   });
 });

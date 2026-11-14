@@ -10,25 +10,25 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { OWN_OPS, UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let studio: StudioServer;
 const P = 'northfield-fixture';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-shoot-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws, pollMs: 100 });
 }, 60_000);
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -56,7 +56,13 @@ describe('scenario_actions', () => {
   it('⚑ is a Studio read in the ui allow-list; its input is pinned (strict: no run, no path, a slug and a name only)', async () => {
     expect(OWN_OPS).toContain('scenario_actions');
     expect(UI_OPS).toContain('scenario_actions');
-    for (const bad of [{ project: P, name: 'quote', run: '20261020-100000-quote' }, { project: P, name: '../quote' }, { project: '/tmp', name: 'quote' }, { project: P, name: 'quote', env: 'a/b' }, { project: P }]) {
+    for (const bad of [
+      { project: P, name: 'quote', run: '20261020-100000-quote' },
+      { project: P, name: '../quote' },
+      { project: '/tmp', name: 'quote' },
+      { project: P, name: 'quote', env: 'a/b' },
+      { project: P },
+    ]) {
       const r = await call('scenario_actions', bad);
       expect(r.status, JSON.stringify(bad)).toBe(400);
     }

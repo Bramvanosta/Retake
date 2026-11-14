@@ -3,8 +3,10 @@
  * its VideoProber (fileFacts(policy), work-files.ts), with the ffprobe of that work.
  */
 import { accessSync, closeSync, constants as fsConstants, openSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
+import { readFile, readdir } from 'node:fs/promises';
 import type { ProgramPolicyOptions } from '../agent-policy.js';
-import type { FileFacts, FileKind } from '../file-facts.js';
+import type { DiskEntryKind, FileFacts, FileKind, WorkspaceDisk } from '../file-facts.js';
+import { readPlainFile } from './plain-file.js';
 
 function kind(p: string): FileKind | undefined {
   try {
@@ -68,6 +70,20 @@ export const nodeFileFacts: FileFacts = Object.freeze({
   readHead,
   isExecutable,
   ignoresCase: process.platform === 'darwin' || process.platform === 'win32',
+});
+
+/**
+ * The WorkspaceDisk of this machine (core file-facts.ts): node:fs's readFile and readdir, readPlainFile, nodeFileFacts.
+ * The loaders' public names (loadProject, loadWorkspaceConfig, …) read through it.
+ */
+export const nodeWorkspaceDisk: WorkspaceDisk = Object.freeze({
+  facts: nodeFileFacts,
+  readFile: (file: string) => readFile(file),
+  async list(dir: string) {
+    const entries = await readdir(dir, { withFileTypes: true });
+    return entries.map((e) => ({ name: e.name, kind: (e.isSymbolicLink() ? 'link' : e.isDirectory() ? 'directory' : e.isFile() ? 'file' : 'other') as DiskEntryKind }));
+  },
+  readPlain: (file: string, max: number) => readPlainFile(file, max),
 });
 
 /**

@@ -34,7 +34,7 @@ afterAll(async () => {
 
 /** A job folder claimed by this process (as the worker running it). */
 async function claimedJob(): Promise<string> {
-  const id = newJobId();
+  const id = newJobId(Date.now());
   await mkdir(queue.files.job(id), { recursive: true });
   expect(await queue.claim(id, await selfIdentity())).toBe(true);
   return id;
@@ -192,11 +192,18 @@ describe('the live channel of a run job', () => {
       await new Promise((r) => setTimeout(r, 100));
       frame(ch, 1);
       const got: LiveFeedFrame[] = [];
-      const t0 = Date.now();
-      const feed = openLiveFeed(info, { signal: ac.signal, onFrame: (f) => got.push(f) });
+      let closedAtFirstFrame: number | undefined;
+      const feed = openLiveFeed(info, {
+        signal: ac.signal,
+        onFrame: (f) => {
+          got.push(f);
+          closedAtFirstFrame ??= closed;
+        },
+      });
       await until('the cached frame', () => got.length === 1, 3000);
-      // Room was made at once — not when the idle sockets time out.
-      expect(Date.now() - t0).toBeLessThan(LIVE_IDLE_MS / 2);
+      // Room was made at once — not when the idle sockets time out: they were opened together and time out together, so
+      // when the feed's first frame came most of them were still open (by order, not by a clock).
+      expect(closedAtFirstFrame).toBeLessThan(LIVE_SOCKETS_MAX);
       // The idle sockets the server did not close to make room close by themselves.
       await until('every idle socket closed', () => closed === LIVE_SOCKETS_MAX, LIVE_IDLE_MS + 3000);
       // As many idle sockets again: the stream stays and still gets frames.
@@ -272,7 +279,7 @@ describe('the live channel of a run job', () => {
       expect(await readLiveChannel(queue, queue.files, forged)).toBeNull();
       // The claim's worker is gone (a pid that exited): a stale file of a killed worker.
       const dead = spawnSync(process.execPath, ['-e', ''], { stdio: 'ignore' }).pid!;
-      const stale = newJobId();
+      const stale = newJobId(Date.now());
       await mkdir(queue.files.job(stale), { recursive: true });
       await writeFile(join(queue.files.job(stale), 'claim'), JSON.stringify({ pid: dead, at: new Date().toISOString() }));
       await writeFile(queue.files.live(stale), JSON.stringify({ ...JSON.parse(good), job: stale, pid: dead, started_at: undefined }), { mode: 0o600 });

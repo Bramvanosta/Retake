@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { toJsonSchema } from '@retake/core';
-import type { JsonSchema } from '@retake/core';
+import { toJsonSchema } from '@retake/core/schema';
+import type { JsonSchema } from '@retake/core/schema';
 import { paramSchemaJsonSchema } from './json-schema.js';
 import { ComponentManifestFileSchema } from './manifest.js';
 

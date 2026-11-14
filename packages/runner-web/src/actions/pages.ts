@@ -1,5 +1,5 @@
 import type { Page } from 'playwright-core';
-import type { NewTabArgs, OpenArgs, SwitchPageArgs } from '@retake/core';
+import type { NewTabArgs, OpenArgs, SwitchPageArgs } from '@retake/core/model';
 import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { Runtime, StepContext } from '../runtime.js';
@@ -117,9 +117,7 @@ export async function switchPage(ctx: StepContext, args: SwitchPageArgs): Promis
   const to = args.to === 'previous' ? rt.session.previousId() : args.to === 'main' ? firstEnvPage(rt) : args.to;
   if (!to) throw new StepError('switch_page: there is no previous page');
   if (!rt.session.has(to) && !(to in rt.env.pages)) {
-    throw new StepError(
-      `switch_page: unknown page "${to}" (open: ${[...rt.session.pages.keys()].join(', ') || 'none'}; environment: ${Object.keys(rt.env.pages).join(', ')})`,
-    );
+    throw new StepError(`switch_page: unknown page "${to}" (open: ${[...rt.session.pages.keys()].join(', ') || 'none'}; environment: ${Object.keys(rt.env.pages).join(', ')})`);
   }
   if (!rt.session.has(to)) rt.warn(`switch_page: "${to}" was never opened; it starts blank (add an open step)`);
   await rt.activate(to);

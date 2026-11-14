@@ -21,19 +21,21 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
-import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker } from '@retake/engine';
+import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, editorRenderer, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker, withPreviewBackend } from '@retake/engine';
+import type { FreeBytes } from '@retake/engine';
 import type { PreviewBackend } from '@retake/editor';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, UI_OPS, startStudioServer } from '../src/index.js';
 import type { LibraryComponentAnswer, LibraryImagesAnswer, LibraryRenderAnswer, LibraryViewAnswer, StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 const MARK = 'MARKED-LIBRARY-3c9d';
 const HOSTILE = '<img src=x onerror=alert(1)>';
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const call = (op: string, args: unknown = {}) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 async function ok<T>(op: string, args: unknown): Promise<{ data: T; body: string }> {
   const r = await call(op, args);
@@ -47,12 +49,15 @@ async function seed(key: string, kind: 'poster' | 'loop', component: string, ima
   const e = join(libraryCacheDir({ root: ws }), key);
   await mkdir(e, { recursive: true });
   await writeFile(join(e, LIBRARY_FILES[kind]), image);
-  await writeFile(join(e, LIBRARY_FILES.meta), JSON.stringify({ format: LIBRARY_PREVIEW_FORMAT, key, kind, component, theme: { name: 'editorial', hash: 'x' }, at: new Date().toISOString(), state: 'ok', bytes: image.length }));
+  await writeFile(
+    join(e, LIBRARY_FILES.meta),
+    JSON.stringify({ format: LIBRARY_PREVIEW_FORMAT, key, kind, component, theme: { name: 'editorial', hash: 'x' }, at: new Date().toISOString(), state: 'ok', bytes: image.length }),
+  );
 }
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-library-ops-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   // A workspace card with its own preview.png (never trusted as the library's poster) and an agent's name.
   const comp = join(ws, 'components', 'acme', 'marked');
@@ -67,8 +72,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -76,7 +80,7 @@ const viewOf = async (args: Record<string, unknown> = { project: P }) => ok<Libr
 const item = (v: LibraryViewAnswer, id: string) => v.items.find((i) => i.component === id)!;
 
 describe('library_view', () => {
-  it('every component, workspace first, with the engine\'s own keys; committed built-in posters; path-free; untrusted names', async () => {
+  it("every component, workspace first, with the engine's own keys; committed built-in posters; path-free; untrusted names", async () => {
     expect(UI_OPS).toEqual(expect.arrayContaining(['library_view', 'library_images', 'library_render']));
     const { data: v, body } = await viewOf();
     expect(v.theme).toMatchObject({ name: 'editorial', editorial_starter: true, project_default: true });
@@ -126,12 +130,21 @@ describe('library_images', () => {
     // A planted entry: a GIF under a poster key.
     const other = item(v, 'studio/card-title');
     await seed(other.poster.key, 'poster', 'studio/card-title', GIF);
-    const { data: d, body } = await ok<LibraryImagesAnswer>('library_images', { project: P, keys: [m.poster.key, m.loop.key, other.poster.key], committed: ['studio/card-before-after', 'acme/marked'] });
+    const { data: d, body } = await ok<LibraryImagesAnswer>('library_images', {
+      project: P,
+      keys: [m.poster.key, m.loop.key, other.poster.key],
+      committed: ['studio/card-before-after', 'acme/marked'],
+    });
     const byKey = new Map(d.images.filter((i) => i.key).map((i) => [i.key, i]));
     expect(byKey.get(m.poster.key)).toMatchObject({ component: 'acme/marked', kind: 'poster', format: 'png' });
     expect(Buffer.from(byKey.get(m.poster.key)!.data, 'base64').equals(png)).toBe(true);
     expect(byKey.get(m.loop.key)).toMatchObject({ kind: 'loop', format: 'gif', data: GIF.toString('base64') });
-    expect(d.missing).toEqual(expect.arrayContaining([{ key: other.poster.key, reason: 'missing' }, { component: 'acme/marked', reason: 'not_builtin' }]));
+    expect(d.missing).toEqual(
+      expect.arrayContaining([
+        { key: other.poster.key, reason: 'missing' },
+        { component: 'acme/marked', reason: 'not_builtin' },
+      ]),
+    );
     // B6: the largest committed poster (189,595 bytes raw: over 200,000 base64 characters) is within POSTER_DATA_MAX.
     const largest = d.images.find((i) => i.component === 'studio/card-before-after')!;
     expect(largest).toMatchObject({ kind: 'poster', format: 'png' });
@@ -160,7 +173,15 @@ describe('library_render', () => {
     const again = (await ok<LibraryRenderAnswer>('library_render', { project: P, items: [{ component: a.component, loop: a.loop.key }] })).data;
     expect(again).toEqual({ job: null, components: [], skipped: [{ component: a.component, kind: 'loop' }] });
     // A mixed request: the queued key skipped, the new one queued.
-    const mixed = (await ok<LibraryRenderAnswer>('library_render', { project: P, items: [{ component: a.component, loop: a.loop.key }, { component: b.component, poster: b.poster.key }] })).data;
+    const mixed = (
+      await ok<LibraryRenderAnswer>('library_render', {
+        project: P,
+        items: [
+          { component: a.component, loop: a.loop.key },
+          { component: b.component, poster: b.poster.key },
+        ],
+      })
+    ).data;
     expect(mixed.job).not.toBeNull();
     expect(mixed.components).toEqual([b.component]);
     expect(mixed.skipped).toEqual([{ component: a.component, kind: 'loop' }]);
@@ -191,7 +212,11 @@ describe('library_component (part D1)', () => {
     await writeFile(join(dir, 'README.md'), `# Marked\n\nIts code is ${dir}/index.tsx — ${HOSTILE}\n`);
     const { data: d, body } = await ok<LibraryComponentAnswer>('library_component', { project: P, component: 'acme/marked' });
     expect(d).toMatchObject({ component: 'acme/marked', kind: 'card', source: 'workspace', kit: { needs: 1, provided: 1, compatible: true }, variants: ['landscape', 'vertical'] });
-    expect(d.slots.map((x) => [x.name, x.type, x.required])).toEqual([['title', 'text', true], ['kicker', 'text', false], ['text', 'text', false]]);
+    expect(d.slots.map((x) => [x.name, x.type, x.required])).toEqual([
+      ['title', 'text', true],
+      ['kicker', 'text', false],
+      ['text', 'text', false],
+    ]);
     expect(d.untrusted.name).toBe(HOSTILE);
     expect(d.untrusted.slots.title).toBe('The card title.');
     expect(d.untrusted.params).toEqual([{ name: 'align', type: 'string', default: 'center', enum: ['center', 'left'], description: 'Alignment of the column.' }]);
@@ -220,14 +245,16 @@ describe('library_component (part D1)', () => {
 });
 
 /** Run the worker (one job at a time: cancelled ones first) until job `id` has finished. */
-async function workUntil(id: string, previewTest: Parameters<typeof runWorker>[0]['previewTest']): Promise<void> {
+async function workUntil(id: string, test: { backend?: PreviewBackend; freeBytes: FreeBytes }): Promise<void> {
+  // The worker's ports (L7.29): the backend draws the previews of its renderer, the free space its disk gate sees.
+  const ports = { ...(test.backend ? { renderer: withPreviewBackend(editorRenderer(), test.backend) } : {}), freeBytes: test.freeBytes };
   for (let i = 0; i < 10 && ['queued', 'running'].includes((await studio.engine.jobs.get(id)).state); i++) {
-    await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, previewTest });
+    await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, heavyInProcess: true, ports });
   }
 }
 
 describe('failures on the page (L4.7 review A L2 / B H1)', () => {
-  it('⚑ a failure\'s reason is path-free under untrusted; a library job that failed as a whole shows its error until one succeeds', async () => {
+  it("⚑ a failure's reason is path-free under untrusted; a library job that failed as a whole shows its error until one succeeds", async () => {
     // Nothing else queued: earlier tests' jobs cancelled.
     for (const j of await studio.engine.jobs.list({ project: P, kinds: ['preview'], states: ['queued'] })) await studio.engine.jobs.cancel(j.id);
     const v = (await viewOf()).data;
@@ -237,7 +264,19 @@ describe('failures on the page (L4.7 review A L2 / B H1)', () => {
     const e = join(libraryCacheDir({ root: ws }), a.loop.key);
     await mkdir(e, { recursive: true });
     const reason = `its preview failed: Module build failed (from ${ws}/node_modules/x/loader.js): ${ws}/components/acme/marked/index.tsx and /Users/someone/secret/plan.ts`;
-    await writeFile(join(e, LIBRARY_FILES.failed), JSON.stringify({ format: LIBRARY_PREVIEW_FORMAT, key: a.loop.key, kind: 'loop', component: a.component, theme: { name: 'editorial', hash: 'x' }, at: new Date().toISOString(), reason, bundle: registryHash }));
+    await writeFile(
+      join(e, LIBRARY_FILES.failed),
+      JSON.stringify({
+        format: LIBRARY_PREVIEW_FORMAT,
+        key: a.loop.key,
+        kind: 'loop',
+        component: a.component,
+        theme: { name: 'editorial', hash: 'x' },
+        at: new Date().toISOString(),
+        reason,
+        bundle: registryHash,
+      }),
+    );
     const { data: failed, body } = await viewOf();
     expect(item(failed, a.component).loop.state).toBe('failed');
     const words = item(failed, a.component).loop.untrusted!.reason;

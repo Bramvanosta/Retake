@@ -66,7 +66,11 @@ function fakeApp(dir: string, name = 'Retake', id: string | null = APP_BUNDLE_ID
   const launcher = join(res, 'bin', 'retake');
   writeFileSync(launcher, `#!/bin/sh\necho "${name} $*"\n`);
   chmodSync(launcher, 0o755);
-  if (id !== null) writeFileSync(join(dir, `${name}.app`, 'Contents', 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict>\n\t<key>CFBundleIdentifier</key>\n\t<string>${id}</string>\n</dict></plist>\n`);
+  if (id !== null)
+    writeFileSync(
+      join(dir, `${name}.app`, 'Contents', 'Info.plist'),
+      `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict>\n\t<key>CFBundleIdentifier</key>\n\t<string>${id}</string>\n</dict></plist>\n`,
+    );
   return { app: join(dir, `${name}.app`), launcher };
 }
 
@@ -124,7 +128,7 @@ describe('the retake command (plan §4)', () => {
     expect(() => installCliLink('relative/bin', launcher)).toThrow(expect.objectContaining({ reason: 'not_absolute' }));
   });
 
-  it('never replaces nor removes a file that is not a link into an app; another app\'s link only with Replace', () => {
+  it("never replaces nor removes a file that is not a link into an app; another app's link only with Replace", () => {
     const home = scratch('home');
     const dir = defaultCliDir(home);
     mkdirSync(dir, { recursive: true });
@@ -165,7 +169,7 @@ describe('the retake command (plan §4)', () => {
     expect(removeCliLink(link, launcher)).toBe('removed');
   });
 
-  it('review c B-M3: a look-alike of an app launcher is the person\'s file — the exact layout AND Retake\'s identifier make another copy', () => {
+  it("review c B-M3: a look-alike of an app launcher is the person's file — the exact layout AND Retake's identifier make another copy", () => {
     const home = scratch('home');
     const dir = defaultCliDir(home);
     mkdirSync(dir, { recursive: true });
@@ -241,7 +245,7 @@ describe('the retake command (plan §4)', () => {
     expect(existsSync(marker)).toBe(false);
   });
 
-  it('a chosen folder must be absolute, a folder, the person\'s, writable, outside the workspace and the app', () => {
+  it("a chosen folder must be absolute, a folder, the person's, writable, outside the workspace and the app", () => {
     const uid = process.getuid!();
     const ws = scratch('ws');
     const { app } = fakeApp(scratch('apps'));
@@ -289,7 +293,11 @@ describe('<home>/app.json', () => {
   });
 });
 
-const ENTRY = { command: '/Applications/Retake.app/Contents/Resources/node/bin/node', args: ['--require', '/Applications/Retake.app/Contents/Resources/node/guard.cjs', '/Applications/Retake.app/Contents/Resources/engine/dist/bin.js', '--root', '/Users/me/Retake', 'mcp'], env: { PATH: '/usr/bin:/bin' } };
+const ENTRY = {
+  command: '/Applications/Retake.app/Contents/Resources/node/bin/node',
+  args: ['--require', '/Applications/Retake.app/Contents/Resources/node/guard.cjs', '/Applications/Retake.app/Contents/Resources/engine/dist/bin.js', '--root', '/Users/me/Retake', 'mcp'],
+  env: { PATH: '/usr/bin:/bin' },
+};
 
 describe('Claude Desktop (critique M7)', () => {
   it('plans the change: created, added beside every other key, the same, a different entry — refusing unparsable JSON and a non-object mcpServers', () => {
@@ -309,7 +317,7 @@ describe('Claude Desktop (critique M7)', () => {
     expect(() => planDesktopEntry('{"mcpServers": "x"}', ENTRY)).toThrow(expect.objectContaining({ reason: 'servers_not_object' }));
   });
 
-  it('writes on scratch configs: a backup first (capped, in Retake\'s own folder), the mode kept, other keys kept, read back; a different entry needs Replace; no folder, no file', () => {
+  it("writes on scratch configs: a backup first (capped, in Retake's own folder), the mode kept, other keys kept, read back; a different entry needs Replace; no folder, no file", () => {
     const home = scratch('desk');
     const file = claudeDesktopConfigFile(home);
     const backupDir = desktopBackupDir(join(home, '.retake'));
@@ -349,13 +357,17 @@ describe('Claude Desktop (critique M7)', () => {
     expect(b2).toBe(`${b1}-1`);
     // Backups are capped: the oldest go.
     for (let i = 0; i < DESKTOP_BACKUPS_MAX + 3; i++) writeDesktopEntry(file, i % 2 ? ENTRY : other, { backupDir, replace: true, now: new Date(Date.UTC(2026, 10, 4, 0, 0, i)) });
-    const backups = readdirSync(backupDir).filter((f) => f.includes('.retake-backup-')).sort();
+    const backups = readdirSync(backupDir)
+      .filter((f) => f.includes('.retake-backup-'))
+      .sort();
     expect(backups).toHaveLength(DESKTOP_BACKUPS_MAX);
     expect(backups[0]).toContain('2026-11-04T00-00-03');
     // Nothing temporary left, nothing beside the config.
     expect(readdirSync(join(file, '..'))).toEqual(['claude_desktop_config.json']);
     // Read back: a program that writes the file over right after (Claude Desktop from memory) is said, with the backup.
-    expect(() => writeDesktopEntry(file, other, { backupDir, replace: true, now: new Date('2026-11-05T00:00:00Z'), afterWrite: (f) => writeFileSync(f, '{"theme":"dark"}') })).toThrow(expect.objectContaining({ reason: 'not_kept', message: expect.stringContaining(join(backupDir, 'claude_desktop_config.json.retake-backup-2026-11-05T00-00-00-000Z')) }));
+    expect(() => writeDesktopEntry(file, other, { backupDir, replace: true, now: new Date('2026-11-05T00:00:00Z'), afterWrite: (f) => writeFileSync(f, '{"theme":"dark"}') })).toThrow(
+      expect.objectContaining({ reason: 'not_kept', message: expect.stringContaining(join(backupDir, 'claude_desktop_config.json.retake-backup-2026-11-05T00-00-00-000Z')) }),
+    );
     // Unparsable: refused, left byte for byte, no backup made.
     writeFileSync(file, '{ "theme": "dark", ');
     const count = readdirSync(backupDir).length;
@@ -413,13 +425,20 @@ describe('Claude Code (plan §4, critique L4)', () => {
     const log = join(dir, 'calls.log');
     const claude = join(dir, 'claude');
     // A fake claude: records its argv (one per line), its folder and its environment; fails on "fail".
-    writeFileSync(claude, `#!/bin/sh\n{ echo "cwd=$(pwd)"; for a in "$@"; do echo "arg=$a"; done; echo "env=$(env | sort | tr '\\n' ' ')"; } >> '${log}'\nprintf '\\033[32mdone\\033[0m\\r\\n'\n[ "$1" = fail ] && exit 3\nexit 0\n`);
+    writeFileSync(
+      claude,
+      `#!/bin/sh\n{ echo "cwd=$(pwd)"; for a in "$@"; do echo "arg=$a"; done; echo "env=$(env | sort | tr '\\n' ' ')"; } >> '${log}'\nprintf '\\033[32mdone\\033[0m\\r\\n'\n[ "$1" = fail ] && exit 3\nexit 0\n`,
+    );
     chmodSync(claude, 0o755);
     const ws = scratch('ws with space');
     const env = claudeEnv(claude, { HOME: dir, USER: 'me', CLAUDE_CONFIG_DIR: join(dir, 'cfg'), NODE_OPTIONS: '--require /evil.js', SECRET_TOKEN: 'x', PATH: '/evil/bin' }, '/App/node/bin');
     expect(env).toEqual({ PATH: `${dir}:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin:/App/node/bin`, HOME: dir, USER: 'me', CLAUDE_CONFIG_DIR: join(dir, 'cfg') });
     const evil = '$(touch pwned); `id` && echo hi; rm -rf ~';
-    const r = await runClaudeSteps(claude, [{ argv: ['plugin', 'marketplace', 'add', '/Applications/Retake.app/Contents/Resources/plugin'] }, { argv: ['plugin', 'install', 'retake@retake', '--config', `workspace=${evil}`], cwd: ws }], { env });
+    const r = await runClaudeSteps(
+      claude,
+      [{ argv: ['plugin', 'marketplace', 'add', '/Applications/Retake.app/Contents/Resources/plugin'] }, { argv: ['plugin', 'install', 'retake@retake', '--config', `workspace=${evil}`], cwd: ws }],
+      { env },
+    );
     expect(r.ok).toBe(true);
     expect(r.timedOut).toBe(false);
     expect(r.steps.map((s) => s.code)).toEqual([0, 0]);
@@ -465,7 +484,10 @@ describe('Claude Code: a helper that holds the pipes (review c A-M1)', () => {
     // The helper: its own session (detached: setsid), the step's stdout / stderr inherited, writing a dot every 100 ms
     // for 30 s — once the runner lets the pipes go, a write fails (EPIPE) and it dies.
     const body = 'setInterval(() => process.stdout.write("."), 100); setTimeout(() => process.exit(0), 30000);';
-    writeFileSync(helper, `const { spawn } = require('node:child_process');\nconst c = spawn(process.execPath, ['-e', ${JSON.stringify(body)}], { detached: true, stdio: ['ignore', 'inherit', 'inherit'] });\nrequire('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(c.pid));\nc.unref();\n`);
+    writeFileSync(
+      helper,
+      `const { spawn } = require('node:child_process');\nconst c = spawn(process.execPath, ['-e', ${JSON.stringify(body)}], { detached: true, stdio: ['ignore', 'inherit', 'inherit'] });\nrequire('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(c.pid));\nc.unref();\n`,
+    );
     const claude = join(dir, 'claude');
     writeFileSync(claude, `#!/bin/sh\necho $$ > '${join(dir, 'claude.pid')}'\necho registered\n'${process.execPath}' '${helper}'\n${then}\n`);
     chmodSync(claude, 0o755);

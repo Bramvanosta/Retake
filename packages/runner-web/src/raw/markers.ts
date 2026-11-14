@@ -4,7 +4,7 @@
  * EDL with locators, OpenTimelineIO JSON and CSV / JSON. Every clip carries a start timecode equal to its place on the
  * sequence (00:00:00:00 = the sequence start), so source and record timecodes agree in every tool. Pure.
  */
-import type { TimelineEvent } from '@retake/core';
+import type { TimelineEvent } from '@retake/core/model';
 import { clipFrameAt, type RawClipPlan, type RawPlan, sequenceStartOf } from './plan.js';
 import { csvLine } from './cursor.js';
 
@@ -62,7 +62,15 @@ export function rawMarkers(plan: RawPlan): RawMarker[] {
     add({
       kind: 'scene',
       name: short(`${String(clip.number).padStart(2, '0')} ${clip.scene}`),
-      comment: [clip.caption ? captionText(clip.caption) : '', multi ? `pages: ${plan.clips.filter((c) => c.number === clip.number).map((c) => c.page).join(', ')}` : '']
+      comment: [
+        clip.caption ? captionText(clip.caption) : '',
+        multi
+          ? `pages: ${plan.clips
+              .filter((c) => c.number === clip.number)
+              .map((c) => c.page)
+              .join(', ')}`
+          : '',
+      ]
         .filter(Boolean)
         .join(' · '),
       frame: 0,
@@ -163,11 +171,23 @@ export function fcpTime(frames: number, fps: number): string {
   return frames === 0 ? '0s' : `${frames}/${fps}s`;
 }
 
-const xml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+const xml = (s: string) =>
+  s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
 
 /** file:// URL of an absolute path (percent-encoded). */
 export function fileUrl(abs: string): string {
-  return 'file://' + abs.split('/').map((p) => encodeURIComponent(p)).join('/');
+  return (
+    'file://' +
+    abs
+      .split('/')
+      .map((p) => encodeURIComponent(p))
+      .join('/')
+  );
 }
 
 /** Files of a package, per clip index: the clip and (layer mode) its cursor layer, absolute paths. */
@@ -253,11 +273,19 @@ export function writeFcpxml(plan: RawPlan, markers: readonly RawMarker[], files:
     const inner: string[] = [];
     let lane = 1;
     const layer = layerAssets.get(c.index);
-    if (layer) inner.push(`          <asset-clip ref="${layer}" lane="${lane++}" offset="${t(start)}" name="${xml(`${c.name}-cursor`)}" start="${t(start)}" duration="${t(c.frames)}" format="${formatOf(c)}" tcFormat="NDF"/>`);
+    if (layer)
+      inner.push(
+        `          <asset-clip ref="${layer}" lane="${lane++}" offset="${t(start)}" name="${xml(`${c.name}-cursor`)}" start="${t(start)}" duration="${t(c.frames)}" format="${formatOf(c)}" tcFormat="NDF"/>`,
+      );
     for (const o of plan.clips.filter((x) => x.number === c.number && x !== c)) {
-      inner.push(`          <asset-clip ref="${assets.get(o.index)}" lane="${lane++}" offset="${t(start)}" name="${xml(o.name)}" start="${t(start)}" duration="${t(o.frames)}" format="${formatOf(o)}" tcFormat="NDF" enabled="0"/>`);
+      inner.push(
+        `          <asset-clip ref="${assets.get(o.index)}" lane="${lane++}" offset="${t(start)}" name="${xml(o.name)}" start="${t(start)}" duration="${t(o.frames)}" format="${formatOf(o)}" tcFormat="NDF" enabled="0"/>`,
+      );
       const ol = layerAssets.get(o.index);
-      if (ol) inner.push(`          <asset-clip ref="${ol}" lane="${lane++}" offset="${t(start)}" name="${xml(`${o.name}-cursor`)}" start="${t(start)}" duration="${t(o.frames)}" format="${formatOf(o)}" tcFormat="NDF" enabled="0"/>`);
+      if (ol)
+        inner.push(
+          `          <asset-clip ref="${ol}" lane="${lane++}" offset="${t(start)}" name="${xml(`${o.name}-cursor`)}" start="${t(start)}" duration="${t(o.frames)}" format="${formatOf(o)}" tcFormat="NDF" enabled="0"/>`,
+        );
     }
     for (const m of markers.filter((x) => x.clip === c.index)) {
       const at = t(start + m.frame);
@@ -366,7 +394,16 @@ export function writeOtio(plan: RawPlan, markers: readonly RawMarker[], files: P
             .filter((m) => m.clip === c.index)
             .map((m) => ({
               OTIO_SCHEMA: 'Marker.2',
-              metadata: { retake: { kind: m.kind, scene: m.scene, ...(m.step !== undefined ? { step: m.step } : {}), ...(m.step_id ? { step_id: m.step_id } : {}), ...(m.page ? { page: m.page } : {}), capture_t: m.capture_t } },
+              metadata: {
+                retake: {
+                  kind: m.kind,
+                  scene: m.scene,
+                  ...(m.step !== undefined ? { step: m.step } : {}),
+                  ...(m.step_id ? { step_id: m.step_id } : {}),
+                  ...(m.page ? { page: m.page } : {}),
+                  capture_t: m.capture_t,
+                },
+              },
               name: m.name,
               color: m.color,
               marked_range: range(start + m.frame, m.duration, fps),
@@ -389,7 +426,18 @@ export function writeOtio(plan: RawPlan, markers: readonly RawMarker[], files: P
     };
   };
   const gap = (frames: number) => ({ OTIO_SCHEMA: 'Gap.1', metadata: {}, name: '', source_range: range(0, frames, fps), effects: [], markers: [], enabled: true, color: null });
-  const track = (name: string, children: unknown[], enabled = true) => ({ OTIO_SCHEMA: 'Track.1', metadata: {}, name, source_range: null, effects: [], markers: [], enabled, color: null, children, kind: 'Video' });
+  const track = (name: string, children: unknown[], enabled = true) => ({
+    OTIO_SCHEMA: 'Track.1',
+    metadata: {},
+    name,
+    source_range: null,
+    effects: [],
+    markers: [],
+    enabled,
+    color: null,
+    children,
+    kind: 'Video',
+  });
   /** A track with an item per sequence slot: `pick(primary)` or a gap. */
   const slotted = (pick: (primary: RawClipPlan) => unknown | null): unknown[] => {
     const out: unknown[] = [];
@@ -408,14 +456,42 @@ export function writeOtio(plan: RawPlan, markers: readonly RawMarker[], files: P
     if (pending > 0 && out.length > 0) out.push(gap(pending));
     return out;
   };
-  const tracks: unknown[] = [track('V1', slotted((p) => clipItem(p, files.clips[p.index], p.name, true, true)))];
+  const tracks: unknown[] = [
+    track(
+      'V1',
+      slotted((p) => clipItem(p, files.clips[p.index], p.name, true, true)),
+    ),
+  ];
   const tc = files.layersTimecoded !== false;
-  if (files.layers) tracks.push(track('Cursor', slotted((p) => (files.layers![p.index] ? clipItem(p, files.layers![p.index], `${p.name}-cursor`, true, false, tc) : null))));
+  if (files.layers)
+    tracks.push(
+      track(
+        'Cursor',
+        slotted((p) => (files.layers![p.index] ? clipItem(p, files.layers![p.index], `${p.name}-cursor`, true, false, tc) : null)),
+      ),
+    );
   const extra = Math.max(0, ...plan.sequence.map((s) => plan.clips.filter((c) => c.number === plan.clips[s.clip].number).length - 1));
   for (let k = 0; k < extra; k++) {
     const other = (p: RawClipPlan) => plan.clips.filter((c) => c.number === p.number && c !== p)[k] ?? null;
-    tracks.push(track(`Page ${k + 2}`, slotted((p) => { const o = other(p); return o ? clipItem(o, files.clips[o.index], o.name, false, false) : null; })));
-    if (files.layers) tracks.push(track(`Page ${k + 2} cursor`, slotted((p) => { const o = other(p); return o && files.layers![o.index] ? clipItem(o, files.layers![o.index], `${o.name}-cursor`, false, false, tc) : null; })));
+    tracks.push(
+      track(
+        `Page ${k + 2}`,
+        slotted((p) => {
+          const o = other(p);
+          return o ? clipItem(o, files.clips[o.index], o.name, false, false) : null;
+        }),
+      ),
+    );
+    if (files.layers)
+      tracks.push(
+        track(
+          `Page ${k + 2} cursor`,
+          slotted((p) => {
+            const o = other(p);
+            return o && files.layers![o.index] ? clipItem(o, files.layers![o.index], `${o.name}-cursor`, false, false, tc) : null;
+          }),
+        ),
+      );
   }
   const timeline = {
     OTIO_SCHEMA: 'Timeline.1',
@@ -473,10 +549,52 @@ export function markersJson(plan: RawPlan, markers: readonly RawMarker[], clipFi
 export function markersCsv(plan: RawPlan, markers: readonly RawMarker[], clipFile: (c: RawClipPlan) => string): string {
   const fps = plan.fps;
   const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
-  const rows = [csvLine(['kind', 'name', 'color', 'clip', 'scene', 'page', 'step', 'step_id', 'action', 'clip_frame', 'clip_time_s', 'clip_tc', 'seq_frame', 'seq_time_s', 'seq_tc', 'duration_frames', 'duration_s', 'capture_t', 'comment'])];
+  const rows = [
+    csvLine([
+      'kind',
+      'name',
+      'color',
+      'clip',
+      'scene',
+      'page',
+      'step',
+      'step_id',
+      'action',
+      'clip_frame',
+      'clip_time_s',
+      'clip_tc',
+      'seq_frame',
+      'seq_time_s',
+      'seq_tc',
+      'duration_frames',
+      'duration_s',
+      'capture_t',
+      'comment',
+    ]),
+  ];
   for (const m of markers) {
     rows.push(
-      csvLine([m.kind, m.name, m.color, clipFile(plan.clips[m.clip]), m.scene, m.page ?? '', m.step ?? '', m.step_id ?? '', m.action ?? '', m.frame, r4(m.frame / fps), timecode(m.frame, fps), m.seq, r4(m.seq / fps), timecode(m.seq, fps), m.duration, r4(m.duration / fps), m.capture_t, m.comment]),
+      csvLine([
+        m.kind,
+        m.name,
+        m.color,
+        clipFile(plan.clips[m.clip]),
+        m.scene,
+        m.page ?? '',
+        m.step ?? '',
+        m.step_id ?? '',
+        m.action ?? '',
+        m.frame,
+        r4(m.frame / fps),
+        timecode(m.frame, fps),
+        m.seq,
+        r4(m.seq / fps),
+        timecode(m.seq, fps),
+        m.duration,
+        r4(m.duration / fps),
+        m.capture_t,
+        m.comment,
+      ]),
     );
   }
   return rows.join('\n') + '\n';

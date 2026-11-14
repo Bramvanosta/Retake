@@ -6,8 +6,9 @@ import { KEEP_NEAR_PX, cursorCovers, firstPointerStep } from '../src/scene-curso
 import type { SceneCursorRecord } from '../src/scene-cursor.js';
 import { normalizeStep, PERSON_POLICY } from '@retake/core';
 import { CURSOR_DIALOG_PAGE, CURSOR_PAGE, CURSOR_TALL_PAGE } from './pages.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 let server: TestServer;
 let dir: string;

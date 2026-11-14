@@ -16,8 +16,9 @@ import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { RunRecord, Timeline } from '@retake/core';
 import { exportCapture, probeVideo, runScenario } from '../src/index.js';
 import type { RawExportResult } from '../src/index.js';
-import { FAST, debugTemplate, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, debugTemplate, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 const HOME = `<!doctype html><html><body style="margin:0;background:#dde3ea;font-family:sans-serif">
 <button id="go" style="position:absolute;left:100px;top:100px;width:200px;height:80px;font-size:24px;cursor:pointer" onclick="this.textContent='Done'">Go</button>
@@ -49,7 +50,15 @@ beforeAll(async () => {
   server = await startServer({ '/': HOME, '/next': NEXT });
   dir = await tempDir('rw-raw-');
   for (const mode of ['hidden', 'baked'] as const) {
-    const rec = await runScenario({ policy: PERSON_POLICY, project: project(), scenario: scenario(), template: debugTemplate(), mode: 'capture', runId: `raw-${mode}-${Date.now()}`, ...(mode === 'hidden' ? { hideCursor: true } : {}) });
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
+      project: project(),
+      scenario: scenario(),
+      template: debugTemplate(),
+      mode: 'capture',
+      runId: `raw-${mode}-${Date.now()}`,
+      ...(mode === 'hidden' ? { hideCursor: true } : {}),
+    });
     expect(rec.error?.message).toBeUndefined();
     runs[mode] = { rec, tl: await readTimeline(rec.timeline!) };
   }
@@ -126,7 +135,16 @@ describe('raw export (R-RAW-01…04)', () => {
 
   beforeAll(async () => {
     none = await exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.hidden.rec.dir, template: debugTemplate(), out: join(dir, 'pkg-none'), selects: true });
-    layer = await exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.hidden.rec.dir, template: debugTemplate(), cursor: 'layer', format: 'prores', fps: 60, out: join(dir, 'pkg-layer') });
+    layer = await exportCapture({
+      policy: PERSON_POLICY,
+      project: project(),
+      runDir: runs.hidden.rec.dir,
+      template: debugTemplate(),
+      cursor: 'layer',
+      format: 'prores',
+      fps: 60,
+      out: join(dir, 'pkg-layer'),
+    });
     bakedLayer = await exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.baked.rec.dir, template: debugTemplate(), cursor: 'layer', out: join(dir, 'pkg-baked-layer') });
   }, 240_000);
 
@@ -199,7 +217,9 @@ describe('raw export (R-RAW-01…04)', () => {
     // pieces around the cut rounds by ±1 at either rate, and the resume snaps to a painted frame on each rate's grid).
     expect(Math.abs(c.frames - 2 * none.manifest.clips[0].frames)).toBeLessThanOrEqual(3);
     const lay = decodeRgba(join(layer.dir, c.layer!.file), 800, 600);
-    const cursor = JSON.parse(await readFile(join(layer.dir, 'cursor', 'cursor.json'), 'utf8')) as { clips: Array<{ samples: Array<{ f: number; x: number; y: number; visible: boolean; ripples?: unknown[] }>; clicks: Array<{ f: number; x: number; y: number }> }> };
+    const cursor = JSON.parse(await readFile(join(layer.dir, 'cursor', 'cursor.json'), 'utf8')) as {
+      clips: Array<{ samples: Array<{ f: number; x: number; y: number; visible: boolean; ripples?: unknown[] }>; clicks: Array<{ f: number; x: number; y: number }> }>;
+    };
     const { samples, clicks } = cursor.clips[0];
     let checked = 0;
     for (let k = 0; k < c.frames; k += 7) {
@@ -246,7 +266,14 @@ describe('raw export (R-RAW-01…04)', () => {
     const probe = await probeVideo(join(webm.dir, c.layer!.file), { policy: PERSON_POLICY });
     expect(probe.timecode).toBeUndefined();
     expect(await readFile(join(webm.dir, webm.manifest.markers.fcpxml), 'utf8')).not.toContain('-cursor');
-    const otio = JSON.parse(await readFile(join(webm.dir, webm.manifest.markers.otio), 'utf8')) as { tracks: { children: Array<{ name: string; children: Array<{ source_range: { start_time: { value: number } }; media_references: { DEFAULT_MEDIA: { target_url: string; available_range: { start_time: { value: number } } } } }> }> } };
+    const otio = JSON.parse(await readFile(join(webm.dir, webm.manifest.markers.otio), 'utf8')) as {
+      tracks: {
+        children: Array<{
+          name: string;
+          children: Array<{ source_range: { start_time: { value: number } }; media_references: { DEFAULT_MEDIA: { target_url: string; available_range: { start_time: { value: number } } } } }>;
+        }>;
+      };
+    };
     const layerClip = otio.tracks.children.find((t) => t.name === 'Cursor')!.children[0];
     expect(layerClip.media_references.DEFAULT_MEDIA.available_range.start_time.value).toBe(0);
     expect(layerClip.media_references.DEFAULT_MEDIA.target_url).toBe(`file://${encodeURI(join(webm.dir, c.layer!.file))}`);
@@ -259,7 +286,18 @@ describe('raw export (R-RAW-01…04)', () => {
 
   it('cursor data, markers, manifest and README in every mode', async () => {
     for (const r of [none, layer, bakedLayer]) {
-      for (const f of ['manifest.json', 'README.md', 'cursor/cursor.json', 'cursor/cursor.csv', 'cursor/clicks.csv', r.manifest.markers.fcpxml, r.manifest.markers.edl, r.manifest.markers.otio, r.manifest.markers.csv, r.manifest.markers.json]) {
+      for (const f of [
+        'manifest.json',
+        'README.md',
+        'cursor/cursor.json',
+        'cursor/cursor.csv',
+        'cursor/clicks.csv',
+        r.manifest.markers.fcpxml,
+        r.manifest.markers.edl,
+        r.manifest.markers.otio,
+        r.manifest.markers.csv,
+        r.manifest.markers.json,
+      ]) {
         expect(existsSync(join(r.dir, f)), f).toBe(true);
       }
       expect(r.manifest.cursor.icons).toBe('recorded');
@@ -280,7 +318,9 @@ describe('raw export (R-RAW-01…04)', () => {
   });
 
   it('refuses what a run cannot give: no cursor removed from pictures, no cursor baked into a cursorless run', async () => {
-    await expect(exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.baked.rec.dir, cursor: 'none', out: join(dir, 'x') })).rejects.toThrow(/--cursor none needs a run captured without it/);
+    await expect(exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.baked.rec.dir, cursor: 'none', out: join(dir, 'x') })).rejects.toThrow(
+      /--cursor none needs a run captured without it/,
+    );
     await expect(exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.hidden.rec.dir, cursor: 'baked', out: join(dir, 'y') })).rejects.toThrow(/captured without its cursor/);
     expect(existsSync(join(dir, 'x'))).toBe(false);
     // A folder that is not a raw package is never replaced.

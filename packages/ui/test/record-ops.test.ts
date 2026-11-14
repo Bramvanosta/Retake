@@ -1,7 +1,7 @@
 /**
  * L4.8 part 4: the Record screen's ops over HTTP (record-ops.ts, R-UI-20 / 21 / 22), under the `ui` client — the
  * fixture product on ephemeral ports, the worker run in this process with Playwright playing the person
- * (`recordTest.drive`: a worker process cannot receive it), the person's Studio calls made over HTTP from inside the
+ * (`ports.recordWindow.drive`: a worker process cannot receive it), the person's Studio calls made over HTTP from inside the
  * drive while the window is open.
  *
  * - The allow-list: the 7 record ops are the Studio's own; scenario_record and job_cancel stay 404.
@@ -26,14 +26,16 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, newRecordId, runWorker, selfIdentity } from '@retake/engine';
-import type { JobRecord, RecordJobTestHooks } from '@retake/engine';
+import type { JobRecord, RecordWindow } from '@retake/engine';
 import { OWN_OPS, RECORD_OPS, UI_OPS, recordPathFree, startStudioServer } from '../src/index.js';
 import type { RecordOptionsAnswer, RecordStartAnswer, RecordViewAnswer, StudioServer } from '../src/index.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
 import { recordsWatchScan } from '../src/server/record-watch.js';
+import { scratchHome } from '@retake/test-support/home';
 
-type Page = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
+type Page = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
 interface Fixture {
   urls: { console: string; shop: string };
@@ -42,7 +44,7 @@ interface Fixture {
 
 const P = 'northfield-fixture';
 const SENTINEL = `Sentinel-${randomBytes(6).toString('hex')}`;
-const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN };
+const retakeHome = scratchHome('RETAKE_RECORD_MAX_MIN');
 let fixture: Fixture;
 let ws: string;
 let studio: StudioServer;
@@ -89,15 +91,17 @@ function work(drive: (page: Page) => Promise<void>): Promise<number> {
     idleExitMs: 0,
     pollMs: 50,
     log: (m) => workerLogs.push(m),
-    recordTest: {
-      headless: true,
-      windowSize: { width: 1400, height: 1000 },
-      drive: async (page) => {
-        await page.waitForLoadState('domcontentloaded');
-        await page.waitForTimeout(800);
-        await drive(page);
-        await page.waitForTimeout(400).catch(() => undefined);
-        await page.close().catch(() => undefined);
+    ports: {
+      recordWindow: {
+        headless: true,
+        windowSize: { width: 1400, height: 1000 },
+        drive: async (page) => {
+          await page.waitForLoadState('domcontentloaded');
+          await page.waitForTimeout(800);
+          await drive(page);
+          await page.waitForTimeout(400).catch(() => undefined);
+          await page.close().catch(() => undefined);
+        },
       },
     },
   });
@@ -154,12 +158,15 @@ beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-record-ops-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   delete process.env.RETAKE_RECORD_MAX_MIN;
   await fixtureWorkspace(ws);
   const project = join(ws, 'projects', P);
   const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
-  await writeFile(join(project, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')));
+  await writeFile(
+    join(project, 'project.yaml'),
+    yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')),
+  );
   // The Studio's stderr (`retake ui` passes `log` to it), and anything else written there meanwhile.
   process.stderr.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
     stderr.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'));
@@ -182,17 +189,11 @@ afterAll(async () => {
   await studio?.close();
   await fixture?.close();
   if (ws) await rm(ws, { recursive: true, force: true });
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_RECORD_MAX_MIN', saved.max],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
 });
 
 describe('the allow-list and the pinned inputs', () => {
-  it('the 7 record ops are the Studio\'s own; scenario_record and job_cancel stay out', async () => {
+  it("the 7 record ops are the Studio's own; scenario_record and job_cancel stay out", async () => {
     expect([...RECORD_OPS]).toEqual(['record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save']);
     for (const op of RECORD_OPS) {
       expect(OWN_OPS as readonly string[]).toContain(op);
@@ -280,7 +281,16 @@ describe('the start form, one window at a time, path-free answers', () => {
     first = await ok<RecordStartAnswer>('record_start', { project: P, page: 'shop', path: '/record-lab/a/b', name: 'ops-first' });
     expect(first).toMatchObject({ state: 'queued', env: 'local', page: 'shop', path: '/record-lab/a/b', persona: null });
     const job = (await queue.get(first.job))!;
-    expect(job.input).toEqual({ version: job.input.version, kind: 'record', project: P, rec_id: first.rec_id, source: { page: 'shop', path: '/record-lab/a/b' }, scenario: 'ops-first', check: true, submitted_by: 'ui' });
+    expect(job.input).toEqual({
+      version: job.input.version,
+      kind: 'record',
+      project: P,
+      rec_id: first.rec_id,
+      source: { page: 'shop', path: '/record-lab/a/b' },
+      scenario: 'ops-first',
+      check: true,
+      submitted_by: 'ui',
+    });
     const again = await call('record_start', { project: P, page: 'shop', path: '/record-lab' });
     expect(again.status).toBe(409);
     expect(again.json<Fail>().error.details).toMatchObject({ job: first.job, project: P, rec_id: first.rec_id });
@@ -289,7 +299,18 @@ describe('the start form, one window at a time, path-free answers', () => {
     expect(v).toMatchObject({ state: 'queued', started_by: 'ui', path: '/record-lab/a/b', can: { stop: true, discard: true, annotate: false, save: false }, untrusted: null });
     const o = await ok<RecordOptionsAnswer>('record_options', { project: P });
     expect(o.open).toEqual({ job: first.job, project: P, rec_id: first.rec_id, state: 'queued' });
-    expect(o.recent[0]).toMatchObject({ rec_id: first.rec_id, state: 'queued', job: first.job, started_by: 'ui', name: 'ops-first', page: 'shop', path: '/record-lab/a/b', steps: null, saved: null, studio: true });
+    expect(o.recent[0]).toMatchObject({
+      rec_id: first.rec_id,
+      state: 'queued',
+      job: first.job,
+      started_by: 'ui',
+      name: 'ops-first',
+      page: 'shop',
+      path: '/record-lab/a/b',
+      steps: null,
+      saved: null,
+      studio: true,
+    });
   });
 
   it("a failed job's error in record_view: message and fix path-free (a refused preflight's retake -C <workspace> …)", async () => {
@@ -377,7 +398,12 @@ describe('a real recording through the ops', () => {
       // The stream names this recording while the runner writes its events.
       await until(async () => stream.events.some((e) => e.event === 'workspace' && (e.data.records as string[] | undefined)?.includes(`${P}/${lab.rec}`)), 'a records event');
       await page.getByLabel('Note').blur();
-      caption = await ok<{ rev: number; insert_id?: string }>('record_annotate', { project: P, rec_id: lab.rec, rev: live.rev, change: { op: 'insert', at: 'end', insert: { kind: 'caption', text: 'Add a note' } } });
+      caption = await ok<{ rev: number; insert_id?: string }>('record_annotate', {
+        project: P,
+        rec_id: lab.rec,
+        rev: live.rev,
+        change: { op: 'insert', at: 'end', insert: { kind: 'caption', text: 'Add a note' } },
+      });
       expect(caption.rev).toBe(live.rev + 1);
       const stale = await call('record_annotate', { project: P, rec_id: lab.rec, rev: live.rev, change: { op: 'insert', at: 'end', insert: { kind: 'hold', seconds: 2 } } });
       expect(stale.status).toBe(409);
@@ -472,7 +498,18 @@ describe('a real recording through the ops', () => {
     const elsewhere = '/private/var/folders/zz/elsewhere/T/shot.png';
     await writeFile(
       join(recDir(mine), 'record.json'),
-      JSON.stringify({ ...rj, saved: null, check: { status: 'failed', scope: 'all', steps_passed: 1, steps_total: 3, failed_at: { scene: 'record-lab', step: 1, action: 'click' }, untrusted: { error: `no element — see ${ws}/projects/${P}/runs/x/error.png and ${elsewhere}` } } }),
+      JSON.stringify({
+        ...rj,
+        saved: null,
+        check: {
+          status: 'failed',
+          scope: 'all',
+          steps_passed: 1,
+          steps_total: 3,
+          failed_at: { scene: 'record-lab', step: 1, action: 'click' },
+          untrusted: { error: `no element — see ${ws}/projects/${P}/runs/x/error.png and ${elsewhere}` },
+        },
+      }),
       { mode: 0o600 },
     );
     const r = await call('record_view', { project: P, rec_id: mine });
@@ -489,7 +526,7 @@ describe('a real recording through the ops', () => {
     await rm(recDir(claude), { recursive: true, force: true });
   });
 
-  it('the password sentinel is nowhere: answers, workspace files, worker log, the Studio\'s log and stderr', async () => {
+  it("the password sentinel is nowhere: answers, workspace files, worker log, the Studio's log and stderr", async () => {
     const files: string[] = [];
     const walk = async (d: string) => {
       for (const e of await readdir(d, { withFileTypes: true }).catch(() => [])) {

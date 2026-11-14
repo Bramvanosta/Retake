@@ -102,7 +102,7 @@ export function Thumb({ run, runKey, alt, size = 'frame' }: { run: string; runKe
   }, [ctx, run, runKey]);
   const ok = entry?.state === 'ok' && jpegDataUrl(entry.base64) !== null ? entry : null;
   return (
-    <div ref={box} className="th-box" data-testid="thumb" data-size={size} data-state={ok ? 'ok' : (entry?.state === 'missing' ? entry.reason : 'loading')}>
+    <div ref={box} className="th-box" data-testid="thumb" data-size={size} data-state={ok ? 'ok' : entry?.state === 'missing' ? entry.reason : 'loading'}>
       {ok ? (
         <Jpeg base64={ok.base64} max={THUMB_DATA_MAX} width={SIZES[size][0]} height={SIZES[size][1]} alt={alt} />
       ) : (
@@ -117,7 +117,23 @@ export function Thumb({ run, runKey, alt, size = 'frame' }: { run: string; runKe
  * `max`), or nothing when it does not pass. `format` and `max` are literals at every use (ImageFormat, ImageCap: the
  * lint checks), never values from data.
  */
-export function Picture({ format, base64, max, width, height, alt, className }: { format: ImageFormat; base64: string; max: ImageCap; width: number; height: number; alt: string; className?: string }) {
+export function Picture({
+  format,
+  base64,
+  max,
+  width,
+  height,
+  alt,
+  className,
+}: {
+  format: ImageFormat;
+  base64: string;
+  max: ImageCap;
+  width: number;
+  height: number;
+  alt: string;
+  className?: string;
+}) {
   const url = imageDataUrl(format, base64, max);
   if (!url) return null;
   return <img src={url} width={width} height={height} alt={alt} decoding="async" draggable={false} className={className} />;

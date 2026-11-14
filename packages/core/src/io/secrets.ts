@@ -4,7 +4,7 @@
  */
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { TemplateError, collectSecretRefs, defaultSecrets } from '../templating.js';
+import { TemplateError, collectSecretRefs } from '../templating.js';
 import type { SecretResolver } from '../templating.js';
 
 const execFileP = promisify(execFile);
@@ -15,10 +15,10 @@ const execFileP = promisify(execFile);
  *  - keychain:service/account → macOS `security find-generic-password -s service -a account -w`,
  *    Linux `secret-tool lookup service <service> account <account>`.
  */
-export async function resolveSecretRef(ref: string): Promise<string> {
+export async function resolveSecretRef(ref: string, env: Readonly<Record<string, string | undefined>> = process.env): Promise<string> {
   if (ref.startsWith('secret:')) ref = ref.slice(7);
   if (ref.startsWith('env:')) {
-    const v = process.env[ref.slice(4)];
+    const v = env[ref.slice(4)];
     if (v === undefined) throw new TemplateError(`environment variable ${ref.slice(4)} is not set`);
     return v;
   }
@@ -50,10 +50,13 @@ export async function resolveSecretRef(ref: string): Promise<string> {
   throw new TemplateError(`unsupported secret reference "${ref}" (use env:VAR or keychain:service/account)`);
 }
 
-/** Resolve every secret ref of `value` and return a synchronous resolver for interpolate(). */
-export async function prefetchSecrets(value: unknown): Promise<{ resolver: SecretResolver; values: string[] }> {
+/**
+ * Resolve every secret ref of `value` (through `resolve`: default resolveSecretRef on this process's environment) and
+ * return a synchronous resolver for interpolate() that knows those refs only (another is unresolved, never read on the way).
+ */
+export async function prefetchSecrets(value: unknown, resolve: (ref: string) => Promise<string> = resolveSecretRef): Promise<{ resolver: SecretResolver; values: string[] }> {
   const refs = collectSecretRefs(value);
   const map = new Map<string, string>();
-  for (const ref of refs) map.set(ref, await resolveSecretRef(ref));
-  return { resolver: (ref) => map.get(ref) ?? defaultSecrets(ref), values: [...map.values()] };
+  for (const ref of refs) map.set(ref, await resolve(ref));
+  return { resolver: (ref) => map.get(ref), values: [...map.values()] };
 }

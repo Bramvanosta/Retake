@@ -13,22 +13,14 @@ export const CaptureSettingsSchema = z
     fps: z.number().int().min(1).max(120).describe('Output frame rate of capture.mp4.'),
     format: z.enum(['jpeg', 'png']).describe('Screencast frame format.'),
     quality: z.number().int().min(1).max(100).describe('JPEG quality of the screencast frames (1-100, default 90).'),
-    keep_frames: z
-      .boolean()
-      .describe('Keep the screencast frames in runs/<id>/frames (real timing, for the raw export). Default false: capture.mp4 is encoded during the take.'),
+    keep_frames: z.boolean().describe('Keep the screencast frames in runs/<id>/frames (real timing, for the raw export). Default false: capture.mp4 is encoded during the take.'),
     crf: z.number().int().min(0).max(51).describe('libx264 CRF of capture.mp4 (when the encoder is libx264).'),
     encoder: z
       .enum(CAPTURE_ENCODERS)
       .describe("Encoder of capture.mp4, fed during the take: auto (default: the Mac's hardware H.264 encoder when ffmpeg has it, else libx264), videotoolbox or libx264.")
       .optional(),
-    prewarm: z
-      .boolean()
-      .describe('Visit each page of the scenario once off camera before the take, so the first visit is not filmed cold. Default false.')
-      .optional(),
-    step_shots: z
-      .boolean()
-      .describe('Keep one picture per step of a capture in runs/<id>/screenshots (the captured frame at the end of each step), as a dry run does. Default false.')
-      .optional(),
+    prewarm: z.boolean().describe('Visit each page of the scenario once off camera before the take, so the first visit is not filmed cold. Default false.').optional(),
+    step_shots: z.boolean().describe('Keep one picture per step of a capture in runs/<id>/screenshots (the captured frame at the end of each step), as a dry run does. Default false.').optional(),
   })
   .meta({ id: 'CaptureSettings' }) satisfies z.ZodType<CaptureSettings>;
 
@@ -52,14 +44,9 @@ export const PacingSchema = z
     after_click_ms: millis().describe('Pause after an ordinary click.'),
     after_popup_ms: millis().describe('Pause after a click that opened a popup (600–1000).'),
     after_navigation_ms: millis().describe('Minimum time after a click that navigated or changed the URL before the next step (1.5–2.8 s).'),
-    popup_fallback_ms: millis().describe(
-      'How long a click gets to show that an expected popup opened (aria-expanded / new popup, polled) before the next click strategy.',
-    ),
+    popup_fallback_ms: millis().describe('How long a click gets to show that an expected popup opened (aria-expanded / new popup, polled) before the next click strategy.'),
     popup_timeout_ms: millis().describe('How long the last click strategy waits for an expected popup before reporting it missing.'),
-    type_cps: z
-      .number()
-      .gt(0)
-      .describe('Typing speed, characters per second (~14); a type step without cps adapts it: search fields ≤ 10, long free text up to 24.'),
+    type_cps: z.number().gt(0).describe('Typing speed, characters per second (~14); a type step without cps adapts it: search fields ≤ 10, long free text up to 24.'),
     page_switch_ms: millis().describe('Multi-page scenes: pause before a step that acts on another page than the previous step (its cursor then glides from where it rests).'),
     scroll_duration: positiveSeconds().describe('Smooth scroll duration in seconds (1.5–2).'),
     scroll_offset: z.number().describe('Default scroll offset with a target (−140 ⇒ the target ends 140 px below the top).'),
@@ -73,12 +60,10 @@ export const PacingSchema = z
 export const RunDefaultsSchema = z
   .strictObject({
     timeout_s: positiveSeconds()
-      .describe(
-        'Seconds every wait and action waits when it has no `timeout` of its own: targets, wait_for, wait_for_email, download… (built-in: 15; 30 for wait_for_email and download).',
-      )
+      .describe('Seconds every wait and action waits when it has no `timeout` of its own: targets, wait_for, wait_for_email, download… (built-in: 15; 30 for wait_for_email and download).')
       .optional(),
   })
-  .meta({ id: 'RunDefaults', description: 'Defaults of every step (a scenario\'s win over the project\'s).' });
+  .meta({ id: 'RunDefaults', description: "Defaults of every step (a scenario's win over the project's)." });
 
 export const PacingPartialSchema = PacingSchema.partial().meta({
   id: 'PacingOverrides',
@@ -90,7 +75,10 @@ export const LoginPatternSchema = z
     nonEmpty(),
     z.strictObject({
       regex: nonEmpty().describe('Regular expression tested against the origin + path of the URL (never its query).'),
-      flags: z.string().regex(/^[dgimsuyv]*$/, { error: 'flags are regular expression flags (i, u…)' }).optional(),
+      flags: z
+        .string()
+        .regex(/^[dgimsuyv]*$/, { error: 'flags are regular expression flags (i, u…)' })
+        .optional(),
     }),
   ])
   .meta({
@@ -106,7 +94,7 @@ export const PersonaCheckSchema = z
   .strictObject({
     url: nonEmpty().describe('Page the check opens: "<environment page>:<path>", a path on the persona\'s first page or a URL (default: the first page\'s "/").').optional(),
     expect_text: nonEmpty().describe('Text visible only when signed in (the account name…). Without it: signed in when the page loads off the sign-in pages.').optional(),
-    expect_not_url: LoginPatternsSchema.describe('Pages the check must not end on (sign-in pages for the run\'s guard too).').optional(),
+    expect_not_url: LoginPatternsSchema.describe("Pages the check must not end on (sign-in pages for the run's guard too).").optional(),
     timeout: positiveSeconds().describe('Seconds (default 10).').optional(),
   })
   .meta({ id: 'PersonaCheck', description: 'How the runner tells this persona is signed in, off camera before every run.' }) satisfies z.ZodType<PersonaCheck>;
@@ -142,24 +130,24 @@ export const LoginStepSchema = keyedUnion(
 export const personaShape = {
   email: z
     .email({ error: 'email is a mail address (name@example.com)' })
-    .describe('The persona\'s mail address: wait_for_email {to: persona:<name>} matches it, mail cards label the mailbox after the persona.')
+    .describe("The persona's mail address: wait_for_email {to: persona:<name>} matches it, mail cards label the mailbox after the persona.")
     .optional(),
-  pages: z.array(keyString('page')).describe('Environment pages this persona is signed into. Several personas may list one page (one app, several roles): the first one declared is its default, a scene names another with `persona:`.').optional(),
-  session: z
-    .enum(['profile', 'storage_state'])
-    .describe('profile (default): the Chromium profile `retake login` keeps, copied for each run; storage_state: cookies + localStorage only.')
+  pages: z
+    .array(keyString('page'))
+    .describe(
+      'Environment pages this persona is signed into. Several personas may list one page (one app, several roles): the first one declared is its default, a scene names another with `persona:`.',
+    )
     .optional(),
+  session: z.enum(['profile', 'storage_state']).describe('profile (default): the Chromium profile `retake login` keeps, copied for each run; storage_state: cookies + localStorage only.').optional(),
   check: PersonaCheckSchema.optional(),
   login_url: LoginPatternsSchema.describe('Sign-in pages of this persona (with auth.login_url).').optional(),
   login: z.array(LoginStepSchema).min(1).describe('Automated login, off camera, when the saved session is missing or expired (secret refs only).').optional(),
 };
 
-export const PersonaSchema = z
-  .strictObject(personaShape)
-  .meta({
-    id: 'Persona',
-    description: 'One account the videos are filmed as. Its session lives in ~/.retake (RETAKE_HOME), never in the project: no path here.',
-  }) satisfies z.ZodType<PersonaConfig>;
+export const PersonaSchema = z.strictObject(personaShape).meta({
+  id: 'Persona',
+  description: 'One account the videos are filmed as. Its session lives in ~/.retake (RETAKE_HOME), never in the project: no path here.',
+}) satisfies z.ZodType<PersonaConfig>;
 
 export const AuthConfigSchema = z
   .strictObject({
@@ -182,7 +170,7 @@ export const BrowserConfigSchema = z
     frame_rate_limit: z
       .boolean()
       .describe(
-        "false: run Chromium without its frame rate limiter — no ≈ 0.26 s capture stall when a dialog with a backdrop-filter overlay closes, but requestAnimationFrame then runs at thousands of Hz while anything animates (fixed-step animations play too fast) and 2–6× the CPU. Default true.",
+        'false: run Chromium without its frame rate limiter — no ≈ 0.26 s capture stall when a dialog with a backdrop-filter overlay closes, but requestAnimationFrame then runs at thousands of Hz while anything animates (fixed-step animations play too fast) and 2–6× the CPU. Default true.',
       )
       .optional(),
   })

@@ -1,5 +1,5 @@
-import { interpolate, listTemplateTokens } from '@retake/core';
-import type { TemplateContext } from '@retake/core';
+import { interpolate, listTemplateTokens } from '@retake/core/base';
+import type { TemplateContext } from '@retake/core/base';
 import { isAccountsRoot, sandboxAccounts } from './sandbox-refs.js';
 import { addSecret, redactDeep, secretResolver } from './secrets.js';
 import type { HookContext, TemplateSnapshot } from './types.js';
@@ -14,6 +14,21 @@ export function tokensIn(value: unknown, out: string[] = []): string[] {
   else if (Array.isArray(value)) value.forEach((v) => tokensIn(v, out));
   else if (value && typeof value === 'object') Object.values(value).forEach((v) => tokensIn(v, out));
   return out;
+}
+
+/**
+ * Whether the templates of `value` (a hook, or the texts it renders: an sql file, its rollback's, its database URL) use a
+ * variable the agent wrote (HookContext.agentVars): `{{vars.x}}`, or a bare `{{x}}` that is not a page.
+ */
+export function usesAgentVars(value: unknown, ctx: HookContext): boolean {
+  const names = new Set(ctx.agentVars ?? []);
+  if (!names.size) return false;
+  return tokensIn(value).some((expr) => {
+    const path = expr.split('.').map((s) => s.trim());
+    if (path[0] === 'vars') return path.length > 1 && names.has(path[1]);
+    if (path.length === 1 && Object.hasOwn(ctx.env.pages, path[0])) return false;
+    return !['hooks', 'run', 'response'].includes(path[0]) && !/^(env|keychain|secret):/.test(expr) && names.has(path[0]);
+  });
 }
 
 /**
@@ -32,11 +47,7 @@ async function accountsRoot(ctx: HookContext, value: unknown, env?: string): Pro
  * results, run id and folder, optional extra roots ({{response…}}), the secrets used by `value` and, in a sandbox
  * environment, the accounts it reads (`{{accounts.<persona>.password}}`).
  */
-export async function hookTemplateContext(
-  ctx: HookContext,
-  value: unknown,
-  extra?: Record<string, unknown>,
-): Promise<TemplateContext> {
+export async function hookTemplateContext(ctx: HookContext, value: unknown, extra?: Record<string, unknown>): Promise<TemplateContext> {
   const dry = ctx.dryRun ? drySaved.get(ctx) : undefined;
   const accounts = await accountsRoot(ctx, value);
   return {
@@ -68,10 +79,7 @@ function placeholder(path: string): object {
         if (p === 'toJSON' || p === 'toString' || p === Symbol.toPrimitive) return () => `${MARK}${path}${MARK}`;
         return typeof p === 'symbol' ? undefined : placeholder(`${path}.${p}`);
       },
-      getOwnPropertyDescriptor: (_t, p) =>
-        typeof p === 'symbol'
-          ? undefined
-          : { configurable: true, enumerable: true, writable: true, value: placeholder(`${path}.${p}`) },
+      getOwnPropertyDescriptor: (_t, p) => (typeof p === 'symbol' ? undefined : { configurable: true, enumerable: true, writable: true, value: placeholder(`${path}.${p}`) }),
       has: () => true,
       ownKeys: () => [],
     },
@@ -110,12 +118,7 @@ export function renderDeep<T>(value: T, tpl: TemplateContext): T {
  * Template context of a rollback: the captured snapshot plus freshly resolved secrets — and sandbox accounts, read
  * again from the sandbox of the environment the hook ran in (`env`; default: the context's).
  */
-export async function snapshotTemplateContext(
-  ctx: HookContext,
-  snapshot: TemplateSnapshot,
-  value: unknown,
-  env?: string,
-): Promise<TemplateContext> {
+export async function snapshotTemplateContext(ctx: HookContext, snapshot: TemplateSnapshot, value: unknown, env?: string): Promise<TemplateContext> {
   const accounts = await accountsRoot(ctx, value, env);
   return {
     pages: snapshot.pages ?? {},

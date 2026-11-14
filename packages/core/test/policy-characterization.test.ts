@@ -11,16 +11,28 @@
  * $RETAKE_FFPROBE, the paths of an agent-written shell command (a project's agent-writable folders, one beside it, `~`,
  * a link into them), and — on a file system that ignores case — a program or a PATH entry spelt in another case.
  *
- * Goldens are written only on request: `RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/core/test/policy-characterization.test.ts`
+ * Goldens are written only on request: `RETAKE_WRITE_SNAPSHOTS=1 npx vitest run packages/core/test/policy-characterization.test.ts`
  */
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { agentShellCwdProblems, agentShellProblems, agentWritablePath, childEnv, policyArgsProblems, policyChildEnv, policyProgram, programProblem, workPolicyFrom, workspaceFolders } from '@retake/core';
+import {
+  agentShellCwdProblems,
+  agentShellProblems,
+  agentWritablePath,
+  childEnv,
+  policyArgsProblems,
+  policyChildEnv,
+  policyProgram,
+  programProblem,
+  workPolicyFrom,
+  workspaceFolders,
+} from '@retake/core';
 import type { RenderSettings, WorkPolicy } from '@retake/core';
 import { ffmpegBin, ffprobeBin, nodeFileFacts } from '@retake/core/io';
+import { recordGolden } from '@retake/test-support/golden';
 
 const GOLDEN = fileURLToPath(new URL('./golden/policy-decisions.json', import.meta.url));
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-policy-char-')));
@@ -44,7 +56,12 @@ const folders = workspaceFolders({ root: ws, projectsDir: join(ws, 'projects'), 
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 const files = nodeFileFacts;
 
-const shown = (v: unknown): unknown => JSON.parse(JSON.stringify(v ?? null).split(tmp).join('<tmp>'));
+const shown = (v: unknown): unknown =>
+  JSON.parse(
+    JSON.stringify(v ?? null)
+      .split(tmp)
+      .join('<tmp>'),
+  );
 const attempt = (f: () => unknown): unknown => {
   try {
     return { ok: shown(f()) };
@@ -53,6 +70,15 @@ const attempt = (f: () => unknown): unknown => {
   }
 };
 
+/**
+ * A row's PATH (name, program, PATH): a bare name gives the PATH it is looked up on; every other row names a path and
+ * needs none. A bare name without one would be looked up in the current folder (an empty PATH entry is `.`) and the
+ * table would characterise this machine, not the policy: refused.
+ */
+const pathOf = (program: string, path: string | undefined): string => {
+  if (path === undefined && program.trim() !== '' && !/[\\/]/.test(program)) throw new Error(`the row for "${program}" is a bare name: give its PATH`);
+  return path ?? '';
+};
 const PROGRAMS: Array<[string, string, string?]> = [
   ['inside', inWs],
   ['inside, another spelling', join(ws, 'projects', '..', 'bin', 'tool')],
@@ -67,7 +93,15 @@ const PROGRAMS: Array<[string, string, string?]> = [
   ['empty', '  '],
 ];
 const ARGS = [['--hide-scrollbars', 'https://example.com/'], ['--no-sandbox'], ['--user-data-dir=/x'], ['--headless=new', '--lang=fr'], ['--enable-features=SitePerProcess'], []];
-const SOURCE = { PATH: [join(ws, 'bin'), join(outside, 'bin'), 'bin', '/usr/bin'].join(delimiter), HOME: '/home/x', TOKEN: 's3cret', DATABASE_URL: 'postgres://x', DOCKER_HOST: 'unix:///x', DOCKER_PASSWORD: 'p', NODE_OPTIONS: '--require x' };
+const SOURCE = {
+  PATH: [join(ws, 'bin'), join(outside, 'bin'), 'bin', '/usr/bin'].join(delimiter),
+  HOME: '/home/x',
+  TOKEN: 's3cret',
+  DATABASE_URL: 'postgres://x',
+  DOCKER_HOST: 'unix:///x',
+  DOCKER_PASSWORD: 'p',
+  NODE_OPTIONS: '--require x',
+};
 const FFMPEG: Array<[string, string | undefined, string | undefined]> = [
   ['none', undefined, undefined],
   ['retake.yaml inside', join(ws, 'bin', 'tool'), undefined],
@@ -97,7 +131,9 @@ function decisions(on: boolean): Record<string, unknown> {
   try {
     return decide(on);
   } finally {
-    for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    for (const [k, v] of Object.entries(saved))
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
   }
 }
 
@@ -106,12 +142,17 @@ function decide(on: boolean): Record<string, unknown> {
   const policy = at();
   const out: Record<string, unknown> = { folders: shown(policy.agentFolders) };
   for (const [name, program, path] of PROGRAMS) {
-    const o = path === undefined ? { files } : { path, files };
+    const o = { path: pathOf(program, path), files };
     out[`program: ${name}`] = shown({ problem: programProblem(policy, program, 'browser.executable', o), policy: policyProgram(policy, program, '$RETAKE_CHROMIUM', o) });
   }
   out.args = shown(ARGS.map((a) => policyArgsProblems(policy, a)));
   // `childEnv`: what a caller under this policy gets with its folders (hooks' unsigned rollbacks), as the process-wide default gave.
-  out.env = shown({ plain: policyChildEnv(policy, SOURCE, { pass: ['DATABASE_URL', 'NODE_OPTIONS'], files }), docker: policyChildEnv(policy, SOURCE, { docker: true, files }), childEnv: childEnv(SOURCE, { folders: policy.agentFolders ?? [], files }), childEnvFolders: childEnv(SOURCE, { folders: [outside], files }) });
+  out.env = shown({
+    plain: policyChildEnv(policy, SOURCE, { pass: ['DATABASE_URL', 'NODE_OPTIONS'], files }),
+    docker: policyChildEnv(policy, SOURCE, { docker: true, files }),
+    childEnv: childEnv(SOURCE, { folders: policy.agentFolders ?? [], files }),
+    childEnvFolders: childEnv(SOURCE, { folders: [outside], files }),
+  });
   for (const [name, configured, explicit] of FFMPEG) {
     const p = at(configured);
     out[`ffmpeg: ${name}`] = { ffmpeg: attempt(() => ffmpegBin(p, explicit)), ffprobe: attempt(() => ffprobeBin(p, explicit)) };
@@ -134,8 +175,36 @@ const project = join(ws, 'projects', 'p');
 for (const d of [join(project, 'runs', 'r1'), join(project, 'scenarios'), join(project, 'hooks'), join(ws, 'projects', 'q', 'runs')]) mkdirSync(d, { recursive: true });
 symlinkSync(join(project, 'runs'), join(project, 'tools'));
 symlinkSync(join(project, 'runs', 'r1'), join(outside, 'into-runs'));
-const SHELL_PATHS = ['runs/r1/a.sh', './scenarios/../hooks/a.sh', 'hooks/a.sh', 'README.md', 'RUNS/r1/a.sh', '../q/runs/a.sh', '../q/hooks/a.sh', 'tools/a.sh', join(outside, 'into-runs', 'a.sh'), `file://${project}/README.md`, '~/x.sh', '~', '/etc/hosts', 'missing/deeper/a.sh'];
-const SHELL_COMMANDS = ['sh runs/r1/a.sh', 'cat README.md && ls', 'node scenarios/x.js', 'bash hooks/a.sh', 'sh tools/a.sh', 'sh ../q/runs/a.sh', 'psql -f runs/r1/x.sql', 'cp a b; rm c', 'echo $HOME', 'node -e 1', 'npx something', 'ls /etc'];
+const SHELL_PATHS = [
+  'runs/r1/a.sh',
+  './scenarios/../hooks/a.sh',
+  'hooks/a.sh',
+  'README.md',
+  'RUNS/r1/a.sh',
+  '../q/runs/a.sh',
+  '../q/hooks/a.sh',
+  'tools/a.sh',
+  join(outside, 'into-runs', 'a.sh'),
+  `file://${project}/README.md`,
+  '~/x.sh',
+  '~',
+  '/etc/hosts',
+  'missing/deeper/a.sh',
+];
+const SHELL_COMMANDS = [
+  'sh runs/r1/a.sh',
+  'cat README.md && ls',
+  'node scenarios/x.js',
+  'bash hooks/a.sh',
+  'sh tools/a.sh',
+  'sh ../q/runs/a.sh',
+  'psql -f runs/r1/x.sql',
+  'cp a b; rm c',
+  'echo $HOME',
+  'node -e 1',
+  'npx something',
+  'ls /etc',
+];
 const SHELL_CWDS = ['.', 'runs', 'hooks', 'tools/r1', '../q/runs', 'two words'];
 
 /** The paths and commands of an agent-written shell hook (the same with the policy on or off: these rules are for agent text). */
@@ -162,12 +231,12 @@ function caseFolded(): Record<string, unknown> {
   ];
   const out: Record<string, unknown> = {};
   for (const [name, program, path] of programs) {
-    const o = path === undefined ? { files } : { path, files };
+    const o = { path: pathOf(program, path), files };
     out[`program: ${name}`] = shown({ problem: programProblem(policy, program, 'browser.executable', o), policy: policyProgram(policy, program, '$RETAKE_CHROMIUM', o) });
   }
   const source = { PATH: [other('WS', 'BIN'), other('Ws', 'projects', 'missing'), other('OUTSIDE', 'bin'), '/usr/bin'].join(delimiter) };
   out.env = shown(childEnv(source, { folders: policy.agentFolders ?? [], files }));
-  out.folders = shown(programProblem(workPolicyFrom([other('WS')]), inWs, 'browser.executable', { files }));
+  out.folders = shown(programProblem(workPolicyFrom([other('WS')]), inWs, 'browser.executable', { files, path: '' }));
   return out;
 }
 
@@ -176,8 +245,8 @@ describe('agent policy decisions (characterization)', () => {
     const got: Record<string, unknown> = { person: decisions(false), agent: decisions(true), afterOff: decisions(false), shell: shell() };
     // Case-folded spellings only where the file system ignores case (the golden is recorded on one).
     if (process.platform === 'darwin') got.caseFolded = caseFolded();
-    if (process.env.RETAKE_UPDATE_GOLDEN === '1') writeFileSync(GOLDEN, `${JSON.stringify(got, null, 1)}\n`);
-    if (!existsSync(GOLDEN)) throw new Error(`golden ${GOLDEN} is missing: run \`RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/core/test/policy-characterization.test.ts\` and read it`);
+    recordGolden(GOLDEN, `${JSON.stringify(got, null, 1)}\n`);
+    if (!existsSync(GOLDEN)) throw new Error(`golden ${GOLDEN} is missing: run \`RETAKE_WRITE_SNAPSHOTS=1 npx vitest run packages/core/test/policy-characterization.test.ts\` and read it`);
     const golden = JSON.parse(readFileSync(GOLDEN, 'utf8')) as Record<string, unknown>;
     if (process.platform !== 'darwin') delete golden.caseFolded;
     expect(got).toEqual(golden);

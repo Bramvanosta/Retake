@@ -1,6 +1,7 @@
 /** The first steps of `planEdit`: the input checked, the output format, the edit info — the plan's context. */
-import { hasTokens, timelineVideo } from '@retake/core';
-import type { Timeline, TimelineVideo } from '@retake/core';
+import { hasTokens } from '@retake/core/base';
+import { timelineVideo } from '@retake/core/language';
+import type { Timeline, TimelineVideo } from '@retake/core/model';
 import { DESIGN_SPACES } from '../layout.js';
 import type { EditOverrides, PlanVariant } from '../plan-types.js';
 import { MessageList, round } from '../util.js';
@@ -26,7 +27,9 @@ export function checkCapture(timeline: Timeline, warnings: MessageList): void {
   const cap = timeline.capture;
   if (!(cap.fps > 0) || !(cap.duration > 0)) throw new PlanError(`run ${timeline.run_id} has no usable capture (fps ${cap.fps}, ${cap.duration} s)`);
   if (cap.cursor === 'hidden') {
-    warnings.add(`run ${timeline.run_id} was captured without its in-page cursor (raw export for editors, run --raw --cursor none|layer): the video shows no cursor — capture without --raw for an edited video`);
+    warnings.add(
+      `run ${timeline.run_id} was captured without its in-page cursor (raw export for editors, run --raw --cursor none|layer): the video shows no cursor — capture without --raw for an edited video`,
+    );
   }
 }
 
@@ -76,7 +79,7 @@ export function planEditInfo(c: Omit<PlanContext, 'video'>): TimelineVideo {
   if (timeline.video) video = timeline.video;
   else {
     video = input.scenario ? timelineVideo(input.scenario, project.config) : { frame: project.config.frame };
-    notes.add(`timeline.json has no "video" block (run made before L2.1): edit info taken from ${input.scenario ? 'the scenario' : 'the project'}`);
+    notes.add(`timeline.json has no "video" block (an older run format): edit info taken from ${input.scenario ? 'the scenario' : 'the project'}`);
   }
   if (ov.theme !== undefined && ov.theme !== template.name && ov.theme !== t.name) {
     warnings.add(`overrides.theme is "${ov.theme}" but the theme passed to the planner is "${template.name}": the caller loads the override theme`);
@@ -86,7 +89,9 @@ export function planEditInfo(c: Omit<PlanContext, 'video'>): TimelineVideo {
   }
   const literal = literalTokens(timeline, video);
   if (literal.length) {
-    warnings.add(`${literal.join(', ')} still ${literal.length > 1 ? 'show' : 'shows'} {{…}} tokens as written: a run captured before scenario templating (L1.2), or a token inside a \`vars\` value (inserted as written) — fix it and capture again`);
+    warnings.add(
+      `${literal.join(', ')} still ${literal.length > 1 ? 'show' : 'shows'} {{…}} tokens as written: a run captured before scenarios were templated (an older run format), or a token inside a \`vars\` value (inserted as written) — fix it and capture again`,
+    );
   }
   return video;
 }

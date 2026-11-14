@@ -29,7 +29,10 @@ const ENGINE = fileURLToPath(new URL('../../engine/dist/index.js', import.meta.u
 /** A process (the script `file`) that opens a filming marker of workspace `root`, says so, and waits. */
 async function markerOwner(file: string, root: string): Promise<ChildProcess> {
   await mkdir(join(file, '..'), { recursive: true });
-  await writeFile(file, `import(${JSON.stringify(ENGINE)}).then(async (e) => { e.FilmingMarker.open({ root: ${JSON.stringify(root)}, source: 'cli', owner: await e.selfIdentity() }); process.stdout.write('ready'); setInterval(() => {}, 1000); });\n`);
+  await writeFile(
+    file,
+    `import(${JSON.stringify(ENGINE)}).then(async (e) => { e.FilmingMarker.open({ env: process.env, root: ${JSON.stringify(root)}, source: 'cli', owner: await e.selfIdentity() }); process.stdout.write('ready'); setInterval(() => {}, 1000); });\n`,
+  );
   const c = spawn(process.execPath, [file], { stdio: ['ignore', 'pipe', 'inherit'] });
   children.push(c);
   await new Promise<void>((r, j) => {
@@ -47,7 +50,8 @@ describe('doctor: Captures first (L5.14b)', () => {
     expect(capturesCheck(probe())).toEqual({
       status: 'ok',
       name: 'Captures first',
-      detail: 'no take films now · markers: /scratch/retake-captures (this user on this Mac) · a render running when a take starts is slowed (background priority) · cap 60 min (RETAKE_CAPTURE_HOLD_MAX_MIN)',
+      detail:
+        'no take films now · markers: /scratch/retake-captures (this user on this Mac) · a render running when a take starts is slowed (background priority) · cap 60 min (RETAKE_CAPTURE_HOLD_MAX_MIN)',
     });
     expect(capturesCheck(probe({ exists: false, override: true, qos: false })).detail).toBe(
       'no take films now · markers: /scratch/retake-captures (set by RETAKE_CAPTURES_DIR; made by the first take) · no background priority here: a running render is not slowed, new heavy jobs only wait · cap 60 min (RETAKE_CAPTURE_HOLD_MAX_MIN)',
@@ -66,10 +70,14 @@ describe('doctor: Captures first (L5.14b)', () => {
     const bad = capturesCheck(probe({ problem: 'the captures folder /scratch/retake-captures is open to other users (mode 755): captures first is off' }));
     expect(bad).toMatchObject({ status: 'warn', detail: expect.stringMatching(/^the captures folder .* captures first is off · markers: /), hint: expect.stringMatching(/mode 0700/) });
     const foreign = capturesCheck(probe({ takes: [take({ retake: false })] }));
-    expect(foreign).toMatchObject({ status: 'warn', detail: expect.stringMatching(/^a filming marker whose owner is not a Retake process · 1 take films now/), hint: expect.stringMatching(/holds renders for up to 60 min; if no take films, remove the k_\*\.json files in /) });
+    expect(foreign).toMatchObject({
+      status: 'warn',
+      detail: expect.stringMatching(/^a filming marker whose owner is not a Retake process · 1 take films now/),
+      hint: expect.stringMatching(/holds renders for up to 60 min; if no take films, remove the k_\*\.json files in /),
+    });
   });
 
-  it('review A L3: a marker\'s owner is a Retake one only when its command line is a jobs worker or `retake run`', () => {
+  it("review A L3: a marker's owner is a Retake one only when its command line is a jobs worker or `retake run`", () => {
     for (const cmd of [
       '/usr/local/bin/node /Applications/Retake.app/Contents/Resources/app/packages/engine/dist/worker-main.js --root /w',
       'node /w/packages/engine/dist/worker-main.js',
@@ -83,7 +91,7 @@ describe('doctor: Captures first (L5.14b)', () => {
     }
   });
 
-  it('the system probe: a worker\'s marker is a Retake take of this workspace, another node process\'s is not; an absent folder is not made', async () => {
+  it("the system probe: a worker's marker is a Retake take of this workspace, another node process's is not; an absent folder is not made", async () => {
     const root = join(base, 'ws');
     await mkdir(root, { recursive: true });
     const captures = systemProbes().captures!;

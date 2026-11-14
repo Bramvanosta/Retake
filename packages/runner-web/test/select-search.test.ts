@@ -9,8 +9,9 @@ import { join } from 'node:path';
 import type { Step, TimelineEvent } from '@retake/core';
 import { PERSON_POLICY } from '@retake/core';
 import { runScenario } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 /** 60 options; the list shows the first 5 that match its search (`search=1`), or the first 5 of all with no search field. */
 const LIST_PAGE = `<!doctype html><html><head><title>Sign up</title><style>body{font:16px sans-serif;margin:40px}</style></head><body>
@@ -56,7 +57,13 @@ afterAll(async () => {
 
 async function run(runId: string, open: string, steps: Step[], timeout = 4) {
   const project = makeProject(dir, { app: server.url });
-  const rec = await runScenario({ policy: PERSON_POLICY, project, mode: 'dry', runId, scenario: makeScenario(runId, { pacing: FAST, defaults: { timeout }, scenes: [{ id: 'form', open, steps }] }) });
+  const rec = await runScenario({
+    policy: PERSON_POLICY,
+    project,
+    mode: 'dry',
+    runId,
+    scenario: makeScenario(runId, { pacing: FAST, defaults: { timeout_s: timeout }, scenes: [{ id: 'form', open, steps }] }),
+  });
   const events = (await readTimeline(join(rec.dir, 'timeline.json'))).events.filter((e: TimelineEvent) => e.step >= 0);
   return { rec, events };
 }
@@ -86,7 +93,9 @@ describe('select and pick on a list with a search field (hotfix v0.2.2)', () => 
 
   it('an option no search finds, and a list without a search field: the error says which', async () => {
     const none = await run('auto-search-none', '/list.html', [{ select: { field: 'Country', option: 'Atlantis' } }], 3);
-    expect(none.rec.error?.message).toMatch(/select: "Atlantis" not found in the open popover after \d+\.\d s — typed in the list's search field, no option matched: give `search:` with the text that finds it/);
+    expect(none.rec.error?.message).toMatch(
+      /select: "Atlantis" not found in the open popover after \d+\.\d s — typed in the list's search field, no option matched: give `search:` with the text that finds it/,
+    );
     const plain = await run('no-search-field', '/list.html?search=0', [{ select: { field: 'Country', option: 'Japan' } }], 3);
     expect(plain.rec.error?.message).toMatch(/select: "Japan" not found in the open popover after \d+\.\d s; /);
     expect(plain.rec.error?.message).not.toContain('search');

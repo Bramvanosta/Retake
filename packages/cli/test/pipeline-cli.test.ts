@@ -11,7 +11,7 @@
  * command prints after its output's path, a run's `in … ·`, the time and duration of a history line), with the
  * workspace path; the times of the fixed results (a record's timings, an export's or a step's ms) are kept as printed.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -29,6 +29,10 @@ const fakes = vi.hoisted(() => ({
   calls: [] as Array<{ call: string; options: Record<string, unknown> }>,
   /** Names made at run time (an inspection's id), replaced by a placeholder. */
   volatile: [] as string[],
+  /** The hook runner each run was handed (L7.12: the CLI's, cliPorts.hooks; kept out of the recorded options). */
+  hookRunners: [] as unknown[],
+  /** The secret resolvers the runs were handed (the CLI's Secrets port), apart from the recorded options like the hook runner. */
+  resolvers: [] as unknown[],
 }));
 
 vi.mock('@retake/editor', async (importOriginal) => {
@@ -47,12 +51,22 @@ vi.mock('@retake/review', async (importOriginal) => {
 });
 vi.mock('@retake/runner-web', async (importOriginal) => {
   const real = await importOriginal<typeof import('@retake/runner-web')>();
-  return { ...real, runScenario: (o: Record<string, unknown>) => fakes.runScenario(o) };
+  return {
+    ...real,
+    runScenario: (o: Record<string, unknown>) => {
+      fakes.hookRunners.push(o.hookRunner);
+      fakes.resolvers.push(o.resolveSecret);
+      const { hookRunner: _handed, resolveSecret: _resolver, ...rest } = o;
+      return fakes.runScenario(rest);
+    },
+  };
 });
 
 import { ExportError, RenderCancelledError, RenderError } from '@retake/editor';
 import { INSPECT_KEEP } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
+import { cliPorts } from '../src/workspace.js';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/pipeline-cli.json', import.meta.url));
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
@@ -108,7 +122,7 @@ function callShape(options: Record<string, unknown>): Record<string, unknown> {
     else if (v instanceof AbortSignal) out[k] = '<signal>';
     else if (k === 'project' && v && typeof v === 'object') out[k] = `<project ${(v as { slug: string }).slug}>`;
     else if (k === 'scenario' && v && typeof v === 'object') out[k] = `<scenario ${(v as { name: string }).name}>`;
-    else if (k === 'template' || k === 'registry' || k === 'plan' || k === 'ffmpeg') out[k] = v === undefined ? '<undefined>' : `<${k}>`;
+    else if (k === 'template' || k === 'registry' || k === 'plan' || k === 'ffmpeg' || k === 'renderer') out[k] = v === undefined ? '<undefined>' : `<${k}>`;
     else if (k === 'inspect' && v && typeof v === 'object') out[k] = callShape(v as Record<string, unknown>);
     else out[k] = v === undefined ? '<undefined>' : JSON.parse(normalise(JSON.stringify(v)));
   }
@@ -268,7 +282,30 @@ beforeAll(async () => {
   await writeFile(join(projectDir, 'scenarios', 'tour.yaml'), 'video: tour\nscenes:\n  - id: home\n    page: app\n    open: /\n    steps:\n      - hold: 1\n');
   const runDir = join(projectDir, 'runs', RUN_ID);
   await mkdir(runDir, { recursive: true });
-  await writeFile(join(runDir, 'timeline.json'), JSON.stringify({ mode: 'capture', scenario: 'tour' }));
+  // A whole capture — the head of its timeline, its record, its film: `latest` takes nothing less (L7.6a).
+  await writeFile(join(runDir, 'timeline.json'), JSON.stringify({ version: 1, run_id: RUN_ID, project: 'demo', scenario: 'tour', mode: 'capture', capture: { file: 'capture.mp4' } }));
+  await writeFile(
+    join(runDir, 'run.json'),
+    JSON.stringify({
+      version: 1,
+      id: RUN_ID,
+      project: 'demo',
+      scenario: 'tour',
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: '2026-01-01T12:00:00.000Z',
+      dir: runDir,
+      env: 'staging',
+      options: { hooks: 'run', headed: false },
+      steps_total: 1,
+      steps_done: 1,
+      screenshots: [],
+      hooks: { setup: 'none', teardown: 'none' },
+      warnings: [],
+      finished_at: '2026-01-01T12:00:04.000Z',
+    }),
+  );
+  await writeFile(join(runDir, 'capture.mp4'), 'never read');
   await mkdir(join(projectDir, 'renders'), { recursive: true });
   await writeFile(join(projectDir, 'renders', 'tour-v1.json'), JSON.stringify(renderRecord('tour-v1')));
   fakes.renderVideo = async (o) => {
@@ -455,13 +492,99 @@ describe('the pipeline commands, held against fixtures/pipeline-cli.json', () =>
     expect(after.length).toBe(INSPECT_KEEP);
   });
 
+  it('render and still say what `latest` passed over and where a capture stopped by --until ends — on stderr, never with --json (L7.6a)', async () => {
+    // Not a case of the fixture: its own workspace state, removed after.
+    const said = async (...args: string[]) => {
+      fakes.calls.length = 0;
+      const io = memoryIo();
+      const code = await main(['node', 'retake', '--root', ws, '--no-color', ...args], io);
+      return {
+        code,
+        lines: io
+          .stderr()
+          .split('\n')
+          .filter((l) => l.includes('is used') || l.includes('stops at')),
+        out: io.stdout(),
+      };
+    };
+    const newer = '20991231-235959-tour';
+    const dir = join(projectDir, 'runs', newer);
+    const record = JSON.parse(await readFile(join(projectDir, 'runs', RUN_ID, 'run.json'), 'utf8')) as Record<string, unknown>;
+    await mkdir(dir, { recursive: true });
+    const keep = fakes.planRun;
+    try {
+      // Nothing newer: nothing is said.
+      expect((await said('render', 'demo', 'tour')).lines).toEqual([]);
+      // A newer take that failed, with its partial film: the render is of the last good capture, and says so.
+      await writeFile(join(dir, 'run.json'), JSON.stringify({ ...record, id: newer, dir, status: 'failed', error: { message: 'no element "Add"' } }));
+      await writeFile(join(dir, 'timeline.json'), await readFile(join(projectDir, 'runs', RUN_ID, 'timeline.json'), 'utf8'));
+      await writeFile(join(dir, 'capture.mp4'), 'a partial film');
+      const LINE = `! run ${RUN_ID} is used: 1 newer capture of "tour" passed over — ${newer} (failed) (name one with --run <id>)`;
+      const rendered = await said('render', 'demo', 'tour');
+      expect([rendered.code, rendered.lines]).toEqual([EXIT.ok, [LINE]]);
+      expect(fakes.calls.find((c) => c.call === 'renderVideo')?.options.run).toBe(RUN_ID);
+      const json = await said('render', 'demo', 'tour', '--json');
+      expect([json.code, json.lines, (JSON.parse(json.out) as { id: string }).id]).toEqual([EXIT.ok, [], 'tour-v2']);
+      // Named, the failed take is what renders, and nothing is said of `latest`.
+      const named = await said('render', 'demo', 'tour', '--run', newer);
+      expect([named.code, named.lines, fakes.calls.find((c) => c.call === 'renderVideo')?.options.run]).toEqual([EXIT.ok, [], newer]);
+      // still: what the plan's run says (the editor's planRun is replaced here: its run carries what `latest` said).
+      fakes.planRun = async (o) => ({
+        ...((await keep(o)) as object),
+        run: {
+          id: RUN_ID,
+          dir: join(projectDir, 'runs', RUN_ID),
+          latest: {
+            take: { run: RUN_ID, scenario: 'tour', film: 'capture.mp4', finished_at: 'x', until: { scene: 'home', step: 0 } },
+            passed: [{ run: newer, why: 'cancelled' }],
+            passed_more: 0,
+            reasons: [{ why: 'cancelled', count: 1 }],
+            without_record: 0,
+          },
+        },
+      });
+      const still = await said('still', 'demo', 'tour', '--frame', '3', '--out', join(ws, 'said.png'));
+      expect([still.code, still.lines]).toEqual([
+        EXIT.ok,
+        [
+          `! run ${RUN_ID} is used: 1 newer capture of "tour" passed over — ${newer} (cancelled) (name one with --run <id>)`,
+          `! run ${RUN_ID} stops at step home.0 (\`--until\`): the capture holds the scenario up to there`,
+        ],
+      ]);
+      expect((await said('still', 'demo', 'tour', '--frame', '3', '--json', '--out', join(ws, 'said.png'))).lines).toEqual([]);
+    } finally {
+      fakes.planRun = keep;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('the help of each command', async () => {
     for (const cmd of ['render', 'still', 'export', 'review', 'run', 'inspect']) expect((await retake(`${cmd} --help`, cmd, '--help')).code).toBe(EXIT.ok);
   });
 
+  it("every run and inspection was handed the CLI's hook runner (L7.12)", () => {
+    expect(fakes.hookRunners.length).toBeGreaterThan(0);
+    for (const h of fakes.hookRunners) expect(h).toBe(cliPorts.hooks);
+    // Each run's secrets are resolved through the CLI's Secrets port: its resolver asks cliPorts.secrets, nothing else.
+    expect(fakes.resolvers).toHaveLength(fakes.hookRunners.length);
+  });
+
+  it("every run's secrets are resolved through the CLI's Secrets port", async () => {
+    const asked: string[] = [];
+    const real = cliPorts.secrets.resolve;
+    cliPorts.secrets.resolve = async (ref) => (asked.push(ref), `resolved ${ref}`);
+    try {
+      for (const r of fakes.resolvers as Array<(ref: string) => Promise<string>>) expect(await r('env:RETAKE_PIPELINE_PROBE')).toBe('resolved env:RETAKE_PIPELINE_PROBE');
+    } finally {
+      cliPorts.secrets.resolve = real;
+    }
+    expect(fakes.resolvers.length).toBeGreaterThan(0);
+    expect(asked).toEqual(fakes.resolvers.map(() => 'env:RETAKE_PIPELINE_PROBE'));
+  });
+
   it('every case matches the fixture', () => {
     const text = `${JSON.stringify(results, null, 1)}\n`;
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(existsSync(FILE), 'no fixture yet: RETAKE_WRITE_SNAPSHOTS=1 on this file').toBe(true);
     const fixture = JSON.parse(readFileSync(FILE, 'utf8')) as Record<string, Case>;
     expect(Object.keys(results)).toEqual(Object.keys(fixture));

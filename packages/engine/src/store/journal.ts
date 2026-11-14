@@ -6,19 +6,24 @@
  *
  * A file of its own beside the job history (`history.jsonl`): the history counts what was produced (its lines carry
  * `counted`, read by the usage counters and the index's `history` table), the journal records who changed what — mixing
- * them would change both readers. Append-only: each line is appended (O_APPEND, never through a symbolic link) and synced
- * to disk before the operation that wrote it replies; nothing in Retake truncates, rewrites or removes the file (`retake
- * prune` leaves it alone). A last line left torn (no line break: a crash mid-write) is closed before the next one, so
- * only the torn line is lost. Synced with fsync: a line survives a crash of Retake or of the system, not a power loss on
- * macOS (its fsync does not flush the drive's cache; F_FULLFSYNC would, at a cost every write would pay).
+ * them would change both readers. Both are written and read with one discipline (store/append-log.ts, L7.26): each line
+ * appended whole under the log's lock (O_APPEND, never through a symbolic link) and synced to disk before the operation
+ * that wrote it replies; nothing in Retake truncates, rewrites or removes the file (`retake prune` leaves it alone). A
+ * last line left torn (no line break: a crash mid-write) is closed before the next one, so only the torn line is lost.
+ * Synced with fsync: a line survives a crash of Retake or of the system, not a power loss on macOS (its fsync does not
+ * flush the drive's cache; F_FULLFSYNC would, at a cost every write would pay).
  * A line that cannot be written never fails the work it records (that work is done: failing its reply would make a
  * client retry a write already made): the failure is said on stderr, at most once a minute with the count lost since.
  */
 import { existsSync, realpathSync } from 'node:fs';
-import { constants, mkdir, open, readFile } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { STATE_DIR, WORKSPACE_JOURNAL_FILE, relativeInside, statePath } from '@retake/core';
+import { basename, dirname, isAbsolute, join, sep } from 'node:path';
+import { relativeInside } from '@retake/core/base';
+import { STATE_DIR, WORKSPACE_JOURNAL_FILE } from '@retake/core/project';
 import type { Caller } from '../caller.js';
+import { stampOf } from '../clock.js';
+import type { Clock } from '../clock.js';
+import { appendLogLine, logFile, logLinesFromEnd, logWarner, readLogLines } from './append-log.js';
+import type { AppendLog } from './append-log.js';
 
 export const JOURNAL_VERSION = 1;
 
@@ -84,8 +89,11 @@ export type JournalEntry = JournalWrite | JournalHook;
 /** The files a folder entry lists at most (the rest is counted in `files_more`). */
 export const JOURNAL_FILES_MAX = 50;
 
+/** The journal as a line log (append-log.ts): owner-only, its lock `journal.lock`. */
+const JOURNAL_LOG: AppendLog = { file: WORKSPACE_JOURNAL_FILE, lock: 'journal.lock', mode: 0o600 };
+
 export function journalFile(root: string): string {
-  return statePath(root, undefined, WORKSPACE_JOURNAL_FILE);
+  return logFile(root, JOURNAL_LOG);
 }
 
 /** Where a store outside the workspace is (a projects, templates or components folder configured elsewhere). */
@@ -142,51 +150,32 @@ export function journalPath(root: string, path: string, outside?: JournalPlace):
   return `<outside workspace>/${basename(path)}`;
 }
 
-/** How often a journal that cannot be written is said on stderr. */
-const WARN_EVERY_MS = 60_000;
-let lastWarn = Number.NEGATIVE_INFINITY;
-let lost = 0;
+/** The journal's warning when a line cannot be written (stderr, at most once a minute). */
+const warnLost = logWarner(`the workspace journal (${STATE_DIR}/${WORKSPACE_JOURNAL_FILE})`);
 
-function warnLost(e: unknown): void {
-  lost++;
-  const now = Date.now();
-  if (now - lastWarn < WARN_EVERY_MS) return;
-  lastWarn = now;
-  const count = lost === 1 ? '' : ` (${lost} lines lost since the last warning)`;
-  lost = 0;
-  process.stderr.write(`retake: the workspace journal (${STATE_DIR}/${WORKSPACE_JOURNAL_FILE}) could not be written${count}: ${(e as Error).message}\n`);
+/** One journal line, its version and stamp first (the shape every store adapter journals). */
+export function journalLine(entry: Omit<JournalWrite, 'v' | 'at'> | Omit<JournalHook, 'v' | 'at'>, clock: Clock): string {
+  return `${JSON.stringify({ v: JOURNAL_VERSION, at: stampOf(clock), ...entry })}\n`;
 }
 
-/** Appending only, created owner-only, never through a symbolic link; read too, for its last byte. */
-const APPEND_FLAGS = constants.O_RDWR | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW;
-
 /**
- * Append one line and sync it to disk before returning (the operation replies after this). The state folder is
- * created when missing; a torn last line (no line break) is closed first. Never throws: a failure is said on stderr.
+ * Append one line and sync it to disk before returning (the operation replies after this), under the journal's lock
+ * (append-log.ts). The state folder is created when missing; a torn last line (no line break) is closed first. Never
+ * throws: a failure is said on stderr.
  */
-export async function appendJournal(root: string, entry: Omit<JournalWrite, 'v' | 'at'> | Omit<JournalHook, 'v' | 'at'>): Promise<void> {
-  const line = `${JSON.stringify({ v: JOURNAL_VERSION, at: new Date().toISOString(), ...entry })}\n`;
+export async function appendJournal(root: string, entry: Omit<JournalWrite, 'v' | 'at'> | Omit<JournalHook, 'v' | 'at'>, clock: Clock): Promise<void> {
+  const line = journalLine(entry, clock);
   try {
-    await mkdir(statePath(root), { recursive: true });
-    // O_APPEND: lines of concurrent writers never interleave; the file is opened to append (and read its last byte),
-    // never to truncate. A concurrent writer may close a torn line too: an empty line is skipped by readJournal.
-    const fh = await open(journalFile(root), APPEND_FLAGS, 0o600);
-    try {
-      const { size } = await fh.stat();
-      let head = '';
-      if (size > 0) {
-        const last = Buffer.alloc(1);
-        await fh.read(last, 0, 1, size - 1);
-        if (last[0] !== 0x0a) head = '\n';
-      }
-      await fh.write(head + line);
-      await fh.sync();
-    } finally {
-      await fh.close();
-    }
+    await appendLogLine(root, JOURNAL_LOG, line);
   } catch (e) {
     warnLost(e);
   }
+}
+
+/** Who a run of hooks is journaled as (its caller) and what its lines are stamped with (the composition root's clock). */
+export interface JournalAs {
+  caller: Pick<Caller, 'client' | 'channel' | 'trust'>;
+  clock: Clock;
 }
 
 /** The fields of a hook result the journal keeps (hooks HookResult, or the runner's view of one). */
@@ -218,9 +207,10 @@ export function hookEntry(result: HookRunResult): Omit<JournalHook, 'v' | 'at' |
  * The HookContext.recordRun of a caller's hooks: each hook or rollback run is a journal line of the workspace `root`,
  * with the project and the run (or hooks journal) id it ran for (`run`, or the one given with the result).
  */
-export function hookRunRecorder(root: string, caller: Pick<Caller, 'client' | 'channel' | 'trust'>, o: { project?: string; run?: string } = {}): (result: HookRunResult, run?: string) => Promise<void> {
+export function hookRunRecorder(root: string, as: JournalAs, o: { project?: string; run?: string } = {}): (result: HookRunResult, run?: string) => Promise<void> {
+  const { caller, clock } = as;
   const by = { client: caller.client, channel: caller.channel, trust: caller.trust };
-  return (result, run = o.run) => appendJournal(root, { by, ...(o.project !== undefined ? { project: o.project } : {}), ...hookEntry(result), ...(run !== undefined ? { run } : {}) });
+  return (result, run = o.run) => appendJournal(root, { by, ...(o.project !== undefined ? { project: o.project } : {}), ...hookEntry(result), ...(run !== undefined ? { run } : {}) }, clock);
 }
 
 export interface JournalQuery {
@@ -248,35 +238,6 @@ function entryOf(line: string, q: JournalQuery): JournalEntry | undefined {
   return e as JournalEntry;
 }
 
-/** The bytes read at a time from the end of the journal (readJournal with a limit). */
-const TAIL_CHUNK = 64 * 1024;
-
-/** The file's lines, newest first, read backwards a chunk at a time (a line break is one byte in UTF-8). */
-async function* linesFromEnd(file: string): AsyncGenerator<string> {
-  const fh = await open(file, 'r');
-  try {
-    let pos = (await fh.stat()).size;
-    let carry = Buffer.alloc(0);
-    while (pos > 0) {
-      const n = Math.min(TAIL_CHUNK, pos);
-      pos -= n;
-      const chunk = Buffer.alloc(n);
-      await fh.read(chunk, 0, n, pos);
-      const data = carry.length ? Buffer.concat([chunk, carry]) : chunk;
-      let end = data.length;
-      for (let i = data.length - 1; i >= 0; i--) {
-        if (data[i] !== 0x0a) continue;
-        if (end > i + 1) yield data.subarray(i + 1, end).toString('utf8');
-        end = i;
-      }
-      carry = data.subarray(0, end);
-    }
-    if (carry.length) yield carry.toString('utf8');
-  } finally {
-    await fh.close();
-  }
-}
-
 /**
  * The journal's lines, oldest first (a torn, foreign or newer-version line is skipped); [] when there is none. With a
  * `limit`, only the end of the file is read, back to the last `limit` lines that pass the filters.
@@ -287,7 +248,7 @@ export async function readJournal(root: string, q: JournalQuery = {}): Promise<J
     const out: JournalEntry[] = [];
     if (q.limit === 0) return out;
     try {
-      for await (const line of linesFromEnd(file)) {
+      for await (const line of logLinesFromEnd(file)) {
         const e = entryOf(line, q);
         if (!e) continue;
         out.push(e);
@@ -298,14 +259,8 @@ export async function readJournal(root: string, q: JournalQuery = {}): Promise<J
     }
     return out.reverse();
   }
-  let text: string;
-  try {
-    text = await readFile(file, 'utf8');
-  } catch {
-    return [];
-  }
   const out: JournalEntry[] = [];
-  for (const line of text.split('\n')) {
+  for (const line of await readLogLines(file)) {
     const e = entryOf(line, q);
     if (e) out.push(e);
   }

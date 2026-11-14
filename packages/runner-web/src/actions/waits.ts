@@ -1,5 +1,5 @@
-import { describeTarget } from '@retake/core';
-import type { AssertArgs, WaitForArgs } from '@retake/core';
+import { describeTarget } from '@retake/core/language';
+import type { AssertArgs, WaitForArgs } from '@retake/core/model';
 import { StepError } from '../errors.js';
 import { describePending, networkIdle } from '../network.js';
 import { countMatches, poll } from '../resolve.js';

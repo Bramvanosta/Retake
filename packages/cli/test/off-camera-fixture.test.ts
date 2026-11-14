@@ -174,7 +174,9 @@ describe.skipIf(!chromiumAvailable())('off camera on the fixture (L5.8)', () => 
     const { run, tl } = await variant('moved', (y) => y.replace('version: 1\n', 'version: 1\nenv: moved\n'));
     expect(run.status).toBe('failed');
     expect(run.steps_done).toBe(0);
-    expect(run.error!.message).toMatch(/^environment moved: a page does not answer — page console \(http:\/\/127\.0\.0\.1:\d+\): connection refused \(nothing listens on that port\)\. Nothing was filmed/);
+    expect(run.error!.message).toMatch(
+      /^environment moved: a page does not answer — page console \(http:\/\/127\.0\.0\.1:\d+\): connection refused \(nothing listens on that port\)\. Nothing was filmed/,
+    );
     // No hook ran (the setup's reset would show in the fixture), no capture.
     expect(run.hooks.setup).toBe('none');
     expect(tl?.capture?.frames ?? 0).toBe(0);

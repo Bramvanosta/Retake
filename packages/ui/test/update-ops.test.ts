@@ -13,8 +13,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { TOOLS } from '@retake/mcp';
 import { OWN_OPS, SHELL_LINE_MAX, UI_OPS, UPDATE_CLICKS_PER_MIN, UPDATE_NOTES_MAX, UPDATE_OPS, applyShellLine, installable, parseShellLine, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'update-ops-')));
 const ws = join(base, 'ws');
@@ -52,8 +52,8 @@ const L = {
   failed: { type: 'update', state: 'failed', current: '0.2.0', failure: 'download', version: '0.2.1', checked: 5, retry: true },
 } as const;
 
-describe('the shell\'s update lines', () => {
-  it('each state\'s exact shape is taken; an extra or missing key, a bad version, enum, count or note is dropped', () => {
+describe("the shell's update lines", () => {
+  it("each state's exact shape is taken; an extra or missing key, a bad version, enum, count or note is dropped", () => {
     for (const l of Object.values(L)) expect(parseShellLine(JSON.stringify(l)), l.state).toEqual(l);
     expect(parseShellLine(JSON.stringify({ ...L.failed, failure: 'check', version: null, retry: false }))).not.toBeNull();
     // BL-167: a download without an announced size.
@@ -105,7 +105,17 @@ describe('the shell\'s update lines', () => {
     expect(installable({ ...L.failed, failure: 'install', retry: false } as never)).toBe(false);
     // A folder this account may not write never retries, whatever the line says.
     expect(installable({ ...L.failed, failure: 'not_writable', retry: true } as never)).toBe(false);
-    for (const l of [L.off, L.idle, L.checking, L.downloading, L.waiting, L.installing, { ...L.failed, failure: 'not_writable', retry: false }, { ...L.failed, failure: 'check', version: null, retry: false }]) expect(installable(l as never), l.state).toBe(false);
+    for (const l of [
+      L.off,
+      L.idle,
+      L.checking,
+      L.downloading,
+      L.waiting,
+      L.installing,
+      { ...L.failed, failure: 'not_writable', retry: false },
+      { ...L.failed, failure: 'check', version: null, retry: false },
+    ])
+      expect(installable(l as never), l.state).toBe(false);
     expect(installable(undefined)).toBe(false);
   });
 });
@@ -118,11 +128,30 @@ describe('who may call them', () => {
       expect(UI_OPS as readonly string[]).toContain(op);
     }
     expect(TOOLS.map((t) => t.name).filter((n) => /update/.test(n) && n.startsWith('desktop'))).toEqual([]);
-    const src = await import('node:fs').then((fs) => fs.readFileSync(join(__dirname, '..', 'src', 'server', 'studio.ts'), 'utf8'));
-    expect(/const NO_NUDGE = new Set<string>\(\[([^\]]*)\]\)/.exec(src)?.[1]).toContain("'desktop_update'");
+    // L7.34: what the job watch hears (onWrite) — an Install the shell takes and a Later write nothing it watches;
+    // a README written through the same server does (the listener is live). The server is the desktop app's for this
+    // check only (the pipe given back after it: the next case is about a server that is not).
+    const pipe = studio.desktop as unknown as { write: ((line: string) => boolean) | undefined };
+    studio.desktop.attach((l) => (lines.push(l), true));
+    let nudges = 0;
+    const off = studio.onWrite(() => nudges++);
+    try {
+      shell(L.available);
+      expect((await call('desktop_update', { action: 'install' })).status).toBe(200);
+      expect((await call('desktop_update', { action: 'later' })).status).toBe(200);
+      expect(lines).toEqual(['{"type":"update","action":"install"}', '{"type":"update","action":"later"}']);
+      expect(nudges).toBe(0);
+      const hash = (await call('project_get', { project: 'northfield-fixture' })).body.data.readme_hash as string;
+      expect((await call('project_update_readme', { project: 'northfield-fixture', markdown: '# Northfield\n', if_match: hash })).status).toBe(200);
+      expect(nudges).toBe(1);
+    } finally {
+      off();
+      pipe.write = undefined;
+      studio.update.last = undefined;
+    }
   });
 
-  it('not the desktop app\'s server: status says so, the click is refused — nothing written', async () => {
+  it("not the desktop app's server: status says so, the click is refused — nothing written", async () => {
     expect((await call('desktop_update_status')).body.data).toEqual({ available: false, reason: 'not_supervised' });
     const r = await call('desktop_update', { action: 'install' });
     expect(r.status).toBe(409);
@@ -130,10 +159,10 @@ describe('who may call them', () => {
   });
 });
 
-describe('the desktop app\'s own server', () => {
+describe("the desktop app's own server", () => {
   beforeAll(() => studio.desktop.attach((l) => (lines.push(l), true)));
 
-  it('the status follows the shell\'s lines; the notes come under untrusted; strict input', async () => {
+  it("the status follows the shell's lines; the notes come under untrusted; strict input", async () => {
     studio.update.last = undefined;
     expect((await call('desktop_update_status')).body.data).toEqual({ available: true, state: 'unknown' });
     expect(shell(L.idle)).toBe(true);
@@ -155,7 +184,8 @@ describe('the desktop app\'s own server', () => {
     expect((await call('desktop_update', { action: 'install' })).body.data).toEqual({ ok: true });
     expect((await call('desktop_update', { action: 'later' })).body.data).toEqual({ ok: true });
     expect(lines).toEqual(['{"type":"update","action":"install"}', '{"type":"update","action":"later"}']);
-    for (const bad of [{}, { action: 'check' }, { action: 'install', version: '9.9.9' }, { action: 'install', url: 'https://downloads.example.test/x' }]) expect((await call('desktop_update', bad)).status, JSON.stringify(bad)).toBe(400);
+    for (const bad of [{}, { action: 'check' }, { action: 'install', version: '9.9.9' }, { action: 'install', url: 'https://downloads.example.test/x' }])
+      expect((await call('desktop_update', bad)).status, JSON.stringify(bad)).toBe(400);
     for (const l of [L.idle, L.off, L.downloading, L.installing, { ...L.failed, failure: 'not_writable', retry: false }, { ...L.failed, failure: 'install', retry: false }]) {
       shell(l);
       const r = await call('desktop_update', { action: 'install' });

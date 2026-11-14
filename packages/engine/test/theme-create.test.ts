@@ -17,9 +17,9 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR, listTemplates, loadTemplate, loadWorkspaceConfig, fileFacts } from '@retake/core/io';
 import { fontFileFace } from '@retake/components';
-import { THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, fileNameFace, personScope } from '../src/index.js';
+import { THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, fileNameFace, personScope, enginePorts, diskWorkspaceReads } from '../src/index.js';
 import type { Engine, EngineError, ThemeCreated } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 
 const T = STARTER_TEMPLATES_DIR;
@@ -39,7 +39,10 @@ async function refusal(p: Promise<unknown>): Promise<EngineError> {
 
 async function folderHash(dir: string): Promise<string> {
   const h = createHash('sha256');
-  for (const e of (await readdir(dir, { withFileTypes: true, recursive: true })).filter((x) => x.isFile()).map((x) => join(x.parentPath, x.name)).sort()) {
+  for (const e of (await readdir(dir, { withFileTypes: true, recursive: true }))
+    .filter((x) => x.isFile())
+    .map((x) => join(x.parentPath, x.name))
+    .sort()) {
     h.update(`${e}\0`).update(await readFile(e));
   }
   return h.digest('hex');
@@ -115,7 +118,17 @@ describe('template_create_from_brand (engine)', () => {
     );
     const dir = join(root, 'templates', 'acme');
     expect(made).toMatchObject({ name: 'acme', dir, base: 'editorial', replaced: false });
-    expect(made.files).toEqual(['template.yaml', 'logo.svg', 'wordmark.svg', 'fonts/display-Bold.ttf', 'fonts/body-Regular.ttf', 'fonts/body-SemiBold.ttf', 'fonts/body-Bold.ttf', 'LICENSES.md', THEME_PROVENANCE_FILE]);
+    expect(made.files).toEqual([
+      'template.yaml',
+      'logo.svg',
+      'wordmark.svg',
+      'fonts/display-Bold.ttf',
+      'fonts/body-Regular.ttf',
+      'fonts/body-SemiBold.ttf',
+      'fonts/body-Bold.ttf',
+      'LICENSES.md',
+      THEME_PROVENANCE_FILE,
+    ]);
     expect(made.fonts.map((f) => [f.file, f.weight, f.weight_from])).toEqual([
       ['fonts/display-Bold.ttf', 700, 'font'],
       ['fonts/body-Regular.ttf', 400, 'font'],
@@ -150,7 +163,7 @@ describe('template_create_from_brand (engine)', () => {
     expect(await folderHash(T)).toBe(startersBefore);
   });
 
-  it('no fonts given: the base theme\'s files are copied as they are, with its LICENSES.md', async () => {
+  it("no fonts given: the base theme's files are copied as they are, with its LICENSES.md", async () => {
     const c = await engine.templates.create(input({ name: 'plain', base: 'motion', colors: { accent: '#ff5c38' } }));
     expect(c.fonts.map((f) => [f.file, f.weight_from])).toEqual([
       ['fonts/SpaceGrotesk-Bold.ttf', 'base'],
@@ -198,7 +211,9 @@ describe('template_create_from_brand (engine)', () => {
       await mkdir(join(ws, 'brand'));
       await cp(join(T, 'editorial', 'logo.svg'), join(ws, 'brand', 'logo.svg'));
       await writeFile(join(ws, 'retake.yaml'), `templates_dir: ${JSON.stringify(td)}\n`);
-      const e = await refusal(createThemeFromBrand(await loadWorkspaceConfig(ws), input(), { trust: 'mcp', scope: personScope(ws) }));
+      const e = await refusal(
+        createThemeFromBrand({ ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY, reads: diskWorkspaceReads }, input(), { trust: 'mcp', scope: personScope(ws, enginePorts()) }),
+      );
       expect(e).toMatchObject({ code: 'refused', message: expect.stringMatching(/lies inside the Retake folder/), fix: expect.stringMatching(/RETAKE_ROOT/) });
       await rm(ws, { recursive: true, force: true });
     }
@@ -228,7 +243,10 @@ describe('template_create_from_brand (engine)', () => {
     const yaml = join(dir, 'template.yaml');
     const text = await readFile(yaml, 'utf8');
     await writeFile(yaml, text.replace('style_bias: real', 'style_bias: motion'));
-    expect(await refusal(engine.templates.create(input({ replace: true })))).toMatchObject({ code: 'refused', message: expect.stringMatching(/template.yaml was changed since it was made.*never overwritten/) });
+    expect(await refusal(engine.templates.create(input({ replace: true })))).toMatchObject({
+      code: 'refused',
+      message: expect.stringMatching(/template.yaml was changed since it was made.*never overwritten/),
+    });
     await writeFile(yaml, text);
     await writeFile(join(dir, 'notes.md'), 'mine');
     expect(await refusal(engine.templates.create(input({ replace: true })))).toMatchObject({ code: 'refused', message: expect.stringMatching(/files were added since it was made: notes.md/) });
@@ -291,13 +309,17 @@ describe('template_create_from_brand (engine)', () => {
 
   it('WOFF / WOFF2 weights come from the style token after the last "-" or "_": a family word never reads as a weight', async () => {
     for (const f of ['LighthouseSans-Regular', 'LighthouseSans-Bold', 'Boldwick', 'Heavyweight_SemiBoldItalic']) await writeFile(join(root, 'brand', `${f}.woff2`), WOFF2);
-    const c = await engine.templates.create(input({ name: 'lighthouse', fonts: { display: 'brand/Heavyweight_SemiBoldItalic.woff2', body: ['brand/LighthouseSans-Regular.woff2', 'brand/LighthouseSans-Bold.woff2'] } }));
+    const c = await engine.templates.create(
+      input({ name: 'lighthouse', fonts: { display: 'brand/Heavyweight_SemiBoldItalic.woff2', body: ['brand/LighthouseSans-Regular.woff2', 'brand/LighthouseSans-Bold.woff2'] } }),
+    );
     expect(c.fonts.map((f) => [f.file, f.weight, f.italic, f.weight_from])).toEqual([
       ['fonts/display-SemiBoldItalic.woff2', 600, true, 'file name'],
       ['fonts/body-Regular.woff2', 400, false, 'file name'],
       ['fonts/body-Bold.woff2', 700, false, 'file name'],
     ]);
-    expect(c.warnings.join('\n')).toMatch(/body font brand\/LighthouseSans-Regular\.woff2: weight 400 read from the file name \(WOFF2 files keep it compressed\) — give \{file, weight\} if it is wrong/);
+    expect(c.warnings.join('\n')).toMatch(
+      /body font brand\/LighthouseSans-Regular\.woff2: weight 400 read from the file name \(WOFF2 files keep it compressed\) — give \{file, weight\} if it is wrong/,
+    );
     // No style token: regular, said.
     const plain = await engine.templates.create(input({ name: 'boldonse', fonts: { display: 'brand/Boldwick.woff2' } }));
     expect(plain.fonts[0]).toMatchObject({ file: 'fonts/display-Regular.woff2', weight: 400, weight_from: 'file name' });
@@ -336,15 +358,17 @@ describe('template_create_from_brand (engine)', () => {
   });
 
   it('replace through MCP never takes a theme a human made with the CLI; the CLI may replace a tool-made one', async () => {
-    const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY };
-    await createThemeFromBrand(ws, input({ name: 'bob' }), { trust: 'author', cwd: root, scope: personScope(root) });
+    const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads };
+    await createThemeFromBrand(ws, input({ name: 'bob' }), { trust: 'author', cwd: root, scope: personScope(root, enginePorts()) });
     expect(await refusal(engine.templates.create(input({ name: 'bob', colors: { accent: '#00aa00' }, replace: true })))).toMatchObject({
       code: 'refused',
       message: expect.stringMatching(/was made by a human with retake theme create: through MCP only a theme made through MCP is replaced/),
     });
     expect((await loadTemplate('bob', root, { files: fileFacts(PERSON_POLICY) })).template.colors.accent).toBe('#0e7c66');
     await engine.templates.create(input({ name: 'carol' }));
-    expect((await createThemeFromBrand(ws, input({ name: 'carol', colors: { accent: '#00aa00' }, replace: true }), { trust: 'author', cwd: root, scope: personScope(root) })).replaced).toBe(true);
+    expect(
+      (await createThemeFromBrand(ws, input({ name: 'carol', colors: { accent: '#00aa00' }, replace: true }), { trust: 'author', cwd: root, scope: personScope(root, enginePorts()) })).replaced,
+    ).toBe(true);
   });
 
   it("a crash's leftovers: only this tool's .tmp- / .old-<name>-<12 hex> folders older than an hour go", async () => {
@@ -366,7 +390,14 @@ describe('template_create_from_brand (engine)', () => {
     await make('.tmp-acme-0123456789ae', { [THEME_PROVENANCE_FILE]: prov }, false);
     await make('.tmp-Acme-0123456789af', { [THEME_PROVENANCE_FILE]: prov });
     await engine.templates.create(input({ name: 'sweep' }));
-    expect((await readdir(tpl)).filter((e) => e.startsWith('.')).sort()).toEqual(['.old-acme', '.tmp-Acme-0123456789af', '.tmp-acme-0123456789ac', '.tmp-acme-0123456789ad', '.tmp-acme-0123456789ae', '.tmp-mywork']);
+    expect((await readdir(tpl)).filter((e) => e.startsWith('.')).sort()).toEqual([
+      '.old-acme',
+      '.tmp-Acme-0123456789af',
+      '.tmp-acme-0123456789ac',
+      '.tmp-acme-0123456789ad',
+      '.tmp-acme-0123456789ae',
+      '.tmp-mywork',
+    ]);
     expect(await readFile(join(tpl, '.tmp-mywork', 'notes.txt'), 'utf8')).toBe('mine');
   });
 

@@ -27,7 +27,7 @@ describe('createComponent (R-REG-10, R-DEC-03)', () => {
   it('scaffolds a valid component of every kind in the workspace components/ folder', async () => {
     for (const kind of COMPONENT_KINDS) {
       const id = `acme/my-${kind}`;
-      const created = await createComponent(ws.dir, { write: plainWrite,  id, kind, description: `Our ${kind}.` });
+      const created = await createComponent(ws.dir, { write: plainWrite, id, kind, description: `Our ${kind}.` });
       const dir = join(ws.dir, 'components', 'acme', `my-${kind}`);
       expect(created.dir).toBe(dir);
       expect(created.source).toBe('workspace');
@@ -45,24 +45,29 @@ describe('createComponent (R-REG-10, R-DEC-03)', () => {
       expect(readFileSync(join(dir, 'README.md'), 'utf8')).toContain(`retake components validate ${id}`);
     }
     const reg = await loadComponentRegistry({ root: ws.dir, builtinDir: null });
-    expect(reg.list().map((c) => c.manifest.kind).sort()).toEqual([...COMPONENT_KINDS].sort());
+    expect(
+      reg
+        .list()
+        .map((c) => c.manifest.kind)
+        .sort(),
+    ).toEqual([...COMPONENT_KINDS].sort());
     expect(reg.resolve('acme/my-layout', 'layout').params).toEqual({ radius: 18, shadow: 'soft' });
   });
 
   it('defaults the name and description, and notes an override of a built-in id', async () => {
     const builtin = join(ws.dir, 'lib');
     await writeFiles(builtin, { 'studio/card-title/component.yaml': 'id: studio/card-title\n' });
-    const created = await createComponent(ws.dir, { write: plainWrite,  id: 'studio/card-title', kind: 'card', builtinDir: builtin });
+    const created = await createComponent(ws.dir, { write: plainWrite, id: 'studio/card-title', kind: 'card', builtinDir: builtin });
     expect(created.manifest.name).toBe('Card title');
     expect(created.manifest.description).toMatch(/^TODO: describe what this card looks like/);
     expect(created.overrides).toBe(join(builtin, 'studio/card-title'));
   });
 
   it('rejects bad ids, unknown kinds and existing folders', async () => {
-    await expect(createComponent(ws.dir, { write: plainWrite,  id: 'Acme/Intro', kind: 'intro' })).rejects.toThrow(/invalid component id "Acme\/Intro": use "namespace\/name"/);
-    await expect(createComponent(ws.dir, { write: plainWrite,  id: 'intro', kind: 'intro' })).rejects.toThrow(ComponentError);
-    await expect(createComponent(ws.dir, { write: plainWrite,  id: 'acme/x', kind: 'outr' as never })).rejects.toThrow(/unknown component kind "outr" \(did you mean "outro"\?\)/);
-    await expect(createComponent(ws.dir, { write: plainWrite,  id: 'acme/my-intro', kind: 'intro' })).rejects.toThrow(/already exists/);
+    await expect(createComponent(ws.dir, { write: plainWrite, id: 'Acme/Intro', kind: 'intro' })).rejects.toThrow(/invalid component id "Acme\/Intro": use "namespace\/name"/);
+    await expect(createComponent(ws.dir, { write: plainWrite, id: 'intro', kind: 'intro' })).rejects.toThrow(ComponentError);
+    await expect(createComponent(ws.dir, { write: plainWrite, id: 'acme/x', kind: 'outr' as never })).rejects.toThrow(/unknown component kind "outr" \(did you mean "outro"\?\)/);
+    await expect(createComponent(ws.dir, { write: plainWrite, id: 'acme/my-intro', kind: 'intro' })).rejects.toThrow(/already exists/);
     expect(existsSync(join(ws.dir, 'components', 'acme', 'x'))).toBe(false);
   });
 
@@ -70,7 +75,7 @@ describe('createComponent (R-REG-10, R-DEC-03)', () => {
     const other = await tempDir();
     try {
       await writeFiles(other.dir, { 'retake.yaml': 'components_dir: design/components\n' });
-      const created = await createComponent(other.dir, { write: plainWrite,  id: 'acme/badge', kind: 'overlay' });
+      const created = await createComponent(other.dir, { write: plainWrite, id: 'acme/badge', kind: 'overlay' });
       expect(created.dir).toBe(join(other.dir, 'design/components/acme/badge'));
     } finally {
       await other.cleanup();

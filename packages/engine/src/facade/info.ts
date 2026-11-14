@@ -1,6 +1,6 @@
 /** The façade's `info()` (engine_info): the API version, this process, the features, the entitlements. */
 import { hostname } from 'node:os';
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core/base';
 import { entitlements } from '../entitlements.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';

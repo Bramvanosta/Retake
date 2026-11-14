@@ -10,6 +10,11 @@
       "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./types": {
+      "source": "./src/types-entry.ts",
+      "types": "./dist/types-entry.d.ts",
+      "default": "./dist/types-entry.js"
     }
   },
   "files": [
@@ -18,9 +23,11 @@
   ],
   "dependencies": {
     "@retake/core": "workspace:*",
-    "@retake/hooks": "workspace:*",
     "esbuild": "0.28.1",
     "pdfjs-dist": "5.4.296",
     "playwright-core": "1.56.1"
+  },
+  "devDependencies": {
+    "@retake/hooks": "workspace:*"
   }
 }

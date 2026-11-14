@@ -24,7 +24,7 @@ const GAP = 8;
 const LABEL_H = 40;
 const HEADER_H = 58;
 const BG = '#17171b';
-const FONT = "DejaVu Sans, Inter, Helvetica, Arial, sans-serif";
+const FONT = 'DejaVu Sans, Inter, Helvetica, Arial, sans-serif';
 const MARK_COLOURS: Record<Severity, string> = { error: '#ff3b30', warning: '#ff9f0a', info: '#64a8ff' };
 
 export function escapeXml(s: string): string {
@@ -40,7 +40,10 @@ function clip(s: string, max: number): string {
 export async function makeTile(img: { width: number; height: number; data: Buffer }, width: number): Promise<{ data: Buffer; width: number; height: number }> {
   const w = Math.max(16, Math.min(width, img.width));
   const h = Math.max(9, Math.round((img.height * w) / img.width));
-  const data = await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 3 } }).resize(w, h, { kernel: 'lanczos3' }).raw().toBuffer();
+  const data = await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 3 } })
+    .resize(w, h, { kernel: 'lanczos3' })
+    .raw()
+    .toBuffer();
   return { data, width: w, height: h };
 }
 

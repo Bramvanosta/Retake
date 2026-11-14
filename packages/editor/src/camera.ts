@@ -2,7 +2,7 @@
  * Camera of a run (zooms from step `camera` hints and the theme default zoom, eased in output time, view clamped to
  * the capture) and the reframe track of the vertical and square variants. Pure.
  */
-import type { CameraHint, Timeline } from '@retake/core';
+import type { CameraHint, Timeline } from '@retake/core/model';
 import { CAMERA_EASINGS, cubicBezier } from '@retake/components/geometry';
 import type { Bezier, EasingFn } from '@retake/components/geometry';
 import type { CameraFrame } from './plan-types.js';
@@ -201,7 +201,13 @@ export function dampedSmooth(values: readonly number[], fps: number, tauS: numbe
  * each side. A banded quadratic programme solved with ADMM (pentadiagonal Cholesky factorised once). Where the free
  * path is already inside, it is returned as is.
  */
-export function corridorSmooth(free: readonly number[], lo: readonly number[], hi: readonly number[], reachFrames: number, opts: { iterations?: number; rho?: number; damping?: number } = {}): number[] {
+export function corridorSmooth(
+  free: readonly number[],
+  lo: readonly number[],
+  hi: readonly number[],
+  reachFrames: number,
+  opts: { iterations?: number; rho?: number; damping?: number } = {},
+): number[] {
   const n = free.length;
   const inside = free.every((x, k) => x >= lo[k] - 1e-9 && x <= hi[k] + 1e-9);
   if (inside || n < 3) return free.map((x, k) => clamp(x, lo[k], hi[k]));
@@ -392,7 +398,12 @@ export function reframeTrack(opts: {
   const kFirst = times.findIndex((t, k) => t - times[0] <= R.calm_start_s && activeAt(k).length > 0);
   if (kFirst >= 0) {
     const act = activeAt(kFirst);
-    const roi = roiAt(kFirst, act, act.filter((g) => g.hard).map((g) => g.box), cursorBox(kFirst));
+    const roi = roiAt(
+      kFirst,
+      act,
+      act.filter((g) => g.hard).map((g) => g.box),
+      cursorBox(kFirst),
+    );
     if (roi) {
       ax = roi.x + roi.w / 2;
       ay = roi.y + roi.h / 2;

@@ -19,10 +19,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, FilmingMarker, selfIdentity } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { hasTool } from '@retake/test-support/repo';
 import { auditPage, formatFindings, settle } from './a11y.js';
-import { takeWorkspace, writeTake } from './timeline-take.js';
+import { takeWorkspace, writeTake } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -47,7 +48,7 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const consoleErrors: string[] = [];
 
 async function shot(name: string): Promise<void> {
@@ -72,7 +73,7 @@ async function audited(name: string): Promise<void> {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'retake-e2e-captures-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   const dir = await takeWorkspace(ws);
   const t = synthTimeline({
     duration: 2,
@@ -101,8 +102,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -119,7 +119,7 @@ describe.skipIf(!canRun)('captures first in the Studio (L5.14)', () => {
 
     // A take films in another workspace (its marker names no workspace): the render waits for it.
     const other = join(ws, 'elsewhere-workspace');
-    const marker = FilmingMarker.open({ root: other, source: 'cli', owner: await selfIdentity() });
+    const marker = FilmingMarker.open({ env: process.env, root: other, source: 'cli', owner: await selfIdentity() });
     expect(marker).not.toBeNull();
     try {
       await expect.poll(() => job.innerText(), POLL).toContain('v1 · queued — waiting for a take to finish (elsewhere on this Mac)');
@@ -131,7 +131,14 @@ describe.skipIf(!canRun)('captures first in the Studio (L5.14)', () => {
       const queue = new FileJobQueue(ws);
       const rec = (await queue.list({ project: 'demo', kinds: ['render'], limit: 1 }))[0]!;
       const me = { ...(await selfIdentity()), host: hostname() };
-      await queue.write({ ...rec, state: 'running', started_at: new Date().toISOString(), worker: me, supervisor: me, progress: { phase: 'rendering', fraction: 0.4, steps_done: 0, steps_total: 0 } } as never);
+      await queue.write({
+        ...rec,
+        state: 'running',
+        started_at: new Date().toISOString(),
+        worker: me,
+        supervisor: me,
+        progress: { phase: 'rendering', fraction: 0.4, steps_done: 0, steps_total: 0 },
+      } as never);
       await writeFile(queue.files.yield(rec.id), `${JSON.stringify({ v: 1, state: 'background', since: new Date().toISOString(), cause: 'elsewhere' })}\n`);
       await expect.poll(() => job.innerText(), POLL).toContain('v1 · rendering 40 % · slowed during a take (elsewhere on this Mac)');
       await expect.poll(() => held.innerText().catch(() => ''), LIVE).toContain('a render is slowed during a take (elsewhere on this Mac)');

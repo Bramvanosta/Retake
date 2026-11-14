@@ -8,7 +8,7 @@
  * looks are neutral system mock-ups (no OS brand marks).
  */
 import type { CSSProperties, ReactNode } from 'react';
-import { Img } from 'remotion';
+import { Img } from './renderer.js';
 import type { LayoutRects, ThemeTokens } from '../types.js';
 import { Logo } from './elements.js';
 import { fitText } from './fit-text.js';
@@ -288,7 +288,11 @@ export function NotificationCard(props: { theme: ThemeTokens; layout: Notificati
           <Lines t={l.subtitle} color={tone.ink} />
           <Lines t={l.body} color={tone.muted} />
         </div>
-        {c.icon ? <div style={{ position: 'absolute', right: l.pad, top: l.pad + header + 6 * u }}><AppIcon theme={theme} size={l.icon} url={c.icon} radius={l.icon / 2} /></div> : null}
+        {c.icon ? (
+          <div style={{ position: 'absolute', right: l.pad, top: l.pad + header + 6 * u }}>
+            <AppIcon theme={theme} size={l.icon} url={c.icon} radius={l.icon / 2} />
+          </div>
+        ) : null}
       </div>
     );
   }

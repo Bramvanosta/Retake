@@ -19,11 +19,14 @@
  */
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_INPUT_VERSION, PreviewJobInputSchema, statePath } from '@retake/core';
-import type { ComponentKind, LoadedTemplate, PreviewJobInput } from '@retake/core';
+import { newUlidId } from '@retake/core/ids';
+import { statePath } from '@retake/core/project';
+import { JOB_INPUT_VERSION, PreviewJobInputSchema } from './job-input.js';
+import type { ComponentKind, LoadedTemplate } from '@retake/core/model';
+import type { PreviewJobInput } from './job-input.js';
 import type { ComponentRegistry } from '@retake/components';
-import type { BrowserProcessInfo, LoopItem, PreviewBackend, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
-import { fileFacts } from '@retake/core/io';
+import type { BrowserProcessInfo, LoopItem, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
+import { stampOf } from '../clock.js';
 import { checkComponentId, components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import {
@@ -49,11 +52,14 @@ import type { LibraryKeyContext, LibraryPreviewKind, LibraryStatesView } from '.
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug } from '../refs.js';
 import { themeAssetProblems, themeForWork } from '../templates.js';
-import { newJobId } from './ids.js';
-import { editor } from '../lazy.js';
+import { diskFullWork, loopsWork, previewsWork } from '../render/work.js';
+import type { Renderer } from '../render/renderer.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, LibraryEntryView, PreviewJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
+import type { FreeBytes } from './worker-ports.js';
+import { bestEffort } from '@retake/core/base';
 
 /** The kinds a theme preview shows, in order (R-MCP-11). */
 export const THEME_PREVIEW_KINDS: readonly ComponentKind[] = ['intro', 'layout', 'card', 'interstitial', 'outro'];
@@ -73,11 +79,6 @@ export function previewDir(ws: OpenedWorkspace, previewId: string): string {
   return statePath(ws.root, 'previews', previewId);
 }
 
-/** The `retake components preview` command a human runs for (about) the same component preview. */
-export function previewCommandLine(cli: string, r: { component: string; template?: string }): string {
-  return [cli, 'components', 'preview', r.component, ...(r.template ? ['--theme', r.template] : []), '--out', '<folder>'].join(' ');
-}
-
 interface PreparedPreview {
   template: LoadedTemplate;
   registry: ComponentRegistry;
@@ -90,7 +91,7 @@ interface PreparedPreview {
 async function previewTheme(ws: OpenedWorkspace, req: Pick<PreviewJobInput, 'project' | 'template'>): Promise<{ template: LoadedTemplate; registry: ComponentRegistry }> {
   checkProjectSlug(req.project);
   const project = await openProjectBySlug(ws, req.project);
-  const template = await themeForWork(project, req.template, fileFacts(ws.policy));
+  const template = await themeForWork(ws, project, req.template);
   const assets = themeAssetProblems(template);
   if (assets.length) throw new EngineError('refused', `${assets.join('; ')}: through MCP a theme serves only its own files`, { details: { problems: assets } });
   return { template, registry: await workspaceRegistry(ws) };
@@ -185,7 +186,7 @@ async function preparePreview(ws: OpenedWorkspace, req: Pick<PreviewJobInput, 'p
 
 /** Check and queue a `preview` job (images in .retake/previews/<preview_id>/). */
 export async function submitPreviewJob(ctx: SubmitContext, req: PreviewRequest): Promise<{ job: JobRecord; preview_id: string; theme: string; targets: string[]; skipped: ComponentKind[] }> {
-  const previewId = `p_${newJobId().slice(2)}`;
+  const previewId = newUlidId('preview');
   const input: PreviewJobInput = {
     version: JOB_INPUT_VERSION,
     kind: 'preview',
@@ -205,7 +206,8 @@ export async function submitPreviewJob(ctx: SubmitContext, req: PreviewRequest):
   return { job: await ctx.queue.enqueue(input), preview_id: previewId, theme: prepared.template.name, targets: prepared.targets.map((t) => t.id), skipped: prepared.skipped };
 }
 
-export interface PreviewJobContext {
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
+export interface PreviewJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: PreviewJobInput;
@@ -214,14 +216,10 @@ export interface PreviewJobContext {
   progress(p: JobProgress): void;
   /** The preview browser runs: the worker records it (job folder, browser.json). */
   browser(b: BrowserProcessInfo): void;
-  /** In-process tests only (WorkerOptions.previewTest). */
-  test?: PreviewJobTestHooks;
-}
-
-/** In-process tests of library jobs: a stand-in for Remotion, and the free space the disk gate sees. */
-export interface PreviewJobTestHooks {
-  backend?: PreviewBackend;
-  freeBytes?: (dir: string) => Promise<number | undefined>;
+  /** What the job renders with (the runner's: render/renderer.ts). */
+  renderer: Renderer;
+  /** What a library job's disk gate reads the free space with (the worker's port, worker-ports.ts; absent: freeBytesOf). */
+  freeBytes?: FreeBytes;
 }
 
 /** Execute a `preview` job: the checks again, then `renderComponentPreviews` into the preview's folder, guarded. */
@@ -229,12 +227,12 @@ export async function executePreviewJob(ctx: PreviewJobContext): Promise<Preview
   const { input } = ctx;
   if (input.target.kind === 'library') return executeLibraryPreview(ctx, input.target);
   const prepared = await preparePreview(ctx.ws, input);
-  const ed = await editor();
   const dir = previewDir(ctx.ws, input.preview_id);
   const total = prepared.targets.length;
-  ctx.progress({ steps_done: 0, steps_total: total, phase: 'bundling', fraction: 0, updated_at: new Date().toISOString() });
+  ctx.progress({ steps_done: 0, steps_total: total, phase: 'bundling', fraction: 0, updated_at: stampOf(ctx.clock) });
   let warnings: string[] = [];
-  const done = await ed.renderComponentPreviews({
+  const done = await previewsWork({
+    renderer: ctx.renderer,
     workPolicy: ctx.ws.policy,
     root: ctx.ws.root,
     registry: prepared.registry,
@@ -246,7 +244,7 @@ export async function executePreviewJob(ctx: PreviewJobContext): Promise<Preview
     onBrowser: (b) => ctx.browser(b),
     onWarnings: (w) => (warnings = w),
     onProgress: (n, of) =>
-      ctx.progress({ steps_done: n, steps_total: of, phase: 'rendering', fraction: Math.round((0.2 + (0.8 * n) / Math.max(1, of)) * 1000) / 1000, updated_at: new Date().toISOString() }),
+      ctx.progress({ steps_done: n, steps_total: of, phase: 'rendering', fraction: Math.round((0.2 + (0.8 * n) / Math.max(1, of)) * 1000) / 1000, updated_at: stampOf(ctx.clock) }),
   });
   return {
     kind: 'preview',
@@ -281,7 +279,7 @@ interface LibraryWant {
 /** Execute a library job (see the module comment). */
 async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarget): Promise<PreviewJobResult> {
   const { input, ws } = ctx;
-  const freeBytes = ctx.test?.freeBytes ?? freeBytesOf;
+  const freeBytes = ctx.freeBytes ?? freeBytesOf;
   await checkLibraryDisk(ws.root, freeBytes);
   const { template, registry } = await previewTheme(ws, input);
   const keys: LibraryKeyContext = await libraryKeyContext(template, registry, { policy: ctx.ws.policy });
@@ -310,8 +308,7 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
     else if (have.state === 'failed') await dropLibraryEntry(cacheDir, w.key);
   }
   const todo = wants.filter((w) => w.state === undefined);
-  const ed = await editor();
-  const at = () => new Date().toISOString();
+  const at = () => stampOf(ctx.clock);
   let bundle: { hash: string; cached: boolean } | null = null;
   let warnings: string[] = [];
   const cleanup = async () => {
@@ -341,7 +338,18 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
         const slot = byComponent.get(r.id)!;
         if (slot.poster && r.poster) {
           await commitLibraryEntry(cacheDir, slot.poster.key!, slot.poster.tmp!, {
-            meta: { format: LIBRARY_PREVIEW_FORMAT, key: slot.poster.key!, kind: 'poster', component: r.id, theme, at: at(), state: 'ok', bytes: r.poster.bytes, width: r.poster.width, height: r.poster.height },
+            meta: {
+              format: LIBRARY_PREVIEW_FORMAT,
+              key: slot.poster.key!,
+              kind: 'poster',
+              component: r.id,
+              theme,
+              at: at(),
+              state: 'ok',
+              bytes: r.poster.bytes,
+              width: r.poster.width,
+              height: r.poster.height,
+            },
           });
           slot.poster.state = 'written';
         }
@@ -350,12 +358,27 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
           const meta =
             'too_large' in l
               ? ({ format: LIBRARY_PREVIEW_FORMAT, key: slot.loop.key!, kind: 'loop', component: r.id, theme, at: at(), state: 'too_large', bytes: l.bytes } as const)
-              : ({ format: LIBRARY_PREVIEW_FORMAT, key: slot.loop.key!, kind: 'loop', component: r.id, theme, at: at(), state: 'ok', bytes: l.bytes, width: l.width, height: l.height, fps: l.fps, frames: l.frames, duration_s: l.duration_s } as const);
+              : ({
+                  format: LIBRARY_PREVIEW_FORMAT,
+                  key: slot.loop.key!,
+                  kind: 'loop',
+                  component: r.id,
+                  theme,
+                  at: at(),
+                  state: 'ok',
+                  bytes: l.bytes,
+                  width: l.width,
+                  height: l.height,
+                  fps: l.fps,
+                  frames: l.frames,
+                  duration_s: l.duration_s,
+                } as const);
           await commitLibraryEntry(cacheDir, slot.loop.key!, slot.loop.tmp!, { meta });
           slot.loop.state = 'too_large' in l ? 'too_large' : 'written';
         }
       };
-      const done = await ed.renderComponentLoops({
+      const done = await loopsWork({
+        renderer: ctx.renderer,
         workPolicy: ws.policy,
         root: ws.root,
         registry,
@@ -366,9 +389,7 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
         signal: ctx.signal,
         onBrowser: (b) => ctx.browser(b),
         onItem: commit,
-        onProgress: (n, of) =>
-          ctx.progress({ steps_done: n, steps_total: of, phase: 'rendering', fraction: Math.round((0.2 + (0.8 * n) / Math.max(1, of)) * 1000) / 1000, updated_at: at() }),
-        ...(ctx.test?.backend ? { backend: ctx.test.backend } : {}),
+        onProgress: (n, of) => ctx.progress({ steps_done: n, steps_total: of, phase: 'rendering', fraction: Math.round((0.2 + (0.8 * n) / Math.max(1, of)) * 1000) / 1000, updated_at: at() }),
       });
       bundle = done.bundle;
       warnings = done.warnings;
@@ -383,18 +404,20 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
           // A fresh temporary folder becomes its failed.json entry (the editor removed the item's files).
           await rm(w.tmp!, { recursive: true, force: true });
           w.tmp = await stageLibraryEntry(cacheDir, w.key!);
-          await commitLibraryEntry(cacheDir, w.key!, w.tmp, { failure: { format: LIBRARY_PREVIEW_FORMAT, key: w.key!, kind: w.kind, component: f.id, theme, at: at(), reason, bundle: await keys.registryHash() } });
+          await commitLibraryEntry(cacheDir, w.key!, w.tmp, {
+            failure: { format: LIBRARY_PREVIEW_FORMAT, key: w.key!, kind: w.kind, component: f.id, theme, at: at(), reason, bundle: await keys.registryHash() },
+          });
           w.state = 'failed';
         }
       }
     }
   } catch (e) {
     await cleanup();
-    if (ed.isDiskFullError(e)) throw new EngineError('refused', diskSentence(await freeBytes(ws.root)), { details: { disk_full: true } });
+    if (await diskFullWork(e)) throw new EngineError('refused', diskSentence(await freeBytes(ws.root)), { details: { disk_full: true } });
     throw e;
   } finally {
     await cleanup();
-    await pruneLibraryCache(cacheDir, { theme }).catch(() => undefined);
+    await bestEffort(pruneLibraryCache(cacheDir, { theme }), 'the cache is pruned again by the next preview');
   }
   const changed = wants.filter((w) => w.key !== null && w.key !== w.expected).length;
   return {

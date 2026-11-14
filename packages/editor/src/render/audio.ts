@@ -3,11 +3,10 @@
  * soft pulse, no clicks at the chord changes) — for tests and demos of the music bed (R-ED-17) without committing
  * audio files. Not a product feature: real projects bring their own music.
  */
-import { execFile } from 'node:child_process';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { ffmpegBin } from '@retake/core/io';
-import type { WorkPolicy } from '@retake/core';
+import { ffmpegBin, runMediaTool, stderrLines } from '@retake/core/io';
+import type { WorkPolicy } from '@retake/core/policy';
 
 /** Hz of the four chords (root, third, fifth, bass an octave below the root). */
 const CHORDS = [
@@ -41,15 +40,14 @@ export async function generateTestTrack(out: string, opts: { seconds?: number; f
   const e = testTrackExpression();
   const tmp = `${out}.tmp-${process.pid}.m4a`;
   const args = ['-v', 'error', '-y', '-f', 'lavfi', '-i', `aevalsrc=exprs='${e}|${e}':s=48000:d=${seconds}`, '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', tmp];
-  await new Promise<void>((resolve, reject) => {
-    execFile(ffmpegBin(opts.workPolicy, opts.ffmpeg), args, (err, _stdout, stderr) => {
-      if (err) reject(new Error(`ffmpeg could not make the test track: ${String(stderr).trim().split('\n')[0] || err.message}`));
-      else resolve();
+  await runMediaTool(ffmpegBin(opts.workPolicy, opts.ffmpeg), args)
+    .then((r) => {
+      if (r.error) throw new Error(`ffmpeg could not make the test track: ${stderrLines(r.stderr, 1, 'first') || r.error.message}`);
+    })
+    .catch(async (e: unknown) => {
+      await rm(tmp, { force: true });
+      throw e;
     });
-  }).catch(async (e: unknown) => {
-    await rm(tmp, { force: true });
-    throw e;
-  });
   await rename(tmp, out);
   return out;
 }

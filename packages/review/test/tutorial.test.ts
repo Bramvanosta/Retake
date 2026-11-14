@@ -13,9 +13,26 @@ import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planEdit } from '@retake/editor/plan';
 import type { ClipSegment, EditOverrides, EditPlan, PlanInputFile, RenderRecord } from '@retake/editor/plan';
-import { DEFAULT_RULES, captionOverDuring, checkOverlayCover, checkTutorial, fontFileMeasurer, outputClicks, overlayDuring, planFontFiles, segmentSpans, stillFromSource, stillGlideEnd, stillPair, stillSourceFrames, transitionSpans, viewMoves } from '../src/index.js';
+import {
+  DEFAULT_RULES,
+  captionOverDuring,
+  checkOverlayCover,
+  checkTutorial,
+  fontFileMeasurer,
+  outputClicks,
+  overlayDuring,
+  planFontFiles,
+  segmentSpans,
+  stillFromSource,
+  stillGlideEnd,
+  stillPair,
+  stillSourceFrames,
+  transitionSpans,
+  viewMoves,
+} from '../src/index.js';
 import type { CheckContext } from '../src/index.js';
-import { REPO, synthTimeline } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { synthTimeline } from '@retake/test-support/timeline';
 import { PERSON_POLICY } from '@retake/core';
 
 const FIXTURES = join(REPO, 'packages/editor/test/fixtures');
@@ -27,7 +44,17 @@ async function ctxOf(timeline: Timeline, overrides: EditOverrides = {}, files?: 
   const project = await loadProject('northfield-fixture', REPO);
   const template = await loadTemplate(theme, REPO, { files: fileFacts(PERSON_POLICY) });
   const plan: EditPlan = planEdit({ timeline, template, project, registry, captureFile: '/captures/capture.mp4', overrides, ...(files ? { files } : {}) });
-  const record = { version: 1, id: `${timeline.scenario}-v1`, scenario: timeline.scenario, run_id: timeline.run_id, template: theme, status: 'succeeded', overrides, variant: plan.variant, plan } as unknown as RenderRecord;
+  const record = {
+    version: 1,
+    id: `${timeline.scenario}-v1`,
+    scenario: timeline.scenario,
+    run_id: timeline.run_id,
+    template: theme,
+    status: 'succeeded',
+    overrides,
+    variant: plan.variant,
+    plan,
+  } as unknown as RenderRecord;
   return {
     record,
     plan,
@@ -65,7 +92,9 @@ describe('tutorial overlays in the review', () => {
 
   it('a spotlight or a badge that stays on its target after the page navigated away is reported', async () => {
     const ctx = await ctxOf(load('signup-tutorial'));
-    const clip = ctx.plan.segments.find((s) => s.kind === 'clip' && s.overlays.some((o) => o.tutorial === 'steps' && s.urls.some((u) => u.frame > o.from && u.frame < o.from + o.durationInFrames))) as ClipSegment | undefined;
+    const clip = ctx.plan.segments.find((s) => s.kind === 'clip' && s.overlays.some((o) => o.tutorial === 'steps' && s.urls.some((u) => u.frame > o.from && u.frame < o.from + o.durationInFrames))) as
+      | ClipSegment
+      | undefined;
     expect(clip, 'a badge whose click navigates').toBeDefined();
     const badge = clip!.overlays.find((o) => o.tutorial === 'steps' && clip!.urls.some((u) => u.frame > o.from && u.frame < o.from + o.durationInFrames))!;
     // The planner ends it with the page (≈ 0.45 s after the click): clean. Kept 2 s longer, it rings a spot that is gone.
@@ -168,7 +197,9 @@ describe('story cards in the review', () => {
     const ctx = await ctxOf(t, {}, { ...CSV, 'assets/gone.mp4': { file: '/p/assets/gone.mp4', missing: true } });
     expect(ctx.plan.warnings).toContain('card "figure": file assets/gone.mp4 not found: nothing is shown');
     const f = checkTutorial(ctx).filter((x) => x.code === 'media-missing');
-    expect(f).toEqual([expect.objectContaining({ severity: 'error', message: 'card figure: your file "assets/gone.mp4" could not be read — nothing is shown', at: expect.objectContaining({ scene: 'figure' }) })]);
+    expect(f).toEqual([
+      expect.objectContaining({ severity: 'error', message: 'card figure: your file "assets/gone.mp4" could not be read — nothing is shown', at: expect.objectContaining({ scene: 'figure' }) }),
+    ]);
   });
 
   it('an unknown capture and an unknown mark are reported too', async () => {
@@ -190,7 +221,10 @@ describe('your own overlay files in the review (L2.12)', () => {
   const badgeTimeline = () =>
     synthTimeline({
       duration: 12,
-      cursor: [[0, 960, 540], [2, 1250, 150]],
+      cursor: [
+        [0, 960, 540],
+        [2, 1250, 150],
+      ],
       entries: [
         {
           id: 's',
@@ -199,7 +233,15 @@ describe('your own overlay files in the review (L2.12)', () => {
           open_end: 0.5,
           still: [0.5, 2],
           steps: [
-            { action: 'hover', t_start: 2, t_end: 3, holdS: 2, point: { x: 1250, y: 150 }, target: row, overlay: { component: 'studio/lottie', slots: { file: 'assets/check.json' }, params: { fit: 'contain', background: 'none' }, box: { anchor: 'top-right', scale: 1.4 } } },
+            {
+              action: 'hover',
+              t_start: 2,
+              t_end: 3,
+              holdS: 2,
+              point: { x: 1250, y: 150 },
+              target: row,
+              overlay: { component: 'studio/lottie', slots: { file: 'assets/check.json' }, params: { fit: 'contain', background: 'none' }, box: { anchor: 'top-right', scale: 1.4 } },
+            },
             { action: 'click', t_start: 6, t_end: 7, t_click: 6.5, point: { x: 1250, y: 150 }, target: row },
           ],
         },

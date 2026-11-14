@@ -5,17 +5,40 @@
  * them for `hooks` and `env_reset` jobs (trust `mcp`, approvals from the job). Nothing here prints or installs signal
  * handlers: the caller logs through `log` and handles interrupts.
  */
+import type { Secrets } from './secrets/secrets.js';
 import { existsSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
-import { ScenarioError, compileWritePolicy, guardsWrites, hasErrors, loginMatchers, matchLoginUrl, newRunId, personaPageOrigins, parseHookFile, planPersonas, resolveEnvironment, resolvePersonas, resolveRunAccess, runAccess, urlOriginPath, pathInside, GUIDE } from '@retake/core';
-import { loadScenario, retakeHome, nodeFileFacts } from '@retake/core/io';
-import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario, ErrorKind, WorkPolicy, WorkFileFacts } from '@retake/core';
-import type { HookContext, HookPhase } from '@retake/hooks';
+import { hasErrors, pathInside, GUIDE, bestEffort } from '@retake/core/base';
+import { newRunId } from '@retake/core/ids';
+import {
+  compileWritePolicy,
+  guardsWrites,
+  loginMatchers,
+  matchLoginUrl,
+  planPersonas,
+  resolveEnvironment,
+  resolvePersonas,
+  resolveRunAccess,
+  runAccess,
+  urlOriginPath,
+} from '@retake/core/environment';
+import { parseHookFile } from '@retake/core/hooks';
+import { ScenarioError, personaPageOrigins } from '@retake/core/scenario';
+import { retakeHome, nodeFileFacts } from '@retake/core/io';
+import type { ErrorKind } from '@retake/core/base';
+import type { HookStep, LoadedProject, Scenario, WorkFileFacts } from '@retake/core/model';
+import type { ResolvedPersona, RunAccess } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { HookContext, HookPhase, HookTrust } from '@retake/core/hooks';
+import type { AgentChannel } from './caller.js';
 import type { LoginCommandOf } from './auth.js';
-import type { Caller } from './caller.js';
+import type { HookBrowser, HookPages } from './capture/runner.js';
 import { EngineError } from './errors.js';
 import { hookRunRecorder } from './store/journal.js';
+import type { JournalAs } from './store/journal.js';
+import { confinementOf } from './caller.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /**
  * A hooks source that cannot be used: `usage` — not a hooks source at all (the CLI: a usage error, exit 2); otherwise
@@ -51,6 +74,8 @@ export interface HookSelection {
   scenario?: Scenario;
   /** `<scenario>:setup|teardown`: sha256 of the scenario file's bytes these hooks were read from (one read). */
   sha256?: string;
+  /** `<scenario>:setup|teardown`: the scenario file (absolute) those bytes were read from. */
+  file?: string;
 }
 
 const SCENARIO_HOOKS_RE = /^([^:/\\]+):(setup|teardown)$/;
@@ -66,7 +91,12 @@ export function scenarioOfHooksSource(spec: string): string | undefined {
  * inside the project — never an absolute path or one relative to the current folder. `expectSha256`: the scenario of
  * `<scenario>:setup|teardown` is read once and parsed only when its bytes have that sha256 (core ScenarioChangedError).
  */
-export async function selectHooks(project: LoadedProject, spec: string, envOpt: string | undefined, o: { projectFilesOnly?: boolean; expectSha256?: string; files: WorkFileFacts }): Promise<HookSelection> {
+export async function selectHooks(
+  project: LoadedProject,
+  spec: string,
+  envOpt: string | undefined,
+  o: { projectFilesOnly?: boolean; expectSha256?: string; files: WorkFileFacts; reads: WorkspaceReads },
+): Promise<HookSelection> {
   if (spec === 'reset') {
     const hooks = project.config.reset ?? [];
     if (!hooks.length) throw new HooksSourceError(`project "${project.slug}" declares no reset hooks (add \`reset:\` to project.yaml)`, false);
@@ -75,7 +105,7 @@ export async function selectHooks(project: LoadedProject, spec: string, envOpt: 
   const m = SCENARIO_HOOKS_RE.exec(spec);
   if (m) {
     const [, name, which] = m;
-    const loaded = await loadScenario(project, name, { files: o.files, env: envOpt, ...(o.expectSha256 !== undefined ? { expectSha256: o.expectSha256 } : {}) });
+    const loaded = await o.reads.loadScenario(project, name, { files: o.files, env: envOpt, ...(o.expectSha256 !== undefined ? { expectSha256: o.expectSha256 } : {}) });
     const hooks = (which === 'setup' ? loaded.scenario.setup : loaded.scenario.teardown) ?? [];
     if (!hooks.length) throw new HooksSourceError(`scenario "${loaded.name}" has no ${which} hooks`, false);
     return {
@@ -86,6 +116,7 @@ export async function selectHooks(project: LoadedProject, spec: string, envOpt: 
       env: loaded.scenario.env,
       scenario: loaded.scenario,
       ...(loaded.sha256 !== undefined ? { sha256: loaded.sha256 } : {}),
+      file: loaded.file,
     };
   }
   if (/\.ya?ml$/i.test(spec)) {
@@ -134,6 +165,8 @@ export function hooksAccess(project: LoadedProject, env: ReturnType<typeof resol
 export interface HookContextOptions {
   /** What the work runs under (core WorkPolicy): the hooks' shell environment and js-hook browser. */
   policy: WorkPolicy;
+  /** What the hooks' secret references are resolved with (its composition root's Secrets port: required). */
+  secrets: Secrets;
   env?: string;
   /** Let hooks write to a production environment whose project.yaml sets `access: read-write` (CLI only). */
   allowWrites?: boolean;
@@ -158,7 +191,9 @@ export interface HookContextOptions {
   /** L5.14, CLI only: asks about each rollback whose journal entry Retake did not sign for its journal (hooks journal.ts). */
   replayUnsigned?: HookContext['replayUnsigned'];
   /** Who runs these hooks: each hook and rollback run is a line of the workspace journal, as this caller's (absent: none). */
-  recordAs?: Caller;
+  recordAs?: JournalAs;
+  /** The js hooks' browsers (the capture runner's hook pages: its composition root's). */
+  pages: HookPages;
 }
 
 /**
@@ -172,7 +207,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
   const env = resolveEnvironment(project, o.env);
   const { access, accessOf } = hooksAccess(project, env, o.allowWrites === true);
   const personas = resolvePersonas(project, env.name, { home: retakeHome() });
-  const sessions = new Map<string, Promise<import('@retake/runner-web').BrowserSession>>();
+  const sessions = new Map<string, Promise<HookBrowser>>();
   const readers = new Map<string, (url: string) => Promise<{ authorization?: string; cookie?: string }>>();
   const command = o.loginCommand;
   const runId = o.runId ?? newRunId('hooks');
@@ -192,23 +227,24 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     }
     return personas.find((p) => !p.legacy && p.pages.includes(key)) ?? personas.find((p) => p.legacy);
   };
-  const open = async (persona: ResolvedPersona | undefined) => {
-    const rw = await import('@retake/runner-web');
-    const capture = project.config.capture;
-    const prepared = persona
-      ? await rw.prepareSessions([persona], { runId, log: (level, msg) => ctx.log(level, msg), failure: `js hooks cannot use the saved session of persona ${persona.name}:` })
-      : [];
-    return rw.openSession({
+  // A headless browser signed in as `persona` (a copy of its saved session), or as nobody; the project's capture size.
+  const open = (persona: ResolvedPersona | undefined): Promise<HookBrowser> =>
+    o.pages.open({
       policy: o.policy,
-      width: capture.width,
-      height: capture.height,
-      scale: capture.scale,
-      kit: rw.kitConfigFor(undefined),
-      browser: rw.projectBrowser(project),
+      project,
+      ...(persona ? { persona, failure: `js hooks cannot use the saved session of persona ${persona.name}:` } : {}),
+      runId,
       log: (level, msg) => ctx.log(level, msg),
       ...(writes ? { writes: { policy: writes.policy } } : {}),
-      ...(persona ? { realms: prepared.map((p) => p.realm), hookRealmOf: () => persona.name } : {}),
     });
+  /** The browser of persona `key` ('' for nobody), opened on first use and shared by its js hooks and its http auth. */
+  const browserOf = (key: string, persona: ResolvedPersona | undefined): Promise<HookBrowser> => {
+    let session = sessions.get(key);
+    if (!session) {
+      session = open(persona);
+      sessions.set(key, session);
+    }
+    return session;
   };
   const ctx: HookContext = {
     project,
@@ -221,11 +257,12 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     access,
     accessOf,
     log: o.log,
+    resolveSecret: (ref) => o.secrets.resolve(ref),
     ...(o.confirm ? { confirmDestructive: o.confirm } : {}),
     ...(o.trust ? { trust: o.trust } : {}),
     // Trust `mcp`: a scenario's vars are the agent's — a project hook rendered with them counts as the agent's too.
     ...(o.trust === 'mcp' && o.vars && Object.keys(o.vars).length ? { agentVars: Object.keys(o.vars) } : {}),
-    ...(o.via ? { via: o.via } : {}),
+    ...(o.via ? { via: confinementOf(o.via) } : {}),
     ...(o.signal ? { signal: o.signal } : {}),
     ...(o.replayUnsigned !== undefined && o.trust !== 'mcp' ? { replayUnsigned: o.replayUnsigned } : {}),
     ...(o.recordAs ? { recordRun: hookRunRecorder(project.root, o.recordAs, { project: project.slug, run: runId }) } : {}),
@@ -235,17 +272,9 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
       if (!persona) throw new EngineError('invalid', `persona "${name}" is not declared for environment "${env.name}" (personas: ${personas.map((p) => p.name).join(', ') || 'none'})`);
       let read = readers.get(name);
       if (!read) {
-        const rw = await import('@retake/runner-web');
-        read = rw.personaAuthReader({
+        read = await o.pages.authReader({
           persona,
-          context: async () => {
-            let session = sessions.get(name);
-            if (!session) {
-              session = open(persona);
-              sessions.set(name, session);
-            }
-            return (await session).contextOf(name);
-          },
+          browser: () => browserOf(name, persona),
           envPages: env.pages,
           relogin: command({ project: project.slug, env: env.name, ...(persona.legacy ? {} : { persona: persona.name }) }),
           // Trust `mcp`: the session is read only for the persona's own pages' origins.
@@ -256,25 +285,20 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
       return read(url);
     },
     evalInPage: async (pageKey, code) => {
-      const rw = await import('@retake/runner-web');
       if (!Object.keys(env.pages).length) throw new EngineError('invalid', `environment "${env.name}" declares no pages for the js hook to run in`);
       const persona = personaOf(pageKey ?? Object.keys(env.pages)[0]);
-      let session = sessions.get(persona?.name ?? '');
-      if (!session) {
-        session = open(persona);
-        sessions.set(persona?.name ?? '', session);
-      }
+      const session = browserOf(persona?.name ?? '', persona);
       const matchers = persona ? loginMatchers(persona.loginPatterns, env.pages) : [];
       const loginLanding = (key: string, url: string): string | null =>
         persona && matchLoginUrl(url, matchers)
           ? `js hook page "${key}" (persona ${persona.name}) landed on the sign-in page (${urlOriginPath(url)}): its session expired — sign in again: ${command({ project: project.slug, env: env.name, ...(persona.legacy ? {} : { persona: persona.name }) })}`
           : null;
       // The guarded hook tab of that page (hosts outside the allow-list are blocked), reused by later js hooks.
-      return rw.evalHookInPage(await session, { project, env, log: (level, msg) => ctx.log(level, msg), ...(persona ? { loginLanding } : {}), ...(writes ? { writes } : {}) }, pageKey, code);
+      return o.pages.evalIn(await session, { project, env, log: (level, msg) => ctx.log(level, msg), ...(persona ? { loginLanding } : {}), ...(writes ? { writes } : {}) }, pageKey, code);
     },
   };
   const closeSessions = async () => {
-    for (const s of sessions.values()) await (await s.catch(() => null))?.close();
+    for (const s of sessions.values()) await (await bestEffort(s, 'a session that never opened has nothing to close', null))?.close();
   };
   return { ctx, access, closeSessions };
 }

@@ -2,11 +2,11 @@
  * The names a client outside the CLI may use (the MCP server): slugs and ids, never a path. They are checked here,
  * before anything reaches core — core's loaders also accept absolute and cwd-relative paths, which only the CLI may use.
  */
-import { PROJECT_SLUG_RE, SLUG_RE } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { parseRunId, renderIdOf } from '@retake/core/ids';
+import { PROJECT_SLUG_RE } from '@retake/core/project';
+import type { RunId } from '@retake/core/ids';
 import { EngineError } from './errors.js';
-
-/** "20261017-142233-quote" (and any other folder name of runs/ made of letters, digits, ".", "_" and "-"). */
-export const RUN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export { PROJECT_SLUG_RE, SLUG_RE };
 
@@ -24,9 +24,21 @@ export function checkScenarioName(name: string): string {
   return name;
 }
 
-export function checkRunId(id: string): string {
-  if (typeof id !== 'string' || !RUN_ID_RE.test(id) || id.length > 200) {
+/** `id` as a run id (core `parseRunId`: a folder name of runs/, at most 200 characters), or the refusal. */
+export function checkRunId(id: string): RunId {
+  const run = parseRunId(id);
+  if (run === null) {
     throw new EngineError('invalid', `invalid run id "${String(id)}": a folder name of runs/ (e.g. 20261017-142233-quote), never a path`);
   }
-  return id;
+  return run;
+}
+
+/**
+ * Whether a record of renders/ is a render of the scenario it names: its id is `<that scenario>-v<N>[-vertical|-square]`
+ * (core renderIdOf: the grammar, the length, the version's bound). The one definition behind `latest` and prune's count
+ * of a scenario's last renders: a by-id call takes a render id, so `latest` never names a record a by-id call refuses,
+ * and a record that is no render takes no render's place.
+ */
+export function isRenderOfItsScenario(r: { id: unknown; scenario: unknown }): boolean {
+  return typeof r.scenario === 'string' && renderIdOf(r.id, r.scenario) !== null;
 }

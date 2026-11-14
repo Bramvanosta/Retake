@@ -9,9 +9,9 @@ import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { SANDBOX_SCHEMA_FILE, addSandboxEntry, sandboxNames } from '@retake/core';
+import { SANDBOX_SCHEMA_FILE, addSandboxEntry, sandboxNames } from '@retake/core/sandbox';
 import { bundleInfoOrNull, insideBundle } from '@retake/core/io';
-import type { LoadedProject } from '@retake/core';
+import type { LoadedProject } from '@retake/core/model';
 import type { BundleInfo } from '@retake/core/io';
 import { SandboxError } from './errors.js';
 import { probePort, sandboxPorts } from './ports.js';
@@ -138,7 +138,9 @@ export async function initSandbox(project: LoadedProject, opts: InitSandboxOptio
   const scaffold = await listFiles(SCAFFOLD_DIR);
   const present = scaffold.filter((rel) => existsSync(join(dir, rel))).map((rel) => posixPath(join(folder, rel)));
   if (present.length && !opts.force) {
-    throw new SandboxError(`${present.join(', ')} already exist${present.length === 1 ? 's' : ''}: --force writes the scaffold over ${present.length === 1 ? 'it' : 'them'}, or give the sandbox another name (--env)`);
+    throw new SandboxError(
+      `${present.join(', ')} already exist${present.length === 1 ? 's' : ''}: --force writes the scaffold over ${present.length === 1 ? 'it' : 'them'}, or give the sandbox another name (--env)`,
+    );
   }
 
   // The ports of the sandbox being rewritten (--force) are free to reuse.

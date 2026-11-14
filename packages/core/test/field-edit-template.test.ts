@@ -35,7 +35,7 @@ describe('set_field template (L4.7, critique B1)', () => {
     expect(fieldKindOf('template')).toBe('theme');
   });
 
-  it('set: one line before `scenes:` above its comment lines; changed in place; removed back to the project\'s theme', () => {
+  it("set: one line before `scenes:` above its comment lines; changed in place; removed back to the project's theme", () => {
     const set = applyFieldEdit(BASE, { kind: 'set_field', at: top, field: 'template', to: 'motion' });
     expect(verifyEditText(set.text, set.intended)).toBeNull();
     expect(set.text).toBe(BASE.replace('# The scenes\n', 'template: motion\n# The scenes\n'));
@@ -48,7 +48,7 @@ describe('set_field template (L4.7, critique B1)', () => {
     expect(removed.label).toBe("Reset the theme to the project's theme");
   });
 
-  it('is an edit value: no filmed change; the timeline video takes it (the project\'s otherwise)', () => {
+  it("is an edit value: no filmed change; the timeline video takes it (the project's otherwise)", () => {
     const set = applyFieldEdit(BASE, { kind: 'set_field', at: top, field: 'template', to: 'editorial' });
     expect(filmedChanges(set.text, BASE)).toEqual([]);
     const s = parseScenario(set.text).scenario!;

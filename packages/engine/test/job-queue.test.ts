@@ -12,38 +12,39 @@ import { ulid } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import { FileJobQueue, INSPECT_KEEP, MemoryJobQueue, RECORD_KEEP, inspectRoot, newInspectId, newRecordId, pruneInspections, pruneRecords, recordsRoot, selfIdentity } from '../src/index.js';
 import type { JobQueueView, TakeHold } from '../src/index.js';
+import { systemClock } from '../src/clock.js';
 import { RUN_INPUT, jobQueueContract } from './job-queue-contract.js';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'retake-queue-contract-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(ws, { recursive: true, force: true });
 });
 
 let n = 0;
-jobQueueContract('file', async (name, cli) => {
+jobQueueContract('file', async (name, cli, clock) => {
   // A workspace folder exists before its queue does (as every real one): approvals are signed over its real path.
   const root = join(ws, `file-${name}-${n++}`);
   await mkdir(root, { recursive: true });
-  return { queue: new FileJobQueue(root, cli), root };
+  return { queue: new FileJobQueue(root, cli, clock), root };
 });
 
-jobQueueContract('memory', async (name, cli) => {
+jobQueueContract('memory', async (name, cli, clock) => {
   const root = join(ws, `memory-${name}-${n++}`);
   await mkdir(root, { recursive: true });
-  return { queue: new MemoryJobQueue(root, cli ? { cli } : {}), root };
+  return { queue: new MemoryJobQueue(root, { ...(cli ? { cli } : {}), ...(clock ? { clock } : {}) }), root };
 });
 
 describe('the file queue (its files)', () => {
-  it('keeps the port\'s entries as the files of the job folder, a submit\'s files readable by this user only', async () => {
+  it("keeps the port's entries as the files of the job folder, a submit's files readable by this user only", async () => {
     const q = new FileJobQueue(join(ws, 'files'));
     const job = await q.enqueue(RUN_INPUT, { files: { 'edit.yaml': 'a: 1\n' } });
     const dir = q.files.job(job.id);
@@ -68,7 +69,7 @@ describe('the file queue (its files)', () => {
     }
   });
 
-  it('jobFile never follows a link: a submit\'s file replaced by one reads as `link`, not as its target', async () => {
+  it("jobFile never follows a link: a submit's file replaced by one reads as `link`, not as its target", async () => {
     const q = new FileJobQueue(join(ws, 'job-file-link'));
     const job = await q.enqueue(RUN_INPUT, { files: { 'edit.yaml': 'a: 1\n' } });
     const file = join(q.files.job(job.id), 'edit.yaml');
@@ -118,7 +119,7 @@ function ownMemory(adapter: string, make: () => Promise<{ queue: JobQueueView; s
   });
 }
 
-describe('a queue\'s own memory of the filming takes', () => {
+describe("a queue's own memory of the filming takes", () => {
   const saved = { cap: process.env.RETAKE_CAPTURE_HOLD_MAX_MIN };
   afterEach(() => {
     vi.restoreAllMocks();
@@ -176,10 +177,10 @@ describe('the in-memory queue serves the code that is handed a queue', () => {
     await mkdir(join(recordsRoot(p), active), { recursive: true });
     for (let i = 0; i < RECORD_KEEP + 2; i++) await mkdir(join(recordsRoot(p), newRecordId()), { recursive: true });
     const job = await q.enqueue({ version: 1, kind: 'record', project: p.slug, rec_id: active, source: { page: 'shop', path: '/' }, check: true, submitted_by: 'mcp' });
-    expect(await pruneRecords(p, RECORD_KEEP, [], q)).not.toContain(active);
+    expect(await pruneRecords(p, systemClock, RECORD_KEEP, [], q)).not.toContain(active);
     expect(existsSync(join(recordsRoot(p), active))).toBe(true);
     await q.cancel(job.id, 'test');
-    expect(await pruneRecords(p, RECORD_KEEP, [], q)).toContain(active);
+    expect(await pruneRecords(p, systemClock, RECORD_KEEP, [], q)).toContain(active);
   });
 
   it('pruning keeps the folder of an inspection whose job is queued, even the oldest; once cancelled it goes', async () => {

@@ -21,12 +21,21 @@ import type { ProcessIdentity } from '@retake/engine';
 import { heavyGate } from '../src/heavy-gate.js';
 import { memoryIo } from '../src/index.js';
 import { Ui } from '../src/ui.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache, makeColourCapture, syntheticRunRecord } from '@retake/test-support/render';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const BIN = join(REPO, 'packages/cli/dist/bin.js');
 const REAL_RUN = '20260101-120000-held';
+
+/** A whole capture of `held` in `dir` — its record, the head of its timeline, its film: what `latest` takes (L7.6a). */
+function wholeCapture(dir: string, id: string): void {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'run.json'), JSON.stringify(syntheticRunRecord(dir, { id, scenario: 'held', project: 'latest' })));
+  writeFileSync(join(dir, 'timeline.json'), JSON.stringify({ version: 1, run_id: id, project: 'latest', scenario: 'held', mode: 'capture', capture: { file: 'capture.mp4' } }));
+  writeFileSync(join(dir, 'capture.mp4'), 'never read');
+}
 const canEncode = hasTool('ffmpeg') && hasTool('ffprobe');
 
 let ws: string;
@@ -45,12 +54,16 @@ beforeAll(async () => {
   const real = join(ws, 'projects', 'real', 'runs', REAL_RUN);
   await mkdir(real, { recursive: true });
   await writeFile(join(ws, 'projects', 'real', 'project.yaml'), 'name: Real\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
-  const t = synthTimeline({ duration: 4, entries: [{ id: 'a', t_start: 0.5, t_end: 4, caption: { text: 'A scene.' } }], video: { title: { text: 'Synthetic' }, intro: false, outro: false, frame: 'card', template: 'editorial' } });
+  const t = synthTimeline({
+    duration: 4,
+    entries: [{ id: 'a', t_start: 0.5, t_end: 4, caption: { text: 'A scene.' } }],
+    video: { title: { text: 'Synthetic' }, intro: false, outro: false, frame: 'card', template: 'editorial' },
+  });
   t.run_id = REAL_RUN;
   t.project = 'real';
   t.scenario = 'held';
   await writeFile(join(real, 'timeline.json'), JSON.stringify(t));
-  await writeFile(join(real, 'run.json'), JSON.stringify({ version: 1, id: REAL_RUN, status: 'succeeded', mode: 'capture' }));
+  await writeFile(join(real, 'run.json'), JSON.stringify(syntheticRunRecord(real, { id: REAL_RUN, scenario: 'held', project: 'real' })));
   if (canEncode) makeColourCapture(join(real, 'capture.mp4'), 4);
   await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   await linkSharedCache(ws);
@@ -58,7 +71,7 @@ beforeAll(async () => {
   const latest = join(ws, 'projects', 'latest');
   await mkdir(join(latest, 'runs', '20260101-120000-held'), { recursive: true });
   await writeFile(join(latest, 'project.yaml'), 'name: Latest\nenvironments:\n  local: {app: "http://app.test"}\n');
-  await writeFile(join(latest, 'runs', '20260101-120000-held', 'timeline.json'), JSON.stringify({ mode: 'capture' }));
+  wholeCapture(join(latest, 'runs', '20260101-120000-held'), '20260101-120000-held');
   await mkdir(join(latest, 'renders'), { recursive: true });
   await writeFile(join(latest, 'renders', 'held-v1.json'), JSON.stringify({ version: 1, id: 'held-v1', status: 'succeeded', scenario: 'held', created_at: '2026-01-01T12:00:00.000Z', plan: {} }));
 });
@@ -85,7 +98,7 @@ describe('heavyGate (L5.14a)', () => {
   });
 
   it('waits with one line on stderr while a take films, starts once it ends; stdout untouched', async () => {
-    const take = FilmingMarker.open({ root: ws, source: 'job', owner: me })!;
+    const take = FilmingMarker.open({ env: process.env, root: ws, source: 'job', owner: me })!;
     const { io, ui: u } = ui();
     setTimeout(() => take.closeSync(), 600);
     const t0 = Date.now();
@@ -98,7 +111,7 @@ describe('heavyGate (L5.14a)', () => {
   });
 
   it('L5.14b: a take past the cap (RETAKE_CAPTURE_HOLD_MAX_MIN) holds no more, and that is said: the command starts', async () => {
-    const take = FilmingMarker.open({ root: ws, source: 'job', owner: me })!;
+    const take = FilmingMarker.open({ env: process.env, root: ws, source: 'job', owner: me })!;
     try {
       const { io, ui: u } = ui();
       const t0 = Date.now();
@@ -115,7 +128,7 @@ describe('heavyGate (L5.14a)', () => {
   });
 
   it('--no-wait: neither waits nor yields', async () => {
-    const take = FilmingMarker.open({ root: join(ws, 'elsewhere'), source: 'job', owner: me })!;
+    const take = FilmingMarker.open({ env: process.env, root: join(ws, 'elsewhere'), source: 'job', owner: me })!;
     const { io, ui: u } = ui();
     const calls: string[] = [];
     const qos = { held: false, hold: async () => void calls.push('hold'), release: async () => void calls.push('release') };
@@ -143,13 +156,13 @@ describe('heavyGate (L5.14a)', () => {
       },
     };
     const gate = await heavyGate(u, { root: ws, what: 'rendering', pollMs: 50, qos });
-    const take = FilmingMarker.open({ root: join(ws, 'elsewhere'), source: 'cli', owner: me })!;
+    const take = FilmingMarker.open({ env: process.env, root: join(ws, 'elsewhere'), source: 'cli', owner: me })!;
     await new Promise((r) => setTimeout(r, 400));
     expect(calls).toEqual(['hold']);
     take.closeSync();
     await new Promise((r) => setTimeout(r, 400));
     expect(calls).toEqual(['hold', 'release']);
-    const again = FilmingMarker.open({ root: ws, source: 'cli', owner: me })!;
+    const again = FilmingMarker.open({ env: process.env, root: ws, source: 'cli', owner: me })!;
     await new Promise((r) => setTimeout(r, 400));
     await gate.dispose();
     again.closeSync();
@@ -163,10 +176,11 @@ describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () 
     const sib = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
     children.push(sib);
     const start = await processStart(sib.pid!);
-    const { dir } = capturesDir();
+    const { dir } = capturesDir(process.env);
     const name = `k_${ulid()}.json`;
     const file = join(dir!, name);
-    const write = () => writeFileSync(file, JSON.stringify({ v: 1, pid: sib.pid, started_at: new Date(start!).toISOString(), ws: workspaceCaptureId(join(ws, 'other')), source: 'cli' }), { mode: 0o600 });
+    const write = () =>
+      writeFileSync(file, JSON.stringify({ v: 1, pid: sib.pid, started_at: new Date(start!).toISOString(), ws: workspaceCaptureId(join(ws, 'other')), source: 'cli' }), { mode: 0o600 });
     write();
     const beat = setInterval(write, 1000); // its heartbeat, from this process
     return {
@@ -212,38 +226,59 @@ describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () 
     expect(c.err()).toContain('waiting for a take to finish (elsewhere on this Mac)');
   }
 
-  it.skipIf(!canEncode)('review B L6: Ctrl-C while waiting writes nothing; --no-wait starts at once and writes the package (exit 0)', async () => {
-    const take = await siblingTake();
-    const exports = join(ws, 'projects', 'real', 'exports');
-    try {
-      const c = cli('export-capture', 'real', REAL_RUN);
-      await waiting(c);
-      c.child.kill('SIGINT');
-      expect(await c.exited).toBe(130);
-      expect(existsSync(exports)).toBe(false);
-      const t0 = Date.now();
-      const now = cli('export-capture', 'real', REAL_RUN, '--no-wait');
-      expect(await now.exited, now.err()).toBe(0);
-      expect(now.err()).not.toContain('waiting for a take');
-      expect(Date.now() - t0).toBeLessThan(60_000);
-      expect(readdirSync(exports).length).toBe(1);
-    } finally {
-      take.stop();
-    }
-  }, 120_000);
+  it.skipIf(!canEncode)(
+    'review B L6: Ctrl-C while waiting writes nothing; --no-wait starts at once and writes the package (exit 0)',
+    async () => {
+      const take = await siblingTake();
+      const exports = join(ws, 'projects', 'real', 'exports');
+      try {
+        const c = cli('export-capture', 'real', REAL_RUN);
+        await waiting(c);
+        c.child.kill('SIGINT');
+        expect(await c.exited).toBe(130);
+        expect(existsSync(exports)).toBe(false);
+        const t0 = Date.now();
+        const now = cli('export-capture', 'real', REAL_RUN, '--no-wait');
+        expect(await now.exited, now.err()).toBe(0);
+        expect(now.err()).not.toContain('waiting for a take');
+        expect(Date.now() - t0).toBeLessThan(60_000);
+        expect(readdirSync(exports).length).toBe(1);
+      } finally {
+        take.stop();
+      }
+    },
+    120_000,
+  );
 
   it('review B H2: render, export and review wait too, and run on the "latest" named before the wait (critique M10)', async () => {
     const latest = join(ws, 'projects', 'latest');
     for (const [args, line, newer] of [
-      [['render', 'latest', 'held'], 'rendering run 20260101-120000-held', () => {
-        mkdirSync(join(latest, 'runs', '20260202-120000-held'), { recursive: true });
-        writeFileSync(join(latest, 'runs', '20260202-120000-held', 'timeline.json'), JSON.stringify({ mode: 'capture' }));
-      }],
-      [['export', 'latest', 'latest', '--scenario', 'held'], 'exporting render held-v1', () =>
-        writeFileSync(join(latest, 'renders', 'held-v2.json'), JSON.stringify({ version: 1, id: 'held-v2', status: 'succeeded', scenario: 'held', created_at: '2026-02-02T12:00:00.000Z', plan: {} }))],
+      [
+        ['render', 'latest', 'held'],
+        'rendering run 20260101-120000-held',
+        () => {
+          wholeCapture(join(latest, 'runs', '20260202-120000-held'), '20260202-120000-held');
+        },
+      ],
+      [
+        ['export', 'latest', 'latest', '--scenario', 'held'],
+        'exporting render held-v1',
+        () =>
+          writeFileSync(
+            join(latest, 'renders', 'held-v2.json'),
+            JSON.stringify({ version: 1, id: 'held-v2', status: 'succeeded', scenario: 'held', created_at: '2026-02-02T12:00:00.000Z', plan: {} }),
+          ),
+      ],
       // held-v2 is the latest once the export's case has run.
-      [['review', 'latest', 'latest', '--scenario', 'held'], 'reviewing render held-v2', () =>
-        writeFileSync(join(latest, 'renders', 'held-v3.json'), JSON.stringify({ version: 1, id: 'held-v3', status: 'succeeded', scenario: 'held', created_at: '2026-03-03T12:00:00.000Z', plan: {} }))],
+      [
+        ['review', 'latest', 'latest', '--scenario', 'held'],
+        'reviewing render held-v2',
+        () =>
+          writeFileSync(
+            join(latest, 'renders', 'held-v3.json'),
+            JSON.stringify({ version: 1, id: 'held-v3', status: 'succeeded', scenario: 'held', created_at: '2026-03-03T12:00:00.000Z', plan: {} }),
+          ),
+      ],
     ] as const) {
       const take = await siblingTake();
       try {
@@ -273,13 +308,13 @@ describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () 
     }
   }, 120_000);
 
-  it('a take\'s own hook: a marker of the CLI\'s parent does not hold it (no wait)', async () => {
+  it("a take's own hook: a marker of the CLI's parent does not hold it (no wait)", async () => {
     // The parent owns a marker (as a `retake run` whose setup hook runs a heavy command), then runs the CLI and reports.
     const mod = join(REPO, 'packages/engine/src/jobs/captures.ts');
     const proc = join(REPO, 'packages/engine/src/jobs/proc.ts');
     const script = `const { FilmingMarker } = await import(${JSON.stringify(mod)}); const { selfIdentity } = await import(${JSON.stringify(proc)});
       const { spawn } = await import('node:child_process');
-      const m = FilmingMarker.open({ root: ${JSON.stringify(join(ws, 'other'))}, source: 'cli', owner: await selfIdentity(), beatMs: 200 });
+      const m = FilmingMarker.open({ env: process.env, root: ${JSON.stringify(join(ws, 'other'))}, source: 'cli', owner: await selfIdentity(), beatMs: 200 });
       if (!m) { process.stdout.write('{"error":"no marker"}'); process.exit(1); }
       const c = spawn(process.execPath, [${JSON.stringify(BIN)}, '-C', ${JSON.stringify(ws)}, 'export-capture', 'demo', '20260101-120000-held'], { stdio: ['ignore', 'ignore', 'pipe'] });
       let err = ''; c.stderr.on('data', (d) => (err += d));

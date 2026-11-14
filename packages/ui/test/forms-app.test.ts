@@ -8,8 +8,8 @@
 import { describe, expect, it } from 'vitest';
 import { scenarioBlocks, stepForms } from '@retake/core';
 import type { SceneBlock } from '@retake/core';
-import { anchorOf, editAgain, fieldsOf, formChanges, issueField, readInput, readInputs } from '../src/app/forms.js';
-import type { View } from '../src/app/scenario-words.js';
+import { anchorOf, editAgain, fieldsOf, formChanges, issueField, readInput, readInputs } from '../src/app/script/forms.js';
+import type { View } from '../src/app/words/scenario-words.js';
 
 const forms = stepForms();
 const typeFields = fieldsOf(forms, 'type');
@@ -83,13 +83,15 @@ describe('editAgain: an edit on a newer version ("Apply it to the new version")'
     const v1 = view(T0.replace('      - click: One\n', '      - hold: 1\n      - click: One\n').replace('caption: Old', 'caption: New'));
     const again = editAgain(op, anchor, v1);
     expect(again).toEqual({ op: { ...op, at: { scene: 'a', index: 2, guard: scene(v1).steps[2].guard } } });
-    expect(editAgain(op, anchor, view(T0.replace('{text: Light}', '{text: Other}')))).toEqual({ why: 'the step it changes is no longer in the file as it was, or its scene now has more or fewer steps like it' });
+    expect(editAgain(op, anchor, view(T0.replace('{text: Light}', '{text: Other}')))).toEqual({
+      why: 'the step it changes is no longer in the file as it was, or its scene now has more or fewer steps like it',
+    });
   });
 
   it('a new step goes after the same step as before (by its guard); moves go as they were (their guard decides)', () => {
     const v0 = view(T0);
     const g = scene(v0).steps[0].guard!;
-    const ins = { kind: 'insert_step' as const, to: { scene: 'a', index: 1 }, after: g, action: 'hold', values: { hold: 1 } };
+    const ins = { kind: 'insert_step' as const, to: { scene: 'a', index: 1 }, after: g, action: 'hold' as const, values: { hold: 1 } };
     const v1 = view(T0.replace('    steps:\n', '    steps:\n      - hold: 2\n'));
     expect(editAgain(ins, null, v1)).toEqual({ op: { ...ins, to: { scene: 'a', index: 2 } } });
     expect(editAgain(ins, null, view(T0.replace('click: One', 'click: Two')))).toEqual({ why: 'the step it was to follow changed or moved' });

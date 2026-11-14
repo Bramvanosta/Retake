@@ -5,6 +5,7 @@
  * step runs only with a human approval of its fingerprint (trust `mcp`), taken at submit — a job queued without one
  * fails before the seed changes anything it should not. Plus the job history (history.jsonl) and the usage counters.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -17,10 +18,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProject } from '@retake/core/io';
 import { hookFingerprint } from '@retake/hooks';
 import { openSandbox } from '@retake/sandbox';
-import { EngineError, FileJobQueue, createEngine, historyFile, seedApprovalItems } from '../src/index.js';
+import { EngineError, FileJobQueue, createEngine, historyFile, packageHookRunner, seedApprovalItems } from '../src/index.js';
 import type { ApprovalRequest, Approver, Engine, JobRecord } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 function chromiumAvailable(): boolean {
   if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
@@ -57,7 +59,7 @@ createServer((req, res) => { res.writeHead(req.url === '/health' ? 200 : 404); r
 
 let ws: string;
 let home: string;
-let savedHome: string | undefined;
+const retakeHome = scratchHome();
 let port: number;
 let fixture: Fixture | undefined;
 let accounts: Record<'supplier' | 'buyer', { email: string; password: string; name: string }>;
@@ -99,8 +101,7 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     ws = await mkdtemp(join(tmpdir(), 'studio-jobs-d-'));
     home = join(ws, '.home');
     // The worker saves sessions in its RETAKE_HOME; this process reads them from the same one.
-    savedHome = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = home;
+    retakeHome.use(home);
     port = await freePort();
     await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const dir = join(ws, 'projects', 's');
@@ -172,18 +173,17 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
   afterAll(async () => {
     for (const c of children) if (c.exitCode === null && c.signalCode === null) c.kill('SIGKILL');
     try {
-      await openSandbox(await loadProject('s', ws), undefined, PERSON_POLICY).down();
+      await openSandbox(await loadProject('s', ws), undefined, PERSON_POLICY, resolveSecretRef).down();
     } catch {
       /* never started */
     }
     await fixture?.close();
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     if (ws) await rm(ws, { recursive: true, force: true });
   });
 
   it('sandbox_up: a shell seed step needs a human — no approver: needs_approval with the command; a decline: refused', async () => {
-    const items = await seedApprovalItems(await loadProject('s', ws), 'sandbox');
+    const items = await seedApprovalItems(await loadProject('s', ws), 'sandbox', packageHookRunner());
     expect(items).toEqual([expect.objectContaining({ phase: 'seed', index: 1, name: 'mark', reason: 'a shell command (runs local code)' })]);
     const none = await engine.sandbox.up({ project: 's' }).catch((e: unknown) => e);
     expect(none).toBeInstanceOf(EngineError);
@@ -204,7 +204,14 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     const w = startWorker();
     const job = await finished(up.job.id);
     expect(job.state, JSON.stringify(job)).toBe('succeeded');
-    expect(job.result).toMatchObject({ kind: 'sandbox_up', env: 'sandbox', provider: 'process', services: { started: ['app'] }, reset: { strategy: 'reseed', seed: { steps: 2 } }, pages: { app: `http://localhost:${port}` } });
+    expect(job.result).toMatchObject({
+      kind: 'sandbox_up',
+      env: 'sandbox',
+      provider: 'process',
+      services: { started: ['app'] },
+      reset: { strategy: 'reseed', seed: { steps: 2 } },
+      pages: { app: `http://localhost:${port}` },
+    });
     expect(await readFile(join(project.dir, 'sandbox', 'seed-marker.txt'), 'utf8')).toBe('seeded\n');
     expect(await w.exited).toBe(0);
     expect(w.out()).toBe('');
@@ -215,8 +222,16 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(await finished(reset.job.id)).toMatchObject({ state: 'succeeded', result: { kind: 'sandbox_reset', reset: { seed: { steps: 2 } } } });
     expect(await readFile(join(project.dir, 'sandbox', 'seed-marker.txt'), 'utf8')).toBe('seeded\nseeded\n');
     await w2.exited;
-    const lines = (await readFile(historyFile(ws), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as { job: string; kind: string; state: string });
-    expect(lines.map((l) => [l.job, l.kind, l.state])).toEqual(expect.arrayContaining([[up.job.id, 'sandbox_up', 'succeeded'], [reset.job.id, 'sandbox_reset', 'succeeded']]));
+    const lines = (await readFile(historyFile(ws), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { job: string; kind: string; state: string });
+    expect(lines.map((l) => [l.job, l.kind, l.state])).toEqual(
+      expect.arrayContaining([
+        [up.job.id, 'sandbox_up', 'succeeded'],
+        [reset.job.id, 'sandbox_reset', 'succeeded'],
+      ]),
+    );
   });
 
   it('a sandbox job queued without the approval (bypassing the submit): the shell seed step is refused, the job fails', async () => {
@@ -226,6 +241,14 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(done.state).toBe('failed');
     expect(done.error?.message).toContain('without a human approval');
     await w.exited;
+    // L7.28: the same for an up that seeds (sandbox-work.ts hands the job's seedTrust on): down first, so the data is gone.
+    await openSandbox(await loadProject('s', ws), undefined, PERSON_POLICY, resolveSecretRef).down();
+    const up = await queue.enqueue({ version: 1, kind: 'sandbox_up', project: 's', submitted_by: 'test' });
+    const w2 = startWorker();
+    const upDone = await finished(up.id);
+    expect(upDone.state).toBe('failed');
+    expect(upDone.error?.message).toContain('without a human approval');
+    await w2.exited;
   });
 
   it.skipIf(!chromiumAvailable())('auth_login auto: the login steps sign the persona in; the result has no path or cookie; status sees it', async () => {
@@ -238,7 +261,10 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(sub.job.input).toEqual({ version: 1, kind: 'auth_login', project: 's', env: 'signed-in', persona: 'supplier', mode: 'auto', submitted_by: 'test' });
     const w = startWorker({ NF_JOB_SUPPLIER: accounts.supplier.password });
     const job = await finished(sub.job.id);
-    expect(job, JSON.stringify(job)).toMatchObject({ state: 'succeeded', result: { kind: 'auth_login', persona: 'supplier', status: 'valid', signed_in: true, command: `retake -C ${ws} login s --env signed-in --persona supplier --auto` } });
+    expect(job, JSON.stringify(job)).toMatchObject({
+      state: 'succeeded',
+      result: { kind: 'auth_login', persona: 'supplier', status: 'valid', signed_in: true, command: `retake -C ${ws} login s --env signed-in --persona supplier --auto` },
+    });
     const text = JSON.stringify(job) + JSON.stringify(await queue.events(sub.job.id));
     expect(text).not.toContain(home);
     expect(text).not.toContain(accounts.supplier.password);
@@ -246,7 +272,9 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(status.personas.find((p) => p.persona === 'supplier')).toMatchObject({ status: 'valid', by: 'login' });
     await w.exited;
     expect(w.out()).toBe('');
-    const killed = spawnSync('pgrep', ['-f', `${home}`]).stdout.toString().trim();
+    const killed = spawnSync('pgrep', ['-f', `${home}`])
+      .stdout.toString()
+      .trim();
     expect(killed).toBe('');
   });
 

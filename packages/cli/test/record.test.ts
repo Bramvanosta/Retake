@@ -13,6 +13,7 @@ import { EXIT, main, memoryIo } from '../src/index.js';
 import { recordCommand } from '../src/commands/record.js';
 import type { RecordTestHooks } from '../src/commands/record.js';
 import { Ui } from '../src/ui.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -23,13 +24,13 @@ interface Fixture {
 
 let fixture: Fixture;
 let ws: string;
-const home = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host: string }): Promise<Fixture> };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
   ws = await mkdtemp(join(tmpdir(), 'studio-cli-record-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   const dir = join(ws, 'projects', 'shop');
   await mkdir(join(dir, 'scenarios'), { recursive: true });
@@ -42,8 +43,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await fixture?.close();
   if (ws) await rm(ws, { recursive: true, force: true });
-  if (home === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = home;
+  retakeHome.restore();
 });
 
 /** `retake record` in-process, the window played by `drive`. */

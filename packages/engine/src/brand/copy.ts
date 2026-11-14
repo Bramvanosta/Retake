@@ -12,14 +12,16 @@
  */
 import { lstat, mkdir, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RETAKE_VERSION, TEMPLATE_FILE, THEME_NAME_RE, insideFolder, parseTemplateYaml, parseYaml, setMapPath, StepEditError } from '@retake/core';
-import { loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
+import { RETAKE_VERSION, parseYaml } from '@retake/core/base';
+import { insideFolder, setMapPath, StepEditError } from '@retake/core/scenario';
+import { TEMPLATE_FILE, parseTemplateYaml } from '@retake/core/theme';
+import { nodeFileFacts } from '@retake/core/io';
 import { workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
-import { ProjectStore } from '../store/project-store.js';
-import type { StoreScope } from '../store/project-store.js';
-import { checkTemplateName, themeAssetProblems } from '../templates.js';
+import type { StoreScope } from '../store/store.js';
+import { dateOf } from '../clock.js';
+import { checkNewThemeName, checkTemplateName, themeAssetProblems } from '../templates.js';
 import { PACKAGE_ROOT, THEME_PROVENANCE_FILE, checkNewName, removeStale } from './create.js';
 import type { OpenedWorkspace } from '../workspace.js';
 
@@ -74,13 +76,11 @@ function renamedText(text: string, name: string, from: string): string {
 }
 
 /** Copy a listed theme into a new workspace theme `name` (see the header). */
-export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: string }, o: { now?: Date; scope: StoreScope }): Promise<ThemeCopied> {
+export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: string }, o: { scope: StoreScope }): Promise<ThemeCopied> {
   const from = checkTemplateName(req?.from);
-  const name = req?.name;
-  if (typeof name !== 'string' || !THEME_NAME_RE.test(name) || name.length > 64) {
-    throw new EngineError('invalid', `invalid theme name "${String(name).slice(0, 80)}": lower-case letters, digits and dashes (e.g. my-brand)`);
-  }
-  const now = o.now ?? new Date();
+  const name = checkNewThemeName(req?.name);
+  // Stamped by the scope's clock (its provenance), which also dates the stale stages swept.
+  const now = dateOf(o.scope.clock);
   const templatesDir = ws.templatesDir;
   if (insideFolder(PACKAGE_ROOT, templatesDir, nodeFileFacts)) {
     throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Retake folder (${PACKAGE_ROOT}): a copy would land among its starter themes`, {
@@ -89,7 +89,7 @@ export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: 
   }
   let source;
   try {
-    source = await loadTemplate(from, ws.root, { files: fileFacts(ws.policy) });
+    source = await ws.reads.loadTemplate(from, ws.root, { files: ws.reads.fileFacts(ws.policy) });
   } catch (e) {
     throw toEngineError(e);
   }
@@ -104,7 +104,7 @@ export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: 
   const hashes: Record<string, string> = {};
   for (const f of files) hashes[f] = f === TEMPLATE_FILE ? sha256Hex(text) : sha256Hex(await readFile(join(source.dir, ...f.split('/'))));
   try {
-    await new ProjectStore(templatesDir, o.scope, undefined, '<templates_dir>').createFolder(templatesDir, name, {
+    await o.scope.stores.at(templatesDir, o.scope, { label: '<templates_dir>' }).createFolder(templatesDir, name, {
       what: 'theme',
       build: async (stage) => {
         // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).
@@ -118,10 +118,10 @@ export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: 
             if (sha256Hex(await readFile(join(stage.dir, ...f.split('/')))) !== hashes[f]) throw new EngineError('conflict', `theme ${from}: ${f} changed while it was copied — try again`);
           }
         }
-        const parsed = parseTemplateYaml(text, { dir: stage.dir, files: fileFacts(ws.policy) });
+        const parsed = parseTemplateYaml(text, { dir: stage.dir, files: ws.reads.fileFacts(ws.policy) });
         const errors = parsed.issues.filter((i) => i.severity === 'error');
         if (errors.length) throw new EngineError('invalid', `the copy does not validate: ${errors.map((i) => i.message).join('; ')}`);
-        const loaded = await loadTemplate(stage.dir, undefined, { files: fileFacts(ws.policy) });
+        const loaded = await ws.reads.loadTemplate(stage.dir, undefined, { files: ws.reads.fileFacts(ws.policy) });
         const outside = themeAssetProblems(loaded);
         if (outside.length) throw new EngineError('refused', outside.join('; '));
         try {

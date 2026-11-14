@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ReviewError, extractStill } from '../src/index.js';
-import { hasTool } from './helpers.js';
+import { hasTool } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -20,10 +20,25 @@ let dir: string;
 /** A CFR video of `frames` frames whose frame n is a flat grey of video level 16 + (7·n) mod 220 (lossless). */
 function counterVideo(file: string, w: number, h: number, frames: number): void {
   execFileSync('ffmpeg', [
-    '-v', 'error', '-y',
-    '-f', 'lavfi', '-i', `nullsrc=s=${w}x${h}:r=30,geq=lum='16+mod(N*7\\,220)':cb=128:cr=128`,
-    '-frames:v', String(frames),
-    '-c:v', 'libx264', '-preset', 'ultrafast', '-qp', '0', '-pix_fmt', 'yuv420p', '-g', '15',
+    '-v',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    `nullsrc=s=${w}x${h}:r=30,geq=lum='16+mod(N*7\\,220)':cb=128:cr=128`,
+    '-frames:v',
+    String(frames),
+    '-c:v',
+    'libx264',
+    '-preset',
+    'ultrafast',
+    '-qp',
+    '0',
+    '-pix_fmt',
+    'yuv420p',
+    '-g',
+    '15',
     file,
   ]);
 }
@@ -82,7 +97,12 @@ describe.skipIf(!can)('extractStill', () => {
     expect(edge[0] - edge[1], `edge ${edge}`).toBeGreaterThan(120);
     // Inside and outside the box: the frame's grey.
     // Inside and outside the box, and where a numbered badge would sit (above its top-left corner): the frame's grey.
-    for (const [x, y] of [[400, 230], [100, 100], [330, 168], [326, 160]]) {
+    for (const [x, y] of [
+      [400, 230],
+      [100, 100],
+      [330, 168],
+      [326, 160],
+    ]) {
       const [r, g, b] = (await look(out, x, y)).at;
       expect(Math.max(r, g, b) - Math.min(r, g, b), `${x},${y}`).toBeLessThan(8);
     }
@@ -101,7 +121,7 @@ describe.skipIf(!can)('extractStill', () => {
     expect(Math.max(...inside) - Math.min(...inside)).toBeLessThan(8);
   });
 
-  it('the stroke is sized from the long side: a vertical still gets the landscape still\'s stroke', async () => {
+  it("the stroke is sized from the long side: a vertical still gets the landscape still's stroke", async () => {
     const video = join(dir, 'vertical.mp4');
     counterVideo(video, 1080, 1920, 2);
     const out = join(dir, 'vertical.jpg');

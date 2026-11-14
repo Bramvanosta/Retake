@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseScenario, seededRandom } from '@retake/core';
 import { createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 
 const PROJECT = 'northfield-fixture';
 let root: string;
@@ -53,7 +53,14 @@ describe('engine.scenarios.fromScript', () => {
     expect(d.outline.scenes.map((s) => s.id ?? s.kind)).toEqual(['decouvrir', 'devis', 'interstitial', 'proposition']);
     const v = parseScenario(d.yaml).scenario as unknown as { video: string; scenes: Array<{ page?: string; open?: string; steps?: Array<{ hold: number; note?: string }> }> };
     expect(v.video).toBe('devis-draft');
-    expect(v.scenes[0]).toMatchObject({ page: 'shop', open: '/', steps: [{ hold: 12, note: 'Survoler les lots primés' }, { hold: 8, note: 'Ouvrir Selowa Ridge' }] });
+    expect(v.scenes[0]).toMatchObject({
+      page: 'shop',
+      open: '/',
+      steps: [
+        { hold: 12, note: 'Survoler les lots primés' },
+        { hold: 8, note: 'Ouvrir Selowa Ridge' },
+      ],
+    });
     // The display host of the shop maps to its page key: no URL in the draft.
     expect(v.scenes[3]).toMatchObject({ page: 'shop', open: '/' });
     expect(d.yaml).not.toMatch(/https?:|localhost|\.example/);
@@ -99,7 +106,12 @@ describe('engine.scenarios.fromScript', () => {
       const count = 2 + Math.floor(rnd() * 9);
       for (let i = 0; i < count; i++) {
         const d = 1 + Math.floor(rnd() * 20);
-        const time = rnd() < 0.7 ? `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}${rnd() < 0.5 ? `–${Math.floor((t + d) / 60)}:${String((t + d) % 60).padStart(2, '0')}` : ''}` : rnd() < 0.5 ? '' : 'soon';
+        const time =
+          rnd() < 0.7
+            ? `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}${rnd() < 0.5 ? `–${Math.floor((t + d) / 60)}:${String((t + d) % 60).padStart(2, '0')}` : ''}`
+            : rnd() < 0.5
+              ? ''
+              : 'soon';
         const cells = [time, rnd() < 0.5 ? pick(names) : '', rnd() < 0.8 ? pick(texts) : '', rnd() < 0.6 ? pick(texts) : '', rnd() < 0.3 ? pick(names) : '', pick(pages), pick(types)];
         rows.push(`| ${cells.map((c) => c.replaceAll('|', '\\|')).join(' | ')} |`);
         t += d;
@@ -108,10 +120,16 @@ describe('engine.scenarios.fromScript', () => {
       const d = await engine.scenarios.fromScript(PROJECT, md);
       if (!d.yaml) {
         // Only title / outro / interstitial rows: no captured scene, said as the one error.
-        expect(d.script_issues.filter((i) => i.severity === 'error').map((i) => i.message), md).toEqual([expect.stringMatching(/no scene row/)]);
+        expect(
+          d.script_issues.filter((i) => i.severity === 'error').map((i) => i.message),
+          md,
+        ).toEqual([expect.stringMatching(/no scene row/)]);
         continue;
       }
-      expect(d.validation.issues.filter((i) => i.severity === 'error'), `${md}\n\n${d.yaml}`).toEqual([]);
+      expect(
+        d.validation.issues.filter((i) => i.severity === 'error'),
+        `${md}\n\n${d.yaml}`,
+      ).toEqual([]);
       expect(d.yaml).not.toMatch(/https?:\/\/|localhost|elsewhere/);
     }
   });

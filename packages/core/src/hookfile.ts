@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { CheckContext } from './checks/context.js';
 import { checkHooks } from './checks/hooks.js';
 import { checkTokens } from './checks/tokens.js';
-import type { FileFacts } from './file-facts.js';
+import type { FilesWith } from './file-facts.js';
 import { hasErrors } from './issues.js';
 import { HookStepSchema } from './schemas/hooks.js';
 import type { HookStep, LoadedProject, ValidationIssue } from './types.js';
@@ -18,10 +18,7 @@ export const HookFileSchema = z.array(HookStepSchema).describe('A list of hooks 
  * `confirm: true`, referenced files exist, js `page` keys, `{{tokens}}`). `file` locates relative files when
  * no project is given. `hooks` is returned only when there is no error-level issue.
  */
-export function parseHookFile(
-  text: string,
-  opts: { file?: string; project?: LoadedProject; files?: FileFacts } = {},
-): { hooks?: HookStep[]; issues: ValidationIssue[] } {
+export function parseHookFile(text: string, opts: { file?: string; project?: LoadedProject } & FilesWith<'file' | 'project'> = {}): { hooks?: HookStep[]; issues: ValidationIssue[] } {
   const projectDir = opts.project?.dir ?? (opts.file ? dirname(resolve(opts.file)) : undefined);
   const pages = opts.project ? [...new Set(Object.values(opts.project.config.environments).flatMap((p) => Object.keys(p)))] : undefined;
   const { value, issues } = checkYamlDocument(

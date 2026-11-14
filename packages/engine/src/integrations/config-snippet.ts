@@ -5,8 +5,9 @@
  * live in (ffmpeg, docker, psql). It also prints the Claude Code plugin route (L3.7: the repository's local marketplace,
  * the `skills/` plugin with its userConfig values); `retake mcp` itself serves with `clientPath` as its PATH.
  */
+import type { EngineEnv } from '../env.js';
 import { existsSync, realpathSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { bundleInfo, bundleInfoOrNull, bundleNodeArgs, clientPath, retakeHome } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 
@@ -43,7 +44,8 @@ export interface McpConfigInput {
   node?: string;
   /** Node.js arguments before `bin` (default: an app bundle's module lookup guard, core bundleNodeArgs; none in a checkout). */
   nodeArgs?: string[];
-  env?: NodeJS.ProcessEnv;
+  /** The environment the entry is written for (its Retake home, its PATH): the caller's (a shell's). */
+  env: EngineEnv;
 }
 
 export interface McpServerEntry {
@@ -53,7 +55,7 @@ export interface McpServerEntry {
 }
 
 export function mcpServerEntry(o: McpConfigInput): McpServerEntry {
-  const env = o.env ?? process.env;
+  const env = o.env;
   const node = o.node ?? stableNodePath(process.execPath);
   let bin = o.bin;
   try {
@@ -172,13 +174,14 @@ export function pluginInstallCommands(o: McpConfigInput & { repo: string }): str
  */
 export function pluginInstallSteps(o: McpConfigInput & { repo: string }): Array<{ argv: string[]; cwd?: string }> {
   const e = mcpServerEntry(o);
-  const env = o.env ?? process.env;
+  const env = o.env;
   // The entry point is the argument before --root (an app bundle's guard comes first; the plugin's own .mcp.json starts
   // `node cli` without it: core prepareBundle loads it then).
-  const config: Array<[string, string]> = [['node', e.command], ['cli', e.args[e.args.indexOf('--root') - 1]!], ['workspace', o.root]];
-  if (env.RETAKE_HOME?.trim()) config.push(['home', retakeHome(env)]);
-  return [
-    { argv: ['plugin', 'marketplace', 'add', o.repo] },
-    { argv: ['plugin', 'install', PLUGIN_ID, '--scope', 'local', ...config.flatMap(([k, v]) => ['--config', `${k}=${v}`])], cwd: o.root },
+  const config: Array<[string, string]> = [
+    ['node', e.command],
+    ['cli', e.args[e.args.indexOf('--root') - 1]!],
+    ['workspace', o.root],
   ];
+  if (env.RETAKE_HOME?.trim()) config.push(['home', retakeHome(env)]);
+  return [{ argv: ['plugin', 'marketplace', 'add', o.repo] }, { argv: ['plugin', 'install', PLUGIN_ID, '--scope', 'local', ...config.flatMap(([k, v]) => ['--config', `${k}=${v}`])], cwd: o.root }];
 }

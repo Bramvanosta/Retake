@@ -1,6 +1,6 @@
 /**
  * L4.8 the Studio's side of a recording (engine record-studio.ts, R-UI-20 / 21 / 22) on the fixture product (own ports
- * 4551–4554), the worker run in this process with Playwright playing the person (`recordTest.drive`, which a worker
+ * 4551–4554), the worker run in this process with Playwright playing the person (`ports.recordWindow.drive`, which a worker
  * process cannot receive) — and the person's Studio calls made from inside the drive, while the window is open.
  *
  * - A Studio recording (`ui`): meta.json at folder creation, never auto-saved; the live view; a caption inserted "at the
@@ -19,6 +19,8 @@
  *   follow a link (A-L3); the zoom under the theme's max_zoom (B-M3); the check's failing step on screen (B-M4); Discard
  *   of an open window ends "discarded" (B-M5); a Discard during the check is settled by the job and the list (B-L2);
  *   Stop before the window is a clean cancel (B-L8).
+ * - L7.37: the recording Claude started, B16 / B5 / B9 and B-M5 run the worker on the in-memory capture runner (the
+ *   lab's recorded events replayed by its window, its check replay in memory); the lab itself stays a real window.
  */
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -44,12 +46,22 @@ import {
   runWorker,
   personScope,
   saveRecordedDraft,
+  enginePorts,
+  diskWorkspaceReads,
 } from '../src/index.js';
-import type { Engine, EngineError, RecordJobResult, RecordJobTestHooks, RecordView } from '../src/index.js';
-import { REPO, fixtureWorkspace } from './helpers.js';
+import type { Engine, EngineError, RecordJobResult, RecordWindow, RecordView } from '../src/index.js';
+import { ManualClock } from '../src/clock.js';
+import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
+import type { MemoryCaptureRunnerOptions } from '../src/capture/memory-capture.js';
+import { memoryRecord } from '../src/capture/memory-sessions.js';
+import type { CaptureRequest } from '../src/capture/runner.js';
+import type { RecordedEvent, RunRecord } from '@retake/core/run';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { fileFacts } from '@retake/core/io';
+import { scratchHome } from '@retake/test-support/home';
 
-type Page = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
+type Page = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
 interface Fixture {
   urls: { console: string; shop: string; signedIn?: { console: string; shop: string } };
@@ -64,7 +76,7 @@ let ui: Engine;
 let mcp: Engine;
 const logs: string[] = [];
 const answers: unknown[] = [];
-const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN, tmp: process.env.TMPDIR };
+const retakeHome = scratchHome('RETAKE_RECORD_MAX_MIN', 'TMPDIR');
 
 /** Keep every answer for the sentinel scan. */
 function keep<T>(x: T): T {
@@ -80,19 +92,56 @@ function work(drive: (page: Page) => Promise<void>): Promise<number> {
     idleExitMs: 0,
     pollMs: 50,
     log: (m) => logs.push(m),
-    recordTest: {
-      headless: true,
-      windowSize: { width: 1400, height: 1000 },
-      drive: async (page) => {
-        await page.waitForLoadState('domcontentloaded');
-        await page.waitForTimeout(800);
-        await drive(page);
-        await page.waitForTimeout(400).catch(() => undefined);
-        await page.close().catch(() => undefined);
+    ports: {
+      recordWindow: {
+        headless: true,
+        windowSize: { width: 1400, height: 1000 },
+        drive: async (page) => {
+          await page.waitForLoadState('domcontentloaded');
+          await page.waitForTimeout(800);
+          await drive(page);
+          await page.waitForTimeout(400).catch(() => undefined);
+          await page.close().catch(() => undefined);
+        },
       },
     },
   });
 }
+
+/** The worker on the in-memory capture runner (L7.37): its window and check replay are `capture`'s; nothing opens. */
+function workInMemory(capture: MemoryCaptureRunner): Promise<number> {
+  return runWorker({
+    root,
+    once: true,
+    idleExitMs: 0,
+    pollMs: 50,
+    log: (m) => logs.push(m),
+    heavyInProcess: true,
+    ports: { capture, recordWindow: { headless: true, windowSize: { width: 1400, height: 1000 }, drive: async () => undefined } },
+  });
+}
+
+/** An in-memory capture runner whose check replay waits for `gate` first. */
+class HeldCheck extends MemoryCaptureRunner {
+  constructor(
+    private readonly gate: () => Promise<void>,
+    o: MemoryCaptureRunnerOptions,
+  ) {
+    super(o);
+  }
+
+  override async run(req: CaptureRequest): Promise<RunRecord> {
+    await this.gate();
+    return super.run(req);
+  }
+}
+
+/** The events the lab's real window recorded (redacted as written), for the in-memory windows to replay. */
+const labEvents = async (): Promise<RecordedEvent[]> =>
+  (await readFile(join(await recDir(lab.rec), 'events.jsonl'), 'utf8'))
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as RecordedEvent);
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
   const e = await p.then(
@@ -126,14 +175,15 @@ async function files(dir: string): Promise<string[]> {
   return out;
 }
 
-const project = async () => openProject(await openWorkspace({ root }), PROJECT);
+const project = async () => openProject(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads }), PROJECT);
 const recDir = async (id: string) => join(recordsRoot(await project()), id);
 const fileEvents = async (id: string) =>
   (await readFile(join(await recDir(id), 'events.jsonl'), 'utf8'))
     .split('\n')
     .filter(Boolean)
     .map((l) => JSON.parse(l) as { seq: number; kind: string; el?: { label?: string | null } });
-const studioJson = async (id: string) => JSON.parse(await readFile(join(await recDir(id), 'studio.json'), 'utf8')) as { rev: number; inserts: Array<{ id: string; after_seq: number; kind: string }>; choices: Record<string, number> };
+const studioJson = async (id: string) =>
+  JSON.parse(await readFile(join(await recDir(id), 'studio.json'), 'utf8')) as { rev: number; inserts: Array<{ id: string; after_seq: number; kind: string }>; choices: Record<string, number> };
 const mode = (f: string) => statSync(f).mode & 0o777;
 
 /** A `record` job of the Studio (or `by`) for a recording, in a final or running state (no worker runs it). */
@@ -197,7 +247,7 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 4551, shopPort: 4552, host: '127.0.0.1', auth: { consolePort: 4553, shopPort: 4554 } });
   root = await mkdtemp(join(tmpdir(), 'studio-record-studio-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   // The window's session copies land here: the sentinel scan reads them, and none may stay (review A-N4).
   await mkdir(join(root, '.tmp'), { recursive: true });
   process.env.TMPDIR = join(root, '.tmp');
@@ -218,14 +268,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await fixture?.close();
   if (root) await rm(root, { recursive: true, force: true });
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_RECORD_MAX_MIN', saved.max],
-    ['TMPDIR', saved.tmp],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
 });
 
 let lab: { rec: string; job: string };
@@ -248,10 +291,12 @@ describe('a Studio recording: live view, annotations, Stop, Save', () => {
       await page.getByLabel('Note').click();
       await page.keyboard.type('Two');
       // The screen polls: the draft so far, while the window is open.
-      const v1 = keep(await until(async () => {
-        const v = await ui.record.view(PROJECT, sub.rec_id);
-        return v.state === 'recording' && v.counts.actions >= 3 ? v : null;
-      }, 'the live draft'));
+      const v1 = keep(
+        await until(async () => {
+          const v = await ui.record.view(PROJECT, sub.rec_id);
+          return v.state === 'recording' && v.counts.actions >= 3 ? v : null;
+        }, 'the live draft'),
+      );
       expect(v1.can).toMatchObject({ annotate: true, save: false, discard: true, stop: true });
       expect(v1.untrusted?.yaml).toContain('{{vars.password_1}}');
       beforeBlur = Math.max(...(await fileEvents(sub.rec_id)).map((e) => e.seq));
@@ -262,10 +307,12 @@ describe('a Studio recording: live view, annotations, Stop, Save', () => {
       caption = keep(await ui.record.annotate(PROJECT, sub.rec_id, { rev: 0, change: { op: 'insert', at: 'end', insert: { kind: 'caption', text: 'Add a note' } } }));
       expect(caption.rev).toBe(1);
       await page.getByRole('button', { name: 'Forgery target' }).click();
-      const pick = keep(await until(async () => {
-        const v = await ui.record.view(PROJECT, sub.rec_id);
-        return v.untrusted?.alternatives.find((a) => a.options.some((o) => JSON.stringify(o.target).includes('#lab-forge-target')));
-      }, 'the button\'s alternatives'));
+      const pick = keep(
+        await until(async () => {
+          const v = await ui.record.view(PROJECT, sub.rec_id);
+          return v.untrusted?.alternatives.find((a) => a.options.some((o) => JSON.stringify(o.target).includes('#lab-forge-target')));
+        }, "the button's alternatives"),
+      );
       expect(pick.chosen).toBe(0);
       expect(pick.options[0].index).toBe(0);
       const css = pick.options.find((o) => JSON.stringify(o.target).includes('#lab-forge-target'))!;
@@ -387,7 +434,7 @@ describe('a Studio recording: live view, annotations, Stop, Save', () => {
   it('the write path of Save: agent trust refuses a secret reference, with no path in the answer', async () => {
     const p = await project();
     const yaml = `version: 1\nvideo: trust-check\nscenes:\n  - id: lab\n    page: shop\n    open: /record-lab\n    steps:\n      - type: {into: {label: Note}, text: "{{env:HOME}}"}\n`;
-    const e = await refusal(saveRecordedDraft(p, 'trust-check', yaml, ['lab'], personScope(p.root), fileFacts(PERSON_POLICY)));
+    const e = await refusal(saveRecordedDraft(p, 'trust-check', yaml, ['lab'], personScope(p.root, enginePorts()), fileFacts(PERSON_POLICY), diskWorkspaceReads));
     expect(e.code).toBe('invalid');
     expect(JSON.stringify({ m: e.message, d: e.details })).not.toContain(p.dir);
     expect((e.details as { issues: Array<{ scene?: string; step?: number }> }).issues[0]).toMatchObject({ scene: 'lab', step: 0 });
@@ -395,13 +442,18 @@ describe('a Studio recording: live view, annotations, Stop, Save', () => {
   });
 });
 
-describe('a recording Claude started: unchanged, read-only from the Studio', () => {
+/**
+ * L7.37: what the engine does around a window — a recording Claude started, a Discard during the check, a Discard of an
+ * open window — on the in-memory capture runner: its window replays the lab's recorded events (as written by the real
+ * window above), its check replay is the in-memory run. The real window, typing and check are the lab's case.
+ */
+describe('a recording Claude started: unchanged, read-only from the Studio (in memory)', () => {
   it('auto-saved by its job; the view rebuilds the same draft; annotate / save / discard refused; the ops refused to MCP', async () => {
     const sub = await mcp.record.submit({ project: PROJECT, page: 'shop', scenario: 'by-claude', check: false });
-    await work(async (page) => {
-      await page.getByText('Selowa Ridge').first().click();
-      await page.getByRole('button', { name: 'Request a quote' }).waitFor();
-    });
+    const capture = new MemoryCaptureRunner({ record: memoryRecord({ events: await labEvents() }) });
+    await workInMemory(capture);
+    // The window was the in-memory one, never checked (check: false): one recording, no replay.
+    expect(capture.calls.filter((c) => c.member === 'run')).toEqual([]);
     const job = await mcp.jobs.get(sub.job.id);
     expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
     expect(job.result).toMatchObject({ saved: { file: 'scenarios/by-claude.yaml' } });
@@ -429,7 +481,7 @@ describe('a recording Claude started: unchanged, read-only from the Studio', () 
   }, 120_000);
 });
 
-describe('discard, cancel and one window at a time', () => {
+describe('discard, cancel and one window at a time (in memory): B16 / B5 / B9', () => {
   it('B16 / B5 while queued; Discard during the check removes the folder once the job is over (B9)', async () => {
     const sub = keep(await ui.record.submit({ project: PROJECT, page: 'shop', scenario: 'to-discard' }));
     // B16: Claude's job_cancel never discards the person's open recording.
@@ -447,13 +499,11 @@ describe('discard, cancel and one window at a time', () => {
       await until(async () => (await ui.jobs.get(sub.job.id)).progress?.phase === 'check', 'the check phase', 60_000);
       discarded = keep(await ui.record.discard(PROJECT, sub.rec_id));
     })();
-    await work(async (page) => {
-      await page.getByText('Selowa Ridge').first().click();
-      await page.getByRole('button', { name: 'Request a quote' }).waitFor();
-      await page.getByRole('button', { name: 'Request a quote' }).click();
-      await page.waitForTimeout(500);
-    });
+    // The check replay (the in-memory runner's run) holds until the Discard is asked: the Discard lands during the check.
+    const capture = new HeldCheck(() => until(async () => discarded !== undefined, 'the discard', 60_000).then(() => undefined), { record: memoryRecord({ events: await labEvents() }) });
+    await workInMemory(capture);
     await watch;
+    expect(capture.calls.filter((c) => c.member === 'run')).toHaveLength(1);
     expect(discarded).toEqual({ rec_id: sub.rec_id, state: 'discarding' });
     const job = await ui.jobs.get(sub.job.id);
     expect(FINISHED.has(job.state)).toBe(true);
@@ -465,13 +515,21 @@ describe('discard, cancel and one window at a time', () => {
     expect(keep(await ui.record.view(PROJECT, sub.rec_id, { job: sub.job.id })).state).toBe('discarded');
     expect(existsSync(join((await project()).dir, 'scenarios', 'to-discard.yaml'))).toBe(false);
   }, 180_000);
+});
 
+describe('discard, cancel and one window at a time', () => {
   it('an interrupted Studio recording (B6): unchecked, annotated, saved from its events', async () => {
     const q = new FileJobQueue(root, 'retake');
     const id = newRecordId();
     const job = await q.enqueue({ version: 1, kind: 'record', project: PROJECT, rec_id: id, source: { page: 'shop', path: '/record-lab' }, check: true, submitted_by: 'ui' });
     const dead = spawnSync(process.execPath, ['-e', '0']).pid!;
-    await q.write({ ...job, state: 'running', started_at: new Date().toISOString(), worker: { pid: dead, host: 'h' }, progress: { steps_done: 0, steps_total: 0, phase: 'recording · 4 actions', updated_at: new Date().toISOString() } });
+    await q.write({
+      ...job,
+      state: 'running',
+      started_at: new Date().toISOString(),
+      worker: { pid: dead, host: 'h' },
+      progress: { steps_done: 0, steps_total: 0, phase: 'recording · 4 actions', updated_at: new Date().toISOString() },
+    });
     const dir = await recDir(id);
     await mkdir(dir, { recursive: true, mode: 0o700 });
     const from = await recDir(lab.rec);
@@ -523,17 +581,29 @@ describe('discard, cancel and one window at a time', () => {
     expect(existsSync(await recDir(sub.rec_id))).toBe(false);
     expect(keep(await ui.record.view(PROJECT, sub.rec_id, { job: sub.job.id })).state).toBe('cancelled');
   }, 60_000);
+});
 
+describe('discard, cancel and one window at a time (in memory): B-M5', () => {
   it('B-M5: Discard while the window is open ends "discarded" (not "cancelled")', async () => {
     const sub = keep(await ui.record.submit({ project: PROJECT, page: 'shop', path: '/record-lab' }));
     let d: unknown;
-    await work(async (page) => {
-      await page.getByRole('heading', { name: 'Recording lab' }).waitFor();
-      await page.locator('#lab-email').click();
-      await until(async () => (await ui.record.view(PROJECT, sub.rec_id)).state === 'recording', 'the window open');
-      d = keep(await ui.record.discard(PROJECT, sub.rec_id));
-      await page.waitForEvent('close', { timeout: 10_000 }).catch(() => undefined);
-    });
+    const events = (await labEvents()).slice(0, 3);
+    let wasOpen = false;
+    await workInMemory(
+      new MemoryCaptureRunner({
+        record: memoryRecord({
+          events,
+          during: async (o) => {
+            await until(async () => (await ui.record.view(PROJECT, sub.rec_id)).state === 'recording', 'the window open');
+            wasOpen = true;
+            d = keep(await ui.record.discard(PROJECT, sub.rec_id));
+            // The window closes once the job is cancelled.
+            await until(async () => o.signal?.aborted === true, 'the window cancelled', 10_000);
+          },
+        }),
+      }),
+    );
+    expect(wasOpen).toBe(true);
     expect(d).toEqual({ rec_id: sub.rec_id, state: 'discarding' });
     expect((await ui.jobs.get(sub.job.id)).state).toBe('cancelled');
     expect(existsSync(await recDir(sub.rec_id))).toBe(false);
@@ -607,14 +677,14 @@ describe('after the reviews (trust)', () => {
     const p = await project();
     const rlo = String.fromCharCode(0x202e);
     const yaml = `version: 1\nvideo: hidden-check\nscenes:\n  - id: lab\n    page: shop\n    open: /record-lab\n    steps:\n      - click: Save\n      - click: "Cancel${rlo}lecnac"\n`;
-    const e = await refusal(saveRecordedDraft(p, 'hidden-check', yaml, ['lab'], personScope(p.root), fileFacts(PERSON_POLICY)));
+    const e = await refusal(saveRecordedDraft(p, 'hidden-check', yaml, ['lab'], personScope(p.root, enginePorts()), fileFacts(PERSON_POLICY), diskWorkspaceReads));
     expect(e.code).toBe('invalid');
     expect(e.message).toMatch(/scene lab, step 2 holds U\+202E \(a direction control\)/);
     expect(firstHiddenChar(e.message)).toBeUndefined();
     expect(existsSync(join(p.dir, 'scenarios', 'hidden-check.yaml'))).toBe(false);
   });
 
-  it('A-L1: a recording is the person\'s only when its job (the Studio\'s) is the one meta.json names — else read-only', async () => {
+  it("A-L1: a recording is the person's only when its job (the Studio's) is the one meta.json names — else read-only", async () => {
     const p = await project();
     // meta.json says ui, with no job.
     const orphan = await cloneRecording(lab.rec, { job: false });
@@ -641,7 +711,7 @@ describe('after the reviews (trust)', () => {
   });
 
   it('A-L3: reads never follow a link — a records folder (or .retake) that is one: no draft, no list item, the reason said', async () => {
-    const ws = await openWorkspace({ root });
+    const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
     for (const which of ['records', '.retake'] as const) {
       const slug = which === 'records' ? 'linky-read' : 'linky-read-2';
       const dir = join(root, 'projects', slug);
@@ -651,9 +721,26 @@ describe('after the reviews (trust)', () => {
       await mkdir(recs, { recursive: true });
       await mkdir(dir, { recursive: true });
       await writeFile(join(dir, 'project.yaml'), 'name: Linky\nenvironments:\n  local:\n    pages: {app: "http://localhost:1/"}\n');
-      const lines = (await readFile(join(await recDir(lab.rec), 'events.jsonl'), 'utf8'));
+      const lines = await readFile(join(await recDir(lab.rec), 'events.jsonl'), 'utf8');
       await writeFile(join(recs, 'events.jsonl'), lines);
-      await writeFile(join(recs, 'meta.json'), JSON.stringify({ v: 1, rec_id: id, job_id: null, submitted_by: 'cli', name: 'x', env: 'local', persona: null, access: 'read-write', page: 'app', path: '/', started_at: new Date().toISOString(), max_ms: null, owner: { pid: 1 } }));
+      await writeFile(
+        join(recs, 'meta.json'),
+        JSON.stringify({
+          v: 1,
+          rec_id: id,
+          job_id: null,
+          submitted_by: 'cli',
+          name: 'x',
+          env: 'local',
+          persona: null,
+          access: 'read-write',
+          page: 'app',
+          path: '/',
+          started_at: new Date().toISOString(),
+          max_ms: null,
+          owner: { pid: 1 },
+        }),
+      );
       if (which === 'records') {
         await mkdir(join(dir, '.retake'), { recursive: true });
         await symlink(outside, join(dir, '.retake', 'records'));
@@ -671,7 +758,7 @@ describe('after the reviews (trust)', () => {
 });
 
 describe('after the reviews (the screen)', () => {
-  it('B-M3: the zoom under the project theme\'s max_zoom — the default saved draws no validation warning; above it refused', async () => {
+  it("B-M3: the zoom under the project theme's max_zoom — the default saved draws no validation warning; above it refused", async () => {
     const id = await interruptedCopy(lab.rec, 'studio-zoom');
     const v = keep(await ui.record.view(PROJECT, id));
     expect(v.zoom).toEqual({ max: 1.4, options: [1.25, 1.4], default: 1.4 });
@@ -686,7 +773,7 @@ describe('after the reviews (the screen)', () => {
     expect(checked.issues.filter((i) => /max_zoom|clamp/.test(i.message))).toEqual([]);
   });
 
-  it('B-M4: the check\'s failing step is shown on its row — an insert before it moves it; a step that is gone is not on screen', async () => {
+  it("B-M4: the check's failing step is shown on its row — an insert before it moves it; a step that is gone is not on screen", async () => {
     const id = await cloneRecording(lab.rec);
     await rm(join(await recDir(id), 'studio.json'));
     const rj = join(await recDir(id), 'record.json');
@@ -716,42 +803,79 @@ describe('after the reviews (the screen)', () => {
 
 describe('folders', () => {
   it('prune keeps a folder whose lock is held and an unsaved Studio recording younger than 7 days (B12)', async () => {
-    const ws = await openWorkspace({ root });
+    const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
     const other = join(root, 'projects', 'prune-me');
     await mkdir(other, { recursive: true });
     await writeFile(join(other, 'project.yaml'), 'name: Prune\nenvironments:\n  local:\n    pages: {app: "http://localhost:1/"}\n');
     const p = await openProject(ws, 'prune-me');
     const meta = (id: string, extra: Record<string, unknown> = {}) =>
-      JSON.stringify({ v: 1, rec_id: id, job_id: null, submitted_by: 'ui', name: 'x', env: 'local', persona: null, access: 'read-write', page: 'app', path: '/', started_at: new Date().toISOString(), max_ms: null, owner: { pid: 1 }, ...extra });
+      JSON.stringify({
+        v: 1,
+        rec_id: id,
+        job_id: null,
+        submitted_by: 'ui',
+        name: 'x',
+        env: 'local',
+        persona: null,
+        access: 'read-write',
+        page: 'app',
+        path: '/',
+        started_at: new Date().toISOString(),
+        max_ms: null,
+        owner: { pid: 1 },
+        ...extra,
+      });
     const [locked, fresh, old, savedOne, cli] = [newRecordId(), newRecordId(), newRecordId(), newRecordId(), newRecordId()];
     for (const id of [locked, fresh, old, savedOne, cli]) await mkdir(join(recordsRoot(p), id), { recursive: true });
     await new Promise((r) => setTimeout(r, 10)); // the newer folders' ids sort after these
     await writeFile(join(recordsRoot(p), fresh, 'meta.json'), meta(fresh));
     await writeFile(join(recordsRoot(p), old, 'meta.json'), meta(old, { started_at: new Date(Date.now() - 8 * 86_400_000).toISOString() }));
     await writeFile(join(recordsRoot(p), savedOne, 'meta.json'), meta(savedOne));
-    await writeFile(join(recordsRoot(p), savedOne, 'studio.json'), JSON.stringify({ v: 1, rev: 1, choices: {}, inserts: [], saved: { name: 'x', file: 'scenarios/x.yaml', hash: 'a'.repeat(64), at: new Date().toISOString() } }));
+    await writeFile(
+      join(recordsRoot(p), savedOne, 'studio.json'),
+      JSON.stringify({ v: 1, rev: 1, choices: {}, inserts: [], saved: { name: 'x', file: 'scenarios/x.yaml', hash: 'a'.repeat(64), at: new Date().toISOString() } }),
+    );
     await writeFile(join(recordsRoot(p), cli, 'meta.json'), meta(cli, { submitted_by: 'cli' }));
     for (let i = 0; i < RECORD_KEEP; i++) await mkdir(join(recordsRoot(p), newRecordId()), { recursive: true });
     const lock = TakeLock.acquire(recordLockFile(p.dir, locked), 'record annotate', 'test');
     try {
-      const removed = await pruneRecords(p, RECORD_KEEP);
+      const removed = await pruneRecords(p, new ManualClock(Date.now()), RECORD_KEEP);
       expect(removed.sort()).toEqual([old, savedOne, cli].sort());
       expect(existsSync(join(recordsRoot(p), locked))).toBe(true);
       expect(existsSync(join(recordsRoot(p), fresh))).toBe(true);
+      // Its age is read on the clock handed (the engine's): eight days on, the unsaved one goes too, the locked one stays.
+      expect(await pruneRecords(p, new ManualClock(Date.now() + 8 * 86_400_000), RECORD_KEEP)).toEqual([fresh]);
     } finally {
       lock.releaseSync();
     }
   });
 
   it('the records folder a symbolic link: Discard removes nothing through it', async () => {
-    const ws = await openWorkspace({ root });
+    const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
     const linky = join(root, 'projects', 'linky');
     await mkdir(join(linky, '.retake'), { recursive: true });
     await writeFile(join(linky, 'project.yaml'), 'name: Linky\nenvironments:\n  local:\n    pages: {app: "http://localhost:1/"}\n');
     const outside = join(root, 'outside-records');
     const id = newRecordId();
     await mkdir(join(outside, id), { recursive: true });
-    await writeFile(join(outside, id, 'meta.json'), JSON.stringify({ v: 1, rec_id: id, job_id: null, submitted_by: 'ui', name: 'x', env: 'local', persona: null, access: 'read-write', page: 'app', path: '/', started_at: new Date().toISOString(), max_ms: null, owner: { pid: spawnSync(process.execPath, ['-e', '0']).pid! } }));
+    await writeFile(
+      join(outside, id, 'meta.json'),
+      JSON.stringify({
+        v: 1,
+        rec_id: id,
+        job_id: null,
+        submitted_by: 'ui',
+        name: 'x',
+        env: 'local',
+        persona: null,
+        access: 'read-write',
+        page: 'app',
+        path: '/',
+        started_at: new Date().toISOString(),
+        max_ms: null,
+        owner: { pid: spawnSync(process.execPath, ['-e', '0']).pid! },
+      }),
+    );
     await writeFile(join(outside, id, 'events.jsonl'), '');
     await symlink(outside, join(linky, '.retake', 'records'));
     await openProject(ws, 'linky');

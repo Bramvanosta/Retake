@@ -31,9 +31,11 @@
  * loads on a remote one.
  */
 import type { BrowserContext, Dialog, Page, Route } from 'playwright-core';
-import { classifyRequest, describeWriteRequest, guardedHostPatterns, isGuardedHost, isWriteMethod, networkHost } from '@retake/core';
-import type { TimelineWrite, WritePolicy } from '@retake/core';
+import { classifyRequest, describeWriteRequest, guardedHostPatterns, isGuardedHost, isWriteMethod, networkHost } from '@retake/core/environment';
+import type { TimelineWrite } from '@retake/core/model';
+import type { WritePolicy } from '@retake/core/environment';
 import { sleep, wallNow } from './util.js';
+import { bestEffort } from '@retake/core/base';
 
 export type WriteVia = NonNullable<TimelineWrite['via']>;
 
@@ -178,9 +180,10 @@ async function decide(route: Route, o: WriteGuardOptions, roleOf: (page: Page) =
     const m = d.mock;
     report({ outcome: 'mocked', rule: m.source, status: m.status });
     if (m.delayMs > 0) await sleep(m.delayMs);
-    await route
-      .fulfill({ status: m.status, headers: { ...m.headers }, contentType: m.contentType, ...(m.status === 204 || m.status === 205 || m.status === 304 ? {} : { body: m.body }) })
-      .catch(() => undefined);
+    await bestEffort(
+      route.fulfill({ status: m.status, headers: { ...m.headers }, contentType: m.contentType, ...(m.status === 204 || m.status === 205 || m.status === 304 ? {} : { body: m.body }) }),
+      'the page may be gone: its request goes with it',
+    );
     return;
   }
   report({ outcome: 'blocked' });
@@ -191,7 +194,7 @@ async function decide(route: Route, o: WriteGuardOptions, roleOf: (page: Page) =
   } catch {
     navigation = false;
   }
-  if (navigation) await route.fulfill({ status: 204, body: '' }).catch(() => undefined);
+  if (navigation) await bestEffort(route.fulfill({ status: 204, body: '' }), 'the page may be gone: its request goes with it');
   else await route.abort('blockedbyclient').catch(() => undefined);
 }
 
@@ -273,7 +276,7 @@ async function drained(armed: Armed, minMs: number, maxMs: number): Promise<void
 
 /** Navigate a page to about:blank, leaving it even when it asks to stay (a beforeunload prompt is accepted). */
 async function toBlank(page: Page): Promise<void> {
-  const onDialog = (d: Dialog) => void (d.type() === 'beforeunload' ? d.accept() : d.dismiss()).catch(() => undefined);
+  const onDialog = (d: Dialog) => void bestEffort(d.type() === 'beforeunload' ? d.accept() : d.dismiss(), 'a dialog the page already closed needs no answer');
   page.on('dialog', onDialog);
   try {
     await page.goto('about:blank', { timeout: 3000 }).catch(() => undefined);
@@ -300,6 +303,11 @@ export async function closePage(page: Page): Promise<void> {
 export async function unloadPages(context: BrowserContext): Promise<void> {
   const armed = armedContexts.get(context);
   if (!armed) return;
-  await Promise.all(context.pages().filter((p) => !p.isClosed()).map((p) => toBlank(p)));
+  await Promise.all(
+    context
+      .pages()
+      .filter((p) => !p.isClosed())
+      .map((p) => toBlank(p)),
+  );
   await drained(armed, 60, 300);
 }

@@ -1,0 +1,2869 @@
+{
+ "mcp": [
+  {
+   "op": "run_dry",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "quote",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": false,
+    "text": "dry run <run-1> submitted (job <job-1>).\nwarning: dry run without its setup hooks: steps that need prepared data may fail (hooks: \"run\" executes them)\nrun <run-1>: dry run of quote on local — queued (next), 0/25 steps\njob <job-1>: queued\nfollow it: run_status {project: \"northfield-fixture\", run_id: \"<run-1>\", wait_s: 25}; stop it: run_cancel",
+    "data": {
+     "id": "<run-1>",
+     "project": "northfield-fixture",
+     "scenario": "quote",
+     "mode": "dry",
+     "env": "local",
+     "status": "queued",
+     "finished": false,
+     "steps_done": 0,
+     "steps_total": 25,
+     "files": {
+      "dir": "<ws>/projects/northfield-fixture/runs/<run-1>"
+     },
+     "job": {
+      "id": "<job-1>",
+      "state": "queued",
+      "queue": {
+       "ahead": 0
+      }
+     },
+     "untrusted": {}
+    }
+   }
+  },
+  {
+   "op": "run_dry",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "quote",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": true,
+    "text": "conflict: a dry run of quote is queued (<run-1>): wait for it to end (run_status), or stop it (run_cancel)",
+    "data": {
+     "error": {
+      "code": "conflict",
+      "message": "a dry run of quote is queued (<run-1>): wait for it to end (run_status), or stop it (run_cancel)",
+      "details": {
+       "run_id": "<run-1>",
+       "job": "<job-1>"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "run_capture",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "quote"
+   },
+   "answer": {
+    "isError": true,
+    "text": "conflict: a dry run of quote is queued (<run-1>): wait for it to end (run_status), or stop it (run_cancel)",
+    "data": {
+     "error": {
+      "code": "conflict",
+      "message": "a dry run of quote is queued (<run-1>): wait for it to end (run_status), or stop it (run_cancel)",
+      "details": {
+       "run_id": "<run-1>",
+       "job": "<job-1>"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "run_dry",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "one-a",
+    "wait_s": 0
+   },
+   "answer": {
+    "twice": [
+     {
+      "isError": false,
+      "text": "dry run <run-2> submitted (job <job-2>).\nrun <run-2>: dry run of one-a on local — queued (1 job ahead), 0/1 steps\njob <job-2>: queued\nfollow it: run_status {project: \"northfield-fixture\", run_id: \"<run-2>\", wait_s: 25}; stop it: run_cancel",
+      "data": {
+       "id": "<run-2>",
+       "project": "northfield-fixture",
+       "scenario": "one-a",
+       "mode": "dry",
+       "env": "local",
+       "status": "queued",
+       "finished": false,
+       "steps_done": 0,
+       "steps_total": 1,
+       "files": {
+        "dir": "<ws>/projects/northfield-fixture/runs/<run-2>"
+       },
+       "job": {
+        "id": "<job-2>",
+        "state": "queued",
+        "queue": {
+         "ahead": 1
+        }
+       },
+       "untrusted": {}
+      }
+     },
+     {
+      "isError": true,
+      "text": "conflict: a dry run of one-a is queued (<run-2>): wait for it to end (run_status), or stop it (run_cancel)",
+      "data": {
+       "error": {
+        "code": "conflict",
+        "message": "a dry run of one-a is queued (<run-2>): wait for it to end (run_status), or stop it (run_cancel)",
+        "details": {
+         "run_id": "<run-2>",
+         "job": "<job-2>"
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "run_dry",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "approve",
+    "hooks": "run",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": true,
+    "text": "needs_approval: the dry run of scenario approve has hooks a human must approve before they run: setup hook 1 \"say\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal\nfix: retake -C <ws> run northfield-fixture approve --dry --hooks run",
+    "data": {
+     "error": {
+      "code": "needs_approval",
+      "message": "the dry run of scenario approve has hooks a human must approve before they run: setup hook 1 \"say\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal",
+      "fix": "retake -C <ws> run northfield-fixture approve --dry --hooks run",
+      "details": {
+       "hooks": [
+        {
+         "phase": "setup",
+         "index": 0,
+         "name": "say",
+         "kind": "shell",
+         "description": "say: shell \"echo hello\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo hello"
+         ]
+        }
+       ],
+       "env": {
+        "name": "local",
+        "production": false,
+        "access": "read-write"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "run_capture",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "approve"
+   },
+   "answer": {
+    "isError": true,
+    "text": "needs_approval: the capture of scenario approve has hooks a human must approve before they run: setup hook 1 \"say\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal\nfix: retake -C <ws> run northfield-fixture approve",
+    "data": {
+     "error": {
+      "code": "needs_approval",
+      "message": "the capture of scenario approve has hooks a human must approve before they run: setup hook 1 \"say\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal",
+      "fix": "retake -C <ws> run northfield-fixture approve",
+      "details": {
+       "hooks": [
+        {
+         "phase": "setup",
+         "index": 0,
+         "name": "say",
+         "kind": "shell",
+         "description": "say: shell \"echo hello\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo hello"
+         ]
+        }
+       ],
+       "env": {
+        "name": "local",
+        "production": false,
+        "access": "read-write"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "run_capture",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "signed"
+   },
+   "answer": {
+    "isError": true,
+    "text": "conflict: supplier (never signed in): its session is not valid and no run signs it in by itself. The run checks it first and stops before filming if still not valid: sign in first (auth_login), or confirm the capture (sessions_ack naming it)",
+    "data": {
+     "error": {
+      "code": "conflict",
+      "message": "supplier (never signed in): its session is not valid and no run signs it in by itself. The run checks it first and stops before filming if still not valid: sign in first (auth_login), or confirm the capture (sessions_ack naming it)",
+      "details": {
+       "sessions": [
+        {
+         "persona": "supplier",
+         "status": "never",
+         "checked_first": true
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "run_capture",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "signed",
+    "sessions_ack": [
+     "supplier"
+    ]
+   },
+   "answer": {
+    "isError": false,
+    "text": "capture <run-3> submitted (job <job-3>).\nrun <run-3>: capture of signed on signed-in — queued (2 jobs ahead), 0/1 steps\njob <job-3>: queued\nfollow it: run_status {project: \"northfield-fixture\", run_id: \"<run-3>\", wait_s: 25}; stop it: run_cancel",
+    "data": {
+     "id": "<run-3>",
+     "project": "northfield-fixture",
+     "scenario": "signed",
+     "mode": "capture",
+     "env": "signed-in",
+     "status": "queued",
+     "finished": false,
+     "steps_done": 0,
+     "steps_total": 1,
+     "files": {
+      "dir": "<ws>/projects/northfield-fixture/runs/<run-3>"
+     },
+     "job": {
+      "id": "<job-3>",
+      "state": "queued",
+      "queue": {
+       "ahead": 2
+      }
+     },
+     "untrusted": {}
+    }
+   }
+  },
+  {
+   "op": "run_capture",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "one-b",
+    "sessions_ack": [
+     "Not A Persona"
+    ]
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: invalid arguments for run_capture:\nsessions_ack.0: a persona name",
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for run_capture:\nsessions_ack.0: a persona name",
+      "details": {
+       "arguments": [
+        "sessions_ack.0: a persona name"
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "run_dry",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "no-such-scenario",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: scenario \"no-such-scenario\" not found in northfield-fixture (scenarios: approve, catalogue, embedded, highlights, live-quote, mobile-quote, off-camera, one-a, one-b, one-c, own-media, phone-and-desktop, proforma, quote, read-only, reports, sandbox-quote, signed, signup, two-personas)",
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "scenario \"no-such-scenario\" not found in northfield-fixture (scenarios: approve, catalogue, embedded, highlights, live-quote, mobile-quote, off-camera, one-a, one-b, one-c, own-media, phone-and-desktop, proforma, quote, read-only, reports, sandbox-quote, signed, signup, two-personas)"
+     }
+    }
+   }
+  },
+  {
+   "op": "run_dry",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "one-c",
+    "until": "a.0",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": false,
+    "text": "dry run <run-4> submitted (job <job-4>).\nrun <run-4>: dry run of one-c on local — queued (3 jobs ahead), 0/1 steps\njob <job-4>: queued\nfollow it: run_status {project: \"northfield-fixture\", run_id: \"<run-4>\", wait_s: 25}; stop it: run_cancel",
+    "data": {
+     "id": "<run-4>",
+     "project": "northfield-fixture",
+     "scenario": "one-c",
+     "mode": "dry",
+     "env": "local",
+     "status": "queued",
+     "finished": false,
+     "steps_done": 0,
+     "steps_total": 1,
+     "files": {
+      "dir": "<ws>/projects/northfield-fixture/runs/<run-4>"
+     },
+     "job": {
+      "id": "<job-4>",
+      "state": "queued",
+      "queue": {
+       "ahead": 3
+      }
+     },
+     "untrusted": {}
+    }
+   }
+  },
+  {
+   "op": "render",
+   "args": {
+    "project": "demo",
+    "scenario": "tl",
+    "template": "nowhere"
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: template \"nowhere\" not found in <repo>/templates or the starter templates (available: default, editorial, motion)",
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "template \"nowhere\" not found in <repo>/templates or the starter templates (available: default, editorial, motion)",
+      "docs": "<repository>/blob/v<version>/docs/guide/workspace.md"
+     }
+    }
+   }
+  },
+  {
+   "op": "render",
+   "args": {
+    "project": "demo",
+    "scenario": "tl",
+    "template": "../editorial"
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: invalid arguments for render:\ntemplate: a theme name such as editorial (a folder of templates/), never a path",
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for render:\ntemplate: a theme name such as editorial (a folder of templates/), never a path",
+      "details": {
+       "arguments": [
+        "template: a theme name such as editorial (a folder of templates/), never a path"
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "render",
+   "args": {
+    "project": "demo",
+    "scenario": "tl",
+    "run_id": "20260101-120000-tl",
+    "overrides": {
+     "variant": "square"
+    }
+   },
+   "answer": {
+    "isError": false,
+    "text": "render tl-v10-square submitted (job <job-5>): run 20260101-120000-tl, square, 2 s.\nrender tl-v10-square of tl: queued: waiting for a take to finish (in this workspace)\njob <job-5>: queued\nfollow it: render_status {project: \"demo\", render_id: \"tl-v10-square\", wait_s: 25}; stop it: job_cancel {job_id: \"<job-5>\"}",
+    "data": {
+     "project": "demo",
+     "render_id": "tl-v10-square",
+     "scenario": "tl",
+     "status": "queued",
+     "finished": false,
+     "untrusted": {
+      "warnings": []
+     },
+     "job": {
+      "id": "<job-5>",
+      "state": "queued",
+      "queue": {
+       "ahead": 0,
+       "held_by": "take"
+      },
+      "yield": {
+       "state": "waiting",
+       "cause": "here"
+      }
+     },
+     "run_id": "20260101-120000-tl",
+     "edit": "scenario",
+     "scenario_changed": false
+    }
+   }
+  },
+  {
+   "op": "render",
+   "args": {
+    "project": "demo",
+    "scenario": "tl"
+   },
+   "answer": {
+    "isError": true,
+    "text": "conflict: render tl-v10-square of tl is queued: wait for it to end (render_status), or cancel it (job_cancel)",
+    "data": {
+     "error": {
+      "code": "conflict",
+      "message": "render tl-v10-square of tl is queued: wait for it to end (render_status), or cancel it (job_cancel)",
+      "details": {
+       "render_id": "tl-v10-square",
+       "job": "<job-5>"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "render",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "quote"
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: no capture run of scenario \"quote\" in <ws>/projects/northfield-fixture/runs: capture one with `retake run northfield-fixture quote`",
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "no capture run of scenario \"quote\" in <ws>/projects/northfield-fixture/runs: capture one with `retake run northfield-fixture quote`",
+      "docs": "<repository>/blob/v<version>/docs/guide/editing.md"
+     }
+    }
+   }
+  },
+  {
+   "op": "review",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v7",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": false,
+    "text": "review of tl-v7 submitted (job <job-6>).\nreview of tl-v7: queued\njob <job-6>: queued\nfollow it: review_get {project: \"demo\", render_id: \"tl-v7\", wait_s: 25}; stop it: job_cancel {job_id: \"<job-6>\"}",
+    "data": {
+     "project": "demo",
+     "render_id": "tl-v7",
+     "status": "queued",
+     "finished": false,
+     "job": {
+      "id": "<job-6>",
+      "state": "queued"
+     },
+     "untrusted": {}
+    }
+   }
+  },
+  {
+   "op": "review",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v1",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: render \"tl-v1\" not found in demo (no renders/tl-v1.json): render_status says whether it is still running",
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "render \"tl-v1\" not found in demo (no renders/tl-v1.json): render_status says whether it is still running"
+     }
+    }
+   }
+  },
+  {
+   "op": "review",
+   "args": {
+    "project": "demo",
+    "render_id": "latest",
+    "scenario": "tl",
+    "fps": 2,
+    "previous": false,
+    "images": "none",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": false,
+    "text": "review of tl-v7 submitted (job <job-7>).\nreview of tl-v7: queued\njob <job-7>: queued\nfollow it: review_get {project: \"demo\", render_id: \"tl-v7\", wait_s: 25}; stop it: job_cancel {job_id: \"<job-7>\"}",
+    "data": {
+     "project": "demo",
+     "render_id": "tl-v7",
+     "status": "queued",
+     "finished": false,
+     "job": {
+      "id": "<job-7>",
+      "state": "queued"
+     },
+     "untrusted": {}
+    }
+   }
+  },
+  {
+   "op": "export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v7"
+   },
+   "answer": {
+    "isError": false,
+    "text": "export of tl-v7 submitted (job <job-8>): mp4_1080p, webm, gif_preview.\n<job-8> export tl-v7 → mp4_1080p, webm, gif_preview in demo: queued · waiting for a take to finish (in this workspace)\nfollow it: job_status {job_id: \"<job-8>\", wait_s: 25}; stop it: job_cancel {job_id: \"<job-8>\"}",
+    "data": {
+     "render_id": "tl-v7",
+     "formats": [
+      "mp4_1080p",
+      "webm",
+      "gif_preview"
+     ],
+     "rerendered": [],
+     "job": {
+      "version": 1,
+      "id": "<job-8>",
+      "kind": "export",
+      "input": {
+       "version": 1,
+       "kind": "export",
+       "project": "demo",
+       "render_id": "tl-v7",
+       "formats": [
+        "mp4_1080p",
+        "webm",
+        "gif_preview"
+       ],
+       "submitted_by": "mcp"
+      },
+      "state": "queued",
+      "created_at": "<at>",
+      "yield": {
+       "state": "waiting",
+       "cause": "here"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v7",
+    "formats": [
+     "webm"
+    ]
+   },
+   "answer": {
+    "isError": true,
+    "text": "conflict: an export of tl-v7 is queued (job <job-8>): wait for it to end (job_status)",
+    "data": {
+     "error": {
+      "code": "conflict",
+      "message": "an export of tl-v7 is queued (job <job-8>): wait for it to end (job_status)",
+      "details": {
+       "job": "<job-8>"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v9",
+    "formats": [
+     "mp4_1080p"
+    ],
+    "gif_duration_s": 5
+   },
+   "answer": {
+    "isError": false,
+    "text": "export of tl-v9 submitted (job <job-9>): mp4_1080p.\n<job-9> export tl-v9 → mp4_1080p in demo: queued · waiting for a take to finish (in this workspace)\nfollow it: job_status {job_id: \"<job-9>\", wait_s: 25}; stop it: job_cancel {job_id: \"<job-9>\"}",
+    "data": {
+     "render_id": "tl-v9",
+     "formats": [
+      "mp4_1080p"
+     ],
+     "rerendered": [],
+     "job": {
+      "version": 1,
+      "id": "<job-9>",
+      "kind": "export",
+      "input": {
+       "version": 1,
+       "kind": "export",
+       "project": "demo",
+       "render_id": "tl-v9",
+       "formats": [
+        "mp4_1080p"
+       ],
+       "gif": {
+        "duration_s": 5
+       },
+       "submitted_by": "mcp"
+      },
+      "state": "queued",
+      "created_at": "<at>",
+      "yield": {
+       "state": "waiting",
+       "cause": "here"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v8"
+   },
+   "answer": {
+    "isError": true,
+    "text": "conflict: 2 exports are already queued or running: wait for one to end",
+    "data": {
+     "error": {
+      "code": "conflict",
+      "message": "2 exports are already queued or running: wait for one to end",
+      "details": {
+       "open": 2
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v1"
+   },
+   "answer": {
+    "isError": true,
+    "text": "conflict: 2 exports are already queued or running: wait for one to end",
+    "data": {
+     "error": {
+      "code": "conflict",
+      "message": "2 exports are already queued or running: wait for one to end",
+      "details": {
+       "open": 2
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v8",
+    "formats": [
+     "webm",
+     "webm"
+    ]
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: invalid arguments for export:\nformats: each format once",
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for export:\nformats: each format once",
+      "details": {
+       "arguments": [
+        "formats: each format once"
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "page_inspect",
+   "args": {
+    "project": "northfield-fixture",
+    "page": "console",
+    "path": "/imports",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": false,
+    "text": "inspection <inspection-1> submitted (job <job-10>).\n<job-10> inspect page console /imports → <inspection-1> in northfield-fixture: queued\nfollow it: job_status {job_id: \"<job-10>\", wait_s: 25} (it returns the inspection and its marked screenshot); stop it: job_cancel {job_id: \"<job-10>\"}",
+    "data": {
+     "inspect_id": "<inspection-1>",
+     "project": "northfield-fixture",
+     "source": "page console",
+     "job": {
+      "id": "<job-10>",
+      "state": "queued"
+     }
+    }
+   }
+  },
+  {
+   "op": "page_inspect",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "quote",
+    "until": "a.0",
+    "images": "none",
+    "detail": "full",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: scenario <ws>/projects/northfield-fixture/scenarios/quote.yaml has 1 error:\n<ws>/projects/northfield-fixture/scenarios/quote.yaml:12:1 error: --until \"a.0\" does not match any step (use \"<scene>.<step id|index>\", a unique step id or a scene id)",
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "scenario <ws>/projects/northfield-fixture/scenarios/quote.yaml has 1 error:\n<ws>/projects/northfield-fixture/scenarios/quote.yaml:12:1 error: --until \"a.0\" does not match any step (use \"<scene>.<step id|index>\", a unique step id or a scene id)",
+      "details": {
+       "issues": [
+        {
+         "severity": "error",
+         "path": [],
+         "message": "--until \"a.0\" does not match any step (use \"<scene>.<step id|index>\", a unique step id or a scene id)",
+         "line": 12,
+         "col": 1
+        }
+       ]
+      },
+      "docs": "<repository>/blob/v<version>/docs/guide/scenarios.md"
+     }
+    }
+   }
+  },
+  {
+   "op": "page_inspect",
+   "args": {
+    "project": "northfield-fixture",
+    "page": "nowhere",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: environment local has no page \"nowhere\" (pages: console, shop)",
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "environment local has no page \"nowhere\" (pages: console, shop)"
+     }
+    }
+   }
+  },
+  {
+   "op": "page_inspect",
+   "args": {
+    "project": "northfield-fixture",
+    "url": "http://elsewhere.test/",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": true,
+    "text": "refused: url: its origin is not one of environment local's pages (http://localhost:4401, http://localhost:4402): an inspection opens only the environment's own origins — another port of localhost is another app",
+    "data": {
+     "error": {
+      "code": "refused",
+      "message": "url: its origin is not one of environment local's pages (http://localhost:4401, http://localhost:4402): an inspection opens only the environment's own origins — another port of localhost is another app"
+     }
+    }
+   }
+  },
+  {
+   "op": "page_inspect",
+   "args": {
+    "project": "northfield-fixture",
+    "wait_s": 0
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: give exactly one of page (with an optional path), url, or scenario (with an optional until)",
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "give exactly one of page (with an optional path), url, or scenario (with an optional until)"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_status",
+   "args": {
+    "job_id": "<job-1>"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-1> run quote (dry) → <run-1> in northfield-fixture: queued\nnext in the queue",
+    "data": {
+     "version": 1,
+     "id": "<job-1>",
+     "kind": "run",
+     "input": {
+      "version": 1,
+      "kind": "run",
+      "project": "northfield-fixture",
+      "scenario": "quote",
+      "scenario_sha256": "3386d858a4c58a251fc6b12df137a7f249da8bcec05eef31ada27ebebd75db77",
+      "mode": "dry",
+      "run_id": "<run-1>",
+      "submitted_by": "mcp"
+     },
+     "state": "queued",
+     "created_at": "<at>",
+     "queue": {
+      "ahead": 0
+     }
+    }
+   }
+  },
+  {
+   "op": "job_status",
+   "args": {
+    "job_id": "<job-3>"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-3> run signed (capture) → <run-3> in northfield-fixture: queued\n2 jobs ahead",
+    "data": {
+     "version": 1,
+     "id": "<job-3>",
+     "kind": "run",
+     "input": {
+      "version": 1,
+      "kind": "run",
+      "project": "northfield-fixture",
+      "scenario": "signed",
+      "scenario_sha256": "b4103ece79042bcf8c15ba5392952179d9ec83912b1fd1c57f8bab5941c66b82",
+      "mode": "capture",
+      "run_id": "<run-3>",
+      "submitted_by": "mcp"
+     },
+     "state": "queued",
+     "created_at": "<at>",
+     "queue": {
+      "ahead": 2
+     }
+    }
+   }
+  },
+  {
+   "op": "job_status",
+   "args": {
+    "job_id": "<job-5>"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-5> render tl (run 20260101-120000-tl) → tl-v10-square in demo: queued · waiting for a take to finish (in this workspace)\nwaiting for a take to finish\nrender_status {project: \"demo\", render_id: \"tl-v10-square\"} has the render's details",
+    "data": {
+     "version": 1,
+     "id": "<job-5>",
+     "kind": "render",
+     "input": {
+      "version": 1,
+      "kind": "render",
+      "project": "demo",
+      "scenario": "tl",
+      "run_id": "20260101-120000-tl",
+      "timeline_sha256": "188ddf7ce21038d6fd94399cd66565dc0dc40c8e5bd07cb5ed1f0136d41b96f1",
+      "edit_sha256": "c07b809541f15d5a4c97c7654ab009a1ae6328fab0cb320ca51d72907c7030a5",
+      "render_id": "tl-v10-square",
+      "overrides": {
+       "variant": "square"
+      },
+      "submitted_by": "mcp"
+     },
+     "state": "queued",
+     "created_at": "<at>",
+     "yield": {
+      "state": "waiting",
+      "cause": "here"
+     },
+     "queue": {
+      "ahead": 0,
+      "held_by": "take"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_status",
+   "args": {
+    "job_id": "<job-6>"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-6> review tl-v7 in demo: queued · waiting for a take to finish (in this workspace)\nwaiting for a take to finish (1 job ahead)\nreview_get {project: \"demo\", render_id: \"tl-v7\"} reads the review (with its contact sheet)",
+    "data": {
+     "version": 1,
+     "id": "<job-6>",
+     "kind": "review",
+     "input": {
+      "version": 1,
+      "kind": "review",
+      "project": "demo",
+      "render_id": "tl-v7",
+      "fps": 1,
+      "submitted_by": "mcp"
+     },
+     "state": "queued",
+     "created_at": "<at>",
+     "yield": {
+      "state": "waiting",
+      "cause": "here"
+     },
+     "queue": {
+      "ahead": 1,
+      "held_by": "take"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_status",
+   "args": {
+    "job_id": "<job-8>"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-8> export tl-v7 → mp4_1080p, webm, gif_preview in demo: queued · waiting for a take to finish (in this workspace)\nwaiting for a take to finish (3 jobs ahead)",
+    "data": {
+     "version": 1,
+     "id": "<job-8>",
+     "kind": "export",
+     "input": {
+      "version": 1,
+      "kind": "export",
+      "project": "demo",
+      "render_id": "tl-v7",
+      "formats": [
+       "mp4_1080p",
+       "webm",
+       "gif_preview"
+      ],
+      "submitted_by": "mcp"
+     },
+     "state": "queued",
+     "created_at": "<at>",
+     "yield": {
+      "state": "waiting",
+      "cause": "here"
+     },
+     "queue": {
+      "ahead": 3,
+      "held_by": "take"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_status",
+   "args": {
+    "job_id": "<job-10>"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-10> inspect page console /imports → <inspection-1> in northfield-fixture: queued\nfollow it: job_status {job_id: \"<job-10>\", wait_s: 25} (it returns the inspection and its marked screenshot); stop it: job_cancel {job_id: \"<job-10>\"}\n4 jobs ahead",
+    "data": {
+     "inspect_id": "<inspection-1>",
+     "project": "northfield-fixture",
+     "source": "page console",
+     "job": {
+      "version": 1,
+      "id": "<job-10>",
+      "kind": "inspect",
+      "input": {
+       "version": 1,
+       "kind": "inspect",
+       "project": "northfield-fixture",
+       "inspect_id": "<inspection-1>",
+       "source": {
+        "kind": "page",
+        "page": "console",
+        "path": "/imports"
+       },
+       "images": "marked",
+       "submitted_by": "mcp"
+      },
+      "state": "queued",
+      "created_at": "<at>",
+      "queue": {
+       "ahead": 4
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "job_status",
+   "args": {
+    "job_id": "<job-10>",
+    "detail": "full"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-10> inspect page console /imports → <inspection-1> in northfield-fixture: queued\nfollow it: job_status {job_id: \"<job-10>\", wait_s: 25} (it returns the inspection and its marked screenshot); stop it: job_cancel {job_id: \"<job-10>\"}\n4 jobs ahead",
+    "data": {
+     "inspect_id": "<inspection-1>",
+     "project": "northfield-fixture",
+     "source": "page console",
+     "job": {
+      "version": 1,
+      "id": "<job-10>",
+      "kind": "inspect",
+      "input": {
+       "version": 1,
+       "kind": "inspect",
+       "project": "northfield-fixture",
+       "inspect_id": "<inspection-1>",
+       "source": {
+        "kind": "page",
+        "page": "console",
+        "path": "/imports"
+       },
+       "images": "marked",
+       "submitted_by": "mcp"
+      },
+      "state": "queued",
+      "created_at": "<at>",
+      "queue": {
+       "ahead": 4
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "job_cancel",
+   "args": {
+    "job_id": "<job-10>"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-10> inspect page console /imports → <inspection-1> in northfield-fixture: cancelled\ncancelled.",
+    "data": {
+     "version": 1,
+     "id": "<job-10>",
+     "kind": "inspect",
+     "input": {
+      "version": 1,
+      "kind": "inspect",
+      "project": "northfield-fixture",
+      "inspect_id": "<inspection-1>",
+      "source": {
+       "kind": "page",
+       "page": "console",
+       "path": "/imports"
+      },
+      "images": "marked",
+      "submitted_by": "mcp"
+     },
+     "state": "cancelled",
+     "created_at": "<at>",
+     "cancel_requested_at": "<at>",
+     "finished_at": "<at>",
+     "error": {
+      "code": "cancelled",
+      "message": "the message is in \"untrusted.error\""
+     },
+     "derived": true,
+     "untrusted": {
+      "error": "cancelled before it started"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_cancel",
+   "args": {
+    "job_id": "<job-10>"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-10> inspect page console /imports → <inspection-1> in northfield-fixture: cancelled\ncancelled.",
+    "data": {
+     "version": 1,
+     "id": "<job-10>",
+     "kind": "inspect",
+     "input": {
+      "version": 1,
+      "kind": "inspect",
+      "project": "northfield-fixture",
+      "inspect_id": "<inspection-1>",
+      "source": {
+       "kind": "page",
+       "page": "console",
+       "path": "/imports"
+      },
+      "images": "marked",
+      "submitted_by": "mcp"
+     },
+     "state": "cancelled",
+     "created_at": "<at>",
+     "cancel_requested_at": "<at>",
+     "finished_at": "<at>",
+     "error": {
+      "code": "cancelled",
+      "message": "the message is in \"untrusted.error\""
+     },
+     "derived": true,
+     "untrusted": {
+      "error": "cancelled before it started"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_status",
+   "args": {
+    "job_id": "<job-10>"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-10> inspect page console /imports → <inspection-1> in northfield-fixture: cancelled\ncancelled: cancelled — the message is in \"untrusted.error\" (it can quote the scenario or the filmed site)",
+    "data": {
+     "inspect_id": "<inspection-1>",
+     "project": "northfield-fixture",
+     "source": "page console",
+     "job": {
+      "version": 1,
+      "id": "<job-10>",
+      "kind": "inspect",
+      "input": {
+       "version": 1,
+       "kind": "inspect",
+       "project": "northfield-fixture",
+       "inspect_id": "<inspection-1>",
+       "source": {
+        "kind": "page",
+        "page": "console",
+        "path": "/imports"
+       },
+       "images": "marked",
+       "submitted_by": "mcp"
+      },
+      "state": "cancelled",
+      "created_at": "<at>",
+      "cancel_requested_at": "<at>",
+      "finished_at": "<at>",
+      "error": {
+       "code": "cancelled",
+       "message": "the message is in \"untrusted.error\""
+      },
+      "derived": true,
+      "untrusted": {
+       "error": "cancelled before it started"
+      }
+     },
+     "error": {
+      "code": "cancelled"
+     },
+     "untrusted": {
+      "error": "cancelled before it started"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_cancel",
+   "args": {
+    "job_id": "<job-5>"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-5> render tl (run 20260101-120000-tl) → tl-v10-square in demo: cancelled\ncancelled.",
+    "data": {
+     "version": 1,
+     "id": "<job-5>",
+     "kind": "render",
+     "input": {
+      "version": 1,
+      "kind": "render",
+      "project": "demo",
+      "scenario": "tl",
+      "run_id": "20260101-120000-tl",
+      "timeline_sha256": "188ddf7ce21038d6fd94399cd66565dc0dc40c8e5bd07cb5ed1f0136d41b96f1",
+      "edit_sha256": "c07b809541f15d5a4c97c7654ab009a1ae6328fab0cb320ca51d72907c7030a5",
+      "render_id": "tl-v10-square",
+      "overrides": {
+       "variant": "square"
+      },
+      "submitted_by": "mcp"
+     },
+     "state": "cancelled",
+     "created_at": "<at>",
+     "cancel_requested_at": "<at>",
+     "finished_at": "<at>",
+     "error": {
+      "code": "cancelled",
+      "message": "the message is in \"untrusted.error\""
+     },
+     "derived": true,
+     "untrusted": {
+      "error": "cancelled before it started"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_cancel",
+   "args": {
+    "job_id": "<job-8>"
+   },
+   "answer": {
+    "isError": false,
+    "text": "<job-8> export tl-v7 → mp4_1080p, webm, gif_preview in demo: cancelled\ncancelled.",
+    "data": {
+     "version": 1,
+     "id": "<job-8>",
+     "kind": "export",
+     "input": {
+      "version": 1,
+      "kind": "export",
+      "project": "demo",
+      "render_id": "tl-v7",
+      "formats": [
+       "mp4_1080p",
+       "webm",
+       "gif_preview"
+      ],
+      "submitted_by": "mcp"
+     },
+     "state": "cancelled",
+     "created_at": "<at>",
+     "cancel_requested_at": "<at>",
+     "finished_at": "<at>",
+     "error": {
+      "code": "cancelled",
+      "message": "the message is in \"untrusted.error\""
+     },
+     "derived": true,
+     "untrusted": {
+      "error": "cancelled before it started"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_cancel",
+   "args": {
+    "job_id": "<job-11>"
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: job <job-11> not found (job_list names the jobs)",
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "job <job-11> not found (job_list names the jobs)"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_cancel",
+   "args": {
+    "job_id": "j_nope"
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: invalid arguments for job_cancel:\njob_id: a job id: j_ followed by 26 characters (job_list names them)",
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for job_cancel:\njob_id: a job id: j_ followed by 26 characters (job_list names them)",
+      "details": {
+       "arguments": [
+        "job_id: a job id: j_ followed by 26 characters (job_list names them)"
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v8",
+    "formats": [
+     "gif_preview"
+    ],
+    "gif_start_s": 1
+   },
+   "answer": {
+    "isError": false,
+    "text": "export of tl-v8 submitted (job <job-12>): gif_preview.\n<job-12> export tl-v8 → gif_preview in demo: queued · waiting for a take to finish (in this workspace)\nfollow it: job_status {job_id: \"<job-12>\", wait_s: 25}; stop it: job_cancel {job_id: \"<job-12>\"}",
+    "data": {
+     "render_id": "tl-v8",
+     "formats": [
+      "gif_preview"
+     ],
+     "rerendered": [],
+     "job": {
+      "version": 1,
+      "id": "<job-12>",
+      "kind": "export",
+      "input": {
+       "version": 1,
+       "kind": "export",
+       "project": "demo",
+       "render_id": "tl-v8",
+       "formats": [
+        "gif_preview"
+       ],
+       "gif": {
+        "start_s": 1
+       },
+       "submitted_by": "mcp"
+      },
+      "state": "queued",
+      "created_at": "<at>",
+      "yield": {
+       "state": "waiting",
+       "cause": "here"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "quote",
+    "mode": "dry"
+   },
+   "answer": {
+    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"scenario_run\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_prune, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_create_from_brand, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset)"
+   }
+  },
+  {
+   "op": "render_cancel",
+   "args": {
+    "project": "demo",
+    "job": "<job-5>"
+   },
+   "answer": {
+    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"render_cancel\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_prune, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_create_from_brand, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset)"
+   }
+  },
+  {
+   "op": "job_list",
+   "args": {},
+   "answer": {
+    "isError": false,
+    "text": "11 jobs:\n- <job-12> export tl-v8 → gif_preview in demo: queued · waiting for a take to finish (in this workspace)\n- <job-10> inspect page console /imports → <inspection-1> in northfield-fixture: cancelled\n- <job-9> export tl-v9 → mp4_1080p in demo: queued · waiting for a take to finish (in this workspace)\n- <job-8> export tl-v7 → mp4_1080p, webm, gif_preview in demo: cancelled\n- <job-7> review tl-v7 (2 fps) in demo: queued · waiting for a take to finish (in this workspace)\n- <job-6> review tl-v7 in demo: queued · waiting for a take to finish (in this workspace)\n- <job-5> render tl (run 20260101-120000-tl) → tl-v10-square in demo: cancelled\n- <job-4> run one-c (dry) → <run-4> in northfield-fixture: queued\n- <job-3> run signed (capture) → <run-3> in northfield-fixture: queued\n- <job-2> run one-a (dry) → <run-2> in northfield-fixture: queued\n- <job-1> run quote (dry) → <run-1> in northfield-fixture: queued\nworker: running (pid <pid>)",
+    "data": {
+     "jobs": [
+      {
+       "version": 1,
+       "id": "<job-12>",
+       "kind": "export",
+       "input": {
+        "version": 1,
+        "kind": "export",
+        "project": "demo",
+        "render_id": "tl-v8",
+        "formats": [
+         "gif_preview"
+        ],
+        "gif": {
+         "start_s": 1
+        },
+        "submitted_by": "mcp"
+       },
+       "state": "queued",
+       "created_at": "<at>",
+       "yield": {
+        "state": "waiting",
+        "cause": "here"
+       }
+      },
+      {
+       "version": 1,
+       "id": "<job-10>",
+       "kind": "inspect",
+       "input": {
+        "version": 1,
+        "kind": "inspect",
+        "project": "northfield-fixture",
+        "inspect_id": "<inspection-1>",
+        "source": {
+         "kind": "page",
+         "page": "console",
+         "path": "/imports"
+        },
+        "images": "marked",
+        "submitted_by": "mcp"
+       },
+       "state": "cancelled",
+       "created_at": "<at>",
+       "cancel_requested_at": "<at>",
+       "finished_at": "<at>",
+       "error": {
+        "code": "cancelled",
+        "message": "the message is in \"untrusted.error\""
+       },
+       "derived": true,
+       "untrusted": {
+        "error": "cancelled before it started"
+       }
+      },
+      {
+       "version": 1,
+       "id": "<job-9>",
+       "kind": "export",
+       "input": {
+        "version": 1,
+        "kind": "export",
+        "project": "demo",
+        "render_id": "tl-v9",
+        "formats": [
+         "mp4_1080p"
+        ],
+        "gif": {
+         "duration_s": 5
+        },
+        "submitted_by": "mcp"
+       },
+       "state": "queued",
+       "created_at": "<at>",
+       "yield": {
+        "state": "waiting",
+        "cause": "here"
+       }
+      },
+      {
+       "version": 1,
+       "id": "<job-8>",
+       "kind": "export",
+       "input": {
+        "version": 1,
+        "kind": "export",
+        "project": "demo",
+        "render_id": "tl-v7",
+        "formats": [
+         "mp4_1080p",
+         "webm",
+         "gif_preview"
+        ],
+        "submitted_by": "mcp"
+       },
+       "state": "cancelled",
+       "created_at": "<at>",
+       "cancel_requested_at": "<at>",
+       "finished_at": "<at>",
+       "error": {
+        "code": "cancelled",
+        "message": "the message is in \"untrusted.error\""
+       },
+       "derived": true,
+       "untrusted": {
+        "error": "cancelled before it started"
+       }
+      },
+      {
+       "version": 1,
+       "id": "<job-7>",
+       "kind": "review",
+       "input": {
+        "version": 1,
+        "kind": "review",
+        "project": "demo",
+        "render_id": "tl-v7",
+        "fps": 2,
+        "previous": false,
+        "submitted_by": "mcp"
+       },
+       "state": "queued",
+       "created_at": "<at>",
+       "yield": {
+        "state": "waiting",
+        "cause": "here"
+       }
+      },
+      {
+       "version": 1,
+       "id": "<job-6>",
+       "kind": "review",
+       "input": {
+        "version": 1,
+        "kind": "review",
+        "project": "demo",
+        "render_id": "tl-v7",
+        "fps": 1,
+        "submitted_by": "mcp"
+       },
+       "state": "queued",
+       "created_at": "<at>",
+       "yield": {
+        "state": "waiting",
+        "cause": "here"
+       }
+      },
+      {
+       "version": 1,
+       "id": "<job-5>",
+       "kind": "render",
+       "input": {
+        "version": 1,
+        "kind": "render",
+        "project": "demo",
+        "scenario": "tl",
+        "run_id": "20260101-120000-tl",
+        "timeline_sha256": "188ddf7ce21038d6fd94399cd66565dc0dc40c8e5bd07cb5ed1f0136d41b96f1",
+        "edit_sha256": "c07b809541f15d5a4c97c7654ab009a1ae6328fab0cb320ca51d72907c7030a5",
+        "render_id": "tl-v10-square",
+        "overrides": {
+         "variant": "square"
+        },
+        "submitted_by": "mcp"
+       },
+       "state": "cancelled",
+       "created_at": "<at>",
+       "cancel_requested_at": "<at>",
+       "finished_at": "<at>",
+       "error": {
+        "code": "cancelled",
+        "message": "the message is in \"untrusted.error\""
+       },
+       "derived": true,
+       "untrusted": {
+        "error": "cancelled before it started"
+       }
+      },
+      {
+       "version": 1,
+       "id": "<job-4>",
+       "kind": "run",
+       "input": {
+        "version": 1,
+        "kind": "run",
+        "project": "northfield-fixture",
+        "scenario": "one-c",
+        "scenario_sha256": "f9e229681bd30ca741ef0aa261f72a5ad4cff95d6d485dd84887c56a701914d0",
+        "mode": "dry",
+        "until": "a.0",
+        "run_id": "<run-4>",
+        "submitted_by": "mcp"
+       },
+       "state": "queued",
+       "created_at": "<at>"
+      },
+      {
+       "version": 1,
+       "id": "<job-3>",
+       "kind": "run",
+       "input": {
+        "version": 1,
+        "kind": "run",
+        "project": "northfield-fixture",
+        "scenario": "signed",
+        "scenario_sha256": "b4103ece79042bcf8c15ba5392952179d9ec83912b1fd1c57f8bab5941c66b82",
+        "mode": "capture",
+        "run_id": "<run-3>",
+        "submitted_by": "mcp"
+       },
+       "state": "queued",
+       "created_at": "<at>"
+      },
+      {
+       "version": 1,
+       "id": "<job-2>",
+       "kind": "run",
+       "input": {
+        "version": 1,
+        "kind": "run",
+        "project": "northfield-fixture",
+        "scenario": "one-a",
+        "scenario_sha256": "7bb47572a3eaad4d05fa409233f2f299f377775f494577c29defb378f3f0e8a9",
+        "mode": "dry",
+        "run_id": "<run-2>",
+        "submitted_by": "mcp"
+       },
+       "state": "queued",
+       "created_at": "<at>"
+      },
+      {
+       "version": 1,
+       "id": "<job-1>",
+       "kind": "run",
+       "input": {
+        "version": 1,
+        "kind": "run",
+        "project": "northfield-fixture",
+        "scenario": "quote",
+        "scenario_sha256": "3386d858a4c58a251fc6b12df137a7f249da8bcec05eef31ada27ebebd75db77",
+        "mode": "dry",
+        "run_id": "<run-1>",
+        "submitted_by": "mcp"
+       },
+       "state": "queued",
+       "created_at": "<at>"
+      }
+     ],
+     "worker": {
+      "pid": "<pid>",
+      "since": "<at>",
+      "build": "b1"
+     }
+    }
+   }
+  }
+ ],
+ "studio": [
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "quote",
+    "mode": "dry"
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "rehearsal <run-1> queued (job <job-1>)",
+     "data": {
+      "run_id": "<run-1>",
+      "job": "<job-1>",
+      "state": "queued",
+      "mode": "dry",
+      "warnings": [
+       "dry run without its setup hooks: steps that need prepared data may fail (hooks: \"run\" executes them)"
+      ],
+      "worker": {
+       "pid": "<pid>",
+       "spawned": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "quote",
+    "mode": "capture"
+   },
+   "answer": {
+    "status": 409,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "conflict",
+      "message": "a rehearsal of quote is queued (<run-1>): wait for it to end, or stop it",
+      "details": {
+       "run_id": "<run-1>",
+       "job": "<job-1>"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "one-a",
+    "mode": "dry"
+   },
+   "answer": {
+    "twice": [
+     {
+      "status": 200,
+      "body": {
+       "ok": true,
+       "summary": "rehearsal <run-2> queued (job <job-2>)",
+       "data": {
+        "run_id": "<run-2>",
+        "job": "<job-2>",
+        "state": "queued",
+        "mode": "dry",
+        "warnings": [],
+        "worker": {
+         "pid": "<pid>",
+         "spawned": false
+        }
+       }
+      }
+     },
+     {
+      "status": 409,
+      "body": {
+       "ok": false,
+       "error": {
+        "code": "conflict",
+        "message": "a rehearsal of one-a is queued (<run-2>): wait for it to end, or stop it",
+        "details": {
+         "run_id": "<run-2>",
+         "job": "<job-2>"
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "one-b",
+    "mode": "capture",
+    "hash": "4d5afd0123abc0053fe01dd9dfa874f7dadbdc630cb336e9b2e1c83605353d3d"
+   },
+   "answer": {
+    "status": 409,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "conflict",
+      "message": "scenarios/one-b changed since it was shown: look at it again, then start the run",
+      "details": {
+       "shown": "4d5afd0123abc0053fe01dd9dfa874f7dadbdc630cb336e9b2e1c83605353d3d",
+       "current": "dd0e980b9b8a34238a3d4d66c61b81b9e25bda2ad4db786c8df1f8e65bf50096"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "one-b",
+    "mode": "capture",
+    "hash": "dd0e980b9b8a34238a3d4d66c61b81b9e25bda2ad4db786c8df1f8e65bf50096"
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "capture <run-3> queued (job <job-3>)",
+     "data": {
+      "run_id": "<run-3>",
+      "job": "<job-3>",
+      "state": "queued",
+      "mode": "capture",
+      "warnings": [],
+      "worker": {
+       "pid": "<pid>",
+       "spawned": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "approve",
+    "mode": "capture"
+   },
+   "answer": {
+    "status": 403,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "needs_approval",
+      "message": "the capture of scenario approve has hooks a human must approve before they run: setup hook 1 \"say\" (a shell command (runs local code)). The Studio cannot approve hooks yet: run it in a terminal",
+      "fix": "retake -C <ws> run northfield-fixture approve",
+      "details": {
+       "hooks": [
+        {
+         "phase": "setup",
+         "index": 0,
+         "name": "say",
+         "kind": "shell",
+         "description": "say: shell \"echo hello\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo hello"
+         ]
+        }
+       ],
+       "env": {
+        "name": "local",
+        "production": false,
+        "access": "read-write"
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "approve",
+    "mode": "dry",
+    "env": "local"
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "rehearsal <run-4> queued (job <job-4>)",
+     "data": {
+      "run_id": "<run-4>",
+      "job": "<job-4>",
+      "state": "queued",
+      "mode": "dry",
+      "warnings": [
+       "dry run without its setup hooks: steps that need prepared data may fail (hooks: \"run\" executes them)"
+      ],
+      "worker": {
+       "pid": "<pid>",
+       "spawned": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "signed",
+    "mode": "capture"
+   },
+   "answer": {
+    "status": 409,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "conflict",
+      "message": "supplier (never signed in): its session is not valid and no run signs it in by itself. The run checks it first and stops before filming if still not valid: sign in first, or confirm the capture",
+      "details": {
+       "sessions": [
+        {
+         "persona": "supplier",
+         "status": "never",
+         "checked_first": true
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "signed",
+    "mode": "capture",
+    "sessions_ack": [
+     "supplier"
+    ]
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "capture <run-5> queued (job <job-5>)",
+     "data": {
+      "run_id": "<run-5>",
+      "job": "<job-5>",
+      "state": "queued",
+      "mode": "capture",
+      "warnings": [],
+      "worker": {
+       "pid": "<pid>",
+       "spawned": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "one-c",
+    "mode": "dry",
+    "sessions_ack": [
+     "supplier"
+    ]
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "rehearsal <run-6> queued (job <job-6>)",
+     "data": {
+      "run_id": "<run-6>",
+      "job": "<job-6>",
+      "state": "queued",
+      "mode": "dry",
+      "warnings": [],
+      "worker": {
+       "pid": "<pid>",
+       "spawned": false
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "quote",
+    "mode": "later"
+   },
+   "answer": {
+    "status": 400,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for scenario_run:\nmode: Invalid option: expected one of \"dry\"|\"capture\"",
+      "details": {
+       "arguments": [
+        "mode: Invalid option: expected one of \"dry\"|\"capture\""
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "no-such-scenario",
+    "mode": "dry"
+   },
+   "answer": {
+    "status": 404,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "not_found",
+      "message": "scenario \"no-such-scenario\" not found in northfield-fixture (scenarios: approve, catalogue, embedded, highlights, live-quote, mobile-quote, off-camera, one-a, one-b, one-c, own-media, phone-and-desktop, proforma, quote, read-only, reports, sandbox-quote, signed, signup, two-personas)"
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_run",
+   "args": {
+    "project": "northfield-fixture",
+    "name": "quote",
+    "mode": "dry",
+    "until": "a.0"
+   },
+   "answer": {
+    "status": 400,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for scenario_run:\n(arguments): unknown argument until",
+      "details": {
+       "arguments": [
+        "(arguments): unknown argument until"
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "run_pause",
+   "args": {
+    "project": "northfield-fixture",
+    "run_id": "<run-1>",
+    "paused": true
+   },
+   "answer": {
+    "status": 409,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "conflict",
+      "message": "run <run-1> has not started yet: it can be paused once it runs (between steps)"
+     }
+    }
+   }
+  },
+  {
+   "op": "run_pause",
+   "args": {
+    "project": "northfield-fixture",
+    "run_id": "<run-1>",
+    "paused": false
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "<run-1>: queued",
+     "data": {
+      "id": "<run-1>",
+      "scenario": "quote",
+      "mode": "dry",
+      "status": "queued",
+      "env": "local",
+      "started_at": "<at>",
+      "steps_done": 0,
+      "steps_total": 25,
+      "project": "northfield-fixture",
+      "dir": "<ws>/projects/northfield-fixture/runs/<run-1>",
+      "hooks": {
+       "setup": "none",
+       "teardown": "none"
+      },
+      "options": {
+       "hooks": "skip",
+       "headed": false
+      },
+      "outputs": [
+       {
+        "ref": "runs/<run-1>/run.json",
+        "path": "<ws>/projects/northfield-fixture/runs/<run-1>/run.json",
+        "kind": "run",
+        "bytes": 558
+       }
+      ],
+      "screenshots": [],
+      "finished": false,
+      "untrusted": {
+       "warnings": []
+      },
+      "job": {
+       "id": "<job-1>",
+       "state": "queued",
+       "queue": {
+        "ahead": 0
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "run_pause",
+   "args": {
+    "project": "northfield-fixture",
+    "run_id": "<run-7>",
+    "paused": true
+   },
+   "answer": {
+    "status": 404,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "not_found",
+      "message": "run \"<run-7>\" not found in northfield-fixture (no runs/<run-7>/run.json): run_list names its runs"
+     }
+    }
+   }
+  },
+  {
+   "op": "run_pause",
+   "args": {
+    "project": "northfield-fixture",
+    "run_id": "../x",
+    "paused": true
+   },
+   "answer": {
+    "status": 400,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for run_pause:\nrun_id: a run id (scenario_blocks lists them), never a path",
+      "details": {
+       "arguments": [
+        "run_id: a run id (scenario_blocks lists them), never a path"
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "auth_login",
+   "args": {
+    "project": "northfield-fixture",
+    "env": "signed-in",
+    "persona": "supplier"
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "A browser window is opening on the user's machine for supplier (northfield-fixture, env signed-in). Ask the user to sign in there, then close the window. Never ask for their password. (job <job-7>)\njob <job-7>: queued\nfollow it: job_status {job_id: \"<job-7>\", wait_s: 25}",
+     "data": {
+      "version": 1,
+      "id": "<job-7>",
+      "kind": "auth_login",
+      "input": {
+       "version": 1,
+       "kind": "auth_login",
+       "project": "northfield-fixture",
+       "env": "signed-in",
+       "persona": "supplier",
+       "mode": "headed",
+       "submitted_by": "ui"
+      },
+      "state": "queued",
+      "created_at": "<at>"
+     }
+    }
+   }
+  },
+  {
+   "op": "sign_in_cancel",
+   "args": {
+    "job": "<job-1>"
+   },
+   "answer": {
+    "status": 403,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "refused",
+      "message": "job <job-1> is not a sign-in (it is a run job): only a sign-in is stopped here"
+     }
+    }
+   }
+  },
+  {
+   "op": "sign_in_cancel",
+   "args": {
+    "job": "<job-7>"
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "sign-in <job-7>: cancelled",
+     "data": {
+      "id": "<job-7>",
+      "kind": "auth_login",
+      "state": "cancelled",
+      "cancel_requested_at": "<at>"
+     }
+    }
+   }
+  },
+  {
+   "op": "sign_in_cancel",
+   "args": {
+    "job": "<job-8>"
+   },
+   "answer": {
+    "status": 404,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "not_found",
+      "message": "job <job-8> not found (job_list names the jobs)"
+     }
+    }
+   }
+  },
+  {
+   "op": "sign_in_cancel",
+   "args": {
+    "job": "j_nope"
+   },
+   "answer": {
+    "status": 400,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for sign_in_cancel:\njob: a job id (j_…)",
+      "details": {
+       "arguments": [
+        "job: a job id (j_…)"
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_render",
+   "args": {
+    "project": "demo",
+    "name": "tl",
+    "run": "20260101-120000-tl",
+    "expect_edit_sha256": "c07b809541f15d5a4c97c7654ab009a1ae6328fab0cb320ca51d72907c7030a5"
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "render tl-v10 queued (job <job-9>)",
+     "data": {
+      "render_id": "tl-v10",
+      "job": "<job-9>",
+      "state": "queued",
+      "run_id": "20260101-120000-tl",
+      "variant": "landscape",
+      "duration_s": 2,
+      "edit": "scenario",
+      "scenario_changed": false,
+      "worker": {
+       "pid": "<pid>",
+       "spawned": false
+      },
+      "untrusted": {
+       "warnings": []
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_render",
+   "args": {
+    "project": "demo",
+    "name": "tl",
+    "run": "20260101-120000-tl",
+    "expect_edit_sha256": "c07b809541f15d5a4c97c7654ab009a1ae6328fab0cb320ca51d72907c7030a5"
+   },
+   "answer": {
+    "status": 409,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "conflict",
+      "message": "render tl-v10 of tl is queued: wait for it to end, or cancel it",
+      "details": {
+       "render_id": "tl-v10",
+       "job": "<job-9>"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_render",
+   "args": {
+    "project": "demo",
+    "name": "tl",
+    "run": "20260101-120000-tl",
+    "expect_edit_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "answer": {
+    "status": 409,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "conflict",
+      "message": "render tl-v10 of tl is queued: wait for it to end, or cancel it",
+      "details": {
+       "render_id": "tl-v10",
+       "job": "<job-9>"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "render_cancel",
+   "args": {
+    "project": "northfield-fixture",
+    "job": "<job-9>"
+   },
+   "answer": {
+    "status": 403,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "refused",
+      "message": "job <job-9> is not a render or a review of northfield-fixture: the Studio cancels only those"
+     }
+    }
+   }
+  },
+  {
+   "op": "render_cancel",
+   "args": {
+    "project": "northfield-fixture",
+    "job": "<job-1>"
+   },
+   "answer": {
+    "status": 403,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "refused",
+      "message": "job <job-1> is not a render or a review of northfield-fixture: the Studio cancels only those"
+     }
+    }
+   }
+  },
+  {
+   "op": "render_cancel",
+   "args": {
+    "project": "demo",
+    "job": "<job-9>"
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "render tl-v10: cancelled",
+     "data": {
+      "id": "<job-9>",
+      "kind": "render",
+      "render_id": "tl-v10",
+      "state": "cancelled",
+      "cancel_requested_at": "<at>"
+     }
+    }
+   }
+  },
+  {
+   "op": "render_cancel",
+   "args": {
+    "project": "demo",
+    "job": "<job-9>"
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "render tl-v10: cancelled",
+     "data": {
+      "id": "<job-9>",
+      "kind": "render",
+      "render_id": "tl-v10",
+      "state": "cancelled",
+      "cancel_requested_at": "<at>"
+     }
+    }
+   }
+  },
+  {
+   "op": "render_cancel",
+   "args": {
+    "project": "demo",
+    "job": "<job-8>"
+   },
+   "answer": {
+    "status": 404,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "not_found",
+      "message": "job <job-8> not found (job_list names the jobs)"
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_render",
+   "args": {
+    "project": "demo",
+    "name": "tl",
+    "run": "20260101-120000-tl",
+    "expect_edit_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "answer": {
+    "status": 409,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "conflict",
+      "message": "scenarios/tl changed since it was shown: look at the timeline again, then render",
+      "details": {
+       "shown": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "current": "c07b809541f15d5a4c97c7654ab009a1ae6328fab0cb320ca51d72907c7030a5"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_render",
+   "args": {
+    "project": "demo",
+    "name": "tl",
+    "run": "<run-8>",
+    "expect_edit_sha256": "c07b809541f15d5a4c97c7654ab009a1ae6328fab0cb320ca51d72907c7030a5"
+   },
+   "answer": {
+    "status": 400,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "invalid",
+      "message": "run \"<run-8>\" not found in projects/demo/runs (use a run id, a run directory or \"latest\")",
+      "docs": "<repository>/blob/v<version>/docs/guide/editing.md"
+     }
+    }
+   }
+  },
+  {
+   "op": "scenario_render",
+   "args": {
+    "project": "demo",
+    "name": "tl",
+    "run": "20260101-120000-tl",
+    "expect_edit_sha256": "c07b809541f15d5a4c97c7654ab009a1ae6328fab0cb320ca51d72907c7030a5",
+    "review": false
+   },
+   "answer": {
+    "status": 400,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for scenario_render:\n(arguments): unknown argument review",
+      "details": {
+       "arguments": [
+        "(arguments): unknown argument review"
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "review_export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v7"
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "export of tl-v7 queued (job <job-10>): mp4_1080p",
+     "data": {
+      "render_id": "tl-v7",
+      "job": "<job-10>",
+      "state": "queued",
+      "formats": [
+       "mp4_1080p"
+      ],
+      "where": "the project's exports folder, under tl-v7"
+     }
+    }
+   }
+  },
+  {
+   "op": "review_export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v7"
+   },
+   "answer": {
+    "status": 409,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "conflict",
+      "message": "an export of tl-v7 is queued (job <job-10>): wait for it to end",
+      "details": {
+       "job": "<job-10>"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "review_export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v9"
+   },
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "export of tl-v9 queued (job <job-11>): mp4_1080p",
+     "data": {
+      "render_id": "tl-v9",
+      "job": "<job-11>",
+      "state": "queued",
+      "formats": [
+       "mp4_1080p"
+      ],
+      "where": "the project's exports folder, under tl-v9"
+     }
+    }
+   }
+  },
+  {
+   "op": "review_export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v8"
+   },
+   "answer": {
+    "status": 409,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "conflict",
+      "message": "2 exports are already queued or running: wait for one to end",
+      "details": {
+       "open": 2
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "review_export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v1"
+   },
+   "answer": {
+    "status": 409,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "conflict",
+      "message": "2 exports are already queued or running: wait for one to end",
+      "details": {
+       "open": 2
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "review_export",
+   "args": {
+    "project": "demo",
+    "render_id": "latest"
+   },
+   "answer": {
+    "status": 400,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for review_export:\nrender_id: a render id (scenario_renders lists them), never a path",
+      "details": {
+       "arguments": [
+        "render_id: a render id (scenario_renders lists them), never a path"
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "run_dry",
+   "args": {
+    "project": "northfield-fixture",
+    "scenario": "quote"
+   },
+   "answer": {
+    "status": 404,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "not_found",
+      "message": "unknown op run_dry: this Studio allows engine_info, project_list, project_get, project_update_readme, scenario_validate, run_list, run_status, run_cancel, job_list, auth_status, auth_login, activity_list, search, projects_overview, project_board, scenario_blocks, scenario_actions, run_thumbs, scenario_forms, scenario_run, scenario_edit, run_pause, scenario_sessions, sign_in_cancel, timeline_view, timeline_leave, preview_allow, scenario_render, scenario_renders, render_cancel, render_review, review_image, review_export, threads_list, threads_counts, thread_get, thread_still, render_outline, render_frame, frame_anchor, thread_add, thread_reply, thread_resolve, thread_reopen, thread_apply, library_view, library_images, library_render, library_component, theme_list, theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview, record_options, record_start, record_view, record_annotate, record_stop, record_discard, record_save, unsaved_report, desktop_answer, setup_status, setup_cli_install, setup_cli_choose, setup_cli_remove, setup_claude_code_run, setup_claude_desktop_add, setup_notifications, setup_done, desktop_update_status, desktop_update"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_cancel",
+   "args": {
+    "job_id": "<job-1>"
+   },
+   "answer": {
+    "status": 404,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "not_found",
+      "message": "unknown op job_cancel: this Studio allows engine_info, project_list, project_get, project_update_readme, scenario_validate, run_list, run_status, run_cancel, job_list, auth_status, auth_login, activity_list, search, projects_overview, project_board, scenario_blocks, scenario_actions, run_thumbs, scenario_forms, scenario_run, scenario_edit, run_pause, scenario_sessions, sign_in_cancel, timeline_view, timeline_leave, preview_allow, scenario_render, scenario_renders, render_cancel, render_review, review_image, review_export, threads_list, threads_counts, thread_get, thread_still, render_outline, render_frame, frame_anchor, thread_add, thread_reply, thread_resolve, thread_reopen, thread_apply, library_view, library_images, library_render, library_component, theme_list, theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview, record_options, record_start, record_view, record_annotate, record_stop, record_discard, record_save, unsaved_report, desktop_answer, setup_status, setup_cli_install, setup_cli_choose, setup_cli_remove, setup_claude_code_run, setup_claude_desktop_add, setup_notifications, setup_done, desktop_update_status, desktop_update"
+     }
+    }
+   }
+  },
+  {
+   "op": "export",
+   "args": {
+    "project": "demo",
+    "render_id": "tl-v7"
+   },
+   "answer": {
+    "status": 404,
+    "body": {
+     "ok": false,
+     "error": {
+      "code": "not_found",
+      "message": "unknown op export: this Studio allows engine_info, project_list, project_get, project_update_readme, scenario_validate, run_list, run_status, run_cancel, job_list, auth_status, auth_login, activity_list, search, projects_overview, project_board, scenario_blocks, scenario_actions, run_thumbs, scenario_forms, scenario_run, scenario_edit, run_pause, scenario_sessions, sign_in_cancel, timeline_view, timeline_leave, preview_allow, scenario_render, scenario_renders, render_cancel, render_review, review_image, review_export, threads_list, threads_counts, thread_get, thread_still, render_outline, render_frame, frame_anchor, thread_add, thread_reply, thread_resolve, thread_reopen, thread_apply, library_view, library_images, library_render, library_component, theme_list, theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview, record_options, record_start, record_view, record_annotate, record_stop, record_discard, record_save, unsaved_report, desktop_answer, setup_status, setup_cli_install, setup_cli_choose, setup_cli_remove, setup_claude_code_run, setup_claude_desktop_add, setup_notifications, setup_done, desktop_update_status, desktop_update"
+     }
+    }
+   }
+  },
+  {
+   "op": "job_list",
+   "args": {},
+   "answer": {
+    "status": 200,
+    "body": {
+     "ok": true,
+     "summary": "10 jobs:\n- <job-11> export tl-v9 → mp4_1080p in demo: queued · waiting for a take to finish (in this workspace)\n- <job-10> export tl-v7 → mp4_1080p in demo: queued · waiting for a take to finish (in this workspace)\n- <job-9> render tl (run 20260101-120000-tl) → tl-v10 in demo: cancelled\n- <job-7> sign-in of supplier (headed) on signed-in in northfield-fixture: cancelled\n- <job-6> run one-c (dry) → <run-6> in northfield-fixture: queued\n- <job-5> run signed (capture) → <run-5> in northfield-fixture: queued\n- <job-4> run approve (dry) → <run-4> in northfield-fixture: queued\n- <job-3> run one-b (capture) → <run-3> in northfield-fixture: queued\n- <job-2> run one-a (dry) → <run-2> in northfield-fixture: queued\n- <job-1> run quote (dry) → <run-1> in northfield-fixture: queued\nworker: running (pid <pid>)",
+     "data": {
+      "jobs": [
+       {
+        "version": 1,
+        "id": "<job-11>",
+        "kind": "export",
+        "input": {
+         "version": 1,
+         "kind": "export",
+         "project": "demo",
+         "render_id": "tl-v9",
+         "formats": [
+          "mp4_1080p"
+         ],
+         "submitted_by": "ui"
+        },
+        "state": "queued",
+        "created_at": "<at>",
+        "yield": {
+         "state": "waiting",
+         "cause": "here"
+        }
+       },
+       {
+        "version": 1,
+        "id": "<job-10>",
+        "kind": "export",
+        "input": {
+         "version": 1,
+         "kind": "export",
+         "project": "demo",
+         "render_id": "tl-v7",
+         "formats": [
+          "mp4_1080p"
+         ],
+         "submitted_by": "ui"
+        },
+        "state": "queued",
+        "created_at": "<at>",
+        "yield": {
+         "state": "waiting",
+         "cause": "here"
+        }
+       },
+       {
+        "version": 1,
+        "id": "<job-9>",
+        "kind": "render",
+        "input": {
+         "version": 1,
+         "kind": "render",
+         "project": "demo",
+         "scenario": "tl",
+         "run_id": "20260101-120000-tl",
+         "timeline_sha256": "188ddf7ce21038d6fd94399cd66565dc0dc40c8e5bd07cb5ed1f0136d41b96f1",
+         "edit_sha256": "c07b809541f15d5a4c97c7654ab009a1ae6328fab0cb320ca51d72907c7030a5",
+         "render_id": "tl-v10",
+         "overrides": {},
+         "review": {
+          "fps": 1
+         },
+         "submitted_by": "ui"
+        },
+        "state": "cancelled",
+        "created_at": "<at>",
+        "cancel_requested_at": "<at>",
+        "finished_at": "<at>",
+        "error": {
+         "code": "cancelled",
+         "message": "the message is in \"untrusted.error\""
+        },
+        "derived": true,
+        "untrusted": {
+         "error": "cancelled before it started"
+        }
+       },
+       {
+        "version": 1,
+        "id": "<job-7>",
+        "kind": "auth_login",
+        "input": {
+         "version": 1,
+         "kind": "auth_login",
+         "project": "northfield-fixture",
+         "env": "signed-in",
+         "persona": "supplier",
+         "mode": "headed",
+         "submitted_by": "ui"
+        },
+        "state": "cancelled",
+        "created_at": "<at>",
+        "cancel_requested_at": "<at>",
+        "finished_at": "<at>",
+        "error": {
+         "code": "cancelled",
+         "message": "cancelled before it started"
+        },
+        "derived": true
+       },
+       {
+        "version": 1,
+        "id": "<job-6>",
+        "kind": "run",
+        "input": {
+         "version": 1,
+         "kind": "run",
+         "project": "northfield-fixture",
+         "scenario": "one-c",
+         "scenario_sha256": "f9e229681bd30ca741ef0aa261f72a5ad4cff95d6d485dd84887c56a701914d0",
+         "mode": "dry",
+         "run_id": "<run-6>",
+         "submitted_by": "ui"
+        },
+        "state": "queued",
+        "created_at": "<at>"
+       },
+       {
+        "version": 1,
+        "id": "<job-5>",
+        "kind": "run",
+        "input": {
+         "version": 1,
+         "kind": "run",
+         "project": "northfield-fixture",
+         "scenario": "signed",
+         "scenario_sha256": "b4103ece79042bcf8c15ba5392952179d9ec83912b1fd1c57f8bab5941c66b82",
+         "mode": "capture",
+         "run_id": "<run-5>",
+         "submitted_by": "ui"
+        },
+        "state": "queued",
+        "created_at": "<at>"
+       },
+       {
+        "version": 1,
+        "id": "<job-4>",
+        "kind": "run",
+        "input": {
+         "version": 1,
+         "kind": "run",
+         "project": "northfield-fixture",
+         "scenario": "approve",
+         "scenario_sha256": "d4aab3e670fb9de94e86a70b036e088ebd7b6add0c6eb460ad9710ac8b124a12",
+         "mode": "dry",
+         "env": "local",
+         "run_id": "<run-4>",
+         "submitted_by": "ui"
+        },
+        "state": "queued",
+        "created_at": "<at>"
+       },
+       {
+        "version": 1,
+        "id": "<job-3>",
+        "kind": "run",
+        "input": {
+         "version": 1,
+         "kind": "run",
+         "project": "northfield-fixture",
+         "scenario": "one-b",
+         "scenario_sha256": "dd0e980b9b8a34238a3d4d66c61b81b9e25bda2ad4db786c8df1f8e65bf50096",
+         "mode": "capture",
+         "run_id": "<run-3>",
+         "submitted_by": "ui"
+        },
+        "state": "queued",
+        "created_at": "<at>"
+       },
+       {
+        "version": 1,
+        "id": "<job-2>",
+        "kind": "run",
+        "input": {
+         "version": 1,
+         "kind": "run",
+         "project": "northfield-fixture",
+         "scenario": "one-a",
+         "scenario_sha256": "7bb47572a3eaad4d05fa409233f2f299f377775f494577c29defb378f3f0e8a9",
+         "mode": "dry",
+         "run_id": "<run-2>",
+         "submitted_by": "ui"
+        },
+        "state": "queued",
+        "created_at": "<at>"
+       },
+       {
+        "version": 1,
+        "id": "<job-1>",
+        "kind": "run",
+        "input": {
+         "version": 1,
+         "kind": "run",
+         "project": "northfield-fixture",
+         "scenario": "quote",
+         "scenario_sha256": "3386d858a4c58a251fc6b12df137a7f249da8bcec05eef31ada27ebebd75db77",
+         "mode": "dry",
+         "run_id": "<run-1>",
+         "submitted_by": "ui"
+        },
+        "state": "queued",
+        "created_at": "<at>"
+       }
+      ],
+      "worker": {
+       "pid": "<pid>",
+       "since": "<at>",
+       "build": "b1"
+      }
+     }
+    }
+   }
+  }
+ ]
+}

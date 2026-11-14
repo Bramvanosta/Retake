@@ -10,8 +10,9 @@
  * loaded so its SDK refreshes it, and read again.
  */
 import type { BrowserContext, Page } from 'playwright-core';
-import { loginMatchers, matchLoginUrl, personaAuthOriginProblem } from '@retake/core';
-import type { ResolvedPersona } from '@retake/core';
+import { loginMatchers, matchLoginUrl } from '@retake/core/environment';
+import { personaAuthOriginProblem } from '@retake/core/scenario';
+import type { ResolvedPersona } from '@retake/core/environment';
 import { RunnerError, errorMessage } from './errors.js';
 import { networkIdle } from './network.js';
 import { sleep, wallNow } from './util.js';

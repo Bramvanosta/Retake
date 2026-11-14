@@ -30,9 +30,13 @@ import { createHash, randomBytes } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { basename, dirname, join, resolve } from 'node:path';
-import { DEFAULT_COMPOSE_FILES, envFileKeys, interpolateDeep, policyProgram, resolveEnvironment, sandboxNames } from '@retake/core';
+import { interpolateDeep, bestEffort } from '@retake/core/base';
+import { resolveEnvironment } from '@retake/core/environment';
+import { policyProgram } from '@retake/core/policy';
+import { DEFAULT_COMPOSE_FILES, envFileKeys, sandboxNames } from '@retake/core/sandbox';
 import { composeEnvFile, prefetchSecrets, programLookup } from '@retake/core/io';
-import type { ExecStepSpec, LoadedProject, LoadedSandbox, WorkPolicy } from '@retake/core';
+import type { ExecStepSpec, LoadedProject, LoadedSandbox } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import { dockerEnv, dockerReady, findDocker, firstErrorLine, runDocker } from './docker.js';
 import type { DockerExec, DockerInfo, DockerResult, DockerRunOptions } from './docker.js';
 import { checkExecHosts, masker, sandboxSecrets } from './seed.js';
@@ -41,7 +45,8 @@ import { healthNow, pinHealth, serviceHealth, waitHealthy } from './health.js';
 import { shownPath } from './paths.js';
 import { busyPorts, describeListeners, listeners, portLabel, sandboxPorts } from './ports.js';
 import type { Listener, SandboxPort } from './ports.js';
-import type { DownOptions, DownResult, OwnerUse, Provider, ProviderContext, ProviderLogs, ServiceLogFile, ServiceStatus, UpOptions, UpResult } from './provider.js';
+import { COMPOSE_CAPABILITIES } from './provider.js';
+import type { DownOptions, DownResult, OwnerUse, Provider, ProviderCapabilities, ProviderContext, ProviderLogs, ServiceLogFile, ServiceStatus, UpOptions, UpResult } from './provider.js';
 import { pgAnswers, pgEndpoint, resolveDatabaseUrl } from './snapshot-postgres.js';
 
 /** A line of `docker compose up --build` that says the build is over: it creates or starts something. */
@@ -139,7 +144,10 @@ export function composeRecord(state: { provider_state?: Record<string, unknown> 
 }
 
 /** The compose project a sandbox runs as. */
-export function composeProject(project: Pick<LoadedProject, 'slug'> & { config?: Pick<LoadedProject['config'], 'pass_env'> }, sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>): ComposeProjectRef {
+export function composeProject(
+  project: Pick<LoadedProject, 'slug'> & { config?: Pick<LoadedProject['config'], 'pass_env'> },
+  sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>,
+): ComposeProjectRef {
   const sandboxDir = realDir(sandbox.dir);
   const files = (sandbox.manifest.compose?.files ?? DEFAULT_COMPOSE_FILES).map((f) => resolve(sandboxDir, f));
   const dir = realDir(dirname(files[0]));
@@ -294,7 +302,11 @@ export function parsePs(text: string): PsEntry[] {
   if (!t) return [];
   let rows: Array<Record<string, unknown>>;
   if (t.startsWith('[')) rows = JSON.parse(t) as Array<Record<string, unknown>>;
-  else rows = t.split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l) as Record<string, unknown>);
+  else
+    rows = t
+      .split('\n')
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
   const out: PsEntry[] = [];
   for (const r of rows) {
     const labels = parseLabels(r.Labels);
@@ -407,6 +419,7 @@ export interface ComposeProviderOptions {
 
 export class ComposeProvider implements Provider {
   readonly kind = 'docker-compose' as const;
+  readonly capabilities: Readonly<ProviderCapabilities> = COMPOSE_CAPABILITIES;
   private readonly bin: string | null;
   /** How a refusal names the binary (`$RETAKE_DOCKER` when it came from there). */
   private readonly binWhat: string;
@@ -434,7 +447,9 @@ export class ComposeProvider implements Provider {
       opts.exec ??
       ((args, o) => {
         const bin = this.program();
-        return bin ? runDocker(bin.program, args, { ...o, policy: this.policy, ...(bin.argv0 ? { argv0: bin.argv0 } : {}) }) : Promise.resolve({ code: null, stdout: '', stderr: '', ms: 0, error: 'not found' });
+        return bin
+          ? runDocker(bin.program, args, { ...o, policy: this.policy, ...(bin.argv0 ? { argv0: bin.argv0 } : {}) })
+          : Promise.resolve({ code: null, stdout: '', stderr: '', ms: 0, error: 'not found' });
       });
     this.listen = opts.listeners ?? listeners;
   }
@@ -464,7 +479,9 @@ export class ComposeProvider implements Provider {
   /** Docker found, Compose recent enough, the daemon running (checked once per instance). */
   async docker(ctx: ProviderContext): Promise<DockerInfo> {
     if (!this.bin) {
-      throw new SandboxError(`${this.where(ctx)}: docker-compose sandboxes need Docker with Compose v2.17 or later: \`docker\` was not found (install Docker Desktop or OrbStack, or set RETAKE_DOCKER)`);
+      throw new SandboxError(
+        `${this.where(ctx)}: docker-compose sandboxes need Docker with Compose v2.17 or later: \`docker\` was not found (install Docker Desktop or OrbStack, or set RETAKE_DOCKER)`,
+      );
     }
     try {
       this.ready ??= dockerReady(this.run, this.program()?.program ?? this.bin, ctx.signal);
@@ -656,7 +673,7 @@ export class ComposeProvider implements Provider {
 
   /** A message with one service's log tail and where to read more. */
   private async withTail(ctx: ProviderContext, ref: ComposeProjectRef, message: string, service: string): Promise<string> {
-    const tail = await this.logTail(ref, service).catch(() => '');
+    const tail = await bestEffort(this.logTail(ref, service), 'the log tail only adds context to the error being raised', '');
     const more = `(retake sandbox logs ${ctx.project.slug} --env ${ctx.sandbox.env} shows more)`;
     return tail ? `${message}\n— last lines of docker compose logs ${service}:\n${indent(tail)}\n${more}` : `${message} ${more}`;
   }
@@ -664,7 +681,7 @@ export class ComposeProvider implements Provider {
   private async failure(ctx: ProviderContext, ref: ComposeProjectRef, head: string, problems: Array<{ service: string; problem: string }>): Promise<string> {
     const parts = [`${head}:`, ...problems.map((p) => `  ${p.service}: ${p.problem}`)];
     for (const p of problems.slice(0, 3)) {
-      const tail = await this.logTail(ref, p.service).catch(() => '');
+      const tail = await bestEffort(this.logTail(ref, p.service), 'the log tail only adds context to the error being raised', '');
       if (tail) parts.push(`— last lines of docker compose logs ${p.service}:\n${indent(tail)}`);
     }
     parts.push(`(retake sandbox logs ${ctx.project.slug} --env ${ctx.sandbox.env} shows more)`);
@@ -679,7 +696,7 @@ export class ComposeProvider implements Provider {
   private async waitDatabases(ctx: ProviderContext, timeoutS: number): Promise<void> {
     for (const [key, db] of Object.entries(ctx.sandbox.manifest.databases ?? {})) {
       if (!/^postgres(ql)?:/i.test(db.url)) continue;
-      const url = await resolveDatabaseUrl(ctx.project, db.url);
+      const url = await resolveDatabaseUrl(ctx.project, db.url, ctx.resolveSecret);
       const named = pgEndpoint(url, `${this.where(ctx)}: database ${key}`);
       // A port the project publishes, named by a host name: on the address Docker publishes it on, never `localhost`.
       const address = db.external || isIP(named.host) ? undefined : this.addresses.get(named.port);
@@ -803,7 +820,10 @@ export class ComposeProvider implements Provider {
       const volumes = res.code === 0 ? await this.volumesOf(ctx, old.name) : ['?'];
       if (volumes.length) {
         left.push({ project: old.name, dir: old.dir });
-        ctx.log('warn', `${this.where(ctx)}: compose project ${old.name} (the name an earlier up of this sandbox used) still has ${res.code === 0 ? `its volumes (${volumes.join(', ')})` : `resources (docker compose down failed: ${firstErrorLine(res)})`}: ${this.downCommand(ctx)} --volumes removes them`);
+        ctx.log(
+          'warn',
+          `${this.where(ctx)}: compose project ${old.name} (the name an earlier up of this sandbox used) still has ${res.code === 0 ? `its volumes (${volumes.join(', ')})` : `resources (docker compose down failed: ${firstErrorLine(res)})`}: ${this.downCommand(ctx)} --volumes removes them`,
+        );
       }
     }
     const ps = { ...(ctx.state.provider_state ?? {}) };
@@ -865,10 +885,16 @@ export class ComposeProvider implements Provider {
       const ps = await this.ps(ctx, old);
       const volumes = await this.volumesOf(ctx, old.name);
       if (!ps.length && !volumes.length) continue;
-      const what = [ps.length ? `${ps.length} container${ps.length === 1 ? '' : 's'}${ps.some((e) => e.state === 'running') ? ' (running)' : ''}` : '', volumes.length ? `its volumes (${volumes.join(', ')})` : '']
+      const what = [
+        ps.length ? `${ps.length} container${ps.length === 1 ? '' : 's'}${ps.some((e) => e.state === 'running') ? ' (running)' : ''}` : '',
+        volumes.length ? `its volumes (${volumes.join(', ')})` : '',
+      ]
         .filter(Boolean)
         .join(' and ');
-      ctx.log('warn', `compose project ${old.name} — the name an earlier up of this sandbox used (compose.project changed since) — still has ${what}: ${this.downCommand(ctx)}${volumes.length ? ' --volumes' : ''} removes them`);
+      ctx.log(
+        'warn',
+        `compose project ${old.name} — the name an earlier up of this sandbox used (compose.project changed since) — still has ${what}: ${this.downCommand(ctx)}${volumes.length ? ' --volumes' : ''} removes them`,
+      );
     }
   }
 
@@ -932,7 +958,7 @@ export class ComposeProvider implements Provider {
     await this.docker(ctx);
     const ref = this.ref(ctx);
     const values = { command: step.command, env: step.env ?? {} };
-    const { resolver } = await prefetchSecrets(values);
+    const { resolver } = await prefetchSecrets(values, ctx.resolveSecret);
     const resolved: string[] = [];
     const secrets = (key: string) => {
       const v = resolver(key);
@@ -1018,7 +1044,12 @@ export class ComposeProvider implements Provider {
     const bin = this.bin ? startedProgram(this.policy, this.bin, this.binWhat) : null;
     const argv0 = bin?.argv0 ? { argv0: bin.argv0 } : {};
     if (exec && bin && !bin.problem) {
-      spawnSync(bin.program, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { ...argv0, env: dockerEnv(this.policy, process.env, exec.ref.envKeys, exec.ref.pass), timeout: 10_000, stdio: 'ignore' });
+      spawnSync(bin.program, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], {
+        ...argv0,
+        env: dockerEnv(this.policy, process.env, exec.ref.envKeys, exec.ref.pass),
+        timeout: 10_000,
+        stdio: 'ignore',
+      });
     }
     const names = this.started;
     this.started = [];
@@ -1078,7 +1109,10 @@ export class ComposeProvider implements Provider {
     }
     const wd = e.labels['com.docker.compose.project.working_dir'];
     if (!this.ownContainer(ref, ref.name, wd)) {
-      throw new SandboxError(`${this.where(ctx)}: port ${port} (${use.what}) is published by container ${e.name}, which was not made from this sandbox's folder (${wd || 'no folder label'}) — ${use.why}`, 'port');
+      throw new SandboxError(
+        `${this.where(ctx)}: port ${port} (${use.what}) is published by container ${e.name}, which was not made from this sandbox's folder (${wd || 'no folder label'}) — ${use.why}`,
+        'port',
+      );
     }
     const ls = await this.listen([port]);
     const foreign = ls ? foreignListeners([port], ls) : [];

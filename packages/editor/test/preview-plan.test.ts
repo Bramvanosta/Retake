@@ -15,7 +15,8 @@ import type { ComponentRegistry } from '@retake/components';
 import { PLAN_ASSET_SCHEME, PreviewPlanError, planEdit, previewPlan } from '@retake/editor';
 import type { ClipSegment, EditPlan } from '@retake/editor';
 import type { Timeline } from '@retake/core';
-import { FIXTURES, REPO, fixtureProject, template } from './helpers.js';
+import { FIXTURES, fixtureProject, template } from '@retake/test-support/timeline';
+import { REPO } from '@retake/test-support/repo';
 
 const RUN = '/virtual/runs/r';
 let registry: ComponentRegistry;
@@ -40,7 +41,7 @@ beforeAll(async () => {
 });
 
 describe('previewPlan (critique B4)', () => {
-  it('quote: every asset URL swapped for the player\'s, no file, path, display table, note or warning left', async () => {
+  it("quote: every asset URL swapped for the player's, no file, path, display table, note or warning left", async () => {
     const p = await plan('quote');
     expect(Object.keys(p.assets).length).toBeGreaterThan(3);
     const out = previewPlan(p, { urlFor, forbid: FORBID });

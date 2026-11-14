@@ -1,14 +1,16 @@
 import { resolve } from 'node:path';
-import { EXPORT_FORMAT_NAMES } from '@retake/core';
+import { printableText, bestEffort } from '@retake/core/base';
+import { EXPORT_FORMAT_NAMES } from '@retake/core/render';
 import { DEFAULT_JOB_EXPORT_FORMATS, exportInProcess, findRenderOf } from '@retake/engine';
 import type { ExportFormat, ExportProgress } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { formatBytes } from './render.js';
+import { renderNotes } from './render-notes.js';
 import { heavyGate } from '../heavy-gate.js';
 
 export interface ExportCommandOptions {
@@ -27,7 +29,10 @@ export interface ExportCommandOptions {
 /** `--formats a,b,c` (also `all`). */
 export function parseFormats(value: string | undefined): ExportFormat[] {
   if (value === undefined) return [...DEFAULT_JOB_EXPORT_FORMATS];
-  const list = value.split(',').map((s) => s.trim()).filter(Boolean);
+  const list = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (list.length === 1 && list[0] === 'all') return [...EXPORT_FORMAT_NAMES];
   for (const f of list) if (!(EXPORT_FORMAT_NAMES as readonly string[]).includes(f)) throw new UsageError(`--formats: unknown format "${f}" (use ${EXPORT_FORMAT_NAMES.join(', ')} or all)`);
   if (list.length === 0) throw new UsageError('--formats: name at least one format');
@@ -58,9 +63,17 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
   const project = await openProject(ws, projectArg);
   // Captures first (L5.14): the render is the one named now ("latest" resolved before any wait, critique M10).
   // The editor's errors state their kind (core error-kind.ts): main prints their message alone, exit 1.
-  const render = renderArg === 'latest' ? (await findRenderOf(project, renderArg, opts.scenario)).id : renderArg;
+  // `latest` names a FILE of renders/: the export then reads that file (never the id its record says, looked up again).
+  // A render named is looked at first only to say what it is (a record renamed by hand); the export finds it again
+  // and says why when it cannot be exported.
+  const found =
+    renderArg === 'latest'
+      ? await findRenderOf(project, renderArg, opts.scenario)
+      : await bestEffort(findRenderOf(project, renderArg), 'a render that cannot be found is exported by its name as given (the export says why it cannot)');
+  const render = renderArg === 'latest' && found ? found.entry.name : renderArg;
+  if (found && !opts.json) for (const line of renderNotes(project.dir, found)) ui.warn(line);
   const gate = await heavyGate(ui, { root: ws.root, what: 'exporting', noWait: opts.wait === false });
-  if (gate.waited) ui.info(`exporting render ${render}`);
+  if (gate.waited) ui.info(`exporting render ${printableText(render)}`);
   const ac = new AbortController();
   const onSigint = () => ac.abort();
   process.once('SIGINT', onSigint);
@@ -74,9 +87,11 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
   try {
     // The export, then — when it re-rendered formats — its line of the workspace's history (the engine's in-process operation).
     const r = await exportInProcess({
+      renderer: cliPorts.renderer,
       workPolicy: ws.policy,
       project,
       root: ws.root,
+      clock: cliPorts.clock,
       render,
       scenario: opts.scenario,
       formats,
@@ -95,7 +110,9 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
       for (const o of r.outputs.filter((x) => formats.includes(x.format))) {
         const audio = o.audio_codec ? ` + ${o.audio_codec}` : o.format === 'gif_preview' ? '' : ' (no audio)';
         const win = o.window ? `, ${o.window.start_s.toFixed(1)}–${(o.window.start_s + o.window.duration_s).toFixed(1)} s (${o.window.reason})` : '';
-        ui.ok(`${LABEL[o.format].padEnd(13)} ${ui.path(o.file)}  ${o.width}×${o.height} ${o.video_codec ?? ''}${audio}, ${o.duration_s.toFixed(2)} s${win}, ${formatBytes(o.size_bytes)} ${c.dim(`${o.method} · ${formatMs(o.ms)}`)}`);
+        ui.ok(
+          `${LABEL[o.format].padEnd(13)} ${ui.path(o.file)}  ${o.width}×${o.height} ${o.video_codec ?? ''}${audio}, ${o.duration_s.toFixed(2)} s${win}, ${formatBytes(o.size_bytes)} ${c.dim(`${o.method} · ${formatMs(o.ms)}`)}`,
+        );
         for (const w of o.warnings) ui.warn(`  ${w}`);
       }
       for (const f of r.failures) ui.error(`${LABEL[f.format]}: ${f.error}`);

@@ -142,18 +142,50 @@ describe('project.yaml environments: short form, long form, display URLs (R-ENV-
   });
 
   it.each([
-    ['settings in the short form get a targeted message', 'name: x\nenvironments:\n  prod:\n    production: true\n    shop: https://shop.example.com\n', 'error 4:5 environments.prod.production: "production" is a setting of environment prod, not a page: settings go with the long form'],
-    ['a typo in the long form is suggested', 'name: x\nenvironments:\n  prod:\n    production: true\n    acess: read-only\n    pages: {shop: https://shop.example.com}\n', 'environments.prod: unknown key "acess" (did you mean "access"?)'],
-    ['a bad access value', 'name: x\nenvironments:\n  prod:\n    access: readonly\n    pages: {shop: https://shop.example.com}\n', 'environments.prod.access: expected one of "read-only", "read-write", got "readonly" (did you mean "read-only"?)'],
+    [
+      'settings in the short form get a targeted message',
+      'name: x\nenvironments:\n  prod:\n    production: true\n    shop: https://shop.example.com\n',
+      'error 4:5 environments.prod.production: "production" is a setting of environment prod, not a page: settings go with the long form',
+    ],
+    [
+      'a typo in the long form is suggested',
+      'name: x\nenvironments:\n  prod:\n    production: true\n    acess: read-only\n    pages: {shop: https://shop.example.com}\n',
+      'environments.prod: unknown key "acess" (did you mean "access"?)',
+    ],
+    [
+      'a bad access value',
+      'name: x\nenvironments:\n  prod:\n    access: readonly\n    pages: {shop: https://shop.example.com}\n',
+      'environments.prod.access: expected one of "read-only", "read-write", got "readonly" (did you mean "read-only"?)',
+    ],
     ['a bad URL in the long form', 'name: x\nenvironments:\n  prod:\n    pages: {shop: shop.example.com}\n', 'environments.prod.pages.shop: expected an absolute http(s) URL'],
     ['a bad URL in the short form', 'name: x\nenvironments:\n  local:\n    console: localhost:4401\n', 'error 4:14 environments.local.console: expected an absolute http(s) URL'],
     ['an environment that is not a mapping', 'name: x\nenvironments:\n  stg: https://x.example.com\n', 'environments.stg: expected an environment mapping'],
-    ['a display with a query', 'name: x\nenvironments:\n  local:\n    shop: {url: http://localhost:4402, display: "shop.example.com/?x=1"}\n', 'environments.local.shop.display: display is a base URL: no query'],
+    [
+      'a display with a query',
+      'name: x\nenvironments:\n  local:\n    shop: {url: http://localhost:4402, display: "shop.example.com/?x=1"}\n',
+      'environments.local.shop.display: display is a base URL: no query',
+    ],
     ['a templated display', 'name: x\nenvironments:\n  local:\n    shop: {url: http://localhost:4402, display: "{{vars.host}}"}\n', 'display is shown as written: no {{…}}'],
-    ['a GET allow entry', 'name: x\nenvironments:\n  prod:\n    production: true\n    pages: {shop: https://shop.example.com}\n    read_only: {allow: ["GET shop:/x"]}\n', 'environments.prod.read_only.allow.0: GET requests are never stopped'],
-    ['an unknown page in a pattern', 'name: x\nenvironments:\n  prod:\n    production: true\n    pages: {shop: https://shop.example.com}\n    read_only: {mocks: [{request: "POST cart:/x"}]}\n', 'environments.prod.read_only.mocks.0.request: unknown page "cart" in the request pattern (environment prod has: shop)'],
-    ['a mock with json and body, templated', 'name: x\nenvironments:\n  prod:\n    production: true\n    pages: {shop: https://shop.example.com}\n    read_only:\n      mocks: [{request: "POST /x", json: {a: "{{vars.x}}"}, body: "y"}]\n', 'a mock answers with `json` or `body`, not both'],
-    ['a mock status out of range', 'name: x\nenvironments:\n  prod:\n    production: true\n    pages: {shop: https://shop.example.com}\n    read_only: {mocks: [{request: "POST /x", status: 150}]}\n', 'environments.prod.read_only.mocks.0.status: must be ≥ 200'],
+    [
+      'a GET allow entry',
+      'name: x\nenvironments:\n  prod:\n    production: true\n    pages: {shop: https://shop.example.com}\n    read_only: {allow: ["GET shop:/x"]}\n',
+      'environments.prod.read_only.allow.0: GET requests are never stopped',
+    ],
+    [
+      'an unknown page in a pattern',
+      'name: x\nenvironments:\n  prod:\n    production: true\n    pages: {shop: https://shop.example.com}\n    read_only: {mocks: [{request: "POST cart:/x"}]}\n',
+      'environments.prod.read_only.mocks.0.request: unknown page "cart" in the request pattern (environment prod has: shop)',
+    ],
+    [
+      'a mock with json and body, templated',
+      'name: x\nenvironments:\n  prod:\n    production: true\n    pages: {shop: https://shop.example.com}\n    read_only:\n      mocks: [{request: "POST /x", json: {a: "{{vars.x}}"}, body: "y"}]\n',
+      'a mock answers with `json` or `body`, not both',
+    ],
+    [
+      'a mock status out of range',
+      'name: x\nenvironments:\n  prod:\n    production: true\n    pages: {shop: https://shop.example.com}\n    read_only: {mocks: [{request: "POST /x", status: 150}]}\n',
+      'environments.prod.read_only.mocks.0.status: must be ≥ 200',
+    ],
   ])('%s', (_name, text, expected) => {
     const { config, issues } = parseProjectYaml(text);
     expect(config).toBeUndefined();
@@ -238,7 +270,9 @@ auth:
 describe('sign-in details in an environment page URL: HTTP credentials for that origin, never in the URL', () => {
   const yaml = (pages: string) => `name: Northfield\nenvironments:\n  staging:\n${pages}`;
   it('resolveEnvironment gives the pages without them; environmentHttpCredentials gives them, decoded, with the origin', () => {
-    const { config, issues } = parseProjectYaml(yaml('    app: "https://demo:s%40cret@app.staging.example.test/base"\n    api: "https://app.staging.example.test/api"\n    shop: "http://localhost:4402"\n'));
+    const { config, issues } = parseProjectYaml(
+      yaml('    app: "https://demo:s%40cret@app.staging.example.test/base"\n    api: "https://app.staging.example.test/api"\n    shop: "http://localhost:4402"\n'),
+    );
     expect(errors(issues)).toEqual([]);
     const p = { config: config! };
     const env = resolveEnvironment(p, 'staging');
@@ -258,7 +292,9 @@ describe('sign-in details in an environment page URL: HTTP credentials for that 
 
   it('one origin at most, with one set of details: anything else is an error at the environment, and refused at run', () => {
     const two = parseProjectYaml(yaml('    app: "https://a:1@app.example.test"\n    shop: "https://b:2@shop.example.test"\n'));
-    expect(msgs(two.issues).filter((m) => m.startsWith('error'))).toEqual([expect.stringMatching(/environments\.staging: environment staging has sign-in details .* page URLs of 2 origins \(https:\/\/app\.example\.test, https:\/\/shop\.example\.test\)/)]);
+    expect(msgs(two.issues).filter((m) => m.startsWith('error'))).toEqual([
+      expect.stringMatching(/environments\.staging: environment staging has sign-in details .* page URLs of 2 origins \(https:\/\/app\.example\.test, https:\/\/shop\.example\.test\)/),
+    ]);
     expect(msgs(two.issues).join('\n')).not.toMatch(/a:1|b:2/);
     const differ = parseProjectYaml(yaml('    app: "https://a:1@app.example.test/x"\n    admin: "https://a:2@app.example.test/admin"\n'));
     expect(msgs(differ.issues).filter((m) => m.startsWith('error'))).toEqual([expect.stringMatching(/gives https:\/\/app\.example\.test two different sign-in details/)]);
@@ -359,7 +395,10 @@ describe('display URLs (R-ENV-01)', () => {
 
   it('a page without a display URL claims its URLs: they stay as they are (hidden when local); the origin fallback only takes URLs no page claims (V7)', () => {
     const rows = displayRows({ pages: { shop: 'http://localhost:4402', admin: 'http://localhost:4402/admin' }, display: { shop: 'shop.northfield.example' } });
-    expect(rows).toEqual([{ page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' }, { page: 'admin', url: 'http://localhost:4402/admin' }]);
+    expect(rows).toEqual([
+      { page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' },
+      { page: 'admin', url: 'http://localhost:4402/admin' },
+    ]);
     expect(displayUrl('http://localhost:4402/admin/users', rows)).toBe('http://localhost:4402/admin/users');
     expect(displayUrl('http://localhost:4402/basket', rows)).toBe('https://shop.northfield.example/basket');
     // Two pages on one origin, the one at "/" without a display URL: a URL under neither base stays unchanged.
@@ -370,7 +409,7 @@ describe('display URLs (R-ENV-01)', () => {
     expect(displayTable({ pages: { shop: 'http://localhost:4402', admin: 'http://localhost:4402/admin' }, display: { shop: 'shop.northfield.example' } })).toEqual([rows[0]]);
   });
 
-  it('editDisplayTable: the project\'s current pages first (a display URL added after the capture applies), recorded rows it no longer declares kept (V2)', () => {
+  it("editDisplayTable: the project's current pages first (a display URL added after the capture applies), recorded rows it no longer declares kept (V2)", () => {
     const recorded = [
       { page: 'shop', url: 'http://localhost:4402', display: 'https://old.northfield.example' },
       { page: 'legacy', url: 'http://localhost:4499', display: 'https://legacy.northfield.example' },
@@ -402,15 +441,45 @@ describe('display URLs (R-ENV-01)', () => {
   });
 
   it.each([
-    ['localhost', true], ['shop.localhost', true], ['127.0.0.1', true], ['127.8.0.2', true], ['[::1]', true], ['0.0.0.0', true],
-    ['printer.local', true], ['app.test', true], ['svc.internal', true], ['10.1.2.3', true], ['172.16.0.1', true], ['172.31.255.1', true],
-    ['172.32.0.1', false], ['192.168.1.20', true], ['169.254.1.1', true], ['fd12:3456::1', true], ['fe80::1', true],
-    ['shop.northfield.example', false], ['8.8.8.8', false], ['example.com', false], ['2001:db8::1', false],
+    ['localhost', true],
+    ['shop.localhost', true],
+    ['127.0.0.1', true],
+    ['127.8.0.2', true],
+    ['[::1]', true],
+    ['0.0.0.0', true],
+    ['printer.local', true],
+    ['app.test', true],
+    ['svc.internal', true],
+    ['10.1.2.3', true],
+    ['172.16.0.1', true],
+    ['172.31.255.1', true],
+    ['172.32.0.1', false],
+    ['192.168.1.20', true],
+    ['169.254.1.1', true],
+    ['fd12:3456::1', true],
+    ['fe80::1', true],
+    ['shop.northfield.example', false],
+    ['8.8.8.8', false],
+    ['example.com', false],
+    ['2001:db8::1', false],
     // V6: names without a dot, home / office network suffixes, shared addresses, IPv4-mapped IPv6, written forms.
-    ['devbox', true], ['web', true], ['nas.lan', true], ['router.home.arpa', true], ['box.localdomain', true],
-    ['100.64.0.1', true], ['100.127.255.254', true], ['100.128.0.1', false], ['[::ffff:7f00:1]', true], ['::ffff:127.0.0.1', true],
-    ['[::ffff:808:808]', false], ['127.1', true], ['2130706433', true], ['0:0:0:0:0:0:0:1', true], ['localhost:3000', true],
-    ['shop.example', false], ['www.example.net', false],
+    ['devbox', true],
+    ['web', true],
+    ['nas.lan', true],
+    ['router.home.arpa', true],
+    ['box.localdomain', true],
+    ['100.64.0.1', true],
+    ['100.127.255.254', true],
+    ['100.128.0.1', false],
+    ['[::ffff:7f00:1]', true],
+    ['::ffff:127.0.0.1', true],
+    ['[::ffff:808:808]', false],
+    ['127.1', true],
+    ['2130706433', true],
+    ['0:0:0:0:0:0:0:1', true],
+    ['localhost:3000', true],
+    ['shop.example', false],
+    ['www.example.net', false],
   ])('isLocalHost(%s) → %s', (host, local) => {
     expect(isLocalHost(host)).toBe(local);
   });
@@ -493,7 +562,10 @@ describe('request patterns and the write classifier (R-ENV-03)', () => {
           read_only: {
             hosts: ['api.example.com', '*.cdn.example.net'],
             allow: ['POST console:/api/session/refresh', { request: 'POST shop:/graphql', operation: 'SearchProducts' }, 'POST /api/quotes'],
-            mocks: [{ request: 'POST shop:/api/track', status: 204 }, { request: 'POST shop:/graphql', operation: 'SaveCart', json: { data: { ok: true } } }],
+            mocks: [
+              { request: 'POST shop:/api/track', status: 204 },
+              { request: 'POST shop:/graphql', operation: 'SaveCart', json: { data: { ok: true } } },
+            ],
           },
         },
       },
@@ -529,17 +601,61 @@ describe('request patterns and the write classifier (R-ENV-03)', () => {
     ['an environment mock', { method: 'POST', url: 'https://shop.example.com/api/track?v=2' }, { write: true, outcome: 'mocked', rule: 'POST shop:/api/track' }],
     ['an allow entry', { method: 'POST', url: 'https://console.example.com/api/session/refresh' }, { write: true, outcome: 'allowed', rule: 'POST console:/api/session/refresh' }],
     ['a path allow entry on any guarded host', { method: 'POST', url: 'https://console.example.com/api/quotes' }, { write: true, outcome: 'allowed', rule: 'POST /api/quotes' }],
-    ['a GraphQL mutation allowed by operation', { method: 'POST', url: 'https://shop.example.com/graphql', body: '{"query":"mutation SearchProducts { x }"}' }, { write: true, outcome: 'allowed', operation: 'SearchProducts' }],
-    ['a GraphQL mutation mocked by operation', { method: 'POST', url: 'https://shop.example.com/graphql', body: '{"query":"mutation SaveCart($c: In) { save(c: $c) { id } }"}' }, { write: true, outcome: 'mocked', operation: 'SaveCart' }],
-    ['another GraphQL mutation is stopped', { method: 'POST', url: 'https://shop.example.com/graphql', body: '{"query":"mutation Pay { pay }"}' }, { write: true, outcome: 'blocked', operation: 'Pay' }],
-    ['a persisted query is a write unless allowed by name', { method: 'POST', url: 'https://shop.example.com/graphql', body: '{"operationName":"SearchProducts","extensions":{"persistedQuery":{"sha256Hash":"1"}}}' }, { write: true, outcome: 'allowed', operation: 'SearchProducts' }],
-    ['an unknown persisted query is stopped', { method: 'POST', url: 'https://shop.example.com/graphql', body: '{"operationName":"Other","extensions":{"persistedQuery":{"sha256Hash":"1"}}}' }, { write: true, outcome: 'blocked', operation: 'Other' }],
+    [
+      'a GraphQL mutation allowed by operation',
+      { method: 'POST', url: 'https://shop.example.com/graphql', body: '{"query":"mutation SearchProducts { x }"}' },
+      { write: true, outcome: 'allowed', operation: 'SearchProducts' },
+    ],
+    [
+      'a GraphQL mutation mocked by operation',
+      { method: 'POST', url: 'https://shop.example.com/graphql', body: '{"query":"mutation SaveCart($c: In) { save(c: $c) { id } }"}' },
+      { write: true, outcome: 'mocked', operation: 'SaveCart' },
+    ],
+    [
+      'another GraphQL mutation is stopped',
+      { method: 'POST', url: 'https://shop.example.com/graphql', body: '{"query":"mutation Pay { pay }"}' },
+      { write: true, outcome: 'blocked', operation: 'Pay' },
+    ],
+    [
+      'a persisted query is a write unless allowed by name',
+      { method: 'POST', url: 'https://shop.example.com/graphql', body: '{"operationName":"SearchProducts","extensions":{"persistedQuery":{"sha256Hash":"1"}}}' },
+      { write: true, outcome: 'allowed', operation: 'SearchProducts' },
+    ],
+    [
+      'an unknown persisted query is stopped',
+      { method: 'POST', url: 'https://shop.example.com/graphql', body: '{"operationName":"Other","extensions":{"persistedQuery":{"sha256Hash":"1"}}}' },
+      { write: true, outcome: 'blocked', operation: 'Other' },
+    ],
     // An entry narrowed to an operation covers a batch only when every operation of it that writes is that one.
-    ['a batch of allowed operations', { method: 'POST', url: 'https://shop.example.com/graphql', body: '[{"query":"mutation SearchProducts { a }"},{"query":"query Me { me }"},{"query":"mutation SearchProducts { b }"}]' }, { write: true, outcome: 'allowed' }],
-    ['a batch with another mutation is stopped', { method: 'POST', url: 'https://shop.example.com/graphql', body: '[{"operationName":"SearchProducts","query":"mutation SearchProducts { a }"},{"operationName":"CreateOrder","query":"mutation CreateOrder { b }"}]' }, { write: true, outcome: 'blocked' }],
-    ['a batch with an anonymous mutation is stopped', { method: 'POST', url: 'https://shop.example.com/graphql', body: '[{"query":"mutation { deleteAll }"},{"query":"mutation SearchProducts { a }"}]' }, { write: true, outcome: 'blocked' }],
-    ['a mock by operation never answers a batch with another write', { method: 'POST', url: 'https://shop.example.com/graphql', body: '[{"query":"mutation SaveCart { a }"},{"operationName":"Pay","extensions":{"persistedQuery":{"sha256Hash":"2"}}}]' }, { write: true, outcome: 'blocked' }],
-    ['a JSON body with a `query` field is no GraphQL read', { method: 'POST', url: 'https://shop.example.com/api/saved-views', body: '{"name":"Open","query":"{\\"status\\":\\"open\\"}"}' }, { write: true, outcome: 'blocked' }],
+    [
+      'a batch of allowed operations',
+      { method: 'POST', url: 'https://shop.example.com/graphql', body: '[{"query":"mutation SearchProducts { a }"},{"query":"query Me { me }"},{"query":"mutation SearchProducts { b }"}]' },
+      { write: true, outcome: 'allowed' },
+    ],
+    [
+      'a batch with another mutation is stopped',
+      {
+        method: 'POST',
+        url: 'https://shop.example.com/graphql',
+        body: '[{"operationName":"SearchProducts","query":"mutation SearchProducts { a }"},{"operationName":"CreateOrder","query":"mutation CreateOrder { b }"}]',
+      },
+      { write: true, outcome: 'blocked' },
+    ],
+    [
+      'a batch with an anonymous mutation is stopped',
+      { method: 'POST', url: 'https://shop.example.com/graphql', body: '[{"query":"mutation { deleteAll }"},{"query":"mutation SearchProducts { a }"}]' },
+      { write: true, outcome: 'blocked' },
+    ],
+    [
+      'a mock by operation never answers a batch with another write',
+      { method: 'POST', url: 'https://shop.example.com/graphql', body: '[{"query":"mutation SaveCart { a }"},{"operationName":"Pay","extensions":{"persistedQuery":{"sha256Hash":"2"}}}]' },
+      { write: true, outcome: 'blocked' },
+    ],
+    [
+      'a JSON body with a `query` field is no GraphQL read',
+      { method: 'POST', url: 'https://shop.example.com/api/saved-views', body: '{"name":"Open","query":"{\\"status\\":\\"open\\"}"}' },
+      { write: true, outcome: 'blocked' },
+    ],
   ])('%s', (_name, req, expected) => {
     expect(classifyRequest(req, policy)).toMatchObject(expected);
   });
@@ -559,7 +675,9 @@ describe('request patterns and the write classifier (R-ENV-03)', () => {
     for (const bad of ['api.example.com/', 'api.example.com/v1', '.example.com', 'api.*.com', 'a b.example', 'user@api.example.com', '-api.example.com', 'https://']) {
       expect(hostPatternError(bad), bad).toMatch(/is not a (host|URL with a host)/);
     }
-    const { issues } = parseProjectYaml('name: X\nenvironments:\n  staging:\n    access: read-only\n    pages: {shop: https://shop.example.com}\n    read_only:\n      hosts: [api.example.com/, "api.example.com/v1", .example.com]\n');
+    const { issues } = parseProjectYaml(
+      'name: X\nenvironments:\n  staging:\n    access: read-only\n    pages: {shop: https://shop.example.com}\n    read_only:\n      hosts: [api.example.com/, "api.example.com/v1", .example.com]\n',
+    );
     expect(errors(issues).map((i) => `${i.path.join('.')}: ${i.message.split(':')[0]}`)).toEqual([
       'environments.staging.read_only.hosts.0: "api.example.com/" is not a host',
       'environments.staging.read_only.hosts.1: "api.example.com/v1" is not a host',
@@ -648,7 +766,7 @@ environments:
     expect(guardsWrites(compileWritePolicy(resolveEnvironment(same, 'local'), { access }))).toBe(false);
   });
 
-  it('a read-write run guards only the protected hosts: no mocks, no allow entries, its other writes are not the guard\'s', () => {
+  it("a read-write run guards only the protected hosts: no mocks, no allow entries, its other writes are not the guard's", () => {
     const p = project(SHARED);
     const env = resolveEnvironment(p, 'local');
     const access = resolveRunAccess(env, { project: p });
@@ -673,7 +791,9 @@ environments:
     expect(protectedHostMessage('HTTP POST', protectedBy('api.example.com', access)!, access, 'api.example.com')).toBe(
       'refusing a hook that writes (HTTP POST) to api.example.com, a host of environment production — this run is on environment local: environment production is production, read-only in project.yaml; `optional: true` does not skip a refusal',
     );
-    expect(protectedHostMessage('HTTP PUT', protectedBy('live.example.org', access)!, access)).toMatch(/to a host of environment live — this run is on environment local: pass --allow-writes to let it write to production;/);
+    expect(protectedHostMessage('HTTP PUT', protectedBy('live.example.org', access)!, access)).toMatch(
+      /to a host of environment live — this run is on environment local: pass --allow-writes to let it write to production;/,
+    );
   });
 });
 
@@ -735,10 +855,15 @@ describe('clock (R-ENV-05)', () => {
     expect(resolveClock('2026-10-25T02:30:00+01:00', undefined, { timezone: 'Europe/Paris' })!.epoch_ms).toBe(Date.UTC(2026, 9, 25, 1, 30));
   });
 
-  it('records the zone a time without an offset was read in: browser.timezone, else the machine\'s (T4)', () => {
+  it("records the zone a time without an offset was read in: browser.timezone, else the machine's (T4)", () => {
     const machine = new Intl.DateTimeFormat().resolvedOptions().timeZone;
     expect(resolveClock('2026-11-02T10:24:00', undefined)).toEqual({ at: '2026-11-02T10:24:00', epoch_ms: new Date(2026, 10, 2, 10, 24).getTime(), timezone: machine });
-    expect(resolveClock({ at: '2026-11-02T10:24:00', freeze: true }, undefined, { timezone: 'UTC' })).toEqual({ at: '2026-11-02T10:24:00', epoch_ms: Date.UTC(2026, 10, 2, 10, 24), timezone: 'UTC', freeze: true });
+    expect(resolveClock({ at: '2026-11-02T10:24:00', freeze: true }, undefined, { timezone: 'UTC' })).toEqual({
+      at: '2026-11-02T10:24:00',
+      epoch_ms: Date.UTC(2026, 10, 2, 10, 24),
+      timezone: 'UTC',
+      freeze: true,
+    });
   });
 
   it('project and scenario clocks are validated where they are written', () => {
@@ -771,7 +896,7 @@ describe('which hooks write (R-ENV-04)', () => {
     ['UPDATE products SET price = 1', 'SQL UPDATE'],
     ['CREATE TABLE t (id int)', 'SQL CREATE'],
     ['CALL reset_demo()', 'SQL CALL'],
-    ["DO $$ BEGIN PERFORM 1; END $$", 'SQL DO'],
+    ['DO $$ BEGIN PERFORM 1; END $$', 'SQL DO'],
     ['COPY products TO STDOUT', 'SQL COPY'],
     ['SET TRANSACTION READ WRITE', 'SQL SET of the transaction mode or role'],
     ['SET default_transaction_read_only = off', 'SQL SET of the transaction mode or role'],
@@ -852,8 +977,7 @@ describe('which hooks write (R-ENV-04)', () => {
 
 describe('scenario checks on read-only environments', () => {
   const p = project();
-  const scenario = (env: string, extra = '') =>
-    `video: demo\nenv: ${env}\n${extra}scenes:\n  - id: main\n    page: shop\n    open: /\n    steps:\n      - wait: 1\n`;
+  const scenario = (env: string, extra = '') => `video: demo\nenv: ${env}\n${extra}scenes:\n  - id: main\n    page: shop\n    open: /\n    steps:\n      - wait: 1\n`;
 
   it('a writing hook on a read-only environment is a warning (the run refuses it)', () => {
     const text = scenario('production', 'setup:\n  - name: reset\n    http: {method: POST, url: "{{shop}}/api/reset"}\n  - http: {url: "{{shop}}/api/health"}\n');
@@ -863,7 +987,9 @@ describe('scenario checks on read-only environments', () => {
       `warning ${lineOf(text, '- name: reset')}:5 setup.0: this hook writes (HTTP POST) and environment production is production, read-only: such a run refuses it before anything runs — run with --hooks skip, or on a read-write environment`,
     ]);
     const live = parseScenario(scenario('live', 'teardown:\n  - http: {method: DELETE, url: "{{shop}}/x"}\n    confirm: true\n'), { files: fileFacts(PERSON_POLICY), project: p });
-    expect(msgs(live.issues).join('\n')).toContain('environment live is production, read-only without --allow-writes: such a run refuses it before anything runs — run with --hooks skip, or with --allow-writes');
+    expect(msgs(live.issues).join('\n')).toContain(
+      'environment live is production, read-only without --allow-writes: such a run refuses it before anything runs — run with --hooks skip, or with --allow-writes',
+    );
     // The same scenario on a read-write environment: no warning.
     expect(parseScenario(text, { files: fileFacts(PERSON_POLICY), project: p, env: 'local' }).issues).toEqual([]);
   });
@@ -891,11 +1017,24 @@ describe('scenario checks on read-only environments', () => {
 describe('run files: environment blocks', () => {
   it('timeline.environment and run.json environment validate', () => {
     const tl = {
-      version: 1, run_id: 'r', project: 'p', scenario: 's', created_at: 'now', mode: 'capture',
+      version: 1,
+      run_id: 'r',
+      project: 'p',
+      scenario: 's',
+      created_at: 'now',
+      mode: 'capture',
       capture: { file: 'capture.mp4', width: 1920, height: 1080, scale: 1, fps: 30, duration: 1, t0_wall: 0, frames: 1 },
-      scenes: [], events: [], markers: [], pages: [], cursor: [], idle: [], warnings: [],
+      scenes: [],
+      events: [],
+      markers: [],
+      pages: [],
+      cursor: [],
+      idle: [],
+      warnings: [],
       environment: {
-        name: 'production', production: true, access: 'read-only',
+        name: 'production',
+        production: true,
+        access: 'read-only',
         display: [{ page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' }],
         clock: { at: '2026-11-02T10:24:00', epoch_ms: 1, timezone: 'Europe/Paris' },
         writes: [{ t: 3.2, method: 'POST', url: 'http://localhost:4402/api/quotes', outcome: 'mocked', rule: 'POST shop:/api/quotes', status: 201, via: 'page' }],
@@ -904,9 +1043,22 @@ describe('run files: environment blocks', () => {
     expect(zodIssues(TimelineSchema, tl)).toEqual([]);
     expect(zodIssues(TimelineSchema, { ...tl, environment: { ...tl.environment, access: 'read-mostly' } })).not.toEqual([]);
     const record = {
-      id: 'r', project: 'p', scenario: 's', mode: 'capture', status: 'succeeded', started_at: 'now', dir: '/x', env: 'production',
-      options: { hooks: 'run', headed: false, allow_writes: true }, steps_total: 0, steps_done: 0, screenshots: [],
-      hooks: { setup: 'none', teardown: 'none' }, warnings: [], environment: { production: true, access: 'read-write', clock: { at: '2026-11-02T10:24:00', timezone: 'Europe/Paris', freeze: true } },
+      id: 'r',
+      project: 'p',
+      scenario: 's',
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: 'now',
+      finished_at: 'now',
+      dir: '/x',
+      env: 'production',
+      options: { hooks: 'run', headed: false, allow_writes: true },
+      steps_total: 0,
+      steps_done: 0,
+      screenshots: [],
+      hooks: { setup: 'none', teardown: 'none' },
+      warnings: [],
+      environment: { production: true, access: 'read-write', clock: { at: '2026-11-02T10:24:00', timezone: 'Europe/Paris', freeze: true } },
     };
     expect(zodIssues(RunRecordSchema, record)).toEqual([]);
     expect(zodIssues(RunRecordSchema, { ...record, environment: { access: 'read-only', clock: '2026-11-02T10:24:00' } })).not.toEqual([]);

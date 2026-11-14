@@ -2,7 +2,8 @@ import { basename, dirname, join } from 'node:path';
 import { PERSONA_NONE, authFor, mailPersona, personaEmail, planPersonas, projectPersonaNames, resolvePersonas } from '../auth.js';
 import { scenarioNavigationProblems } from '../agent-policy.js';
 import { needFiles } from '../file-facts.js';
-import type { CheckFiles } from '../file-facts.js';
+import type { CheckFiles, FilesWith } from '../file-facts.js';
+import type { Confinement } from '../confinement.js';
 import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
 import { isEditTextPath, isLiteralPath } from '../scenario-template.js';
@@ -29,7 +30,10 @@ import { checkWriteRules } from './project.js';
 import { checkTokens, checkVarsValues } from './tokens.js';
 import type { TokenRules } from './tokens.js';
 
-export interface ScenarioCheckOptions {
+/** The options of a scenario's checks; `files` is required with `project` or `file` (FilesWith). */
+export type ScenarioCheckOptions = ScenarioCheckFields & FilesWith<'project' | 'file', CheckFiles>;
+
+export interface ScenarioCheckFields {
   project?: LoadedProject;
   /** Scenario file (enables the video-name check and project inference from projects/<p>/scenarios/x.yaml). */
   file?: string;
@@ -39,13 +43,13 @@ export interface ScenarioCheckOptions {
   env?: string;
   /** A `--until` step reference that must resolve. */
   until?: string;
-  /** Work an agent submits, by its channel: file references stay inside the project, unlooked-at outside (CheckContext.confined). */
-  confined?: 'mcp' | 'studio';
+  /** Work an agent submits, with its confinement's words: file references stay inside the project, unlooked-at outside (CheckContext.confined). */
+  confined?: Confinement;
   /** Filled with the absolute path of every file the checks look for (CheckContext.filesRead). */
   filesRead?: Set<string>;
   /**
    * How the files a scenario names are looked at (core FileFacts, and the work's VideoProber for its video files):
-   * needed with `project` or `file`.
+   * required with `project` or `file` (ScenarioCheckOptions).
    */
   files?: CheckFiles;
 }
@@ -141,10 +145,7 @@ class ScenarioChecker {
     const declared = typeof this.s.env === 'string' ? this.s.env : undefined;
     const requested = this.opts.env ?? declared;
     if (requested !== undefined && !Object.hasOwn(envs, requested)) {
-      this.ctx.error(
-        this.opts.env !== undefined ? [] : ['env'],
-        `unknown environment "${requested}"${suggestion(requested, names)} (available: ${names.join(', ') || 'none'})`,
-      );
+      this.ctx.error(this.opts.env !== undefined ? [] : ['env'], `unknown environment "${requested}"${suggestion(requested, names)} (available: ${names.join(', ') || 'none'})`);
       return;
     }
     this.envName = requested ?? project.config.default_env ?? names[0];
@@ -179,15 +180,19 @@ class ScenarioChecker {
     const how = `environment ${this.envName} is ${production ? 'production, ' : ''}read-only${configured === 'read-write' ? ' without --allow-writes' : ''}`;
     // Named hooks (L5.8): each entry of each name, journaled like a setup hook (its rollback runs later).
     const named = isObj(this.s.hooks)
-      ? Object.entries(this.s.hooks).flatMap(([name, v]) => (Array.isArray(v) ? v.map((h, i) => ({ path: ['hooks', name, i] as IssuePath, hook: h as unknown })) : [{ path: ['hooks', name] as IssuePath, hook: v as unknown }]))
+      ? Object.entries(this.s.hooks).flatMap(([name, v]) =>
+          Array.isArray(v) ? v.map((h, i) => ({ path: ['hooks', name, i] as IssuePath, hook: h as unknown })) : [{ path: ['hooks', name] as IssuePath, hook: v as unknown }],
+        )
       : [];
     const lists = [
-      ...(['setup', 'teardown'] as const).flatMap((phase) => (Array.isArray(this.s[phase]) ? (this.s[phase] as unknown[]).map((hook, i) => ({ path: [phase, i] as IssuePath, hook, rollback: phase === 'setup' })) : [])),
+      ...(['setup', 'teardown'] as const).flatMap((phase) =>
+        Array.isArray(this.s[phase]) ? (this.s[phase] as unknown[]).map((hook, i) => ({ path: [phase, i] as IssuePath, hook, rollback: phase === 'setup' })) : [],
+      ),
       ...named.map((n) => ({ ...n, rollback: true })),
     ];
     lists.forEach(({ path, hook, rollback }) => {
       if (!isObj(hook) || this.ctx.broken(path)) return;
-      const reason = hookWriteReason(hook as never, { projectDir: this.ctx.projectDir, files: this.ctx.files, rollback });
+      const reason = hookWriteReason(hook as never, { ...this.ctx.hookFiles(), rollback });
       if (!reason) return;
       this.ctx.warning(
         path,
@@ -223,10 +228,14 @@ class ScenarioChecker {
         }
         const shown = ['caption', 'overlay', 'camera', 'mark', 'speed', 'tutorial'].filter((k) => raw[k] !== undefined);
         if (shown.length) {
-          this.ctx.warning(sp, `a hook step runs off camera and the edit cuts it: its ${shown.join(', ')} ${shown.length === 1 ? 'is' : 'are'} never shown — put ${shown.length === 1 ? 'it' : 'them'} on the next step`, {
-            path: [...sp, shown[0]],
-            key: true,
-          });
+          this.ctx.warning(
+            sp,
+            `a hook step runs off camera and the edit cuts it: its ${shown.join(', ')} ${shown.length === 1 ? 'is' : 'are'} never shown — put ${shown.length === 1 ? 'it' : 'them'} on the next step`,
+            {
+              path: [...sp, shown[0]],
+              key: true,
+            },
+          );
         }
       });
     });
@@ -248,10 +257,7 @@ class ScenarioChecker {
 
   private unknownPage(page: string, path: IssuePath): void {
     const keys = Object.keys(this.pages ?? {});
-    this.ctx.error(
-      path,
-      `unknown page "${page}" in environment "${this.envName}"${suggestion(page, keys)} (available: ${keys.join(', ') || 'none'})`,
-    );
+    this.ctx.error(path, `unknown page "${page}" in environment "${this.envName}"${suggestion(page, keys)} (available: ${keys.join(', ') || 'none'})`);
   }
 
   private scenes(): void {
@@ -277,10 +283,7 @@ class ScenarioChecker {
       const auto = `${kind}-${i}`;
       const prev = sceneIds.get(auto);
       if (prev !== undefined) {
-        this.ctx.error(
-          ['scenes', i],
-          `the default id "${auto}" of this ${kind} is already used by scenes[${prev}]: give the ${kind} an \`id\``,
-        );
+        this.ctx.error(['scenes', i], `the default id "${auto}" of this ${kind} is already used by scenes[${prev}]: give the ${kind} an \`id\``);
       }
     });
 
@@ -363,7 +366,10 @@ class ScenarioChecker {
     const pp: IssuePath = [...p, 'pages'];
     for (const key of ['page', 'open'] as const) {
       if (entry[key] !== undefined) {
-        this.ctx.error([...p, key], `a multi-page scene declares its pages in \`pages\`: remove \`${key}\` (${key === 'open' ? 'give each page its own `open`' : 'each page names its environment page'})`);
+        this.ctx.error(
+          [...p, key],
+          `a multi-page scene declares its pages in \`pages\`: remove \`${key}\` (${key === 'open' ? 'give each page its own `open`' : 'each page names its environment page'})`,
+        );
       }
     }
     if (entry.cursor !== undefined) this.ctx.warning([...p, 'cursor'], 'a multi-page scene places each cursor from its page: use `pages.<id>.cursor` (ignored here)');
@@ -387,7 +393,10 @@ class ScenarioChecker {
       const plain = Array.isArray(entry.pages) && typeof (entry.pages as unknown[])[e.path[1] as number] === 'string';
       if (plain && this.pages && !Object.hasOwn(this.pages, e.id) && !this.scenePageIds.has(e.id)) {
         const known = [...envKeys, ...this.scenePageIds];
-        this.ctx.error(ep, `unknown page "${e.id}": neither a page of environment "${this.envName}" nor a page an earlier scene films${suggestion(e.id, known)} (available: ${known.join(', ') || 'none'})`);
+        this.ctx.error(
+          ep,
+          `unknown page "${e.id}": neither a page of environment "${this.envName}" nor a page an earlier scene films${suggestion(e.id, known)} (available: ${known.join(', ') || 'none'})`,
+        );
         continue;
       }
       if (this.pages && typeof s.page === 'string' && !Object.hasOwn(this.pages, s.page)) {
@@ -401,7 +410,10 @@ class ScenarioChecker {
           if (typeof s.page === 'string' && s.page !== split.page) this.ctx.error([...ep, 'open'], `\`open: ${s.open}\` names page "${split.page}" but \`page\` is "${s.page}"`);
           envPage = split.page;
         } else if (prefix === undefined && envPage === undefined && this.pages && !URL.canParse(s.open)) {
-          this.ctx.error([...ep, 'open'], `\`open: ${s.open}\` is relative but page "${e.id}" names no environment page: add \`page: <${envKeys.join(' | ') || 'page'}>\` or write \`<page>:${s.open}\``);
+          this.ctx.error(
+            [...ep, 'open'],
+            `\`open: ${s.open}\` is relative but page "${e.id}" names no environment page: add \`page: <${envKeys.join(' | ') || 'page'}>\` or write \`<page>:${s.open}\``,
+          );
         }
         visited.add(e.id);
       } else if (!visited.has(e.id) && !this.scenePageIds.has(e.id) && entry.skip !== true) {
@@ -446,7 +458,12 @@ class ScenarioChecker {
     const env = this.envName;
     const names = env ? Object.keys(authFor(this.opts.project.config, env)?.personas ?? {}) : projectPersonaNames(this.opts.project.config);
     if (!names.includes(name)) {
-      this.ctx.error(path, names.length ? `unknown persona "${name}"${suggestion(name, names)} (personas${env ? ` of ${env}` : ''}: ${names.join(', ')})` : `unknown persona "${name}": no personas${env ? ` on environment ${env}` : ''}`);
+      this.ctx.error(
+        path,
+        names.length
+          ? `unknown persona "${name}"${suggestion(name, names)} (personas${env ? ` of ${env}` : ''}: ${names.join(', ')})`
+          : `unknown persona "${name}": no personas${env ? ` on environment ${env}` : ''}`,
+      );
     } else if (env && personaEmail(this.opts.project.config, env, name) === undefined) {
       this.ctx.error(path, `persona "${name}" has no \`email\`${env ? ` on environment ${env}` : ''}: add email: <address> to auth.personas.${name} in project.yaml (or to its sandbox account)`);
     }
@@ -482,7 +499,13 @@ class ScenarioChecker {
       // conflict names, so any folder does (no Retake home is read for a validation).
       const personas = resolvePersonas(project, env, { home: '/' });
       if (personas.length === 0) continue;
-      const plan = planPersonas(this.s as unknown as Scenario, { env, envPages: project.config.environments[env], personas, hooks: true, ...(project.config.hooks ? { projectHooks: project.config.hooks } : {}) });
+      const plan = planPersonas(this.s as unknown as Scenario, {
+        env,
+        envPages: project.config.environments[env],
+        personas,
+        hooks: true,
+        ...(project.config.hooks ? { projectHooks: project.config.hooks } : {}),
+      });
       for (const i of plan.issues) {
         if (i.kind === 'unknown' && i.path.includes('auth') && env === this.envName) hookAuth.push(i);
         if (i.kind !== 'conflict') continue;
@@ -506,7 +529,7 @@ class ScenarioChecker {
       return;
     }
     if (card.component === undefined && (typeof slots.title !== 'string' || slots.title.trim() === '')) {
-      this.ctx.error(p, 'a card needs a `component`, a `slots.title` (the theme\'s card component shows a title) or a `video` / `image` / `lottie` file');
+      this.ctx.error(p, "a card needs a `component`, a `slots.title` (the theme's card component shows a title) or a `video` / `image` / `lottie` file");
     }
     this.slotRefs(slots, [...p, 'slots']);
   }
@@ -730,10 +753,7 @@ class ScenarioChecker {
     if (step.camera) {
       if (step.camera.zoom > this.maxZoom) {
         const which = this.opts.template ? 'template' : 'default template';
-        this.ctx.warning(
-          [...sp, 'camera', 'zoom'],
-          `zoom ${step.camera.zoom} is above the ${which} max_zoom ${this.maxZoom}: the editor clamps it`,
-        );
+        this.ctx.warning([...sp, 'camera', 'zoom'], `zoom ${step.camera.zoom} is above the ${which} max_zoom ${this.maxZoom}: the editor clamps it`);
       }
       const ct = step.camera.target;
       if (ct !== 'cursor' && ct !== 'step') checkTarget(ct, [...sp, 'camera', 'target'], this.ctx);
@@ -855,10 +875,7 @@ class ScenarioChecker {
     }
     if (this.opts.until !== undefined && this.ctx.structurallyValid) {
       if (!resolveStepRef(this.s as unknown as Scenario, this.opts.until)) {
-        this.ctx.error(
-          [],
-          `--until "${this.opts.until}" does not match any step (use "<scene>.<step id|index>", a unique step id or a scene id)`,
-        );
+        this.ctx.error([], `--until "${this.opts.until}" does not match any step (use "<scene>.<step id|index>", a unique step id or a scene id)`);
       }
     }
     if (this.opts.file && typeof this.s.video === 'string') {

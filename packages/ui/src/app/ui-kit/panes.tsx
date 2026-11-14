@@ -25,7 +25,8 @@ const ROVING = 'button:not(:disabled), a[href], select:not(:disabled), input:not
 /** Where a control is not one of the toolbar's stops: a popover (a menu's items, open or not), a menu, hidden content. */
 const NOT_A_STOP = '[popover], [role="menu"], [hidden], dialog, details:not([open]) > :not(summary)';
 /** Fields that keep their own arrows (and Home / End): every text-entry input, a slider, a select, a text area. */
-const OWN_KEYS = 'select, textarea, [contenteditable=""], [contenteditable="true"], input:not([type="button"], [type="checkbox"], [type="radio"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="file"])';
+const OWN_KEYS =
+  'select, textarea, [contenteditable=""], [contenteditable="true"], input:not([type="button"], [type="checkbox"], [type="radio"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="file"])';
 
 /** The toolbar's stops in order: its visible controls outside popovers and menus; of a radio group, the checked radio (else its first). */
 function stops(bar: HTMLElement): HTMLElement[] {
@@ -94,7 +95,16 @@ export function Toolbar({
     const all = items();
     const i = all.indexOf(t);
     if (i < 0) return;
-    const next = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (i + 1) % all.length : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (i - 1 + all.length) % all.length : e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : -1;
+    const next =
+      e.key === 'ArrowRight' || e.key === 'ArrowDown'
+        ? (i + 1) % all.length
+        : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+          ? (i - 1 + all.length) % all.length
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? all.length - 1
+              : -1;
     if (next < 0) return;
     e.preventDefault();
     current.current = next;
@@ -217,7 +227,19 @@ export function SourceList({ label, groups }: { label: string; groups: SourceGro
   );
 }
 
-export function InspectorSection({ title, children, collapsible, defaultOpen = true, testId }: { title: ReactNode; children: ReactNode; collapsible?: boolean; defaultOpen?: boolean; testId?: string }) {
+export function InspectorSection({
+  title,
+  children,
+  collapsible,
+  defaultOpen = true,
+  testId,
+}: {
+  title: ReactNode;
+  children: ReactNode;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+  testId?: string;
+}) {
   const id = useId();
   if (collapsible) {
     return (
@@ -295,7 +317,19 @@ export function EmptyState({ title, children, actions, level = 2 }: { title: Rea
  * "Unsaved YAML changes", "Not saved"), then its text. `role`: `status` (default), `alert` for what went wrong now,
  * `note` for a standing fact. It replaces the legacy Notice on the rebuilt screens.
  */
-export function Callout({ state = 'idle', title, children, role = 'status', testId }: { state?: MarkState; title: ReactNode; children?: ReactNode; role?: 'status' | 'alert' | 'note'; testId?: string }) {
+export function Callout({
+  state = 'idle',
+  title,
+  children,
+  role = 'status',
+  testId,
+}: {
+  state?: MarkState;
+  title: ReactNode;
+  children?: ReactNode;
+  role?: 'status' | 'alert' | 'note';
+  testId?: string;
+}) {
   return (
     <div className="k-callout" data-state={state} role={role} data-testid={testId}>
       <p className="k-callout-title">
@@ -404,7 +438,16 @@ function CommandPopover({ command, testId }: { command: string; testId?: string 
   }, []);
   return (
     <>
-      <button ref={trigger} type="button" className="k-btn k-btn-ghost k-btn-sm k-blocker-command" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} popoverTarget={id} data-testid={testId ? `${testId}-action` : undefined}>
+      <button
+        ref={trigger}
+        type="button"
+        className="k-btn k-btn-ghost k-btn-sm k-blocker-command"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={id}
+        popoverTarget={id}
+        data-testid={testId ? `${testId}-action` : undefined}
+      >
         <Icon name="copy" />
         <span className="k-btn-label">Command…</span>
       </button>
@@ -427,7 +470,23 @@ function CommandPopover({ command, testId }: { command: string; testId?: string 
  * same line with no state mark — a command to copy that nothing waits on (Welcome's New project, Claude's set-up). The
  * command is shown in full (it wraps: what is copied is what is shown, review B-M3 of L5.11a).
  */
-export function Blocker({ state = 'attention', word, children, fix, compact, testId }: { state?: MarkState; word?: string; children?: ReactNode; /** Optional only in the compact form (nothing to do here: the words alone). */ fix?: BlockerFix; /** L5.11a: the status bar's one line — the command behind a "Command…" popover that shows it with its Copy. */ compact?: boolean; testId?: string }) {
+export function Blocker({
+  state = 'attention',
+  word,
+  children,
+  fix,
+  compact,
+  testId,
+}: {
+  state?: MarkState;
+  word?: string;
+  children?: ReactNode;
+  /** Optional only in the compact form (nothing to do here: the words alone). */
+  fix?: BlockerFix;
+  /** L5.11a: the status bar's one line — the command behind a "Command…" popover that shows it with its Copy. */
+  compact?: boolean;
+  testId?: string;
+}) {
   const [copied, copy] = useCopy();
   const run = () => {
     if (!fix) return;
@@ -486,7 +545,25 @@ export function Checklist({ label, children }: { label: string; children: ReactN
   );
 }
 
-export function ChecklistItem({ state, word, title, children, actions, testId, level = 3 }: { state: MarkState; /** The state in words ("Ready", "Blocked: …"): visible on the title's line — a state word (the colour-only rule). */ word: string; title: ReactNode; children?: ReactNode; actions?: ReactNode; testId?: string; /** The title's heading level (2 under a page's h1). */ level?: 2 | 3 }) {
+export function ChecklistItem({
+  state,
+  word,
+  title,
+  children,
+  actions,
+  testId,
+  level = 3,
+}: {
+  state: MarkState;
+  /** The state in words ("Ready", "Blocked: …"): visible on the title's line — a state word (the colour-only rule). */
+  word: string;
+  title: ReactNode;
+  children?: ReactNode;
+  actions?: ReactNode;
+  testId?: string;
+  /** The title's heading level (2 under a page's h1). */
+  level?: 2 | 3;
+}) {
   const id = useId();
   const H = level === 2 ? 'h2' : 'h3';
   return (

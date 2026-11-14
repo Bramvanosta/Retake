@@ -1,7 +1,8 @@
 /**
  * The CI workflow (.github/workflows/ci.yml, BACKLOG BL-144) read as data: when it runs, what a pull request's code
  * may reach (no secret, no environment, a read-only token, no cache), every action pinned like release.yml's, the
- * pinned Node.js first, the guards after the build and no test suite (BL-163), the shell's Rust from its toolchain file.
+ * pinned Node.js first, the guards after the build, then the deterministic tier of the tests and nothing more of the
+ * suite (BL-163: no browser, no render, no gated test on the runner), the shell's Rust from its toolchain file.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -12,15 +13,17 @@ import { describe, expect, it } from 'vitest';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const read = (p: string) => readFileSync(join(REPO, p), 'utf8');
-/* eslint-disable @typescript-eslint/no-explicit-any */
 const YAML = createRequire(join(REPO, 'packages', 'core', 'package.json'))('yaml') as { parse: (t: string) => any };
 type Step = { name?: string; uses?: string; run?: string; env?: Record<string, string>; with?: Record<string, unknown> };
-type Job = { steps: Step[]; permissions?: Record<string, string>; environment?: string; 'runs-on'?: string };
+type Job = { steps: Step[]; env?: Record<string, string>; permissions?: Record<string, string>; environment?: string; 'runs-on'?: string };
 
 const raw = read('.github/workflows/ci.yml');
 const wf = YAML.parse(raw);
 /** The workflow without its comment lines (they name what it never does). */
-const code = raw.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+const code = raw
+  .split('\n')
+  .filter((l) => !/^\s*#/.test(l))
+  .join('\n');
 const jobs = wf.jobs as Record<string, Job>;
 const names = (job: string) => jobs[job]!.steps.map((s) => s.name ?? s.uses);
 const step = (job: string, name: string) => {
@@ -61,20 +64,38 @@ describe('the CI workflow (ci.yml)', () => {
     }
   });
 
-  it('the pinned Node.js first in each job; the guards after the build; no test suite on the runner (BL-163)', () => {
+  it('the pinned Node.js first in each job; the guards after the build; then the CI tier of the tests only (BL-163)', () => {
     for (const job of Object.keys(jobs)) expect(names(job)[1], job).toBe('Node.js, the pinned build');
     for (const job of Object.keys(jobs)) expect(step(job, 'Node.js, the pinned build').run).toBe('bash apps/desktop/scripts/ci-node.sh');
-    const order = ['pnpm (corepack, at package.json\'s packageManager)', 'Dependencies', 'Build the packages', "The repository's guards"];
+    const order = ["pnpm (corepack, at package.json's packageManager)", 'Dependencies', 'Build the packages', "The repository's guards", 'The deterministic tests'];
     const at = order.map((n) => names('checks').indexOf(n));
     expect(at.every((i) => i > 1)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
     expect(step('checks', 'Dependencies').run).toBe('pnpm install --frozen-lockfile');
     expect(step('checks', 'Build the packages').run).toBe('pnpm build');
-    const guards = step('checks', "The repository's guards").run!;
-    for (const g of ['node scripts/set-version.mjs --check', 'node scripts/audit/rules.mjs . --check', 'node scripts/requirements.mjs --untested 1', 'node scripts/requirements.mjs --check-cites']) expect(guards).toContain(g);
-    // The suite runs on the Mac only until it is faster and steadier (BL-163): no test step, no browser, no gated test.
-    expect(names('checks').at(-1)).toBe("The repository's guards");
-    expect(code).not.toMatch(/pnpm test|vitest|playwright|ffmpeg|RETAKE_TEST_/);
+    // The guards: these lines and no other, each a command of its own under `set -eu` (no `|| true`, no `#` in front of
+    // one), in a step that is its name and its script (no `if:`, no `continue-on-error`).
+    const guards = step('checks', "The repository's guards");
+    expect(Object.keys(guards).sort()).toEqual(['name', 'run']);
+    expect(guards.run!.trim().split('\n')).toEqual([
+      'set -eu',
+      'node scripts/set-version.mjs --check',
+      'node scripts/audit/rules.mjs . --check',
+      'node scripts/requirements.mjs --untested 1',
+      'node scripts/requirements.mjs --check-cites',
+      'npx tsc -p tsconfig.test.json',
+      'node scripts/lint.mjs',
+    ]);
+    expect(Object.keys(step('checks', 'Build the packages')).sort()).toEqual(['name', 'run']);
+    // The deterministic tier last (scripts/test-ci.mjs strips the tools and the gates itself), as a step of its own
+    // without `if:` or `continue-on-error`; the rest of the suite runs on the Mac (BL-163): no other test command, no
+    // browser, no gated test, no variable set for the tests here.
+    expect(names('checks').at(-1)).toBe('The deterministic tests');
+    expect(step('checks', 'The deterministic tests')).toEqual({ name: 'The deterministic tests', run: 'pnpm test:ci' });
+    expect(code.match(/pnpm test\S*/g)).toEqual(['pnpm test:ci']);
+    expect(code).not.toMatch(/vitest|playwright|ffmpeg|RETAKE_TEST_/);
+    expect(JSON.parse(read('package.json')).scripts['test:ci']).toBe('node scripts/test-ci.mjs');
+    expect((jobs.checks as unknown as Record<string, unknown>)['timeout-minutes']).toBe(45);
     expect(jobs.checks!.env).toBeUndefined();
     // Every script the workflow names exists.
     for (const [p] of raw.matchAll(/(?:apps\/desktop\/)?scripts\/[\w/.-]+\.(?:mjs|sh)|packages\/[\w-]+\/node_modules\/[\w-]+\/[\w.-]+\.js/g)) {

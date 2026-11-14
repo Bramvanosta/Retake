@@ -4,6 +4,7 @@
  * one runs), and what a job killed mid-way leaves (cleanupDead). A job whose state cannot be written makes the worker
  * exit non-zero (writeOrExit): readers then see its pid gone and derive `interrupted`.
  */
+import { stampOf } from '../clock.js';
 import { appendHistory } from '../history.js';
 import { historyOf } from './run-job-record.js';
 import type { JobRecord } from './types.js';
@@ -24,13 +25,16 @@ export async function writeOrExit(w: Worker, rec: JobRecord): Promise<void> {
 export async function closeJob(w: Worker, final: JobRecord, opts: { cleanup?: boolean } = {}): Promise<void> {
   await writeOrExit(w, final);
   try {
-    await w.queue.append(final.id, await w.queue.lastSeq(final.id), [{ type: 'state', state: final.state }, { type: 'result', ...(final.error ? { error: final.error } : {}) }]);
+    await w.queue.append(final.id, await w.queue.lastSeq(final.id), [
+      { type: 'state', state: final.state },
+      { type: 'result', ...(final.error ? { error: final.error } : {}) },
+    ]);
   } catch (e) {
     w.log(`job ${final.id}: events not written (${(e as Error).message})`);
   }
   w.done.add(final.id);
   try {
-    await appendHistory(w.root, historyOf(final));
+    await appendHistory(w.root, historyOf(final), w.clock);
   } catch (e) {
     w.log(`job ${final.id}: no history line (${(e as Error).message})`);
   }
@@ -42,7 +46,7 @@ export async function closeJob(w: Worker, final: JobRecord, opts: { cleanup?: bo
 export async function cleanupDead(w: Worker, final: JobRecord): Promise<void> {
   if (final.input.kind === 'render') {
     const { cleanupInterruptedRender } = await import('./render-job.js');
-    await cleanupInterruptedRender(w.ws, w.files, final, w.log);
+    await cleanupInterruptedRender(w.ws, w.files, final, w.log, w.reviewer);
   } else if (final.input.kind === 'export') {
     // An export's re-render leaves the same: its browser and partial files.
     const { cleanupInterruptedExport } = await import('./export-job.js');
@@ -54,7 +58,7 @@ export async function cleanupDead(w: Worker, final: JobRecord): Promise<void> {
   } else if (final.input.kind === 'review') {
     // A review killed between its two renames leaves the previous review set aside.
     const { cleanupInterruptedReview } = await import('./review-job.js');
-    await cleanupInterruptedReview(w.ws, final, w.log);
+    await cleanupInterruptedReview(w.ws, final, w.log, w.reviewer);
   }
 }
 
@@ -62,10 +66,10 @@ export async function cleanupDead(w: Worker, final: JobRecord): Promise<void> {
 export async function persistDerived(w: Worker, stored: JobRecord): Promise<void> {
   const rec = await w.queue.derive(stored);
   if (rec.state === 'interrupted') {
-    const final = { ...rec, finished_at: rec.finished_at ?? new Date().toISOString() };
+    const final = { ...rec, finished_at: rec.finished_at ?? stampOf(w.clock) };
     await w.queue.write(final);
     w.done.add(rec.id);
-    await appendHistory(w.root, historyOf(final));
+    await appendHistory(w.root, historyOf(final), w.clock);
     await cleanupDead(w, final);
   }
 }

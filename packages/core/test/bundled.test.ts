@@ -39,9 +39,7 @@ describe('bundled templates pick components (R-THM-01..03)', () => {
         const c = chosen[kind];
         expect(c?.source, `${t.name}.${kind}`).toBe('theme');
         expect(COMPONENT_ID_RE.test(c!.id), `${t.name}.${kind}`).toBe(true);
-        expect({ id: c!.id, params: c!.params }, `${t.name}.${kind} matches the legacy fields`).toEqual(
-          legacy[kind] && { id: legacy[kind]!.id, params: legacy[kind]!.params },
-        );
+        expect({ id: c!.id, params: c!.params }, `${t.name}.${kind} matches the legacy fields`).toEqual(legacy[kind] && { id: legacy[kind]!.id, params: legacy[kind]!.params });
       }
     }
   });
@@ -71,7 +69,7 @@ describe('bundled fixture project', () => {
       ['supplier', ['console'], ['/sign-in']],
       ['buyer', ['shop'], ['/sign-in']],
     ]);
-    expect(resolvePersonas(project, 'local')).toEqual([]);
+    expect(resolvePersonas(project, 'local', { home: '/nonexistent-home' })).toEqual([]);
     const used: Record<string, string> = {};
     for (const name of project.scenarios) {
       const { scenario } = await loadScenario(project, name, { files: fileFacts(PERSON_POLICY) });

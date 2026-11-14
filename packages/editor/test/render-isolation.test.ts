@@ -9,7 +9,7 @@
  *   another listener holds is never served: a given port fails (a guarded render fails), a picked one moves on;
  * - it answers 421 to a Host other than localhost, 127.0.0.1 or [::1] with its port, and 403 to a cross-origin request
  *   (an Origin other than its own, a Sec-Fetch-Site other than same-origin or none), /proxy included.
- * Ports 4977–4985. The browser part needs a Chromium headless shell; the render part ffmpeg / ffprobe too.
+ * Ports: free ones, taken when a test starts (test-support freePort). The browser part needs a Chromium headless shell; the render part ffmpeg / ffprobe too.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -23,8 +23,10 @@ import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openRenderBrowser, planRun, playwrightHeadlessShell, renderPlan } from '@retake/editor';
 import type { EditPlan } from '@retake/editor';
-import { SHARED_CACHE, hasTool, renderWorkspace } from './render-helpers.js';
-import type { RenderWorkspace } from './render-helpers.js';
+import { SHARED_CACHE, renderWorkspace } from '@retake/test-support/render';
+import { hasTool } from '@retake/test-support/repo';
+import { freePort } from '@retake/test-support/http';
+import type { RenderWorkspace } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
 
 type Renderer = typeof import('@remotion/renderer');
@@ -110,7 +112,7 @@ function connects(address: string, port: number): Promise<boolean> {
   });
 }
 
-/** The TCP addresses this process listens on for `port` ("127.0.0.1:4980", "[::1]:4980"), per lsof. */
+/** The TCP addresses this process listens on for `port` ("127.0.0.1:<port>", "[::1]:<port>"), per lsof. */
 function listeners(port: number): string[] {
   try {
     const out = execFileSync('lsof', ['-nP', '-a', '-p', String(process.pid), `-iTCP:${port}`, '-sTCP:LISTEN', '-Fn'], { encoding: 'utf8' });
@@ -163,10 +165,13 @@ async function withIpv6Taken<T>(fn: () => Promise<T>, limit = Infinity): Promise
 
 describe.skipIf(process.platform !== 'darwin' || !SHELL)('the render browser keeps the OS sandbox and site isolation (macOS)', () => {
   let closePages: () => Promise<void>;
+  let pagePort: number;
   beforeAll(async () => {
     // A page on 127.0.0.1 with a cross-site iframe on localhost (another site: another host).
-    const page = await serveOn(4977, ['127.0.0.1'], '<iframe src="http://localhost:4978/frame"></iframe>');
-    const frame = await serveOn(4978, ['127.0.0.1', '::1'], '<p>frame</p>');
+    pagePort = await freePort();
+    const framePort = await freePort(['127.0.0.1', '::1']);
+    const page = await serveOn(pagePort, ['127.0.0.1'], `<iframe src="http://localhost:${framePort}/frame"></iframe>`);
+    const frame = await serveOn(framePort, ['127.0.0.1', '::1'], '<p>frame</p>');
     closePages = async () => {
       await page();
       await frame();
@@ -229,7 +234,7 @@ describe.skipIf(process.platform !== 'darwin' || !SHELL)('the render browser kee
           const { sessionId } = (await send('Target.attachToTarget', { targetId, flatten: true })) as { sessionId: string };
           await send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, sessionId);
           await send('Page.enable', {}, sessionId);
-          await send('Page.navigate', { url: 'http://127.0.0.1:4977/' }, sessionId);
+          await send('Page.navigate', { url: `http://127.0.0.1:${pagePort}/` }, sessionId);
           for (let i = 0; i < 40 && !attached.includes('iframe'); i++) await new Promise((r) => setTimeout(r, 250));
           expect(attached).toContain('iframe');
 
@@ -266,23 +271,24 @@ describe('the bundle server listens on loopback only, and answers its own origin
 
   for (const [name, build] of BUILDS) {
     it(`${name}: 127.0.0.1 and ::1, nothing else; closed with the render`, async () => {
-      const s = await bundleServer(build, 4980);
+      const port = await freePort(['127.0.0.1', '::1']);
+      const s = await bundleServer(build, port);
       try {
-        expect(s.port).toBe(4980);
-        expect(listeners(4980)).toEqual(['127.0.0.1:4980', '[::1]:4980']);
-        expect(await get('127.0.0.1', 4980, { host: 'localhost:4980' })).toBe(200);
-        expect(await get('::1', 4980, { host: 'localhost:4980' })).toBe(200);
+        expect(s.port).toBe(port);
+        expect(listeners(port)).toEqual([`127.0.0.1:${port}`, `[::1]:${port}`]);
+        expect(await get('127.0.0.1', port, { host: `localhost:${port}` })).toBe(200);
+        expect(await get('::1', port, { host: `localhost:${port}` })).toBe(200);
         const other = otherLocalAddress();
-        if (other) expect(await connects(other, 4980), other).toBe(false);
+        if (other) expect(await connects(other, port), other).toBe(false);
         else console.warn('no address other than loopback on this machine: the non-loopback refusal is not checked');
       } finally {
         await s.close();
       }
-      expect(listeners(4980)).toEqual([]);
+      expect(listeners(port)).toEqual([]);
     }, 60_000);
 
     it(`${name}: Host other than its own → 421; a cross-origin request → 403 (/proxy included); its own → served`, async () => {
-      const p = 4981;
+      const p = await freePort(['127.0.0.1', '::1']);
       const s = await bundleServer(build, p);
       try {
         const status = (headers: Record<string, string>, path?: string) => get('127.0.0.1', p, headers, path);
@@ -296,10 +302,17 @@ describe('the bundle server listens on loopback only, and answers its own origin
         expect(await status({ ...own, origin: `http://localhost:${p}` })).toBe(200);
         expect(await status({ ...own, 'sec-fetch-site': 'same-origin' })).toBe(200);
         expect(await status({ ...own, 'sec-fetch-site': 'none' })).toBe(200);
-        const crossOrigin: Array<Record<string, string>> = [{ origin: 'http://evil.example' }, { origin: 'null' }, { origin: `http://127.0.0.1:${p}` }, { origin: `https://localhost:${p}` }, { 'sec-fetch-site': 'cross-site' }, { 'sec-fetch-site': 'same-site' }];
+        const crossOrigin: Array<Record<string, string>> = [
+          { origin: 'http://evil.example' },
+          { origin: 'null' },
+          { origin: `http://127.0.0.1:${p}` },
+          { origin: `https://localhost:${p}` },
+          { 'sec-fetch-site': 'cross-site' },
+          { 'sec-fetch-site': 'same-site' },
+        ];
         for (const extra of crossOrigin) {
           expect(await status({ ...own, ...extra }), JSON.stringify(extra)).toBe(403);
-          expect(await status({ ...own, ...extra }, `/proxy?src=${encodeURIComponent('http://127.0.0.1:4982/x.mp4')}&time=0&transparent=false`), JSON.stringify(extra)).toBe(403);
+          expect(await status({ ...own, ...extra }, `/proxy?src=${encodeURIComponent(`http://127.0.0.1:${p + 1}/x.mp4`)}&time=0&transparent=false`), JSON.stringify(extra)).toBe(403);
         }
         expect(await status({ host: 'evil.example' }, '/proxy?src=x')).toBe(421);
       } finally {
@@ -309,20 +322,22 @@ describe('the bundle server listens on loopback only, and answers its own origin
 
     it(`${name}: ::1 of the port held by another listener — a given port fails, nothing served on 127.0.0.1; a picked port moves on`, async () => {
       // Taken before the server starts: refused at the port check.
+      const held = await freePort(['127.0.0.1', '::1']);
       const squatter = createNetServer();
-      await new Promise<void>((r) => squatter.listen({ port: 4983, host: '::1' }, () => r()));
+      await new Promise<void>((r) => squatter.listen({ port: held, host: '::1' }, () => r()));
       try {
-        await expect(bundleServer(build, 4983)).rejects.toThrow(/4983/);
-        expect(await connects('127.0.0.1', 4983)).toBe(false);
+        await expect(bundleServer(build, held)).rejects.toThrow(new RegExp(String(held)));
+        expect(await connects('127.0.0.1', held)).toBe(false);
       } finally {
         await new Promise<void>((r) => squatter.close(() => r()));
       }
       // Taken between the port check and the listen.
-      const raced = await withIpv6Taken(() => bundleServer(build, 4984));
-      expect(raced.taken).toEqual([4984]);
+      const racedPort = await freePort(['127.0.0.1', '::1']);
+      const raced = await withIpv6Taken(() => bundleServer(build, racedPort));
+      expect(raced.taken).toEqual([racedPort]);
       expect(raced.outcome.status).toBe('rejected');
-      expect(listeners(4984)).toEqual([]);
-      expect(await connects('127.0.0.1', 4984)).toBe(false);
+      expect(listeners(racedPort)).toEqual([]);
+      expect(await connects('127.0.0.1', racedPort)).toBe(false);
       // No port given (a CLI render): the server takes another one, on both addresses.
       const picked = await withIpv6Taken(() => bundleServer(build), 1);
       expect(picked.outcome.status).toBe('fulfilled');
@@ -352,15 +367,19 @@ describe.skipIf(!canRender)('a guarded render whose bundle port has ::1 taken fa
 
   const render = (out: string) => renderPlan({ workPolicy: PERSON_POLICY, plan, out: join(ws.root, out), root: ws.root, cacheDir: SHARED_CACHE, network: 'guard', frameRange: [0, 2], concurrency: 1 });
 
-  it('the same render passes without the other listener, fails with it (no file written)', async () => {
-    const ok = await render('control.mp4');
-    expect(ok.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
-    expect(existsSync(join(ws.root, 'control.mp4'))).toBe(true);
-    const raced = await withIpv6Taken(() => render('raced.mp4'));
-    expect(raced.taken.length).toBeGreaterThanOrEqual(1);
-    expect(raced.outcome.status).toBe('rejected');
-    expect(String((raced.outcome as PromiseRejectedResult).reason?.message)).toMatch(/port/);
-    expect(existsSync(join(ws.root, 'raced.mp4'))).toBe(false);
-    for (const t of raced.taken) expect(listeners(t)).toEqual([]);
-  }, LONG);
+  it(
+    'the same render passes without the other listener, fails with it (no file written)',
+    async () => {
+      const ok = await render('control.mp4');
+      expect(ok.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
+      expect(existsSync(join(ws.root, 'control.mp4'))).toBe(true);
+      const raced = await withIpv6Taken(() => render('raced.mp4'));
+      expect(raced.taken.length).toBeGreaterThanOrEqual(1);
+      expect(raced.outcome.status).toBe('rejected');
+      expect(String((raced.outcome as PromiseRejectedResult).reason?.message)).toMatch(/port/);
+      expect(existsSync(join(ws.root, 'raced.mp4'))).toBe(false);
+      for (const t of raced.taken) expect(listeners(t)).toEqual([]);
+    },
+    LONG,
+  );
 });

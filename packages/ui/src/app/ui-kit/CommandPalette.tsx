@@ -40,11 +40,32 @@ export function filterCommands(commands: Command[], query: string): Command[] {
     return words.every((w) => hay.includes(w));
   });
   const groups = [...new Set(commands.map((c) => c.group))];
-  const starts = (c: Command) => (c.label.toLowerCase().startsWith(q) ? 0 : c.label.toLowerCase().split(/\s+/).some((w) => w.startsWith(words[0])) ? 1 : 2);
+  const starts = (c: Command) =>
+    c.label.toLowerCase().startsWith(q)
+      ? 0
+      : c.label
+            .toLowerCase()
+            .split(/\s+/)
+            .some((w) => w.startsWith(words[0]))
+        ? 1
+        : 2;
   return groups.flatMap((g) => hits.filter((c) => c.group === g).sort((a, b) => starts(a) - starts(b)));
 }
 
-export function CommandPalette({ open, onClose, commands, placeholder = 'Search commands, scenes and themes', footnote }: { open: boolean; onClose: () => void; commands: Command[]; placeholder?: string; /** A last line in the footer legend. */ footnote?: ReactNode }) {
+export function CommandPalette({
+  open,
+  onClose,
+  commands,
+  placeholder = 'Search commands, scenes and themes',
+  footnote,
+}: {
+  open: boolean;
+  onClose: () => void;
+  commands: Command[];
+  placeholder?: string;
+  /** A last line in the footer legend. */
+  footnote?: ReactNode;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const opener = useRef<HTMLElement | null>(null);
@@ -131,24 +152,24 @@ export function CommandPalette({ open, onClose, commands, placeholder = 'Search 
       </label>
       <div className="k-palette-field">
         <input
-        ref={input}
-        id={`${base}-input`}
-        className="k-palette-input"
-        role="combobox"
-        aria-expanded={hits.length > 0}
-        aria-controls={`${base}-list`}
-        aria-autocomplete="list"
-        aria-activedescendant={current ? optId(current) : undefined}
-        placeholder={placeholder}
-        value={query}
-        autoComplete="off"
-        spellCheck={false}
-        onChange={(e) => {
-          setQuery(e.currentTarget.value);
-          setActive(0);
-        }}
-        onKeyDown={onKey}
-      />
+          ref={input}
+          id={`${base}-input`}
+          className="k-palette-input"
+          role="combobox"
+          aria-expanded={hits.length > 0}
+          aria-controls={`${base}-list`}
+          aria-autocomplete="list"
+          aria-activedescendant={current ? optId(current) : undefined}
+          placeholder={placeholder}
+          value={query}
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(e) => {
+            setQuery(e.currentTarget.value);
+            setActive(0);
+          }}
+          onKeyDown={onKey}
+        />
         <span className="k-palette-esc" aria-hidden="true">
           <Kbd keys={['Esc']} />
         </span>
@@ -163,12 +184,25 @@ export function CommandPalette({ open, onClose, commands, placeholder = 'Search 
             {hits
               .filter((c) => c.group === g)
               .map((c) => (
-                <div key={c.id} id={optId(c)} role="option" aria-selected={c === current} className={c === current ? 'k-palette-option is-active' : 'k-palette-option'} onClick={() => runAt(hits.indexOf(c))}>
+                <div
+                  key={c.id}
+                  id={optId(c)}
+                  role="option"
+                  aria-selected={c === current}
+                  className={c === current ? 'k-palette-option is-active' : 'k-palette-option'}
+                  onClick={() => runAt(hits.indexOf(c))}
+                >
                   <span className="k-palette-icon" aria-hidden="true">
                     {c.icon && <Icon name={c.icon} />}
                   </span>
-                  <span className="k-palette-label"><Txt text={c.label} /></span>
-                  {c.hint && <span className="k-palette-hint"><Txt text={c.hint} /></span>}
+                  <span className="k-palette-label">
+                    <Txt text={c.label} />
+                  </span>
+                  {c.hint && (
+                    <span className="k-palette-hint">
+                      <Txt text={c.hint} />
+                    </span>
+                  )}
                   {c.kbd && <Kbd keys={c.kbd} />}
                 </div>
               ))}

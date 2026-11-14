@@ -10,6 +10,7 @@ import type { HeldWork } from '../jobs/held.js';
 import type { JobQueueView } from '../jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from '../jobs/types.js';
 import type { JobRecord } from '../jobs/types.js';
+import { bestEffort } from '@retake/core/base';
 
 function signature(j: JobRecord): string {
   // L5.14: a heavy job held or let go by a take is a change (the Studio says it within one poll).
@@ -64,7 +65,7 @@ export class JobsWatch {
     let hold: Promise<'here' | 'elsewhere' | undefined> | undefined;
     const once = () => (hold ??= this.queue.takeHold());
     for (const id of look) {
-      const job = await this.queue.get(id, { hold: once }).catch(() => undefined);
+      const job = await bestEffort(this.queue.get(id, { hold: once }), 'a job removed meanwhile reads as gone');
       if (!job) {
         unread.add(id);
         continue;

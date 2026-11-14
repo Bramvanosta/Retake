@@ -3,7 +3,7 @@
  * the plan (components, captions, transitions, run, theme) and which sample frames changed visibly (frames compared
  * at the same offset inside the same segment, so a longer scene does not shift every later comparison).
  */
-import type { EditPlan, PlanSegment, RenderRecord } from '@retake/editor/plan';
+import type { EditPlan, NamedRender, PlanSegment } from '@retake/editor/plan';
 import { isClip, round, segmentSpans, spanAt } from './spans.js';
 import type { SegmentSpan } from './spans.js';
 import type { Finding, ReviewDiff } from './types.js';
@@ -34,17 +34,35 @@ function segmentChanges(prev: PlanSegment, cur: PlanSegment): string[] {
   if (isClip(prev) && isClip(cur)) {
     const cap = componentChange('caption', prev.caption, cur.caption);
     if (cap) out.push(cap);
-    if (!same(prev.cues.map((x) => [x.kicker, x.text]), cur.cues.map((x) => [x.kicker, x.text]))) out.push('caption text');
+    if (
+      !same(
+        prev.cues.map((x) => [x.kicker, x.text]),
+        cur.cues.map((x) => [x.kicker, x.text]),
+      )
+    )
+      out.push('caption text');
     if (!same(prev.layout, cur.layout)) out.push('layout geometry');
-    if (!same(prev.zooms.map((z) => [z.step, z.zoom]), cur.zooms.map((z) => [z.step, z.zoom]))) out.push('camera zooms');
-    if (!same(prev.overlays.map((o) => [o.component.id, o.step]), cur.overlays.map((o) => [o.component.id, o.step]))) out.push('overlays');
+    if (
+      !same(
+        prev.zooms.map((z) => [z.step, z.zoom]),
+        cur.zooms.map((z) => [z.step, z.zoom]),
+      )
+    )
+      out.push('camera zooms');
+    if (
+      !same(
+        prev.overlays.map((o) => [o.component.id, o.step]),
+        cur.overlays.map((o) => [o.component.id, o.step]),
+      )
+    )
+      out.push('overlays');
     if (prev.src.from_s !== cur.src.from_s || prev.src.to_s !== cur.src.to_s) out.push(`source range ${prev.src.from_s}–${prev.src.to_s} s → ${cur.src.from_s}–${cur.src.to_s} s`);
   }
   return out;
 }
 
 /** The plan-level part of the diff (no pixels). */
-export function diffRecords(previous: RenderRecord, current: RenderRecord): Omit<ReviewDiff, 'compared' | 'changed_frames'> {
+export function diffRecords(previous: NamedRender, current: NamedRender): Omit<ReviewDiff, 'compared' | 'changed_frames'> {
   const ps = segmentSpans(previous.plan);
   const cs = segmentSpans(current.plan);
   const pf = previous.plan.fps;

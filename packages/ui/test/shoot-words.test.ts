@@ -6,8 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { MARK_STATES } from '../src/app/ui-kit/index.js';
-import { REHEARSE_MAPPING, SHOOT_STATES, blockerShort, modeWord, shootState } from '../src/app/shoot-words.js';
-import type { ShootState } from '../src/app/shoot-words.js';
+import { REHEARSE_MAPPING, SHOOT_STATES, blockerShort, modeWord, shootState } from '../src/app/words/shoot-words.js';
+import type { ShootState } from '../src/app/words/shoot-words.js';
 import { PRIORITY, ownerOf, registerShellCommand, runShellCommand } from '../src/app/shell/command-bus.js';
 
 describe('blocker words by kind (critique H3)', () => {
@@ -34,7 +34,7 @@ describe('blocker words by kind (critique H3)', () => {
   });
 });
 
-describe('the status bar\'s states (M15)', () => {
+describe("the status bar's states (M15)", () => {
   it('⚑ every state has a shape of the kit and a word that says it', () => {
     const states = Object.keys(SHOOT_STATES) as ShootState[];
     expect(states.sort()).toEqual(['cancelled', 'failed', 'idle', 'interrupted', 'paused', 'queued', 'running', 'stopping', 'succeeded', 'unknown']);
@@ -48,7 +48,7 @@ describe('the status bar\'s states (M15)', () => {
     expect(SHOOT_STATES.succeeded.word('capture')).toBe('Last take succeeded');
   });
 
-  it('a run\'s state: queued, running, paused, stopping, finished by its status, anything else unknown', () => {
+  it("a run's state: queued, running, paused, stopping, finished by its status, anything else unknown", () => {
     expect(shootState(null)).toBe('idle');
     expect(shootState({ status: 'queued' })).toBe('queued');
     expect(shootState({ status: 'queued', stopping: true })).toBe('stopping');
@@ -59,7 +59,7 @@ describe('the status bar\'s states (M15)', () => {
     expect(shootState({ status: '<b>x</b>' })).toBe('unknown');
   });
 
-  it('the mode\'s names: Rehearsal / Capture; the one mapping line names the terminal\'s flag', () => {
+  it("the mode's names: Rehearsal / Capture; the one mapping line names the terminal's flag", () => {
     expect([modeWord('dry'), modeWord('capture'), modeWord('dry', true)]).toEqual(['Rehearsal', 'Capture', 'rehearsal']);
     expect(REHEARSE_MAPPING).toContain('--dry');
     expect(REHEARSE_MAPPING).toContain('run_dry');

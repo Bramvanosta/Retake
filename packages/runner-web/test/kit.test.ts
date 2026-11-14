@@ -4,8 +4,8 @@ import type { BBox, TargetObject } from '@retake/core';
 import { ERROR_DOM_MAX, openSession, kitConfigFor } from '../src/index.js';
 import type { BrowserSession, CursorEffectPayload, CursorState, KitClient, ResolveFound, ResolveMissing } from '../src/index.js';
 import { CURSOR_DIALOG_PAGE, CURSOR_FORM_PAGE, CURSOR_PAGE, FRAME_PAGE, NO_CONTENT_PAGE, OVERLAY_A, OVERLAY_B, RESOLVER_PAGE, RIPPLE_PAGE, deepPage, latePaintPage } from './pages.js';
-import { startServer } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { startServer } from '@retake/test-support/capture';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
@@ -424,7 +424,10 @@ describe('click ripple (R-ISS-03, R-CHO-05)', () => {
     // Both of its animations (scale and opacity) paused before any is measured: one left running fades out.
     const both = () => ['dsr-t', 'dsr-o'].every((n) => started.some((a) => a.name === n));
     for (let i = 0; i < 500 && !both(); i++) await rp.waitForTimeout(10);
-    expect(started.map((a) => a.name), 'the ripple animations started').toEqual(expect.arrayContaining(['dsr-t', 'dsr-o']));
+    expect(
+      started.map((a) => a.name),
+      'the ripple animations started',
+    ).toEqual(expect.arrayContaining(['dsr-t', 'dsr-o']));
     const ids = started.map((a) => a.id);
     await cdp.send('Animation.setPaused', { animations: ids, paused: true });
     await cdp.send('Animation.seekAnimations', { animations: ids, currentTime: ms });
@@ -464,18 +467,26 @@ describe('click ripple (R-ISS-03, R-CHO-05)', () => {
   it('is clearly distinguishable on a button of the same colour as the ripple (contrasting ring)', async () => {
     // Strong while it expands, still distinguishable while it fades out (opacity 1 → 0 over .55 s ease-out bounds
     // the contrast: at 200 ms the ring is ~50 % opaque, i.e. at most ~105 levels away from the button on one channel).
-    for (const [ms, minDiff] of [[60, 100], [150, 100], [200, 70], [300, 40]] as const) {
+    for (const [ms, minDiff] of [
+      [60, 100],
+      [150, 100],
+      [200, 70],
+      [300, 40],
+    ] as const) {
       const { distinct, maxDiff } = await rippleAt(ms);
       expect(maxDiff, `${ms} ms`).toBeGreaterThan(minDiff);
       if (ms <= 200) expect(distinct, `${ms} ms`).toBeGreaterThan(150);
     }
     // Control: the same disc without the ring (the previous ripple) is invisible on that button.
     await rp.goto(`${server.url}/ripple.html`);
-    await rp.evaluate(([x, y, color]) => {
-      const d = document.createElement('div');
-      d.style.cssText = `position:fixed;left:${x - 21}px;top:${y - 21}px;width:42px;height:42px;border-radius:50%;background:${color}`;
-      document.body.appendChild(d);
-    }, [C.x, C.y, EDITORIAL_RIPPLE] as const);
+    await rp.evaluate(
+      ([x, y, color]) => {
+        const d = document.createElement('div');
+        d.style.cssText = `position:fixed;left:${x - 21}px;top:${y - 21}px;width:42px;height:42px;border-radius:50%;background:${color}`;
+        document.body.appendChild(d);
+      },
+      [C.x, C.y, EDITORIAL_RIPPLE] as const,
+    );
     const img = await decodePng(rp, await rp.screenshot({ clip: { x: C.x - 50, y: C.y - 50, width: 100, height: 100 } }));
     let distinct = 0;
     for (let i = 0; i < img.data.length; i += 4) {
@@ -516,8 +527,7 @@ describe('scene-start rest point and DOM snippets', () => {
     const r = (await kit.find({ text: 'Pick dates' })) as { ref: string; bbox: { x: number; y: number; w: number; h: number } };
     const pt = (await kit.point(r.ref))!;
     const dialog = await page.locator('[role=dialog]').boundingBox();
-    const inDialog = (q: { x: number; y: number }) =>
-      q.x > dialog!.x && q.y > dialog!.y && q.x + 26 < dialog!.x + dialog!.width && q.y + 32 < dialog!.y + dialog!.height;
+    const inDialog = (q: { x: number; y: number }) => q.x > dialog!.x && q.y > dialog!.y && q.x + 26 < dialog!.x + dialog!.width && q.y + 32 < dialog!.y + dialog!.height;
     // A button at the dialog's right edge: its natural rest point (below-right) is on the backdrop unless the dialog
     // is known.
     const close = (await kit.find({ aria: 'Close' })) as { ref: string; bbox: { x: number; y: number; w: number; h: number } };
@@ -540,10 +550,13 @@ describe('scene-start rest point and DOM snippets', () => {
     const p = await kit.restNear(r.bbox, { point: { x: pt.x, y: pt.y }, ref: r.ref });
     expect(p.side).toMatch(/^near-/);
     expect(Math.hypot(p.x - pt.x, p.y - pt.y)).toBeLessThan(100);
-    const under = await page.evaluate(([x, y]) => {
-      const el = document.elementFromPoint(x, y)!;
-      return { tag: el.tagName, cursor: getComputedStyle(el).cursor, dialog: !!el.closest('[role=dialog]') };
-    }, [p.x, p.y] as const);
+    const under = await page.evaluate(
+      ([x, y]) => {
+        const el = document.elementFromPoint(x, y)!;
+        return { tag: el.tagName, cursor: getComputedStyle(el).cursor, dialog: !!el.closest('[role=dialog]') };
+      },
+      [p.x, p.y] as const,
+    );
     expect(under.dialog).toBe(true);
     expect(['SELECT', 'BUTTON', 'TEXTAREA', 'INPUT']).not.toContain(under.tag);
     expect(['pointer', 'text']).not.toContain(under.cursor);
@@ -585,7 +598,13 @@ describe('open shadow roots and same-origin frames (R-ISS-07, R-KIT-11)', () => 
   async function sameBox(box: BBox, loc: Locator, what: string): Promise<void> {
     const pw = (await loc.boundingBox())!;
     expect(pw, what).not.toBeNull();
-    for (const [a, b] of [[box.x, pw.x], [box.y, pw.y], [box.w, pw.width], [box.h, pw.height]]) expect(Math.abs(a - b), `${what} ${JSON.stringify({ box, pw })}`).toBeLessThanOrEqual(0.5);
+    for (const [a, b] of [
+      [box.x, pw.x],
+      [box.y, pw.y],
+      [box.w, pw.width],
+      [box.h, pw.height],
+    ])
+      expect(Math.abs(a - b), `${what} ${JSON.stringify({ box, pw })}`).toBeLessThanOrEqual(0.5);
   }
   async function cursorAt(x: number, y: number, kind?: CursorState['kind']): Promise<CursorState> {
     let st = await kit.cursorState();
@@ -664,7 +683,9 @@ describe('open shadow roots and same-origin frames (R-ISS-07, R-KIT-11)', () => 
     await page.evaluate(() => void (document.getElementById('cover')!.style.display = 'none'));
     // Page and frame scrolled.
     await page.evaluate(() => window.scrollTo(0, 40));
-    await ship().locator('body').evaluate(() => window.scrollTo(0, 30));
+    await ship()
+      .locator('body')
+      .evaluate(() => window.scrollTo(0, 30));
     for (const [t, loc, what] of [
       [{ text: 'Estimate' }, ship().locator('#estimate'), 'estimate scrolled'],
       [{ text: 'Nested frame button' }, ship().frameLocator('#nested').locator('#nested-btn'), 'nested scrolled'],
@@ -673,7 +694,9 @@ describe('open shadow roots and same-origin frames (R-ISS-07, R-KIT-11)', () => 
       await sameBox((await found(t)).bbox, loc, what);
     }
     await page.evaluate(() => window.scrollTo(0, 0));
-    await ship().locator('body').evaluate(() => window.scrollTo(0, 0));
+    await ship()
+      .locator('body')
+      .evaluate(() => window.scrollTo(0, 0));
   });
 
   it('hasText reads shadow roots and frames; a native <select> in a frame is set in its own realm', async () => {
@@ -704,13 +727,17 @@ describe('open shadow roots and same-origin frames (R-ISS-07, R-KIT-11)', () => 
     const pt = (await kit.point(est.ref))!;
     await kit.pointerSequence(est.ref, pt.x, pt.y);
     const box = (await page.locator('#ship').boundingBox())!;
-    const last = await ship().locator('body').evaluate(() => (window as unknown as { lastClick: { x: number; y: number; view: boolean; trusted: boolean } }).lastClick);
+    const last = await ship()
+      .locator('body')
+      .evaluate(() => (window as unknown as { lastClick: { x: number; y: number; view: boolean; trusted: boolean } }).lastClick);
     expect(last).toMatchObject({ view: true, trusted: false });
     // #ship: 6 px border + 10 px padding.
     expect(Math.abs(last.x - (pt.x - (box.x + 16)))).toBeLessThanOrEqual(0.5);
     expect(Math.abs(last.y - (pt.y - (box.y + 16)))).toBeLessThanOrEqual(0.5);
     expect(await ship().locator('#out').textContent()).toMatch(/^7 bags to /);
-    await ship().locator('#out').evaluate((el) => void (el.textContent = '-'));
+    await ship()
+      .locator('#out')
+      .evaluate((el) => void (el.textContent = '-'));
     await kit.domClick(est.ref, pt.x, pt.y);
     expect(await ship().locator('#out').textContent()).toMatch(/^7 bags to /);
   });
@@ -734,7 +761,9 @@ describe('open shadow roots and same-origin frames (R-ISS-07, R-KIT-11)', () => 
     expect(sc).not.toBe('');
     expect(await kit.scrollContainerFor((await found({ css: '#ship' })).ref)).toBe(sc); // an iframe designates its document's scroller
     const info = await kit.scrollInfo(sc, far.ref);
-    const inDoc = await ship().locator('#far').evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+    const inDoc = await ship()
+      .locator('#far')
+      .evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
     expect(Math.abs(info.target_top! - inDoc)).toBeLessThanOrEqual(1);
     // A frame below the page fold: the page scrolls.
     const low = await found({ text: 'Low button' });
@@ -757,7 +786,9 @@ describe('open shadow roots and same-origin frames (R-ISS-07, R-KIT-11)', () => 
     const emb = await at({ text: 'Embedded' }); // a frame inside a web component's shadow root
     await page.mouse.move(emb.x, emb.y);
     expect(await cursorAt(emb.x, emb.y, 'hand')).toMatchObject({ x: emb.x, y: emb.y, kind: 'hand' });
-    await ship().locator('body').evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await ship()
+      .locator('body')
+      .evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     const nested = await at({ text: 'Nested frame button' });
     expect(nested.hit).toBe(true);
     await page.mouse.move(nested.x, nested.y);

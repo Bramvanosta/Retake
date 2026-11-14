@@ -29,6 +29,10 @@ import type { LoadedProject, Scenario, Timeline, ValidationIssue } from '@retake
 import { errors, warnings } from './helpers.js';
 import { fileFacts, nodeFileFacts } from '@retake/core/io';
 import { PERSON_POLICY } from '@retake/core';
+import { memoryFileFacts } from '@retake/core';
+
+/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+const NO_DISK = memoryFileFacts({});
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
 const warns = (issues: ValidationIssue[]) => warnings(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -69,13 +73,13 @@ const SCENARIO = [
 ].join('\n');
 
 const parsed = (text: string, p?: LoadedProject): Scenario => {
-  const r = parseScenario(text, p ? { project: p } : {});
+  const r = parseScenario(text, p ? { files: NO_DISK, project: p } : {});
   if (!r.scenario) throw new Error(errs(r.issues).join('\n'));
   return r.scenario;
 };
 
 describe('hook steps and named hooks (R-FLD-31)', () => {
-  it('a hook step names a hook of the scenario, else of project.yaml; each entry runs under its own name, else the hook\'s', () => {
+  it("a hook step names a hook of the scenario, else of project.yaml; each entry runs under its own name, else the hook's", () => {
     const p = project(['hooks:', '  shared: {http: {method: POST, url: "{{console}}/api/reset"}}', '  request: {sql: "select 1"}']);
     const sc = parsed(SCENARIO.replace('      - hook: request', '      - hook: request\n      - hook: shared'), p);
     expect(hookStepNames(sc)).toEqual(['request', 'shared', 'queue']);
@@ -97,25 +101,40 @@ describe('hook steps and named hooks (R-FLD-31)', () => {
       expect.stringMatching(/^scenes\.1\.steps\.1\.hook: unknown hook "requst" \(did you mean "request"\?\): declare it under `hooks:` in the scenario or in project\.yaml \(hooks: request, queue\)$/),
     ]);
     // Without a project, a name the scenario does not declare may be project.yaml's: not an error.
-    expect(errs(parseScenario(SCENARIO.replace('hooks:\n  request:', 'hooks:\n  other:').replace('- hook: {name: queue}', '- hold: 1'), { files: fileFacts(PERSON_POLICY),}).issues)).toEqual(
+    expect(errs(parseScenario(SCENARIO.replace('hooks:\n  request:', 'hooks:\n  other:').replace('- hook: {name: queue}', '- hold: 1'), { files: fileFacts(PERSON_POLICY) }).issues)).toEqual(
       expect.arrayContaining([expect.stringMatching(/unknown hook "request"/)]),
     );
-    const w = warns(parseScenario(SCENARIO.replace('      - hook: request', '      - hook: request\n        caption: Sent\n        mark: sent').replace('  queue:', '  unused: {http: {method: GET, url: "{{console}}/api/health"}}\n  queue:'), { files: fileFacts(PERSON_POLICY), project: p }).issues);
+    const w = warns(
+      parseScenario(
+        SCENARIO.replace('      - hook: request', '      - hook: request\n        caption: Sent\n        mark: sent').replace(
+          '  queue:',
+          '  unused: {http: {method: GET, url: "{{console}}/api/health"}}\n  queue:',
+        ),
+        { files: fileFacts(PERSON_POLICY), project: p },
+      ).issues,
+    );
     expect(w).toEqual(
       expect.arrayContaining([
         'scenes.1.steps.1: a hook step runs off camera and the edit cuts it: its caption, mark are never shown — put them on the next step',
         'hooks.unused: hook "unused" is run by no `hook: unused` step',
       ]),
     );
-    expect(errs(parseScenario(SCENARIO.replace('http: {method: POST, url: "{{console}}/api/quotes", json: {bags: 1}}', 'http: {method: DELETE, url: "{{console}}/api/quotes/1"}'), { files: fileFacts(PERSON_POLICY), project: p }).issues)).toEqual([
-      expect.stringMatching(/^hooks\.request: destructive hook \(HTTP DELETE\) requires "confirm: true"$/),
-    ]);
+    expect(
+      errs(
+        parseScenario(SCENARIO.replace('http: {method: POST, url: "{{console}}/api/quotes", json: {bags: 1}}', 'http: {method: DELETE, url: "{{console}}/api/quotes/1"}'), {
+          files: fileFacts(PERSON_POLICY),
+          project: p,
+        }).issues,
+      ),
+    ).toEqual([expect.stringMatching(/^hooks\.request: destructive hook \(HTTP DELETE\) requires "confirm: true"$/)]);
     // project.yaml's named hooks are checked like its reset hooks.
-    expect(errs(parseProjectYaml([...PROJECT, 'hooks:', '  wipe: {http: {method: DELETE, url: "{{console}}/api/all"}}', ''].join('\n')).issues)).toEqual([expect.stringMatching(/^hooks\.wipe: destructive hook/)]);
+    expect(errs(parseProjectYaml([...PROJECT, 'hooks:', '  wipe: {http: {method: DELETE, url: "{{console}}/api/all"}}', ''].join('\n')).issues)).toEqual([
+      expect.stringMatching(/^hooks\.wipe: destructive hook/),
+    ]);
     expect(errs(parseScenario(SCENARIO.replace('hook: request', 'hook: Not A Slug')).issues)).not.toEqual([]);
   });
 
-  it('a read-only environment refuses the named hooks that write; through MCP a named hook\'s file and secrets are checked like setup hooks\'', () => {
+  it("a read-only environment refuses the named hooks that write; through MCP a named hook's file and secrets are checked like setup hooks'", () => {
     const sc = parsed(SCENARIO);
     // Its shell entry declares `writes: false`: counted only when that flag does not count (through MCP).
     expect(writingHooks({ step: stepHookList(sc) }).map((w) => `${w.phase} ${w.index} ${w.name}: ${w.reason}`)).toEqual(['step 0 request: HTTP POST', 'step 1 push: HTTP POST']);
@@ -126,7 +145,9 @@ describe('hook steps and named hooks (R-FLD-31)', () => {
     const secret = parsed(SCENARIO.replace('{bags: 1}', '{token: "{{env:API_TOKEN}}"}'));
     expect(agentTrustProblems(p, secret, { files: nodeFileFacts }).join('\n')).toMatch(/the scenario uses \{\{env:API_TOKEN\}\}/);
     // A step hook's rollback is approved with it (it runs later, after the teardown), as a setup hook's.
-    expect(hookApprovalReason({ http: { method: 'POST', url: 'http://localhost:4401/x', rollback: { method: 'DELETE', url: 'http://localhost:4401/x' } } }, 'step')).toMatch(/its rollback: HTTP DELETE/);
+    expect(hookApprovalReason({ http: { method: 'POST', url: 'http://localhost:4401/x', rollback: { method: 'DELETE', url: 'http://localhost:4401/x' } } }, 'step')).toMatch(
+      /its rollback: HTTP DELETE/,
+    );
   });
 });
 
@@ -137,7 +158,7 @@ describe('the filmed part and the edit (L5.5) with hook steps and offscreen scen
     expect(filmedChanges(SCENARIO.replace('    offscreen: true\n', ''), SCENARIO)).toEqual([]);
   });
 
-  it('replanEdit carries today\'s `offscreen` onto the take\'s timeline', () => {
+  it("replanEdit carries today's `offscreen` onto the take's timeline", () => {
     const then = parsed(SCENARIO);
     const now = parsed(SCENARIO.replace('    offscreen: true\n', '').replace('  - id: list\n', '  - id: list\n    offscreen: true\n'));
     const timeline = {

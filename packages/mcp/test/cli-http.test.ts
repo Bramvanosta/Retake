@@ -16,7 +16,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 
 const BIN = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
 const built = existsSync(BIN) && existsSync(join(REPO, 'packages', 'mcp', 'dist', 'http.js'));
@@ -96,8 +97,8 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
     const transport = new StreamableHTTPClientTransport(new URL(line.url), { requestInit: { headers: { Authorization: `Bearer ${token}` } } });
     await client.connect(transport);
     expect((await client.listTools()).tools).toHaveLength(45);
-    const r = (await client.callTool({ name: 'project_list', arguments: {} })) as { structuredContent: { projects: Array<{ slug: string }> } };
-    expect(r.structuredContent.projects.map((p) => p.slug)).toEqual(['northfield-fixture']);
+    const r = await client.callTool({ name: 'project_list', arguments: {} });
+    expect((r.structuredContent as { projects: Array<{ slug: string }> }).projects.map((p) => p.slug)).toEqual(['northfield-fixture']);
     await transport.terminateSession();
     await client.close();
     const wrong = await fetch(line.url, { method: 'POST', headers: { Authorization: 'Bearer nope', 'Content-Type': 'application/json' }, body: '{}' });
@@ -110,14 +111,18 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
   });
 
   it('the port held by a program that is not a Retake MCP server → refused (exit 1), stop it and rotate the token', async () => {
-    const holder = spawn(process.execPath, ['-e', "require('net').createServer().listen({port: 4975, host: '127.0.0.1', exclusive: true}, () => console.log('up'))"], { stdio: ['ignore', 'pipe', 'inherit'] });
+    // The holder takes a port the system picks and prints it (a fixed one may belong to another session).
+    const holder = spawn(process.execPath, ['-e', "const s = require('net').createServer().listen({port: 0, host: '127.0.0.1', exclusive: true}, () => console.log(s.address().port))"], {
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
     children.push(holder);
-    await new Promise<void>((r) => holder.stdout!.once('data', () => r()));
+    const port = await new Promise<string>((r) => holder.stdout!.once('data', (d: Buffer) => r(String(d).trim())));
+    expect(port).toMatch(/^\d+$/);
     try {
-      const r = await retake(['--root', ws, 'mcp', '--http', '--port', '4975']).exit;
+      const r = await retake(['--root', ws, 'mcp', '--http', '--port', port]).exit;
       expect(r.code, r.err).toBe(1);
       expect(r.out).toBe('');
-      expect(r.err).toContain('127.0.0.1:4975 is taken and not by a Retake MCP server of this account');
+      expect(r.err).toContain(`127.0.0.1:${port} is taken and not by a Retake MCP server of this account`);
       expect(r.err).toContain(process.platform === 'darwin' ? `not a Retake MCP server (pid ${holder.pid})` : 'not by a Retake MCP server');
       expect(r.err).toContain('fix: stop that program');
       expect(r.err).toContain('retake mcp --http --rotate-token: an MCP client may already have sent the token to it');
@@ -127,12 +132,15 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
   });
 
   it.skipIf(process.platform !== 'darwin')("the port held by this account's own retake mcp --http → the port-busy answer (use it or stop it), no token advice", async () => {
-    const first = retake(['--root', ws, 'mcp', '--http', '--port', '4976', '--json']);
-    expect(JSON.parse(await first.line)).toMatchObject({ port: 4976, pid: first.child.pid });
+    // The first server takes a port the system picks (a fixed one may belong to another session); the second asks for it.
+    const first = retake(['--root', ws, 'mcp', '--http', '--port', '0', '--json']);
+    const served = JSON.parse(await first.line) as { port: number; pid: number };
+    expect(served).toMatchObject({ port: expect.any(Number), pid: first.child.pid });
+    expect(served.port).toBeGreaterThan(0);
     try {
-      const r = await retake(['--root', ws, 'mcp', '--http', '--port', '4976']).exit;
+      const r = await retake(['--root', ws, 'mcp', '--http', '--port', String(served.port)]).exit;
       expect(r.code, r.err).toBe(1);
-      expect(r.err).toContain('cannot listen on 127.0.0.1:4976: EADDRINUSE');
+      expect(r.err).toContain(`cannot listen on 127.0.0.1:${served.port}: EADDRINUSE`);
       expect(r.err).toContain('a Retake MCP server of this account already serves on it');
       expect(r.err).toContain('fix: use that server (its clients reach it already), or stop it before starting another — or pass another --port and register again');
       expect(r.err).not.toContain('leave it out');

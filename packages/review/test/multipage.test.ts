@@ -15,7 +15,7 @@ import { insetRectAt, mapPaneRect, planEdit } from '@retake/editor/plan';
 import type { ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@retake/editor/plan';
 import { DEFAULT_RULES, checkCursor, checkOverlayCover, checkTutorial, fontFileMeasurer, outputClicks, planFontFiles, segmentSpans, transitionSpans } from '../src/index.js';
 import type { CheckContext } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 
 const FIXTURES = join(REPO, 'packages/editor/test/fixtures');
@@ -27,7 +27,17 @@ async function ctxOf(timeline: Timeline, overrides: EditOverrides = {}, theme = 
   const template = await loadTemplate(theme, REPO, { files: fileFacts(PERSON_POLICY) });
   const plan: EditPlan = planEdit({ timeline, template, project, registry, captureFile: '/captures/capture.mp4', overrides });
   edit?.(plan);
-  const record = { version: 1, id: `${timeline.scenario}-v1`, scenario: timeline.scenario, run_id: timeline.run_id, template: theme, status: 'succeeded', overrides, variant: plan.variant, plan } as unknown as RenderRecord;
+  const record = {
+    version: 1,
+    id: `${timeline.scenario}-v1`,
+    scenario: timeline.scenario,
+    run_id: timeline.run_id,
+    template: theme,
+    status: 'succeeded',
+    overrides,
+    variant: plan.variant,
+    plan,
+  } as unknown as RenderRecord;
   return {
     record,
     plan,
@@ -66,16 +76,28 @@ describe('multi-page clips in the review (L2.11)', () => {
         const rel = c.frame - clip.from;
         const cap = clip.inset?.pane === c.pane ? insetRectAt(clip, rel, ctx.plan.fps)! : clip.panes![c.pane!].layout.capture;
         expect(clip.panes![c.pane!].page, where).toBe(c.page);
-        expect(c.screen && inside(c.screen, { x: cap.x - 1, y: cap.y - 1, w: cap.w + 2, h: cap.h + 2 }), `${where} ${c.segment} step ${c.step} on ${c.page}: ${JSON.stringify(c.screen)} outside ${JSON.stringify(cap)}`).toBe(true);
+        expect(
+          c.screen && inside(c.screen, { x: cap.x - 1, y: cap.y - 1, w: cap.w + 2, h: cap.h + 2 }),
+          `${where} ${c.segment} step ${c.step} on ${c.page}: ${JSON.stringify(c.screen)} outside ${JSON.stringify(cap)}`,
+        ).toBe(true);
       }
       expect(checkOverlayCover(ctx), where).toEqual([]);
-      expect(checkTutorial(ctx).filter((f) => f.severity !== 'info'), where).toEqual([]);
+      expect(
+        checkTutorial(ctx).filter((f) => f.severity !== 'info'),
+        where,
+      ).toEqual([]);
       // A whole table row (1342 px) cannot fit a 4:5 reframe of the desk: the reframe shows its leading part (the
       // request's id, its "New" pill, the coffee) with the click — an info, not a warning.
       const cursor = checkCursor(ctx);
-      expect(cursor.filter((f) => f.severity !== 'info'), where).toEqual([]);
+      expect(
+        cursor.filter((f) => f.severity !== 'info'),
+        where,
+      ).toEqual([]);
       if (name === 'phone-and-desktop' && variant === 'vertical') {
-        expect(cursor.some((f) => f.code === 'target-outside-view' && /desk/.test(f.message) && /its leading part and the click are shown/.test(f.message)), where).toBe(true);
+        expect(
+          cursor.some((f) => f.code === 'target-outside-view' && /desk/.test(f.message) && /its leading part and the click are shown/.test(f.message)),
+          where,
+        ).toBe(true);
       }
     }
     // The supplier's clicks are on the right-hand pane of the split.

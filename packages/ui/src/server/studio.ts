@@ -7,10 +7,10 @@
  * the session token); `GET /v1/info` (engine info + `http_api` + the allowed ops + L5.2's `counters`: sessions
  * redeemed, event streams open, player media bytes read and range requests — numbers only, what the desktop shell's
  * acceptance asserts); `POST /v1/bootstrap` (a new code, for a second `retake ui`, with the player origin: L5.2); `GET /v1/events` (the event stream: live.ts); `POST /v1/live` (L4.4: one run's steps, log
- * and live picture: run-live.ts); `POST /v1/call/<op>` — the MCP tool of
- * that name, or one of the Studio's own reads (ops.ts: activity_list, search, projects_overview), run through the
- * same SDK-free `callTool` the MCP server uses (zod parse, trust, untrusted caps, typed errors), for the ops of
- * `UI_OPS` only.
+ * and live picture: run-live.ts); `POST /v1/call/<op>` — the engine's operation of
+ * that name (@retake/engine/contract OPERATIONS: the ones MCP serves too), or one of the Studio's own ops (ops.ts and
+ * the other *-ops.ts modules), run through the same SDK-free `invoke` the MCP server uses (served by the shell, zod
+ * parse, trust, untrusted caps, typed errors), for the ops of `UI_OPS` only.
  *
  * Trust: the engine client is `ui` — the ops L4.1 allows run under the agent's trust, with no approver (a page's
  * script cannot be told from a person's click): a run whose hooks need a person is refused with the `retake run …`
@@ -21,12 +21,11 @@
  *
  * Nothing here logs a token, a body or a README.
  */
-import { existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
-import { workspaceFolders } from '@retake/core';
+import { workspaceFolders } from '@retake/core/policy';
 import { loadWorkspaceConfig } from '@retake/core/io';
 import {
   BodyTooLargeError,
@@ -44,13 +43,11 @@ import {
   securityHeaders,
 } from '@retake/engine';
 import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@retake/engine';
-import { servedNames, studioPins, studioStatus } from '@retake/engine/catalogue';
+import { catalogueOperation, servedBy, servedNames, studioPins, studioStatus } from '@retake/engine/catalogue';
 import type { OperationName, StudioOpName, StudioPinsOf } from '@retake/engine/catalogue';
-import { callTool, capUntrusted, pinArguments } from '@retake/engine/contract';
-import type { PinnedTool, ToolDef, ToolsByName } from '@retake/engine/contract';
+import { OPERATIONS, capUntrusted, invoke, pinArguments } from '@retake/engine/contract';
+import type { OperationsByName, PinnedTool, ToolDef, ToolsByName } from '@retake/engine/contract';
 import type { z } from 'zod';
-import { TOOLS } from '@retake/mcp';
-import type { McpTools } from '@retake/mcp';
 import { buildUi } from '../bundle.js';
 import type { UiAsset } from '../bundle.js';
 import { PlayerBundles } from '../player/bundle-player.js';
@@ -58,14 +55,10 @@ import { Live } from './live.js';
 import { startPlayerServer } from './player.js';
 import { PreviewAllowList } from './preview-allow.js';
 import type { PlayerServer } from './player.js';
-import { OWN_OPS, boardOp, editOps, indexOps, liveOps, overviewOp, renderOps, runOps, scenarioOps, timelineOps } from './ops.js';
+import { indexOps, timelineOps } from './ops.js';
 import { PreviewLeases } from './preview-leases.js';
-import { libraryOps } from './library-ops.js';
 import { themeOps } from './theme-ops.js';
-import { recordOps } from './record-ops.js';
-import { commentOps, pathFree } from './comment-ops.js';
-import { opChain } from './op-chain.js';
-import type { OpChain } from './op-chain.js';
+import { pathFree } from './comment-ops.js';
 import { RunLive } from './run-live.js';
 import { studioWorkerEnv } from './worker-env.js';
 import { UnsavedBoard, unsavedOps } from './unsaved.js';
@@ -76,8 +69,8 @@ import type { SetupContext } from './setup-ops.js';
 
 /**
  * The ops the Studio may call, in catalogue order: the operations the catalogue (@retake/engine/catalogue) says the
- * Studio serves — MCP tools it serves as they are or with pinned arguments, and its own ops (ops.ts and the other
- * *-ops.ts modules). The catalogue also says why the Studio serves none of the other MCP tools; an op that is not
+ * Studio serves — the engine's operations it serves as they are or with pinned arguments, and its own ops (ops.ts and
+ * the other *-ops.ts modules). The catalogue also says why the Studio serves none of the other MCP tools; an op that is not
  * listed answers 404 `unknown op`.
  */
 export const UI_OPS: readonly UiOp[] = Object.freeze(servedNames('studio'));
@@ -91,10 +84,12 @@ export type UiOp = OperationName;
  */
 export const OP_STATUS: Partial<Record<UiOp, Partial<Record<EngineErrorCode, number>>>> = Object.fromEntries(
   UI_OPS.flatMap((op) => {
-    const status = Object.fromEntries(ENGINE_ERROR_CODES.flatMap((code) => {
-      const s = studioStatus(op, code);
-      return s === undefined ? [] : [[code, s]];
-    }));
+    const status = Object.fromEntries(
+      ENGINE_ERROR_CODES.flatMap((code) => {
+        const s = studioStatus(op, code);
+        return s === undefined ? [] : [[code, s]];
+      }),
+    );
     return Object.keys(status).length ? [[op, status]] : [];
   }),
 );
@@ -121,7 +116,19 @@ const ROUTES: Record<string, RouteSpec> = {
   '/v1/live': { methods: ['POST'], token: true, api: true, maxBody: SMALL_BODY_MAX },
 };
 /** Ops that write but never nudge the job watch: the tabs' unsaved reports, the page's word to the desktop shell. */
-const NO_NUDGE = new Set<string>(['unsaved_report', 'desktop_answer', 'setup_status', 'setup_cli_install', 'setup_cli_choose', 'setup_cli_remove', 'setup_claude_code_run', 'setup_claude_desktop_add', 'setup_notifications', 'setup_done', 'desktop_update']);
+const NO_NUDGE = new Set<string>([
+  'unsaved_report',
+  'desktop_answer',
+  'setup_status',
+  'setup_cli_install',
+  'setup_cli_choose',
+  'setup_cli_remove',
+  'setup_claude_code_run',
+  'setup_claude_desktop_add',
+  'setup_notifications',
+  'setup_done',
+  'desktop_update',
+]);
 const CALL: RouteSpec = { methods: ['POST'], token: true, api: true, maxBody: CALL_BODY_MAX };
 const CALL_PREFIX = '/v1/call/';
 
@@ -202,25 +209,32 @@ export interface StudioServer {
 }
 
 /**
- * The ops of the allow-list: the MCP server's tool of each name, or one of `own` (the Studio's reads of the index —
- * which never take an MCP tool's name).
+ * The ops of the allow-list: the engine's operation of each name (L7.13: the operations MCP serves too; L7.14: the
+ * Studio's read-only queries), or one of `own` (the Studio's own ops — which never take an engine operation's or an
+ * MCP tool's name).
  */
 export function uiTools(own: readonly ToolDef[] = []): Map<string, ToolDef> {
-  const mcp = new Map<string, ToolDef>(TOOLS.map((t) => [t.name, t]));
+  const shared = new Map<string, ToolDef>(OPERATIONS.map((t) => [t.name, t]));
   const mine = new Map<string, ToolDef>(own.map((t) => [t.name, t]));
-  for (const name of mine.keys()) if (mcp.has(name)) throw new Error(`UI op ${name} would shadow the MCP tool of that name`);
-  return new Map(UI_OPS.map((op) => {
-    const t = mcp.get(op) ?? mine.get(op);
-    if (!t) throw new Error(`UI op ${op} is not a tool`);
-    const pins = studioPins(op);
-    return [op, pins.length ? pinArguments(t as ToolDef<z.ZodObject>, pins) : t];
-  }));
+  for (const name of mine.keys()) {
+    if (shared.has(name)) throw new Error(`UI op ${name} would shadow the engine's operation of that name`);
+    // Nor an MCP tool's name (the catalogue's: one name, one operation), even one the Studio does not serve.
+    const op = catalogueOperation(name);
+    if (op && servedBy(op, 'mcp')) throw new Error(`UI op ${name} would shadow the MCP tool of that name`);
+  }
+  return new Map(
+    UI_OPS.map((op) => {
+      const t = shared.get(op) ?? mine.get(op);
+      if (!t) throw new Error(`UI op ${op} is not a tool`);
+      const pins = studioPins(op);
+      return [op, pins.length ? pinArguments(t as ToolDef<z.ZodObject>, pins) : t];
+    }),
+  );
 }
 
 /** What the Studio's own ops close over: the server's live state, built once per server. */
 export interface StudioToolDeps {
   live: Live;
-  chain: OpChain;
   player: () => PlayerServer;
   forbid: () => readonly string[];
   allow: PreviewAllowList;
@@ -234,28 +248,18 @@ export interface StudioToolDeps {
   workspace: string;
 }
 
-/** The ops of one Studio server: the MCP tools of the allow-list and the Studio's own ops, each by name (uiTools). */
+/** The ops of one Studio server: the engine's operations of the allow-list and the Studio's own ops, each by name (uiTools). */
 export function studioTools(d: StudioToolDeps): Map<string, ToolDef> {
   return uiTools(ownOps(d));
 }
 
 /** The Studio's own ops (ops.ts and the other *-ops.ts modules), each with its types (OwnOps). */
 function ownOps(d: StudioToolDeps) {
-  const { chain, leases } = d;
+  const { leases } = d;
   return [
     ...indexOps(d.live),
-    overviewOp(),
-    boardOp(),
-    ...scenarioOps(),
-    ...runOps(),
-    ...editOps(chain),
-    ...liveOps(),
     ...timelineOps({ player: d.player, forbid: d.forbid, allow: d.allow, registry: d.registry, leases }),
-    ...renderOps(chain),
-    ...commentOps({ chain }),
-    ...libraryOps({ chain }),
-    ...themeOps({ chain, player: d.player, forbid: d.forbid, allow: d.allow, leases }),
-    ...recordOps({ chain }),
+    ...themeOps({ player: d.player, forbid: d.forbid, allow: d.allow, leases }),
     ...unsavedOps(d.unsaved),
     ...desktopOps(d.desktop),
     ...setupOps({ pipe: d.desktop, state: d.setupState, ctx: d.setupContext, workspace: d.workspace }),
@@ -265,10 +269,10 @@ function ownOps(d: StudioToolDeps) {
 
 /** The Studio's own ops by name, as types. */
 type OwnOps = ToolsByName<ReturnType<typeof ownOps>[number]>;
-/** The definition of an op the Studio serves: the MCP tool of that name, else its own op. */
-type ToolOf<K extends StudioOpName> = K extends keyof McpTools ? McpTools[K] : K extends keyof OwnOps ? OwnOps[K] : never;
+/** The definition of an op the Studio serves: the engine's operation of that name, else its own op. */
+type ToolOf<K extends StudioOpName> = K extends keyof OperationsByName ? OperationsByName[K] : K extends keyof OwnOps ? OwnOps[K] : never;
 /**
- * Every op the Studio serves as `/v1/call/<op>` runs it — the MCP tool or its own op, the Studio's pinned arguments
+ * Every op the Studio serves as `/v1/call/<op>` runs it — the engine's operation or its own op, the Studio's pinned arguments
  * applied (as uiTools builds them) — by name, as types: the app's StudioOps (src/app/data/ops.ts) is derived from it
  * (each op's arguments `ToolArgs`, its answer `ToolData`). Types only: the server's table is studioTools.
  */
@@ -294,7 +298,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     root: o.root,
     client: 'ui',
     autoStartWorker: o.startWorker !== false,
-    workerEnv: studioWorkerEnv(process.env, root, process.execPath, existsSync, folders),
+    workerEnv: studioWorkerEnv(process.env, root, process.execPath, undefined, folders),
     ...(o.workerSpawn ? { workerSpawn: o.workerSpawn } : {}),
     ...(o.workerIdleExitMs !== undefined ? { workerIdleExitMs: o.workerIdleExitMs } : {}),
   });
@@ -308,8 +312,6 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     if (!player) throw new Error('the preview server is not started');
     return player;
   };
-  // One chain for the writes of a scenario: scenario_edit, scenario_render and thread_apply.
-  const chain = opChain();
   // L4.7: the preview pages' leases — timeline pages and theme preview pages — and the forbidden folders of a preview.
   const leases = new PreviewLeases((p) => playerNow().release(p));
   const forbid = () => [engine.workspace.root, homedir()];
@@ -318,7 +320,20 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   const setupState = new SetupState();
   const updateState = new UpdateState();
   const setupContext = o.setup ?? (() => systemSetupContext());
-  const tools = studioTools({ live, chain, player: playerNow, forbid, allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry, leases, unsaved, desktop, setupState, updateState, setupContext, workspace: engine.workspace.root });
+  const tools = studioTools({
+    live,
+    player: playerNow,
+    forbid,
+    allow: previewAllow,
+    registry: async () => (await memoRegistry(engine.workspace)).registry,
+    leases,
+    unsaved,
+    desktop,
+    setupState,
+    updateState,
+    setupContext,
+    workspace: engine.workspace.root,
+  });
   const writeListeners = new Set<() => void>();
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();
@@ -407,8 +422,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       if (typeof body.code === 'string' && codes.redeem(body.code)) {
         sessions++;
         send(res, 200, { ok: true, token });
-      }
-      else fail(res, 401, 'unauthorized', 'this link was already used or has expired: run retake ui again');
+      } else fail(res, 401, 'unauthorized', 'this link was already used or has expired: run retake ui again');
       return;
     }
     if (g.path === '/v1/bootstrap') {
@@ -434,7 +448,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       if (!res.writableEnded) ac.abort();
     });
     calls++;
-    const r = await callTool(tool, getEngine, args, { signal: ac.signal });
+    const r = await invoke(tool, getEngine, args, { shell: 'studio', signal: ac.signal });
     if (!r.ok) {
       const e = r.error;
       const status = OP_STATUS[op as UiOp]?.[e.code] ?? ERROR_STATUS[e.code];
@@ -443,7 +457,13 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       // The `fix` is kept as it is: a command the person copies into a terminal (`retake -C <workspace> …`), the same
       // one the screen already shows before the click.
       const root = engine.workspace.root;
-      const error = { code: e.code, message: pathFree(e.message, root), ...(e.fix ? { fix: e.fix } : {}), ...(e.docs ? { docs: e.docs } : {}), ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}) };
+      const error = {
+        code: e.code,
+        message: pathFree(e.message, root),
+        ...(e.fix ? { fix: e.fix } : {}),
+        ...(e.docs ? { docs: e.docs } : {}),
+        ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}),
+      };
       send(res, status, { ok: false, error }, 'api', status === 429 ? { 'Retry-After': '1' } : {});
       return;
     }

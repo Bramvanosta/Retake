@@ -5,8 +5,7 @@ import { isVisible } from './visibility.js';
 
 // ───────────────────────────── scopes ─────────────────────────────
 const DIALOG_SEL = '[role=dialog],[role=alertdialog],dialog[open]';
-export const FLOATING_SEL =
-  '[data-radix-popper-content-wrapper],[role=menu],[role=listbox],[popover],[role=dialog][data-side],[data-side][data-open],[data-floating-ui-portal] > *';
+export const FLOATING_SEL = '[data-radix-popper-content-wrapper],[role=menu],[role=listbox],[popover],[role=dialog][data-side],[data-side][data-open],[data-floating-ui-portal] > *';
 export function isFloating(el: Element): boolean {
   if (el.closest('[data-radix-popper-content-wrapper]')) return true;
   if (el.hasAttribute('data-side')) return true;
@@ -45,9 +44,7 @@ export function topDialog(preferAlert: boolean, skip?: (e: Element) => boolean):
   return pool[pool.length - 1];
 }
 export function topPopover(): Element | null {
-  const cands = deepQsa(document, FLOATING_SEL).filter(
-    (e) => e !== host && !e.matches('[role=menubar]') && (!e.hasAttribute('popover') || isPopoverOpen(e)),
-  );
+  const cands = deepQsa(document, FLOATING_SEL).filter((e) => e !== host && !e.matches('[role=menubar]') && (!e.hasAttribute('popover') || isPopoverOpen(e)));
   let last = lastVisible(cands);
   if (!last) return null;
   // Climb to the outermost floating layer of that group (popper wrapper around a listbox…).

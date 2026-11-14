@@ -1,14 +1,14 @@
 /**
  * The browser Remotion renders with: `$RETAKE_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell
- * (looked up through playwright-core's browser registry, so it follows PLAYWRIGHT_BROWSERS_PATH and the installed
+ * (looked up through playwright-core's browser registry — core/io browsers.ts —, so it follows PLAYWRIGHT_BROWSERS_PATH and the installed
  * revision: the app bundle's own when Retake runs from one — `@retake/core/io` bundle.ts), else none: a render then refuses to start
  * and says how to install the headless shell. Remotion never downloads a browser of its own.
  */
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { policyProgram } from '@retake/core';
-import type { WorkPolicy } from '@retake/core';
-import { bundleInfo, insideBundle, programLookup } from '@retake/core/io';
+import { policyProgram } from '@retake/core/policy';
+import type { WorkPolicy } from '@retake/core/policy';
+import { bundleInfo, insideBundle, playwrightBrowser, programLookup } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 import { RenderError } from './types.js';
 
@@ -27,19 +27,9 @@ export interface RenderBrowser {
   note?: string;
 }
 
-interface PlaywrightRegistry {
-  registry: { findExecutable(name: string): { executablePath(lang?: string): string | undefined } | undefined };
-}
-
-/** Playwright's headless shell executable, if playwright-core knows one and it is installed. */
+/** Playwright's headless shell executable, if playwright-core knows one and it is installed (core/io playwrightBrowser, through this package's playwright-core). */
 export function playwrightHeadlessShell(): string | null {
-  try {
-    const { registry } = require('playwright-core/lib/server/registry/index') as PlaywrightRegistry;
-    const exe = registry.findExecutable('chromium-headless-shell')?.executablePath('javascript');
-    return exe && existsSync(exe) ? exe : null;
-  } catch {
-    return null;
-  }
+  return playwrightBrowser(require, 'chromium-headless-shell', { installed: true });
 }
 
 /** Why there is no render browser: an app without its headless shell, else a machine without Playwright's. */

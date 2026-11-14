@@ -5,8 +5,9 @@ import { normalizeStep, PERSON_POLICY } from '@retake/core';
 import type { RunProgress, RunRecord, Scenario } from '@retake/core';
 import { RunSecrets, TIMELINE_POLICY, describeStep, runScenario, trimSnippet } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 const EMAIL = 'agent@northfield.example';
 const PASSWORD = 'S3cret-pw-42';
@@ -48,13 +49,16 @@ describe('RunSecrets (R-RUN-17)', () => {
     await expect(new RunSecrets(async () => Promise.reject(new Error('keychain item x/y not found'))).prefetch('{{keychain:x/y}}')).rejects.toThrow('not found');
   });
 
-  it('registers what the environment resolver returns; redacts every form, longest first, and only values', () => {
+  it('registers what the environment resolver returns; redacts every form, longest first, and only values', async () => {
     process.env.RETAKE_TEST_SECRET_A = 'p@ss wörd"<x>';
     process.env.RETAKE_TEST_SECRET_B = 'p@ss';
     try {
       const secrets = new RunSecrets();
       const untouched = { url: 'https://x.example/?q=p@ss' };
       expect(secrets.redactDeep(untouched)).toBe(untouched); // nothing registered: the same value, no copy
+      // Only a prefetched reference resolves: the sync lookup never reads the environment on the way.
+      expect(secrets.resolver('env:RETAKE_TEST_SECRET_A')).toBeUndefined();
+      await secrets.prefetch({ a: '{{env:RETAKE_TEST_SECRET_A}}', b: ['{{env:RETAKE_TEST_SECRET_B}}'] });
       expect(secrets.resolver('env:RETAKE_TEST_SECRET_A')).toBe('p@ss wörd"<x>');
       expect(secrets.resolver('env:RETAKE_TEST_SECRET_B')).toBe('p@ss');
       expect(secrets.contains('type p@ss wörd"<x> now')).toBe(true);
@@ -113,7 +117,10 @@ describe('RunSecrets (R-RUN-17)', () => {
       ],
       events: [
         {
-          scene: 's1', action: 'click', page: 'app', strategy: 'real',
+          scene: 's1',
+          action: 'click',
+          page: 'app',
+          strategy: 'real',
           target: { desc: `row "Account ${secret}"` },
           camera: { zoom: 2, ease: 'slow', until: 'scene_end', target: { role: 'row', name: `Account ${secret}` } },
           overlay: { component: 'studio/callout', slots: { text: 'Saved' }, params: {}, target: `name="${secret}"` },
@@ -148,12 +155,25 @@ describe('RunSecrets (R-RUN-17)', () => {
     const pin = new RunSecrets(async () => '2026');
     await pin.prefetch('{{env:PIN}}');
     const rec = {
-      id: '20261013-094758-signup', project: 'p', scenario: 'signup', mode: 'capture', status: 'succeeded',
-      started_at: '2026-10-13T09:47:58.123Z', finished_at: '2026-10-13T09:49:01.000Z', dir: '/runs/20261013-094758-signup', env: 'local',
-      options: { until: 'checkout.3', hooks: 'run', headed: false, allow_writes: true }, steps_total: 3, steps_done: 3,
+      id: '20261013-094758-signup',
+      project: 'p',
+      scenario: 'signup',
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: '2026-10-13T09:47:58.123Z',
+      finished_at: '2026-10-13T09:49:01.000Z',
+      dir: '/runs/20261013-094758-signup',
+      env: 'local',
+      options: { until: 'checkout.3', hooks: 'run', headed: false, allow_writes: true },
+      steps_total: 3,
+      steps_done: 3,
       environment: { production: true, access: 'read-write', clock: '2026-11-02T10:24:00' },
-      capture: '/runs/20261013-094758-signup/capture.mp4', timeline: '/runs/20261013-094758-signup/timeline.json', screenshots: [],
-      hooks: { setup: 'ok', teardown: 'none' }, warnings: ['PIN 2026 typed'], error: { message: 'no 2026', scene: 'checkout', step: 2, action: 'click', screenshot: '/runs/x/error-2026.png' },
+      capture: '/runs/20261013-094758-signup/capture.mp4',
+      timeline: '/runs/20261013-094758-signup/timeline.json',
+      screenshots: [],
+      hooks: { setup: 'ok', teardown: 'none' },
+      warnings: ['PIN 2026 typed'],
+      error: { message: 'no 2026', scene: 'checkout', step: 2, action: 'click', screenshot: '/runs/x/error-2026.png' },
     };
     const safeRec = pin.redactRecord(rec as never) as unknown as typeof rec;
     expect({ ...safeRec, warnings: rec.warnings, error: { ...safeRec.error, message: rec.error.message } }).toEqual(rec);
@@ -161,15 +181,29 @@ describe('RunSecrets (R-RUN-17)', () => {
     expect(safeRec.error.message).toBe('no ***');
     expect(pin.redactProgress({ type: 'run_start', run: rec as never })).toEqual({ type: 'run_start', run: safeRec });
     const tl = {
-      run_id: '20261013-094758-signup', created_at: '2026-10-13T09:47:58Z', mode: 'capture', capture: { file: 'capture.mp4', t0_wall: 1 },
+      run_id: '20261013-094758-signup',
+      created_at: '2026-10-13T09:47:58Z',
+      mode: 'capture',
+      capture: { file: 'capture.mp4', t0_wall: 1 },
       loading: [{ t_start: 1, t_end: 2, page: 'app', until: 'paint', held_frames: 3 }],
       cursor_effects: [{ t: 1, type: 'icon', icon: 'hand' }],
       markers: [{ name: 'm2026', t: 1, scene: 's2026', step: 0 }],
-      events: [{ scene: 's2026', step: 0, action: 'pick', status: 'ok', data: { clicks: [{ role: 'option', strategy: 'real', desc: 'text="2026"' }], days: ['2026-06-14'], close: 'outside', clear: 'keys', rate: 'search' } }],
+      events: [
+        {
+          scene: 's2026',
+          step: 0,
+          action: 'pick',
+          status: 'ok',
+          data: { clicks: [{ role: 'option', strategy: 'real', desc: 'text="2026"' }], days: ['2026-06-14'], close: 'outside', clear: 'keys', rate: 'search' },
+        },
+      ],
       tracks: [{ id: 'buyer', file: 'capture-buyer.mp4', frames_file: 'frames-buyer.jsonl', loading: [{ until: 'limit' }], cursor_effects: [{ type: 'icon', icon: 'ibeam' }] }],
       // L1.7: names, enums, display bases and the clock are kept; real URLs and matched patterns are redacted.
       environment: {
-        name: 'prod2026', production: true, access: 'read-only', allow_writes: true,
+        name: 'prod2026',
+        production: true,
+        access: 'read-only',
+        allow_writes: true,
         display: [{ page: 'shop2026', url: 'http://localhost:2026', display: 'https://shop2026.example' }],
         clock: { at: '2026-11-02T10:24:00', epoch_ms: 1, timezone: 'Europe/Paris' },
         writes: [{ t: 1, method: 'POST', url: 'http://localhost:2026/q', operation: 'Save2026', outcome: 'mocked', rule: 'POST shop2026:/q', status: 201, via: 'page' }],
@@ -218,7 +252,8 @@ describe('templating and secrets in a run (R-RUN-16, R-RUN-17)', () => {
 
   async function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<{ rec: RunRecord; events: RunProgress[] }> {
     const events: RunProgress[] = [];
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: makeProject(dir, { app: server.url }),
       scenario: makeScenario(name, { pacing: FAST, vars: { customer: 'Harbour Coffee Co.' }, ...scenario }),
       mode: 'dry',
@@ -322,10 +357,7 @@ describe('templating and secrets in a run (R-RUN-16, R-RUN-17)', () => {
         {
           id: 'signin',
           open: '/login.html',
-          steps: [
-            { type: { into: { label: 'Password' }, text: '{{env:RETAKE_TEST_PASSWORD}}' } },
-            { click: { text: '{{env:RETAKE_TEST_PASSWORD}}' }, timeout: 0.3 },
-          ],
+          steps: [{ type: { into: { label: 'Password' }, text: '{{env:RETAKE_TEST_PASSWORD}}' } }, { click: { text: '{{env:RETAKE_TEST_PASSWORD}}' }, timeout: 0.3 }],
         },
       ],
     });
@@ -358,6 +390,8 @@ describe('templating and secrets in a run (R-RUN-16, R-RUN-17)', () => {
     });
     expect(rec.status).toBe('failed');
     expect(rec.hooks.setup).toBe('skipped');
-    expect(rec.error?.message).toMatch(/^scenes\[0\]\.steps\[0\]\.type\.text: unknown template key \{\{hooks\.quote\.json\.id\}\}.* — the setup hooks were skipped \(a dry run skips them: add --hooks run\)$/);
+    expect(rec.error?.message).toMatch(
+      /^scenes\[0\]\.steps\[0\]\.type\.text: unknown template key \{\{hooks\.quote\.json\.id\}\}.* — the setup hooks were skipped \(a dry run skips them: add --hooks run\)$/,
+    );
   });
 });

@@ -7,7 +7,7 @@
  */
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { LoadedSandbox } from '@retake/core';
+import type { LoadedSandbox } from '@retake/core/model';
 import { SandboxError } from './errors.js';
 import { pinnedAddress } from './health.js';
 import type { SandboxPaths } from './paths.js';

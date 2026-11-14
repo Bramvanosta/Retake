@@ -22,8 +22,10 @@ and the decisions already taken. The working agreement itself is in `CLAUDE.md`.
 ## Rules for every sub-agent
 - Work only in the worktree the brief names. Never commit, stage or push; never edit `docs/HANDOFF.md`,
   `docs/ROADMAP.md` or `CLAUDE.md` (the lead does).
-- Run only the test files you add or touch, one at a time, and `npx tsc -b`; never the full suite (the lead runs it once
-  per lot). A flaky real-browser test: rerun the file alone before suspecting your change, and report it.
+- Run only the test files you add or touch, one at a time, and `npx tsc -b`, then `npx tsc -p tsconfig.test.json
+  --noEmit` (the test files' type check: the build does not read them; it needs the build's declarations, so in that
+  order); never the full suite (the lead runs it once per lot). No `@ts-nocheck`, no `@ts-ignore`; a `@ts-expect-error`
+  only over an input that is wrong on purpose, with its reason on the line. A flaky real-browser test: rerun the file alone before suspecting your change, and report it.
 - Every safety or behaviour rule gets a regression test and a mutation check: change the rule in place, run only its
   target test file and see it fail, restore the file exactly (a backup, `cmp`, then `touch` for a fresh mtime) and run
   `npx tsc -b --force`.
@@ -42,7 +44,8 @@ and the decisions already taken. The working agreement itself is in `CLAUDE.md`.
 - The repository stays generic and in English: no client, brand or person names, no real websites (example.com /
   .example / .test only), no paths of one machine.
 - Untrusted text (page content, scenario files, engine messages) is shown only as text (`Txt` in the Studio) and kept
-  under `untrusted` in answers; the trust rules of the HANDOFF notes (L3.1 onwards) carry over.
+  under `untrusted` in answers; the trust rules of the hand-off's notes (L3.1 onwards, now in
+  `docs/archive/HANDOFF-history.md` "Notes") carry over.
 - Scratch files go to the session's scratch folder; delete what you created there (frames, probe workspaces, build
   folders) and nothing else. Scan new and changed files for hidden Unicode before finishing (a tool layer can turn
   `\u` escapes into raw characters).

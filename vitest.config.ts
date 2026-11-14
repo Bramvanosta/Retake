@@ -42,19 +42,42 @@ export default defineConfig({
     alias: {
       // Before '@retake/core', as for the kit: the side of core that touches the machine.
       '@retake/core/io': fileURLToPath(new URL('./packages/core/src/io/index.ts', import.meta.url)),
+      // Before '@retake/core', as for io: core's entries, one per context (L7.35).
+      '@retake/core/base': fileURLToPath(new URL('./packages/core/src/entries/base.ts', import.meta.url)),
+      '@retake/core/model': fileURLToPath(new URL('./packages/core/src/entries/model.ts', import.meta.url)),
+      '@retake/core/ids': fileURLToPath(new URL('./packages/core/src/entries/ids.ts', import.meta.url)),
+      '@retake/core/language': fileURLToPath(new URL('./packages/core/src/entries/language.ts', import.meta.url)),
+      '@retake/core/environment': fileURLToPath(new URL('./packages/core/src/entries/environment.ts', import.meta.url)),
+      '@retake/core/policy': fileURLToPath(new URL('./packages/core/src/entries/policy.ts', import.meta.url)),
+      '@retake/core/hooks': fileURLToPath(new URL('./packages/core/src/entries/hooks.ts', import.meta.url)),
+      '@retake/core/project': fileURLToPath(new URL('./packages/core/src/entries/project.ts', import.meta.url)),
+      '@retake/core/sandbox': fileURLToPath(new URL('./packages/core/src/entries/sandbox.ts', import.meta.url)),
+      '@retake/core/scenario': fileURLToPath(new URL('./packages/core/src/entries/scenario.ts', import.meta.url)),
+      '@retake/core/comments': fileURLToPath(new URL('./packages/core/src/entries/comments.ts', import.meta.url)),
+      '@retake/core/run': fileURLToPath(new URL('./packages/core/src/entries/run.ts', import.meta.url)),
+      '@retake/core/render': fileURLToPath(new URL('./packages/core/src/entries/render.ts', import.meta.url)),
+      '@retake/core/theme': fileURLToPath(new URL('./packages/core/src/entries/theme.ts', import.meta.url)),
+      '@retake/core/schema': fileURLToPath(new URL('./packages/core/src/entries/schema.ts', import.meta.url)),
       '@retake/core': pkg('core'),
+      // Before '@retake/hooks', as for the kit: the hooks described without running them (a domain entry).
+      '@retake/hooks/describe': fileURLToPath(new URL('./packages/hooks/src/describe-entry.ts', import.meta.url)),
       '@retake/hooks': pkg('hooks'),
+      // Before '@retake/sandbox', as for the kit: a sandbox's vocabulary as types only (a domain entry, L7.25).
+      '@retake/sandbox/types': fileURLToPath(new URL('./packages/sandbox/src/types-entry.ts', import.meta.url)),
       '@retake/sandbox': pkg('sandbox'),
       // Before '@retake/components': the first matching alias wins and that one would also match '…/kit' and '…/geometry'.
       '@retake/components/kit': kit,
       '@retake/components/geometry': fileURLToPath(new URL('./packages/components/src/geometry-entry.ts', import.meta.url)),
+      // Before '@retake/runner-web', as for the kit: the capture's vocabulary as types only (a domain entry).
+      '@retake/runner-web/types': fileURLToPath(new URL('./packages/runner-web/src/types-entry.ts', import.meta.url)),
       '@retake/runner-web': pkg('runner-web'),
       '@retake/components': pkg('components'),
       // Before '@retake/editor', as for the kit: the planner's own entry (no renderer).
       '@retake/editor/plan': fileURLToPath(new URL('./packages/editor/src/plan-entry.ts', import.meta.url)),
       '@retake/editor': pkg('editor'),
-      // Before '@retake/review', as for the kit: the thumbnails' own entry (no editor import).
+      // Before '@retake/review', as for the kit: the thumbnails' own entry (no editor import) and the pure checks'.
       '@retake/review/thumbs': fileURLToPath(new URL('./packages/review/src/thumbs.ts', import.meta.url)),
+      '@retake/review/checks': fileURLToPath(new URL('./packages/review/src/checks-entry.ts', import.meta.url)),
       '@retake/review': pkg('review'),
       // Before '@retake/engine', as for the kit: the operation contract's, the catalogue's and the integrations' own entries.
       '@retake/engine/contract': fileURLToPath(new URL('./packages/engine/src/contract.ts', import.meta.url)),
@@ -63,6 +86,24 @@ export default defineConfig({
       '@retake/engine': pkg('engine'),
       '@retake/mcp': pkg('mcp'),
       '@retake/ui': pkg('ui'),
+      // The tests' shared helpers (packages/test-support: no build, never a package's dependency), one module each.
+      '@retake/test-support/auth': fileURLToPath(new URL('./packages/test-support/src/auth.ts', import.meta.url)),
+      '@retake/test-support/capture': fileURLToPath(new URL('./packages/test-support/src/capture.ts', import.meta.url)),
+      '@retake/test-support/child-env': fileURLToPath(new URL('./packages/test-support/src/child-env.ts', import.meta.url)),
+      '@retake/test-support/confinement': fileURLToPath(new URL('./packages/test-support/src/confinement.ts', import.meta.url)),
+      '@retake/test-support/golden': fileURLToPath(new URL('./packages/test-support/src/golden.ts', import.meta.url)),
+      '@retake/test-support/home': fileURLToPath(new URL('./packages/test-support/src/home.ts', import.meta.url)),
+      '@retake/test-support/http': fileURLToPath(new URL('./packages/test-support/src/http.ts', import.meta.url)),
+      '@retake/test-support/postgres': fileURLToPath(new URL('./packages/test-support/src/postgres.ts', import.meta.url)),
+      '@retake/test-support/render': fileURLToPath(new URL('./packages/test-support/src/render.ts', import.meta.url)),
+      '@retake/test-support/repo': fileURLToPath(new URL('./packages/test-support/src/repo.ts', import.meta.url)),
+      '@retake/test-support/review': fileURLToPath(new URL('./packages/test-support/src/review.ts', import.meta.url)),
+      '@retake/test-support/runs': fileURLToPath(new URL('./packages/test-support/src/runs.ts', import.meta.url)),
+      '@retake/test-support/site': fileURLToPath(new URL('./packages/test-support/src/site.ts', import.meta.url)),
+      '@retake/test-support/take': fileURLToPath(new URL('./packages/test-support/src/take.ts', import.meta.url)),
+      '@retake/test-support/timing': fileURLToPath(new URL('./packages/test-support/src/timing.ts', import.meta.url)),
+      '@retake/test-support/timeline': fileURLToPath(new URL('./packages/test-support/src/timeline.ts', import.meta.url)),
+      '@retake/test-support/workspace': fileURLToPath(new URL('./packages/test-support/src/workspace.ts', import.meta.url)),
     },
   },
   test: {
@@ -71,7 +112,8 @@ export default defineConfig({
     hookTimeout: 120_000,
     // A nearly full disk is the machine's state, not a regression: captures keep measuring it but do not warn.
     env: { RETAKE_DISK_WARN: 'off', RETAKE_HOME: testHome, CFFIXED_USER_HOME: cfHome, RETAKE_TEST_CAPTURES: capturesRoot },
-    setupFiles: ['./vitest.setup.ts'],
+    // `node scripts/coverage.mjs` sets RETAKE_COVERAGE_RAW: every worker then writes its V8 coverage there.
+    setupFiles: ['./vitest.setup.ts', ...(process.env.RETAKE_COVERAGE_RAW?.trim() ? ['./scripts/coverage-setup.mjs'] : [])],
     // Removes the temp home this config made (review A L5 / B L4: one per run, in a tight TMPDIR); warns when the run
     // changed Chromium's files in the account's ~/Library (L5.16 Library hygiene).
     globalSetup: ['./vitest.teardown.mjs'],

@@ -10,37 +10,30 @@
  * Claude included, and any program of the user that reads the Studio's token file can call the Studio's routes. Every
  * free text of a thread (comment, entries, author names) is data for its readers.
  */
-import { createHash } from 'node:crypto';
 import { parse as parseYamlText } from 'yaml';
 import { z } from 'zod';
 import { BIDI_CONTROL_CHARS, INVISIBLE_FORMAT_CHARS, printableText } from './printable.js';
-import { canonicalJson } from './canonical-json.js';
-import { ulid } from './ids.js';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, renderIdOf } from './id-grammar.js';
+import { newUlidId, zRenderId, zRunId } from './ids.js';
 import { hunkOrderProblem, hunkStats } from './line-diff.js';
 import type { LineHunk } from './line-diff.js';
 import { firstHiddenChar, hiddenCharName } from './scenario-edit.js';
-import { RENDER_ID_RE, RUN_FOLDER_RE } from './jobs.js';
 import { COMPONENT_ID_RE, SLUG_RE } from './schemas/primitives.js';
-import { normalizeStep } from './steps.js';
+import { stepFingerprint } from './steps.js';
 import { parseYaml } from './validation/yaml-source.js';
 import { ACTION_NAMES } from './types.js';
 import type { FrameCommentAnchor } from './types.js';
 
 export const COMMENT_THREAD_VERSION = 1;
 
-/** A thread id, the file name comments/<scenario>/<id>.json: "c_" + 26 Crockford base32 characters (a ULID). */
-export const COMMENT_ID_RE = /^c_[0-9A-HJKMNP-TV-Z]{26}$/;
-/** An entry id of a thread: "r_" + 26 Crockford base32 characters (a ULID). */
-export const COMMENT_ENTRY_ID_RE = /^r_[0-9A-HJKMNP-TV-Z]{26}$/;
-
 /** A new thread id (unique across machines, sortable by creation time). */
 export function newCommentId(now?: number): string {
-  return `c_${ulid(now)}`;
+  return newUlidId('comment', now);
 }
 
 /** A new entry id. */
 export function newCommentEntryId(now?: number): string {
-  return `r_${ulid(now)}`;
+  return newUlidId('entry', now);
 }
 
 /** Longest comment, reply and note text (= the MCP's cap on an untrusted string: a text reaches the model whole). */
@@ -104,30 +97,6 @@ export function regionProblem(r: CommentRegion): string | null {
   return null;
 }
 
-// ── Step fingerprints ───────────────────────────────────────────────────────
-
-export { canonicalJson } from './canonical-json.js';
-
-/**
- * The fingerprint of a raw scenario step: the first 12 hex characters of the sha256 of its action and normalised
- * arguments (a shorthand and its object form agree), modifiers left out (caption, hold next to an action, speed, camera,
- * mark, overlay, id…) — a `hold:` that is the action stays. Undefined for a step without exactly one action.
- */
-export function stepFingerprint(step: unknown): string | undefined {
-  return stepFingerprintOf(step)?.fp;
-}
-
-/** stepFingerprint and the step's action (undefined: the step has no single action). */
-export function stepFingerprintOf(step: unknown): { fp: string; action: string } | undefined {
-  let n: ReturnType<typeof normalizeStep>;
-  try {
-    n = normalizeStep(step as Parameters<typeof normalizeStep>[0], 0);
-  } catch {
-    return undefined;
-  }
-  return { fp: createHash('sha256').update(canonicalJson({ action: n.action, args: n.args })).digest('hex').slice(0, 12), action: n.action };
-}
-
 /**
  * Fingerprint of step `step` of scene `scene` in a scenario's text (the run's `scenario.yaml` snapshot: raw, templated
  * values unexpanded, comparable with today's file) and its occurrence among the scene's earlier steps with the same
@@ -142,9 +111,7 @@ export function scenarioStepFingerprint(scenarioText: string, scene: string, ste
   }
   const scenes = (doc as { scenes?: unknown } | null)?.scenes;
   if (!Array.isArray(scenes)) return undefined;
-  const entry = scenes.find((e) => e && typeof e === 'object' && (e as { id?: unknown }).id === scene && Array.isArray((e as { steps?: unknown }).steps)) as
-    | { steps: unknown[] }
-    | undefined;
+  const entry = scenes.find((e) => e && typeof e === 'object' && (e as { id?: unknown }).id === scene && Array.isArray((e as { steps?: unknown }).steps)) as { steps: unknown[] } | undefined;
   if (!entry || !Number.isInteger(step) || step < 0 || step >= entry.steps.length) return undefined;
   const fp = stepFingerprint(entry.steps[step]);
   if (!fp) return undefined;
@@ -161,10 +128,7 @@ export function scenarioStepFingerprint(scenarioText: string, scene: string, ste
  * null when today's text has no such step (deleted, changed, several candidates elsewhere, the anchor kept no
  * fingerprint, the text does not parse). Undefined when the anchor names no step.
  */
-export function locateAnchorStep(
-  scenarioText: string,
-  a: Pick<FrameCommentAnchor, 'scene' | 'step' | 'step_id' | 'step_fp' | 'step_fp_n'>,
-): string | null | undefined {
+export function locateAnchorStep(scenarioText: string, a: Pick<FrameCommentAnchor, 'scene' | 'step' | 'step_id' | 'step_fp' | 'step_fp_n'>): string | null | undefined {
   if (a.scene === undefined || a.step === undefined) return undefined;
   const value = parseYaml(scenarioText).value as { scenes?: unknown } | undefined;
   const raw = value && typeof value === 'object' ? value.scenes : undefined;
@@ -236,12 +200,10 @@ export const CommentAuthorSchema = z.strictObject({
 });
 export type CommentAuthor = z.output<typeof CommentAuthorSchema>;
 
-export const CommentRegionSchema = z
-  .strictObject({ x: z.number(), y: z.number(), w: z.number(), h: z.number() })
-  .superRefine((r, ctx) => {
-    const p = regionProblem(r);
-    if (p) ctx.addIssue({ code: 'custom', message: p });
-  });
+export const CommentRegionSchema = z.strictObject({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }).superRefine((r, ctx) => {
+  const p = regionProblem(r);
+  if (p) ctx.addIssue({ code: 'custom', message: p });
+});
 
 /**
  * The stored anchor: its shape and number ranges. Its ids are strings here (a hand-edited file stays readable); a
@@ -263,9 +225,7 @@ export const FrameCommentAnchorSchema = z.strictObject({
   src_time_s: z.number().min(0).max(1e7).optional(),
   marker: anchorString.optional(),
   overlays: z.array(anchorString).max(50).optional(),
-  transition: z
-    .strictObject({ kind: z.enum(['crossfade', 'fade-black']), from: anchorString.optional(), to: anchorString.optional() })
-    .optional(),
+  transition: z.strictObject({ kind: z.enum(['crossfade', 'fade-black']), from: anchorString.optional(), to: anchorString.optional() }).optional(),
 });
 // The schema and the interface (types.ts) describe the same object.
 const anchorSchemaMatches: z.ZodType<FrameCommentAnchor> = FrameCommentAnchorSchema;
@@ -273,17 +233,16 @@ void anchorSchemaMatches;
 
 /** The render a thread was made on, as it was then: tells a reused render id (renders/ cleaned) from that render. */
 export const CommentRenderSchema = z.strictObject({
-  id: z.string().max(200).regex(RENDER_ID_RE, 'a render id (<scenario>-v<N>[-vertical|-square])'),
+  id: zRenderId('a render id (<scenario>-v<N>[-vertical|-square])'),
   /** The render record's `created_at`. */
   created_at: isoDate,
-  run_id: z.string().max(200).regex(RUN_FOLDER_RE, 'a run folder name'),
+  run_id: zRunId('a run folder name'),
   variant: z.enum(['landscape', 'vertical', 'square']),
   fps: z.number().positive().max(240),
   frames: z.number().int().min(1),
   width: z.number().int().min(1).max(16384),
   height: z.number().int().min(1).max(16384),
 });
-export type CommentRender = z.output<typeof CommentRenderSchema>;
 
 // ── Proposals (L4.6, R-UI-28; critique B1 / B2 / B10 / B13) ─────────────────
 
@@ -329,7 +288,10 @@ export function proposalHunksProblem(hunks: readonly LineHunk[]): string | null 
   if (st.changed > PROPOSAL_CHANGED_LINES_MAX) return `${st.changed} changed lines (removed + added): a proposal changes at most ${PROPOSAL_CHANGED_LINES_MAX}`;
   if (st.chars > PROPOSAL_CHARS_MAX) return `${st.chars.toLocaleString('en')} characters of changed lines: a proposal holds at most ${PROPOSAL_CHARS_MAX.toLocaleString('en')}`;
   for (const [i, h] of hunks.entries()) {
-    for (const [side, lines] of [['removed', h.del], ['added', h.add]] as const) {
+    for (const [side, lines] of [
+      ['removed', h.del],
+      ['added', h.add],
+    ] as const) {
       for (const [j, l] of lines.entries()) {
         const p = proposalLineProblem(l);
         if (p) return `hunk ${i + 1}, ${side} line ${j + 1}: ${p}`;
@@ -374,7 +336,6 @@ export const CommentProposalSchema = z
 export type CommentProposal = z.output<typeof CommentProposalSchema>;
 
 export const COMMENT_ENTRY_KINDS = ['reply', 'resolve', 'reopen', 'apply'] as const;
-export type CommentEntryKind = (typeof COMMENT_ENTRY_KINDS)[number];
 
 export const CommentEntrySchema = z
   .strictObject({
@@ -385,7 +346,7 @@ export const CommentEntrySchema = z
     text: storedText(COMMENT_TEXT_MAX),
     created_at: isoDate,
     /** A resolution: the render that answers the comment, with its record's `created_at` (render ids can be reused). */
-    render_id: z.string().max(200).regex(RENDER_ID_RE, 'a render id').optional(),
+    render_id: zRenderId('a render id').optional(),
     render_created_at: isoDate.optional(),
     /** A reply's proposed change of the thread's scenario file (L4.6). */
     proposal: CommentProposalSchema.optional(),
@@ -403,7 +364,8 @@ export const CommentEntrySchema = z
     }
     if (e.proposal !== undefined && e.kind !== 'reply') ctx.addIssue({ code: 'custom', path: ['proposal'], message: 'only a reply holds a proposal' });
     if (e.kind === 'apply') {
-      if (e.applies === undefined || e.scenario_sha256 === undefined) ctx.addIssue({ code: 'custom', path: ['applies'], message: 'an apply names the reply it applied (applies) and the file written (scenario_sha256)' });
+      if (e.applies === undefined || e.scenario_sha256 === undefined)
+        ctx.addIssue({ code: 'custom', path: ['applies'], message: 'an apply names the reply it applied (applies) and the file written (scenario_sha256)' });
     } else if (e.applies !== undefined || e.scenario_sha256 !== undefined) {
       ctx.addIssue({ code: 'custom', path: ['applies'], message: 'only an apply names a proposal applied' });
     }
@@ -435,7 +397,7 @@ export const CommentThreadSchema = z
   })
   .superRefine((t, ctx) => {
     if (t.frame >= t.render.frames) ctx.addIssue({ code: 'custom', path: ['frame'], message: `frame ${t.frame} is past the render's last frame (${t.render.frames - 1})` });
-    if (!new RegExp(`^${t.scenario}-v\\d+(?:-vertical|-square)?$`).test(t.render.id)) {
+    if (renderIdOf(t.render.id, t.scenario) === null) {
       ctx.addIssue({ code: 'custom', path: ['render', 'id'], message: `render ${t.render.id} is not a render of scenario ${t.scenario}` });
     }
     const seen = new Set<string>();

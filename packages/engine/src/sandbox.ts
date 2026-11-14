@@ -1,7 +1,9 @@
 /** A sandbox's status for clients outside the CLI (the MCP `sandbox_status` tool): read-only, starts nothing. */
-import { resolveEnvironment } from '@retake/core';
-import type { LoadedProject, WorkPolicy } from '@retake/core';
-import { LocalStorage } from './storage.js';
+import type { LoadedProject } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import { sandboxWork } from './sandbox-work.js';
+import type { ProjectFolder } from './store/store.js';
+import type { Sandboxes } from './sandboxes/sandboxes.js';
 
 export interface SandboxStatusView {
   project: string;
@@ -23,14 +25,13 @@ export interface SandboxStatusView {
   untrusted: { health: Record<string, string> };
 }
 
-export async function sandboxStatus(project: LoadedProject, env: string | undefined, policy: WorkPolicy): Promise<SandboxStatusView> {
-  const { openSandbox } = await import('@retake/sandbox');
-  const sb = openSandbox(project, env, policy);
-  const st = await sb.status();
-  const storage = new LocalStorage(project.dir);
+/** A sandbox's status, read through the Sandboxes port (`sandboxes`); its paths shown as refs of the project's folder (`folder`). */
+export async function sandboxStatus(project: LoadedProject, env: string | undefined, policy: WorkPolicy, folder: ProjectFolder, sandboxes: Sandboxes): Promise<SandboxStatusView> {
+  const sb = await sandboxWork.open(sandboxes, project, env, policy);
+  const { status: st, pages } = await sandboxWork.status(project, sb);
   const ref = (p: string) => {
     try {
-      return storage.refOf(p);
+      return folder.refOf(p);
     } catch {
       return p;
     }
@@ -52,7 +53,7 @@ export async function sandboxStatus(project: LoadedProject, env: string | undefi
       ...(s.changed ? { changed: true } : {}),
       ...(s.orphan ? { orphan: true } : {}),
     })),
-    pages: resolveEnvironment(project, st.env).pages,
+    pages,
     ...(st.seed ? { seed: st.seed } : {}),
     ...(st.last_reset ? { last_reset: st.last_reset } : {}),
     ...(st.lock ? { lock: { command: st.lock.command, since: st.lock.since, pid: st.lock.pid, ...(st.lock.run ? { run: st.lock.run } : {}) } } : {}),

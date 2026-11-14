@@ -10,13 +10,15 @@ import { existsSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FileJobQueue, JOB_EXIT, buildStamp, createEngine, runJobChild, runWorker } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import type { OpenedWorkspace } from '../src/index.js';
 import * as workspaceModule from '../src/workspace.js';
+import { scratchHome } from '@retake/test-support/home';
 
 // Every workspace this file's engines and job processes open, with the policy it carries (core WorkPolicy).
 vi.mock('../src/workspace.js', async (original) => {
@@ -29,17 +31,21 @@ const opened = async (): Promise<OpenedWorkspace> => {
 };
 
 const CLI = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
-const PORT = 4971;
+/** The page server's port: one the system picks (beforeAll), never a fixed number another session may hold. */
+let PORT = 0;
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n';
 
 let ws: string;
 let marker: string;
 let server: Server;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
+  server = createServer((_q, r) => r.end('<p>page</p>'));
+  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  PORT = (server.address() as AddressInfo).port;
   ws = await realpath(await mkdtemp(join(tmpdir(), 'retake-job-programs-')));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   marker = join(ws, 'started');
   await mkdir(join(ws, 'bin'), { recursive: true });
   const chrome = join(ws, 'bin', 'chrome');
@@ -50,17 +56,24 @@ beforeAll(async () => {
   await mkdir(join(project, 'scenarios'), { recursive: true });
   await writeFile(
     join(project, 'project.yaml'),
-    ['name: W', 'environments:', '  local:', `    console: http://127.0.0.1:${PORT}`, 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', 'browser:', `  executable: ${JSON.stringify(chrome)}`, ''].join('\n'),
+    [
+      'name: W',
+      'environments:',
+      '  local:',
+      `    console: http://127.0.0.1:${PORT}`,
+      'capture: {width: 1280, height: 720, scale: 1, fps: 30}',
+      'template: default',
+      'browser:',
+      `  executable: ${JSON.stringify(chrome)}`,
+      '',
+    ].join('\n'),
   );
   await writeFile(join(project, 'scenarios', 'short.yaml'), SHORT);
-  server = createServer((_q, r) => r.end('<p>page</p>'));
-  await new Promise<void>((ok) => server.listen(PORT, '127.0.0.1', ok));
 });
 
 afterAll(async () => {
   await new Promise((ok) => server?.close(ok));
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -75,11 +88,13 @@ describe('a program inside the workspace: refused for a job of the worker, run b
     // The job ran; the run failed at its browser's launch, with the refusal.
     expect(job?.state, logs.join('\n')).toBe('succeeded');
     expect(job?.result).toMatchObject({ kind: 'run', status: 'failed', steps_done: 0 });
-    expect((job?.result as { untrusted?: { error_message?: string } }).untrusted?.error_message).toMatch(/browser\.executable \(.*\/bin\/chrome\) lies inside the workspace .*move the program out of the workspace and point browser\.executable at its new place/);
+    expect((job?.result as { untrusted?: { error_message?: string } }).untrusted?.error_message).toMatch(
+      /browser\.executable \(.*\/bin\/chrome\) lies inside the workspace .*move the program out of the workspace and point browser\.executable at its new place/,
+    );
     expect(existsSync(marker)).toBe(false);
   }, 60_000);
 
-  it('the engine of the MCP server and of the Studio server turns the policy on; the CLI\'s keeps it off', async () => {
+  it("the engine of the MCP server and of the Studio server turns the policy on; the CLI's keeps it off", async () => {
     for (const client of ['mcp', 'ui', 'cli'] as const) {
       const engine = await createEngine({ root: ws, client, autoStartWorker: false });
       if (client === 'cli') expect(engine.workspace.policy.agentFolders, client).toBeNull();

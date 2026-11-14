@@ -4,12 +4,13 @@
  * descendants that left the group), the take lock (busy, stale), the state file, ports (probe, lsof owner), health
  * checks (refused → 503 → 200, text, timeout, abort, a process gone), commands and the environment of a service.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { existsSync, utimesSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import type { Server } from 'node:http';
+import type { RequestListener, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -234,7 +235,10 @@ describe('take lock', () => {
       const outs = await Promise.all([one(at), one(at), one(at), one(at)]);
       // Never held twice at once. A command that starts after the holder released (a slow machine starts the four
       // late) takes the free lock in turn: that is not two takes of the same stale lock.
-      const held = outs.filter((o) => o.startsWith('GOT ')).map((o) => o.split(' ').slice(1).map(Number) as [number, number]).sort((a, b) => a[0] - b[0]);
+      const held = outs
+        .filter((o) => o.startsWith('GOT '))
+        .map((o) => o.split(' ').slice(1).map(Number) as [number, number])
+        .sort((a, b) => a[0] - b[0]);
       expect(held.length, `round ${round}: ${outs.join(', ')}`).toBeGreaterThanOrEqual(1);
       for (let i = 1; i < held.length; i++) expect(held[i]![0], `round ${round}: ${outs.join(', ')}`).toBeGreaterThanOrEqual(held[i - 1]![1]);
       expect(outs.filter((o) => !o.startsWith('GOT ') && o !== 'BUSY')).toEqual([]);
@@ -256,7 +260,12 @@ describe('state file', () => {
   it('round-trips; malformed, another version or another provider read as empty with a note', async () => {
     const file = join(tmp, 'state', 'state.json');
     expect(readState(file, 'sandbox', 'process')).toEqual({ state: { version: 1, env: 'sandbox', provider: 'process', services: {} } });
-    const state = { version: 1 as const, env: 'sandbox', provider: 'process' as const, services: { app: { kind: 'process', pid: 42, started_at: '2026-10-13T20:00:00.000Z', command: 'node a.mjs', hash: 'h', status: 'running' as const } } };
+    const state = {
+      version: 1 as const,
+      env: 'sandbox',
+      provider: 'process' as const,
+      services: { app: { kind: 'process', pid: 42, started_at: '2026-10-13T20:00:00.000Z', command: 'node a.mjs', hash: 'h', status: 'running' as const } },
+    };
     writeState(file, state);
     expect(readState(file, 'sandbox', 'process').state).toEqual(state);
     expect(readState(file, 'sandbox', 'docker-compose').note).toMatch(/written for provider process \(sandbox\.yaml now says docker-compose\)/);
@@ -268,7 +277,7 @@ describe('state file', () => {
 });
 
 /** A local HTTP server on a free port. */
-async function serve(handler: Parameters<typeof createServer>[0]): Promise<{ server: Server; port: number; url: string }> {
+async function serve(handler: RequestListener): Promise<{ server: Server; port: number; url: string }> {
   const server = createServer(handler);
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   const port = (server.address() as AddressInfo).port;
@@ -282,7 +291,12 @@ describe('ports', () => {
       version: 1,
       provider: 'process',
       services: {
-        app: { command: ['node', 'a.mjs'], url: 'http://localhost:4601', health: '/up', pages: { console: 'http://localhost:4603', shop: { url: 'http://localhost:4604', display: 'shop.example.com' } } },
+        app: {
+          command: ['node', 'a.mjs'],
+          url: 'http://localhost:4601',
+          health: '/up',
+          pages: { console: 'http://localhost:4603', shop: { url: 'http://localhost:4604', display: 'shop.example.com' } },
+        },
         db: { command: 'db', health: { tcp: 4632 } },
       },
     } as unknown as SandboxManifest;
@@ -292,6 +306,17 @@ describe('ports', () => {
       { port: 4604, service: 'app', what: ['page shop'] },
       { port: 4632, service: 'db', what: ['health'] },
     ]);
+  });
+
+  it('a URL that is not http(s) or does not parse names no port; https without a port is 443', () => {
+    const manifest = {
+      version: 1,
+      provider: 'process',
+      services: {
+        db: { command: 'db', url: 'postgres://localhost:5432/demo', pages: { feed: 'ws://localhost:4610/x', bad: 'http://exa mple/', shop: 'https://shop.example.test/' } },
+      },
+    } as unknown as SandboxManifest;
+    expect(sandboxPorts(manifest)).toEqual([{ port: 443, service: 'db', what: ['page shop'] }]);
   });
 
   it('probes a port and names the program that listens on it (lsof)', async () => {
@@ -319,7 +344,10 @@ describe('health', () => {
   it('what is checked: the health of sandbox.yaml (default a GET of url), then every page answering HTTP', () => {
     expect(serviceHealth('app', { url: 'http://localhost:4601', pages: { shop: 'http://localhost:4604' } })).toEqual({
       service: 'app',
-      targets: [{ kind: 'http', url: 'http://localhost:4601' }, { kind: 'http', url: 'http://localhost:4604', anyStatus: true }],
+      targets: [
+        { kind: 'http', url: 'http://localhost:4601' },
+        { kind: 'http', url: 'http://localhost:4604', anyStatus: true },
+      ],
       timeoutMs: 60_000,
       intervalMs: 250,
     });
@@ -331,14 +359,16 @@ describe('health', () => {
     });
     expect(serviceHealth('db', { health: { tcp: 4632 } }).targets).toEqual([{ kind: 'tcp', port: 4632 }]);
     // health: false skips the service's own check, never its pages (P5).
-    expect(serviceHealth('app', { url: 'http://localhost:4601', health: false, pages: { a: 'http://localhost:4602' } }).targets).toEqual([{ kind: 'http', url: 'http://localhost:4602', anyStatus: true }]);
+    expect(serviceHealth('app', { url: 'http://localhost:4601', health: false, pages: { a: 'http://localhost:4602' } }).targets).toEqual([
+      { kind: 'http', url: 'http://localhost:4602', anyStatus: true },
+    ]);
     // A path always stays on the service's url ("//host" or "/\\host" would name another one; validation refuses them).
     expect(serviceHealth('app', { url: 'http://localhost:4601', health: '//evil.example/up' }).targets).toEqual([{ kind: 'http', url: 'http://localhost:4601/evil.example/up' }]);
     expect(serviceHealth('app', { url: 'http://localhost:4601', health: { path: '/\\evil.example/up' } }).targets).toEqual([{ kind: 'http', url: 'http://localhost:4601/evil.example/up' }]);
   });
 
   it('waits through refused → 503 → 200 (with the text); times out naming the check, the last failure and the tries', async () => {
-    const { server, port } = await serve((q, r) => {
+    const { server, port } = await serve((_q, r) => {
       calls++;
       if (calls < 3) {
         r.statusCode = 503;
@@ -380,14 +410,30 @@ describe('a service: command and environment', () => {
   });
 
   it("inherits the CLI's environment without the package manager's and test runner's variables, plus sandbox.yaml's env (templated)", async () => {
-    const project = { slug: 'p', dir: tmp, file: join(tmp, 'project.yaml'), config: { name: 'p', environments: { sandbox: { console: 'http://localhost:4603' } }, vars: { region: 'eu' } } } as unknown as LoadedProject;
+    const project = {
+      slug: 'p',
+      dir: tmp,
+      file: join(tmp, 'project.yaml'),
+      config: { name: 'p', environments: { sandbox: { console: 'http://localhost:4603' } }, vars: { region: 'eu' } },
+    } as unknown as LoadedProject;
     const sandbox = { env: 'sandbox', dir: tmp } as unknown as LoadedSandbox;
     process.env.RETAKE_TEST_SECRET = 'from-env-1234';
     try {
       const env = await serviceEnv(
-        { project, sandbox, policy },
+        { project, sandbox, policy, resolveSecret: resolveSecretRef },
         { env: { API_URL: '{{console}}/api', TOKEN: '{{env:RETAKE_TEST_SECRET}}', REGION: '{{vars.region}}', NODE_ENV: 'development' } },
-        { PATH: '/usr/bin', HOME: '/home/me', npm_config_cache: 'x', npm_lifecycle_event: 'studio', PNPM_SCRIPT_SRC_DIR: 'y', VITEST: 'true', VITEST_POOL_ID: '1', NODE_ENV: 'test', INIT_CWD: '/x', LANG: 'C' },
+        {
+          PATH: '/usr/bin',
+          HOME: '/home/me',
+          npm_config_cache: 'x',
+          npm_lifecycle_event: 'studio',
+          PNPM_SCRIPT_SRC_DIR: 'y',
+          VITEST: 'true',
+          VITEST_POOL_ID: '1',
+          NODE_ENV: 'test',
+          INIT_CWD: '/x',
+          LANG: 'C',
+        },
       );
       expect(env).toEqual({
         PATH: '/usr/bin',
@@ -404,16 +450,49 @@ describe('a service: command and environment', () => {
     }
   });
 
+  it("resolves sandbox.yaml's secret references through the context's resolver only (its opener's Secrets port), never this process's environment", async () => {
+    const project = { slug: 'p', dir: tmp, file: join(tmp, 'project.yaml'), config: { name: 'p', environments: { sandbox: { console: 'http://localhost:4603' } } } } as unknown as LoadedProject;
+    const sandbox = { env: 'sandbox', dir: tmp } as unknown as LoadedSandbox;
+    process.env.RETAKE_TEST_SECRET = 'from-the-process';
+    const asked: string[] = [];
+    const resolveSecret = async (ref: string): Promise<string> => {
+      asked.push(ref);
+      if (ref === 'env:RETAKE_TEST_SECRET') return 'from-the-port';
+      throw new Error(`environment variable ${ref.slice(4)} is not set`);
+    };
+    try {
+      const env = await serviceEnv({ project, sandbox, policy, resolveSecret }, { env: { TOKEN: '{{env:RETAKE_TEST_SECRET}}' } }, { PATH: '/usr/bin' });
+      expect(env.TOKEN).toBe('from-the-port');
+      await expect(serviceEnv({ project, sandbox, policy, resolveSecret }, { env: { HOME_DIR: '{{env:HOME}}' } }, { PATH: '/usr/bin' })).rejects.toThrow('environment variable HOME is not set');
+      expect(asked).toEqual(['env:RETAKE_TEST_SECRET', 'env:HOME']);
+    } finally {
+      delete process.env.RETAKE_TEST_SECRET;
+    }
+  });
+
   it("under the agent policy gets only core childEnv's allow-list of it and project.yaml pass_env, plus sandbox.yaml's env", async () => {
-    const project = { slug: 'p', dir: tmp, file: join(tmp, 'project.yaml'), config: { name: 'p', environments: { sandbox: { console: 'http://localhost:4603' } }, pass_env: ['STRIPE_TEST_KEY'] } } as unknown as LoadedProject;
+    const project = {
+      slug: 'p',
+      dir: tmp,
+      file: join(tmp, 'project.yaml'),
+      config: { name: 'p', environments: { sandbox: { console: 'http://localhost:4603' } }, pass_env: ['STRIPE_TEST_KEY'] },
+    } as unknown as LoadedProject;
     const sandbox = { env: 'sandbox', dir: tmp } as unknown as LoadedSandbox;
     process.env.RETAKE_TEST_SECRET = 'from-env-1234';
     policy = workPolicyFrom([tmp], policy.ffmpeg, policy.render);
     try {
       const env = await serviceEnv(
-        { project, sandbox, policy },
+        { project, sandbox, policy, resolveSecret: resolveSecretRef },
         { env: { API_URL: '{{console}}/api', TOKEN: '{{env:RETAKE_TEST_SECRET}}' } },
-        { PATH: `/usr/bin:${join(tmp, 'bin')}`, HOME: '/home/me', LANG: 'C', AWS_SECRET_ACCESS_KEY: 'exported', STRIPE_TEST_KEY: 'listed', NODE_OPTIONS: '--require ./x.cjs', DOCKER_HOST: 'unix:///x.sock' },
+        {
+          PATH: `/usr/bin:${join(tmp, 'bin')}`,
+          HOME: '/home/me',
+          LANG: 'C',
+          AWS_SECRET_ACCESS_KEY: 'exported',
+          STRIPE_TEST_KEY: 'listed',
+          NODE_OPTIONS: '--require ./x.cjs',
+          DOCKER_HOST: 'unix:///x.sock',
+        },
       );
       expect(env).toEqual({
         PATH: '/usr/bin',

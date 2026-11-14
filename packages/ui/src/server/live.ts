@@ -18,7 +18,7 @@
  *   `comments` (L4.6) names the scenarios whose comment threads changed (`<slug>/<scenario>`, only when there are
  *   any): a Comments screen and a timeline re-read for their own scenario only.
  *   L4.7 (critique B5): `themes` names the theme folders of templates_dir whose files changed, `components` the
- *   namespaces of components_dir whose component files changed (an in-place rewrite included: library-watch.ts's
+ *   namespaces of components_dir whose component files changed (an in-place rewrite included: the engine's library-watch.ts's
  *   file-level stat walk), `site: true` an extraction written or removed — the library and theme screens re-read on
  *   them (`projects` is then empty: no project changed). L4.8: `records` names the recordings whose own files changed
  *   (`<project>/<rec_id>`: events streamed while the window is open, the annotations, the draft and the check written,
@@ -31,11 +31,26 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
-import { ENGINE_HTTP_API, EngineError, JobsWatch, RUNS_INDEX_MAX, WorkspaceIndex, diffSources, jobProject, listRuns, runChanges, scanSources, securityHeaders, sourceKey, workspaceChanges } from '@retake/engine';
+import {
+  ENGINE_HTTP_API,
+  EngineError,
+  JobsWatch,
+  RUNS_INDEX_MAX,
+  WorkspaceIndex,
+  diffSources,
+  jobProject,
+  libraryChanges,
+  libraryWatchScan,
+  listRuns,
+  runChanges,
+  scanSources,
+  securityHeaders,
+  sourceKey,
+  workspaceChanges,
+} from '@retake/engine';
 import type { JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader, OpenedWorkspace } from '@retake/engine';
 
-import type { LoadedProject } from '@retake/core';
-import { libraryChanges, libraryWatchScan } from './library-watch.js';
+import type { LoadedProject } from '@retake/core/model';
 import { recordsChanges, recordsWatchScan } from './record-watch.js';
 
 /**
@@ -43,7 +58,9 @@ import { recordsChanges, recordsWatchScan } from './record-watch.js';
  * them raw, and a reader treating them as line ends would drop the event — a page's text may hold them).
  */
 export function sseText(event: string, data: unknown): string {
-  return `event: ${event}\ndata: ${JSON.stringify(data).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')}\n\n`;
+  return `event: ${event}\ndata: ${JSON.stringify(data)
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')}\n\n`;
 }
 
 /** Event streams served at once, at most (below a browser's 6 connections per host). */
@@ -77,7 +94,7 @@ export class Live {
   private readonly streams = new Set<ServerResponse>();
   private readonly jobs: JobsWatch;
   private sources: SourceMap | undefined;
-  /** L4.7: the library / theme watch as last scanned (library-watch.ts). */
+  /** L4.7: the library / theme watch as last scanned (the engine's library-watch.ts). */
   private libSources: Map<string, string> | undefined;
   /** L4.8: the recordings' files as last scanned (record-watch.ts). */
   private recSources: Map<string, string> | undefined;
@@ -156,10 +173,24 @@ export class Live {
     const w = workspaceChanges(keys);
     // L4.5 part E: the projects whose renders/ folder changed (a render written, a version reserved or released), or
     // their review/ (L5.10a fixes: a review run from a terminal).
-    const renders = [...new Set(keys.map(sourceKey).filter((k) => k.kind === 'renders' && k.project !== undefined).map((k) => k.project as string))].sort();
+    const renders = [
+      ...new Set(
+        keys
+          .map(sourceKey)
+          .filter((k) => k.kind === 'renders' && k.project !== undefined)
+          .map((k) => k.project as string),
+      ),
+    ].sort();
     // L5.10a fixes: the projects whose project.yaml, sandbox.yaml or scenario list changed — always sent (empty: none),
     // so a page tells "a file no list names" from "a runs folder that changed with no run told yet".
-    const files = [...new Set(keys.map(sourceKey).filter((k) => k.kind === 'project' && k.project !== undefined).map((k) => k.project as string))].sort();
+    const files = [
+      ...new Set(
+        keys
+          .map(sourceKey)
+          .filter((k) => k.kind === 'project' && k.project !== undefined)
+          .map((k) => k.project as string),
+      ),
+    ].sort();
     if (w.projects.length || Object.keys(lib).length || records.length) {
       this.send('workspace', {
         projects: w.projects,
@@ -178,7 +209,14 @@ export class Live {
     }
     if (changed.length) {
       // L5.10a fixes (review A-L7): the projects of the changed jobs, so an open project's board ignores another one's.
-      const projects = [...new Set(changed.map((id) => this.jobs.record(id)).map((j) => (j ? jobProject(j.input) : undefined)).filter((x): x is string => typeof x === 'string'))].sort();
+      const projects = [
+        ...new Set(
+          changed
+            .map((id) => this.jobs.record(id))
+            .map((j) => (j ? jobProject(j.input) : undefined))
+            .filter((x): x is string => typeof x === 'string'),
+        ),
+      ].sort();
       // L5.14: what a filming take holds of the workspace's jobs now (fixed words and a kind; null: nothing).
       this.send('jobs', { changed, projects, held: this.jobs.held() ?? null });
     }
@@ -200,8 +238,18 @@ export class Live {
     for (const key of keys) {
       const { kind, project } = sourceKey(key);
       if (kind !== 'runs' || project === undefined) continue;
-      const read = next.has(key) ? await listRuns({ dir: join(this.o.ws.projectsDir, project) } as LoadedProject, { limit: RUNS_INDEX_MAX }).catch(() => []) : [];
-      const after: RunRow[] = read.filter((r) => !r.newer).map((r) => ({ id: r.id, scenario: r.scenario ?? null, status: r.status ?? null }));
+      let read: Awaited<ReturnType<typeof listRuns>> = [];
+      try {
+        if (next.has(key)) read = await listRuns({ dir: join(this.o.ws.projectsDir, project) } as LoadedProject, { limit: RUNS_INDEX_MAX });
+      } catch {
+        // A runs/ folder that cannot be read: its rows and old signature are kept (read again on the next pass), never
+        // "every run deleted".
+        const was = prev?.get(key);
+        if (was === undefined) next.delete(key);
+        else next.set(key, was);
+        continue;
+      }
+      const after: RunRow[] = read.filter((r) => !r.newer && !r.unread).map((r) => ({ id: r.id, scenario: r.scenario ?? null, status: r.status ?? null }));
       if (prev) runs.push(...runChanges(project, this.runRows.get(project) ?? [], after, prev.get(key), next.get(key)));
       this.runRows.set(project, after);
     }

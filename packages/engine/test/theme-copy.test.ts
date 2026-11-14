@@ -12,14 +12,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
-import { THEME_PROVENANCE_FILE, copyTheme, createEngine, openWorkspace, replaceProblem, personScope } from '../src/index.js';
+import { THEME_PROVENANCE_FILE, copyTheme, createEngine, openWorkspace, replaceProblem, personScope, enginePorts, diskWorkspaceReads } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 let root: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 async function failure(p: Promise<unknown>): Promise<EngineError> {
   try {
     await p;
@@ -31,15 +32,14 @@ async function failure(p: Promise<unknown>): Promise<EngineError> {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-theme-copy-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'projects'), { recursive: true });
   engine = await createEngine({ root, client: 'ui', autoStartWorker: false });
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 
@@ -48,7 +48,18 @@ describe('copy a theme (L4.7)', () => {
     const r = await engine.templates.copy({ from: 'editorial', name: 'mine' });
     const dir = join(root, 'templates', 'mine');
     expect(r.name).toBe('mine');
-    expect(r.files.sort()).toEqual(['.retake-theme.json', 'LICENSES.md', 'README.md', 'fonts/InstrumentSerif-Regular.ttf', 'fonts/Inter-Bold.ttf', 'fonts/Inter-Regular.ttf', 'fonts/Inter-SemiBold.ttf', 'logo.svg', 'template.yaml', 'wordmark.svg']);
+    expect(r.files.sort()).toEqual([
+      '.retake-theme.json',
+      'LICENSES.md',
+      'README.md',
+      'fonts/InstrumentSerif-Regular.ttf',
+      'fonts/Inter-Bold.ttf',
+      'fonts/Inter-Regular.ttf',
+      'fonts/Inter-SemiBold.ttf',
+      'logo.svg',
+      'template.yaml',
+      'wordmark.svg',
+    ]);
     const src = readFileSync(join(STARTER_TEMPLATES_DIR, 'editorial', 'template.yaml'), 'utf8');
     const text = await readFile(join(dir, 'template.yaml'), 'utf8');
     expect(text).toBe(src.replace('name: editorial', 'name: mine'));
@@ -70,7 +81,7 @@ describe('copy a theme (L4.7)', () => {
     expect(r2.files).not.toContain('.DS_Store');
   });
 
-  it('⚑ names: a starter\'s, an existing folder\'s (without case), not a slug; nothing left behind', async () => {
+  it("⚑ names: a starter's, an existing folder's (without case), not a slug; nothing left behind", async () => {
     expect((await failure(engine.templates.copy({ from: 'editorial', name: 'motion' }))).message).toMatch(/name of the starter theme motion/);
     expect((await failure(engine.templates.copy({ from: 'editorial', name: 'MINE' }))).code).toBe('invalid');
     await mkdir(join(root, 'templates', 'Taken'), { recursive: true });
@@ -91,8 +102,8 @@ describe('copy a theme (L4.7)', () => {
     expect(e.code).toBe('refused');
     expect(e.message).toMatch(/holds a symbolic link \(notes.txt\)/);
     expect((await readdir(join(root, 'templates'))).some((n) => n.includes('linky-copy'))).toBe(false);
-    const repoWs = await openWorkspace({ root: REPO });
-    expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }, { scope: personScope(repoWs.root) }))).message).toMatch(/lies inside the Retake folder/);
+    const repoWs = await openWorkspace({ root: REPO, agent: false, reads: diskWorkspaceReads });
+    expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }, { scope: personScope(repoWs.root, enginePorts()) }))).message).toMatch(/lies inside the Retake folder/);
   });
 
   it('⚑ L4.7 review A M1: a source holding a hard link is refused whole, nothing written', async () => {

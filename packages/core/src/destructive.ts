@@ -1,7 +1,10 @@
 import { resolve } from 'node:path';
 import { needFiles } from './file-facts.js';
-import type { FileFacts } from './file-facts.js';
-import { commandName, heredocs, nestedShellScript, shellCommands, shellWords } from './shell-words.js';
+import type { FileFacts, FilesWith } from './file-facts.js';
+import { shellRuns } from './shell-runs.js';
+import type { ShellRun } from './shell-runs.js';
+import { commandName, commandWordAt, heredocs, shellCommands, shellTokens, shellWords } from './shell-words.js';
+import type { ShellToken } from './shell-words.js';
 import type { HookKind, HookStep, HttpHookSpec, ShellHookSpec, SqlHookSpec } from './types.js';
 
 const SQL_WRITE = new Set(['DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'UPDATE']);
@@ -19,27 +22,59 @@ function stripSqlNoise(sql: string): string {
 
 /** First destructive keyword of a SQL text (DELETE, DROP, TRUNCATE, ALTER, UPDATE), or null. */
 export function sqlDestructiveKeyword(sql: string): string | null {
-  const words = stripSqlNoise(sql).toUpperCase().match(/[A-Z_][A-Z0-9_]*/g) ?? [];
+  const words =
+    stripSqlNoise(sql)
+      .toUpperCase()
+      .match(/[A-Z_][A-Z0-9_]*/g) ?? [];
   for (let i = 0; i < words.length; i++) {
     if (SQL_WRITE.has(words[i]) && !(i > 0 && CLAUSE_PREFIX.has(words[i - 1]))) return words[i];
   }
   return null;
 }
 
-/** `rm` / `dropdb` used in a shell command (also inside `sh -c "…"`; comments and quoted text ignored). */
-export function shellDestructiveCommand(cmd: string): string | null {
-  for (const { args } of shellCommands(shellWords(cmd))) {
-    for (let i = 0; i < args.length; i++) {
-      const name = commandName(args[i]);
-      if (name === 'rm' || name === 'dropdb') return name;
-      const script = nestedShellScript(args, i);
-      if (script !== undefined) {
-        const nested = shellDestructiveCommand(script);
-        if (nested) return nested;
-      }
-    }
+/** What `shellDestructiveCommand` answers for a command whose word is computed when it runs. */
+export const COMPUTED_COMMAND = 'a command computed when it runs';
+
+/** How deep the scripts a command runs are followed (shellRuns); deeper is counted as computed. */
+const MAX_DEPTH = 8;
+
+/**
+ * A script read for the guard: what it runs (shellRuns), every word of it (heredoc bodies included: a body may be a
+ * script written for later), and the scripts it makes a shell run, with the substitutions of every word.
+ */
+function readScript(cmd: string): { run: ShellRun; words: ShellToken[]; scripts: Set<string> } {
+  const run = shellRuns(cmd);
+  const scripts = new Set(run.scripts);
+  const words = shellTokens(cmd, (script) => scripts.add(script)).filter((t) => !t.op);
+  return { run, words, scripts };
+}
+
+/** A command word the shell computes or expands when it runs: an expansion, a substitution, a glob, a brace expansion. */
+function computedWord(t: ShellToken | undefined): boolean {
+  return t !== undefined && (t.computed === true || (t.pattern === true && t.text !== '[' && t.text !== '[['));
+}
+
+/**
+ * `rm` / `dropdb` used in a shell command, or COMPUTED_COMMAND. Read as bash reads it (core shell-words.ts): quoting
+ * resolved, comments and quoted text ignored, and every script it makes a shell run followed (shellRuns: substitutions,
+ * `sh -c` in any of its forms, `eval`, `trap`, `alias`, `env -S`, `watch`, a script a shell reads on its standard
+ * input). COMPUTED_COMMAND: a command word computed or expanded when it runs (a variable, a command or process
+ * substitution, a glob or brace expansion), or a shell reading a script piped from another program — it may be
+ * anything, so it counts as destructive.
+ */
+export function shellDestructiveCommand(cmd: string, depth = 0): string | null {
+  if (depth > MAX_DEPTH) return COMPUTED_COMMAND;
+  const { run, words, scripts } = readScript(cmd);
+  for (const t of words) {
+    const name = commandName(t.text);
+    if (name === 'rm' || name === 'dropdb') return name;
   }
-  return null;
+  for (const script of scripts) {
+    const nested = shellDestructiveCommand(script, depth + 1);
+    if (nested) return nested;
+  }
+  if (run.unreadable) return COMPUTED_COMMAND;
+  return run.commands.some(({ args }) => computedWord(args[commandWordAt(args)])) ? COMPUTED_COMMAND : null;
 }
 
 export function hookKind(hook: HookStep): HookKind {
@@ -55,14 +90,26 @@ export function sqlSource(spec: string | SqlHookSpec): { file?: string; query?: 
   return { file: spec.file, query: spec.query };
 }
 
-export interface DestructiveOptions {
+/** The options of the destructive-hook rules; `files` is required with `projectDir` unless `readText` reads the files (FilesWith, L7.34). */
+export type DestructiveOptions = DestructiveFields & (FilesWith<'projectDir'> | { readText: (absPath: string) => string | undefined });
+
+export interface DestructiveFields {
   /** Project directory: SQL files are read from it to inspect their statements. */
   projectDir?: string;
-  /** How those files are read (core FileFacts): needed with `projectDir` (unless `readText` reads them). */
+  /** How those files are read (core FileFacts): required with `projectDir` (unless `readText` reads them). */
   files?: FileFacts;
   /** Override file reading (tests); returns undefined when the file cannot be read. */
   readText?: (absPath: string) => string | undefined;
+  /** The hook was written by an agent (hookApprovalReason): its sql statements need a person, as its shell commands do. */
+  agentWritten?: boolean;
 }
+
+/**
+ * Why an sql hook an agent wrote needs a person under trust `mcp`: treated like an agent's shell hook, whatever its
+ * statement (its rollback is shown and approved with it). A person's own sql hooks keep the destructive rule only, and
+ * a sandbox's seed and reset steps (sandbox.yaml, which no agent path writes) are not concerned.
+ */
+export const AGENT_SQL_REASON = 'an sql hook the agent wrote (runs statements on the database)';
 
 function readWith(files: FileFacts, file: string): string | undefined {
   try {
@@ -120,18 +167,25 @@ function psqlArgsReason(args: readonly string[], opts: DestructiveOptions): stri
 
 /**
  * Destructive SQL sent to psql: `psql -c "DELETE …"`, `psql -f file.sql` (read from the project dir),
- * a heredoc fed to psql, `echo "DROP …" | psql`, also inside `sh -c "…"`.
+ * a heredoc fed to psql, `echo "DROP …" | psql`, also in every script the command makes a shell run (shellRuns).
  */
-export function psqlDestructiveStatement(cmd: string, opts: DestructiveOptions = {}): string | null {
+export function psqlDestructiveStatement(cmd: string, opts: DestructiveOptions = {}, depth = 0): string | null {
+  if (depth > MAX_DEPTH) return null;
+  const own = psqlInScript(cmd, opts);
+  if (own) return own;
+  for (const script of readScript(cmd).scripts) {
+    const nested = psqlDestructiveStatement(script, opts, depth + 1);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+/** psqlDestructiveStatement within one script (the scripts it runs are followed by the caller). */
+function psqlInScript(cmd: string, opts: DestructiveOptions): string | null {
   const cmds = shellCommands(shellWords(cmd));
   let usesPsql = false;
   for (let i = 0; i < cmds.length; i++) {
     const { args, after } = cmds[i];
-    for (let k = 0; k < args.length; k++) {
-      const script = nestedShellScript(args, k);
-      const nested = script === undefined ? null : psqlDestructiveStatement(script, opts);
-      if (nested) return nested;
-    }
     const at = args.findIndex((w) => commandName(w) === 'psql');
     if (at < 0) continue;
     usesPsql = true;
@@ -155,6 +209,7 @@ export function psqlDestructiveStatement(cmd: string, opts: DestructiveOptions =
 /** `rm` / `dropdb`, or destructive SQL given to psql, in a shell command. */
 export function shellDestructiveReason(cmd: string, opts: DestructiveOptions = {}): string | null {
   const c = shellDestructiveCommand(cmd);
+  if (c === COMPUTED_COMMAND) return `shell: ${c}`;
   return c ? `shell ${c}` : psqlDestructiveStatement(cmd, opts);
 }
 
@@ -226,8 +281,9 @@ export function rollbackApprovalReason(hook: HookStep, opts: DestructiveOptions 
 
 /**
  * Why a hook needs a human before work submitted by an agent (trust `mcp`: the MCP server, the Studio) runs it, from
- * its file alone, or null: declared or detected destructive, any shell command (local code) and, for a setup hook
- * (`phase`), a rollback that needs approval (rollbackApprovalReason). The submit's preflight (engine approvals.ts) also
+ * its file alone, or null: declared or detected destructive, any shell command (local code), an sql hook the agent
+ * wrote (`opts.agentWritten`: AGENT_SQL_REASON) and, for a setup hook (`phase`), a rollback that needs approval
+ * (rollbackApprovalReason). The submit's preflight (engine approvals.ts) also
  * templates each hook; this is its backstop and what the Studio's hooks strip shows. A malformed hook gives null
  * (validation reports it).
  */
@@ -239,7 +295,10 @@ export function hookApprovalReason(hook: HookStep, phase: string, opts: Destruct
     return null;
   }
   try {
-    const own = hook.destructive === true ? 'declared destructive' : (destructiveReason(hook, opts) ?? (kind === 'shell' ? 'a shell command (runs local code)' : null));
+    const own =
+      hook.destructive === true
+        ? 'declared destructive'
+        : (destructiveReason(hook, opts) ?? (kind === 'shell' ? 'a shell command (runs local code)' : kind === 'sql' && opts.agentWritten === true ? AGENT_SQL_REASON : null));
     // Setup and step hooks (L5.8) journal their rollback, run later without asking again.
     const rollback = phase === 'setup' || phase === 'step' ? rollbackApprovalReason(hook, opts) : null;
     const reasons = [own, rollback].filter((r): r is string => r !== null);

@@ -1,4 +1,4 @@
-import type { PressArgs, TypeArgs } from '@retake/core';
+import type { PressArgs, TypeArgs } from '@retake/core/model';
 import type { FieldKind } from '../kit/types.js';
 import type { StepContext } from '../runtime.js';
 import { sleepUntil, wallNow } from '../util.js';

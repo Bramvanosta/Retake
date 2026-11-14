@@ -22,12 +22,14 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { mcpHttpTokenFile, readPrivateToken, readWorkerLock, stableToken } from '@retake/engine';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from '../../ui/test/http.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
 import { claudeCodeHttpCommand, mcpHttpConfigJson, mcpHttpTokenExport } from '@retake/engine/integrations';
 import { MCP_HTTP_BODY_MAX, TOOLS, listenersAreOurs, lsofPortListeners, startMcpHttpServer } from '../src/index.js';
 import type { McpHttpServer, PortListenerLookup } from '../src/index.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { testChildEnv } from '@retake/test-support/child-env';
+import { scratchHome } from '@retake/test-support/home';
 
 type Result = { content: Array<{ type: string; text: string }>; structuredContent?: Record<string, unknown>; isError?: boolean };
 
@@ -45,7 +47,7 @@ async function closeAll(): Promise<void> {
 }
 /** End a session opened by a raw initialize. */
 const endRaw = (id: unknown) => raw(server.port, 'DELETE', '/mcp', { authorization: `Bearer ${token}`, 'mcp-session-id': String(id) });
-const saved = { home: process.env.RETAKE_HOME, idle: process.env.RETAKE_WORKER_IDLE_MS };
+const retakeHome = scratchHome('RETAKE_WORKER_IDLE_MS');
 const P = 'northfield-fixture';
 
 const INIT = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'raw', version: '0' } } });
@@ -71,12 +73,12 @@ const call = async (c: Client, name: string, args: Record<string, unknown> = {})
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-mcp-http-'));
   home = join(ws, '.home');
-  process.env.RETAKE_HOME = home;
+  retakeHome.use(home);
   process.env.RETAKE_WORKER_IDLE_MS = '1500';
   await fixtureWorkspace(ws);
   await mkdir(join(ws, 'projects', P, 'hooks'), { recursive: true });
   await writeFile(join(ws, 'projects', P, 'hooks', 'ok.yaml'), '- name: ok\n  shell: {run: "true"}\n  writes: false\n');
-  token = (await stableToken(mcpHttpTokenFile())).token;
+  token = (await stableToken(mcpHttpTokenFile(process.env))).token;
   server = await startMcpHttpServer({ root: ws, port: 0, token, maxSessions: 3 });
 });
 
@@ -91,10 +93,7 @@ afterAll(async () => {
       // gone
     }
   }
-  if (saved.home === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = saved.home;
-  if (saved.idle === undefined) delete process.env.RETAKE_WORKER_IDLE_MS;
-  else process.env.RETAKE_WORKER_IDLE_MS = saved.idle;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -222,7 +221,15 @@ describe('MCP over HTTP: abandoned sessions make room (review A L1 / B M2)', () 
 function holdStream(port: number, sid: string): Promise<{ status: number; close(): void }> {
   return new Promise((resolve, reject) => {
     const req = request(
-      { host: '127.0.0.1', port, path: '/mcp', method: 'GET', agent: false, setHost: false, headers: { host: `127.0.0.1:${port}`, authorization: `Bearer ${token}`, accept: 'text/event-stream', 'mcp-session-id': sid, 'mcp-protocol-version': '2025-06-18' } },
+      {
+        host: '127.0.0.1',
+        port,
+        path: '/mcp',
+        method: 'GET',
+        agent: false,
+        setHost: false,
+        headers: { host: `127.0.0.1:${port}`, authorization: `Bearer ${token}`, accept: 'text/event-stream', 'mcp-session-id': sid, 'mcp-protocol-version': '2025-06-18' },
+      },
       (res) => {
         res.on('data', () => undefined);
         res.on('error', () => undefined);
@@ -267,7 +274,13 @@ describe('MCP over HTTP: idle sessions', () => {
       const end = Date.now() + 5000;
       while (quick.sessions > 0 && Date.now() < end) await new Promise((x) => setTimeout(x, 100));
       expect(quick.sessions).toBe(0);
-      const gone = await raw(quick.port, 'POST', '/mcp', { authorization: `Bearer ${token}`, ...MCP_ACCEPT, 'mcp-session-id': String(r.headers['mcp-session-id']) }, JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }));
+      const gone = await raw(
+        quick.port,
+        'POST',
+        '/mcp',
+        { authorization: `Bearer ${token}`, ...MCP_ACCEPT, 'mcp-session-id': String(r.headers['mcp-session-id']) },
+        JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+      );
       expect(gone.status).toBe(404);
     } finally {
       await quick.close();
@@ -347,7 +360,7 @@ describe('MCP over HTTP: the gate, each check with the valid token and a valid i
 
 describe('the stable token (Retake home, 0600)', () => {
   it('created once (0600, atomic), the same at every start; --rotate-token replaces it; a non-private file is refused', async () => {
-    const file = mcpHttpTokenFile();
+    const file = mcpHttpTokenFile(process.env);
     expect(file).toBe(join(home, 'mcp-http.token'));
     expect((await stat(file)).mode & 0o777).toBe(0o600);
     expect((await stableToken(file)).token).toBe(token);
@@ -411,7 +424,15 @@ describe("the fixed port taken: only this account's own Retake MCP server keeps 
     expect(listenersAreOurs([{ pid: 9, uid, args: 'retake mcp --http' }], uid)).toBe(true);
     expect(listenersAreOurs([], uid)).toBe(false);
     expect(listenersAreOurs([{ pid: 9, uid: uid + 1, args: RETAKE_ARGS }], uid)).toBe(false);
-    expect(listenersAreOurs([{ pid: 9, uid, args: RETAKE_ARGS }, { pid: 10, uid: uid + 1, args: RETAKE_ARGS }], uid)).toBe(false);
+    expect(
+      listenersAreOurs(
+        [
+          { pid: 9, uid, args: RETAKE_ARGS },
+          { pid: 10, uid: uid + 1, args: RETAKE_ARGS },
+        ],
+        uid,
+      ),
+    ).toBe(false);
     expect(listenersAreOurs([{ pid: 9, uid, args: 'python3 -m http.server 4971' }], uid)).toBe(false);
     expect(listenersAreOurs([{ pid: 9, uid, args: '/opt/retake/bin.js mcp' }], uid)).toBe(false);
     expect(listenersAreOurs([{ pid: 9, uid, args: '/opt/retake/bin.js ui --http' }], uid)).toBe(false);

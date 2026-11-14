@@ -1,6 +1,9 @@
 import pg from 'pg';
-import { collectSecretRefs, databasesFor, databasesSource, sandboxOf, sqlDestructiveKeyword, sqlSource, sqlWriteStatement } from '@retake/core';
-import type { SqlHookSpec, TemplateContext } from '@retake/core';
+import { collectSecretRefs } from '@retake/core/base';
+import { sqlDestructiveKeyword, sqlSource, sqlWriteStatement } from '@retake/core/hooks';
+import { databasesFor, databasesSource, sandboxOf } from '@retake/core/sandbox';
+import type { TemplateContext } from '@retake/core/base';
+import type { SqlHookSpec } from '@retake/core/model';
 import { checkHostAllowed } from '../allow-list.js';
 import { databaseTarget, describeTarget, sandboxDatabaseProblem } from '../db-url.js';
 import type { DatabaseTarget } from '../db-url.js';
@@ -8,7 +11,7 @@ import { describeSql } from '../describe.js';
 import { HookError, HookSecurityError, errorMessage } from '../errors.js';
 import { addSecret, redactText } from '../secrets.js';
 import { lineAt, transactionControl } from '../sql-text.js';
-import { hookTemplateContext, render, snapshotFor, snapshotTemplateContext } from '../template.js';
+import { hookTemplateContext, render, snapshotFor, snapshotTemplateContext, usesAgentVars } from '../template.js';
 import { journalsRollback } from '../types.js';
 import type { HookContext, HookLogLevel, RollbackAction, TemplateSnapshot } from '../types.js';
 import { baseDirOf, ignoreRollback, readHookFile } from './common.js';
@@ -32,13 +35,7 @@ interface Database {
  * else project.yaml's — core databasesFor): URL templated (secrets resolved), host checked against the allow-list
  * before any connection. `snapshot` re-templates it for a rollback.
  */
-async function openDatabase(
-  ctx: HookContext,
-  log: (level: HookLogLevel, msg: string) => void,
-  key: string | undefined,
-  snapshot?: TemplateSnapshot,
-  env: string = ctx.env.name,
-): Promise<Database> {
+async function openDatabase(ctx: HookContext, log: (level: HookLogLevel, msg: string) => void, key: string | undefined, snapshot?: TemplateSnapshot, env: string = ctx.env.name): Promise<Database> {
   const dbs = databasesFor(ctx.project, env);
   const where = databasesSource(ctx.project, env);
   const keys = Object.keys(dbs);
@@ -50,9 +47,7 @@ async function openDatabase(
     throw new HookError(`unknown database "${k}" (${where} declares: ${keys.join(', ')})`);
   }
   const urlTemplate = dbs[k].url;
-  const tpl = snapshot
-    ? await snapshotTemplateContext(ctx, snapshot, urlTemplate)
-    : await hookTemplateContext(ctx, urlTemplate);
+  const tpl = snapshot ? await snapshotTemplateContext(ctx, snapshot, urlTemplate) : await hookTemplateContext(ctx, urlTemplate);
   const connectionString = render(urlTemplate, tpl);
   // A sandbox's database (L1.8): pg must connect where its URL says, on this machine (validation refuses the rest).
   if (sandboxOf(ctx.project, env)) {
@@ -92,9 +87,7 @@ function sqlErrorMessage(e: unknown, sql: string): string {
 
 function summarize(res: pg.QueryResult | pg.QueryResult[]): string {
   const all = Array.isArray(res) ? res : [res];
-  const rows = all
-    .filter((r) => r.command !== 'SELECT' && typeof r.rowCount === 'number')
-    .reduce((n, r) => n + (r.rowCount ?? 0), 0);
+  const rows = all.filter((r) => r.command !== 'SELECT' && typeof r.rowCount === 'number').reduce((n, r) => n + (r.rowCount ?? 0), 0);
   return `${all.length} statement${all.length === 1 ? '' : 's'}, ${rows} row${rows === 1 ? '' : 's'} affected`;
 }
 
@@ -102,13 +95,7 @@ function summarize(res: pg.QueryResult | pg.QueryResult[]): string {
  * Run a whole SQL text as one multi-statement query inside BEGIN … COMMIT (ROLLBACK on error). `readOnly` (a read-only
  * run, L1.7): BEGIN READ ONLY — whatever the static check could not see (a function that writes) fails in Postgres.
  */
-async function runSql(
-  db: Database,
-  sql: string,
-  where: string,
-  log: (level: HookLogLevel, msg: string) => void,
-  readOnly = false,
-): Promise<string> {
+async function runSql(db: Database, sql: string, where: string, log: (level: HookLogLevel, msg: string) => void, readOnly = false): Promise<string> {
   const client = new pg.Client({
     connectionString: db.connectionString,
     connectionTimeoutMillis: SQL_CONNECT_TIMEOUT_MS,
@@ -170,9 +157,13 @@ export async function prepareSql(spec: string | SqlHookSpec, k: KindEnv): Promis
   let rollback: RollbackAction | undefined;
   let rollbackWrites: string | null = null;
   let rollbackInfo: PreparedHook['rollback'];
+  // The texts it renders besides its own fields (a file, its rollback's, the database URL): the agent's vars in them
+  // make it the agent's (trust `mcp`).
+  const rendered: string[] = [text, db.urlTemplate];
   if (rb !== undefined && journalsRollback(k.phase)) {
     const rbSource = typeof rb === 'string' ? sqlSource(rb) : rb;
     const rbText = await loadSource(ctx, rbSource, 'sql rollback');
+    rendered.push(rbText);
     // The connection URL is re-templated at rollback time too: snapshot its tokens with the SQL's.
     const tpl = await hookTemplateContext(ctx, [rbText, db.urlTemplate]);
     const rbSql = renderSql(rbText, tpl, rbSource.file ?? 'inline rollback SQL');
@@ -189,14 +180,16 @@ export async function prepareSql(spec: string | SqlHookSpec, k: KindEnv): Promis
     rollbackInfo = {
       description: redactText(ctx, describeSql(rbSource.file ? { file: rbSource.file } : { query: rbSql }, db.label)),
       reason: rbKw ? (rbSource.file ? `${rbSource.file} contains ${rbKw}` : `SQL ${rbKw}`) : null,
-      shown: { kind: 'sql', db: db.label, ...(rbSource.file ? { file: rbSource.file } : { query: rbSql }) },
+      // The statement as it will run, its file named beside it.
+      shown: { kind: 'sql', db: db.label, ...(rbSource.file ? { file: rbSource.file } : {}), query: rbSql },
     };
   }
   return {
     description: redactText(ctx, describeSql(source, db.label)),
-    // The statement as it runs (a file: its name — its bytes are bound to an approval through MCP).
-    shown: { kind: 'sql', db: db.label, ...(source.file ? { file: source.file } : { query: sql }) },
+    // The statement as it runs, rendered (a file: named beside it — its bytes are bound to an approval through MCP).
+    shown: { kind: 'sql', db: db.label, ...(source.file ? { file: source.file } : {}), query: sql },
     destructive: kw ? (source.file ? `${source.file} contains ${kw}` : `SQL ${kw}`) : null,
+    ...(ctx.trust === 'mcp' && usesAgentVars(rendered, ctx) ? { agentVars: true as const } : {}),
     writes: sqlWriteStatement(sql) ?? (rollbackWrites ? `its rollback: ${rollbackWrites}` : null),
     hosts: db.target.socket ? [] : [db.target.host],
     ...(rollbackInfo ? { rollback: rollbackInfo } : {}),

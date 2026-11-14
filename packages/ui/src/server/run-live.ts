@@ -36,23 +36,15 @@ import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import type { ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { JOB_STATES, PROJECT_SLUG_RE } from '@retake/core';
-import type { JobState } from '@retake/core';
-import {
-  ERROR_STATUS,
-  EngineError,
-  FINISHED_JOB_STATES,
-  RUN_ID_RE,
-  RunFolder,
-  openLiveFeed,
-  openProjectBySlug,
-  readLiveChannel,
-  readPlainRange,
-  securityHeaders,
-  toEngineError,
-} from '@retake/engine';
+import { SLUG_RE } from '@retake/core/model';
+import { zRunId } from '@retake/core/ids';
+import { PROJECT_SLUG_RE } from '@retake/core/project';
+import { JOB_STATES } from '@retake/engine';
+import type { JobState } from '@retake/engine';
+import { ERROR_STATUS, EngineError, FINISHED_JOB_STATES, RunFolder, openLiveFeed, openProjectBySlug, readLiveChannel, readPlainRange, securityHeaders, toEngineError } from '@retake/engine';
 import type { Engine, JobFiles, JobQueueView, LiveFeedFrame, RangeRead, OpenedWorkspace } from '@retake/engine';
 import { sseText } from './live.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Run streams served at once, at most. */
 export const RUN_LIVE_STREAMS_MAX = 2;
@@ -82,7 +74,7 @@ const END_GRACE_MS = 10_000;
 const POLL_READ_MAX = 8 * LIVE_READ_CHUNK;
 
 const project = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug, never a path');
-const runId = z.string().max(200).regex(RUN_ID_RE, 'a run id, never a path');
+const runId = zRunId('a run id, never a path');
 const offset = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 /** The body of `POST /v1/live`. */
@@ -94,7 +86,6 @@ export const RunLiveInput = z.strictObject({
   /** The live picture: default on for a dry run, off for a capture (the page asks for it with true). */
   frames: z.boolean().optional(),
 });
-export type RunLiveRequest = z.infer<typeof RunLiveInput>;
 
 export type PictureState = 'off' | 'none' | 'waiting' | 'live' | 'busy' | 'ended';
 
@@ -266,7 +257,12 @@ export function maskUrls(text: string): string {
     const rest = q < 0 ? '' : url.slice(q);
     const authority = head.replace(/^([a-z][a-z0-9+.-]*:\/\/[^\s/:@]*:)[^\s/@]+@/i, `$1${URL_MASK}@`);
     const m = /^([a-z][a-z0-9+.-]*:\/\/[^/]*)(.*)$/i.exec(authority);
-    const path = m ? `${m[1]}${m[2].split('/').map((seg) => (seg && secretSegment(seg) ? URL_MASK : seg)).join('/')}` : authority;
+    const path = m
+      ? `${m[1]}${m[2]
+          .split('/')
+          .map((seg) => (seg && secretSegment(seg) ? URL_MASK : seg))
+          .join('/')}`
+      : authority;
     if (!rest) return path;
     const hash = rest.indexOf('#');
     const query = hash < 0 ? rest : rest.slice(0, hash);
@@ -435,7 +431,8 @@ export function mergeByTime(a: LiveItem[], b: LiveItem[]): LiveItem[] {
   while (j < y.length) out.push(y[j++].it);
   return out;
 }
-const PAGE_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
+/** A page id a frame may name: the grammar of a scenario's names (core SLUG_RE), at most 100 characters. */
+const isPageId = (v: string): boolean => v.length <= 100 && SLUG_RE.test(v);
 
 /** One page's stream of one run. */
 class RunStream {
@@ -550,7 +547,7 @@ class RunStream {
     const { engine } = this.live;
     let jobState: JobState | null = null;
     if (this.req.jobId) {
-      const job = await engine.jobs.get(this.req.jobId).catch(() => null);
+      const job = await bestEffort(engine.jobs.get(this.req.jobId), 'a job that cannot be read is followed again on the next tick', null);
       if (job) {
         jobState = job.state;
         const view = { state: job.state, pause_requested: Boolean(job.pause_requested_at), cancel_requested: Boolean(job.cancel_requested_at) };
@@ -566,7 +563,7 @@ class RunStream {
     let runDone = this.sawEnd > 0 || (this.req.jobId !== null && jobDone);
     let status: string | undefined;
     if (jobDone) {
-      const st = await engine.runs.status(this.req.project, this.req.run).catch(() => null);
+      const st = await bestEffort(engine.runs.status(this.req.project, this.req.run), 'a run whose status cannot be read is followed again on the next tick', null);
       status = st?.status;
       if (!this.req.jobId) runDone ||= st === null || st.finished;
     }
@@ -630,7 +627,7 @@ class FrameFeed {
   private onFrame(f: LiveFeedFrame): void {
     if (this.ac.signal.aborted) return;
     const h = f.header;
-    const text = sse('frame', { seq: h.seq, w: h.w, h: h.h, at: h.at, ...(h.page !== undefined && PAGE_RE.test(h.page) ? { page: h.page } : {}), jpeg: f.data.toString('base64') });
+    const text = sse('frame', { seq: h.seq, w: h.w, h: h.h, at: h.at, ...(h.page !== undefined && isPageId(h.page) ? { page: h.page } : {}), jpeg: f.data.toString('base64') });
     if (this.state !== 'live') this.set('live');
     this.latest = text;
     for (const s of this.subs) s.frame(text);
@@ -640,7 +637,7 @@ class FrameFeed {
   async run(): Promise<void> {
     const signal = this.ac.signal;
     while (!signal.aborted) {
-      const job = await this.live.engine.jobs.get(this.jobId).catch(() => null);
+      const job = await bestEffort(this.live.engine.jobs.get(this.jobId), 'a job that cannot be read is followed again on the next tick', null);
       if (signal.aborted) return;
       if (!job || FINISHED_JOB_STATES.has(job.state)) {
         this.set('ended');

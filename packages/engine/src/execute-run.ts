@@ -1,19 +1,35 @@
 /**
  * A run of a scenario, as `retake run` and the jobs worker both start it (L3.1, moved from the CLI's run command):
  * prepare (project, sandbox pick, scenario validated against the environment it runs on, template), then execute (the
- * scenario's warnings and notes, the sandbox take or check, runScenario). Native options and native errors: the CLI keeps
+ * scenario's warnings and notes, the sandbox take or check, the capture runner's run). Native options and native errors: the CLI keeps
  * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
-import { parseScenarioSource, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioSourceEnv, GUIDE, sandboxErrorKind } from '@retake/core';
-import { loadProjectTemplate, readScenarioSource, fileFacts } from '@retake/core/io';
-import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, ErrorKind, WorkPolicy } from '@retake/core';
-import type { ConfirmHook, FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
-import type { SandboxLog, Take } from '@retake/sandbox';
-import type { Caller } from './caller.js';
+import type { Secrets } from './secrets/secrets.js';
+import { noDisplay } from './env.js';
+import type { EngineEnv } from './env.js';
+import { GUIDE, sandboxErrorKind } from '@retake/core/base';
+import { resolveEnvironment, resolveRunAccess } from '@retake/core/environment';
+import { sandboxNames, sandboxOf } from '@retake/core/sandbox';
+import { parseScenarioSource, scenarioSourceEnv } from '@retake/core/scenario';
+import { describeLock } from '@retake/core/io';
+import type { ErrorKind } from '@retake/core/base';
+import type { LoadedProject, LoadedScenario, LoadedTemplate, Timeline, ValidationIssue } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { ConfirmHook, HookTrust, TrustedHookFiles } from '@retake/core/hooks';
+import type { RunProgress, RunRecord } from '@retake/core/run';
+import type { AgentChannel } from './caller.js';
+import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web/types';
+import type { SandboxLog, Take } from '@retake/sandbox/types';
+import type { CaptureRunner } from './capture/runner.js';
+import type { HookRunner } from './hook-run/runner.js';
+import type { Sandboxes } from './sandboxes/sandboxes.js';
 import { hookRunRecorder } from './store/journal.js';
 import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
 import type { OpenedWorkspace } from './workspace.js';
+import type { JournalAs } from './store/journal.js';
+import { confinementOf } from './caller.js';
+import { EngineError, errorMessage } from './errors.js';
 
 /** A run option that cannot be used as given (the CLI reports it as a usage error, exit 2). */
 export class RunOptionError extends Error {
@@ -48,10 +64,6 @@ export class SandboxTakeError extends Error {
   get errorDocs(): string {
     return GUIDE.sandbox;
   }
-}
-
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
 }
 
 export interface RunRequest {
@@ -107,6 +119,11 @@ export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[
   resolveRunAccess(resolved, { allowWrites: true });
 }
 
+/** A headed run (the CLI's `--headed`) needs a display: refused when its environment has none (env.ts noDisplay). */
+export function checkHeadedDisplay(req: Pick<RunRequest, 'headed'>, vars: EngineEnv): void {
+  if (req.headed && noDisplay(vars)) throw new EngineError('unavailable', '--headed needs a display, and none is available (DISPLAY / WAYLAND_DISPLAY are not set)');
+}
+
 /**
  * Load what a run needs. `sandbox`: no sandbox, or an `env` that is not one, is a RunOptionError before anything is
  * read. The sandbox is picked from the scenario's raw `env:` first, then the scenario is validated once, against the
@@ -116,19 +133,19 @@ export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[
  */
 export async function prepareRun(ws: OpenedWorkspace, project: LoadedProject, scenarioRef: string, req: RunRequest): Promise<PreparedRun> {
   if (req.sandbox) pickSandboxEnv(project, req.env, undefined); // no sandbox, or `env` not one: refused before the read
-  const src = await readScenarioSource(project, scenarioRef, { ...(req.expectSha256 !== undefined ? { expectSha256: req.expectSha256 } : {}), ...(req.readFile ? { readFile: req.readFile } : {}) });
+  const src = await ws.reads.readScenarioSource(project, scenarioRef, {
+    ...(req.expectSha256 !== undefined ? { expectSha256: req.expectSha256 } : {}),
+    ...(req.readFile ? { readFile: req.readFile } : {}),
+  });
   const sandboxEnv = req.sandbox ? pickSandboxEnv(project, req.env, scenarioSourceEnv(src.text)) : undefined;
-  const scenario = parseScenarioSource(project, src, { files: fileFacts(ws.policy), env: sandboxEnv ?? req.env, until: req.until });
+  const scenario = parseScenarioSource(project, src, { files: ws.reads.fileFacts(ws.policy), env: sandboxEnv ?? req.env, until: req.until });
   let template: LoadedTemplate | undefined;
   let templateWarning: string | undefined;
   try {
-    template = await loadProjectTemplate(project, scenario.scenario.template, { files: fileFacts(ws.policy) });
+    template = await ws.reads.loadProjectTemplate(project, scenario.scenario.template, { files: ws.reads.fileFacts(ws.policy) });
   } catch (e) {
     // Phase 1 only takes the cursor ripple colour from the template: capture with the defaults.
     templateWarning = `${errorMessage(e)} — capturing with the default cursor colours`;
-  }
-  if (req.headed && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
-    throw new Error('--headed needs a display, and none is available (DISPLAY / WAYLAND_DISPLAY are not set)');
   }
   return { ws, project, scenario, ...(template ? { template } : {}), ...(templateWarning ? { templateWarning } : {}), ...(sandboxEnv ? { sandboxEnv } : {}) };
 }
@@ -150,6 +167,14 @@ export interface RunPorts {
 export interface ExecuteRunOptions {
   /** What the work runs under (core WorkPolicy): its programs, browser and ffmpeg, under the agent policy. */
   policy: WorkPolicy;
+  /** What films the run (its composition root's capture runner, capture/runner.ts). */
+  capture: CaptureRunner;
+  /** What its secret references are resolved with (its composition root's Secrets port). */
+  secrets: Secrets;
+  /** What the run's setup, teardown and hook steps run through (its composition root's hook runner). */
+  hooks: HookRunner;
+  /** What takes a sandbox's take (`sandbox: true`) or checks a sandbox environment (its composition root's Sandboxes port). */
+  sandboxes: Sandboxes;
   /** A run id reserved ahead (core reserveRunId: a job's); default a new one. */
   runId?: string;
   /** `--allow-writes` (L1.7): checked by the caller first (checkAllowWrites). */
@@ -162,9 +187,14 @@ export interface ExecuteRunOptions {
   /** Who stands behind the scenario's hook flags (default `author`; `mcp` for a job submitted through MCP). */
   hookTrust?: HookTrust;
   /** Who runs it: each hook, rollback and sandbox seed step run is a line of the workspace journal as this caller's. */
-  recordAs?: Caller;
+  recordAs?: JournalAs;
   /** The channel a trust-`mcp` job came through, for the wording of refusals (`studio`: the Studio; default `mcp`). */
   hookVia?: AgentChannel;
+  /**
+   * L7.39: the files a person checked before the run (their trust in an agent's hooks, or their yes): a hook whose files
+   * are no longer those is refused (HookContext.trustedFiles). Absent: none checked.
+   */
+  trustedHookFiles?: TrustedHookFiles;
   /** Approves a hook that needs a human (the worker: the job's approvals). */
   confirmHook?: ConfirmHook;
   /** The live picture's sink (L4.4, the worker's live channel): memory only, from capture time 0 to the scenes' end. */
@@ -177,8 +207,7 @@ export interface ExecuteRunOptions {
 
 /** `sandbox: true`: lock, up if needed, health, reset — under the interrupt port (what it started is stopped). */
 async function prepareSandboxTake(project: LoadedProject, env: string, scenario: string, ports: RunPorts, opts: ExecuteRunOptions): Promise<Take> {
-  const { openSandbox } = await import('@retake/sandbox');
-  const sb = openSandbox(project, env, opts.policy);
+  const sb = await opts.sandboxes.open(project, env, opts.policy);
   const stop = await ports.interrupts.open({ message: 'interrupted: stopping what this take started…', onQuitSync: () => sb.killStartedSync() });
   let take: Take;
   try {
@@ -207,19 +236,19 @@ async function prepareSandboxTake(project: LoadedProject, env: string, scenario:
 
 /**
  * A run on a sandbox environment without `sandbox`: no reset, and the sandbox must be up (its SandboxError otherwise);
- * a take holding its lock is a warning. Nothing for other environments.
+ * a take holding its lock is a warning. Nothing for other environments. The sandbox is read through `sandboxes` (the
+ * caller's Sandboxes port).
  */
-export async function checkSandboxEnv(project: LoadedProject, env: string, note: RunPorts['note'], policy: WorkPolicy): Promise<void> {
+export async function checkSandboxEnv(project: LoadedProject, env: string, note: RunPorts['note'], policy: WorkPolicy, sandboxes: Sandboxes): Promise<void> {
   if (!sandboxOf(project, env)) return;
-  const { openSandbox, describeLock } = await import('@retake/sandbox');
-  const { lock } = await openSandbox(project, env, policy).checkRunning();
+  const { lock } = await (await sandboxes.open(project, env, policy)).checkRunning();
   if (lock) note('warn', `sandbox ${env} is in use by ${describeLock(lock)}: this run films it as it is, while that command may reset it`);
   note('info', `sandbox ${env}: filmed as it is, without a reset (--sandbox resets it to its seed first)`);
 }
 
 /**
  * Execute a prepared run: its warnings and notes, the sandbox take (or the check of a sandbox environment), then the
- * runner. Returns the run record (a failed or cancelled run is a record, not an error). Throws before the run:
+ * capture runner (`opts.capture`, its hooks through `opts.hooks`). Returns the run record (a failed or cancelled run is a record, not an error). Throws before the run:
  * SandboxTakeError (the take failed), the sandbox check's error, the runner's own early errors (access, --until, clock).
  * A sandbox failure creates no run folder (a reserved one stays as it was: the caller finalises it).
  */
@@ -238,11 +267,11 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
   // as it is, and must be up.
   let take: Take | undefined;
   if (sandboxEnv) take = await prepareSandboxTake(project, sandboxEnv, scenario.name, ports, opts);
-  else await checkSandboxEnv(project, resolveEnvironment(project, req.env ?? scenario.scenario.env).name, ports.note, opts.policy);
+  else await checkSandboxEnv(project, resolveEnvironment(project, req.env ?? scenario.scenario.env).name, ports.note, opts.policy, opts.sandboxes);
 
-  const { runScenario } = await import('@retake/runner-web');
   try {
-    return await runScenario({
+    return await opts.capture.run({
+      resolveSecret: (ref) => opts.secrets.resolve(ref),
       policy: opts.policy,
       project,
       scenario,
@@ -260,7 +289,8 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
       ...(opts.hideCursor ? { hideCursor: true } : {}),
       ...(opts.hookTrust ? { hookTrust: opts.hookTrust } : {}),
       ...(opts.recordAs ? { recordHookRun: hookRunRecorder(project.root, opts.recordAs, { project: project.slug }) } : {}),
-      ...(opts.hookVia ? { hookVia: opts.hookVia } : {}),
+      ...(opts.hookVia ? { hookVia: confinementOf(opts.hookVia) } : {}),
+      ...(opts.trustedHookFiles ? { trustedHookFiles: opts.trustedHookFiles } : {}),
       ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
       ...(opts.live ? { live: opts.live } : {}),
       ...(opts.pause ? { pause: opts.pause } : {}),
@@ -270,6 +300,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
         if (take && e.type === 'run_start') take.note(e.run.id);
         ports.progress(e);
       },
+      hookRunner: opts.hooks,
     });
   } finally {
     await take?.release();
@@ -292,4 +323,3 @@ export function writesSummary(tl: Pick<Timeline, 'environment'> | undefined): { 
   if (n.passed) parts.push(`${n.passed} to unguarded hosts`);
   return { text: `${parts.join(', ')} (read-only)`, stopped: n.blocked };
 }
-

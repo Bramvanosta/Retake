@@ -22,7 +22,7 @@
  */
 import { createServer } from 'node:http';
 import type { Server, ServerResponse } from 'node:http';
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core/base';
 import { BodyTooLargeError, EngineError, LOOPBACK, checkRequest, createEngine, drainBody, listenLoopback, readBody, securityHeaders } from '@retake/engine';
 import type { Engine, RouteSpec } from '@retake/engine';
 import { INSTRUCTIONS, TOOLS, protocolTool } from './tool-set.js';

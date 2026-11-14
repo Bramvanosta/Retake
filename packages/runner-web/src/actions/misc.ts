@@ -2,8 +2,10 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import type { Page } from 'playwright-core';
-import { collectSecretRefs, interpolate, interpolateDeep, isPoint, projectFileProblem, secretRefsProblem } from '@retake/core';
-import type { EmitArgs, EvalArgs, HookArgs, NormalizedArgsMap, NotifyArgs, ScreenshotArgs, TargetSpec } from '@retake/core';
+import { collectSecretRefs, interpolate, interpolateDeep } from '@retake/core/base';
+import { isPoint } from '@retake/core/language';
+import { projectFileProblem, secretRefsProblem } from '@retake/core/scenario';
+import type { EmitArgs, EvalArgs, HookArgs, NormalizedArgsMap, NotifyArgs, ScreenshotArgs, TargetSpec } from '@retake/core/model';
 import { nodeFileFacts } from '@retake/core/io';
 import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
@@ -62,7 +64,13 @@ export async function evalStep(ctx: StepContext, args: EvalArgs): Promise<Action
     const value = await evalInPage(rt.page, code, arg);
     return { data: { value: jsonSafe(value) } };
   } catch (e) {
-    throw new StepError(`eval: ${errorMessage(e).replace(/^page\.evaluate: /, '').split('\n')[0]}`);
+    throw new StepError(
+      `eval: ${
+        errorMessage(e)
+          .replace(/^page\.evaluate: /, '')
+          .split('\n')[0]
+      }`,
+    );
   }
 }
 

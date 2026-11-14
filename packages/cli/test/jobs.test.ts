@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, createEngine, liveWorker, workersDir } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 
 let ws: string;
 let idle: string | undefined;
@@ -72,7 +72,16 @@ describe('retake jobs', () => {
 
   it('L5.14a fixes (review B M4): a review a queued take holds says "waiting for a take to finish", not "next"', async () => {
     const q = new FileJobQueue(ws);
-    const take = await q.enqueue({ version: 1, kind: 'run', project: 'northfield-fixture', scenario: 'quote', scenario_sha256: 'a'.repeat(64), run_id: '20261017-150000-quote', mode: 'capture', submitted_by: 'test' } as never);
+    const take = await q.enqueue({
+      version: 1,
+      kind: 'run',
+      project: 'northfield-fixture',
+      scenario: 'quote',
+      scenario_sha256: 'a'.repeat(64),
+      run_id: '20261017-150000-quote',
+      mode: 'capture',
+      submitted_by: 'test',
+    } as never);
     const review = await q.enqueue({ version: 1, kind: 'review', project: 'northfield-fixture', render_id: 'quote-v1', fps: 1, submitted_by: 'test' } as never);
     const status = await retake('jobs', 'status', review.id);
     expect(status.code, status.err).toBe(EXIT.ok);
@@ -87,7 +96,7 @@ describe('retake jobs', () => {
     const { hostname } = await import('node:os');
     const q = new FileJobQueue(ws);
     const review = await q.enqueue({ version: 1, kind: 'review', project: 'northfield-fixture', render_id: 'quote-v2', fps: 1, submitted_by: 'test' } as never);
-    const m = FilmingMarker.open({ root: join(ws, 'another-workspace'), source: 'cli', owner: await selfIdentity() })!;
+    const m = FilmingMarker.open({ env: process.env, root: join(ws, 'another-workspace'), source: 'cli', owner: await selfIdentity() })!;
     try {
       const list = await retake('jobs');
       expect(list.out).toMatch(new RegExp(`^${review.id}  queued +northfield-fixture · review quote-v2 · waiting for a take to finish \\(elsewhere on this Mac\\)`, 'm'));

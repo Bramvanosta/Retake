@@ -1,4 +1,3 @@
-import { useCurrentFrame } from 'remotion';
 import {
   CapText,
   biasMotion,
@@ -12,6 +11,7 @@ import {
   readableOn,
   roundTo,
   safeAreaRect,
+  useCurrentFrame,
   withAlpha,
 } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/kit';

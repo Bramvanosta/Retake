@@ -1,6 +1,6 @@
 /** The recorder's helpers: the inventory entry of the element a person acted on, secret fields. */
 import type { InventoryElement } from '../types.js';
-import type { SecretFieldKind } from '@retake/core';
+import type { SecretFieldKind } from '@retake/core/run';
 import { RT } from './clock.js';
 import { inventory } from './inventory.js';
 import { deref, ref } from './refs.js';

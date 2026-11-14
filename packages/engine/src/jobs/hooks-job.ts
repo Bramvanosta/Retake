@@ -1,22 +1,29 @@
 /**
  * `hooks` and `env_reset` jobs (L3.1): `retake hooks run` and `retake env reset` submitted by a client outside the CLI
- * (the MCP server) and executed by the jobs worker with the same engine code (hooks.ts) — trust `mcp`: the hook files'
- * `confirm: true` does not count, every shell hook needs a human approval and always counts as writing.
+ * (the MCP server) and executed by the jobs worker with the CLI's own orchestration (hooks-work.ts, L7.23) — trust
+ * `mcp`: the hook files' `confirm: true` does not count, every shell hook needs a human approval and always counts as
+ * writing.
  *
  * Submit checks the names and the source, and for a real run takes the approvals (approvals.ts): a dry run executes
  * nothing and asks nobody — its result says which hooks a real run needs approved. A scenario's hooks
  * (`<scenario>:setup|teardown`) carry the sha256 of the scenario bytes submit read (`scenario_sha256`, covered by the
  * approvals' signatures): the worker reads the file once and runs those bytes only, else the job fails as `conflict`.
  */
-import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment, projectRef } from '@retake/core';
-import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval } from '@retake/core';
-import type { HookResult } from '@retake/hooks';
-import { fileFacts } from '@retake/core/io';
+import { newRunId } from '@retake/core/ids';
+import { resolveEnvironment } from '@retake/core/environment';
+import { projectRef } from '@retake/core/project';
+import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION } from './job-input.js';
+import type { HookStep } from '@retake/core/model';
+import type { HookResult } from '@retake/core/hooks';
+import type { EnvResetJobInput, HooksJobInput, JobApproval } from './job-input.js';
+import { describeHook } from '@retake/hooks/describe';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
 import { ENGINE_TRUST, callerOf } from '../caller.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
-import { createHookContext, scenarioOfHooksSource, selectHooks } from '../hooks.js';
+import { scenarioOfHooksSource, selectHooks } from '../hooks.js';
+import { envResetWork, hooksRunWork } from '../hooks-work.js';
+import type { HookWorkOptions } from '../hooks-work.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { checkProjectSlug } from '../refs.js';
@@ -24,6 +31,7 @@ import type { SubmitContext } from './run-job.js';
 import { preflightJournal } from './run-job.js';
 import type { EnvResetJobResult, HookResultView, HooksJobResult, JobEventBody, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 export interface HooksSubmitRequest {
   project: string;
@@ -73,7 +81,7 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
   let label: string;
   let scenarioSha: string | undefined;
   try {
-    const sel = await selectHooks(project, req.source, req.env, { projectFilesOnly: true, files: fileFacts(ctx.ws.policy) });
+    const sel = await selectHooks(project, req.source, req.env, { projectFilesOnly: true, files: ctx.ws.reads.fileFacts(ctx.ws.policy), reads: ctx.ws.reads });
     label = sel.label;
     scenarioSha = sel.sha256;
     const env = req.env ?? sel.env;
@@ -89,9 +97,12 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
         ...(sel.vars ? { vars: sel.vars } : {}),
         ...(sel.scenario ? { scenario: sel.scenario } : {}),
         journalFile: preflightJournal(project),
+        hooks: ctx.hooks,
+        pages: ctx.capture.hookPages,
+        secrets: ctx.secrets,
       });
       if (pre.refused.length) throw refusedError(pre, fix);
-      approvals = await takeApprovals({ what: `hooks ${req.source}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client);
+      approvals = await takeApprovals({ what: `hooks ${req.source}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client, ctx.clock);
     }
   } catch (e) {
     throw toEngineError(e);
@@ -125,9 +136,16 @@ export async function submitEnvResetJob(ctx: SubmitContext, req: EnvResetSubmitR
     const reset = project.config.reset ?? [];
     if (!dry && reset.length) {
       const fix = envResetCommandLine(ctx.cli, { ...req, dry: false });
-      const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], { policy: ctx.ws.policy, ...(req.env !== undefined ? { env: req.env } : {}), journalFile: preflightJournal(project) });
+      const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], {
+        policy: ctx.ws.policy,
+        ...(req.env !== undefined ? { env: req.env } : {}),
+        journalFile: preflightJournal(project),
+        hooks: ctx.hooks,
+        pages: ctx.capture.hookPages,
+        secrets: ctx.secrets,
+      });
       if (pre.refused.length) throw refusedError(pre, fix);
-      approvals = await takeApprovals({ what: `the environment reset of ${project.slug}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client);
+      approvals = await takeApprovals({ what: `the environment reset of ${project.slug}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client, ctx.clock);
     }
   } catch (e) {
     throw toEngineError(e);
@@ -163,7 +181,8 @@ export function hookResultView(r: HookResult, declared?: HookStep, describe?: (h
   };
 }
 
-export interface HooksJobContext<I> {
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
+export interface HooksJobContext<I> extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: I;
@@ -174,103 +193,90 @@ export interface HooksJobContext<I> {
 
 const levelOf = (l: string): 'debug' | 'info' | 'warn' | 'error' => (l === 'error' || l === 'warn' || l === 'info' ? l : 'debug');
 
+/** What every hooks job runs with (hooks-work.ts): trust `mcp`, the approvals taken at submit, its events and cancel. */
+function jobHookOptions(ctx: HooksJobContext<HooksJobInput | EnvResetJobInput>): Omit<HookWorkOptions, 'env' | 'dry' | 'trust'> & { trust: typeof ENGINE_TRUST } {
+  const { input } = ctx;
+  return {
+    policy: ctx.ws.policy,
+    hooks: ctx.hooks,
+    pages: ctx.capture.hookPages,
+    secrets: ctx.secrets,
+    trust: ENGINE_TRUST,
+    confirm: approvalChecker(input.approvals),
+    log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),
+    loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
+    signal: ctx.signal,
+    recordAs: { caller: callerOf(input.submitted_by), clock: ctx.clock },
+  };
+}
+
 /** Execute a `hooks` job: the hooks of its source, with trust `mcp` and the approvals taken at submit. */
 export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Promise<HooksJobResult> {
   const { input } = ctx;
-  const hooks = await import('@retake/hooks');
   const project = await openProjectBySlug(ctx.ws, input.project);
   // A scenario's hooks run from the bytes submitted (one read, compared with their sha256 before they are parsed).
   const scenario = scenarioOfHooksSource(input.source);
   if (scenario !== undefined && input.scenario_sha256 === undefined) {
     throw new EngineError('conflict', `this hooks job does not say which version of scenarios/${scenario} was submitted: submit it again (what was approved is what runs)`);
   }
-  const sel = await selectHooks(project, input.source, input.env, { projectFilesOnly: true, files: fileFacts(ctx.ws.policy), ...(scenario !== undefined ? { expectSha256: input.scenario_sha256 } : {}) }).catch((e: unknown) => {
-    throw scenarioChangedConflict(e, `${projectRef('scenarios', String(scenario))} changed since the hooks were submitted: submit them again (what was approved is what runs)`);
-  });
-  // Checked again on those bytes (agent trust is a rule of this process, not of the submit).
-  if (sel.scenario) {
-    const fix = hooksCommandLine(ctx.cli, { project: input.project, source: input.source, ...(input.env !== undefined ? { env: input.env } : {}), dry: input.dry });
-    checkAgentTrust(project, sel.scenario, fix, undefined, resolveEnvironment(project, input.env ?? sel.env));
-  }
-  await checkWorkspaceProtection(ctx.ws, project, input.env ?? sel.env);
-  const { ctx: hctx, closeSessions } = await createHookContext(project, {
-    policy: ctx.ws.policy,
-    env: input.env ?? sel.env,
+  const out = await hooksRunWork(project, input.source, {
+    ...jobHookOptions(ctx),
+    ...(input.env !== undefined ? { env: input.env } : {}),
     dry: input.dry,
-    ...(sel.vars ? { vars: sel.vars } : {}),
     runId: input.journal_id,
-    ...(sel.scenario ? { scenario: sel.scenario } : {}),
-    trust: ENGINE_TRUST,
-    confirm: approvalChecker(input.approvals),
-    log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),
-    loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
-    signal: ctx.signal,
-    recordAs: callerOf(input.submitted_by),
+    reads: ctx.ws.reads,
+    selectError: (e) => scenarioChangedConflict(e, `${projectRef('scenarios', String(scenario))} changed since the hooks were submitted: submit them again (what was approved is what runs)`),
+    // The jobs' checks (hooks-work.ts protection): project files only, the bytes approved, agent trust, protected hosts.
+    protection: {
+      ...(scenario !== undefined ? { expectSha256: input.scenario_sha256 } : {}),
+      check: async (sel) => {
+        // Checked again on those bytes (agent trust is a rule of this process, not of the submit).
+        if (sel.scenario) {
+          const fix = hooksCommandLine(ctx.cli, { project: input.project, source: input.source, ...(input.env !== undefined ? { env: input.env } : {}), dry: input.dry });
+          checkAgentTrust(project, sel.scenario, fix, undefined, resolveEnvironment(project, input.env ?? sel.env));
+        }
+        await checkWorkspaceProtection(ctx.ws, project, input.env ?? sel.env);
+      },
+    },
   });
-  try {
-    const journal = await hooks.Journal.open(hooks.standaloneJournalFile(project.dir, input.journal_id));
-    const res = await hooks.runHooks(sel.hooks, hctx, { phase: sel.phase, journal, agentWritten: sel.scenario !== undefined });
-    const pending = journal.pending().length;
-    return {
-      kind: 'hooks',
-      source: input.source,
-      phase: sel.phase,
-      env: hctx.env.name,
-      dry: input.dry,
-      ok: res.ok,
-      results: res.results.map((r) => hookResultView(r, r.phase === 'rollback' ? undefined : sel.hooks[r.index], hooks.describeHook)),
-      ...(!input.dry ? { journal: { id: input.journal_id, pending } } : {}),
-      ...(ctx.signal.aborted ? { interrupted: true as const } : {}),
-    };
-  } finally {
-    await closeSessions();
-  }
+  const { sel } = out;
+  return {
+    kind: 'hooks',
+    source: input.source,
+    phase: sel.phase,
+    env: out.env.name,
+    dry: input.dry,
+    ok: out.ok,
+    results: out.results.map((r) => hookResultView(r, r.phase === 'rollback' ? undefined : sel.hooks[r.index], describeHook)),
+    ...(!input.dry ? { journal: { id: input.journal_id, pending: out.pending } } : {}),
+    ...(out.interrupted ? { interrupted: true as const } : {}),
+  };
 }
 
 /** Execute an `env_reset` job: every pending rollback, then the project's reset hooks (trust `mcp`, approvals). */
 export async function executeEnvResetJob(ctx: HooksJobContext<EnvResetJobInput>): Promise<EnvResetJobResult> {
   const { input } = ctx;
-  const hooks = await import('@retake/hooks');
   const project = await openProjectBySlug(ctx.ws, input.project);
-  await checkWorkspaceProtection(ctx.ws, project, input.env);
-  const { ctx: hctx, closeSessions } = await createHookContext(project, {
-    policy: ctx.ws.policy,
-    env: input.env,
+  const out = await envResetWork(project, {
+    ...jobHookOptions(ctx),
+    ...(input.env !== undefined ? { env: input.env } : {}),
     dry: input.dry,
     runId: input.journal_id,
-    trust: ENGINE_TRUST,
-    confirm: approvalChecker(input.approvals),
-    log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),
-    loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
-    signal: ctx.signal,
-    recordAs: callerOf(input.submitted_by),
+    protection: { check: () => checkWorkspaceProtection(ctx.ws, project, input.env) },
   });
-  try {
-    const outcomes = await hooks.rollbackPendingJournals(project.dir, hctx);
-    const rollbacks = outcomes.map((o) => ({
-      journal: o.file.replace(/^.*[\\/]runs[\\/]([^\\/]+)[\\/][^\\/]+$/, '$1').replace(/^.*[\\/]([^\\/]+)\.json$/, '$1'),
-      results: o.results.map((r) => hookResultView(r)),
-      ...(o.error ? { untrusted: { error: o.error } } : {}),
-    }));
-    let ok = outcomes.every((o) => !o.error && o.results.every((r) => r.ok));
-    const resetHooks = project.config.reset ?? [];
-    let reset: HookResultView[] | null = null;
-    if (resetHooks.length && !ctx.signal.aborted) {
-      const journal = await hooks.Journal.open(hooks.standaloneJournalFile(project.dir, input.journal_id));
-      const res = await hooks.runHooks(resetHooks, hctx, { phase: 'reset', journal });
-      reset = res.results.map((r) => hookResultView(r, resetHooks[r.index], hooks.describeHook));
-      ok &&= res.ok;
-    }
-    return {
-      kind: 'env_reset',
-      env: hctx.env.name,
-      dry: input.dry,
-      ok,
-      rollbacks,
-      reset,
-      ...(ctx.signal.aborted ? { interrupted: true as const } : {}),
-    };
-  } finally {
-    await closeSessions();
-  }
+  const rollbacks = out.rollbacks.map((o) => ({
+    journal: o.file.replace(/^.*[\\/]runs[\\/]([^\\/]+)[\\/][^\\/]+$/, '$1').replace(/^.*[\\/]([^\\/]+)\.json$/, '$1'),
+    results: o.results.map((r) => hookResultView(r)),
+    ...(o.error ? { untrusted: { error: o.error } } : {}),
+  }));
+  const reset = out.reset;
+  return {
+    kind: 'env_reset',
+    env: out.env.name,
+    dry: input.dry,
+    ok: out.ok,
+    rollbacks,
+    reset: reset ? reset.results.map((r) => hookResultView(r, reset.hooks[r.index], describeHook)) : null,
+    ...(out.interrupted ? { interrupted: true as const } : {}),
+  };
 }

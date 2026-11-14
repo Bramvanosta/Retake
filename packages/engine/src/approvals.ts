@@ -8,13 +8,24 @@
  * elicitation) is asked once for the whole list; an accept becomes the job's `approvals`: fingerprints of the raw
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
-import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, navigationTrustProblems, showHiddenCharsLine } from '@retake/core';
-import type { AgentTrustEnvironment, WorkPolicy } from '@retake/core';
-import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
-import type { HookPhase, HookResult } from '@retake/hooks';
+import type { Secrets } from './secrets/secrets.js';
+import { showHiddenCharsLine } from '@retake/core/base';
+import { hookApprovalReason, hookKind } from '@retake/core/hooks';
+import { agentTrustProblems, navigationTrustProblems } from '@retake/core/scenario';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { AgentTrustEnvironment } from '@retake/core/scenario';
+import type { HookStep, LoadedProject, Scenario } from '@retake/core/model';
+import type { HookPhase, HookResult } from '@retake/core/hooks';
+import type { JobApproval, JobClient } from './jobs/job-input.js';
 import { nodeFileFacts } from '@retake/core/io';
-import { ENGINE_TRUST, submitterChannel } from './caller.js';
+import { declaredHookLines, describeHook, describeRollback } from '@retake/hooks/describe';
+import { ENGINE_TRUST, confinementOf, submitterChannel } from './caller.js';
+import type { AgentChannel } from './caller.js';
+import { stampOf } from './clock.js';
+import type { Clock } from './clock.js';
 import { EngineError } from './errors.js';
+import type { HookPages } from './capture/runner.js';
+import type { HookRunner } from './hook-run/runner.js';
 import { createHookContext } from './hooks.js';
 import { formatBytes } from './prune.js';
 import type { PruneItem, PruneResult } from './prune.js';
@@ -29,7 +40,9 @@ export function agentChannel(client: JobClient | undefined): AgentChannel {
 
 /** Why the client cannot ask its human, for a `needs_approval` refusal. */
 function cannotAsk(client: JobClient | undefined): string {
-  return agentChannel(client) === 'studio' ? 'The Studio cannot approve hooks yet: run it in a terminal' : 'This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal';
+  return agentChannel(client) === 'studio'
+    ? 'The Studio cannot approve hooks yet: run it in a terminal'
+    : 'This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal';
 }
 
 /** One hook a human is asked to approve. */
@@ -109,9 +122,7 @@ export interface ApprovalRequest {
   fix: string;
 }
 
-export type ApprovalOutcome =
-  | { approved: true }
-  | { approved: false; reason: 'declined' | 'cancelled' | 'timeout' | 'error'; message?: string };
+export type ApprovalOutcome = { approved: true } | { approved: false; reason: 'declined' | 'cancelled' | 'timeout' | 'error'; message?: string };
 
 /**
  * What a human is asked before a site extraction (L3.5, R-MCP-12): open exactly this URL in a clean browser. `href` is
@@ -150,6 +161,8 @@ export interface PruneApprovalRequest {
   more: number;
   /** The `retake prune … --yes` command a human runs for the same deletion. */
   fix: string;
+  /** How many files of renders/ are no render of their own name: left alone, with the render and the take each names (a count: never a file's name). Absent: none. */
+  renders_alone?: number;
 }
 
 /** How a client asks its human (MCP: elicitation). Absent: the client cannot ask anyone. */
@@ -169,22 +182,24 @@ export interface Preflight {
 }
 
 /** Why a hook needs a human, from its file alone (the preflight's backstop when its dry run could not template it). */
-function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase): string | null {
-  return hookApprovalReason(hook, phase, { projectDir: project.dir, files: nodeFileFacts });
+function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase, agentWritten: boolean): string | null {
+  return hookApprovalReason(hook, phase, { projectDir: project.dir, files: nodeFileFacts, ...(agentWritten ? { agentWritten } : {}) });
 }
 
 /**
  * Dry-run `lists` with trust `mcp` and collect what needs a human and what is refused. Executes nothing, opens no
- * browser, reads no keychain item.
+ * browser, reads no keychain item. `hooks`: the HookRunner port (the submitter's: SubmitContext); `pages`: the js hooks'
+ * pages of its capture runner (SubmitContext `capture.hookPages`), which the dry context is built with and never opens.
  */
 export async function preflightHooks(
   project: LoadedProject,
   lists: ReadonlyArray<{ phase: HookPhase; hooks: readonly HookStep[]; agentWritten?: boolean }>,
-  o: { policy: WorkPolicy; env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel },
+  o: { policy: WorkPolicy; env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel; hooks: HookRunner; pages: HookPages; secrets: Secrets },
 ): Promise<Preflight> {
-  const { runHooks, Journal, hookFingerprint, hookFiles, describeHook, describeRollback, declaredHookLines } = await import('@retake/hooks');
+  const runner = o.hooks;
   const { ctx, access } = await createHookContext(project, {
     policy: o.policy,
+    secrets: o.secrets,
     env: o.env,
     dry: true,
     trust: ENGINE_TRUST,
@@ -193,28 +208,33 @@ export async function preflightHooks(
     ...(o.scenario ? { scenario: o.scenario } : {}),
     log: () => undefined,
     loginCommand: (p) => `retake login ${p.project}`,
+    pages: o.pages,
   });
   // A dry run journals nothing: the journal is never written.
-  const journal = await Journal.open(o.journalFile);
+  const journal = await runner.journals.open(o.journalFile);
   const items: ApprovalItem[] = [];
   const refused: Preflight['refused'] = [];
   for (const { phase, hooks, agentWritten } of lists) {
     if (!hooks.length) continue;
-    const { results } = await runHooks([...hooks], ctx, { phase, journal, ...(agentWritten ? { agentWritten } : {}) });
+    const { results } = await runner.run(hooks, ctx, { phase, journal, ...(agentWritten ? { agentWritten } : {}) });
     const byIndex = new Map<number, HookResult>(results.map((r) => [r.index, r]));
-    hooks.forEach((hook, index) => {
+    // In list order, one hook at a time (the items keep it): the port's fingerprint and files are async.
+    for (const [index, hook] of hooks.entries()) {
       const r = byIndex.get(index);
       if (r?.status === 'refused') {
         refused.push({ phase, index, ...(hook.name ? { name: hook.name } : {}), description: r.description, error: r.error ?? 'refused' });
-        return;
+        continue;
       }
-      const reason = r?.approval?.reason ?? (phase === 'seed' ? null : staticReason(hook, project, phase));
-      if (!reason) return;
+      const reason = r?.approval?.reason ?? (phase === 'seed' ? null : staticReason(hook, project, phase, agentWritten === true));
+      if (!reason) continue;
       const description = r?.status === 'dry' ? r.description : describeHook(hook);
       // Its rollback as the dry run templated it, else as its file declares it (a setup hook's only).
       const rollback = r?.status === 'dry' ? r.rollback : phase === 'setup' ? describeRollback(hook) : undefined;
+      // The dry run's fingerprint, else the one the worker checks (the files it references bound): never re-derived here.
+      const fingerprint =
+        r?.approval?.fingerprint ?? (await runner.approval.fingerprint(hook, { phase, index, env: ctx.env.name, files: (await runner.approval.files(hook, { projectDir: project.dir })).files }));
       items.push({
-        fingerprint: r?.approval?.fingerprint ?? hookFingerprint(hook, { phase, index, env: ctx.env.name, files: hookFiles(hook, { projectDir: project.dir }).files }),
+        fingerprint,
         phase,
         index,
         ...(hook.name ? { name: hook.name } : {}),
@@ -224,7 +244,7 @@ export async function preflightHooks(
         reason,
         lines: r?.status === 'dry' && r.shown ? r.shown : declaredHookLines(hook, { rollback: phase === 'setup' || phase === 'step' }),
       });
-    });
+    }
   }
   return { env: { name: ctx.env.name, production: access.production === true, access: access.mode }, items, refused };
 }
@@ -233,37 +253,46 @@ export async function preflightHooks(
 export const SHELL_SEED_REASON = 'a shell command (runs local code)';
 
 /**
- * The seed steps of a sandbox that need a human before a job may run them (trust `mcp`): its shell steps, each bound
- * to its fingerprint (phase `seed`, its position among all the seed steps, the sandbox's environment). A seed's http and
- * sql steps rebuild the sandbox's own data (checked at run time) and an `exec` step runs inside a sandbox container:
- * none of them is asked about.
+ * The seed steps and reset hooks of a sandbox that need a human before a job may run them (trust `mcp`): their shell
+ * steps, each bound to its fingerprint exactly as the sandbox checks it when it runs (sandbox seed.ts runSeed: phase
+ * `seed` and its position among the seed steps, or phase `reset` and its position among `reset.hooks` — an approval of
+ * one is never the other's —, the sandbox's environment, its files relative to sandbox.yaml; `exec` steps keep their
+ * positions). A seed's http and sql steps rebuild the sandbox's own data (checked at run time) and an `exec` step runs
+ * inside a sandbox container: none of them is asked about. `hooks`: the HookRunner port (its fingerprints and files).
  */
-export async function seedApprovalItems(project: LoadedProject, env: string): Promise<ApprovalItem[]> {
-  const { hookFingerprint, hookFiles, describeHook, declaredHookLines } = await import('@retake/hooks');
+export async function seedApprovalItems(project: LoadedProject, env: string, hooks: HookRunner): Promise<ApprovalItem[]> {
   const sandbox = project.sandboxes?.[env];
-  const steps = sandbox?.manifest.seed ?? [];
+  const seed = sandbox?.manifest.seed ?? [];
+  const lists: Array<{ phase: 'seed' | 'reset'; steps: typeof seed }> = [
+    { phase: 'seed', steps: seed },
+    { phase: 'reset', steps: sandbox?.manifest.reset?.hooks ?? [] },
+  ];
   const items: ApprovalItem[] = [];
-  steps.forEach((step, index) => {
-    if ('exec' in step) return;
-    let kind: string;
-    try {
-      kind = hookKind(step);
-    } catch {
-      return; // malformed: the seed itself fails on it
+  for (const { phase, steps } of lists) {
+    // In list order, one step at a time: the port's fingerprint and files are async.
+    for (const [index, step] of steps.entries()) {
+      if ('exec' in step) continue;
+      let kind: string;
+      try {
+        kind = hookKind(step);
+      } catch {
+        continue; // malformed: the seed itself fails on it
+      }
+      if (kind !== 'shell') continue;
+      const { files } = await hooks.approval.files(step, { projectDir: project.dir, ...(sandbox?.dir ? { baseDir: sandbox.dir } : {}) });
+      items.push({
+        fingerprint: await hooks.approval.fingerprint(step, { phase, index, env, files }),
+        phase,
+        index,
+        ...(step.name ? { name: step.name } : {}),
+        kind,
+        description: describeHook(step),
+        reason: SHELL_SEED_REASON,
+        // As sandbox.yaml declares it (a seed step or a reset hook journals no rollback).
+        lines: declaredHookLines(step),
+      });
     }
-    if (kind !== 'shell') return;
-    items.push({
-      fingerprint: hookFingerprint(step, { phase: 'seed', index, env, files: hookFiles(step, { projectDir: project.dir, ...(sandbox?.dir ? { baseDir: sandbox.dir } : {}) }).files }),
-      phase: 'seed',
-      index,
-      ...(step.name ? { name: step.name } : {}),
-      kind,
-      description: describeHook(step),
-      reason: SHELL_SEED_REASON,
-      // As sandbox.yaml declares it (a seed step journals no rollback).
-      lines: declaredHookLines(step),
-    });
-  });
+  }
   return items;
 }
 
@@ -275,11 +304,11 @@ export async function seedApprovalItems(project: LoadedProject, env: string): Pr
  */
 export function checkAgentTrust(project: LoadedProject, sc: Scenario, fix: string, client?: JobClient, env?: AgentTrustEnvironment): void {
   const via = agentChannel(client);
-  const problems = agentTrustProblems(project, sc, { via, ...(env ? { env } : {}), files: nodeFileFacts });
+  const problems = agentTrustProblems(project, sc, { via: confinementOf(via), ...(env ? { env } : {}), files: nodeFileFacts });
   if (problems.length) {
     // How many are about the URLs it opens (the Studio's own words when they are all of them: "opens another site").
-    const navigation = env ? navigationTrustProblems(sc, { via, env }).length : 0;
-    throw new EngineError('refused', `refused ${channelWords(via)}: ${problems.join('; ')}`, { fix, details: { problems, navigation } });
+    const navigation = env ? navigationTrustProblems(sc, { via: confinementOf(via), env }).length : 0;
+    throw new EngineError('refused', `refused ${confinementOf(via).words}: ${problems.join('; ')}`, { fix, details: { problems, navigation } });
   }
 }
 
@@ -300,9 +329,9 @@ function listItems(items: readonly ApprovalItem[]): string {
  * Ask the client's human to approve `req.items` (none: nothing to ask). Returns the approvals to write with the job;
  * throws `needs_approval` when the client cannot ask anyone, `refused` when the human declined, did not answer in time
  * or the question failed — each with the `retake` command a human runs in a terminal instead. `client` words the
- * refusal for its channel (agentChannel).
+ * refusal for its channel (agentChannel); `clock` stamps the approvals (`at`).
  */
-export async function takeApprovals(req: ApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<JobApproval[]> {
+export async function takeApprovals(req: ApprovalRequest, approver: Approver | undefined, client: JobClient | undefined, clock: Clock): Promise<JobApproval[]> {
   if (!req.items.length) return [];
   const details = { hooks: req.items.map(({ fingerprint: _f, ...rest }) => rest), env: req.env };
   const long = tooLongForAForm(req);
@@ -310,11 +339,7 @@ export async function takeApprovals(req: ApprovalRequest, approver: Approver | u
     throw new EngineError('refused', `${req.what} was not started: ${long} — too long to approve in a form: run it in a terminal`, { fix: req.fix, details: { ...details, too_long: true } });
   }
   if (!approver) {
-    throw new EngineError(
-      'needs_approval',
-      `${req.what} has hooks a human must approve before they run: ${listItems(req.items)}. ${cannotAsk(client)}`,
-      { fix: req.fix, details },
-    );
+    throw new EngineError('needs_approval', `${req.what} has hooks a human must approve before they run: ${listItems(req.items)}. ${cannotAsk(client)}`, { fix: req.fix, details });
   }
   let outcome: ApprovalOutcome;
   try {
@@ -331,12 +356,16 @@ export async function takeApprovals(req: ApprovalRequest, approver: Approver | u
           : outcome.reason === 'timeout'
             ? 'the user did not answer in time'
             : `the question failed${outcome.message ? ` (${outcome.message})` : ''}`;
-    throw new EngineError('refused', `${req.what} was not started: ${why} — hooks needing approval: ${listItems(req.items)}. Do not retry on your own: ask the user, or let them run it in a terminal`, {
-      fix: req.fix,
-      details: { ...details, outcome: outcome.reason },
-    });
+    throw new EngineError(
+      'refused',
+      `${req.what} was not started: ${why} — hooks needing approval: ${listItems(req.items)}. Do not retry on your own: ask the user, or let them run it in a terminal`,
+      {
+        fix: req.fix,
+        details: { ...details, outcome: outcome.reason },
+      },
+    );
   }
-  const at = new Date().toISOString();
+  const at = stampOf(clock);
   return req.items.map((i) => ({ fingerprint: i.fingerprint, by: 'human-elicitation' as const, at }));
 }
 
@@ -355,7 +384,7 @@ function outcomeText(outcome: Exclude<ApprovalOutcome, { approved: true }>): str
  * `needs_approval` when the client cannot ask anyone, `refused` when the human declined, did not answer in time or the
  * question failed — each with the `retake theme from-site` command a human runs in a terminal instead.
  */
-export async function takeSiteApproval(req: SiteApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<JobApproval[]> {
+export async function takeSiteApproval(req: SiteApprovalRequest, approver: Approver | undefined, client: JobClient | undefined, clock: Clock): Promise<JobApproval[]> {
   const details = { url: req.href, host: req.host };
   if (!approver?.approveSite) {
     throw new EngineError(
@@ -376,7 +405,7 @@ export async function takeSiteApproval(req: SiteApprovalRequest, approver: Appro
       details: { ...details, outcome: outcome.reason },
     });
   }
-  return [{ fingerprint: req.fingerprint, by: 'human-elicitation', at: new Date().toISOString() }];
+  return [{ fingerprint: req.fingerprint, by: 'human-elicitation', at: stampOf(clock) }];
 }
 
 /** The worker's approver: a hook runs only when its fingerprint was approved at submit. */
@@ -399,7 +428,18 @@ export function pruneApprovalRequest(listed: PruneResult, fix: string): PruneApp
     })
     .filter((k) => k.count > 0);
   const lines = listed.items.slice(0, PRUNE_FORM_MAX_LINES).map((i) => `${PRUNE_KIND_WORDS[i.kind][0]} ${visibleName(i.id)} — ${i.reason}, ${formatBytes(i.bytes)}`);
-  return { what: 'prune', project: listed.project, keep_renders: listed.keep_renders, count: listed.items.length, bytes: listed.bytes, by_kind, lines, more: Math.max(0, listed.items.length - PRUNE_FORM_MAX_LINES), fix };
+  return {
+    what: 'prune',
+    project: listed.project,
+    keep_renders: listed.keep_renders,
+    count: listed.items.length,
+    bytes: listed.bytes,
+    by_kind,
+    lines,
+    more: Math.max(0, listed.items.length - PRUNE_FORM_MAX_LINES),
+    fix,
+    ...(listed.renders_alone ? { renders_alone: listed.renders_alone.count } : {}),
+  };
 }
 
 /**
@@ -411,7 +451,12 @@ export function pruneApprovalFormText(req: PruneApprovalRequest): string {
   const items = `${req.count} item${req.count === 1 ? '' : 's'}`;
   return [
     `Retake: the agent asks to delete ${items} from project ${req.project}'s runs/, renders/ and review/, freeing ${formatBytes(req.bytes)}: ${pruneKindsText(req)}.`,
-    `Kept: the last good take of each scenario, the last ${req.keep_renders} renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; exports/ is not touched.`,
+    `Kept: the last good take of each scenario, the last one that can still be edited and the last complete one, the last ${req.keep_renders} renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; a run folder that is a link and a take written by a newer Retake are left alone, and so is a file of renders/ that is no render of its own name, or a record that lacks a member, with the render and the take it names; exports/ is not touched.`,
+    ...(req.renders_alone
+      ? [
+          `${req.renders_alone} ${req.renders_alone === 1 ? 'file' : 'files'} of renders/ ${req.renders_alone === 1 ? 'is no render of its own name, or lacks a member' : 'are no render of their own name, or lack a member'}: left alone, with the renders and the takes ${req.renders_alone === 1 ? 'it names' : 'they name'}.`,
+        ]
+      : []),
     req.more ? `The first ${req.lines.length} of the ${items}:` : `${req.count === 1 ? 'It' : 'They'}:`,
     ...req.lines.map((l) => `- ${l}`),
     ...(req.more ? [`… and ${req.more} more, not listed here (counted in the totals above).`] : []),
@@ -436,7 +481,11 @@ export async function takePruneApproval(req: PruneApprovalRequest, approver: App
   const details = { count: req.count, bytes: req.bytes, by_kind: req.by_kind };
   const size = pruneApprovalFormText(req).length;
   if (size > APPROVAL_FORM_MAX_CHARS) {
-    throw new EngineError('refused', `nothing was deleted: the list of ${what} makes a form of ${size.toLocaleString('en-US')} characters (at most ${APPROVAL_FORM_MAX_CHARS.toLocaleString('en-US')}) — too long to approve in a form: run it in a terminal`, { fix: req.fix, details: { ...details, too_long: true } });
+    throw new EngineError(
+      'refused',
+      `nothing was deleted: the list of ${what} makes a form of ${size.toLocaleString('en-US')} characters (at most ${APPROVAL_FORM_MAX_CHARS.toLocaleString('en-US')}) — too long to approve in a form: run it in a terminal`,
+      { fix: req.fix, details: { ...details, too_long: true } },
+    );
   }
   if (!approver?.approvePrune) {
     throw new EngineError(

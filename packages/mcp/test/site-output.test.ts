@@ -8,39 +8,49 @@ import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_INPUT_VERSION, PERSON_POLICY } from '@retake/core';
+import { PERSON_POLICY } from '@retake/core';
+import { JOB_INPUT_VERSION, diskWorkspaceReads } from '@retake/engine';
 import { loadWorkspaceConfig } from '@retake/core/io';
 import { JOB_RECORD_VERSION, createEngine, makeSiteDir, newSiteId } from '@retake/engine';
 import type { Engine, JobRecord, SiteJobResult } from '@retake/engine';
 import { siteOutput } from '../src/tools/theme.js';
-import { drawPng } from '../../runner-web/test/site-fixture.js';
+import { drawPng } from '@retake/test-support/site';
+import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
 let engine: Engine;
-const saved = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-mcp-site-output-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
 });
 
 afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
-  if (saved === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = saved;
+  retakeHome.restore();
 });
 
 async function finishedJob(warnings: unknown[]): Promise<{ job: JobRecord; dir: string }> {
-  const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY };
+  const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads };
   const id = newSiteId();
   const dir = await makeSiteDir(ws, id);
-  await writeFile(join(dir, 'logo-1.png'), drawPng(256, 128, () => [14, 124, 102, 255]));
+  await writeFile(
+    join(dir, 'logo-1.png'),
+    drawPng(256, 128, () => [14, 124, 102, 255]),
+  );
   await writeFile(join(dir, 'screenshot.jpg'), Buffer.from('ffd8ffe000104a464946', 'hex'));
   await writeFile(
     join(dir, 'site.json'),
-    JSON.stringify({ status: 'ok', http_status: 200, screenshot: 'screenshot.jpg', palette: { roles: { paper: '#ffffff', text: '#111111' }, swatches: [] }, candidates: [{ file: 'logo-1.png', source: 'header-img', width: 256, height: 128 }] }),
+    JSON.stringify({
+      status: 'ok',
+      http_status: 200,
+      screenshot: 'screenshot.jpg',
+      palette: { roles: { paper: '#ffffff', text: '#111111' }, swatches: [] },
+      candidates: [{ file: 'logo-1.png', source: 'header-img', width: 256, height: 128 }],
+    }),
   );
   const job: JobRecord = {
     version: JOB_RECORD_VERSION,

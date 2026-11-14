@@ -81,7 +81,15 @@ describe('annotations file', () => {
     expect(ok({ ...emptyRecordAnnotations(), choices: { '01': 1 } })).toBe(false);
     expect(ok({ ...emptyRecordAnnotations(), choices: { '3': 4 } })).toBe(false);
     expect(ok({ ...emptyRecordAnnotations(), inserts: [insert(1), insert(1)] })).toBe(false);
-    expect(ok({ ...emptyRecordAnnotations(), inserts: [{ id: 'i1', after_seq: 1, kind: 'mark', name: 'm1' }, { id: 'i2', after_seq: 2, kind: 'mark', name: 'm1' }] })).toBe(false);
+    expect(
+      ok({
+        ...emptyRecordAnnotations(),
+        inserts: [
+          { id: 'i1', after_seq: 1, kind: 'mark', name: 'm1' },
+          { id: 'i2', after_seq: 2, kind: 'mark', name: 'm1' },
+        ],
+      }),
+    ).toBe(false);
     expect(ok({ ...emptyRecordAnnotations(), inserts: [{ id: 'i1', after_seq: 1, kind: 'mark' }] })).toBe(false);
     expect(ok({ ...emptyRecordAnnotations(), inserts: [{ id: 'x/../1', after_seq: 1, kind: 'hold', seconds: 1 }] })).toBe(false);
     expect(ok({ ...emptyRecordAnnotations(), inserts: [{ id: 'i1', after_seq: 1, kind: 'caption', text: '{{env:SECRET}}' }] })).toBe(false);
@@ -94,7 +102,9 @@ describe('annotations file', () => {
     expect(parseRecordAnnotations(JSON.stringify(emptyRecordAnnotations()))).toEqual({ annotations: emptyRecordAnnotations() });
     expect(parseRecordAnnotations(`{"v":1,"rev":0,"choices":{},"inserts":[],"pad":"${'x'.repeat(RECORD_ANNOTATIONS_MAX_BYTES)}"}`)).toEqual({ error: 'the annotations file is larger than 64 KiB' });
     expect(parseRecordAnnotations('{not json')).toEqual({ error: 'the annotations file is not JSON' });
-    expect(parseRecordAnnotations(JSON.stringify({ v: 1, rev: 0, choices: {}, inserts: [{ id: 'i1', after_seq: 1, kind: 'caption', text: 'Hi {{env:HOME}}' }] }))).toEqual({ error: 'the annotations file does not match its format' });
+    expect(parseRecordAnnotations(JSON.stringify({ v: 1, rev: 0, choices: {}, inserts: [{ id: 'i1', after_seq: 1, kind: 'caption', text: 'Hi {{env:HOME}}' }] }))).toEqual({
+      error: 'the annotations file does not match its format',
+    });
   });
 });
 
@@ -122,7 +132,21 @@ describe('applyRecordChange', () => {
   });
   const events: RecordedEvent[] = [
     { seq: 0, t: 10, page: 'p1', path: '/', kind: 'navigation', cause: 'start', same_document: false, where: 'environment', page_key: 'shop' },
-    { seq: 1, t: 400, page: 'p1', path: '/', kind: 'pointer', button: 'left', via: 'pointer', el: el([{ target: { placeholder: 'Acme' }, fragile: [] }, { target: { text: 'pw •••' }, fragile: [] }]), quiet_ms: 1, ms: 1 },
+    {
+      seq: 1,
+      t: 400,
+      page: 'p1',
+      path: '/',
+      kind: 'pointer',
+      button: 'left',
+      via: 'pointer',
+      el: el([
+        { target: { placeholder: 'Acme' }, fragile: [] },
+        { target: { text: 'pw •••' }, fragile: [] },
+      ]),
+      quiet_ms: 1,
+      ms: 1,
+    },
     { seq: 2, t: 900, page: 'p1', path: '/', kind: 'pointer', button: 'left', via: 'pointer', el: el(), quiet_ms: 1, ms: 1 },
   ].map((e) => RecordedEventSchema.parse(e));
   const apply = (a: RecordAnnotations, change: unknown) => applyRecordChange(a, RecordAnnotationChangeSchema.parse(change), events);
@@ -189,7 +213,21 @@ describe('after the reviews of L4.8', () => {
   const ZWSP = String.fromCharCode(0x200b);
   const events: RecordedEvent[] = [
     { seq: 0, t: 10, page: 'p1', path: '/', kind: 'navigation', cause: 'start', same_document: false, where: 'environment', page_key: 'shop' },
-    { seq: 1, t: 400, page: 'p1', path: '/', kind: 'pointer', button: 'left', via: 'pointer', el: el([{ target: { testid: `ok${ZWSP}` }, fragile: [] }, { target: { placeholder: 'Acme' }, fragile: [] }]), quiet_ms: 1, ms: 1 },
+    {
+      seq: 1,
+      t: 400,
+      page: 'p1',
+      path: '/',
+      kind: 'pointer',
+      button: 'left',
+      via: 'pointer',
+      el: el([
+        { target: { testid: `ok${ZWSP}` }, fragile: [] },
+        { target: { placeholder: 'Acme' }, fragile: [] },
+      ]),
+      quiet_ms: 1,
+      ms: 1,
+    },
     { seq: 2, t: 900, page: 'p1', path: '/', kind: 'pointer', button: 'left', via: 'pointer', el: el(), quiet_ms: 1, ms: 1 },
   ].map((e) => RecordedEventSchema.parse(e));
   const apply = (a: RecordAnnotations, change: unknown) => applyRecordChange(a, RecordAnnotationChangeSchema.parse(change), events);
@@ -199,7 +237,7 @@ describe('after the reviews of L4.8', () => {
     expect(apply(emptyRecordAnnotations(), { op: 'choose', seq: 1, index: 2 })).toMatchObject({ annotations: { choices: { '1': 2 } } });
   });
 
-  it('B-H1: an insert after the recorder\'s wait row keeps `row: wait`; after an insert row, that insert\'s anchor and `after_insert`', () => {
+  it("B-H1: an insert after the recorder's wait row keeps `row: wait`; after an insert row, that insert's anchor and `after_insert`", () => {
     let a = emptyRecordAnnotations();
     const r1 = apply(a, { op: 'insert', at: { after_step_seq: 2, row: 'wait' }, insert: { kind: 'hold', seconds: 2 } });
     a = (r1 as { annotations: RecordAnnotations }).annotations;
@@ -213,7 +251,7 @@ describe('after the reviews of L4.8', () => {
     expect(RecordAnnotationChangeSchema.safeParse({ op: 'insert', at: { after_step: 3 }, insert: { kind: 'hold', seconds: 2 } }).success).toBe(false);
   });
 
-  it('B-M3: the zoom factors and default under a theme\'s max_zoom', () => {
+  it("B-M3: the zoom factors and default under a theme's max_zoom", () => {
     expect(recordZoomOptions(1.4)).toEqual({ options: [1.25, 1.4], default: 1.4 });
     expect(recordZoomOptions(1.6)).toEqual({ options: [1.25, 1.5, 1.6], default: 1.5 });
     expect(recordZoomOptions(3)).toEqual({ options: [1.25, 1.5, 2], default: 1.5 });
@@ -224,7 +262,8 @@ describe('after the reviews of L4.8', () => {
   });
 
   it('A-N2: a saved scenario in studio.json is a slug and its own scenarios/<name>.yaml', () => {
-    const saved = (name: string, file: string) => RecordAnnotationsSchema.safeParse({ v: 1, rev: 1, choices: {}, inserts: [], saved: { name, file, hash: 'a'.repeat(64), at: '2026-10-28T10:00:00.000Z' } }).success;
+    const saved = (name: string, file: string) =>
+      RecordAnnotationsSchema.safeParse({ v: 1, rev: 1, choices: {}, inserts: [], saved: { name, file, hash: 'a'.repeat(64), at: '2026-10-28T10:00:00.000Z' } }).success;
     expect(saved('quote', 'scenarios/quote.yaml')).toBe(true);
     expect(saved('quote', 'scenarios/other.yaml')).toBe(false);
     expect(saved('../x', 'scenarios/../x.yaml')).toBe(false);

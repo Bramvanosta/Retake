@@ -1,5 +1,5 @@
 import type { Page } from 'playwright-core';
-import type { Pacing, PointSpec } from '@retake/core';
+import type { Pacing, PointSpec } from '@retake/core/model';
 import type { KitClient } from './session.js';
 import type { TimelineBuilder } from './timeline.js';
 import { Jitter, arcPath, distance, easeInOutCubic, moveDuration, snap } from './motion.js';
@@ -107,10 +107,7 @@ export class Pointer {
     if (dist < 0.5) return 0;
     let ms = opts.ms ?? moveDuration(dist, this.host.pacing);
     if (opts.ms === undefined && opts.jitter) ms = opts.jitter.ms(ms);
-    const path =
-      opts.arc === false
-        ? (e: number) => ({ x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e })
-        : arcPath(from, to, opts.jitter?.side() ?? 1);
+    const path = opts.arc === false ? (e: number) => ({ x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e }) : arcPath(from, to, opts.jitter?.side() ?? 1);
     const mouse = this.host.page().mouse;
     const clock = this.host.clock ?? { now: wallNow, sleep };
     // Motion time (ms along the planned glide), advanced per tick by the elapsed wall time capped at

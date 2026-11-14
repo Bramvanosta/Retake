@@ -25,10 +25,11 @@ import { startStudioServer } from '../src/index.js';
 import { frameCsp, startPlayerServer } from '../src/server/player.js';
 import type { PlayerServer } from '../src/server/player.js';
 import type { PlayerBundle } from '../src/player/bundle-player.js';
-import { raw } from './http.js';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const STUDIO_PORT = 4999;
-const BUNDLE: PlayerBundle = { hash: '0123456789abcdef', js: Buffer.from('/* the frame bundle */'), boot: Buffer.from('/* boot */'), components: [], excluded: [], ms: 0 };
+const BUNDLE: PlayerBundle = { hash: '0123456789abcdef', js: Buffer.from('/* the frame bundle */'), boot: Buffer.from('/* boot */'), components: [], excluded: [], held: [], ms: 0 };
 let root: string;
 let dirs: { project: string; run: string; theme: string; outside: string };
 let player: PlayerServer;
@@ -70,7 +71,9 @@ function plan(layout: string): EditPlan {
     assets: { 'ds-asset:capture': join(dirs.run, 'capture.mp4'), 'ds-asset:font': join(dirs.theme, 'Display Font (1).ttf') },
     source: { file: join(dirs.run, 'capture.mp4'), url: 'ds-asset:capture', fps: 30, width: 320, height: 180 },
     brand: { tokens: { font_faces: [{ family: 'Display', url: 'ds-asset:font', weight: 400, style: 'normal' }] } },
-    segments: [{ id: 'a', kind: 'clip', from: 0, durationInFrames: 30, component: { id: layout, kind: 'layout', params: {} }, urls: [{ frame: 0, url: 'http://localhost:4402/private', hidden: true }] }],
+    segments: [
+      { id: 'a', kind: 'clip', from: 0, durationInFrames: 30, component: { id: layout, kind: 'layout', params: {} }, urls: [{ frame: 0, url: 'http://localhost:4402/private', hidden: true }] },
+    ],
     display: [{ note: `display of ${dirs.project}` }],
     notes: [`a note naming ${dirs.run}`],
     warnings: [`a warning naming ${root}`],
@@ -148,7 +151,14 @@ describe('the player origin', () => {
     const full = await get(path, { origin: 'null' });
     expect(full.status).toBe(200);
     expect(Buffer.from(full.body, 'latin1').length).toBeGreaterThan(0);
-    expect(full.headers).toMatchObject({ 'content-type': 'video/mp4', 'accept-ranges': 'bytes', 'access-control-allow-origin': 'null', 'cache-control': 'private, max-age=86400, immutable', 'content-length': '10000', 'cross-origin-resource-policy': 'cross-origin' });
+    expect(full.headers).toMatchObject({
+      'content-type': 'video/mp4',
+      'accept-ranges': 'bytes',
+      'access-control-allow-origin': 'null',
+      'cache-control': 'private, max-age=86400, immutable',
+      'content-length': '10000',
+      'cross-origin-resource-policy': 'cross-origin',
+    });
     expect(full.headers['access-control-expose-headers']).toBe('Content-Length, Content-Range, Accept-Ranges');
     expect(full.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
     const part = await get(path, { range: 'bytes=100-199' });
@@ -249,7 +259,7 @@ describe('the player origin', () => {
     }
   });
 
-  it('⚑ review A L3: a capability per scope (project) — one scope never reaches another\'s files; release revokes its URLs', async () => {
+  it("⚑ review A L3: a capability per scope (project) — one scope never reaches another's files; release revokes its URLs", async () => {
     const a = player.register(join(dirs.run, 'capture.mp4'), [dirs.run], 'proj-a')!;
     const b = player.register(join(dirs.theme, 'Display Font (1).ttf'), [dirs.theme], 'proj-b')!;
     expect(capOf(a)).not.toBe(capOf(b));
@@ -295,14 +305,19 @@ describe('the player origin', () => {
 describe('the Studio and its player origin', () => {
   it('⚑ the Studio frames exactly its player origin, never sends Access-Control-*, and closes the player with it', async () => {
     const ws = await mkdtemp(join(tmpdir(), 'ds-player-studio-'));
-    const saved = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = join(ws, '.home');
+    const retakeHome = scratchHome();
+    retakeHome.use(join(ws, '.home'));
     await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
     const studio = await startStudioServer({ root: ws, startWorker: false });
     try {
       expect(studio.player.origin).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
       expect(studio.player.port).not.toBe(studio.port);
-      for (const r of [await raw(studio.port, 'GET', '/'), await raw(studio.port, 'GET', '/app.js'), await raw(studio.port, 'GET', '/v1/info'), await raw(studio.port, 'GET', '/v1/info', { origin: 'null' })]) {
+      for (const r of [
+        await raw(studio.port, 'GET', '/'),
+        await raw(studio.port, 'GET', '/app.js'),
+        await raw(studio.port, 'GET', '/v1/info'),
+        await raw(studio.port, 'GET', '/v1/info', { origin: 'null' }),
+      ]) {
         expect(r.headers['content-security-policy']).toBe(studioCsp(studio.player.origin));
         expect(r.headers['content-security-policy']).toContain(`frame-src ${studio.player.origin};`);
         expect(Object.keys(r.headers).filter((k) => k.startsWith('access-control-'))).toEqual([]);
@@ -316,8 +331,7 @@ describe('the Studio and its player origin', () => {
       expect(r.headers['content-security-policy']).toContain(`frame-ancestors http://127.0.0.1:${studio.port} http://localhost:${studio.port};`);
     } finally {
       await studio.close();
-      if (saved === undefined) delete process.env.RETAKE_HOME;
-      else process.env.RETAKE_HOME = saved;
+      retakeHome.restore();
     }
     await expect(raw(studio.player.port, 'GET', '/')).rejects.toThrow(/ECONNREFUSED/);
     await rm(ws, { recursive: true, force: true });

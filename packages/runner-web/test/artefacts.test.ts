@@ -14,7 +14,8 @@ import { chromium } from 'playwright-core';
 import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { DocumentArtefact, EmailArtefact, NotificationArtefact, Timeline } from '@retake/core';
 import { imageSize, mailMatches, parseAddress, runScenario, sandboxedEmail, sniffMime } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
 
 const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#6e1f2b"/></svg>';
@@ -161,7 +162,8 @@ describe('a run with a mailbox, downloads and notifications', () => {
     await writeFile(join(dir, 'assets', 'terms.pdf'), pdf);
     const project = makeProject(dir, { app: server.url });
     project.config.mailbox = { provider: 'mailpit', url: `${server.url}/mailpit`, poll_ms: 150 };
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       scenario: makeScenario('artefacts', {
         pacing: FAST,

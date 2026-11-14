@@ -20,7 +20,8 @@
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { PROJECT_SLUG_RE, SLUG_RE, projectPath } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { PROJECT_SLUG_RE, projectPath } from '@retake/core/project';
 import { EngineError } from '@retake/engine';
 import { defineTool } from '@retake/engine/contract';
 
@@ -87,7 +88,8 @@ export class UnsavedBoard {
     const dir = join(this.projectsDir, item.project);
     if (!(await exists(join(dir, 'project.yaml')))) return out;
     out.project = item.project;
-    if (item.scenario !== undefined && item.scenario.length <= NAME_MAX && SLUG_RE.test(item.scenario) && (await exists(projectPath(dir, 'scenarios', `${item.scenario}.yaml`)))) out.scenario = item.scenario;
+    if (item.scenario !== undefined && item.scenario.length <= NAME_MAX && SLUG_RE.test(item.scenario) && (await exists(projectPath(dir, 'scenarios', `${item.scenario}.yaml`))))
+      out.scenario = item.scenario;
     return out;
   }
 

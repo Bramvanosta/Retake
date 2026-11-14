@@ -20,8 +20,9 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const POLL = { timeout: 15_000 };
@@ -35,7 +36,7 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const readme = (slug: string) => join(ws, 'projects', slug, 'README.md');
 const textarea = (p: Page = page) => p.locator('#readme-text');
 const state = (p: Page = page) => p.getByTestId('save-state').innerText();
@@ -74,7 +75,7 @@ function holdStream(): Promise<ClientRequest> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-editor-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await project('crlf', CRLF);
   await project('latin', LATIN1);
@@ -99,8 +100,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -195,7 +195,11 @@ describe('the Projects screen (review B L2)', () => {
     await page.goto(`${studio.url}#/`);
     const cards = page.getByTestId('project-card');
     await expect.poll(() => cards.count(), POLL).toBe(6);
-    await cards.filter({ hasText: 'Northfield (fixture)' }).getByText(/production/).first().waitFor(POLL);
+    await cards
+      .filter({ hasText: 'Northfield (fixture)' })
+      .getByText(/production/)
+      .first()
+      .waitFor(POLL);
     expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toMatch(/Last rehearsal failed\s*·\s*quote/);
     // The flag words exactly, not the environment's name (review B-M3).
     expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toContain('production: production · read-only');
@@ -319,7 +323,8 @@ describe('the editor and the live updates when things go wrong (review B M4)', (
     // While no stream is open (the page waits 1 s before it reconnects): change the file, and let the server's index
     // take the change in (two refreshes: one may already be running) — no stream hears of it.
     await writeFile(readme(FIXTURE), '# Northfield\n\nChanged while the stream was down.\n');
-    for (let i = 0; i < 2; i++) expect((await raw(studio.port, 'POST', '/v1/call/search', { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, '{"q":"down"}')).status).toBe(200);
+    for (let i = 0; i < 2; i++)
+      expect((await raw(studio.port, 'POST', '/v1/call/search', { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, '{"q":"down"}')).status).toBe(200);
     await expect.poll(() => textarea().inputValue(), POLL).toBe('# Northfield\n\nChanged while the stream was down.\n');
     await expect.poll(() => page.getByTestId('connection').getAttribute('data-updates'), POLL).toBe('stream');
   });

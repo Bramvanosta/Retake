@@ -2,7 +2,10 @@
  * The engine façade's types: its options, the Engine interface (one member per sub-API) and the views its methods
  * return. engine.ts re-exports each of them (createEngine builds the façade from src/facade/*-api.ts).
  */
-import type { ComponentKind, InspectJobInput, RecordAnnotationChange, RunMode } from '@retake/core';
+import type { EngineEnv } from '../env.js';
+import type { ComponentKind, RunMode } from '@retake/core/model';
+import type { RecordAnnotationChange } from '@retake/core/run';
+import type { InspectJobInput } from '../jobs/job-input.js';
 import type { PersonaStateView } from '../auth.js';
 import type { CreateProjectRequest, ProjectSummary, ProjectView } from '../projects.js';
 import type { RunStatusView, RunSummary } from '../runs.js';
@@ -17,7 +20,7 @@ import type { ProjectBoardView, RunPoster } from '../project-board.js';
 import type { ScenarioActions, ScenarioView } from '../scenario-view.js';
 import type { EnvResetSubmitRequest, HooksSubmitRequest } from '../jobs/hooks-job.js';
 import type { AuthLoginSubmitRequest } from '../jobs/auth-job.js';
-import type { RenderEditSource, RenderRequest } from '../jobs/render-job.js';
+import type { LatestRunNotice, PassedOverRuns, RenderEditSource, RenderRequest } from '../jobs/render-job.js';
 import type { TimelineViewRequest, TimelineViewResult } from '../timeline-view.js';
 import type { ReviewRequest } from '../jobs/review-job.js';
 import type { ExportRequest } from '../jobs/export-job.js';
@@ -25,7 +28,7 @@ import type { ReviewImageView, ReviewImagesMode, ReviewView } from '../reviews.j
 import type { InspectSubmitRequest } from '../jobs/inspect-job.js';
 import type { RecordAnnotated, RecordDiscarded, RecordListItem, RecordSaved, RecordStopped, RecordView } from '../record-studio.js';
 import type { RecordSubmitRequest } from '../jobs/record-job.js';
-import type { InspectReport } from '@retake/runner-web';
+import type { InspectReport } from '@retake/runner-web/types';
 import type { LibraryStatesView } from '../library.js';
 import type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentValidationView, ComponentView } from '../components.js';
 import type { ThemeEditRequest, ThemeEditResult, ThemeEditView } from '../theme-edit.js';
@@ -35,20 +38,35 @@ import type { SiteList } from '../site-list.js';
 import type { SiteSubmitted } from '../jobs/site-job.js';
 import type { ThemeCreated } from '../brand/create.js';
 import type { TemplateDetail, TemplateListView } from '../templates.js';
+import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import type { PlanPreviewView, RenderStatusView, ScenarioRendersView } from '../renders.js';
 import type { SandboxSubmitRequest } from '../jobs/sandbox-job.js';
-import type { CommentAddRequest, CommentAdded, CommentAnchorRequest, CommentAnchorView, CommentApplied, CommentCountsView, CommentListRequest, CommentListView, CommentProposalView, CommentView, CommentWritten } from '../comments.js';
+import type {
+  CommentAddRequest,
+  CommentAdded,
+  CommentAnchorRequest,
+  CommentAnchorView,
+  CommentApplied,
+  CommentCountsView,
+  CommentListRequest,
+  CommentListView,
+  CommentProposalView,
+  CommentView,
+  CommentWritten,
+} from '../comments.js';
 import type { ProposalInput } from '../comment-proposals.js';
 import type { RenderFrameRequest, RenderFrameView, RenderOutlineRequest, RenderOutlineView } from '../render-frames.js';
 import type { Entitlements } from '../entitlements.js';
 import type { UsageCounts } from '../history.js';
-import type { EngineClient } from '../caller.js';
+import type { Caller, EngineClient } from '../caller.js';
+import type { Clock } from '../clock.js';
 import type { Approver } from '../approvals.js';
 import type { RunBlocker, RunSubmitRequest } from '../jobs/run-job.js';
 import type { WorkerSpawnFn } from '../jobs/spawn.js';
 import type { PruneRequest, PruneResult } from '../prune.js';
 import type { JobEvent, JobRecord, SiteJobResult } from '../jobs/types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 export interface EngineOptions {
   /** Workspace root; default $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
@@ -63,6 +81,11 @@ export interface EngineOptions {
   workerEnv?: NodeJS.ProcessEnv;
   /** Tests: starts the worker process (default node's spawn). */
   workerSpawn?: WorkerSpawnFn;
+  /**
+   * Tests: the ports this engine runs with instead of the product's (ports.ts enginePorts: the system's clock, the
+   * disk's stores). The MCP server and the Studio pass none. A worker this engine starts runs its own.
+   */
+  ports?: Partial<EnginePorts>;
 }
 
 /** A run's job as run_status shows it. */
@@ -181,6 +204,22 @@ export interface ScenarioCheck extends ScenarioText, ValidateResult {
 
 export interface Engine {
   readonly root: string;
+  /**
+   * Who drives this engine (caller.ts): the caller of the client it was made for, fixed for its life (the workspace's
+   * agent policy is opened from it). Read-only: invoke hands it to an operation's caller rules (L7.13).
+   */
+  readonly caller: Caller;
+  /**
+   * The engine's clock (clock.ts, the Clock port its composition root chose: the system's, or a test's ManualClock):
+   * what an operation reads when it needs the time as the engine sees it (L7.18: record_options' suggested draft
+   * name). Read-only, like `caller`.
+   */
+  readonly clock: Clock;
+  /**
+   * The environment variables its composition root read (env.ts: this process's for the product, a test's own): what
+   * an operation reads of them (record_options' time limit and display). Read-only, like `clock`.
+   */
+  readonly envVars: EngineEnv;
   readonly workspace: OpenedWorkspace;
   /** `retake -C <root>`: how the commands a human is asked to run start (they may be typed in any folder). */
   readonly cli: string;
@@ -261,7 +300,15 @@ export interface Engine {
      * human (trust `mcp`: destructive ones whatever `confirm` says, every shell hook) are asked through `approver`;
      * without one, or when not approved, the submit is refused with the `retake` command a human runs.
      */
-    submit(req: RunSubmitRequest, o?: { approver?: Approver }): Promise<{ job: JobRecord; run_id: string; warnings: string[]; worker?: { pid?: number; spawned: boolean; /** L5.16c: the live worker runs another copy of Retake (the lock's text). */ other?: { version: string; engine?: string } } }>;
+    submit(
+      req: RunSubmitRequest,
+      o?: { approver?: Approver },
+    ): Promise<{
+      job: JobRecord;
+      run_id: string;
+      warnings: string[];
+      worker?: { pid?: number; spawned: boolean /** L5.16c: the live worker runs another copy of Retake (the lock's text). */; other?: { version: string; engine?: string } };
+    }>;
     /** Cancel the job of a run (teardown and rollbacks still run). A run started from the CLI is refused. */
     cancel(project: string, runId: string): Promise<JobRecord>;
     /**
@@ -319,11 +366,22 @@ export interface Engine {
     plan(req: RenderRequest): Promise<PlanPreviewView>;
     /**
      * Queue a render (trust `mcp`: planned and checked first; the worker renders with the network guard). Returns at
-     * once with the reserved render id; `edit`, `scenario_changed`, `filmed_changes`, `edit_changes` as plan_preview's.
+     * once with the reserved render id; `edit`, `scenario_changed`, `filmed_changes`, `edit_changes` as plan_preview's;
+     * `passed_over`, `until` and `untrusted.passed_over` when the run was picked as the latest capture (as plan_preview's).
      */
-    submit(
-      req: RenderRequest,
-    ): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; worker?: { pid?: number; spawned: boolean; /** L5.16c: the live worker runs another copy of Retake (the lock's text). */ other?: { version: string; engine?: string } } } & RenderEditSource>;
+    submit(req: RenderRequest): Promise<
+      {
+        job: JobRecord;
+        render_id: string;
+        run_id: string;
+        variant: string;
+        duration_s: number;
+        warnings: string[];
+        worker?: { pid?: number; spawned: boolean /** L5.16c: the live worker runs another copy of Retake (the lock's text). */; other?: { version: string; engine?: string } };
+        untrusted?: { passed_over: PassedOverRuns };
+      } & RenderEditSource &
+        LatestRunNotice
+    >;
     /** A render's status: its newest job first, then renders/<id>.json. `latest` (of `scenario`) names the newest. */
     status(project: string, renderId: string, o?: { scenario?: string }): Promise<RenderStatusView>;
     /**
@@ -349,8 +407,13 @@ export interface Engine {
     view(req: TimelineViewRequest): Promise<TimelineViewResult>;
   };
   reviews: {
-    /** Queue a review of a render (its video and run must lie in the project; `latest` is resolved now). */
-    submit(req: ReviewRequest): Promise<{ job: JobRecord; render_id: string; worker?: { pid?: number; spawned: boolean } }>;
+    /**
+     * Queue a review of a render (its video and run must lie in the project; `latest` is resolved now — the answer then
+     * says how many newer files of renders/ it passed over, their names under `untrusted`).
+     */
+    submit(
+      req: ReviewRequest,
+    ): Promise<{ job: JobRecord; render_id: string; worker?: { pid?: number; spawned: boolean }; untrusted?: { renders_passed_over: PassedOverRenders } } & LatestRenderNotice>;
     /** A render's review: its newest job, then review/<id>/report.json (paths rebuilt from the folder, messages untrusted). */
     get(project: string, renderId: string, o?: { scenario?: string; images?: ReviewImagesMode }): Promise<ReviewView>;
     /**
@@ -360,8 +423,20 @@ export interface Engine {
     image(project: string, renderId: string, image: string): Promise<ReviewImageView>;
   };
   exports: {
-    /** Queue an export of a render to delivery formats (exports/<id>/; re-rendered formats are planned and checked first). */
-    submit(req: ExportRequest): Promise<{ job: JobRecord; render_id: string; formats: string[]; rerendered: string[]; worker?: { pid?: number; spawned: boolean } }>;
+    /**
+     * Queue an export of a render to delivery formats (exports/<id>/; re-rendered formats are planned and checked first).
+     * With `latest`: the answer says how many newer files of renders/ it passed over, their names under `untrusted`.
+     */
+    submit(req: ExportRequest): Promise<
+      {
+        job: JobRecord;
+        render_id: string;
+        formats: string[];
+        rerendered: string[];
+        worker?: { pid?: number; spawned: boolean };
+        untrusted?: { renders_passed_over: PassedOverRenders };
+      } & LatestRenderNotice
+    >;
   };
   templates: {
     /** Workspace and starter themes with their component per kind (with `project`: which one is its own). */

@@ -23,9 +23,10 @@ import { scaffoldDir } from '@retake/components';
 import { memoRegistry } from '@retake/engine';
 import { COMPONENT_PREVIEW_FORMAT, checkPreviewSpec, startStudioServer } from '../src/index.js';
 import type { StudioServer, ThemePreviewAnswer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { hasTool } from '@retake/test-support/repo';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 /** A folder to keep the framed previews' screenshots in (looked at by hand), or none. */
@@ -37,7 +38,7 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser | undefined;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const call = (op: string, args: unknown = {}) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 async function preview(args: Record<string, unknown>): Promise<Extract<ThemePreviewAnswer, { frame_url: string }>> {
   const r = await call('theme_preview', { project: P, lease: 'player-preview-lease-01', ...args });
@@ -62,13 +63,16 @@ const spec = (extra: Record<string, unknown> = {}) => ({
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-player-preview-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   const comp = join(ws, 'components', 'acme', 'held');
   await mkdir(comp, { recursive: true });
   await cp(scaffoldDir('card'), comp, { recursive: true });
   await writeFile(join(comp, 'component.yaml'), (await readFile(join(comp, 'component.yaml'), 'utf8')).replace(/^id: .*$/m, 'id: acme/held'));
-  await writeFile(join(comp, 'index.tsx'), `import { AbsoluteFill } from 'remotion';\nexport default function H() { return <AbsoluteFill style={{ background: '#ff00ff' }}>{${JSON.stringify(MARK)}}</AbsoluteFill>; }\n`);
+  await writeFile(
+    join(comp, 'index.tsx'),
+    `import { AbsoluteFill } from 'remotion';\nexport default function H() { return <AbsoluteFill style={{ background: '#ff00ff' }}>{${JSON.stringify(MARK)}}</AbsoluteFill>; }\n`,
+  );
   studio = await startStudioServer({ root: ws, startWorker: false });
   if (!canRun) return;
   const executablePath = process.env.RETAKE_CHROMIUM;
@@ -81,14 +85,13 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
 describe('the forbid scan of a component preview (checkPreviewSpec)', () => {
   const forbid = ['/Users/someone/work', '/Users/someone'];
-  it('a spec of served URLs passes; the browser bar\'s sample address is text', async () => {
+  it("a spec of served URLs passes; the browser bar's sample address is text", async () => {
     await expect(checkPreviewSpec(spec(), MEDIA, forbid)).resolves.toBeUndefined();
   });
 
@@ -106,7 +109,7 @@ describe('the forbid scan of a component preview (checkPreviewSpec)', () => {
     for (const [what, extra] of bad) await expect(checkPreviewSpec(spec(extra), MEDIA, forbid), what).rejects.toMatchObject({ name: 'PreviewPlanError' });
   });
 
-  it('⚑ L4.7 review A M2: display text is a fixed list (panes[*].url, the theme\'s brand url, a slot equal to it); nothing else', async () => {
+  it("⚑ L4.7 review A M2: display text is a fixed list (panes[*].url, the theme's brand url, a slot equal to it); nothing else", async () => {
     const panes = { scene: { url: 'https://shop.northfield.example/', rects: { panes: [{ url: 'https://shop.northfield.example/a' }, { url: 'https://shop.northfield.example/b' }] } } };
     await expect(checkPreviewSpec(spec(panes), MEDIA, forbid)).resolves.toBeUndefined();
     const brand = { theme: { name: 't', brand: { url: 'https://example.com' } } };
@@ -215,7 +218,11 @@ async function colourAt(fx: number, fy: number, shot?: string): Promise<[number,
     await mkdir(SHOTS, { recursive: true });
     await writeFile(join(SHOTS, `${shot}.png`), png);
   }
-  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', '-i', 'pipe:0'], { input: png }).toString().trim().split(',').map(Number);
+  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', '-i', 'pipe:0'], { input: png })
+    .toString()
+    .trim()
+    .split(',')
+    .map(Number);
   const rgb = execFileSync('ffmpeg', ['-v', 'error', '-i', 'pipe:0', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { input: png, maxBuffer: 64 * 1024 * 1024 });
   const x = Math.floor(w * fx);
   const y = Math.floor(h * fy);
@@ -246,7 +253,7 @@ describe.skipIf(!canRun)('the preview frame plays a component preview (Chromium)
     expect((await waitFor('settled')).frame).toBe(d.frame);
   });
 
-  it('⚑ a workspace component not allowed is absent from the frame\'s bundle; the frame says its stand-in draws', async () => {
+  it("⚑ a workspace component not allowed is absent from the frame's bundle; the frame says its stand-in draws", async () => {
     const d = await preview({ theme: 'editorial', target: { component: 'acme/held' } });
     expect(d.preview_held?.map((h) => h.id)).toEqual(['acme/held']);
     const bundle = await studio.bundles.get((await memoRegistry(studio.engine.workspace)).registry, (id, hash) => studio.previewAllow.has(id, hash));

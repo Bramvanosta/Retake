@@ -1,9 +1,29 @@
 import { join } from 'node:path';
-import { formatIssues, isAccessError, perfSummary } from '@retake/core';
-import { readJson } from '@retake/core/io';
-import type { RunProgress, RunRecord, Timeline } from '@retake/core';
-import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, callerOf, checkAllowWrites, prepareRun, runInProcess, selfIdentity, writesSummary } from '@retake/engine';
+import { formatIssues } from '@retake/core/base';
+import { isAccessError } from '@retake/core/environment';
+import { perfSummary } from '@retake/core/run';
+import { readTimeline } from '@retake/core/io';
+import type { TrustedHookFiles } from '@retake/core/hooks';
+import type { Timeline } from '@retake/core/model';
+import type { RunProgress, RunRecord } from '@retake/core/run';
+import {
+  FilmingMarker,
+  RunOptionError,
+  SandboxTakeError,
+  TakeBeside,
+  scenarioHooksCheck,
+  callerOf,
+  listingContext,
+  reserveListedRun,
+  checkAllowWrites,
+  checkHeadedDisplay,
+  prepareRun,
+  runInProcess,
+  selfIdentity,
+  writesSummary,
+} from '@retake/engine';
 import type { FilmingEvent, FilmingReport, PreparedRun } from '@retake/engine';
+import { askAgentHooks } from '../agent-hooks.js';
 import { heavyGate } from '../heavy-gate.js';
 import { EXIT, UsageError, errorMessage, errorText } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -11,7 +31,7 @@ import type { ExitCode } from '../errors.js';
 import { ProgressPrinter, runStatusText } from '../progress.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { printIssues } from './validate.js';
 import { loginCommandFor } from './auth.js';
@@ -34,6 +54,8 @@ export interface RunCommandOptions extends RawFlags {
   sandbox?: boolean;
   /** `--no-wait` (wait: false): the raw export starts even while another take films, at normal priority (L5.14). */
   wait?: boolean;
+  /** L7.27: run the shell hooks of a scenario an agent wrote last without asking. */
+  yes?: boolean;
 }
 
 /** Raw flags given without --raw are a usage error (they only shape the raw export). */
@@ -50,13 +72,7 @@ function rawFlagsWithoutRaw(o: RunCommandOptions): string[] {
 }
 
 /** `retake run <project> <scenario>`: capture (or dry-run) a scenario; exit 1 unless the run succeeded. */
-export async function runCommand(
-  ui: Ui,
-  global: GlobalOptions,
-  projectArg: string,
-  scenarioArg: string,
-  opts: RunCommandOptions,
-): Promise<ExitCode> {
+export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenarioArg: string, opts: RunCommandOptions): Promise<ExitCode> {
   const json = opts.json === true;
   const emitJson = (e: RunProgress) => ui.result(JSON.stringify(e));
   const stray = rawFlagsWithoutRaw(opts);
@@ -73,6 +89,7 @@ export async function runCommand(
   try {
     const ws = await openWorkspace(global);
     prepared = await prepareRun(ws, await openProject(ws, projectArg), scenarioArg, opts);
+    checkHeadedDisplay(opts, cliPorts.env);
   } catch (e) {
     if (e instanceof RunOptionError) throw new UsageError(e.message);
     return fail(errorMessage(e));
@@ -97,6 +114,49 @@ export async function runCommand(
     else if (level === 'warn') ui.warn(message);
     else ui.line(ui.c.dim(message));
   };
+  // L7.27: the shell hooks of a scenario whose hooks an agent wrote (or whose writer cannot be known) are listed as
+  // they will run — rendered with this run's context, its id reserved for it — and run only on a person's yes (a
+  // terminal's, or --yes); listed only when they do not run (the runner's default: run for a capture, skip for --dry).
+  let listedRun: Awaited<ReturnType<typeof reserveListedRun>> | undefined;
+  // L7.39: the files the person's check read (a trust, or a yes to the listing): the run's hooks are held to them.
+  let trustedHookFiles: TrustedHookFiles | undefined;
+  try {
+    const check = await scenarioHooksCheck(
+      ws.root,
+      project,
+      scenario,
+      async () => {
+        listedRun = await reserveListedRun(project, scenario.name);
+        return listingContext(project, scenario.scenario, sandboxEnv ?? opts.env ?? scenario.scenario.env, { id: listedRun.id, dir: listedRun.dir });
+      },
+      cliPorts.hooks,
+    );
+    trustedHookFiles = check.bound;
+    const agentHooks = check.ask;
+    if (agentHooks) {
+      const hooksRun = (opts.hooks ?? (opts.dry ? 'skip' : 'run')) === 'run';
+      const verdict = await askAgentHooks(ui, agentHooks, {
+        scenario: scenario.name,
+        run: hooksRun ? true : opts.hooks === 'skip' ? '--hooks skip' : 'dry run',
+        yes: opts.yes === true,
+        print: (header, lines) => {
+          if (json) emitJson({ type: 'log', level: 'warn', message: [header, ...lines].join('\n') });
+          else {
+            ui.warn(header);
+            for (const l of lines) ui.line(l);
+          }
+        },
+        note: (message) => emitNote('warn', message),
+      });
+      if (!verdict.ok) {
+        await listedRun?.release();
+        return fail(verdict.message);
+      }
+    }
+  } catch (e) {
+    await (listedRun as { release(): Promise<void> } | undefined)?.release();
+    return fail(errorMessage(e));
+  }
   // Captures first (L5.14): while this capture films, heavy work of every workspace of this user waits or yields
   // (engine captures.ts) — from capture time 0 to the end of its scenes, not around its hooks; none for a dry run.
   const owner = await selfIdentity();
@@ -105,8 +165,13 @@ export async function runCommand(
   let beside: TakeBeside | undefined;
   const onFilming = (state: FilmingEvent): FilmingReport | undefined => {
     if (state === 'start' && !marker) {
-      marker = FilmingMarker.open({ root: ws.root, source: 'cli', owner });
-      beside = new TakeBeside({ root: ws.root, own: () => marker?.name, onFirst: (where) => emitNote('warn', `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine`) });
+      marker = FilmingMarker.open({ root: ws.root, source: 'cli', owner, env: cliPorts.env });
+      beside = new TakeBeside({
+        root: ws.root,
+        env: cliPorts.env,
+        own: () => marker?.name,
+        onFirst: (where) => emitNote('warn', `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine`),
+      });
       beside.start();
     } else if (state === 'pause' || state === 'resume') marker?.setPaused(state === 'pause');
     else if (state === 'stop') {
@@ -128,13 +193,22 @@ export async function runCommand(
       opts,
       {
         policy: ws.policy,
+        capture: cliPorts.capture,
+        secrets: cliPorts.secrets,
+        hooks: cliPorts.hooks,
+        sandboxes: cliPorts.sandboxes,
         // The fix of an expired session names this workspace when the command line did (-C).
         loginCommand: loginCommandFor(global),
+        // The id the listing of an agent's shell hooks showed (its folder reserved for this run).
+        ...(listedRun ? { runId: (listedRun as { id: string }).id } : {}),
+        ...(trustedHookFiles ? { trustedHookFiles } : {}),
         ...(opts.allowWrites ? { allowWrites: true } : {}),
         ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
         ...(opts.dry ? {} : { onFilming }),
         // Each hook run is a line of the workspace journal, as the person's.
-        recordAs: callerOf('cli'),
+        recordAs: { caller: callerOf('cli'), clock: cliPorts.clock },
+        // What its history line is stamped with when the run has no end of its own.
+        clock: cliPorts.clock,
       },
       {
         issues: (issues, file) => {
@@ -203,11 +277,9 @@ async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<vo
   }
   let tl: Timeline | undefined;
   if (r.timeline) {
-    try {
-      tl = await readJson<Timeline>(r.timeline);
-    } catch {
-      /* the timeline is reported below anyway */
-    }
+    // Through the one reader: a timeline that does not read adds no detail (it is reported below anyway).
+    const read = await readTimeline(r.timeline);
+    if (read.ok) tl = read.value;
   }
   if (r.capture) {
     const detail = tl ? ` ${c.dim(`(${tl.capture.duration.toFixed(1)} s, ${tl.capture.width * tl.capture.scale}×${tl.capture.height * tl.capture.scale} @ ${tl.capture.fps} fps)`)}` : '';

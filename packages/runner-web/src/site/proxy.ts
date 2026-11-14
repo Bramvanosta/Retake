@@ -19,8 +19,9 @@
 import { lookup } from 'node:dns/promises';
 import { createServer, connect, isIP } from 'node:net';
 import type { Server, Socket } from 'node:net';
-import { classifyAddress } from '@retake/core';
-import type { AddressClass, SiteTestTarget } from '@retake/core';
+import { classifyAddress } from '@retake/core/policy';
+import type { AddressClass } from '@retake/core/policy';
+import type { SiteTestTarget } from '@retake/core/theme';
 
 export interface SiteProxyCaps {
   /** Bytes one tunnel carries (both ways). */
@@ -198,7 +199,7 @@ export class SiteProxy {
     if (m[2] !== '443') return this.refuse(c, 'port', host, `port ${m[2]}`);
     if (!this.announced.has(host)) return this.refuse(c, 'not_announced', host);
     // The slot is reserved before the name resolves: concurrent CONNECTs cannot all pass the check meanwhile.
-    if (this.stats.tunnels + this.pending >= this.caps.tunnels || this.stats.bytes >= this.caps.totalBytes) return this.refuse(c, 'cap', host, 'the job\'s tunnels or bytes are used up');
+    if (this.stats.tunnels + this.pending >= this.caps.tunnels || this.stats.bytes >= this.caps.totalBytes) return this.refuse(c, 'cap', host, "the job's tunnels or bytes are used up");
     this.pending++;
     let target: Awaited<ReturnType<SiteProxy['checkedAddress']>>;
     try {

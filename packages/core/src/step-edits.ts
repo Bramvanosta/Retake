@@ -28,7 +28,7 @@ import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { CST, Composer, Document, Parser, isAlias, isCollection, isMap, isScalar, isSeq, visit } from 'yaml';
 import type { Node, Pair, Scalar, YAMLMap, YAMLSeq } from 'yaml';
-import { canonicalJson } from './comments.js';
+import { canonicalJson } from './canonical-json.js';
 import { editValueProblem, verifyEditText } from './scenario-edit.js';
 import { actionFormOf, expandShorthand, fieldKindProblem, fieldOf, readField, shorthandOf, stepFormValues } from './step-forms.js';
 import type { FormValue } from './step-forms.js';
@@ -319,7 +319,7 @@ function stepAt(ctx: Ctx, at: StepAt): { scene: SceneSteps; span: Span; node: No
 }
 
 /** Removing `span` from `scene`; its last step leaves `steps: []`. */
-function removal(ctx: Ctx, scene: SceneSteps, span: Span): Splice[] {
+function removal(scene: SceneSteps, span: Span): Splice[] {
   const out: Splice[] = [{ at: span.start, remove: span.end - span.start, insert: '' }];
   if (scene.values.length === 1) out.push({ at: scene.colon, remove: 0, insert: ' []' });
   return out;
@@ -386,10 +386,11 @@ function holdsAnchor(n: unknown): string | undefined {
   if (!n || typeof n !== 'object') return undefined;
   const node = n as { anchor?: string; items?: unknown[]; key?: unknown; value?: unknown };
   if (typeof node.anchor === 'string' && node.anchor) return node.anchor;
-  if (Array.isArray(node.items)) for (const it of node.items) {
-    const a = holdsAnchor(it);
-    if (a) return a;
-  }
+  if (Array.isArray(node.items))
+    for (const it of node.items) {
+      const a = holdsAnchor(it);
+      if (a) return a;
+    }
   if ('key' in node || 'value' in node) return holdsAnchor(node.key) ?? holdsAnchor(node.value);
   return undefined;
 }
@@ -408,7 +409,7 @@ function moveStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'move_step' }>): Ste
   const block = blockOf(ctx, span);
   // Index in the destination as it is in the file (the source still in it when moving within the scene).
   const target = same && j >= edit.from.index ? j + 1 : j;
-  const splices = [...removal(ctx, src, span), ...insertion(ctx, dst, target, block, span.dashCol, src.keyCol)];
+  const splices = [...removal(src, span), ...insertion(ctx, dst, target, block, span.dashCol, src.keyCol)];
   const intended = cloneValue(ctx.value);
   const [moved] = (intended.scenes[src.entry] as { steps: unknown[] }).steps.splice(edit.from.index, 1);
   (intended.scenes[dst.entry] as { steps: unknown[] }).steps.splice(j, 0, moved);
@@ -431,7 +432,7 @@ function deleteStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'delete_step' }>):
   if (span.start < span.dashLine || span.end > span.contentEnd) notices.push('Its comment lines went with it.');
   if (left === 0) notices.push(`Scene ${scene.id} has no step now (steps: []).`);
   return {
-    text: finish(ctx, removal(ctx, scene, span)),
+    text: finish(ctx, removal(scene, span)),
     intended,
     label: `Deleted step ${i + 1} of ${scene.id}`,
     select: left === 0 ? null : `${scene.id}.${Math.min(i, left - 1)}`,
@@ -517,10 +518,10 @@ function duplicateStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'duplicate_step
       let n = 2;
       while (taken.has(`${old}-${n}`)) n++;
       const name = `${old}-${n}`;
-      if (!isScalar(asNode) || !asNode.range) throw new StepEditError('not_editable', 'this capture\'s `as` is not a plain value: duplicate it in the YAML view');
+      if (!isScalar(asNode) || !asNode.range) throw new StepEditError('not_editable', "this capture's `as` is not a plain value: duplicate it in the YAML view");
       const [s, e] = asNode.range;
       const at = asNode.type === 'PLAIN' ? e : asNode.type === 'QUOTE_DOUBLE' || asNode.type === 'QUOTE_SINGLE' ? e - 1 : -1;
-      if (at < 0 || (asNode.type === 'PLAIN' && ctx.text.slice(s, e) !== old)) throw new StepEditError('not_editable', 'this capture\'s `as` is not written on one line: duplicate it in the YAML view');
+      if (at < 0 || (asNode.type === 'PLAIN' && ctx.text.slice(s, e) !== old)) throw new StepEditError('not_editable', "this capture's `as` is not written on one line: duplicate it in the YAML view");
       cuts.push({ at, remove: 0, insert: `-${n}` });
       (copy[action!] as { as: string }).as = name;
       notices.push(`The copy saves its ${kind} as "${name}": names of captures are unique (the original keeps "${old}").`);
@@ -530,7 +531,10 @@ function duplicateStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'duplicate_step
   // range takes in: review B), with the cuts above, inserted after the original's span.
   const base = span.dashLine;
   const own = ctx.text.slice(base, Math.min(span.contentEnd, lineEndOf(ctx.text, Math.max(lastValueEnd(node), base + 1) - 1)));
-  const copied = applySplices(own, cuts.map((c) => ({ ...c, at: c.at - base })));
+  const copied = applySplices(
+    own,
+    cuts.map((c) => ({ ...c, at: c.at - base })),
+  );
   const intended = cloneValue(ctx.value);
   (intended.scenes[scene.entry] as { steps: unknown[] }).steps.splice(i + 1, 0, copy);
   return {
@@ -762,7 +766,7 @@ function applyRawOpText(ctx: Ctx, text: string, entry: number, index: number, op
   } else {
     const pair = items.find((p) => isScalar(p.key) && (p.key as Scalar).value === op.key);
     if (!pair || items.length < 2) throw refuse();
-    const dashLine = map === step ? itemLines(text, (stepsSeqOf(contents, entry) as YAMLSeq), index, what).dashLine : lineStartOf(text, map.range![0]);
+    const dashLine = map === step ? itemLines(text, stepsSeqOf(contents, entry) as YAMLSeq, index, what).dashLine : lineStartOf(text, map.range![0]);
     const [a, b] = pairRemoval(text, map as YAMLMap, pair, dashLine);
     out = text.slice(0, a) + text.slice(b);
   }

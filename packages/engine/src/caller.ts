@@ -5,9 +5,12 @@
  * the trust its work gets (`author`: a person at a terminal, whose files' trust flags count; `mcp`: an agent or a page,
  * whose they do not). The vocabularies of the layers below are this one caller seen from there:
  *
- * - `EngineClient` (here) is core's `JobClient`: the `submitted_by` of a job; what is decided from a job's submitter
- *   (its refusals' wording `submitterChannel`, a Studio recording `submittedInStudio`) is decided here too.
- * - core's `AgentChannel` is the channel of a caller that is not the CLI's (the CLI's refusals are worded as MCP's).
+ * - `EngineClient` (here) is `JobClient` (jobs/job-input.ts; core's until L7.35): the `submitted_by` of a job; what
+ *   is decided from a job's submitter (its refusals' wording `submitterChannel`, a Studio recording
+ *   `submittedInStudio`) is decided here too.
+ * - `AgentChannel` (here; core's until L7.35) is the channel of a caller that is not the CLI's (the CLI's refusals are
+ *   worded as MCP's). Core and the adapters are handed its words only, as a `Confinement` (`confinementOf`): the domain
+ *   names no channel (audit 2026-11-10 D6).
  * - `CallerTrust` is defined here; core's `HookTrust`, the editor's `PlanTrust` and the brand files' `BrandTrust` are
  *   held to it. The engine holds every job and a theme made from a brand to `mcp` whoever calls it (ENGINE_TRUST, used
  *   by every job module): a queued job is never a person at a terminal.
@@ -16,11 +19,35 @@
  * `test` is the engine's tests: the agent's channel and trust, but neither the agent's checks of a scenario nor the
  * admission rules, and it may drive the Studio's Record screen (tests drive every screen).
  */
-import type { AgentChannel, CommentVia, HookTrust, JobClient } from '@retake/core';
+import { AGENT_CONFINEMENT } from '@retake/core/model';
+import type { Confinement } from '@retake/core/model';
+import type { HookTrust } from '@retake/core/hooks';
+import type { CommentVia } from '@retake/core/comments';
+import type { JobClient } from './jobs/job-input.js';
 import type { PlanTrust } from '@retake/editor';
 
 /** Who drives the engine: recorded with what it starts (a job's `submitted_by`). */
 export type EngineClient = JobClient;
+/**
+ * The channel agent work comes through, for the wording of a refusal: `mcp` (the MCP server: "through MCP"), `studio`
+ * (the Studio web app, L4.2: "from the Studio"). The rules are the same. Handed down as its `Confinement`.
+ */
+export type AgentChannel = 'mcp' | 'studio';
+
+/**
+ * The words of each channel's refusals (core Confinement): the MCP server's are core's AGENT_CONFINEMENT (what core
+ * says when no confinement is given); the Studio's name no MCP tool and say it cannot approve hooks yet.
+ */
+export const CONFINEMENTS: Readonly<Record<AgentChannel, Confinement>> = Object.freeze({
+  mcp: AGENT_CONFINEMENT,
+  studio: Object.freeze({ words: 'from the Studio', approval: ' and the Studio cannot approve hooks yet — run it in a terminal' }),
+});
+
+/** The confinement core and the adapters are handed for a channel's work. */
+export function confinementOf(channel: AgentChannel): Confinement {
+  return CONFINEMENTS[channel];
+}
+
 /** The channel a caller speaks through: a comment's `author.via`. */
 export type CallerChannel = CommentVia;
 /**
@@ -40,9 +67,13 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 const VOCABULARIES_AGREE: Same<HookTrust, CallerTrust> & Same<PlanTrust, CallerTrust> & Same<AgentChannel, Exclude<CallerChannel, 'cli'>> = true;
 void VOCABULARIES_AGREE;
 
-/** The caller of a client: the CLI is a person at a terminal (`author`), the Studio a page (`studio`), every other an agent. */
+/**
+ * The caller of a client: the CLI is a person at a terminal (`author`), the Studio a page (`studio`), every other an
+ * agent. Frozen (L7.13 review): the engine hands this one object to its operations, its store scope and its worker's
+ * environment, so nobody may change who drives it.
+ */
 export function callerOf(client: EngineClient): Caller {
-  return { client, channel: client === 'cli' ? 'cli' : client === 'ui' ? 'studio' : 'mcp', trust: client === 'cli' ? 'author' : 'mcp' };
+  return Object.freeze({ client, channel: client === 'cli' ? 'cli' : client === 'ui' ? 'studio' : 'mcp', trust: client === 'cli' ? 'author' : 'mcp' });
 }
 
 /**

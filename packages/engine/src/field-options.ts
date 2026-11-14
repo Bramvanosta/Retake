@@ -4,8 +4,9 @@
  * registry's components of that kind — each `usable` or disabled with why (components package `componentFit`: kind,
  * slots, params, pages, files); and the same check refusing a `set_field` the inspector would have shown disabled.
  */
-import { fieldComponentKind, fieldKindOf } from '@retake/core';
-import type { ComponentKind, FieldAt, FieldEdit, FieldValue } from '@retake/core';
+import { fieldComponentKind, fieldKindOf } from '@retake/core/scenario';
+import type { ComponentKind } from '@retake/core/model';
+import type { FieldAt, FieldEdit, FieldValue } from '@retake/core/scenario';
 import type { ComponentRegistry, ComponentUse } from '@retake/components';
 import { components } from './components.js';
 
@@ -95,7 +96,12 @@ export function componentUseOf(entry: Obj | undefined, field: string): Component
  * Why a `set_field` value does not fit (critique B7: the inspector shows it disabled with this reason), or null. Only
  * what needs the registry or the scenario is checked here (the value's kind and range: core fieldValueProblem).
  */
-export function fieldFitProblem(registry: ComponentRegistry, componentFit: typeof import('@retake/components').componentFit, root: unknown, edit: Pick<FieldEdit, 'at' | 'field' | 'to'>): string | null {
+export function fieldFitProblem(
+  registry: ComponentRegistry,
+  componentFit: typeof import('@retake/components').componentFit,
+  root: unknown,
+  edit: Pick<FieldEdit, 'at' | 'field' | 'to'>,
+): string | null {
   const to = edit.to;
   if (to === undefined || typeof to !== 'string') return null;
   const entry = entryOf(root, edit.at);
@@ -155,7 +161,16 @@ export async function fieldOptions(registry: ComponentRegistry, root: unknown, a
     // A scene offers the frames of its page count; the video both (each option disabled with why when it fits no scene).
     const words = at.entry === 'scene' ? (scenePages(entry) > 1 ? MULTI_PAGE_OPTIONS : FRAME_STYLE_OPTIONS) : [...FRAME_STYLE_OPTIONS, ...MULTI_PAGE_OPTIONS];
     // A frame style is its built-in layout: listed once, by its name.
-    const builtin = new Set(['studio/layout-card', 'studio/layout-browser', 'studio/layout-laptop', 'studio/layout-phone', 'studio/layout-tablet', 'studio/layout-raw', 'studio/layout-split', 'studio/layout-pip']);
+    const builtin = new Set([
+      'studio/layout-card',
+      'studio/layout-browser',
+      'studio/layout-laptop',
+      'studio/layout-phone',
+      'studio/layout-tablet',
+      'studio/layout-raw',
+      'studio/layout-split',
+      'studio/layout-pip',
+    ]);
     return [theme, ...words.map(([v, l]) => opt(v, l)), ...listed('layout', builtin)];
   }
   if (kind === 'transition') {

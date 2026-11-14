@@ -169,7 +169,10 @@ export function mixColors(a: string, b: string, t: number): string {
   const ca = parseHex(a);
   const cb = parseHex(b);
   if (!ca || !cb) return `color-mix(in srgb, ${a} ${round((1 - k) * 100)}%, ${b})`;
-  const ch = (i: number) => Math.round(ca[i] + (cb[i] - ca[i]) * k).toString(16).padStart(2, '0');
+  const ch = (i: number) =>
+    Math.round(ca[i] + (cb[i] - ca[i]) * k)
+      .toString(16)
+      .padStart(2, '0');
   return `#${ch(0)}${ch(1)}${ch(2)}`;
 }
 

@@ -61,16 +61,8 @@ export const MARK: Readonly<Record<MarkVariant, readonly MarkShape[]>> = {
     { kind: 'rect', paint: 'front', x: 33, y: 43, width: 50, height: 36, rx: 7 },
     { kind: 'path', paint: 'play', d: 'M53 54 L53 68 L64.5 61 Z', stroke: 2.5 },
   ],
-  small: [
-    PLATE,
-    { kind: 'rect', paint: 'outline', x: 15, y: 19, width: 52, height: 38, rx: 7, stroke: 8 },
-    { kind: 'rect', paint: 'front', x: 33, y: 43, width: 52, height: 38, rx: 7 },
-  ],
-  tiny: [
-    PLATE,
-    { kind: 'rect', paint: 'back', x: 12, y: 16, width: 56, height: 40, rx: 7 },
-    { kind: 'rect', paint: 'front', x: 32, y: 40, width: 56, height: 42, rx: 7 },
-  ],
+  small: [PLATE, { kind: 'rect', paint: 'outline', x: 15, y: 19, width: 52, height: 38, rx: 7, stroke: 8 }, { kind: 'rect', paint: 'front', x: 33, y: 43, width: 52, height: 38, rx: 7 }],
+  tiny: [PLATE, { kind: 'rect', paint: 'back', x: 12, y: 16, width: 56, height: 40, rx: 7 }, { kind: 'rect', paint: 'front', x: 32, y: 40, width: 56, height: 42, rx: 7 }],
 };
 
 /** The variant for a size the mark is seen at (CSS px, or points for an icon slot). */

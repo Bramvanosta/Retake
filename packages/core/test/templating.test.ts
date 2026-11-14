@@ -17,9 +17,7 @@ describe('interpolate', () => {
   });
 
   it('pages, vars (prefixed and bare), hooks and run', () => {
-    expect(interpolate('{{console}}/api/products/{{vars.product}}', ctx)).toBe(
-      'https://console.staging.example.com/api/products/finca-lirandel-geisha',
-    );
+    expect(interpolate('{{console}}/api/products/{{vars.product}}', ctx)).toBe('https://console.staging.example.com/api/products/finca-lirandel-geisha');
     expect(interpolate('{{ product }}', ctx)).toBe('finca-lirandel-geisha');
     expect(interpolate('{{vars.nested.id}}', ctx)).toBe('42');
     expect(interpolate('{{hooks.quote.json.id}} {{run.id}}', ctx)).toBe('q-7 20261011-142233-catalogue');
@@ -27,12 +25,16 @@ describe('interpolate', () => {
   });
 
   it('env: references', () => {
-    process.env.RETAKE_TEST_TOKEN = 's3cret';
+    // Through the resolver its caller hands (the engine's Secrets port, core io prefetchSecrets): never this process.
+    process.env.RETAKE_TEST_TOKEN = 'from-the-process';
+    const secrets = (ref: string) => (ref === 'env:RETAKE_TEST_TOKEN' ? 's3cret' : undefined);
     const used = new Set<string>();
-    expect(interpolate('Bearer {{env:RETAKE_TEST_TOKEN}}', { ...ctx, usedSecrets: used })).toBe('Bearer s3cret');
+    expect(interpolate('Bearer {{env:RETAKE_TEST_TOKEN}}', { ...ctx, secrets, usedSecrets: used })).toBe('Bearer s3cret');
     expect([...used]).toEqual(['s3cret']);
     expect(redact('token=s3cret', used)).toBe('token=***');
-    expect(() => interpolate('{{env:RETAKE_UNSET_VAR}}', ctx)).toThrow(/RETAKE_UNSET_VAR is not set/);
+    expect(() => interpolate('{{env:RETAKE_UNSET_VAR}}', { ...ctx, secrets })).toThrow(/RETAKE_UNSET_VAR is not set/);
+    expect(() => interpolate('{{env:RETAKE_TEST_TOKEN}}', ctx)).toThrow('{{env:RETAKE_TEST_TOKEN}} is a secret reference and no secret resolver was handed here');
+    delete process.env.RETAKE_TEST_TOKEN;
   });
 
   it('unknown keys throw a TemplateError listing the available keys', () => {
@@ -76,6 +78,12 @@ describe('interpolate', () => {
     ]);
     expect(secretForms('S3cret-pw-42')).toEqual(['S3cret-pw-42']);
     expect(secretForms('ab')).toEqual([]);
+  });
+
+  it('the 3-character minimum: a 3-character secret has its forms and is redacted, a 2-character one neither', () => {
+    expect(secretForms('a&c')).toEqual(['a&c', 'a%26c', 'a&amp;c']);
+    expect(secretForms('abc')).toEqual(['abc']);
+    expect(redact('ab abc a&c', ['ab', 'abc', 'a&c'])).toBe('ab *** ***');
   });
 
   it('secretForms: as Chrome writes a URL path and query, and as a GET form submits it (L1.2 review: S6)', () => {

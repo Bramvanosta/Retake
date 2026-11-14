@@ -6,13 +6,15 @@
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
 import { mapSourceRect, planEdit, urlAt } from '@retake/editor';
 import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
-import { REPO, clip, clips, fixtureProject, realTimeline, template } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { clip, clips } from './helpers.js';
+import { fixtureProject, realTimeline, template } from '@retake/test-support/timeline';
 
 let registry: ComponentRegistry;
 let project: LoadedProject;
@@ -103,7 +105,7 @@ describe('layout geometry follows params (built-in studio/layout-card)', () => {
           '',
         ].join('\n'),
       );
-      await writeFile(join(dir, 'index.tsx'), "export default function OddCard() { return null; }\n");
+      await writeFile(join(dir, 'index.tsx'), 'export default function OddCard() { return null; }\n');
       const reg = await loadComponentRegistry({ root });
       const bad = plan(realTimeline('quote'), { components: { layout: { id: 'acme/odd-card', params: { inset: 50 } } } }, editorial, reg);
       expect(bad.warnings.join('\n')).toMatch(/layout acme\/odd-card: screen\.y: "1000 \/ \(inset - 50\)" is not a finite number \(Infinity\): default geometry used/);
@@ -142,11 +144,7 @@ describe('device and window layouts through the planner (L2.7)', () => {
     displayed.environment = { name: 'local', access: 'read-write', display: [{ page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' }] };
     const d = plan(displayed, { frame: 'browser' });
     expect(d.warnings).toEqual([]);
-    expect(clip(d, 'proposal').urls.map((u) => u.url)).toEqual([
-      'https://shop.northfield.example/',
-      'https://shop.northfield.example/quotes/1043',
-      'https://shop.northfield.example/quotes/1043/pdf',
-    ]);
+    expect(clip(d, 'proposal').urls.map((u) => u.url)).toEqual(['https://shop.northfield.example/', 'https://shop.northfield.example/quotes/1043', 'https://shop.northfield.example/quotes/1043/pdf']);
     expect(clips(d).every((c) => c.urls.every((u) => !u.hidden))).toBe(true);
     // A run without display URLs (this timeline predates L1.7): every URL is local — kept, marked hidden (the bar
     // shows no address: urlAt), and one plan warning names the page.
@@ -171,7 +169,7 @@ describe('device and window layouts through the planner (L2.7)', () => {
     expect(plan(realTimeline('quote'), { frame: 'browser', components: { layout: { id: 'studio/layout-browser', params: { show_url: false, tabs: true } } } }).warnings).toHaveLength(1);
   });
 
-  it('display URLs are edit-time data: a run captured before them gets the project\'s current ones (V2)', () => {
+  it("display URLs are edit-time data: a run captured before them gets the project's current ones (V2)", () => {
     const edit = (timeline: Timeline, env?: string, proj: LoadedProject = project) =>
       planEdit({ timeline, template: editorial, project: proj, registry, captureFile: '/captures/capture.mp4', overrides: { frame: 'browser' }, ...(env ? { env } : {}) });
     // A timeline without an environment block (before L1.7) and run.json's env: the fixture's display URLs apply.
@@ -193,9 +191,20 @@ describe('device and window layouts through the planner (L2.7)', () => {
     // A sandbox environment (L1.8): its pages live in its sandbox.yaml, under the service that serves them (I9).
     const sandboxed: LoadedProject = {
       ...project,
-      config: { ...project.config, environments: { ...project.config.environments, box: { shop: 'http://localhost:4402' } }, environment_settings: { box: { sandbox: { file: join(project.dir, 'sandbox', 'box.yaml'), provider: 'process' } } } },
+      config: {
+        ...project.config,
+        environments: { ...project.config.environments, box: { shop: 'http://localhost:4402' } },
+        environment_settings: { box: { sandbox: { file: join(project.dir, 'sandbox', 'box.yaml'), provider: 'process' } } },
+      },
       sandboxes: {
-        box: { env: 'box', file: join(project.dir, 'sandbox', 'box.yaml'), dir: join(project.dir, 'sandbox'), manifest: { version: 1, provider: 'process', services: { fixture: { command: 'x', pages: { shop: 'http://localhost:4402' } } } }, issues: [], secrets: {} },
+        box: {
+          env: 'box',
+          file: join(project.dir, 'sandbox', 'box.yaml'),
+          dir: join(project.dir, 'sandbox'),
+          manifest: { version: 1, provider: 'process', services: { fixture: { command: 'x', pages: { shop: 'http://localhost:4402' } } } },
+          issues: [],
+          secrets: {},
+        },
       },
     };
     expect(edit(realTimeline('quote'), 'box', sandboxed).warnings).toEqual([

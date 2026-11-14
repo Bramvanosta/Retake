@@ -1,32 +1,28 @@
 /** Claude's proposals on a thread: apply, the diff shown, the preview (see ../comments.ts). */
-import { open } from 'node:fs/promises';
-import { relative } from 'node:path';
-import { COMMENT_AUTHOR_MAX, COMMENT_ENTRY_ID_RE, deriveStatus, PROPOSAL_CHANGED_LINES_MAX, applyHunks, diffLines, hunkStats, invertHunks, joinLines, proposalStates, sameHunks, textEol, textLines, projectPath } from '@retake/core';
+import { applyHunks, diffLines, hunkStats, invertHunks, joinLines, sameHunks, textLines } from '@retake/core/base';
+import { COMMENT_ENTRY_ID_RE } from '@retake/core/ids';
+import { projectPath } from '@retake/core/project';
+import { textEol } from '@retake/core/scenario';
+import { COMMENT_AUTHOR_MAX, deriveStatus, PROPOSAL_CHANGED_LINES_MAX, proposalStates } from '@retake/core/comments';
 import { scenarioSinceRun } from '@retake/core/io';
-import type {
-  CommentAuthor,
-  CommentEntry,
-  CommentProposal,
-  CommentThread,
-  LoadedProject,
-  ProposalState,
-  ValidationIssue,
-  WorkFileFacts,
-} from '@retake/core';
+import type { LoadedProject, ValidationIssue, WorkFileFacts } from '@retake/core/model';
+import type { CommentAuthor, CommentEntry, CommentProposal, CommentThread, ProposalState } from '@retake/core/comments';
 import type { ComponentRegistry } from '@retake/components';
 import { EngineError } from '../errors.js';
-import type { StoreScope } from '../store/project-store.js';
+import type { StoreScope } from '../store/store.js';
 import { checkRunId } from '../refs.js';
 import { PROPOSAL_CONTEXT_LINES, checkProposedText, diffRows, rebuildProposal } from '../comment-proposals.js';
 import type { ProposalRow } from '../comment-proposals.js';
 import { editScenario, getScenario } from '../scenarios.js';
 import type { ScenarioText } from '../scenarios.js';
 import { sha256Hex } from '../storage.js';
-import { appendedThread, applyEntryOf, argError, checkIfMatch, locateThread, lockThread, readThread, threadStore } from './store.js';
+import { appendedThread, FIT_STAMP, applyEntryOf, argError, checkIfMatch, locateThread, lockThread, readThread } from './store.js';
 import { renderIndex, threadView } from './views.js';
 import type { CommentView } from './views.js';
 import { writeAppended } from './threads.js';
 import type { CommentWritten } from './threads.js';
+import { stampOf } from '../clock.js';
+import type { WorkspaceReads } from '../workspace-reads/reads.js';
 
 // ── Proposals: apply, the diff shown, the preview (L4.6, R-UI-28) ─────────────
 
@@ -61,7 +57,9 @@ export function notActionable(thread: CommentThread, entry: CommentEntry & { pro
     case 'undone':
       return new EngineError('conflict', `not ${stage}: a newer proposal (entry ${newest}) replaces the one of entry ${entry.id}`, { details: { state: st.state, newest } });
     default:
-      return new EngineError('conflict', `not ${stage}: ${today.file} changed since this was proposed — ask Claude to propose again on today's file`, { details: { state: st.state, current: today.hash } });
+      return new EngineError('conflict', `not ${stage}: ${today.file} changed since this was proposed — ask Claude to propose again on today's file`, {
+        details: { state: st.state, current: today.hash },
+      });
   }
 }
 
@@ -108,10 +106,10 @@ export async function applyProposal(
   id: string,
   req: CommentApplyRequest,
   author: CommentAuthor,
-  o: { registry?: () => Promise<ComponentRegistry>; scope?: StoreScope; files: WorkFileFacts },
+  o: { registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<CommentApplied> {
-  // The scenario is written as the caller's (the Studio's by default: a person applies there).
-  const scope = o.scope ?? threadStore(project, author).scope;
+  // The scenario is written as the caller's (the Studio's: a person applies there).
+  const { scope } = o;
   if (req.ifMatch !== undefined && (typeof req.ifMatch !== 'string' || !/^[0-9a-f]{64}$/.test(req.ifMatch))) throw argError('if_match', 'if_match is the hash a listing returned (64 hex characters)');
   if (typeof req.entry_id !== 'string' || !COMMENT_ENTRY_ID_RE.test(req.entry_id)) throw argError('entry_id', `invalid entry id "${String(req.entry_id).slice(0, 80)}": r_ + 26 characters`);
   const f = await locateThread(project.dir, id);
@@ -130,22 +128,31 @@ export async function applyProposal(
     // The apply entry must fit the thread (entries, size) before the scenario is written (review A L5 / B M3): a full
     // thread refuses with nothing changed. The entry written after names the hash editScenario returns (= this one).
     try {
-      appendedThread(id, r, applyEntryOf(author, entry.id, entry.proposal.result_sha256));
+      appendedThread(id, r, applyEntryOf(author, entry.id, entry.proposal.result_sha256, FIT_STAMP));
     } catch (e) {
       if (e instanceof EngineError) throw new EngineError(e.code, `not applied: ${e.message} — nothing was written`, e.details !== undefined ? { details: e.details } : {});
       throw e;
     }
     let edited: Awaited<ReturnType<typeof editScenario>>;
     try {
-      edited = await editScenario(project, r.thread.scenario, { hash: entry.proposal.base_sha256, edit: { kind: 'replace_text', text } }, { agent: true, via: 'studio', files: o.files, ...(o.registry ? { registry: o.registry } : {}), scope });
+      edited = await editScenario(
+        project,
+        r.thread.scenario,
+        { hash: entry.proposal.base_sha256, edit: { kind: 'replace_text', text } },
+        { agent: true, via: 'studio', files: o.files, reads: o.reads, ...(o.registry ? { registry: o.registry } : {}), scope },
+      );
     } catch (e) {
-      if (e instanceof EngineError && e.message.startsWith('not saved: ')) throw new EngineError(e.code, e.message.replace(/^not saved: /, 'not applied: '), { ...(e.details !== undefined ? { details: e.details } : {}), ...(e.fix !== undefined ? { fix: e.fix } : {}) });
+      if (e instanceof EngineError && e.message.startsWith('not saved: '))
+        throw new EngineError(e.code, e.message.replace(/^not saved: /, 'not applied: '), {
+          ...(e.details !== undefined ? { details: e.details } : {}),
+          ...(e.fix !== undefined ? { fix: e.fix } : {}),
+        });
       throw e;
     }
     const problems: string[] = [];
     let written: CommentWritten | undefined;
     try {
-      written = await writeAppended(project, f, r, applyEntryOf(author, entry.id, edited.hash), scope);
+      written = await writeAppended(project, f, r, applyEntryOf(author, entry.id, edited.hash, stampOf(scope.clock)), scope);
     } catch (e) {
       problems.push(`the apply was written to ${edited.file} but not recorded in the thread (${(e as Error).message.split('\n')[0]}): the thread reads the proposal as applied from the file`);
     }
@@ -213,7 +220,12 @@ export interface CommentProposalView {
  * rebuilt from today's file when it is the base (pending, undone) or the result (applied), checked (result hash,
  * canonical hunks) and shown with context; otherwise the stored hunks, unverified. Lines are data (`untrusted.rows`).
  */
-export async function getProposal(project: LoadedProject, id: string, entryId: string | undefined, o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts }): Promise<CommentProposalView> {
+export async function getProposal(
+  project: LoadedProject,
+  id: string,
+  entryId: string | undefined,
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
+): Promise<CommentProposalView> {
   const f = await locateThread(project.dir, id);
   const r = await readThread(project.dir, f);
   if (!r.ok) throw new EngineError('invalid', r.problem);
@@ -262,7 +274,7 @@ export async function getProposal(project: LoadedProject, id: string, entryId: s
     try {
       const text = rebuildProposal(today, p, 'applied');
       await checkProposedText(project, r.thread.scenario, today, text, 'applied', o);
-      appendedThread(r.thread.id, r, applyEntryOf({ via: 'studio', name: 'x'.repeat(COMMENT_AUTHOR_MAX) }, entry.id, p.result_sha256)); // the longest name: never offered when Apply would not fit
+      appendedThread(r.thread.id, r, applyEntryOf({ via: 'studio', name: 'x'.repeat(COMMENT_AUTHOR_MAX) }, entry.id, p.result_sha256, FIT_STAMP)); // the longest name: never offered when Apply would not fit
     } catch (e) {
       if (!(e instanceof Error)) throw e;
       const words = e.message.split(`${project.dir}/`).join('').split(project.dir).join('.');
@@ -338,7 +350,7 @@ export async function proposalForPreview(
   project: LoadedProject,
   scenario: string,
   req: { comment_id: string; entry_id: string },
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<ProposalPreview> {
   const f = await locateThread(project.dir, req.comment_id);
   const r = await readThread(project.dir, f);

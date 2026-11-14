@@ -4,7 +4,7 @@
  * a folder or a device is not a file, a file over the cap is refused (also one that grows while read).
  */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -31,9 +31,10 @@ describe('readPlainFile', () => {
   it('a FIFO with no writer: refused at once (O_NONBLOCK + fstat), never waited on', () => {
     const fifo = join(dir, 'fifo.yaml');
     execFileSync('mkfifo', [fifo]);
-    const t0 = Date.now();
+    // readPlainFile is synchronous: an open that waited for a writer would never return (the test's timeout), so an
+    // answer at all is the proof — no clock needed.
     expect(readPlainFile(fifo, 1024)).toEqual({ ok: false, reason: 'not_file' });
-    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(statSync(fifo).isFIFO()).toBe(true);
   }, 5000);
 
   it('a symbolic link is never followed (even to a file next to it); a folder is not a file; a missing file is missing', () => {

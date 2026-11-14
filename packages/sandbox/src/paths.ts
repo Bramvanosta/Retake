@@ -1,29 +1,8 @@
-import { join } from 'node:path';
-import { STATE_DIR, STATE_DIRS, relativeInside } from '@retake/core';
+import { relativeInside } from '@retake/core/base';
 
-/** Where a project keeps its sandboxes' state, lock, seed journal and service logs (git-ignored: `.retake/`). */
-export const SANDBOX_STATE_DIR = join(STATE_DIR, STATE_DIRS.sandbox);
-
-/** The files of one sandbox: `<project>/.retake/sandbox/<env>/…`. */
-export interface SandboxPaths {
-  dir: string;
-  state: string;
-  lock: string;
-  seedJournal: string;
-  /** The journal of `reset.hooks` (hotfix v0.2.5), started afresh at each reset. */
-  resetJournal: string;
-  logs: string;
-}
-
-export function sandboxPaths(projectDir: string, env: string): SandboxPaths {
-  const dir = join(projectDir, SANDBOX_STATE_DIR, env);
-  return { dir, state: join(dir, 'state.json'), lock: join(dir, 'take.lock'), seedJournal: join(dir, 'seed-journal.json'), resetJournal: join(dir, 'reset-journal.json'), logs: join(dir, 'logs') };
-}
-
-/** A service's log file (the previous one is `<file>.1`). */
-export function serviceLog(paths: SandboxPaths, service: string): string {
-  return join(paths.logs, `${service}.log`);
-}
+// L7.25: a sandbox's files are part of core's folder layout (core/src/layout.ts), re-exported here.
+export { SANDBOX_STATE_DIR, sandboxPaths, serviceLog } from '@retake/core/project';
+export type { SandboxPaths } from '@retake/core/project';
 
 /** A path as messages show it: relative to the working directory when inside it, else absolute. */
 export function shownPath(file: string, cwd: string = process.cwd()): string {

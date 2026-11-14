@@ -24,9 +24,11 @@
  * Everything else stays: an automated sign-in's `{{env:NAME}}` secrets (project.yaml) are read by the worker from its
  * environment, as for a worker started in a terminal.
  */
+import type { EngineEnv } from '../env.js';
 import { existsSync } from 'node:fs';
 import { delimiter, isAbsolute } from 'node:path';
-import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, isUnder, loadPathSeparator, workspaceFolders } from '@retake/core';
+import { isUnder } from '@retake/core/base';
+import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, loadPathSeparator, workspaceFolders } from '@retake/core/policy';
 import { clientPath, retakeHome, nodeFileFacts } from '@retake/core/io';
 import { cleansWorkerEnv } from '../caller.js';
 import type { Caller } from '../caller.js';
@@ -77,7 +79,7 @@ export interface WorkerEnvOptions {
 }
 
 /** The environment of a worker a client (anything but the CLI) starts for the workspace `root`. */
-export function cleanWorkerEnv(env: NodeJS.ProcessEnv, root: string, o: WorkerEnvOptions = {}): NodeJS.ProcessEnv {
+export function cleanWorkerEnv(env: EngineEnv, root: string, o: WorkerEnvOptions = {}): NodeJS.ProcessEnv {
   const folders = [...new Set([root, ...(o.folders ?? [])])];
   const out: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(env)) {
@@ -97,6 +99,6 @@ export function cleanWorkerEnv(env: NodeJS.ProcessEnv, root: string, o: WorkerEn
  * for too: the one the client hands (the Studio: the same cleaner's), else a clean copy of this process's for every
  * caller but the CLI (caller.ts cleansWorkerEnv), else none (the CLI: the worker inherits this process's environment).
  */
-export function workerEnvOf(o: { workerEnv?: NodeJS.ProcessEnv }, caller: Caller, ws: OpenedWorkspace): NodeJS.ProcessEnv | undefined {
-  return o.workerEnv ?? (cleansWorkerEnv(caller) ? cleanWorkerEnv(process.env, ws.root, { folders: workspaceFolders(ws) }) : undefined);
+export function workerEnvOf(o: { workerEnv?: NodeJS.ProcessEnv }, caller: Caller, ws: OpenedWorkspace, vars: EngineEnv): NodeJS.ProcessEnv | undefined {
+  return o.workerEnv ?? (cleansWorkerEnv(caller) ? cleanWorkerEnv(vars, ws.root, { folders: workspaceFolders(ws) }) : undefined);
 }

@@ -28,9 +28,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import { chmod, rename, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
-import { RUN_ID_RE } from '../refs.js';
+import { isRunId } from '@retake/core/ids';
 import { readPlainRange } from '../run-files.js';
-import type { LiveFrame, LiveSink } from '@retake/runner-web';
+import type { LiveFrame, LiveSink } from '@retake/runner-web/types';
 import { checkRequest } from '../http/gate.js';
 import type { RouteSpec } from '../http/gate.js';
 import { LOOPBACK, listenLoopback } from '../http/listen.js';
@@ -39,6 +39,8 @@ import { isAlive } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
 import type { JobQueueView } from './job-queue.js';
 import type { JobFiles } from './queue.js';
+import { EngineError } from '../errors.js';
+import { bestEffort } from '@retake/core/base';
 
 export const LIVE_FILE_VERSION = 1;
 export const LIVE_PATH = '/v1/frames';
@@ -152,7 +154,7 @@ async function writePrivate(file: string, text: string): Promise<void> {
  * sink receives go to the open streams; `wanted` is true while a stream is open.
  */
 export async function openLiveChannel(o: { files: Pick<JobFiles, 'live'>; jobId: string; runId: string; worker: ProcessIdentity }): Promise<LiveChannel> {
-  if (!RUN_ID_RE.test(o.runId) || o.runId.length > 200) throw new Error(`invalid run id "${o.runId}"`);
+  if (!isRunId(o.runId)) throw new EngineError('invalid', `invalid run id "${o.runId}"`);
   const file = o.files.live(o.jobId);
   const token = newSecret();
   const streams = new Set<Stream>();
@@ -288,9 +290,7 @@ export async function readLiveChannel(queue: Pick<JobQueueView, 'claimOf'>, file
     typeof v !== 'object' ||
     v.v !== LIVE_FILE_VERSION ||
     v.job !== jobId ||
-    typeof v.run !== 'string' ||
-    !RUN_ID_RE.test(v.run) ||
-    v.run.length > 200 ||
+    !isRunId(v.run) ||
     !Number.isInteger(v.port) ||
     (v.port as number) < 1 ||
     (v.port as number) > 65535 ||
@@ -301,9 +301,9 @@ export async function readLiveChannel(queue: Pick<JobQueueView, 'claimOf'>, file
   ) {
     return null;
   }
-  const claim = await queue.claimOf(jobId).catch(() => undefined);
+  const claim = await bestEffort(queue.claimOf(jobId), 'a claim that cannot be read is no live worker: no channel');
   if (!claim || claim.pid !== v.pid || (claim.started_at ?? null) !== (v.started_at ?? null)) return null;
-  if (!(await isAlive(claim).catch(() => false))) return null;
+  if (!(await bestEffort(isAlive(claim), 'a worker whose liveness cannot be told is not trusted with a channel', false))) return null;
   return { v: LIVE_FILE_VERSION, port: v.port as number, token: v.token, job: jobId, run: v.run, pid: v.pid as number, ...(v.started_at ? { started_at: v.started_at } : {}) };
 }
 

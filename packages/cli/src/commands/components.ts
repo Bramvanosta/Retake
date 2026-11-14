@@ -1,28 +1,14 @@
-import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, COMPONENT_KINDS, errorsOf, warningsOf } from '@retake/core';
-import { bundleInfo, fileFacts } from '@retake/core/io';
-import type { ComponentKind } from '@retake/core';
-import {
-  PREVIEW_FILE,
-  PREVIEW_THEME,
-  createComponent,
-  loadComponentRegistry,
-  paramDefaults,
-  previewStatus,
-  scaffoldDir,
-  validateComponentDir,
-} from '@retake/components';
-import type { ComponentInfo, ComponentIssue, ComponentRegistry, JsonSchemaNode, RegistryNotice } from '@retake/components';
-import { loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
-import type { PreviewComponentTarget, RenderedPreview, PreviewReadmeWriter } from '@retake/editor';
-import { componentWriter, personScope, fileWriter, ProjectStore } from '@retake/engine';
-import type { OpenedWorkspace } from '@retake/engine';
+import { errorsOf, warningsOf } from '@retake/core/base';
+import { bundleInfo } from '@retake/core/io';
+import type { ComponentKind } from '@retake/core/model';
+import { componentCreateShell, componentListEntries, componentPreviewTargets, componentPreviewTheme, componentReadmeWriter, componentValidateShell, personScope, previewsWork } from '@retake/engine';
+import type { ComponentEntry, ComponentRef, OpenedWorkspace, RegistryNoticeView } from '@retake/engine';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural, truncate } from '../ui.js';
-import { openWorkspace } from '../workspace.js';
+import { cliPorts, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface ComponentsListOptions {
@@ -30,27 +16,27 @@ export interface ComponentsListOptions {
   json?: boolean;
 }
 
-function info(c: ComponentInfo) {
+function info(c: ComponentEntry) {
   const m = c.manifest;
   return {
-    id: m.id,
-    kind: m.kind,
-    version: m.version,
-    name: m.name,
-    description: m.description,
+    id: c.id,
+    kind: c.kind,
+    version: c.version,
+    name: c.name,
+    description: c.description,
     source: c.source,
     dir: c.dir,
     entry: c.entry,
-    slots: Object.keys(m.slots),
-    params: paramDefaults(m.params as JsonSchemaNode | undefined),
+    slots: c.slots,
+    params: c.param_defaults,
     ...(m.duration ? { duration: m.duration } : {}),
     ...(m.variants ? { variants: m.variants } : {}),
     ...(m.tags ? { tags: m.tags } : {}),
-    ...(existsSync(join(c.dir, PREVIEW_FILE)) ? { preview: join(c.dir, PREVIEW_FILE) } : {}),
+    ...(c.preview ? { preview: c.preview } : {}),
   };
 }
 
-function printNotices(ui: Ui, notices: readonly RegistryNotice[]): void {
+function printNotices(ui: Ui, notices: readonly RegistryNoticeView[]): void {
   for (const n of notices) {
     const text = `${n.message}${n.id ? '' : ` (${ui.path(n.dir)})`}`;
     if (n.severity === 'error') ui.error(text);
@@ -62,15 +48,15 @@ function printNotices(ui: Ui, notices: readonly RegistryNotice[]): void {
 /** `retake components list [--kind K] [--json]`: workspace components, then the built-in library. */
 export async function componentsListCommand(ui: Ui, global: GlobalOptions, opts: ComponentsListOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const reg = await loadComponentRegistry({ root: ws.root });
-  const list = reg.list(opts.kind);
+  const reg = await componentListEntries(ws, opts.kind);
+  const list = reg.components;
   if (opts.json) {
     ui.result(
       JSON.stringify(
         {
           root: ws.root,
-          components_dir: reg.componentsDir,
-          builtin_dir: reg.builtinDir,
+          components_dir: reg.components_dir,
+          builtin_dir: reg.builtin_dir,
           components: list.map(info),
           notices: reg.notices.map((n) => ({ severity: n.severity, message: n.message, dir: n.dir, id: n.id, issues: n.issues ?? [] })),
         },
@@ -81,7 +67,7 @@ export async function componentsListCommand(ui: Ui, global: GlobalOptions, opts:
     return EXIT.ok;
   }
   const c = ui.c;
-  ui.result(`${c.bold('Components')} ${c.dim(`${ui.path(reg.componentsDir)} → built-in library`)}`);
+  ui.result(`${c.bold('Components')} ${c.dim(`${ui.path(reg.components_dir)} → built-in library`)}`);
   if (list.length === 0) {
     ui.result(
       c.dim(
@@ -91,10 +77,10 @@ export async function componentsListCommand(ui: Ui, global: GlobalOptions, opts:
       ),
     );
   }
-  const idWidth = Math.max(0, ...list.map((i) => i.manifest.id.length));
-  const kindWidth = Math.max(0, ...list.map((i) => i.manifest.kind.length));
+  const idWidth = Math.max(0, ...list.map((i) => i.id.length));
+  const kindWidth = Math.max(0, ...list.map((i) => i.kind.length));
   for (const item of list) {
-    const m = item.manifest;
+    const m = item;
     const source = item.source === 'workspace' ? c.cyan('workspace') : c.dim('built-in ');
     ui.result(`  ${c.bold(m.id.padEnd(idWidth))}  ${m.kind.padEnd(kindWidth)}  ${source}  ${c.dim(m.version.padEnd(6))}  ${truncate(m.description, 70)}`);
   }
@@ -106,68 +92,26 @@ export interface ComponentsValidateOptions {
   json?: boolean;
 }
 
-interface Target {
-  /** Id when known (from the registry or the folder). */
-  id: string;
-  dir: string;
-}
-
-function isDir(p: string): boolean {
-  try {
-    return statSync(p).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-/** The folder of an id (valid or invalid component of the registry), else a directory path. */
-function targetOf(reg: ComponentRegistry, arg: string): Target {
-  if (COMPONENT_ID_RE.test(arg)) {
-    if (reg.has(arg)) return { id: arg, dir: reg.get(arg).dir };
-    const broken = reg.notices.find((n) => n.id === arg && n.severity === 'error');
-    if (broken) return { id: arg, dir: broken.dir };
-  }
-  const dir = resolve(arg);
-  if (isDir(dir)) return { id: arg, dir };
-  // Neither: let the registry explain (not found, did you mean…).
-  reg.get(arg);
-  throw new CliError(`component "${arg}" not found`);
+/** What a person named on the command line: an id, else a folder (resolved against the current folder). */
+function refOf(arg: string): ComponentRef {
+  return { ref: arg, dir: resolve(arg) };
 }
 
 /**
  * `retake components validate [<id|dir>] [--json]`: manifest, entry and compile check of one component — or of every
  * workspace component when none is given. Exit 1 on any error.
  */
-export async function componentsValidateCommand(
-  ui: Ui,
-  global: GlobalOptions,
-  arg: string | undefined,
-  opts: ComponentsValidateOptions,
-): Promise<ExitCode> {
+export async function componentsValidateCommand(ui: Ui, global: GlobalOptions, arg: string | undefined, opts: ComponentsValidateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const reg = await loadComponentRegistry({ root: ws.root });
-  let targets: Target[];
-  if (arg !== undefined) {
-    targets = [targetOf(reg, arg)];
-  } else {
-    const valid = reg.list().filter((i) => i.source === 'workspace').map((i) => ({ id: i.manifest.id, dir: i.dir }));
-    const broken = reg.notices
-      .filter((n) => n.severity === 'error' && n.source === 'workspace' && n.id !== undefined)
-      .map((n) => ({ id: n.id!, dir: n.dir }));
-    targets = [...valid, ...broken].sort((a, b) => a.id.localeCompare(b.id));
-  }
-  const results: Array<{ id: string; dir: string; ok: boolean; issues: ComponentIssue[] }> = [];
-  for (const t of targets) {
-    const v = await validateComponentDir(t.dir);
-    results.push({ id: v.manifest?.id ?? t.id, dir: v.dir, ok: v.ok, issues: v.issues });
-  }
+  const validated = await componentValidateShell(ws, arg !== undefined ? refOf(arg) : { workspace: true });
+  const results = validated.components;
   const failed = results.some((r) => !r.ok);
   if (opts.json) {
     ui.result(JSON.stringify({ ok: !failed, components: results }, null, 2));
     return failed ? EXIT.failure : EXIT.ok;
   }
   const c = ui.c;
-  if (results.length === 0) ui.warn(`no workspace component in ${ui.path(reg.componentsDir)}`);
+  if (results.length === 0) ui.warn(`no workspace component in ${ui.path(validated.components_dir)}`);
   for (const r of results) {
     const errors = errorsOf(r.issues).length;
     const warnings = warningsOf(r.issues).length;
@@ -189,26 +133,25 @@ export interface ComponentsCreateOptions {
   preview?: boolean;
 }
 
-/**
- * The READMEs of the workspace's components, written through the project store of its components folder (journaled as
- * the CLI's, on the version read — or created when there was none); the built-in library's and the scaffolds' are
- * written directly by the editor.
- */
-function componentReadmes(ws: OpenedWorkspace): PreviewReadmeWriter {
-  return { root: ws.componentsDir, write: fileWriter(new ProjectStore(ws.componentsDir, personScope(ws.root), undefined, '<components_dir>'), 'component') };
+/** The preview README writer of the workspace's components, journaled as the CLI's (engine componentReadmeWriter). */
+function componentReadmes(ws: OpenedWorkspace) {
+  return componentReadmeWriter(ws, personScope(ws.root, cliPorts));
 }
 
 /** `retake components create <id> --kind K [--description D] [--name N]`: scaffold a workspace component. */
 export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id: string, opts: ComponentsCreateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const created = await createComponent(ws.root, { id, kind: opts.kind, description: opts.description, name: opts.name, write: componentWriter(ws, personScope(ws.root)) });
+  const created = await componentCreateShell(ws, { id, kind: opts.kind, description: opts.description, name: opts.name }, personScope(ws.root, cliPorts));
   // The preview (preview.png + preview.json + the README block) — skipped with a warning when no browser can render.
-  let preview: RenderedPreview | undefined;
+  let preview: Awaited<ReturnType<typeof previewsWork>>[number] | undefined;
+  let previewTheme: string | undefined;
   let previewError: string | undefined;
   if (opts.preview !== false) {
     try {
-      const template = await loadPreviewTheme(opts.theme ?? PREVIEW_THEME, ws.root, fileFacts(ws.policy));
-      [preview] = await renderComponentPreviews({
+      const { theme, template } = await componentPreviewTheme(ws, opts.theme);
+      previewTheme = theme;
+      [preview] = await previewsWork({
+        renderer: cliPorts.renderer,
         workPolicy: ws.policy,
         readmes: componentReadmes(ws),
         root: ws.root,
@@ -223,8 +166,8 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
     ui.result(
       JSON.stringify(
         {
-          id: created.manifest.id,
-          kind: created.manifest.kind,
+          id: created.id,
+          kind: created.kind,
           dir: created.dir,
           entry: created.entry,
           files: created.files,
@@ -244,7 +187,7 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
   ui.line(c.dim('  component.yaml  manifest: slots, params (JSON Schema + defaults), duration, preview samples'));
   ui.line(c.dim('  index.tsx       implementation: theme tokens + unit, frame-driven, imports react / remotion / the kit'));
   ui.line(c.dim('  README.md       notes for whoever edits it (+ the generated preview block)'));
-  if (preview) ui.line(c.dim(`  preview.png     generated preview (${preview.meta?.theme ?? PREVIEW_THEME} theme, at ${preview.at} s): ${ui.path(preview.file)}`));
+  if (preview) ui.line(c.dim(`  preview.png     generated preview (${preview.meta?.theme ?? previewTheme} theme, at ${preview.at} s): ${ui.path(preview.file)}`));
   if (previewError) ui.warn(`no preview rendered (${previewError}): run \`retake components preview ${created.manifest.id}\` when a browser is available`);
   if (created.overrides) ui.warn(`${created.manifest.id} overrides the built-in component of the same id`);
   for (const i of created.issues) ui.line(`  ${ui.issue(i, join(created.dir, i.file))}`);
@@ -266,24 +209,6 @@ export interface ComponentsPreviewOptions {
   json?: boolean;
 }
 
-/** Every component a preview can be rendered for: the registry (workspace + built-in) and the per-kind scaffolds. */
-function allPreviewTargets(reg: ComponentRegistry, workspaceOnly: boolean): PreviewComponentTarget[] {
-  const out: PreviewComponentTarget[] = reg
-    .list()
-    .filter((i) => !workspaceOnly || i.source === 'workspace')
-    .map((i) => ({ id: i.manifest.id, dir: i.dir, entry: i.entry, manifest: i.manifest }));
-  return out;
-}
-
-async function scaffoldTargets(): Promise<PreviewComponentTarget[]> {
-  const out: PreviewComponentTarget[] = [];
-  for (const kind of COMPONENT_KINDS) {
-    const v = await validateComponentDir(scaffoldDir(kind));
-    if (v.manifest) out.push({ id: v.manifest.id, dir: v.dir, entry: join(v.dir, v.manifest.entry ?? 'index.tsx'), manifest: v.manifest });
-  }
-  return out;
-}
-
 /**
  * `retake components preview [<id|dir>] [--all] [--stale] [--theme T] [--out DIR] [--json]`: render each component
  * with its manifest preview samples into <component dir>/preview.png (960×540) + preview.json + the README block —
@@ -291,42 +216,39 @@ async function scaffoldTargets(): Promise<PreviewComponentTarget[]> {
  */
 export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, arg: string | undefined, opts: ComponentsPreviewOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const reg = await loadComponentRegistry({ root: ws.root });
-  let targets: PreviewComponentTarget[];
-  if (arg !== undefined) {
-    const scaffold = /^scaffolds\/([a-z]+)$/.exec(arg);
-    const t = scaffold && (COMPONENT_KINDS as readonly string[]).includes(scaffold[1]) ? { id: arg, dir: scaffoldDir(scaffold[1] as ComponentKind) } : targetOf(reg, arg);
-    const v = await validateComponentDir(t.dir);
-    if (!v.ok || !v.manifest) {
-      for (const i of v.issues) ui.line(`  ${ui.issue(i, join(v.dir, i.file))}`);
-      throw new CliError(`component ${t.id} does not validate: fix it before rendering its preview`);
-    }
-    targets = [{ id: v.manifest.id, dir: v.dir, entry: join(v.dir, v.manifest.entry ?? 'index.tsx'), manifest: v.manifest }];
-  } else if (opts.all) {
+  let workspaceOnly = false;
+  if (arg === undefined && opts.all) {
     // From an app bundle, --all means --workspace: the built-in library and the scaffolds ship inside it, sealed.
-    const workspaceOnly = opts.workspace === true || bundleInfo() !== null;
-    if (workspaceOnly && !opts.workspace && !opts.json) ui.line(ui.c.dim("the built-in components ship inside the Retake app and keep their own previews: rendering this workspace's"));
-    targets = allPreviewTargets(reg, workspaceOnly);
-    if (!workspaceOnly) targets.push(...(await scaffoldTargets()));
-  } else {
+    workspaceOnly = opts.workspace === true || bundleInfo() !== null;
+  } else if (arg === undefined) {
     throw new CliError('name a component (id or folder) or pass --all');
   }
-  const themeName = opts.theme ?? PREVIEW_THEME;
-  if (opts.stale) targets = targets.filter((t) => previewStatus(t.dir, { theme: themeName }).state !== 'fresh');
+  const picked = await componentPreviewTargets(ws, arg !== undefined ? { ref: refOf(arg) } : { all: true, workspaceOnly }, {
+    ...(opts.theme !== undefined ? { theme: opts.theme } : {}),
+    ...(opts.stale ? { stale: true } : {}),
+  });
+  if ('invalid' in picked) {
+    for (const i of picked.invalid.issues) ui.line(`  ${ui.issue(i, join(picked.invalid.dir, i.file))}`);
+    throw new CliError(`component ${picked.invalid.id} does not validate: fix it before rendering its preview`);
+  }
+  if (arg === undefined && workspaceOnly && !opts.workspace && !opts.json)
+    ui.line(ui.c.dim("the built-in components ship inside the Retake app and keep their own previews: rendering this workspace's"));
+  const { targets, registry, theme: themeName } = picked;
   const c = ui.c;
   if (targets.length === 0) {
     if (opts.json) ui.result(JSON.stringify({ theme: themeName, previews: [] }, null, 2));
     else ui.ok('every preview is up to date');
     return EXIT.ok;
   }
-  const template = await loadPreviewTheme(themeName, ws.root, fileFacts(ws.policy));
+  const { template } = await componentPreviewTheme(ws, themeName);
   if (!opts.json) ui.line(c.dim(`rendering ${plural(targets.length, 'preview')} with the ${template.name} theme…`));
   const t0 = performance.now();
-  const done = await renderComponentPreviews({
+  const done = await previewsWork({
+    renderer: cliPorts.renderer,
     workPolicy: ws.policy,
     readmes: componentReadmes(ws),
     root: ws.root,
-    registry: reg,
+    registry,
     template,
     targets,
     ...(opts.out ? { outDir: resolve(opts.out) } : {}),
@@ -335,10 +257,13 @@ export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, ar
     },
   });
   if (opts.json) {
-    ui.result(JSON.stringify({ theme: template.name, previews: done.map((p) => ({ id: p.id, file: p.file, bytes: p.bytes, at: p.at, screen: p.screen, quantized: p.quantized, readme: p.readme })) }, null, 2));
+    ui.result(
+      JSON.stringify({ theme: template.name, previews: done.map((p) => ({ id: p.id, file: p.file, bytes: p.bytes, at: p.at, screen: p.screen, quantized: p.quantized, readme: p.readme })) }, null, 2),
+    );
     return EXIT.ok;
   }
-  for (const p of done) ui.ok(`${c.bold(p.id)} ${ui.path(p.file)} ${c.dim(`${Math.round(p.bytes / 1024)} KB · at ${p.at} s${p.screen ? ` · ${p.screen} screen` : ''}${p.quantized ? ' · 256 colours' : ''}`)}`);
+  for (const p of done)
+    ui.ok(`${c.bold(p.id)} ${ui.path(p.file)} ${c.dim(`${Math.round(p.bytes / 1024)} KB · at ${p.at} s${p.screen ? ` · ${p.screen} screen` : ''}${p.quantized ? ' · 256 colours' : ''}`)}`);
   ui.line(c.dim(`${plural(done.length, 'preview')} in ${((performance.now() - t0) / 1000).toFixed(1)} s`));
   return EXIT.ok;
 }

@@ -95,16 +95,7 @@ export type ComponentKind =
   /** Transition between two segments. */
   | 'transition';
 
-export const COMPONENT_KINDS: readonly ComponentKind[] = [
-  'intro',
-  'outro',
-  'card',
-  'interstitial',
-  'caption',
-  'layout',
-  'overlay',
-  'transition',
-] as const;
+export const COMPONENT_KINDS: readonly ComponentKind[] = ['intro', 'outro', 'card', 'interstitial', 'caption', 'layout', 'overlay', 'transition'] as const;
 
 /**
  * A component id: "namespace/name", lower-case letters, digits and "-" on each side (e.g. "studio/intro-stack").
@@ -543,20 +534,7 @@ export interface MediaFileFields {
 }
 
 /** Where a box-filling overlay (a user video, image or Lottie) goes over the capture. */
-export const OVERLAY_ANCHORS = [
-  'target',
-  'cursor',
-  'screen',
-  'center',
-  'top-left',
-  'top',
-  'top-right',
-  'left',
-  'right',
-  'bottom-left',
-  'bottom',
-  'bottom-right',
-] as const;
+export const OVERLAY_ANCHORS = ['target', 'cursor', 'screen', 'center', 'top-left', 'top', 'top-right', 'left', 'right', 'bottom-left', 'bottom', 'bottom-right'] as const;
 export type OverlayAnchor = (typeof OVERLAY_ANCHORS)[number];
 
 /**
@@ -999,13 +977,7 @@ export interface HookCommon {
 }
 
 /** `sql: "hooks/x.sql"` (path when it ends with .sql, inline query otherwise); `shell: "cmd"`; `js: "code"`. */
-export type HookStep = HookCommon &
-  (
-    | { http: HttpHookSpec }
-    | { sql: string | SqlHookSpec }
-    | { shell: string | ShellHookSpec }
-    | { js: string | JsHookSpec }
-  );
+export type HookStep = HookCommon & ({ http: HttpHookSpec } | { sql: string | SqlHookSpec } | { shell: string | ShellHookSpec } | { js: string | JsHookSpec });
 
 export type HookKind = 'http' | 'sql' | 'shell' | 'js';
 
@@ -1328,16 +1300,6 @@ export interface ReadOnlySettings {
   mocks?: WriteMockSpec[];
 }
 
-/** The long form of an environment in project.yaml (the short form is the page map itself). */
-export interface EnvironmentSpec {
-  /** A production environment: read-only unless `access: read-write`, and then only with `--allow-writes`. */
-  production?: boolean;
-  /** Default: read-only in production, else read-write. */
-  access?: EnvironmentAccess;
-  pages: Record<string, EnvironmentPageSpec>;
-  read_only?: ReadOnlySettings;
-}
-
 /**
  * What project.yaml says about an environment besides its page URLs (`ProjectConfig.environment_settings`, derived
  * by loadProject; only environments that say something are listed).
@@ -1417,13 +1379,7 @@ export interface ExecStepSpec {
 }
 
 /** One step of a sandbox seed: an http, sql or shell hook (no js: there is no browser), or `exec`. */
-export type SeedStep = HookCommon &
-  (
-    | { http: HttpHookSpec }
-    | { sql: string | SqlHookSpec }
-    | { shell: string | ShellHookSpec }
-    | { exec: ExecStepSpec }
-  );
+export type SeedStep = HookCommon & ({ http: HttpHookSpec } | { sql: string | SqlHookSpec } | { shell: string | ShellHookSpec } | { exec: ExecStepSpec });
 
 /** A demo account the seed creates, bound to the persona of the same name on the sandbox's environment. */
 export interface SandboxAccount extends PersonaConfig {
@@ -2300,55 +2256,7 @@ export interface RunEngine {
   fonts?: { files: number; digest: string };
 }
 
-/** runs/<id>/run.json — written at start, updated during the run and at the end. */
-export interface RunRecord {
-  /** Format version (1; absent in runs made before L1.4: read as 1). */
-  version?: 1;
-  id: string;
-  project: string;
-  scenario: string;
-  mode: RunMode;
-  status: RunStatus;
-  started_at: string;
-  finished_at?: string;
-  /** Absolute run directory. */
-  dir: string;
-  env: string;
-  /** `allow_writes`: `--allow-writes` was given and accepted (production with `access: read-write`). */
-  options: { until?: string; hooks: 'run' | 'skip'; headed: boolean; cursor?: 'hidden'; allow_writes?: true };
-  /**
-   * The environment's safety (L1.7): production, the run's effective access, the product's clock (as written, the zone
-   * a time without an offset is read in, frozen or not).
-   */
-  environment?: { production?: true; access: EnvironmentAccess; clock?: { at: string; timezone?: string; freeze?: true }; sandbox?: RunSandbox };
-  steps_total: number;
-  steps_done: number;
-  current?: { scene: string; step: number; action: string };
-  capture?: string;
-  timeline?: string;
-  /** One screenshot per step: a dry run's, or a capture's with `capture.step_shots` (L5.6). */
-  screenshots: string[];
-  hooks: {
-    setup: 'ok' | 'failed' | 'skipped' | 'none';
-    teardown: 'ok' | 'failed' | 'skipped' | 'none';
-    /** `hook:` steps (L5.8; absent when the scenario has none): ok, a step's hook failed, or skipped with the hooks. */
-    steps?: 'ok' | 'failed' | 'skipped';
-  };
-  warnings: string[];
-  error?: RunError;
-  /** The `optional` steps that failed, in order (L5.6; absent when none did). */
-  optional_failures?: OptionalFailure[];
-  /** Dry-run: reason the run stopped early (irreversible step, --until). */
-  stopped_at?: { scene: string; step: number; reason: 'irreversible' | 'until' };
-  /** What ran it (absent in runs made before L1.4). */
-  engine?: RunEngine;
-  /** What the take cost and how smoothly it was filmed (L5.7; captures only). */
-  perf?: RunPerf;
-  /** L4.4: the run is paused now (a run of a job, from the Studio), before this step; `since` ISO time. */
-  paused?: { scene: string; step: number; since: string };
-  /** L4.4: the pauses it had, in order (before which step, when, how long); absent when none. */
-  pauses?: RunPause[];
-}
+// runs/<id>/run.json — the run record, its states and its reader: run-record.ts (RunRecord, StoredRunRecord).
 
 /** run.json `perf` (L5.7, R-FLD-23): what a take cost and how smoothly it was filmed. */
 export interface RunPerf {
@@ -2447,26 +2355,7 @@ export interface RunOutlineStep {
  */
 export type RunSessionStatus = 'valid' | 'unchecked' | 'none' | 'signed_in_auto' | 'failed';
 
-/** Progress events streamed by runners (CLI prints them, MCP stores them). */
-export type RunProgress =
-  | { type: 'run_start'; run: RunRecord }
-  /** L4.4: right after run_start, every step this run executes (`until` and skipped scenes honoured). */
-  | { type: 'outline'; steps: RunOutlineStep[] }
-  /** L4.4: one per persona, from the preflight (before any setup hook); `detail` may hold page text. */
-  | { type: 'session'; persona: string; status: RunSessionStatus; detail?: string }
-  /**
-   * L4.4: a pause between steps: `paused` before step `step` of `scene` (`max_ms`: the longest it may last before the
-   * run stops), `resumed` after `ms` (a capture does not film it). `refused` (with its `reason`) is no longer emitted:
-   * runs of part A's lot wrote it for a capture.
-   */
-  | { type: 'pause'; state: 'paused' | 'resumed' | 'refused'; scene: string; step: number; ms?: number; max_ms?: number; reason?: string }
-  | { type: 'hook'; phase: 'setup' | 'teardown' | 'rollback' | 'step'; name: string; status: 'start' | 'ok' | 'failed' | 'skipped'; message?: string }
-  | { type: 'scene_start'; scene: string; index: number }
-  | { type: 'step_start'; scene: string; step: number; action: string; desc: string }
-  | { type: 'step_end'; scene: string; step: number; action: string; status: TimelineEvent['status']; ms: number; message?: string }
-  | { type: 'log'; level: 'debug' | 'info' | 'warn' | 'error'; message: string }
-  | { type: 'encode'; status: 'start' | 'done'; message?: string }
-  | { type: 'run_end'; run: RunRecord };
+// The progress events a runner streams (RunProgress) carry the run record: run-record.ts.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Frame comments (L3.6; the thread format, ids and schema: comments.ts — docs/DESIGN-phase2.md §4)

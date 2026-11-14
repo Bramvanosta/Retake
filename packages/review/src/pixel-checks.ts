@@ -3,13 +3,13 @@
  * scene starts (rendered frames, and the capture frames behind them), a screen still changing during the scene's
  * opening still (the page was loading), captions that do not show in their area, segments that render nothing.
  */
-import type { Timeline } from '@retake/core';
+import type { Timeline } from '@retake/core/model';
 import { viewOf } from '@retake/editor/plan';
 import type { ClipSegment, EditPlan } from '@retake/editor/plan';
 import type { CheckContext } from './checks.js';
 import { captionRegion, locate } from './checks.js';
-import type { RegionStats } from './pixels.js';
-import { compareSignatures, uniformity } from './pixels.js';
+import type { RegionStats } from './pixel-maths.js';
+import { compareSignatures, uniformity } from './pixel-maths.js';
 import type { SegmentSpan } from './spans.js';
 import { isClip, timecode } from './spans.js';
 import type { Finding } from './types.js';
@@ -213,7 +213,9 @@ function describeSource(input: PixelCheckInput, clip: ClipSegment, frame: number
   const src = clip.srcFrames[Math.max(0, Math.min(clip.srcFrames.length - 1, frame - clip.from))];
   const st = input.sources.get(sourceKey(clip, src));
   if (!st) return '';
-  return uniformity(st, rules) ? ` — capture frame ${src} is ${uniformity(st, rules) === 'blank' ? 'blank' : 'almost empty'} too (an empty or loading page was captured)` : ` — capture frame ${src} is not: the screen was not drawn, or the camera shows an empty area`;
+  return uniformity(st, rules)
+    ? ` — capture frame ${src} is ${uniformity(st, rules) === 'blank' ? 'blank' : 'almost empty'} too (an empty or loading page was captured)`
+    : ` — capture frame ${src} is not: the screen was not drawn, or the camera shows an empty area`;
 }
 
 export function checkPixels(ctx: CheckContext, input: PixelCheckInput): Finding[] {
@@ -341,7 +343,10 @@ export function checkPixels(ctx: CheckContext, input: PixelCheckInput): Finding[
         for (const cue of seg.cues) {
           const lo = seg.from + cue.from + margin;
           const hi = Math.min(seg.from + cue.to, span.clearTo) - margin;
-          const cands = samples.filter((f) => f >= lo && f < hi).map((f) => input.analyses.get(f)?.captionSd).filter((v): v is number => v !== undefined);
+          const cands = samples
+            .filter((f) => f >= lo && f < hi)
+            .map((f) => input.analyses.get(f)?.captionSd)
+            .filter((v): v is number => v !== undefined);
           if (cands.length > 0 && cands.every((sd) => sd < 6)) {
             out.push({ severity: 'warning', code: 'caption-not-visible', message: `the caption "${cue.text}" does not show in the caption area of "${seg.scene}"`, at: locate(ctx, lo) });
           }

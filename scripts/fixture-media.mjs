@@ -47,7 +47,24 @@ try {
   const d = intro.durationInFrames / intro.fps;
   const tone = (f, at, k, a) => `${a}*sin(2*PI*${f}*t)*exp(-${k}*max(0,t-${at}))*min(1,max(0,t-${at})/0.01)`;
   const e = `${tone(659.25, 0.35, 2.2, 0.26)}+${tone(987.77, 0.6, 2.4, 0.2)}+${tone(1318.51, 0.85, 2.8, 0.14)}+0.06*sin(2*PI*329.63*t)*min(1,t/0.5)*min(1,(${d}-t)/0.4)`;
-  ffmpeg(['-i', silent, '-f', 'lavfi', '-i', `aevalsrc=exprs='${e}|${e}':s=48000:d=${d}`, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '96k', '-shortest', '-movflags', '+faststart', join(ASSETS, 'intro.mp4')]);
+  ffmpeg([
+    '-i',
+    silent,
+    '-f',
+    'lavfi',
+    '-i',
+    `aevalsrc=exprs='${e}|${e}':s=48000:d=${d}`,
+    '-c:v',
+    'copy',
+    '-c:a',
+    'aac',
+    '-b:a',
+    '96k',
+    '-shortest',
+    '-movflags',
+    '+faststart',
+    join(ASSETS, 'intro.mp4'),
+  ]);
   console.log(`intro.mp4 ${await kb(join(ASSETS, 'intro.mp4'))}`);
 
   // Outro end card and the studio/media preview sample: stills, palette-quantised.
@@ -63,10 +80,30 @@ try {
 
   // Alpha overlay: transparent background → VP9 with alpha (.webm); ProRes 4444 (.mov) on request.
   const burst = await comp('burst');
-  await renderMedia({ serveUrl, composition: burst, codec: 'vp9', imageFormat: 'png', pixelFormat: 'yuva420p', crf: 30, outputLocation: join(ASSETS, 'sparkle-burst.webm'), browserExecutable, muted: true });
+  await renderMedia({
+    serveUrl,
+    composition: burst,
+    codec: 'vp9',
+    imageFormat: 'png',
+    pixelFormat: 'yuva420p',
+    crf: 30,
+    outputLocation: join(ASSETS, 'sparkle-burst.webm'),
+    browserExecutable,
+    muted: true,
+  });
   console.log(`sparkle-burst.webm ${await kb(join(ASSETS, 'sparkle-burst.webm'))}`);
   if (prores) {
-    await renderMedia({ serveUrl, composition: burst, codec: 'prores', proResProfile: '4444', imageFormat: 'png', pixelFormat: 'yuva444p10le', outputLocation: join(ROOT, 'projects', 'northfield-fixture', '.retake', 'sparkle-burst.mov'), browserExecutable, muted: true });
+    await renderMedia({
+      serveUrl,
+      composition: burst,
+      codec: 'prores',
+      proResProfile: '4444',
+      imageFormat: 'png',
+      pixelFormat: 'yuva444p10le',
+      outputLocation: join(ROOT, 'projects', 'northfield-fixture', '.retake', 'sparkle-burst.mov'),
+      browserExecutable,
+      muted: true,
+    });
     console.log(`.retake/sparkle-burst.mov ${await kb(join(ROOT, 'projects', 'northfield-fixture', '.retake', 'sparkle-burst.mov'))} (git-ignored)`);
   }
 
@@ -78,7 +115,11 @@ try {
   const metaFile = join(PREVIEW, 'samples.json');
   const meta = JSON.parse(await readFile(metaFile, 'utf8'));
   const cup = cupSteam();
-  meta.media = { ...(meta.media ?? {}), image: { file: 'media-sample.png', width: 1200, height: 900 }, lottie: { file: 'lottie-sample.json', width: cup.w, height: cup.h, fps: cup.fr, frames: cup.op - cup.ip } };
+  meta.media = {
+    ...(meta.media ?? {}),
+    image: { file: 'media-sample.png', width: 1200, height: 900 },
+    lottie: { file: 'lottie-sample.json', width: cup.w, height: cup.h, fps: cup.fr, frames: cup.op - cup.ip },
+  };
   await writeFile(metaFile, `${JSON.stringify(meta, null, 2)}\n`);
   console.log('lottie files and samples.json written');
 } finally {

@@ -78,7 +78,8 @@ declares about its licence) and `.retake-theme.json` (inputs and the sha256 of e
   the style word after the file name's last `-` or `_` (`Brand-SemiBold.woff2` → 600; none → 400), with a warning —
   give `{file, weight}` to set it. What a font says about itself (family, copyright, licence) is printed without
   control or bidirectional characters and escaped in `LICENSES.md` (never a link or an image there).
-- **Names**: lower-case letters, digits and `-`; never a starter's name (`default`, `editorial`, `motion`, in any case)
+- **Names**: lower-case letters, digits and `-`, at most 60 characters (the same for a copy made in the Studio; a theme
+  that exists under a longer name keeps working, and can be copied from); never a starter's name (`default`, `editorial`, `motion`, in any case)
   nor a folder that already exists in `templates/`. `--replace` (MCP `replace: true`) replaces a theme Retake made
   only while none of its files changed and none was added — once you edit it, it is yours; through MCP only a theme
   made through MCP is replaced (never one you made with `retake theme create`). Refused when the
@@ -282,7 +283,8 @@ size everything in 1920-wide design px times `props.unit` (2 for 4K, 0.5 for pre
 refused too), `Date`, timers or network; import
 only `react`, `remotion`, `@retake/components/kit` and the component's own files — the renderer primitives
 (`useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence`, `random`) through the kit, like the scaffolds,
-and `remotion` directly only for what the kit does not re-export (`interpolate`, `spring`…). Props: `theme`, `slots`,
+and `remotion` directly only for what the kit does not re-export (`interpolate`, `spring`…). The built-in components
+import `react` and the kit only; a component of your workspace may keep importing `remotion`. Props: `theme`, `slots`,
 `params` (defaults applied), `unit`, `width`, `height`, `fps`, `durationInFrames`, `variant`, and per kind `screen`
 (layout: the capture; interstitial: the last frame; transition: the wrapped segment), `rects` (layout: its evaluated
 geometry in output px — `screen` = where the capture pixels go, `frame`, `display` = the declared screen rect when the
@@ -303,7 +305,7 @@ url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styl
 
 | Helper | What it does |
 |---|---|
-| `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence`, `random` | the renderer primitives, re-exported from remotion (`kit/renderer.ts`, the one place a renderer change touches for your components; remotion's attribution and licence terms unchanged) |
+| `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence`, `random` | the renderer primitives, re-exported from remotion (`kit/renderer.ts`: the kit's one file that names the library, and the one place a renderer change touches for your components; remotion's attribution and licence terms unchanged) |
 | `easing(name \| bezier \| fn)`, `EASINGS`, `cubicBezier`, `themeEasing(theme)` | curves: `linear`, `ease`, `easeIn`, `easeOut`, `easeInOut`, `standard`, `entrance`, `exit`, `gentle`; the template's `zoom_ease` |
 | `progress`, `fadeIn`, `fadeOut`, `fade`, `rise`, `stagger`, `activeIndex` | frame-driven animation (frame + fps, seconds, design px × unit) |
 | `fitText`, `wrapText`, `balanceLines`, `measureText`, `<FitText>` | the largest font size ≤ max that fits a width (and height / line count), balanced lines, cut with "…" below the minimum: text never overflows. Measured with a canvas in the browser, a deterministic estimate in Node |

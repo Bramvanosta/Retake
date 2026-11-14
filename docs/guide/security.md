@@ -123,7 +123,23 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   of `read_only.hosts`.
 - **Destructive hooks need `confirm: true`.** SQL `DELETE`/`DROP`/`TRUNCATE`/`ALTER`/`UPDATE` (inline, in files or
   sent to `psql`), HTTP `DELETE`, shell `rm`/`dropdb`, and hooks declared `destructive: true` are flagged by
-  validation and refused at run time without it (`retake hooks run --yes` approves explicitly).
+  validation and refused at run time without it (`retake hooks run --yes` approves explicitly). A shell command is read
+  with its quoting resolved (`'…'`, `"…"`, `$'…'`, `$"…"`, backslashes), and every script it makes a program run is
+  read too, eight levels deep: command and process substitutions, the `-c` script of a shell (`sh`, `bash`, `zsh`,
+  `dash`, `ksh`, `ash`, `mksh`, `yash`, `fish`, `tcsh`, `csh`, `busybox sh`, and a name ending in one such as `rbash` or
+  `bash5`; also `-ec`, `-lc`, after other options), `eval`, `trap`, an `alias` value, `env -S`, `watch`, `su -c`,
+  `sudo -s` / `-i`, `xargs` and `parallel` running a shell, `find -exec` / `-execdir` / `-ok`, and what a shell reads
+  on its standard input. **Whenever the script a program will run is not exactly in the command, the command counts as
+  destructive.** A script is exact only as a literal string (a `-c`, `eval`, `trap`… argument), a literal heredoc or
+  here-string, or the output of an `echo` without backslashes or a `printf` with one literal format, no directive but
+  `%%` and ANSI-C escapes; everything else counts — a command word computed or expanded when it runs (`$CMD`, `$(…)`,
+  `` `…` ``, `<(…)`, a glob, a brace expansion, after assignments, keywords such as `function`, `coproc`, `time -p`
+  and wrappers such as `sudo`, `env`, `timeout`), a shell reading a script piped from another program (`curl … | sh`,
+  also after a line break, inside `( … )` or a compound command, through `/dev/stdin`, a file descriptor or `|&`), a
+  script from a process substitution (`bash <(…)`, `source <(…)`), a script file named by a computed path
+  (`sh "$SCRIPT"`), and a `-c` script, `xargs` / `find -exec` command or here-string that is computed or receives the
+  file names or input lines (`{}`). A hook of yours written in such a form needs `confirm: true` (or the script
+  written out). A computed argument (`echo "$X"`, `curl "$URL"`) does not count.
 - **Everything is journaled.** Each executed hook and its rollback is recorded in `runs/<id>/hooks-journal.json`
   (captures) or `.retake/journals/<id>.json` (`retake hooks run`, `retake env reset`); `retake env reset`
   replays whatever is still pending in both. Journal entries are signed with the key of your Retake home
@@ -161,6 +177,70 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   These rules decide how a command is written, not what a program does with its arguments: the form still shows the
   command in full, and approving it is approving what it does. A hook that needs more belongs in `hooks/<name>.yaml`
   (or project.yaml's `hooks:` without the scenario's vars), shown in full and asked about, or in a terminal.
+- **An agent's sql hooks are asked about like its shell hooks.** A statement can reach past its database (a database
+  server may run programs or read and write files on its host), so through MCP or the Studio every sql hook the agent
+  wrote — the scenario's setup, teardown and named hooks, or a hook whose statement, file, rollback file or database
+  URL is rendered with its `vars` — needs your approval, whatever the statement, bound to it (and to the bytes of the
+  file it reads) like a shell hook, its statements shown as they will run (a file's text rendered, the file named
+  beside it), its rollback shown and approved with it. Your own sql hooks (project.yaml, `hooks/<name>.yaml`) keep the destructive rule only, and a
+  sandbox's seed and reset steps come from `sandbox.yaml`, which no agent path writes: not concerned. What an approved
+  hook then does is what you approved: a statement or a command that reaches the machine can write any file Retake's
+  own files sit beside — the project's record of scenario writes too — so read it before you say yes.
+- **An agent's shell and sql hooks are asked about in a terminal too.** When the hooks of a scenario were last written
+  by an agent — through MCP or the Studio — `retake run` and `retake hooks run <scenario>:setup|teardown` list its shell
+  and sql hooks (setup, teardown, the named hooks its steps run) as they will run: the command rendered with the run's
+  vars, pages and run id, its working folder, each environment entry and its rollback; an sql hook's statements (a
+  file's text), its database and its rollback; every hidden character written out;
+  a secret stays a token and a value filled from an earlier hook's response is said to be unknown until the run. They
+  run only on your yes: asked in a terminal (no by default), `--yes` in a script, refused without a terminal.
+  Who wrote them is read from the scenario's hook surface — its setup, teardown, named hooks, the names its `hook:`
+  steps run, its vars and its env: each scenario write of Retake adds a line to the project's own record
+  (`<project>/.retake/scenario-writes.jsonl`: the bytes' and the surface's hashes, never a value, and who wrote it).
+  The surface belongs to the newest write that brought it, or to your newest write of it; a write that left it as it
+  was (a caption edited in the Studio) changes nothing, and an edit by hand that leaves the hooks as they were keeps
+  them the agent's. The record read is that of the project holding the scenario file. For writes the record does not
+  hold (from before it, or a line it lost), the workspace journal decides on the exact bytes; when it holds an agent's
+  write of the file with other bytes, who brought the hooks cannot be told, and you are asked. For such a scenario an edit by
+  hand does not stop the question; `retake hooks trust <project> <scenario>` does — it lists the hooks as a run would,
+  asks, and on your yes records them as yours, so runs no longer ask until they change (a terminal's command only).
+  That trust also binds the bytes of the files those hooks read. Code is bound strictly — an sql or js file and its
+  rollback's, and in a shell command the script it runs: the command itself when written with a slash (`./seed.sh`),
+  the script given to `sh`, `bash`, `zsh`, `dash`, `node`, `deno`, `bun`, `tsx`, `python`, `python3`, `ruby`, `perl`,
+  `php`, `source` or `.`, psql's `-f`, and what `<` reads; the command is read with its `$'…'` quoting resolved, and the
+  scripts of its command substitutions and of `sh -c` (also `-ec`, `-lc`) are read the same way; one that changed, one
+  the hooks newly run, or one that cannot
+  be read asks again. Every other file a shell command names (and its `env` values) is data, bound when it exists:
+  one that changed or cannot be read asks again, one that appeared since does not. A word is looked for in the hook's
+  working folder and in every folder an earlier `cd` of the command names; templates are rendered with the vars. When
+  a file is not as trusted, `retake run` and `retake hooks run` ask again, whatever the kinds of the hooks (a js file
+  too), and the listing names each file; the run is then held to the files as they were read — a hook whose files
+  changed since (a teardown or a `hook:` step that runs minutes later, after the capture) is refused, and an sql or js
+  file is checked again as its bytes are read. Files the hooks write are bound like any other, and only a file a hook
+  names as written (a plain `>` target) can become the run's own output: any other held file that changes — between
+  two hooks, or while a hook runs, even by that hook — is refused to the hooks that read it later. So a file written
+  otherwise (`cp`, `tee`, `sed -i`, a script) and read later in the same command is asked about: write it with a plain
+  `>` instead (`cat a > b` for `cp a b`, `… > f` for `… | tee f`). A file a hook writes with a plain `>` is the run's own output only when that hook ran in this
+  command, succeeded and really wrote it (its bytes or its modification time changed; a `>` inside quotes is no
+  redirect): later hooks of the same command read it as written — a script, a data file or a dump one hook writes and
+  a later one reads runs, run after run. The check before the run leaves such a file out only when its writer is due
+  to run before its first reader in the same command; the run then holds it to the trust until its writer writes it.
+  Otherwise — `retake hooks run <scenario>:teardown` alone after its setup, a writer that did not run, wrote nothing
+  (behind a condition) or did not succeed — the file is checked against the trust, and a reader whose writer did not
+  succeed is refused. When such a file is then run as code, its writer's own inputs are bound as code too (`cat n.txt >
+  gen.sh` then `sh gen.sh`: `n.txt` changed or newly there is asked about, under Retake's folders too), and so are the
+  inputs of every writer up a chain of such files (`cat n > a`, `cat a > g.sh`, `sh g.sh`). Not
+  bound: a file reached only through another (a script a bound script runs, an interpreter outside the list such as
+  `awk -f`, what `make` or `npm run` read), a file piped into an interpreter (`cat x.sh | sh`: data, so one that
+  appears later is not looked at, and nothing under Retake's folders), the value of an interpreter's option (in
+  `node --require ./a.js b.js`, `a.js` is taken for the script and `b.js` for data), `$(…)` and glob words
+  (`sh tools/*.sh`), a word with a template other than the vars (`{{run.dir}}`, a secret) or a working folder with
+  one, an absolute or `~` path outside the project and its workspace, a command looked up on PATH, what `>>` appends
+  to, and data under `runs/`, `renders/`, `review/`, `exports/` and `.retake/`; a shell command still reads its script a moment
+  after its check. Files a run writes otherwise belong under `{{run.dir}}`,
+  which is never bound — a `retake run` pattern: `retake hooks run` has no run folder. You are asked as well
+  when the record or the journal cannot be read, or when the project lies outside the projects folder of the
+  workspaces Retake looks at. The listing shows the commands, not the files they read: a command that runs or reads a
+  file an agent can write (a scenario, a theme, a component) runs what that file holds now — read it before you say yes.
 - **Approvals are bound to their job.** A human approval taken at submit is signed for that job's id in that workspace
   and used once, when the worker takes the job: a job file copied under another id or into another workspace, or made
   again under the id of a job that already ran, runs no approved hook.
@@ -256,7 +336,8 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   Like every loopback server, it can be reached by another account of the same Mac while the render runs.
 - **Sandboxes are local.** Every URL of a sandbox.yaml is loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
   `[::1]`; a database URL without `?host=` / `?port=`), a sandbox is never production, and a sandbox scenario's sql
-  hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, a seed's database — must be served by
-  the sandbox or marked `external: true`, and its shell commands get the sandbox services' `env` (`DATABASE_URL`…), not
-  your shell's. Its plain demo passwords are masked like secrets (see [Sandbox mode](sandbox.md#sandbox-mode)).
+  hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, the database of a seed step or of a
+  reset hook — must be served by the sandbox or marked `external: true`, and its shell commands get the sandbox
+  services' `env` (`DATABASE_URL`…), not your shell's. Its plain demo passwords are masked like secrets (see
+  [Sandbox mode](sandbox.md#sandbox-mode)).
 - **Dry runs** never execute steps marked `irreversible`.

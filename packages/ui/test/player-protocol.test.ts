@@ -35,7 +35,8 @@ describe('protocol messages', () => {
       { v: 1, type: 'play', x: 1 },
       { v: 1, type: 'eval', code: '1' },
       { v: 1, type: 'load', plan_url: 'x'.repeat(2049), frame: 0 },
-    ]) expect(parseParentMessage(bad), JSON.stringify(bad)).toBeUndefined();
+    ])
+      expect(parseParentMessage(bad), JSON.stringify(bad)).toBeUndefined();
   });
 
   it('⚑ frame → parent: exact keys, whole frames in range, short text, short lists', () => {
@@ -55,7 +56,8 @@ describe('protocol messages', () => {
       { v: 1, type: 'state', playing: true, buffering: false },
       { v: 1, type: 'hello', bundle: '0123456789abcdef' },
       Object.assign(Object.create({ inherited: 1 }), { v: 1, type: 'ended' }),
-    ]) expect(parseFrameMessage(bad, 90), JSON.stringify(bad)).toBeUndefined();
+    ])
+      expect(parseFrameMessage(bad, 90), JSON.stringify(bad)).toBeUndefined();
     expect(parseHello({ v: 1, type: 'hello', bundle: '0123456789abcdef' })).toBeDefined();
     expect(parseHello({ v: 1, type: 'hello', bundle: 'nope' })).toBeUndefined();
     expect(clip('x'.repeat(500))).toHaveLength(TEXT_MAX);
@@ -166,7 +168,10 @@ describe('connectPreview (the Studio page side)', () => {
   it('⚑ an invalid port message, a frame out of the loaded range, or a flood stops it (port closed, frame removed)', async () => {
     for (const msgs of [
       [{ v: 1, type: 'frame', frame: 'x' }],
-      [{ v: 1, type: 'loaded', frames: 30, missing: [], warnings: [] }, { v: 1, type: 'frame', frame: 31 }],
+      [
+        { v: 1, type: 'loaded', frames: 30, missing: [], warnings: [] },
+        { v: 1, type: 'frame', frame: 31 },
+      ],
     ]) {
       const p = fakePage();
       const { stops } = connect(p);

@@ -3,15 +3,16 @@
  * workspace, the project store's scope, the job queue, the worker starter, the run overlays, the admission rules and the
  * caches the screens share — made once per engine, then handed to the builder of each sub-API (src/facade/*-api.ts).
  */
-import { loginCommand as coreLoginCommand } from '@retake/core';
-import type { AgentChannel, LoadedProject, RunMode, Scenario, WorkFileFacts } from '@retake/core';
-import { fileFacts } from '@retake/core/io';
+import { loginCommand as coreLoginCommand } from '@retake/core/environment';
+import type { LoadedProject, RunMode, Scenario, WorkFileFacts } from '@retake/core/model';
+import type { AgentChannel } from '../caller.js';
 import { admission } from '../admission.js';
 import type { Admission } from '../admission.js';
 import { admits, agentChecks, agentWorkspace, callerOf, refusalChannel } from '../caller.js';
 import type { Caller } from '../caller.js';
 import { CommentIndex } from '../comments.js';
-import type { FileJobQueue } from '../jobs/queue.js';
+import type { JobQueue } from '../jobs/job-queue.js';
+import type { JobFiles } from '../jobs/queue.js';
 import { runBlockers } from '../jobs/run-job.js';
 import type { SubmitContext } from '../jobs/run-job.js';
 import { ensureWorker } from '../jobs/spawn.js';
@@ -23,15 +24,18 @@ import { RenderFrames } from '../render-frames.js';
 import { RunDataCache } from '../run-data.js';
 import { RunThumbs } from '../run-thumbs.js';
 import { ScenarioViews } from '../scenario-view.js';
-import type { StoreScope } from '../store/project-store.js';
+import type { StoreScope } from '../store/store.js';
 import { openWorkspace } from '../workspace.js';
 import { scenarioSessions } from './sessions.js';
 import type { EngineOptions, RunStatusWithJob, ScenarioSessions } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 /** What every sub-API of the façade is built from: made once per engine, shared by its builders. */
 export interface EngineContext {
   readonly opts: EngineOptions;
+  /** The ports this engine runs with (its composition root's choice, ports.ts). */
+  readonly ports: EnginePorts;
   /** The caller of the client and every decision taken from it (caller.ts). */
   readonly caller: Caller;
   /** The agent's checks apply to this caller. */
@@ -47,7 +51,10 @@ export interface EngineContext {
   /** `retake -C <root>`: the commands a human runs name this workspace explicitly. */
   readonly studio: string;
   readonly loginCommand: (p: { project: string; env: string; persona?: string }) => string;
-  readonly queue: FileJobQueue;
+  /** The workspace's job queue, as its port: the facade never names the class behind it. */
+  readonly queue: JobQueue;
+  /** The paths of that queue's files (a job's folder, its log), handed beside it. */
+  readonly jobFiles: JobFiles;
   /** What a job submission is handed: the workspace, the queue, the command line, the client. */
   readonly submitCtx: SubmitContext;
   /** Start the workspace's worker (unless autoStartWorker is false): after a submit or a cancel. */
@@ -71,38 +78,40 @@ function shellQuote(s: string): string {
 
 /**
  * The context of an engine for a client: its caller, its workspace (opened with the caller's agent policy) and the
- * shared parts. `queueOf` builds the workspace's job queue (createEngine, the composition root, builds the file queue).
+ * shared parts. The workspace's job queue and the paths of its files come from the ports' queue factory (the file
+ * queue for the product, a memory one a test hands): the context holds the queue as its port.
  */
-export async function engineContext(opts: EngineOptions, queueOf: (root: string, cli: string) => FileJobQueue): Promise<EngineContext> {
+export async function engineContext(opts: EngineOptions, ports: EnginePorts): Promise<EngineContext> {
   const caller = callerOf(opts.client);
   // The agent's checks and wording of this caller (caller.ts).
   const agent = agentChecks(caller);
   const via = refusalChannel(caller);
   // Every caller but the CLI serves trust mcp in this process (the MCP server, the Studio server; tests: fail-safe).
-  const ws = await openWorkspace({ root: opts.root, agent: agentWorkspace(caller) });
+  const ws = await openWorkspace({ root: opts.root, agent: agentWorkspace(caller), reads: ports.reads });
   // Every authored write of this engine goes through the project store, journaled as this caller's.
-  const scope: StoreScope = { workspace: ws.root, caller };
+  const scope: StoreScope = { workspace: ws.root, caller, clock: ports.clock, stores: ports.stores };
   const project = (slug: string) => openProjectBySlug(ws, slug);
   /** The commands a human runs name this workspace explicitly (they may be typed in any folder). */
   const studio = `retake -C ${shellQuote(ws.root)}`;
   const loginCommand = (p: { project: string; env: string; persona?: string }) => coreLoginCommand(p).replace(/^retake /, `${studio} `);
 
-  const queue = queueOf(ws.root, studio);
+  const { queue, files: jobFiles } = ports.queues(ws.root, studio, ports.clock, ports.env);
   const commentIndex = new CommentIndex();
-  const submitCtx = { ws, queue, cli: studio, client: opts.client };
+  const submitCtx: SubmitContext = { ws, queue, cli: studio, client: opts.client, ...ports };
   // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
   const runData = new RunDataCache();
-  const runThumbs = new RunThumbs({ policy: ws.policy }, runData);
+  // Both draw with this engine's reviewer (its frames: the product's load the review's light entry only).
+  const runThumbs = new RunThumbs({ policy: ws.policy, frames: ports.reviewer.frames }, runData);
   // The comment viewer's frames wait for the same ffmpeg slots as the run thumbnails (critique B7).
-  const renderFrames = new RenderFrames({ policy: ws.policy, slots: runThumbs.ffmpegSlots, comments: commentIndex });
+  const renderFrames = new RenderFrames({ policy: ws.policy, frames: ports.reviewer.frames, slots: runThumbs.ffmpegSlots, comments: commentIndex });
   const startWorker: EngineContext['startWorker'] = async () => {
     if (opts.autoStartWorker === false) return undefined;
     // Any caller but the CLI hands its worker a clean environment (a worker an MCP client starts serves the Studio's
     // later jobs too); the Studio passes its own (the same cleaner).
-    const env = workerEnvOf(opts, caller, ws);
+    const env = workerEnvOf(opts, caller, ws, ports.env);
     return ensureWorker(ws.root, {
       ...(opts.workerIdleExitMs !== undefined ? { idleExitMs: opts.workerIdleExitMs } : {}),
-      ...(env ? { env } : {}),
+      env: env ?? ports.env,
       ...(opts.workerSpawn ? { spawn: opts.workerSpawn } : {}),
       startedBy: opts.client,
     });
@@ -132,7 +141,7 @@ export async function engineContext(opts: EngineOptions, queueOf: (root: string,
   const boards = new ProjectBoards({
     ws,
     queue,
-    files: queue.files,
+    files: jobFiles,
     project,
     overlay: async (slug, run) => {
       const job = await queue.ofRun(slug, run.id);
@@ -141,11 +150,37 @@ export async function engineContext(opts: EngineOptions, queueOf: (root: string,
   });
   // The sessions of a parsed scenario on an environment: the Run screen's panel (auth.forScenario) and the capture's
   // sessions_ack rule (on the scenario and environment the run submit settled).
-  const sessionsOf: EngineContext['sessionsOf'] = (p, name, scenario, o) => scenarioSessions({ opts, caller, ws, loginCommand }, p, name, scenario, o);
+  const sessionsOf: EngineContext['sessionsOf'] = (p, name, scenario, o) =>
+    scenarioSessions({ opts, caller, ws, loginCommand, sessions: ports.capture.sessions, vars: ports.env }, p, name, scenario, o);
   // The admission rules (admission.ts) of the runs, renders and exports this caller submits: the Studio's and MCP's,
   // worded for its channel.
   const admitted = admits(caller)
     ? admission({ queue, channel: via, sessions: (t) => sessionsOf(t.project, t.scenario.name, t.scenario.scenario, { ...(t.env !== undefined ? { env: t.env } : {}), mode: 'capture' }) })
     : undefined;
-  return { opts, caller, agent, via, ws, files: fileFacts(ws.policy), scope, project, studio, loginCommand, queue, submitCtx, startWorker, overlaid, sessionsOf, admitted, runData, runThumbs, commentIndex, renderFrames, views, boards };
+  return {
+    opts,
+    ports,
+    caller,
+    agent,
+    via,
+    ws,
+    files: ws.reads.fileFacts(ws.policy),
+    scope,
+    project,
+    studio,
+    loginCommand,
+    queue,
+    jobFiles,
+    submitCtx,
+    startWorker,
+    overlaid,
+    sessionsOf,
+    admitted,
+    runData,
+    runThumbs,
+    commentIndex,
+    renderFrames,
+    views,
+    boards,
+  };
 }

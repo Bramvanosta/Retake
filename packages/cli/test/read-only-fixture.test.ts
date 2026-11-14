@@ -57,7 +57,7 @@ async function mutations(): Promise<number> {
 }
 
 describe('writesSummary (run summary line)', () => {
-  it('counts the writes of a read-only run, the sign-in\'s exempt ones excepted; on a read-write run, only writes stopped on another environment\'s hosts', () => {
+  it("counts the writes of a read-only run, the sign-in's exempt ones excepted; on a read-write run, only writes stopped on another environment's hosts", () => {
     expect(writesSummary(undefined)).toBeUndefined();
     expect(writesSummary({ environment: { name: 'local', access: 'read-write' } })).toBeUndefined();
     expect(

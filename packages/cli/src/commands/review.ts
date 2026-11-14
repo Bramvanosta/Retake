@@ -1,13 +1,14 @@
-import type { Finding, ReviewProgress } from '@retake/review';
-import { environmentLine, findingLine, summaryLine } from '@retake/review';
-import { findRenderOf, reviewWork } from '@retake/engine';
-import type { ReviewResult } from '@retake/engine';
-import type { WorkPolicy } from '@retake/core';
+import type { Finding, ReviewProgress } from '@retake/review/checks';
+import { environmentLine, findRenderOf, findingLine, reviewWork, summaryLine } from '@retake/engine';
+import type { ReviewResult, Reviewer } from '@retake/engine';
+import { printableText, bestEffort } from '@retake/core/base';
+import type { WorkPolicy } from '@retake/core/policy';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { renderNotes } from './render-notes.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
 
@@ -60,13 +61,14 @@ export function printReview(ui: Ui, r: ReviewResult): void {
   ui.line(c.dim(`  report ${ui.path(files.report_md)} · ${formatMs(r.review.ms)}`));
 }
 
-/** Run a review with a status line; returns the result. */
+/** Run a review on `reviewer` (the command's: cliPorts) with a status line; returns the result. */
 export async function runReview(
   ui: Ui,
-  opts: { policy: WorkPolicy; project: Parameters<typeof reviewWork>[0]['project']; root: string; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
+  reviewer: Reviewer,
+  opts: { policy: WorkPolicy; project: Parameters<typeof reviewWork>[1]['project']; root: string; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
 ): Promise<ReviewResult> {
   try {
-    return await reviewWork({
+    return await reviewWork(reviewer, {
       policy: opts.policy,
       project: opts.project,
       root: opts.root,
@@ -94,19 +96,24 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   // Captures first (L5.14): the render is the one named now ("latest" resolved before any wait, critique M10).
-  let renderId = render;
+  // `latest` names a FILE of renders/: the review then reads that file (never the id its record says, looked up again).
+  // A render named is looked at first only to say what it is (a record renamed by hand); the review finds it again
+  // and says why when it cannot be reviewed.
+  let found: Awaited<ReturnType<typeof findRenderOf>> | undefined;
   if (render === 'latest') {
     try {
-      renderId = (await findRenderOf(project, render, opts.scenario)).id;
+      found = await findRenderOf(project, render, opts.scenario);
     } catch (e) {
       throw new CliError((e as Error).message);
     }
-  }
+  } else found = await bestEffort(findRenderOf(project, render), 'a render that cannot be found is reviewed by its id as given (review says what is missing)');
+  const renderId = render === 'latest' && found ? found.entry.name : render;
+  if (found && !opts.json) for (const line of renderNotes(project.dir, found)) ui.warn(line);
   const gate = await heavyGate(ui, { root: ws.root, what: 'reviewing', noWait: opts.wait === false });
-  if (gate.waited) ui.info(`reviewing render ${renderId}`);
+  if (gate.waited) ui.info(`reviewing render ${printableText(renderId)}`);
   let result: ReviewResult;
   try {
-    result = await runReview(ui, { policy: ws.policy, project, root: ws.root, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
+    result = await runReview(ui, cliPorts.reviewer, { policy: ws.policy, project, root: ws.root, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
   } catch (e) {
     if (e instanceof Error && e.name === 'ReviewError') throw new CliError(e.message);
     throw e;

@@ -14,8 +14,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { FileJobQueue, liveWorker, readWorkerLock } from '@retake/engine';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const SOURCE_ARGS = ['--conditions=source', '--import', 'tsx', BIN];
@@ -85,9 +86,7 @@ describe.skipIf(!AVAILABLE)('retake mcp: dry runs and captures as jobs', () => {
     home = join(ws, '.home');
     await fixtureWorkspace(ws);
     const project = join(ws, 'projects', 'northfield-fixture');
-    const yaml = (await readFile(join(project, 'project.yaml'), 'utf8'))
-      .replaceAll('http://localhost:4401', fixture.urls.console)
-      .replaceAll('http://localhost:4402', fixture.urls.shop);
+    const yaml = (await readFile(join(project, 'project.yaml'), 'utf8')).replaceAll('http://localhost:4401', fixture.urls.console).replaceAll('http://localhost:4402', fixture.urls.shop);
     await writeFile(join(project, 'project.yaml'), yaml);
     await writeFile(join(project, 'scenarios', 'short.yaml'), SHORT);
   });
@@ -168,7 +167,7 @@ describe.skipIf(!AVAILABLE)('retake mcp: dry runs and captures as jobs', () => {
     expect(protocolErrors).toEqual([]);
   });
 
-  it('stdout carries JSON-RPC lines only while a job runs (the worker writes to its log, never to the server\'s stdout)', async () => {
+  it("stdout carries JSON-RPC lines only while a job runs (the worker writes to its log, never to the server's stdout)", async () => {
     const child = spawn(process.execPath, [...SOURCE_ARGS, '--root', ws, 'mcp'], {
       cwd: REPO,
       env: testChildEnv({ RETAKE_HOME: home, RETAKE_WORKER_IDLE_MS: '1500' }),

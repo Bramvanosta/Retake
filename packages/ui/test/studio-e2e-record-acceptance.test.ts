@@ -2,7 +2,7 @@
  * L4.8 acceptance (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the Record screen, then the scenario it
  * saved filmed and rendered. The built-in Studio server on a clean copy of projects/northfield-fixture (its local
  * environment pointed at the fixture product on free ports), headless Chromium on the Studio app, and every job run by
- * a worker IN THIS PROCESS — the `record` job's window played by Playwright (`recordTest.drive`: a worker process cannot
+ * a worker IN THIS PROCESS — the `record` job's window played by Playwright (`ports.recordWindow.drive`: a worker process cannot
  * receive it; the real window with a person switching to the Studio is MACOS-CHECKLIST 13i). The window is headless;
  * `RETAKE_TEST_HEADED=1` shows it.
  *
@@ -24,15 +24,16 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseYaml } from '@retake/core';
 import { runWorker } from '@retake/engine';
-import type { RecordJobTestHooks } from '@retake/engine';
+import type { RecordWindow } from '@retake/engine';
 import { timelineOf } from '@retake/editor';
 import type { EditPlan } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { RecordViewAnswer, StudioServer } from '../src/index.js';
-import { REPO } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { REPO } from '@retake/test-support/repo';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
-type Window = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
+type Window = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
 interface Fixture {
   urls: { console: string; shop: string };
@@ -55,7 +56,7 @@ let root: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const workerLogs: string[] = [];
 const consoleErrors: string[] = [];
 const timings: Record<string, number> = {};
@@ -74,8 +75,8 @@ async function call<T>(op: string, args: Record<string, unknown>): Promise<T> {
 }
 
 /** The jobs queued so far, run by a worker in this process; it exits once idle. */
-function drain(recordTest?: RecordJobTestHooks): Promise<number> {
-  return runWorker({ root, idleExitMs: 1500, pollMs: 100, log: (m) => workerLogs.push(m), ...(recordTest ? { recordTest, once: true, idleExitMs: 0 } : {}) });
+function drain(recordWindow?: RecordWindow): Promise<number> {
+  return runWorker({ root, idleExitMs: 1500, pollMs: 100, log: (m) => workerLogs.push(m), ...(recordWindow ? { ports: { recordWindow }, once: true, idleExitMs: 0 } : {}) });
 }
 
 const stateOf = () => page.getByTestId('record-state').first().getAttribute('data-state');
@@ -163,12 +164,15 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'studio-ui-record-acceptance-'));
-    process.env.RETAKE_HOME = join(root, '.home');
+    retakeHome.use(join(root, '.home'));
     await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(root, 'projects', P);
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
     const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
-    await writeFile(join(project, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')));
+    await writeFile(
+      join(project, 'project.yaml'),
+      yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')),
+    );
     await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
     studio = await startStudioServer({ root, startWorker: false, pollMs: 150, log: () => undefined });
     const executablePath = process.env.RETAKE_CHROMIUM;
@@ -190,8 +194,7 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     await studio?.close();
     await fixture?.close();
     if (root) await rm(root, { recursive: true, force: true });
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
   });
 
   it('record → inserts and a pick → Stop → the check → Save: the scenario holds them where they were placed', async () => {
@@ -229,7 +232,7 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     const text = await readFile(join(root, 'projects', P, 'scenarios', `${S}.yaml`), 'utf8');
     if (SHOTS) await writeFile(join(SHOTS, `acc-${S}.yaml`), text);
     const doc = parseYaml(text).value as { scenes: Array<{ id: string; steps: Array<Record<string, unknown>> }> };
-    const steps = doc.scenes.flatMap((s) => s.steps.map((st) => ({ scene: s.id, ...st })));
+    const steps = doc.scenes.flatMap((s) => s.steps.map((st): Record<string, unknown> => ({ scene: s.id, ...st })));
     // The caption and the zoom on the Request a quote click, its target the one picked.
     const quoteClick = steps.find((s) => s.caption !== undefined);
     expect(quoteClick, text).toBeDefined();
@@ -295,14 +298,18 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     if (SHOTS) {
       const video = join(rendersDir, (await readdir(rendersDir)).find((f) => f.startsWith(render.render_id) && f.endsWith('.mp4'))!);
       const at = (frame: number) => (frame / model.fps).toFixed(3);
-      const cut = (name: string, frame: number) => execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', at(frame), '-i', video, '-frames:v', '1', '-vf', 'scale=960:-1', join(SHOTS, `acc-frame-${name}.png`)]);
+      const cut = (name: string, frame: number) =>
+        execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', at(frame), '-i', video, '-frames:v', '1', '-vf', 'scale=960:-1', join(SHOTS, `acc-frame-${name}.png`)]);
       cut('before-zoom', Math.max(0, zoom!.from - 15));
       cut('zoom-in', zoom!.in_to + 2);
       cut('zoom-end', zoom!.out_from - 2);
       cut('caption', Math.round((caption.from + caption.to) / 2));
       cut('marker', marker.frame);
       cut('marker-done', marker.done ?? marker.frame + 30);
-      await writeFile(join(SHOTS, 'acc-model.json'), `${JSON.stringify({ captions: model.captions, camera: model.camera, markers: model.markers, steps: model.steps, untrusted: model.untrusted, frames: model.frames, fps: model.fps }, null, 1)}\n`);
+      await writeFile(
+        join(SHOTS, 'acc-model.json'),
+        `${JSON.stringify({ captions: model.captions, camera: model.camera, markers: model.markers, steps: model.steps, untrusted: model.untrusted, frames: model.frames, fps: model.fps }, null, 1)}\n`,
+      );
     }
     timings.video_s = record.duration_s;
     expect(consoleErrors).toEqual([]);

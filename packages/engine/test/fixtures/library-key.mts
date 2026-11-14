@@ -4,9 +4,9 @@
  */
 import { fileFacts, loadTemplate } from '@retake/core/io';
 import { loadComponentRegistry } from '@retake/components';
-import { libraryKeyContext, openWorkspace } from '../../src/index.js';
+import { libraryKeyContext, openWorkspace, diskWorkspaceReads } from '../../src/index.js';
 
 const root = process.argv[2]!;
-const ws = await openWorkspace({ root });
+const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
 const ctx = await libraryKeyContext(await loadTemplate('brandx', root, { files: fileFacts(ws.policy) }), await loadComponentRegistry({ root }), { policy: ws.policy });
 process.stdout.write(`${JSON.stringify({ browser: ctx.browser })}\n`);

@@ -10,8 +10,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, createEngine, runWorker } from '../src/index.js';
-import { REPO } from './helpers.js';
-
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const CLI = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
 const SECRET = 'T_JOB_CHILD_ENV_SECRET';
@@ -20,11 +20,11 @@ const accept = { approver: { approve: async () => ({ approved: true as const }) 
 
 let ws: string;
 let project: string;
-const saved = { home: process.env.RETAKE_HOME, secret: process.env[SECRET], passed: process.env[PASSED] };
+const retakeHome = scratchHome(SECRET, PASSED);
 
 beforeAll(async () => {
   ws = await realpath(await mkdtemp(join(tmpdir(), 'retake-job-child-env-')));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   process.env[SECRET] = 'exported-in-the-terminal';
   process.env[PASSED] = 'listed-in-pass-env';
   await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
@@ -35,17 +35,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const [k, v] of [['RETAKE_HOME', saved.home], [SECRET, saved.secret], [PASSED, saved.passed]] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
 const seen = async () => (await readFile(join(project, 'env.txt'), 'utf8')).split('\n');
 
-describe('a shell hook\'s environment: an allow-list for a job of the worker, everything in a terminal', () => {
-  it('the worker runs it with the shell\'s own variables and pass_env, never an exported secret', async () => {
+describe("a shell hook's environment: an allow-list for a job of the worker, everything in a terminal", () => {
+  it("the worker runs it with the shell's own variables and pass_env, never an exported secret", async () => {
     const engine = await createEngine({ root: ws, client: 'test', autoStartWorker: false });
     const sub = await engine.hooks.submit({ project: 'w', source: 'hooks/env.yaml', dry: false }, accept);
     // The worker turns the policy on for itself.

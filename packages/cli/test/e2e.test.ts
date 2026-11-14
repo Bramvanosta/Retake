@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RunRecordSchema, TimelineSchema } from '@retake/core';
 import type { RunProgress, RunRecord, Timeline, TimelineEvent } from '@retake/core';
 import { EXIT, VERSION, main, memoryIo } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
 const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
@@ -149,9 +150,10 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
     const tl = TimelineSchema.parse(JSON.parse(await readFile(join(run.dir, 'timeline.json'), 'utf8'))) as Timeline;
 
     // Video and timeline agree: duration, size, frame rate.
-    const probe = JSON.parse(
-      (await execFileP('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=width,height,avg_frame_rate', '-of', 'json', run.capture!])).stdout,
-    ) as { format: { duration: string }; streams: Array<{ width: number; height: number; avg_frame_rate: string }> };
+    const probe = JSON.parse((await execFileP('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=width,height,avg_frame_rate', '-of', 'json', run.capture!])).stdout) as {
+      format: { duration: string };
+      streams: Array<{ width: number; height: number; avg_frame_rate: string }>;
+    };
     expect(probe.streams[0]).toMatchObject({ width: 1280, height: 720, avg_frame_rate: '30/1' });
     expect(Math.abs(Number(probe.format.duration) - tl.capture.duration)).toBeLessThanOrEqual(1 / 30 + 0.001);
     expect(tl.capture.frames).toBeGreaterThan(10);
@@ -301,7 +303,8 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
     const out = join(ws, 'raw-waited');
     try {
       const start = await new Promise<string>((resolve) => {
-        const tryRead = () => execFile('ps', ['-o', 'lstart=', '-p', String(sib.pid)], { env: { ...process.env, LC_ALL: 'C' } }, (_e, o) => (String(o).trim() ? resolve(String(o).trim()) : setTimeout(tryRead, 50)));
+        const tryRead = () =>
+          execFile('ps', ['-o', 'lstart=', '-p', String(sib.pid)], { env: { ...process.env, LC_ALL: 'C' } }, (_e, o) => (String(o).trim() ? resolve(String(o).trim()) : setTimeout(tryRead, 50)));
         tryRead();
       });
       const file = join(dir, 'k_01KA00000000000000000000RW.json');
@@ -340,7 +343,13 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
     const runsBefore = await runs();
     const r = await retake('inspect', 'e2e', 'shop', '--path', '/inspect-lab', '--json', '--target', '{role: button, name: Publish}');
     expect(r.code, r.err).toBe(EXIT.ok);
-    const report = JSON.parse(r.out) as { status: string; file: string; marked: string; elements: Array<{ verified: boolean; untrusted: { target_yaml: string | null } }>; targets_checked: Array<{ count: number }> };
+    const report = JSON.parse(r.out) as {
+      status: string;
+      file: string;
+      marked: string;
+      elements: Array<{ verified: boolean; untrusted: { target_yaml: string | null } }>;
+      targets_checked: Array<{ count: number }>;
+    };
     expect(report.status).toBe('ok');
     expect(report.file.startsWith(join(ws, 'projects', 'e2e', '.retake', 'inspect'))).toBe(true);
     expect(existsSync(report.marked)).toBe(true);
@@ -546,14 +555,13 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
       expect(await armedNow()).toBe(true);
       await fetch(`${fixture.urls.console}/api/quotes/auto-proposal`, { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } });
       // L5.14: the run's journal is signed with its own Retake home's key: the replay uses that home.
-      const home = process.env.RETAKE_HOME;
-      process.env.RETAKE_HOME = join(r.tmp, 'home');
+      const retakeHome = scratchHome();
+      retakeHome.use(join(r.tmp, 'home'));
       let rb: Awaited<ReturnType<typeof retake>>;
       try {
         rb = await retake('hooks', 'rollback', 'e2e');
       } finally {
-        if (home === undefined) delete process.env.RETAKE_HOME;
-        else process.env.RETAKE_HOME = home;
+        retakeHome.restore();
       }
       expect(rb.code, rb.err).toBe(EXIT.ok);
       expect(await armedNow()).toBe(false);

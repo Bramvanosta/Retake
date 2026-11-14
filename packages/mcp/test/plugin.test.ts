@@ -17,9 +17,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RETAKE_VERSION } from '@retake/core';
 import { clientPath } from '@retake/core/io';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
-import { REPO as REPO_URL, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO as REPO_URL } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { PLUGIN_ID, claudeCodeCommand, mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const REPO = resolve(REPO_URL);
 const PLUGIN = join(REPO, 'skills');
@@ -78,7 +79,9 @@ describe('the Claude Code plugin in skills/ and its local marketplace', () => {
   });
 
   it('the plugin root holds the three skill folders, each with a SKILL.md named after it', () => {
-    const dirs = readdirSync(PLUGIN).filter((d) => !d.startsWith('.') && statSync(join(PLUGIN, d)).isDirectory()).sort();
+    const dirs = readdirSync(PLUGIN)
+      .filter((d) => !d.startsWith('.') && statSync(join(PLUGIN, d)).isDirectory())
+      .sort();
     expect(dirs).toEqual(SKILLS);
     for (const d of dirs) expect(readFileSync(join(PLUGIN, d, 'SKILL.md'), 'utf8')).toMatch(new RegExp(`^---\\nname: ${d}\\n`));
   });

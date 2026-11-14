@@ -2,10 +2,9 @@
  * The project readers: a workspace's projects, a project loaded (project.yaml, its sandboxes, its README, its
  * scenarios' names) and the plan of a new project checked against the disk.
  */
-import { existsSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { stringify } from 'yaml';
+import type { WorkspaceDisk } from '../file-facts.js';
 import { FORMAT_VERSIONS } from '../formats.js';
 import { ConfigError, hasErrors, issuesMessage } from '../issues.js';
 import { projectPath, projectRef } from '../layout.js';
@@ -18,10 +17,9 @@ import { slugify } from '../util.js';
 import { parseYaml } from '../validation/yaml-source.js';
 import { suggestion } from '../validation/suggest.js';
 import { insideBundle } from './bundle.js';
-import { nodeFileFacts } from './file-facts.js';
-import { readPlainFile } from './plain-file.js';
-import { loadSandboxes } from './sandbox.js';
-import { findWorkspaceRoot, loadWorkspaceConfig } from './workspace.js';
+import { nodeWorkspaceDisk } from './file-facts.js';
+import { loadSandboxesOn } from './sandbox.js';
+import { findWorkspaceRootOn, loadWorkspaceConfigOn } from './workspace.js';
 
 /** The largest README.md a project load keeps in memory (the engine's own reader shows why a bigger one is not shown). */
 const README_LOAD_MAX_BYTES = 2 * 1024 * 1024;
@@ -30,24 +28,24 @@ const README_LOAD_MAX_BYTES = 2 * 1024 * 1024;
  * README.md for `project.readme`, or null: missing, or not a small plain file (L4.2, BL-79 residue: a FIFO named
  * README.md held every project load; a link or an oversized file is left to the engine's reader, which says why).
  */
-function readmeText(file: string): string | null {
-  const r = readPlainFile(file, README_LOAD_MAX_BYTES);
+function readmeText(disk: WorkspaceDisk, file: string): string | null {
+  const r = disk.readPlain(file, README_LOAD_MAX_BYTES);
   return r.ok ? r.bytes.toString('utf8') : null;
 }
 
-async function readOptional(file: string): Promise<string | null> {
+async function readOptional(disk: WorkspaceDisk, file: string): Promise<string | null> {
   try {
-    return await readFile(file, 'utf8');
+    return (await disk.readFile(file)).toString('utf8');
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw e;
   }
 }
 
-async function subdirs(dir: string): Promise<string[]> {
+async function subdirs(disk: WorkspaceDisk, dir: string): Promise<string[]> {
   try {
-    const entries = await readdir(dir, { withFileTypes: true });
-    return entries.filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name);
+    const entries = await disk.list(dir);
+    return entries.filter((e) => e.kind === 'directory' && !e.name.startsWith('.')).map((e) => e.name);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw e;
@@ -56,9 +54,14 @@ async function subdirs(dir: string): Promise<string[]> {
 
 /** Names of <projectDir>/scenarios/*.yaml (and *.yml), sorted. */
 export async function listScenarioNames(projectDir: string): Promise<string[]> {
+  return listScenarioNamesOn(nodeWorkspaceDisk, projectDir);
+}
+
+/** listScenarioNames on a disk. */
+export async function listScenarioNamesOn(disk: WorkspaceDisk, projectDir: string): Promise<string[]> {
   let files: string[];
   try {
-    files = await readdir(projectPath(projectDir, 'scenarios'));
+    files = (await disk.list(projectPath(projectDir, 'scenarios'))).map((e) => e.name);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw e;
@@ -69,11 +72,16 @@ export async function listScenarioNames(projectDir: string): Promise<string[]> {
 
 /** Projects of a workspace (directories of projects_dir holding a project.yaml), sorted by slug. */
 export async function listProjects(root: string): Promise<Array<{ slug: string; name: string; dir: string }>> {
-  const { projectsDir } = await loadWorkspaceConfig(root);
+  return listProjectsOn(nodeWorkspaceDisk, root);
+}
+
+/** listProjects on a disk. */
+export async function listProjectsOn(disk: WorkspaceDisk, root: string): Promise<Array<{ slug: string; name: string; dir: string }>> {
+  const { projectsDir } = await loadWorkspaceConfigOn(disk, root);
   const out: Array<{ slug: string; name: string; dir: string }> = [];
-  for (const slug of (await subdirs(projectsDir)).sort()) {
+  for (const slug of (await subdirs(disk, projectsDir)).sort()) {
     const dir = join(projectsDir, slug);
-    const text = await readOptional(join(dir, PROJECT_FILE));
+    const text = await readOptional(disk, join(dir, PROJECT_FILE));
     if (text === null) continue;
     const value = parseYaml(text).value as { name?: unknown } | null | undefined;
     const name = value && typeof value.name === 'string' ? value.name : slug;
@@ -82,20 +90,19 @@ export async function listProjects(root: string): Promise<Array<{ slug: string; 
   return out;
 }
 
-async function resolveProjectDir(dirOrSlug: string, root?: string): Promise<{ dir: string; root: string }> {
+async function resolveProjectDir(disk: WorkspaceDisk, dirOrSlug: string, root?: string): Promise<{ dir: string; root: string }> {
+  const exists = (p: string) => disk.facts.kind(p) !== undefined;
   const pathLike = isAbsolute(dirOrSlug) || dirOrSlug.startsWith('.') || /[\\/]/.test(dirOrSlug);
   if (pathLike) {
     const dir = resolve(dirOrSlug);
-    if (!existsSync(join(dir, PROJECT_FILE))) throw new ConfigError(`no ${PROJECT_FILE} in ${dir}`);
-    return { dir, root: root ? resolve(root) : findWorkspaceRoot(dir) };
+    if (!exists(join(dir, PROJECT_FILE))) throw new ConfigError(`no ${PROJECT_FILE} in ${dir}`);
+    return { dir, root: root ? resolve(root) : findWorkspaceRootOn(disk, dir) };
   }
-  const ws = await loadWorkspaceConfig(root ?? findWorkspaceRoot());
+  const ws = await loadWorkspaceConfigOn(disk, root ?? findWorkspaceRootOn(disk));
   const dir = join(ws.projectsDir, dirOrSlug);
-  if (existsSync(join(dir, PROJECT_FILE))) return { dir, root: ws.root };
-  const available = (await listProjects(ws.root)).map((p) => p.slug);
-  throw new ConfigError(
-    `project "${dirOrSlug}" not found in ${ws.projectsDir}${suggestion(dirOrSlug, available)} (available: ${available.join(', ') || 'none'})`,
-  );
+  if (exists(join(dir, PROJECT_FILE))) return { dir, root: ws.root };
+  const available = (await listProjectsOn(disk, ws.root)).map((p) => p.slug);
+  throw new ConfigError(`project "${dirOrSlug}" not found in ${ws.projectsDir}${suggestion(dirOrSlug, available)} (available: ${available.join(', ') || 'none'})`);
 }
 
 /**
@@ -103,22 +110,27 @@ async function resolveProjectDir(dirOrSlug: string, root?: string): Promise<{ di
  * Throws ConfigError when it cannot be found or project.yaml has errors; warnings are kept in `issues`.
  */
 export async function loadProject(dirOrSlug: string, root?: string): Promise<LoadedProject> {
-  const { dir, root: wsRoot } = await resolveProjectDir(dirOrSlug, root);
+  return loadProjectOn(nodeWorkspaceDisk, dirOrSlug, root);
+}
+
+/** loadProject on a disk. */
+export async function loadProjectOn(disk: WorkspaceDisk, dirOrSlug: string, root?: string): Promise<LoadedProject> {
+  const { dir, root: wsRoot } = await resolveProjectDir(disk, dirOrSlug, root);
   const file = join(dir, PROJECT_FILE);
   // Runs, renders and exports are written in the project folder: never one inside the app bundle (a link into it too).
   if (insideBundle(dir)) throw new ConfigError(`the project ${dir} lies inside the Retake app, which nothing may write to: use a folder of your own`, [], file);
-  const text = await readFile(file, 'utf8');
-  const { config, issues } = parseProjectYaml(text, file, nodeFileFacts);
+  const text = (await disk.readFile(file)).toString('utf8');
+  const { config, issues } = parseProjectYaml(text, file, disk.facts);
   if (!config) throw new ConfigError(issuesMessage('project', issues, file), issues, file);
   // Sandbox environments (L1.8): each manifest is read and validated (a broken one throws), then merged in.
-  const sandboxes = await loadSandboxes(dir, config);
+  const sandboxes = await loadSandboxesOn(disk, dir, config);
   return {
     slug: basename(dir),
     dir,
     root: wsRoot,
     config: sandboxes ? mergeSandboxes(config, sandboxes) : config,
-    readme: readmeText(join(dir, README_FILE)),
-    scenarios: await listScenarioNames(dir),
+    readme: readmeText(disk, join(dir, README_FILE)),
+    scenarios: await listScenarioNamesOn(disk, dir),
     file,
     issues,
     ...(sandboxes ? { sandboxes } : {}),
@@ -152,27 +164,27 @@ function projectYamlText(input: CreateProjectInput, slug: string): string {
 }
 
 /** What planNewProject checks before naming any file: the slug, the folder (absent or empty), the project.yaml. */
-async function newProjectPlan(root: string, input: CreateProjectInput): Promise<{ wsRoot: string; slug: string; dir: string; file: string; yamlText: string }> {
-  const ws = await loadWorkspaceConfig(root);
+async function newProjectPlan(disk: WorkspaceDisk, root: string, input: CreateProjectInput): Promise<{ wsRoot: string; slug: string; dir: string; file: string; yamlText: string }> {
+  const ws = await loadWorkspaceConfigOn(disk, root);
   const slug = input.slug ?? slugify(input.name);
   if (!PROJECT_SLUG_RE.test(slug)) {
     throw new ConfigError(`invalid project slug "${slug}": use lower-case letters, digits and "-"`);
   }
   const dir = join(ws.projectsDir, slug);
-  if (existsSync(join(dir, PROJECT_FILE))) throw new ConfigError(`project "${slug}" already exists (${dir})`);
-  if (existsSync(dir) && (await readdir(dir)).length > 0) {
+  if (disk.facts.kind(join(dir, PROJECT_FILE)) !== undefined) throw new ConfigError(`project "${slug}" already exists (${dir})`);
+  if (disk.facts.kind(dir) !== undefined && (await disk.list(dir)).length > 0) {
     throw new ConfigError(`cannot create project "${slug}": ${dir} exists and is not empty`);
   }
   const file = join(dir, PROJECT_FILE);
   const yamlText = projectYamlText(input, slug);
-  const { issues } = parseProjectYaml(yamlText, file, nodeFileFacts);
+  const { issues } = parseProjectYaml(yamlText, file, disk.facts);
   if (hasErrors(issues)) throw new ConfigError(issuesMessage('project', issues, file), issues, file);
   return { wsRoot: ws.root, slug, dir, file, yamlText };
 }
 
 /** Throws what planNewProject would refuse (`retake new` checks before asking its questions). */
 export async function checkNewProject(root: string, input: CreateProjectInput): Promise<void> {
-  await newProjectPlan(root, input);
+  await newProjectPlan(nodeWorkspaceDisk, root, input);
 }
 
 /**
@@ -181,7 +193,12 @@ export async function checkNewProject(root: string, input: CreateProjectInput): 
  * the engine's project store writes them.
  */
 export async function planNewProject(root: string, input: CreateProjectInput): Promise<NewProjectPlan> {
-  const { wsRoot, slug, dir, yamlText } = await newProjectPlan(root, input);
+  return planNewProjectOn(nodeWorkspaceDisk, root, input);
+}
+
+/** planNewProject on a disk. */
+export async function planNewProjectOn(disk: WorkspaceDisk, root: string, input: CreateProjectInput): Promise<NewProjectPlan> {
+  const { wsRoot, slug, dir, yamlText } = await newProjectPlan(disk, root, input);
   const readme = input.readme ?? readmeSkeleton(input.name, ...createdPages(input.environments));
   return {
     wsRoot,

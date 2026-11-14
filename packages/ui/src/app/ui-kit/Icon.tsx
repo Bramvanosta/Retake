@@ -45,8 +45,12 @@ export function Icon({ name, className }: { name: IconName; className?: string }
   const icon: { d?: string[]; fill?: string[] } = ICONS[name];
   return (
     <svg className={className ? `k-icon ${className}` : 'k-icon'} viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-      {icon.d?.map((d) => <path key={d} d={d} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />)}
-      {icon.fill?.map((d) => <path key={d} d={d} fill="currentColor" />)}
+      {icon.d?.map((d) => (
+        <path key={d} d={d} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      ))}
+      {icon.fill?.map((d) => (
+        <path key={d} d={d} fill="currentColor" />
+      ))}
     </svg>
   );
 }

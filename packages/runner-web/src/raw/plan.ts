@@ -9,9 +9,10 @@
  * (R-ISS-08: the previous frame frozen from the commit until the new page painted). Frames sit on the export grid:
  * frame n shows capture time n / fps, the screencast frame on screen then (never interpolated).
  */
-import { LOADING_CUT_MIN_S } from '@retake/core';
+import { LOADING_CUT_MIN_S } from '@retake/core/model';
+import { DEFAULT_FILM } from '@retake/core/run';
 import { fileSlug } from '../util.js';
-import type { Timeline, TimelineEvent, TimelineLoading, TimelineScene, TimelinePageSegment } from '@retake/core';
+import type { Timeline, TimelineEvent, TimelineLoading, TimelineScene, TimelinePageSegment } from '@retake/core/model';
 
 /** Steps that wait for the product (their waiting is a loading state). */
 export const RAW_WAIT_ACTIONS: ReadonlySet<string> = new Set(['wait_for', 'wait_for_email']);
@@ -148,7 +149,11 @@ export function localFrameInterval(times: readonly number[] | undefined, t: numb
   if (!times || times.length < 2) return undefined;
   const near = times.filter((x) => x >= t - 0.5 && x <= t + 0.5);
   if (near.length < 2) return undefined;
-  const gaps = near.slice(1).map((x, i) => x - near[i]).filter((g) => g > 0).sort((a, b) => a - b);
+  const gaps = near
+    .slice(1)
+    .map((x, i) => x - near[i])
+    .filter((g) => g > 0)
+    .sort((a, b) => a - b);
   return gaps.length ? gaps[Math.floor(gaps.length / 2)] : undefined;
 }
 
@@ -254,14 +259,7 @@ export function loadingCuts(
     let reason: RawCutReason = group.some((w) => w.action === 'wait_for_email') ? 'mail' : 'loading';
     const prev = steps.indexOf(group[0]) > 0 ? steps[steps.indexOf(group[0]) - 1] : undefined;
     let after: number | undefined;
-    if (
-      prev &&
-      !RAW_WAIT_ACTIONS.has(prev.action) &&
-      prev.page === group[0].page &&
-      group[0].t_start - stepEnd(prev) <= RAW_CUT.contiguous_s &&
-      !hasHold(prev) &&
-      !prev.mark
-    ) {
+    if (prev && !RAW_WAIT_ACTIONS.has(prev.action) && prev.page === group[0].page && group[0].t_start - stepEnd(prev) <= RAW_CUT.contiguous_s && !hasHold(prev) && !prev.mark) {
       after = prev.step;
       from = Math.min(from, Math.max(prev.t_start, actionMoment(prev) + RAW_CUT.action_keep_s));
       const changes = opts.pageChanges?.(prev.page) ?? [];
@@ -410,7 +408,7 @@ export function mainSource(timeline: Timeline): RawSource {
   const c = timeline.capture;
   return {
     track: 'main',
-    video: c.file || 'capture.mp4',
+    video: c.file || DEFAULT_FILM,
     frames_index: 'frames.jsonl',
     frames_dir: 'frames',
     width: Math.round(c.width * c.scale),
@@ -509,9 +507,7 @@ export function planRawExport(timeline: Timeline, opts: PlanRawOptions): RawPlan
   const total = captured.length;
   let number = 0;
   for (const scene of captured) {
-    const events = timeline.events
-      .filter((e) => e.scene === scene.id && e.scene_index === scene.index && e.action !== 'notification')
-      .sort((a, b) => a.t_start - b.t_start || a.step - b.step);
+    const events = timeline.events.filter((e) => e.scene === scene.id && e.scene_index === scene.index && e.action !== 'notification').sort((a, b) => a.t_start - b.t_start || a.step - b.step);
     const open = events.filter((e) => e.action === 'scene_open');
     const still = events.find((e) => e.action === 'scene_still');
     const s0 = still ? still.t_start : open.length ? Math.max(...open.map((e) => e.t_end)) : scene.t_start;
@@ -522,7 +518,8 @@ export function planRawExport(timeline: Timeline, opts: PlanRawOptions): RawPlan
       warnings.push(`scene "${scene.id}" has nothing to show (capture ${s0.toFixed(2)}–${s1.toFixed(2)} s): no clip`);
       continue;
     }
-    if (scene.status === 'failed' || scene.status === 'partial') warnings.push(`scene "${scene.id}" ${scene.status === 'failed' ? 'failed' : 'is partial'} in the run: its clip shows what was captured`);
+    if (scene.status === 'failed' || scene.status === 'partial')
+      warnings.push(`scene "${scene.id}" ${scene.status === 'failed' ? 'failed' : 'is partial'} in the run: its clip shows what was captured`);
     if (open.length) notes.push(`"${scene.id}": page load ${Math.min(...open.map((e) => e.t_start)).toFixed(2)}–${s0.toFixed(2)} s of the capture is not in the clip`);
     const stillEnd = still ? still.t_end : s0;
     const trackOf = (page: string | undefined) => (scene.pages ? (scene.pages.find((p) => p.id === page)?.track ?? scene.pages[0]?.track ?? 'main') : 'main');
@@ -564,7 +561,12 @@ export function planRawExport(timeline: Timeline, opts: PlanRawOptions): RawPlan
     if (sources.length === 0) continue;
     // The sequence shows the page of the scene's opening still (the first acting page), the others ride along.
     const actingPage = still?.page ?? pages?.[0]?.id;
-    const primaryIdx = pages ? Math.max(0, sources.findIndex((s) => s.page === actingPage)) : 0;
+    const primaryIdx = pages
+      ? Math.max(
+          0,
+          sources.findIndex((s) => s.page === actingPage),
+        )
+      : 0;
     sources.forEach((s, k) => {
       const cuts: RawCut[] = [];
       let kept = 0;

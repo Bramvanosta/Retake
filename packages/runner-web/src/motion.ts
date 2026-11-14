@@ -1,5 +1,5 @@
-import { seededRandom } from '@retake/core';
-import type { Pacing, PointSpec } from '@retake/core';
+import { seededRandom } from '@retake/core/base';
+import type { Pacing, PointSpec } from '@retake/core/model';
 import { clamp } from './util.js';
 
 export function easeInOutCubic(u: number): number {
@@ -12,14 +12,12 @@ export function distance(a: PointSpec, b: PointSpec): number {
 
 /** Default nudge threshold (pacing.nudge_px): below it a move is a "nudge" (repeated clicks on one spot). */
 export const NUDGE_PX = 60;
-/** Default nudge travel time (pacing.nudge_ms) and hover (pacing.nudge_hover_ms). */
+/** Default nudge travel time (pacing.nudge_ms). */
 export const NUDGE_MS = 250;
-export const NUDGE_HOVER_MS = 120;
 /** Shortest nudge, as a fraction of nudge_ms: 0.6 × 250 ms = 150 ms. */
 const NUDGE_MIN_FRACTION = 0.6;
 
-type MotionPacing = Pick<Pacing, 'move_base_ms' | 'move_ms_per_px' | 'move_min_ms' | 'move_max_ms'> &
-  Partial<Pick<Pacing, 'nudge_px' | 'nudge_ms'>>;
+type MotionPacing = Pick<Pacing, 'move_base_ms' | 'move_ms_per_px' | 'move_min_ms' | 'move_max_ms'> & Partial<Pick<Pacing, 'nudge_px' | 'nudge_ms'>>;
 
 /** Whether a move of `dist` px is a nudge. */
 export function isNudge(dist: number, pacing: Partial<Pick<Pacing, 'nudge_px'>>): boolean {

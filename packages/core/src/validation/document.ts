@@ -54,7 +54,6 @@ export function checkYamlDocument(
 
 /** True when an error-level issue lies at or under `prefix` (or points into it). */
 export function brokenUnder(issues: readonly LocatedIssue[], prefix: ReadonlyArray<string | number>): boolean {
-  const under = (p: ReadonlyArray<string | number>) =>
-    p.length >= prefix.length && prefix.every((seg, i) => p[i] === seg);
+  const under = (p: ReadonlyArray<string | number>) => p.length >= prefix.length && prefix.every((seg, i) => p[i] === seg);
   return issues.some((i) => i.severity === 'error' && (under(i.path) || (i.loc !== undefined && under(i.loc.path))));
 }

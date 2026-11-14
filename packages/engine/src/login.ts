@@ -4,10 +4,16 @@
  * the persona's login steps, headless. Native errors with the CLI's messages (LoginOptionError says which ones are
  * usage errors); what it tells its client goes through `SignInPorts`. Nothing here ever receives a credential.
  */
-import { LEGACY_PERSONA, resolveEnvironment, resolvePersonas } from '@retake/core';
-import type { LoadedProject, ResolvedEnvironment, ResolvedPersona, WorkPolicy } from '@retake/core';
-import type { SignInResult } from '@retake/runner-web';
+import type { Secrets } from './secrets/secrets.js';
+import { noDisplay } from './env.js';
+import type { EngineEnv } from './env.js';
+import { LEGACY_PERSONA, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
+import type { LoadedProject, ResolvedEnvironment } from '@retake/core/model';
+import type { ResolvedPersona } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { SignInResult } from '@retake/runner-web/types';
 import { retakeHome } from '@retake/core/io';
+import type { CaptureSessions } from './capture/runner.js';
 import type { InterruptPort } from './interrupts.js';
 
 /** A sign-in that cannot be made as asked (`usage`: the CLI reports it as a usage error, exit 2; else exit 1). */
@@ -54,7 +60,7 @@ export function loginTarget(project: LoadedProject, opts: { env?: string; person
     if (opts.persona !== undefined && opts.persona !== LEGACY_PERSONA) {
       throw new LoginOptionError(`environment "${env.name}" has no personas (its auth is one browser profile): leave --persona out, or name the accounts in auth.personas`, true);
     }
-    if (opts.auto) throw new LoginOptionError('--auto runs a persona\'s login steps: name the account in auth.personas with `login:` steps (the single-account auth.profile has none)', true);
+    if (opts.auto) throw new LoginOptionError("--auto runs a persona's login steps: name the account in auth.personas with `login:` steps (the single-account auth.profile has none)", true);
     if (!legacy.profileDir) {
       throw new LoginOptionError(
         `project "${project.slug}" has no browser profile for environment "${env.name}": name its accounts in auth.personas of project.yaml (docs/guide/environments.md: "Signing in: personas and sessions")`,
@@ -76,6 +82,12 @@ export interface SignInPorts {
   log(level: 'debug' | 'info' | 'warn' | 'error', message: string): void;
   /** The window (headed) or the headless browser (auto) shows its first page. */
   onOpen?(url: string): void;
+  /** What signs it in: the capture runner's sessions (its composition root's). */
+  sessions: Pick<CaptureSessions, 'signIn'>;
+  /** The environment its composition root read (env.ts): whether a window has a display. */
+  env: EngineEnv;
+  /** What the login steps' secrets are resolved with (its composition root's Secrets port). */
+  secrets: Secrets;
 }
 
 export type SignInOutcome = { interrupted: true } | { interrupted: false; result: SignInResult };
@@ -92,17 +104,17 @@ export async function signInPersona(
   opts: { mode: 'headed' | 'auto'; page?: string; url?: string; policy: WorkPolicy },
   ports: SignInPorts,
 ): Promise<SignInOutcome> {
-  if (opts.mode === 'headed' && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+  if (opts.mode === 'headed' && noDisplay(ports.env)) {
     throw new LoginOptionError(
-      `retake login opens a browser window and no display is available (DISPLAY / WAYLAND_DISPLAY are not set)${persona.login?.length ? ': add --auto to use the persona\'s login steps' : ''}`,
+      `retake login opens a browser window and no display is available (DISPLAY / WAYLAND_DISPLAY are not set)${persona.login?.length ? ": add --auto to use the persona's login steps" : ''}`,
       false,
     );
   }
-  const { signIn } = await import('@retake/runner-web');
   const stop = await ports.interrupts.open();
   let result: SignInResult;
   try {
-    result = await signIn({
+    result = await ports.sessions.signIn({
+      resolveSecret: (ref) => ports.secrets.resolve(ref),
       project,
       policy: opts.policy,
       env,

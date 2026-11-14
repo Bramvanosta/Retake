@@ -4,8 +4,10 @@
  * (L2.12: video, Lottie) and CSV tables. The resolver asks for them as it fills slots.
  */
 import { dirname, isAbsolute, join } from 'node:path';
-import { VIDEO_FILE_EXTENSIONS, displayUrl as displayedUrl, fileExtension, isLocalHost, parseFrameRef } from '@retake/core';
-import type { TimelineArtefact } from '@retake/core';
+import { VIDEO_FILE_EXTENSIONS, fileExtension } from '@retake/core/model';
+import { parseFrameRef } from '@retake/core/language';
+import { displayUrl as displayedUrl, isLocalHost } from '@retake/core/environment';
+import type { TimelineArtefact } from '@retake/core/model';
 import { ARTEFACT_SLOT_TYPES, parseCsv } from '@retake/components/geometry';
 import type { ArtefactSlotType, ComponentManifest, MediaValue, PictureMedia } from '@retake/components/geometry';
 import type { PlanSource } from '../plan-types.js';

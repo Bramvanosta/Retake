@@ -8,7 +8,19 @@ import { renderToString } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { LIBRARY_DIR, loadComponentRegistry, parseManifest } from '@retake/components';
 import type { ComponentProps, LottieMedia, PictureMedia, VideoMedia } from '@retake/components';
-import { AUTO_COVER_MIN_SHARE, autoFit, backgroundCss, lottieFrames, mediaBackground, mediaLength, nightTone, parseColor01, recolorLottie, themeColorMap, videoPartFrames } from '@retake/components/kit';
+import {
+  AUTO_COVER_MIN_SHARE,
+  autoFit,
+  backgroundCss,
+  lottieFrames,
+  mediaBackground,
+  mediaLength,
+  nightTone,
+  parseColor01,
+  recolorLottie,
+  themeColorMap,
+  videoPartFrames,
+} from '@retake/components/kit';
 import { DARK, LIGHT, tempDir } from './helpers.js';
 
 vi.mock('remotion', async (importOriginal) => {
@@ -36,7 +48,22 @@ const lottie = (fills: Array<[number, number, number, number]>) => ({
     {
       ty: 4,
       shapes: [
-        { ty: 'gr', it: [{ ty: 'fl', c: { a: 0, k: fills[0] } }, { ty: 'st', c: { a: 1, k: [{ t: 0, s: fills[1], e: fills[0] }, { t: 10, s: fills[1] }] } }] },
+        {
+          ty: 'gr',
+          it: [
+            { ty: 'fl', c: { a: 0, k: fills[0] } },
+            {
+              ty: 'st',
+              c: {
+                a: 1,
+                k: [
+                  { t: 0, s: fills[1], e: fills[0] },
+                  { t: 10, s: fills[1] },
+                ],
+              },
+            },
+          ],
+        },
         { ty: 'gf', g: { p: 2, k: { a: 0, k: [0, ...fills[0].slice(0, 3), 1, ...fills[1].slice(0, 3)] } } },
       ],
     },
@@ -65,7 +92,13 @@ describe('Lottie colours from the theme', () => {
     expect(out.layers[1].sc).toBe('#8a2332');
     expect((out.layers[2] as unknown as { t: { d: { k: Array<{ s: { fc: number[] } }> } } }).t.d.k[0].s.fc).toEqual(blue);
     // A colour not in the map stays; an unreadable map entry is ignored.
-    const other = recolorLottie(lottie([[0, 0, 0, 1], [1, 1, 1, 1]]), { '#ff5a1f': '#8a2332', nope: '#000' });
+    const other = recolorLottie(
+      lottie([
+        [0, 0, 0, 1],
+        [1, 1, 1, 1],
+      ]),
+      { '#ff5a1f': '#8a2332', nope: '#000' },
+    );
     expect((other.layers[0].shapes![0] as { it: Array<{ c: { k: unknown } }> }).it[0].c.k).toEqual([0, 0, 0, 1]);
     expect(parseColor01('#fff')).toEqual([1, 1, 1]);
     expect(parseColor01('teal')).toBeUndefined();
@@ -111,10 +144,7 @@ describe('components usable as several kinds (manifest `kinds`, registry)', () =
   it('declares the other kinds it can be used as: full-frame kinds and the overlay only', () => {
     expect(parseManifest(card('kinds: [intro, overlay]\n')).issues).toEqual([]);
     const msgs = (t: string) => parseManifest(t).issues.map((i) => `${i.severity} ${i.line}:${i.col} ${i.message}`);
-    expect(msgs(card('kinds: [card, overlay, overlay]\n'))).toEqual([
-      'warning 6:9 "card" is the component\'s own kind: no need to list it in kinds',
-      'error 6:24 "overlay" is listed twice',
-    ]);
+    expect(msgs(card('kinds: [card, overlay, overlay]\n'))).toEqual(['warning 6:9 "card" is the component\'s own kind: no need to list it in kinds', 'error 6:24 "overlay" is listed twice']);
     expect(msgs(card('kinds: [layout]\n'))[0]).toMatch(/^error 6:9 kinds\[0\]|expected one of "intro", "outro", "card", "interstitial", "overlay"/);
     const layout = 'id: acme/frame\nversion: 1.0.0\nkind: caption\nname: X\ndescription: Y\nkinds: [overlay]\n';
     expect(msgs(layout)).toEqual(['error 6:1 only intro, outro, card, interstitial, overlay components may be used as other kinds (this one is caption)']);
@@ -128,7 +158,10 @@ describe('components usable as several kinds (manifest `kinds`, registry)', () =
       for (const id of ['studio/media', 'studio/lottie']) {
         for (const kind of ['intro', 'outro', 'card', 'interstitial', 'overlay'] as const) {
           expect(reg.resolve(id, kind).kind, `${id} as ${kind}`).toBe(kind);
-          expect(reg.list(kind).map((c) => c.manifest.id), kind).toContain(id);
+          expect(
+            reg.list(kind).map((c) => c.manifest.id),
+            kind,
+          ).toContain(id);
         }
         expect(() => reg.resolve(id, 'layout')).toThrow(/is a card component, not a layout/);
       }
@@ -160,7 +193,7 @@ describe('studio/media and studio/lottie as a card and as an overlay', () => {
     expect(img).toContain('background:transparent');
   });
 
-  it('fit auto (the default): covers a file of about the frame\'s shape, shows a 16:9 file whole in a vertical or square frame', async () => {
+  it("fit auto (the default): covers a file of about the frame's shape, shows a 16:9 file whole in a vertical or square frame", async () => {
     expect(AUTO_COVER_MIN_SHARE).toBe(0.8);
     expect(autoFit({ width: 1920, height: 1080 }, { w: 1920, h: 1080 })).toBe('cover');
     expect(autoFit({ width: 1920, height: 1200 }, { w: 1920, h: 1080 })).toBe('cover');
@@ -173,14 +206,23 @@ describe('studio/media and studio/lottie as a card and as an overlay', () => {
     expect(renderToString(createElement(Media, { ...base, as: 'intro', media: { file: video }, params }))).toContain('object-fit:cover');
     const vertical = renderToString(createElement(Media, { ...base, width: 1080, height: 1920, variant: 'vertical', as: 'intro', media: { file: video }, params }));
     expect(vertical).toContain('object-fit:contain');
-    expect(renderToString(createElement(Media, { ...base, width: 1080, height: 1920, variant: 'vertical', as: 'intro', media: { file: video }, params: { ...params, fit: 'cover' as const } }))).toContain('object-fit:cover');
+    expect(
+      renderToString(createElement(Media, { ...base, width: 1080, height: 1920, variant: 'vertical', as: 'intro', media: { file: video }, params: { ...params, fit: 'cover' as const } })),
+    ).toContain('object-fit:cover');
   });
 
   it('as an overlay: an alpha video in its box, clipped to the visible capture, transparent and silent without sound', async () => {
     const Media = await media();
     const rects = { screen: { x: 180, y: 40, w: 1560, h: 878 }, frame: { x: 180, y: 40, w: 1560, h: 878 }, radius: 18 };
     const html = renderToString(
-      createElement(Media, { ...base, as: 'overlay', media: { file: burst }, rects, anchor: { x: 900, y: 500, w: 200, h: 200 }, params: { fit: 'contain', background: 'none', volume: 1, from: 0, loop: true } }),
+      createElement(Media, {
+        ...base,
+        as: 'overlay',
+        media: { file: burst },
+        rects,
+        anchor: { x: 900, y: 500, w: 200, h: 200 },
+        params: { fit: 'contain', background: 'none', volume: 1, from: 0, loop: true },
+      }),
     );
     expect(html).toContain('left:180px;top:40px;width:1560px;height:878px;overflow:hidden;border-radius:18px');
     expect(html).toContain('left:720px;top:460px;width:200px;height:200px');

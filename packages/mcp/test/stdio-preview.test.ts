@@ -16,9 +16,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { LIBRARY_DIR } from '@retake/components';
 import { readWorkerLock } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -51,7 +52,10 @@ function jpegSize(buf: Buffer): { width: number; height: number } | undefined {
 
 async function folderHash(dir: string): Promise<string> {
   const h = createHash('sha256');
-  for (const e of (await readdir(dir, { withFileTypes: true, recursive: true })).filter((x) => x.isFile()).map((x) => join(x.parentPath, x.name)).sort()) {
+  for (const e of (await readdir(dir, { withFileTypes: true, recursive: true }))
+    .filter((x) => x.isFile())
+    .map((x) => join(x.parentPath, x.name))
+    .sort()) {
     h.update(`${e}\0`).update(await readFile(e));
   }
   return h.digest('hex');
@@ -96,12 +100,13 @@ describe.skipIf(!can)('retake mcp: themes and components', () => {
     const { tools } = await client.listTools();
     const by = new Map(tools.map((t) => [t.name, t]));
     for (const n of ['template_list', 'component_list', 'component_get', 'component_validate']) expect(by.get(n)?.annotations, n).toMatchObject({ readOnlyHint: true, openWorldHint: false });
-    for (const n of ['template_preview', 'component_preview', 'component_create']) expect(by.get(n)?.annotations, n).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: false });
+    for (const n of ['template_preview', 'component_preview', 'component_create'])
+      expect(by.get(n)?.annotations, n).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: false });
     expect(by.get('component_create')?.inputSchema.required).toEqual(['id', 'kind', 'description']);
     expect(client.getInstructions()).toContain('component code, existing themes and project.yaml are never written through this server');
   });
 
-  it('template_list: the themes by name, the project\'s marked; template gives one in detail', async () => {
+  it("template_list: the themes by name, the project's marked; template gives one in detail", async () => {
     const r = await call('template_list', { project: 'demo' });
     expect(r.isError, JSON.stringify(r)).toBeFalsy();
     expect(r.content[0].text).toMatch(/editorial \(workspace, the project's theme/);
@@ -114,35 +119,50 @@ describe.skipIf(!can)('retake mcp: themes and components', () => {
     expect(bad.content[0].text).toMatch(/template: a theme name/);
   });
 
-  it('component_preview returns its still inline (JPEG ≤ 1280 px) from .retake/previews/; the built-in folder is unchanged', async () => {
-    const lib = join(LIBRARY_DIR, 'studio', 'card-title');
-    const before = await folderHash(lib);
-    const r = await call('component_preview', { project: 'demo', component: 'studio/card-title', template: 'motion', slots: { title: 'Quotes in two clicks' }, params: { tone: 'dark' }, wait_s: 25 });
-    expect(r.isError, JSON.stringify(r)).toBeFalsy();
-    expect(r.structuredContent).toMatchObject({ theme: 'motion', targets: ['studio/card-title'], job: { state: 'succeeded' } });
-    const imgs = imagesOf(r);
-    expect(imgs).toHaveLength(1);
-    const size = jpegSize(Buffer.from(imgs[0].data!, 'base64'));
-    expect(size).toEqual({ width: 960, height: 540 });
-    const dir = (r.structuredContent as { dir: string }).dir;
-    expect(dir.startsWith(join(root, '.retake', 'previews', 'p_'))).toBe(true);
-    expect(r.content.find((b) => b.type === 'text' && b.text?.startsWith('image 1/1'))?.text).toContain('studio/card-title (motion theme, at');
-    expect(await folderHash(lib)).toBe(before);
-  }, LONG);
+  it(
+    'component_preview returns its still inline (JPEG ≤ 1280 px) from .retake/previews/; the built-in folder is unchanged',
+    async () => {
+      const lib = join(LIBRARY_DIR, 'studio', 'card-title');
+      const before = await folderHash(lib);
+      const r = await call('component_preview', {
+        project: 'demo',
+        component: 'studio/card-title',
+        template: 'motion',
+        slots: { title: 'Quotes in two clicks' },
+        params: { tone: 'dark' },
+        wait_s: 25,
+      });
+      expect(r.isError, JSON.stringify(r)).toBeFalsy();
+      expect(r.structuredContent).toMatchObject({ theme: 'motion', targets: ['studio/card-title'], job: { state: 'succeeded' } });
+      const imgs = imagesOf(r);
+      expect(imgs).toHaveLength(1);
+      const size = jpegSize(Buffer.from(imgs[0].data!, 'base64'));
+      expect(size).toEqual({ width: 960, height: 540 });
+      const dir = (r.structuredContent as { dir: string }).dir;
+      expect(dir.startsWith(join(root, '.retake', 'previews', 'p_'))).toBe(true);
+      expect(r.content.find((b) => b.type === 'text' && b.text?.startsWith('image 1/1'))?.text).toContain('studio/card-title (motion theme, at');
+      expect(await folderHash(lib)).toBe(before);
+    },
+    LONG,
+  );
 
-  it('template_preview returns the theme\'s stills: 4 inline, the 5th as a file; job_status returns them too', async () => {
-    const r = await call('template_preview', { project: 'demo', wait_s: 25 });
-    expect(r.isError, JSON.stringify(r)).toBeFalsy();
-    expect(r.structuredContent).toMatchObject({ theme: 'editorial', job: { state: 'succeeded' } });
-    const stills = (r.structuredContent as { stills: Array<{ kind: string; file: string }> }).stills;
-    expect(stills.map((s) => s.kind)).toEqual(['intro', 'layout', 'card', 'interstitial', 'outro']);
-    expect(imagesOf(r)).toHaveLength(4);
-    expect(r.content[0].text).toMatch(/1 more image as files \(read them to see them\): outro: studio\/.*outro\.png/);
-    const jobId = (r.structuredContent as { job: { id: string } }).job.id;
-    const js = await call('job_status', { job_id: jobId });
-    expect(imagesOf(js)).toHaveLength(4);
-    expect(js.content[0].text).toContain('preview images in');
-  }, LONG);
+  it(
+    "template_preview returns the theme's stills: 4 inline, the 5th as a file; job_status returns them too",
+    async () => {
+      const r = await call('template_preview', { project: 'demo', wait_s: 25 });
+      expect(r.isError, JSON.stringify(r)).toBeFalsy();
+      expect(r.structuredContent).toMatchObject({ theme: 'editorial', job: { state: 'succeeded' } });
+      const stills = (r.structuredContent as { stills: Array<{ kind: string; file: string }> }).stills;
+      expect(stills.map((s) => s.kind)).toEqual(['intro', 'layout', 'card', 'interstitial', 'outro']);
+      expect(imagesOf(r)).toHaveLength(4);
+      expect(r.content[0].text).toMatch(/1 more image as files \(read them to see them\): outro: studio\/.*outro\.png/);
+      const jobId = (r.structuredContent as { job: { id: string } }).job.id;
+      const js = await call('job_status', { job_id: jobId });
+      expect(imagesOf(js)).toHaveLength(4);
+      expect(js.content[0].text).toContain('preview images in');
+    },
+    LONG,
+  );
 
   it('component_list / get / validate; component_create scaffolds a workspace component and refuses the built-in namespace', async () => {
     const list = await call('component_list', { kind: 'card' });
@@ -161,20 +181,24 @@ describe.skipIf(!can)('retake mcp: themes and components', () => {
     expect(existsSync(join(REPO, 'components'))).toBe(false);
   });
 
-  it('component_preview of a still running job answers queued/running and job_status follows it', async () => {
-    const r = await call('component_preview', { project: 'demo', component: 'acme/intro-split', wait_s: 0 });
-    expect(r.isError, JSON.stringify(r)).toBeFalsy();
-    expect(imagesOf(r)).toEqual([]);
-    expect(r.content[0].text).toMatch(/follow it: job_status \{job_id: "j_[0-9A-Z]{26}", wait_s: 25\}/);
-    const jobId = (r.structuredContent as { job: { id: string } }).job.id;
-    let js = await call('job_status', { job_id: jobId, wait_s: 25 });
-    for (let i = 0; i < 4 && !imagesOf(js).length; i++) js = await call('job_status', { job_id: jobId, wait_s: 25 });
-    expect(imagesOf(js)).toHaveLength(1);
-    // The same stills as component_preview gives when it finishes in time (a client reads `stills` either way).
-    const stills = (js.structuredContent as { stills?: Array<{ file: string }>; dir?: string }).stills;
-    expect(stills).toHaveLength(1);
-    expect(stills![0].file.startsWith((js.structuredContent as { dir: string }).dir)).toBe(true);
-    expect(existsSync(join(root, 'components', 'acme', 'intro-split', 'preview.png'))).toBe(false);
-    expect(stderr).not.toMatch(/unhandled|TypeError/i);
-  }, LONG);
+  it(
+    'component_preview of a still running job answers queued/running and job_status follows it',
+    async () => {
+      const r = await call('component_preview', { project: 'demo', component: 'acme/intro-split', wait_s: 0 });
+      expect(r.isError, JSON.stringify(r)).toBeFalsy();
+      expect(imagesOf(r)).toEqual([]);
+      expect(r.content[0].text).toMatch(/follow it: job_status \{job_id: "j_[0-9A-Z]{26}", wait_s: 25\}/);
+      const jobId = (r.structuredContent as { job: { id: string } }).job.id;
+      let js = await call('job_status', { job_id: jobId, wait_s: 25 });
+      for (let i = 0; i < 4 && !imagesOf(js).length; i++) js = await call('job_status', { job_id: jobId, wait_s: 25 });
+      expect(imagesOf(js)).toHaveLength(1);
+      // The same stills as component_preview gives when it finishes in time (a client reads `stills` either way).
+      const stills = (js.structuredContent as { stills?: Array<{ file: string }>; dir?: string }).stills;
+      expect(stills).toHaveLength(1);
+      expect(stills![0].file.startsWith((js.structuredContent as { dir: string }).dir)).toBe(true);
+      expect(existsSync(join(root, 'components', 'acme', 'intro-split', 'preview.png'))).toBe(false);
+      expect(stderr).not.toMatch(/unhandled|TypeError/i);
+    },
+    LONG,
+  );
 });

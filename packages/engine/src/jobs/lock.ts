@@ -8,11 +8,13 @@ import { readFileSync, rmSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { RETAKE_VERSION } from '@retake/core';
-import { engineLocation } from '@retake/core/io';
+import { RETAKE_VERSION } from '@retake/core/base';
+import { breakStale, createExclusive, engineLocation } from '@retake/core/io';
 import { isAlive, processStart, selfIdentity } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
 import { stateDir } from '../workspace-state.js';
+import { stampOf } from '../clock.js';
+import type { Clock } from '../clock.js';
 
 export interface WorkerLockRecord extends ProcessIdentity {
   host: string;
@@ -34,7 +36,6 @@ export interface WorkerLockRecord extends ProcessIdentity {
 }
 
 /** A recorded engine location: an absolute path, one line, at most 4096 characters (it is shown). */
-// eslint-disable-next-line no-control-regex
 const HIDDEN_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/;
 function engineOk(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith('/') && v.length <= 4096 && !HIDDEN_RE.test(v);
@@ -129,8 +130,7 @@ export class WorkerLock {
   }
 
   /** Take the lock, or null when a live worker holds it (`note` reports a stale lock taken over). */
-  static async acquire(root: string, build: string, note?: (msg: string) => void, startedBy?: string): Promise<WorkerLock | null> {
-    const { createExclusive, breakStale } = await import('@retake/sandbox');
+  static async acquire(root: string, build: string, clock: Clock, note?: (msg: string) => void, startedBy?: string): Promise<WorkerLock | null> {
     await mkdir(workersDir(root), { recursive: true });
     const file = workerLockFile(root);
     const record: WorkerLockRecord = {
@@ -139,7 +139,7 @@ export class WorkerLock {
       version: RETAKE_VERSION,
       build,
       engine: engineLocation(),
-      since: new Date().toISOString(),
+      since: stampOf(clock),
       ...(startedBy !== undefined && WORKER_CLIENT_RE.test(startedBy) ? { started_by: startedBy } : {}),
     };
     const text = JSON.stringify(record, null, 2);

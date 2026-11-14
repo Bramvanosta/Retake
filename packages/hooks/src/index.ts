@@ -3,6 +3,8 @@ export { HookError, HookSecurityError, JournalError } from './errors.js';
 export { SEED_NO_JS, runHooks } from './run.js';
 export { recordHookRun } from './record.js';
 export { hookFiles, hookFingerprint } from './approval.js';
+export { holdAfter, holdBefore, hookTrustFiles, renderWithVars, scriptTokens, trustedFilesMessage, trustedFilesProblem } from './trusted-files.js';
+export type { HoldPoint } from './trusted-files.js';
 export type { HookPlace } from './approval.js';
 export type { RunHooksOptions, RunHooksResult } from './run.js';
 export {
@@ -17,7 +19,6 @@ export {
   journalId,
   openPendingJournals,
   pruneDoneRollbacks,
-  rollbackActionLines,
   rollbackJournals,
   rollbackPendingJournals,
   standaloneJournalFile,
@@ -27,7 +28,7 @@ export type { JournalLocations, JournalOptions, JournalRollback, PendingJournal 
 export { LOCAL_HOSTS, allowedHosts, checkHostAllowed, checkShellHosts, isHostAllowed, normalizeAllowEntry } from './allow-list.js';
 export { destructiveReason, isDestructive, psqlDestructiveStatement, shellDestructiveReason, shellWords } from './destructive.js';
 export { declaredHookLines, describeHook, describeRollback, hookKindOf } from './describe.js';
-export { actionLines, fieldLines, visible } from './shown.js';
+export { actionLines, fieldLines, rollbackActionLines, visible } from './shown.js';
 export type { ShownAction } from './shown.js';
 export { databaseTarget, describeTarget, sandboxDatabaseProblem } from './db-url.js';
 export type { DatabaseTarget } from './db-url.js';

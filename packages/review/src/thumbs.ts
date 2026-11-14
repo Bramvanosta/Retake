@@ -9,11 +9,10 @@
  *   the end gives `null` for that time and never shifts the others. The input is a path (file protocol only) or, as the
  *   Studio passes it, one open descriptor per time (`fd` protocol only: ffmpeg opens no path at all, review A #7).
  */
-import { spawn } from 'node:child_process';
 import type { Readable } from 'node:stream';
 import sharp from 'sharp';
-import { ffmpegBin } from '@retake/core/io';
-import type { WorkPolicy } from '@retake/core';
+import { ffmpegBin, startMediaTool } from '@retake/core/io';
+import type { WorkPolicy } from '@retake/core/policy';
 
 /** Long side of a thumbnail, at most (240 CSS px on a 2× screen). */
 export const THUMB_MAX_PX = 480;
@@ -117,37 +116,25 @@ export async function videoFramesAt(input: VideoInput, seconds: readonly number[
     args.push('-map', `${i}:v:0`, '-frames:v', '1', '-vf', scale, '-f', 'image2pipe', '-c:v', 'png', `pipe:${out0 + i}`);
   });
   const stdio: Array<'ignore' | 'pipe' | number> = ['ignore', 'ignore', 'pipe', ...(fds ?? []), ...seconds.map(() => 'pipe' as const)];
-  const proc = spawn(ffmpegBin(o.policy, o.ffmpeg), args, { stdio });
-  let stderr = '';
-  proc.stderr?.on('data', (c: Buffer) => {
-    if (stderr.length < 2000) stderr += c.toString();
+  // `exit`, not `close`: a process killed while something it started still holds its pipes must not hold this call.
+  const tool = startMediaTool(ffmpegBin(o.policy, o.ffmpeg), args, {
+    stdio,
+    ...(o.signal ? { signal: o.signal } : {}),
+    cancelSignal: 'SIGKILL',
+    timeoutMs: o.timeoutMs ?? 10_000,
+    timeoutSignal: 'SIGKILL',
+    stderr: { keep: 'head', max: 2000 },
+    settle: 'exit',
   });
-  let killedWhy: string | undefined;
-  const kill = (why: string) => {
-    killedWhy ??= why;
-    proc.kill('SIGKILL');
-  };
-  const onAbort = () => kill('cancelled');
-  if (o.signal?.aborted) onAbort();
-  o.signal?.addEventListener('abort', onAbort, { once: true });
-  const timer = setTimeout(() => kill('timed out'), o.timeoutMs ?? 10_000);
+  const proc = tool.child;
   const outputs = seconds.map((_s, i) => {
     const out = proc.stdio[out0 + i] as Readable | null | undefined;
     return out ? collect(out, FRAME_PNG_MAX) : Promise.resolve(null);
   });
-  // `exit`, not `close`: a process killed while something it started still holds its pipes must not hold this call.
-  let code: number | null;
-  try {
-    code = await new Promise<number | null>((resolve, reject) => {
-      proc.on('error', reject);
-      proc.on('exit', (c) => resolve(c));
-    });
-  } catch (e) {
-    throw new Error(`ffmpeg could not be started (${e instanceof Error ? e.message : String(e)}): is ffmpeg on PATH?`);
-  } finally {
-    clearTimeout(timer);
-    o.signal?.removeEventListener('abort', onAbort);
-  }
+  const end = await tool.exited;
+  if (end.error) throw new Error(`ffmpeg could not be started (${end.error.message}): is ffmpeg on PATH?`);
+  const code = end.code;
+  const killedWhy = end.killed === 'timeout' ? 'timed out' : end.killed;
   const drop = () => {
     for (const s of proc.stdio) s?.destroy();
   };
@@ -159,6 +146,6 @@ export async function videoFramesAt(input: VideoInput, seconds: readonly number[
   const grace = setTimeout(drop, 2000);
   const frames = await Promise.all(outputs);
   clearTimeout(grace);
-  if (code !== 0 && frames.every((f) => f === null)) throw new Error(`ffmpeg failed: ${stderr.trim().split('\n')[0] || `exit ${code}`}`);
+  if (code !== 0 && frames.every((f) => f === null)) throw new Error(`ffmpeg failed: ${tool.stderr.trim().split('\n')[0] || `exit ${code}`}`);
   return frames;
 }

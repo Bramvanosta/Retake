@@ -22,9 +22,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { parseYaml } from '@retake/core';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { BLOCKS_YAML, GREEN, capture, colourName, near, writeRun } from '../../engine/test/synthetic-runs.js';
-import type { Rgb } from '../../engine/test/synthetic-runs.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { BLOCKS_YAML, GREEN, capture, colourName, near, writeRun } from '@retake/test-support/runs';
+import type { Rgb } from '@retake/test-support/runs';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const POLL = { timeout: 15_000 };
@@ -32,13 +33,14 @@ const P = 'northfield-fixture';
 const SHOTS = process.env.RETAKE_UI_SHOTS;
 const CAPTURE = '20261020-100000-blocks';
 const EMPTY = 'video: empty\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      # the only step\n      - click: Alone\n  - id: b\n    steps: []  # nothing yet\n';
-const KEYS = 'video: keys\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - click: A1\n      - click: A2\n  - card: {slots: {title: Between}, duration: 1}\n  - id: b\n    steps:\n      - click: B1\n      - hold: 0.5\n';
+const KEYS =
+  'video: keys\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - click: A1\n      - click: A2\n  - card: {slots: {title: Between}, duration: 1}\n  - id: b\n    steps:\n      - click: B1\n      - hold: 0.5\n';
 
 let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const requests: Array<{ op: string; at: number; body: Record<string, unknown> }> = [];
 const file = (name: string) => join(ws, 'projects', P, 'scenarios', `${name}.yaml`);
 const value = (text: string) => parseYaml(text).value as { scenes: Array<{ id?: string; steps?: unknown[] }> };
@@ -138,7 +140,7 @@ async function dragRow(from: string, to: string, side: 'left' | 'right'): Promis
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-edit-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   const dir = join(ws, 'projects', P);
   await writeFile(file('blocks'), BLOCKS_YAML);
@@ -186,8 +188,7 @@ afterEach(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -197,7 +198,12 @@ describe('drag & drop', () => {
     const before = await settled('blocks');
     // The capture's picture of "Second" (one.1) is green; wait for it before the move.
     await row('one.1').scrollIntoViewIfNeeded();
-    await expect.poll(async () => { const c = await centreColour('one.1'); return c ? colourName(c) : 'none'; }, POLL).toBe(colourName(GREEN));
+    await expect
+      .poll(async () => {
+        const c = await centreColour('one.1');
+        return c ? colourName(c) : 'none';
+      }, POLL)
+      .toBe(colourName(GREEN));
     const t0 = Date.now();
     await dragRow('one.1', 'one.0', 'left');
     await expect.poll(() => live(), POLL).toBe('Moved step 2 of one to position 1. Saved.');
@@ -209,7 +215,12 @@ describe('drag & drop', () => {
     await expect.poll(() => row('one.0').getAttribute('aria-selected'), POLL).toBe('true');
     await expect.poll(() => row('one.0').getByTestId('step-state').innerText(), POLL).toContain('moved since this run');
     expect(await row('one.1').getByTestId('step-state').innerText()).not.toContain('moved');
-    await expect.poll(async () => { const c = await centreColour('one.0'); return c && near(c, GREEN, 40) ? 'green' : 'other'; }, POLL).toBe('green');
+    await expect
+      .poll(async () => {
+        const c = await centreColour('one.0');
+        return c && near(c, GREEN, 40) ? 'green' : 'other';
+      }, POLL)
+      .toBe('green');
     expect(ops('run_thumbs', t0).filter((r) => (r.body.keys as string[]).includes('one.1'))).toEqual([]);
     expect(ops('scenario_edit', t0).map((r) => (r.body.edit as { kind: string }).kind)).toEqual(['move_step']);
     await shot('edit-1-moved');
@@ -398,6 +409,45 @@ describe('the keyboard path and undo / redo', () => {
     await writeFile(file('keys'), KEYS);
   });
 
+  it("the file's event first: an edit's version read before its answer lands turns input back on, keeps the undo history, and undo / redo do the same", async () => {
+    await writeFile(file('keys'), KEYS);
+    await openBlocks('keys');
+    const k0 = await settled('keys');
+    // Each answer is held until the screen has read the edit's version on the file's event (the order a busy machine gives).
+    const late = await holdRoute('**/v1/call/scenario_edit', async (r) => {
+      const res = await r.fetch();
+      const want = (JSON.parse(await res.text()) as { data: { hash: string } }).data.hash;
+      const at = Date.now();
+      await expect.poll(() => ops('scenario_blocks', at).length > 0 && blocksInFlight.size === 0, POLL).toBe(true);
+      await expect.poll(() => readFile(file('keys')).then(sha), POLL).toBe(want);
+      await sleep(300);
+      await r.fulfill({ response: res });
+    });
+    await row('a.0').click();
+    await page.keyboard.press('Alt+ArrowDown');
+    await expect.poll(() => live(), POLL).toBe('Moved step 1 of a to position 2. Saved.');
+    const k1 = await settled('keys');
+    expect(value(k1)).toEqual(moved(k0, 'a', 0, 'a', 1));
+    // A second edit, with a history to keep: its version read first is this screen's own, not an outside change.
+    await page.keyboard.press('Alt+ArrowDown');
+    await expect.poll(() => live(), POLL).toBe('Moved step 2 of a to position 1 of b. Saved.');
+    const k2 = await settled('keys');
+    expect(value(k2)).toEqual(moved(k1, 'a', 1, 'b', 0));
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect.poll(() => live(), POLL).toBe('Undone: Moved step 2 of a to position 1 of b.');
+    expect(await settled('keys')).toBe(k1);
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect.poll(() => live(), POLL).toBe('Undone: Moved step 1 of a to position 2.');
+    expect(await settled('keys')).toBe(k0);
+    await page.keyboard.press('Shift+ControlOrMeta+z');
+    await expect.poll(() => live(), POLL).toBe('Redone: Moved step 1 of a to position 2.');
+    expect(await settled('keys')).toBe(k1);
+    expect(await page.getByTestId('undo').isDisabled()).toBe(false);
+    expect(await page.getByTestId('redo').isDisabled()).toBe(false);
+    await late.release();
+    await writeFile(file('keys'), KEYS);
+  });
+
   it('a CR LF file without a final line break: Delete then undo give the exact bytes; the edit keeps CR LF and no final break', async () => {
     await openBlocks('crlf');
     const c0 = await settled('crlf');
@@ -524,7 +574,9 @@ describe('when block editing is off', () => {
     await openBlocks('owned');
     await page.getByTestId('blocks-edit-off').waitFor(POLL);
     await page.getByTestId('edit-bar').scrollIntoViewIfNeeded();
-    expect(await page.getByTestId('blocks-edit-off').innerText()).toMatch(/^Editing the board is off \(moves, copies, deletes, forms and new steps\): scenarios\/owned\.yaml holds what the Studio never writes \(line 12\)/);
+    expect(await page.getByTestId('blocks-edit-off').innerText()).toMatch(
+      /^Editing the board is off \(moves, copies, deletes, forms and new steps\): scenarios\/owned\.yaml holds what the Studio never writes \(line 12\)/,
+    );
     await shot('edit-6-blocked');
     expect(await page.locator('[data-testid="step"][draggable="true"]').count()).toBe(0);
     expect(await page.getByTestId('step-actions').count()).toBe(0);
@@ -546,13 +598,23 @@ describe('L5.10b: the storyboard grid', () => {
       w.__gridDt = new DataTransfer();
       document.querySelector(`[data-testid="step"][data-key="${key}"]`)!.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: w.__gridDt }));
     }, from);
-    const rects = await page.locator(`[role="listbox"][aria-label="${list}"] > [role="option"]`).evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; }));
+    const rects = await page.locator(`[role="listbox"][aria-label="${list}"] > [role="option"]`).evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      }),
+    );
     const p = at(rects);
     for (const type of ['dragover', 'drop']) {
-      await page.evaluate(([type, label, x, y]) => {
-        const w = window as unknown as { __gridDt?: DataTransfer };
-        document.querySelector(`[role="listbox"][aria-label="${label}"]`)!.dispatchEvent(new DragEvent(type as string, { bubbles: true, cancelable: true, dataTransfer: w.__gridDt, clientX: x as number, clientY: y as number }));
-      }, [type, list, p.x, p.y] as const);
+      await page.evaluate(
+        ([type, label, x, y]) => {
+          const w = window as unknown as { __gridDt?: DataTransfer };
+          document
+            .querySelector(`[role="listbox"][aria-label="${label}"]`)!
+            .dispatchEvent(new DragEvent(type as string, { bubbles: true, cancelable: true, dataTransfer: w.__gridDt, clientX: x as number, clientY: y as number }));
+        },
+        [type, list, p.x, p.y] as const,
+      );
       if (type === 'dragover') await expect.poll(() => page.locator('.k-frame.is-drop-before, .k-frame.is-drop-after').count(), POLL).toBe(1);
     }
     await page.evaluate((key) => document.querySelector(`[data-testid="step"][data-key="${key}"]`)?.dispatchEvent(new DragEvent('dragend', { bubbles: true })), from);
@@ -569,7 +631,9 @@ describe('L5.10b: the storyboard grid', () => {
     await expect.poll(() => live(), POLL).toBe('Moved step 1 of one to position 2. Saved.');
     const b1 = await settled('blocks');
     expect(value(b1)).toEqual(moved(b0, 'one', 0, 'one', 1));
-    expect(ops('scenario_edit', t0).map((r) => r.body.edit)).toEqual([{ kind: 'move_step', from: { scene: 'one', index: 0, guard: expect.stringMatching(/^[0-9a-f]{16}$/) }, to: { scene: 'one', index: 1 } }]);
+    expect(ops('scenario_edit', t0).map((r) => r.body.edit)).toEqual([
+      { kind: 'move_step', from: { scene: 'one', index: 0, guard: expect.stringMatching(/^[0-9a-f]{16}$/) }, to: { scene: 'one', index: 1 } },
+    ]);
     // Scene two's trailing empty cell (two frames in a row of three): the end of the scene.
     const t1 = Date.now();
     await dropAt('one.0', 'Steps of scene two', (r) => ({ x: r[1].right + (r[1].right - r[1].left) / 2 + 24, y: (r[1].top + r[1].bottom) / 2 }));
@@ -580,7 +644,7 @@ describe('L5.10b: the storyboard grid', () => {
     await writeFile(file('blocks'), BLOCKS_YAML);
   });
 
-  it('⚑ the write path is unchanged: add, move, duplicate, delete, a form\'s change and undo are each one scenario_edit naming the version shown (the file\'s sha256: if_match)', async () => {
+  it("⚑ the write path is unchanged: add, move, duplicate, delete, a form's change and undo are each one scenario_edit naming the version shown (the file's sha256: if_match)", async () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     let text = await settled('keys');

@@ -6,8 +6,10 @@
  * later step produces) is skipped, and so is one the take may not open (opens.ts). A page that changes data when it
  * loads (marks something read) does it here too.
  */
-import { isCaptureScene, resolvePageUrl, resolveScenePages } from '@retake/core';
-import type { Scenario, SceneEntry } from '@retake/core';
+import { resolvePageUrl } from '@retake/core/base';
+import { isCaptureScene } from '@retake/core/model';
+import { resolveScenePages } from '@retake/core/language';
+import type { Scenario, SceneEntry } from '@retake/core/model';
 import { errorMessage, isCancelled } from './errors.js';
 import type { Runtime } from './runtime.js';
 import { wallNow } from './util.js';

@@ -19,7 +19,8 @@
  * malformed parts (a step without a single action is compared by its data). Messages name only keys, scene ids (slugs)
  * and step indexes, never a value of the file: they reach trusted summaries.
  */
-import { canonicalJson, stepFingerprintOf } from './comments.js';
+import { canonicalJson } from './canonical-json.js';
+import { stepFingerprintOf } from './steps.js';
 import { SLUG_RE } from './schemas/primitives.js';
 import { listTemplateTokens } from './templating.js';
 import { parseYaml } from './validation/yaml-source.js';
@@ -127,7 +128,14 @@ export function filmedPartsOf(value: unknown): FilmedParts {
     collectStrings(own, strings);
     for (const s of rawSteps) {
       if (!isPlainObject(s)) continue;
-      collectStrings(Object.fromEntries(Object.entries(s).filter(([k]) => !EDIT_STEP_KEYS.has(k) || k === 'overlay' || k === 'camera').map(([k, v]) => [k, k === 'overlay' || k === 'camera' ? (isPlainObject(v) ? v.target : undefined) : v])), strings);
+      collectStrings(
+        Object.fromEntries(
+          Object.entries(s)
+            .filter(([k]) => !EDIT_STEP_KEYS.has(k) || k === 'overlay' || k === 'camera')
+            .map(([k, v]) => [k, k === 'overlay' || k === 'camera' ? (isPlainObject(v) ? v.target : undefined) : v]),
+        ),
+        strings,
+      );
     }
     scenes.push({ id: typeof entry.id === 'string' ? entry.id : `#${i}`, keys, steps: rawSteps.map(filmedStep), strings });
   }

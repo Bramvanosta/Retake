@@ -17,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ScenarioError } from '@retake/core';
 import { EngineError, createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const RLO = String.fromCodePoint(0x202e);
@@ -29,7 +30,7 @@ let dir: string;
 let ui: Engine;
 let mcp: Engine;
 let cli: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const PROJECT = 'name: W\nenvironments:\n  local:\n    console: http://127.0.0.1:4997\ncapture: {width: 1280, height: 720, scale: 1, fps: 30}\ntemplate: default\n';
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      # first a pause\n      - hold: 0.2\n';
@@ -37,7 +38,10 @@ const HOOKED = SHORT.replace('scenes:', 'setup:\n  - http: {method: POST, url: "
 const file = (name: string) => join(dir, 'scenarios', name);
 
 async function failure(p: Promise<unknown>): Promise<Error> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(Error);
   return e as Error;
 }
@@ -55,7 +59,7 @@ async function snapshot(name: string): Promise<{ bytes: string; mtime: number }>
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-scenario-edit-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   dir = join(ws, 'projects', 'w');
   await mkdir(join(dir, 'scenarios'), { recursive: true });
@@ -69,8 +73,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -118,7 +121,14 @@ describe('replace_text and restore (the YAML tab, undo / redo)', () => {
     let h = await put('both.yaml', SHORT);
     for (let i = 0; i < 20; i++) {
       const texts = [SHORT.replace('0.2', `1.${i}`), SHORT.replace('0.2', `2.${i}`)];
-      const out = await Promise.all(texts.map((text) => ui.scenarios.edit('w', 'both', { hash: h, edit: { kind: 'replace_text', text } }).then(() => 'ok', (e: unknown) => (e as EngineError).code)));
+      const out = await Promise.all(
+        texts.map((text) =>
+          ui.scenarios.edit('w', 'both', { hash: h, edit: { kind: 'replace_text', text } }).then(
+            () => 'ok',
+            (e: unknown) => (e as EngineError).code,
+          ),
+        ),
+      );
       expect(out.sort()).toEqual(['conflict', 'ok']);
       h = sha(await readFile(file('both.yaml')));
       expect(texts.map(sha)).toContain(h);
@@ -236,7 +246,9 @@ describe('hooks unchanged from the Studio (critique B3)', () => {
     for (const text of variants) {
       const e = (await failure(ui.scenarios.edit('w', 'hooks', { hash: h0, edit: { kind: 'replace_text', text } }))) as EngineError;
       expect(e.code, text).toBe('refused');
-      expect(e.message).toMatch(/^not saved: (setup|teardown|mocks)(, \w+)* changed: hooks and mocks run on this Mac, so the Studio saves a scenario only with them unchanged — edit them in your editor$/);
+      expect(e.message).toMatch(
+        /^not saved: (setup|teardown|mocks)(, \w+)* changed: hooks and mocks run on this Mac, so the Studio saves a scenario only with them unchanged — edit them in your editor$/,
+      );
       expect(await snapshot('hooks.yaml')).toEqual(before);
     }
     const rekeyed = HOOKED.replace('{method: POST, url: "{{console}}/x"}', '{url: "{{console}}/x", method: POST}').replace('hold: 0.2', 'hold: 0.9');
@@ -321,7 +333,9 @@ describe('review fixes (L4.3 reviews A and B)', () => {
     ] as const) {
       const e = (await failure(ui.scenarios.edit('w', 'frozen', { hash: h0, edit: { kind: 'replace_text', text } }))) as EngineError;
       expect(e.code).toBe('refused');
-      expect(e.message).toBe(`not saved: ${field} changed: this scenario has hooks or mocks, which read its vars and its environment and run on this Mac, so the Studio saves it only with vars and env unchanged — change them in your editor`);
+      expect(e.message).toBe(
+        `not saved: ${field} changed: this scenario has hooks or mocks, which read its vars and its environment and run on this Mac, so the Studio saves it only with vars and env unchanged — change them in your editor`,
+      );
       expect(e.details).toEqual({ sections: [field] });
     }
     expect(await snapshot('frozen.yaml')).toEqual(before);
@@ -355,7 +369,10 @@ describe('review fixes (L4.3 reviews A and B)', () => {
     await writeFile(join(dir, 'hooks', 'seed.sh'), SHORT);
     await symlink('../hooks/seed.sh', file('lnk.yaml'));
     const v = await ui.scenarios.view('w', 'lnk');
-    expect(v.edit.yaml).toEqual({ ok: false, why: 'scenarios/lnk.yaml is a symbolic link to hooks/seed.sh, outside scenarios/: the Studio writes scenarios only inside scenarios/ — edit it in your editor; the Studio shows it read-only.' });
+    expect(v.edit.yaml).toEqual({
+      ok: false,
+      why: 'scenarios/lnk.yaml is a symbolic link to hooks/seed.sh, outside scenarios/: the Studio writes scenarios only inside scenarios/ — edit it in your editor; the Studio shows it read-only.',
+    });
     const e = (await failure(ui.scenarios.edit('w', 'lnk', { hash: sha(SHORT), edit: { kind: 'replace_text', text: SHORT.replace('0.2', '0.3') } }))) as EngineError;
     expect(e.code).toBe('refused');
     const m = (await failure(mcp.scenarios.save('w', 'lnk', SHORT.replace('0.2', '0.3'), { ifMatch: sha(SHORT) }))) as EngineError;
@@ -386,13 +403,19 @@ describe('review fixes (L4.3 reviews A and B)', () => {
     const mk = (f: string) => SHORT.replace('scenes:', `music: {file: "${f}"}\nscenes:`);
     for (const engine of [ui, mcp]) {
       const words = engine === ui ? 'from the Studio' : 'through MCP';
-      const msgs = await Promise.all(['/etc/hosts', '/etc/nonexistent-ds-zz'].map(async (f) => (await engine.scenarios.validate('w', mk(f), {})).issues.filter((i) => i.path?.[0] === 'music').map((i) => i.message.replace(f, '<f>'))));
+      const msgs = await Promise.all(
+        ['/etc/hosts', '/etc/nonexistent-ds-zz'].map(async (f) =>
+          (await engine.scenarios.validate('w', mk(f), {})).issues.filter((i) => i.path?.[0] === 'music').map((i) => i.message.replace(f, '<f>')),
+        ),
+      );
       expect(msgs[0]).toEqual([`music file "<f>" resolves outside the project folder: ${words} only files of the project folder are read`]);
       expect(msgs[1]).toEqual(msgs[0]);
     }
     const h0 = await put('music.yaml', SHORT);
     const errs = await Promise.all(
-      ['/etc/hosts', '/etc/nonexistent-ds-zz'].map(async (f) => ((await failure(ui.scenarios.edit('w', 'music', { hash: h0, edit: { kind: 'replace_text', text: mk(f) } }))) as ScenarioError).issues.map((i) => i.message.replace(f, '<f>'))),
+      ['/etc/hosts', '/etc/nonexistent-ds-zz'].map(async (f) =>
+        ((await failure(ui.scenarios.edit('w', 'music', { hash: h0, edit: { kind: 'replace_text', text: mk(f) } }))) as ScenarioError).issues.map((i) => i.message.replace(f, '<f>')),
+      ),
     );
     expect(errs[1]).toEqual(errs[0]);
     // A person at a terminal still learns the file is missing.

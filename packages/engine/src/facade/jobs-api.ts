@@ -13,6 +13,9 @@ import type { JobRecord } from '../jobs/types.js';
 import type { EngineContext } from './context.js';
 import type { Engine, WaitOptions } from './types.js';
 
+/** How long past its timeout, in real time, a wait on a clock that did not move fails (jobs.wait). */
+export const STALLED_CLOCK_MS = 1_000;
+
 /** engine.jobs. */
 export function jobsApi(ctx: EngineContext): Engine['jobs'] {
   const { opts, ws, queue, startWorker } = ctx;
@@ -22,15 +25,27 @@ export function jobsApi(ctx: EngineContext): Engine['jobs'] {
     return job;
   };
   const wait = async (id: string, w: WaitOptions): Promise<JobRecord> => {
-    const deadline = Date.now() + Math.max(0, w.timeoutMs);
+    const clock = ctx.ports.clock;
+    const started = clock.monotonic();
+    const deadline = started + Math.max(0, w.timeoutMs);
+    // The deadline is the clock's: a clock that does not move (a ManualClock nobody advances) would wait forever, so
+    // past the wait plus STALLED_CLOCK_MS of real time with the clock still where it started, the wait fails, said.
+    const realStart = performance.now();
+    const stalled = () => clock.monotonic() === started && performance.now() - realStart > Math.max(0, w.timeoutMs) + STALLED_CLOCK_MS;
     let job = await getJob(id);
     let last = JSON.stringify([job.state, job.progress?.steps_done, job.progress?.current, job.progress?.phase, job.progress?.paused]);
-    while (!FINISHED_JOB_STATES.has(job.state) && Date.now() < deadline && !w.signal?.aborted) {
+    while (!FINISHED_JOB_STATES.has(job.state) && ctx.ports.clock.monotonic() < deadline && !w.signal?.aborted) {
       await new Promise<void>((r) => {
-        const t = setTimeout(r, Math.min(300, Math.max(0, deadline - Date.now())));
+        const t = setTimeout(r, Math.min(300, Math.max(0, deadline - ctx.ports.clock.monotonic())));
         w.signal?.addEventListener('abort', () => (clearTimeout(t), r()), { once: true });
       });
       job = await getJob(id);
+      if (!FINISHED_JOB_STATES.has(job.state) && stalled()) {
+        throw new EngineError(
+          'internal',
+          `the wait for job ${id} did not end: the engine's clock did not move in ${Math.round(w.timeoutMs + STALLED_CLOCK_MS)} ms of real time (a manual clock that is never advanced)`,
+        );
+      }
       const now = JSON.stringify([job.state, job.progress?.steps_done, job.progress?.current, job.progress?.phase, job.progress?.paused]);
       if (now !== last) {
         last = now;
@@ -84,7 +99,10 @@ export function envApi(ctx: EngineContext): Engine['env'] {
 export function sandboxApi(ctx: EngineContext): Engine['sandbox'] {
   const { project, submitCtx, startWorker } = ctx;
   return {
-    status: async (slug, env) => sandboxStatus(await project(slug), env, ctx.ws.policy),
+    status: async (slug, env) => {
+      const p = await project(slug);
+      return sandboxStatus(p, env, ctx.ws.policy, ctx.scope.stores.folder(p.dir), ctx.ports.sandboxes);
+    },
     up: async (req, o = {}) => {
       const r = await submitSandboxJob(submitCtx, 'sandbox_up', req, o.approver);
       const worker = await startWorker();

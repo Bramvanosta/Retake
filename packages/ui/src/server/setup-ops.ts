@@ -29,7 +29,7 @@ import { execFile } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { z } from 'zod';
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION, bestEffort } from '@retake/core/base';
 import { bundleInfoOrNull, bundleNodeArgs, retakeHome } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 import type { UpdateState } from './update-ops.js';
@@ -79,7 +79,16 @@ export const SETUP_WRITES_PER_MIN = 12;
 /** The process list (is Claude Desktop running?) is read at most this often by the status. */
 export const PS_EVERY_MS = 5000;
 
-export const SETUP_OPS = ['setup_status', 'setup_cli_install', 'setup_cli_choose', 'setup_cli_remove', 'setup_claude_code_run', 'setup_claude_desktop_add', 'setup_notifications', 'setup_done'] as const;
+export const SETUP_OPS = [
+  'setup_status',
+  'setup_cli_install',
+  'setup_cli_choose',
+  'setup_cli_remove',
+  'setup_claude_code_run',
+  'setup_claude_desktop_add',
+  'setup_notifications',
+  'setup_done',
+] as const;
 
 /** Everything the setup ops read from the machine — injected by tests (scratch folders, fake programs). */
 export interface SetupContext {
@@ -188,9 +197,9 @@ function refused(reason: string, message: string, extra: Record<string, unknown>
 
 /** The ops' common gate: the installed app's own server (and, `placed`, an app moved to Applications). */
 function gate(pipe: DesktopPipe, ctx: SetupContext, state: SetupState, placed: boolean): BundleInfo {
-  if (!pipe.supervised) throw refused('not_supervised', 'set-up is the installed app\'s: this Studio server is not the desktop app\'s');
+  if (!pipe.supervised) throw refused('not_supervised', "set-up is the installed app's: this Studio server is not the desktop app's");
   const b = appBundle(ctx);
-  if (!b) throw refused('not_bundled', 'set-up is the installed app\'s: this Retake runs from a repository checkout (use retake mcp --print-config there)');
+  if (!b) throw refused('not_bundled', "set-up is the installed app's: this Retake runs from a repository checkout (use retake mcp --print-config there)");
   if (placed) {
     const loc = locationOf(b, ctx);
     if (loc !== 'ok') throw refused('location', `${installLocationWords(loc)}: ${MOVE_TO_APPLICATIONS}`, { location: loc });
@@ -246,7 +255,7 @@ function installedLink(ctx: SetupContext, home: string, launcher: string): strin
 
 /** Is Claude Desktop running: true / false, null when `ps` could not tell (a fresh read, remembered). */
 async function readRunning(ctx: SetupContext, state: SetupState): Promise<boolean | null> {
-  const list = await ctx.processes().catch(() => null);
+  const list = await bestEffort(ctx.processes(), 'processes that cannot be listed: null, the sheet says it cannot tell', null);
   const running = list === null ? null : claudeDesktopIn(list);
   state.ps = { at: state.now(), running };
   return running;
@@ -303,12 +312,12 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
   const status = defineTool({
     name: 'setup_status',
     title: 'Set-up of the installed app',
-    description: 'The installed app\'s set-up: where it runs from, the retake command, Claude Code and Claude Desktop, notifications. The desktop app\'s own server only.',
+    description: "The installed app's set-up: where it runs from, the retake command, Claude Code and Claude Desktop, notifications. The desktop app's own server only.",
     input: z.strictObject({ processes: z.boolean().default(false).describe('Read the process list too (is Claude Desktop running?), at most every 5 s.') }),
     annotations: READ_ANN,
     async run(a: { processes: boolean }): Promise<ToolOutput<SetupStatus>> {
       const ctx = o.ctx();
-      if (!pipe.supervised) return { summary: 'set-up: not the desktop app\'s server', data: { available: false, reason: 'not_supervised' } };
+      if (!pipe.supervised) return { summary: "set-up: not the desktop app's server", data: { available: false, reason: 'not_supervised' } };
       const b = appBundle(ctx);
       if (!b) return { summary: 'set-up: not an installed app', data: { available: false, reason: 'not_bundled' } };
       const home = homeOf(ctx);
@@ -402,7 +411,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
   const install = defineTool({
     name: 'setup_cli_install',
     title: 'Install the retake command',
-    description: 'Link the retake command to this app (the default folder, or the folder chosen in the app\'s panel). The desktop app\'s own server only.',
+    description: "Link the retake command to this app (the default folder, or the folder chosen in the app's panel). The desktop app's own server only.",
     input: z.strictObject({ folder: z.enum(['default', 'chosen']).default('default'), replace: z.boolean().default(false).describe('Replace a link to another copy of Retake.') }),
     annotations: WRITE_ANN,
     async run(a: { folder: 'default' | 'chosen'; replace: boolean }) {
@@ -418,7 +427,8 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       const launcher = join(b.root, LAUNCHER_REL);
       // One command per app (review c B-M1): a second link elsewhere would be forgotten by Uninstall.
       const there = installedLink(ctx, home, launcher);
-      if (there && there !== join(dir, CLI_NAME)) throw refused('installed_elsewhere', `the command is installed already: ${there} — Uninstall it first, then install it in the other folder`, { installed: there });
+      if (there && there !== join(dir, CLI_NAME))
+        throw refused('installed_elsewhere', `the command is installed already: ${there} — Uninstall it first, then install it in the other folder`, { installed: there });
       let r;
       try {
         r = installCliLink(dir, launcher, { replace: a.replace, createDir: a.folder === 'default' });
@@ -432,8 +442,8 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
 
   const choose = defineTool({
     name: 'setup_cli_choose',
-    title: 'Choose the command\'s folder',
-    description: 'Ask the desktop app to show its folder panel (the folder never comes from the page). The desktop app\'s own server only.',
+    title: "Choose the command's folder",
+    description: "Ask the desktop app to show its folder panel (the folder never comes from the page). The desktop app's own server only.",
     input: z.strictObject({}),
     annotations: WRITE_ANN,
     async run() {
@@ -447,7 +457,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
   const remove = defineTool({
     name: 'setup_cli_remove',
     title: 'Uninstall the retake command',
-    description: 'Remove the retake command\'s link when it points into a Retake app (anything else is left). The desktop app\'s own server only.',
+    description: "Remove the retake command's link when it points into a Retake app (anything else is left). The desktop app's own server only.",
     input: z.strictObject({}),
     annotations: { ...WRITE_ANN, destructiveHint: true },
     async run() {
@@ -472,7 +482,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
   const claudeRun = defineTool({
     name: 'setup_claude_code_run',
     title: 'Register with Claude Code',
-    description: 'Run the plugin route\'s two lines with the claude found in a fixed list (no shell). The desktop app\'s own server only.',
+    description: "Run the plugin route's two lines with the claude found in a fixed list (no shell). The desktop app's own server only.",
     input: z.strictObject({}),
     annotations: { ...WRITE_ANN, openWorldHint: true },
     async run() {
@@ -501,7 +511,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
   const desktopAdd = defineTool({
     name: 'setup_claude_desktop_add',
     title: 'Add to Claude Desktop',
-    description: 'Merge the retake entry into Claude Desktop\'s config (a backup first; a different entry needs replace). The desktop app\'s own server only.',
+    description: "Merge the retake entry into Claude Desktop's config (a backup first; a different entry needs replace). The desktop app's own server only.",
     input: z.strictObject({ replace: z.boolean().default(false).describe('Replace a different retake entry.') }),
     annotations: WRITE_ANN,
     async run(a: { replace: boolean }) {
@@ -518,14 +528,17 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       } catch (e) {
         setupError(e);
       }
-      return { summary: r.kind === 'same' ? 'Claude Desktop already has this entry' : `added to Claude Desktop (${r.file})`, data: { ok: true, kind: r.kind, file: r.file, ...(r.backup ? { backup: r.backup } : {}) } };
+      return {
+        summary: r.kind === 'same' ? 'Claude Desktop already has this entry' : `added to Claude Desktop (${r.file})`,
+        data: { ok: true, kind: r.kind, file: r.file, ...(r.backup ? { backup: r.backup } : {}) },
+      };
     },
   });
 
   const notifications = defineTool({
     name: 'setup_notifications',
     title: 'Allow notifications',
-    description: 'Ask the desktop app to request the notification permission. The desktop app\'s own server only.',
+    description: "Ask the desktop app to request the notification permission. The desktop app's own server only.",
     input: z.strictObject({}),
     annotations: WRITE_ANN,
     async run() {
@@ -538,7 +551,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
   const done = defineTool({
     name: 'setup_done',
     title: 'Close the set-up',
-    description: 'Remember that the person closed the Set-up sheet of this version. The desktop app\'s own server only.',
+    description: "Remember that the person closed the Set-up sheet of this version. The desktop app's own server only.",
     input: z.strictObject({}),
     annotations: WRITE_ANN,
     async run() {

@@ -20,16 +20,22 @@ packages/engine       the engine API the CLI and the MCP server share: workspace
                       the run executor of `retake run`, the job queue and its worker (worker-main.ts), the local
                       HTTP servers' gate, 127.0.0.1 listener, tokens and discovery file (src/http/), the workspace
                       index (src/index-db/: node:sqlite, the stat poll, the job watch); `@retake/engine/contract`:
-                      the operation contract (ToolDef, the SDK-free callTool the MCP server and the Studio share) and
+                      the operation contract (ToolDef, the SDK-free invoke the MCP server and the Studio share) and
                       the operation catalogue (catalogue.ts: every operation, its kind and the shells that serve it)
 packages/mcp          the MCP server (`retake mcp`): tools over stdio and Streamable HTTP (src/http.ts), zod schemas,
                       results, --print-config
+packages/test-support the helpers the tests of several packages share (`@retake/test-support/<module>`: the fixture
+                      workspace, synthetic runs and timelines, renders, reviews, the capture and brand-site servers,
+                      a test's own RETAKE_HOME, a free port, the golden recorder, a throwaway Postgres): test code only
+                      — no build, no package depends on it, never in the app
 apps/desktop          the macOS app (L5.2): a Tauri shell (Rust, Cargo; not a pnpm package) running `retake ui
                       --supervised` and showing it; core/ holds its rules (no dependency); scripts/desktop.mjs
 packages/ui           the Studio web app (`retake ui`): a React app bundled in memory by esbuild and its server — the
                       engine's /v1 HTTP API behind the engine's gate (engine src/http/), an allow-list of the MCP tools,
-                      the event stream and the index reads (src/server/live.ts, ops.ts); the scenario screen
-                      (src/app/ScenarioScreen.tsx, Inspector.tsx, YamlView.tsx, Thumb.tsx, thumbs.ts)
+                      the event stream and the index reads (src/server/live.ts, ops.ts); the screens in a folder
+                      per feature (src/app/record/, script/, shoot/, edit/, review/, library/, themes/, project/;
+                      the scenario screen: src/app/script/ScenarioScreen.tsx, ScenarioInspector.tsx, YamlView.tsx),
+                      the shared words in src/app/words/, the foundations at src/app/ (Thumb.tsx, thumbs.ts, …)
 skills/               the Claude Code plugin: Claude skills + the MCP server from userConfig values (skills/README.md)
 .claude-plugin/       the local plugin marketplace (`claude plugin marketplace add <repo>`)
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests (and its Dockerfile)
@@ -37,25 +43,40 @@ projects/             the fixture project and its sandboxes (your projects live 
 templates/            starter themes: default, editorial, motion
 scripts/              requirements.mjs (docs/REQUIREMENTS.md; `--check-cites`: quoted test titles exist), fixture media
                       and preview samples, validate-raw.py,
-                      test-pg.mjs (`pnpm test:pg`)
-docs/                 SPEC.md (product brief), DESIGN.md and DESIGN-phase2.md (package contracts), HANDOFF.md,
+                      test-pg.mjs (`pnpm test:pg`), test-ci.mjs and test-ci.json (`pnpm test:ci`), coverage.mjs,
+                      test-guard.mjs, lint.mjs (`pnpm lint`) and its lint-baseline.json
+docs/                 SPEC.md (product brief), DESIGN.md and DESIGN-phase2.md (package contracts), HANDOFF.md (its
+                      history in archive/HANDOFF-history.md),
                       ROADMAP.md, BACKLOG.md, ACCEPTANCE-phase2.md, MACOS-CHECKLIST.md, RELEASING.md; guide/ (the
                       user guide: the reference the README links)
 CLAUDE.md             notes for Claude Code sessions (read order, working agreement, commands)
 ```
 
-Development: `pnpm build` (TypeScript project references), `pnpm test` (vitest; the end-to-end tests start the
+Development: `pnpm build` (TypeScript project references), `pnpm typecheck` (the build, then the files under
+`packages/*/test` type-checked with `tsconfig.test.json`: the build does not read them, the CI does), `pnpm test` (vitest; the end-to-end tests start the
 fixture on free ports and skip themselves when Chromium or ffmpeg is missing; some CLI tests run `packages/cli/dist`,
-so build first). Gated tests:
+so build first). A helper the tests of two packages use lives in `packages/test-support` (read from its sources by
+vitest's aliases and `tsconfig.test.json`'s paths), never in one package's test folder; a test that needs a Retake home
+of its own takes it with `scratchHome()` (`@retake/test-support/home`: `use(dir)`, then `restore()` puts back the run's
+scratch home that `vitest.config.ts` set) — the import-rules ratchet counts a reach into another package's test folder
+(`test-reach`) and a hand-written save or restore of `RETAKE_HOME` (`home-restore`). `pnpm lint` runs Biome's linter (`biome.json`: the recommended rules, a few turned off with their
+reason in `scripts/lint-baseline.json`) and holds the code to that baseline: a new violation fails, and a count that
+went down asks for the baseline to be lowered (`node scripts/lint.mjs --write-baseline`), so it only shrinks; the CI
+runs it. `pnpm format` formats the code with Biome (`pnpm format:check` only reports). The linter reads the TypeScript
+and JavaScript of `packages/*/src`, `packages/*/test`, `scripts` and the desktop app (`apps/desktop/scripts`,
+`apps/desktop/bundle`); the formatter the same but the desktop app's, whose release and bundle tests read its exact
+text; neither reads test fixtures, golden files, `dist`, templates, the component library or Rust. Test tiers and
+gated tests:
 
 | Command | What it runs |
 |---|---|
-| `pnpm test:pg` | the 7 SQL hook tests against a real Postgres (`packages/hooks/test/sql.test.ts`): `scripts/test-pg.mjs` starts a throwaway container `retake-pg-test-<hex>` from `postgres:17-alpine` (never pulled for you: it prints the `docker pull` when the image is missing) on a loopback port Docker picks, with a random password, sets `RETAKE_TEST_PG`, and removes that container — only that one — with its anonymous data volume at the end, on an error or on Ctrl-C. A container a killed run left (label `retake.test=pg`) is listed with the command that removes it, never removed. A few seconds; needs a running Docker (or OrbStack) |
+| `pnpm test:ci` | the deterministic tier, what the CI runs on every pull request and push to main (a few minutes): the files `scripts/test-ci.json` lists under `ci` — no browser, no ffmpeg, no Docker, no Postgres, no timing calibrated on the Mac. `scripts/test-ci.mjs` runs them without those tools whatever the machine has (PATH without the folders of ffmpeg, ffprobe, docker and Chromium, an empty `PLAYWRIGHT_BROWSERS_PATH`, `RETAKE_FFMPEG`, `RETAKE_FFPROBE`, `RETAKE_CHROMIUM`, `RETAKE_CHROMIUM_HEADLESS_SHELL` and `RETAKE_DOCKER` naming programs that do not exist — read before PATH, so the CLI, MCP server and worker processes a test starts find no real tool either —, no `RETAKE_TEST_*` gate, `RETAKE_TEST_PG=off`), so a tier file that starts to need one fails here as on the runner. Every other test file is listed under `out` with its reason; `packages/cli/test/test-ci-tier.test.ts` fails when a test file is in neither list: a new file goes under `ci` when it passes in `pnpm test:ci`, else under `out` with why. Arguments go to vitest (`pnpm test:ci --sequence.shuffle`) |
+| `pnpm test:pg` | the SQL hook tests against a real Postgres (`packages/hooks/test/sql.test.ts`, `agent-sql.test.ts`). `pnpm test` runs them too wherever Docker runs and the image `postgres:17-alpine` is here: each file starts its own throwaway container `retake-pg-test-<hex>` (label `retake.test=pg`, `packages/test-support/src/postgres.ts`) on a loopback port Docker picks, with a random password, sets `RETAKE_TEST_PG` while it runs and removes the container with its anonymous data volume when the file ends, or when the run is stopped first (Ctrl-C, SIGTERM); one a process killed outright left stops by itself within 15 minutes and is then removed; a run never pulls the image (`--pull never`). Without Docker or the image (never pulled for you) the tests skip and the file's output says why; `RETAKE_TEST_PG=off` skips them without asking Docker. `scripts/test-pg.mjs` checks Docker and the image first (it prints the `docker pull`), lists containers left by another run, and fails where `pnpm test` would skip. A few seconds |
 | `pnpm test:pg --all` | the whole suite with Postgres, `RETAKE_TEST_DOCKER=1` and `RETAKE_TEST_SLOW=1`: everything this machine can run |
 | `pnpm test:slow` | `RETAKE_TEST_SLOW=1`: the committed `catalogue` scenario captured on the fixture (free ports) at 1920×1080 with the debug cursor and its real hooks — duration, every frame's size, the run folder's files, the scroll durations, the drawn hotspot ≤ 3 px from every click point and inside its target, `popup_opened`, no hesitation between steps, the setup rollback (`packages/cli/test/catalogue-acceptance.test.ts`, about 1.5 min); then the MCP acceptances over stdio on a copy of the fixture project — capture → render → review → theme switch → export (`packages/mcp/test/fixture-acceptance.test.ts`), authoring from inspections (`authoring-acceptance.test.ts`), recording (`record-acceptance.test.ts`) and a theme made from the brand-site fixture and brand files, previewed, filmed and reviewed (`theme-acceptance.test.ts`); and the phase 3 acceptance on one empty workspace — a project from a README, a scenario from a script and inspections, a theme from brand files, a workspace component, capture → render → review, a person's comment → scenario fix → re-capture → render → resolve, about 7 min (`phase3-acceptance.test.ts`) |
 
 Set `RETAKE_TEST_PG` yourself to a PostgreSQL URL (a role that may create tables) to run the SQL hook tests
-without the script, `RETAKE_TEST_OLD_NODE` to an older `node` binary (e.g. a
+against a server of your own, `RETAKE_TEST_OLD_NODE` to an older `node` binary (e.g. a
 Node.js 10) to check the CLI's version message on it, and `RETAKE_TEST_DOCKER=1` to run the docker-compose
 sandbox tests (a running Docker; `packages/sandbox/test/compose.test.ts` uses busybox:1.38.0, postgres:17-alpine and
 axllent/mailpit:v1.29.4, `packages/cli/test/sandbox-docker.test.ts` builds the fixture's image on node:22-alpine). They
@@ -63,17 +84,43 @@ name their compose projects and images `retake-test-*` and remove them before an
 `packages/runner-web/test/look.test.ts` compares the drawn cursor and the file chip with golden images
 (`packages/runner-web/test/golden/`, with a tolerance; the chip's only on macOS: its text uses the system font) next
 to structural checks; after an intended change of the look (or a Chromium update that moves it), rewrite them with
-`RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts` and look at the PNGs before
-committing them.
+`RETAKE_WRITE_SNAPSHOTS=1 npx vitest run packages/runner-web/test/look.test.ts` (it fails once it wrote a changed PNG)
+and look at the PNGs before committing them. The JSON and text goldens of the characterization and snapshot tests (the
+MCP `*-ops-characterization` files, tool-list, op-table, pipeline-cli, operations-cli, planner-golden, core's
+io- and policy-characterization and scenario blocks, runner-web's kit page) are recorded again with
+`RETAKE_WRITE_SNAPSHOTS=1 npx vitest run <the file>`: the run writes the fixture and then **fails** when that changed it
+("recorded …: review the diff and rerun without RETAKE_WRITE_SNAPSHOTS"); it is the one switch of every golden, so a
+shell that exports it never turns a golden green whatever the code does (`recordGolden`, `@retake/test-support/golden`). A test that must name a
+port before something listens on it takes a free one (`freePort()`, `@retake/test-support/http`), never a fixed
+number another session may hold. `runner-web/test/launch-options.test.ts` asks the macOS kernel whether the capture
+browser's renderers and GPU process are sandboxed in every default run on a Mac with `python3` (one browser launch).
+
+Line coverage on demand, with no coverage dependency: `node scripts/coverage.mjs [vitest arguments]` runs vitest (the
+files given, else the whole suite) with V8's precise coverage in every test worker (`scripts/coverage-setup.mjs`,
+which `vitest.config.ts` adds when `RETAKE_COVERAGE_RAW` is set) and `NODE_V8_COVERAGE` for the processes the tests
+start, maps the counts back to the TypeScript lines of `packages/*/src` through the source maps
+(`@jridgewell/trace-mapping`, which vitest brings) and prints the line coverage per package; `--files <regex>` lists
+those files least covered first, `--json <file>` writes every file's uncovered lines, `--state <file>` keeps the merged
+counts and `--report <file>` prints them again without a run. Not measured: code that runs in a browser (the Studio's
+app, the capture kit, the Remotion compositions), a child process killed by a signal, gated tests left off.
+
+`node scripts/test-guard.mjs [--base <ref>] [<path>]` compares each changed test file with a git ref (default `HEAD`),
+test by test: a title that disappeared (`it`, `it.skipIf(…)` / `it.runIf(…)`, and the title templates of `it.each(…)`
+and `it.for(…)`), fewer `expect` / `expect.poll` / `expect.soft` calls, a test id no longer used, or a matcher traded
+for a weaker one (`toEqual(x)` → `toBeDefined()`, `toBeNull()` → `not.toBeNull()`…) is reported; explain it or fix the
+test.
 
 Renders in tests run on the software path (L5.15): `vitest.setup.ts` sets `RETAKE_RENDER_GL=software` and
 `RETAKE_RENDER_ENCODER=libx264` for every test file, so a render is frame-identical run to run (as on Linux) and the
 suite keeps its times. A test of the GPU path opts in — it passes `settings: {gl: 'auto', encoder: 'auto'}` to the render
 or sets the variables back itself — and compares SSIM (≥ 0.995 on every frame) or structure, **never bytes**: ANGLE and
 VideoToolbox are not frame-identical run to run (`packages/editor/test/render-gpu.test.ts`, darwin only).
-`RETAKE_TEST_RENDER_POLICY=keep` leaves the shell's values (a whole run on the default policy, by hand). Exactly these
-two variables are pinned (`RETAKE_RENDER_CONCURRENCY` is not). A process a test starts with an environment of its own
-(an MCP server, a CLI command) gets them through `testChildEnv()` (`packages/core/test/child-env.ts`, with the scratch
+`RETAKE_TEST_RENDER_POLICY=keep` leaves the shell's values (a whole run on the default policy, by hand). Since L7.3
+`RETAKE_RENDER_FFMPEG=library` is pinned with them: the suite's frames are encoded by the rendering library's own
+ffmpeg whatever ffmpeg the machine has (the pinned bytes do not depend on it); a test of this machine's ffmpeg at the
+encode passes `settings: {ffmpeg: 'own'}` (`packages/editor/test/render-own-ffmpeg.test.ts`, darwin only). Exactly
+these three variables are pinned (`RETAKE_RENDER_CONCURRENCY` is not). A process a test starts with an environment of its own
+(an MCP server, a CLI command) gets them through `testChildEnv()` (`packages/test-support/src/child-env.ts`, with the scratch
 `CFFIXED_USER_HOME` and the file's `RETAKE_CAPTURES_DIR`), so the worker and job processes behind it render on the
 software path too; `packages/core/test/retake-home.test.ts` fails on such an environment that lacks them. The app's own
 acceptances (`app-bundle-acceptance`, `app-update-e2e`) run the shipped default on purpose.

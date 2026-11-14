@@ -1,5 +1,4 @@
-import { useCurrentFrame } from 'remotion';
-import { CapText, biasMotion, capTextLayout, darkLight, fadeOut, nightTone, progress, readableOn, roundTo, safeAreaRect, withAlpha } from '@retake/components/kit';
+import { CapText, biasMotion, capTextLayout, darkLight, fadeOut, nightTone, progress, readableOn, roundTo, safeAreaRect, useCurrentFrame, withAlpha } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { side: 'left' | 'right'; max_width: number };

@@ -1,7 +1,7 @@
 /** The façade's `auth` (createEngine): the personas' stored state, a sign-in job and its cancel, the sessions a scenario's run signs in. */
-import { parseScenario, projectRef } from '@retake/core';
-import { listProjects, fileFacts } from '@retake/core/io';
-import type { RunMode } from '@retake/core';
+import { projectRef } from '@retake/core/project';
+import { parseScenario } from '@retake/core/scenario';
+import type { RunMode } from '@retake/core/model';
 import { projectPersonaStates } from '../auth.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { getScenario } from '../scenarios.js';
@@ -16,7 +16,7 @@ export function authApi(ctx: EngineContext): Engine['auth'] {
   const forScenario = async (slug: string, name: string, o: { env?: string; mode?: RunMode } = {}): Promise<ScenarioSessions> => {
     const p = await project(slug);
     const text = await getScenario(p, name);
-    const { scenario } = parseScenario(text.yaml, { files: fileFacts(ctx.ws.policy), file: text.path, project: p });
+    const { scenario } = parseScenario(text.yaml, { files: ctx.ws.reads.fileFacts(ctx.ws.policy), file: text.path, project: p });
     if (!scenario) throw new EngineError('invalid', `${projectRef('scenarios', name)} does not parse: fix it first (scenario_check lists its issues)`);
     return sessionsOf(p, name, scenario, o);
   };
@@ -27,7 +27,7 @@ export function authApi(ctx: EngineContext): Engine['auth'] {
       const projects = [];
       if (o.project !== undefined) projects.push(await project(o.project));
       else {
-        for (const p of await listProjects(ws.root)) {
+        for (const p of await ws.reads.listProjects(ws.root)) {
           try {
             projects.push(await project(p.slug));
           } catch (e) {
@@ -37,7 +37,7 @@ export function authApi(ctx: EngineContext): Engine['auth'] {
       }
       const personas: AuthStatusItem[] = [];
       for (const p of projects) {
-        for (const { state } of await projectPersonaStates(p, loginCommand, o.env)) personas.push(authStatusItem(state));
+        for (const { state } of await projectPersonaStates(p, loginCommand, ctx.ports.capture.sessions, o.env)) personas.push(authStatusItem(state));
       }
       return { personas, errors };
     },

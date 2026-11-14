@@ -21,9 +21,10 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { WorkerLock, buildStamp, historyFile, jobsDir, readWorkerLock, runWorker, workersDir } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { WorkerLock, buildStamp, historyFile, jobsDir, readWorkerLock, runWorker, workersDir, systemClock } from '@retake/engine';
+import { REPO } from '@retake/test-support/repo';
+import { testChildEnv } from '@retake/test-support/child-env';
+import { scratchHome } from '@retake/test-support/home';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
@@ -43,7 +44,7 @@ let root: string;
 let client: Client;
 let stderr = '';
 const outputs: string[] = [];
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 async function call(name: string, args: Record<string, unknown>): Promise<Result> {
   const r = (await client.callTool({ name, arguments: args }, undefined, { timeout: 180_000 })) as Result;
@@ -56,7 +57,12 @@ const summary = (r: Result) => r.content[0]?.text ?? '';
 /** Everything but the `untrusted` subtrees. */
 function trustedPart(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(trustedPart);
-  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'untrusted').map(([k, x]) => [k, trustedPart(x)]));
+  if (v && typeof v === 'object')
+    return Object.fromEntries(
+      Object.entries(v)
+        .filter(([k]) => k !== 'untrusted')
+        .map(([k, x]) => [k, trustedPart(x)]),
+    );
   return v;
 }
 
@@ -78,7 +84,7 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   root = await mkdtemp(join(tmpdir(), 'studio-mcp-record-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   const project = join(root, 'projects', PROJECT);
   await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
@@ -116,8 +122,7 @@ afterAll(async () => {
   }
   await fixture?.close();
   if (root) await rm(root, { recursive: true, force: true });
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
 });
 
 describe('retake mcp: scenario_record', () => {
@@ -152,7 +157,7 @@ describe('retake mcp: scenario_record', () => {
 
   it('returns at once with the job id and what to ask the user; job_cancel before the window opens cancels it, no draft', async () => {
     // This process holds the worker lock: the server spawns no worker and the job stays queued.
-    const lock = await WorkerLock.acquire(root, buildStamp(), () => undefined);
+    const lock = await WorkerLock.acquire(root, buildStamp(), systemClock, () => undefined);
     expect(lock).not.toBeNull();
     try {
       const r = await call('scenario_record', { project: PROJECT, page: 'shop', scenario: 'never-recorded' });
@@ -184,19 +189,21 @@ describe('retake mcp: scenario_record', () => {
       idleExitMs: 8_000,
       pollMs: 100,
       log: () => undefined,
-      recordTest: {
-        headless: true,
-        windowSize: { width: 1400, height: 1000 },
-        drive: async (page) => {
-          await page.waitForLoadState('domcontentloaded');
-          await page.waitForTimeout(800);
-          await page.getByRole('heading', { name: 'Recording lab' }).waitFor();
-          await page.locator('#lab-password').click();
-          await page.keyboard.type(sentinel);
-          await page.getByLabel('Note').click();
-          await page.keyboard.type('Two bags of the washed lot');
-          await page.waitForTimeout(400);
-          await page.close();
+      ports: {
+        recordWindow: {
+          headless: true,
+          windowSize: { width: 1400, height: 1000 },
+          drive: async (page) => {
+            await page.waitForLoadState('domcontentloaded');
+            await page.waitForTimeout(800);
+            await page.getByRole('heading', { name: 'Recording lab' }).waitFor();
+            await page.locator('#lab-password').click();
+            await page.keyboard.type(sentinel);
+            await page.getByLabel('Note').click();
+            await page.keyboard.type('Two bags of the washed lot');
+            await page.waitForTimeout(400);
+            await page.close();
+          },
         },
       },
     });

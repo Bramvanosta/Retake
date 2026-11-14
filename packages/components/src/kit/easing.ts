@@ -68,9 +68,7 @@ export const EASING_CURVES = {
 export type EasingName = keyof typeof EASING_CURVES;
 
 /** Ready-made easing functions for every named curve. */
-export const EASINGS: Readonly<Record<EasingName, EasingFn>> = Object.fromEntries(
-  Object.entries(EASING_CURVES).map(([k, v]) => [k, cubicBezier(...(v as Bezier))]),
-) as Record<EasingName, EasingFn>;
+export const EASINGS: Readonly<Record<EasingName, EasingFn>> = Object.fromEntries(Object.entries(EASING_CURVES).map(([k, v]) => [k, cubicBezier(...(v as Bezier))])) as Record<EasingName, EasingFn>;
 
 /** The scenario camera presets (slow / normal / fast / linear), mapped to curves. */
 export const CAMERA_EASINGS: Readonly<Record<'slow' | 'normal' | 'fast' | 'linear', Bezier>> = {

@@ -26,7 +26,11 @@
  */
 import { lstat, readFile, stat } from 'node:fs/promises';
 import { extname, join, relative, resolve, sep } from 'node:path';
-import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, agentWritable, brandRefSyntaxProblem, expandHome, insideFolder, printableText, realPathOf, siteRef, STATE_DIR, STATE_DIRS } from '@retake/core';
+import { expandHome, printableText } from '@retake/core/base';
+import { agentWritable, realPathOf } from '@retake/core/policy';
+import { STATE_DIR, STATE_DIRS } from '@retake/core/project';
+import { insideFolder } from '@retake/core/scenario';
+import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, brandRefSyntaxProblem, siteRef } from '@retake/core/theme';
 import { nodeFileFacts } from '@retake/core/io';
 import type { CallerTrust } from '../caller.js';
 import { EngineError } from '../errors.js';
@@ -247,7 +251,26 @@ function decodeReferences(text: string): string {
 }
 
 /** Elements that run code or embed another document, matched by local name under any namespace prefix. */
-const FORBIDDEN_ELEMENTS = ['script', 'foreignobject', 'iframe', 'embed', 'object', 'handler', 'listener', 'frame', 'frameset', 'applet', 'link', 'meta', 'base', 'portal', 'audio', 'video', 'canvas', 'include'];
+const FORBIDDEN_ELEMENTS = [
+  'script',
+  'foreignobject',
+  'iframe',
+  'embed',
+  'object',
+  'handler',
+  'listener',
+  'frame',
+  'frameset',
+  'applet',
+  'link',
+  'meta',
+  'base',
+  'portal',
+  'audio',
+  'video',
+  'canvas',
+  'include',
+];
 /** A tag name as a parser reads it: any characters up to whitespace, "/" or ">" (a prefix may be any letters: `é:script`). */
 const ELEMENT_RE = /<\s*\/?\s*([^\s/>!?]+)/g;
 /** An attribute name (any characters but whitespace, "=", "/", ">" and quotes) after whitespace, a slash or a quote, and "=". */
@@ -256,7 +279,8 @@ const ATTR_RE = /[\s/"']([^\s=/>"']+)\s*=\s*/g;
 const localName = (name: string) => name.slice(name.lastIndexOf(':') + 1).toLowerCase();
 const ALLOWED_LINK = /^(?:#[\w.:-]*|data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=\s]*)$/i;
 const URL_FN_RE = /url\s*\(/gi;
-const ALLOWED_URL = /^(?:#[\w.:-]*|data:font\/(?:woff2|woff|ttf|otf|sfnt);base64,[a-z0-9+/=\s]*|data:application\/(?:font-woff2?|x-font-(?:woff|ttf|otf));base64,[a-z0-9+/=\s]*|data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=\s]*)$/i;
+const ALLOWED_URL =
+  /^(?:#[\w.:-]*|data:font\/(?:woff2|woff|ttf|otf|sfnt);base64,[a-z0-9+/=\s]*|data:application\/(?:font-woff2?|x-font-(?:woff|ttf|otf));base64,[a-z0-9+/=\s]*|data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=\s]*)$/i;
 
 export interface SvgScan {
   problems: string[];
@@ -270,7 +294,8 @@ export interface SvgScan {
  */
 function scanText(s: string, problems: Set<string>): void {
   if (/<!DOCTYPE/i.test(s) || /<!ENTITY/i.test(s)) problems.add('it declares a DOCTYPE or entities');
-  for (const m of s.matchAll(/<\?\s*([^\s?>]*)/g)) if (m[1].toLowerCase() !== 'xml' || m.index !== s.search(/\S/)) problems.add('it holds a processing instruction (only the XML declaration, first, is accepted)');
+  for (const m of s.matchAll(/<\?\s*([^\s?>]*)/g))
+    if (m[1].toLowerCase() !== 'xml' || m.index !== s.search(/\S/)) problems.add('it holds a processing instruction (only the XML declaration, first, is accepted)');
   for (const m of s.matchAll(ELEMENT_RE)) {
     const local = localName(m[1]);
     if (FORBIDDEN_ELEMENTS.includes(local)) problems.add(`it has a <${local}> element`);
@@ -330,7 +355,6 @@ export function scanSvg(bytes: Buffer): SvgScan {
   const decl = /^\s*<\?xml\b([^>]*)>/.exec(text);
   const encoding = decl ? /\bencoding\s*=\s*["']([^"']*)["']/i.exec(decl[1])?.[1] : undefined;
   if (encoding !== undefined && !/^utf-?8$/i.test(encoding.trim())) problems.add('its XML declaration names another encoding than UTF-8');
-  // eslint-disable-next-line no-control-regex
   if (/[\u0001-\u0008\u000b\u000c\u000e-\u001f]/.test(text)) problems.add('it holds a control character');
   const decoded = decodeReferences(text);
   if (decoded.includes('\u0000')) problems.add('a character reference to an invalid character');
@@ -343,7 +367,10 @@ export function scanSvg(bytes: Buffer): SvgScan {
   if (!root) return { problems: [...problems, 'no <svg> element'] };
   const attr = (name: string) => new RegExp(`[\\s"']${name}\\s*=\\s*["']([^"']*)["']`, 'i').exec(root[1])?.[1];
   const num = (v: string | undefined) => (v !== undefined && /^\s*[\d.]+\s*(?:px)?\s*$/.test(v) ? Number.parseFloat(v) : undefined);
-  const vb = attr('viewBox')?.trim().split(/[\s,]+/).map(Number);
+  const vb = attr('viewBox')
+    ?.trim()
+    .split(/[\s,]+/)
+    .map(Number);
   let width = num(attr('width'));
   let height = num(attr('height'));
   if (vb && vb.length === 4 && vb.every(Number.isFinite) && vb[2] > 0 && vb[3] > 0) {
@@ -441,7 +468,7 @@ export function sniffFont(f: Pick<ResolvedBrandFile, 'ref' | 'ext' | 'bytes'>, w
   if (format === 'woff' || format === 'woff2') {
     const header = format === 'woff' ? 44 : 48;
     if (b.length < header) throw notFont('a truncated header');
-    if (b.readUInt32BE(8) !== b.length) throw notFont('its header gives another length than the file\'s');
+    if (b.readUInt32BE(8) !== b.length) throw notFont("its header gives another length than the file's");
     const n = b.readUInt16BE(12);
     if (n < 1 || n > 128) throw notFont('a table count out of range');
     if (format === 'woff') {
@@ -491,5 +518,7 @@ export function standardWeight(w: number): number {
 
 /** The copy's file name: `fonts/<role>-<Weight>[Italic].<ext>` — the family never in it (its words would read as a weight). */
 export function fontCopyName(role: 'display' | 'body', weight: number, italic: boolean, ext: string): string {
-  return join('fonts', `${role}-${WEIGHT_NAMES[standardWeight(weight)]}${italic ? 'Italic' : ''}${ext}`).split(sep).join('/');
+  return join('fonts', `${role}-${WEIGHT_NAMES[standardWeight(weight)]}${italic ? 'Italic' : ''}${ext}`)
+    .split(sep)
+    .join('/');
 }

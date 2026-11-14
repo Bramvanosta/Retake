@@ -15,8 +15,7 @@ import { fileFacts } from '@retake/core/io';
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.line}:${i.col} ${i.path.join('.')}: ${i.message}`);
 const warns = (issues: ValidationIssue[]) => warnings(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
 
-const PROJECT_YAML = (extra = '') =>
-  ['name: Demo', 'environments:', '  local:', '    shop: http://localhost:4402', '    console: https://console.staging.example.com', extra, ''].join('\n');
+const PROJECT_YAML = (extra = '') => ['name: Demo', 'environments:', '  local:', '    shop: http://localhost:4402', '    console: https://console.staging.example.com', extra, ''].join('\n');
 
 function project(mailbox = true): LoadedProject {
   const dir = mkdtempSync(join(tmpdir(), 'ds-artefacts-'));
@@ -26,8 +25,7 @@ function project(mailbox = true): LoadedProject {
   return { slug: 'demo', dir, root: dir, config: config!, readme: null, scenarios: [], file: join(dir, 'project.yaml') };
 }
 
-const scenario = (...lines: string[]) =>
-  ['video: demo', 'scenes:', '  - id: signup', '    page: shop', '    open: /', '    steps:', ...lines.map((l) => `      ${l}`), ''].join('\n');
+const scenario = (...lines: string[]) => ['video: demo', 'scenes:', '  - id: signup', '    page: shop', '    open: /', '    steps:', ...lines.map((l) => `      ${l}`), ''].join('\n');
 
 describe('project mailbox (R-MAIL-01)', () => {
   it('accepts mailpit and http providers on an allowed host', () => {
@@ -57,19 +55,17 @@ describe('project mailbox (R-MAIL-01)', () => {
 
 describe('wait_for_email and download (R-MAIL-02, R-DOC-01)', () => {
   it('parse with their artefact names', () => {
-    const r = parseScenario(
-      scenario('- wait_for_email: {to: "@cafe.example", subject: "/confirm/i", timeout: 20, as: welcome}', '- download: {click: Download quote PDF, as: quote}'),
-      { files: fileFacts(PERSON_POLICY), project: project() },
-    );
+    const r = parseScenario(scenario('- wait_for_email: {to: "@cafe.example", subject: "/confirm/i", timeout: 20, as: welcome}', '- download: {click: Download quote PDF, as: quote}'), {
+      files: fileFacts(PERSON_POLICY),
+      project: project(),
+    });
     expect(errs(r.issues)).toEqual([]);
     expect(warns(r.issues)).toEqual([]);
   });
 
   it('need `as`, a mailbox, a valid regex and a target', () => {
     expect(errs(parseScenario(scenario('- wait_for_email: {to: x}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/as/);
-    expect(errs(parseScenario(scenario('- wait_for_email: {to: x, as: w}'), { files: fileFacts(PERSON_POLICY), project: project(false) }).issues).join('\n')).toMatch(
-      /has no `mailbox`: add mailbox/,
-    );
+    expect(errs(parseScenario(scenario('- wait_for_email: {to: x, as: w}'), { files: fileFacts(PERSON_POLICY), project: project(false) }).issues).join('\n')).toMatch(/has no `mailbox`: add mailbox/);
     expect(errs(parseScenario(scenario('- wait_for_email: {subject: "/(/", as: w}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/invalid regular expression/);
     expect(errs(parseScenario(scenario('- download: {click: {nth: 1}, as: d}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/target needs at least one of/);
     expect(warns(parseScenario(scenario('- wait_for_email: {as: w}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/captures the first new message/);
@@ -106,7 +102,9 @@ describe('artefact references in slots (validation)', () => {
   it('reports unknown names with a suggestion, missing project files and wrong file types', () => {
     const e1 = errs(parseScenario(withCard('{email: welcom}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n');
     expect(e1).toMatch(/unknown email "welcom": no wait_for_email step captures it as `as: welcom` \(did you mean "welcome"\?\)/);
-    expect(errs(parseScenario(withCard('{document: assets/missing.pdf}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/document "assets\/missing\.pdf" not found/);
+    expect(errs(parseScenario(withCard('{document: assets/missing.pdf}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(
+      /document "assets\/missing\.pdf" not found/,
+    );
     expect(errs(parseScenario(withCard('{document: assets/terms.docx}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/must be a \.pdf, \.png/);
     expect(errs(parseScenario(withCard('{notification: "0"}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/1-based index/);
   });
@@ -166,9 +164,41 @@ describe('timeline artefacts (R-MAIL-02, R-DOC-01, R-NTF-03)', () => {
       idle: [],
       warnings: [],
       artefacts: [
-        { kind: 'email', name: 'welcome', t: 3, file: 'artefacts/emails/welcome.json', from: 'a@b.c', to: ['d@e.f'], subject: 'Hi', date: '2026-10-12T00:00:00Z', preview: 'Hello', image: { file: 'artefacts/emails/welcome.png', width: 600, height: 900 } },
-        { kind: 'document', name: 'quote', t: 5, file: 'artefacts/documents/quote.pdf', mime: 'application/pdf', file_name: 'Quote.pdf', via: 'download', bytes: 1000, pages: [{ file: 'artefacts/documents/quote/page-1.png', width: 1588, height: 2246, width_pt: 595.28, height_pt: 841.89 }] },
-        { kind: 'notification', name: 'notification-1', t: 4, file: 'artefacts/notifications/notification-1.json', index: 1, title: 'New', body: 'Body', origin: 'http://localhost:4401', via: 'Notification', time: '2026-10-12T00:00:04Z' },
+        {
+          kind: 'email',
+          name: 'welcome',
+          t: 3,
+          file: 'artefacts/emails/welcome.json',
+          from: 'a@b.c',
+          to: ['d@e.f'],
+          subject: 'Hi',
+          date: '2026-10-12T00:00:00Z',
+          preview: 'Hello',
+          image: { file: 'artefacts/emails/welcome.png', width: 600, height: 900 },
+        },
+        {
+          kind: 'document',
+          name: 'quote',
+          t: 5,
+          file: 'artefacts/documents/quote.pdf',
+          mime: 'application/pdf',
+          file_name: 'Quote.pdf',
+          via: 'download',
+          bytes: 1000,
+          pages: [{ file: 'artefacts/documents/quote/page-1.png', width: 1588, height: 2246, width_pt: 595.28, height_pt: 841.89 }],
+        },
+        {
+          kind: 'notification',
+          name: 'notification-1',
+          t: 4,
+          file: 'artefacts/notifications/notification-1.json',
+          index: 1,
+          title: 'New',
+          body: 'Body',
+          origin: 'http://localhost:4401',
+          via: 'Notification',
+          time: '2026-10-12T00:00:04Z',
+        },
       ],
     };
     const r = TimelineSchema.safeParse(tl);

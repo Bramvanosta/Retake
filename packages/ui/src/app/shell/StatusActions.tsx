@@ -23,7 +23,7 @@ import { Txt, When, shown } from '../bits.js';
 import { scenarioEventAction, useEvents } from '../events.js';
 import { useProjectView } from '../project-data.js';
 import type { Route } from '../route.js';
-import { droppedLocation, takeDropped, useRunLocation } from '../run-location.js';
+import { droppedLocation, takeDropped, useRunLocation } from '../shoot/run-location.js';
 import {
   askSignIn,
   closeSheet,
@@ -41,10 +41,10 @@ import {
   useSending,
   useSheet,
   useShootEvents,
-} from '../shoot-data.js';
-import type { LiveRun, SheetAsk } from '../shoot-data.js';
-import { PROPOSAL_RENDER } from '../render-words.js';
-import { SHOOT_STATES, blockerShort, modeWord, shootState } from '../shoot-words.js';
+} from '../shoot/shoot-data.js';
+import type { LiveRun, SheetAsk } from '../shoot/shoot-data.js';
+import { PROPOSAL_RENDER } from '../words/render-words.js';
+import { SHOOT_STATES, blockerShort, modeWord, shootState } from '../words/shoot-words.js';
 import { Blocker, Button, LinkButton, Sheet, StatusMark } from '../ui-kit/index.js';
 import { PRIORITY, useShellCommand } from './command-bus.js';
 import type { ScenarioContext } from './modes.js';
@@ -188,7 +188,11 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   useShellCommand('stop', stop, PRIORITY.defaults);
 
   // ── what it shows ──
-  const runInfo = running ? { status: running.status, mode: running.mode, paused: Boolean(runLive?.paused), stopping: Boolean(runLive?.stopping) } : pend ? { status: 'queued', mode: pend.mode } : null;
+  const runInfo = running
+    ? { status: running.status, mode: running.mode, paused: Boolean(runLive?.paused), stopping: Boolean(runLive?.stopping) }
+    : pend
+      ? { status: 'queued', mode: pend.mode }
+      : null;
   const lastTake = data?.runs.find((r) => FINISHED.has(r.status));
   const state = runInfo ? shootState(runInfo) : lastTake ? shootState(lastTake) : 'idle';
   const word = SHOOT_STATES[state].word(runInfo?.mode ?? lastTake?.mode ?? 'dry');
@@ -208,7 +212,12 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   const inReview = route.name === 'review' || route.name === 'comments';
   const markNode = <StatusMark state={SHOOT_STATES[state].mark} word={<Txt text={`${word}${detail}`} />} />;
   const info: ReactNode =
-    ctx && slug && name && !onPrepare && !inReview && !(claimed && (onRun || route.name === 'record' || route.name === 'timeline' || route.name === 'proposal' || route.name === 'library' || route.name === 'themes')) ? (
+    ctx &&
+    slug &&
+    name &&
+    !onPrepare &&
+    !inReview &&
+    !(claimed && (onRun || route.name === 'record' || route.name === 'timeline' || route.name === 'proposal' || route.name === 'library' || route.name === 'themes')) ? (
       <span className="sh-scenario" data-testid="status-scenario" data-state={state}>
         {!('scenario' in route) && (
           <span className="sh-seg" data-drop="name">
@@ -250,7 +259,13 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
       {line && <ShortBlocker b={line.b} slug={slug} name={name} mode={line.mode} testId={line.mode === 'capture' ? 'blockers-capture' : 'blockers-dry-run'} />}
       {running && (
         <>
-          <Button size="sm" data-testid={paused ? 'run-resume' : 'run-pause'} disabled={terminal || running.status !== 'running' || Boolean(runLive?.stopping)} aria-describedby={ids.stop} onClick={() => pauseRun({ slug, name, run: running.id, paused: !paused, say, onDone: () => progress([running.id]) })}>
+          <Button
+            size="sm"
+            data-testid={paused ? 'run-resume' : 'run-pause'}
+            disabled={terminal || running.status !== 'running' || Boolean(runLive?.stopping)}
+            aria-describedby={ids.stop}
+            onClick={() => pauseRun({ slug, name, run: running.id, paused: !paused, say, onDone: () => progress([running.id]) })}
+          >
             {paused ? 'Resume' : 'Pause'}
           </Button>
           <Button size="sm" data-testid="run-stop" icon="stop" disabled={terminal || Boolean(runLive?.stopping)} aria-describedby={ids.stop} kbd={inApp ? ['⌘', '.'] : undefined} onClick={stop}>
@@ -326,7 +341,16 @@ function SessionsSheet({ say, route }: { say: (s: string) => void; route: Route 
       askSignIn({ slug: cur.slug, name: cur.name, persona: first });
       if (!(route.name === 'run' && !route.run && route.slug === cur.slug && route.scenario === cur.name)) location.hash = `#/p/${encodeURIComponent(cur.slug)}/s/${encodeURIComponent(cur.name)}/run`;
     } else if (id === 'anyway') {
-      startRun({ slug: cur.slug, name: cur.name, mode: 'capture', ...(cur.hash ? { hash: cur.hash } : {}), ...(cur.env ? { env: cur.env } : {}), ack: cur.sessions.map((s) => s.persona), say, ...(cur.onStarted ? { onStarted: cur.onStarted } : {}) });
+      startRun({
+        slug: cur.slug,
+        name: cur.name,
+        mode: 'capture',
+        ...(cur.hash ? { hash: cur.hash } : {}),
+        ...(cur.env ? { env: cur.env } : {}),
+        ack: cur.sessions.map((s) => s.persona),
+        say,
+        ...(cur.onStarted ? { onStarted: cur.onStarted } : {}),
+      });
     }
   };
   return (
@@ -354,15 +378,14 @@ function SessionsSheet({ say, route }: { say: (s: string) => void; route: Route 
       </ul>
       {checked > 0 && (
         <p>
-          The capture checks {unchecked.length ? (checked === 1 ? 'the other session' : 'the other sessions') : one ? 'the session' : 'each session'} first and stops before filming if it is
-          still not valid: nothing is filmed then.
+          The capture checks {unchecked.length ? (checked === 1 ? 'the other session' : 'the other sessions') : one ? 'the session' : 'each session'} first and stops before filming if it is still not
+          valid: nothing is filmed then.
         </p>
       )}
       {unchecked.length > 0 && (
         <p data-testid="confirm-unchecked">
           <Txt text={unchecked.join(', ')} /> cannot be checked first ({unchecked.length === 1 ? 'it has' : 'they have'} no check): the capture uses{' '}
-          {unchecked.length === 1 ? 'its saved session as it is' : 'their saved sessions as they are'} and fails only when a page lands on the sign-in page — after its setup hooks
-          ran.
+          {unchecked.length === 1 ? 'its saved session as it is' : 'their saved sessions as they are'} and fails only when a page lands on the sign-in page — after its setup hooks ran.
         </p>
       )}
       <p>Capture anyway only if you know the session works now (you signed in since its last check, for example).</p>

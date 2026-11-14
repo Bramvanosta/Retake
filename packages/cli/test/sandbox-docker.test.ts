@@ -11,6 +11,7 @@
  * inline part); the image prints no PDF (no Chromium); `retake sandbox reset` empties Mailpit (DELETE all); logs show
  * the relay; `down --volumes` leaves nothing with the project's label.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -22,8 +23,9 @@ import { loadProject } from '@retake/core/io';
 import { MailboxClient, inlineCids } from '@retake/runner-web';
 import { dockerEnv, findDocker, openSandbox, probePort } from '@retake/sandbox';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import { PERSON_POLICY } from '@retake/core';
 import type { WorkPolicy } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;
@@ -89,7 +91,7 @@ async function freePorts(n: number): Promise<number[]> {
 
 let ws = '';
 let home = '';
-let savedHome: string | undefined;
+const retakeHome = scratchHome();
 let dir = '';
 let ports: number[] = [];
 const name = `${PREFIX}${randomBytes(3).toString('hex')}`;
@@ -103,8 +105,7 @@ async function retake(args: string[]) {
 describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DOCKER=1)", () => {
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), 'studio-docker-home-'));
-    savedHome = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = home;
+    retakeHome.use(home);
     // The image copies the UI bundle built on this machine.
     const build = (await import(join(FIXTURE, 'build.mjs'))) as { bundleState(): Promise<{ fresh: boolean }>; build(): Promise<unknown> };
     if (!(await build.bundleState()).fresh) await build.build();
@@ -115,7 +116,9 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DO
     await mkdir(join(dir, 'sandbox', 'docker'), { recursive: true });
     await writeFile(
       join(dir, 'project.yaml'),
-      ['name: Northfield Docker sandbox test', 'environments:', '  local: {console: "http://localhost:9", shop: "http://localhost:9"}', 'sandboxes:', `  ${ENV}: sandbox/docker/sandbox.yaml`, ''].join('\n'),
+      ['name: Northfield Docker sandbox test', 'environments:', '  local: {console: "http://localhost:9", shop: "http://localhost:9"}', 'sandboxes:', `  ${ENV}: sandbox/docker/sandbox.yaml`, ''].join(
+        '\n',
+      ),
     );
     // The committed files: free ports, the build context as an absolute path, a compose project name of the tests.
     const move = (text: string) => ['4511', '4512', '4513', '4514', '4525'].reduce((t, p, i) => t.replaceAll(p, String(ports[i])), text);
@@ -130,14 +133,13 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DO
 
   afterAll(async () => {
     try {
-      if (dir) await openSandbox(await loadProject(dir), ENV, policy).down({ volumes: true });
+      if (dir) await openSandbox(await loadProject(dir), ENV, policy, resolveSecretRef).down({ volumes: true });
     } catch {
       /* not started */
     }
     sweep();
     // Back to the run's scratch home (vitest.config.ts), never none: a later test's main() would look at the real one.
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     await rm(ws, { recursive: true, force: true });
     await rm(home, { recursive: true, force: true });
   });
@@ -178,7 +180,15 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DO
       await new Promise((r) => setTimeout(r, 250));
       list = await mailbox.list();
     }
-    expect(list).toEqual([{ id: expect.any(String), from: { name: 'Northfield', address: 'hello@northfield.example' }, to: [{ name: 'Noa Brandt', address: 'noa@cafe-lumen.example' }], subject: 'Confirm your email to open your café account', date: expect.any(String) }]);
+    expect(list).toEqual([
+      {
+        id: expect.any(String),
+        from: { name: 'Northfield', address: 'hello@northfield.example' },
+        to: [{ name: 'Noa Brandt', address: 'noa@cafe-lumen.example' }],
+        subject: 'Confirm your email to open your café account',
+        date: expect.any(String),
+      },
+    ]);
     const mail = await mailbox.get(list[0].id);
     expect(mail.text).toContain(`Confirm my email: http://localhost:${shopPort}/signup/confirm?token=confirm-0001`);
     expect(mail.html).toContain('<img src="cid:northfield-logo"');

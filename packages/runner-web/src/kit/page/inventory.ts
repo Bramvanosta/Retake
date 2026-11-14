@@ -1,6 +1,6 @@
 /** Page inspection: the visible interactive elements, each with a suggested target verified with `find`. */
 import type { FragileFlag, InventoryContext, InventoryElement, InventoryOptions, InventoryPopup, InventoryScroller, KitActionHint, KitInventory, KitSuggestion, ResolveResult } from '../types.js';
-import type { ScopeSpec, TargetObject } from '@retake/core';
+import type { ScopeSpec, TargetObject } from '@retake/core/model';
 import { RT } from './clock.js';
 import { host } from './host.js';
 import { withMemo } from './memo.js';
@@ -22,10 +22,7 @@ import { bboxOf, docScroller, inView, isScrollable, isVisible, visibleRect } fro
 // id; fields: label, placeholder, role + name first); counts from in-memory indexes skip the obviously ambiguous ones,
 // and every suggestion kept was verified once with `find` itself: it resolves to this element with count 1 (or with
 // its `nth`). All of it inside one synchronous call with the per-call memo, under a time budget.
-const KNOWN_ROLES = new Set([
-  ...Object.keys(IMPLICIT),
-  'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'switch', 'treeitem', 'gridcell', 'menu', 'tooltip', 'tabpanel',
-]);
+const KNOWN_ROLES = new Set([...Object.keys(IMPLICIT), 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'switch', 'treeitem', 'gridcell', 'menu', 'tooltip', 'tabpanel']);
 const FIELD_SEL =
   'input:not([type=button]):not([type=submit]):not([type=reset]):not([type=image]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=hidden]),textarea,select,[role=textbox],[role=searchbox],[role=combobox],[contenteditable=""],[contenteditable=true]';
 /** Interactive elements that hold their content: an interactive element inside one is part of it. */
@@ -147,19 +144,19 @@ function inventoryMemo(opts: InventoryOptions): KitInventory {
     if (el === host || (el.hasAttribute('popover') && !isPopoverOpen(el)) || !isVisible(el)) continue;
     const role = explicitRole(el);
     const kind: InventoryPopup['kind'] =
-      role === 'dialog' || role === 'alertdialog' || role === 'menu' || role === 'listbox'
-        ? role
-        : el.tagName === 'DIALOG'
-          ? 'dialog'
-          : el.hasAttribute('popover')
-            ? 'popover'
-            : 'other';
+      role === 'dialog' || role === 'alertdialog' || role === 'menu' || role === 'listbox' ? role : el.tagName === 'DIALOG' ? 'dialog' : el.hasAttribute('popover') ? 'popover' : 'other';
     popups.push({ kind, bbox: bboxOf(el), name: short(norm(el.getAttribute('aria-label')) || (el.getAttribute('aria-labelledby') ? idsText(el.getAttribute('aria-labelledby') ?? '', el) : ''), 80) });
   }
   const scrollers: InventoryScroller[] = [];
   const se = docScroller();
   if (se.scrollHeight > se.clientHeight + 1) {
-    scrollers.push({ document: true, bbox: { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }, scroll_top: Math.round(se.scrollTop), scroll_height: se.scrollHeight, client_height: se.clientHeight });
+    scrollers.push({
+      document: true,
+      bbox: { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight },
+      scroll_top: Math.round(se.scrollTop),
+      scroll_height: se.scrollHeight,
+      client_height: se.clientHeight,
+    });
   }
   for (const c of deepQsa(scope ?? body, '*')) {
     if (scrollers.length >= 10) break;
@@ -210,7 +207,15 @@ function inventoryMemo(opts: InventoryOptions): KitInventory {
   // Indexes: lower-cased key → elements of the universe carrying it.
   type Index = Map<string, number>;
   const idx: Record<'text' | 'name' | 'rn' | 'role' | 'label' | 'placeholder' | 'aria' | 'testid' | 'id', Index> = {
-    text: new Map(), name: new Map(), rn: new Map(), role: new Map(), label: new Map(), placeholder: new Map(), aria: new Map(), testid: new Map(), id: new Map(),
+    text: new Map(),
+    name: new Map(),
+    rn: new Map(),
+    role: new Map(),
+    label: new Map(),
+    placeholder: new Map(),
+    aria: new Map(),
+    testid: new Map(),
+    id: new Map(),
   };
   const bump = (m: Index, k: string | null | undefined) => {
     if (k) m.set(k, (m.get(k) ?? 0) + 1);
@@ -253,7 +258,10 @@ function inventoryMemo(opts: InventoryOptions): KitInventory {
   const views = new Map<Element, boolean>();
   for (const e of listedAll) views.set(e, inView(e));
   const group = (e: Element) => (top && deepContains(top, e) ? 0 : views.get(e) ? 1 : 2);
-  const ordered = listedAll.map((e, i) => ({ e, i, g: group(e) })).sort((a, b) => a.g - b.g || a.i - b.i).map((x) => x.e);
+  const ordered = listedAll
+    .map((e, i) => ({ e, i, g: group(e) }))
+    .sort((a, b) => a.g - b.g || a.i - b.i)
+    .map((x) => x.e);
   counts.in_view = listedAll.filter((e) => views.get(e)).length;
   const listed = ordered.slice(0, limit);
   counts.listed = listed.length;
@@ -382,7 +390,18 @@ function inventoryMemo(opts: InventoryOptions): KitInventory {
       }
       const flag = (t: TargetObject, fragile: FragileFlag[]): FragileFlag[] => {
         const q = t.text ?? t.name ?? t.label ?? t.placeholder ?? t.aria;
-        const kindIdx = t.text !== undefined ? idx.text : t.name !== undefined ? idx.name : t.label !== undefined ? idx.label : t.placeholder !== undefined ? idx.placeholder : t.aria !== undefined ? idx.aria : null;
+        const kindIdx =
+          t.text !== undefined
+            ? idx.text
+            : t.name !== undefined
+              ? idx.name
+              : t.label !== undefined
+                ? idx.label
+                : t.placeholder !== undefined
+                  ? idx.placeholder
+                  : t.aria !== undefined
+                    ? idx.aria
+                    : null;
         if (t.css !== undefined) fragile.push('css');
         const rk = t.in && typeof t.in === 'object' && 'row' in t.in ? (t.in as { row: string }).row : '';
         if ((q && /\d/.test(q)) || /\d/.test(rk)) fragile.push('dynamic_text');
@@ -420,7 +439,7 @@ function inventoryMemo(opts: InventoryOptions): KitInventory {
     }
     // The action: through the helper the runner's action uses, else the target's own verification.
     let action: KitActionHint = { kind: field ? 'type' : 'click', verified: suggested !== null };
-    const fileInput = isA(el, 'input') && el.type === 'file' ? el : el.querySelector('input[type=file]') ?? (isA(el, 'label') ? labelTarget(el) : null);
+    const fileInput = isA(el, 'input') && el.type === 'file' ? el : (el.querySelector('input[type=file]') ?? (isA(el, 'label') ? labelTarget(el) : null));
     if (fileInput && isA(fileInput, 'input') && fileInput.type === 'file') {
       action = { kind: 'drop_file', verified: suggested !== null && fileInputFor(ref(el)) !== null };
     } else if (isA(el, 'select') || role === 'combobox' || el.getAttribute('aria-haspopup') === 'listbox') {

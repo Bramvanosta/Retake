@@ -1,5 +1,4 @@
-import { useCurrentFrame } from 'remotion';
-import { Background, CapText, Logo, Wordmark, backgroundSample, biasMotion, capTextLayout, darkLight, progress, readableOn, roundTo, formatMetrics } from '@retake/components/kit';
+import { Background, CapText, Logo, Wordmark, backgroundSample, biasMotion, capTextLayout, darkLight, progress, readableOn, roundTo, formatMetrics, useCurrentFrame } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { logo_only: boolean };

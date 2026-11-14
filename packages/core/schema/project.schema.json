@@ -276,7 +276,7 @@
         "type": "string",
         "minLength": 1
       },
-      "description": "Sandbox environments (L1.8): environment name → its sandbox.yaml, relative to the project dir. Each one is an environment of its own (pages, display URLs, personas from its accounts, mailbox, databases), local, never production."
+      "description": "Sandbox environments: environment name → its sandbox.yaml, relative to the project dir. Each one is an environment of its own (pages, display URLs, personas from its accounts, mailbox, databases), local, never production."
     }
   },
   "required": [

@@ -12,14 +12,15 @@
  */
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { flowYaml, isPageOrigin, isPoint, normalizeTarget, roundTrips, targetValue } from '@retake/core';
-import type { BBox, Pacing, PointSpec, TargetObject, TargetSpec } from '@retake/core';
+import { isPoint, normalizeTarget } from '@retake/core/language';
+import { flowYaml, isPageOrigin, roundTrips, targetValue } from '@retake/core/run';
+import type { BBox, PointSpec, TargetObject, TargetSpec } from '@retake/core/model';
 import type { Route } from 'playwright-core';
 import { errorMessage, isCancelled } from './errors.js';
 import { DocumentChangedError } from './session.js';
 import type { FragileFlag, InventoryContext, InventoryElement, InventoryPopup, KitActionHint, KitInventory, ResolveResult } from './kit/types.js';
-import { INSPECT_PAUSE_CAP_S } from './inspect-limits.js';
 import type { Runtime } from './runtime.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Elements listed by default, and at most. */
 export const INSPECT_LIMIT = 80;
@@ -35,27 +36,8 @@ export const INSPECT_BUDGET_MS = 2500;
  */
 export const INSPECT_DEADLINES = { guard_ms: 5_000, call_ms: 15_000 } as const;
 export type InspectDeadlines = { guard_ms: number; call_ms: number };
-/**
- * The replay's pacing: the cursor travels and hovers fast and types fast; navigation, popup and settle waits are the
- * project's (the page must reach the state the scenario describes).
- */
-export const INSPECT_PACING: Partial<Pacing> = {
-  scene_start_still: INSPECT_PAUSE_CAP_S,
-  move_base_ms: 0,
-  move_ms_per_px: 0.1,
-  move_min_ms: 60,
-  move_max_ms: 200,
-  nudge_ms: 60,
-  nudge_hover_ms: 30,
-  hover_ms: 40,
-  press_ms: 40,
-  type_cps: 80,
-  scroll_duration: 0.3,
-  jitter: 0,
-  page_switch_ms: 60,
-  park_hold: INSPECT_PAUSE_CAP_S,
-  park_scroll_hold: INSPECT_PAUSE_CAP_S,
-};
+/** The replay's pacing (core inspect-pacing.ts, L7.12): re-exported under the same name. */
+export { INSPECT_PACING } from '@retake/core/run';
 
 /** What `runScenario` inspects (`RunOptions.inspect`): the run is a dry run, its hooks skipped. */
 export interface InspectRequest {
@@ -264,7 +246,10 @@ class LandedElsewhere extends Error {
 
 /** The page did not answer one step of the inspection in time (`bounded`). */
 export class InspectDeadlineError extends Error {
-  constructor(readonly stage: string, ms: number) {
+  constructor(
+    readonly stage: string,
+    ms: number,
+  ) {
     super(`the page did not answer (${stage}) within ${Math.round(ms / 100) / 10} s`);
   }
 }
@@ -305,7 +290,14 @@ async function guardNavigation(rt: Runtime): Promise<{ blocked: () => number; re
     await route.fallback().catch(() => undefined);
   };
   await page.route('**/*', handler);
-  return { blocked: () => blocked, remove: () => page.unroute('**/*', handler).then(() => true, () => true) };
+  return {
+    blocked: () => blocked,
+    remove: () =>
+      page.unroute('**/*', handler).then(
+        () => true,
+        () => true,
+      ),
+  };
 }
 
 /**
@@ -320,12 +312,7 @@ async function guardNavigation(rt: Runtime): Promise<{ blocked: () => number; re
  * as a document change — where the page is then decides between `landed_elsewhere` and `failed` (naming the step) —,
  * and a guard that cannot be removed in time is left to the page's close, with a warning.
  */
-export async function inspectPage(
-  rt: Runtime,
-  req: Omit<InspectRequest, 'onResult'>,
-  ctx: InspectContext,
-  deadlines: InspectDeadlines = INSPECT_DEADLINES,
-): Promise<InspectReport> {
+export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResult'>, ctx: InspectContext, deadlines: InspectDeadlines = INSPECT_DEADLINES): Promise<InspectReport> {
   const started = performance.now();
   const file = join(rt.runDir, 'inspect.json');
   const shot = join(rt.runDir, 'screenshot.png');
@@ -378,7 +365,7 @@ export async function inspectPage(
   try {
     // Assigned once installed: a guard whose install timed out is never removed (its handler may never be added).
     guard = await bounded('installing the navigation guard', deadlines.guard_ms, guardNavigation(rt));
-    await bounded('the page load', callMs, rt.awaitLoaded().catch(() => undefined));
+    await bounded('the page load', callMs, bestEffort(rt.awaitLoaded(), 'a page still loading is inspected as it is'));
     rt.assertSignedIn();
     const url = (read = rt.page.url());
     // Only a page of the environment is taken (its origin, not merely its host: another local port is another app).
@@ -394,9 +381,7 @@ export async function inspectPage(
       }
     }
     const t0 = performance.now();
-    const inv: KitInventory | null = withinFound
-      ? await bounded('the inventory', callMs, rt.kit.inventory({ within, limit, budget_ms: req.budgetMs ?? INSPECT_BUDGET_MS }))
-      : null;
+    const inv: KitInventory | null = withinFound ? await bounded('the inventory', callMs, rt.kit.inventory({ within, limit, budget_ms: req.budgetMs ?? INSPECT_BUDGET_MS })) : null;
     // The document the inventory read (a script may have replaced the page since the URL was read).
     if (inv) onEnv(`${inv.origin}/`);
     const targets = (req.targets ?? []).slice(0, INSPECT_TARGETS_MAX);
@@ -406,7 +391,11 @@ export async function inspectPage(
     onEnv(`${checked.origin}/`);
     const kitMs = Math.round(performance.now() - t0);
     // The screenshot last (the inventory reads only): the cursor hidden; marks are drawn from the boxes later.
-    await bounded('hiding the cursor', deadlines.guard_ms, rt.kit.cursorShow(false).catch(() => undefined));
+    await bounded(
+      'hiding the cursor',
+      deadlines.guard_ms,
+      rt.kit.cursorShow(false).catch(() => undefined),
+    );
     await rt.page.screenshot({ path: shot, timeout: 10_000 });
     shotTaken = true;
     // A sign-in page that showed while the picture was taken (L1.6), or a page that left meanwhile: never kept.
@@ -448,7 +437,14 @@ export async function inspectPage(
     const changed = e instanceof DocumentChangedError || e instanceof InspectDeadlineError;
     if (changed && read !== null) {
       const from = read;
-      await bounded('the new document', 4_000, rt.page.waitForURL((u) => u.href !== from, { waitUntil: 'commit', timeout: 3_000 })).catch(() => undefined);
+      await bestEffort(
+        bounded(
+          'the new document',
+          4_000,
+          rt.page.waitForURL((u) => u.href !== from, { waitUntil: 'commit', timeout: 3_000 }),
+        ),
+        'a document that does not change in time is inspected as it is',
+      );
     }
     const landed = e instanceof LandedElsewhere ? e.url : changed && !isPageOrigin(rt.page.url(), rt.env.pages) ? rt.page.url() : null;
     if (landed !== null) {

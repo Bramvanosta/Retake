@@ -16,7 +16,9 @@ import type { ComponentRegistry } from '@retake/components';
 import type { LoadedProject, LoadedTemplate, Scenario, Timeline } from '@retake/core';
 import { planEdit } from '@retake/editor/plan';
 import type { EditOverrides, PlanEditInput, PlanInputFile } from '@retake/editor/plan';
-import { FIXTURES, REPO, fixtureProject, template } from './helpers.js';
+import { FIXTURES, fixtureProject, template } from '@retake/test-support/timeline';
+import { REPO } from '@retake/test-support/repo';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = join(FIXTURES, 'planner-golden.json');
 const TIMELINES = ['catalogue', 'highlights', 'live-quote', 'phone-and-desktop', 'quote-artefacts', 'quote', 'signup-tutorial', 'signup'] as const;
@@ -41,7 +43,12 @@ const ownFiles = (t: Timeline) => {
   t.scenes.find((x) => x.card)!.card = { lottie: 'assets/cup-steam.json', params: { colors: { '#ff5a1f': 'accent' } } };
 };
 const FILES: Record<string, PlanInputFile> = {
-  'assets/intro.mp4': { file: '/media/intro.mp4', width: 1920, height: 1080, video: { container: 'mov,mp4', codec: 'h264', width: 1920, height: 1080, duration_s: 4, fps: 30, audio: true, alpha: false } },
+  'assets/intro.mp4': {
+    file: '/media/intro.mp4',
+    width: 1920,
+    height: 1080,
+    video: { container: 'mov,mp4', codec: 'h264', width: 1920, height: 1080, duration_s: 4, fps: 30, audio: true, alpha: false },
+  },
   'assets/end-card.png': { file: '/media/end-card.png', width: 1920, height: 1080 },
   'assets/cup-steam.json': { file: '/media/cup-steam.json', width: 600, height: 500, lottie: { version: '5.7.4', width: 600, height: 500, fps: 30, frames: 96, duration_s: 3.2, external_images: 0 } },
 };
@@ -51,7 +58,14 @@ const MISSING_FILES: Record<string, PlanInputFile> = {
   'assets/end-card.png': { file: '/media/end-card.png', missing: true },
 };
 /** A scenario as an old run's caller passes it (edit info of a timeline without a `video` block). */
-const OLD_SCENARIO = { version: 1, video: 'old-quote', title: { kicker: 'Before L2.1', text: 'From the scenario' }, outro: { tagline: 'The scenario’s own outro.' }, frame: 'browser', scenes: [] } as unknown as Scenario;
+const OLD_SCENARIO = {
+  version: 1,
+  video: 'old-quote',
+  title: { kicker: 'Before L2.1', text: 'From the scenario' },
+  outro: { tagline: 'The scenario’s own outro.' },
+  frame: 'browser',
+  scenes: [],
+} as unknown as Scenario;
 const noVideo = (t: Timeline) => {
   delete t.video;
 };
@@ -64,7 +78,12 @@ const CASES: GoldenCase[] = [
   ),
   { name: 'quote/motion/vertical', timeline: 'quote', theme: 'motion', overrides: { variant: 'vertical' } },
   { name: 'quote/editorial/fps-scale', timeline: 'quote', theme: 'editorial', overrides: { fps: 60, scale: 2 } },
-  { name: 'quote/editorial/bad-values', timeline: 'quote', theme: 'editorial', overrides: { fps: 500, scale: 9, idle_threshold: -1, transition_duration: 9, speeds: { request: 40, nowhere: 2 }, variant: 'diagonal' as never, components: { nothing: 'studio/caption-below' } } },
+  {
+    name: 'quote/editorial/bad-values',
+    timeline: 'quote',
+    theme: 'editorial',
+    overrides: { fps: 500, scale: 9, idle_threshold: -1, transition_duration: 9, speeds: { request: 40, nowhere: 2 }, variant: 'diagonal' as never, components: { nothing: 'studio/caption-below' } },
+  },
   { name: 'quote/editorial/no-trim', timeline: 'quote', theme: 'editorial', overrides: { trim_idle: false } },
   { name: 'catalogue/editorial/idle-threshold', timeline: 'catalogue', theme: 'editorial', overrides: { idle_threshold: 0.4 } },
   { name: 'catalogue/motion/no-camera', timeline: 'catalogue', theme: 'motion', overrides: { camera: false } },
@@ -75,7 +94,14 @@ const CASES: GoldenCase[] = [
   { name: 'quote/editorial/speeds', timeline: 'quote', theme: 'editorial', overrides: { speeds: { discover: 2, proposal: 0.75 } } },
   { name: 'quote/editorial/frame-raw', timeline: 'quote', theme: 'editorial', overrides: { frame: 'raw' } },
   { name: 'quote/editorial/frame-browser', timeline: 'quote', theme: 'editorial', overrides: { frame: 'browser' } },
-  { name: 'quote/editorial/components', timeline: 'quote', theme: 'editorial', overrides: { components: { layout: 'studio/layout-browser', caption: 'studio/caption-overlay', discover: { id: 'studio/layout-card', params: { width: 1400 } }, transition: 'studio/transition-fade-black' } } },
+  {
+    name: 'quote/editorial/components',
+    timeline: 'quote',
+    theme: 'editorial',
+    overrides: {
+      components: { layout: 'studio/layout-browser', caption: 'studio/caption-overlay', discover: { id: 'studio/layout-card', params: { width: 1400 } }, transition: 'studio/transition-fade-black' },
+    },
+  },
   { name: 'signup-tutorial/editorial/tutorial-off', timeline: 'signup-tutorial', theme: 'editorial', overrides: { tutorial: false } },
   { name: 'signup/editorial/tutorial-on', timeline: 'signup', theme: 'editorial', overrides: { tutorial: true } },
   { name: 'quote/editorial/tutorial-switches', timeline: 'quote', theme: 'editorial', overrides: { tutorial: { steps: true, spotlight: 'steps', shortcuts: true, loupe: true, progress: true } } },
@@ -132,7 +158,7 @@ describe('the planner (golden output)', () => {
       if (dump) writeFileSync(join(dump, `${c.name.replace(/\//g, '__')}.json`), `${JSON.stringify(JSON.parse(text), null, 1)}\n`);
     }
     const text = `${JSON.stringify(now, null, 1)}\n`;
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(JSON.parse(text)).toEqual(JSON.parse(readFileSync(FILE, 'utf8')));
     expect(text).toBe(readFileSync(FILE, 'utf8'));
     expect(Object.keys(now)).toHaveLength(CASES.length);

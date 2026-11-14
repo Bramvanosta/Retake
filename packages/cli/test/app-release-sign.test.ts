@@ -25,7 +25,6 @@ const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-app-release-sign-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 const MAC = process.platform === 'darwin';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 const bundleModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'bundle.mjs')).href)) as any;
 const releaseModule = async () => (await import(pathToFileURL(RELEASE).href)) as any;
 
@@ -60,14 +59,25 @@ function fakeTools(tools: Record<string, string>) {
  * A gzipped ustar archive of exactly these members, written byte by byte (so a test can hold names and types no tar
  * would write from a folder: `..`, absolute names, links where folders belong).
  */
-type Member = { name: string; type?: 'file' | 'dir' | 'link' | 'hardlink' | 'char' | 'fifo' | 'pax' | 'gnu-long-name'; data?: string; link?: string; mode?: number; size?: number; checksum?: 'damaged' };
+type Member = {
+  name: string;
+  type?: 'file' | 'dir' | 'link' | 'hardlink' | 'char' | 'fifo' | 'pax' | 'gnu-long-name';
+  data?: string;
+  link?: string;
+  mode?: number;
+  size?: number;
+  checksum?: 'damaged';
+};
 /** A pax extended header's records (`<length> <key>=<value>\n`, the length counting itself). */
-const paxOf = (records: Record<string, string>) => Object.entries(records).map(([k, v]) => {
-  const body = ` ${k}=${v}\n`;
-  let len = body.length + 1;
-  while (String(len).length + body.length !== len) len++;
-  return `${len}${body}`;
-}).join('');
+const paxOf = (records: Record<string, string>) =>
+  Object.entries(records)
+    .map(([k, v]) => {
+      const body = ` ${k}=${v}\n`;
+      let len = body.length + 1;
+      while (String(len).length + body.length !== len) len++;
+      return `${len}${body}`;
+    })
+    .join('');
 function tarRaw(members: Member[], { end = Buffer.alloc(1024) } = {}): Buffer {
   const blocks: Buffer[] = [];
   for (const m of members) {
@@ -111,7 +121,11 @@ const BUILD: Member[] = [
 function miniApp({ version = '0.2.0', updates = 'off' } = {}) {
   const appDir = dir('app');
   const app = join(appDir, 'Retake.app');
-  put(app, 'Contents/Info.plist', `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleShortVersionString</key><string>${version}</string></dict></plist>\n`);
+  put(
+    app,
+    'Contents/Info.plist',
+    `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleShortVersionString</key><string>${version}</string></dict></plist>\n`,
+  );
   put(app, 'Contents/MacOS/retake-desktop', THIN, 0o755);
   put(app, 'Contents/Resources/node/bin/node', THIN, 0o755);
   put(app, 'Contents/Resources/bundle.json', JSON.stringify({ v: 1, app: version, ffmpeg: null, paths: { node: 'node/bin/node', ffmpeg: null }, sha256: { node: 'stale' } }));
@@ -127,9 +141,13 @@ describe('the pins: the Node.js binary and the browsers the stage copies (review
     writeFileSync(bin, 'a node binary');
     const pin = { version: '22.16.0', sha256: { 'darwin-arm64': createHash('sha256').update('a node binary').digest('hex') } };
     expect(() => checkNode({ execPath: bin, version: '22.16.0', platform: 'darwin-arm64', pin })).not.toThrow();
-    expect(() => checkNode({ execPath: bin, version: '22.17.0', platform: 'darwin-arm64', pin })).toThrow(/^run the stage with Node\.js 22\.16\.0, the version apps\/desktop\/bundle\/node\.json pins .* this is v22\.17\.0/);
+    expect(() => checkNode({ execPath: bin, version: '22.17.0', platform: 'darwin-arm64', pin })).toThrow(
+      /^run the stage with Node\.js 22\.16\.0, the version apps\/desktop\/bundle\/node\.json pins .* this is v22\.17\.0/,
+    );
     writeFileSync(bin, 'another binary');
-    expect(() => checkNode({ execPath: bin, version: '22.16.0', platform: 'darwin-arm64', pin })).toThrow(/is not the official Node\.js 22\.16\.0 binary apps\/desktop\/bundle\/node\.json pins \(sha256 [0-9a-f]{64}, pinned [0-9a-f]{64}\): install Node\.js 22\.16\.0/);
+    expect(() => checkNode({ execPath: bin, version: '22.16.0', platform: 'darwin-arm64', pin })).toThrow(
+      /is not the official Node\.js 22\.16\.0 binary apps\/desktop\/bundle\/node\.json pins \(sha256 [0-9a-f]{64}, pinned [0-9a-f]{64}\): install Node\.js 22\.16\.0/,
+    );
     expect(() => checkNode({ execPath: bin, version: '22.16.0', platform: 'darwin-x64', pin })).toThrow(/pins no Node\.js binary for darwin-x64/);
     // The committed pin: one exact version and a sha256 per platform the release workflow runs on (the macOS jobs, the
     // ubuntu ones); the stage checks it before it copies anything.
@@ -143,7 +161,7 @@ describe('the pins: the Node.js binary and the browsers the stage copies (review
     expect(stageInto.indexOf('checkNode();')).toBeLessThan(stageInto.indexOf('cpSync(process.execPath, nodeBin);'));
   });
 
-  it('browserDigest: every path, link, size, executable bit and byte counts, Playwright\'s markers do not; checkBrowser refuses another tree or a revision with no pin', async () => {
+  it("browserDigest: every path, link, size, executable bit and byte counts, Playwright's markers do not; checkBrowser refuses another tree or a revision with no pin", async () => {
     const { browserDigest, checkBrowser, BROWSER_PINS } = await bundleModule();
     const tree = () => {
       const d = join(dir('browser'), 'chromium-9999');
@@ -173,8 +191,12 @@ describe('the pins: the Node.js binary and the browsers the stage copies (review
     expect(() => checkBrowser(tree(), 'chromium-9999', { digests: { 'chromium-9999': base } })).not.toThrow();
     const other = tree();
     put(other, 'chrome-mac/extra', '');
-    expect(() => checkBrowser(other, 'chromium-9999', { digests: { 'chromium-9999': base } })).toThrow(/is not the chromium-9999 apps\/desktop\/bundle\/browsers\.json pins \(digest [0-9a-f]{64}, pinned [0-9a-f]{64}\): reinstall it/);
-    expect(() => checkBrowser(other, 'chromium-9999', { digests: {} })).toThrow(/pins no digest for chromium-9999: record it from a checked install \(node apps\/desktop\/scripts\/bundle\.mjs browser-digest /);
+    expect(() => checkBrowser(other, 'chromium-9999', { digests: { 'chromium-9999': base } })).toThrow(
+      /is not the chromium-9999 apps\/desktop\/bundle\/browsers\.json pins \(digest [0-9a-f]{64}, pinned [0-9a-f]{64}\): reinstall it/,
+    );
+    expect(() => checkBrowser(other, 'chromium-9999', { digests: {} })).toThrow(
+      /pins no digest for chromium-9999: record it from a checked install \(node apps\/desktop\/scripts\/bundle\.mjs browser-digest /,
+    );
     // The committed pins cover exactly the revisions the repository's playwright-core pins; the stage checks each
     // folder before it copies it.
     const pw = JSON.parse(readFileSync(join(REPO, 'packages', 'runner-web', 'node_modules', 'playwright-core', 'browsers.json'), 'utf8')).browsers;
@@ -185,7 +207,7 @@ describe('the pins: the Node.js binary and the browsers the stage copies (review
     expect(src).toMatch(/checkBrowser\(from, folder\);\n\s+run\('ditto', \[from, join\(browsers, folder\)\]\);/);
   });
 
-  it('the command line: check-node, check-pins (what the release workflow\'s build job runs after the browsers\' install) and browser-digest', () => {
+  it("the command line: check-node, check-pins (what the release workflow's build job runs after the browsers' install) and browser-digest", () => {
     const run = (...args: string[]) => spawnSync(process.execPath, [join(APP, 'scripts', 'bundle.mjs'), ...args], { encoding: 'utf8' });
     const d = join(dir('cli-browser'), 'chromium-1');
     put(d, 'a', 'b');
@@ -194,7 +216,9 @@ describe('the pins: the Node.js binary and the browsers the stage copies (review
     expect(digest.stdout).toMatch(/^[0-9a-f]{64}\n$/);
     const node = run('check-node');
     // The suite may run on another Node.js than the pinned one: either way one sentence, never a stack.
-    expect(node.status === 0 ? node.stdout : node.stderr).toMatch(node.status === 0 ? /^Node\.js 22\.\d+\.\d+, the pinned binary\n$/ : /^bundle: run the stage with Node\.js|^bundle: .* is not the official Node\.js/);
+    expect(node.status === 0 ? node.stdout : node.stderr).toMatch(
+      node.status === 0 ? /^Node\.js 22\.\d+\.\d+, the pinned binary\n$/ : /^bundle: run the stage with Node\.js|^bundle: .* is not the official Node\.js/,
+    );
   });
 });
 
@@ -221,7 +245,10 @@ describe('the Tauri CLI folder the sign job runs: every file its pinned sha512, 
       [(d) => writeFileSync(join(d, 'node_modules/@tauri-apps/cli/tauri.js'), 'stealKeys()'), /node_modules\/@tauri-apps\/cli\/tauri\.js: not its pinned sha512/],
       [(d) => put(d, 'node_modules/@tauri-apps/cli/node_modules/x/index.js', ''), /cli\/node_modules: not a file of the pinned CLI/],
       [(d) => put(d, 'node_modules/other/index.js', ''), /node_modules\/other: not a file of the pinned CLI/],
-      [(d) => (rmSync(join(d, 'node_modules/@tauri-apps/cli/package.json')), symlinkSync('/etc/hosts', join(d, 'node_modules/@tauri-apps/cli/package.json'))), /cli\/package\.json: not a file of the pinned CLI/],
+      [
+        (d) => (rmSync(join(d, 'node_modules/@tauri-apps/cli/package.json')), symlinkSync('/etc/hosts', join(d, 'node_modules/@tauri-apps/cli/package.json'))),
+        /cli\/package\.json: not a file of the pinned CLI/,
+      ],
       [(d) => rmSync(join(d, 'node_modules/@tauri-apps/cli-darwin-arm64/cli.darwin-arm64.node')), /cli\.darwin-arm64\.node: missing/],
     ];
     for (const [change, msg] of cases) {
@@ -235,7 +262,8 @@ describe('the Tauri CLI folder the sign job runs: every file its pinned sha512, 
   it('freshTauriCli: the CLI runs from a fresh copy of its checked bytes in a temporary folder of its own — a package planted beside the handed folder is never found; a link, a changed byte or an extra file is refused', async () => {
     const { freshTauriCli } = await bundleModule();
     // tauri.js loads its platform package as the real one does (darwin-universal first): what it found, and where it runs.
-    const probe = "let which = 'none'; try { which = require('@tauri-apps/cli-darwin-universal').who; } catch {}\nrequire('node:fs').writeFileSync(process.argv[2], JSON.stringify({ which, self: __filename, paths: require.resolve.paths('x') }));\n";
+    const probe =
+      "let which = 'none'; try { which = require('@tauri-apps/cli-darwin-universal').who; } catch {}\nrequire('node:fs').writeFileSync(process.argv[2], JSON.stringify({ which, self: __filename, paths: require.resolve.paths('x') }));\n";
     const files = { '@tauri-apps/cli': { 'tauri.js': probe, 'package.json': '{"name":"@tauri-apps/cli"}' }, '@tauri-apps/cli-darwin-arm64': { 'cli.darwin-arm64.node': 'native' } };
     const pins = pinsFor(files);
     const handed = dir('handed');
@@ -308,12 +336,21 @@ describe('the Tauri CLI folder the sign job runs: every file its pinned sha512, 
     expect(fresh.cliJs).toBe(join(fresh.root, 'node_modules', '@tauri-apps', 'cli', 'tauri.js'));
     rmSync(fresh.root, { recursive: true, force: true });
     // A copy the last check refuses is removed.
-    expect(() => freshTauriCli(ok, pins, base, { check: (d: string, p: unknown) => (d === ok ? checkTauriCliDir(d, p) : (() => { throw new Error('copy refused'); })()) })).toThrow(/copy refused/);
+    expect(() =>
+      freshTauriCli(ok, pins, base, {
+        check: (d: string, p: unknown) =>
+          d === ok
+            ? checkTauriCliDir(d, p)
+            : (() => {
+                throw new Error('copy refused');
+              })(),
+      }),
+    ).toThrow(/copy refused/);
     expect(readdirSync(base)).toEqual([]);
   });
 });
 
-describe('tarMembers: the build job\'s archive read strictly, as tar walks it', () => {
+describe("tarMembers: the build job's archive read strictly, as tar walks it", () => {
   it('reads what tar writes — long names through pax headers and the ustar prefix, links with their targets — as tar lists it', async () => {
     const { tarMembers } = await releaseModule();
     const src = dir('real-tar');
@@ -339,28 +376,59 @@ describe('tarMembers: the build job\'s archive read strictly, as tar walks it', 
       [tarRaw([{ name: 'app/', checksum: 'damaged' }]), /a damaged header \(its checksum\) \(at byte 0\)/],
       [tarRaw([{ name: 'app/' }], { end: Buffer.concat([Buffer.alloc(1024), Buffer.from('more')]) }), /data after the end marker/],
       [tarRaw([{ name: '././@LongLink', type: 'gnu-long-name', data: 'tauri-cli/x' }, { name: 'app/' }]), /a member of type "L"/],
-      [tarRaw([{ name: 'PaxHeader/x', type: 'pax', data: paxOf({ 'GNU.sparse.size': '9' }) }, { name: 'app/x', data: 'x' }]), /a pax GNU\.sparse\.size record/],
-      [tarRaw([{ name: 'PaxHeader/x', type: 'pax', data: paxOf({ hdrcharset: 'BINARY' }) }, { name: 'app/x', data: 'x' }]), /a pax hdrcharset record/],
-      [tarRaw([{ name: 'PaxHeader/x', type: 'pax', data: '99 path=x\n' }, { name: 'app/x', data: 'x' }]), /a damaged pax header/],
+      [
+        tarRaw([
+          { name: 'PaxHeader/x', type: 'pax', data: paxOf({ 'GNU.sparse.size': '9' }) },
+          { name: 'app/x', data: 'x' },
+        ]),
+        /a pax GNU\.sparse\.size record/,
+      ],
+      [
+        tarRaw([
+          { name: 'PaxHeader/x', type: 'pax', data: paxOf({ hdrcharset: 'BINARY' }) },
+          { name: 'app/x', data: 'x' },
+        ]),
+        /a pax hdrcharset record/,
+      ],
+      [
+        tarRaw([
+          { name: 'PaxHeader/x', type: 'pax', data: '99 path=x\n' },
+          { name: 'app/x', data: 'x' },
+        ]),
+        /a damaged pax header/,
+      ],
       [tarRaw([{ name: 'app/', size: 3 }]), /a dir with data \(app\/\)/],
       [tarRaw([{ name: 'app/x', data: 'x'.repeat(600) }]).subarray(0, 1024), /a member longer than the archive|no end marker/],
       [tarRaw([{ name: 'app/' }], { end: Buffer.alloc(0) }), /no end marker/],
     ];
     for (const [buf, msg] of cases) expect(() => tarMembers(buf), String(msg)).toThrow(msg);
     // A pax path names the member (tar reads it so): the name the checks see is that one, not the header's.
-    const viaPax = tarMembers(tarRaw([{ name: 'PaxHeader/x', type: 'pax', data: paxOf({ path: 'node_modules/x.js' }) }, { name: 'app/x.js', data: 'x' }]));
+    const viaPax = tarMembers(
+      tarRaw([
+        { name: 'PaxHeader/x', type: 'pax', data: paxOf({ path: 'node_modules/x.js' }) },
+        { name: 'app/x.js', data: 'x' },
+      ]),
+    );
     expect(viaPax).toEqual([{ name: 'node_modules/x.js', type: 'file', link: null, size: 1 }]);
-    expect(tarMembers(tarRaw([{ name: 'a', type: 'hardlink', link: 'b' }, { name: 'c', type: 'char' }, { name: 'd', type: 'fifo' }])).map((m: any) => m.type)).toEqual(['hardlink', 'device', 'fifo']);
+    expect(
+      tarMembers(
+        tarRaw([
+          { name: 'a', type: 'hardlink', link: 'b' },
+          { name: 'c', type: 'char' },
+          { name: 'd', type: 'fifo' },
+        ]),
+      ).map((m: any) => m.type),
+    ).toEqual(['hardlink', 'device', 'fifo']);
   });
 });
 
-describe.runIf(MAC)('unpackBuild: the build job\'s archive, only its two parts (release.mjs unpack)', () => {
+describe.runIf(MAC)("unpackBuild: the build job's archive, only its two parts (release.mjs unpack)", () => {
   const archive = (members: Member[] | Buffer) => {
     const f = join(dir('archive'), 'retake-app.tar.gz');
     writeFileSync(f, Buffer.isBuffer(members) ? gzipSync(members) : tarOf(members));
     return f;
   };
-  it('the build\'s archive: app/Retake.app (its links kept) and tauri-cli — nothing else in the folder', async () => {
+  it("the build's archive: app/Retake.app (its links kept) and tauri-cli — nothing else in the folder", async () => {
     const { unpackBuild } = await releaseModule();
     const into = join(dir('unpack'), 'adhoc');
     const parts = unpackBuild(archive(BUILD), into);
@@ -390,11 +458,17 @@ describe.runIf(MAC)('unpackBuild: the build job\'s archive, only its two parts (
       [[...BUILD, { name: '/tmp/outside.txt', data: 'x' }], /\(an empty or absolute name\)/],
       [[...BUILD, { name: './app/Retake.app/x', data: 'x' }], /\(an empty, \. or \.\. part\)/],
       [[...BUILD, { name: 'tauri-cli/node_modules/@tauri-apps/cli/._tauri.js', data: 'metadata' }], /"tauri-cli\/node_modules\/@tauri-apps\/cli\/\._tauri\.js" \(an AppleDouble name\)/],
-      [[...BUILD, { name: 'app/Retake.app/Contents/x', type: 'hardlink', link: 'app/Retake.app/Contents/Info.plist' }], /"app\/Retake\.app\/Contents\/x" \(a hardlink \(only files, folders and links inside the app\)\)/],
+      [
+        [...BUILD, { name: 'app/Retake.app/Contents/x', type: 'hardlink', link: 'app/Retake.app/Contents/Info.plist' }],
+        /"app\/Retake\.app\/Contents\/x" \(a hardlink \(only files, folders and links inside the app\)\)/,
+      ],
       [[...BUILD, { name: 'app/Retake.app/Contents/tty', type: 'char' }], /\(a device \(only files, folders and links inside the app\)\)/],
       [[...BUILD, { name: 'app/Retake.app/Contents/pipe', type: 'fifo' }], /\(a fifo /],
       [[...BUILD, { name: 'app/Retake.app/Contents/Info.plist', data: 'again' }], /"app\/Retake\.app\/Contents\/Info\.plist" \(a name given twice\)/],
-      [tarRaw([...BUILD, { name: 'PaxHeader/x', type: 'pax', data: paxOf({ path: 'node_modules/x.js' }) }, { name: 'app/Retake.app/x.js', data: 'x' }]), /"node_modules\/x\.js" \(not a part of the build/],
+      [
+        tarRaw([...BUILD, { name: 'PaxHeader/x', type: 'pax', data: paxOf({ path: 'node_modules/x.js' }) }, { name: 'app/Retake.app/x.js', data: 'x' }]),
+        /"node_modules\/x\.js" \(not a part of the build/,
+      ],
       [tarRaw([...BUILD.slice(0, 2), { name: 'app/Retake.app/x', checksum: 'damaged', data: 'x' }, ...BUILD.slice(2)]), /is not the build job's archive: a damaged header/],
       [BUILD.filter((m) => !m.name.startsWith('tauri-cli')), /holds no tauri-cli — nothing was unpacked/],
       [BUILD.filter((m) => m.name !== 'app/Retake.app/'), /holds no app\/Retake\.app — nothing was unpacked/],
@@ -411,7 +485,10 @@ describe.runIf(MAC)('unpackBuild: the build job\'s archive, only its two parts (
     const cases: Array<[Member[], RegExp]> = [
       [[...BUILD.filter((m) => !m.name.startsWith('tauri-cli')), { name: 'tauri-cli', type: 'link', link: 'app/Retake.app/Contents' }], /"tauri-cli" \(a link, not a folder\)/],
       [[{ name: 'app', type: 'link', link: '../elsewhere' }, ...BUILD.filter((m) => m.name !== 'app/')], /"app" \(a link, not a folder\)/],
-      [[{ name: 'app/' }, { name: 'app/Retake.app', type: 'link', link: '/Applications/Retake.app' }, ...BUILD.filter((m) => !m.name.startsWith('app'))], /"app\/Retake\.app" \(a link, not a folder\)/],
+      [
+        [{ name: 'app/' }, { name: 'app/Retake.app', type: 'link', link: '/Applications/Retake.app' }, ...BUILD.filter((m) => !m.name.startsWith('app'))],
+        /"app\/Retake\.app" \(a link, not a folder\)/,
+      ],
       [[...BUILD, { name: 'app/Retake.app/Contents/key', type: 'link', link: '/runner/temp/signing/updater.key' }], /\(a link to an absolute path \("\/runner\/temp\/signing\/updater\.key"\)\)/],
       [[...BUILD, { name: 'app/Retake.app/Contents/up', type: 'link', link: '../../../signing' }], /\(a link out of Retake\.app \("\.\.\/\.\.\/\.\.\/signing"\)\)/],
       [[...BUILD, { name: 'app/Retake.app/Contents/self', type: 'link', link: '../../Retake.app2' }], /a link out of Retake\.app/],
@@ -457,8 +534,27 @@ describe.runIf(MAC)('unpackBuild: the build job\'s archive, only its two parts (
 
   it('buildMemberProblem: the names of the parts only; the command line: unpack <archive> --into <dir>', async () => {
     const { buildMemberProblem } = await releaseModule();
-    for (const ok of ['app', 'app/', 'app/Retake.app', 'app/Retake.app/', 'app/Retake.app/Contents/MacOS/retake-desktop', 'tauri-cli/', 'tauri-cli/node_modules/@tauri-apps/cli/tauri.js']) expect(buildMemberProblem(ok), ok).toBeNull();
-    for (const bad of ['', '/', '/app', 'node_modules', 'node_modules/x', 'app/Retake.app2', 'app/x', 'app//Retake.app', 'app/./Retake.app', 'tauri-cli/../x', '..', './tauri-cli', 'bundle-report.json', 'Retake.app', '._app', 'app/Retake.app/._Contents']) expect(buildMemberProblem(bad), bad).not.toBeNull();
+    for (const ok of ['app', 'app/', 'app/Retake.app', 'app/Retake.app/', 'app/Retake.app/Contents/MacOS/retake-desktop', 'tauri-cli/', 'tauri-cli/node_modules/@tauri-apps/cli/tauri.js'])
+      expect(buildMemberProblem(ok), ok).toBeNull();
+    for (const bad of [
+      '',
+      '/',
+      '/app',
+      'node_modules',
+      'node_modules/x',
+      'app/Retake.app2',
+      'app/x',
+      'app//Retake.app',
+      'app/./Retake.app',
+      'tauri-cli/../x',
+      '..',
+      './tauri-cli',
+      'bundle-report.json',
+      'Retake.app',
+      '._app',
+      'app/Retake.app/._Contents',
+    ])
+      expect(buildMemberProblem(bad), bad).not.toBeNull();
     const run = (...args: string[]) => spawnSync(process.execPath, [RELEASE, ...args], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: tmp } });
     const into = join(dir('cli-unpack'), 'adhoc');
     const ok = run('unpack', archive(BUILD), '--into', into);
@@ -484,7 +580,10 @@ describe('hdiutil, tried again on "Resource busy" only (review e B-M4)', () => {
     const bin = dir('fake-hdiutil');
     const count = join(bin, 'count');
     writeFileSync(count, '0');
-    writeFileSync(join(bin, 'hdiutil'), `#!/bin/sh\nc=$(cat ${JSON.stringify(count)}); c=$((c+1)); echo $c > ${JSON.stringify(count)}\nif [ "$c" -le ${failures} ]; then echo "hdiutil: $1 failed - ${message}" >&2; exit 1; fi\necho "created: $*"\n`);
+    writeFileSync(
+      join(bin, 'hdiutil'),
+      `#!/bin/sh\nc=$(cat ${JSON.stringify(count)}); c=$((c+1)); echo $c > ${JSON.stringify(count)}\nif [ "$c" -le ${failures} ]; then echo "hdiutil: $1 failed - ${message}" >&2; exit 1; fi\necho "created: $*"\n`,
+    );
     chmodSync(join(bin, 'hdiutil'), 0o755);
     return { env: { PATH: `${bin}:/usr/bin:/bin` }, tries: () => Number(readFileSync(count, 'utf8')) };
   };
@@ -520,10 +619,12 @@ describe.runIf(MAC)('finishApp: from the ad hoc app to what a release ships (app
     const { app } = miniApp({ version: '0.3.0-rc.1' });
     const ok = finishApp({ app, out: dir('out'), mode: 'dry', env, entries: NODE_ENTRY, dmg: false, verified: true, appVersion: '0.3.0-rc.1' });
     expect(ok).toMatchObject({ mode: 'dry', version: '0.3.0-rc.1', dmg: null, update: null });
-    expect(() => finishApp({ app, out: dir('out'), mode: 'dry', env, entries: NODE_ENTRY, dmg: false, verified: true, appVersion: '0.3.0' })).toThrow(/Retake\.app is version 0\.3\.0-rc\.1 \(Info\.plist\), not 0\.3\.0: build the tagged commit — nothing was signed/);
+    expect(() => finishApp({ app, out: dir('out'), mode: 'dry', env, entries: NODE_ENTRY, dmg: false, verified: true, appVersion: '0.3.0' })).toThrow(
+      /Retake\.app is version 0\.3\.0-rc\.1 \(Info\.plist\), not 0\.3\.0: build the tagged commit — nothing was signed/,
+    );
   });
 
-  it('bundle.json\'s version (it names the DMG) must be a version and the app\'s own — Info.plist\'s, so --app-version\'s — or nothing is signed', async () => {
+  it("bundle.json's version (it names the DMG) must be a version and the app's own — Info.plist's, so --app-version's — or nothing is signed", async () => {
     const { finishApp } = await releaseModule();
     const withManifestApp = (v: unknown, plist = '0.2.0') => {
       const m = miniApp({ version: plist });
@@ -534,11 +635,17 @@ describe.runIf(MAC)('finishApp: from the ad hoc app to what a release ships (app
     const tools = fakeTools({ codesign: 'exit 0', xcrun: 'exit 1', hdiutil: 'exit 1' });
     const recorded = { ...env, PATH: `${tools.bin}:/usr/bin:/bin` };
     // Another version than Info.plist's, with --app-version (the sign job) or with a DMG to name: refused first.
-    expect(() => finishApp({ app: withManifestApp('0.1.9').app, out: dir('out'), mode: 'dry', env: recorded, entries: NODE_ENTRY, dmg: false, verified: true, appVersion: '0.2.0' })).toThrow(/bundle\.json says version 0\.1\.9, Info\.plist 0\.2\.0: not one build — nothing was signed/);
-    expect(() => finishApp({ app: withManifestApp('0.1.9').app, out: dir('out'), mode: 'dry', env: recorded, entries: NODE_ENTRY, verified: true })).toThrow(/bundle\.json says version 0\.1\.9, Info\.plist 0\.2\.0/);
+    expect(() => finishApp({ app: withManifestApp('0.1.9').app, out: dir('out'), mode: 'dry', env: recorded, entries: NODE_ENTRY, dmg: false, verified: true, appVersion: '0.2.0' })).toThrow(
+      /bundle\.json says version 0\.1\.9, Info\.plist 0\.2\.0: not one build — nothing was signed/,
+    );
+    expect(() => finishApp({ app: withManifestApp('0.1.9').app, out: dir('out'), mode: 'dry', env: recorded, entries: NODE_ENTRY, verified: true })).toThrow(
+      /bundle\.json says version 0\.1\.9, Info\.plist 0\.2\.0/,
+    );
     for (const bad of ['../x', '0.2.0/../../x', '', null, 2]) {
       const m = withManifestApp(bad, typeof bad === 'string' && bad ? bad : '0.2.0');
-      expect(() => finishApp({ app: m.app, out: dir('out'), mode: 'dry', env: recorded, entries: NODE_ENTRY, verified: true }), String(bad)).toThrow(/bundle\.json's app is not a version .* — nothing was signed/);
+      expect(() => finishApp({ app: m.app, out: dir('out'), mode: 'dry', env: recorded, entries: NODE_ENTRY, verified: true }), String(bad)).toThrow(
+        /bundle\.json's app is not a version .* — nothing was signed/,
+      );
     }
     // Nothing ran: no signature, no DMG.
     expect(tools.calls()).toEqual([]);
@@ -546,7 +653,7 @@ describe.runIf(MAC)('finishApp: from the ad hoc app to what a release ships (app
     expect(finishApp({ app: withManifestApp('0.1.9').app, out: dir('out'), mode: 'dry', env, entries: NODE_ENTRY, dmg: false, verified: true }).version).toBe('0.2.0');
   });
 
-  it('bundle.json and launch.json are read as JSON whose words are never repeated; bundle.json\'s paths stay inside Resources (no .., no absolute path, no link out) — or nothing is signed', async () => {
+  it("bundle.json and launch.json are read as JSON whose words are never repeated; bundle.json's paths stay inside Resources (no .., no absolute path, no link out) — or nothing is signed", async () => {
     const { finishApp } = await releaseModule();
     const tools = fakeTools({ codesign: 'exit 0', xattr: 'exit 0' });
     const recorded = { ...env, PATH: `${tools.bin}:/usr/bin:/bin` };
@@ -576,10 +683,19 @@ describe.runIf(MAC)('finishApp: from the ad hoc app to what a release ships (app
       [withPaths({ node: 'node/./bin/node', ffmpeg: null }), /paths\.node is not a relative path inside the folder/],
       [withPaths({ node: 'node/bin/node', ffmpeg: '../x' }), /paths\.ffmpeg is not a relative path inside the folder/],
       [withPaths({ node: 'node/bin/node' }), /paths\.ffmpeg is not a relative path inside the folder/],
-      [withPaths({ node: 'node/bin/elsewhere', ffmpeg: null }, (res) => symlinkSync(join(outside, 'node'), join(res, 'node', 'bin', 'elsewhere'))), /paths\.node \(node\/bin\/elsewhere\) leads out of the folder/],
+      [
+        withPaths({ node: 'node/bin/elsewhere', ffmpeg: null }, (res) => symlinkSync(join(outside, 'node'), join(res, 'node', 'bin', 'elsewhere'))),
+        /paths\.node \(node\/bin\/elsewhere\) leads out of the folder/,
+      ],
       // Inside as written, out once its links are followed (the system's realpath, not a lexical one).
       [withPaths({ node: 'up/../node', ffmpeg: null }, (res) => symlinkSync(outside, join(res, 'up'))), /paths\.node is not a relative path/],
-      [withPaths({ node: 'node/bin/hop/node', ffmpeg: null }, (res) => (symlinkSync('../..', join(res, 'node', 'bin', 'up')), symlinkSync(`up/../${relative(dirname(res), outside)}`, join(res, 'node', 'bin', 'hop')))), /paths\.node \(node\/bin\/hop\/node\) leads out of the folder/],
+      [
+        withPaths(
+          { node: 'node/bin/hop/node', ffmpeg: null },
+          (res) => (symlinkSync('../..', join(res, 'node', 'bin', 'up')), symlinkSync(`up/../${relative(dirname(res), outside)}`, join(res, 'node', 'bin', 'hop'))),
+        ),
+        /paths\.node \(node\/bin\/hop\/node\) leads out of the folder/,
+      ],
       [withPaths({ node: 'node/bin/none', ffmpeg: null }), /paths\.node \(node\/bin\/none\) is missing/],
     ];
     for (const [app, msg] of cases) expect(finish(app), String(msg)).toThrow(msg);
@@ -600,30 +716,38 @@ describe.runIf(MAC)('finishApp: from the ad hoc app to what a release ships (app
     expect(r.update).toMatchObject({ archive: join(out, 'Retake.app.tar.gz'), signature: null, links: 1 });
     expect(readdirSync(out)).toEqual(['Retake.app.tar.gz']);
     expect(said.join('\n')).toMatch(/update archive made, NOT signed: no TAURI_SIGNING_PRIVATE_KEY/);
-    expect(() => finishApp({ app: on.app, out, mode: 'dry', env: { ...env, TAURI_SIGNING_PRIVATE_KEY: 'k' }, entries: NODE_ENTRY, dmg: false, verified: true })).toThrow(/RETAKE_UPDATE_PUBKEY is needed to check its signature — nothing was signed/);
-    expect(() => finishApp({ app: on.app, out, mode: 'dry', env: { ...env, TAURI_SIGNING_PRIVATE_KEY: 'k' }, pubkey: 'not a key', entries: NODE_ENTRY, dmg: false, verified: true })).toThrow(/RETAKE_UPDATE_PUBKEY/);
+    expect(() => finishApp({ app: on.app, out, mode: 'dry', env: { ...env, TAURI_SIGNING_PRIVATE_KEY: 'k' }, entries: NODE_ENTRY, dmg: false, verified: true })).toThrow(
+      /RETAKE_UPDATE_PUBKEY is needed to check its signature — nothing was signed/,
+    );
+    expect(() => finishApp({ app: on.app, out, mode: 'dry', env: { ...env, TAURI_SIGNING_PRIVATE_KEY: 'k' }, pubkey: 'not a key', entries: NODE_ENTRY, dmg: false, verified: true })).toThrow(
+      /RETAKE_UPDATE_PUBKEY/,
+    );
     const src = readFileSync(RELEASE, 'utf8');
     expect(src).toMatch(/if \(updates && key && !tauriCli\) throw new StageError\('the update archive is signed by the pinned Tauri CLI/);
   });
 
-  it('the app\'s folder becomes the DMG: anything but the app (and its Applications link) is refused before anything runs', async () => {
+  it("the app's folder becomes the DMG: anything but the app (and its Applications link) is refused before anything runs", async () => {
     const { finishApp } = await releaseModule();
     const { appDir, app } = miniApp();
     writeFileSync(join(appDir, 'notes.txt'), 'x');
     expect(() => finishApp({ app, out: dir('out'), mode: 'dry', env, entries: NODE_ENTRY, verified: true })).toThrow(/becomes the DMG: it must hold Retake\.app only \(it holds notes\.txt\)/);
   });
 
-  it('a release: refused without the whole APPLE_* set before any tool runs; with it, the ad hoc app re-signed inside-out with the Developer ID (its keychain, a timestamp), bundle.json\'s hashes refreshed, then checked — notarised only after the checks pass', async () => {
+  it("a release: refused without the whole APPLE_* set before any tool runs; with it, the ad hoc app re-signed inside-out with the Developer ID (its keychain, a timestamp), bundle.json's hashes refreshed, then checked — notarised only after the checks pass", async () => {
     const { finishApp } = await releaseModule();
     const tools = fakeTools({ codesign: 'exit 0', xcrun: 'exit 1', ditto: 'exit 1', hdiutil: 'exit 1', spctl: 'exit 1' });
     const { app } = miniApp();
     const out = dir('out');
-    expect(() => finishApp({ app, out, mode: 'release', env: { PATH: `${tools.bin}:/usr/bin:/bin`, HOME: tmp, APPLE_SIGNING_IDENTITY: ID }, entries: NODE_ENTRY })).toThrow(/set APPLE_TEAM_ID, .* nothing was signed/);
+    expect(() => finishApp({ app, out, mode: 'release', env: { PATH: `${tools.bin}:/usr/bin:/bin`, HOME: tmp, APPLE_SIGNING_IDENTITY: ID }, entries: NODE_ENTRY })).toThrow(
+      /set APPLE_TEAM_ID, .* nothing was signed/,
+    );
     expect(tools.calls()).toEqual([]);
     const kc = '/runner/temp/signing/retake-signing.keychain-db';
     // The stand-in codesign signs nothing and answers no entitlement: the checks after the signature fail, so nothing
     // is notarised (no xcrun, no ditto) — and every signature before was the Developer ID's.
-    expect(() => finishApp({ app, out, mode: 'release', env: { ...APPLE, APPLE_KEYCHAIN: kc, PATH: `${tools.bin}:/usr/bin:/bin`, HOME: tmp }, entries: NODE_ENTRY })).toThrow(/the app fails its checks after its Developer ID signature:\n {2}node\/bin\/node: entitlements \[\], the table says/);
+    expect(() => finishApp({ app, out, mode: 'release', env: { ...APPLE, APPLE_KEYCHAIN: kc, PATH: `${tools.bin}:/usr/bin:/bin`, HOME: tmp }, entries: NODE_ENTRY })).toThrow(
+      /the app fails its checks after its Developer ID signature:\n {2}node\/bin\/node: entitlements \[\], the table says/,
+    );
     const calls = tools.calls();
     const signs = calls.filter((c) => c.startsWith('codesign --force'));
     expect(signs.map((c) => c.split(' ').pop())).toEqual([join(app, 'Contents', 'Resources', 'node', 'bin', 'node'), join(app, 'Contents', 'MacOS', 'retake-desktop'), app]);
@@ -694,7 +818,20 @@ describe.runIf(MAC)('the update archive, signed by a fresh copy of the pinned CL
     const out = dir('out');
     const base = dir('fresh-base');
     const atUpdate: string[][] = [];
-    const r = finishApp({ app, out, mode: 'dry', env: { ...env, TAURI_SIGNING_PRIVATE_KEY: 'key-canary' }, pubkey: c.pub, tauriCli: c.cli, tauriPins: c.pins, tmp: base, entries: NODE_ENTRY, dmg: false, verified: true, say: (step: string) => step === 'update' && atUpdate.push(readdirSync(base)) });
+    const r = finishApp({
+      app,
+      out,
+      mode: 'dry',
+      env: { ...env, TAURI_SIGNING_PRIVATE_KEY: 'key-canary' },
+      pubkey: c.pub,
+      tauriCli: c.cli,
+      tauriPins: c.pins,
+      tmp: base,
+      entries: NODE_ENTRY,
+      dmg: false,
+      verified: true,
+      say: (step: string) => step === 'update' && atUpdate.push(readdirSync(base)),
+    });
     expect(r.update.signature).toBe(join(out, 'Retake.app.tar.gz.sig'));
     const got = JSON.parse(readFileSync(join(out, 'Retake.app.tar.gz.report.json'), 'utf8')) as CliReport;
     const root = dirname(dirname(dirname(dirname(got.self))));
@@ -714,7 +851,21 @@ describe.runIf(MAC)('the update archive, signed by a fresh copy of the pinned CL
     const base = dir('fresh-base');
     // Not the pinned CLI: refused before the update archive (or anything else) is made.
     const notCli = join(dir('o'), 'out');
-    expect(() => finishApp({ app: miniApp({ updates: 'on' }).app, out: notCli, mode: 'dry', env: keyed, pubkey: c.pub, tauriCli: dir('not-cli'), tauriPins: c.pins, tmp: base, entries: NODE_ENTRY, dmg: false, verified: true })).toThrow(/is not the Tauri CLI 2\.12\.4 apps\/desktop\/bundle\/tauri-cli\.json pins/);
+    expect(() =>
+      finishApp({
+        app: miniApp({ updates: 'on' }).app,
+        out: notCli,
+        mode: 'dry',
+        env: keyed,
+        pubkey: c.pub,
+        tauriCli: dir('not-cli'),
+        tauriPins: c.pins,
+        tmp: base,
+        entries: NODE_ENTRY,
+        dmg: false,
+        verified: true,
+      }),
+    ).toThrow(/is not the Tauri CLI 2\.12\.4 apps\/desktop\/bundle\/tauri-cli\.json pins/);
     expect(existsSync(notCli)).toBe(false);
     // A node_modules above the copy (where Node.js would look): refused, the CLI never started, the copy removed.
     const nest = dir('nest');
@@ -722,15 +873,44 @@ describe.runIf(MAC)('the update archive, signed by a fresh copy of the pinned CL
     const nested = join(nest, 'base');
     mkdirSync(nested);
     const out = dir('out');
-    expect(() => finishApp({ app: miniApp({ updates: 'on' }).app, out, mode: 'dry', env: keyed, pubkey: c.pub, tauriCli: c.cli, tauriPins: c.pins, tmp: nested, entries: NODE_ENTRY, dmg: false, verified: true })).toThrow(new RegExp(`the Tauri CLI would look for packages in ${join(nest, 'node_modules')} \\(outside its own folder .*\\): remove it — nothing was signed`));
+    expect(() =>
+      finishApp({ app: miniApp({ updates: 'on' }).app, out, mode: 'dry', env: keyed, pubkey: c.pub, tauriCli: c.cli, tauriPins: c.pins, tmp: nested, entries: NODE_ENTRY, dmg: false, verified: true }),
+    ).toThrow(new RegExp(`the Tauri CLI would look for packages in ${join(nest, 'node_modules')} \\(outside its own folder .*\\): remove it — nothing was signed`));
     expect(readdirSync(out)).toEqual(['Retake.app.tar.gz']);
     expect(readdirSync(nested)).toEqual([]);
     // The CLI fails: said, the copy removed.
-    expect(() => finishApp({ app: miniApp({ updates: 'on' }).app, out: dir('out'), mode: 'dry', env: { ...env, TAURI_SIGNING_PRIVATE_KEY: 'fail' }, pubkey: c.pub, tauriCli: c.cli, tauriPins: c.pins, tmp: base, entries: NODE_ENTRY, dmg: false, verified: true })).toThrow(/tauri signer sign failed \(3\): signing failed/);
+    expect(() =>
+      finishApp({
+        app: miniApp({ updates: 'on' }).app,
+        out: dir('out'),
+        mode: 'dry',
+        env: { ...env, TAURI_SIGNING_PRIVATE_KEY: 'fail' },
+        pubkey: c.pub,
+        tauriCli: c.cli,
+        tauriPins: c.pins,
+        tmp: base,
+        entries: NODE_ENTRY,
+        dmg: false,
+        verified: true,
+      }),
+    ).toThrow(/tauri signer sign failed \(3\): signing failed/);
     expect(readdirSync(base)).toEqual([]);
     // Signed, then the DMG fails: the copy was gone already.
     const tools = fakeTools({ hdiutil: 'exit 1' });
-    expect(() => finishApp({ app: miniApp({ updates: 'on' }).app, out: dir('out'), mode: 'dry', env: { ...keyed, PATH: `${tools.bin}:/usr/bin:/bin` }, pubkey: c.pub, tauriCli: c.cli, tauriPins: c.pins, tmp: base, entries: NODE_ENTRY, verified: true })).toThrow(/hdiutil create/);
+    expect(() =>
+      finishApp({
+        app: miniApp({ updates: 'on' }).app,
+        out: dir('out'),
+        mode: 'dry',
+        env: { ...keyed, PATH: `${tools.bin}:/usr/bin:/bin` },
+        pubkey: c.pub,
+        tauriCli: c.cli,
+        tauriPins: c.pins,
+        tmp: base,
+        entries: NODE_ENTRY,
+        verified: true,
+      }),
+    ).toThrow(/hdiutil create/);
     expect(readdirSync(base)).toEqual([]);
     // The prefix's lib/node (a global folder of the Node.js that runs the CLI): refused before it starts.
     const { signUpdateArchive } = await bundleModule();
@@ -740,7 +920,9 @@ describe.runIf(MAC)('the update archive, signed by a fresh copy of the pinned CL
     put(cliRoot, 'node_modules/@tauri-apps/cli/tauri.js', '');
     const archive = join(dir('a'), 'Retake.app.tar.gz');
     writeFileSync(archive, 'x');
-    expect(() => signUpdateArchive({ cliJs: join(cliRoot, 'node_modules/@tauri-apps/cli/tauri.js'), cliRoot, archive, version: '0.2.0', pubkey: c.pub, env: keyed, node: join(prefix, 'bin', 'node') })).toThrow(new RegExp(`would look for packages in ${join(prefix, 'lib', 'node')}`));
+    expect(() =>
+      signUpdateArchive({ cliJs: join(cliRoot, 'node_modules/@tauri-apps/cli/tauri.js'), cliRoot, archive, version: '0.2.0', pubkey: c.pub, env: keyed, node: join(prefix, 'bin', 'node') }),
+    ).toThrow(new RegExp(`would look for packages in ${join(prefix, 'lib', 'node')}`));
     expect(existsSync(`${archive}.sig`)).toBe(false);
   });
 
@@ -748,7 +930,13 @@ describe.runIf(MAC)('the update archive, signed by a fresh copy of the pinned CL
     const { signCommand } = await releaseModule();
     const c = signingCli();
     const base = dir('fresh-base');
-    const opts = (key: string) => ({ env: { ...env, TAURI_SIGNING_PRIVATE_KEY: key, RETAKE_UPDATE_PUBKEY: c.pub }, pins: c.pins, tmp: base, finish: { entries: NODE_ENTRY, verified: true, dmg: false }, log: () => {} });
+    const opts = (key: string) => ({
+      env: { ...env, TAURI_SIGNING_PRIVATE_KEY: key, RETAKE_UPDATE_PUBKEY: c.pub },
+      pins: c.pins,
+      tmp: base,
+      finish: { entries: NODE_ENTRY, verified: true, dmg: false },
+      log: () => {},
+    });
     const out = join(dir('cmd'), 'out');
     const report = signCommand(['--app', miniApp({ updates: 'on' }).app, '--out', out, '--tauri-cli', c.cli, '--app-version', '0.2.0'], opts('k'));
     expect(report.update).toMatchObject({ archive: 'Retake.app.tar.gz', signature: 'Retake.app.tar.gz.sig' });
@@ -768,7 +956,7 @@ describe.runIf(MAC)('the update archive, signed by a fresh copy of the pinned CL
 });
 
 describe('release.mjs sign: the command line and its --out folder', () => {
-  it('claimReleaseOut: absent or empty is claimed; an earlier run\'s is emptied (no stale archive); a folder of the person\'s, or the app\'s own, is refused', async () => {
+  it("claimReleaseOut: absent or empty is claimed; an earlier run's is emptied (no stale archive); a folder of the person's, or the app's own, is refused", async () => {
     const { claimReleaseOut, RELEASE_MARK } = await releaseModule();
     const { app, appDir } = miniApp();
     const fresh = join(dir('claim'), 'out');
@@ -791,7 +979,8 @@ describe('release.mjs sign: the command line and its --out folder', () => {
     const { parseSignArgs } = await releaseModule();
     const { app } = miniApp();
     const out = join(dir('cli'), 'out');
-    const run = (args: string[], extra: Record<string, string> = {}) => spawnSync(process.execPath, [RELEASE, 'sign', ...args], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: tmp, ...extra } });
+    const run = (args: string[], extra: Record<string, string> = {}) =>
+      spawnSync(process.execPath, [RELEASE, 'sign', ...args], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: tmp, ...extra } });
     const refused = run(['--app', app, '--out', out, '--release'], { APPLE_SIGNING_IDENTITY: ID, APPLE_PASSWORD: 'apple-pw-canary' });
     expect(refused.status).toBe(1);
     expect(refused.stderr).toMatch(/^release: a release build signs with your Developer ID and notarises: set APPLE_TEAM_ID, .* nothing was signed\n$/);
@@ -802,7 +991,12 @@ describe('release.mjs sign: the command line and its --out folder', () => {
     expect(badCli.stderr).toMatch(/^release: \S+ is not the Tauri CLI 2\.12\.4 apps\/desktop\/bundle\/tauri-cli\.json pins: node_modules\/@tauri-apps\/cli\/[^:]+: missing/);
     expect(existsSync(out)).toBe(false);
     expect(parseSignArgs(['--app', 'a', '--out', 'o', '--release', '--app-version', '0.2.0'])).toEqual({ app: 'a', out: 'o', release: true, appVersion: '0.2.0' });
-    for (const bad of [['--app', 'a'], ['--app', 'a', '--out', 'o', '--force'], ['--app', '--out', 'o']]) expect(() => parseSignArgs(bad), bad.join(' ')).toThrow(/sign needs --out|unknown argument|sign needs --app/);
+    for (const bad of [
+      ['--app', 'a'],
+      ['--app', 'a', '--out', 'o', '--force'],
+      ['--app', '--out', 'o'],
+    ])
+      expect(() => parseSignArgs(bad), bad.join(' ')).toThrow(/sign needs --out|unknown argument|sign needs --app/);
     expect(run([]).status).toBe(1);
   });
 
@@ -810,7 +1004,9 @@ describe('release.mjs sign: the command line and its --out folder', () => {
     const { build } = await bundleModule();
     const out = dir('app-only');
     expect(() => build({ out, mode: 'release', appOnly: true, env: { PATH: '/usr/bin:/bin', HOME: tmp } })).toThrow(/nothing was signed/);
-    expect(() => build({ out, mode: 'release', appOnly: true, env: { ...APPLE, PATH: '/usr/bin:/bin', HOME: tmp } })).toThrow(/--app-only lays the ad hoc app out .* node apps\/desktop\/scripts\/release\.mjs sign --release/);
+    expect(() => build({ out, mode: 'release', appOnly: true, env: { ...APPLE, PATH: '/usr/bin:/bin', HOME: tmp } })).toThrow(
+      /--app-only lays the ad hoc app out .* node apps\/desktop\/scripts\/release\.mjs sign --release/,
+    );
     expect(readdirSync(out)).toEqual([]);
     const src = readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8');
     expect(src).toContain("appOnly: rest.includes('--app-only')");

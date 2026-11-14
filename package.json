@@ -15,10 +15,14 @@
   "scripts": {
     "build": "tsc -b",
     "watch": "tsc -b --watch",
-    "typecheck": "tsc -b --noEmit false",
+    "typecheck": "tsc -b && tsc -p tsconfig.test.json",
+    "lint": "node scripts/lint.mjs",
+    "format": "biome format --write",
+    "format:check": "biome format",
     "test": "vitest run",
+    "test:ci": "node scripts/test-ci.mjs",
     "test:pg": "node scripts/test-pg.mjs",
-    "test:slow": "RETAKE_TEST_SLOW=1 vitest run packages/cli/test/catalogue-acceptance.test.ts packages/editor/test/loop-real.test.ts packages/mcp/test/fixture-acceptance.test.ts packages/mcp/test/authoring-acceptance.test.ts packages/mcp/test/record-acceptance.test.ts packages/mcp/test/theme-acceptance.test.ts packages/mcp/test/phase3-acceptance.test.ts packages/mcp/test/plugin.test.ts packages/ui/test/scenario-run-acceptance.test.ts packages/ui/test/studio-e2e-themes-acceptance.test.ts packages/ui/test/studio-e2e-record-acceptance.test.ts packages/runner-web/test/launch-options.test.ts",
+    "test:slow": "RETAKE_TEST_SLOW=1 vitest run packages/cli/test/catalogue-acceptance.test.ts packages/editor/test/loop-real.test.ts packages/mcp/test/fixture-acceptance.test.ts packages/mcp/test/authoring-acceptance.test.ts packages/mcp/test/record-acceptance.test.ts packages/mcp/test/theme-acceptance.test.ts packages/mcp/test/phase3-acceptance.test.ts packages/mcp/test/plugin.test.ts packages/ui/test/scenario-run-acceptance.test.ts packages/ui/test/studio-e2e-themes-acceptance.test.ts packages/ui/test/studio-e2e-record-acceptance.test.ts",
     "retake": "node packages/cli/dist/bin.js",
     "fixture": "node fixtures/wholesale/server.mjs",
     "req": "node scripts/requirements.mjs",
@@ -30,6 +34,7 @@
     "desktop:release": "node apps/desktop/scripts/bundle.mjs build --release"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.15",
     "@types/node": "^22.10.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",

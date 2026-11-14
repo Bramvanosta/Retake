@@ -12,7 +12,8 @@
  * older running server's bootstrap answer has none.
  */
 import { resolve } from 'node:path';
-import { isUnder, realPathOf, workspaceFolders } from '@retake/core';
+import { isUnder, bestEffort } from '@retake/core/base';
+import { realPathOf, workspaceFolders } from '@retake/core/policy';
 import { loadWorkspaceConfig, retakeHome, nodeFileFacts } from '@retake/core/io';
 import {
   DISCOVERY_VERSION,
@@ -55,7 +56,7 @@ async function codeFrom(r: StudioTokenRecord, file: string): Promise<{ url: stri
   } catch {
     res = new Response(null, { status: 599 });
   }
-  const body = res.ok ? ((await res.json().catch(() => ({}))) as { url?: unknown; player?: unknown }) : {};
+  const body = res.ok ? ((await bestEffort(res.json(), 'an answer that is no JSON names no URL', {})) as { url?: unknown; player?: unknown }) : {};
   if (typeof body.url !== 'string' || !body.url.startsWith(base)) {
     throw new EngineError('unavailable', `a Studio server (pid ${r.pid}) holds ${file} but does not answer on port ${r.port}`, { fix: `stop that process (kill ${r.pid}), then run retake ui again` });
   }
@@ -90,7 +91,7 @@ async function running(root: string, file: string, tokenFile: string, holder?: D
     if (late) return reuse(late);
     if (!(await holderAlive(existing))) return null;
   }
-  throw new EngineError('busy', `a Studio server (pid ${existing.pid}) serves this workspace, but its token is not in this Retake home (${studioTokenDir()})`, {
+  throw new EngineError('busy', `a Studio server (pid ${existing.pid}) serves this workspace, but its token is not in this Retake home (${studioTokenDir(process.env)})`, {
     fix: `run retake ui with the RETAKE_HOME that server was started with, or ${stop}`,
   });
 }
@@ -100,7 +101,7 @@ async function running(root: string, file: string, tokenFile: string, holder?: D
  * there): an agent reads and writes files in the workspace, and the token drives the person's Studio.
  */
 async function assertTokenOutside(root: string): Promise<void> {
-  const dir = studioTokenDir();
+  const dir = studioTokenDir(process.env);
   const folders = await loadWorkspaceConfig(root).then(workspaceFolders, () => [resolve(root)]);
   const inside = folders.find((f) => isUnder(dir, f, nodeFileFacts) || isUnder(realPathOf(dir, nodeFileFacts), f, nodeFileFacts));
   if (inside) {
@@ -113,7 +114,7 @@ async function assertTokenOutside(root: string): Promise<void> {
 export async function launchStudio(o: StudioServerOptions): Promise<Launched> {
   await assertTokenOutside(o.root);
   const file = discoveryFile(o.root);
-  const tokenFile = await studioTokenFile(o.root);
+  const tokenFile = await studioTokenFile(o.root, process.env);
   const found = await running(o.root, file, tokenFile);
   if (found) return found;
   const server = await startStudioServer(o);
@@ -150,6 +151,9 @@ export async function launchStudio(o: StudioServerOptions): Promise<Launched> {
   }
   const close = server.close;
   let released: Promise<void> | undefined;
-  server.close = () => (released ??= close().then(() => releaseStudioToken(tokenFile, token)).then(() => releaseDiscovery(file, record)));
+  server.close = () =>
+    (released ??= close()
+      .then(() => releaseStudioToken(tokenFile, token))
+      .then(() => releaseDiscovery(file, record)));
   return { reused: false, server, url: server.launchUrl(), port: server.port, pid: me.pid, file, player: server.player.origin };
 }

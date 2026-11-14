@@ -15,10 +15,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { readWorkerLock } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
-import type { BrandSite } from '../../runner-web/test/site-fixture.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '@retake/test-support/site';
+import type { BrandSite } from '@retake/test-support/site';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const can = hasOpenssl();
@@ -63,7 +63,12 @@ async function call(client: Client, name: string, args: Record<string, unknown>)
 /** Everything but the `untrusted` subtrees. */
 function trustedPart(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(trustedPart);
-  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'untrusted').map(([k, x]) => [k, trustedPart(x)]));
+  if (v && typeof v === 'object')
+    return Object.fromEntries(
+      Object.entries(v)
+        .filter(([k]) => k !== 'untrusted')
+        .map(([k, x]) => [k, trustedPart(x)]),
+    );
   return v;
 }
 
@@ -100,7 +105,11 @@ describe.skipIf(!can)('retake mcp: template_from_site', () => {
     expect(e).toMatchObject({ code: 'needs_approval', fix: expect.stringMatching(/theme from-site https:\/\/brand\.test\/$/) });
     const d = await connect('decline');
     const r2 = await call(d.client, 'template_from_site', { url: 'https://brand.test/' });
-    expect((r2.structuredContent as { error: { code: string; message: string; fix?: string } }).error).toMatchObject({ code: 'refused', message: expect.stringMatching(/the user declined/), fix: expect.stringMatching(/theme from-site/) });
+    expect((r2.structuredContent as { error: { code: string; message: string; fix?: string } }).error).toMatchObject({
+      code: 'refused',
+      message: expect.stringMatching(/the user declined/),
+      fix: expect.stringMatching(/theme from-site/),
+    });
     expect(d.asked).toHaveLength(1);
     expect(site.hits).toEqual([]);
     const refused = await call(client, 'template_from_site', { url: 'https://brand.test/?ref=agent' });

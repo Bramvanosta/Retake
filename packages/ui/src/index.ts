@@ -1,8 +1,9 @@
 /**
  * @retake/ui — the Studio web app and its server (L4.1, R-UI-01): `retake ui` serves a React app, bundled in memory
  * by esbuild, and the engine's `/v1` HTTP API of one workspace on 127.0.0.1 behind the engine's gate; the app calls an
- * allow-list of the MCP server's tools through the same SDK-free tool layer (`callTool`). The MCP server never depends
- * on this package: it keeps working without it.
+ * allow-list of operations — the engine's operations it shares with the MCP server and its own ops — through the same
+ * SDK-free call (`invoke`, @retake/engine/contract). The MCP server never depends on this package: it keeps working
+ * without it.
  */
 export { APP_ENTRY, INDEX_HTML, UI_TARGETS, buildUi } from './bundle.js';
 export type { UiAsset } from './bundle.js';
@@ -10,21 +11,35 @@ export { CALL_BODY_MAX, SMALL_BODY_MAX, UI_OPS, startStudioServer, uiTools } fro
 export type { StudioServer, StudioServerOptions, UiOp } from './server/studio.js';
 export { EVENT_KEEPALIVE_MS, EVENT_POLL_MS, EVENT_STREAMS_MAX, Live, noIndexError, sseText } from './server/live.js';
 export type { LiveOptions } from './server/live.js';
-export { EDIT_OPS, INDEX_OPS, LIVE_OPS, OWN_OPS, RENDER_OPS, REVIEW_IMAGES_MAX, RUN_OPS, SCENARIO_OPS, TIMELINE_OPS, boardOp, confirmWhy, editOps, indexOps, liveOps, overviewOp, renderOps, reviewAnswer, runOps, scenarioOps, sessionsToConfirm, timelineOps } from './server/ops.js';
+export {
+  EDIT_OPS,
+  INDEX_OPS,
+  LIVE_OPS,
+  OWN_OPS,
+  RENDER_OPS,
+  REVIEW_IMAGES_MAX,
+  RUN_OPS,
+  SCENARIO_OPS,
+  TIMELINE_OPS,
+  confirmWhy,
+  indexOps,
+  reviewAnswer,
+  sessionsToConfirm,
+  timelineOps,
+} from './server/ops.js';
 export type { ProjectOverview, RenderReviewAnswer, ScenarioRenderAnswer, ScenarioRunAnswer, SessionToConfirm, TimelineViewAnswer } from './server/ops.js';
 export { PreviewLeases, TIMELINE_LEASE_TTL_MS } from './server/preview-leases.js';
 export type { PreviewHeld } from './server/preview-leases.js';
-export { COMMENT_OPS, THREADS_LIST_MAX, THREAD_ENTRIES_SHOWN, THREAD_ITEM_TEXT_MAX, commentOps, pathFree, proposalOffer, threadAnswer, threadItem } from './server/comment-ops.js';
+export { COMMENT_OPS, THREADS_LIST_MAX, THREAD_ENTRIES_SHOWN, THREAD_ITEM_TEXT_MAX, pathFree, proposalOffer, threadAnswer, threadItem } from './server/comment-ops.js';
 export type { OfferFacts, ProposalAnswer, ProposalOffer, ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadItem, ThreadsListAnswer } from './server/comment-ops.js';
 export { opChain, scenarioKey } from './server/op-chain.js';
-export { LIBRARY_IMAGES_ANSWER_MAX, LIBRARY_OPS, LIBRARY_VIEW_MEMO_MAX, LOOP_DATA_MAX, POSTER_DATA_MAX, componentAnswer, libraryOps } from './server/library-ops.js';
+export { LIBRARY_IMAGES_ANSWER_MAX, LIBRARY_OPS, LIBRARY_VIEW_MEMO_MAX, LOOP_DATA_MAX, POSTER_DATA_MAX, componentAnswer } from './server/library-ops.js';
 export type { LibraryComponentAnswer, LibraryImage, LibraryImagesAnswer, LibraryItem, LibraryParam, LibraryRenderAnswer, LibrarySlot, LibraryViewAnswer } from './server/library-ops.js';
 export { THEME_OPS, themeOps, themePreview } from './server/theme-ops.js';
-export { RECORD_OPS, recordOps, recordPathFree, recordViewAnswer } from './server/record-ops.js';
+export { RECORD_OPS, recordPathFree, recordViewAnswer } from './server/record-ops.js';
 export { RECORD_WATCH_PER_PROJECT, RECORD_WATCH_PROJECTS_MAX, recordsChanges, recordsWatchScan } from './server/record-watch.js';
 export type { RecordEnvironmentOption, RecordOptionsAnswer, RecordPersonaOption, RecordStartAnswer, RecordViewAnswer } from './server/record-ops.js';
 export type { SiteListAnswer, ThemeListAnswer, ThemeOpsOptions, ThemePreviewAnswer } from './server/theme-ops.js';
-export { WATCH_DEPTH_MAX, WATCH_ENTRIES_MAX, WATCH_FOLDERS_MAX, WATCH_SCAN_BUDGET, componentNamespaceSignatures, libraryChanges, libraryWatchScan, siteSignature, themeSignatures, treeSignature, watchBudget } from './server/library-watch.js';
 export type { OpChain } from './server/op-chain.js';
 export {
   JsonlTail,
@@ -45,11 +60,33 @@ export {
   viewJobEvent,
   viewProgress,
 } from './server/run-live.js';
-export type { LiveItem, PictureState, RunLiveOptions, RunLiveRequest, Scrub } from './server/run-live.js';
+export type { LiveItem, PictureState, RunLiveOptions, Scrub } from './server/run-live.js';
 export { PREVIEW_DISPLAY_PATHS, isPreviewDisplayText } from './player/protocol.js';
-export { COMPONENT_PREVIEW_FORMAT, DEFAULT_SCOPE, PLAYER_FILES_MAX, checkPreviewSpec, PLAYER_PLANS_KEEP, PLAYER_PLAN_MAX, PLAYER_SCOPES_MAX, frameCsp, frameHtml, servedName, startPlayerServer } from './server/player.js';
+export {
+  COMPONENT_PREVIEW_FORMAT,
+  DEFAULT_SCOPE,
+  PLAYER_FILES_MAX,
+  checkPreviewSpec,
+  PLAYER_PLANS_KEEP,
+  PLAYER_PLAN_MAX,
+  PLAYER_SCOPES_MAX,
+  frameCsp,
+  frameHtml,
+  servedName,
+  startPlayerServer,
+} from './server/player.js';
 export type { PlayerServer, PlayerServerOptions, PublishedPreview } from './server/player.js';
-export { COMPONENT_FILE_MAX, PLAYER_BUNDLES_KEEP, PLAYER_BUNDLE_FORMAT, PlayerBundles, buildPlayerBundle, playerBundleHash, playerComponentSet, playerComponents, workspaceComponents } from './player/bundle-player.js';
+export {
+  COMPONENT_FILE_MAX,
+  PLAYER_BUNDLES_KEEP,
+  PLAYER_BUNDLE_FORMAT,
+  PlayerBundles,
+  buildPlayerBundle,
+  playerBundleHash,
+  playerComponentSet,
+  playerComponents,
+  workspaceComponents,
+} from './player/bundle-player.js';
 export type { PlayerBundle, PreviewAllowed, WorkspaceComponent } from './player/bundle-player.js';
 export { COMPONENT_HASH_RE, PREVIEW_ALLOW_MAX, PreviewAllowList } from './server/preview-allow.js';
 export { studioWorkerEnv } from './server/worker-env.js';
@@ -64,10 +101,10 @@ export {
   PIPE_LIST_MAX,
   PIPE_OUTCOMES,
   PIPE_POLL_MS,
-  PIPE_PROJECT_RE,
   PIPE_REASONS,
-  PIPE_SCENARIO_RE,
   Supervisor,
+  isPipeProject,
+  isPipeScenario,
   jobEndLine,
   jobNames,
   jobOutcome,
@@ -82,6 +119,18 @@ export type { SetupAction } from './server/desktop.js';
 export { SHELL_LINE_MAX, parseShellLine } from './server/shell-line.js';
 export type { ShellLine } from './server/shell-line.js';
 export { PS_EVERY_MS, SETUP_OPS, SETUP_WRITES_PER_MIN, SetupState, applyShellLine, setupOps, systemSetupContext } from './server/setup-ops.js';
-export { UPDATE_ACTIONS, UPDATE_CLICKS_PER_MIN, UPDATE_FAILURES, UPDATE_NOTES_MAX, UPDATE_OFF_REASONS, UPDATE_OPS, UPDATE_STATES, UpdateState, installable, parseUpdateLine, updateOps } from './server/update-ops.js';
+export {
+  UPDATE_ACTIONS,
+  UPDATE_CLICKS_PER_MIN,
+  UPDATE_FAILURES,
+  UPDATE_NOTES_MAX,
+  UPDATE_OFF_REASONS,
+  UPDATE_OPS,
+  UPDATE_STATES,
+  UpdateState,
+  installable,
+  parseUpdateLine,
+  updateOps,
+} from './server/update-ops.js';
 export type { UpdateLine } from './server/update-ops.js';
 export type { SetupContext } from './server/setup-ops.js';

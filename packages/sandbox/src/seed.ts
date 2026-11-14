@@ -11,9 +11,11 @@
  */
 import { rmSync } from 'node:fs';
 import { isIP } from 'node:net';
-import { interpolateDeep, isHostAllowed, normalizeHost, protectedBy, protectedHostMessage, redact, resolveEnvironment, runAccess, secretForms, shellHostRefs } from '@retake/core';
+import { interpolateDeep, redact, secretForms } from '@retake/core/base';
+import { isHostAllowed, normalizeHost, protectedBy, protectedHostMessage, resolveEnvironment, runAccess } from '@retake/core/environment';
+import { shellHostRefs } from '@retake/core/hooks';
 import { prefetchSecrets } from '@retake/core/io';
-import type { HookStep, LoadedProject, LoadedSandbox, SeedStep } from '@retake/core';
+import type { HookStep, LoadedProject, LoadedSandbox, SeedStep } from '@retake/core/model';
 import { Journal, databaseTarget, hookFingerprint, runHooks, supersedePendingJournals } from '@retake/hooks';
 import type { HookContext, HookResult } from '@retake/hooks';
 import { SandboxError, errorMessage, interrupted } from './errors.js';
@@ -73,16 +75,19 @@ function portOf(url: string, database: boolean): number | null {
 
 /**
  * Before the seed rewrites them: the database of every sql step (`db`, default the first) must be served by a service
- * of the sandbox, or marked `external: true`. Throws SandboxError seed.
+ * of the sandbox, or marked `external: true`. `of: 'reset hooks'`: the sql steps of `reset.hooks`, the same rule — they
+ * run at every reset, a snapshot restored or not. Throws SandboxError seed.
  */
-export async function checkSeedDatabases(pctx: ProviderContext, provider: Provider): Promise<void> {
+export async function checkSeedDatabases(pctx: ProviderContext, provider: Provider, of: 'seed' | 'reset hooks' = 'seed'): Promise<void> {
   const dbs = pctx.sandbox.manifest.databases ?? {};
   const keys = new Set<string>();
-  for (const step of pctx.sandbox.manifest.seed ?? []) {
+  const steps = of === 'seed' ? (pctx.sandbox.manifest.seed ?? []) : (pctx.sandbox.manifest.reset?.hooks ?? []);
+  for (const step of steps) {
     if (!('sql' in step)) continue;
     const key = typeof step.sql === 'object' ? step.sql.db : undefined;
     keys.add(key ?? Object.keys(dbs)[0] ?? '');
   }
+  const who = of === 'seed' ? 'the seed rewrites' : 'a reset hook rewrites';
   for (const key of keys) {
     const db = dbs[key];
     if (!db || db.external) continue; // an unknown key fails in the step itself
@@ -91,7 +96,7 @@ export async function checkSeedDatabases(pctx: ProviderContext, provider: Provid
     try {
       await provider.servedBy(pctx, port, {
         what: `database ${key}`,
-        why: `the seed rewrites it at every reset, so it must be the sandbox's own: serve it from the sandbox, or add \`external: true\` to databases.${key} in sandbox.yaml if that database is the sandbox's alone`,
+        why: `${who} it at every reset, so it must be the sandbox's own: serve it from the sandbox, or add \`external: true\` to databases.${key} in sandbox.yaml if that database is the sandbox's alone`,
       });
     } catch (e) {
       if (e instanceof SandboxError) throw new SandboxError(e.message, 'seed');
@@ -118,7 +123,7 @@ export async function checkMailbox(pctx: ProviderContext, provider: Provider): P
 /** port → address of the sandbox's own databases (provider.address: docker-compose publishes them), for sql steps. */
 async function databaseAddresses(pctx: ProviderContext, provider: Provider): Promise<Map<number, string>> {
   const out = new Map<number, string>();
-  if (!provider.address) return out;
+  if (!provider.capabilities.address) return out;
   for (const db of Object.values(pctx.sandbox.manifest.databases ?? {})) {
     if (db.external) continue;
     const port = portOf(db.url, true);
@@ -151,8 +156,9 @@ export async function runSeed(
     signal?: AbortSignal;
     running?: Set<number>;
     /**
-     * Hotfix v0.2.5: other steps than the seed — `reset.hooks`, run at every reset (`what`: how messages name them; their
-     * approvals are bound after the seed's positions, `indexBase`).
+     * Hotfix v0.2.5: other steps than the seed — `reset.hooks`, run at every reset (`what`: how messages name them and
+     * their approvals' phase, `reset`, bound to their position among the reset hooks; `indexBase`: where their runs are
+     * journaled, after the seed's positions).
      */
     steps?: SeedStep[];
     what?: 'reset hook';
@@ -180,12 +186,15 @@ export async function runSeed(
       opts.log(level === 'error' ? 'debug' : level, msg);
       pctx.progress?.note(msg);
     },
+    // The seed hooks' secrets: its opener's resolver (ProviderContext.resolveSecret), as the services' are.
+    resolveSecret: pctx.resolveSecret,
     // Ctrl-C stops a running shell step's process group; a second one kills it (Sandbox.killStartedSync).
     ...(opts.signal ? { signal: opts.signal } : {}),
     ...(opts.running ? { running: opts.running } : {}),
   };
   // Trust `mcp` (L3.1): a shell step needs a human approval, bound to its position among ALL the seed steps (runHooks
-  // sees a batch between exec steps: its index is moved to the seed's).
+  // sees a batch between exec steps: its index is moved to the seed's); a reset hook's to its position among the reset
+  // hooks, under phase `reset` (L7.8).
   let offset = 0;
   const trust = pctx.seedTrust;
   const record = pctx.recordSeedRun;
@@ -208,8 +217,12 @@ export async function runSeed(
     const confirm = trust.confirm;
     ctx.confirmDestructive = async (description, reason, request) => {
       if (!confirm) return false;
-      const index = base + offset + request.index;
-      return confirm(description, reason, { ...request, index, fingerprint: hookFingerprint(request.hook, { phase: 'seed', index, env: request.env, ...(request.files ? { files: request.files } : {}) }) });
+      const at = offset + request.index;
+      const index = base + at;
+      // A reset hook (L7.8) is bound to its own phase and its position within reset.hooks: its approval is never a seed
+      // step's, nor a seed step's its.
+      const place = opts.what ? { phase: 'reset' as const, index: at } : { phase: 'seed' as const, index };
+      return confirm(description, reason, { ...request, index, fingerprint: hookFingerprint(request.hook, { ...place, env: request.env, ...(request.files ? { files: request.files } : {}) }) });
     };
   }
   // sql steps reach the sandbox's own databases on the address Docker publishes them on (never `localhost`: another
@@ -239,7 +252,7 @@ export async function runSeed(
     if (opts.signal?.aborted) throw interrupted(`sandbox ${sandbox.env} seed`);
     if ('exec' in step) {
       await flush();
-      if (!provider.exec) throw new SandboxError(`sandbox ${sandbox.env}: exec ${word} steps need provider docker-compose`, 'seed');
+      if (!provider.capabilities.exec) throw new SandboxError(`sandbox ${sandbox.env}: exec ${word} steps need provider docker-compose`, 'seed');
       pctx.progress?.step(`${word} ${done + 1}/${steps.length}`, `exec in ${step.exec.service}`);
       const t1 = Date.now();
       try {
@@ -272,13 +285,14 @@ export async function runSeed(
 export async function clearMailbox(
   project: LoadedProject,
   sandbox: LoadedSandbox,
+  resolveSecret: (ref: string) => Promise<string>,
   address?: (port: number) => Promise<string | undefined>,
 ): Promise<'cleared' | 'kept' | 'none' | 'not-mailpit'> {
   const m = sandbox.manifest.mailbox;
   if (!m) return 'none';
   if (m.clear === false) return 'kept';
   if (m.provider !== 'mailpit') return 'not-mailpit';
-  const headers = m.headers ? (interpolateDeep(m.headers, { vars: project.config.vars ?? {}, secrets: (await prefetchSecrets(m.headers)).resolver }) as Record<string, string>) : {};
+  const headers = m.headers ? (interpolateDeep(m.headers, { vars: project.config.vars ?? {}, secrets: (await prefetchSecrets(m.headers, resolveSecret)).resolver }) as Record<string, string>) : {};
   const url = `${m.url.replace(/\/+$/, '')}/api/v1/messages`;
   const port = m.external || !address ? null : portOf(m.url, false);
   const known = port === null ? undefined : await address!(port);

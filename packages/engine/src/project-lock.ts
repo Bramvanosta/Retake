@@ -1,19 +1,33 @@
 /**
  * Locks of a project's files (L3.6 comment threads; L4.3 critique B1: every `if_match` write of `writeText`): a lock
- * file under `<project>/.retake/locks/`, the sandbox package's TakeLock — created whole, stale only when its
- * process is gone (never by age) —, retried while a live process holds it, for at most `waitMs`. One process and
+ * file under `<project>/.retake/locks/`, core/io's TakeLock (L7.25: was the sandbox package's) — created whole, stale
+ * only when its process is gone (never by age) —, retried while a live process holds it, for at most `waitMs`. One process and
  * several (the Studio, `retake mcp`, a terminal) share it: two writers that read the same version can no longer both
  * pass their `if_match` check and rename one after the other (the last rename silently won).
  */
 import { lstat, mkdir, realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { isIsoUtcDate, printableText, pathInside, STATE_DIR } from '@retake/core';
-import { TakeLock, readLock } from '@retake/sandbox';
-import type { LockRecord } from '@retake/sandbox';
+import { printableText, pathInside } from '@retake/core/base';
+import { STATE_DIR } from '@retake/core/project';
+import { isIsoUtcDate } from '@retake/core/comments';
+import { TakeLock, readLock } from '@retake/core/io';
+import type { LockRecord } from '@retake/core/io';
 import { EngineError } from './errors.js';
 
-/** Between two tries of a busy lock (ms), by default. */
+/** Between two tries of a busy lock (ms), by default: the first wait, growing by half each try up to LOCK_RETRY_MAX_MS. */
 const LOCK_RETRY_MS = 20;
+/** The longest wait between two tries of a busy lock (ms), unless the first is longer. */
+export const LOCK_RETRY_MAX_MS = 200;
+
+/** Whether a process of this pid exists (a signal 0: no `ps`); a pid reused by another program reads as alive. */
+function pidExists(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -68,7 +82,9 @@ export function lockHolder(held: LockRecord | null): { pid?: number; since?: str
 
 /**
  * Take `<project>/.retake/locks/<name>`: retried while a live process holds it (≤ `waitMs`), a dead holder's is
- * broken; then `busy(file, held)` is thrown. The lock folder is a real folder of the project (toolDir); anything but a
+ * broken; then `busy(file, held)` is thrown. The tries back off (`retryMs`, default 20 ms, growing to 200 ms), and a
+ * holder found alive once in a wait — the same pid and start time — is not asked again by its start time (a
+ * synchronous `ps`): only by a signal 0 until the lock changes, so a waiting process keeps its event loop free. The lock folder is a real folder of the project (toolDir); anything but a
  * file at the lock path is refused (`what` names it: "comment c_…", "scenarios/quote.yaml").
  */
 export async function takeProjectLock(
@@ -78,18 +94,30 @@ export async function takeProjectLock(
 ): Promise<TakeLock> {
   const file = join(await toolDir(projectDir, 'locks'), name);
   const ref = relative(projectDir, file);
-  const deadline = Date.now() + o.waitMs;
+  const deadline = performance.now() + o.waitMs;
+  const first = o.retryMs ?? LOCK_RETRY_MS;
+  let delay = first;
+  /** The holder found alive in this wait (its pid and start time, as its lock says them). */
+  let alive: string | undefined;
+  const holderKey = (h: LockRecord | null) => (h ? `${h.pid}\0${h.started_at ?? ''}\0${h.since}` : undefined);
   for (;;) {
     const st = await lstatOrNull(file);
     if (st && !st.isFile()) {
       throw new EngineError('refused', `${ref} is ${st.isSymbolicLink() ? 'a symbolic link' : 'not a file'}: ${o.what} cannot be locked`, { fix: `remove ${ref} (no retake command makes one)` });
     }
-    try {
-      return TakeLock.acquire(file, o.command, o.what);
-    } catch (e) {
-      if (!(e instanceof Error && e.name === 'SandboxError' && (e as { code?: string }).code === 'busy')) throw e;
-      if (Date.now() >= deadline) throw o.busy(ref, readLock(file));
-      await sleep(o.retryMs ?? LOCK_RETRY_MS);
+    const held = alive === undefined ? null : readLock(file);
+    // The same live holder as before (and its pid still there): wait again without asking `ps`.
+    const same = held !== null && holderKey(held) === alive && pidExists(held.pid);
+    if (!same) {
+      try {
+        return TakeLock.acquire(file, o.command, o.what);
+      } catch (e) {
+        if (!(e instanceof Error && e.name === 'SandboxError' && (e as { code?: string }).code === 'busy')) throw e;
+        alive = holderKey(readLock(file));
+      }
     }
+    if (performance.now() >= deadline) throw o.busy(ref, readLock(file));
+    await sleep(delay);
+    delay = Math.min(Math.round(delay * 1.5), Math.max(LOCK_RETRY_MAX_MS, first));
   }
 }

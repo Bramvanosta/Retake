@@ -27,24 +27,38 @@
  * events.jsonl by byte range; the Project board: job.json's stat); the port (job-queue.ts) has none, and reads a
  * submit's own files (a render's edit snapshot) itself (jobFile).
  */
-import { randomBytes } from 'node:crypto';
+import type { EngineEnv } from '../env.js';
+import { createHash, randomBytes } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_ID_RE } from '@retake/core';
+import { JOB_ID_RE } from '@retake/core/ids';
+import type { JobId } from '@retake/core/ids';
 import { readPlainFile } from '@retake/core/io';
+import { opChain } from '../admission.js';
+import type { OpChain } from '../admission.js';
+import { systemClock } from '../clock.js';
+import type { Clock } from '../clock.js';
+import { EngineError } from '../errors.js';
+import { lockHolder, takeProjectLock } from '../project-lock.js';
 import { jobsDir } from '../workspace-state.js';
-import type { JobFileRead, TakeHold } from './job-queue.js';
+import type { JobFilePaths, JobFileRead, TakeHold } from './job-queue.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';
 import type { JobEntries } from './queue-core.js';
+import { bestEffort } from '@retake/core/base';
+
+/** <jobs>/<id>, for JobFiles: from a checked job id only (never a client's text). */
+function jobFolder(dir: string, id: JobId): string {
+  return join(dir, id);
+}
 
 /** The file queue's paths: a job's folder and the files the code beside the queue reads or writes itself. */
-export class JobFiles {
+export class JobFiles implements JobFilePaths {
   /** `dir`: <workspace>/.retake/jobs. */
   constructor(readonly dir: string) {}
 
   /** <jobs>/<id>: refused for anything but a job id (never a path). */
   job(id: string): string {
-    return join(this.dir, checkJobId(id));
+    return jobFolder(this.dir, checkJobId(id));
   }
 
   /** <job>/job.json: the job's record (the Project board memoises it by this file's stat). */
@@ -159,6 +173,17 @@ class FileEntries implements JobEntries {
   }
 }
 
+/** How long a submit waits for another process's hold of a queue lock before it is refused `busy` (ms). */
+export const QUEUE_LOCK_WAIT_MS = 30_000;
+
+/** The in-process side of the file queue's locks, per lock file: the holders of one process wait their turn here, not on the file. */
+const IN_PROCESS: OpChain = opChain();
+
+/** A queue lock's file name in `<workspace>/.retake/locks/`: the key's hash (a key is any text; a name is not). */
+export function queueLockName(key: string): string {
+  return `queue-${createHash('sha256').update(key).digest('hex').slice(0, 16)}.lock`;
+}
+
 /** The file queue: the port over a job folder; `files`, its file part, is handed apart to the code that needs paths. */
 export class FileJobQueue extends StoredJobQueue {
   /** The file part: the paths of the jobs folder and of a job's files. */
@@ -166,23 +191,54 @@ export class FileJobQueue extends StoredJobQueue {
   /** This queue's own reader of the filming markers (its memory: first sight and holding time of each take). */
   private watch?: import('./captures.js').FilmingWatch;
 
-  /** `cli`: how the commands a human is asked to run start ("retake -C <root>"). */
-  constructor(root: string, cli = 'retake') {
+  /**
+   * `cli`: how the commands a human is asked to run start ("retake -C <root>"); `clock`: what its records and markers
+   * are stamped with — the composition roots always pass theirs (the import-rules ratchet's `queue` check), the
+   * default is for tests.
+   */
+  constructor(root: string, cli = 'retake', clock: Clock = systemClock, env: EngineEnv = process.env) {
     const files = new JobFiles(jobsDir(root));
-    super(root, cli, new FileEntries(files));
+    super(root, cli, new FileEntries(files), clock, env);
     this.files = files;
   }
 
-  /** A new file queue on the same folder: no finished job seen yet, a marker watch of its own. */
+  /** A new file queue on the same folder and clock: no finished job seen yet, a marker watch of its own. */
   withOwnMemory(cli = 'retake'): FileJobQueue {
-    return new FileJobQueue(this.root, cli);
+    return new FileJobQueue(this.root, cli, this.clock, this.env);
+  }
+
+  /**
+   * `fn` under the queue's lock of `key` (JobQueue.exclusive): `<workspace>/.retake/locks/queue-<hash>.lock`, taken
+   * after this process's earlier holders of it (created whole, stale only when its process is gone: project-lock.ts),
+   * waited for while another live process holds it — at most QUEUE_LOCK_WAIT_MS, then `busy` naming the holder.
+   */
+  exclusive<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const name = queueLockName(key);
+    return IN_PROCESS(`${this.root}\0${name}`, async () => {
+      const lock = await takeProjectLock(this.root, name, {
+        command: `submit (pid ${process.pid})`,
+        what: 'the job queue',
+        waitMs: QUEUE_LOCK_WAIT_MS,
+        busy: (ref, held) => {
+          const h = lockHolder(held);
+          return new EngineError('busy', `the job queue is busy: another submit holds ${ref}${h.pid ? ` (pid ${h.pid}${h.since ? `, since ${h.since}` : ''})` : ''}`, {
+            fix: `try again in a moment; if no Retake process${h.pid ? ` (pid ${h.pid})` : ''} is submitting any more, remove <workspace>/${ref}`,
+          });
+        },
+      });
+      try {
+        return await fn();
+      } finally {
+        await lock.release();
+      }
+    });
   }
 
   /** A filming marker of this user (captures.ts: `here` when its workspace is this one). */
   protected async filming(): Promise<TakeHold> {
     const { FilmingWatch } = await import('./captures.js');
-    this.watch ??= new FilmingWatch({ root: this.root });
-    const st = await this.watch.scan().catch(() => undefined);
+    this.watch ??= new FilmingWatch({ root: this.root, env: this.env });
+    const st = await bestEffort(this.watch.scan(), "markers that cannot be read hold nothing (the worker's scan says why in its log)");
     return st?.holding ? (st.cause ?? 'elsewhere') : undefined;
   }
 }

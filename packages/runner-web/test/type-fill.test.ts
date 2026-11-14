@@ -8,8 +8,9 @@ import { join } from 'node:path';
 import type { TimelineEvent } from '@retake/core';
 import { PERSON_POLICY } from '@retake/core';
 import { runScenario } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 const PAGE = `<!doctype html><html><head><title>Sign up</title></head><body>
 <label>Email <input id="email"></label> <label>Company <input id="co"></label>
@@ -39,7 +40,8 @@ afterAll(async () => {
 describe('type with fill (hotfix v0.2.6)', () => {
   it('fills the field at once: one input event, a change event, no key', async () => {
     const project = makeProject(dir, { app: server.url });
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       mode: 'dry',
       runId: 'fill',
@@ -49,10 +51,7 @@ describe('type with fill (hotfix v0.2.6)', () => {
           {
             id: 'form',
             open: '/form.html',
-            steps: [
-              { type: { into: { label: 'Email' }, text: 'buyer@example.com', fill: true } },
-              { assert: { text: 'input=1 change=1 keydown=0 email=buyer@example.com;' } },
-            ],
+            steps: [{ type: { into: { label: 'Email' }, text: 'buyer@example.com', fill: true } }, { assert: { text: 'input=1 change=1 keydown=0 email=buyer@example.com;' } }],
           },
         ],
       }),

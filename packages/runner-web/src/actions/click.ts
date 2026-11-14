@@ -1,6 +1,6 @@
 import type { Page, Request, Response } from 'playwright-core';
-import { hasLocator, normalizeTarget, pickTarget } from '@retake/core';
-import type { ClickOptions, ClickStrategy, PointSpec, TargetObject, TargetSpec } from '@retake/core';
+import { hasLocator, normalizeTarget, pickTarget } from '@retake/core/language';
+import type { ClickOptions, ClickStrategy, PointSpec, TargetObject, TargetSpec } from '@retake/core/model';
 import { StepError } from '../errors.js';
 import { distance, isNudge } from '../motion.js';
 import type { PopupEntry } from '../kit/types.js';
@@ -11,6 +11,7 @@ import { wallNow } from '../util.js';
 import { DEAD_CLICK_MS, awaitEffect, checkInBackground, watchEffects } from './effects.js';
 import type { EffectWatch } from './effects.js';
 import type { ActionResult } from './types.js';
+import { bestEffort } from '@retake/core/base';
 
 export type UsedStrategy = Exclude<ClickStrategy, 'auto'>;
 
@@ -114,8 +115,8 @@ export function watchNavigation(page: Page) {
         const gone = new Promise<'dropped'>((resolve) => (wake = () => resolve('dropped')));
         const first = await Promise.race([nav, dl, gone]).catch(() => 'timeout' as const);
         wake = () => undefined;
-        nav.catch(() => undefined);
-        dl.catch(() => undefined);
+        bestEffort(nav, "the click's navigation is awaited where it matters; an unawaited one must not reject unhandled");
+        bestEffort(dl, "the click's download is awaited where it matters; an unawaited one must not reject unhandled");
         if (first === 'download' || downloaded) {
           started = false;
           return;
@@ -241,8 +242,7 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
     } else {
       // Popups nobody announced (a button opening a dialog) still get the longer post-open pause.
       const afterMs = ctx.jitter.ms(opts.after_ms ?? pacing.after_click_ms);
-      opened =
-        (await poll(ctx, async () => !nav.started() && (await kit.popupState()).some((p) => !before.has(p.id)), afterMs, 50)) === true;
+      opened = (await poll(ctx, async () => !nav.started() && (await kit.popupState()).some((p) => !before.has(p.id)), afterMs, 50)) === true;
       if (opened) popupMs = Math.round(wallNow() - clickWall);
       const total = opened && opts.after_ms === undefined ? ctx.jitter.ms(pacing.after_popup_ms) : afterMs;
       await rt.sleep(afterStart + total - wallNow());
@@ -316,7 +316,10 @@ export async function clickOutside(ctx: StepContext, open?: PopupEntry[]): Promi
   const { rt } = ctx;
   const { kit, pointer, pacing } = rt;
   const before = open ?? (await kit.popupState());
-  const plan = await kit.outsidePlan(pointer.pos(), before.map((p) => p.id));
+  const plan = await kit.outsidePlan(
+    pointer.pos(),
+    before.map((p) => p.id),
+  );
   if (!plan) throw new StepError(`${ctx.step.action}: click outside found neither a dialog title nor a blank area to click`);
   const closing = before.map((p) => p.id).filter((id) => !plan.keep.includes(id));
   const target = { x: plan.x, y: plan.y };
@@ -416,9 +419,11 @@ export async function click(ctx: StepContext, args: TargetObject & ClickOptions)
     const before = await ctx.rt.kit.popupState();
     const run = await clickTarget(ctx, closer, { ...args, expect_popup: false });
     // Layers containing the clicked point (the dialog around a title) stay open; the others must close.
-    const inside = (b: { x: number; y: number; w: number; h: number }) =>
-      run.point.x >= b.x && run.point.x <= b.x + b.w && run.point.y >= b.y && run.point.y <= b.y + b.h;
-    const closed = await waitPopupsGone(ctx, before.filter((p) => !inside(p.bbox)).map((p) => p.id));
+    const inside = (b: { x: number; y: number; w: number; h: number }) => run.point.x >= b.x && run.point.x <= b.x + b.w && run.point.y >= b.y && run.point.y <= b.y + b.h;
+    const closed = await waitPopupsGone(
+      ctx,
+      before.filter((p) => !inside(p.bbox)).map((p) => p.id),
+    );
     if (!closed) ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: the popover did not close after clicking ${run.resolved.desc}`);
     return { ...clickResult(run, ctx), data: { closed } };
   }

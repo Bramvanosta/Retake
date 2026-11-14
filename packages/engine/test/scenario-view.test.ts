@@ -17,25 +17,26 @@ import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { EngineError, RunDataCache, ScenarioViews, VIEW_STEPS_MAX, WorkspaceIndex, createEngine, openProjectBySlug, runChanges, workspaceChanges } from '../src/index.js';
 import type { Engine, ScenarioView, StepBinding } from '../src/index.js';
-import { BLOCKS_YAML, BLUE, GREEN, RED, capture, writeRun } from './synthetic-runs.js';
+import { BLOCKS_YAML, BLUE, GREEN, RED, capture, writeRun } from '@retake/test-support/runs';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let projectDir: string;
 let engine: Engine;
 const P = 'northfield-fixture';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const CAP = '20261020-100000-blocks';
 const DRY_UNTIL = '20261021-090000-blocks';
 const RUNNING = '20261021-100000-blocks';
 
-const bound = (b: StepBinding | undefined) => (b && 'run_key' in b ? b : undefined);
+const bound = (b: StepBinding | undefined) => (b && 'picture' in b ? b : undefined);
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-scenario-view-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   projectDir = join(ws, 'projects', P);
   await writeFile(join(projectDir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
@@ -60,8 +61,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -180,7 +180,10 @@ describe('steps a run did not picture', () => {
       scenario: 'irr',
       mode: 'dry',
       snapshot: yaml,
-      scenes: [{ id: 'one', status: 'partial' }, { id: 'two', status: 'skipped' }],
+      scenes: [
+        { id: 'one', status: 'partial' },
+        { id: 'two', status: 'skipped' },
+      ],
       events: [
         { scene: 'one', step: 0, action: 'click', t_start: 0, t_end: 1 },
         { scene: 'one', step: 1, action: 'click', t_start: 1, t_end: 2, status: 'dry' },
@@ -200,7 +203,13 @@ describe('steps a run did not picture', () => {
   it('a failed run: the failure’s step, later steps not reached naming it; page text and URLs under untrusted, userinfo out', async () => {
     const yaml = BLOCKS_YAML.replace('open: /catalog', 'open: https://user:secret@shop.example.test/catalog');
     await writeFile(join(projectDir, 'scenarios', 'failing.yaml'), yaml);
-    const run = capture('20261019-130000-failing', { scenario: 'failing', snapshot: yaml, status: 'failed', video: false, error: { scene: 'two', step: 0, message: '<img src=x onerror=alert(1)> not found' } });
+    const run = capture('20261019-130000-failing', {
+      scenario: 'failing',
+      snapshot: yaml,
+      status: 'failed',
+      video: false,
+      error: { scene: 'two', step: 0, message: '<img src=x onerror=alert(1)> not found' },
+    });
     run.events = run.events!.slice(0, 4);
     run.events[3] = { ...run.events[3], status: 'failed', error: '<img src=x onerror=alert(1)> not found', url: 'https://u:p@shop.example.test/x' };
     await writeRun(projectDir, run);
@@ -229,8 +238,11 @@ describe('steps a run did not picture', () => {
     }
   });
 
-    it('a person’s scenario with {{env:…}}: valid on the screen (no agent trust), both runs blocked with Studio wording (#6, B2)', async () => {
-    await writeFile(join(projectDir, 'scenarios', 'person.yaml'), 'video: person\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - type: {into: {label: Token}, text: "{{env:API_KEY}}"}\n');
+  it('a person’s scenario with {{env:…}}: valid on the screen (no agent trust), both runs blocked with Studio wording (#6, B2)', async () => {
+    await writeFile(
+      join(projectDir, 'scenarios', 'person.yaml'),
+      'video: person\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - type: {into: {label: Token}, text: "{{env:API_KEY}}"}\n',
+    );
     const v = await engine.scenarios.view(P, 'person');
     expect([v.ok, v.issues.filter((i) => i.severity === 'error')]).toEqual([true, []]);
     for (const mode of ['dry', 'capture'] as const) {
@@ -267,7 +279,14 @@ describe('review fixes (L4.2)', () => {
   it('a newer run that failed before its first step (no picture) is named over the pictures (review B H1)', async () => {
     await writeFile(join(projectDir, 'scenarios', 'down.yaml'), BLOCKS_YAML);
     await writeRun(projectDir, capture('20261018-110000-down', { scenario: 'down', video: false }));
-    await writeRun(projectDir, { id: '20261018-110100-down', scenario: 'down', mode: 'dry', status: 'failed', noTimeline: true, error: { scene: 'one', step: 0, message: 'net::ERR_CONNECTION_REFUSED' } });
+    await writeRun(projectDir, {
+      id: '20261018-110100-down',
+      scenario: 'down',
+      mode: 'dry',
+      status: 'failed',
+      noTimeline: true,
+      error: { scene: 'one', step: 0, message: 'net::ERR_CONNECTION_REFUSED' },
+    });
     await writeRun(projectDir, { id: '20261018-110200-down', scenario: 'down', mode: 'dry', status: 'succeeded', noTimeline: true });
     const v = await engine.scenarios.view(P, 'down');
     expect(v.source?.run).toBe('20261018-110000-down');
@@ -321,13 +340,19 @@ describe('review fixes (L4.2)', () => {
     const v = await engine.scenarios.view(P, 'broken');
     expect(v.ok).toBe(false);
     for (const mode of ['dry', 'capture'] as const) {
-      expect(v.run_blockers[mode]).toEqual([{ code: 'invalid', kind: 'invalid', message: expect.stringMatching(/^the file has 1 error \(listed with the blocks\): fix the file first/), fix_file: true }]);
+      expect(v.run_blockers[mode]).toEqual([
+        { code: 'invalid', kind: 'invalid', message: expect.stringMatching(/^the file has 1 error \(listed with the blocks\): fix the file first/), fix_file: true },
+      ]);
     }
     const views = new ScenarioViews({
       ws: engine.workspace,
       project: (slug) => openProjectBySlug(engine.workspace, slug),
       blockers: async () => {
-        const b = { code: 'refused' as const, message: 'refused from the Studio: scenes[1].steps[0].click and setup[0] need a person; scenes[0] too', fix: 'retake -C /w run northfield-fixture blocks' };
+        const b = {
+          code: 'refused' as const,
+          message: 'refused from the Studio: scenes[1].steps[0].click and setup[0] need a person; scenes[0] too',
+          fix: 'retake -C /w run northfield-fixture blocks',
+        };
         return { dry: [b], capture: [b] };
       },
       overlay: async (_slug, r) => r.status,
@@ -348,7 +373,11 @@ describe('review fixes (L4.2)', () => {
       scenario: 'huge',
       mode: 'capture',
       snapshot: yaml,
-      scenes: [{ id: 's0', t_start: 0, t_end: 1 }, { id: 's1', t_start: 1, t_end: 2 }, { id: 's2', t_start: 2, t_end: 3 }],
+      scenes: [
+        { id: 's0', t_start: 0, t_end: 1 },
+        { id: 's1', t_start: 1, t_end: 2 },
+        { id: 's2', t_start: 2, t_end: 3 },
+      ],
       events: Array.from({ length: 2400 }, (_x, k) => ({ scene: `s${Math.floor(k / 800)}`, step: k % 800, action: 'click', t_start: k / 800, t_end: k / 800 + 0.001 })),
       frames: [[0, RED]],
       duration: 3,
@@ -387,9 +416,13 @@ describe('memo (B1)', () => {
     });
     const a = await views.view(P, 'blocks');
     const reads = runs.reads;
+    // L7.6a: whether a run is a take is read once per succeeded capture, then held (a repeat reads no run folder).
+    const takes = views.stats.takes;
+    // (These captures kept their frames and no film: none is a take.)
+    expect([takes > 0, a.runs.filter((r) => r.take).length, a.runs.filter((r) => r.mode === 'capture' && r.status === 'succeeded').length]).toEqual([true, 0, takes]);
     const b = await views.view(P, 'blocks');
     expect(b).toEqual(a);
-    expect([views.stats.text, views.stats.bind, views.stats.list, blockers, runs.reads]).toEqual([1, 1, 1, 1, reads]);
+    expect([views.stats.text, views.stats.bind, views.stats.list, blockers, runs.reads, views.stats.takes]).toEqual([1, 1, 1, 1, reads, takes]);
     const file = join(projectDir, 'runs', RUNNING, 'run.json');
     const rec = JSON.parse(await readFile(file, 'utf8')) as { steps_done: number };
     for (let i = 0; i < 20; i++) {
@@ -398,7 +431,7 @@ describe('memo (B1)', () => {
       const v = await views.view(P, 'blocks');
       expect(v.running?.steps_done).toBe(i);
     }
-    expect([views.stats.text, views.stats.bind, blockers]).toEqual([1, 1, 1]);
+    expect([views.stats.text, views.stats.bind, blockers, views.stats.takes]).toEqual([1, 1, 1, takes]);
     await writeFile(join(projectDir, 'scenarios', 'blocks.yaml'), `${BLOCKS_YAML}# edited\n`);
     const c = await views.view(P, 'blocks');
     expect([views.stats.text, views.stats.bind, blockers]).toEqual([2, 2, 2]);
@@ -407,7 +440,10 @@ describe('memo (B1)', () => {
   });
 
   it('1,200 steps: the first read and a repeat (numbers in the log)', async () => {
-    const scenes = Array.from({ length: 12 }, (_s, i) => `  - id: s${i}\n    page: console\n    open: /p${i}\n    steps:\n${Array.from({ length: 100 }, (_x, j) => `      - click: Button ${i}-${j}\n`).join('')}`);
+    const scenes = Array.from(
+      { length: 12 },
+      (_s, i) => `  - id: s${i}\n    page: console\n    open: /p${i}\n    steps:\n${Array.from({ length: 100 }, (_x, j) => `      - click: Button ${i}-${j}\n`).join('')}`,
+    );
     const yaml = `video: long\nscenes:\n${scenes.join('')}`;
     await writeFile(join(projectDir, 'scenarios', 'long.yaml'), yaml);
     await writeRun(projectDir, {
@@ -428,7 +464,7 @@ describe('memo (B1)', () => {
     const repeat = performance.now() - t;
     console.log(`1,200-step view: first ${Math.round(first)} ms, repeat ${Math.round(repeat)} ms, ${Math.round(JSON.stringify(v).length / 1024)} KB`);
     expect(Object.keys(v.steps).length).toBe(1200);
-    expect(Object.values(v.steps).every((s) => 'run_key' in s && s.picture === 'frame')).toBe(true);
+    expect(Object.values(v.steps).every((s) => 'picture' in s && s.picture === 'frame')).toBe(true);
     expect(repeat).toBeLessThan(first);
   });
 });
@@ -456,6 +492,7 @@ describe('events (B1): scenario files and runs named', () => {
 
   it('the index: an in-place save is its own key; a run that starts, progresses and finishes is named with its scenario', async () => {
     const ix = await WorkspaceIndex.open(engine.workspace, { queue: engine.queue.withOwnMemory() });
+    if (!ix) throw new Error('node:sqlite did not load: no index to watch');
     try {
       // The second pass also watches the run.json of the runs the first found unfinished.
       await ix.reconcile();

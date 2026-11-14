@@ -12,8 +12,10 @@ import { runScenario } from '../src/index.js';
 import { dropFile } from '../src/actions/drag.js';
 import { evalStep } from '../src/actions/misc.js';
 import type { StepContext } from '../src/runtime.js';
-import { FAST, makeProject, makeScenario, startServer, tempDir } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, tempDir, testHookRunner } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
+import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
 
 let dir: string;
 let outside: string;
@@ -37,7 +39,10 @@ afterAll(async () => {
 const ctx = (agentTrust: boolean) => ({ rt: { agentTrust, project: makeProject(dir, {}), secrets: { prefetch: async () => undefined } } }) as unknown as StepContext;
 
 async function stepError(p: Promise<unknown>): Promise<string> {
-  const e = await p.then(() => undefined, (x: unknown) => x as Error);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x as Error,
+  );
   return e?.message ?? '';
 }
 
@@ -61,10 +66,18 @@ describe('runner, trust mcp', () => {
       pacing: FAST,
       scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ new_tab: { href: 'http://127.0.0.1:10/admin', as: 'other' } }, { open: 'http://127.0.0.1:9/ok' }] }],
     };
-    const base = { project: makeProject(dir, { app: 'http://127.0.0.1:9' }), scenario: makeScenario('elsewhere', sc), mode: 'dry' as const, env: 'test', browser: { executable: '/nonexistent/chromium' } };
-    const rec = await runScenario({ policy: PERSON_POLICY, ...base, runId: `elsewhere-${Date.now()}`, hookTrust: 'mcp', hookVia: 'studio' });
+    const base = {
+      project: makeProject(dir, { app: 'http://127.0.0.1:9' }),
+      scenario: makeScenario('elsewhere', sc),
+      mode: 'dry' as const,
+      env: 'test',
+      browser: { executable: '/nonexistent/chromium' },
+    };
+    const rec = await runScenario({ policy: PERSON_POLICY, ...base, runId: `elsewhere-${Date.now()}`, hookTrust: 'mcp', hookVia: STUDIO_CONFINEMENT });
     expect(rec.status).toBe('failed');
-    expect(rec.error?.message).toMatch(/^refused \(work submitted from the Studio\): scenes\[0\]\.steps\[0\]\.new_tab\.href: http:\/\/127\.0\.0\.1:10\/admin is on http:\/\/127\.0\.0\.1:10, not an origin of environment test's pages \(http:\/\/127\.0\.0\.1:9\)/);
+    expect(rec.error?.message).toMatch(
+      /^refused \(work submitted from the Studio\): scenes\[0\]\.steps\[0\]\.new_tab\.href: http:\/\/127\.0\.0\.1:10\/admin is on http:\/\/127\.0\.0\.1:10, not an origin of environment test's pages \(http:\/\/127\.0\.0\.1:9\)/,
+    );
     expect(rec.error?.message).toContain('add its origin as a page of environment test in project.yaml');
     expect(rec.error?.message).not.toContain('steps[1]');
     const author = await runScenario({ policy: PERSON_POLICY, ...base, runId: `elsewhere-author-${Date.now()}` });
@@ -88,7 +101,18 @@ describe('runner, trust mcp', () => {
     try {
       const steps = [{ hook: 'warm' }, { hold: 0.1 }];
       const run = (name: string, sc: Omit<Scenario, 'video'>, project = makeProject(dir, { app: server.url })) =>
-        runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario(name, { pacing: FAST, ...sc }), mode: 'dry', hooks: 'run', env: 'test', runId: `${name}-${Date.now()}`, hookTrust: 'mcp', confirmHook: () => true });
+        runScenario({
+          policy: PERSON_POLICY,
+          project,
+          scenario: makeScenario(name, { pacing: FAST, ...sc }),
+          mode: 'dry',
+          hooks: 'run',
+          env: 'test',
+          runId: `${name}-${Date.now()}`,
+          hookTrust: 'mcp',
+          confirmHook: () => true,
+          hookRunner: testHookRunner(),
+        });
       const shared = (vars?: Record<string, string>) => {
         const p = makeProject(dir, { app: server.url });
         p.config.hooks = { warm: { shell: { run: '{{vars.prefix}} true' } } };
@@ -98,7 +122,11 @@ describe('runner, trust mcp', () => {
       const setup = await run('own-setup', { setup: [{ name: 'tooling', shell: { run: 'PATH=/usr/bin:/bin true' } }], scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ hold: 0.1 }] }] });
       expect(setup.status).toBe('failed');
       expect(setup.error?.message).toContain('setup hooks failed (tooling: refusing shell hook: it uses `PATH=` (it sets PATH, a loader variable)');
-      const own = await run('own-named', { hooks: { warm: { shell: { run: 'true', env: { NODE_OPTIONS: '-r ./x.cjs' } } } }, scenes: [{ id: 'home', page: 'app', open: '/', steps }] }, shared({ prefix: 'LANG=C' }));
+      const own = await run(
+        'own-named',
+        { hooks: { warm: { shell: { run: 'true', env: { NODE_OPTIONS: '-r ./x.cjs' } } } }, scenes: [{ id: 'home', page: 'app', open: '/', steps }] },
+        shared({ prefix: 'LANG=C' }),
+      );
       expect(own.status).toBe('failed');
       expect(own.error?.message).toContain('hook "warm" failed (warm: refusing shell hook: it uses its env `NODE_OPTIONS` (a loader variable)');
       const agentVars = await run('agent-vars', { vars: { prefix: 'PATH=/usr/bin:/bin' }, scenes: [{ id: 'home', page: 'app', open: '/', steps }] }, shared());
@@ -106,7 +134,10 @@ describe('runner, trust mcp', () => {
       expect(agentVars.error?.message).toContain('hook "warm" failed (warm: refusing shell hook: it uses `PATH=` (it sets PATH, a loader variable)');
       // Its teardown is the agent's too: refused, nothing runs (a person's hook there would run, approved).
       const marker = join(dir, 'teardown-ran');
-      const teardown = await run('own-teardown', { teardown: [{ name: 'tidy', shell: { run: `PATH=/usr/bin:/bin touch ${marker}` } }], scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ hold: 0.1 }] }] });
+      const teardown = await run('own-teardown', {
+        teardown: [{ name: 'tidy', shell: { run: `PATH=/usr/bin:/bin touch ${marker}` } }],
+        scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ hold: 0.1 }] }],
+      });
       expect(teardown.hooks?.teardown).toBe('failed');
       expect(existsSync(marker)).toBe(false);
       // project.yaml's hook with project.yaml's own vars: a person's — it runs.

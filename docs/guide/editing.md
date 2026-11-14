@@ -82,9 +82,9 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
 kind or segment id), `theme` (the caller loads that theme) and `music` (a file, or `false`). `variant` is
 `landscape`, `vertical` or `square`.
 
-`retake plan` prints the plan of a run (`latest` = the newest capture run, of `--scenario` when given) and writes its
-JSON with `--out` (or prints it with `--json`); `--theme`, `--frame`, `--vertical` and `--square` try another theme,
-frame or the 9:16 / 1:1 variant:
+`retake plan` prints the plan of a run (`latest`: [the latest capture](#the-latest-capture), of `--scenario` when
+given) and writes its JSON with `--out` (or prints it with `--json`); `--theme`, `--frame`, `--vertical` and
+`--square` try another theme, frame or the 9:16 / 1:1 variant:
 
 ```
 $ retake plan northfield-fixture latest --scenario catalogue
@@ -107,6 +107,57 @@ Segments
 
 A component that resolves nowhere is marked `MISSING` in the summary (the warnings list its uses) and rendered with
 the scaffold of its kind as a stand-in.
+
+### The latest capture
+
+`latest` — what `retake render` and `retake still` edit when no `--run` is given, what `retake plan <project> latest`
+and `retake export-capture <project> latest` name, the default `run_id` of the MCP tools `plan_preview` and `render`,
+and the take the Studio's Render, timeline and board show — is one rule: **the newest capture of the scenario that
+succeeded and has its timeline and its film in its run folder.**
+
+- *Newest* follows one order of the run folders, used by every list too: the dated folders Retake makes
+  (`<date>-<time>-<scenario>`) first, newest first, then the folders named by hand.
+- *Of the scenario*: the scenario the run's `run.json` names (its timeline must agree), never the end of the folder's
+  name. A run folder without a `run.json` that reads as a record is never `latest`. (What makes a `run.json` a
+  record is little: an id, a scenario, capture or dry run, a status, and what that status needs — a finished run its
+  end, a failed one its error. A word or a block this version does not know, as a later version may write, never
+  makes a run unreadable.)
+- *With its timeline and its film*: a `timeline.json` as a capture writes it — with its run id and its film's name —
+  and that film as a file of the run folder (one file name: `capture.mp4`). A timeline made by hand without them, or
+  naming its film by a path, is for a run you name.
+- A capture stopped with `--until` succeeded: it is the latest capture, and the command says where it ends.
+- A run folder that is a symbolic link, or whose `run.json`, `timeline.json` or film is one, is never `latest`.
+
+A newer take that is not such a capture is passed over, and the command says so on one line (stderr; `--json` output
+does not change), with a fixed word for each reason — `failed`, `cancelled`, `not finished, or interrupted` (its
+record says queued or running: still filming, or a take whose process died before it closed its record — name it to
+edit what it left), `its film is missing`, `its film is not a file of its folder`, `its timeline is missing`,
+`its timeline does not read`, `its timeline is of another scenario`, `a dry run` (a record that says capture beside a
+timeline that says dry run), `written by a newer Retake`, `its status is not one Retake writes`,
+`its files are links`:
+
+```
+$ retake render northfield-fixture quote
+! run 20261001-100000-quote is used: 1 newer capture of "quote" passed over — 20261002-100000-quote (failed) (name one with --run <id>)
+$ retake render northfield-fixture quote          # after `retake run … --until catalog.1`
+! run 20261002-100000-quote stops at step catalog.1 (`--until`): the capture holds the scenario up to there
+```
+
+At most five runs are named (`…; and 3 more`). Newer run folders whose `run.json` is missing (beside a timeline) or
+does not read as a record are counted on the same line and never named — nothing says which scenario they are of:
+`…; 1 newer run folder without a run.json that reads as a record was not considered (name one with --run <id>)`.
+When nothing can be edited the error counts the reasons
+(`… — 2 captures of it cannot be edited: failed (1), its film is missing (1)`) and the run folders it did not consider
+for want of a readable `run.json`. No text of a run's files is printed as the file has it: the reasons are fixed
+words, and the step of `--until` is said only when `run.json` names it as a scenario does (else `stops early`).
+
+**A run you name** — `--run <id>`, a run folder's path, `run_id` — is edited whatever its record says (a failed take
+with its partial film, a folder assembled by hand — also with a timeline that holds no run id or names no film: the
+film is then `capture.mp4` —, a linked folder): it is refused only when it has no timeline or
+one that does not read (`run <id>: its timeline does not read (timeline.json is not JSON)`), when it is a dry run or
+a run of another scenario than the one asked for, when its film is missing, or when its `run.json` was written by a
+newer Retake. Through MCP a named run must also lie in the project: see
+[Claude and MCP](mcp.md) ("Renders read the project, and nothing else").
 
 ## Tutorial overlays and story cards
 
@@ -185,8 +236,8 @@ is the capture video frozen at its time —, `TableMedia`). A name the run did n
 
 ## Rendering
 
-`retake render <project> <scenario>` plans the latest capture of a scenario (or `--run <id|dir|latest>`) and renders
-the plan with [Remotion](https://www.remotion.dev):
+`retake render <project> <scenario>` plans [the latest capture](#the-latest-capture) of a scenario (or `--run
+<id|dir|latest>`) and renders the plan with [Remotion](https://www.remotion.dev):
 
 ```
 $ retake render northfield-fixture catalogue
@@ -200,7 +251,7 @@ $ retake render northfield-fixture catalogue
   `--square`) and its **RenderRecord**
   `renders/<scenario>-v<N>.json`: id, project, scenario, run id and directory, theme, overrides, variant, status,
   duration, frames, fps, size, file size, encoding, the render policy (`policy`: below), what ffprobe saw in the file,
-  bundle hash, browser, timings, warnings and the whole plan. N is the next free version of the scenario (both variants share the counter); `--out`
+  bundle hash, browser, timings, warnings and the whole plan. N is the next free version of the scenario (both variants share the counter), at most 999999: when a file of `renders/` already claims that version or more for the scenario, the render is refused with the file's name instead of reusing an id; `--out`
   writes elsewhere. The video is encoded under a temporary name and renamed when complete: a failed or cancelled
   render (Ctrl-C, or an `AbortSignal` through the API) leaves nothing under the final names.
 - **Encoding**: H.264, `yuv420p` limited-range BT.709 (tagged), `+faststart` (moov first), and always an audio track:
@@ -279,7 +330,7 @@ How it works (`@retake/editor`, `docs/DESIGN-phase2.md` §2.2):
   and the video renders again in software, progress does not go back —, `encoding`, `done`; `settings`: the
   `render:` keys below, over the workspace's); `renderStill({plan,
   frame, out})` → the PNG path; `renderStills({plan, frames: [{frame, out}…]})` renders several frames in one
-  browser session (≈ 0.3–0.6 s per extra frame); `listRenders(project)` → the records of `renders/`;
+  browser session (≈ 0.3–0.6 s per extra frame); `listRenders(project)` → the complete records of their own file in `renders/`, oldest first;
   `renderPlan({plan, out})` renders any plan.
 
 Render times on the 4-CPU Linux container (no GPU, concurrency 3): ≈ 3–3.5 minutes for a 1-minute 1080p video
@@ -316,12 +367,35 @@ Chromium's software raster, libx264 CRF 16, ¾ of the CPUs.
   encoder, its CRF or bitrate and key-frame interval. `retake render` says it on its summary ("h264 VideoToolbox 8M",
   "on the GPU", "in software after a GPU failure") and `retake doctor`'s **Renders** line says what a 1080p render would
   get here.
+- **Which ffmpeg encodes the frames** (L7.3, macOS). On the GPU path: the ffmpeg of this machine (`ffmpeg:` in
+  `retake.yaml`, `$RETAKE_FFMPEG`, the PATH) when it is 5.1 or later, has the `colorspace` filter and the encoder
+  chosen, and runs the frame encode on three test frames first. On the software path, on Linux and inside the desktop
+  app: the rendering library's own, as before — `render: {ffmpeg: own}` asks for this machine's there too (in the
+  desktop app it is not verified). The library's ffmpeg always does the audio and writes the final file, and encodes
+  the frames whenever ours does not qualify (the record says why). What was measured, on one Mac (Apple M4, ffmpeg
+  9.0.2) under load, on one fixture render of a minute at 1080p, in two independent sets of runs: on the GPU path
+  about a fifth less CPU and **no measured gain in render time**; on the software path 10–13 % less CPU, under
+  the threshold set for a default — hence not the default there; files 1.5 % (GPU) to 2 % (software) larger. The
+  picture is the same to the eye and not to the byte: the colour conversion is rounded differently — on that render
+  the worst frame's SSIM against the library's encode is 0.9969 (GPU) and 0.9954 (software), above the 0.995
+  asked, with little margin in software; streams, colour tags, frame count and audio are identical. A render that
+  fails on the GPU path is rendered once more in software (the single fallback above) and follows the rule of that
+  path: under `auto` the library's ffmpeg encodes it. When the failure is our ffmpeg's at the encode — or the
+  hardware encoder's while ours ran it, which cannot be told apart — the second attempt takes the library's whatever
+  the setting, the warnings say so, the record keeps the failure's words as `policy.ffmpeg.failed` (`render_status`:
+  under `untrusted.ffmpeg_failed` only), and that ffmpeg is not taken again until the process ends. The record's
+  `policy.ffmpeg` says what was asked and which ffmpeg encoded (`used: own | library`, its `version`, and a `note`
+  — one of Retake's own sentences — whenever the library's encoded although the setting is not `library`).
+  `render: {ffmpeg: library}` gives back the encode of before everywhere.
 - **The settings** (`render:` in `retake.yaml`, or the variables; see [Workspace](workspace.md#render-settings)):
-  `gl: auto | gpu | software`, `encoder: auto | videotoolbox | libx264`, `concurrency: 1–16`. `render: {gl: software,
-  encoder: libx264}` gives back the renders of before L5.15 exactly.
+  `gl: auto | gpu | software`, `encoder: auto | videotoolbox | libx264`, `concurrency: 1–16`,
+  `ffmpeg: auto | own | library`. `render: {gl: software, encoder: libx264, ffmpeg: library}` gives back the renders
+  of before L5.15 exactly.
 - **What changes in the files**: GPU renders are not byte-identical run to run (the GPU's antialiasing and the hardware
   encoder vary slightly: SSIM ≥ 0.995 on every frame between two renders) and are about twice as large (≈ 24 MB per
-  minute of 1080p instead of ≈ 10 MB). Software renders stay reproducible frame for frame.
+  minute of 1080p instead of ≈ 10 MB). Software renders stay reproducible frame for frame, and — the library's ffmpeg
+  being what encodes them unless `ffmpeg: own` is set — byte for byte what they were (with `own`, a software render is
+  byte-identical run to run on one ffmpeg, and differs from one encoded by the library's).
 
 ### Captures first: a take never waits for a render
 
@@ -415,12 +489,38 @@ failing); earlier exports of other formats into the folder are kept):
 Without `--formats` it exports `mp4_1080p,webm,gif_preview` (no re-render); `all` exports the six. A format that fails
 is reported (exit code 1) and the others are still written.
 
+**Which render.** A render is the record of its own file (`renders/<id>.json` holds `id`). `latest` is the newest
+succeeded record of `renders/` (of `--scenario` when given) that holds its scenario, its creation time and its plan,
+whatever its file is called — a render written with `--out` included —, and the command then works on **that file**.
+What it passed over is one line on stderr: `1 newer file of renders/ passed over — quote-v2.json: its record lacks
+its scenario, its creation time or its plan` (the first five files with their reason, then a count; `2 files of
+renders/ do not read: not considered` for files that say nothing readable). A render you **name** — its id, or a
+`.json` / `.mp4` path — keeps working whatever its record lacks, and is refused only where the export needs the
+missing member: `render quote-v2 has no plan (…/renders/quote-v2.json): nothing to export`. A record renamed or
+copied by hand is exported under the id it says, with the line `renders/quote-final.json says it is quote-v1` (an
+empty id or one that is no render id is said in fixed words: `says an empty id`, `says an id that is no render id`);
+it is refused when the video it names is now **another** render's (the record beside that video was made at another
+time): `renders/quote-final.json says it is quote-v1, and renders/quote-v1.mp4 is now the video of another render:
+nothing to export — correct "file" in the record, or render again with --out`. Its folder of `exports/` is never
+another render's: when another file of `renders/` answers to the id it says — as the disk compares names: on a disk
+that ignores case `QUOTE-V1` is `quote-v1` — or the id names no folder (an empty id, a path, a control character, over
+200 bytes), it is exported into `exports/<its file's name>/`, and the line says so: `renders/quote-final.json says it
+is quote-v1 — its exports and review are named quote-final`; when its file's name is taken too (a record named by a
+path elsewhere whose name is a record's of `renders/`), the export is refused in one sentence. A record of a variant this version does not write is
+refused in one sentence (`render quote-v2: its record says variant "cube", which this Retake does not export
+(landscape, vertical or square)`); a file that is no render record says what it is (`…/renders/quote-v2.json does not
+read as a render record (status)`, or the update sentence of a record a newer Retake wrote). Through MCP a render is
+named by its id only and read from its own file: a link, or a record that says another id, is refused; its
+sentences quote no word of the record (`its record says a variant this Retake does not export`).
+
 ## Raw export for editors
 
 Script and film with Retake, then edit in Final Cut Pro, Premiere Pro, DaVinci Resolve, After Effects or any
 OpenTimelineIO tool: `retake export-capture <project> <run|latest>` (API `exportCapture({project, runDir, …})` in
 `@retake/runner-web`) turns a capture into a package that drops into those tools; `retake run <project>
-<scenario> --raw` captures and exports in one go.
+<scenario> --raw` captures and exports in one go. `latest` is [the latest capture](#the-latest-capture); a run you
+name exports whatever its record says (a failed take too: the package's manifest says `failed`), from its screencast
+frames when its film is missing.
 
 ```
 retake export-capture northfield-fixture latest --scenario quote                       # MP4 30 fps, cursor as captured

@@ -17,24 +17,24 @@ import { Txt } from './bits.js';
 import { APP_NAME } from './brand.js';
 import { dirtyDrafts, guardUnload } from './drafts.js';
 import { startUnsavedReport } from './unsaved-report.js';
-import { CommentsScreen } from './CommentsScreen.js';
-import { LibraryScreen } from './LibraryScreen.js';
-import { CastScreen } from './CastScreen.js';
-import { ProductionsScreen } from './ProductionsScreen.js';
-import { WelcomeScreen } from './WelcomeScreen.js';
-import { ReadmeEditor } from './ReadmeEditor.js';
-import { RecordScreen } from './RecordScreen.js';
-import { ScenarioScreen } from './ScenarioScreen.js';
-import { ShootLive } from './ShootLive.js';
-import { ShootPrepare } from './ShootPrepare.js';
-import { ThemesScreen } from './ThemesScreen.js';
-import { TimelineScreen } from './TimelineScreen.js';
-import { ReviewScreen } from './ReviewScreen.js';
+import { CommentsScreen } from './review/CommentsScreen.js';
+import { LibraryScreen } from './library/LibraryScreen.js';
+import { CastScreen } from './project/CastScreen.js';
+import { ProductionsScreen } from './project/ProductionsScreen.js';
+import { WelcomeScreen } from './project/WelcomeScreen.js';
+import { ReadmeEditor } from './project/ReadmeEditor.js';
+import { RecordScreen } from './record/RecordScreen.js';
+import { ScenarioScreen } from './script/ScenarioScreen.js';
+import { ShootLive } from './shoot/ShootLive.js';
+import { ShootPrepare } from './shoot/ShootPrepare.js';
+import { ThemesScreen } from './themes/ThemesScreen.js';
+import { TimelineScreen } from './edit/TimelineScreen.js';
+import { ReviewScreen } from './review/ReviewScreen.js';
 import { parseRoute } from './route.js';
 import type { Route } from './route.js';
 import { SessionEnded, openSession, takeCodeFromUrl } from './session.js';
 import { AppShell } from './shell/AppShell.js';
-import { GalleryScreen } from './GalleryScreen.js';
+import { GalleryScreen } from './project/GalleryScreen.js';
 import { Callout, EmptyState, LinkButton, Progress, TextArea, studioShell } from './ui-kit/index.js';
 import './tokens.css';
 import './base.css';
@@ -52,7 +52,26 @@ function useRoute(): Route {
   return route;
 }
 
-const TITLES: Record<Route['name'], string> = { projects: 'Welcome', project: 'Productions', group: 'Productions', location: 'Location', cast: 'Cast', readme: 'README', scenario: 'Scenario', run: 'Shoot', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', review: 'Review report', library: 'Components', themes: 'Themes', record: 'Record', ui: 'UI gallery', setup: 'Set up', 'not-found': 'Not found' };
+const TITLES: Record<Route['name'], string> = {
+  projects: 'Welcome',
+  project: 'Productions',
+  group: 'Productions',
+  location: 'Location',
+  cast: 'Cast',
+  readme: 'README',
+  scenario: 'Scenario',
+  run: 'Shoot',
+  timeline: 'Timeline',
+  comments: 'Comments',
+  proposal: 'Proposal preview',
+  review: 'Review report',
+  library: 'Components',
+  themes: 'Themes',
+  record: 'Record',
+  ui: 'UI gallery',
+  setup: 'Set up',
+  'not-found': 'Not found',
+};
 
 function Studio() {
   const route = useRoute();
@@ -90,7 +109,12 @@ function Studio() {
         <TimelineScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} {...(route.run ? { run: route.run } : {})} {...(route.step ? { step: route.step } : {})} />
       )}
       {route.name === 'proposal' && (
-        <TimelineScreen key={`${route.slug}/${route.scenario}/proposal/${route.thread}/${route.entry}`} slug={route.slug} name={route.scenario} proposal={{ comment_id: route.thread, entry_id: route.entry }} />
+        <TimelineScreen
+          key={`${route.slug}/${route.scenario}/proposal/${route.thread}/${route.entry}`}
+          slug={route.slug}
+          name={route.scenario}
+          proposal={{ comment_id: route.thread, entry_id: route.entry }}
+        />
       )}
       {route.name === 'review' && <ReviewScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} {...(route.render ? { render: route.render } : {})} />}
       {route.name === 'comments' && (

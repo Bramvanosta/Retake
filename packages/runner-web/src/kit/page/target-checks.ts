@@ -1,6 +1,6 @@
 /** Target checks: whether targets resolve, the elements closest to a missing one, a field's focus and value. */
 import type { KitTargetCheck, KitTargetChecks, NearElement, ResolveMissing, ResolveResult } from '../types.js';
-import type { TargetObject } from '@retake/core';
+import type { TargetObject } from '@retake/core/model';
 import { editableBody } from './fields.js';
 import { host } from './host.js';
 import { withMemo } from './memo.js';

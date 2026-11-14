@@ -51,7 +51,13 @@ export function Icon(props: { name: string; size: number; color: string; strokeW
   return (
     <svg width={props.size} height={props.size} viewBox="0 0 24 24" fill="none" stroke={props.color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={props.style}>
       {shapes.map((s, i) =>
-        s.d ? <path key={i} d={s.d} /> : s.circle ? <circle key={i} cx={s.circle[0]} cy={s.circle[1]} r={s.circle[2]} /> : s.rect ? <rect key={i} x={s.rect[0]} y={s.rect[1]} width={s.rect[2]} height={s.rect[3]} rx={s.rect[4]} /> : null,
+        s.d ? (
+          <path key={i} d={s.d} />
+        ) : s.circle ? (
+          <circle key={i} cx={s.circle[0]} cy={s.circle[1]} r={s.circle[2]} />
+        ) : s.rect ? (
+          <rect key={i} x={s.rect[0]} y={s.rect[1]} width={s.rect[2]} height={s.rect[3]} rx={s.rect[4]} />
+        ) : null,
       )}
     </svg>
   );

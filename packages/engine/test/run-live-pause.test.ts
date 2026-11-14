@@ -18,7 +18,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RunRecord } from '@retake/core';
 import { FileJobQueue, createEngine, openLiveFeed, readLiveChannel, runWorker } from '../src/index.js';
 import type { Engine, EngineError, JobRecord, LiveFeedFrame } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
+import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
+import { scratchHome } from '@retake/test-support/home';
 
 function chromiumAvailable(): boolean {
   if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
@@ -66,7 +69,9 @@ scenes:
 `;
 
 const YES = { approve: async () => ({ approved: true as const }) };
-const saved = { home: process.env.RETAKE_HOME, tmp: process.env.TMPDIR, max: process.env.RETAKE_PAUSE_MAX_MIN };
+// The real runs' home, TMPDIR and pause cap, put back after their describe; the in-memory runs put back their home only.
+const retakeHome = scratchHome('TMPDIR', 'RETAKE_PAUSE_MAX_MIN');
+const memoryHome = scratchHome();
 let fixture: Fixture;
 let ws: string;
 let scratch: string;
@@ -123,7 +128,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     ws = await mkdtemp(join(tmpdir(), 'ds-live-pause-'));
-    process.env.RETAKE_HOME = join(ws, '.home');
+    retakeHome.use(join(ws, '.home'));
     // The worker's temporary folder (Chromium's profiles, the runner's copies): scanned for frames afterwards.
     scratch = join(ws, '.tmp');
     await mkdir(scratch, { recursive: true });
@@ -133,7 +138,16 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     await mkdir(join(project, 'scenarios'), { recursive: true });
     await writeFile(
       join(project, 'project.yaml'),
-      ['name: W', 'environments:', '  local:', `    console: ${fixture.urls.console}`, `    shop: ${fixture.urls.shop}`, 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', ''].join('\n'),
+      [
+        'name: W',
+        'environments:',
+        '  local:',
+        `    console: ${fixture.urls.console}`,
+        `    shop: ${fixture.urls.shop}`,
+        'capture: {width: 1280, height: 720, scale: 1, fps: 30}',
+        'template: default',
+        '',
+      ].join('\n'),
     );
     await writeFile(join(project, 'scenarios', 'steps.yaml'), STEPS);
     await writeFile(join(project, 'scenarios', 'torn.yaml'), TORN);
@@ -142,10 +156,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
   });
 
   afterAll(async () => {
-    for (const [k, v] of [['RETAKE_HOME', saved.home], ['TMPDIR', saved.tmp], ['RETAKE_PAUSE_MAX_MIN', saved.max]] as const) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
+    retakeHome.restore();
     await fixture?.close();
     if (ws) await rm(ws, { recursive: true, force: true });
   });
@@ -218,6 +229,57 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     }
     expect(found).toEqual([]);
   });
+});
+
+/**
+ * L7.34 (U9): the same engine without a browser — the worker drives its run through the in-memory capture runner (its
+ * pause gate is the runner's: a pause asked is seen before the next step, RETAKE_PAUSE_MAX_MIN reaches it as the
+ * request's limit) and the in-memory hook runner, whose setup hook holds the first step back a moment (as a real
+ * browser's start does) so that the pause lands before step 0. What the engine does around it — the pause marker, the
+ * job's progress, the cancel, the refusals — is the product's. The real run (Chromium, the live frames) is the case
+ * above.
+ */
+describe('a run job paused through the worker, on the in-memory runner', () => {
+  const warm = 'setup:\n  - name: warm\n    http: {url: "{{console}}/health"}\n';
+  const work = () =>
+    runWorker({
+      root: ws,
+      idleExitMs: 300,
+      pollMs: 50,
+      log: () => undefined,
+      heavyInProcess: true,
+      ports: { capture: new MemoryCaptureRunner(), hooks: new MemoryHookRunner({ onExecute: async (e) => void (e.phase === 'setup' && (await new Promise((r) => setTimeout(r, 1000)))) }) },
+    });
+
+  beforeAll(async () => {
+    ws = await mkdtemp(join(tmpdir(), 'ds-live-pause-memory-'));
+    memoryHome.use(join(ws, '.home'));
+    await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    const project = join(ws, 'projects', 'w');
+    await mkdir(join(project, 'scenarios'), { recursive: true });
+    await writeFile(
+      join(project, 'project.yaml'),
+      [
+        'name: W',
+        'environments:',
+        '  local:',
+        '    console: http://console.test',
+        '    shop: http://shop.test',
+        'capture: {width: 1280, height: 720, scale: 1, fps: 30}',
+        'template: default',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(join(project, 'scenarios', 'steps.yaml'), warm + STEPS);
+    await writeFile(join(project, 'scenarios', 'torn.yaml'), warm + TORN);
+    engine = await createEngine({ root: ws, client: 'test', autoStartWorker: false });
+    queue = new FileJobQueue(ws);
+  });
+
+  afterAll(async () => {
+    memoryHome.restore();
+    if (ws) await rm(ws, { recursive: true, force: true });
+  });
 
   it('a cancel while paused: the run stops at once, its teardown runs; job and run cancelled, no `paused` left', async () => {
     const sub = await engine.runs.submit({ project: 'w', scenario: 'torn', mode: 'dry', hooks: 'run' }, { approver: YES });
@@ -240,7 +302,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
   it('RETAKE_PAUSE_MAX_MIN: a pause longer than it stops the run with the reason', async () => {
     process.env.RETAKE_PAUSE_MAX_MIN = '0.02';
     try {
-      const sub = await engine.runs.submit({ project: 'w', scenario: 'steps', mode: 'dry' });
+      const sub = await engine.runs.submit({ project: 'w', scenario: 'steps', mode: 'dry', hooks: 'run' }, { approver: YES });
       const worker = work();
       await waitFor('running', running(sub.job.id));
       await engine.runs.pause('w', sub.run_id, true);
@@ -260,7 +322,22 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     await mkdir(cli, { recursive: true });
     await writeFile(
       join(cli, 'run.json'),
-      JSON.stringify({ id: '20261026-100000-steps', project: 'w', scenario: 'steps', mode: 'dry', status: 'running', started_at: new Date().toISOString(), dir: cli, env: 'local', options: { hooks: 'skip', headed: false }, steps_total: 4, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }),
+      JSON.stringify({
+        id: '20261026-100000-steps',
+        project: 'w',
+        scenario: 'steps',
+        mode: 'dry',
+        status: 'running',
+        started_at: new Date().toISOString(),
+        dir: cli,
+        env: 'local',
+        options: { hooks: 'skip', headed: false },
+        steps_total: 4,
+        steps_done: 1,
+        screenshots: [],
+        hooks: { setup: 'none', teardown: 'none' },
+        warnings: [],
+      }),
     );
     const e1 = await refusal(engine.runs.pause('w', '20261026-100000-steps', true));
     expect(e1.code).toBe('refused');

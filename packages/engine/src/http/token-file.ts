@@ -13,6 +13,7 @@
  * Whoever holds it reaches the 45 MCP tools of the workspace a server serves and answers its approval forms (as any
  * MCP client of `retake mcp` over stdio does): it is a secret of the person, like their shell.
  */
+import type { EngineEnv } from '../env.js';
 import { chmod, link, lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -24,7 +25,7 @@ import { newSecret } from './token.js';
 export const MCP_HTTP_TOKEN_FILE = 'mcp-http.token';
 
 /** `<Retake home>/mcp-http.token`. */
-export function mcpHttpTokenFile(env: NodeJS.ProcessEnv = process.env): string {
+export function mcpHttpTokenFile(env: EngineEnv): string {
   return join(retakeHome(env), MCP_HTTP_TOKEN_FILE);
 }
 
@@ -33,7 +34,13 @@ const TOKEN_RE = /^[A-Za-z0-9_-]{32,512}$/;
 /** Why `st` is not a file private to this user (a link, not a regular file, another owner, group / other bits), or undefined. */
 export function privateFileProblem(st: Stats): string | undefined {
   const uid = process.getuid?.();
-  return !st.isFile() ? 'is not a regular file' : uid !== undefined && st.uid !== uid ? 'belongs to another user' : (st.mode & 0o077) !== 0 ? `has permissions ${(st.mode & 0o777).toString(8)} (expected 600)` : undefined;
+  return !st.isFile()
+    ? 'is not a regular file'
+    : uid !== undefined && st.uid !== uid
+      ? 'belongs to another user'
+      : (st.mode & 0o077) !== 0
+        ? `has permissions ${(st.mode & 0o777).toString(8)} (expected 600)`
+        : undefined;
 }
 
 /**

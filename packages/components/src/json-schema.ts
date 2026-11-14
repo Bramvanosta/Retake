@@ -6,8 +6,8 @@
  * (anything else is an error rather than being silently ignored), and — like every Retake format — objects are
  * CLOSED unless they set `additionalProperties`: an unknown param is a typo until proven otherwise.
  */
-import { describeValue, didYouMean } from '@retake/core';
-import type { LocatedIssue } from '@retake/core';
+import { describeValue, didYouMean } from '@retake/core/base';
+import type { LocatedIssue } from '@retake/core/base';
 
 export type JsonSchemaNode = Record<string, unknown>;
 type Path = Array<string | number>;
@@ -251,9 +251,7 @@ function matchesType(t: string, v: unknown): boolean {
 
 /** JSON with plain objects' keys in locale order (`localeCompare`): what const / enum / uniqueItems compare, and the text a message quotes. */
 function localeSortedJson(v: unknown): string {
-  return JSON.stringify(v, (_k, x: unknown) =>
-    isPlainObject(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x,
-  );
+  return JSON.stringify(v, (_k, x: unknown) => (isPlainObject(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
 }
 
 function fmt(v: unknown): string {

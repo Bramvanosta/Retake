@@ -19,7 +19,19 @@ export interface SegmentOption<V extends string> {
   testId?: string;
 }
 
-export function Segmented<V extends string>({ label, value, options, onChange, size = 'md' }: { label: string; value: V; options: Array<SegmentOption<V>>; onChange: (v: V) => void; size?: 'sm' | 'md' }) {
+export function Segmented<V extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  size = 'md',
+}: {
+  label: string;
+  value: V;
+  options: Array<SegmentOption<V>>;
+  onChange: (v: V) => void;
+  size?: 'sm' | 'md';
+}) {
   const name = useId();
   return (
     <fieldset className={`k-seg k-seg-${size}`}>

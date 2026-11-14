@@ -24,14 +24,14 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CommentThread } from '@retake/core';
 import { runWorker } from '@retake/engine';
-import type { RecordJobTestHooks } from '@retake/engine';
-import { hasTool } from '../../editor/test/render-helpers.js';
+import type { RecordWindow } from '@retake/engine';
+import { hasTool } from '@retake/test-support/repo';
 import { dialogCheck } from './a11y.js';
 import { N, POLL, REPO, THREAD, TOUR_THEME, go, settle, startTour, station, tabTo } from './a11y-tour.js';
 import type { Tour } from './a11y-tour.js';
-import { BITS_TEXT } from './timeline-take.js';
+import { BITS_TEXT } from '@retake/test-support/take';
 
-type RecordWindow = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
+type RecordPage = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
 interface Fixture {
   urls: { console: string; shop: string; signedIn?: { console: string; shop: string } };
@@ -89,21 +89,23 @@ const RECORD_SCHEMES = [
 const stateOf = () => t.page.getByTestId('record-state').first().getAttribute('data-state');
 
 /** The in-process worker (one job), Playwright playing the person; the window closes after `drive` if still open. */
-function work(drive: (w: RecordWindow) => Promise<void>): Promise<number> {
+function work(drive: (w: RecordPage) => Promise<void>): Promise<number> {
   return runWorker({
     root: t.ws,
     once: true,
     idleExitMs: 0,
     pollMs: 50,
     log: (m) => workerLogs.push(m),
-    recordTest: {
-      headless: true,
-      windowSize: { width: 1400, height: 1000 },
-      drive: async (w) => {
-        await w.waitForLoadState('domcontentloaded');
-        await w.waitForTimeout(800);
-        await drive(w);
-        await w.close().catch(() => undefined);
+    ports: {
+      recordWindow: {
+        headless: true,
+        windowSize: { width: 1400, height: 1000 },
+        drive: async (w) => {
+          await w.waitForLoadState('domcontentloaded');
+          await w.waitForTimeout(800);
+          await drive(w);
+          await w.close().catch(() => undefined);
+        },
       },
     },
   });
@@ -165,7 +167,7 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
     expect(t.consoleErrors).toEqual([]);
   }, 240_000);
 
-  it('the library and its Create with Claude dialog (focus in, Escape, focus back); a component\'s detail', async () => {
+  it("the library and its Create with Claude dialog (focus in, Escape, focus back); a component's detail", async () => {
     const { page } = t;
     // L5.12c: a card selected — its inspector (facts, Play in the theme, Set as default…, About) beside the grid.
     let r = await station(
@@ -237,12 +239,15 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
     for (const width of [1280, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await settle(page);
-      const m = await page.evaluate(() => ({ sw: document.scrollingElement!.scrollWidth, cw: document.documentElement.clientWidth, legend: Math.max(...[...document.querySelectorAll('legend.sr-only')].map((l) => l.getBoundingClientRect().width)) }));
+      const m = await page.evaluate(() => ({
+        sw: document.scrollingElement!.scrollWidth,
+        cw: document.documentElement.clientWidth,
+        legend: Math.max(...[...document.querySelectorAll('legend.sr-only')].map((l) => l.getBoundingClientRect().width)),
+      }));
       expect(m.sw, `@${width}`).toBeLessThanOrEqual(m.cw);
       expect(m.legend, `@${width}: a hidden legend stays 1 px wide`).toBeLessThanOrEqual(1);
     }
   }, 180_000);
-
 });
 
 describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
@@ -292,7 +297,10 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     await page.getByTestId('inspector').waitFor(POLL);
     // Alt+ArrowDown moves it below the next step: the two steps swap in the file, nothing else changes.
     await page.keyboard.press('Alt+ArrowDown');
-    const moved = BITS_TEXT.replace('      - hold: 1\n        mark: first\n      - hold: 0.9\n        camera: {zoom: 1.4, target: cursor, until: step_end}\n', '      - hold: 0.9\n        camera: {zoom: 1.4, target: cursor, until: step_end}\n      - hold: 1\n        mark: first\n');
+    const moved = BITS_TEXT.replace(
+      '      - hold: 1\n        mark: first\n      - hold: 0.9\n        camera: {zoom: 1.4, target: cursor, until: step_end}\n',
+      '      - hold: 0.9\n        camera: {zoom: 1.4, target: cursor, until: step_end}\n      - hold: 1\n        mark: first\n',
+    );
     expect(moved).not.toBe(BITS_TEXT);
     await expect.poll(() => readFile(file, 'utf8'), POLL).toBe(moved);
     // ⌘Z once the move has landed in the view (the file is written before the answer: until the view reloads, an edit
@@ -318,7 +326,9 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     for (let i = 0; i < 6 && (await page.evaluate(() => document.activeElement?.getAttribute('data-value'))) !== 'browser'; i++) await page.keyboard.press('ArrowRight');
     expect(await page.evaluate(() => document.activeElement?.getAttribute('data-value'))).toBe('browser');
     await page.keyboard.press(' ');
-    await expect.poll(() => readFile(file, 'utf8'), POLL).toBe(BITS_TEXT.replace('    caption: Every frame carries its number.\n', '    caption: Every frame carries its number.\n    frame: browser\n'));
+    await expect
+      .poll(() => readFile(file, 'utf8'), POLL)
+      .toBe(BITS_TEXT.replace('    caption: Every frame carries its number.\n', '    caption: Every frame carries its number.\n    frame: browser\n'));
     await expect.poll(() => page.getByTestId('timeline').getAttribute('data-hash'), POLL).not.toBe(hash0);
     await expect.poll(() => page.getByTestId('preview').getAttribute('data-loading'), POLL).toBe('no');
     await expect.poll(() => page.getByTestId('tl-undo').isEnabled(), POLL).toBe(true);

@@ -5,7 +5,8 @@
  * Logo, Wordmark, SafeArea, FitText) and the renderer primitives (useCurrentFrame, useVideoConfig, Img, AbsoluteFill,
  * Sequence, random). Everything is deterministic and reads the theme passed in props.
  */
-export * from './renderer.js';
+// Named, not `*`: ./renderer.ts also holds what only the kit itself uses of the renderer library.
+export { AbsoluteFill, Img, Sequence, random, useCurrentFrame, useVideoConfig } from './renderer.js';
 export * from './easing.js';
 export * from './motion.js';
 export * from './fit-text.js';

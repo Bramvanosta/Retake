@@ -18,11 +18,12 @@ import { copyFile, mkdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Page } from 'playwright-core';
-import type { RunProgress, RunRecord, Timeline, TimelineLoading, TimelinePause } from '@retake/core';
+import type { RunProgress, RunRecord, RunningRun, Timeline, TimelineLoading, TimelinePause } from '@retake/core';
 import { CaptureClock, PerfSampler, RunPauser, runScenario } from '../src/index.js';
 import type { FrameIndexEntry, RunOptions, ScreencastRecorder } from '../src/index.js';
-import { FAST, ffprobeDuration, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, ffprobeDuration, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
@@ -147,7 +148,7 @@ describe('the capture clock with pauses', () => {
     const clock = new CaptureClock(wall() - 5000);
     const gate = { requested: true };
     const notes: TimelinePause[] = [];
-    const record = { warnings: [] } as unknown as RunRecord;
+    const record = { status: 'running', warnings: [] } as unknown as RunningRun;
     const pauser = new RunPauser({
       gate,
       signal: new AbortController().signal,
@@ -281,7 +282,8 @@ async function take(name: string, opts: Partial<RunOptions> & { pauseBefore?: nu
   const events: Take['events'] = [];
   const gate = { requested: false };
   const { pauseBefore, pauseMs, ...rest } = opts;
-  const rec = await runScenario({ policy: PERSON_POLICY,
+  const rec = await runScenario({
+    policy: PERSON_POLICY,
     project: makeProject(dir, { app: server.url }),
     mode: 'capture',
     runId: `${name}-${Date.now()}`,
@@ -317,7 +319,11 @@ describe('a capture paused between steps (real Chromium, an animated board)', ()
       const sorted = [...frames].sort((a, b) => a.t - b.t);
       const i = sorted.findIndex((f) => f.t >= P);
       for (const f of sorted.slice(Math.max(0, i - 3), i + 4)) await copyFile(join(paused.rec.dir, 'frames', f.file), join(SHOTS, `t${f.t.toFixed(3)}-${f.file}`));
-      for (const [k, t] of [['before', P - 0.1], ['at', P], ['after', P + 0.1]] as const) {
+      for (const [k, t] of [
+        ['before', P - 0.1],
+        ['at', P],
+        ['after', P + 0.1],
+      ] as const) {
         execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(Math.max(0, t)), '-i', join(paused.rec.dir, 'capture.mp4'), '-frames:v', '1', join(SHOTS, `video-${k}.png`)]);
       }
     }
@@ -416,7 +422,10 @@ describe('a capture paused between steps (real Chromium, an animated board)', ()
     expect(before.t_end).toBeLessThan(P);
     expect(after.t_start).toBeGreaterThanOrEqual(ev(5).t_start);
     for (const l of loads) {
-      expect(frames.filter((f) => f.t >= l.t_start && f.t < l.t_end), JSON.stringify(l)).toEqual([]);
+      expect(
+        frames.filter((f) => f.t >= l.t_start && f.t < l.t_end),
+        JSON.stringify(l),
+      ).toEqual([]);
       // The previous frame stayed on screen until the first frame of the painted page.
       const first = frames.filter((f) => f.t >= l.t_end).sort((a, b) => a.t - b.t)[0];
       expect(first.t - l.t_end, JSON.stringify(l)).toBeLessThan(0.05);
@@ -433,50 +442,56 @@ describe('a capture paused between steps (real Chromium, an animated board)', ()
 });
 
 describe('other capture pauses', () => {
-  it.skipIf(!MAC_TIMING)('a multi-page scene pauses both tracks: each video as long as the take, no frame inside the pause', async () => {
-    const gate = { requested: false };
-    const rec = await runScenario({ policy: PERSON_POLICY,
-      project: makeProject(dir, { app: server.url }),
-      mode: 'capture',
-      runId: `pages-${Date.now()}`,
-      scenario: makeScenario('pages', {
-        pacing: { ...FAST, scene_start_still: 0.3, page_switch_ms: 200 },
-        scenes: [
-          {
-            id: 'both',
-            pages: { left: { page: 'app', open: '/board.html' }, right: { page: 'app', open: '/board.html', viewport: { width: 400, height: 600 } } },
-            steps: [{ click: { css: '#count' } }, { hold: 0.5 }, { on: 'right', click: { css: '#count' } }, { hold: 0.5 }],
-          },
-        ],
-      }),
-      pause: gate,
-      onProgress: (e) => {
-        if (e.type === 'step_end' && e.step === 1) gate.requested = true;
-        if (e.type === 'pause' && e.state === 'paused') setTimeout(() => (gate.requested = false), 1500);
-      },
-    });
-    expect(rec.status, rec.error?.message).toBe('succeeded');
-    const tl = await readTimeline(rec.timeline!);
-    const p = tl.pauses?.[0];
-    expect(p).toMatchObject({ scene: 'both', step: 2 });
-    expect(p!.ms).toBeGreaterThanOrEqual(1400);
-    for (const id of ['left', 'right']) {
-      const track = tl.tracks!.find((t) => t.id === id)!;
-      const d = await ffprobeDuration(join(rec.dir, track.file));
-      expect(Math.abs(d - tl.capture.duration), `${id}: video ${d} s, timeline ${tl.capture.duration} s`).toBeLessThanOrEqual(1 / FPS + 0.01);
-      const fr = await frameIndex(join(rec.dir, track.frames_file!));
-      expect(fr.filter((f) => f.t === p!.t).length, id).toBeLessThanOrEqual(2);
-      const after = fr.filter((f) => f.t >= p!.t).sort((a, b) => a.t - b.t)[0];
-      expect(after.t - p!.t, id).toBeLessThan(0.1);
-      const v = grayFrames(join(rec.dir, track.file));
-      const k = Math.round(p!.t * FPS);
-      expect(Math.max(0, ...repeatedRuns(v.slice(k - 15, k + 15)).map(([, n]) => n)), id).toBeLessThan(4);
-    }
-  }, 120_000);
+  it.skipIf(!MAC_TIMING)(
+    'a multi-page scene pauses both tracks: each video as long as the take, no frame inside the pause',
+    async () => {
+      const gate = { requested: false };
+      const rec = await runScenario({
+        policy: PERSON_POLICY,
+        project: makeProject(dir, { app: server.url }),
+        mode: 'capture',
+        runId: `pages-${Date.now()}`,
+        scenario: makeScenario('pages', {
+          pacing: { ...FAST, scene_start_still: 0.3, page_switch_ms: 200 },
+          scenes: [
+            {
+              id: 'both',
+              pages: { left: { page: 'app', open: '/board.html' }, right: { page: 'app', open: '/board.html', viewport: { width: 400, height: 600 } } },
+              steps: [{ click: { css: '#count' } }, { hold: 0.5 }, { on: 'right', click: { css: '#count' } }, { hold: 0.5 }],
+            },
+          ],
+        }),
+        pause: gate,
+        onProgress: (e) => {
+          if (e.type === 'step_end' && e.step === 1) gate.requested = true;
+          if (e.type === 'pause' && e.state === 'paused') setTimeout(() => (gate.requested = false), 1500);
+        },
+      });
+      expect(rec.status, rec.error?.message).toBe('succeeded');
+      const tl = await readTimeline(rec.timeline!);
+      const p = tl.pauses?.[0];
+      expect(p).toMatchObject({ scene: 'both', step: 2 });
+      expect(p!.ms).toBeGreaterThanOrEqual(1400);
+      for (const id of ['left', 'right']) {
+        const track = tl.tracks!.find((t) => t.id === id)!;
+        const d = await ffprobeDuration(join(rec.dir, track.file));
+        expect(Math.abs(d - tl.capture.duration), `${id}: video ${d} s, timeline ${tl.capture.duration} s`).toBeLessThanOrEqual(1 / FPS + 0.01);
+        const fr = await frameIndex(join(rec.dir, track.frames_file!));
+        expect(fr.filter((f) => f.t === p!.t).length, id).toBeLessThanOrEqual(2);
+        const after = fr.filter((f) => f.t >= p!.t).sort((a, b) => a.t - b.t)[0];
+        expect(after.t - p!.t, id).toBeLessThan(0.1);
+        const v = grayFrames(join(rec.dir, track.file));
+        const k = Math.round(p!.t * FPS);
+        expect(Math.max(0, ...repeatedRuns(v.slice(k - 15, k + 15)).map(([, n]) => n)), id).toBeLessThan(4);
+      }
+    },
+    120_000,
+  );
 
   it('a capture paused longer than its maximum stops (cancelled, with the reason)', async () => {
     const t0 = Date.now();
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: makeProject(dir, { app: server.url }),
       mode: 'capture',
       runId: `max-${Date.now()}`,

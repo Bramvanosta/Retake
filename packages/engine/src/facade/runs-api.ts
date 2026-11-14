@@ -34,7 +34,7 @@ export function runsApi(ctx: EngineContext): Engine['runs'] {
     list: async (slug, o) => {
       const runs: RunListItem[] = await listRuns(await project(slug), o);
       for (const r of runs) {
-        if (r.newer || (r.status !== 'queued' && r.status !== 'running')) continue;
+        if (r.newer || r.unread || (r.status !== 'queued' && r.status !== 'running')) continue;
         const job = await queue.ofRun(slug, r.id);
         const status = job ? overlaid(r.status, job) : undefined;
         if (status) r.status = status;

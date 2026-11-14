@@ -11,9 +11,9 @@ import type { ChildProcess } from 'node:child_process';
 import { accessSync, constants } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
-import { policyChildEnv } from '@retake/core';
+import { policyChildEnv } from '@retake/core/policy';
 import { nodeFileFacts } from '@retake/core/io';
-import type { WorkPolicy } from '@retake/core';
+import type { WorkPolicy } from '@retake/core/policy';
 import { SandboxError } from './errors.js';
 
 /** Oldest Compose this provider runs (`up --wait-timeout`). */
@@ -137,7 +137,12 @@ export function runDocker(bin: string, args: string[], opts: DockerRunOptions & 
     if (opts.signal?.aborted) return resolve({ code: null, stdout: '', stderr: '', ms: 0, aborted: true });
     let child: ChildProcess;
     try {
-      child = spawn(bin, args, { cwd: opts.cwd, ...(opts.argv0 ? { argv0: opts.argv0 } : {}), env: { ...dockerEnv(opts.policy, process.env, opts.unset, opts.pass), ...(opts.env ?? {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(bin, args, {
+        cwd: opts.cwd,
+        ...(opts.argv0 ? { argv0: opts.argv0 } : {}),
+        env: { ...dockerEnv(opts.policy, process.env, opts.unset, opts.pass), ...(opts.env ?? {}) },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
     } catch (e) {
       return resolve({ code: null, stdout: '', stderr: '', ms: 0, error: (e as Error).message });
     }
@@ -201,7 +206,10 @@ export function runDocker(bin: string, args: string[], opts: DockerRunOptions & 
 /** The first meaningful line of a docker error ("Error response from daemon: …"). */
 export function firstErrorLine(r: Pick<DockerResult, 'stderr' | 'stdout' | 'error'>): string {
   const text = `${r.stderr}\n${r.stdout}`;
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
   return r.error ?? lines.find((l) => /error|cannot|denied|not found|no such|invalid|failed/i.test(l)) ?? lines[lines.length - 1] ?? 'no output';
 }
 
@@ -228,7 +236,9 @@ export async function dockerReady(exec: DockerExec, bin: string, signal?: AbortS
   const info = await exec(['info', '--format', '{{.ServerVersion}}'], { timeoutMs: DOCKER_PROBE_TIMEOUT_MS, signal });
   const server = info.stdout.trim();
   if (info.code !== 0 || !server || server === '<no value>') {
-    throw new SandboxError(`the Docker daemon is not running (start Docker Desktop or OrbStack): ${info.timedOut ? `docker info did not answer within ${DOCKER_PROBE_TIMEOUT_MS / 1000} s` : firstErrorLine(info)}`);
+    throw new SandboxError(
+      `the Docker daemon is not running (start Docker Desktop or OrbStack): ${info.timedOut ? `docker info did not answer within ${DOCKER_PROBE_TIMEOUT_MS / 1000} s` : firstErrorLine(info)}`,
+    );
   }
   return { bin, compose, server };
 }

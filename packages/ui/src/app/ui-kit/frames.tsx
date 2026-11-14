@@ -317,7 +317,16 @@ export function RowList({
   }
   return (
     <InListbox.Provider value={true}>
-      <ol className={cls} role="listbox" aria-labelledby={labelledBy} aria-activedescendant={listbox.activeId} tabIndex={listbox.tabbable ? 0 : -1} onKeyDown={listbox.onKeyDown} onFocus={listbox.onFocus} data-testid={testId}>
+      <ol
+        className={cls}
+        role="listbox"
+        aria-labelledby={labelledBy}
+        aria-activedescendant={listbox.activeId}
+        tabIndex={listbox.tabbable ? 0 : -1}
+        onKeyDown={listbox.onKeyDown}
+        onFocus={listbox.onFocus}
+        data-testid={testId}
+      >
         {shown(children)}
       </ol>
     </InListbox.Provider>
@@ -325,10 +334,43 @@ export function RowList({
 }
 
 /** An item of a RowList (in a listbox: `role="none"`, so its option or the caller's group is what the list owns). `data`: the row's identities (tests, styles). */
-export function RowListItem({ className, testId, data, children }: { className?: string; testId?: string; data?: { key?: string; row?: string; role?: string; helper?: string; /** L5.12a: a render row's id and its review's state, a job's state (tests). */ id?: string; review?: string; state?: string; /** L5.12b: a thread's status. */ status?: string }; children: ReactNode }) {
+export function RowListItem({
+  className,
+  testId,
+  data,
+  children,
+}: {
+  className?: string;
+  testId?: string;
+  data?: {
+    key?: string;
+    row?: string;
+    role?: string;
+    helper?: string;
+    /** L5.12a: a render row's id and its review's state, a job's state (tests). */
+    id?: string;
+    review?: string;
+    state?: string;
+    /** L5.12b: a thread's status. */
+    status?: string;
+  };
+  children: ReactNode;
+}) {
   const inListbox = useContext(InListbox);
   return (
-    <li role={inListbox ? 'none' : undefined} className={className} data-testid={testId} data-key={data?.key} data-row={data?.row} data-role={data?.role} data-helper={data?.helper} data-id={data?.id} data-review={data?.review} data-state={data?.state} data-status={data?.status}>
+    <li
+      role={inListbox ? 'none' : undefined}
+      className={className}
+      data-testid={testId}
+      data-key={data?.key}
+      data-row={data?.row}
+      data-role={data?.role}
+      data-helper={data?.helper}
+      data-id={data?.id}
+      data-review={data?.review}
+      data-state={data?.state}
+      data-status={data?.status}
+    >
       {shown(children)}
     </li>
   );

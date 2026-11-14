@@ -2,9 +2,11 @@
  * Review contract (docs/DESIGN-phase2.md §3): what `reviewRender` writes and returns, the findings and the rules
  * (thresholds) of the checks.
  */
-import type { LoadedProject, ErrorKind, WorkPolicy } from '@retake/core';
-import type { ComponentRegistry } from '@retake/components';
-import type { PlanSegment, RenderRecord } from '@retake/editor/plan';
+import type { ErrorKind } from '@retake/core/base';
+import type { LoadedProject } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { ComponentRegistry } from '@retake/components/geometry';
+import type { NamedRender, PlanSegment } from '@retake/editor/plan';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -27,17 +29,73 @@ export interface FindingAt {
  * show as a code — anything else in a report.json was not written by a check.
  */
 export const FINDING_CODES: ReadonlySet<string> = new Set([
-  'artefact-before-step', 'blank-scene-start', 'button-contrast', 'caption-contradicts-ui', 'loading-filmed', 'overlay-cut', 'overlay-lost', 'zoom-during-scroll', 'blank-screen', 'camera-jump', 'caption-missing', 'caption-not-visible', 'caption-overlap',
-  'caption-overlaps-brandmark', 'caption-scene-mismatch', 'caption-shrunk', 'caption-too-long', 'caption-truncated',
-  'capture-missing', 'capture-unreadable', 'card-too-short', 'component-missing', 'cursor-hidden', 'cursor-offscreen',
-  'cursor-outside-reframe', 'cursor-outside-view', 'diff-duration', 'diff-frames', 'diff-segment',
-  'duration-mismatch', 'empty-segment', 'frames-missing', 'loading-scene-start', 'local-url-text', 'long-scene',
-  'long-wait', 'media-missing', 'near-uniform-screen', 'overlay-covers-target', 'plan-warning',
-  'previous-unreadable', 'reframe-jump', 'registry-unavailable', 'render-failed', 'scene-length', 'scene-too-short',
-  'size-mismatch', 'slow-transition', 'target-cut', 'target-outside-view', 'text-slot-empty', 'text-slot-overflow', 'theme-zoom-count',
-  'theme-zoom-cut', 'theme-zoom-real', 'timeline-missing', 'transition-on-click', 'tutorial-skipped',
-  'tutorial-stale-target', 'tutorial-target-cut', 'url-hidden', 'video-length', 'write-blocked', 'zoom-clamped',
-  'zoom-count', 'zoom-not-slow', 'zoom-reset'
+  'artefact-before-step',
+  'blank-scene-start',
+  'button-contrast',
+  'caption-contradicts-ui',
+  'loading-filmed',
+  'overlay-cut',
+  'overlay-lost',
+  'zoom-during-scroll',
+  'blank-screen',
+  'camera-jump',
+  'caption-missing',
+  'caption-not-visible',
+  'caption-overlap',
+  'caption-overlaps-brandmark',
+  'caption-scene-mismatch',
+  'caption-shrunk',
+  'caption-too-long',
+  'caption-truncated',
+  'capture-missing',
+  'capture-unreadable',
+  'card-too-short',
+  'component-missing',
+  'cursor-hidden',
+  'cursor-offscreen',
+  'cursor-outside-reframe',
+  'cursor-outside-view',
+  'diff-duration',
+  'diff-frames',
+  'diff-segment',
+  'duration-mismatch',
+  'empty-segment',
+  'frames-missing',
+  'loading-scene-start',
+  'local-url-text',
+  'long-scene',
+  'long-wait',
+  'media-missing',
+  'near-uniform-screen',
+  'overlay-covers-target',
+  'plan-warning',
+  'previous-unreadable',
+  'reframe-jump',
+  'registry-unavailable',
+  'render-failed',
+  'scene-length',
+  'scene-too-short',
+  'size-mismatch',
+  'slow-transition',
+  'target-cut',
+  'target-outside-view',
+  'text-slot-empty',
+  'text-slot-overflow',
+  'theme-zoom-count',
+  'theme-zoom-cut',
+  'theme-zoom-real',
+  'timeline-missing',
+  'transition-on-click',
+  'tutorial-skipped',
+  'tutorial-stale-target',
+  'tutorial-target-cut',
+  'url-hidden',
+  'video-length',
+  'write-blocked',
+  'zoom-clamped',
+  'zoom-count',
+  'zoom-not-slow',
+  'zoom-reset',
 ]);
 
 export interface Finding {
@@ -295,7 +353,7 @@ export interface ReviewResult {
     fps: number;
     width: number;
     height: number;
-    variant: RenderRecord['variant'];
+    variant: NamedRender['variant'];
   };
   review: { created_at: string; fps: 1 | 2; ms: number; rules: ReviewRules };
   /** No error and no warning. */

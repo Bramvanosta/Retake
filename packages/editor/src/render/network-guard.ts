@@ -22,6 +22,8 @@
  * in slots are a CLI feature).
  */
 import { createServer } from 'node:net';
+import type { CdpConnection, RenderBrowserHandle } from './library.js';
+import { bestEffort } from '@retake/core/base';
 
 /** What a guarded render may load. */
 export interface NetworkAllowList {
@@ -104,13 +106,6 @@ export function guardedPageFailed(what: 'render' | 'preview' = 'render'): string
   return `a page of the ${what} failed (its browser closed); a guarded ${what} never continues in another browser`;
 }
 
-/** The part of Remotion's HeadlessBrowser the guard uses: its CDP connection to the browser. */
-interface CdpConnection {
-  send(method: string, params?: unknown): Promise<unknown>;
-  on(event: string, handler: (e: unknown) => void): unknown;
-  off(event: string, handler: (e: unknown) => void): unknown;
-}
-
 export interface NetworkGuard {
   readonly allow: NetworkAllowList;
   /** Origins it blocked, first seen first, with how many requests each. */
@@ -126,7 +121,7 @@ export interface NetworkGuard {
  * Arm the guard on a browser Remotion opened (`openBrowser`): from now on, every request of every page of it is
  * paused and checked. Throws when the browser does not accept it (the render must not run unguarded).
  */
-export async function armNetworkGuard(browser: { connection: unknown }, allow: NetworkAllowList): Promise<NetworkGuard> {
+export async function armNetworkGuard(browser: RenderBrowserHandle, allow: NetworkAllowList): Promise<NetworkGuard> {
   const conn = browser.connection as CdpConnection;
   const blocked = new Map<string, number>();
   const block = (url: string) => {
@@ -136,10 +131,10 @@ export async function armNetworkGuard(browser: { connection: unknown }, allow: N
   const onPaused = (e: unknown) => {
     const ev = e as { requestId: string; request: { url: string } };
     if (allowedRequest(ev.request.url, allow)) {
-      conn.send('Fetch.continueRequest', { requestId: ev.requestId }).catch(() => undefined);
+      bestEffort(conn.send('Fetch.continueRequest', { requestId: ev.requestId }), 'the page may be gone: its request goes with it');
     } else {
       block(ev.request.url);
-      conn.send('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'BlockedByClient' }).catch(() => undefined);
+      bestEffort(conn.send('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'BlockedByClient' }), 'the page may be gone: its request goes with it');
     }
   };
   conn.on('Fetch.requestPaused', onPaused);
@@ -159,7 +154,8 @@ export async function armNetworkGuard(browser: { connection: unknown }, allow: N
     },
     warnings: () =>
       [...blocked].map(
-        ([origin, n]) => `the render blocked ${n === 1 ? 'a request' : `${n} requests`} to ${origin}: a render through MCP loads only the files of its plan (put remote files in the project's assets/)`,
+        ([origin, n]) =>
+          `the render blocked ${n === 1 ? 'a request' : `${n} requests`} to ${origin}: a render through MCP loads only the files of its plan (put remote files in the project's assets/)`,
       ),
     dispose: async () => {
       conn.off('Fetch.requestPaused', onPaused);
@@ -176,7 +172,7 @@ export interface BrowserProcessInfo {
 }
 
 /** The browser process of a HeadlessBrowser, through CDP; undefined when the browser does not say. */
-export async function browserProcessInfo(browser: { connection: unknown }): Promise<BrowserProcessInfo | undefined> {
+export async function browserProcessInfo(browser: RenderBrowserHandle): Promise<BrowserProcessInfo | undefined> {
   const conn = browser.connection as CdpConnection;
   const unwrap = (r: unknown) => ((r as { value?: unknown })?.value ?? r) as Record<string, unknown>;
   try {

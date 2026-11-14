@@ -6,6 +6,7 @@
  * the usage errors of --sandbox, and doctor's line. The Retake home is a temp folder (RETAKE_HOME). Skipped when
  * Chromium is not available.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -19,6 +20,7 @@ import type { RunRecord } from '@retake/core';
 import { TakeLock, openSandbox, probePort, sandboxPaths } from '@retake/sandbox';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const FIXTURE_PROJECT = join(REPO, 'projects/northfield-fixture');
@@ -53,7 +55,7 @@ async function freePorts(n: number): Promise<number[]> {
 
 let ws = '';
 let home = '';
-let savedHome: string | undefined;
+const retakeHome = scratchHome();
 let dir = '';
 let ports: number[] = [];
 
@@ -84,8 +86,7 @@ const api = (path: string) => `http://localhost:${ports[0]}${path}`;
 describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fixture, process provider)', () => {
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), 'studio-sandbox-home-'));
-    savedHome = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = home;
+    retakeHome.use(home);
     const build = (await import(join(REPO, 'fixtures/wholesale/build.mjs'))) as { bundleState(): Promise<{ fresh: boolean }>; build(): Promise<unknown> };
     if (!(await build.bundleState()).fresh) await build.build();
     ports = await freePorts(4);
@@ -110,9 +111,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
     // The committed manifest, on free ports, without the bundle check (built above once: parallel forks would race).
     let manifest = await readFile(join(FIXTURE_PROJECT, 'sandbox', 'sandbox.yaml'), 'utf8');
     ['4501', '4502', '4503', '4504'].forEach((p, i) => (manifest = manifest.replaceAll(p, String(ports[i]))));
-    manifest = manifest
-      .replace('command: [node, server.mjs,', `command: [node, ${JSON.stringify(join(REPO, 'fixtures/wholesale/server.mjs'))}, --no-build,`)
-      .replace(/\n\s+cwd: [^\n]+/, '');
+    manifest = manifest.replace('command: [node, server.mjs,', `command: [node, ${JSON.stringify(join(REPO, 'fixtures/wholesale/server.mjs'))}, --no-build,`).replace(/\n\s+cwd: [^\n]+/, '');
     expect(manifest).toContain(`--no-build, --console-port, "${ports[0]}"`);
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), manifest);
     // The committed scenario, quicker.
@@ -126,13 +125,12 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
 
   afterAll(async () => {
     try {
-      await openSandbox(await loadProject(dir), undefined, PERSON_POLICY).down();
+      await openSandbox(await loadProject(dir), undefined, PERSON_POLICY, resolveSecretRef).down();
     } catch {
       /* not started */
     }
     // Back to the run's scratch home (vitest.config.ts), never none: a later test's main() would look at the real one.
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     await rm(ws, { recursive: true, force: true });
     await rm(home, { recursive: true, force: true });
   });
@@ -176,9 +174,21 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
     expect(take1.err).toMatch(/sandbox {3}sandbox \(process\) · reset \(reseed\) \d+ ms before the take · seed [0-9a-f]{12}/);
     const one = await lastRun('sandbox-quote');
     expect(one.record.status).toBe('succeeded');
-    expect(one.record.environment?.sandbox).toEqual({ name: 'sandbox', provider: 'process', strategy: 'reseed', restored: false, reset_ms: expect.any(Number), seed_hash: expect.stringMatching(/^[0-9a-f]{12}$/), at: expect.any(String) });
+    expect(one.record.environment?.sandbox).toEqual({
+      name: 'sandbox',
+      provider: 'process',
+      strategy: 'reseed',
+      restored: false,
+      reset_ms: expect.any(Number),
+      seed_hash: expect.stringMatching(/^[0-9a-f]{12}$/),
+      at: expect.any(String),
+    });
     const timeline = JSON.parse(await readFile(join(one.dir, 'timeline.json'), 'utf8'));
-    expect(timeline.environment).toMatchObject({ name: 'sandbox', sandbox: { name: 'sandbox', strategy: 'reseed' }, display: [{ page: 'console' }, { page: 'shop', display: 'https://shop.northfield.example' }] });
+    expect(timeline.environment).toMatchObject({
+      name: 'sandbox',
+      sandbox: { name: 'sandbox', strategy: 'reseed' },
+      display: [{ page: 'console' }, { page: 'shop', display: 'https://shop.northfield.example' }],
+    });
     expect(one.texts['new-quote'].value).toMatch(/^Q-\d+ · requested Today, 10:24$/);
     // The buyer signed in off camera by the sandbox account; its plain password (only typed, off camera) is in none of
     // the run's files. That it is masked wherever it would appear: runner-web auth.test.ts 'a sandbox account (L1.8)…'.
@@ -272,9 +282,9 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
 
   it('doctor: one line for the sandbox (no line for its accounts, nor for its pages)', async () => {
     const { doctorChecks, systemProbes } = await import('../src/commands/doctor.js');
-    const { loadWorkspaceConfig } = await import('@retake/core/io');
+    const { openWorkspace } = await import('../src/workspace.js');
     const probes = { ...systemProbes(), head: async () => ({ status: 200, ms: 1 }) };
-    const checks = (await doctorChecks(probes, await loadWorkspaceConfig(ws), { project: PROJECT })).filter((c) => /Sandbox|Persona|Host/.test(c.name));
+    const checks = (await doctorChecks(probes, await openWorkspace({ root: ws }), { project: PROJECT })).filter((c) => /Sandbox|Persona|Host/.test(c.name));
     expect(checks).toEqual([
       { status: 'ok', name: 'Sandbox sandbox', detail: expect.stringMatching(/^process · up, its service is healthy · seed [0-9a-f]{12}$/) },
       { status: 'ok', name: 'Host local·console', detail: expect.any(String) },
@@ -289,8 +299,8 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
     for (const p of ports) expect(await probePort(p)).toBe(false);
     expect((await retake(['sandbox', 'down', PROJECT])).err).toContain('was not running');
     const { doctorChecks, systemProbes } = await import('../src/commands/doctor.js');
-    const { loadWorkspaceConfig } = await import('@retake/core/io');
-    const checks = await doctorChecks({ ...systemProbes(), head: async () => ({ status: 200, ms: 1 }) }, await loadWorkspaceConfig(ws), { project: PROJECT });
+    const { openWorkspace } = await import('../src/workspace.js');
+    const checks = await doctorChecks({ ...systemProbes(), head: async () => ({ status: 200, ms: 1 }) }, await openWorkspace({ root: ws }), { project: PROJECT });
     expect(checks.find((c) => c.name === 'Sandbox sandbox')).toEqual({
       status: 'warn',
       name: 'Sandbox sandbox',
@@ -344,7 +354,10 @@ describe('retake sandbox init and the docker-compose flags (L1.8 part C, no Dock
     const dir = join(iws, 'projects', 'proc');
     await mkdir(join(dir, 'sandbox'), { recursive: true });
     await writeFile(join(dir, 'project.yaml'), 'name: Proc\nenvironments:\n  local: {app: "http://localhost:9"}\nsandboxes: {sandbox: sandbox/sandbox.yaml}\n');
-    await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), 'version: 1\nprovider: process\nservices:\n  app: {command: [node, -e, "0"], url: "http://localhost:9", pages: {app: "http://localhost:9"}}\n');
+    await writeFile(
+      join(dir, 'sandbox', 'sandbox.yaml'),
+      'version: 1\nprovider: process\nservices:\n  app: {command: [node, -e, "0"], url: "http://localhost:9", pages: {app: "http://localhost:9"}}\n',
+    );
     const build = await cli(['sandbox', 'up', 'proc', '--build']);
     expect(build.code).toBe(EXIT.usage);
     expect(build.err).toMatch(/--build is for docker-compose sandboxes: sandbox sandbox is provider process/);

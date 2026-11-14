@@ -16,7 +16,17 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { resolveThemeComponents, PERSON_POLICY } from '@retake/core';
 import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { Template } from '@retake/core';
-import { LIBRARY_DIR, applyParamDefaults, captionBandBox, evalLayoutGeometry, isMultiPaneGeometry, loadComponentRegistry, paramDefaults, parseManifest, validateComponentDir } from '@retake/components';
+import {
+  LIBRARY_DIR,
+  applyParamDefaults,
+  captionBandBox,
+  evalLayoutGeometry,
+  isMultiPaneGeometry,
+  loadComponentRegistry,
+  paramDefaults,
+  parseManifest,
+  validateComponentDir,
+} from '@retake/components';
 import type { ComponentManifest, ComponentProps, ComponentRegistry, LayoutRects, ThemeTokens } from '@retake/components';
 import { DARK, LIGHT, tempDir } from './helpers.js';
 
@@ -80,14 +90,7 @@ const IDS = [
 ];
 
 /** The reference-look components (docs/reference/look.md), final since L2.5. */
-const REFERENCE_LOOK = [
-  'studio/caption-below',
-  'studio/interstitial-clock',
-  'studio/intro-stack',
-  'studio/layout-card',
-  'studio/outro-stack',
-  'studio/transition-crossfade',
-];
+const REFERENCE_LOOK = ['studio/caption-below', 'studio/interstitial-clock', 'studio/intro-stack', 'studio/layout-card', 'studio/outro-stack', 'studio/transition-crossfade'];
 
 const dirOf = (id: string) => join(LIBRARY_DIR, ...id.split('/'));
 const manifests: Record<string, ComponentManifest> = {};
@@ -112,7 +115,10 @@ type Variant = 'landscape' | 'vertical' | 'square';
 const SIZES: Record<Variant, [number, number]> = { landscape: [1920, 1080], vertical: [1080, 1920], square: [1080, 1080] };
 const GEOMETRY_OF = { landscape: 'geometry', vertical: 'geometry_vertical', square: 'geometry_square' } as const;
 
-function render(id: string, opts: { theme?: ThemeTokens; at?: number; unit?: number; vertical?: boolean; variant?: Variant; params?: Record<string, unknown>; extra?: Partial<ComponentProps> } = {}): string {
+function render(
+  id: string,
+  opts: { theme?: ThemeTokens; at?: number; unit?: number; vertical?: boolean; variant?: Variant; params?: Record<string, unknown>; extra?: Partial<ComponentProps> } = {},
+): string {
   const m = manifests[id];
   const unit = opts.unit ?? 1;
   const variant: Variant = opts.variant ?? (opts.vertical ? 'vertical' : 'landscape');
@@ -141,7 +147,9 @@ const USER_FILES = ['studio/media', 'studio/lottie'];
 
 describe('built-in library: a component for every referenced id', () => {
   it('has exactly the referenced ids, each valid (manifest + compile) and final: no placeholder left (R-LIB-00)', async () => {
-    const found = readdirSync(join(LIBRARY_DIR, 'studio')).map((n) => `studio/${n}`).sort();
+    const found = readdirSync(join(LIBRARY_DIR, 'studio'))
+      .map((n) => `studio/${n}`)
+      .sort();
     expect(found).toEqual([...IDS].sort());
     for (const id of IDS) {
       const v = await validateComponentDir(dirOf(id));
@@ -269,7 +277,8 @@ describe('built-in library renders with any theme', () => {
             expect(rect.x >= 0 && rect.y >= 0 && rect.x + rect.w <= space.w && rect.y + rect.h <= space.h, `${id} ${variant} ${aspect.toFixed(2)} ${JSON.stringify(rect)}`).toBe(true);
           }
           const body = ga.frame ?? ga.screen;
-          const overlaps = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+          const overlaps = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
+            a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
           if (id !== 'studio/layout-raw') {
             for (const r of [ga.caption, ga.brandmark]) if (r) expect(overlaps(r, body), `${id} ${variant} ${aspect.toFixed(2)} ${JSON.stringify(r)} over ${JSON.stringify(body)}`).toBe(false);
           }
@@ -278,10 +287,16 @@ describe('built-in library renders with any theme', () => {
     }
   });
 
-  it('multi-page layouts (L2.11): panes / inset in every format, clear of the caption and the brand mark; drawn at the planner\'s rects', () => {
+  it("multi-page layouts (L2.11): panes / inset in every format, clear of the caption and the brand mark; drawn at the planner's rects", () => {
     const overlaps = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-    const inside = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x >= b.x - 0.5 && a.y >= b.y - 0.5 && a.x + a.w <= b.x + b.w + 0.5 && a.y + a.h <= b.y + b.h + 0.5;
-    const pairs: Array<[number, number]> = [[1.6, 1.6], [16 / 9, 390 / 844], [1440 / 900, 820 / 1180], [390 / 844, 390 / 844]];
+    const inside = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
+      a.x >= b.x - 0.5 && a.y >= b.y - 0.5 && a.x + a.w <= b.x + b.w + 0.5 && a.y + a.h <= b.y + b.h + 0.5;
+    const pairs: Array<[number, number]> = [
+      [1.6, 1.6],
+      [16 / 9, 390 / 844],
+      [1440 / 900, 820 / 1180],
+      [390 / 844, 390 / 844],
+    ];
     for (const id of ['studio/layout-split', 'studio/layout-pip']) {
       const m = manifests[id];
       expect(isMultiPaneGeometry(m.geometry), id).toBe(true);
@@ -302,7 +317,10 @@ describe('built-in library renders with any theme', () => {
       }
       // Two pages of the same aspect: the split's panes are the same size; the PiP inset keeps the second page's aspect.
       const split = evalLayoutGeometry(manifests['studio/layout-split'].geometry!, paramDefaults(manifests['studio/layout-split'].params as never), { aspect: 1.6, aspect2: 1.6 });
-      expect(split.panes!.map((p) => [p.w, p.h])).toEqual([[896, 560], [896, 560]]);
+      expect(split.panes!.map((p) => [p.w, p.h])).toEqual([
+        [896, 560],
+        [896, 560],
+      ]);
       const pip = evalLayoutGeometry(manifests['studio/layout-pip'].geometry!, paramDefaults(manifests['studio/layout-pip'].params as never), { aspect: 16 / 9, aspect2: 390 / 844 });
       expect(pip.screen).toEqual({ x: 180, y: 40, w: 1560, h: 878 });
       expect(pip.inset).toEqual({ x: 1420, y: 267, w: 284, h: 615 });
@@ -341,8 +359,7 @@ describe('built-in library renders with any theme', () => {
   });
 
   it('device and window layouts: the screen keeps the capture aspect (letterboxed beyond the device range); captions fit below or beside', () => {
-    const at = (id: string, aspect: number, params: Record<string, unknown> = {}) =>
-      evalLayoutGeometry(manifests[id].geometry!, applyParamDefaults(manifests[id].params as never, params), { aspect });
+    const at = (id: string, aspect: number, params: Record<string, unknown> = {}) => evalLayoutGeometry(manifests[id].geometry!, applyParamDefaults(manifests[id].params as never, params), { aspect });
     const ratio = (r: { w: number; h: number }) => r.w / r.h;
     // Browser: the page area keeps the capture aspect; window + caption block centred; tabs make the chrome taller.
     const b = at('studio/layout-browser', 16 / 9);
@@ -554,7 +571,8 @@ describe('built-in library renders with any theme', () => {
     const area = { x: 180, y: 930, w: 1220, h: 110 };
     expect(render('studio/caption-below', { at: 8, theme: { ...LIGHT, style_bias: 'balanced' }, extra: { cues, area } })).not.toBe(render('studio/caption-below', { at: 8, extra: { cues, area } }));
     const screen = createElement('i', null, 'segment');
-    const xf = (bias: ThemeTokens['style_bias']) => render('studio/transition-crossfade', { at: 3, theme: { ...LIGHT, style_bias: bias }, extra: { screen, direction: 'entering', durationInFrames: 11 } });
+    const xf = (bias: ThemeTokens['style_bias']) =>
+      render('studio/transition-crossfade', { at: 3, theme: { ...LIGHT, style_bias: bias }, extra: { screen, direction: 'entering', durationInFrames: 11 } });
     expect(xf('real')).not.toContain('scale(');
     expect(xf('motion')).toMatch(/scale\(1\.0\d+\)/);
   });

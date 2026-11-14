@@ -13,8 +13,8 @@ import { STARTER_TEMPLATES_DIR, loadTemplate, fileFacts } from '@retake/core/io'
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { unsafeTestResolveCheck } from '../src/commands/doctor.js';
 import type { DoctorProbes } from '../src/commands/doctor.js';
-import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
-import type { BrandSite } from '../../runner-web/test/site-fixture.js';
+import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '@retake/test-support/site';
+import type { BrandSite } from '@retake/test-support/site';
 import { PERSON_POLICY } from '@retake/core';
 
 let ws: string;
@@ -42,7 +42,26 @@ afterAll(async () => {
 
 describe('retake theme create', () => {
   it('creates a theme from files anywhere on disk (a human typed it), with --json', async () => {
-    const r = await retake('theme', 'create', 'acme', '--accent', '#0E7C66', '--logo', join(files, 'logo.svg'), '--display-font', join(files, 'Headline.ttf'), '--body-font', join(files, 'Text.ttf'), '--brand-name', 'Acme', '--brand-url', 'acme.test', '--background', 'linear:#ffffff:#eeeeee', '--json');
+    const r = await retake(
+      'theme',
+      'create',
+      'acme',
+      '--accent',
+      '#0E7C66',
+      '--logo',
+      join(files, 'logo.svg'),
+      '--display-font',
+      join(files, 'Headline.ttf'),
+      '--body-font',
+      join(files, 'Text.ttf'),
+      '--brand-name',
+      'Acme',
+      '--brand-url',
+      'acme.test',
+      '--background',
+      'linear:#ffffff:#eeeeee',
+      '--json',
+    );
     expect(r.code, r.err).toBe(EXIT.ok);
     const out = JSON.parse(r.out) as { name: string; dir: string; palette: { colors: { accent: string }; background: unknown }; fonts: Array<{ file: string }>; warnings: string[] };
     expect(out.dir).toBe(join(ws, 'templates', 'acme'));
@@ -96,7 +115,14 @@ describe.skipIf(!hasOpenssl())('retake theme from-site', () => {
   it('extracts in-process with --json (no approval: a human typed it); an environment host is a warning here', async () => {
     const r = await retake('theme', 'from-site', 'https://brand.test/', '--json');
     expect(r.code, r.err).toBe(EXIT.ok);
-    const out = JSON.parse(r.out) as { status: string; site_id: string; palette: { roles: Record<string, string> }; candidates: Array<{ ref: string }>; warnings: string[]; draft: { brand_input: { logo: string } } };
+    const out = JSON.parse(r.out) as {
+      status: string;
+      site_id: string;
+      palette: { roles: Record<string, string> };
+      candidates: Array<{ ref: string }>;
+      warnings: string[];
+      draft: { brand_input: { logo: string } };
+    };
     expect(out.status).toBe('ok');
     expect(out.palette.roles).toEqual(BRAND_SITE_COLORS);
     expect(out.candidates[0].ref).toBe(`site:${out.site_id}/logo-1`);

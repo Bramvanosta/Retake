@@ -18,6 +18,7 @@
       "music": false
      },
      "project": "<project demo>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "run": "20260101-120000-tour",
      "scenario": "tour",
@@ -49,6 +50,7 @@
       "variant": "vertical"
      },
      "project": "<project demo>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "run": "20260101-120000-tour",
      "scenario": "tour",
@@ -139,6 +141,7 @@
      "out": "<ws>/projects/demo/renders/stills/tour-f00025.png",
      "plan": "<plan>",
      "registry": "<registry>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "workPolicy": {
       "agentFolders": null
@@ -177,6 +180,7 @@
      "out": "<ws>/frame.png",
      "plan": "<plan>",
      "registry": "<registry>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "workPolicy": {
       "agentFolders": null
@@ -237,6 +241,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",
@@ -265,6 +270,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "scenario": "tour",
      "signal": "<signal>",
@@ -551,6 +557,7 @@
      "out": "<undefined>",
      "overrides": {},
      "project": "<project demo>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "run": "20260101-120000-tour",
      "scenario": "tour",
@@ -614,6 +621,7 @@
      "out": "<ws>/projects/demo/renders/stills/tour-f00003.png",
      "plan": "<plan>",
      "registry": "<registry>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "workPolicy": {
       "agentFolders": null
@@ -641,6 +649,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",
@@ -669,6 +678,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v9",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",
@@ -697,6 +707,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",
@@ -799,7 +810,7 @@
  },
  "run --help": {
   "code": 0,
-  "out": "Usage: retake run [options] <project> <scenario>\n\nrun a scenario headless: capture.mp4 + timeline.json (or a dry run with\nscreenshots)\n\nArguments:\n  project            project slug or directory\n  scenario           scenario name or YAML file\n\nOptions:\n  --dry              dry run: no video, a screenshot per step, irreversible\n                     steps not executed\n  --until <ref>      stop after this step (<scene>.<step id|index>, a step id,\n                     or a scene id)\n  --hooks <mode>     setup/teardown hooks (default: run for captures, skip for\n                     dry runs) (choices: \"run\", \"skip\")\n  --env <name>       environment (default: scenario env, project default_env,\n                     first one)\n  --headed           show the browser window (needs a display)\n  --allow-writes     let a run on a production environment write (only where\n                     project.yaml sets access: read-write; without it such a run\n                     is read-only)\n  --sandbox          reset the sandbox to its seed before the take: up if\n                     needed, health, reset (environment: --env, the scenario env\n                     or default_env when a sandbox, else the first sandbox); it\n                     stays up after\n  --json             stream progress events as JSON lines on stdout\n  --raw              then export the raw package for editors (as retake\n                     export-capture: clips per scene, cursor data, markers)\n  --cursor <mode>    with --raw: baked (as captured), none (captured without the\n                     cursor; data only) or layer (captured without it + a\n                     transparent cursor layer per clip) (choices: \"baked\",\n                     \"none\", \"layer\")\n  --format <format>  with --raw: mp4 (H.264 high, CRF 14) or prores (ProRes 422\n                     HQ) (choices: \"mp4\", \"prores\")\n  --fps <n>          with --raw: 30 or 60 fps (choices: \"30\", \"60\")\n  --layer <format>   with --raw --cursor layer: prores (ProRes 4444) or webm\n                     (VP9 alpha) (choices: \"prores\", \"webm\")\n  --selects          with --raw: also one continuous selects file of the clips\n  --no-cuts          with --raw: keep the loading inside scenes\n  --out <dir>        with --raw: package folder (default\n                     exports/<run>-raw-<format><fps>-<cursor>/)\n  --no-wait          with --raw: export at once even while another take films\n                     (default: wait for it, then yield to later takes)\n  -h, --help         display help for command\n",
+  "out": "Usage: retake run [options] <project> <scenario>\n\nrun a scenario headless: capture.mp4 + timeline.json (or a dry run with\nscreenshots)\n\nArguments:\n  project            project slug or directory\n  scenario           scenario name or YAML file\n\nOptions:\n  --dry              dry run: no video, a screenshot per step, irreversible\n                     steps not executed\n  --until <ref>      stop after this step (<scene>.<step id|index>, a step id,\n                     or a scene id)\n  --hooks <mode>     setup/teardown hooks (default: run for captures, skip for\n                     dry runs) (choices: \"run\", \"skip\")\n  --env <name>       environment (default: scenario env, project default_env,\n                     first one)\n  --headed           show the browser window (needs a display)\n  --allow-writes     let a run on a production environment write (only where\n                     project.yaml sets access: read-write; without it such a run\n                     is read-only)\n  --yes              run the shell and sql hooks of a scenario an agent wrote\n                     last without asking (they are listed; otherwise a terminal\n                     asks, and without one the run is refused)\n  --sandbox          reset the sandbox to its seed before the take: up if\n                     needed, health, reset (environment: --env, the scenario env\n                     or default_env when a sandbox, else the first sandbox); it\n                     stays up after\n  --json             stream progress events as JSON lines on stdout\n  --raw              then export the raw package for editors (as retake\n                     export-capture: clips per scene, cursor data, markers)\n  --cursor <mode>    with --raw: baked (as captured), none (captured without the\n                     cursor; data only) or layer (captured without it + a\n                     transparent cursor layer per clip) (choices: \"baked\",\n                     \"none\", \"layer\")\n  --format <format>  with --raw: mp4 (H.264 high, CRF 14) or prores (ProRes 422\n                     HQ) (choices: \"mp4\", \"prores\")\n  --fps <n>          with --raw: 30 or 60 fps (choices: \"30\", \"60\")\n  --layer <format>   with --raw --cursor layer: prores (ProRes 4444) or webm\n                     (VP9 alpha) (choices: \"prores\", \"webm\")\n  --selects          with --raw: also one continuous selects file of the clips\n  --no-cuts          with --raw: keep the loading inside scenes\n  --out <dir>        with --raw: package folder (default\n                     exports/<run>-raw-<format><fps>-<cursor>/)\n  --no-wait          with --raw: export at once even while another take films\n                     (default: wait for it, then yield to later takes)\n  -h, --help         display help for command\n",
   "err": "",
   "history": [],
   "journal": [],

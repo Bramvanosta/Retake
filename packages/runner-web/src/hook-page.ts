@@ -20,13 +20,15 @@
  * (write-guard.ts UNGUARDED_APIS_SCRIPT): a shared worker's requests would escape both guards.
  */
 import type { CDPSession, Page } from 'playwright-core';
-import { HostRefusedError, WriteRefusedError, classifyRequest, describeWriteRequest, isHostAllowed, networkHost } from '@retake/core';
-import type { LoadedProject, WritePolicy } from '@retake/core';
+import { HostRefusedError, WriteRefusedError, classifyRequest, describeWriteRequest, isHostAllowed, networkHost } from '@retake/core/environment';
+import type { LoadedProject } from '@retake/core/model';
+import type { WritePolicy } from '@retake/core/environment';
 import { evalInPage } from './actions/misc.js';
 import { LoginPageError, RunnerError, errorMessage } from './errors.js';
 import type { BrowserSession } from './session.js';
 import { UNGUARDED_APIS_SCRIPT } from './write-guard.js';
 import type { GuardedWrite } from './write-guard.js';
+import { bestEffort } from '@retake/core/base';
 
 export interface HookPageOptions {
   /** Its allow-list applies (environment hosts, `allow_hosts`, localhost). */
@@ -62,7 +64,10 @@ function cdpBody(r: { postData?: string; postDataEntries?: Array<{ bytes?: strin
 
 /** A Playwright evaluation error, first line, without its "page.evaluate:" prefix. */
 function cleanError(e: unknown): string {
-  return errorMessage(e).replace(/^page\.evaluate: /, '').replace(/^Error: /, '').split('\n')[0];
+  return errorMessage(e)
+    .replace(/^page\.evaluate: /, '')
+    .replace(/^Error: /, '')
+    .split('\n')[0];
 }
 
 class HookTab {
@@ -171,11 +176,8 @@ class HookTab {
       } catch {
         /* fail closed */
       }
-      const done =
-        host || write
-          ? cdp.send('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'BlockedByClient' })
-          : cdp.send('Fetch.continueRequest', { requestId: ev.requestId });
-      done.catch(() => undefined);
+      const done = host || write ? cdp.send('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'BlockedByClient' }) : cdp.send('Fetch.continueRequest', { requestId: ev.requestId });
+      bestEffort(done, 'the request goes with a page that is gone');
     });
     // Network must be enabled for the service-worker bypass to apply.
     await cdp.send('Network.enable');
@@ -308,7 +310,7 @@ async function hookTab(session: BrowserSession, key: string, o: HookPageOptions)
   if (!byKey) tabs.set(session, (byKey = new Map()));
   const existing = byKey.get(key);
   if (existing) {
-    const tab = await existing.catch(() => null);
+    const tab = await bestEffort(existing, 'a tab that failed to open is opened again', null);
     if (tab && !tab.page.isClosed()) return tab;
   }
   const opening = HookTab.open(session, key, o);

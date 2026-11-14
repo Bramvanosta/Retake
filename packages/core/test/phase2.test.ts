@@ -28,7 +28,7 @@ import {
   timelineVideo,
 } from '@retake/core';
 import { COMMENTS_DIR, CommentThreadSchema, TEMPLATE_MEDIA_KINDS, deriveStatus } from '@retake/core';
-import type { CommentThread, Scenario, Template, Timeline, ValidationIssue } from '@retake/core';
+import type { CommentThread, Scenario, Scene, Template, Timeline, ValidationIssue } from '@retake/core';
 import { colOf, errors, lineOf, warnings } from './helpers.js';
 
 type Json = Record<string, any>;
@@ -87,11 +87,7 @@ describe('scenario additions (R-SCN2-01..06)', () => {
   });
 
   it('interstitial takes component and params; `style` next to `component` is a warning', () => {
-    const text = doc(
-      'scenes:',
-      ...SCENE,
-      '  - interstitial: {text: A few hours later, component: studio/interstitial-plain, params: {tone: dark}, style: dark}',
-    );
+    const text = doc('scenes:', ...SCENE, '  - interstitial: {text: A few hours later, component: studio/interstitial-plain, params: {tone: dark}, style: dark}');
     const { scenario, issues } = parseScenario(text);
     expect(errors(issues)).toEqual([]);
     expect(warns(issues)).toEqual([`${lineOf(text, 'interstitial:')} scenes.1.interstitial.style: \`style\` (legacy) is ignored when \`component\` is set`]);
@@ -140,9 +136,7 @@ describe('scenario additions (R-SCN2-01..06)', () => {
       `8:${colOf(text, 'x, title')} scenes.4.card.slots.two words: slot name must be an identifier: letters, digits, "_" or "-", starting with a letter or "_"`,
     ]);
     const both = doc('scenes:', '  - card: {slots: {title: T}}', '    interstitial: {text: Later}', ...SCENE);
-    expect(errs(parseScenario(both).issues)).toEqual([
-      `3:5 scenes.0: several scene kinds in one scene (interstitial, card): split them into separate scenes`,
-    ]);
+    expect(errs(parseScenario(both).issues)).toEqual([`3:5 scenes.0: several scene kinds in one scene (interstitial, card): split them into separate scenes`]);
   });
 
   it('ids are unique across scenes, cards and interstitials (default ids included)', () => {
@@ -163,9 +157,7 @@ describe('scenario additions (R-SCN2-01..06)', () => {
     ]);
     // The default id of an unnamed entry must not collide with an explicit id.
     const clash = doc('scenes:', ...SCENE, '  - card: {slots: {title: T}}', '  - id: card-1', '    steps: [{wait: 1}]');
-    expect(errs(parseScenario(clash).issues)).toEqual([
-      '7:5 scenes.1: the default id "card-1" of this card is already used by scenes[2]: give the card an `id`',
-    ]);
+    expect(errs(parseScenario(clash).issues)).toEqual(['7:5 scenes.1: the default id "card-1" of this card is already used by scenes[2]: give the card an `id`']);
   });
 
   it('`frame` (scenario, scene) accepts a FrameStyle or a layout component id, with a precise error otherwise', () => {
@@ -191,7 +183,7 @@ describe('scenario additions (R-SCN2-01..06)', () => {
     );
     const { scenario, issues } = parseScenario(text);
     expect(issues, formatIssues(issues)).toEqual([]);
-    const step = normalizeStep((scenario!.scenes[0] as { steps: Scenario['scenes'] }).steps[0] as never, 0);
+    const step = normalizeStep((scenario!.scenes[0] as Scene).steps[0], 0);
     expect(step.overlay).toEqual({
       component: 'studio/overlay-callout',
       slots: { text: 'Saved' },
@@ -247,14 +239,9 @@ describe('project frame (R-PROJ-06)', () => {
 
 describe('template brand + components (R-THM-01..03)', () => {
   it('brand and components are accepted, merged over the defaults; null means "none"', () => {
-    const text = [
-      'brand: {name: Atelier, url: example.com}',
-      'components:',
-      '  intro: studio/intro-minimal',
-      '  caption: null',
-      '  layout: {id: acme/layout-tilted, params: {angle: 4}}',
-      '',
-    ].join('\n');
+    const text = ['brand: {name: Atelier, url: example.com}', 'components:', '  intro: studio/intro-minimal', '  caption: null', '  layout: {id: acme/layout-tilted, params: {angle: 4}}', ''].join(
+      '\n',
+    );
     const { template, issues } = parseTemplateYaml(text);
     expect(issues).toEqual([]);
     expect(template?.brand).toEqual({ name: 'Atelier', url: 'example.com' });
@@ -381,7 +368,15 @@ describe('timeline additions (R-SCN-03, R-SCN-07)', () => {
       scenes: [
         { id: 'chapter', index: 0, kind: 'card', t_start: 0, t_end: 0, card: { slots: { title: 'Two' }, duration: 2 }, status: 'ok' },
         { id: 'main', index: 1, kind: 'scene', t_start: 0, t_end: 10, frame: 'acme/device', status: 'ok' },
-        { id: 'interstitial-2', index: 2, kind: 'interstitial', t_start: 10, t_end: 10, interstitial: { text: 'Later', component: 'studio/interstitial-plain', params: { tone: 'dark' } }, status: 'ok' },
+        {
+          id: 'interstitial-2',
+          index: 2,
+          kind: 'interstitial',
+          t_start: 10,
+          t_end: 10,
+          interstitial: { text: 'Later', component: 'studio/interstitial-plain', params: { tone: 'dark' } },
+          status: 'ok',
+        },
       ],
       events: [
         {
@@ -451,7 +446,22 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
     const intro = s.properties.intro.anyOf[1].properties;
     expect(Object.keys(intro)).toEqual(['component', 'params', 'duration', 'video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume']);
     expect(Object.keys(s.properties.outro.anyOf[1].properties)).toEqual(['component', 'params', 'tagline', 'url', 'duration', 'video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume']);
-    expect(Object.keys(d.Interstitial.properties.interstitial.properties)).toEqual(['text', 'kicker', 'duration', 'style', 'component', 'params', 'video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume']);
+    expect(Object.keys(d.Interstitial.properties.interstitial.properties)).toEqual([
+      'text',
+      'kicker',
+      'duration',
+      'style',
+      'component',
+      'params',
+      'video',
+      'image',
+      'lottie',
+      'from',
+      'to',
+      'fit',
+      'background',
+      'volume',
+    ]);
     for (const k of ['component', 'params', 'duration', 'video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume']) expect(typeof intro[k].description, k).toBe('string');
   });
 
@@ -474,17 +484,7 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
     const tl = timelineJsonSchema() as Json;
     expect(Object.keys(tl.properties.video.properties)).toEqual(['title', 'intro', 'outro', 'frame', 'template', 'music', 'tutorial', 'target_length', 'caption_component']);
     expect(tl.properties.scenes.items.properties.kind.enum).toEqual(['scene', 'interstitial', 'card']);
-    expect(Object.keys(tl.properties.events.items.properties.overlay.properties)).toEqual([
-      'component',
-      'slots',
-      'params',
-      'duration',
-      'target',
-      'bbox',
-      'point',
-      'at',
-      'box',
-    ]);
+    expect(Object.keys(tl.properties.events.items.properties.overlay.properties)).toEqual(['component', 'slots', 'params', 'duration', 'target', 'bbox', 'point', 'at', 'box']);
   });
 });
 
@@ -501,16 +501,45 @@ describe('frame comments data model (R-CMT-01)', () => {
       text: 'The total should stay on screen a bit longer.',
       author: { via: 'cli', name: 'Reviewer' },
       created_at: '2026-10-11T18:00:00.000Z',
-      anchor: { segment: 'proposal', kind: 'clip', component: 'studio/layout-card', scene: 'proposal', step: 2, step_id: 'total', step_ref: 'proposal.total', step_fp: '0123456789ab', step_fp_n: 0, action: 'wait_for', src_time_s: 41.2, marker: 'proposal', overlays: ['studio/overlay-callout'] },
+      anchor: {
+        segment: 'proposal',
+        kind: 'clip',
+        component: 'studio/layout-card',
+        scene: 'proposal',
+        step: 2,
+        step_id: 'total',
+        step_ref: 'proposal.total',
+        step_fp: '0123456789ab',
+        step_fp_n: 0,
+        action: 'wait_for',
+        src_time_s: 41.2,
+        marker: 'proposal',
+        overlays: ['studio/overlay-callout'],
+      },
       entries: [
         { id: 'r_01JABCDEFGHJKMNPQRSTVWXYZ1', kind: 'reply', author: { via: 'mcp', name: 'agent' }, text: 'Hold extended to 2.5 s.', created_at: '2026-10-11T18:05:00.000Z' },
-        { id: 'r_01JABCDEFGHJKMNPQRSTVWXYZ2', kind: 'resolve', author: { via: 'mcp', name: 'agent' }, text: 'hold: 2.5 on the step', created_at: '2026-10-11T18:06:00.000Z', render_id: 'quote-v4', render_created_at: '2026-10-11T18:05:30.000Z' },
+        {
+          id: 'r_01JABCDEFGHJKMNPQRSTVWXYZ2',
+          kind: 'resolve',
+          author: { via: 'mcp', name: 'agent' },
+          text: 'hold: 2.5 on the step',
+          created_at: '2026-10-11T18:06:00.000Z',
+          render_id: 'quote-v4',
+          render_created_at: '2026-10-11T18:05:30.000Z',
+        },
       ],
     } satisfies CommentThread;
     expect(CommentThreadSchema.parse(JSON.parse(JSON.stringify(thread)))).toEqual(thread);
     expect(deriveStatus(thread.entries)).toEqual({
       status: 'resolved',
-      resolution: { entry: 'r_01JABCDEFGHJKMNPQRSTVWXYZ2', by: { via: 'mcp', name: 'agent' }, note: 'hold: 2.5 on the step', at: '2026-10-11T18:06:00.000Z', render_id: 'quote-v4', render_created_at: '2026-10-11T18:05:30.000Z' },
+      resolution: {
+        entry: 'r_01JABCDEFGHJKMNPQRSTVWXYZ2',
+        by: { via: 'mcp', name: 'agent' },
+        note: 'hold: 2.5 on the step',
+        at: '2026-10-11T18:06:00.000Z',
+        render_id: 'quote-v4',
+        render_created_at: '2026-10-11T18:05:30.000Z',
+      },
     });
     // No stored status / resolution, no single-file-per-scenario shape.
     expect(CommentThreadSchema.safeParse({ ...thread, status: 'resolved' }).success).toBe(false);

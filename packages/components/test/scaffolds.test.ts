@@ -12,7 +12,8 @@ import ts from 'typescript';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { COMPONENT_KINDS } from '@retake/core';
 import type { ComponentKind } from '@retake/core';
-import { KIT_MODULE, PACKAGE_DIR, applyParamDefaults, parseManifest, scaffoldDir, stripComments } from '@retake/components';
+import { KIT_MODULE, LIBRARY_DIR, PACKAGE_DIR, applyParamDefaults, parseManifest, scaffoldDir, stripComments } from '@retake/components';
+import { kitExports } from '../src/compile.js';
 import type { ComponentManifest, ComponentProps, ThemeTokens } from '@retake/components';
 import { DARK, LIGHT } from './helpers.js';
 
@@ -177,13 +178,11 @@ describe('scaffold behaviour', () => {
 
   it('transition: entering fades in on top; a dip veils through a theme colour', () => {
     const screen = createElement('i', null, 'segment');
-    const mid = (direction: 'entering' | 'exiting', params = {}) =>
-      render('transition', { at: 6, params, extra: { screen, direction, durationInFrames: 12 } });
+    const mid = (direction: 'entering' | 'exiting', params = {}) => render('transition', { at: 6, params, extra: { screen, direction, durationInFrames: 12 } });
     expect(mid('entering')).toMatch(/^<div style="position:absolute;inset:0;opacity:0\.5\d*"><i>segment<\/i><\/div>$/);
     expect(mid('exiting')).toMatch(/opacity:1"><i>segment<\/i>/);
     // A dip does not overlap: exiting covers frames [0, 6) of 12 (opaque on its last one), entering [6, 12).
-    const dip = (at: number, direction: 'entering' | 'exiting') =>
-      render('transition', { at, params: { through: 'paper' }, extra: { screen, direction, durationInFrames: 12 } });
+    const dip = (at: number, direction: 'entering' | 'exiting') => render('transition', { at, params: { through: 'paper' }, extra: { screen, direction, durationInFrames: 12 } });
     const veil = (html: string) => Number(new RegExp(`background:${LIGHT.colors.paper};opacity:([\\d.e-]+)`).exec(html)?.[1]);
     expect(dip(0, 'exiting')).toContain(`background:${LIGHT.colors.paper}`);
     expect(veil(dip(0, 'exiting'))).toBeLessThan(0.2);
@@ -210,13 +209,151 @@ function moduleSpecifiers(src: string): string[] {
   return out;
 }
 
+/** Every name `@retake/components/kit` exports (sorted): the public surface a workspace component may import. */
+const KIT_PUBLIC_NAMES = [
+  'AUTO_COVER_MIN_SHARE',
+  'AbsoluteFill',
+  'AppIcon',
+  'BUTTON_LABEL_MIN',
+  'Background',
+  'CAMERA_EASINGS',
+  'CAPTION_BAND_INSET',
+  'CAPTION_BAND_MIN_SCREEN',
+  'CAPTION_BAND_PAD_X',
+  'CapText',
+  'DEFAULT_ZOOM_EASE',
+  'EASINGS',
+  'EASING_CURVES',
+  'ESTIMATED_METRICS',
+  'FORMAT_SCALE',
+  'FitText',
+  'ICON_NAMES',
+  'ICON_SHAPES',
+  'Icon',
+  'ImageFile',
+  'Img',
+  'InsetCard',
+  'InsetPhone',
+  'KEY_GLYPHS',
+  'LOUPE_MIN_SCALE',
+  'LOUPE_ORDER',
+  'Logo',
+  'LottieFile',
+  'NOTIFICATION_INSET',
+  'NOTIFICATION_STYLES',
+  'NOTIFICATION_WIDTH',
+  'NotificationCard',
+  'PANE_BAR',
+  'PANE_LABEL_ROW',
+  'PHONE_DISPLAY_ASPECT',
+  'PIP_BAR',
+  'PaneLabel',
+  'PhoneDevice',
+  'Picture',
+  'STEP_BADGE_ORDER',
+  'SYSTEM_COLORS',
+  'SafeArea',
+  'Sequence',
+  'StatusGlyphs',
+  'VideoFile',
+  'WORDMARK_TEXT_SCALE',
+  'WindowBar',
+  'Wordmark',
+  'activeIndex',
+  'addressParts',
+  'autoFit',
+  'backgroundCss',
+  'backgroundSample',
+  'balanceLines',
+  'barTones',
+  'biasMotion',
+  'buttonColors',
+  'capOffset',
+  'capTextLayout',
+  'captionBandBox',
+  'captionMaxLines',
+  'cardShadow',
+  'clamp',
+  'clearOf',
+  'contrastRatio',
+  'cssFontFamily',
+  'cubicBezier',
+  'darkLight',
+  'deviceTones',
+  'easing',
+  'estimateTextWidth',
+  'fade',
+  'fadeIn',
+  'fadeOut',
+  'figureAt',
+  'filePartGain',
+  'fitText',
+  'fontMetrics',
+  'formatClock',
+  'formatFigure',
+  'formatMetrics',
+  'inkOn',
+  'insetPhoneEdge',
+  'isDarkBackground',
+  'isDarkColor',
+  'layoutNotification',
+  'lerp',
+  'liftToContrast',
+  'lottieFrames',
+  'loupeLens',
+  'luminance',
+  'measureText',
+  'mediaBackground',
+  'mediaLength',
+  'mixColors',
+  'nightTone',
+  'notificationArea',
+  'notificationBox',
+  'notificationMotion',
+  'notificationTones',
+  'parseColor01',
+  'parseFigure',
+  'parseNumber',
+  'parseShortcut',
+  'phoneCardGeometry',
+  'pictureAspect',
+  'placeBeside',
+  'progress',
+  'qrEncode',
+  'qrMatrix',
+  'qrPath',
+  'qrVersionFor',
+  'random',
+  'readableOn',
+  'recolorLottie',
+  'rise',
+  'roundTo',
+  'safeAreaRect',
+  'scaleRect',
+  'shortcutPlateBox',
+  'shortcutPlateLayout',
+  'shortcutPlateMetrics',
+  'shortcutText',
+  'splitKeys',
+  'stagger',
+  'stepBadgeBox',
+  'textStyleCss',
+  'themeColorMap',
+  'themeEasing',
+  'toFrames',
+  'toSeconds',
+  'useCurrentFrame',
+  'useLottieData',
+  'useVideoConfig',
+  'videoPartFrames',
+  'wallpaperCss',
+  'withAlpha',
+  'wrapText',
+];
+
 describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer stays replaceable)', () => {
   it('no scaffold file imports remotion (or anything but react and the kit): renderer primitives come from the kit', () => {
-    expect(moduleSpecifiers("import { useCurrentFrame } from 'remotion';\nimport type { X } from \"remotion\";\n// import 'y'\nexport * from 'z';")).toEqual([
-      'remotion',
-      'remotion',
-      'z',
-    ]);
+    expect(moduleSpecifiers("import { useCurrentFrame } from 'remotion';\nimport type { X } from \"remotion\";\n// import 'y'\nexport * from 'z';")).toEqual(['remotion', 'remotion', 'z']);
     for (const kind of COMPONENT_KINDS) {
       const dir = scaffoldDir(kind);
       const files = readdirSync(dir).filter((f) => ['.ts', '.tsx', '.js', '.jsx', '.mjs'].includes(extname(f)));
@@ -224,9 +361,54 @@ describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer st
       for (const file of files) {
         const specs = moduleSpecifiers(readFileSync(join(dir, file), 'utf8'));
         expect(specs.length, `${kind}/${file}`).toBeGreaterThan(0);
-        expect(specs.filter((s) => s !== 'react' && s !== KIT_MODULE), `${kind}/${file}`).toEqual([]);
+        expect(
+          specs.filter((s) => s !== 'react' && s !== KIT_MODULE),
+          `${kind}/${file}`,
+        ).toEqual([]);
       }
     }
+  });
+
+  it('L7.2: no built-in component imports the renderer library either — every file of the library imports react and the kit only', () => {
+    const ids = readdirSync(join(LIBRARY_DIR, 'studio')).filter((n) => !n.startsWith('.'));
+    expect(ids.length).toBe(41);
+    for (const id of ids) {
+      const dir = join(LIBRARY_DIR, 'studio', id);
+      const files = readdirSync(dir).filter((f) => ['.ts', '.tsx', '.js', '.jsx', '.mjs'].includes(extname(f)));
+      expect(files, id).toContain('index.tsx');
+      for (const file of files) {
+        const specs = moduleSpecifiers(readFileSync(join(dir, file), 'utf8'));
+        expect(specs.length, `${id}/${file}`).toBeGreaterThan(0);
+        expect(
+          specs.filter((s) => s !== 'react' && s !== KIT_MODULE),
+          `studio/${id}/${file}`,
+        ).toEqual([]);
+      }
+    }
+  });
+
+  it("L7.2: the kit names the renderer library in one file (kit/renderer.ts), and its public names are the same as before: that file's own list is not re-exported", async () => {
+    const kitDir = join(PACKAGE_DIR, 'src', 'kit');
+    const naming = readdirSync(kitDir)
+      .filter((f) => ['.ts', '.tsx'].includes(extname(f)))
+      .filter((f) => moduleSpecifiers(readFileSync(join(kitDir, f), 'utf8')).some((s) => s === 'remotion' || s.startsWith('remotion/') || s.startsWith('@remotion/')));
+    expect(naming).toEqual(['renderer.ts']);
+    const index = stripComments(readFileSync(join(kitDir, 'index.ts'), 'utf8'));
+    // L7.34 (finding C4): the primitives held by what the kit hands, not by its export statement — the very objects of
+    // the renderer seam (one copy of the library), and only these six of it.
+    const kit = (await import('../src/kit/index.js')) as unknown as Record<string, unknown>;
+    const seam = (await import('../src/kit/renderer.js')) as unknown as Record<string, unknown>;
+    const primitives = ['AbsoluteFill', 'Img', 'Sequence', 'random', 'useCurrentFrame', 'useVideoConfig'];
+    expect(primitives.filter((n) => kit[n] === undefined || kit[n] !== seam[n])).toEqual([]);
+    expect(
+      Object.keys(seam)
+        .filter((n) => n in kit)
+        .sort(),
+    ).toEqual([...primitives].sort());
+    expect(index).not.toMatch(/export \* from '\.\/renderer\.js'/);
+    const names = await kitExports();
+    expect(names).toEqual(KIT_PUBLIC_NAMES);
+    for (const own of ['Loop', 'OffthreadVideo', 'cancelRender', 'continueRender', 'delayRender', 'Lottie']) expect(names, own).not.toContain(own);
   });
 });
 

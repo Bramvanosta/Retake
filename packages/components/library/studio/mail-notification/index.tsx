@@ -1,5 +1,4 @@
-import { useCurrentFrame } from 'remotion';
-import { NOTIFICATION_INSET, NotificationCard, biasMotion, layoutNotification, notificationArea, notificationBox, notificationMotion } from '@retake/components/kit';
+import { NOTIFICATION_INSET, NotificationCard, biasMotion, layoutNotification, notificationArea, notificationBox, notificationMotion, useCurrentFrame } from '@retake/components/kit';
 import type { ComponentProps, NotificationAppearance, NotificationContent, NotificationPlace, NotificationStyle } from '@retake/components/kit';
 
 type Params = { style: NotificationStyle; place: NotificationPlace; appearance: NotificationAppearance };

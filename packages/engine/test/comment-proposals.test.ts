@@ -18,8 +18,9 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ScenarioError } from '@retake/core';
 import type { CommentThread } from '@retake/core';
-import { EngineError, createEngine } from '../src/index.js';
+import { createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const RUN = '20261027-090000-quote';
@@ -46,14 +47,17 @@ let dir: string;
 let mcp: Engine;
 let ui: Engine;
 let cli: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 let n = 0;
 
 const scenarioFile = (name: string) => join(dir, 'scenarios', `${name}.yaml`);
 const threadPath = (scenario: string, id: string) => join(dir, 'comments', scenario, `${id}.json`);
 
 async function failure(p: Promise<unknown>): Promise<Error> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(Error);
   return e as Error;
 }
@@ -85,19 +89,15 @@ async function setup(scenario: string, text: string | Buffer, o: { resolved?: bo
 
 /** The bytes and mtime of a thread and its scenario: unchanged after a refusal. */
 async function bytes(scenario: string, id: string): Promise<string[]> {
-  return [
-    (await readFile(threadPath(scenario, id))).toString('hex'),
-    (await readFile(scenarioFile(scenario))).toString('hex'),
-    String((await stat(scenarioFile(scenario))).mtimeMs),
-  ];
+  return [(await readFile(threadPath(scenario, id))).toString('hex'), (await readFile(scenarioFile(scenario))).toString('hex'), String((await stat(scenarioFile(scenario))).mtimeMs)];
 }
 
-const propose = (scenario: string, id: string, yaml: string, hash: string, engine: Engine = mcp) =>
+const propose = (_scenario: string, id: string, yaml: string, hash: string, engine: Engine = mcp) =>
   engine.comments.reply('w', id, 'Proposed a change.', { proposal: { scenario_yaml: yaml, scenario_hash: hash } });
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-comment-proposals-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   dir = join(ws, 'projects', 'w');
   await mkdir(join(dir, 'scenarios'), { recursive: true });
@@ -112,8 +112,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -159,7 +158,9 @@ describe('a proposal written (T3)', () => {
 
   it('⚑ the rows read like the files (L4.6 part D2): close changes share their context, no line twice — context and removed rows (and gaps) are the base in order, context and added rows the result', async () => {
     const id = await setup('rows', TEXT);
-    const next = TEXT.replace('title: {text: Quote}\n', 'title: {text: Quote} \n').replace('outro: false\n', 'outro: false\n# a note\n').replace('A very long caption that says too much', 'A short caption');
+    const next = TEXT.replace('title: {text: Quote}\n', 'title: {text: Quote} \n')
+      .replace('outro: false\n', 'outro: false\n# a note\n')
+      .replace('A very long caption that says too much', 'A short caption');
     await propose('rows', id, next, sha(TEXT));
     const v = await mcp.comments.proposal('w', id);
     expect(v).toMatchObject({ verified: true, added: 3, removed: 2, hunks: 3 });
@@ -274,20 +275,32 @@ describe('⚑ write-time refusals: nothing written (T3)', () => {
     await refused('same', TEXT, TEXT, (x) => expect(x).toMatchObject({ code: 'invalid', message: expect.stringMatching(/nothing to propose/) }));
     // A file without its final line break: adding it alone changes no line (critique B10: a zero-hunk proposal).
     await refused('eolonly', TEXT.trimEnd(), TEXT, (x) => expect(x).toMatchObject({ code: 'invalid', message: expect.stringMatching(/only by its line breaks/) }));
-    await refused('resolved', TEXT, SHORTER, (x) => expect(x).toMatchObject({ code: 'conflict', message: expect.stringMatching(/is resolved — a proposal answers an open thread/) }), { resolved: true });
+    await refused('resolved', TEXT, SHORTER, (x) => expect(x).toMatchObject({ code: 'conflict', message: expect.stringMatching(/is resolved — a proposal answers an open thread/) }), {
+      resolved: true,
+    });
     const id = await setup('gone', TEXT);
     await rm(scenarioFile('gone'));
     expect(await failure(propose('gone', id, SHORTER, sha(TEXT)))).toMatchObject({ code: 'not_found' });
   });
 
   it('⚑ caps (critique B13): a line over 2,000 UTF-16 units, 30,000 characters, 200 changed lines; a hidden character added; line breaks', async () => {
-    await refused('long', TEXT, TEXT.replace('A very long caption that says too much', 'x'.repeat(1990)), (e) => expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/a line of 2003 characters \(UTF-16 units\): at most 2000/) }));
+    await refused('long', TEXT, TEXT.replace('A very long caption that says too much', 'x'.repeat(1990)), (e) =>
+      expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/a line of 2003 characters \(UTF-16 units\): at most 2000/) }),
+    );
     const comments = (count: number, len: number) => Array.from({ length: count }, (_, i) => `# ${String(i).padEnd(len - 2, 'x')}`).join('\n');
     await refused('chars', TEXT, `${TEXT}${comments(16, 2000)}\n`, (e) => expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/32,000 characters of changed lines/) }));
-    await refused('lines', TEXT, `${TEXT}${comments(201, 10)}\n`, (e) => expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/more than 200 changed lines .*byte for byte \(never re-serialised\)/) }));
-    await refused('zwsp', TEXT, TEXT.replace('A very long caption', 'A very​ long caption'), (e) => expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/U\+200B \(a zero-width space\)/) }));
-    await refused('mixedtext', TEXT, SHORTER.replace('title: {text: Quote}\n', 'title: {text: Quote}\r\n'), (e) => expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/mixes LF and CR LF/) }));
-    await refused('lonecr', TEXT, SHORTER.replace('title: {text: Quote}\n', 'title: {text: Quote}\r'), (e) => expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/carriage return without a line feed/) }));
+    await refused('lines', TEXT, `${TEXT}${comments(201, 10)}\n`, (e) =>
+      expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/more than 200 changed lines .*byte for byte \(never re-serialised\)/) }),
+    );
+    await refused('zwsp', TEXT, TEXT.replace('A very long caption', 'A very​ long caption'), (e) =>
+      expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/U\+200B \(a zero-width space\)/) }),
+    );
+    await refused('mixedtext', TEXT, SHORTER.replace('title: {text: Quote}\n', 'title: {text: Quote}\r\n'), (e) =>
+      expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/mixes LF and CR LF/) }),
+    );
+    await refused('lonecr', TEXT, SHORTER.replace('title: {text: Quote}\n', 'title: {text: Quote}\r'), (e) =>
+      expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/carriage return without a line feed/) }),
+    );
   });
 
   it('⚑ critique B10: a line holding a hidden character is never removed or changed by a proposal', async () => {
@@ -303,12 +316,20 @@ describe('⚑ write-time refusals: nothing written (T3)', () => {
     const notes = Array.from({ length: 100 }, (_, i) => `# note ${i}\n# keep a\n# keep b\n# keep c\n# keep d\n# keep e\n# keep f\n# keep g`).join('\n');
     const long = `${TEXT}${notes}\n`;
     const e = await refused('rowsmax', long, long.replace(/# note (\d+)/g, '# note $1 tidied'), (x) => expect(x).toMatchObject({ code: 'invalid', details: { argument: 'proposal.scenario_yaml' } }));
-    expect(e.message).toMatch(/^not proposed: the diff the person reads would have [\d,]+ rows \(the changes and 3 unchanged lines around each\): at most 600 — propose fewer changes, closer together$/);
+    expect(e.message).toMatch(
+      /^not proposed: the diff the person reads would have [\d,]+ rows \(the changes and 3 unchanged lines around each\): at most 600 — propose fewer changes, closer together$/,
+    );
     // A theme is the direct loop: never a proposal (added, changed or removed).
     const themed = TEXT.replace('outro: false\n', 'outro: false\ntemplate: default\n');
-    for (const [name, base, next] of [['theme1', TEXT, themed], ['theme2', themed, themed.replace('template: default', 'template: editorial')], ['theme3', themed, TEXT]] as const) {
+    for (const [name, base, next] of [
+      ['theme1', TEXT, themed],
+      ['theme2', themed, themed.replace('template: default', 'template: editorial')],
+      ['theme3', themed, TEXT],
+    ] as const) {
       const t = await refused(name, base, next, (x) => expect(x).toMatchObject({ code: 'refused', details: { theme_change: true } }));
-      expect(t.message).toBe("not proposed: this changes the scenario's theme (template:) — a theme change is never a proposal: save it with scenario_save, render, review, then reply (the direct loop)");
+      expect(t.message).toBe(
+        "not proposed: this changes the scenario's theme (template:) — a theme change is never a proposal: save it with scenario_save, render, review, then reply (the direct loop)",
+      );
     }
     // A lone surrogate: Apply would write U+FFFD, not the line shown.
     await refused('surrogate', TEXT, TEXT.replace('A very long caption that says too much', 'says \ud800 much'), (x) =>
@@ -318,7 +339,9 @@ describe('⚑ write-time refusals: nothing written (T3)', () => {
 
   it('⚑ critique B10: only the MCP proposes — the Studio and a terminal are refused (a person changes the file)', async () => {
     for (const engine of [ui, cli]) {
-      await refused('person', TEXT, SHORTER, (e) => expect(e).toMatchObject({ code: 'refused', message: expect.stringMatching(/a proposal comes from Claude \(comment_reply over MCP\)/) }), { engine });
+      await refused('person', TEXT, SHORTER, (e) => expect(e).toMatchObject({ code: 'refused', message: expect.stringMatching(/a proposal comes from Claude \(comment_reply over MCP\)/) }), {
+        engine,
+      });
     }
   });
 });

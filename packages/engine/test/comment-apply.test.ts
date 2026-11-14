@@ -21,6 +21,7 @@ import { diffLines, textLines } from '@retake/core';
 import type { CommentThread } from '@retake/core';
 import { EngineError, commentLockFile, createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const RUN = '20261027-090000-quote';
@@ -47,7 +48,7 @@ let mcp: Engine;
 let ui: Engine;
 let cli: Engine;
 let tester: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 let n = 0;
 
 const scenarioFile = (name: string) => join(dir, 'scenarios', `${name}.yaml`);
@@ -55,7 +56,10 @@ const threadPath = (scenario: string, id: string) => join(dir, 'comments', scena
 const readThread = async (scenario: string, id: string) => JSON.parse(await readFile(threadPath(scenario, id), 'utf8')) as CommentThread;
 
 async function failure(p: Promise<unknown>): Promise<EngineError> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(EngineError);
   return e as EngineError;
 }
@@ -97,7 +101,7 @@ function planted(base: string, result: string, o: { id?: string; proposal?: Reco
 }
 
 /** A proposal written through the MCP (all write-time checks); its entry id and the thread's hash. */
-async function proposed(scenario: string, id: string, result: string, base = TEXT): Promise<{ entry: string; hash: string }> {
+async function proposed(_scenario: string, id: string, result: string, base = TEXT): Promise<{ entry: string; hash: string }> {
   const w = await mcp.comments.reply('w', id, 'Proposed a shorter caption.', { proposal: { scenario_yaml: result, scenario_hash: sha(base) } });
   return { entry: w.entry, hash: w.hash };
 }
@@ -108,7 +112,7 @@ async function state(scenario: string, id: string): Promise<[Buffer, Buffer, num
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-comment-apply-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   dir = join(ws, 'projects', 'w');
   await mkdir(join(dir, 'scenarios'), { recursive: true });
@@ -120,8 +124,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -131,7 +134,12 @@ describe('Apply (T5)', () => {
     const p = await proposed('quote', id, SHORTER);
     const a = await ui.comments.apply('w', id, { entry_id: p.entry, if_match: p.hash });
     expect(await readFile(scenarioFile('quote'), 'utf8')).toBe(SHORTER);
-    expect(a).toMatchObject({ scenario: { name: 'quote', file: 'scenarios/quote.yaml', hash: sha(SHORTER), previous: { text: TEXT, hash: sha(TEXT) } }, label: `Applied the proposal of comment ${id}`, change: 'edit', problems: [] });
+    expect(a).toMatchObject({
+      scenario: { name: 'quote', file: 'scenarios/quote.yaml', hash: sha(SHORTER), previous: { text: TEXT, hash: sha(TEXT) } },
+      label: `Applied the proposal of comment ${id}`,
+      change: 'edit',
+      problems: [],
+    });
     expect(a.hash).toBe(sha(await readFile(threadPath('quote', id))));
     const t = await readThread('quote', id);
     expect(t.entries.at(-1)).toMatchObject({ id: a.entry, kind: 'apply', author: { via: 'studio' }, text: '', applies: p.entry, scenario_sha256: sha(SHORTER) });

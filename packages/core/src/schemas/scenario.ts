@@ -23,14 +23,12 @@ import {
 import { CapturePartialSchema, PacingPartialSchema, RunDefaultsSchema } from './settings.js';
 import { StepSchema, speedSchema } from './steps.js';
 
-export const SceneCursorSchema = z
-  .union([z.enum(['auto', 'keep']), PointSchema, TargetSpecSchema])
-  .meta({
-    id: 'SceneCursor',
-    description:
-      "Where the cursor rests at the scene start: 'auto' (default: a neutral point near the first pointer target, never on it), " +
-      "'keep' (where the previous scene left it), a viewport point {x, y}, or a target to rest on. Use {text: auto} for an element whose text is \"auto\".",
-  });
+export const SceneCursorSchema = z.union([z.enum(['auto', 'keep']), PointSchema, TargetSpecSchema]).meta({
+  id: 'SceneCursor',
+  description:
+    "Where the cursor rests at the scene start: 'auto' (default: a neutral point near the first pointer target, never on it), " +
+    '\'keep\' (where the previous scene left it), a viewport point {x, y}, or a target to rest on. Use {text: auto} for an element whose text is "auto".',
+});
 
 export const ViewportSchema = z
   .union([
@@ -48,27 +46,18 @@ export const ViewportSchema = z
   });
 
 const scenePageShape = {
-  page: keyString('page')
-    .describe('Environment page key whose base URL a relative `open` resolves against (default: the page id when it is one, else the key before ":" in `open`).')
-    .optional(),
-  open: nonEmpty()
-    .describe('Opened at the scene start: a path, "<environment page>:<path>" (e.g. shop:/products) or a URL. Omit to continue the page as it is.')
-    .optional(),
+  page: keyString('page').describe('Environment page key whose base URL a relative `open` resolves against (default: the page id when it is one, else the key before ":" in `open`).').optional(),
+  open: nonEmpty().describe('Opened at the scene start: a path, "<environment page>:<path>" (e.g. shop:/products) or a URL. Omit to continue the page as it is.').optional(),
   viewport: ViewportSchema.optional(),
   label: nonEmpty().describe('Name a layout may show next to the page ("Buyer").').optional(),
   cursor: SceneCursorSchema.optional(),
-  persona: slugString('persona')
-    .describe('The persona this page is signed in as (project auth.personas), or none. Default: the persona whose `pages` list its environment page.')
-    .optional(),
+  persona: slugString('persona').describe('The persona this page is signed in as (project auth.personas), or none. Default: the persona whose `pages` list its environment page.').optional(),
 };
 
 export const ScenePageSchema = z.strictObject(scenePageShape).meta({ id: 'ScenePage', description: 'One page of a multi-page scene.' });
 
 export const ScenePagesSchema = z
-  .union([
-    z.record(keyString('page id'), ScenePageSchema.nullable()),
-    z.array(z.union([keyString('page'), z.strictObject({ id: keyString('page id').optional(), ...scenePageShape })])),
-  ])
+  .union([z.record(keyString('page id'), ScenePageSchema.nullable()), z.array(z.union([keyString('page'), z.strictObject({ id: keyString('page id').optional(), ...scenePageShape })]))])
   .meta({
     id: 'ScenePages',
     description:
@@ -80,9 +69,7 @@ export const SceneSchema = z
   .strictObject({
     id: slugString('scene id').describe('Unique, slug-like scene id.'),
     caption: CaptionSpecSchema.describe('Caption for the whole scene (a step caption replaces it).').optional(),
-    page: keyString('page')
-      .describe("Environment page key (e.g. console, shop). Default: the previous scene's page, else the first key.")
-      .optional(),
+    page: keyString('page').describe("Environment page key (e.g. console, shop). Default: the previous scene's page, else the first key.").optional(),
     open: nonEmpty().describe("Path or URL opened at scene start. Omit to continue from the previous scene's state.").optional(),
     pages: ScenePagesSchema.optional(),
     persona: slugString('persona')
@@ -94,7 +81,7 @@ export const SceneSchema = z
     speed: speedSchema().describe('Edit-time speed for the whole scene, in (0, 8].').optional(),
     still: seconds().describe('Seconds of stillness at scene start (default pacing.scene_start_still).').optional(),
     cursor: SceneCursorSchema.optional(),
-    transition: SceneTransitionSchema.describe('Transition INTO this scene: crossfade, cut, fade-black or a transition component (default: the theme\'s).').optional(),
+    transition: SceneTransitionSchema.describe("Transition INTO this scene: crossfade, cut, fade-black or a transition component (default: the theme's).").optional(),
     frame: FrameSpecSchema.describe(
       'Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone, tablet, split / pip (multi-page scenes) or a layout component id "namespace/name".',
     ).optional(),
@@ -113,12 +100,8 @@ export const InterstitialSchema = z
         text: nonEmpty().describe('Card text, e.g. "A few hours later" (not needed for a video, image or lottie file).').optional(),
         kicker: z.string().describe('Small line above the text.').optional(),
         duration: positiveSeconds().describe('Seconds on screen.').optional(),
-        style: nonEmpty()
-          .describe('Legacy template interstitial style override (dark-clock, paper, dark); ignored when `component` is set.')
-          .optional(),
-        component: componentIdSchema('interstitial component id')
-          .describe('Interstitial component "namespace/name" (default: the theme\'s), e.g. studio/interstitial-clock.')
-          .optional(),
+        style: nonEmpty().describe('Legacy template interstitial style override (dark-clock, paper, dark); ignored when `component` is set.').optional(),
+        component: componentIdSchema('interstitial component id').describe('Interstitial component "namespace/name" (default: the theme\'s), e.g. studio/interstitial-clock.').optional(),
         params: ComponentParamsSchema.optional(),
         ...mediaFileShape,
       })
@@ -131,13 +114,9 @@ export const CardSchema = z
   .strictObject({
     card: z
       .strictObject({
-        component: componentIdSchema('card component id')
-          .describe('Card component "namespace/name" (default: the theme\'s card component, studio/card-title).')
-          .optional(),
+        component: componentIdSchema('card component id').describe('Card component "namespace/name" (default: the theme\'s card component, studio/card-title).').optional(),
         params: ComponentParamsSchema.optional(),
-        slots: SlotsSchema.describe(
-          'Slot values: title, kicker, text… as the component declares them (a card without `component` needs `title`).',
-        ).optional(),
+        slots: SlotsSchema.describe('Slot values: title, kicker, text… as the component declares them (a card without `component` needs `title`).').optional(),
         duration: positiveSeconds().describe("Seconds on screen (default: the component's duration; a video or Lottie file: its own length).").optional(),
         transition: SceneTransitionSchema.describe(
           "Transition INTO this card: crossfade, cut, fade-black or a transition component, e.g. studio/transition-tap-open (default: the theme's).",
@@ -184,9 +163,7 @@ export const ScenarioSchema = z
       .union([
         z.literal(false),
         z.strictObject({
-          component: componentIdSchema('intro component id')
-            .describe('Intro component "namespace/name" (default: the theme\'s), e.g. studio/intro-stack.')
-            .optional(),
+          component: componentIdSchema('intro component id').describe('Intro component "namespace/name" (default: the theme\'s), e.g. studio/intro-stack.').optional(),
           params: ComponentParamsSchema.optional(),
           duration: positiveSeconds().describe('Seconds (default: template intro.duration; a video or Lottie file: its own length).').optional(),
           ...mediaFileShape,
@@ -198,9 +175,7 @@ export const ScenarioSchema = z
       .union([
         z.literal(false),
         z.strictObject({
-          component: componentIdSchema('outro component id')
-            .describe('Outro component "namespace/name" (default: the theme\'s), e.g. studio/outro-stack.')
-            .optional(),
+          component: componentIdSchema('outro component id').describe('Outro component "namespace/name" (default: the theme\'s), e.g. studio/outro-stack.').optional(),
           params: ComponentParamsSchema.optional(),
           tagline: z.string().describe('Tagline under the logo (default: template outro.tagline).').optional(),
           url: z.string().describe('URL shown by the outro (default: template outro.url, else brand.url).').optional(),
@@ -211,17 +186,12 @@ export const ScenarioSchema = z
       .describe('Outro card overrides {component, params, tagline, url, duration}, or your own file {video | image | lottie, …}; `false` disables the outro card.')
       .optional(),
     env: nonEmpty().describe('Environment name (default: project default_env, else the first one).').optional(),
-    vars: z
-      .record(z.string(), z.string())
-      .describe('Free variables usable as {{vars.x}} (and {{x}} when not shadowed).')
-      .optional(),
+    vars: z.record(z.string(), z.string()).describe('Free variables usable as {{vars.x}} (and {{x}} when not shadowed).').optional(),
     setup: z.array(HookStepSchema).describe('Hooks run before capture (rolled back automatically).').optional(),
     teardown: z.array(HookStepSchema).describe('Hooks run after capture, even after a failure.').optional(),
     hooks: NamedHooksSchema.describe("Named hooks a `hook: <name>` step runs during the take (a name here wins over project.yaml's).").optional(),
     capture: CapturePartialSchema.optional(),
-    frame: FrameSpecSchema.describe(
-      'Frame of every scene (default: the project frame): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".',
-    ).optional(),
+    frame: FrameSpecSchema.describe('Frame of every scene (default: the project frame): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".').optional(),
     template: nonEmpty().describe('Theme name (default: the project theme).').optional(),
     pacing: PacingPartialSchema.optional(),
     defaults: RunDefaultsSchema.describe("Step defaults (win over the project's), e.g. {timeout_s: 30} for a product whose actions take long.").optional(),
@@ -233,30 +203,23 @@ export const ScenarioSchema = z
         loop: z.boolean().describe('Loop a track shorter than the video (default true, crossfaded seams); false: play it once.').optional(),
       })
       .optional(),
-    tutorial: TutorialSwitchSchema.describe(
-      'Automatic tutorial overlays fed by the timeline: true, false or {shortcuts, spotlight, steps, loupe, progress}.',
-    ).optional(),
+    tutorial: TutorialSwitchSchema.describe('Automatic tutorial overlays fed by the timeline: true, false or {shortcuts, spotlight, steps, loupe, progress}.').optional(),
     target_length: z
       .strictObject({
         min_s: z.number().gt(0).max(7200).describe('Shortest length the video aims at, seconds.'),
         max_s: z.number().gt(0).max(7200).describe('Longest length the video aims at, seconds.'),
       })
       .refine((v) => v.min_s <= v.max_s, { message: 'min_s is at most max_s' })
-      .describe("The length this video aims at (L5.5): the review's video-length rule uses it instead of the reference 60–120 s.")
+      .describe("The length this video aims at: the review's video-length rule uses it instead of the reference 60–120 s.")
       .optional(),
     caption_component: componentIdSchema('caption component id')
-      .describe(
-        "Caption component of the whole video (default: the theme's), e.g. studio/caption-overlay; a render's overrides.components.caption wins over it.",
-      )
+      .describe("Caption component of the whole video (default: the theme's), e.g. studio/caption-overlay; a render's overrides.components.caption wins over it.")
       .optional(),
     clock: z
       .union([z.literal(false), ClockSpecSchema])
-      .describe('The product\'s clock when the capture starts (wins over the project\'s): an ISO date-time or {at, freeze}; false turns the project\'s clock off.')
+      .describe("The product's clock when the capture starts (wins over the project's): an ISO date-time or {at, freeze}; false turns the project's clock off.")
       .optional(),
-    mocks: z
-      .array(WriteMockSchema)
-      .describe('Answers to writes stopped on read-only runs (tried before the environment\'s read_only.mocks); ignored on read-write runs.')
-      .optional(),
+    mocks: z.array(WriteMockSchema).describe("Answers to writes stopped on read-only runs (tried before the environment's read_only.mocks); ignored on read-write runs.").optional(),
     scenes: z.array(SceneEntrySchema).min(1).describe('Scenes, cards and interstitials, in order.'),
   })
   .meta({ id: 'Scenario', title: 'Retake scenario', description: 'A product video: hooks, scenes and steps.' });

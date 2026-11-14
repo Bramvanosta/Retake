@@ -22,11 +22,12 @@ import { scaffoldDir } from '@retake/components';
 import { TOOLS } from '@retake/mcp';
 import { UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer, TimelineViewAnswer } from '../src/index.js';
-import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { raw } from './http.js';
-import { takeWorkspace, writeTake } from './timeline-take.js';
+import { FRAME_URL_RE, previewUrls } from '../src/app/words/timeline-words.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { hasTool } from '@retake/test-support/repo';
+import { raw } from '@retake/test-support/http';
+import { takeWorkspace, writeTake } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const RUN = '20260101-120000-tl';
@@ -47,7 +48,7 @@ scenes:
 let ws: string;
 let dir: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const MARK = 'MARKED-COMPONENT-5e2b';
 const LEASE_A = 'leaseAAAAAAAAAAAAAAAAA';
@@ -66,11 +67,14 @@ async function viewOf(args: Record<string, unknown>): Promise<Ok> {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-timeline-ops-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   dir = await takeWorkspace(ws);
   const t = synthTimeline({
     duration: 3,
-    entries: [{ id: 'a', t_start: 0.5, t_end: 2.5, caption: { text: 'Every frame has its own number.' }, steps: [{ action: 'hold', t_start: 0.5, t_end: 2.5 }] }, { card: { id: 'c1', slots: { title: 'Chapter two' } } }],
+    entries: [
+      { id: 'a', t_start: 0.5, t_end: 2.5, caption: { text: 'Every frame has its own number.' }, steps: [{ action: 'hold', t_start: 0.5, t_end: 2.5 }] },
+      { card: { id: 'c1', slots: { title: 'Chapter two' } } },
+    ],
     video: { title: { text: 'Timeline' }, intro: false, outro: false, template: 'editorial' },
   });
   await writeTake(dir, 'tl', { run: RUN, text: TEXT, timeline: t, codec: 'h264-x264', seconds: 3 });
@@ -97,8 +101,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -154,7 +157,13 @@ describe.skipIf(!canRun)('timeline_view', () => {
   });
 
   it('pinned arguments; no capture → 404; a take the trust gates refuse → blocked with the command, no URL', async () => {
-    for (const bad of [{ project: 'demo', name: '../tl' }, { project: 'demo', name: 'tl', run: '../x' }, { project: 'demo', name: 'tl', theme: 'editorial' }, { project: '/tmp', name: 'tl' }, { project: 'demo' }]) {
+    for (const bad of [
+      { project: 'demo', name: '../tl' },
+      { project: 'demo', name: 'tl', run: '../x' },
+      { project: 'demo', name: 'tl', theme: 'editorial' },
+      { project: '/tmp', name: 'tl' },
+      { project: 'demo' },
+    ]) {
       expect((await call('timeline_view', bad)).status, JSON.stringify(bad)).toBe(400);
     }
     const none = await call('timeline_view', { project: 'demo', name: 'nocap' });
@@ -169,7 +178,7 @@ describe.skipIf(!canRun)('timeline_view', () => {
     expect(out.body).not.toContain(studio.player.origin);
   });
 
-  it('⚑ review A H1 c: a workspace component is held — not in the frame\'s bundle — until the person allows it (by hash, this session)', async () => {
+  it("⚑ review A H1 c: a workspace component is held — not in the frame's bundle — until the person allows it (by hash, this session)", async () => {
     const frameBundle = async (frameUrl: string) => {
       const doc = await raw(studio.player.port, 'GET', new URL(frameUrl).pathname);
       expect(doc.status).toBe(200);
@@ -188,7 +197,12 @@ describe.skipIf(!canRun)('timeline_view', () => {
     expect(stale.status).toBe(409);
     expect(stale.json<{ error: { message: string } }>().error.message).toBe(`acme/marked changed since the timeline showed it (its folder is now ${hash}): look at it again, then allow it`);
     expect((await call('preview_allow', { id: 'studio/card-title', hash })).status).toBe(404);
-    for (const bad of [{ id: '../x', hash }, { id: 'acme/marked', hash: 'ABC' }, { id: 'acme/marked', hash, project: 'demo' }]) expect((await call('preview_allow', bad)).status, JSON.stringify(bad)).toBe(400);
+    for (const bad of [
+      { id: '../x', hash },
+      { id: 'acme/marked', hash: 'ABC' },
+      { id: 'acme/marked', hash, project: 'demo' },
+    ])
+      expect((await call('preview_allow', bad)).status, JSON.stringify(bad)).toBe(400);
     expect(studio.previewAllow.size).toBe(0);
     // ⚑ No MCP tool and no engine call reaches the allow-list: the op is the Studio's own.
     expect(TOOLS.map((t) => t.name)).not.toContain('preview_allow');
@@ -202,7 +216,7 @@ describe.skipIf(!canRun)('timeline_view', () => {
     expect(await frameBundle(b.frame_url)).toContain(MARK);
   }, 180_000);
 
-  it('⚑ review A L3: the project\'s preview URLs live while a page holds a lease; the last one leaving revokes them, a re-read gets new ones', async () => {
+  it("⚑ review A L3: the project's preview URLs live while a page holds a lease; the last one leaving revokes them, a re-read gets new ones", async () => {
     const plain = async (u: string) => (await raw(studio.player.port, 'GET', new URL(u).pathname, { range: 'bytes=0-15' })).status;
     const a = await viewOf({ project: 'demo', name: 'tl', lease: LEASE_A });
     const media = (await raw(studio.player.port, 'GET', new URL(a.plan_url).pathname)).json<{ source: { url: string } }>().source.url;
@@ -222,7 +236,8 @@ describe.skipIf(!canRun)('timeline_view', () => {
     expect(c.frame_url).not.toBe(a.frame_url);
     expect(await plain(c.frame_url)).toBe(200);
     expect(await plain(c.plan_url)).toBe(200);
-    for (const bad of [{ project: 'demo', lease: 'short' }, { project: 'demo' }, { project: '../x', lease: LEASE_A }]) expect((await call('timeline_leave', bad)).status, JSON.stringify(bad)).toBe(400);
+    for (const bad of [{ project: 'demo', lease: 'short' }, { project: 'demo' }, { project: '../x', lease: LEASE_A }])
+      expect((await call('timeline_leave', bad)).status, JSON.stringify(bad)).toBe(400);
     await call('timeline_leave', { project: 'demo', lease: LEASE_A });
   });
 });

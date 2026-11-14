@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { AGENT_SHELL_MAX_CHARS, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, agentWritablePath } from '@retake/core';
 import { nodeFileFacts } from '@retake/core/io';
+import { perCallMs } from '@retake/test-support/timing';
 
 const ws = realpathSync(mkdtempSync(join(tmpdir(), 'retake-agent-shell-')));
 const projectDir = join(ws, 'projects', 'p');
@@ -69,30 +70,67 @@ describe('agent-written shell commands: the grammar', () => {
 
   it('its length first: a longer text is refused without being read (linear, whatever it holds)', () => {
     const long = `echo ${'['.repeat(AGENT_SHELL_MAX_CHARS)}`;
-    const t0 = Date.now();
     expect(problems(long)).toEqual([`${long.length.toLocaleString('en-US')} characters (at most 4,000)`]);
     // At the limit, a text of special characters is read in one pass too.
     expect(problems('['.repeat(AGENT_SHELL_MAX_CHARS))[0]).toMatch(/^the character `\[`/);
     expect(problems(`a ${'b '.repeat(1_990)}c`)).toEqual([]);
-    expect(Date.now() - t0).toBeLessThan(1_000);
+    // Not read: a text 250 times longer is refused about as fast, whatever the machine's speed (per call, each side
+    // repeated until a round lasts 20 ms; best of 3). Read, it would cost about 250 times as much.
+    const huge = `echo ${'['.repeat(AGENT_SHELL_MAX_CHARS * 250)}`;
+    expect(problems(huge)).toHaveLength(1);
+    const ratio = perCallMs(() => problems(huge)) / perCallMs(() => problems(long));
+    console.log(`length refusal: 250 times longer, ${ratio.toFixed(2)} times the time`);
+    expect(ratio).toBeLessThan(5);
   });
 });
 
 describe('agent-written shell commands: the rules per word', () => {
   const REFUSED: Array<[string, RegExp, string[]]> = [
     ['cd and its kin', /^`(?:cd|pushd|popd)` \(it changes the folder its paths resolve from/, ['cd hooks && sh seed.sh', 'true && cd /tmp', 'pushd hooks', 'popd']],
-    ['text or a file run as a command', /^`(?:eval|exec|command|builtin|trap|source|\.)` \(it (?:runs|replaces)/, ['eval x', 'exec node hooks/x.js', 'command node', 'builtin cd', 'trap id EXIT', 'source hooks/x.sh', '. hooks/x.sh']],
+    [
+      'text or a file run as a command',
+      /^`(?:eval|exec|command|builtin|trap|source|\.)` \(it (?:runs|replaces)/,
+      ['eval x', 'exec node hooks/x.js', 'command node', 'builtin cd', 'trap id EXIT', 'source hooks/x.sh', '. hooks/x.sh'],
+    ],
     ['names rebound', /^`(?:alias|unalias|hash|enable)` \(it (?:renames a command|changes which program a name runs)\)/, ['alias e=eval', 'unalias ls', 'hash -p /tmp/x ls', 'enable -n echo']],
-    ['by its last path part, and after a wrapper', /^`(?:command|eval|cd|trap)` /, ['/usr/bin/command eval x', '/usr/bin/cd x', 'nice -n 1 cd x', 'time -p cd x', 'env A=1 eval x', 'nohup trap id EXIT', 'timeout 5 eval x']],
-    ['after a prefix word of the shell (bash coproc, zsh noglob / nocorrect / -)', /^`(?:\.|source|eval|exec|cd)` /, ['coproc . x', 'coproc source x', 'noglob eval x', 'nocorrect exec x', '- cd x', 'coproc NAME eval x']],
+    [
+      'by its last path part, and after a wrapper',
+      /^`(?:command|eval|cd|trap)` /,
+      ['/usr/bin/command eval x', '/usr/bin/cd x', 'nice -n 1 cd x', 'time -p cd x', 'env A=1 eval x', 'nohup trap id EXIT', 'timeout 5 eval x'],
+    ],
+    [
+      'after a prefix word of the shell (bash coproc, zsh noglob / nocorrect / -)',
+      /^`(?:\.|source|eval|exec|cd)` /,
+      ['coproc . x', 'coproc source x', 'noglob eval x', 'nocorrect exec x', '- cd x', 'coproc NAME eval x'],
+    ],
     ['a shell given a script string', /`(?:sh|bash|zsh|dash) -[a-z]*c[a-z]*` \(it runs code/, ['sh -c id', 'bash -lc id', 'zsh -c x', 'nohup bash -c x', '/bin/sh -ec x']],
     [
       'inline interpreter code',
       /\(it runs code written in the command\)/,
-      ['node -e x', 'node -p 1', 'node --eval x', 'node --import=data:text/javascript,x hooks/app.js', 'node -r ./x.cjs hooks/app.js', 'timeout 5 node -e x', 'bun -e x', 'deno eval x', 'python3 -c x', 'python3.12 -Bc x', 'perl -e x', 'perl -ne x hooks/f', 'ruby -e x', 'php -r x', 'osascript -e x'],
+      [
+        'node -e x',
+        'node -p 1',
+        'node --eval x',
+        'node --import=data:text/javascript,x hooks/app.js',
+        'node -r ./x.cjs hooks/app.js',
+        'timeout 5 node -e x',
+        'bun -e x',
+        'deno eval x',
+        'python3 -c x',
+        'python3.12 -Bc x',
+        'perl -e x',
+        'perl -ne x hooks/f',
+        'ruby -e x',
+        'php -r x',
+        'osascript -e x',
+      ],
     ],
     ['awk without -f', /`g?awk` with a program text/, ['awk 1 hooks/f', 'gawk BEGIN']],
-    ['commands built or run for each input', /^`(?:xargs|parallel|find -exec|find -execdir|find -ok)`/, ['xargs rm', 'parallel x', 'find . -name x -exec rm +', 'find . -execdir ls +', 'find . -ok rm +']],
+    [
+      'commands built or run for each input',
+      /^`(?:xargs|parallel|find -exec|find -execdir|find -ok)`/,
+      ['xargs rm', 'parallel x', 'find . -name x -exec rm +', 'find . -execdir ls +', 'find . -ok rm +'],
+    ],
     ['env -S', /^`env -S`/, ['env -S x', '/usr/bin/env -iS x']],
     [
       'package runners, their subcommand wherever it stands',
@@ -123,7 +161,11 @@ describe('agent-written shell commands: the rules per word', () => {
   ];
   for (const [what, re, commands] of REFUSED) {
     it(what, () => {
-      for (const cmd of commands) expect(problems(cmd).some((p) => re.test(p)), `${cmd} → ${JSON.stringify(problems(cmd))}`).toBe(true);
+      for (const cmd of commands)
+        expect(
+          problems(cmd).some((p) => re.test(p)),
+          `${cmd} → ${JSON.stringify(problems(cmd))}`,
+        ).toBe(true);
     });
   }
 
@@ -203,7 +245,10 @@ describe('agent-written shell commands: the rules per word', () => {
 
   it('a file an agent writes (README.md), bare or not, whatever program reads it; a bare folder name stays a name', () => {
     for (const cmd of ['tclsh README.md', 'expect readme.md', 'julia README.md', 'swift --x=README.md', 'cat ./README.md', 'sh ../other/README.md', 'jshell @README.md']) {
-      expect(problems(cmd).some((p) => /\(a path through README\.md(?: of another project)?, which an agent can write\)/i.test(p)), `${cmd} → ${JSON.stringify(problems(cmd))}`).toBe(true);
+      expect(
+        problems(cmd).some((p) => /\(a path through README\.md(?: of another project)?, which an agent can write\)/i.test(p)),
+        `${cmd} → ${JSON.stringify(problems(cmd))}`,
+      ).toBe(true);
     }
     // From a folder beside the project's own README.md, the bare name is another file.
     expect(problems('tclsh README.md', join(projectDir, 'scripts'))).toEqual([]);
@@ -212,16 +257,16 @@ describe('agent-written shell commands: the rules per word', () => {
 
   it("a person's files: project.yaml never, hooks/ only as the script a command runs", () => {
     const PERSON: Array<[string, string]> = [
-      ['cp /tmp/x hooks/a.sh', '`hooks/a.sh` (a path into hooks/, a person\'s folder, other than the script a command runs)'],
-      ['mv /tmp/x hooks', '`hooks` (a path into hooks/, a person\'s folder, other than the script a command runs)'],
-      ['node hooks/x.mjs hooks/out.json', '`hooks/out.json` (a path into hooks/, a person\'s folder, other than the script a command runs)'],
+      ['cp /tmp/x hooks/a.sh', "`hooks/a.sh` (a path into hooks/, a person's folder, other than the script a command runs)"],
+      ['mv /tmp/x hooks', "`hooks` (a path into hooks/, a person's folder, other than the script a command runs)"],
+      ['node hooks/x.mjs hooks/out.json', "`hooks/out.json` (a path into hooks/, a person's folder, other than the script a command runs)"],
       ['cp /tmp/x project.yaml', "`project.yaml` (project.yaml, a person's file)"],
       ['sed -i.bak s/a/b/ ./project.yaml', "`./project.yaml` (project.yaml, a person's file)"],
       ['cp /tmp/x ../other/project.yaml', "`../other/project.yaml` (project.yaml, a person's file)"],
     ];
     for (const [cmd, problem] of PERSON) expect(problems(cmd), cmd).toContain(problem);
     // From a working folder in hooks/, a bare name is a path into it.
-    expect(problems('cp /tmp/x a.sh', join(projectDir, 'hooks'))).toEqual(['`a.sh` (a path into hooks/, a person\'s folder, other than the script a command runs)']);
+    expect(problems('cp /tmp/x a.sh', join(projectDir, 'hooks'))).toEqual(["`a.sh` (a path into hooks/, a person's folder, other than the script a command runs)"]);
     expect(problems('sh seed.sh', join(projectDir, 'hooks'))).toEqual([]);
   });
 

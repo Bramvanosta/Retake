@@ -1,5 +1,5 @@
 /**
- * Sessions & personas at run time (L1.6), in a real Chromium against a small cookie sign-in app (auth-server.ts): the
+ * Sessions & personas at run time (L1.6), in a real Chromium against a small cookie sign-in app (test-support auth.ts): the
  * preflight before anything runs (R-AUTH-03), the guard that fails a run landing on a sign-in page and keeps nothing of
  * it (R-AUTH-04), the automated login with injected secrets (R-AUTH-05), per-run copies of a persona's session —
  * concurrent runs, a held master (R-AUTH-07) — and one browser per persona (R-AUTH-01). Every test has its own Retake
@@ -27,9 +27,11 @@ import {
   sweepStaleSessionCopies,
 } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
-import { ACCOUNTS, signInMaster, startAuthServer } from './auth-server.js';
-import type { AuthServer } from './auth-server.js';
-import { FAST, makeProject, makeScenario, tempDir } from './helpers.js';
+import { ACCOUNTS, startAuthServer } from '@retake/test-support/auth';
+import { signInMaster } from './auth-server.js';
+import type { AuthServer } from '@retake/test-support/auth';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, tempDir, testHookRunner } from './helpers.js';
 
 let srv: AuthServer;
 let home = '';
@@ -75,13 +77,15 @@ async function master(persona: 'supplier' | 'buyer', opts: { profile?: boolean }
 
 async function run(p: LoadedProject, name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<{ rec: RunRecord; events: RunProgress[]; dir: string }> {
   const events: RunProgress[] = [];
-  const rec = await runScenario({ policy: PERSON_POLICY,
+  const rec = await runScenario({
+    policy: PERSON_POLICY,
     project: p,
     scenario: makeScenario(name, { pacing: FAST, ...scenario }),
     mode: 'dry',
     env: ENV,
     runId: `${name}-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
     onProgress: (e) => events.push(e),
+    hookRunner: testHookRunner(),
     ...opts,
   });
   return { rec, events, dir: rec.dir };
@@ -194,7 +198,9 @@ describe('preflight (R-AUTH-03) and per-run copies (R-AUTH-07)', () => {
       const p = await project();
       const { rec } = await run(p, 'held', { scenes: [{ id: 'a', page: 'store', open: '/home', steps: [{ wait: 0.1 }] }] });
       expect(rec.status).toBe('failed');
-      expect(rec.error?.message).toMatch(/^session preflight failed — nothing was recorded:\n {2}persona buyer \(env test\): its profile is open in another browser \(pid \d+\) — the `retake login` window\? Close it, then run again\n {4}profile: /);
+      expect(rec.error?.message).toMatch(
+        /^session preflight failed — nothing was recorded:\n {2}persona buyer \(env test\): its profile is open in another browser \(pid \d+\) — the `retake login` window\? Close it, then run again\n {4}profile: /,
+      );
       expect(await copiesOf(rec.id)).toEqual([]);
     } finally {
       await held.close();
@@ -329,7 +335,14 @@ describe('automated login (R-AUTH-05)', () => {
     // As loadProject builds it from a sandbox.yaml: the password substituted into the login steps, listed as a secret.
     const p = await project({ test: authConfig({ supplier: login(ACCOUNTS.supplier.password) }) } as unknown as AuthConfig);
     p.sandboxes = {
-      test: { env: 'test', file: join(p.dir, 'sandbox.yaml'), dir: p.dir, manifest: { version: 1, provider: 'process', services: {} }, issues: [], secrets: { supplier: [ACCOUNTS.supplier.password] } },
+      test: {
+        env: 'test',
+        file: join(p.dir, 'sandbox.yaml'),
+        dir: p.dir,
+        manifest: { version: 1, provider: 'process', services: {} },
+        issues: [],
+        secrets: { supplier: [ACCOUNTS.supplier.password] },
+      },
     };
     const { rec, events, dir } = await run(p, 'sandbox-account', {
       // A step whose description holds the password's text: the run masks it.
@@ -363,7 +376,14 @@ describe('automated login (R-AUTH-05)', () => {
         if (signedIn) await master('supplier');
         const p = await project({ test: authConfig({ supplier: login(ACCOUNTS.supplier.password) }) } as unknown as AuthConfig);
         p.sandboxes = {
-          test: { env: 'test', file: join(p.dir, 'sandbox.yaml'), dir: p.dir, manifest: { version: 1, provider: 'process', services: {} }, issues: [], secrets: { supplier: [ACCOUNTS.supplier.password] } },
+          test: {
+            env: 'test',
+            file: join(p.dir, 'sandbox.yaml'),
+            dir: p.dir,
+            manifest: { version: 1, provider: 'process', services: {} },
+            issues: [],
+            secrets: { supplier: [ACCOUNTS.supplier.password] },
+          },
         };
         const gate = { requested: false };
         const events: RunProgress[] = [];
@@ -392,7 +412,10 @@ describe('automated login (R-AUTH-05)', () => {
         );
         expect(rec.error?.message).toBeUndefined();
         expect(rec.status).toBe('succeeded');
-        expect(logs(events).some((l) => l.includes('signed in automatically')), JSON.stringify(logs(events))).toBe(!signedIn);
+        expect(
+          logs(events).some((l) => l.includes('signed in automatically')),
+          JSON.stringify(logs(events)),
+        ).toBe(!signedIn);
         // The L4.4 events are there — and masked.
         const outline = events.find((e) => e.type === 'outline');
         expect(outline).toBeDefined();
@@ -439,7 +462,9 @@ describe('read-only environments and the product clock with personas (L1.7)', ()
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     expect(logs(events).some((l) => l.includes('signed in automatically'))).toBe(true);
-    const tl = JSON.parse(await readFile(join(rec.dir, 'timeline.json'), 'utf8')) as { environment: { access: string; writes: Array<{ t?: number; method: string; url: string; outcome: string; via: string }> } };
+    const tl = JSON.parse(await readFile(join(rec.dir, 'timeline.json'), 'utf8')) as {
+      environment: { access: string; writes: Array<{ t?: number; method: string; url: string; outcome: string; via: string }> };
+    };
     expect(tl.environment.access).toBe('read-only');
     // The sign-in POST passed; the landing page's writes (a fetch and a beacon) were stopped and recorded from the tab.
     const writes = tl.environment.writes.map((w) => [w.method, new URL(w.url).pathname, w.outcome, w.via, w.t === undefined ? 'before t0' : 'captured']);
@@ -485,7 +510,7 @@ describe('read-only environments and the product clock with personas (L1.7)', ()
 });
 
 describe('two personas on one host: one browser each (R-AUTH-01)', () => {
-  it('a multi-page scene films the supplier and the buyer side by side, each signed in as itself; a js hook runs as its page\'s persona', async () => {
+  it("a multi-page scene films the supplier and the buyer side by side, each signed in as itself; a js hook runs as its page's persona", async () => {
     await master('supplier');
     await master('buyer');
     const p = await project();
@@ -493,7 +518,9 @@ describe('two personas on one host: one browser each (R-AUTH-01)', () => {
       p,
       'two',
       {
-        setup: [{ name: 'whoami', js: { page: 'store', code: "const r = await fetch('/api/whoami'); const t = await r.text(); if (t !== 'Ben Buyer') throw new Error('hook tab is ' + t); return t" } }],
+        setup: [
+          { name: 'whoami', js: { page: 'store', code: "const r = await fetch('/api/whoami'); const t = await r.text(); if (t !== 'Ben Buyer') throw new Error('hook tab is ' + t); return t" } },
+        ],
         scenes: [
           {
             id: 'both',
@@ -544,8 +571,24 @@ describe('pages and hook tabs without a persona (R-AUTH-01)', () => {
       await project(),
       'hook-none',
       {
-        setup: [{ name: 'whoami', js: { page: 'store', code: "localStorage.setItem('probe', 'hook'); const t = await (await fetch('/api/whoami')).text(); if (t !== 'signed out') throw new Error('hook tab is ' + t); return t" } }],
-        scenes: [{ id: 'guest', page: 'store', persona: 'none', open: '/public', steps: [{ eval: { js: "if (localStorage.getItem('probe') !== 'hook') throw new Error('not the hook browser'); return 1" } }] }],
+        setup: [
+          {
+            name: 'whoami',
+            js: {
+              page: 'store',
+              code: "localStorage.setItem('probe', 'hook'); const t = await (await fetch('/api/whoami')).text(); if (t !== 'signed out') throw new Error('hook tab is ' + t); return t",
+            },
+          },
+        ],
+        scenes: [
+          {
+            id: 'guest',
+            page: 'store',
+            persona: 'none',
+            open: '/public',
+            steps: [{ eval: { js: "if (localStorage.getItem('probe') !== 'hook') throw new Error('not the hook browser'); return 1" } }],
+          },
+        ],
       },
       { hooks: 'run' },
     );
@@ -558,7 +601,13 @@ describe('pages and hook tabs without a persona (R-AUTH-01)', () => {
     const p = await project({ login_url: '/sign-in', personas: { supplier: { pages: ['app'], check: { url: 'app:/home', expect_text: ACCOUNTS.supplier.name } } } });
     const { rec } = await run(p, 'none-tabs', {
       scenes: [
-        { id: 'a', page: 'store', persona: 'none', open: '/public', steps: [{ new_tab: { href: '/sign-in', as: 'help' } }, { assert: { text: 'Sign in' } }, { new_tab: { href: '/sign-in?next=/x' } }] },
+        {
+          id: 'a',
+          page: 'store',
+          persona: 'none',
+          open: '/public',
+          steps: [{ new_tab: { href: '/sign-in', as: 'help' } }, { assert: { text: 'Sign in' } }, { new_tab: { href: '/sign-in?next=/x' } }],
+        },
         { id: 'b', page: 'store', steps: [{ new_tab: { href: '/public', as: 'later' } }] },
         { id: 'c', page: 'later', persona: 'none', open: '/sign-in', steps: [{ assert: { text: 'Sign in' } }] },
       ],
@@ -599,7 +648,13 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
     expect(rec.capture).toBeUndefined();
     expect(rec.timeline).toBeUndefined();
     // `retake auth status` says so: the session expired during this run.
-    expect(await readStatus(files('supplier').statusFile)).toMatchObject({ status: 'expired', by: 'run', run: rec.id, at: `${srv.url}/sign-in`, detail: `page app landed on the sign-in page during run ${rec.id}` });
+    expect(await readStatus(files('supplier').statusFile)).toMatchObject({
+      status: 'expired',
+      by: 'run',
+      run: rec.id,
+      at: `${srv.url}/sign-in`,
+      detail: `page app landed on the sign-in page during run ${rec.id}`,
+    });
   });
 
   it('a document a download opens on the sign-in page fails the run: never saved, no artefact kept', async () => {
@@ -662,12 +717,7 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
   });
 
   it('a same-document route to the sign-in page (pushState) is caught too', async () => {
-    const { rec, dir } = await run(
-      await project(),
-      'land-spa',
-      { scenes: [{ id: 'a', page: 'app', open: '/spa', steps: [{ click: 'Leave' }, { hold: 1 }] }] },
-      { mode: 'capture' },
-    );
+    const { rec, dir } = await run(await project(), 'land-spa', { scenes: [{ id: 'a', page: 'app', open: '/spa', steps: [{ click: 'Leave' }, { hold: 1 }] }] }, { mode: 'capture' });
     expect(rec.status).toBe('failed');
     expect(rec.error?.message).toContain(landing(`${srv.url}/sign-in`));
     expect(await pictures(dir)).toEqual([]);
@@ -699,11 +749,21 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
 
   it('a page without a persona is guarded by auth.login_url unless written `persona: none`', async () => {
     const p = await project({ login_url: '/sign-in', personas: { supplier: { pages: ['app'], check: { url: 'app:/home', expect_text: ACCOUNTS.supplier.name } } } });
-    const guarded = await run(p, 'land-default', { scenes: [{ id: 'a', page: 'store', open: '/home', steps: [{ wait: 0.1 }] }, { id: 'b', page: 'app', open: '/home', steps: [{ wait: 0.1 }] }] });
+    const guarded = await run(p, 'land-default', {
+      scenes: [
+        { id: 'a', page: 'store', open: '/home', steps: [{ wait: 0.1 }] },
+        { id: 'b', page: 'app', open: '/home', steps: [{ wait: 0.1 }] },
+      ],
+    });
     expect(guarded.rec.error?.message).toBe(
       `page "store" landed on the sign-in page (${srv.url}/sign-in) — this page has no persona: bind it to one (auth.personas.<name>.pages, or \`persona:\` on the scene); nothing of the capture was kept`,
     );
-    const open = await run(p, 'land-none', { scenes: [{ id: 'a', page: 'store', persona: 'none', open: '/home', steps: [{ assert: { text: 'Sign in' } }] }, { id: 'b', page: 'app', open: '/home', steps: [{ wait: 0.1 }] }] });
+    const open = await run(p, 'land-none', {
+      scenes: [
+        { id: 'a', page: 'store', persona: 'none', open: '/home', steps: [{ assert: { text: 'Sign in' } }] },
+        { id: 'b', page: 'app', open: '/home', steps: [{ wait: 0.1 }] },
+      ],
+    });
     expect(open.rec.error?.message).toBeUndefined();
     expect(open.rec.status).toBe('succeeded');
   });
@@ -711,7 +771,9 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
   it('a step failing on a persona page whose session is gone says so', async () => {
     // No sign-in pattern catches this app's sign-in page: the step fails on a missing target, then the session is checked.
     const q = await project({ personas: { supplier: { pages: ['app'], check: { url: 'app:/home', expect_text: ACCOUNTS.supplier.name, timeout: 2 } } } });
-    const { rec } = await run(q, 'diagnose', { scenes: [{ id: 'a', page: 'app', open: '/home', steps: [{ click: 'Expire' }, { wait_for: 'expired' }, { click: 'Quotes' }, { click: 'Quotes', timeout: 1 }] }] });
+    const { rec } = await run(q, 'diagnose', {
+      scenes: [{ id: 'a', page: 'app', open: '/home', steps: [{ click: 'Expire' }, { wait_for: 'expired' }, { click: 'Quotes' }, { click: 'Quotes', timeout: 1 }] }],
+    });
     expect(rec.status).toBe('failed');
     expect(rec.error?.message).toMatch(
       /^scene a, step 3 \(click text="Quotes"\): no visible element matches .* — the session of persona supplier is no longer valid \(app:\/home does not show "Ada Supplier" within 2 s \(at http:\/\/127\.0\.0\.1:\d+\/sign-in\)\): sign in again: retake login northfield --env test --persona supplier$/,
@@ -719,7 +781,7 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
     expect(await readStatus(files('supplier').statusFile)).toMatchObject({ status: 'expired', by: 'run', run: rec.id, at: `${srv.url}/sign-in` });
   });
 
-  it('a js hook tab that lands on its persona\'s sign-in page is refused with the command', async () => {
+  it("a js hook tab that lands on its persona's sign-in page is refused with the command", async () => {
     const { rec } = await run(
       await project(),
       'land-hook',
@@ -733,7 +795,9 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
       { hooks: 'run' },
     );
     expect(rec.status).toBe('failed');
-    expect(rec.error?.message).toContain(`js hook page "app" (persona supplier) landed on the sign-in page (${srv.url}/sign-in): its session expired — sign in again: retake login northfield --env test --persona supplier`);
+    expect(rec.error?.message).toContain(
+      `js hook page "app" (persona supplier) landed on the sign-in page (${srv.url}/sign-in): its session expired — sign in again: retake login northfield --env test --persona supplier`,
+    );
   });
 
   it('a later js hook reusing a tab left on the sign-in page is refused too', async () => {
@@ -756,7 +820,26 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
 
 describe('session copies (R-AUTH-07, units)', () => {
   it('leave out locks, caches, crash reports and saved passwords; keep cookies, storage and service-worker caches', () => {
-    for (const n of ['SingletonLock', 'SingletonSocket', 'SingletonCookie', 'Cache', 'Code Cache', 'GPUCache', 'DawnWebGPUCache', 'DawnGraphiteCache', 'GraphiteDawnCache', 'ShaderCache', 'Crashpad', 'BrowserMetrics-spare.pma', 'Login Data', 'Login Data-journal', 'Login Data For Account', 'Web Data', 'Web Data-journal', 'component_crx_cache']) {
+    for (const n of [
+      'SingletonLock',
+      'SingletonSocket',
+      'SingletonCookie',
+      'Cache',
+      'Code Cache',
+      'GPUCache',
+      'DawnWebGPUCache',
+      'DawnGraphiteCache',
+      'GraphiteDawnCache',
+      'ShaderCache',
+      'Crashpad',
+      'BrowserMetrics-spare.pma',
+      'Login Data',
+      'Login Data-journal',
+      'Login Data For Account',
+      'Web Data',
+      'Web Data-journal',
+      'component_crx_cache',
+    ]) {
       expect(skippedInCopy(n), n).toBe(true);
     }
     for (const n of ['Cookies', 'Cookies-journal', 'Local Storage', 'IndexedDB', 'Session Storage', 'Service Worker', 'CacheStorage', 'ScriptCache', 'Preferences', 'Local State', 'Default']) {
@@ -771,7 +854,8 @@ describe('session copies (R-AUTH-07, units)', () => {
     await mkdir(copy);
     await mkdir(other);
     await expect(
-      openSession({ policy: PERSON_POLICY,
+      openSession({
+        policy: PERSON_POLICY,
         width: 400,
         height: 300,
         scale: 1,
@@ -806,12 +890,7 @@ describe('session copies (R-AUTH-07, units)', () => {
     await make('other-gggg', 'old');
     const removed = await sweepStaleSessionCopies({ dir });
     // A throwaway profile (no persona profile: a storage_state persona's cookies end up there) is swept too.
-    expect(removed.map((d) => d.slice(dir.length + 1)).sort()).toEqual([
-      'retake-login-cccc',
-      'retake-profile-ffff',
-      'retake-session-check-1-buyer-bbbb',
-      'retake-session-r1-supplier-aaaa',
-    ]);
+    expect(removed.map((d) => d.slice(dir.length + 1)).sort()).toEqual(['retake-login-cccc', 'retake-profile-ffff', 'retake-session-check-1-buyer-bbbb', 'retake-session-r1-supplier-aaaa']);
     expect((await readdir(dir)).sort()).toEqual(['other-gggg', 'retake-session-r2-supplier-dddd', 'retake-session-r3-buyer-eeee']);
     // A copy of this process is never swept; removeSessionCopiesSync (a second Ctrl-C) removes it at once.
     const mine = join(dir, 'retake-session-r4-buyer-hhhh');

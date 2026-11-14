@@ -35,7 +35,7 @@ function env() {
 }
 
 describe('runHooks: step (L5.8)', () => {
-  it('journals rollbacks like setup, stops at the first failure and rolls nothing back itself; the run\'s rollback undoes it', async () => {
+  it("journals rollbacks like setup, stops at the first failure and rolls nothing back itself; the run's rollback undoes it", async () => {
     expect(journalsRollback('step')).toBe(true);
     expect(journalsRollback('teardown')).toBe(false);
     const { ctx } = env();

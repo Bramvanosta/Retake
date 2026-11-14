@@ -22,6 +22,10 @@ import {
 } from '@retake/core';
 import type { LoadedProject, Scene, Timeline, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
+import { memoryFileFacts } from '@retake/core';
+
+/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+const NO_DISK = memoryFileFacts({});
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}${i.line ? `@${i.line}` : ''}: ${i.message}`);
 const warns = (issues: ValidationIssue[]) => warnings(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -47,7 +51,7 @@ describe('multi-page scenes: syntax (R-MPC-04)', () => {
       '    - on: supplier',
       '      wait_for: {text: Demo Café}',
     ]);
-    const r = parseScenario(text, { project: project() });
+    const r = parseScenario(text, { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([]);
     expect(warns(r.issues)).toEqual([]);
     const scene = r.scenario!.scenes[0] as Scene;
@@ -55,7 +59,13 @@ describe('multi-page scenes: syntax (R-MPC-04)', () => {
     const pages = resolveScenePages(scene, { capture: { width: 1920, height: 1080 }, envPages: ['shop', 'console'] });
     expect(pages).toEqual([
       { id: 'buyer', page: 'shop', open: { url: '/products/selowa-ridge', absolute: false }, viewport: { width: 1920, height: 1080, mobile: false, touch: false, preset: 'desktop' }, label: 'Buyer' },
-      { id: 'supplier', page: 'console', open: { url: '/quotes', absolute: false }, viewport: { width: 1440, height: 900, mobile: false, touch: false, preset: 'laptop' }, cursor: { x: 1200, y: 400 } },
+      {
+        id: 'supplier',
+        page: 'console',
+        open: { url: '/quotes', absolute: false },
+        viewport: { width: 1440, height: 900, mobile: false, touch: false, preset: 'laptop' },
+        cursor: { x: 1200, y: 400 },
+      },
     ]);
     expect(stepPageOf({}, pages)).toBe('buyer');
     expect(stepPageOf({ on: 'supplier' }, pages)).toBe('supplier');
@@ -73,7 +83,7 @@ describe('multi-page scenes: syntax (R-MPC-04)', () => {
       '    - on: shop-mobile',
       '      click: Request a quote',
     ]);
-    const r = parseScenario(text, { project: project() });
+    const r = parseScenario(text, { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([]);
     const scene = r.scenario!.scenes[0] as Scene;
     expect(scenePageEntries(scene.pages).map((e) => e.id)).toEqual(['shop', 'shop-mobile']);
@@ -81,11 +91,14 @@ describe('multi-page scenes: syntax (R-MPC-04)', () => {
     expect(mobile.viewport).toEqual({ width: 390, height: 844, mobile: true, touch: true, preset: 'mobile' });
     // Plain strings: environment pages (or pages of an earlier scene) continuing as they are.
     expect(scenePageEntries(['shop', 'console']).map((e) => e.id)).toEqual(['shop', 'console']);
-    const cont = resolveScenePages({ id: 'next', pages: ['shop', 'buyer'] }, {
-      capture: { width: 1920, height: 1080 },
-      envPages: ['shop', 'console'],
-      known: (id) => (id === 'buyer' ? { page: 'shop', viewport: { width: 1440, height: 900, mobile: false, touch: false, preset: 'laptop' }, label: 'Buyer' } : undefined),
-    });
+    const cont = resolveScenePages(
+      { id: 'next', pages: ['shop', 'buyer'] },
+      {
+        capture: { width: 1920, height: 1080 },
+        envPages: ['shop', 'console'],
+        known: (id) => (id === 'buyer' ? { page: 'shop', viewport: { width: 1440, height: 900, mobile: false, touch: false, preset: 'laptop' }, label: 'Buyer' } : undefined),
+      },
+    );
     expect(cont).toEqual([
       { id: 'shop', page: 'shop', viewport: { width: 1920, height: 1080, mobile: false, touch: false, preset: 'desktop' } },
       { id: 'buyer', page: 'shop', viewport: { width: 1440, height: 900, mobile: false, touch: false, preset: 'laptop' }, label: 'Buyer' },
@@ -99,7 +112,9 @@ describe('multi-page scenes: syntax (R-MPC-04)', () => {
     expect(() => resolveViewport('watch' as never, { width: 1, height: 1 })).toThrow(/unknown viewport preset "watch"/);
     expect(splitPageOpen('shop:/x', ['shop'])).toEqual({ page: 'shop', path: '/x' });
     expect(splitPageOpen('https://example.com', ['shop'])).toBeNull();
-    expect(() => resolveScenePages({ id: 's', pages: { a: { open: '/x' }, b: {} } }, { capture: { width: 1, height: 1 }, envPages: ['shop'] })).toThrow(/relative but the page names no environment page/);
+    expect(() => resolveScenePages({ id: 's', pages: { a: { open: '/x' }, b: {} } }, { capture: { width: 1, height: 1 }, envPages: ['shop'] })).toThrow(
+      /relative but the page names no environment page/,
+    );
     expect(DEFAULT_PACING.page_switch_ms).toBe(500);
   });
 });
@@ -132,9 +147,13 @@ describe('multi-page scenes: validation (positioned)', () => {
       '    - {page: shop, open: /coffees}',
       '  steps: [{click: Coffees}]',
     ]);
-    const r = parseScenario(text, { project: project() });
+    const r = parseScenario(text, { files: NO_DISK, project: project() });
     const e = errs(r.issues);
-    const has = (path: string, re: RegExp) => expect(e.some((m) => m.startsWith(path) && re.test(m)), `${path} ${re} in\n${e.join('\n')}`).toBe(true);
+    const has = (path: string, re: RegExp) =>
+      expect(
+        e.some((m) => m.startsWith(path) && re.test(m)),
+        `${path} ${re} in\n${e.join('\n')}`,
+      ).toBe(true);
     has('scenes.0.steps.0.on', /only applies|multi-page scene \(a scene with `pages`\)/);
     has('scenes.1.pages.supplier.viewport', /desktop|laptop|tablet|mobile/);
     // Structural errors keep their position (line of the key).
@@ -166,9 +185,13 @@ describe('multi-page scenes: validation (positioned)', () => {
       '  page: supplier',
       '  steps: [{click: Coffees}]',
     ]);
-    const r = parseScenario(text, { project: project() });
+    const r = parseScenario(text, { files: NO_DISK, project: project() });
     const e = errs(r.issues);
-    const has = (path: string, re: RegExp) => expect(e.some((m) => m.startsWith(path) && re.test(m)), `${path} ${re} in\n${e.join('\n')}`).toBe(true);
+    const has = (path: string, re: RegExp) =>
+      expect(
+        e.some((m) => m.startsWith(path) && re.test(m)),
+        `${path} ${re} in\n${e.join('\n')}`,
+      ).toBe(true);
     has('scenes.0.page', /declares its pages in `pages`/);
     has('scenes.0.pages', /at most 2 pages/);
     has('scenes.0.pages.buyer.open', /"shpo:" .* not a page of environment "local".*did you mean "shop"/);
@@ -188,31 +211,21 @@ describe('multi-page scenes: validation (positioned)', () => {
   });
 
   it('reports, with their position, the viewports the runner would refuse mid-capture', () => {
-    const both = [
-      '- id: both',
-      '  pages:',
-      '    buyer: {open: "shop:/", viewport: laptop}',
-      '    supplier: {open: "console:/quotes", viewport: laptop}',
-      '  steps: [{click: Coffees}]',
-    ];
+    const both = ['- id: both', '  pages:', '    buyer: {open: "shop:/", viewport: laptop}', '    supplier: {open: "console:/quotes", viewport: laptop}', '  steps: [{click: Coffees}]'];
     // A single-page scene without `page` continues on the first page of the multi-page scene before it (1440×900).
-    let r = parseScenario(scenario([...both, '- id: after', '  steps: [{click: Coffees}]']), { project: project() });
+    let r = parseScenario(scenario([...both, '- id: after', '  steps: [{click: Coffees}]']), { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([
-      expect.stringMatching(/^scenes\.1@\d+: this scene has no `page`: it continues on page "buyer", filmed at 1440×900 since scenes\[0\]\.pages\.buyer\.viewport: a single-page scene films the capture size \(1920×1080\)/),
+      expect.stringMatching(
+        /^scenes\.1@\d+: this scene has no `page`: it continues on page "buyer", filmed at 1440×900 since scenes\[0\]\.pages\.buyer\.viewport: a single-page scene films the capture size \(1920×1080\)/,
+      ),
     ]);
     // Naming an environment page is fine; naming the mobile page of a multi-page scene is not.
-    r = parseScenario(scenario([...both, '- id: after', '  page: shop', '  steps: [{click: Coffees}]']), { project: project() });
+    r = parseScenario(scenario([...both, '- id: after', '  page: shop', '  steps: [{click: Coffees}]']), { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([]);
-    const phone = [
-      '- id: both',
-      '  pages:',
-      '    - {page: shop, open: /}',
-      '    - {id: phone, page: shop, open: /, viewport: mobile}',
-      '  steps: [{click: Coffees}]',
-    ];
-    r = parseScenario(scenario([...phone, '- id: after', '  page: phone', '  steps: [{click: Coffees}]']), { project: project() });
+    const phone = ['- id: both', '  pages:', '    - {page: shop, open: /}', '    - {id: phone, page: shop, open: /, viewport: mobile}', '  steps: [{click: Coffees}]'];
+    r = parseScenario(scenario([...phone, '- id: after', '  page: phone', '  steps: [{click: Coffees}]']), { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([expect.stringMatching(/^scenes\.1\.page@9: this scene films page "phone", filmed at 390×844 \(mobile\) since scenes\[0\]\.pages\[1\]\.viewport/)]);
-    r = parseScenario(scenario([...phone, '- id: after', '  page: shop', '  steps: [{switch_page: phone}]']), { project: project() });
+    r = parseScenario(scenario([...phone, '- id: after', '  page: shop', '  steps: [{switch_page: phone}]']), { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([expect.stringMatching(/^scenes\.1\.steps\.0\.switch_page@\d+: `switch_page` goes to page "phone"/)]);
     // The same page id asked at another viewport later.
     r = parseScenario(
@@ -231,26 +244,21 @@ describe('multi-page scenes: validation (positioned)', () => {
         '  pages: [a, b]',
         '  steps: [{click: Coffees}]',
       ]),
-      { project: project() },
+      { files: NO_DISK, project: project() },
     );
     expect(errs(r.issues)).toEqual([
-      expect.stringMatching(/^scenes\.1\.pages\.a\.viewport@10: page "a" is filmed at 390×844 \(mobile\) since scenes\[0\]\.pages\.a\.viewport and is asked at 820×1180 \(mobile\) here: a page keeps one viewport/),
+      expect.stringMatching(
+        /^scenes\.1\.pages\.a\.viewport@10: page "a" is filmed at 390×844 \(mobile\) since scenes\[0\]\.pages\.a\.viewport and is asked at 820×1180 \(mobile\) here: a page keeps one viewport/,
+      ),
     ]);
     // A skipped scene films nothing: it declares no viewport and continues nothing.
-    r = parseScenario(scenario([...both.map((l, i) => (i === 0 ? `${l}\n    skip: true` : l)), '- id: after', '  open: /', '  steps: [{click: Coffees}]']), { project: project() });
+    r = parseScenario(scenario([...both.map((l, i) => (i === 0 ? `${l}\n    skip: true` : l)), '- id: after', '  open: /', '  steps: [{click: Coffees}]']), { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([]);
   });
 
   it('warns about a page filmed for the first time without `open`, and a scene-level cursor', () => {
-    const text = scenario([
-      '- id: two',
-      '  cursor: keep',
-      '  pages:',
-      '    shop: {open: /}',
-      '    console: {}',
-      '  steps: [{on: console, click: Quote requests}]',
-    ]);
-    const w = warns(parseScenario(text, { project: project() }).issues);
+    const text = scenario(['- id: two', '  cursor: keep', '  pages:', '    shop: {open: /}', '    console: {}', '  steps: [{on: console, click: Quote requests}]']);
+    const w = warns(parseScenario(text, { files: NO_DISK, project: project() }).issues);
     expect(w).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/^scenes\.0\.cursor: .*pages\.<id>\.cursor/),

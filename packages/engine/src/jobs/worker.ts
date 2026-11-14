@@ -1,6 +1,6 @@
 /**
  * The jobs worker of a workspace (L3.1, L5.14): one process per workspace (the worker lock) with two slots — captures
- * first. The capture slot runs one capture-class job at a time (core JOB_CLASS: takes, what prepares them, sign-ins,
+ * first. The capture slot runs one capture-class job at a time (job-input.ts JOB_CLASS: takes, what prepares them, sign-ins,
  * recordings, inspections) in this process; the heavy slot runs one heavy job at a time (renders, reviews, exports,
  * previews, site extractions) in a job process of its own (job-child.ts). Each slot claims the oldest queued job of its
  * class, captures whatever their age (pick.ts); a heavy job starts only while no filming take of this workspace is
@@ -28,13 +28,15 @@
  */
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { EngineError } from '../errors.js';
+import { processTableSync } from '@retake/core/io';
+import { stampOf } from '../clock.js';
+import { enginePorts } from '../ports.js';
 import { openWorkspace } from '../workspace.js';
-import { buildDirs, buildStamp } from './build.js';
+import type { WorkspaceReads } from '../workspace-reads/reads.js';
+import { buildDirs } from './build.js';
 import { heldFile } from './captures.js';
 import { WorkerLock } from './lock.js';
 import { selfIdentity } from './proc.js';
-import { FileJobQueue } from './queue.js';
 import { shellQuote } from './run-job-record.js';
 import type { Workspace } from './run-job-record.js';
 import { drain, handOver, serve } from './worker-loop.js';
@@ -43,15 +45,16 @@ import type { WorkerOptions } from './worker-record.js';
 import { recoverLeftovers } from './worker-recovery.js';
 import { handleSignals } from './worker-signals.js';
 import { captureJobRunner } from './worker-slots.js';
+import { workerPorts } from './worker-ports.js';
 
 export type { WorkerOptions } from './worker-record.js';
 
 /** The workspace a worker serves, opened under the agent policy; undefined (said) when it cannot be. */
-async function openForWorker(root: string, log: (message: string) => void): Promise<Workspace | undefined> {
+async function openForWorker(root: string, reads: WorkspaceReads, log: (message: string) => void): Promise<Workspace | undefined> {
   let ws: Workspace;
   try {
     // The worker runs every job under trust mcp, whoever submitted it (the Studio, the desktop app, an MCP client).
-    ws = await openWorkspace({ root, agent: true });
+    ws = await openWorkspace({ root, agent: true, reads });
   } catch (e) {
     log(`no workspace at ${root}: ${(e as Error).message}`);
     return undefined;
@@ -61,26 +64,57 @@ async function openForWorker(root: string, log: (message: string) => void): Prom
 
 /** Run a worker until it is idle, stopped or replaced; resolves with the process exit code. */
 export async function runWorker(o: WorkerOptions): Promise<number> {
-  const log = o.log ?? ((m: string) => void process.stderr.write(`${new Date().toISOString()} worker ${process.pid}: ${m}\n`));
+  // The worker process's composition root: the ports its jobs run with (a test's, else the product's).
+  const engine = enginePorts(o.ports);
+  const heavyInProcess = o.heavyInProcess ?? false;
+  const dirs = buildDirs();
+  // Checked before anything is opened: a test's ports with heavy jobs on the product's is refused (worker-ports.ts).
+  const ports = workerPorts(engine, o.ports, dirs, heavyInProcess);
+  const { clock, stores, reads, hooks, reviewer, capture, sandboxes } = ports;
+  const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} worker ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
-  const ws = await openForWorker(root, log);
+  const ws = await openForWorker(root, reads, log);
   if (!ws) return 1;
   const cli = `retake -C ${shellQuote(root)}`;
-  // The worker process's composition root: the one queue this worker reads and writes.
-  const queue = new FileJobQueue(root, cli);
-  const dirs = buildDirs();
-  const build = buildStamp(dirs);
-  const lock = await WorkerLock.acquire(root, build, log, o.startedBy);
+  // The worker process's composition root: the one queue this worker reads and writes (its ports' factory).
+  const { queue, files } = ports.queues(root, cli, clock, ports.env);
+  const build = ports.processes.buildStamp();
+  const lock = await WorkerLock.acquire(root, build, clock, log, o.startedBy);
   if (!lock) {
     log('another worker serves this workspace: exiting');
     return 0;
   }
   const self = await selfIdentity();
-  const rw = await import('@retake/runner-web');
-  const sb = await import('@retake/sandbox');
+  // Loaded now, before the signals are listened to: a signal's cancel and its removal of session copies are synchronous.
+  await capture.load();
   log(`serving ${root} (build ${build})`);
 
-  const w = newWorker({ o, log, root, ws, cli, queue, files: queue.files, dirs, build, lock, self, rw, sb });
+  const w = newWorker({
+    o,
+    log,
+    root,
+    ports,
+    clock,
+    stores,
+    reads,
+    hooks,
+    reviewer,
+    ws,
+    cli,
+    queue,
+    files,
+    dirs,
+    build,
+    lock,
+    self,
+    captureRunner: capture,
+    sandboxes,
+    os: { processTableSync },
+    recordWindow: ports.recordWindow,
+    freeBytes: ports.freeBytes,
+    processes: ports.processes,
+    heavyInProcess,
+  });
   const stopListening = handleSignals(w);
   w.runJob = captureJobRunner(w);
   let handover = false;

@@ -2,7 +2,7 @@
  * A step of `planEdit`: the camera of each run — the zoom moves of the steps' camera hints and the theme's default
  * zoom (R-ED-22), as a per-frame camera track; a multi-page run (L2.11) has one camera per page.
  */
-import type { Timeline } from '@retake/core';
+import type { Timeline } from '@retake/core/model';
 import { MIN_ZOOM_EASE_S, cameraTrack, hintEase } from '../camera.js';
 import type { ZoomMove } from '../camera.js';
 import type { CameraFrame } from '../plan-types.js';
@@ -38,7 +38,7 @@ export function planCameras(s: PlanScope, runs: ClipEntry[][], runOf: RunOf): Ru
     const marked = e.events.filter((ev) => ev.step >= 0 && ev.mark);
     for (const ev of marked) {
       const box = ev.camera?.bbox ?? ev.target?.bbox ?? ev.overlay?.bbox;
-      const point = box ? centre(box) : ev.point ?? ev.overlay?.point;
+      const point = box ? centre(box) : (ev.point ?? ev.overlay?.point);
       if (!point) continue;
       const range = run.clipRanges[ci];
       const start = Math.max(range.k0, outFrameAt(run, ev.t_start));
@@ -93,9 +93,19 @@ export function planCameras(s: PlanScope, runs: ClipEntry[][], runOf: RunOf): Ru
         const stepFrames = Math.max(0, outFrameAt(run, ev.t_end) - start);
         const frames = Math.max(MIN_ZOOM_EASE_S, ev.camera.duration ?? stepFrames / outFps) * outFps;
         const until = ev.camera.until ?? 'scene_end';
-        const outAt =
-          until === 'step_end' ? outFrameAt(run, stepEnd(ev)) : until === 'scene_end' ? run.clipRanges[ci].k1 : start + frames + until * outFps;
-        moves.push({ scene: e.scene.id, step: ev.step, zoom, requested, focus: { x: round(focus.x, 2), y: round(focus.y, 2) }, start, frames, outAt, ease: hintEase(ev.camera, t.motion.zoom_ease), source: 'hint' });
+        const outAt = until === 'step_end' ? outFrameAt(run, stepEnd(ev)) : until === 'scene_end' ? run.clipRanges[ci].k1 : start + frames + until * outFps;
+        moves.push({
+          scene: e.scene.id,
+          step: ev.step,
+          zoom,
+          requested,
+          focus: { x: round(focus.x, 2), y: round(focus.y, 2) },
+          start,
+          frames,
+          outAt,
+          ease: hintEase(ev.camera, t.motion.zoom_ease),
+          source: 'hint',
+        });
       }
     });
     return { track: cameraTrack(moves, run.src.length, W, H), moves };

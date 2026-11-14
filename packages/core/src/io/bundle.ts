@@ -255,7 +255,12 @@ export function assertOutsideBundle(p: string, what: string, bundle: BundleInfo 
  * own .mcp.json names `node <cli>` only) gets it here, before playwright-core or the commands load. `guard` (tests)
  * replaces the require.
  */
-export function prepareBundle(env: NodeJS.ProcessEnv = process.env, bundle?: BundleInfo | null, load?: () => unknown, guard: (file: string) => unknown = (f) => createRequire(import.meta.url)(f)): void {
+export function prepareBundle(
+  env: NodeJS.ProcessEnv = process.env,
+  bundle?: BundleInfo | null,
+  load?: () => unknown,
+  guard: (file: string) => unknown = (f) => createRequire(import.meta.url)(f),
+): void {
   const b = bundle === undefined ? bundleInfoOrNull() : bundle;
   if (!b) return;
   const guardFile = join(b.root, BUNDLE_GUARD);
@@ -309,7 +314,10 @@ export function resolveMediaTools(o: { configured?: string | undefined; env?: No
   const configured = o.configured?.trim();
   const envFfmpeg = env.RETAKE_FFMPEG?.trim();
   const envFfprobe = env.RETAKE_FFPROBE?.trim();
-  for (const [name, value] of [['RETAKE_FFMPEG', envFfmpeg], ['RETAKE_FFPROBE', envFfprobe]] as const) {
+  for (const [name, value] of [
+    ['RETAKE_FFMPEG', envFfmpeg],
+    ['RETAKE_FFPROBE', envFfprobe],
+  ] as const) {
     if (value && isRelativeToolPath(value)) throw new BundleError(`$${name} (${value}) must be an absolute path or a command on PATH: a relative path names another file in each process`);
   }
   const bundled = o.bundle?.paths.ffmpeg ?? null;
@@ -318,13 +326,7 @@ export function resolveMediaTools(o: { configured?: string | undefined; env?: No
     const f = join(dirname(ffmpeg), 'ffprobe');
     return exists(f) ? f : null;
   };
-  const ffmpeg: [string, MediaToolSource] = configured
-    ? [configured, 'retake.yaml']
-    : envFfmpeg
-      ? [envFfmpeg, 'RETAKE_FFMPEG']
-      : bundled
-        ? [join(bundled, 'ffmpeg'), 'bundled']
-        : ['ffmpeg', 'PATH'];
+  const ffmpeg: [string, MediaToolSource] = configured ? [configured, 'retake.yaml'] : envFfmpeg ? [envFfmpeg, 'RETAKE_FFMPEG'] : bundled ? [join(bundled, 'ffmpeg'), 'bundled'] : ['ffmpeg', 'PATH'];
   const besideConfigured = beside(configured);
   const besideEnv = beside(envFfmpeg);
   const ffprobe: [string, MediaToolSource] = besideConfigured

@@ -2,16 +2,7 @@ import { symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { COMPONENT_KINDS } from '@retake/core';
-import {
-  ALLOWED_IMPORTS,
-  KIT_MODULE,
-  formatComponentIssues,
-  scaffoldDir,
-  scanSource,
-  stripComments,
-  validateComponent,
-  validateComponentDir,
-} from '@retake/components';
+import { ALLOWED_IMPORTS, KIT_MODULE, formatComponentIssues, scaffoldDir, scanSource, stripComments, validateComponent, validateComponentDir } from '@retake/components';
 import { CARD_TSX, cardManifest, tempDir, writeFiles } from './helpers.js';
 
 let ws: { dir: string; cleanup: () => Promise<void> };
@@ -61,21 +52,15 @@ export default function X() {
     const typo = `import { useCurrentFrme } from '${KIT_MODULE}';
 export default function X() { return <div>{useCurrentFrme()}</div>; }
 `;
-    expect((await check('acme/kit-typo', typo)).text).toBe(
-      `index.tsx:1:10 error: "${KIT_MODULE}" has no export named "useCurrentFrme" (did you mean "useCurrentFrame"?)`,
-    );
+    expect((await check('acme/kit-typo', typo)).text).toBe(`index.tsx:1:10 error: "${KIT_MODULE}" has no export named "useCurrentFrme" (did you mean "useCurrentFrame"?)`);
   });
 
   it('reports a missing folder, manifest or entry file', async () => {
     expect(formatComponentIssues(await validateComponent(join(ws.dir, 'components/acme/nothing')))).toMatch(/error: component folder not found/);
     await writeFiles(ws.dir, { 'components/acme/empty/README.md': '' });
-    expect(formatComponentIssues(await validateComponent(join(ws.dir, 'components/acme/empty')))).toBe(
-      'component.yaml error: missing component.yaml (the manifest of the component)',
-    );
+    expect(formatComponentIssues(await validateComponent(join(ws.dir, 'components/acme/empty')))).toBe('component.yaml error: missing component.yaml (the manifest of the component)');
     await writeFiles(ws.dir, { 'components/acme/no-entry/component.yaml': cardManifest('acme/no-entry') });
-    expect(formatComponentIssues(await validateComponent(join(ws.dir, 'components/acme/no-entry')))).toBe(
-      'component.yaml:1:1 error: entry file "index.tsx" not found in the component folder',
-    );
+    expect(formatComponentIssues(await validateComponent(join(ws.dir, 'components/acme/no-entry')))).toBe('component.yaml:1:1 error: entry file "index.tsx" not found in the component folder');
     await writeFiles(ws.dir, { 'components/acme/other-entry/component.yaml': cardManifest('acme/other-entry', 'entry: src/main.tsx') });
     expect(formatComponentIssues(await validateComponent(join(ws.dir, 'components/acme/other-entry')))).toBe(
       'component.yaml:17:1 error entry: entry file "src/main.tsx" not found in the component folder',

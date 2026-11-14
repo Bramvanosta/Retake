@@ -40,8 +40,7 @@ import {
 import { kitSource } from '../src/kit/source.js';
 import { cfrSchedule } from '../src/encode.js';
 
-const fixture = (name: string): Timeline =>
-  JSON.parse(readFileSync(fileURLToPath(new URL(`../../editor/test/fixtures/${name}.timeline.json`, import.meta.url)), 'utf8')) as Timeline;
+const fixture = (name: string): Timeline => JSON.parse(readFileSync(fileURLToPath(new URL(`../../editor/test/fixtures/${name}.timeline.json`, import.meta.url)), 'utf8')) as Timeline;
 
 const ev = (o: Partial<TimelineEvent> & Pick<TimelineEvent, 'step' | 'action' | 't_start' | 't_end'>): TimelineEvent => ({ scene: 's', scene_index: 0, status: 'ok', ...o });
 
@@ -113,7 +112,10 @@ describe('loading cuts (R-RAW-01)', () => {
     expect(marked[0].from).toBe(4);
     // A marked wait ends its group: what it waited for stays, the next wait group is separate.
     const two = loadingCuts([ev({ step: 0, action: 'wait_for', t_start: 3, t_end: 5, mark: 'a' }), ev({ step: 1, action: 'wait_for', t_start: 5, t_end: 7 })], still);
-    expect(two.map((c) => [c.from, c.to])).toEqual([[3, 5 + RAW_CUT.result_margin_s], [5, 7 + RAW_CUT.result_margin_s]]);
+    expect(two.map((c) => [c.from, c.to])).toEqual([
+      [3, 5 + RAW_CUT.result_margin_s],
+      [5, 7 + RAW_CUT.result_margin_s],
+    ]);
     // Never into the opening still.
     expect(loadingCuts([ev({ step: 0, action: 'wait_for', t_start: 1, t_end: 4 })], still)[0].from).toBe(2);
     // A wait on another page than the press (a live hand-off) keeps the press's step whole.
@@ -137,12 +139,38 @@ describe('loading cuts (R-RAW-01)', () => {
     const oldType = ev({ step: 0, action: 'type', t_start: 2.5, t_end: 4.8, t_click: 3.1, data: { chars: 13, cps: 10 } });
     expect(loadingCuts([oldType, wait(4.81), hold(6.32)], still)[0].from).toBe(4.81);
     // select: trigger 3.2, option 4.85 (the popup and the option click stay).
-    const select = ev({ step: 0, action: 'select', t_start: 3, t_end: 5.3, t_click: 3.2, data: { option: '5 kg', clicks: [{ role: 'trigger', t_click: 3.2 }, { role: 'option', t_click: 4.85 }] } });
+    const select = ev({
+      step: 0,
+      action: 'select',
+      t_start: 3,
+      t_end: 5.3,
+      t_click: 3.2,
+      data: {
+        option: '5 kg',
+        clicks: [
+          { role: 'trigger', t_click: 3.2 },
+          { role: 'option', t_click: 4.85 },
+        ],
+      },
+    });
     const sc = loadingCuts([select, wait(5.31), hold(6.82)], still)[0];
     expect(sc.from).toBeCloseTo(4.85 + RAW_CUT.action_keep_s, 6);
     expect(sc.from).toBeGreaterThan(4.85);
     // menu with a confirm click.
-    const menu = ev({ step: 0, action: 'menu', t_start: 3, t_end: 7, t_click: 3.4, data: { clicks: [{ role: 'trigger', t_click: 3.4 }, { role: 'item', t_click: 5 }, { role: 'confirm', t_click: 6.4 }] } });
+    const menu = ev({
+      step: 0,
+      action: 'menu',
+      t_start: 3,
+      t_end: 7,
+      t_click: 3.4,
+      data: {
+        clicks: [
+          { role: 'trigger', t_click: 3.4 },
+          { role: 'item', t_click: 5 },
+          { role: 'confirm', t_click: 6.4 },
+        ],
+      },
+    });
     expect(loadingCuts([menu, wait(7.01), hold(8.52)], still)[0].from).toBeCloseTo(6.4 + RAW_CUT.action_keep_s, 6);
     // A drag (press, travel, release) and repeated keys are kept whole.
     const drag = ev({ step: 0, action: 'drag', t_start: 3, t_end: 5, t_click: 3.3 });
@@ -174,7 +202,11 @@ describe('loading cuts (R-RAW-01)', () => {
   it('resumes on a frame painted after the margin: the next screencast frame when the page was still painting', () => {
     // The catalogue import: awaited state seen at 19.893; a half-drawn frame arrived at 19.926, the painted one at 20.051
     // (0.16 s later), the next at 20.15: after the 0.2 s floor the clip resumes on the next frame painted after it.
-    const events = [ev({ step: 0, action: 'drop_file', t_start: 10, t_end: 16, t_click: 15.66 }), ev({ step: 1, action: 'wait_for', t_start: 16, t_end: 19.893 }), ev({ step: 2, action: 'hold', t_start: 19.9, t_end: 21.5, hold: { t_start: 19.9, t_end: 21.5 } })];
+    const events = [
+      ev({ step: 0, action: 'drop_file', t_start: 10, t_end: 16, t_click: 15.66 }),
+      ev({ step: 1, action: 'wait_for', t_start: 16, t_end: 19.893 }),
+      ev({ step: 2, action: 'hold', t_start: 19.9, t_end: 21.5, hold: { t_start: 19.9, t_end: 21.5 } }),
+    ];
     const frames = [19.5, 19.62, 19.72, 19.82, 19.926, 20.051, 20.15];
     const opts = { stillEnd: 2, sceneEnd: 22, frameInterval: () => 0.103, nextFrame: (_p: string | undefined, t: number) => frames.find((f) => f >= t - 1e-6) };
     expect(loadingCuts(events, opts)[0].to).toBe(20.15);
@@ -211,7 +243,10 @@ describe('held page loads (R-ISS-08)', () => {
     const still = ev({ step: -1, action: 'scene_still', t_start: 1, t_end: 2, page: 'a' });
     const onA = ev({ step: 0, action: 'press', t_start: 4.6, t_end: 4.8, page: 'a' });
     const onB = ev({ step: 1, action: 'click', t_start: 5, t_end: 5.6, t_click: 5.4, page: 'b', mark: 'click-b' });
-    const held = [{ t_start: 4.8, t_end: 6, page: 'a' }, { t_start: 0.5, t_end: 1.5, page: 'b' }];
+    const held = [
+      { t_start: 4.8, t_end: 6, page: 'a' },
+      { t_start: 0.5, t_end: 1.5, page: 'b' },
+    ];
     expect(heldBesideOtherPages(held, [still, onA, onB])).toEqual([
       { t_start: 4.8, t_end: 5, page: 'a' },
       { t_start: 5.6, t_end: 6, page: 'a' },
@@ -241,7 +276,10 @@ describe('held page loads (R-ISS-08)', () => {
       capture: { file: 'capture.mp4', width: 1920, height: 1080, scale: 1, fps: 30, duration: 11, frames: 330 },
       scenes: [{ id: 's', index: 0, kind: 'scene', t_start: 0, t_end: 10, status: 'ok' }],
       events: [ev({ step: -1, action: 'scene_still', t_start: 1, t_end: 2 }), click, quick, holdStep],
-      pages: [{ id: 'main', t_start: 0, t_end: 3.6 }, { id: 'main', t_start: 3.6, t_end: 11 }],
+      pages: [
+        { id: 'main', t_start: 0, t_end: 3.6 },
+        { id: 'main', t_start: 3.6, t_end: 11 },
+      ],
       loading: [{ t_start: 3.6, t_end: 4.8, page: 'main', until: 'paint', held_frames: 70 }],
       cursor: [],
       markers: [],
@@ -352,7 +390,7 @@ describe('clip plan on real timelines (R-RAW-01)', () => {
   });
 
   /** A one-scene capture: still 1–2 s, then `events`; the scene ends at `end`; screencast frames at `frames`. */
-  const synthetic = (events: TimelineEvent[], end: number, frames: number[]): Timeline =>
+  const synthetic = (events: TimelineEvent[], end: number, _frames: number[]): Timeline =>
     ({
       run_id: 'r',
       mode: 'capture',
@@ -397,7 +435,11 @@ describe('clip plan on real timelines (R-RAW-01)', () => {
     const events = [ev({ step: 0, action: 'click', t_start: 2, t_end: 6.5, t_click: 6.2 }), ev({ step: 1, action: 'wait_for', t_start: 6.5, t_end: 8, mark: 'sent' })];
     const frames = Array.from({ length: 270 }, (_, i) => i / 30);
     for (const marked of [false, true]) {
-      const tl = synthetic(events.map((e) => (e.step === 1 && !marked ? { ...e, mark: undefined } : e)), 8.005, frames);
+      const tl = synthetic(
+        events.map((e) => (e.step === 1 && !marked ? { ...e, mark: undefined } : e)),
+        8.005,
+        frames,
+      );
       const plan = planRawExport(tl, { fps: 30, frameTimes: () => frames });
       const clip = plan.clips[0];
       expect(clip.cuts).toEqual([]);
@@ -451,7 +493,12 @@ describe('markers and interchange files (R-RAW-03)', () => {
     const kinds = new Set(markers.map((m) => m.kind));
     for (const k of ['scene', 'step', 'mark', 'caption', 'cut']) expect(kinds.has(k as never), k).toBe(true);
     expect(markers.filter((m) => m.kind === 'scene').length).toBe(plan.sequence.length);
-    expect(markers.filter((m) => m.kind === 'mark').map((m) => m.name).sort()).toEqual(tl.markers.map((m) => m.name).sort());
+    expect(
+      markers
+        .filter((m) => m.kind === 'mark')
+        .map((m) => m.name)
+        .sort(),
+    ).toEqual(tl.markers.map((m) => m.name).sort());
     for (const m of markers) {
       const clip = plan.clips[m.clip];
       expect(clip.primary).toBe(true);
@@ -504,7 +551,19 @@ describe('markers and interchange files (R-RAW-03)', () => {
   it('OTIO: a Timeline with V1 of the clips at their timecode and coloured markers in media time', () => {
     const o = JSON.parse(writeOtio(plan, markers, files, meta)) as {
       OTIO_SCHEMA: string;
-      tracks: { children: Array<{ name: string; kind: string; children: Array<{ OTIO_SCHEMA: string; name: string; source_range: { start_time: { value: number }; duration: { value: number; rate: number } }; markers: Array<{ color: string; marked_range: { start_time: { value: number } } }>; media_references: { DEFAULT_MEDIA: { target_url: string } } }> }> };
+      tracks: {
+        children: Array<{
+          name: string;
+          kind: string;
+          children: Array<{
+            OTIO_SCHEMA: string;
+            name: string;
+            source_range: { start_time: { value: number }; duration: { value: number; rate: number } };
+            markers: Array<{ color: string; marked_range: { start_time: { value: number } } }>;
+            media_references: { DEFAULT_MEDIA: { target_url: string } };
+          }>;
+        }>;
+      };
     };
     expect(o.OTIO_SCHEMA).toBe('Timeline.1');
     const v1 = o.tracks.children[0];
@@ -536,7 +595,11 @@ describe('markers and interchange files (R-RAW-03)', () => {
     const o = JSON.parse(writeOtio(lq, lm, f, meta)) as { tracks: { children: Array<{ name: string }> } };
     expect(o.tracks.children.map((t) => t.name)).toEqual(['V1', 'Cursor', 'Page 2', 'Page 2 cursor']);
     // The EDL keeps the sequence only.
-    expect(writeEdl(lq, lm, f, meta).split('\n').filter((l) => /^\d{3}  /.test(l)).length).toBe(lq.sequence.length);
+    expect(
+      writeEdl(lq, lm, f, meta)
+        .split('\n')
+        .filter((l) => /^\d{3}  /.test(l)).length,
+    ).toBe(lq.sequence.length);
     // ProRes layers carry their clip's timecode: media time from the clip's sequence start.
     const later = lq.sequence[1];
     const laterClip = lq.clips[later.clip];
@@ -552,7 +615,12 @@ describe('markers and interchange files (R-RAW-03)', () => {
     expect(wellFormed(x).ok).toBe(true);
     expect(x).not.toContain('-cursor');
     expect((x.match(/enabled="0"/g) ?? []).length).toBe(lq.clips.length - lq.sequence.length);
-    type OClip = { OTIO_SCHEMA: string; name: string; source_range: { start_time: { value: number }; duration: { value: number } }; media_references: { DEFAULT_MEDIA: { available_range: { start_time: { value: number } }; target_url: string } } };
+    type OClip = {
+      OTIO_SCHEMA: string;
+      name: string;
+      source_range: { start_time: { value: number }; duration: { value: number } };
+      media_references: { DEFAULT_MEDIA: { available_range: { start_time: { value: number } }; target_url: string } };
+    };
     const o = JSON.parse(writeOtio(lq, lm, f, meta)) as { tracks: { children: Array<{ name: string; children: OClip[] }> } };
     const cursor = o.tracks.children.find((t) => t.name === 'Cursor')!.children.filter((c) => c.OTIO_SCHEMA === 'Clip.2');
     const v1 = o.tracks.children.find((t) => t.name === 'V1')!.children.filter((c) => c.OTIO_SCHEMA === 'Clip.2');
@@ -608,7 +676,10 @@ describe('cursor model (R-RAW-02)', () => {
     expect(easeOut(0)).toBe(0);
     expect(easeOut(1)).toBe(1);
     expect(easeOut(0.5)).toBeGreaterThan(0.5);
-    const edges = [{ t: 1, down: true }, { t: 1.08, down: false }];
+    const edges = [
+      { t: 1, down: true },
+      { t: 1.08, down: false },
+    ];
     expect(pressScaleAt(edges, 0.5)).toBe(1);
     expect(pressScaleAt(edges, 1)).toBe(1);
     expect(pressScaleAt(edges, 1.079)).toBeLessThan(0.92);
@@ -666,7 +737,7 @@ describe('cursor model (R-RAW-02)', () => {
       clip: c,
       file: `clips/${c.name}.mp4`,
       frames: cursorFrames(c, 30, { samples: tl.cursor }).frames,
-      clicks: clipClicks(c, 30, (t) => clipFrameAt(c, t, 30)),
+      clicks: clipClicks(c, (t) => clipFrameAt(c, t, 30)),
       approximated: true,
     }));
     const all = data.flatMap((d) => d.clicks);

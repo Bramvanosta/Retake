@@ -2,7 +2,7 @@
  * A hook as a person reads it before saying yes to it — an approval through MCP or the Studio, a replay of a journal
  * entry Retake did not sign: every field in full on a line of its own, every hidden character written out.
  */
-import { showHiddenChars, showHiddenCharsLine } from '@retake/core';
+import { collectSandboxRefs, collectSecretRefs, interpolateDeep, showHiddenChars, showHiddenCharsLine } from '@retake/core/base';
 import type { RollbackAction } from './types.js';
 
 /** Text shown to a person: every control, bidirectional or invisible character written out (`\u{1b}`), newlines kept (core). */
@@ -66,11 +66,42 @@ export function shownRollback(a: RollbackAction): ShownAction {
       return { kind: 'shell', run: a.run, ...(a.cwd !== undefined ? { cwd: a.cwd } : {}), ...(a.env ? { env: a.env } : {}), ...(a.timeout !== undefined ? { timeout: a.timeout } : {}) };
     case 'http': {
       const r = a.request;
-      return { kind: 'http', method: r.method ?? 'GET', url: r.url, ...(r.auth ? { auth: `persona ${r.auth.persona} (its saved session)` } : {}), ...(r.headers ? { headers: r.headers } : {}), ...(r.json !== undefined ? { json: r.json } : {}), ...(r.body !== undefined ? { body: r.body } : {}) };
+      return {
+        kind: 'http',
+        method: r.method ?? 'GET',
+        url: r.url,
+        ...(r.auth ? { auth: `persona ${r.auth.persona} (its saved session)` } : {}),
+        ...(r.headers ? { headers: r.headers } : {}),
+        ...(r.json !== undefined ? { json: r.json } : {}),
+        ...(r.body !== undefined ? { body: r.body } : {}),
+      };
     }
     case 'sql':
       return { kind: 'sql', db: a.db, ...(a.file !== undefined ? { file: a.file } : {}), query: a.query };
     case 'js':
       return { kind: 'js', ...(a.page !== undefined ? { page: a.page } : {}), code: a.code };
   }
+}
+
+/** Whether a rollback needs a secret to replay: a reference (the sandbox's too), or an http one sent as a persona. */
+export function referencesSecrets(action: RollbackAction): boolean {
+  return collectSecretRefs(action).size > 0 || collectSandboxRefs(action).size > 0 || (action.kind === 'http' && action.request.auth !== undefined);
+}
+
+/**
+ * A rollback action in full, as it would run — its templates filled from the data the entry carries (a secret is never
+ * resolved: an action that references one is shown as written) — one line per field, every character visible
+ * (shown.ts; L5.14: what a person reads before replaying an entry Retake did not sign).
+ */
+export function rollbackActionLines(action: RollbackAction): string[] {
+  let a: RollbackAction = action;
+  if (!referencesSecrets(action)) {
+    try {
+      const d = action.data ?? {};
+      a = interpolateDeep(action, { pages: d.pages ?? {}, vars: d.vars ?? {}, hooks: d.hooks ?? {}, run: d.run, extra: d.extra, secrets: () => undefined });
+    } catch {
+      a = action;
+    }
+  }
+  return [...fieldLines('kind', a.kind), ...actionLines(shownRollback(a))];
 }

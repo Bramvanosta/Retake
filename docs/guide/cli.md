@@ -8,13 +8,14 @@ Every `retake` command and its flags. Part of the [Retake guide](README.md).
 retake new <slug> [--name N] [--theme T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too); --template: the old name of --theme
 retake list [--json]                                  # projects (with scenarios) and themes
 retake validate <project> [scenario|file] [--env E] [--until REF] [--json]
-retake run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--json]
+retake run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--yes] [--json]
            [--sandbox]                       # reset the sandbox to its seed first (Sandbox mode)
            [--raw [--cursor baked|none|layer] [--format mp4|prores] [--fps 30|60] [--layer prores|webm] [--selects]
            [--no-cuts] [--out DIR]]          # capture, then the raw package for editors
 retake inspect <project> <page|url|scenario> [--path P] [--until REF] [--persona P] [--env E] [--within T] [--target T]…
                [--limit N] [--images marked|none] [--json] [--out DIR]   # a page's elements with verified targets
 retake hooks run <project> <scenario>:setup|<scenario>:teardown|reset|<file.yaml> [--env E] [--yes] [--allow-writes] [--dry]
+retake hooks trust <project> <scenario> [--env E] [--yes]   # after reading them: an agent's shell hooks become yours (runs stop asking)
 retake hooks rollback <project> [run-id] [--env E] [--allow-writes] [--replay-unsigned] [--dry]
 retake env reset <project> [--env E] [--yes] [--allow-writes] [--replay-unsigned] [--dry]
 retake sandbox init <project> [--env E] [--force] [--json]   # a docker-compose sandbox: app placeholder, Postgres, Mailpit
@@ -73,6 +74,12 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   project.yaml allows writes be written to — see [Environments](environments.md#environments-display-urls-production-read-only-clock).
   `--sandbox` starts the sandbox environment if needed and resets it to its seed before the take — see
   [Sandbox mode](sandbox.md#sandbox-mode).
+  When the scenario's hooks were last written by an agent (through MCP or the Studio — see
+  [Security](security.md)), its shell hooks (setup, teardown, step hooks) are listed as they will run — the command
+  rendered with the run's vars, pages and run id, its working folder, each environment entry and its rollback; a
+  secret stays a token, a value filled from an earlier hook's response is said to be unknown until the run — and run
+  only on your yes: a terminal asks (no by default: nothing runs), `--yes` accepts, and without a terminal the run is
+  refused; a dry run without its hooks lists them and asks nothing. When Retake cannot tell who wrote them, it asks too.
 - **inspect** replays a page (an environment page key with `--path`, or a URL of one of its pages) or a scenario up to
   `--until` as a dry run (hooks skipped), then lists the page's visible interactive elements — dialogs and menus first
   — with a target the runner resolves to each, its action, and why it may be fragile; `--target` checks your own
@@ -96,6 +103,11 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   asked on a terminal, or they are refused). On a read-only environment, hooks that write are refused; a replayed
   rollback is judged by the environment its hook ran in (`--allow-writes` where that is a production environment
   that allows writes).
+  A scenario's setup or teardown whose hooks an agent wrote last is listed and asked about as `run` does (`--yes`
+  accepts it too; `--dry` lists it without asking). **hooks trust** lists a scenario's shell hooks as a run would and, on your yes
+  (y/N; `--yes`; refused without a terminal), records them as yours: runs no longer ask about them until they change,
+  or until a file they read (an sql or js file, a script a shell command runs, another file it names) changes.
+  Only in a terminal — no MCP tool or Studio screen does it.
 - **login** signs a persona in and saves its session: a visible browser window (sign in, then close it) or, with
   `--auto`, the persona's `login:` steps, headless; **auth status** lists every persona's session (from the last check,
   or checked now with `--check`) — see [Signing in](environments.md#signing-in-personas-and-sessions).
@@ -106,8 +118,10 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   regular user), **Render browser** (the headless shell renders use: a failure when there is none, with the command
   that installs it), **Studio and MCP jobs** (a warning naming each program or `browser.args` entry that jobs of the
   Studio, the desktop app or an MCP client would refuse — see [Workspace](workspace.md)), **Renders** (L5.15: what a 1080p render gets here — the GPU the render
-  browser reports, VideoToolbox, the frames at a time, and the `render:` settings / `RETAKE_RENDER_*` variables set,
-  with their source; see [Renders on the GPU](editing.md#renders-on-the-gpu)), ffmpeg and ffprobe (5.1 or later), a display (only needed by `--headed` and `login`),
+  browser reports, VideoToolbox, the frames at a time, the ffmpeg that encodes the frames when it is this machine's
+  (L7.3: on the GPU path, or anywhere with `render.ffmpeg: own`) — or why the rendering library's does when ours was
+  wanted there —, and the `render:` settings / `RETAKE_RENDER_*`
+  variables set, with their source; see [Renders on the GPU](editing.md#renders-on-the-gpu)), ffmpeg and ffprobe (5.1 or later), a display (only needed by `--headed` and `login`),
   the secrets store for `{{keychain:…}}` refs (macOS `security`, Linux `secret-tool`), desktop notifications
   (`osascript`, `notify-send`), Docker (its version, Compose v2.17 or later, a running daemon, the context — found on
   PATH, else where Docker Desktop, OrbStack or Homebrew put it, as the sandboxes look for it: a warning when missing,
@@ -123,7 +137,7 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
 - **components** lists, validates and scaffolds components — see [Components](themes-and-components.md#components).
 - **plan** shows how a capture will be edited (segments, components, speeds, trims, zooms, captions, warnings)
   without rendering — see [Editing](editing.md#editing-the-edit-plan).
-- **render** plans and renders the latest capture of a scenario (or `--run`) into `renders/<scenario>-v<N>.mp4` with a
+- **render** plans and renders [the latest capture](editing.md#the-latest-capture) of a scenario (or `--run`) into `renders/<scenario>-v<N>.mp4` with a
   progress bar and a summary; **still** renders one frame of the planned video as a PNG — see
   [Rendering](editing.md#rendering).
 - **review** writes contact sheets, per-scene sheets, key frames, an output-time timeline and a report of a render,

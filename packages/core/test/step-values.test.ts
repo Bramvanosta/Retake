@@ -28,7 +28,7 @@ import {
   stepGuard,
   verifyEditText,
 } from '../src/index.js';
-import type { FieldChange, FormField, FormValue, StepEdit } from '../src/index.js';
+import type { ActionName, FieldChange, FormField, FormValue, StepEdit } from '../src/index.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SCENARIOS = join(ROOT, 'projects', 'northfield-fixture', 'scenarios');
@@ -38,7 +38,11 @@ const valueOf = (t: string) => parseYaml(t).value as Doc;
 const stepsOf = (t: string, scene: string) => valueOf(t).scenes.find((s) => s.id === scene && Array.isArray(s.steps))!.steps!;
 const at = (t: string, scene: string, index: number) => ({ scene, index, guard: stepGuard(stepsOf(t, scene)[index]) });
 const set = (t: string, scene: string, index: number, changes: FieldChange[]) => applyStepEdit(t, { kind: 'set_step', at: at(t, scene, index), changes });
-const change = (key: string, from: FormValue | undefined, to: FormValue | undefined): FieldChange => ({ path: key.split('.'), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) });
+const change = (key: string, from: FormValue | undefined, to: FormValue | undefined): FieldChange => ({
+  path: key.split('.'),
+  ...(from !== undefined ? { from } : {}),
+  ...(to !== undefined ? { to } : {}),
+});
 const lines = (t: string) => t.split('\n');
 
 /** The edit applied and verified: the text re-parses to exactly the intended value. */
@@ -77,7 +81,7 @@ function nodeLine(t: string, entry: number, index: number, path: string[]): { li
 function newValue(f: FormField, cur: FormValue | undefined, n: number): FormValue | undefined {
   switch (f.kind) {
     case 'text': {
-      const pool = ['Pier & Co', 'a: b, c', 'yes', '123', '# not a comment', "it's \"quoted\"", '{{vars.customer}}', '] }', '*alias', 'plain words'];
+      const pool = ['Pier & Co', 'a: b, c', 'yes', '123', '# not a comment', 'it\'s "quoted"', '{{vars.customer}}', '] }', '*alias', 'plain words'];
       let v = cur === undefined ? 'New value' : pool[n % pool.length];
       if (f.pattern) v = cur === undefined ? 'new-value' : `${String(cur)}-2`;
       return v === cur ? `${v} 2` : v;
@@ -103,7 +107,19 @@ describe('forms derived from the schemas', () => {
     expect(forms.modifiers.map((m) => m.key)).toEqual(['caption.text', 'caption.kicker', 'hold', 'speed', 'mark']);
     // A flat target: its keys only, a target inside a target and lists stay in the YAML tab.
     const type = forms.actions.find((a) => a.action === 'type')!;
-    expect(type.fields.filter((f) => f.group === 'type.into').map((f) => f.key.split('.').pop())).toEqual(['text', 'role', 'name', 'label', 'aria', 'placeholder', 'css', 'testid', 'in', 'nth', 'exact']);
+    expect(type.fields.filter((f) => f.group === 'type.into').map((f) => f.key.split('.').pop())).toEqual([
+      'text',
+      'role',
+      'name',
+      'label',
+      'aria',
+      'placeholder',
+      'css',
+      'testid',
+      'in',
+      'nth',
+      'exact',
+    ]);
     expect(type.fields.find((f) => f.key === 'type.into.in')!.options).toEqual(['dialog', 'menu', 'listbox', 'popover', 'page']);
     expect(type.yaml_only).toEqual(['type.into.contains', 'type.into.last_visible']);
     expect(type.fields.find((f) => f.key === 'type.cps')).toMatchObject({ kind: 'number', exclusive_min: 0 });
@@ -131,64 +147,68 @@ describe('value edits on every step of the fixture scenarios (goldens)', () => {
   const names = readdirSync(SCENARIOS).filter((f) => f.endsWith('.yaml'));
   it('the fixture has its 15 scenarios', () => expect(names).toHaveLength(15));
 
-  it.each(names)('%s: every field holding a value takes a new one (exactly its own line changes); on each step an optional value is removed and an absent modifier added (one line, or the same line); each re-parses to the intended value', (name) => {
-    const text = readFileSync(join(SCENARIOS, name), 'utf8');
-    const v = valueOf(text);
-    let n = 0;
-    let k = 0;
-    v.scenes.forEach((sc, entry) => {
-      if (typeof sc.id !== 'string' || !Array.isArray(sc.steps)) return;
-      sc.steps.forEach((raw, index) => {
-        const form = stepFormValues(raw);
-        if (!form) return;
-        const fields = stepFields(form.action).filter((f) => !form.locked[f.key]);
-        // Every value: a new one changes exactly the line of its value.
-        for (const f of fields) {
-          const cur = form.values[f.key];
-          if (cur === undefined) continue;
-          const to = newValue(f, cur, n);
-          if (to === undefined) continue;
-          const r = applied(text, { kind: 'set_step', at: at(text, sc.id, index), changes: [change(f.key, cur, to)] });
-          const where = nodeLine(text, entry, index, f.key.split('.'));
-          expect(changedLines(text, r.text), `${sc.id}.${index} ${f.key}`).toEqual([where.line]);
-          expect(stepFormValues((r.intended as Doc).scenes[entry].steps![index])!.values[f.key]).toEqual(to);
-          n++;
-        }
-        // One optional value removed (in turn): its own line goes, or its line changes (a flow map, the dash line).
-        const optional = fields.filter((f) => form.values[f.key] !== undefined && (!f.required || f.group !== undefined));
-        if (optional.length) {
-          const f = optional[k++ % optional.length];
-          try {
-            const r = applied(text, { kind: 'set_step', at: at(text, sc.id, index), changes: [change(f.key, form.values[f.key], undefined)] });
-            const d = lines(text).length - lines(r.text).length;
-            expect([0, 1], `${sc.id}.${index} remove ${f.key}`).toContain(d);
-            if (d === 0) expect(changedLines(text, r.text)).toHaveLength(1);
-            expect(stepFormValues((r.intended as Doc).scenes[entry].steps![index])!.values[f.key]).toBeUndefined();
+  it.each(names)(
+    '%s: every field holding a value takes a new one (exactly its own line changes); on each step an optional value is removed and an absent modifier added (one line, or the same line); each re-parses to the intended value',
+    (name) => {
+      const text = readFileSync(join(SCENARIOS, name), 'utf8');
+      const v = valueOf(text);
+      let n = 0;
+      let k = 0;
+      v.scenes.forEach((sc, entry) => {
+        if (typeof sc.id !== 'string' || !Array.isArray(sc.steps)) return;
+        const sceneId = sc.id;
+        sc.steps.forEach((raw, index) => {
+          const form = stepFormValues(raw);
+          if (!form) return;
+          const fields = stepFields(form.action).filter((f) => !form.locked[f.key]);
+          // Every value: a new one changes exactly the line of its value.
+          for (const f of fields) {
+            const cur = form.values[f.key];
+            if (cur === undefined) continue;
+            const to = newValue(f, cur, n);
+            if (to === undefined) continue;
+            const r = applied(text, { kind: 'set_step', at: at(text, sceneId, index), changes: [change(f.key, cur, to)] });
+            const where = nodeLine(text, entry, index, f.key.split('.'));
+            expect(changedLines(text, r.text), `${sc.id}.${index} ${f.key}`).toEqual([where.line]);
+            expect(stepFormValues((r.intended as Doc).scenes[entry].steps![index])!.values[f.key]).toEqual(to);
             n++;
-          } catch (e) {
-            // The last value of the action (`click: Save` without its text) is refused, never written.
-            expect((e as StepEditError).message).toMatch(/needs (at least one value|a value)/);
           }
-        }
-        // One absent modifier added (in turn): a line after the step's last line, the rest of the file unchanged.
-        const absent = ['caption.text', 'hold', 'mark', 'speed'].filter((key) => form.values[key] === undefined && !form.locked[key] && !(key === 'hold' && form.action === 'hold'));
-        if (absent.length) {
-          const key = absent[k++ % absent.length];
-          const f = stepFields(form.action).find((x) => x.key === key)!;
-          const to = newValue(f, undefined, n)!;
-          const r = applied(text, { kind: 'set_step', at: at(text, sc.id, index), changes: [change(key, undefined, to)] });
-          const a = lines(text);
-          const b = lines(r.text);
-          expect(b.length - a.length, `${sc.id}.${index} add ${key}`).toBe(1);
-          const i = a.findIndex((l, x) => l !== b[x]);
-          expect(i === -1 ? a.length : i, `${sc.id}.${index} add ${key} lands after the step`).toBe(nodeLine(text, entry, index, []).endLine + 1);
-          expect(a).toEqual([...b.slice(0, i), ...b.slice(i + 1)]);
-          n++;
-        }
+          // One optional value removed (in turn): its own line goes, or its line changes (a flow map, the dash line).
+          const optional = fields.filter((f) => form.values[f.key] !== undefined && (!f.required || f.group !== undefined));
+          if (optional.length) {
+            const f = optional[k++ % optional.length];
+            try {
+              const r = applied(text, { kind: 'set_step', at: at(text, sceneId, index), changes: [change(f.key, form.values[f.key], undefined)] });
+              const d = lines(text).length - lines(r.text).length;
+              expect([0, 1], `${sc.id}.${index} remove ${f.key}`).toContain(d);
+              if (d === 0) expect(changedLines(text, r.text)).toHaveLength(1);
+              expect(stepFormValues((r.intended as Doc).scenes[entry].steps![index])!.values[f.key]).toBeUndefined();
+              n++;
+            } catch (e) {
+              // The last value of the action (`click: Save` without its text) is refused, never written.
+              expect((e as StepEditError).message).toMatch(/needs (at least one value|a value)/);
+            }
+          }
+          // One absent modifier added (in turn): a line after the step's last line, the rest of the file unchanged.
+          const absent = ['caption.text', 'hold', 'mark', 'speed'].filter((key) => form.values[key] === undefined && !form.locked[key] && !(key === 'hold' && form.action === 'hold'));
+          if (absent.length) {
+            const key = absent[k++ % absent.length];
+            const f = stepFields(form.action).find((x) => x.key === key)!;
+            const to = newValue(f, undefined, n)!;
+            const r = applied(text, { kind: 'set_step', at: at(text, sceneId, index), changes: [change(key, undefined, to)] });
+            const a = lines(text);
+            const b = lines(r.text);
+            expect(b.length - a.length, `${sc.id}.${index} add ${key}`).toBe(1);
+            const i = a.findIndex((l, x) => l !== b[x]);
+            expect(i === -1 ? a.length : i, `${sc.id}.${index} add ${key} lands after the step`).toBe(nodeLine(text, entry, index, []).endLine + 1);
+            expect(a).toEqual([...b.slice(0, i), ...b.slice(i + 1)]);
+            n++;
+          }
+        });
       });
-    });
-    expect(n).toBeGreaterThan(10);
-  });
+      expect(n).toBeGreaterThan(10);
+    },
+  );
 
   it.each(names)('%s: a new step from the palette at the start, the middle and the end of every scene adds exactly one line there and re-parses to the intended value', (name) => {
     const text = readFileSync(join(SCENARIOS, name), 'utf8');
@@ -222,7 +242,7 @@ describe('value edits on every step of the fixture scenarios (goldens)', () => {
       for (const sc of valueOf(readFileSync(join(SCENARIOS, name), 'utf8')).scenes) {
         for (const raw of sc.steps ?? []) {
           const form = stepFormValues(raw);
-          if (!form || !PALETTE_ACTIONS.includes(form.action) || form.yaml_only.length || Object.keys(form.locked).length) continue;
+          if (!form || !(PALETTE_ACTIONS as readonly ActionName[]).includes(form.action) || form.yaml_only.length || Object.keys(form.locked).length) continue;
           if (Object.keys(raw as object).some((k) => k !== form.action)) continue;
           total++;
           const own = Object.fromEntries(Object.entries(form.values).filter(([k]) => k === form.action || k.startsWith(`${form.action}.`)));
@@ -279,10 +299,20 @@ describe('values written in place, shorthands kept (critique B4)', () => {
   it('quoting, inline comments and the spacing before them are kept; a number stays a number; keys are added in a flow map and as a block line at the map indentation', () => {
     const r1 = applied(FILE, { kind: 'set_step', at: at(FILE, 'a', 2), changes: [change('click.aria', 'Increase', 'Decrease')] });
     expect(lines(r1.text)[8]).toBe('      - click: {aria: Decrease, in: dialog}   # spaced comment');
-    const r2 = applied(FILE, { kind: 'set_step', at: at(FILE, 'a', 3), changes: [change('type.text', 'Light roast', 'Dark roast'), change('type.cps', 18, 24), change('type.clear', undefined, true)] });
+    const r2 = applied(FILE, {
+      kind: 'set_step',
+      at: at(FILE, 'a', 3),
+      changes: [change('type.text', 'Light roast', 'Dark roast'), change('type.cps', 18, 24), change('type.clear', undefined, true)],
+    });
     expect(changedLines(FILE, r2.text).map((i) => lines(r2.text)[i])).toEqual(['      - type: {into: {label: Message}, text: "Dark roast", cps: 24, clear: true}']);
     const r3 = applied(FILE, { kind: 'set_step', at: at(FILE, 'a', 4), changes: [change('type.text', 'Ada', "Ada O'Neil"), change('type.enter', undefined, true)] });
-    expect(lines(r3.text).slice(10, 15)).toEqual(['      - type:', '          into: Name', "          text: 'Ada O''Neil'", '          enter: true', '        caption: {kicker: K, text: "Caption text"}']);
+    expect(lines(r3.text).slice(10, 15)).toEqual([
+      '      - type:',
+      '          into: Name',
+      "          text: 'Ada O''Neil'",
+      '          enter: true',
+      '        caption: {kicker: K, text: "Caption text"}',
+    ]);
     // A modifier removed from a block map takes its own line; the caption's kicker from a flow map, its comma.
     const r4 = applied(FILE, { kind: 'set_step', at: at(FILE, 'a', 5), changes: [change('mark', 'here', undefined)] });
     expect(lines(FILE).length - lines(r4.text).length).toBe(1);
@@ -296,7 +326,37 @@ describe('values written in place, shorthands kept (critique B4)', () => {
   });
 
   it('values that are YAML syntax stay values (injection: the file gains no step, no anchor, no tag); each changes one line', () => {
-    const hostile = ['a\tb', '&a b', '*a', '!!js/function f', '# c', '{a: 1}', ']', '- dash', 'yes', '123', '1e3', 'null', '~', 'a, b', '"q"', "it's", '{{vars.customer}}', 'key: value', '|', '>-', '@at', '`tick`', '%YAML', '---', '...', ' lead', 'trail ', '? q', 'x #y'];
+    const hostile = [
+      'a\tb',
+      '&a b',
+      '*a',
+      '!!js/function f',
+      '# c',
+      '{a: 1}',
+      ']',
+      '- dash',
+      'yes',
+      '123',
+      '1e3',
+      'null',
+      '~',
+      'a, b',
+      '"q"',
+      "it's",
+      '{{vars.customer}}',
+      'key: value',
+      '|',
+      '>-',
+      '@at',
+      '`tick`',
+      '%YAML',
+      '---',
+      '...',
+      ' lead',
+      'trail ',
+      '? q',
+      'x #y',
+    ];
     const targets: Array<[number, string, FormValue]> = [
       [0, 'click.text', 'Selowa Ridge'], // a plain shorthand
       [2, 'click.aria', 'Increase'], // a scalar in a flow map

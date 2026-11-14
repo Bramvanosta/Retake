@@ -1,5 +1,5 @@
 /**
- * A job process (L5.14): one heavy job (core JOB_CLASS) a jobs worker claimed, run in a process of its own so the worker
+ * A job process (L5.14): one heavy job (job-input.ts JOB_CLASS) a jobs worker claimed, run in a process of its own so the worker
  * can take a capture beside it and lower its priority during a take without touching the take (yield.ts). Started by the
  * worker (`worker-main --job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid> --digest <sha256>`) detached, in a process
  * group of its own; it runs the worker's job code (run-job-record.ts) and writes the job's state from `running` on.
@@ -14,15 +14,17 @@
  */
 import { hostname } from 'node:os';
 import { resolve } from 'node:path';
-import { jobClass } from '@retake/core';
+import { jobClass } from './job-input.js';
+import { stampOf } from '../clock.js';
 import type { InterruptPort } from '../interrupts.js';
+import { enginePorts } from '../ports.js';
 import { openWorkspace } from '../workspace.js';
 import { buildDirs, buildStamp } from './build.js';
 import { selfIdentity } from './proc.js';
-import { FileJobQueue } from './queue.js';
 import { recordDigest } from './signing.js';
 import { createJobRunner, shellQuote } from './run-job-record.js';
 import type { JobRecord } from './types.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Exit codes of a job process that did not run its job. */
 export const JOB_EXIT = { buildChanged: 3, refused: 4 } as const;
@@ -57,7 +59,10 @@ export function passedBuildDirs(raw: string | undefined): string[] | undefined {
 
 /** Run the job; resolves with the exit code. */
 export async function runJobChild(o: JobChildOptions): Promise<number> {
-  const log = o.log ?? ((m: string) => void process.stderr.write(`${new Date().toISOString()} job process ${process.pid}: ${m}\n`));
+  // A job process is a composition root: the product's ports (a test's cannot reach a process).
+  const ports = enginePorts();
+  const { clock, reads, capture } = ports;
+  const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} job process ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
   const stamp = buildStamp(o.dirs ?? buildDirs());
   if (stamp !== o.build) {
@@ -67,15 +72,15 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
   let ws: Awaited<ReturnType<typeof openWorkspace>>;
   try {
     // The worker runs every job under trust mcp, whoever submitted it (the Studio, the desktop app, an MCP client).
-    ws = await openWorkspace({ root, agent: true });
+    ws = await openWorkspace({ root, agent: true, reads });
   } catch (e) {
     log(`job ${o.id}: no workspace at ${root}: ${(e as Error).message}`);
     return 1;
   }
   const cli = `retake -C ${shellQuote(root)}`;
-  const queue = new FileJobQueue(root, cli);
-  const stored = await queue.stored(o.id).catch(() => undefined);
-  const claim = await queue.claimOf(o.id).catch(() => undefined);
+  const { queue, files } = ports.queues(root, cli, clock, ports.env);
+  const stored = await bestEffort(queue.stored(o.id), 'a job removed meanwhile reads as gone (refused below)');
+  const claim = await bestEffort(queue.claimOf(o.id), 'a claim that cannot be read is no claim of this worker (refused below)');
   if (
     !stored ||
     stored.state !== 'queued' ||
@@ -90,7 +95,8 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
   }
   const self = await selfIdentity();
   const host = hostname();
-  const rw = await import('@retake/runner-web');
+  // Loaded now, before the signals are listened to: a signal's cancel and its removal of session copies are synchronous.
+  await capture.load();
   const slot: { current?: AbortController; currentStop?: AbortController } = {};
   const quitSync = new Set<() => void>();
   const done = new Set<string>();
@@ -100,10 +106,10 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     signals++;
     if (signals === 1) {
       log(`${sig}: cancelling job ${o.id} (its teardown still runs)`);
-      slot.current?.abort(new rw.CancelledError(`job cancelled (${sig})`));
+      slot.current?.abort(capture.cancelled(`job cancelled (${sig})`));
       return;
     }
-    rw.removeSessionCopiesSync();
+    capture.cleanupSync();
     for (const f of quitSync) {
       try {
         f();
@@ -133,7 +139,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
       orphan = `its jobs worker (pid ${o.supervisor}) stopped while the job ran (its job process ended the job and cleaned up after it)`;
       log(`job ${o.id}: the worker is gone: cancelling`);
     }
-    if (slot.current && !slot.current.signal.aborted) slot.current.abort(new rw.CancelledError('job cancelled (its worker stopped)'));
+    if (slot.current && !slot.current.signal.aborted) slot.current.abort(capture.cancelled('job cancelled (its worker stopped)'));
   }, o.watchMs ?? 1000);
 
   const interrupts = (signal: AbortSignal): InterruptPort => ({
@@ -163,14 +169,15 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     root,
     ws,
     queue,
-    files: queue.files,
+    files,
     cli,
     build: o.build,
     worker: { ...self, host },
     self,
     supervisor: { pid: claim.pid, ...(claim.started_at ? { started_at: claim.started_at } : {}), host },
     log,
-    rw,
+    // A job process is a composition root: its job runs on the product's ports (the editor's renderer among them).
+    ...ports,
     interrupts,
     slot,
     done,

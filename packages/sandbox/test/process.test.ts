@@ -6,6 +6,7 @@
  * interrupt during the health wait (the whole group of what that call started stopped). Never the fixed 45xx ports: a
  * developer's own sandbox may hold them.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -62,10 +63,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function makeProject(root: string, name: string, manifest: string): Promise<LoadedProject> {
   const dir = join(root, name);
   await mkdir(join(dir, 'sandbox'), { recursive: true });
-  await writeFile(
-    join(dir, 'project.yaml'),
-    ['name: Sandbox test', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', '  sandbox: sandbox/sandbox.yaml', ''].join('\n'),
-  );
+  await writeFile(join(dir, 'project.yaml'), ['name: Sandbox test', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', '  sandbox: sandbox/sandbox.yaml', ''].join('\n'));
   await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), manifest);
   return loadProject(dir);
 }
@@ -109,7 +107,7 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
     root = await mkdtemp(join(tmpdir(), 'retake-sandbox-proc-'));
     ports = await freePorts(4);
     project = await makeProject(root, 'p1', fixtureManifest(ports));
-    sb = openSandbox(project, undefined, PERSON_POLICY);
+    sb = openSandbox(project, undefined, PERSON_POLICY, resolveSecretRef);
   });
 
   afterAll(async () => {
@@ -159,7 +157,7 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
       started_at: at,
       finished_at: at,
       status: 'ok',
-      rollback: { kind: 'http', method: 'DELETE', url: `{{console}}/api/quotes/${q.id}` } as NewJournalEntry['rollback'],
+      rollback: { kind: 'http', request: { method: 'DELETE', url: `{{console}}/api/quotes/${q.id}` }, description: 'DELETE quote', data: {} },
     });
     await journal.record(entry('sandbox'));
     await journal.record(entry('local'));
@@ -179,7 +177,15 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
   it('prepareTake holds the take lock: a reset or another take fails fast naming the run; released, they work', async () => {
     const take = await sb.prepareTake({ log, command: 'run sandbox-quote' });
     take.note('20261014-101500-sandbox-quote');
-    expect(take.info).toEqual({ name: 'sandbox', provider: 'process', strategy: 'reseed', restored: false, reset_ms: expect.any(Number), seed_hash: expect.stringMatching(/^[0-9a-f]{12}$/), at: expect.any(String) });
+    expect(take.info).toEqual({
+      name: 'sandbox',
+      provider: 'process',
+      strategy: 'reseed',
+      restored: false,
+      reset_ms: expect.any(Number),
+      seed_hash: expect.stringMatching(/^[0-9a-f]{12}$/),
+      at: expect.any(String),
+    });
     expect(take.up.kept).toEqual(['fixture']);
     const busy = await sb.reset().catch((e) => e);
     expect(busy).toBeInstanceOf(SandboxError);
@@ -193,7 +199,7 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
 
   it('a second sandbox on the same ports is refused before it starts, naming the program that holds them', async () => {
     const pid = (await sb.status()).services[0].pid!;
-    const other = openSandbox(await makeProject(root, 'p2', fixtureManifest(ports)), undefined, PERSON_POLICY);
+    const other = openSandbox(await makeProject(root, 'p2', fixtureManifest(ports)), undefined, PERSON_POLICY, resolveSecretRef);
     const e = await other.up({ log }).catch((x) => x);
     expect(e).toBeInstanceOf(SandboxError);
     expect(e.code).toBe('port');
@@ -227,7 +233,12 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
     const paths = sandboxPaths(project.dir, 'sandbox');
     const done = spawn(process.execPath, ['-e', '0']);
     await new Promise((r) => done.once('exit', r));
-    writeState(paths.state, { version: 1, env: 'sandbox', provider: 'process', services: { fixture: { kind: 'process', pid: done.pid!, started_at: new Date().toISOString(), command: 'node server.mjs', hash: 'x', status: 'running' } } });
+    writeState(paths.state, {
+      version: 1,
+      env: 'sandbox',
+      provider: 'process',
+      services: { fixture: { kind: 'process', pid: done.pid!, started_at: new Date().toISOString(), command: 'node server.mjs', hash: 'x', status: 'running' } },
+    });
     const st = await sb.status();
     expect(st.state).toBe('down');
     expect(st.services[0].state).toBe('stopped');
@@ -242,9 +253,18 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
     const p = await makeProject(
       root,
       'p3',
-      ['version: 1', 'provider: process', 'services:', '  app:', `    command: [node, -e, "console.log('boom: no database at localhost:5999'); process.exit(3)"]`, `    url: http://localhost:${port}`, `    pages: {app: "http://localhost:${port}"}`, ''].join('\n'),
+      [
+        'version: 1',
+        'provider: process',
+        'services:',
+        '  app:',
+        `    command: [node, -e, "console.log('boom: no database at localhost:5999'); process.exit(3)"]`,
+        `    url: http://localhost:${port}`,
+        `    pages: {app: "http://localhost:${port}"}`,
+        '',
+      ].join('\n'),
     );
-    const crash = openSandbox(p, undefined, PERSON_POLICY);
+    const crash = openSandbox(p, undefined, PERSON_POLICY, resolveSecretRef);
     const t0 = Date.now();
     const e = await crash.up({ log }).catch((x) => x);
     expect(Date.now() - t0).toBeLessThan(10_000);
@@ -260,9 +280,19 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
     const p = await makeProject(
       root,
       'p4',
-      ['version: 1', 'provider: process', 'services:', '  slow:', `    command: '${process.execPath} -e "setInterval(() => {}, 1000)" & wait'`, `    url: http://localhost:${port}`, '    health: {path: /, timeout_s: 60}', `    pages: {app: "http://localhost:${port}"}`, ''].join('\n'),
+      [
+        'version: 1',
+        'provider: process',
+        'services:',
+        '  slow:',
+        `    command: '${process.execPath} -e "setInterval(() => {}, 1000)" & wait'`,
+        `    url: http://localhost:${port}`,
+        '    health: {path: /, timeout_s: 60}',
+        `    pages: {app: "http://localhost:${port}"}`,
+        '',
+      ].join('\n'),
     );
-    const slow = openSandbox(p, undefined, PERSON_POLICY);
+    const slow = openSandbox(p, undefined, PERSON_POLICY, resolveSecretRef);
     const ac = new AbortController();
     const up = slow.up({ log, signal: ac.signal }).catch((x) => x);
     const paths = sandboxPaths(p.dir, 'sandbox');
@@ -320,7 +350,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
   /** A sandbox of the small service (`app`) with these extra sandbox.yaml lines. */
   async function svcSandbox(name: string, command: string, service: string[], extra: string[] = []): Promise<{ sb: Sandbox; project: LoadedProject }> {
     const project = await makeProject(dir, name, ['version: 1', 'provider: process', 'services:', '  app:', `    command: ${command}`, ...service.map((l) => `    ${l}`), ...extra, ''].join('\n'));
-    const s = openSandbox(project, undefined, PERSON_POLICY);
+    const s = openSandbox(project, undefined, PERSON_POLICY, resolveSecretRef);
     opened.push(s);
     return { sb: s, project };
   }
@@ -424,17 +454,59 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     expect((await count(a)).seeds).toBe(1);
   });
 
-  it('the pending rollbacks are superseded as soon as the seed ran, even when the reset fails after it (P9)', async () => {
-    const [a, mail] = await freePorts(2);
-    const { sb, project } = await svcSandbox('supersede', svc(a), [`url: http://localhost:${a}`, `pages: {app: "http://localhost:${a}"}`], [
+  // L7.9: a sql reset hook gets the seed's rule (before, its database was never checked: the hook tried to connect).
+  it("a sql reset hook's database must be served by the sandbox — or `external: true` — checked before the reset changes anything", async () => {
+    const [a, db] = await freePorts(2);
+    const svcLines = [`url: http://localhost:${a}`, `pages: {app: "http://localhost:${a}"}`];
+    const steps = [
       'seed:',
       '  - http: {method: POST, url: "{{app}}/seed"}',
-      `mailbox: {provider: mailpit, url: "http://localhost:${mail}", external: true}`,
-    ]);
+      'reset:',
+      '  hooks:',
+      '    - http: {method: DELETE, url: "{{app}}/api/v1/messages"}',
+      '    - sql: {query: "TRUNCATE quotes"}',
+    ];
+    const dbLine = (external: boolean) => ['databases:', `  main: {url: "postgres://demo:sandbox-db-4632@localhost:${db}/app"${external ? ', external: true' : ''}}`];
+    const { sb } = await svcSandbox('resetdbforeign', svc(a), svcLines, [...steps, ...dbLine(false)]);
+    await sb.up({ log: say, seed: 'never' });
+    for (const seedTrust of [undefined, { trust: 'mcp' as const, confirm: () => true }]) {
+      const e = await sb.reset({ log: say, ...(seedTrust ? { seedTrust } : {}) }).catch((x) => x);
+      expect(e).toMatchObject({ code: 'seed' });
+      expect(e.message).toBe(
+        `sandbox sandbox: port ${db} (database main) is not a port of a service of this sandbox (its url, pages or health) — a reset hook rewrites it at every reset, so it must be the sandbox's own: serve it from the sandbox, or add \`external: true\` to databases.main in sandbox.yaml if that database is the sandbox's alone`,
+      );
+      expect(await count(a)).toEqual({ seeds: 0, deletes: 0 }); // refused before the seed and before any reset hook
+    }
+    await sb.down();
+    const ext = (await svcSandbox('resetdbexternal', svc(a), svcLines, [...steps, ...dbLine(true)])).sb;
+    await ext.up({ log: say, seed: 'never' });
+    const e2 = await ext.reset({ log: say }).catch((x) => x);
+    expect(e2).toMatchObject({ code: 'seed' });
+    expect(e2.message).toContain(`reset hook step 2/2 (sql "TRUNCATE quotes" on main (localhost:${db}/app)) failed: cannot connect to database main`);
+    expect(await count(a)).toEqual({ seeds: 1, deletes: 1 });
+  });
+
+  it('the pending rollbacks are superseded as soon as the seed ran, even when the reset fails after it (P9)', async () => {
+    const [a, mail] = await freePorts(2);
+    const { sb, project } = await svcSandbox(
+      'supersede',
+      svc(a),
+      [`url: http://localhost:${a}`, `pages: {app: "http://localhost:${a}"}`],
+      ['seed:', '  - http: {method: POST, url: "{{app}}/seed"}', `mailbox: {provider: mailpit, url: "http://localhost:${mail}", external: true}`],
+    );
     await sb.up({ log: say, seed: 'never' });
     const journal = await Journal.open(join(project.dir, '.retake', 'journals', 'hooks-20261014-090000.json'));
     const at = new Date().toISOString();
-    await journal.record({ kind: 'http', phase: 'setup', description: 'POST x', env: 'sandbox', started_at: at, finished_at: at, status: 'ok', rollback: { kind: 'http', request: { method: 'DELETE', url: `http://localhost:${a}/x` }, description: 'DELETE x', data: {} } });
+    await journal.record({
+      kind: 'http',
+      phase: 'setup',
+      description: 'POST x',
+      env: 'sandbox',
+      started_at: at,
+      finished_at: at,
+      status: 'ok',
+      rollback: { kind: 'http', request: { method: 'DELETE', url: `http://localhost:${a}/x` }, description: 'DELETE x', data: {} },
+    });
     const e = await sb.reset({ log: say, by: 'p9 reset' }).catch((x) => x);
     expect(e.message).toMatch(new RegExp(`the mailbox could not be emptied \\(DELETE http://localhost:${mail}/api/v1/messages\\)`));
     expect((await count(a)).seeds).toBe(1);
@@ -489,10 +561,10 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     await mkdir(answered, { recursive: true });
     await writeFile(join(bin, 'ps'), `#!/bin/sh\ncase "$*" in *lstart=*-p*) for a; do last=$a; done; sleep 3; touch ${JSON.stringify(answered)}/$last;; esac\nexec /bin/ps "$@"\n`, { mode: 0o755 });
     const script = [
-      `import { loadProject } from ${JSON.stringify(join(REPO, 'packages/core/dist/io/index.js'))};`,
+      `import { loadProject, resolveSecretRef } from ${JSON.stringify(join(REPO, 'packages/core/dist/io/index.js'))};`,
       `import { PERSON_POLICY } from ${JSON.stringify(join(REPO, 'packages/core/dist/index.js'))};`,
       `import { openSandbox } from ${JSON.stringify(join(REPO, 'packages/sandbox/dist/index.js'))};`,
-      `await openSandbox(await loadProject(${JSON.stringify(project.dir)}), undefined, PERSON_POLICY).up({ seed: 'never' });`,
+      `await openSandbox(await loadProject(${JSON.stringify(project.dir)}), undefined, PERSON_POLICY, resolveSecretRef).up({ seed: 'never' });`,
     ].join('\n');
     const child = spawn(process.execPath, ['--input-type=module', '-e', script], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
     const paths = sandboxPaths(project.dir, 'sandbox');
@@ -513,7 +585,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     child.kill('SIGKILL');
     await new Promise((r) => child.once('exit', r));
     expect(signalState(-pid)).toBe('alive');
-    const down = await openSandbox(project, undefined, PERSON_POLICY).down();
+    const down = await openSandbox(project, undefined, PERSON_POLICY, resolveSecretRef).down();
     expect(down.stopped).toEqual(['app']);
     expect(signalState(-pid)).not.toBe('alive');
   });

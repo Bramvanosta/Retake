@@ -1,4 +1,5 @@
-import { isAccessError, scenarioRef } from '@retake/core';
+import { isAccessError } from '@retake/core/environment';
+import { scenarioRef } from '@retake/core/project';
 import { checkAllowWrites, recordScenario } from '@retake/engine';
 import type { RecordOutcome, RecordPorts } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
@@ -6,7 +7,7 @@ import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
-import { openProject, openWorkspace, workspaceQueue } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace, workspaceQueue } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor, retakeCommand } from './auth.js';
 
@@ -69,6 +70,12 @@ export async function recordCommand(ui: Ui, global: GlobalOptions, projectArg: s
       },
       {
         queue: workspaceQueue(ws),
+        clock: cliPorts.clock,
+        env: cliPorts.env,
+        stores: cliPorts.stores,
+        capture: cliPorts.capture,
+        secrets: cliPorts.secrets,
+        hooks: cliPorts.hooks,
         log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
         onPhase: (phase) => {
           if (phase === 'preflight') ui.setStatus('checking the session…');
@@ -149,7 +156,9 @@ function printOutcome(ui: Ui, global: GlobalOptions, slug: string, o: RecordOutc
   const scope = k.scope === 'until_write' ? ` (up to ${k.until}, the step before the first write)` : '';
   if (k.status === 'passed') ui.ok(`check replay: ${k.steps_passed}/${k.steps_total} steps passed${scope} — it started from the state the recording left the product in`);
   else if (k.status === 'failed') {
-    ui.error(`check replay failed${k.failed_at ? ` at ${k.failed_at.scene}.${k.failed_at.step} (${k.failed_at.action})` : ''}: ${k.steps_passed}/${k.steps_total} steps passed${scope}${k.untrusted ? ` — ${k.untrusted.error}` : ''}`);
+    ui.error(
+      `check replay failed${k.failed_at ? ` at ${k.failed_at.scene}.${k.failed_at.step} (${k.failed_at.action})` : ''}: ${k.steps_passed}/${k.steps_total} steps passed${scope}${k.untrusted ? ` — ${k.untrusted.error}` : ''}`,
+    );
   } else if (k.status === 'cancelled') ui.warn('check replay stopped');
   else if (k.reason === 'first_step_writes') ui.info('check replay skipped: the first step already writes');
   else if (k.reason === 'disabled') ui.info('check replay skipped (--no-check)');

@@ -15,7 +15,7 @@ import type { PreviewComponentTarget } from '../src/render/preview.js';
 const manifestOf = (dir: string): ComponentManifest => parseManifest(readFileSync(join(dir, MANIFEST_FILE), 'utf8'), MANIFEST_FILE).manifest!;
 const noRegistry = {} as ComponentRegistry;
 
-describe('the previews\' bundle and the package scaffolds (review B M3)', () => {
+describe("the previews' bundle and the package scaffolds (review B M3)", () => {
   it('a scaffold shown as a target is bundled once, flagged as the scaffold', async () => {
     const dir = scaffoldDir('layout');
     const manifest = manifestOf(dir);
@@ -28,7 +28,7 @@ describe('the previews\' bundle and the package scaffolds (review B M3)', () => 
     expect(new Set(all.map((c) => c.id)).size).toBe(all.length);
   });
 
-  it('a workspace component with a scaffold\'s id but another folder keeps no flag (the holder check applies)', async () => {
+  it("a workspace component with a scaffold's id but another folder keeps no flag (the holder check applies)", async () => {
     const real = scaffoldDir('layout');
     const manifest = manifestOf(real);
     const dir = join('/scratch', 'ws', 'components', 'scaffolds', 'layout');

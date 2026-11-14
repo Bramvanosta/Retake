@@ -9,9 +9,10 @@ import { isUtf8 } from 'node:buffer';
 import { createReadStream } from 'node:fs';
 import { chmod, link, lstat, mkdir, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { SCENARIO_COMPARE_MAX_BYTES, pathInside } from '@retake/core';
+import { pathInside } from '@retake/core/base';
+import { SCENARIO_COMPARE_MAX_BYTES } from '@retake/core/scenario';
 import { readPlainFile } from '@retake/core/io';
-import type { TakeLock } from '@retake/sandbox';
+import type { TakeLock } from '@retake/core/io';
 import { EngineError } from './errors.js';
 import { lockHolder, takeProjectLock } from './project-lock.js';
 
@@ -96,6 +97,41 @@ export function checkRef(ref: string): string {
   return ref;
 }
 
+/** The local path of a ref of the folder `root` (checkRef: refused when it is not a folder-relative POSIX path). */
+export function resolveIn(root: string, ref: string): string {
+  return join(root, ...checkRef(ref).split('/'));
+}
+
+/**
+ * The ref of an absolute path inside the folder `root`; refused (`invalid`) outside it or for the folder itself, the
+ * folder named as `folder` says ("the project folder", "the components folder"…). Every store adapter refuses in these
+ * words (LocalStorage, the memory store).
+ */
+export function refOfIn(root: string, path: string, folder = 'the project folder'): string {
+  if (!isAbsolute(path) || !pathInside(path, root, { dotDotPrefix: true })) throw new EngineError('invalid', `${path} is outside ${folder} ${root}`);
+  const rel = relative(root, path);
+  if (rel === '') throw new EngineError('invalid', `${path} is ${folder} itself, not a file of it`);
+  return rel.split(sep).join('/');
+}
+
+/** Why an `if_match` write found another version: a hash on a missing file, a stale hash, null on an existing file, a change during the write. */
+export type ConflictWhy = 'missing' | 'stale' | 'exists' | 'raced';
+
+const CONFLICT_WORDS: Readonly<Record<ConflictWhy, string>> = {
+  missing: 'does not exist (if_match names a content it never had)',
+  stale: 'changed since it was read (if_match does not match its content)',
+  exists: 'already exists',
+  raced: 'changed while it was being written (if_match no longer matches)',
+};
+
+/** The `conflict` of an `if_match` write, with the current hash (or null) in `details.current`: every store adapter's words. */
+export function conflictError(ref: string, current: string | null, why: ConflictWhy): EngineError {
+  return new EngineError('conflict', `${ref}: ${CONFLICT_WORDS[why]}`, {
+    details: { current },
+    ...(current ? { fix: `read it again and pass if_match: "${current}"` } : {}),
+  });
+}
+
 export class LocalStorage implements Storage {
   readonly scheme = 'local' as const;
 
@@ -106,14 +142,11 @@ export class LocalStorage implements Storage {
   ) {}
 
   resolve(ref: string): string {
-    return join(this.root, ...checkRef(ref).split('/'));
+    return resolveIn(this.root, ref);
   }
 
   refOf(path: string): string {
-    if (!isAbsolute(path) || !pathInside(path, this.root, { dotDotPrefix: true })) throw new EngineError('invalid', `${path} is outside ${this.folder} ${this.root}`);
-    const rel = relative(this.root, path);
-    if (rel === '') throw new EngineError('invalid', `${path} is ${this.folder} itself, not a file of it`);
-    return rel.split(sep).join('/');
+    return refOfIn(this.root, path, this.folder);
   }
 
   async describe(ref: string, kind: StoredKind, opts: { hash?: boolean } = {}): Promise<StoredRef | undefined> {
@@ -152,7 +185,8 @@ export class LocalStorage implements Storage {
       throw e;
     }
     const fix = { fix: `replace it with a regular file inside ${this.root}` };
-    if (!pathInside(real, realRoot, { dotDotPrefix: true })) throw new EngineError('refused', `${path} leads out of ${this.folder} (a symbolic link): not read`, { ...fix, details: { reason: 'link_out' } });
+    if (!pathInside(real, realRoot, { dotDotPrefix: true }))
+      throw new EngineError('refused', `${path} leads out of ${this.folder} (a symbolic link): not read`, { ...fix, details: { reason: 'link_out' } });
     const r = readPlainFile(real, max);
     if (r.ok) return r.bytes;
     switch (r.reason) {
@@ -219,7 +253,9 @@ export class LocalStorage implements Storage {
    */
   private async lockWrite(ref: string, target: string): Promise<TakeLock> {
     const [realRoot, realDir, realFile] = await Promise.all([realpath(this.root), realpath(dirname(target)), realpath(target).catch(() => null)]);
-    const key = relative(realRoot, realFile ?? join(realDir, basename(target))).split(sep).join('/');
+    const key = relative(realRoot, realFile ?? join(realDir, basename(target)))
+      .split(sep)
+      .join('/');
     return takeProjectLock(this.root, `write-${sha256Hex(key).slice(0, 24)}.lock`, {
       command: `write ${key}`.slice(0, 200),
       what: ref,
@@ -239,18 +275,13 @@ export class LocalStorage implements Storage {
     const target = await this.writeTarget(path);
     const buf = Buffer.from(text, 'utf8');
     const written = { ref, path, sha256: sha256Hex(buf), bytes: buf.length };
-    const conflict = (current: string | null, why: string) =>
-      new EngineError('conflict', `${ref}: ${why}`, {
-        details: { current },
-        ...(current ? { fix: `read it again and pass if_match: "${current}"` } : {}),
-      });
     // A write that checks a hash holds the target's lock from the first check to the rename (critique B1): another
     // writer with the same if_match waits, then finds the new content and gets its conflict.
     const lock = typeof opts.ifMatch === 'string' && !opts.locked ? await this.lockWrite(ref, target) : undefined;
     try {
       if (opts.ifMatch !== undefined && opts.ifMatch !== null) {
         const current = await this.currentHash(path);
-        if (current !== opts.ifMatch) throw conflict(current, current === null ? 'does not exist (if_match names a content it never had)' : 'changed since it was read (if_match does not match its content)');
+        if (current !== opts.ifMatch) throw conflictError(ref, current, current === null ? 'missing' : 'stale');
       }
       // The replaced file's permissions are kept (critique B11): set explicitly, since writeFile's `mode` is masked by
       // the umask (a 0600 or 0664 scenario became 0644 after a save). A new file takes the umask's default.
@@ -268,14 +299,14 @@ export class LocalStorage implements Storage {
           try {
             await link(tmp, target);
           } catch (e) {
-            if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw conflict(await this.currentHash(path), 'already exists');
+            if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw conflictError(ref, await this.currentHash(path), 'exists');
             throw e;
           }
           return written;
         }
         if (opts.ifMatch !== undefined) {
           const current = await this.currentHash(path);
-          if (current !== opts.ifMatch) throw conflict(current, 'changed while it was being written (if_match no longer matches)');
+          if (current !== opts.ifMatch) throw conflictError(ref, current, 'raced');
         }
         await rename(tmp, target);
         return written;
@@ -287,4 +318,3 @@ export class LocalStorage implements Storage {
     }
   }
 }
-

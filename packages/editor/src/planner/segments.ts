@@ -3,8 +3,9 @@
  * caption, camera, panes and reframe), the outro — as drafts: content frames first, transitions applied afterwards
  * (transitions.ts).
  */
-import { READING_PACE, mediaSegmentUse, readingSeconds, wordCount } from '@retake/core';
-import type { FrameSpec, MediaFileFields, TimelineScenePage } from '@retake/core';
+import { mediaSegmentUse } from '@retake/core/model';
+import { READING_PACE, readingSeconds, wordCount } from '@retake/core/language';
+import type { FrameSpec, MediaFileFields, TimelineScenePage } from '@retake/core/model';
 import { GEOMETRY_KEYS, autoFit, isMultiPaneGeometry } from '@retake/components/geometry';
 import type { SlotContext } from '@retake/components/geometry';
 import { reframeTrack } from '../camera.js';
@@ -32,7 +33,31 @@ export interface SegmentInputs {
 
 /** The drafts of the video's segments, in order. */
 export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
-  const { ov, video, t, notes, warnings, resolver, kindOverride, segmentOverride, themeAndBuiltin, slotBase, outro, fr, outFps, width, height, variant, trackSources, cssW, cssH, srcFps, timeline, tutorialOn, stateOf } = s;
+  const {
+    ov,
+    video,
+    t,
+    notes,
+    warnings,
+    resolver,
+    kindOverride,
+    segmentOverride,
+    themeAndBuiltin,
+    slotBase,
+    outro,
+    fr,
+    outFps,
+    width,
+    height,
+    variant,
+    trackSources,
+    cssW,
+    cssH,
+    srcFps,
+    timeline,
+    tutorialOn,
+    stateOf,
+  } = s;
   const { entries, runOf, camByRun, layouts, overlays } = from;
   const { videoFrame, layoutChain, layoutOf, mainLayoutComponent, mainLayout } = layouts;
   const { overlayKeepOf } = overlays;
@@ -79,7 +104,11 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
   const readingOf = (rc: ResolvedComponent): { words: number; seconds: number } | undefined => {
     if (rc.media?.file) return undefined;
     const slots = resolver.manifest(rc)?.slots ?? {};
-    const words = wordCount(Object.entries(rc.slots).filter(([k]) => slots[k]?.type === 'text').map(([, v]) => v));
+    const words = wordCount(
+      Object.entries(rc.slots)
+        .filter(([k]) => slots[k]?.type === 'text')
+        .map(([, v]) => v),
+    );
     return words > 0 ? { words, seconds: readingSeconds(words) } : undefined;
   };
 
@@ -94,15 +123,29 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
    * Seconds of a full-frame use: the scenario's `duration`, else what the winning candidate sets (a theme's file), else
    * the file's own length (a video part, a Lottie animation), else the kind's default (theme, component, fallback).
    */
-  const useDuration = (rc: ResolvedComponent, explicit: number | undefined, themeDefault: number | undefined, fallback: number, where: string, reading?: { words: number; seconds: number }): number => {
+  const segmentSeconds = (
+    rc: ResolvedComponent,
+    explicit: number | undefined,
+    themeDefault: number | undefined,
+    fallback: number,
+    where: string,
+    reading?: { words: number; seconds: number },
+  ): number => {
     const own = explicit ?? resolver.candidateOf(rc)?.duration ?? fileLength(rc, outFps);
     const sec = segDuration(rc, own, rc.media?.file ? (own === undefined ? themeDefault : undefined) : themeDefault, fallback, where, rc.media?.file ? undefined : reading);
     if (rc.media?.file) {
       const m = rc.media.file;
-      const what = m.kind === 'video' ? `video ${secs(fileLength(rc, outFps) ?? m.duration_s)}${m.audio ? ', with sound' : ''}${m.alpha ? ', alpha' : ''}` : m.kind === 'lottie' ? `Lottie ${secs(m.duration_s)}` : 'image';
+      const what =
+        m.kind === 'video'
+          ? `video ${secs(fileLength(rc, outFps) ?? m.duration_s)}${m.audio ? ', with sound' : ''}${m.alpha ? ', alpha' : ''}`
+          : m.kind === 'lottie'
+            ? `Lottie ${secs(m.duration_s)}`
+            : 'image';
       notes.add(`${where}: your file ${m.name} (${what}) for ${secs(sec)}`);
       if (rc.params.fit === 'auto' && (m.kind === 'video' || m.kind === 'picture') && m.width && m.height && autoFit(m, { w: width, h: height }) === 'contain') {
-        notes.add(`${where}: ${m.name} (${m.width}×${m.height}) does not have the shape of the ${width}×${height} video: shown whole on the background (fit: contain; write fit: cover to fill the frame, cropped)`);
+        notes.add(
+          `${where}: ${m.name} (${m.width}×${m.height}) does not have the shape of the ${width}×${height} video: shown whole on the background (fit: contain; write fit: cover to fill the frame, cropped)`,
+        );
       }
     }
     return sec;
@@ -119,7 +162,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
     chain.push(...themeAndBuiltin('intro'));
     const rc = resolver.resolve('intro', chain, 'intro', { named: { title: video.title?.text, kicker: video.title?.kicker }, ctx: slotBase });
     if (rc) {
-      const frames = fr(useDuration(rc, spec?.duration, t.intro.duration, 3.2, 'intro'));
+      const frames = fr(segmentSeconds(rc, spec?.duration, t.intro.duration, 3.2, 'intro'));
       drafts.push({ seg: { ...base('intro', frames, rc), kind: 'intro' } as IntroSegment, content: frames });
     } else notes.add('no intro: the theme has none');
   } else if (video.intro === false && ov.intro === undefined) notes.add('no intro (scenario intro: false)');
@@ -128,9 +171,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
   const captionsOn = ov.captions !== false;
   if (!captionsOn) notes.add('captions disabled (overrides.captions = false)');
   // L4.5: the scenario's caption component, between a render override and the theme (per video: captions resolve by kind).
-  const scenarioCaption: Candidate[] = video.caption_component
-    ? [{ ref: video.caption_component, source: 'scenario', label: 'the scenario (caption_component)' }]
-    : [];
+  const scenarioCaption: Candidate[] = video.caption_component ? [{ ref: video.caption_component, source: 'scenario', label: 'the scenario (caption_component)' }] : [];
   for (const e of entries) {
     const id = e.scene.id;
     if (e.type === 'card') {
@@ -145,7 +186,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
         continue;
       }
       const reading = readingOf(rc);
-      const frames = fr(useDuration(rc, spec.duration, undefined, 2.5, `card "${id}"`, reading));
+      const frames = fr(segmentSeconds(rc, spec.duration, undefined, 2.5, `card "${id}"`, reading));
       drafts.push({ seg: { ...base(id, frames, rc), kind: 'card', ...(reading ? { reading } : {}) } as CardSegment, content: frames });
       continue;
     }
@@ -167,7 +208,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
         continue;
       }
       const reading = readingOf(rc);
-      const frames = fr(useDuration(rc, spec.duration, t.interstitial.duration, 2.6, `interstitial "${id}"`, reading));
+      const frames = fr(segmentSeconds(rc, spec.duration, t.interstitial.duration, 2.6, `interstitial "${id}"`, reading));
       drafts.push({ seg: { ...base(id, frames, rc), kind: 'interstitial', ...(reading ? { reading } : {}) } as CardSegment, content: frames });
       continue;
     }
@@ -181,10 +222,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
     }
     const where = `scene "${id}"`;
     const frameSpec: FrameSpec = ov.frame ?? e.scene.frame ?? videoFrame;
-    let layoutRc =
-      e.scene.frame === undefined && ov.components?.[id] === undefined
-        ? mainLayoutComponent
-        : resolver.resolve('layout', layoutChain(e.scene.frame, id), where);
+    let layoutRc = e.scene.frame === undefined && ov.components?.[id] === undefined ? mainLayoutComponent : resolver.resolve('layout', layoutChain(e.scene.frame, id), where);
     // L2.11: a multi-page scene needs a layout that shows several pages, a single-page scene one that shows one.
     const multiPane = (rc: ResolvedComponent | null | undefined) => {
       const m = resolver.manifest(rc);
@@ -200,7 +238,11 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
         layoutRc = auto;
       }
     } else if (!e.pages && multiPane(layoutRc)) {
-      const single = resolver.resolve('layout', [resolver.themeCandidate('layout'), resolver.builtinCandidate('layout')].filter((c) => c.ref !== null), where);
+      const single = resolver.resolve(
+        'layout',
+        [resolver.themeCandidate('layout'), resolver.builtinCandidate('layout')].filter((c) => c.ref !== null),
+        where,
+      );
       const msg = `${where} films one page: ${layoutRc!.id} shows several, ${single?.id ?? 'the built-in layout'} used`;
       if (e.scene.frame !== undefined) warnings.add(msg);
       else notes.add(msg);
@@ -275,7 +317,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
       ctx: slotBase,
     });
     if (rc) {
-      const frames = fr(useDuration(rc, outro?.duration, t.outro.duration, 3, 'outro'));
+      const frames = fr(segmentSeconds(rc, outro?.duration, t.outro.duration, 3, 'outro'));
       drafts.push({ seg: { ...base('outro', frames, rc), kind: 'outro' } as OutroSegment, content: frames });
     } else notes.add('no outro: the theme has none');
   } else if (video.outro === false && ov.outro === undefined) notes.add('no outro (scenario outro: false)');

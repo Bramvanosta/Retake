@@ -20,7 +20,7 @@
  *   the engine accepts only a theme the workspace lists.
  */
 import { isDeepStrictEqual } from 'node:util';
-import { TEMPLATE_NAME_RE } from './jobs.js';
+import { isThemeName } from './id-grammar.js';
 import { setMapPath } from './map-edits.js';
 import { editValueProblem } from './scenario-edit.js';
 import { StepEditError, stepGuard } from './step-edits.js';
@@ -105,7 +105,7 @@ export function fieldValueProblem(field: string, to: unknown): string | null {
   }
   if (kind === 'component' && !COMPONENT_ID_RE.test(to)) return `${field} takes a component "namespace/name"`;
   // L4.7 (critique B1): a theme of the workspace by its name (templates.list) — never a path; the engine checks it is listed.
-  if (kind === 'theme' && (!TEMPLATE_NAME_RE.test(to) || to.length > 100)) return `${field} takes a theme name (the themes list names them), never a path`;
+  if (kind === 'theme' && !isThemeName(to)) return `${field} takes a theme name (the themes list names them), never a path`;
   return null;
 }
 
@@ -197,7 +197,10 @@ export function applyFieldEdit(text: string, edit: FieldEdit): FieldEditApplied 
   if (!at || !Object.hasOwn(FIELD_PATHS, at.entry)) throw new StepEditError('invalid', 'at.entry is one of top, scene, card, interstitial');
   const allowed = FIELD_PATHS[at.entry] as readonly string[];
   if (typeof edit.field !== 'string' || !allowed.includes(edit.field)) {
-    throw new StepEditError('invalid', `${String(edit.field).slice(0, 60)} is not a value the timeline sets on ${at.entry === 'top' ? 'the video' : `a ${at.entry}`} (it sets ${allowed.join(', ')}): change it in the YAML view`);
+    throw new StepEditError(
+      'invalid',
+      `${String(edit.field).slice(0, 60)} is not a value the timeline sets on ${at.entry === 'top' ? 'the video' : `a ${at.entry}`} (it sets ${allowed.join(', ')}): change it in the YAML view`,
+    );
   }
   const field = edit.field;
   const kind = fieldKindOf(field);
@@ -221,7 +224,11 @@ export function applyFieldEdit(text: string, edit: FieldEdit): FieldEditApplied 
     const content = isObj(v) ? Object.keys(v).filter((k) => k !== 'component' && k !== 'duration') : [];
     if (content.length) {
       const named = content.filter((k) => /^[a-z_]{1,40}$/.test(k)).slice(0, 6);
-      throw new StepEditError('not_editable', `the ${field} has its own ${named.length ? named.join(', ') : 'content'}: turn it off or back to the theme's in the YAML view (a switch would drop it)`, field);
+      throw new StepEditError(
+        'not_editable',
+        `the ${field} has its own ${named.length ? named.join(', ') : 'content'}: turn it off or back to the theme's in the YAML view (a switch would drop it)`,
+        field,
+      );
     }
   }
   const protectedKey = at.entry === 'card' || at.entry === 'interstitial' ? at.entry : undefined;

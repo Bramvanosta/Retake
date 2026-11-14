@@ -10,14 +10,17 @@
  * Cost and safety (critique B6, B7): every file through RunFolder (no link followed, names validated, sizes capped,
  * checked once open); a video only as a regular file inside the run, handed to ffmpeg as open descriptors; one ffmpeg
  * process per batch and video (≤ 1 per run, ≤ 2 at once); sharp work ≤ 2 at once, each source read inside its slot
- * (≤ 2 sources of ≤ 16 MiB in memory, review A #2); the review package's `./thumbs` entry only (no editor / Remotion import). Thumbnails live in memory
+ * (≤ 2 sources of ≤ 16 MiB in memory, review A #2); the reviewer's frames (the product's: the review package's `./thumbs` entry only, no editor / Remotion import). Thumbnails live in memory
  * only (a byte-bounded LRU keyed by the run folder, the run's file signatures and the run's step key): never written.
  */
 import { closeSync } from 'node:fs';
-import type { TimelineEvent, WorkPolicy } from '@retake/core';
+import type { TimelineEvent } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import { EngineError } from './errors.js';
 import { RunDataCache, errorScreenshotName, fileSlug, frameAt, gridFrame, seekTime, stepScreenshotName } from './run-data.js';
 import type { PageSource, RunData } from './run-data.js';
+import type { FrameTools } from './review/reviewer.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Keys per call, at most. */
 export const RUN_THUMBS_MAX_KEYS = 24;
@@ -58,8 +61,6 @@ export interface RunThumbsView {
   thumbs: RunThumb[];
   missing: Array<{ key: string; reason: ThumbMissingReason }>;
 }
-
-const review = () => import('@retake/review/thumbs');
 
 /** A counting semaphore; a waiter whose signal aborts leaves the queue. */
 export class Semaphore {
@@ -138,6 +139,8 @@ class ThumbCache {
 export interface RunThumbsOptions {
   /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
   policy: WorkPolicy;
+  /** What takes a video's frames and makes the JPEGs (its composition root's reviewer, review/reviewer.ts). */
+  frames: Pick<FrameTools, 'load' | 'at' | 'thumb'>;
   /** Thumbnail cache size in base64 characters (default THUMB_CACHE_BYTES). */
   cacheBytes?: number;
   /** ffmpeg binary (default: core `ffmpegBin()` — retake.yaml, $RETAKE_FFMPEG, the app's, PATH). */
@@ -146,9 +149,7 @@ export interface RunThumbsOptions {
   ffmpegTimeoutMs?: number;
 }
 
-type Plan =
-  | { kind: 'file'; key: string; rel: string; max: number; from: ThumbSource }
-  | { kind: 'video'; key: string; video: string; seconds: number };
+type Plan = { kind: 'file'; key: string; rel: string; max: number; from: ThumbSource } | { kind: 'video'; key: string; video: string; seconds: number };
 
 /** The thumbnail service of one engine (its caches and its process slots). */
 export class RunThumbs {
@@ -218,7 +219,9 @@ export class RunThumbs {
   /** Carry out the plans: files first (sharp, ≤ 2 at once), then one ffmpeg per video for what is left. */
   private async make(run: RunData, plans: Plan[], results: Map<string, RunThumb | ThumbMissingReason>, signal?: AbortSignal): Promise<void> {
     if (plans.length === 0) return;
-    const r = await review();
+    const r = this.o.frames;
+    // Loaded before the slots catch their failures: frames that cannot be loaded fail the call, never read as missing.
+    await r.load();
     const done = (key: string) => {
       const v = results.get(key);
       return v !== undefined && typeof v !== 'string';
@@ -244,7 +247,7 @@ export class RunThumbs {
         held = got.bytes.length;
         this.stats.sourceBytes += held;
         this.stats.sourceBytesPeak = Math.max(this.stats.sourceBytesPeak, this.stats.sourceBytes);
-        return { ok: true as const, thumb: await r.thumbJpeg(got.bytes) };
+        return { ok: true as const, thumb: await r.thumb(got.bytes) };
       } finally {
         this.stats.sourceBytes -= held;
         release();
@@ -287,7 +290,12 @@ export class RunThumbs {
         const open = run.folder.openVideo(video, batch.length);
         if (!open.ok) return null;
         try {
-          return await this.ffmpegFrames(r, { fds: open.fds }, batch.map((p) => p.seconds), signal);
+          return await this.ffmpegFrames(
+            r,
+            { fds: open.fds },
+            batch.map((p) => p.seconds),
+            signal,
+          );
         } finally {
           for (const fd of open.fds) closeSync(fd);
         }
@@ -318,8 +326,8 @@ export class RunThumbs {
   /** Runs `fn` after the run's previous video batch (one ffmpeg per run at a time). */
   private oneVideoBatch<T>(runDir: string, fn: () => Promise<T>): Promise<T> {
     const prev = this.runChains.get(runDir) ?? Promise.resolve();
-    const next = prev.catch(() => undefined).then(fn);
-    const tail = next.catch(() => undefined);
+    const next = bestEffort(prev, "the previous call's failure is its own caller's: the chain only orders the calls").then(fn);
+    const tail = bestEffort(next, "the chain's tail never rejects: the caller gets the failure from `next`");
     this.runChains.set(runDir, tail);
     void tail.then(() => {
       if (this.runChains.get(runDir) === tail) this.runChains.delete(runDir);
@@ -327,13 +335,13 @@ export class RunThumbs {
     return next;
   }
 
-  private async ffmpegFrames(r: Awaited<ReturnType<typeof review>>, input: { fds: number[] }, seconds: number[], signal?: AbortSignal): Promise<Array<Buffer | null> | null> {
+  private async ffmpegFrames(r: RunThumbsOptions['frames'], input: { fds: number[] }, seconds: number[], signal?: AbortSignal): Promise<Array<Buffer | null> | null> {
     let release: (() => void) | undefined;
     try {
       release = await this.ffmpeg.acquire(signal);
       this.stats.ffmpeg++;
       this.stats.ffmpegPeak = Math.max(this.stats.ffmpegPeak, this.ffmpeg.busy);
-      return await r.videoFramesAt(input, seconds, {
+      return await r.at(input, seconds, {
         policy: this.o.policy,
         ...(signal ? { signal } : {}),
         ...(this.o.ffmpeg ? { ffmpeg: this.o.ffmpeg } : {}),

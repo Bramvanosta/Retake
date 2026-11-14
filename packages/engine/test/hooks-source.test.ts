@@ -7,7 +7,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { HooksSourceError, selectHooks } from '../src/index.js';
+import { HooksSourceError, selectHooks, diskWorkspaceReads } from '../src/index.js';
 import { PERSON_POLICY } from '@retake/core';
 import { fileFacts } from '@retake/core/io';
 
@@ -23,7 +23,7 @@ describe('selectHooks: a hooks file of the project only', () => {
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
   it('refuses a link that leads out of the project, before reading it', async () => {
-    const e = await selectHooks(project, 'hooks/out.yaml', undefined, { files: fileFacts(PERSON_POLICY), projectFilesOnly: true }).catch((x: unknown) => x);
+    const e = await selectHooks(project, 'hooks/out.yaml', undefined, { files: fileFacts(PERSON_POLICY), reads: diskWorkspaceReads, projectFilesOnly: true }).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(HooksSourceError);
     expect((e as HooksSourceError).message).toBe('hooks file "hooks/out.yaml" leads outside the project');
     expect((e as HooksSourceError).usage).toBe(true);
@@ -31,7 +31,10 @@ describe('selectHooks: a hooks file of the project only', () => {
 
   it('a file of the project, or a link to one, passes the check', async () => {
     for (const spec of ['hooks/in.yaml', 'hooks/alias.yaml']) {
-      const e = await selectHooks(project, spec, undefined, { files: fileFacts(PERSON_POLICY), projectFilesOnly: true }).then(() => null, (x: unknown) => x);
+      const e = await selectHooks(project, spec, undefined, { files: fileFacts(PERSON_POLICY), reads: diskWorkspaceReads, projectFilesOnly: true }).then(
+        () => null,
+        (x: unknown) => x,
+      );
       expect(e instanceof HooksSourceError ? e.message : null, spec).toBeNull();
     }
   });

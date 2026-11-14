@@ -1,7 +1,10 @@
-import { channelWords, readOnlyHookMessage, shellAlwaysWrites } from '@retake/core';
-import type { HookKind, HookStep, HttpHookSpec } from '@retake/core';
+import { confinementOrDefault, confinementWords } from '@retake/core/model';
+import { readOnlyHookMessage } from '@retake/core/environment';
+import { AGENT_SQL_REASON, shellAlwaysWrites } from '@retake/core/hooks';
+import type { HookKind, HookStep, HttpHookSpec } from '@retake/core/model';
 import { checkWriteHosts } from './allow-list.js';
 import { hookFiles, hookFingerprint } from './approval.js';
+import { holdAfter, holdBefore, trustedFilesMessage, trustedFilesProblem } from './trusted-files.js';
 import { describeHook, hookKindOf, withName } from './describe.js';
 import { HookError, HookSecurityError, errorMessage } from './errors.js';
 import type { Journal } from './journal.js';
@@ -11,7 +14,7 @@ import { baseDirOf } from './kinds/common.js';
 import { JS_NEEDS_PAGE } from './kinds/js.js';
 import { logger, redactDeep, redactText } from './secrets.js';
 import { actionLines } from './shown.js';
-import { addDrySaved, tokensIn } from './template.js';
+import { addDrySaved, usesAgentVars } from './template.js';
 import { journalsRollback } from './types.js';
 import { recordHookRun } from './record.js';
 import type { HookApprovalRequest, HookContext, HookLogLevel, HookPhase, HookResult, JournalEntry } from './types.js';
@@ -26,18 +29,6 @@ export interface RunHooksOptions {
    * sandbox's seed) is only shown in full, unless its templates use the agent's variables (HookContext.agentVars).
    */
   agentWritten?: boolean;
-}
-
-/** Whether a hook's templates use a variable the agent wrote (`{{vars.x}}`, or a bare `{{x}}` that is not a page). */
-function usesAgentVars(hook: HookStep, ctx: HookContext): boolean {
-  const names = new Set(ctx.agentVars ?? []);
-  if (!names.size) return false;
-  return tokensIn(hook).some((expr) => {
-    const path = expr.split('.').map((s) => s.trim());
-    if (path[0] === 'vars') return path.length > 1 && names.has(path[1]);
-    if (path.length === 1 && Object.hasOwn(ctx.env.pages, path[0])) return false;
-    return !['hooks', 'run', 'response'].includes(path[0]) && !/^(env|keychain|secret):/.test(expr) && names.has(path[0]);
-  });
 }
 
 /** What an approval shows of a prepared hook: its fields, then its rollback's, redacted (shown.ts). */
@@ -93,9 +84,7 @@ async function confirmDestructive(hook: HookStep, reason: string, description: s
   if (!approved) {
     throw new HookSecurityError(
       mcp
-        ? ctx.via === 'studio'
-          ? `refusing hook (${reason}) without a human approval: ${channelWords(ctx.via)}, "confirm: true" does not count and the Studio cannot approve hooks yet — run it in a terminal`
-          : `refusing hook (${reason}) without a human approval: ${channelWords(ctx.via)}, "confirm: true" does not count — a human approves it when asked, or runs it in a terminal`
+        ? `refusing hook (${reason}) without a human approval: ${confinementWords(ctx.via)}, "confirm: true" does not count${confinementOrDefault(ctx.via).approval}`
         : `refusing destructive hook (${reason}) without "confirm: true"; add it to the hook once you have checked what it does`,
       'destructive',
     );
@@ -105,24 +94,24 @@ async function confirmDestructive(hook: HookStep, reason: string, description: s
 
 /**
  * Why a hook needs a human before it runs, or null: destructive (declared, or found in its templated content); with
- * trust `mcp` also any shell hook (arbitrary local code), and a setup hook whose rollback is destructive, a shell
- * command or JavaScript — the rollback runs later, without asking again.
+ * trust `mcp` also any shell hook (arbitrary local code), an sql hook the agent wrote (`agentWritten`, or a person's
+ * whose file, rollback file or database URL uses the agent's vars: PreparedHook.agentVars — treated like its shell
+ * hooks, core AGENT_SQL_REASON), and a setup hook whose rollback is destructive, a shell command or
+ * JavaScript — the rollback runs later, without asking again.
  */
-function approvalReason(hook: HookStep, kind: HookKind, prepared: PreparedHook, ctx: HookContext): string | null {
+function approvalReason(hook: HookStep, kind: HookKind, prepared: PreparedHook, ctx: HookContext, agentWritten: boolean): string | null {
   const own = hook.destructive === true ? 'declared destructive' : prepared.destructive;
   if (ctx.trust !== 'mcp') return own;
-  const reasons = [own ?? (kind === 'shell' ? 'a shell command (runs local code)' : null), prepared.rollback?.reason ? `its rollback: ${prepared.rollback.reason}` : null];
+  const reasons = [
+    own ?? (kind === 'shell' ? 'a shell command (runs local code)' : kind === 'sql' && (agentWritten || prepared.agentVars === true) ? AGENT_SQL_REASON : null),
+    prepared.rollback?.reason ? `its rollback: ${prepared.rollback.reason}` : null,
+  ];
   const r = reasons.filter((x): x is string => x !== null);
   return r.length ? r.join('; ') : null;
 }
 
 /** Journal an outcome; a journal that cannot be saved turns the result into a failure. */
-async function journalOutcome(
-  journal: Journal,
-  entry: Omit<JournalEntry, 'seq'>,
-  result: HookResult,
-  log: Log,
-): Promise<Attempt> {
+async function journalOutcome(journal: Journal, entry: Omit<JournalEntry, 'seq'>, result: HookResult, log: Log): Promise<Attempt> {
   const stored = journal.add(entry);
   result.journal_seq = stored.seq;
   try {
@@ -183,17 +172,23 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
   });
 
   let prepared: PreparedHook;
+  let agentWritten = false;
   try {
     if (kind === 'js' && opts.phase === 'seed') throw new HookError(SEED_NO_JS);
     // Through MCP (core agent-trust): the files a hook references stay in the project, never agent-writable when run as
     // code; their bytes are bound to its approval (fingerprint).
     let files: Record<string, string> | undefined;
-    const agentWritten = ctx.trust === 'mcp' && (opts.agentWritten === true || usesAgentVars(hook, ctx));
+    agentWritten = ctx.trust === 'mcp' && (opts.agentWritten === true || usesAgentVars(hook, ctx));
     if (ctx.trust === 'mcp') {
       // An agent-written shell hook's words are judged by core agentShellProblems instead (kinds/shell.ts).
       const found = hookFiles(hook, { projectDir: ctx.project.dir, baseDir: baseDirOf(ctx), ...(agentWritten ? { agentWritten } : {}) });
       if (found.problems.length) throw new HookSecurityError(found.problems.join('; '), 'mcp');
       files = found.files;
+    }
+    // L7.39: the files a person checked before the run (their trust, or their yes): a hook whose files are no longer those is refused.
+    if (!ctx.dryRun) {
+      const changed = await trustedFilesProblem(hook, ctx);
+      if (changed.length) throw new HookSecurityError(trustedFilesMessage(changed), 'trust');
     }
     prepared = await prepareHook(hook, kind, { ctx, phase: opts.phase, log, ...(agentWritten ? { agentWritten } : {}) });
     description = withName(hook.name, prepared.description);
@@ -207,7 +202,7 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
     }
     // Nor does any run write to the hosts of another, read-only environment (production): refused like the above.
     if (prepared.writes && prepared.hosts) checkWriteHosts(prepared.hosts, prepared.writes, ctx.access);
-    const reason = approvalReason(hook, kind, prepared, ctx);
+    const reason = approvalReason(hook, kind, prepared, ctx, agentWritten);
     // A seed rebuilds a local, disposable sandbox (L1.8): destructive steps are its job, never asked about. With trust
     // `mcp` a shell seed step still needs a human: it runs local code, whatever the sandbox is.
     const asks = reason !== null && (opts.phase !== 'seed' || (ctx.trust === 'mcp' && kind === 'shell'));
@@ -308,7 +303,10 @@ export async function runHooks(hooks: HookStep[], ctx: HookContext, opts: RunHoo
       await rollBack();
       break;
     }
+    // L7.39: a run held to trusted files holds them as this hook leaves them (holdAfter).
+    const point = ctx.trustedFiles && !ctx.dryRun ? await holdBefore(hooks[i] as HookStep, ctx) : undefined;
     const { result, entry } = await runOne(hooks[i], i, hooks.length, ctx, opts, log);
+    if (point) await holdAfter(ctx, point, result.status);
     await recordHookRun(ctx, result);
     results.push(result);
     if (entry?.rollback && entry.status === 'ok') completed.push(entry.seq);

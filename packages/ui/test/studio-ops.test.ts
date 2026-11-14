@@ -7,7 +7,7 @@
  * the test sources are not type-checked by the build — and its mutations).
  */
 import { readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
@@ -123,7 +123,10 @@ function typeErrors(checks: string, data = CHECKS_DATA): string[] {
   const extra = join(UI, 'src/app/data/projects-and-more.ts');
   if (!checker) {
     const config = ts.getParsedCommandLineOfConfigFile(join(UI, 'tsconfig.json'), {}, { ...ts.sys, onUnRecoverableConfigFileDiagnostic: () => undefined })!;
-    checker = { options: { ...config.options, noEmit: true, composite: false, declaration: false, declarationMap: false, sourceMap: false, incremental: false, tsBuildInfoFile: undefined }, files: new Map() };
+    checker = {
+      options: { ...config.options, noEmit: true, composite: false, declaration: false, declarationMap: false, sourceMap: false, incremental: false, tsBuildInfoFile: undefined },
+      files: new Map(),
+    };
   }
   const { options, files } = checker;
   const host = ts.createCompilerHost(options);
@@ -182,7 +185,7 @@ describe('L6.12: the typed operation client', () => {
     expect(typeErrors(namesCheck(UI_OPS, [...notServed, 'project_get'])).length).toBeGreaterThan(0);
   });
 
-  it('⚑ the type checker refuses a call of an op the Studio does not serve, wrong or missing arguments, a pinned argument\'s other value and a result read as another type (through call, a data function and a read); each mistake alone is an error', () => {
+  it("⚑ the type checker refuses a call of an op the Studio does not serve, wrong or missing arguments, a pinned argument's other value and a result read as another type (through call, a data function and a read); each mistake alone is an error", () => {
     // Every good call compiles and every mistake is refused (an unused @ts-expect-error would be an error too).
     expect(typeErrors(CHECKS)).toEqual([]);
     // Each mistake is an error on its own: without its directive, its line is reported.
@@ -192,11 +195,17 @@ describe('L6.12: the typed operation client', () => {
     for (const i of directives) {
       const errors = typeErrors(lines.filter((_, j) => j !== i).join('\n'));
       expect(errors.length, lines[i].trim()).toBeGreaterThan(0);
-      expect(errors.every((e) => Number(e.split(':')[0]) === i + 1), `${lines[i].trim()}: ${errors.join(' | ')}`).toBe(true);
+      expect(
+        errors.every((e) => Number(e.split(':')[0]) === i + 1),
+        `${lines[i].trim()}: ${errors.join(' | ')}`,
+      ).toBe(true);
     }
     // The mutation: the untyped client of before L6.12 (any op name, any arguments, a result of the caller's choosing)
     // accepts every mistake — each directive is then unused.
-    const untyped = CHECKS.replace("import { call } from '../api.js';\nimport type { OpArgs, OpResult } from '../api.js';", "import type { OpArgs, OpResult } from '../api.js';\ndeclare function call<T = any>(op: string, args?: Record<string, unknown>, o?: { signal?: AbortSignal }): Promise<T>;");
+    const untyped = CHECKS.replace(
+      "import { call } from '../api.js';\nimport type { OpArgs, OpResult } from '../api.js';",
+      "import type { OpArgs, OpResult } from '../api.js';\ndeclare function call<T = any>(op: string, args?: Record<string, unknown>, o?: { signal?: AbortSignal }): Promise<T>;",
+    );
     expect(untyped).not.toBe(CHECKS);
     const unused = typeErrors(untyped).filter((e) => /Unused '@ts-expect-error' directive/.test(e));
     expect(unused.length).toBe(12);

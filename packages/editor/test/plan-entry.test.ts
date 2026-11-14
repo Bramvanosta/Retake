@@ -4,7 +4,8 @@
  * file-system module; the packages it reaches are the ones listed here (a new one is a decision, not a drift). The
  * package root re-exports all of it. At run time (the built entry imported by a Node process tracing every module it
  * resolves), it loads none of the renderer's packages and reaches the components only through their geometry entry.
- * The render record's listing reads through the functions it is given.
+ * The render records of a folder (L7.6b: core's one reader of renders/ and its rules; the editor's own listing and test
+ * of a record are gone) read through the file system they are given.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -15,17 +16,28 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as root from '@retake/editor';
 import * as entry from '@retake/editor/plan';
-import { readRenderRecords } from '@retake/editor/plan';
-import type { RenderRecordReader } from '@retake/editor/plan';
+import { renderRecordsOf } from '@retake/core';
+import { readRendersFolder } from '@retake/core/io';
+import type { RenderFolderOptions } from '@retake/core/io';
 
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 const ENTRY = join(SRC, 'plan-entry.ts');
 const ts = createRequire(import.meta.url)('typescript') as typeof import('typescript');
 
 /** A specifier no module of the planner may import: the renderer's, Remotion's, React's, the file system's, processes'. */
-const FORBIDDEN = /^(node:)?(fs|fs\/promises|child_process|net|tls|http|https|http2|os|worker_threads|module|stream|zlib)$|^(react|react-dom|remotion|@remotion\/|playwright|playwright-core|esbuild|sharp)(\/|$)/;
-/** The packages the planner's modules import (each is the planner's own decision). */
-const PACKAGES = ['@retake/components/geometry', '@retake/core', 'node:path'];
+const FORBIDDEN =
+  /^(node:)?(fs|fs\/promises|child_process|net|tls|http|https|http2|os|worker_threads|module|stream|zlib)$|^(react|react-dom|remotion|@remotion\/|playwright|playwright-core|esbuild|sharp)(\/|$)/;
+/** The packages the planner's modules import (each is the planner's own decision; core by its entries since L7.35). */
+const PACKAGES = [
+  '@retake/components/geometry',
+  '@retake/core/base',
+  '@retake/core/environment',
+  '@retake/core/language',
+  '@retake/core/model',
+  '@retake/core/render',
+  '@retake/core/theme',
+  'node:path',
+];
 
 /** The editor modules reachable from `start` and the specifiers they import, read with the compiler's pre-processor. */
 function walk(start: string): { files: string[]; specs: Map<string, string[]> } {
@@ -123,7 +135,10 @@ function loadTrace(file: string): Array<[string, string]> {
     ].join('\n');
     const r = spawnSync(process.execPath, ['--input-type=module', '-e', main], { encoding: 'utf8' });
     expect(r.status, r.stderr).toBe(0);
-    return readFileSync(out, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as [string, string]);
+    return readFileSync(out, 'utf8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as [string, string]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -147,8 +162,8 @@ describe('@retake/editor/plan at run time (the built entry, every module it load
   });
 });
 
-describe('readRenderRecords', () => {
-  const rec = (id: string, at: string) => JSON.stringify({ version: 1, id, created_at: at, plan: { version: 1 } });
+describe('the render records of a folder (core readRendersFolder + renderRecordsOf)', () => {
+  const rec = (id: string, at: string) => JSON.stringify({ version: 1, id, scenario: id.replace(/-v\d+$/, ''), status: 'succeeded', created_at: at, plan: { version: 1 } });
 
   it('keeps the render records of a folder, oldest first (then by id), and skips dot files, other JSON and unreadable files', async () => {
     const files: Record<string, string> = {
@@ -161,22 +176,24 @@ describe('readRenderRecords', () => {
       'old.json': '{"version": 2, "id": "y", "plan": {}}',
       'broken.json': '{',
       'gone.json': '',
+      // A copy of a record (its id is not its file's name) is no record of the folder's (D-10).
+      'b-v1 copy.json': rec('b-v1', '2026-10-11T12:00:00.000Z'),
     };
     const read: string[] = [];
-    const io: RenderRecordReader = {
-      list: async () => Object.keys(files),
-      read: async (f) => {
+    const fs: NonNullable<RenderFolderOptions['fs']> = {
+      names: async () => Object.keys(files),
+      text: async (f) => {
         read.push(f);
-        if (f.endsWith('gone.json')) throw new Error('ENOENT');
-        return files[f.slice(f.lastIndexOf('/') + 1)];
+        if (f.endsWith('gone.json')) return { ok: false, problem: 'missing', link: false };
+        return { ok: true, text: files[f.slice(f.lastIndexOf('/') + 1)]!, link: false };
       },
     };
-    expect((await readRenderRecords('/p/renders', io)).map((r) => r.id)).toEqual(['b-v1', 'a-v1', 'c-v1']);
+    expect(renderRecordsOf(await readRendersFolder('/p/renders', { fs })).map((r) => r.id)).toEqual(['b-v1', 'a-v1', 'c-v1']);
     expect(read).toContain('/p/renders/b-v1.json');
     expect(read.some((f) => f.includes('.hidden') || f.endsWith('.txt'))).toBe(false);
   });
 
   it('holds none when the folder cannot be listed', async () => {
-    expect(await readRenderRecords('/nowhere', { list: async () => Promise.reject(new Error('ENOENT')), read: async () => '' })).toEqual([]);
+    expect(await readRendersFolder('/nowhere', { fs: { names: async () => Promise.reject(new Error('ENOENT')), text: async () => ({ ok: false, problem: 'missing', link: false }) } })).toEqual([]);
   });
 });

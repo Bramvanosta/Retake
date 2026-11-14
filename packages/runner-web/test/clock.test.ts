@@ -12,9 +12,10 @@ import type { AddressInfo } from 'node:net';
 import { rm } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
-import { kitConfigFor, openSession, runScenario, useRealTime } from '../src/index.js';
+import { kitConfigFor, openSession, runScenario, keepRealTime } from '../src/index.js';
 import type { CursorEffectPayload } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
@@ -39,7 +40,8 @@ beforeAll(async () => {
     if (path === '/framed.html') return void res.end(html('<p>Outer</p><iframe src="/"></iframe>'));
     if (path === '/tall.html') return void res.end(html(`<h1>Top</h1><div style="height:4000px"></div><p>Bottom</p>`));
     if (path === '/minute.html') return void res.end(html(`<p id="asof"></p><script>document.getElementById('asof').textContent = 'As of ' + new Date().toISOString().slice(0, 16)</script>`));
-    if (path === '/now.html') return void res.end(html(`<p id="now"></p><button style="margin:200px">Hover me</button><script>document.getElementById('now').textContent = 'Now ' + new Date().toISOString()</script>`));
+    if (path === '/now.html')
+      return void res.end(html(`<p id="now"></p><button style="margin:200px">Hover me</button><script>document.getElementById('now').textContent = 'Now ' + new Date().toISOString()</script>`));
     // A page that breaks its own timers and animation frames once loaded: the kit must not depend on them.
     if (path === '/hostile.html') {
       return void res.end(
@@ -64,7 +66,15 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('the clock in a session (R-ENV-05)', () => {
   it('anchored at capture time 0: every browser, document, frame, popup and worker reads the time then, and it runs', async () => {
-    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined), realms: [{ name: 'a' }, { name: 'b' }], realmOf: (id) => (id === 'a' || id === 'b' ? id : '') });
+    const session = await openSession({
+      policy: PERSON_POLICY,
+      width: 800,
+      height: 600,
+      scale: 1,
+      kit: kitConfigFor(undefined),
+      realms: [{ name: 'a' }, { name: 'b' }],
+      realmOf: (id) => (id === 'a' || id === 'b' ? id : ''),
+    });
     try {
       const a = await session.page('a');
       const b = await session.page('b');
@@ -102,7 +112,15 @@ describe('the clock in a session (R-ENV-05)', () => {
       await since(now(popup));
       let workerYear = 0;
       await since(async () => {
-        const [ms, y] = await a.evaluate((u) => new Promise<[number, number]>((res) => { const w = new Worker(u); w.onmessage = (e) => res(e.data as [number, number]); setTimeout(() => w.postMessage(1), 300); }), `${A}/worker.js`);
+        const [ms, y] = await a.evaluate(
+          (u) =>
+            new Promise<[number, number]>((res) => {
+              const w = new Worker(u);
+              w.onmessage = (e) => res(e.data as [number, number]);
+              setTimeout(() => w.postMessage(1), 300);
+            }),
+          `${A}/worker.js`,
+        );
         workerYear = y;
         return ms;
       });
@@ -125,7 +143,7 @@ describe('the clock in a session (R-ENV-05)', () => {
     }
   });
 
-  it.skipIf(!MAC_TIMING)('the product\'s own timers, animation frames and performance stay real (T1: a faked rAF / timer slowed them down)', async () => {
+  it.skipIf(!MAC_TIMING)("the product's own timers, animation frames and performance stay real (T1: a faked rAF / timer slowed them down)", async () => {
     const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const page = await session.page('main');
@@ -156,7 +174,14 @@ describe('the clock in a session (R-ENV-05)', () => {
           let left = 100;
           for (let i = 0; i < 100; i++) setTimeout(() => --left === 0 && r(), 0);
         });
-        return { fps: Math.min(...counts) / (elapsed / 1000), ticks: ticks / (elapsed / 1000), elapsed, burst: performance.now() - b0, paints: performance.getEntriesByName('first-contentful-paint').length, year: new Date().getUTCFullYear() };
+        return {
+          fps: Math.min(...counts) / (elapsed / 1000),
+          ticks: ticks / (elapsed / 1000),
+          elapsed,
+          burst: performance.now() - b0,
+          paints: performance.getEntriesByName('first-contentful-paint').length,
+          year: new Date().getUTCFullYear(),
+        };
       });
       expect(m.year).toBe(2020);
       expect(m.elapsed).toBeGreaterThanOrEqual(990); // performance.now runs in real time
@@ -192,7 +217,7 @@ describe('the clock in a session (R-ENV-05)', () => {
     const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const real = await session.page('check');
-      await useRealTime(real);
+      await keepRealTime(real);
       await real.goto(`${A}/framed.html`);
       const clocked = await session.page('main');
       await clocked.goto(`${A}/`);
@@ -205,7 +230,7 @@ describe('the clock in a session (R-ENV-05)', () => {
       expect(await real.frames()[1].evaluate(() => new Date().getUTCFullYear())).toBe(year);
       // Marked after the clock: from then on.
       const late = await session.page('late');
-      await useRealTime(late);
+      await keepRealTime(late);
       await late.goto(`${A}/`);
       expect((await late.evaluate(() => Date.now())) - T).toBeGreaterThan(365 * 86_400_000);
       expect(await clocked.evaluate(() => new Date().getUTCFullYear())).toBe(2020);
@@ -268,7 +293,8 @@ describe('the kit keeps its own time sources (L1.7 hardening)', () => {
 describe('a run with a clock (R-ENV-05)', () => {
   it('the capture reads the clock from capture time 0; cursor effects stay on the capture clock; the clock is recorded', async () => {
     const project = makeProject(dir, { app: A });
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       scenario: makeScenario('clock-run', {
         pacing: FAST,
@@ -296,7 +322,8 @@ describe('a run with a clock (R-ENV-05)', () => {
     const project = makeProject(dir, { app: A });
     project.config.browser = { timezone: 'Europe/Paris' };
     const take = async (n: number, clock: string | { at: string; freeze: true }) => {
-      const rec = await runScenario({ policy: PERSON_POLICY,
+      const rec = await runScenario({
+        policy: PERSON_POLICY,
         project,
         scenario: makeScenario('clock-takes', {
           pacing: FAST,

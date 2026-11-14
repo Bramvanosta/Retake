@@ -40,7 +40,7 @@ describe('pick (L5.14)', () => {
     expect(takeWaiting(take)).toBe(true);
   });
 
-  it('review B M3 / L7: a claimed or running take holds by its live filming state only (the worker\'s filmingLive), a cancelled queued take holds nothing', () => {
+  it("review B M3 / L7: a claimed or running take holds by its live filming state only (the worker's filmingLive), a cancelled queued take holds nothing", () => {
     const render = rec('render');
     // Claimed by the capture slot (its setup hooks run) or running (setup, teardown, paused): the worker says whether it films.
     const claimed = rec('run', { mode: 'capture', claimed: true });

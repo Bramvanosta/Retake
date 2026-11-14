@@ -16,7 +16,8 @@ import { runScenario } from '../src/index.js';
 import { iconRefusal, NOTIFICATION_ICON_MAX_BYTES, NOTIFICATION_ICON_RUN_MAX, NOTIFICATION_RUN_MAX } from '../src/notifications.js';
 import { NOTIFICATION_TEXT_MAX, readNotificationPayload } from '../src/session.js';
 import { CURSOR_EFFECTS_PER_SECOND } from '../src/runtime.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
 const ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#1f4e6e"/></svg>';
@@ -51,7 +52,19 @@ const valid = { via: 'Notification', title: 't', body: 'b', time: Date.now(), ur
 describe('the notification payload', () => {
   it('a payload of the wrong types is ignored; the URL and origin are the frame’s, not the payload’s', () => {
     expect(readNotificationPayload(valid, 'http://127.0.0.1:4971/app')).toMatchObject({ title: 't', body: 'b', url: 'http://127.0.0.1:4971/app', origin: 'http://127.0.0.1:4971' });
-    for (const bad of [null, 'x', [], { ...valid, via: 'Other' }, { ...valid, title: 42 }, { ...valid, body: {} }, { ...valid, tag: 1 }, { ...valid, icon: [] }, { ...valid, time: 'now' }, { ...valid, time: Number.NaN }, { ...valid, time: 1e20 }]) {
+    for (const bad of [
+      null,
+      'x',
+      [],
+      { ...valid, via: 'Other' },
+      { ...valid, title: 42 },
+      { ...valid, body: {} },
+      { ...valid, tag: 1 },
+      { ...valid, icon: [] },
+      { ...valid, time: 'now' },
+      { ...valid, time: Number.NaN },
+      { ...valid, time: 1e20 },
+    ]) {
       expect(readNotificationPayload(bad, 'http://127.0.0.1:4971/')).toBeNull();
     }
   });
@@ -76,7 +89,8 @@ describe('the notification payload', () => {
     expect(iconRefusal('http://LOCALHOST:4972/i.png', origins)).toBeNull();
     expect(iconRefusal('http://127.0.0.1:4973/icon.svg', origins)).toMatch(/neither the notifying page's origin/);
     expect(iconRefusal('https://127.0.0.1:4971/icon.svg', origins)).toMatch(/neither/);
-    for (const other of ['file:///etc/hosts', 'blob:http://127.0.0.1:4971/x', 'chrome://favicon/x', 'ftp://127.0.0.1:4971/i']) expect(iconRefusal(other, origins)).toMatch(/only from a data: URL or an http\(s\) URL/);
+    for (const other of ['file:///etc/hosts', 'blob:http://127.0.0.1:4971/x', 'chrome://favicon/x', 'ftp://127.0.0.1:4971/i'])
+      expect(iconRefusal(other, origins)).toMatch(/only from a data: URL or an http\(s\) URL/);
   });
 });
 
@@ -159,7 +173,8 @@ addEventListener('message', () => {
 
   async function run(name: string, steps: unknown[]): Promise<{ tl: Timeline; runDir: string; ns: NotificationArtefact[] }> {
     const project = makeProject(dir, { app: app.url, assets: assets.url });
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       scenario: makeScenario(name, { pacing: FAST, scenes: [{ id: 'flow', open: '/app.html', steps: steps as never }] }),
       mode: 'dry',

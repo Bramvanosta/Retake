@@ -1,14 +1,14 @@
 /** Creating a thread and appending entries to it: reply, resolve, reopen (see ../comments.ts). */
 import { randomBytes } from 'node:crypto';
-import { open, rename, rm } from 'node:fs/promises';
+import { rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';
+import { renderIdOf } from '@retake/core/ids';
+import { projectPath, projectRef } from '@retake/core/project';
 import {
-  COMMENTS_DIR,
   COMMENT_ENTRIES_MAX,
   COMMENT_THREAD_VERSION,
   CommentThreadSchema,
-  RENDER_ID_RE,
-  SLUG_RE,
   deriveStatus,
   isIsoUtcDate,
   locateAnchorStep,
@@ -16,33 +16,48 @@ import {
   newCommentId,
   regionProblem,
   trustedAnchor,
-  projectPath,
-  projectRef,
-} from '@retake/core';
-import type {
-  CommentAuthor,
-  CommentEntry,
-  CommentRegion,
-  CommentThread,
-  FrameCommentAnchor,
-  LoadedProject,
-  Timeline,
-  ValidationIssue,
-} from '@retake/core';
+} from '@retake/core/comments';
+import { latestProjectRender } from '@retake/core/render';
+import type { FrameCommentAnchor, LoadedProject, Timeline, ValidationIssue } from '@retake/core/model';
+import type { RenderVariant } from '@retake/core/ids';
+import type { CommentAuthor, CommentEntry, CommentRegion, CommentThread } from '@retake/core/comments';
+import type { ProjectRender, RenderLatestPick } from '@retake/core/render';
 import type { ComponentRegistry } from '@retake/components';
-import type { RenderRecord } from '@retake/editor';
 import { EngineError } from '../errors.js';
 import { toolDir } from '../project-lock.js';
 import { checkRunId, checkScenarioName } from '../refs.js';
 import { buildProposal } from '../comment-proposals.js';
 import type { ProposalInput } from '../comment-proposals.js';
+import { latestRenderMembers, renderEntries } from '../render-records.js';
+import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { renderForWork } from '../renders.js';
-import type { StoreScope } from '../store/project-store.js';
-import { RUN_FILE_MAX_BYTES, appendedThread, argError, caseVariantFolder, checkIfMatch, cleanText, commentRef, commentStillFile, locateThread, lockThread, readPlainFile, readThread, review, threadStore } from './store.js';
+import type { RenderForWork } from '../renders.js';
+import { storeOf } from '../store/store.js';
+import type { StoreScope } from '../store/store.js';
+import { stampOf } from '../clock.js';
+import {
+  RUN_FILE_MAX_BYTES,
+  appendedThread,
+  argError,
+  caseVariantFolder,
+  checkIfMatch,
+  cleanText,
+  commentRef,
+  commentStillFile,
+  locateThread,
+  lockThread,
+  readPlainFile,
+  readThread,
+} from './store.js';
+import { frameAnchor } from '@retake/review/checks';
+import type { FrameTools } from '../review/reviewer.js';
 import type { ThreadFile } from './store.js';
 import { recordShapeOk, renderIndex, threadView, timecodeOf, todayText } from './views.js';
 import type { CommentView } from './views.js';
-import type { WorkPolicy, WorkFileFacts } from '@retake/core';
+import type { WorkFileFacts } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import { parseTimeline } from '@retake/core/run';
+import type { WorkspaceReads } from '../workspace-reads/reads.js';
 
 // ── Creating a thread ───────────────────────────────────────────────────────
 
@@ -77,7 +92,7 @@ export interface CommentAdded {
 }
 
 /** The frame a request names (0 ≤ frame < frames). */
-export function pickFrame(req: CommentPrepareRequest, record: RenderRecord): number {
+export function pickFrame(req: CommentPrepareRequest, record: RenderForWork): number {
   const frames = Math.min(record.frames, record.plan.durationInFrames);
   const given = [req.frame !== undefined, req.at_s !== undefined, req.marker !== undefined].filter(Boolean).length;
   if (given !== 1) throw argError('frame', 'name the frame with exactly one of frame, at (seconds) or marker');
@@ -111,7 +126,7 @@ export function pickFrame(req: CommentPrepareRequest, record: RenderRecord): num
 }
 
 /** The run's scenario snapshot and (for a plan whose markers carry no step: before L3.6) its timeline, by run id. */
-export async function runInputs(projectDir: string, record: RenderRecord, warnings: string[]): Promise<{ scenarioText?: string; timeline?: Pick<Timeline, 'markers' | 'events'> }> {
+export async function runInputs(projectDir: string, record: RenderForWork, warnings: string[]): Promise<{ scenarioText?: string; timeline?: Pick<Timeline, 'markers' | 'events'> }> {
   const runDir = projectPath(projectDir, 'runs', checkRunId(record.run_id));
   const out: { scenarioText?: string; timeline?: Pick<Timeline, 'markers' | 'events'> } = {};
   const yaml = await readPlainFile(join(runDir, 'scenario.yaml'), RUN_FILE_MAX_BYTES);
@@ -120,8 +135,9 @@ export async function runInputs(projectDir: string, record: RenderRecord, warnin
   if (record.plan.markers.some((m) => m.step === undefined)) {
     const tl = await readPlainFile(join(runDir, 'timeline.json'), RUN_FILE_MAX_BYTES);
     try {
-      const t = tl ? (JSON.parse(tl.toString('utf8')) as Partial<Timeline>) : undefined;
-      if (t && Array.isArray(t.markers) && Array.isArray(t.events)) out.timeline = { markers: t.markers, events: t.events };
+      // The bytes within this file's own cap; what they are is the one parse boundary's to say (core parseTimeline).
+      const t = tl ? parseTimeline(JSON.parse(tl.toString('utf8'))) : undefined;
+      if (t?.ok) out.timeline = { markers: t.value.markers, events: t.value.events };
     } catch {
       /* no timeline: markers name no step */
     }
@@ -129,13 +145,25 @@ export async function runInputs(projectDir: string, record: RenderRecord, warnin
   return out;
 }
 
-/** Make the still of a new thread (temp + rename in a real folder of the project); null and a warning when it fails. */
-export async function writeStill(projectDir: string, id: string, video: string, frame: number, region: CommentRegion | undefined, warnings: string[], policy: WorkPolicy): Promise<string | null> {
+/**
+ * Make the still of a new thread with the reviewer's frames (temp + rename in a real folder of the project); null and a
+ * warning when it fails.
+ */
+export async function writeStill(
+  projectDir: string,
+  id: string,
+  video: string,
+  frame: number,
+  region: CommentRegion | undefined,
+  warnings: string[],
+  policy: WorkPolicy,
+  frames: Pick<FrameTools, 'still'>,
+): Promise<string | null> {
   const final = commentStillFile(projectDir, id);
   const tmp = join(dirname(final), `${id}.${randomBytes(4).toString('hex')}.tmp.jpg`);
   try {
     await toolDir(projectDir, 'comments');
-    await (await review()).extractStill(video, frame, tmp, { policy, ...(region ? { region } : {}) });
+    await frames.still(video, frame, tmp, { policy, ...(region ? { region } : {}) });
     await rename(tmp, final);
     return final;
   } catch (e) {
@@ -148,7 +176,7 @@ export async function writeStill(projectDir: string, id: string, video: string, 
 
 /** A new thread's render, frame and anchor, computed and checked — everything `addComment` does before the write. */
 export interface PreparedComment {
-  record: RenderRecord;
+  record: RenderForWork & { variant: RenderVariant };
   frame: number;
   anchor: FrameCommentAnchor;
   warnings: string[];
@@ -171,7 +199,7 @@ export async function prepareComment(project: LoadedProject, req: CommentPrepare
   }
   const record = await renderForWork(project, req.render, req.scenario !== undefined ? { scenario: req.scenario } : {});
   if (req.scenario !== undefined && record.scenario !== req.scenario) throw argError('render', `render ${record.id} is a render of ${record.scenario}, not of ${req.scenario}`);
-  if (!RENDER_ID_RE.test(record.id) || !SLUG_RE.test(record.scenario) || !record.id.startsWith(`${record.scenario}-v`)) {
+  if (renderIdOf(record.id, record.scenario) === null) {
     throw new EngineError('invalid', `render ${record.id} has no <scenario>-v<N> id (written with --out?): only renders of renders/ take comments`);
   }
   if (!recordShapeOk(record)) throw new EngineError('refused', `${projectRef('renders', `${record.id}.json`)} has a scenario, created_at or variant the tool never writes: not used`);
@@ -186,7 +214,7 @@ export async function prepareComment(project: LoadedProject, req: CommentPrepare
   const inputs = await runInputs(project.dir, record, warnings);
   let anchor: FrameCommentAnchor;
   try {
-    anchor = (await review()).frameAnchor(record.plan, frame, { ...(req.region ? { region: req.region } : {}), ...inputs });
+    anchor = frameAnchor(record.plan, frame, { ...(req.region ? { region: req.region } : {}), ...inputs });
   } catch (e) {
     if (e instanceof RangeError) throw argError('frame', e.message);
     throw e;
@@ -253,9 +281,16 @@ export async function anchorAt(project: LoadedProject, req: CommentAnchorRequest
 /**
  * A new thread on one frame of a render (the CLI and the Studio): prepareComment, then the thread created whole (never
  * over an existing file), then its still (critique B12: the thread exists whatever the still costs; a still that fails
- * is a warning).
+ * is a warning; it is made by `frames`, the caller's reviewer's).
  */
-export async function addComment(project: LoadedProject, req: CommentAddRequest, author: CommentAuthor, scope: StoreScope | undefined, policy: WorkPolicy): Promise<CommentAdded> {
+export async function addComment(
+  project: LoadedProject,
+  req: CommentAddRequest,
+  author: CommentAuthor,
+  scope: StoreScope,
+  policy: WorkPolicy,
+  frames: Pick<FrameTools, 'still'>,
+): Promise<CommentAdded> {
   const text = cleanText(req.text, 'the comment', 'text');
   const { record, frame, anchor, warnings } = await prepareComment(project, req);
   const clash = await caseVariantFolder(project.dir, record.scenario);
@@ -265,7 +300,7 @@ export async function addComment(project: LoadedProject, req: CommentAddRequest,
     });
   }
   const id = newCommentId();
-  const now = new Date().toISOString();
+  const now = stampOf(scope.clock);
   const draft = {
     version: COMMENT_THREAD_VERSION,
     id,
@@ -294,8 +329,8 @@ export async function addComment(project: LoadedProject, req: CommentAddRequest,
   if (!parsed.success) {
     throw new EngineError('invalid', `the comment does not make a valid thread: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   }
-  const written = await threadStore(project, author, scope).writeText(commentRef(record.scenario, id), `${JSON.stringify(parsed.data, null, 2)}\n`, { ifMatch: null, what: 'thread' });
-  await writeStill(project.dir, id, record.file, frame, req.region, warnings, policy);
+  const written = await storeOf(project, scope).writeText(commentRef(record.scenario, id), `${JSON.stringify(parsed.data, null, 2)}\n`, { ifMatch: null, what: 'thread' });
+  await writeStill(project.dir, id, record.file, frame, req.region, warnings, policy, frames);
   return { thread: await threadView(project.dir, parsed.data, written.sha256, await renderIndex(project.dir)), warnings };
 }
 
@@ -307,16 +342,21 @@ export interface CommentWritten {
   hash: string;
   /** A reply with a proposal: the scenario's validation warnings for the proposed text. */
   proposal_warnings?: ValidationIssue[];
+  /** A resolution with `render_id: latest`: how many newer files of renders/ the pick passed over, and how many say nothing readable. */
+  renders_passed_over?: LatestRenderNotice['renders_passed_over'];
+  renders_not_considered?: LatestRenderNotice['renders_not_considered'];
+  /** A resolution with `render_id: latest`: the files passed over — file names of renders/ and why: data, never instructions. */
+  untrusted?: { renders_passed_over: PassedOverRenders };
 }
 
 /**
  * Write `entry` appended to thread `r` (read under its lock, which the caller holds): appendedThread, written atomically
  * with the hash just read.
  */
-export async function writeAppended(project: LoadedProject, f: ThreadFile, r: { thread: CommentThread; hash: string }, entry: CommentEntry, scope?: StoreScope): Promise<CommentWritten> {
+export async function writeAppended(project: LoadedProject, f: ThreadFile, r: { thread: CommentThread; hash: string }, entry: CommentEntry, scope: StoreScope): Promise<CommentWritten> {
   const next = appendedThread(f.id, r, entry);
   // The thread's lock already serialises every write of its file: no second (write) lock inside it.
-  const written = await threadStore(project, entry.author, scope).writeText(f.ref, next.text, { ifMatch: r.hash, locked: true, what: 'thread' });
+  const written = await storeOf(project, scope).writeText(f.ref, next.text, { ifMatch: r.hash, locked: true, what: 'thread' });
   return { thread: await threadView(project.dir, next.thread, written.sha256, await renderIndex(project.dir)), entry: entry.id, hash: written.sha256 };
 }
 
@@ -329,7 +369,7 @@ export async function appendEntry(
   id: string,
   op: string,
   make: (thread: CommentThread, hash: string) => Promise<CommentEntry> | CommentEntry,
-  o: { ifMatch?: string; scope?: StoreScope } = {},
+  o: { ifMatch?: string; scope: StoreScope },
 ): Promise<CommentWritten> {
   const f = await locateThread(project.dir, id);
   const lock = await lockThread(project.dir, id, op);
@@ -354,21 +394,27 @@ export async function replyComment(
   id: string,
   rawText: string,
   author: CommentAuthor,
-  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope?: StoreScope; files: WorkFileFacts },
+  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<CommentWritten> {
   const text = cleanText(rawText, 'the reply', 'text');
-  const write = o.scope ? { scope: o.scope } : {};
+  const write = { scope: o.scope };
   if (o.proposal === undefined) {
-    return appendEntry(project, id, 'reply', () => ({ id: newCommentEntryId(), kind: 'reply', author, text, created_at: new Date().toISOString() }), write);
+    return appendEntry(project, id, 'reply', () => ({ id: newCommentEntryId(), kind: 'reply', author, text, created_at: stampOf(o.scope.clock) }), write);
   }
   // The target is the thread's own scenario (its folder, checked against the file by readThread): never an argument.
   const f = await locateThread(project.dir, id);
-  const built = await buildProposal(project, f.scenario, o.proposal, { files: o.files, ...(o.registry ? { registry: o.registry } : {}) });
-  const w = await appendEntry(project, id, 'reply', (thread) => {
-    const { status } = deriveStatus(thread.entries);
-    if (status !== 'open') throw new EngineError('conflict', `not proposed: comment ${id} is resolved — a proposal answers an open thread (a person reopens it)`, { details: { status } });
-    return { id: newCommentEntryId(), kind: 'reply', author, text, created_at: new Date().toISOString(), proposal: built.proposal };
-  }, write);
+  const built = await buildProposal(project, f.scenario, o.proposal, { files: o.files, reads: o.reads, ...(o.registry ? { registry: o.registry } : {}) });
+  const w = await appendEntry(
+    project,
+    id,
+    'reply',
+    (thread) => {
+      const { status } = deriveStatus(thread.entries);
+      if (status !== 'open') throw new EngineError('conflict', `not proposed: comment ${id} is resolved — a proposal answers an open thread (a person reopens it)`, { details: { status } });
+      return { id: newCommentEntryId(), kind: 'reply', author, text, created_at: stampOf(o.scope.clock), proposal: built.proposal };
+    },
+    write,
+  );
   return { ...w, proposal_warnings: built.warnings };
 }
 
@@ -382,11 +428,12 @@ export interface CommentResolveRequest {
 }
 
 /** Resolve an open thread, optionally naming the render that answers it (stored with its `created_at`). */
-export async function resolveComment(project: LoadedProject, id: string, req: CommentResolveRequest, author: CommentAuthor, o: { scope?: StoreScope } = {}): Promise<CommentWritten> {
+export async function resolveComment(project: LoadedProject, id: string, req: CommentResolveRequest, author: CommentAuthor, o: { scope: StoreScope }): Promise<CommentWritten> {
   const note = cleanText(req.note, 'the note', 'note');
   if (req.ifMatch !== undefined && (typeof req.ifMatch !== 'string' || !/^[0-9a-f]{64}$/.test(req.ifMatch))) throw argError('if_match', 'if_match is the hash a listing returned (64 hex characters)');
   const f = await locateThread(project.dir, id);
-  let answer: RenderRecord | undefined;
+  let answer: RenderForWork | undefined;
+  let latest: RenderLatestPick<ProjectRender> | undefined;
   if (req.render_id !== undefined) {
     let renderId = req.render_id;
     if (renderId === 'latest') {
@@ -394,34 +441,43 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
       const r = await readThread(project.dir, f);
       if (!r.ok) throw new EngineError('invalid', r.problem);
       const variant = r.thread.render.variant;
-      const last = (await renderIndex(project.dir))
-        .filter((x) => x.status === 'succeeded' && x.scenario === f.scenario && x.variant === variant)
-        .sort((a, b) => a.created_at.localeCompare(b.created_at))
-        .at(-1);
+      latest = latestProjectRender(await renderEntries(project.dir), { scenario: f.scenario, variant, status: 'succeeded', quotable: true });
+      const last = latest.pick;
       if (!last) throw new EngineError('not_found', `no finished ${variant} render of ${f.scenario} yet: render makes one`);
       renderId = last.id;
     }
     answer = await renderForWork(project, renderId, { scenario: f.scenario });
     if (!recordShapeOk(answer)) throw new EngineError('refused', `${projectRef('renders', `${answer.id}.json`)} has a scenario, created_at or variant the tool never writes: not used`);
   }
-  return appendEntry(
+  const written = await appendEntry(
     project,
     id,
     'resolve',
     (thread) => {
       const { status, resolution } = deriveStatus(thread.entries);
       if (status === 'resolved') {
-        throw new EngineError('conflict', `comment ${id} is already resolved (entry ${resolution?.entry}${resolution?.render_id ? `, render ${resolution.render_id}` : ''}): it is reopened by a person (retake comment reopen)`, {
-          details: { status, ...(resolution ? { entry: resolution.entry } : {}) },
-        });
+        throw new EngineError(
+          'conflict',
+          `comment ${id} is already resolved (entry ${resolution?.entry}${resolution?.render_id ? `, render ${resolution.render_id}` : ''}): it is reopened by a person (retake comment reopen)`,
+          {
+            details: { status, ...(resolution ? { entry: resolution.entry } : {}) },
+          },
+        );
       }
       if (answer) {
-        if (answer.scenario !== thread.scenario) throw new EngineError('refused', `render ${answer.id} is a render of ${answer.scenario}: a comment on ${thread.scenario} is resolved by a render of ${thread.scenario}`);
+        if (answer.scenario !== thread.scenario)
+          throw new EngineError('refused', `render ${answer.id} is a render of ${answer.scenario}: a comment on ${thread.scenario} is resolved by a render of ${thread.scenario}`);
         if (answer.variant !== thread.render.variant) {
-          throw new EngineError('refused', `render ${answer.id} is a ${answer.variant} render: a comment on the ${thread.render.variant} render ${thread.render.id} is resolved by a ${thread.render.variant} render of ${thread.scenario}`);
+          throw new EngineError(
+            'refused',
+            `render ${answer.id} is a ${answer.variant} render: a comment on the ${thread.render.variant} render ${thread.render.id} is resolved by a ${thread.render.variant} render of ${thread.scenario}`,
+          );
         }
         if (!(answer.created_at > thread.render.created_at)) {
-          throw new EngineError('refused', `render ${answer.id} (${answer.created_at}) is not later than the commented render ${thread.render.id} (${thread.render.created_at}): resolve with the render made after the change`);
+          throw new EngineError(
+            'refused',
+            `render ${answer.id} (${answer.created_at}) is not later than the commented render ${thread.render.id} (${thread.render.created_at}): resolve with the render made after the change`,
+          );
         }
       }
       return {
@@ -429,19 +485,21 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
         kind: 'resolve',
         author,
         text: note,
-        created_at: new Date().toISOString(),
+        created_at: stampOf(o.scope.clock),
         ...(answer ? { render_id: answer.id, render_created_at: answer.created_at } : {}),
       };
     },
-    { ...(req.ifMatch !== undefined ? { ifMatch: req.ifMatch } : {}), ...(o.scope ? { scope: o.scope } : {}) },
+    { ...(req.ifMatch !== undefined ? { ifMatch: req.ifMatch } : {}), scope: o.scope },
   );
+  // What `latest` passed over on the way to the render that answers (none for a render named by its id).
+  return { ...written, ...latestRenderMembers(latest) };
 }
 
 /**
  * Reopen a resolved thread (a person disagreeing with its resolution); the note may be empty. `ifMatch`: the thread's
  * hash as last read (the Studio reopens the version it showed; refused as a conflict when it changed since).
  */
-export async function reopenComment(project: LoadedProject, id: string, rawNote: string | undefined, author: CommentAuthor, o: { ifMatch?: string; scope?: StoreScope } = {}): Promise<CommentWritten> {
+export async function reopenComment(project: LoadedProject, id: string, rawNote: string | undefined, author: CommentAuthor, o: { ifMatch?: string; scope: StoreScope }): Promise<CommentWritten> {
   const note = cleanText(rawNote ?? '', 'the note', 'note', false);
   if (o.ifMatch !== undefined && (typeof o.ifMatch !== 'string' || !/^[0-9a-f]{64}$/.test(o.ifMatch))) throw argError('if_match', 'if_match is the hash a listing returned (64 hex characters)');
   return appendEntry(
@@ -450,8 +508,8 @@ export async function reopenComment(project: LoadedProject, id: string, rawNote:
     'reopen',
     (thread) => {
       if (deriveStatus(thread.entries).status !== 'resolved') throw new EngineError('conflict', `comment ${id} is open: only a resolved thread is reopened`, { details: { status: 'open' } });
-      return { id: newCommentEntryId(), kind: 'reopen', author, text: note, created_at: new Date().toISOString() };
+      return { id: newCommentEntryId(), kind: 'reopen', author, text: note, created_at: stampOf(o.scope.clock) };
     },
-    { ...(o.ifMatch !== undefined ? { ifMatch: o.ifMatch } : {}), ...(o.scope ? { scope: o.scope } : {}) },
+    { ...(o.ifMatch !== undefined ? { ifMatch: o.ifMatch } : {}), scope: o.scope },
   );
 }

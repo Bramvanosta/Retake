@@ -18,16 +18,24 @@
  *   music bed is measured once per file (size, mtime).
  * - `plan_sha256` and `theme_sha256`: the plan's signature and the theme folder's content hash, the ones a render
  *   record carries (renders.ts): a render shows "this version" only when both match (Studio "from this version",
- *   findings that seek the preview, comment pins at their own frame).
+ *   findings that seek the preview, comment pins at their own frame); the record is read by the one reader of
+ *   renders/ (versionMatches).
  * - A trust refusal (a file outside the project, a remote slot) is the view's `blocked`, with the `retake render`
  *   command a person types — never an exception the screen cannot show.
  */
-import { spawn } from 'node:child_process';
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, locateAnchorStep, parseScenario, parseYaml, scenarioBlocks, stepGuard, projectPath, scenarioRef } from '@retake/core';
-import { listTemplates, readPlainFile, ffprobeBin, fileFacts } from '@retake/core/io';
-import type { FieldAt, FieldValue, LoadedProject, WorkPolicy } from '@retake/core';
+import { canonicalJson, parseYaml } from '@retake/core/base';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, isRenderId } from '@retake/core/ids';
+import { projectPath, scenarioRef } from '@retake/core/project';
+import { isTemplatePath, parseScenario, scenarioBlocks, stepGuard } from '@retake/core/scenario';
+import { locateAnchorStep } from '@retake/core/comments';
+import { ffprobePackets, packetsArgs, readFfprobeJson, renderOfFile, sameRender } from '@retake/core/render';
+import { readListedRender, readPlainFile, ffprobeBin, startMediaTool } from '@retake/core/io';
+import type { LoadedProject } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { FieldAt, FieldValue } from '@retake/core/scenario';
+import type { RenderEntry } from '@retake/core/render';
 import type { ComponentRegistry } from '@retake/components';
 import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor';
 import { listComments, proposalForPreview } from './comments.js';
@@ -46,6 +54,7 @@ import { getScenario, scenarioEditBlocker } from './scenarios.js';
 import { sha256Hex } from './storage.js';
 import { themeUnusable } from './templates.js';
 import type { OpenedWorkspace } from './workspace.js';
+import type { AgentChannel } from './caller.js';
 
 export interface TimelineViewRequest {
   project: string;
@@ -241,31 +250,24 @@ export async function captureInfo(file: string, o: { ffprobe?: string; timeoutMs
   }
   try {
     if (!fstatSync(fd).isFile()) return {};
-    const out = await new Promise<string | null>((resolve) => {
-      const args = ['-v', 'error', '-protocol_whitelist', 'fd', '-f', 'mp4', '-fd', '3', '-i', 'fd:', '-select_streams', 'v:0', '-read_intervals', '%+30', '-show_entries', 'stream=codec_name,has_b_frames:packet=pts_time,flags', '-of', 'json'];
-      let text = '';
-      let p: ReturnType<typeof spawn>;
-      try {
-        p = spawn(ffprobeBin(o.policy, o.ffprobe), args, { stdio: ['ignore', 'pipe', 'ignore', fd] });
-      } catch {
-        resolve(null);
-        return;
-      }
-      const timer = setTimeout(() => p.kill('SIGKILL'), o.timeoutMs ?? 10_000);
-      p.stdout!.on('data', (d: Buffer) => {
-        if (text.length < 8_000_000) text += d.toString('utf8');
-      });
-      p.on('error', () => (clearTimeout(timer), resolve(null)));
-      p.on('close', (code) => (clearTimeout(timer), resolve(code === 0 ? text : null)));
+    const tool = startMediaTool(ffprobeBin(o.policy, o.ffprobe), packetsArgs(30), { stdio: ['ignore', 'pipe', 'ignore', fd], timeoutMs: o.timeoutMs ?? 10_000, timeoutSignal: 'SIGKILL' });
+    let text = '';
+    tool.child.stdout!.on('data', (d: Buffer) => {
+      if (text.length < 8_000_000) text += d.toString('utf8');
     });
-    if (out === null) return {};
-    const j = JSON.parse(out) as { streams?: Array<{ codec_name?: string; has_b_frames?: number }>; packets?: Array<{ pts_time?: string; flags?: string }> };
-    const s = j.streams?.[0];
+    const end = await tool.exited;
+    if (end.error || end.code !== 0) return {};
+    const j = ffprobePackets(readFfprobeJson(text));
+    const s = j.stream;
     const info: TimelineCaptureInfo = {};
     if (typeof s?.codec_name === 'string' && /^[a-z0-9_]{1,20}$/.test(s.codec_name)) info.codec = s.codec_name;
     if (typeof s?.has_b_frames === 'number') info.b_frames = s.has_b_frames > 0;
     const times = (j.packets ?? []).map((p) => Number(p.pts_time)).filter((t) => Number.isFinite(t));
-    const keys = (j.packets ?? []).filter((p) => p.flags?.startsWith('K')).map((p) => Number(p.pts_time)).filter((t) => Number.isFinite(t)).sort((a, b) => a - b);
+    const keys = (j.packets ?? [])
+      .filter((p) => p.flags?.startsWith('K'))
+      .map((p) => Number(p.pts_time))
+      .filter((t) => Number.isFinite(t))
+      .sort((a, b) => a - b);
     if (keys.length >= 2) {
       let gap = 0;
       for (let i = 1; i < keys.length; i++) gap = Math.max(gap, keys[i] - keys[i - 1]);
@@ -400,30 +402,26 @@ function themeHash(ed: Awaited<ReturnType<typeof editor>>, dir: string): string 
 }
 
 /**
- * Whether a render (by id, as it was when a comment was made on it) shows this version: its record — read without
- * following a link — has this plan's signature and theme hash.
+ * Which of the renders `asked` (by id, as each was when a comment was made on it) show this version — `true` at the
+ * same index: renders/<id>.json read through the one reader of renders/ under a listing's rules — a background read,
+ * not a render someone named: its own file, never through a link, within the listing's cap (core/io
+ * readListedRender) —, a record of its own file (D-10, core renderOfFile) that succeeded, the same render as the one asked
+ * (core sameRender: its id and its creation time), with its plan, this plan's signature and this theme's hash.
  */
-function renderMatcher(projectDir: string, planSha: string, themeSha: string): (renderId: string, createdAt: string) => boolean {
-  const seen = new Map<string, boolean>();
-  return (renderId, createdAt) => {
-    if (typeof renderId !== 'string' || !RENDER_ID_RE.test(renderId)) return false;
-    const key = `${renderId}|${createdAt}`;
-    let same = seen.get(key);
-    if (same === undefined) {
-      same = false;
-      const r = readPlainFile(projectPath(projectDir, 'renders', `${renderId}.json`), 16 * 1024 * 1024);
-      if (r.ok) {
-        try {
-          const rec = JSON.parse(r.bytes.toString('utf8')) as { created_at?: unknown; template_sha256?: unknown; plan?: unknown };
-          same = rec.created_at === createdAt && rec.template_sha256 === themeSha && rec.plan !== undefined && planSignature(rec.plan) === planSha;
-        } catch {
-          same = false;
-        }
-      }
-      seen.set(key, same);
+export async function versionMatches(projectDir: string, planSha: string, themeSha: string, asked: ReadonlyArray<{ id: string; created_at: string }>): Promise<boolean[]> {
+  const read = new Map<string, Promise<RenderEntry>>();
+  const out: boolean[] = [];
+  for (const a of asked) {
+    if (!isRenderId(a.id)) {
+      out.push(false);
+      continue;
     }
-    return same;
-  };
+    let entry = read.get(a.id);
+    if (!entry) read.set(a.id, (entry = readListedRender(projectPath(projectDir, 'renders'), a.id)));
+    const record = renderOfFile(await entry);
+    out.push(record !== null && record.status === 'succeeded' && sameRender(record, a) && record.template_sha256 === themeSha && record.plan !== undefined && planSignature(record.plan) === planSha);
+  }
+  return out;
 }
 
 /** Step labels ("click Request a quote") of a scenario text, by "<scene>.<index>". */
@@ -447,6 +445,8 @@ async function buildView(
   t0: number,
   themes: ThemeChoices,
   proposal?: ProposalPreview,
+  /** The take shown is the default one (none was asked for): it is among the choices even when the list ends before it. */
+  defaulted = false,
 ): Promise<TimelineViewResult> {
   const { registry } = await memoRegistry(ws);
   let planned;
@@ -460,7 +460,7 @@ async function buildView(
     ));
   } catch (e) {
     if (e instanceof EngineError && e.code === 'refused') {
-      const problems = Array.isArray((e.details as { problems?: unknown } | undefined)?.problems) ? ((e.details as { problems: string[] }).problems) : [e.message];
+      const problems = Array.isArray((e.details as { problems?: unknown } | undefined)?.problems) ? (e.details as { problems: string[] }).problems : [e.message];
       return { blocked: { problems, ...(e.fix ? { command: e.fix } : {}) }, ...(req.run_id ? { run_id: req.run_id } : {}) };
     }
     throw e;
@@ -475,11 +475,19 @@ async function buildView(
   const model = ed.timelineOf(plan, { labels: stepLabels(labelText), timeline: planned.timeline });
   // Comment pins (read-only, L3.6 threads): the scenario's last 50.
   const threads = await listComments(project, { scenario: req.scenario, status: 'all', limit: 50 }).catch(() => undefined);
-  const planSha = planSignature(plan);
+  // (A plan this version made always has a signature; '' would match no record.)
+  const planSha = planSignature(plan) ?? '';
   const themeSha = themeHash(ed, planned.template.dir);
   // A thread made on a render of this very version (the same plan and theme files) is pinned at its own frame (review
   // B M5); any other only at the step, marker or segment it pointed at.
-  const sameRender = renderMatcher(project.dir, planSha, themeSha);
+  const onTake = (threads?.threads ?? []).filter((t) => t.run_id === planned.run.id);
+  const matched = await versionMatches(
+    project.dir,
+    planSha,
+    themeSha,
+    onTake.map((t) => ({ id: t.render_id, created_at: t.render_created_at })),
+  );
+  const thisVersion = new Set(onTake.filter((_t, i) => matched[i]).map((t) => t.id));
   const pinThreads = (threads?.threads ?? []).map((t) => ({
     id: t.id,
     status: t.status,
@@ -492,7 +500,7 @@ async function buildView(
       : t.step_now !== undefined
         ? { step_now: t.step_now }
         : {}),
-    ...(t.run_id === planned.run.id && sameRender(t.render_id, t.render_created_at) ? { frame: t.frame } : {}),
+    ...(thisVersion.has(t.id) ? { frame: t.frame } : {}),
   }));
   const pins = ed.placePins(model, pinThreads, { run_id: planned.run.id, edit: planned.edit.from });
   let editable: true | { why: string } = true;
@@ -509,7 +517,9 @@ async function buildView(
   const root = shownText !== undefined ? parseYaml(shownText).value : undefined;
   const choices = await choicesOf(registry, root, plan, editable, themes);
   const capture = await memoCapture(planned.captureFile, ws.policy);
+  // The takes to choose from: the scenario's newest captures of any status, in the one order of runs.
   const runs = (await (await import('./runs.js')).listRuns(project, { scenario: req.scenario, mode: 'capture', limit: 20 })).map((r) => r.id);
+  if (defaulted && !runs.includes(planned.run.id)) runs.unshift(planned.run.id);
   const { untrusted, ...shape } = model;
   const view: TimelineView = {
     project: project.slug,
@@ -539,7 +549,12 @@ async function buildView(
     },
   };
   // The file's text for undo, never a proposal's (critique B9 b: a proposed text is not a version the Studio restores).
-  return { view, plan, folders: { project: project.dir, run: planned.run.dir, theme: planned.template.dir }, ...(!proposal && editable === true && file.yaml !== undefined ? { text: file.yaml } : {}) };
+  return {
+    view,
+    plan,
+    folders: { project: project.dir, run: planned.run.dir, theme: planned.template.dir },
+    ...(!proposal && editable === true && file.yaml !== undefined ? { text: file.yaml } : {}),
+  };
 }
 
 /** What a planned view read beyond its memo key: the theme folder's files and every file the plan serves (signature). */
@@ -554,7 +569,7 @@ function depsOf(ed: Awaited<ReturnType<typeof editor>>, r: TimelineViewResult): 
  * The timeline view of a scenario's take (see the module comment). The same key (file, run, timeline, components)
  * returns the memoised view: a click's write and the event it raises plan once.
  */
-export async function timelineView(ws: OpenedWorkspace, cli: string, req: TimelineViewRequest, o: { agent: boolean; via: import('@retake/core').AgentChannel }): Promise<TimelineViewResult> {
+export async function timelineView(ws: OpenedWorkspace, cli: string, req: TimelineViewRequest, o: { agent: boolean; via: AgentChannel }): Promise<TimelineViewResult> {
   const t0 = performance.now();
   checkProjectSlug(req.project);
   checkScenarioName(req.scenario);
@@ -563,7 +578,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
   let file: { hash?: string; yaml?: string; blocked?: string } = {};
   try {
     const text = await getScenario(project, req.scenario);
-    const parsed = text.utf8 ? parseScenario(text.yaml, { files: fileFacts(ws.policy), file: text.path, project }).scenario : undefined;
+    const parsed = text.utf8 ? parseScenario(text.yaml, { files: ws.reads.fileFacts(ws.policy), file: text.path, project }).scenario : undefined;
     const blocked = scenarioEditBlocker(project, text, parsed, o);
     file = { hash: text.hash, yaml: text.yaml, ...(blocked ? { blocked: blocked.why } : {}) };
   } catch (e) {
@@ -577,23 +592,26 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
     if (!pr || typeof pr !== 'object' || typeof pr.comment_id !== 'string' || !COMMENT_ID_RE.test(pr.comment_id) || typeof pr.entry_id !== 'string' || !COMMENT_ENTRY_ID_RE.test(pr.entry_id)) {
       throw new EngineError('invalid', 'proposal is {comment_id: c_…, entry_id: r_…}: the thread and the reply holding the proposal', { details: { argument: 'proposal' } });
     }
-    proposal = await proposalForPreview(project, req.scenario, pr, { registry: async () => (await memoRegistry(ws)).registry, files: fileFacts(ws.policy) });
+    proposal = await proposalForPreview(project, req.scenario, pr, { registry: async () => (await memoRegistry(ws)).registry, files: ws.reads.fileFacts(ws.policy), reads: ws.reads });
     if (req.run_id !== undefined && req.run_id !== proposal.run_id) {
       throw new EngineError('invalid', `a proposal is previewed on the take its comment was made on (run ${proposal.run_id})`, { details: { argument: 'run_id' } });
     }
   }
-  // The run the view shows: asked, else the latest capture (its timeline.json's size and mtime are in the key).
-  const runId = proposal?.run_id ?? req.run_id ?? (await (await import('./runs.js')).listRuns(project, { scenario: req.scenario, mode: 'capture', limit: 1 }))[0]?.id;
+  // The run the view shows: asked, else `latest` — the newest capture an edit can work on, by the rule every reader of
+  // runs shares, over every run folder (no window): the take the scenario view names as Render's (`capture`), which
+  // asks the same rule the same way (scenario-view.ts captureOf). Its timeline.json's size and mtime are in the key.
+  const asked = proposal?.run_id ?? req.run_id;
+  const runId = asked ?? (await (await import('./runs.js')).latestCapture(project, req.scenario)).take?.run;
   const timelineStat = runId ? statKey(projectPath(project.dir, 'runs', runId, 'timeline.json')) : 'none';
   // The scenario's comment folder (its mtime moves when a thread is added or rewritten: an entry is a rename): new pins.
   const commentsStat = statKey(projectPath(project.dir, 'comments', req.scenario));
   const projectStat = statKey(join(project.dir, 'project.yaml'));
   // The themes the scenario's theme switch offers (a theme copied or created since: a new view).
-  const listed = await listTemplates(project.root);
+  const listed = await ws.reads.listTemplates(project.root);
   const unusable: Record<string, string> = {};
   const reg = (await memoRegistry(ws)).registry;
   for (const t of listed) {
-    const why = await themeUnusable(t.dir, reg, ws.root, fileFacts(ws.policy));
+    const why = await themeUnusable(t.dir, reg, ws);
     if (why !== null) unusable[t.name] = why;
   }
   const themes: ThemeChoices = { names: listed.map((t) => t.name), unusable, ...(typeof project.config.template === 'string' ? { project: project.config.template } : {}) };
@@ -604,6 +622,8 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
       file.hash ?? null,
       file.blocked ?? null,
       runId ?? null,
+      // The default take is put among its choices when the list ends before it: a view of its own.
+      asked === undefined,
       timelineStat,
       commentsStat,
       projectStat,
@@ -623,7 +643,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
   }
   const hit = p !== undefined;
   if (!p) {
-    const built = buildView(ws, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, themes, proposal);
+    const built = buildView(ws, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, themes, proposal, asked === undefined);
     p = built;
     viewMemo.set(key, built);
     if (viewMemo.size > VIEW_MEMO_MAX) {

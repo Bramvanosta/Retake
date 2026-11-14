@@ -21,8 +21,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseYaml } from '@retake/core';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { BLOCKS_YAML, capture, writeRun } from '@retake/test-support/runs';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const POLL = { timeout: 15_000 };
@@ -45,7 +46,7 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const requests: Array<{ op: string; at: number; body: Record<string, unknown> }> = [];
 const file = (name: string) => join(ws, 'projects', P, 'scenarios', `${name}.yaml`);
 const value = (text: string) => parseYaml(text).value as { scenes: Array<{ id?: string; steps?: Array<Record<string, unknown>> }> };
@@ -81,7 +82,7 @@ async function settled(name: string): Promise<string> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-forms-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(file('forms'), FORMS);
   await writeFile(file('blocks'), BLOCKS_YAML);
@@ -110,8 +111,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -161,11 +161,18 @@ describe("the step's form", () => {
     await row('a.1').click();
     await form().waitFor(POLL);
     const folds = () => form().getByTestId('form-more').locator('summary').allInnerTexts();
-    const visible = () => form().locator('[data-field]:visible').evaluateAll((els) => els.map((e) => e.getAttribute('data-field')));
+    const visible = () =>
+      form()
+        .locator('[data-field]:visible')
+        .evaluateAll((els) => els.map((e) => e.getAttribute('data-field')));
     // L5.10b: the modifiers are switches (on: their fields; off: emptied) — no "More:" fold for them.
-    expect(await folds()).toEqual(['Other ways to find it (10)', 'More: clear, enter']);
+    expect(await folds()).toEqual(['Other ways to find it (10)', 'More: clear, enter, fill']);
     expect(await visible()).toEqual(['type.into.label', 'type.text', 'type.cps', 'caption.text', 'caption.kicker']);
-    expect(await form().locator('[data-switch]').evaluateAll((els) => els.map((e) => `${e.getAttribute('data-switch')}:${(e as HTMLInputElement).checked}`))).toEqual(['caption:true', 'hold:false', 'speed:false', 'mark:false']);
+    expect(
+      await form()
+        .locator('[data-switch]')
+        .evaluateAll((els) => els.map((e) => `${e.getAttribute('data-switch')}:${(e as HTMLInputElement).checked}`)),
+    ).toEqual(['caption:true', 'hold:false', 'speed:false', 'mark:false']);
     await shot('form-0-folded');
     await form().locator('[data-switch="hold"]').check();
     await input('hold').fill('0.5');
@@ -174,7 +181,7 @@ describe("the step's form", () => {
     await expect.poll(() => live(), POLL).toMatch(/^Changed .* of step 2 of a\. Saved\./);
     const t1 = await settled('forms');
     expect(value(t1).scenes[0].steps![1]).toEqual({ ...value(t0).scenes[0].steps![1], hold: 0.5 });
-    await expect.poll(() => folds(), POLL).toEqual(['Other ways to find it (10)', 'More: clear, enter']);
+    await expect.poll(() => folds(), POLL).toEqual(['Other ways to find it (10)', 'More: clear, enter, fill']);
     expect(await visible()).toContain('hold');
     expect(await form().locator('[data-switch="hold"]').isChecked()).toBe(true);
     // A modifier switched off empties its fields: Save sends their removal — the same set_step changes as before.
@@ -187,7 +194,14 @@ describe("the step's form", () => {
     const t2 = await settled('forms');
     expect(value(t2).scenes[0].steps![1].caption).toBeUndefined();
     expect(ops('scenario_edit', tOff).map((r) => r.body.edit)).toEqual([
-      { kind: 'set_step', at: { scene: 'a', index: 1, guard: expect.stringMatching(/^[0-9a-f]{16}$/) }, changes: [{ path: ['caption', 'text'], from: 'Leave a note' }, { path: ['caption', 'kicker'], from: 'Note' }] },
+      {
+        kind: 'set_step',
+        at: { scene: 'a', index: 1, guard: expect.stringMatching(/^[0-9a-f]{16}$/) },
+        changes: [
+          { path: ['caption', 'text'], from: 'Leave a note' },
+          { path: ['caption', 'kicker'], from: 'Note' },
+        ],
+      },
     ]);
     expect(await form().locator('[data-switch="caption"]').isChecked()).toBe(false);
     // A hold step: its `hold` (seconds) is the action's own field, above the Modifiers heading.
@@ -312,7 +326,8 @@ describe('the palette', () => {
 
 describe('review fixes (L4.3 review B)', () => {
   it('M2: an untouched "" is never sent as a removal; a required text holding "" needs no value; typed text dropped by an outside change is listed', async () => {
-    const EMPTIES = 'video: empties\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - click: Save\n        caption: {kicker: "", text: Saved}\n      - type: {into: {label: Name}, text: "", clear: true}\n';
+    const EMPTIES =
+      'video: empties\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - click: Save\n        caption: {kicker: "", text: Saved}\n      - type: {into: {label: Name}, text: "", clear: true}\n';
     await writeFile(file('empties'), EMPTIES);
     await openBlocks('empties');
     const t0 = await settled('empties');
@@ -349,13 +364,22 @@ describe('L5.10b fixes B-L4: the step inspector as B32 lays it out', () => {
       await row('a.1').click();
       await form().waitFor(POLL);
       const m = await page.getByTestId('inspector').evaluate((el) => {
-        let pane: HTMLElement | null = el;
+        let pane: Element | null = el;
         while (pane && !/(auto|scroll)/.test(getComputedStyle(pane).overflowY)) pane = pane.parentElement;
         const bottom = Math.min(window.innerHeight, pane ? pane.getBoundingClientRect().bottom : window.innerHeight);
         const top = (q: string) => el.querySelector(q)?.getBoundingClientRect() ?? null;
         const switches = [...el.querySelectorAll<HTMLElement>('[data-switch]')].map((s) => (s.closest('.sb-modifier') ?? s).getBoundingClientRect().bottom);
         const labels = [...el.querySelectorAll('[data-testid="step-form"] .k-field-label')].map((l) => ({ text: (l as HTMLElement).innerText, mono: l.querySelector('.k-mono') !== null }));
-        return { scrolled: pane?.scrollTop ?? 0, bottom, picture: top('.sb-inspector-picture')?.top ?? 0, title: top('[data-testid="inspector-step"]')?.top ?? 0, form: top('[data-testid="step-form"]')?.top ?? 0, actions: top('[data-testid="step-actions"]')?.top ?? 0, switches, labels };
+        return {
+          scrolled: pane?.scrollTop ?? 0,
+          bottom,
+          picture: top('.sb-inspector-picture')?.top ?? 0,
+          title: top('[data-testid="inspector-step"]')?.top ?? 0,
+          form: top('[data-testid="step-form"]')?.top ?? 0,
+          actions: top('[data-testid="step-actions"]')?.top ?? 0,
+          switches,
+          labels,
+        };
       });
       if (SHOTS) await writeFile(join(SHOTS, 'inspector-1440.json'), JSON.stringify(m));
       expect(m.scrolled).toBe(0);

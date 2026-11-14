@@ -86,29 +86,31 @@ function load(e: Entry): void {
   e.inflight = true;
   e.lastAt = Date.now();
   reads[e.op]++;
-  projectRead(e.op, { project: e.slug }).then(
-    (data) => {
-      e.backoff = 0;
-      set(e, { state: 'ready', data });
-    },
-    (err: unknown) => {
-      if (err instanceof SessionEnded) return;
-      // Read again later, not now (reviews A-H1 / B-H1: an error re-read at once looped hundreds of times a second).
-      e.backoff = e.backoff === 0 ? ERROR_RETRY_MS : Math.min(e.backoff * 2, ERROR_RETRY_MAX_MS);
-      set(e, { state: 'error', error: errorText(err), ...(err instanceof CallError ? { code: err.error.code } : {}) });
-    },
-  ).finally(() => {
-    e.inflight = false;
-    if (e.again) {
-      e.again = false;
-      load(e);
-    } else if (e.state.state === 'error' && e.users > 0 && e.retry === null) {
-      e.retry = window.setTimeout(() => {
-        e.retry = null;
-        if (e.users > 0) load(e);
-      }, e.backoff);
-    }
-  });
+  projectRead(e.op, { project: e.slug })
+    .then(
+      (data) => {
+        e.backoff = 0;
+        set(e, { state: 'ready', data });
+      },
+      (err: unknown) => {
+        if (err instanceof SessionEnded) return;
+        // Read again later, not now (reviews A-H1 / B-H1: an error re-read at once looped hundreds of times a second).
+        e.backoff = e.backoff === 0 ? ERROR_RETRY_MS : Math.min(e.backoff * 2, ERROR_RETRY_MAX_MS);
+        set(e, { state: 'error', error: errorText(err), ...(err instanceof CallError ? { code: err.error.code } : {}) });
+      },
+    )
+    .finally(() => {
+      e.inflight = false;
+      if (e.again) {
+        e.again = false;
+        load(e);
+      } else if (e.state.state === 'error' && e.users > 0 && e.retry === null) {
+        e.retry = window.setTimeout(() => {
+          e.retry = null;
+          if (e.users > 0) load(e);
+        }, e.backoff);
+      }
+    });
 }
 
 /** Read within `ms` of the last read, once (several asks in the window: one read). */

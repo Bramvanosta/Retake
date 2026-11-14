@@ -1,5 +1,5 @@
-import { describeScope, describeTarget, normalizeTarget } from '@retake/core';
-import type { BBox, PointSpec, TargetObject, TargetSpec } from '@retake/core';
+import { describeScope, describeTarget, normalizeTarget } from '@retake/core/language';
+import type { BBox, PointSpec, TargetObject, TargetSpec } from '@retake/core/model';
 import { StepError, formatNear } from './errors.js';
 import type { ResolveMissing, ResolveResult } from './kit/types.js';
 import type { StepContext } from './runtime.js';
@@ -38,12 +38,7 @@ const POLL_MS = 100;
 const VIEW_MARGIN = 80;
 
 /** Poll `fn` until it returns a truthy value or the timeout elapses (then null). */
-export async function poll<T>(
-  ctx: StepContext,
-  fn: () => Promise<T | null | undefined | false>,
-  timeoutMs: number,
-  intervalMs = POLL_MS,
-): Promise<T | null> {
+export async function poll<T>(ctx: StepContext, fn: () => Promise<T | null | undefined | false>, timeoutMs: number, intervalMs = POLL_MS): Promise<T | null> {
   const deadline = wallNow() + timeoutMs;
   for (;;) {
     const v = await fn();
@@ -96,10 +91,14 @@ async function finish(ctx: StepContext, found: Exclude<ResolveResult, ResolveMis
   if (!pt) return null;
   if (!pt.hit && opts.scroll !== false && !opts.includeHidden) {
     // Covered (closing popover, toast, transition): give it a moment to clear.
-    const cleared = await poll(ctx, async () => {
-      const p = await kit.point(found.ref, opts.offset ?? null);
-      return p && p.hit ? p : null;
-    }, clamp(deadline - wallNow(), 0, 1500));
+    const cleared = await poll(
+      ctx,
+      async () => {
+        const p = await kit.point(found.ref, opts.offset ?? null);
+        return p && p.hit ? p : null;
+      },
+      clamp(deadline - wallNow(), 0, 1500),
+    );
     if (cleared) pt = cleared;
     else ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: ${spec} is covered by another element at (${pt.x}, ${pt.y})`);
   }

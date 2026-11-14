@@ -49,7 +49,9 @@ export function relayNotifications(): void {
         /* never break the page */
       }
     };
-    const Orig = g.Notification as (new (title: string, options?: unknown) => Notification) & { permission?: string; requestPermission?: (...a: unknown[]) => unknown; maxActions?: number } | undefined;
+    const Orig = g.Notification as
+      | ((new (title: string, options?: unknown) => Notification) & { permission?: string; requestPermission?: (...a: unknown[]) => unknown; maxActions?: number })
+      | undefined;
     if (typeof Orig === 'function') {
       const Patched = function (this: unknown, title: string, options?: unknown) {
         if (!new.target) throw new TypeError("Failed to construct 'Notification': Please use the 'new' operator.");

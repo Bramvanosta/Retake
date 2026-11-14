@@ -2,7 +2,7 @@
  * Moments and boxes of a capture's steps that the planner and its callers share: when a marked step is done, when a
  * step overlay starts, and what the reframe of a vertical / square clip keeps in view.
  */
-import type { Timeline, TimelineEvent } from '@retake/core';
+import type { Timeline, TimelineEvent } from '@retake/core/model';
 import type { ReframeTarget } from '../camera.js';
 import { stepEnd } from '../util.js';
 import { REFRAME_CLICK_WINDOW_S } from './rules.js';

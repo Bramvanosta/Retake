@@ -2,7 +2,9 @@
  * The open jobs a jobs worker (worker.ts) sees, and the claim of one: re-read, refused at once when its record lies
  * about its kind or its approvals were taken before, given back unrun (its claim and the approvals its claim took).
  */
-import { isFilming } from '@retake/core';
+import { errorMessage } from '../errors.js';
+import { isFilming } from './job-input.js';
+import { stampOf } from '../clock.js';
 import { buildStamp } from './build.js';
 import type { PickRecord } from './pick.js';
 import { unknownInput } from './run-job-record.js';
@@ -71,20 +73,20 @@ export async function claimJob(w: Worker, id: string): Promise<JobRecord | undef
     await closeJob(w, {
       ...stored,
       state: 'failed',
-      finished_at: new Date().toISOString(),
+      finished_at: stampOf(w.clock),
       error: { code: 'invalid', message: `refused without running: job ${id} is a ${JSON.stringify(stored.kind)} job whose input is of kind ${JSON.stringify(inputKind ?? null)}` },
     });
     return undefined;
   }
   // Review B L4: a record that cannot be written is said as such (not as approvals taken before).
-  const consumed = await consumeApprovals(stored).then(
+  const consumed = await consumeApprovals(stored, w.ports.env, w.clock.now()).then(
     (ok) => (ok ? null : `refused without running: the approvals of job ${id} were taken by an earlier claim of that id (approvals are bound to their job) — submit it again`),
-    (e: unknown) => `not run: the record of the approvals workers took (${approvalsUsedDir()}) cannot be written (${(e as Error).message}) — fix it, then submit the job again`,
+    (e: unknown) => `not run: the record of the approvals workers took (${approvalsUsedDir(w.ports.env)}) cannot be written (${errorMessage(e)}) — fix it, then submit the job again`,
   );
   if (consumed) {
     w.started++;
     w.ended++;
-    await closeJob(w, { ...stored, state: 'failed', finished_at: new Date().toISOString(), error: { code: 'refused', message: consumed } });
+    await closeJob(w, { ...stored, state: 'failed', finished_at: stampOf(w.clock), error: { code: 'refused', message: consumed } });
     return undefined;
   }
   return stored;
@@ -92,6 +94,8 @@ export async function claimJob(w: Worker, id: string): Promise<JobRecord | undef
 
 /** Give a claimed job back to the queue unrun: its claim and the approvals its claim took. */
 export async function unclaimJob(w: Worker, id: string): Promise<void> {
-  await restoreApprovals(id).catch(() => undefined);
+  await restoreApprovals(id, w.ports.env).catch((e: unknown) =>
+    w.log(`job ${id}: the approvals its claim took could not be given back (${errorMessage(e)}): its next claim may refuse it as not approved`),
+  );
   await w.queue.unclaim(id);
 }

@@ -20,6 +20,14 @@ describe('the MCP tools and the operation catalogue', () => {
       expect({ readOnlyHint: t.annotations.readOnlyHint, destructiveHint: t.annotations.destructiveHint }, t.name).toEqual(hintsOf(op));
     }
     // The destructive tools, by name: what the hint warns a client of (job_cancel discards a recording whose window is open).
-    expect(TOOLS.filter((t) => t.annotations.destructiveHint).map((t) => t.name)).toEqual(['project_prune', 'template_create_from_brand', 'job_cancel', 'hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset']);
+    expect(TOOLS.filter((t) => t.annotations.destructiveHint).map((t) => t.name)).toEqual([
+      'project_prune',
+      'template_create_from_brand',
+      'job_cancel',
+      'hooks_run',
+      'env_reset',
+      'sandbox_up',
+      'sandbox_reset',
+    ]);
   });
 });

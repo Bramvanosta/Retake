@@ -99,9 +99,6 @@ export function themeFieldKind(field: ThemeField): ThemeValueKind {
   return 'text';
 }
 
-/** The edit kinds of `theme_edit` (`restore`: the engine's byte-exact undo / redo of a version it showed or wrote). */
-export const THEME_EDIT_KINDS = ['set_field', 'set_background', 'set_component', 'restore'] as const;
-
 export interface ThemeFieldEdit {
   kind: 'set_field';
   field: string;
@@ -350,7 +347,8 @@ function applyField(text: string, root: Obj, edit: ThemeFieldEdit): ThemeEditApp
   if (segs.length === 2) sectionOf(root, segs[0], what);
   const raw = getAt(root, segs);
   const current = raw === null ? undefined : raw;
-  const readable = current === undefined || typeof current === 'string' || typeof current === 'number' || (field === 'fonts.body' && Array.isArray(current) && current.every((x) => typeof x === 'string'));
+  const readable =
+    current === undefined || typeof current === 'string' || typeof current === 'number' || (field === 'fonts.body' && Array.isArray(current) && current.every((x) => typeof x === 'string'));
   if (!readable) throw new StepEditError('not_editable', `${what} is written as ${Array.isArray(current) ? 'a list' : typeof current === 'boolean' ? 'true / false' : 'a map'}: ${BY_HAND}`, field);
   if (!isDeepStrictEqual(current, edit.from)) {
     throw new StepEditError('stale', `${what} changed meanwhile (it is now ${current === undefined ? 'not set' : JSON.stringify(current)}): read the theme again`, field);
@@ -476,7 +474,8 @@ function applyComponent(text: string, root: Obj, edit: ThemeComponentEdit): Them
  * `not_editable`: written in a form this editor does not change — by hand; `invalid`). `restore` is the engine's.
  */
 export function applyThemeEdit(text: string, edit: Exclude<ThemeEdit, { kind: 'restore' }>): ThemeEditApplied {
-  if (typeof text !== 'string' || text.length > THEME_EDIT_MAX_CHARS) throw new StepEditError('not_editable', `template.yaml holds more than ${THEME_EDIT_MAX_CHARS.toLocaleString('en')} characters: ${BY_HAND}`);
+  if (typeof text !== 'string' || text.length > THEME_EDIT_MAX_CHARS)
+    throw new StepEditError('not_editable', `template.yaml holds more than ${THEME_EDIT_MAX_CHARS.toLocaleString('en')} characters: ${BY_HAND}`);
   const root = rootOf(text);
   let out: ThemeEditApplied;
   switch (edit?.kind) {

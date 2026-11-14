@@ -22,9 +22,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { readWorkerLock } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { linkSharedCache } from '../../editor/test/render-helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
@@ -120,106 +120,179 @@ describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture → render �
     if (root) await rm(root, { recursive: true, force: true });
   });
 
-  it('captures quote on the fixture through run_capture', async () => {
-    const r = await call('run_capture', { project: 'northfield-fixture', scenario: 'quote' });
-    ids.run = data<{ id: string }>(r).id;
-    const st = await follow('run_status', { project: 'northfield-fixture', run_id: ids.run }, (x) => data<{ finished: boolean }>(x).finished === true);
-    expect(data<{ status: string }>(st).status, st.content[0].text).toBe('succeeded');
-  }, STEP);
+  it(
+    'captures quote on the fixture through run_capture',
+    async () => {
+      const r = await call('run_capture', { project: 'northfield-fixture', scenario: 'quote' });
+      ids.run = data<{ id: string }>(r).id;
+      const st = await follow('run_status', { project: 'northfield-fixture', run_id: ids.run }, (x) => data<{ finished: boolean }>(x).finished === true);
+      expect(data<{ status: string }>(st).status, st.content[0].text).toBe('succeeded');
+    },
+    STEP,
+  );
 
-  it('renders it with the editorial theme (guarded: nothing blocked); the review is clean and returns the contact sheet as images', async () => {
-    const r = await call('render', { project: 'northfield-fixture', scenario: 'quote', run_id: ids.run, template: 'editorial' });
-    ids.editorial = data<{ render_id: string }>(r).render_id;
-    const st = await follow('render_status', { project: 'northfield-fixture', render_id: ids.editorial }, (x) => data<{ finished: boolean }>(x).finished === true);
-    const view = data<{ status: string; record: { template: string; width: number }; untrusted: { warnings: string[] } }>(st);
-    expect(view.status, st.content[0].text).toBe('succeeded');
-    expect(view.record).toMatchObject({ template: 'editorial', width: 1920 });
-    expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
-    const rv = await call('review', { project: 'northfield-fixture', render_id: ids.editorial, wait_s: 25 });
-    const done = data<{ finished: boolean }>(rv).finished ? rv : await follow('review_get', { project: 'northfield-fixture', render_id: ids.editorial }, (x) => data<{ finished: boolean }>(x).finished === true);
-    const v = data<{ clean: boolean; counts: Record<string, number>; files: { sheets: string[] } }>(done);
-    expect(v.counts.error, done.content[0].text).toBe(0);
-    expect(v.clean, done.content[0].text).toBe(true);
-    expect(images(done).length).toBeGreaterThanOrEqual(1);
-    await keep('editorial', v.files.sheets);
-  }, STEP);
+  it(
+    'renders it with the editorial theme (guarded: nothing blocked); the review is clean and returns the contact sheet as images',
+    async () => {
+      const r = await call('render', { project: 'northfield-fixture', scenario: 'quote', run_id: ids.run, template: 'editorial' });
+      ids.editorial = data<{ render_id: string }>(r).render_id;
+      const st = await follow('render_status', { project: 'northfield-fixture', render_id: ids.editorial }, (x) => data<{ finished: boolean }>(x).finished === true);
+      const view = data<{ status: string; record: { template: string; width: number }; untrusted: { warnings: string[] } }>(st);
+      expect(view.status, st.content[0].text).toBe('succeeded');
+      expect(view.record).toMatchObject({ template: 'editorial', width: 1920 });
+      expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
+      const rv = await call('review', { project: 'northfield-fixture', render_id: ids.editorial, wait_s: 25 });
+      const done = data<{ finished: boolean }>(rv).finished
+        ? rv
+        : await follow('review_get', { project: 'northfield-fixture', render_id: ids.editorial }, (x) => data<{ finished: boolean }>(x).finished === true);
+      const v = data<{ clean: boolean; counts: Record<string, number>; files: { sheets: string[] } }>(done);
+      expect(v.counts.error, done.content[0].text).toBe(0);
+      expect(v.clean, done.content[0].text).toBe(true);
+      expect(images(done).length).toBeGreaterThanOrEqual(1);
+      await keep('editorial', v.files.sheets);
+    },
+    STEP,
+  );
 
-  it('a person asks for a laptop frame on the proposal (retake comment add --marker); comments_list returns the anchor and the still; comment_reply', async () => {
-    const out = execFileSync(
-      process.execPath,
-      ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'comment', 'add', 'northfield-fixture', ids.editorial!, '--marker', 'proposal', '--region', '0.67,0.42,0.12,0.08', '--json', 'Try a laptop frame for the proposal'],
-      { cwd: REPO, env: testChildEnv({ RETAKE_HOME: join(root, '.home'), RETAKE_AUTHOR: 'Reviewer' }), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-    );
-    const added = JSON.parse(out) as { thread: { id: string }; warnings: string[] };
-    expect(added.warnings).toEqual([]);
-    ids.comment = added.thread.id;
-    const r = await call('comments_list', { project: 'northfield-fixture', scenario: 'quote' });
-    const t = data<{ threads: Array<Record<string, unknown> & { id: string; hash: string; still: string; frame: number; anchor: Record<string, unknown>; untrusted: { text: string; author: string } }> }>(r).threads[0];
-    expect(t).toMatchObject({ id: ids.comment, render_id: ids.editorial, render_present: true, status: 'open', via: 'cli', marker: 'proposal', region: { x: 0.67, y: 0.42, w: 0.12, h: 0.08 } });
-    expect(t.anchor).toMatchObject({ kind: 'clip', segment: 'proposal', scene: 'proposal', step: 3, step_ref: 'proposal.3', action: 'wait_for', marker: 'proposal', area: 'screen', overlays: ['studio/overlay-callout'] });
-    expect(t.anchor.step_fp).toMatch(/^[0-9a-f]{12}$/);
-    expect(t.untrusted).toMatchObject({ text: 'Try a laptop frame for the proposal', author: 'Reviewer' });
-    expect(r.content[0].text).not.toContain('laptop frame');
-    const img = images(r);
-    expect(img).toHaveLength(1);
-    expect(img[0].mimeType).toBe('image/jpeg');
-    expect(r.content.find((b) => b.text?.startsWith('image 1/1: '))?.text).toContain(`comment ${ids.comment} at `);
-    await keep('comment', [t.still]);
-    const reply = await call('comment_reply', { project: 'northfield-fixture', comment_id: ids.comment, text: 'Re-rendering with the laptop layout and the motion theme; the scenario is unchanged.' });
-    ids.hash = data<{ hash: string }>(reply).hash;
-    expect(data<{ thread: { entries: Array<{ via: string }> } }>(reply).thread.entries.map((e) => e.via)).toEqual(['mcp']);
-  }, STEP);
+  it(
+    'a person asks for a laptop frame on the proposal (retake comment add --marker); comments_list returns the anchor and the still; comment_reply',
+    async () => {
+      const out = execFileSync(
+        process.execPath,
+        [
+          '--conditions=source',
+          '--import',
+          'tsx',
+          BIN,
+          '--root',
+          root,
+          'comment',
+          'add',
+          'northfield-fixture',
+          ids.editorial!,
+          '--marker',
+          'proposal',
+          '--region',
+          '0.67,0.42,0.12,0.08',
+          '--json',
+          'Try a laptop frame for the proposal',
+        ],
+        { cwd: REPO, env: testChildEnv({ RETAKE_HOME: join(root, '.home'), RETAKE_AUTHOR: 'Reviewer' }), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      );
+      const added = JSON.parse(out) as { thread: { id: string }; warnings: string[] };
+      expect(added.warnings).toEqual([]);
+      ids.comment = added.thread.id;
+      const r = await call('comments_list', { project: 'northfield-fixture', scenario: 'quote' });
+      const t = data<{
+        threads: Array<Record<string, unknown> & { id: string; hash: string; still: string; frame: number; anchor: Record<string, unknown>; untrusted: { text: string; author: string } }>;
+      }>(r).threads[0];
+      expect(t).toMatchObject({ id: ids.comment, render_id: ids.editorial, render_present: true, status: 'open', via: 'cli', marker: 'proposal', region: { x: 0.67, y: 0.42, w: 0.12, h: 0.08 } });
+      expect(t.anchor).toMatchObject({
+        kind: 'clip',
+        segment: 'proposal',
+        scene: 'proposal',
+        step: 3,
+        step_ref: 'proposal.3',
+        action: 'wait_for',
+        marker: 'proposal',
+        area: 'screen',
+        overlays: ['studio/overlay-callout'],
+      });
+      expect(t.anchor.step_fp).toMatch(/^[0-9a-f]{12}$/);
+      expect(t.untrusted).toMatchObject({ text: 'Try a laptop frame for the proposal', author: 'Reviewer' });
+      expect(r.content[0].text).not.toContain('laptop frame');
+      const img = images(r);
+      expect(img).toHaveLength(1);
+      expect(img[0].mimeType).toBe('image/jpeg');
+      expect(r.content.find((b) => b.text?.startsWith('image 1/1: '))?.text).toContain(`comment ${ids.comment} at `);
+      await keep('comment', [t.still]);
+      const reply = await call('comment_reply', {
+        project: 'northfield-fixture',
+        comment_id: ids.comment,
+        text: 'Re-rendering with the laptop layout and the motion theme; the scenario is unchanged.',
+      });
+      ids.hash = data<{ hash: string }>(reply).hash;
+      expect(data<{ thread: { entries: Array<{ via: string }> } }>(reply).thread.entries.map((e) => e.via)).toEqual(['mcp']);
+    },
+    STEP,
+  );
 
-  it('switches the theme to motion and the layout to studio/layout-laptop without touching the scenario; reviews it with every image', async () => {
-    const before = await readFile(join(root, 'projects', 'northfield-fixture', 'scenarios', 'quote.yaml'), 'utf8');
-    const plan = await call('plan_preview', { project: 'northfield-fixture', scenario: 'quote', run_id: ids.run, template: 'motion', overrides: { components: { layout: 'studio/layout-laptop' } } });
-    expect(plan.content[0].text).toContain('theme motion');
-    // L3.8: the run's snapshot is the scenario file as it is — a layout or theme switch needs only a render.
-    expect(plan.structuredContent).toMatchObject({ scenario_changed: false });
-    expect(plan.content[0].text).not.toContain('changed since');
-    const r = await call('render', { project: 'northfield-fixture', scenario: 'quote', run_id: ids.run, template: 'motion', overrides: { components: { layout: 'studio/layout-laptop' } } });
-    ids.motion = data<{ render_id: string }>(r).render_id;
-    expect(ids.motion).not.toBe(ids.editorial);
-    const st = await follow('render_status', { project: 'northfield-fixture', render_id: ids.motion }, (x) => data<{ finished: boolean }>(x).finished === true);
-    const view = data<{ status: string; record: { template: string }; untrusted: { warnings: string[] } }>(st);
-    expect(view.status, st.content[0].text).toBe('succeeded');
-    expect(view.record.template).toBe('motion');
-    expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
-    await call('review', { project: 'northfield-fixture', render_id: ids.motion, wait_s: 0 });
-    const done = await follow('review_get', { project: 'northfield-fixture', render_id: ids.motion, images: 'all', detail: 'full' }, (x) => data<{ finished: boolean }>(x).finished === true);
-    const v = data<{ counts: Record<string, number>; diff?: { previous: string }; files: { sheets: string[]; keyframes: Record<string, string> } }>(done);
-    expect(v.counts.error, done.content[0].text).toBe(0);
-    expect(v.diff?.previous).toBe(ids.editorial);
-    expect(images(done)).toHaveLength(4);
-    await keep('motion', [...v.files.sheets, ...Object.values(v.files.keyframes)]);
-    expect(await readFile(join(root, 'projects', 'northfield-fixture', 'scenarios', 'quote.yaml'), 'utf8')).toBe(before);
-  }, STEP);
+  it(
+    'switches the theme to motion and the layout to studio/layout-laptop without touching the scenario; reviews it with every image',
+    async () => {
+      const before = await readFile(join(root, 'projects', 'northfield-fixture', 'scenarios', 'quote.yaml'), 'utf8');
+      const plan = await call('plan_preview', { project: 'northfield-fixture', scenario: 'quote', run_id: ids.run, template: 'motion', overrides: { components: { layout: 'studio/layout-laptop' } } });
+      expect(plan.content[0].text).toContain('theme motion');
+      // L3.8: the run's snapshot is the scenario file as it is — a layout or theme switch needs only a render.
+      expect(plan.structuredContent).toMatchObject({ scenario_changed: false });
+      expect(plan.content[0].text).not.toContain('changed since');
+      const r = await call('render', { project: 'northfield-fixture', scenario: 'quote', run_id: ids.run, template: 'motion', overrides: { components: { layout: 'studio/layout-laptop' } } });
+      ids.motion = data<{ render_id: string }>(r).render_id;
+      expect(ids.motion).not.toBe(ids.editorial);
+      const st = await follow('render_status', { project: 'northfield-fixture', render_id: ids.motion }, (x) => data<{ finished: boolean }>(x).finished === true);
+      const view = data<{ status: string; record: { template: string }; untrusted: { warnings: string[] } }>(st);
+      expect(view.status, st.content[0].text).toBe('succeeded');
+      expect(view.record.template).toBe('motion');
+      expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
+      await call('review', { project: 'northfield-fixture', render_id: ids.motion, wait_s: 0 });
+      const done = await follow('review_get', { project: 'northfield-fixture', render_id: ids.motion, images: 'all', detail: 'full' }, (x) => data<{ finished: boolean }>(x).finished === true);
+      const v = data<{ counts: Record<string, number>; diff?: { previous: string }; files: { sheets: string[]; keyframes: Record<string, string> } }>(done);
+      expect(v.counts.error, done.content[0].text).toBe(0);
+      expect(v.diff?.previous).toBe(ids.editorial);
+      expect(images(done)).toHaveLength(4);
+      await keep('motion', [...v.files.sheets, ...Object.values(v.files.keyframes)]);
+      expect(await readFile(join(root, 'projects', 'northfield-fixture', 'scenarios', 'quote.yaml'), 'utf8')).toBe(before);
+    },
+    STEP,
+  );
 
-  it('resolves the comment with the motion render (if_match); listed as resolved on the editorial render, nothing on the motion one', async () => {
-    const r = await call('comment_resolve', { project: 'northfield-fixture', comment_id: ids.comment, note: 'Re-rendered with studio/layout-laptop and the motion theme.', render_id: ids.motion, if_match: ids.hash });
-    expect(data<{ thread: { status: string; resolution: Record<string, unknown> } }>(r).thread).toMatchObject({ status: 'resolved', resolution: { via: 'mcp', render_id: ids.motion } });
-    expect(data<{ threads: unknown[] }>(await call('comments_list', { project: 'northfield-fixture' })).threads).toEqual([]);
-    const resolved = data<{ threads: Array<{ id: string; resolution: { render_id: string } }> }>(await call('comments_list', { project: 'northfield-fixture', render: ids.editorial, status: 'resolved' })).threads;
-    expect(resolved.map((t) => [t.id, t.resolution.render_id])).toEqual([[ids.comment, ids.motion]]);
-    expect(data<{ threads: unknown[] }>(await call('comments_list', { project: 'northfield-fixture', render: ids.motion, status: 'all' })).threads).toEqual([]);
-  }, STEP);
+  it(
+    'resolves the comment with the motion render (if_match); listed as resolved on the editorial render, nothing on the motion one',
+    async () => {
+      const r = await call('comment_resolve', {
+        project: 'northfield-fixture',
+        comment_id: ids.comment,
+        note: 'Re-rendered with studio/layout-laptop and the motion theme.',
+        render_id: ids.motion,
+        if_match: ids.hash,
+      });
+      expect(data<{ thread: { status: string; resolution: Record<string, unknown> } }>(r).thread).toMatchObject({ status: 'resolved', resolution: { via: 'mcp', render_id: ids.motion } });
+      expect(data<{ threads: unknown[] }>(await call('comments_list', { project: 'northfield-fixture' })).threads).toEqual([]);
+      const resolved = data<{ threads: Array<{ id: string; resolution: { render_id: string } }> }>(
+        await call('comments_list', { project: 'northfield-fixture', render: ids.editorial, status: 'resolved' }),
+      ).threads;
+      expect(resolved.map((t) => [t.id, t.resolution.render_id])).toEqual([[ids.comment, ids.motion]]);
+      expect(data<{ threads: unknown[] }>(await call('comments_list', { project: 'northfield-fixture', render: ids.motion, status: 'all' })).threads).toEqual([]);
+    },
+    STEP,
+  );
 
-  it('exports mp4_1080p, gif_preview and vertical_9x16 (re-rendered); job_status lists the files', async () => {
-    const r = await call('export', { project: 'northfield-fixture', render_id: ids.motion, formats: ['mp4_1080p', 'gif_preview', 'vertical_9x16'] });
-    expect(data<{ rerendered: string[] }>(r).rerendered).toEqual(['vertical_9x16']);
-    const jobId = data<{ job: { id: string } }>(r).job.id;
-    const js = await follow('job_status', { job_id: jobId }, (x) => ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(data<{ state: string }>(x).state));
-    const job = data<{ state: string; result: { outputs: Array<{ format: string; file: string; width: number; height: number; method: string }>; failed: string[]; untrusted: { warnings: string[] } } }>(js);
-    expect(job.state, js.content[0].text).toBe('succeeded');
-    expect(job.result.failed).toEqual([]);
-    const by = Object.fromEntries(job.result.outputs.map((o) => [o.format, o]));
-    expect(by.mp4_1080p).toMatchObject({ width: 1920, height: 1080 });
-    expect(by.vertical_9x16).toMatchObject({ width: 1080, height: 1920, method: 'render' });
-    expect(by.gif_preview.file).toMatch(/\.gif$/);
-    for (const o of job.result.outputs) expect(existsSync(o.file), o.file).toBe(true);
-    expect(job.result.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
-    for (const o of job.result.outputs) expect(js.content[0].text).toContain(o.file);
-    await keep('exports', job.result.outputs.map((o) => o.file));
-    expect(stderr).not.toMatch(/unhandled/i);
-  }, STEP);
+  it(
+    'exports mp4_1080p, gif_preview and vertical_9x16 (re-rendered); job_status lists the files',
+    async () => {
+      const r = await call('export', { project: 'northfield-fixture', render_id: ids.motion, formats: ['mp4_1080p', 'gif_preview', 'vertical_9x16'] });
+      expect(data<{ rerendered: string[] }>(r).rerendered).toEqual(['vertical_9x16']);
+      const jobId = data<{ job: { id: string } }>(r).job.id;
+      const js = await follow('job_status', { job_id: jobId }, (x) => ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(data<{ state: string }>(x).state));
+      const job = data<{
+        state: string;
+        result: { outputs: Array<{ format: string; file: string; width: number; height: number; method: string }>; failed: string[]; untrusted: { warnings: string[] } };
+      }>(js);
+      expect(job.state, js.content[0].text).toBe('succeeded');
+      expect(job.result.failed).toEqual([]);
+      const by = Object.fromEntries(job.result.outputs.map((o) => [o.format, o]));
+      expect(by.mp4_1080p).toMatchObject({ width: 1920, height: 1080 });
+      expect(by.vertical_9x16).toMatchObject({ width: 1080, height: 1920, method: 'render' });
+      expect(by.gif_preview.file).toMatch(/\.gif$/);
+      for (const o of job.result.outputs) expect(existsSync(o.file), o.file).toBe(true);
+      expect(job.result.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
+      for (const o of job.result.outputs) expect(js.content[0].text).toContain(o.file);
+      await keep(
+        'exports',
+        job.result.outputs.map((o) => o.file),
+      );
+      expect(stderr).not.toMatch(/unhandled/i);
+    },
+    STEP,
+  );
 });

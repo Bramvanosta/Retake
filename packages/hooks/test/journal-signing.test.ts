@@ -7,7 +7,18 @@ import { cp, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { JOURNAL_FILE, Journal, ROLLBACKS_DONE_DIR, openPendingJournals, pruneDoneRollbacks, rollbackActionLines, rollbackJournals, rollbackPendingJournals, runHooks, standaloneJournalFile } from '@retake/hooks';
+import {
+  JOURNAL_FILE,
+  Journal,
+  ROLLBACKS_DONE_DIR,
+  openPendingJournals,
+  pruneDoneRollbacks,
+  rollbackActionLines,
+  rollbackJournals,
+  rollbackPendingJournals,
+  runHooks,
+  standaloneJournalFile,
+} from '@retake/hooks';
 import type { RollbackAction } from '@retake/hooks';
 import { workPolicyFrom } from '@retake/core';
 import type { HookStep } from '@retake/core';
@@ -89,7 +100,9 @@ describe('rollback journal entries are signed (L5.14)', () => {
     const out = await rollbackPendingJournals(tmp.dir, ctx, { keyFile });
     expect(out).toHaveLength(2);
     for (const o of out) {
-      expect(o.results).toEqual([expect.objectContaining({ ok: false, status: 'refused', error: expect.stringMatching(/not replayed: its journal entry \(.+ #1\) is not signed by this Retake home/) })]);
+      expect(o.results).toEqual([
+        expect.objectContaining({ ok: false, status: 'refused', error: expect.stringMatching(/not replayed: its journal entry \(.+ #1\) is not signed by this Retake home/) }),
+      ]);
       // Said to the person (a person can review it in a terminal): no flag handed to the agent.
       expect(o.results[0]!.error).toContain('a person can review it and replay it from a terminal');
       expect(o.results[0]!.error).not.toContain('--replay-unsigned');
@@ -113,7 +126,7 @@ describe('rollback journal entries are signed (L5.14)', () => {
       ['refused', expect.stringMatching(/not signed by this Retake home .* look at it, then replay it with --replay-unsigned in a terminal$/)],
     ]);
     expect(await order()).toEqual([]);
-    const asked: number[] = [];
+    const asked: string[] = [];
     const yes = makeContext(makeProject(tmp.dir), { replayUnsigned: (e, file) => (asked.push(`${e.seq} ${file}`), true) });
     const replayed = await rollbackJournals(list, yes.ctx);
     // Most recent first: the one with a secret is refused (never asked about), the other replayed.
@@ -123,7 +136,7 @@ describe('rollback journal entries are signed (L5.14)', () => {
     expect(await order()).toEqual(['placed']);
   });
 
-  it('an entry copied into another journal, edited, or read with another home\'s key is not signed; saving never signs it', async () => {
+  it("an entry copied into another journal, edited, or read with another home's key is not signed; saving never signs it", async () => {
     await written(runFile('20261104-094000-src'), ['a']);
     // Copied whole under another run id: its entries name their own journal.
     await cp(runFile('20261104-094000-src'), runFile('20261104-094500-copy'));
@@ -230,13 +243,27 @@ describe('rollback journal entries are signed (L5.14)', () => {
     expect(await readdir(dir)).toEqual(['not-a-record']);
     // An entry signed with a start older than the record kept: untrusted (a person decides).
     const j = await Journal.open(runFile('20261104-105000-aged'), { keyFile });
-    await j.record({ kind: 'shell', phase: 'setup', description: 'shell "true"', started_at: old.toISOString(), finished_at: old.toISOString(), status: 'ok', rollback: { kind: 'shell', run: 'true', description: 'shell "true"', data: {} } });
+    await j.record({
+      kind: 'shell',
+      phase: 'setup',
+      description: 'shell "true"',
+      started_at: old.toISOString(),
+      finished_at: old.toISOString(),
+      status: 'ok',
+      rollback: { kind: 'shell', run: 'true', description: 'shell "true"', data: {} },
+    });
     const aged = await Journal.open(runFile('20261104-105000-aged'), { keyFile });
     expect(aged.isSigned(aged.entries[0]!)).toBe(false);
   });
 
   it('an unsigned sql or js entry, or a shell one on a sandbox, is never replayed even on a yes; a dry run lists an unsigned entry (ok); a yes runs a shell one with a bare environment', async () => {
-    const entry = (rollback: RollbackAction, env = 'local') => JSON.stringify({ version: 1, created_at: '2026-11-04T09:00:00.000Z', updated_at: '2026-11-04T09:00:00.000Z', entries: [{ seq: 1, kind: rollback.kind, phase: 'setup', description: 'x', env, started_at: '2026-11-04T09:00:00.000Z', finished_at: '2026-11-04T09:00:01.000Z', status: 'ok', rollback }] });
+    const entry = (rollback: RollbackAction, env = 'local') =>
+      JSON.stringify({
+        version: 1,
+        created_at: '2026-11-04T09:00:00.000Z',
+        updated_at: '2026-11-04T09:00:00.000Z',
+        entries: [{ seq: 1, kind: rollback.kind, phase: 'setup', description: 'x', env, started_at: '2026-11-04T09:00:00.000Z', finished_at: '2026-11-04T09:00:01.000Z', status: 'ok', rollback }],
+      });
     await writeFiles(tmp.dir, {
       'runs/20261104-110000-sql/hooks-journal.json': entry({ kind: 'sql', db: 'main', query: 'delete from orders', description: 'sql', data: {} }),
       'runs/20261104-110100-js/hooks-journal.json': entry({ kind: 'js', code: 'document.title', description: 'js', data: {} }),
@@ -258,7 +285,7 @@ describe('rollback journal entries are signed (L5.14)', () => {
     process.env.RETAKE_TEST_TERMINAL_ONLY = 'from-the-terminal';
     let yes: Awaited<ReturnType<typeof rollbackJournals>>;
     try {
-      yes = await rollbackJournals(list, makeContext(project, { replayUnsigned: (e, file) => (asked.push(file), true) }).ctx);
+      yes = await rollbackJournals(list, makeContext(project, { replayUnsigned: (_e, file) => (asked.push(file), true) }).ctx);
     } finally {
       delete process.env.RETAKE_TEST_TERMINAL_ONLY;
     }
@@ -274,7 +301,24 @@ describe('rollback journal entries are signed (L5.14)', () => {
   });
 
   it('an unsigned shell rollback replayed under the agent policy gets no PATH entry inside the workspace (the policy of its context)', async () => {
-    const entry = JSON.stringify({ version: 1, created_at: '2026-11-04T09:00:00.000Z', updated_at: '2026-11-04T09:00:00.000Z', entries: [{ seq: 1, kind: 'shell', phase: 'setup', description: 'x', started_at: '2026-11-04T09:00:00.000Z', finished_at: '2026-11-04T09:00:00.000Z', status: 'ok', rollback: { kind: 'shell', run: 'echo "path:$PATH" >> order.log', description: 'shell', data: {} }, rolled_back: false }] });
+    const entry = JSON.stringify({
+      version: 1,
+      created_at: '2026-11-04T09:00:00.000Z',
+      updated_at: '2026-11-04T09:00:00.000Z',
+      entries: [
+        {
+          seq: 1,
+          kind: 'shell',
+          phase: 'setup',
+          description: 'x',
+          started_at: '2026-11-04T09:00:00.000Z',
+          finished_at: '2026-11-04T09:00:00.000Z',
+          status: 'ok',
+          rollback: { kind: 'shell', run: 'echo "path:$PATH" >> order.log', description: 'shell', data: {} },
+          rolled_back: false,
+        },
+      ],
+    });
     await writeFiles(tmp.dir, { 'runs/20261104-130000-path/hooks-journal.json': entry });
     const project = makeProject(tmp.dir);
     const inside = join(tmp.dir, 'bin');
@@ -290,13 +334,32 @@ describe('rollback journal entries are signed (L5.14)', () => {
   });
 
   it('an unsigned shell rollback that fails says which variables it saw and never advises pass_env (it gets none), with or without the agent policy', async () => {
-    const entry = JSON.stringify({ version: 1, created_at: '2026-11-04T09:00:00.000Z', updated_at: '2026-11-04T09:00:00.000Z', entries: [{ seq: 1, kind: 'shell', phase: 'setup', description: 'x', env: 'local', started_at: '2026-11-04T09:00:00.000Z', finished_at: '2026-11-04T09:00:01.000Z', status: 'ok', rollback: { kind: 'shell', run: 'exit 4', description: 'shell', data: {} } }] });
+    const entry = JSON.stringify({
+      version: 1,
+      created_at: '2026-11-04T09:00:00.000Z',
+      updated_at: '2026-11-04T09:00:00.000Z',
+      entries: [
+        {
+          seq: 1,
+          kind: 'shell',
+          phase: 'setup',
+          description: 'x',
+          env: 'local',
+          started_at: '2026-11-04T09:00:00.000Z',
+          finished_at: '2026-11-04T09:00:01.000Z',
+          status: 'ok',
+          rollback: { kind: 'shell', run: 'exit 4', description: 'shell', data: {} },
+        },
+      ],
+    });
     await writeFiles(tmp.dir, { 'runs/20261104-120000-fail/hooks-journal.json': entry });
     const project = makeProject(tmp.dir, {}, { pass_env: ['T_BARE_PASSED'] });
     const list = await openPendingJournals(tmp.dir, { keyFile });
     const out = await rollbackJournals(list, makeContext(project, { replayUnsigned: () => true }).ctx);
     const error = out[0]!.results[0]!.error ?? '';
-    expect(error).toMatch(/^shell "exit 4" exited with code 4 \(a rollback Retake did not sign gets only the shell's own variables of this environment, never project\.yaml `pass_env:` — this one saw (?:[A-Z_]+, )*HOME, (?:[A-Z_]+, )*PATH(?:, [A-Z_]+)*; if it needs another, run it by hand\)$/);
+    expect(error).toMatch(
+      /^shell "exit 4" exited with code 4 \(a rollback Retake did not sign gets only the shell's own variables of this environment, never project\.yaml `pass_env:` — this one saw (?:[A-Z_]+, )*HOME, (?:[A-Z_]+, )*PATH(?:, [A-Z_]+)*; if it needs another, run it by hand\)$/,
+    );
     expect(error).not.toContain('e.g. `pass_env:');
     expect(error).not.toContain('a job the Studio');
   });
@@ -309,13 +372,24 @@ describe('rollback journal entries are signed (L5.14)', () => {
       'cwd: sub',
       'env A: b\\u{1b}[2Jc',
     ]);
-    expect(rollbackActionLines({ kind: 'http', request: { method: 'delete', url: '{{console}}/api/quotes/{{vars.id}}\u202e', headers: { 'x-a': 'b' } }, description: 'd', data: { pages: { console: 'http://127.0.0.1:9' }, vars: { id: 7 } } })).toEqual([
-      'kind: http',
-      'method: DELETE',
-      'url: http://127.0.0.1:9/api/quotes/7\\u{202e}',
-      'header x-a: b',
-    ]);
+    expect(
+      rollbackActionLines({
+        kind: 'http',
+        request: {
+          // @ts-expect-error — a journal is read from disk: its entry may hold the method in any case, printed in upper case
+          method: 'delete',
+          url: '{{console}}/api/quotes/{{vars.id}}\u202e',
+          headers: { 'x-a': 'b' },
+        },
+        description: 'd',
+        data: { pages: { console: 'http://127.0.0.1:9' }, vars: { id: 7 } },
+      }),
+    ).toEqual(['kind: http', 'method: DELETE', 'url: http://127.0.0.1:9/api/quotes/7\\u{202e}', 'header x-a: b']);
     // A secret is never resolved: shown as written.
-    expect(rollbackActionLines({ kind: 'sql', db: 'main', query: "delete from t where k = '{{env:HOME}}'", description: 'd', data: {} })).toEqual(['kind: sql', 'db: main', "query: delete from t where k = '{{env:HOME}}'"]);
+    expect(rollbackActionLines({ kind: 'sql', db: 'main', query: "delete from t where k = '{{env:HOME}}'", description: 'd', data: {} })).toEqual([
+      'kind: sql',
+      'db: main',
+      "query: delete from t where k = '{{env:HOME}}'",
+    ]);
   });
 });

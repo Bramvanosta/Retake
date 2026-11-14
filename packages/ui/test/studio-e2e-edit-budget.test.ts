@@ -17,8 +17,9 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { BITS_TEXT, bitsTimeline, takeWorkspace, writeTake } from './timeline-take.js';
+import { hasTool } from '@retake/test-support/repo';
+import { BITS_TEXT, bitsTimeline, takeWorkspace, writeTake } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -32,12 +33,12 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-budget-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   const dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 2 });
   studio = await startStudioServer({ root: ws, startWorker: false, pollMs: 100 });
@@ -99,8 +100,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -136,7 +136,12 @@ describe.skipIf(!canRun)('Edit with 1,200 steps (L5.12a)', () => {
       const w = window as unknown as { __trackRenders: number; __mutations: number };
       w.__trackRenders = 0;
       w.__mutations = 0;
-      new MutationObserver((list) => (w.__mutations += list.length)).observe(document.querySelector('[data-testid="tracks"]')!, { subtree: true, childList: true, attributes: true, characterData: true });
+      new MutationObserver((list) => (w.__mutations += list.length)).observe(document.querySelector('[data-testid="tracks"]')!, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
     });
     const views: string[] = [];
     page.on('request', (r) => r.url().includes('/v1/call/timeline_view') && views.push(r.url()));
@@ -153,7 +158,10 @@ describe.skipIf(!canRun)('Edit with 1,200 steps (L5.12a)', () => {
     expect(counts).toEqual({ renders: 0, mutations: 0 });
     // The hook does count: a change of the selection (the segments' pressed state) re-renders the tracks once.
     // (The bits take's segments sit in the first 180 of the 40,000 frames: a click from the page, not the pointer.)
-    await page.locator('[data-testid="tl-segment"]').first().evaluate((el) => (el as HTMLButtonElement).click());
+    await page
+      .locator('[data-testid="tl-segment"]')
+      .first()
+      .evaluate((el) => (el as HTMLButtonElement).click());
     await expect.poll(() => page.evaluate(() => (window as unknown as { __trackRenders: number }).__trackRenders), POLL).toBeGreaterThan(0);
   }, 120_000);
 });

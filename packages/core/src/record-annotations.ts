@@ -95,7 +95,6 @@ export const RecordInsertValuesSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('mark'), name: markName.optional() }),
   z.strictObject(cameraValues),
 ]);
-export type RecordInsertValues = z.infer<typeof RecordInsertValuesSchema>;
 
 const placed = {
   id: z.string().regex(INSERT_ID_RE),
@@ -117,8 +116,6 @@ export const RecordInsertSchema = z.discriminatedUnion('kind', [
 ]);
 export type RecordInsert = z.infer<typeof RecordInsertSchema>;
 export type RecordInsertKind = RecordInsert['kind'];
-/** Kinds that become a step of their own (the others modify the next action step). */
-export const RECORD_STEP_INSERTS: readonly RecordInsertKind[] = ['hold', 'wait_for'];
 
 export const RecordAnnotationsSchema = z
   .strictObject({

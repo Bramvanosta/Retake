@@ -6,7 +6,7 @@
  * composition, review, component switching — treats a user file like any other component.
  *
  * Also here: the file checks shared by validation and planning — container by extension, what ffprobe's answer says of
- * a video (codec, size, length, sound, alpha; the probe itself: `@retake/core/io` probeVideoFile) and the metadata of
+ * a video (codec, size, length, sound, alpha; read by ffprobe.ts videoProbeFromJson, the probe itself: `@retake/core/io` probeVideoFile) and the metadata of
  * a Lottie file.
  */
 import { MEDIA_COMPONENTS, MEDIA_FILE_KINDS } from './types.js';
@@ -142,40 +142,6 @@ export class MediaProbeError extends Error {
     super(message);
     this.name = 'MediaProbeError';
   }
-}
-
-function ratio(v: unknown): number {
-  if (typeof v !== 'string') return 0;
-  const [a, b] = v.split('/').map(Number);
-  return b ? a / b : Number(a) || 0;
-}
-
-/** Interpret ffprobe's JSON (`-show_streams -show_format`) — pure, exported for tests. */
-export function videoProbeFromJson(json: unknown): VideoProbe {
-  const j = json as { streams?: Array<Record<string, unknown>>; format?: Record<string, unknown> };
-  const streams = j.streams ?? [];
-  const v = streams.find((s) => s.codec_type === 'video' && !(s.disposition as Record<string, number> | undefined)?.attached_pic);
-  if (!v) throw new MediaProbeError('the file has no video stream', 'no-video');
-  const tags = (v.tags ?? {}) as Record<string, string>;
-  const codec = String(v.codec_name ?? '');
-  const pix = typeof v.pix_fmt === 'string' ? v.pix_fmt : undefined;
-  const profile = typeof v.profile === 'string' ? v.profile : undefined;
-  const alphaTag = Object.entries(tags).some(([k, x]) => k.toLowerCase() === 'alpha_mode' && String(x) === '1');
-  const alpha = alphaTag || (pix !== undefined && /^(yuva|rgba|bgra|argb|abgr|gbrap|ya)/.test(pix));
-  const duration = Number(v.duration ?? j.format?.duration ?? 0);
-  const out: VideoProbe = {
-    container: String(j.format?.format_name ?? ''),
-    codec,
-    width: Number(v.width ?? 0),
-    height: Number(v.height ?? 0),
-    duration_s: Number.isFinite(duration) ? Math.round(duration * 1000) / 1000 : 0,
-    fps: Math.round((ratio(v.avg_frame_rate) || ratio(v.r_frame_rate)) * 1000) / 1000,
-    audio: streams.some((s) => s.codec_type === 'audio'),
-    alpha,
-  };
-  if (profile) out.profile = profile;
-  if (pix) out.pix_fmt = pix;
-  return out;
 }
 
 /** What a Lottie file says about itself. */

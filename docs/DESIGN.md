@@ -20,7 +20,8 @@ packages/editor       (phase 2) Remotion compositions + edit planner + render AP
 packages/review       (phase 2) contact sheets, key frames, report.json, diff vs previous render
 packages/engine       (L3.1) the engine API the CLI and the MCP server share (§4b): workspace / project loading, reads,
                       if_match saves, local storage refs, EngineError, the run executor, the job queue and its worker;
-                      `@retake/engine/contract`: the operation contract (`ToolDef`, SDK-free `callTool`) and catalogue (§4c);
+                      `@retake/engine/contract`: the operation contract (`ToolDef`, SDK-free `invoke`), the engine's
+                      operations (`OPERATIONS`, L7.13) and catalogue (§4c);
                       `@retake/engine/catalogue`: the catalogue alone, browser-safe (no run-time import)
 packages/mcp          (L3.1) MCP server over stdio (§4b) and Streamable HTTP (L4.1, §4c): the contract's operations as tools
 packages/ui           (L4.1) the Studio web app and its server (`retake ui`, §4c)
@@ -42,13 +43,35 @@ else `start`. `retake.yaml` (optional) may set `projects_dir`, `templates_dir`, 
 
 Two entries (L6.9). `@retake/core` is the domain — the scenario language, schemas, validation, the agent policy's
 rules and lists — with no I/O (it imports no I/O module: the import-rules ratchet's R1) and no environment read, but
-three listed defaults: `defaultSecrets` (`{{env:VAR}}` filled in without a resolver), `expandHome` (`~` is `$HOME`) and
+two listed defaults: `expandHome` (`~` is `$HOME`) and
 `unsafeTestResolve` (the site test resolver's variable, which the site job's input schema reads); the clock and ids are
-allowed (`ids.ts`, `newRunId`, a schema file found from `import.meta.url`). `@retake/core/io` (`src/io/`) is its side
+allowed (`ids.ts`, `newRunId`, a schema file found from `import.meta.url`). A secret reference (`{{env:VAR}}`,
+`{{keychain:…}}`) is filled in only by a resolver its caller hands (the engine's Secrets port; core io
+`prefetchSecrets`): without one it is refused, never read from the environment on the way. `@retake/core/io` (`src/io/`) is its side
 that touches the machine: the readers below (workspace, projects, scenarios, themes, sandboxes), the app bundle and the
 media tools (`bundle.ts`, `media-tools.ts`), the Retake home and its signing key, secret references, atomic file writes,
 the media probes, the Node implementations of the ports below, and the environment the domain is given (this process's
 PATH: `programLookup()`; whether its file system ignores case: `nodeFileFacts.ignoresCase`). The domain never imports it.
+
+**Contexts and their entries** (L7.35, audit 2026-11-10 D1). The domain is fifteen contexts, in an order where each
+imports only those before it: `base` (the kernel: issues, error kinds, format versions, canonical JSON, printable text,
+token templating, YAML validation), `model` (the shared contracts: types.ts — not split by context yet —, the primitive
+schemas, user media, the ports, the render settings, the confinement of agent work, the checks' shared context), `ids`,
+`language` (steps, targets, pages, tutorial switches, the video's edit info), `environment` (pages, hosts, access,
+writes, the product clock, personas), `policy` (the agent policy), `hooks`, `project` (the workspace, project.yaml, the
+layout), `sandbox`, `scenario` (the file read, checked and edited; the agent's trust checks), `comments`, `run` (the run
+record, takes, the timeline schema, recordings, inspection), `render` (the render record, ffprobe's answers, the GPU
+status, the export formats), `theme` (template.yaml, components, theme edits, brand inputs, the site) and `schema` (the
+JSON Schemas). Each is an entry, `@retake/core/<context>` (`src/entries/<context>.ts`), exporting the names of the files
+it holds; the root `@retake/core` is every entry at once, kept for the tests and scripts. The map is data
+(`scripts/audit/lib.mjs` `CORE_CONTEXTS`) and the import-rules ratchet holds it: `core-context` (a file importing a later
+context is a hit — a type-only import of `model` is free —, a file of no context, an entry reaching outside its own; two
+entries at L7.35: the scenario's checks read the default theme's components, a script's draft the inspection's path
+grammar) and `core-root` (a package's sources import an entry, never the root). The job vocabulary is the engine's
+(`packages/engine/src/jobs/job-input.ts`, D7), and the domain names no channel: the words of a refusal of confined work
+are a value it is handed (`Confinement`, `confinement.ts`: the words, what follows "a file an agent can write", the
+operation that lists themes, who approves a hook; `AGENT_CONFINEMENT` when none is given — the MCP server's words), which
+the engine maps its callers onto (`caller.ts` `confinementOf`, D6).
 
 - **FileFacts** and **VideoProber** (`file-facts.ts`): what a domain rule learns from the machine. FileFacts is the
   disk — kind (a file, a folder, something else, or nothing), real path (as given / as the file system spells it),
@@ -208,10 +231,12 @@ class ScenarioError extends Error { issues: ValidationIssue[] }
 
 // file formats (R-PRIN-13, L1.4; formats.ts)
 RETAKE_VERSION: string                          // the package version (`retake --version`, run.json engine)
-FORMAT_VERSIONS: { scenario: 1, project: 1, template: 1, workspace: 1, run: 1 }
+FORMAT_VERSIONS: { scenario: 1, project: 1, template: 1, workspace: 1, run: 1, render: 1 }
 newerFormatMessage(value, { file, supported }): string | undefined   // "this project.yaml is version 2: it was made
                                                                      //  for a newer Retake (this one reads version 1) — update Retake"
-newerRunMessage(runDir): string | undefined          // the same for runs/<id>/run.json (render, plan, export-capture refuse it)
+                                                     // a run.json goes through the one reader (io/run-folder.ts, below),
+                                                     // a render record through io/render-folder.ts (L7.6b):
+                                                     // `{ ok: false, problem: 'newer-format', message }` with this sentence
 checkYamlDocument(text, schema, semantic?, empty?, { formatVersion?: { file, supported } }): CheckedDocument
 ```
 
@@ -223,9 +248,52 @@ schema, `checkYamlDocument` with `formatVersion` (`parseScenario`, `validateScen
 with one positioned error at the key — no unknown-key errors for the newer format's keys; `0`, `"1"` or `1.5` stay
 plain schema errors. `parseTemplateYaml` drops `version` before merging the file over the defaults (it is the file's,
 not a template section). Writers: `createProject` (first key), the runner (`RunRecord.version`, first key); the
-starter templates and the fixture's files carry it. Hook files (top-level lists) have none. `findRun` (render,
-export-capture), `retake plan`'s own `resolveRun` and `exportCapture` refuse a run whose run.json is newer; a run.json without `version` (before L1.4)
-reads as 1. No migration: Retake never rewrites a user's file (a `retake migrate` is BL-70).
+starter templates and the fixture's files carry it. Hook files (top-level lists) have none. A run **named** by its
+id or its folder whose run.json is newer is refused by every command that works on it (render, still, plan,
+export-capture: the named run's rule, core `namedRunProblem`); `latest` passes such a run over and says so, and
+answers the "update Retake" sentence only when no capture this version reads is left; a run.json without `version`
+(before L1.4) reads as 1. No migration: Retake never rewrites a user's file (a `retake migrate` is BL-70).
+
+**Render records** (L7.6b; `packages/core/src/render-record.ts`, pure, and `packages/core/src/io/render-folder.ts`).
+A render record is a union of states: `FinishedRender` (`status: 'succeeded'`, never an `error`: the only state a
+writer puts on a disk, made by `finishedRender`) and `RenderAttempt` (`failed` / `cancelled` with its `error` and no
+`probe`: what a render's error carries, made by `renderAttempt`, never written). `StoredRenderRecord` is what any
+version or a person left on a disk; `parseRenderRecord` (the parse boundary) answers it or a typed problem and never
+throws. **Only three members decide** whether a file of `renders/` is a record: its format `version` (1; above:
+`newer-format` with the sentence above), its `status` (a text; one Retake never writes is `unknown-status`, read
+leniently and said as that) and its `id` (a text). Every other member is read leniently — a closed word is kept as its
+text, a member every record holds and that does not read is its empty value (`''`, `0`, `[]`, `{}`), a block that
+does not read is dropped, each noted — and a record that lacks its `scenario`, its `created_at` or its `plan` says so
+(`lacks`). **A render is the record of its own file** (D-10: `renders/<id>.json` holds `id`); a render of its scenario
+is one whose id is `<scenario>-v<N>[-variant]`. The rules over records are each written once there: `renderOfFile`,
+`completeRender`, `projectRenderOf`, `quotableRender`, `orderRenders` (creation time, then id, as text),
+`previousRender`, the two `latest` — `latestProjectRender` (the engine's: MCP, the Studio, the comments; renders of
+their scenario only) and `latestNamedRender` (a terminal's: the newest succeeded complete record of `renders/` under
+any name, acted on by its file; D-11: two rules on purpose) —, `renderNot` (why an entry is no render, in fixed words),
+`byIdProblem` (the one by-id rule: a link, a newer format, a file that does not read, another id — the engine's and an
+export or review job's), `renamedProblem` and `namedRenderProblem` (a render someone named), `renderOutputName` (the
+folder of `exports/` and `review/`: the id when it is a folder name a person can read that no other file of
+`renders/` answers to — the disk's own comparison of names, and Unicode normalisation —, else the file's name, else
+refused), and prune's `renderKeeper` (a record whose variant does not read is kept and counted in no window). The
+transitions take a render's fields only: a state handed back in does not compile and throws. Every read of a record
+goes through one file seam (`RecordFs`, exported from `@retake/core/io` with `NODE_RECORD_FS`; a listing and a by-id
+read on the descriptor, `O_NOFOLLOW` and `O_NONBLOCK`; a named read through links, `O_NONBLOCK`). The reader reads a
+listing without following a link and within 16 MiB (`readRendersFolder`, `readListedRender`); a file named by its id
+(`readRenderById`: MCP, the Studio, a job) without a link and without a cap; a file a person named at a terminal
+(`readNamedRender`, `findNamedRender`) through links and without a cap. **A thing a person names keeps working**: a
+named record that lacks its scenario or its creation time works, one without its plan is refused naming it, a record
+renamed by hand works and is said — refused only when the video it names is now another render's —; only `latest`
+and the lists take complete records of their own file, and they say what they passed over. The editor's
+`render-record.ts` gives the stored plan the type of an edit plan in one place (`withPlan`). Every reader of
+`renders/` goes through the reader, the search index, the timeline's version matcher and the frame service included
+(L7.6c) — the one exception is prune's own read of a record file that is a link, for what it says, never taken as a
+record: the index has a row for each record of its own file (a status Retake never writes is `unknown`), reads the
+records one at a time under the listing's rules and reads `renders/` only when its real path lies inside the project;
+the timeline pins a thread at its own frame only on a succeeded record of its own file, read under the listing's rules
+(no link, its cap), that is the same render (core `sameRender`: its id and its creation time) with this plan and these
+theme files — a plan that has no signature (`planSignature` answers none for a plan nested too deep to write, never a
+throw) is no version of the take; the frame service takes its record from `renderForWork`, what a message
+may quote from `quotableRender`, and the render the page read from `sameRender`.
 
 Validation rules beyond the schema (semantic): exactly one action key per step; unknown keys are
 errors (typo protection) with a "did you mean" suggestion; scene ids unique and slug-like; step ids
@@ -374,6 +442,18 @@ HookContext = {
   refs never appear in logs or journals).
 
 ## 3. @retake/runner-web
+
+**The capture, lifecycle and driver (L7.31, finding X2).** `runScenario` is `runCapture(opts, browserDriver)`
+(`src/capture/`): `lifecycle.ts` holds what any capture does — the options checked (`--until`, the run id, the hook
+runner), the run folder, record and log, the secrets, the cancel (signals: a second one runs the driver's
+`cleanupSync`), the refusals made before anything runs, the secrets fetched, the outline, the hook phases
+(`hooks.ts`: setup, `hook:` steps, teardown and rollbacks), the filming notices (`startCapture` / `stopFilming` /
+`filmingPause` of `CaptureRun`), the timeline built from the driver's take and the run's end; `browser-driver.ts`
+drives Chromium (pages probed, write and sign-in guards, sessions, the runtime and its scenes, prewarm, recorders and
+encoders, live picture, sampler, pause, inspection, encodes, step pictures, perf). The seam is `driver.ts`
+(`CaptureDriver`: prepare → identify → open → hooks / setHookSteps → film → failed? → stop → close → finish, and
+`CaptureRun`), internal to the package; runner-web test `capture-lifecycle.test.ts` runs the lifecycle on a driver of
+its own.
 
 ```ts
 runScenario(opts: RunOptions): Promise<RunRecord>
@@ -977,7 +1057,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   the context route (`frame()` throws for them: guarded). The sign-in tab bypasses service workers
   (`bypassServiceWorkers`: `Network.setBypassServiceWorker` on a CDP session of the tab, as hook tabs do), so a worker
   that forwards its sign-in POST does not turn it into a page-less, stopped request.
-- **Recording.** `onWrite` (run.ts `readOnlyGuard`) appends a `TimelineWrite` to `timeline.environment.writes` (`t`
+- **Recording.** `onWrite` (capture/browser-guards.ts `readOnlyGuard`) appends a `TimelineWrite` to `timeline.environment.writes` (`t`
   from capture time 0 on; `protected_by` for a protected host), warns once per stopped `METHOD page:/path`
   (`describeWriteRequest`, never the query; a protected host's names its environment) and once per unguarded host a
   write `passed` to, logs mocked / allowed writes (info) and the sign-in's exempt ones (debug); a WebSocket to a
@@ -1008,7 +1088,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   included), agree. Dedicated workers get it on Playwright's `worker` event (after their first task may have run);
   shared and service workers keep the real date. Timers, `requestAnimationFrame`, `performance` and
   `Event.timeStamp` stay the browser's (Playwright's `context.clock`, used first, faked them and slowed the product's
-  own frames and timers: ten rAF loops 60 → 30 fps, 100 `setTimeout(0)` 0 → ~500 ms). `useRealTime(page)` (a
+  own frames and timers: ten rAF loops 60 → 30 fps, 100 `setTimeout(0)` 0 → ~500 ms). `keepRealTime(page)` (a
   page-level init script `productClock(null)`: the realm reads the real time for good, the session skips the page and
   its workers) keeps the session check (`checkPersona`, also `diagnoseSession` after a failed step) and the automated
   sign-in tab off the clock. The **kit** still captures its time sources once at the top (`RT`: the globals, still
@@ -1046,7 +1126,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   `127.0.0.1:4401`, `[::1]:4401` and `localhost:4401` are the same server). `databases.<k>.external` and
   `mailbox.external` (sandbox.yaml only, not merged into `environment_settings`): the sandbox does not start it but it
   is the sandbox's alone (§3.8b ownership).
-- **Merge.** `loadProject` → `parseProjectYaml` → `loadSandboxes(dir, config)` (each manifest parsed with the
+- **Merge.** `loadProject` → `parseProjectYaml` → `loadSandboxesOn(disk, dir, config)` (each manifest parsed with the
   pre-merge config; errors throw `SandboxConfigError` — name `ConfigError`, `file` = the manifest, `env`) →
   `mergeSandboxes(config, sandboxes)`: `environments[env]` = the services' pages; `environment_settings[env]` =
   `{display?, sandbox: {file, provider}, mailbox?, databases?}`; `auth[env]` = `sandboxAuth(manifest).auth` (login
@@ -1097,10 +1177,19 @@ read-only environment and an unusable clock throw before the run folder is made.
   `ComposeProvider` per call. Provider (provider.ts): `up(ctx, {build})`, `down(ctx, {volumes})`, `status`, `restart`,
   `exec?`, `stopStarted`, `killStartedSync`, `logFiles`, `servedBy(ctx, port, use)` (the service of the sandbox
   serving a port, nothing else listening: process — a port a process service names and its own tree listens on;
-  docker-compose — `publishedBy`), and for docker-compose `logs?`, `followLogs?`, `publishedBy?(ctx, port, use?)` (the
-  service of the sandbox's own project publishing a port: a snapshot's database by default), `address?(ctx, port)`
-  (where to connect to a port its own containers publish: 127.0.0.1 / ::1) and `hashInputs?` (the services' image
-  ids: part of the seed hash).
+  docker-compose — `publishedBy`), `logs`, `followLogs`, `publishedBy(ctx, port, use?)` (the service of the sandbox's
+  own project publishing a port: a snapshot's database by default), `address(ctx, port)` (where to connect to a port
+  its own containers publish: 127.0.0.1 / ::1) and `hashInputs` (the services' image ids: part of the seed hash).
+  L7.25 (X8): every method is on every provider and `capabilities` says which do the work (`ProviderCapabilities
+  {exec, logs, followLogs, snapshots, address, hashInputs, build, volumes}`: docker-compose all, process none — its
+  exec / logs / followLogs / publishedBy refuse, its address / hashInputs answer undefined / none); the Sandbox and the
+  seed test a capability before the call, in their own words, and `Sandbox.capabilities` hands them on. The engine
+  reaches all of this through its `Sandboxes` port (engine `sandboxes/`: `packageSandboxes()` over `openSandbox` /
+  `initSandbox`, `MemorySandboxes` for tests, one contract suite on the process provider, the docker-compose one and
+  the fake); its vocabulary is the type-only entry `@retake/sandbox/types`. The OS utilities this package hosted — the
+  process table, start times and groups (`proc.ts`), the lock file (`TakeLock`, `createExclusive`, `breakStale`,
+  `readLock`, `lockAlive`, `describeLock`) and who listens on a port (`probePort`, `listeners`) — are core/io's since
+  L7.25, `SandboxError` and `sandboxPaths` core's: re-exported here unchanged.
 - **Files** (`<project>/.retake/sandbox/<env>/`, git-ignored): `state.json` (version 1, written synchronously and
   atomically: temp + rename) — `services.<name> {kind: process, pid, started_at (ps lstart), command, hash (command /
   cwd / env), status: starting|running, boot (kern.boottime / btime), members ([{pid, start}] of its group once
@@ -1232,7 +1321,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   without sandboxes or for a non-sandbox `--env`); `prepareSandboxTake` (header line, exit codes); `checkSandboxEnv`
   (a run on a sandbox environment without --sandbox); `sandboxSummary` (the run summary line); `sandboxInitCommand`;
   `--build` / `--volumes` / `--follow` are usage errors on a process sandbox. `run.ts`: the scenario's raw `env:`
-  (core `scenarioEnvOf`, no validation) → `pickSandboxEnv` → the scenario validated once against that environment →
+  (core `scenarioSourceEnv` of the source text, no validation) → `pickSandboxEnv` → the scenario validated once against that environment →
   prepareTake → `runScenario({sandbox: take.info})`, the lock named after the run at `run_start`, released in
   `finally`. Runner: `RunOptions.sandbox` → `environment.sandbox` (a sandbox environment without it: `{name,
   provider}`). Doctor: one `Sandbox <env>` line per sandbox (`DoctorProbes.sandbox`), its personas and hosts left out;
@@ -1334,7 +1423,7 @@ call: the inspection hands Claude page facts and verified targets; Claude writes
 - **Marks** (review `drawMarks(png, boxes, out, {scale})`, sharp): one outline and a numbered badge (20 CSS px × scale,
   above the box when there is room) per listed element in view and not `covered` (engine `markBoxes`: a background
   button under a modal would get a number drawn on the modal), boxes × `report.scale`, JPEG `marked.jpg`.
-- **MCP tool** `page_inspect` (`tools/inspect.ts`; RUN_JOB annotations; `wait_s` default 25). Exactly one of `page`
+- **MCP tool** `page_inspect` (`tools/inspect.ts`, since L7.15 the engine's `operations/inspect.ts`; RUN_JOB annotations; `wait_s` default 25). Exactly one of `page`
   (+ `path`), `url`, `scenario` (+ `until`); `persona` only with a page. The summary: job line, replay line (steps,
   irreversible steps skipped, hooks), the failure's step, counts, `within` / budget / truncation notes, the next step of
   the authoring loop; the page key and the scenario's own ids only. Data: status, at, page, persona, viewport, scale,
@@ -1354,7 +1443,7 @@ call: the inspection hands Claude page facts and verified targets; Claude writes
   marked)`; a page with `--until` is a usage error that says so; a page's argument errors (an unknown persona, a bad
   path) are told by argument, never by a position in the scenario the command builds.
 
-### 3.10 Script → skeleton (L3.3 part 3; core `script-draft.ts`, engine `authoring.ts`, MCP `tools/authoring.ts`)
+### 3.10 Script → skeleton (L3.3 part 3; core `script-draft.ts`, engine `authoring.ts`, MCP `tools/authoring.ts` — since L7.18 the engine's `operations/authoring.ts`)
 
 An optional aid, never the start of the authoring loop: a timecoded Markdown table the user hands becomes an outline
 and a draft that validates. Pure and deterministic (no model, no network, nothing written).
@@ -1618,9 +1707,10 @@ panel — the same session, nothing forwarded to it.
   {total, by_steps, ambient}, check {status, scope, reason?, steps_passed, steps_total, dir?}`, and under `untrusted`:
   `scenes` (ids made from page paths), `issues` (with scene / step), `first_write`, `check {until?, failed_at?,
   error?}`. Never the draft's text: `engine.record.get` reads draft.yaml from the folder (≤ 200 kB).
-- **Test hook**: `runWorker({recordTest: {drive, headless, windowSize}})` — in-process only (worker-main never sets it;
-  a worker process has no way to receive a driver), not gated on `submitted_by`, so a stdio test can submit through
-  MCP while this process's worker holds the lock and plays the person.
+- **The window port** (L7.29; was the `recordTest` option): `runWorker({ports: {recordWindow: {drive, headless,
+  windowSize}}})` — in-process only (worker-main hands none; a worker process has no way to receive a driver), not gated
+  on `submitted_by`, so a stdio test can submit through MCP while this process's worker holds the lock and plays the
+  person.
 - **MCP** `scenario_record({project, env?, page?, path?, url?, persona?, scenario?, check = true})` (RUN_JOB
   annotations; 39 tools): submits and returns at once — the summary tells Claude to ask the user to perform the flow
   and close the window, that it does not drive it, to follow with `job_status {wait_s: 25}` and to submit no other job
@@ -1687,7 +1777,8 @@ panel — the same session, nothing forwarded to it.
   `list(project, {limit?})` (part 4) — the recent list: recordings whose job is queued or running before their folder
   exists, then the real folders of `.retake/records/`, newest first (≤ 50), each `{rec_id, state, job, started_by,
   started_at, name, env, persona, page, path, steps, actions, saved, studio}` without reading its events.
-- **The Studio server's Record ops (L4.8 part 4; ui `server/record-ops.ts`, `server/record-watch.ts`)**: seven own ops
+- **The Studio server's Record ops (L4.8 part 4; ui `server/record-ops.ts` — since L7.18 the engine's `operations/record.ts`, their Record
+  screen caller rule as `callers` and record_start / record_save on the engine's operation chain —, `server/record-watch.ts`)**: seven ops
   in `UI_OPS` (not MCP tools; `scenario_record` and `job_cancel` stay out). `record_options {project}` — environments
   (the access a Studio recording gets: never `--allow-writes`), page keys, personas with their stored session state
   (auth.status, no browser), `login_steps`, the path-free sign-in command, defaults per environment, warnings and notes
@@ -1740,6 +1831,10 @@ retake mcp --http [--port N] [--rotate-token] [--json]   # §4c: the same server
 retake ui [--port N] [--no-open] [--json]     # §4c: the Studio web app on 127.0.0.1 until Ctrl-C; one server per workspace
 retake jobs [list] [--project P] [--state S]… [--limit N] [--json] | status <id> [--json] | cancel <id>   # §4b jobs
 ```
+The program (`packages/cli/src/main.ts` `buildProgram`, L7.30) sets the global options and the `--out` guard, then
+hands each command family its commands (`src/program/`: workspace, capture, edit, environment, look, comment, upkeep,
+sign-in, services, later — in that order, the order `--help` lists them; `ProgramContext` = the program and the action
+wrapper that stores the exit code).
 `--json` prints RunProgress events as JSON lines (machine-readable; used by the MCP job runner).
 `--allow-writes` (L1.7) confirms writes on a production environment whose project.yaml sets `access: read-write`; on a
 read-only environment it is a usage error (exit 2). The run header and the hooks commands' header say `production`,
@@ -1786,11 +1881,25 @@ loginTarget(project, {env?, persona?, auto?}) → {env, persona} / signInPersona
   {interrupts, log, onOpen?}) → {interrupted} | {result}   // moved from cli commands/auth.ts (LoginOptionError {usage})
 appendHistory(root, entry) / usageCounts(root) / entitlements() → {tier: 'internal', features: 'all', limits: null}
 planWork / renderWork / stillWork / exportWork / reviewWork(adapter options) → the adapter's result   // pipeline.ts (L6.7)
+renderWork / stillWork / exportWork / previewsWork / loopsWork(options + renderer: Renderer)   // render/work.ts (L7.1): no renderer → EngineError internal
+editorRenderer() → Renderer   // the editor's driver, loaded on first request; made by composition roots only
 findRunOf / findRenderOf / defaultStillFile / editorErrorOf(e) → 'render_cancelled' | 'render' | 'export' | undefined
 renderInProcess / stillInProcess / exportInProcess / runInProcess / inspectInProcess   // in-process.ts: the call + history line
 selectHooks(project, spec, env?, {projectFilesOnly?}) / createHookContext(project, {env?, allowWrites?, dry?, vars?,
   runId?, scenario?, trust?, log, confirm?, loginCommand, signal?}) → {ctx, access, closeSessions} / hooksAccess
                                                        // moved from cli commands/hooks.ts (the CLI keeps printing and Ctrl-C)
+hooksRunWork(project, source, o) / rollbackWork(project, o) / envResetWork(project, o) → outcome   // hooks-work.ts (L7.23):
+  the one orchestration of `hooks run` / `hooks rollback` / `env reset` and the hooks / env_reset jobs — o: policy, the
+  ports, env, dry, trust ('author' | ENGINE_TRUST), confirm, replayUnsigned, log, loginCommand, recordAs, signal?,
+  onInterrupt?, contextError?, protection? (jobs only), and callbacks the CLI prints in (onStart, listed, onRollbacks,
+  onReset, onResults); the ratchet's `hook-call` keeps createHookContext, hooks.run and the journals' replays in the engine
+sandboxWork.{open, init, up, reset, down, status, logs, followLogs}   // sandbox-work.ts (L7.28): over the Sandboxes port,
+  shared by `retake sandbox …`, the sandbox_up / sandbox_reset jobs and sandboxStatus — up / reset / down under the
+  caller's InterruptPort (first signal aborts, a later one runs the handle's killStartedSync), the call's own options
+  handed on key for key (the CLI's progress / seed / build / reseed / volumes; the job's seedTrust) with the scope's
+  signal last, the seed trust bound to the trust (`SeedTrusted`: `author` with none, ENGINE_TRUST with the engine's —
+  an mcp up / reset without it is EngineError internal), the seed run journalled as `recordAs`; status → {status, pages}; init → {result, warnings, isDefault} (the
+  project read back as written); the refusals stay SandboxErrors, worded by each caller (CLI usage errors, EngineError)
 preflightHooks(project, [{phase, hooks}], {env?, vars?, scenario?, journalFile}) → {env, items, refused}
 takeApprovals(ApprovalRequest, approver?) → JobApproval[]   approvalChecker(approvals) → confirmDestructive
 pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(PruneApprovalRequest, approver?, client?)
@@ -1809,7 +1918,12 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   `stillWork` / `exportWork` over the editor's `planRun` / `renderVideo` / `renderStill` / `exportRender`, `reviewWork`
   over the review's `reviewRender`, behind the engine's lazy imports), called by the worker's jobs (with trust `mcp`,
   the network guard, a reserved id) and by the CLI (its own options: no trust, an output path, a concurrency): options,
-  results and errors pass through unchanged. The CLI runs them in process — no job, no worker — through
+  results and errors pass through unchanged. Since L7.1 the parts that render (render, still, export, and the
+  component previews) take the **renderer** to draw with (the `Renderer` port, `render/renderer.ts`;
+  [glossary](GLOSSARY.md)): `render/work.ts` is the one place that reaches those use cases, it refuses work that names
+  no renderer before the editor is loaded, and the editor refuses its own driver's options (`cacheDir`, test seams, a
+  preview backend) beside a renderer that is handed. The composition roots make the product's (`editorRenderer()`:
+  the job process, the jobs worker, the CLI's render and export commands); a test hands its own. The CLI runs them in process — no job, no worker — through
   `in-process.ts` (`renderInProcess`, `stillInProcess`, `exportInProcess`, and `runInProcess` over `executeRun`,
   `inspectInProcess` over `runInspection` with the pruning of older inspections, `pruneUnlessOpenIn` the workspace's
   queue), each the call then its history line. The CLI's render, still, export and run commands import no adapter;
@@ -1818,8 +1932,70 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   (core error-kind.ts), so the CLI prints them as they are; only a cancelled render is reworded (`editorErrorOf`).
   `packages/cli/test/pipeline-cli.test.ts` holds their stdout, stderr, exit codes, history and journal lines byte for
   byte (fixtures/pipeline-cli.json), times measured by a clock alone normalised.
+- **The encode ffmpeg** (L7.3; editor `render/encode-tools.ts`, `render/policy.ts` `chooseEncode`). The library takes
+  one folder of programs per render (`binariesDirectory`: compositor, ffmpeg, ffprobe, libraries) and no ffmpeg for the
+  frames alone; our ffmpeg cannot run its audio commands. So a render encoded by ours is given a folder made in the
+  Retake home (`encode-tools/<hash of its content: the script and the links>/`, 0700 like its parent, both owned by
+  the account, checked entry by entry on every use; built aside and renamed into place — a rename that cannot take
+  the place of a folder another process made meanwhile, which is then checked and used; a right folder is never
+  removed or moved; folders left aside or whose programs are gone are removed after a day): links to the library's `remotion`, `ffprobe` and libraries, and as `ffmpeg` a `/bin/sh`
+  dispatcher — a call with `-f image2pipe` (the frame encode) → our ffmpeg, any other call → the library's, with its
+  `DYLD_LIBRARY_PATH` set again (macOS drops it when `/bin/sh` starts). `ffmpegOverride` replaces the frame encode's
+  one filter (`zscale…` → `colorspace=space=bt709:ispace=bt470bg:range=tv:irange=pc:…:fast=1:format=yuv420p`; any
+  other command shape throws and the render takes the library's), and `disableSharedMemoryCapture` keeps the frames on
+  the pipe. Setting `render.ffmpeg` / `RETAKE_RENDER_FFMPEG`: `auto` — ours for a render drawn on the GPU (ANGLE), the
+  library's on the software path and inside the app bundle (`autoEncodeFfmpeg`; the app is not verified) —, `own`
+  (ours on any path), `library`. Ours is taken when `ownFfmpeg` accepts it (macOS, ≥ 5.1, the `colorspace` filter, an
+  H.264 encoder; read once per file — path, size, time — and asked again when it did not start) and it runs the frame
+  encode itself with the encoder chosen, on three frames at the render's size (`probeFrameEncode`). Never an error:
+  every refusal renders with the library's and is said (`policy.ffmpeg {asked, source, used, version?, note?,
+  failed?}`; `note` is always one of our own sentences — what a program or the system said goes to the warnings). The
+  one fallback (software, libx264) follows the rule of the path it runs on — `auto`: the library's; `own`: ours —
+  unless the first attempt failed while ours encoded: the library's own words for a frame encode that quit
+  (`ownEncodeFailure`; never the final file's ffmpeg), a program of the folder that could not be started, or the
+  hardware encoder's signs while ours ran it (recorded as `fallback` and `ffmpeg.failed` both). Then the library's
+  encodes the second attempt and ours is not taken again by that process. No library file is edited and no new file
+  names the library (`library.ts compositorDir` is the one access). Measured on the fixture's 1 799-frame 1080p
+  render, one machine (Apple M4, ffmpeg 9.0.2), alternated pairs under load (7–41, never the calm machine the
+  protocol asked for), two independent sets: GPU path CPU −21 % and −23 % (first set, two series), −18 % (second set,
+  eight pairs) — about a fifth; wall time −10 % in the first set and +5 % in the second with overlapping ranges — no
+  measured gain. Software path: CPU −13 % and −10 %, wall −4 % and −3 %: under the threshold asked of a default
+  (−15 % CPU or −5 % wall), hence `auto` keeps the library's there. Files +1.5 % (GPU), +2.0 % (software). SSIM
+  against the library's encode on that render: mean 0.9990 / worst frame 0.9969 (GPU), 0.9988 / 0.9954 (software:
+  0.0004 above the 0.995 asked); streams, tags, frame count and decoded audio identical. The suite pins
+  `RETAKE_RENDER_FFMPEG=library`.
+- **The renderer's seam** (L7.2). The rendering library is named in five files, each with the packages it may name
+  (`LIBRARY_SEAMS`, `scripts/audit/lib.mjs`): the editor's node side (`render/library.ts`: the renderer, the bundler,
+  the versions in the bundle's key — one *loader* of the library, not an interface over it: the library's own API,
+  `renderMedia`, `renderStill`, `selectComposition`, `openBrowser`, `bundle` and their options, is still called in
+  `render/{render,preview,policy,bundle}.ts`, so a change of renderer edits those four files too), the editor's
+  bundle side (`remotion/host.ts`: what the compositions use), the
+  kit's (`kit/renderer.ts`), and the Studio player's frame and its version read. Ratchet rule R10 holds it, with no
+  entry: any import (types too), re-export, `require`, `resolve()` of the library's path elsewhere is a hit, and so are
+  a seam file re-exported wholesale and a seam file that hands the library on (the first three) imported from outside
+  its own folder (`LIBRARY_SEAM_IMPORTERS`); the built-in components and the scaffolds are read too (nested folders,
+  `.js` / `.jsx` / `.mjs` and declaration files as well) and name it nowhere. What R10 cannot see: a specifier
+  computed at run time (one in the code, listed as `LIBRARY_COMPUTED_READS`: the components' compile check loads
+  `react` and `remotion` by name from a list, to stub their exports), a require reached under another name,
+  `declare module`, the library's name inside a data string (the lists of imports a component may use, the bundles'
+  externals, the generated bundle entry — which keeps its literal `import { registerRoot } from 'remotion'` —, the
+  player frame's read of a global the library sets, `window.remotion_delayRenderHandles`, cache keys), a named
+  re-export of one seam binding through a file of the seam's folder, what a seam file itself exports, and tests,
+  scripts, fixtures and apps. A workspace component may import the library: that is the product's
+  rule, not a gap. The props a render hands its compositions are a contract (`remotion/contract.ts`, pure): the
+  composition ids are written there once, `videoProps(plan)` / `previewProps(spec)` stamp a version (`PROPS_VERSION`)
+  and `readVideoProps` / `readPreviewProps` — the only readers, in the root's `calculateMetadata` — refuse another
+  one with a message saying to rebuild the bundle. The contract covers renders (a video, a still, a component
+  preview: each selects its composition first, which is where `calculateMetadata` runs); the Studio player mounts
+  the compositions directly, with its own protocol and its own bundle, and does not pass the reader. The version is insurance, not a mechanism in use: node code and bundle are
+  built from one tree and the bundle's key hashes these files, so a mismatch needs a stale or hand-kept bundle; the
+  compositions' default props (no payload) carry no version and are not checked. The port says `renderPath` for what
+  a failed render tried (`software`, `gpu`…), never `path`; the editor maps it at its boundary. Beside the plan
+  and the render record (the editor's planner entry), three types of the port are still the editor's, imported as
+  types: `RenderProgress`, `BundleComponent`, `ComponentPreviewSpec`.
 - **Names, never paths.** Every input is a slug or an id (`checkProjectSlug` = core `PROJECT_SLUG_RE`,
-  `checkScenarioName` = `SLUG_RE`, `checkRunId` = `RUN_ID_RE`), checked before core sees it (core's loaders also take
+  `checkScenarioName` = `SLUG_RE`, `checkRunId` = core `parseRunId`: the ids of the domain have one grammar each, in
+  `packages/core/src/id-grammar.ts`), checked before core sees it (core's loaders also take
   absolute and cwd-relative paths, which only the CLI may use).
 - **`if_match`** (sha256 hex of the file's bytes): an existing file needs the hash its read returned — a mismatch, or
   none, is `conflict` with `details.current`; `null` (or none) creates a file that must not exist, by `link()` (atomic
@@ -1832,15 +2008,19 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   that is a symbolic link out of the project is refused, real paths compared). Producers (runner, editor, review)
   keep writing absolute paths into their records: refs inside run.json / render.json are a format change (L3.6 /
   BL-70); the engine converts at its boundary (a run's paths are re-rooted on its current folder).
-- **Project store and workspace journal** (L6.6, engine `store/`): every authored write goes through `ProjectStore`
+- **Project store and workspace journal** (L6.6, engine `store/`; a port since L7.10: `store/store.ts`
+  `ProjectStores`, carried with the engine's clock in each `StoreScope`, its disk adapter `diskProjectStores` chosen at
+  the composition roots, the journal lines stamped by the scope's clock): every authored write goes through `ProjectStore`
   (`writeText(ref, text, {ifMatch, what})` over `LocalStorage.writeText`, `ifMatch` always stated; `createFolder(parent,
   name, {build, recheck})` for a folder made whole — staged as `.tmp-<name>-<random>`, renamed into place under
   `<workspace>/.retake/locks/create-<hash of its real path>.lock` after the last check of its name): scenarios (the
   engine's `saveScenarioText` checks, the store writes), the README, comment threads, themes (create, copy, edit),
   component scaffolds (components `createComponent` takes the store's writer), new projects (core `planNewProject` names
   the files), `retake init`, sandbox scaffolds (sandbox `initSandbox` takes the store's writer). Each write is journaled
-  in `<workspace>/.retake/journal.jsonl` (`store/journal.ts`, its only writer: O_APPEND, never through a link, a torn
-  last line closed first, fsync before the reply — crash-safe, not power-loss-safe on macOS —, no delete path) — `{v,
+  in `<workspace>/.retake/journal.jsonl` (`store/journal.ts`, its only writer, on the line logs' one discipline
+  `store/append-log.ts` (L7.26) that the history shares: a line written whole under `.retake/locks/journal.lock`,
+  O_APPEND, never through a link, a torn last line closed first, fsync before the reply — crash-safe, not
+  power-loss-safe on macOS —, no delete path) — `{v,
   at, by: {client, channel, trust}, project?, op: write|folder|hook, what, path, if_match?, sha256?, bytes?, files?,
   outcome}` —, its `path` workspace-relative (compared as given and by real paths) or, for a store configured outside
   the workspace, its label and the path inside it (`<project>/…`, `<templates_dir>/…`, `<components_dir>/…`), never
@@ -1856,6 +2036,121 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   `WORKSPACE_JOURNAL_FILE`; the import-rules ratchet counts a layout path spelt by hand anywhere else — a string or
   template naming `.retake`, `history.jsonl`, `journal.jsonl` or `<layout folder>/…`, or a layout folder as a node:path
   `join` / `resolve` argument (`layout` entries of scripts/audit/baseline.json, each file with its count).
+- **Ids** (L7.5, core `id-grammar.ts` — pure — and `ids.ts` — the generators and the schema helpers): one grammar each
+  for the run id (`RUN_ID_RE`, at most 200 characters: `isRunId`, `parseRunId`; the dated shape the tool makes:
+  `runIdStamp`, `isMadeRunId`, `runIdOfScenario`, `formatRunId`, `newRunId`), the render id (`RENDER_ID_RE`, at most 200
+  characters, a version of at most `RENDER_VERSION_MAX` = 999999: `parseRenderId`, `isRenderId`, `renderIdOf`,
+  `renderSuffix`, `formatRenderId`, `renderFileVersionOf`, `renderLockName`, `RENDER_VARIANT_SUFFIX`), the ULID ids
+  (`ULID_PREFIXES`: job, preview, inspection, site, recording, comment thread and entry, capture marker; `newUlidId`,
+  `ulidFileRe`, `ulidTime`, `isJobId`, `parseJobId`) and theme names — two rules, each written once: `isThemeName`, a
+  theme that exists (any case, at most 100: what a request names, and what the board, a render's `theme` and the
+  Studio's sentences read a theme folder's name by, a folder named by a path included), and `isNewThemeName`
+  (lower-case, at most 60). A cap or a bound is in the predicate, never in a pattern's source (the sources are
+  published as JSON-schema patterns); schemas use `zRunId`, `zRenderId`, `zThemeName`, `zNewThemeName`, each of which
+  refuses what its predicate refuses (`zRenderId` holds the version's bound in a refinement). A value that
+  passed a predicate or a parse carries a branded type (`RunId`, `RenderId`, `JobId`, `ThemeName`, `NewThemeName`);
+  generators and formatters return plain strings, and no brand is cast outside the module. Two private path builders
+  take a brand — the run folder `RunFolder.open` opens (engine `run-files.ts`) and a job's folder (`jobs/queue.ts`) —
+  and so does the name check of a new theme (`templates.ts` `checkNewThemeName`, `brand/create.ts` `checkNewName`);
+  every other path is built from a string its site checked or listed, and records and job inputs still type their ids
+  as strings. One definition says which record of `renders/` is a render of its scenario (engine `refs.ts`
+  `isRenderOfItsScenario`): `latest` and prune's count read it. The Studio front end,
+  which imports types only, has one mirror (`packages/ui/src/app/id-words.ts`, pinned by `ui/test/id-words.test.ts`).
+  The ratchet's `id-grammar` check counts an id pattern written by hand anywhere else in `packages/*/src`, and a capped
+  grammar tested without its cap (its title lists the six kinds and what it cannot see).
+- **Run records, takes and `latest`** (L7.6a; core `run-record.ts` and `take.ts` — pure — and `io/run-folder.ts`).
+  - *The record.* `RunRecord` is a union of five states by `status` — `QueuedRun`, `RunningRun`, `SucceededRun`,
+    `FailedRun`, `CancelledRun` — in which a state cannot hold what it never has (a succeeded run has no `error`, a
+    queued one no `finished_at`; a failed or cancelled one may keep `current`, `paused` and what it had filmed: a run
+    closed from outside). The three members that decide a state — `status`, `finished_at`, `error` — are read-only in
+    every state, so on the union too: a status changes through four pure functions only (`queuedRun`, `startedRun`,
+    `finishRun`, `closeReservedRun`), never by an assignment. `RunRecordSchema` (strict) is what this version writes;
+    `StoredRunRecord` / `StoredRunRecordSchema` is what any version left on a disk. Type-level asserts
+    (`schemas/type-checks.ts`) hold the union and its schemas together and fail if the union is folded back into
+    optional members or if a deciding member becomes assignable.
+  - *The tolerance rule of the stored record* (`parseRunRecord`). Only what the two rules and the union need decides
+    whether a run.json is a record: it is an object of a format this version reads; it has an `id`, a `scenario`, a
+    `mode` and a `status`; and it holds what its state has (a finished run its `finished_at`, a failed or cancelled
+    one its `error`) and nothing its state never has. **Every other member is read leniently and never loses the
+    run**: unknown keys pass at every level; a closed word (`options.hooks`, `hooks.*`, `environment.access`,
+    `stopped_at.reason`, a sandbox's provider) is kept as the text the file holds (`StoredWord`: the type says "one of
+    these, or any other text"); a count is any number; a member a record may lack that does not read (`environment`,
+    `stopped_at`, `pauses`, `optional_failures`, a `null` block, and the two diagnostic blocks `engine` and `perf`
+    whole) is left out; one every record holds (`options`, `hooks`, `warnings`, the step counts, the paths) is read
+    member by member, and what does not read becomes its empty value. Each repair is a note of the read
+    (`<member>-dropped`), and a record that reads whole is handed over as the file holds it. So a record written by a
+    later version of the same format — new words, new blocks — is listed, usable and `latest`; **a new value never
+    needs a new format number, a change to what decides a state does.** A status that is none of the five is
+    `unknown-status`, with the record (`UnknownRunStatus`: a text no literal is; `isKnownRun` tells the two apart).
+    A record that is still refused (not an object, no status, an impossible state) is no run of any list and is
+    *said*: `run_status` and the lists' problem row (`RunSummary.unread`, beside `newer`) say
+    "its run.json does not read as a record" — never "no run.json" when the file is there — and `latest` counts it.
+  - *The one reader.* `readRunFolder(runsDir, name)` (a listing: no symbolic link is followed), `readNamedRunFolder` /
+    `readNamedRun(dir)` (a run a person named: read through links, the whole timeline from the same read), and
+    `readRunRecord`, `readTimelineHead`, `readTimeline` for one file: regular files within their caps, parsed by
+    core's pure `parseRunRecord` / `parseTimelineHead` / `parseTimeline` into `Read<T, P>` — the value, or a typed
+    problem (`missing`, `unreadable`, `too-big`, `not-a-file`, `not-json`, `invalid`; `P` holds the problems one kind
+    of file has: a run record's `newer-format` and `unknown-status`, `RunRead`), never a throw on a file someone else
+    wrote. A walk over many runs reads each run.json first and opens a timeline only when the record does not already
+    decide (`readRunFolder`'s `timeline` question, answered by core `takeNeedsTimeline`: a failed take, a dry run or
+    another scenario's capture costs its record alone). The engine's confined `RunFolder` keeps its own byte access
+    and hands the bytes to the same parsers. The ratchet's `record-read` check counts any value given the type of a
+    run record or a timeline outside these two files, and the two deliberate own reads (prune's lenient read of a
+    run.json the reader refuses, the reserved run's close) as entries with their reasons (its title lists the kinds and what it cannot see).
+  - *Rule 1, a usable capture* (`takeOf(facts)` → a `Take` or one reason of the closed list `NotUsable`): a real
+    folder whose name is a run id; a run.json that reads and says a capture that succeeded; a timeline.json whose
+    head reads whole (mode, scenario, its run id, its film's name) and names the same scenario; the film it names
+    (`capture.mp4` when the name is empty, `DEFAULT_FILM`) a regular file of the folder (`isFilmName`: one path
+    segment); none of them a symbolic link. Only the head of the timeline is looked at: a take whose lists are no
+    lists is refused, in one sentence, by the command that reads the whole timeline. A capture stopped by `--until`
+    is usable: the take carries the fact (`Take.until`).
+  - *Rule 2, `latest`* (`orderRuns`, `latestTake`): the run ids in one order — dated ids first, newest first, then
+    the other names descending — walked lazily to the first usable take whose **record** names the scenario; on the
+    way it collects the captures passed over (at most `PASSED_OVER_MAX` named, all of them counted by reason) and
+    counts the folders whose run.json is missing (beside a timeline) or is no record — said whether or not a take is
+    found. No window: every run folder is a candidate. Used by the editor's `findRun` (the CLI, the render job), the
+    engine's lists (`runFolderIds`, `listRuns`), the scenario view (`ScenarioRunChoice.take`, and `capture` on the
+    view and on its actions: the first take listed, or — past the runs listed — the rule asked over all of them), the
+    board's capture and the timeline view's default take, so Render's capture and the timeline's default are the
+    same run in every state; the Studio front end holds no predicate and looks through no list (`view.capture`).
+  - *A named run* (`namedRunProblem`) has its own, older rule: it works whatever its record says — and with a
+    timeline made by hand that holds no run id or names no film (the film is then `capture.mp4`) —, and is refused
+    only for a newer-format record, a timeline that is missing or does not read (`timelineProblem`: the one mapping
+    every shell uses), another scenario than the one asked for, a dry run or a missing film. For work submitted
+    through MCP it is also refused when its folder lies outside the project once links are followed (the folder a
+    link, or a folder above it), when its run.json, its timeline.json or its film is a symbolic link, and when the
+    film its timeline names is not a file of the run folder. Through MCP `latest` takes no run outside the project
+    either (`takeOf`'s `outside`, set by the editor's `locateRun`), and the run it picked is judged by the same
+    named rule when it is read.
+  - *Words.* `takeWords` gives each reason fixed words; a notice or an error never repeats a message read from a
+    file, and a text a run's files hold (the scenario a timeline names, its film, the scene of `--until`) is said
+    printable, on one line, or not at all (`printableText`, `untilStep`). A record that says `running` does not say
+    whether its process still is: the words are "not finished, or interrupted", and the way to name the run is always
+    given. The CLI names the passed-over runs on stderr; an MCP answer carries their count in its text and their
+    names under `untrusted.passed_over` only (a folder of `runs/` is named by whoever can write there), and no
+    sentence that reaches it names a run that was not picked.
+  - *Rule 3, the captures prune keeps* (`pruneKeeper()`, L7.7; pure, fed the facts of each dated run folder newest
+    first — `orderRuns` — by engine `prune.ts`, which reads them with `readRunFolder`). Per scenario, as the records
+    name it, three takes stay: `last-capture` — the newest run whose record says a capture that succeeded, whatever
+    its folder still holds (the rule before the lot); `editable` — the newest usable take (rule 1); `complete` — the
+    newest usable take not stopped by `--until`. A linked run folder and a record of a newer format are *left alone*
+    (`PruneAlone`: `linked`, `newer-format`): kept, never the last capture of anything, never listed, nothing behind
+    a link read. `keeper.needsTimeline` is the reader's `timeline` question, answered from the record: a timeline is opened only
+    for a succeeded capture of a scenario whose complete take is not found yet — not for one stopped by `--until`
+    once the scenario's editable take is found —, and prune asks the reader for the film first (`filmFirst`: no
+    regular file in the folder that could be a film, no timeline opened). What is left unbounded: takes that hold a
+    film and a timeline that does not read as a usable one cost a parse each, on every pass. The rule only adds keeps: a run is a
+    candidate exactly when it was one before — which is why prune keeps one own read, `pruneSaid`, for a run.json
+    the reader does not take as a record (a finished run without its end, a linked file): what such a
+    file says of its status still makes the take one prune can delete, and may still make it the last capture by
+    its record (the ratchet's `record-read` entry of `prune.ts`, with this reason). Where that read is stricter than
+    it was, it keeps: a file of a newer format is left alone like any other (`PruneNewer`), one that is no regular
+    file or is over the reader's cap says nothing (the take is kept and counted). `PruneResult.kept_takes`
+    (`{id, why, reason}`, newest first) holds the takes that stay *only* for `editable` or `complete` and every
+    folder left alone, with the fixed words of `pruneKeptWords`; the CLI prints one `kept` line per take (per reason the first five, then a count), the MCP
+    text one line per reason with a count and no folder name. A render renamed by hand is not this rule's subject
+    (it goes with the render records). The scenario view's picture rule (which run's screenshots a step shows)
+    stays its own.
 - **Views.** `ProjectView` leaves out `auth` (persona names, pages and whether they have login steps, per environment)
   and masks a password written in a URL (`maskUrlCredentials`). `RunStatusView` / `SandboxStatusView` /
   `AuthStatusItem` keep text the filmed site or a service controls (step error message, warnings, health
@@ -1882,7 +2177,7 @@ CLI's implementation is `onInterrupt`, the worker's the job's AbortSignal plus i
 throws `AccessError` (the CLI turns it into its usage error), a failed take `SandboxTakeError` (`interrupted` → exit
 130). `retake run`'s output, errors and exit codes are unchanged (a cancelled run still exits 1).
 
-**Jobs** (R-ARC-02; `jobs/`). Input contract in core (`jobs.ts`, `JobInputSchema`, version 1): a `run` job is
+**Jobs** (R-ARC-02; `jobs/`). Input contract in the engine (`jobs/job-input.ts`, `JobInputSchema`, version 1; core's `jobs.ts` until L7.35): a `run` job is
 `{version, kind: 'run', project (slug), scenario (name), scenario_sha256 (of the file's bytes at submit), mode,
 env?, until?, hooks?, sandbox?, run_id (reserved), submitted_by}` — strict (no other key), never a secret, a session or
 a path. Files under `<workspace>/.retake/` (git-ignored):
@@ -1926,7 +2221,7 @@ workers/worker.log      what workers print (stderr), appended
   heavy slot (`worker-heavy.ts`: its job process, yield, cancel and end) and the ends the worker writes itself
   (`worker-finish.ts`).
 - Ids: `j_` + a ULID (sortable). States `queued → running → succeeded | failed | cancelled`, and `interrupted`.
-  Readers never write: a `running` job whose worker is gone (pid + `ps` start time, sandbox proc.ts) is derived
+  Readers never write: a `running` job whose worker is gone (pid + `ps` start time, core/io proc.ts) is derived
   `interrupted` (fix: `retake env reset <project>`); a `queued` job with a cancel marker and no claim is derived
   `cancelled`. The next worker persists those (it holds the lock). run.json is never rewritten for `interrupted`: the
   run status overlays it.
@@ -1944,14 +2239,15 @@ workers/worker.log      what workers print (stderr), appended
   scenario_sha256? (for `<scenario>:setup|teardown`: the scenario file's bytes at submit, set before the approvals are
   signed and covered by their signature; the worker refuses such a job without it or with another hash — `conflict`,
   submit again), env?, dry, journal_id (reserved: `<stamp>-hooks-<label>`), submitted_by, approvals?}` and `{…, kind: 'env_reset', env?, dry,
-  journal_id (`<stamp>-env-reset`)}`. The executors are `retake hooks run` / `retake env reset` on the engine's
-  `createHookContext` with trust `mcp` and the job's approvals; results (`HooksJobResult`, `EnvResetJobResult`) list
+  journal_id (`<stamp>-env-reset`)}`. The executors run `retake hooks run` / `retake env reset`'s own orchestration
+  (`hooks-work.ts`, L7.23) with trust `mcp`, the job's approvals and the jobs' protection (project files only, the
+  approved scenario bytes, agent trust, protected hosts); results (`HooksJobResult`, `EnvResetJobResult`) list
   each hook with its trusted fields (index, name, kind, status, the hook as declared, the approval reason) and keep
   its templated description, message and error under `untrusted`. A cancel stops the hooks (a setup's completed ones
   are rolled back): the job ends `cancelled`.
 - **Approvals** (R-MCP-35, `approvals.ts`). Every queued job runs its hooks with **trust `mcp`** (core `HookTrust`;
   hooks `HookContext.trust`, runner `RunOptions.hookTrust`): `confirm: true` is ignored; destructive hooks and every
-  shell hook need an approval; a shell hook always counts as writing (`SHELL_ALWAYS_WRITES`: refused on a read-only
+  shell hook need an approval; a shell hook always counts as writing (`shellAlwaysWrites`: refused on a read-only
   run, by the runner's static check too). At submit, `preflightHooks` dry-runs the hooks the job will execute (a run:
   setup + teardown; hooks: the source; env_reset: the project's reset hooks — never the journal rollbacks) with trust
   `mcp`: nothing executes, secrets are `***`, no browser opens; a refusal fails the submit (`refused`, fix = the
@@ -2113,7 +2409,9 @@ workers/worker.log      what workers print (stderr), appended
   no draft was made; the events streamed so far stay in the recording's folder).
 - The worker's dispatch is a `switch` over the job kinds (exhaustive). Each finished job — and each interrupted one
   the next worker records — appends a line to `<workspace>/.retake/history.jsonl` (`{v, at, job, kind, project,
-  submitted_by, state, ms, run?, counted: {captures, dry_runs, renders}}`, O_APPEND, best effort); `retake run`,
+  submitted_by, state, ms, run?, counted: {captures, dry_runs, renders}}`; L7.26: the journal's discipline,
+  `store/append-log.ts` — whole under `.retake/locks/history.lock`, O_APPEND, never through a link, a torn last line
+  closed first, fsync before the reply; a line that cannot be written fails nothing and is said on stderr); `retake run`,
   `retake render`, `retake still` and `retake inspect` get theirs (no job) from the engine's in-process operations
   (`in-process.ts`), `retake export` one counting the formats it re-rendered (component previews are not counted), and
   `retake record` from `record.ts`: one writer per kind of line, no shell writes one itself
@@ -2260,11 +2558,12 @@ workers/worker.log      what workers print (stderr), appended
   token (a reuse sends it to the record's port only). A process of this user that reads the Retake home is the person
   (the MCP HTTP token and the signed-in profiles are there too).
 
-**Engine client `ui`.** `EngineClient` and core `JOB_CLIENTS` gain `ui`; `agentTrust(client)` (= not `cli`, not
-`test`) gives the scenario checks agent trust; comment authorship and `cliOnly` already treat anything but `cli` as the
-agent; no approver is ever passed (`needs_approval`). The L4.1 allow-list runs under agent trust; how a person proves
-presence in the UI (approvals, comment authorship, edits with secret refs) is open: L4.3 and L4.4 kept agent trust
-(approvals and edits with secret refs: BL-106), comment authorship is L4.6's.
+**Engine client `ui`.** `EngineClient` and `JOB_CLIENTS` (core's then; the engine's jobs/job-input.ts since L7.35) gain
+`ui`; `agentTrust(client)` (= not `cli`, not `test`) gives the scenario checks agent trust; comment authorship and
+`cliOnly` already treat anything but `cli` as the agent; no approver is ever passed (`needs_approval`). The L4.1
+allow-list runs under agent trust; how a person proves presence in the UI (approvals, comment authorship, edits with
+secret refs) is open: L4.3 and L4.4 kept agent trust (approvals and edits with secret refs: BL-106), comment authorship
+is L4.6's.
 
 **`LocalStorage` reads** (`readText`, and the if_match hash of `writeText`) go through the file's real path and are
 refused (`refused`) when it lies outside the project's real path — README.md, scenario_get, scenario_save,
@@ -2277,14 +2576,20 @@ the person points it at. `project_get` keeps opening a project whose README.md c
 `readme_error` says why (a link leading out: `readme` and `readme_hash` null; not UTF-8: the text with U+FFFD).
 `project_update_readme` holds `README_MAX_CHARS` (200,000) for the file as written, its final line break included.
 
-**`callTool(t, engine, args, ctx) → {ok, output} | {ok: false, error: EngineError}`** (`@retake/engine/contract`, an
-`exports` sub-path of the engine; moved from the MCP package) — the zod parse (problems per argument) and the handler,
-SDK-free; `protocolTool` and the Studio server both use it. The same entry holds `ToolDef<S, D, N>` (input schema,
+**`invoke(op, engine, args, {shell, signal, progress?, approver?}) → {ok, output} | {ok: false, error: EngineError}`**
+(`@retake/engine/contract`, an `exports` sub-path of the engine; L7.13; its deprecated alias `callTool` was
+removed in L7.21) — SDK-free and never throwing: the catalogue serves `op` in `shell` (else `not_found`), the zod parse (problems per
+argument), the operation's caller rules (`callers`, with the engine's read-only `Engine.caller`), the handler, every
+failure typed; `protocolTool` (shell `mcp`) and the Studio server (shell `studio`) both use it. Admission stays inside
+the submits. The engine's operations live in `packages/engine/src/operations/` (`OPERATIONS`, `OPERATIONS_BY_NAME`:
+L7.13 moved the eleven both shells serve — engine_info, project_list, project_get, project_update_readme,
+scenario_validate, run_list, run_status, run_cancel, job_list, auth_status, auth_login); MCP's `TOOLS` holds those very
+objects and the Studio's table those or their pinned arguments (`defineOperation` holds a name to the catalogue). The same entry holds `ToolDef<S, D, N>` (input schema,
 answer data, name — kept, not erased: `defineTool` infers them; `ToolArgs`, `ToolData`, `ToolsByName` read them) /
 `ToolContext` / `ToolOutput<D>`, `capUntrusted` and `pinArguments` (typed by its pins: `PinnedTool`), and the
 **operation catalogue** (`catalogue.ts`, also its own
-browser-safe entry `@retake/engine/catalogue`: it imports nothing at run time): every operation once (122: the 45 MCP
-tools, the Studio's 65 own ops, 12 operations only the CLI serves), its facets — the effect (`read`, `write`,
+browser-safe entry `@retake/engine/catalogue`: it imports nothing at run time): every operation once (124: the 45 MCP
+tools, the Studio's 65 own ops, 14 operations only the CLI serves), its facets — the effect (`read`, `write`,
 `destructive`), whether MCP and the Studio queue it as a job, whose code it runs (`none`, `project`: hooks and sandbox
 commands, `workspace`: components and themes rendered), `serves` for the commands that serve others (`mcp`, `ui`,
 `worker`) — the engine's admission rules it meets (§4d; held to the engine's `SUBMIT_RULES` by a test), and, for each shell (CLI commands, MCP tool, Studio op), the
@@ -2298,7 +2603,18 @@ read-only and destructive hints to its effect (`hintsOf`: read-only exactly for 
 `if_match` on the version read, and its entry says what (`removes`; `facetProblem` refuses a destructive entry without
 one, a `removes` on any other, and a destructive operation held to admission rules) — `job_cancel` is one (it discards
 a recording whose window is open), `scenario_save` and the README are writes (if_match), and a run's hooks or sandbox
-reset are its `code: 'project'`, not its effect. Snapshots hold the published tool list and the Studio's operation table byte for byte
+reset are its `code: 'project'`, not its effect. One use case served by two shells under their own names (S2,
+L7.20) is linked, not renamed: the operations of one use case share a `useCase` key (`useCaseGroups()`: 18 today, each
+an MCP tool and a Studio op — `scenario_get` / `scenario_blocks`, `run_capture` / `scenario_run`, `render` /
+`scenario_render`, `comment_reply` / `thread_reply`, `template_list` / `theme_list`, `component_list` / `library_view`…),
+one name per shell (`useCaseProblem`: at most one served by MCP, one by the Studio, and the CLI's members name the same
+command). A shell's split of one use case by an argument stays unlinked (`run_dry` beside `run_capture`; `job_cancel`
+against `render_cancel` and `sign_in_cancel`). The three Studio ops whose arguments narrow their MCP tool say why they
+stay two operations (`narrows: { of, apart }`): `thread_reply` and `thread_resolve` answer the Studio's path-free thread
+and chain per thread (`threadKey`; `thread_resolve` also refuses `latest`), `theme_create` never replaces (a write
+where `template_create_from_brand` is destructive), answers without the theme's folder and chains per theme — a merge
+needs the presentation split from the handler. Nothing published moved: the tool list, the op table, the CLI's golden.
+Snapshots hold the published tool list and the Studio's operation table byte for byte
 (packages/mcp/test/fixtures/tool-list.json, packages/ui/test/fixtures/op-table.json).
 
 **Admission rules and the caller (L6.5).** The engine's submits of a run, a render and an export hold the Studio and
@@ -2311,7 +2627,11 @@ process (admission.ts): `one_run_per_scenario` (a run of the scenario queued or 
 scenario, on the environment the take uses (the sandbox picked for `sandbox: true`) — so a refused request or a
 scenario that does not parse gets the submit's own answer —, and `one_run_per_scenario` again after the gates, just
 before the run id is reserved (a human's approval of hooks may take minutes, while another process queues a run). The
-rules hold within one process (each has its key in that engine; two processes check apart). A rule applies where
+rules hold across processes (L7.26): each check and what it admits run under the job queue's lock of the rule's key
+(`JobQueue.exclusive`: `<workspace>/.retake/locks/queue-<hash>.lock` for the file queue, after the engine's own chain
+of that key) — the render and export checks with their whole submit, the run's second check with the run id's reserve
+and the enqueue (never the approval wait) —, so two processes submitting at once queue one job and the other gets the
+same 409; a lock another live process holds past 30 s is `busy`. A rule applies where
 `SUBMIT_RULES` lists it for that submit. The refusals are worded per channel: the Studio's words are those it gave when
 the rules were its own; MCP's use the glossary's words and name the tools that follow up (`run_status`, `run_cancel`,
 `auth_login`, `sessions_ack`, `render_status`, `job_cancel`, `job_status`; packages/cli/test/glossary.test.ts). The
@@ -2320,7 +2640,7 @@ that skips the rules. Who calls is one `Caller` (`callerOf(client)`: client, cha
 `author` / `mcp`), and every decision the engine and the Studio's server take from it, or from who submitted a job, is
 a function of caller.ts (agent checks, refusal wording — `refusalChannel` of a caller, `submitterChannel` of a job's
 submitter —, person channel `speaksAsPerson`, `if_match`, proposals, the Record screen, a Studio recording
-`submittedInStudio`, the worker's clean environment, theme edits, admission); `EngineClient` is core's `JobClient`;
+`submittedInStudio`, the worker's clean environment, theme edits, admission); `EngineClient` is the job inputs' `JobClient`;
 `CallerTrust` is defined there and core's `HookTrust`, the editor's `PlanTrust` and `BrandTrust` are held to it (a
 compile-time check), and the engine holds every job and a theme made from a brand to `mcp` (`ENGINE_TRUST`, which every
 job module uses instead of a literal — a test reads them).
@@ -2347,7 +2667,8 @@ package it takes only the tools it serves as they are and the Set-up sheet's reg
   `scenario_edit` (§4e); since L4.4 the MCP tools `auth_status` and `auth_login` (NARROWED: `mode` headed only, `wait_s`
   0) and the own ops `run_pause`, `scenario_sessions`, `sign_in_cancel` (§4f); L5.10a the own READ op `project_board` (§4l); since L5.2b the own op `unsaved_report`
   (what a tab holds unsaved, kinds and names only: the desktop app's quit question, §4j); `run_dry` / `run_capture` and `scenario_save` stay out (critique B11; one Studio write path);
-  `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
+  `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name; since L7.14 the read-only ones are engine operations in
+  `packages/engine/src/operations/` `board.ts`, `scenario-screen.ts` and `render-screen.ts`) is 404 `unknown op` and runs nothing.
 - `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of this home's token record
   is reused (a new code minted through `/v1/bootstrap` on that record's port with its token), else a server is started,
   ui.json claimed and the token record written; closing releases both. A live holder of ui.json without a token record
@@ -2400,6 +2721,18 @@ package it takes only the tools it serves as they are and the Set-up sheet's reg
   modules (`ui-kit/index`; the shell, its slots, command bus, announcer and modes); outside the app it imports types
   only (the server's answers above all), save the browser-safe modules listed with their reason (`mark`,
   `player/parent`); exceptions listed with a reason, ratchet-style (new and stale both fail).
+- The screens by feature (L7.30 – L7.32): `src/app/` holds a folder per feature — `record/`, `script/` (the scenario
+  screen, storyboard, steps, YAML, forms), `shoot/` (Prepare, Live, takes, the run's stream and location, the shoot's
+  store `shoot-data.ts`), `edit/` (the timeline, the preview frame), `review/` (the report, renders, comments, threads,
+  the proposal), `library/`, `themes/`, `project/` (Welcome, the Project screen, Cast, Lately, the gallery, the README,
+  the sessions picker) — beside `words/` (the words two features or more show: board, comment, library, record,
+  render, scenario, shoot, theme, timeline) and, at the root, the shared foundations (api.ts, session, sse, events,
+  bits, brand, route, id-words, drafts and the unsaved report, the project's store `project-data.ts`, Thumb / thumbs,
+  tokens, other-copy) and the entry, main.tsx. Bare file names elsewhere in this document name a module of its
+  feature's folder. feature-boundaries.test.ts lists each feature's public modules (what the entry, the shell or
+  another feature may import of it: its screens, the parts it shares) and fails on any other crossing, on a public
+  module nobody outside imports, on a foundation or a shared word importing a feature, and on a new root module or
+  folder it does not know.
 - README editor: a textarea with `maxLength` 200,000 (the tool's cap) and a counter; save (button, Cmd/Ctrl+S) →
   `project_update_readme {markdown, if_match: the hash the text was based on}` — `markdown` with a final line break and
   the file's own line breaks (the textarea works in LF; `drafts.ts` remembers CR LF or LF from the text loaded, so
@@ -2772,7 +3105,7 @@ scenario list is cut, BL-80). One `scenario_blocks` read per (re)load; the op ad
   video path; quote dry run): screen 120–165 ms, first pictures of catalogue 0.8 s from the video.
 
 **Run actions** (part 4; R-UI-15; critique B2, B5, B11).
-- Studio op `scenario_run {project, name, mode: dry | capture, env?, hash?}` (ops.ts `runOps`, strict zod: anything
+- Studio op `scenario_run {project, name, mode: dry | capture, env?, hash?}` (engine `operations/studio-jobs.ts` since L7.15, before it the Studio's ops.ts; strict zod: anything
   else — `sandbox`, `until`, `hooks`, `wait_s`, `scenario` — is 400 before a read) → `engine.runs.submit({project,
   scenario: name, mode, env?, expect_sha256: hash})` with no approver. `hash` = the view's: `submitRunJob` hashes the
   text it parsed and checked (no later read of the file) and refuses another one, 409 `conflict` "changed since it was
@@ -2800,7 +3133,7 @@ scenario list is cut, BL-80). One `scenario_blocks` read per (re)load; the op ad
   (`preflightHooks({via})` → engine `createHookContext({via})` → hooks `HookContext.via`), the worker (`run-job` →
   `executeRun({hookVia})` → runner-web `RunOptions.hookVia` → its agent-trust refusal, `writingHooks({via})`, the hooks'
   context) and the worker's protected-hosts re-check: core `shellAlwaysWrites(via)` ("from the Studio a shell hook
-  always counts as writing…"; `SHELL_ALWAYS_WRITES` = the MCP wording), the hooks' approval refusal ("from the Studio,
+  always counts as writing…"; `shellAlwaysWrites(AGENT_CONFINEMENT)` = the MCP wording), the hooks' approval refusal ("from the Studio,
   "confirm: true" does not count and the Studio cannot approve hooks yet — run it in a terminal"). The rules are the
   same; only the words differ. MCP keeps its wording.
 - Step references (part 4): every step a person reads is 1-based — the rows, the inspector ("Step 3 of scene
@@ -2862,7 +3195,7 @@ helper. TakeLock's liveness check answers for its own process without `ps`.
 (`lstat` of the target, through an inside link the target's) — never through writeFile's `mode` (masked by the umask:
 0664 became 0644). A new file takes the umask's default.
 
-**The op** — `scenario_edit {project, name, hash, edit}` (ui `editOps`, strict zod: `edit` is
+**The op** — `scenario_edit {project, name, hash, edit}` (ui `editOps`; since L7.18 the engine's `operations/scenario-edit.ts`, on the scenario's key of the engine's operation chain; strict zod: `edit` is
 `{kind: 'replace_text', text}` | `{kind: 'restore', text, text_hash}` | `{kind: 'move_step', from: StepAt, to: {scene,
 index}}` | `{kind: 'delete_step', at: StepAt}` | `{kind: 'duplicate_step', at: StepAt}` with `StepAt = {scene (a slug),
 index (0..100,000), guard (16 hex)}` | `{kind: 'set_step', at: StepAt, changes: [{path, from?, to?}] (1–40)}` |
@@ -3571,7 +3904,7 @@ the Studio does not take". Page → frame: `load {plan_url, frame}`, `seek`, `pl
 `error`. `PREVIEW_FRAME_ATTRS`: `sandbox="allow-scripts"`, `referrerpolicy="no-referrer"`, `allow="autoplay"`,
 `aria-hidden`, `tabindex=-1` (part C's PreviewFrame uses the same).
 
-**Timeline screen** (part C; ui `app/TimelineScreen.tsx`, `TimelineTracks.tsx`, `PreviewFrame.tsx`, `timeline-words.ts`,
+**Timeline screen** (part C; ui `app/edit/TimelineScreen.tsx`, `TimelineTracks.tsx`, `PreviewFrame.tsx`, `timeline-words.ts`,
 op `timeline_view` in `server/ops.ts`). Route `#/p/<slug>/s/<name>/timeline[/<run>[/<step key>]]` (`hrefTo` drops a
 step without its run: the key is the run's own); reached from the scenario screen's **Open timeline** (R-UI-15; the
 newest capture that succeeded with its video, else the button disabled with why), the Run screen's outcome of a
@@ -3631,7 +3964,7 @@ frame settled 320 ms after the tracks drew, 8 seeks median 106–107 ms (max 223
 short 640×360 / 1080p takes the long GOP costs no visible seek time; the note stays (critique B14: an 8-s GOP on a long
 1080p take decodes up to 8 s per seek).
 
-**Inspector** (part D; ui `app/TimelineInspector.tsx`, `field-switch.ts`; the timeline screen and tracks). Beside the
+**Inspector** (part D; ui `app/edit/TimelineInspector.tsx`, `field-switch.ts`; the timeline screen and tracks). Beside the
 preview (under it below 1,040 px): the video's switches (`choices.video`: the caption component, every scene's layout)
 and the selected segment's (`choices.segments[<id>]`: a scene's layout, transition, speed; a card's component, duration,
 transition; a waiting screen's component, duration; intro / outro: the switch, component, duration). **Selecting:** a
@@ -3678,7 +4011,7 @@ blocks no longer read; undo gave back the original bytes (`Buffer.compare` 0) an
 The caption component (studio/caption-below → studio/caption-overlay): the caption band changed (mean difference 10.9 /
 255) while the capture's blocks still read exactly.
 
-**Render, queue, review** (part E, R-UI-26; ui `server/ops.ts` `renderOps`, `app/Renders.tsx`, `render-words.ts`;
+**Render, queue, review** (part E, R-UI-26; engine operations: `scenario_render`, `render_cancel` and `review_export` in `packages/engine/src/operations/studio-jobs.ts` (L7.15), `scenario_renders`, `render_review` and `review_image` in `packages/engine/src/operations/render-screen.ts` (L7.14) — before them the Studio's `server/ops.ts` —; `app/review/Renders.tsx`, `render-words.ts`;
 engine `renders.ofScenario`, `reviews.image`). **`scenario_render {project, name, run, expect_edit_sha256}`** — strict,
 nothing else: no theme, override, variant, review setting or path (400); it calls `renders.submit` with `review: {fps:
 1}` (the review inline, critique B12) and the snapshot of B5, the theme and every option coming from the files.
@@ -3925,7 +4258,7 @@ the fixture's flagged page (`/record-lab?hostile=1`, a label with markup and a d
 ran.
 
 **Tests.** `studio-e2e-record.test.ts` (default suite, ≈ 19 s; Studio server, headless Chromium, an in-process worker
-whose `recordTest.drive` plays the person in the window, fixture on 4551–4554): a pick that folds, a password sentinel,
+whose `ports.recordWindow.drive` plays the person in the window, fixture on 4551–4554): a pick that folds, a password sentinel,
 a blur mid-word, each insert, Stop, Save (a taken name refused), the hostile page, Discard during the check, a
 read-only recording, the sign-in mapping, the sentinel nowhere. `studio-e2e-record-acceptance.test.ts` (gated by
 `RETAKE_TEST_SLOW=1`, ≈ 107 s; `RETAKE_TEST_HEADED=1` shows the window): the shop's quote flow recorded with
@@ -4767,7 +5100,7 @@ and R4-Welcome, layout and drawing; the product's name stays `APP_NAME`. Built f
 critique (H1 the board's own read, H2 the cuts, M2 the store's invalidation, M3 the words, M4 every capability's home,
 M5 Disclosure, M6 the listbox, M8 the migration guard, M9 Thumb sizes). Cuts: BL-128.
 
-**`project_board {project}`** (ui `server/ops.ts` boardOp; engine `projects.board`, `project-board.ts`). A Studio-own
+**`project_board {project}`** (engine operation `packages/engine/src/operations/board.ts` since L7.14, before it ui `server/ops.ts` boardOp; engine `projects.board`, `project-board.ts`). A Studio-own
 READ op (in `OWN_OPS`, never an MCP tool), path-free, the video titles under `untrusted` (capped at 200 characters).
 Per scenario of `project_get.scenarios` (at most `BOARD_SCENARIOS_MAX` = 200; past it `truncated`): file facts
 (parsed, ok, errors, warnings, the content counts: scenes, cards, interstitials, steps, hooks; its environment when the
@@ -5164,7 +5497,7 @@ one RowList listbox, each family a `role=group`, RowCard options; the selection 
 id is an empty state; nothing is read with it. Render on the report re-renders the scenario (its latest capture, the
 file on disk) through useRenders — the same refusals —, and a render queued there opens its report once reviewed.
 
-**`review_export`** (ops.ts renderOps; Studio-only, in the `ui` allow-list, never an MCP tool): strict input `{project,
+**`review_export`** (engine `operations/studio-jobs.ts` since L7.15; Studio-only, in the `ui` allow-list, never an MCP tool): strict input `{project,
 render_id}` (a render id's shape); queues the engine's existing `export` job with `formats: ['mp4_1080p']` into the
 fixed `exports/<render_id>/`; one at a time per render (a 409 naming the job while one is queued or running) and at most
 `REVIEW_EXPORTS_OPEN` = 2 exports of the workspace queued or running at once (a CLI's or Claude's count; a 409 "2
@@ -5568,6 +5901,18 @@ quietly using the system's tools. A playwright-core that does not load in `prepa
   Every spawn goes through `ffmpegBin(policy, explicit?)` / `ffprobeBin(policy, explicit?)` (core io
   `media-tools.ts`); a source lint (cli `app-bundle.test.ts`) fails on a command literal `'ffmpeg'` / `'ffprobe'`
   anywhere else.
+  **One media run (L7.31, finding X3).** The tools are started in core io `media-run.ts` only: `runMediaTool(program,
+  args, {encoding, input, timeoutMs, killSignal, signal, maxBuffer})` (to its end, its output collected, never rejects:
+  `{code, stdout, stderr, error}`), `runMediaToolSync` (throws), `startMediaTool(program, args, {stdio, signal,
+  cancelSignal, abortedAtStart, timeoutMs, timeoutSignal, stderr: {keep: head|tail, max}, settle: close|exit})` (a
+  process to stream through: `child`, `stderr`, `killed`, `exited`). One error type, `MediaToolError` (`program`,
+  `reason`: start / exit / killed / timeout / cancelled / output, `code`, `signal`, `errno`, `stderr`; errorKind
+  `internal`), and `stderrLines(stderr, n, first|last)`; each site keeps its own sentence (EncodeError, ReviewError, …)
+  built from those facts. Every ffprobe answer is JSON, read by core `ffprobe.ts` (`readFfprobeJson` and one reader per
+  question: `parseFfprobeSummary`, `videoProbeFromJson`, `clipProbeFromJson`, `openVideoFromJson`,
+  `pictureSizeFromJson`, `ffprobePackets`, each with its arguments). Ratchet rule `media-call`: a file of
+  packages/*/src that names a media tool and calls node:child_process to start a process is an entry (one: the
+  doctor's exec probe).
 - Capture browser: `browser.executable` → `$RETAKE_CHROMIUM` → playwright-core's registry, which points at the bundle's
   browsers (below) — source `bundled`, else `playwright` (the cache).
 - Render browser: `$RETAKE_CHROMIUM_HEADLESS_SHELL` → the registry's headless shell (`bundled` / `playwright`) → none:
@@ -6224,7 +6569,7 @@ A take filmed on a loaded machine shows it (fewer frames during motion, more kic
 previews and site extractions are background work, a take is not (BL-116). Built on the file queue (decision of
 2026-11-04: no new dependency; ADR-1 unchanged, BL-117 parked).
 
-- **Classes** (core `JOB_CLASS`, `jobClass`, `isFilming`): `capture` — run, hooks, env_reset, auth_login, sandbox_up,
+- **Classes** (`JOB_CLASS`, `jobClass`, `isFilming`: engine jobs/job-input.ts, core's until L7.35): `capture` — run, hooks, env_reset, auth_login, sandbox_up,
   sandbox_reset, inspect, record; `heavy` — render, review, export, preview, site. An unknown kind is a capture (the
   worker refuses it in its own process, as before). A new kind does not type-check until it picks a class. Only a
   filming take (`run`, mode `capture`) holds heavy work; the other captures go first and stay one at a time with the
@@ -6247,8 +6592,15 @@ previews and site extractions are background work, a take is not (BL-116). Built
   start time its record names, with a job process's command line for that job id and this workspace (review A M1);
   any other recorded pid is left alone and the job persisted `interrupted` without its clean-ups. A record whose kind is
   not its input's kind (what a job process refuses) ends `failed` on its first claim, never claimed and given back in a
-  loop (review A M2). With `previewTest` (in-process tests only) heavy jobs run in the worker, one job at a time, as
-  before.
+  loop (review A M2). With `ports` (jobs/worker-ports.ts `WorkerPorts`, in-process tests only: L7.10 replaced
+  `rendererTest` with `ports.renderer`; L7.29 `previewTest` with `ports.renderer` — a preview backend is a renderer of
+  its own, editor-renderer.ts `withPreviewBackend` — and `ports.freeBytes`, `recordTest` with `ports.recordWindow`,
+  `jobProcessTest` with `ports.processes`: a job process's command line, the signal sender, the QoS table, the build
+  stamp) the worker record holds no test hook. Heavy jobs run in the worker, one job at a time, as before the job
+  processes, when its root says so (`heavyInProcess`); a worker handed a port a heavy job reads (worker-ports.ts
+  `HEAVY_JOB_PORTS`, typed over every port: the engine's, the free space) without it is refused — a job process
+  reads the product's ports; the window and the job processes are not such ports. What a job of each kind does is its handler's (jobs/job-handlers.ts `JOB_HANDLERS`, a table typed by
+  the job kind: no default branch).
 - **Signals** (jobs/signal.ts, review B L1): every signal to a job process or its tree, and the root of every QoS hold,
   goes through one guard — never a pid that is not an integer above 1 (a failed spawn's -1: `kill(-1)` reaches every
   process of the user; 0: this process's own group; 1: launchd), the worker itself or its own group. A spawn that failed

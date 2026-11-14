@@ -8,9 +8,9 @@
 import { spawnSync } from 'node:child_process';
 import { hostname } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import type { RunJobInput } from '@retake/core';
-import { EngineError, newJobId, selfIdentity, verifiedApprovals } from '../src/index.js';
-import type { JobQueue, JobRecord, YieldMark } from '../src/index.js';
+import type { RunJobInput } from '@retake/engine';
+import { EngineError, ManualClock, newJobId, selfIdentity, stampOf, verifiedApprovals } from '../src/index.js';
+import type { Clock, JobQueue, JobRecord, YieldMark } from '../src/index.js';
 
 export const RUN_INPUT: RunJobInput = {
   version: 1,
@@ -34,8 +34,8 @@ export interface ContractQueue {
   root: string;
 }
 
-/** `make(name, cli)`: a new, empty queue of its own each call. */
-export function jobQueueContract(adapter: string, make: (name: string, cli?: string) => Promise<ContractQueue>): void {
+/** `make(name, cli, clock)`: a new, empty queue of its own each call (stamped by `clock` when one is given). */
+export function jobQueueContract(adapter: string, make: (name: string, cli?: string, clock?: Clock) => Promise<ContractQueue>): void {
   const review = (q: JobQueue, n: number) => q.enqueue({ version: 1, kind: 'review', project: 'northfield-fixture', render_id: `quote-v${n}`, fps: 1, submitted_by: 'test' } as never);
   const running = async (q: JobQueue, rec: JobRecord, extra: Partial<JobRecord> = {}): Promise<JobRecord> => {
     const me = { ...(await selfIdentity()), host: hostname() };
@@ -47,7 +47,13 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
   describe(`the job queue contract (${adapter})`, () => {
     it('enqueue validates the input contract (never a path, an unknown key or another version) and queues it once', async () => {
       const { queue: q } = await make('contract');
-      for (const bad of [{ ...RUN_INPUT, project: '../x' }, { ...RUN_INPUT, run_id: '../../x' }, { ...RUN_INPUT, version: 2 }, { ...RUN_INPUT, kind: 'record' }, { ...RUN_INPUT, secret: 'x' }]) {
+      for (const bad of [
+        { ...RUN_INPUT, project: '../x' },
+        { ...RUN_INPUT, run_id: '../../x' },
+        { ...RUN_INPUT, version: 2 },
+        { ...RUN_INPUT, kind: 'record' },
+        { ...RUN_INPUT, secret: 'x' },
+      ]) {
         await expect(q.enqueue(bad as RunJobInput), JSON.stringify(bad)).rejects.toThrow(EngineError);
       }
       expect(await q.ids()).toEqual([]);
@@ -59,7 +65,7 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       expect(JSON.parse(JSON.stringify(await q.get(rec.id)))).toEqual(rec);
     });
 
-    it('enqueue refuses a job file named like a path, a hidden file or one of the job folder\'s own', async () => {
+    it("enqueue refuses a job file named like a path, a hidden file or one of the job folder's own", async () => {
       const { queue: q } = await make('files');
       for (const name of ['../x.yaml', '.hidden.yaml', 'job.json', 'claim', 'events.jsonl', 'yield.json', 'live.json', 'browser.json', 'a/b.yaml', 'Edit.yaml']) {
         await expect(q.enqueue(RUN_INPUT, { files: { [name]: 'x' } }), name).rejects.toMatchObject({ code: 'invalid' });
@@ -69,7 +75,7 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       expect((await q.get(ok.id))?.state).toBe('queued');
     });
 
-    it('jobFile reads a submit\'s file back as stored: missing when there is none, too large past its cap; never a name of the job\'s own', async () => {
+    it("jobFile reads a submit's file back as stored: missing when there is none, too large past its cap; never a name of the job's own", async () => {
       const { queue: q } = await make('job-file');
       const job = await q.enqueue(RUN_INPUT, { files: { 'edit.yaml': 'caption: é\n' } });
       expect(await q.jobFile(job.id, 'edit.yaml', 100)).toEqual({ ok: true, text: 'caption: é\n' });
@@ -92,7 +98,7 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
         // The events of a job that cannot be read are none.
         expect(await q.events(bad), bad).toEqual([]);
       }
-      const unknown = newJobId();
+      const unknown = newJobId(Date.now());
       expect(await q.get(unknown)).toBeUndefined();
       expect(await q.stored(unknown)).toBeUndefined();
       expect(await q.claimOf(unknown)).toBeUndefined();
@@ -108,7 +114,17 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       const a = await q.enqueue(RUN_INPUT);
       const b = await q.enqueue({ ...RUN_INPUT, run_id: '20261017-130001-quote' });
       const other = await q.enqueue({ ...RUN_INPUT, project: 'other-project', run_id: '20261017-130002-quote' });
-      const r1 = await q.enqueue({ version: 1, kind: 'render', project: 'northfield-fixture', scenario: 'quote', run_id: '20261017-130000-quote', timeline_sha256: 'c'.repeat(64), render_id: 'quote-v1', overrides: {}, submitted_by: 'test' } as never);
+      const r1 = await q.enqueue({
+        version: 1,
+        kind: 'render',
+        project: 'northfield-fixture',
+        scenario: 'quote',
+        run_id: '20261017-130000-quote',
+        timeline_sha256: 'c'.repeat(64),
+        render_id: 'quote-v1',
+        overrides: {},
+        submitted_by: 'test',
+      } as never);
       const rv = await review(q, 1);
       expect((await q.list()).map((j) => j.id)).toEqual([rv.id, r1.id, other.id, b.id, a.id]);
       expect((await q.list({ limit: 2 })).map((j) => j.id)).toEqual([rv.id, r1.id]);
@@ -240,7 +256,10 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       const { queue: q } = await make('events');
       const job = await q.enqueue(RUN_INPUT);
       expect(await q.append(job.id, 0, [])).toBe(0);
-      let seq = await q.append(job.id, 0, [{ type: 'state', state: 'running' }, { type: 'log', level: 'info', message: 'one' }]);
+      let seq = await q.append(job.id, 0, [
+        { type: 'state', state: 'running' },
+        { type: 'log', level: 'info', message: 'one' },
+      ]);
       seq = await q.append(job.id, seq, [{ type: 'log', level: 'warn', message: 'two' }]);
       expect(seq).toBe(3);
       expect(await q.lastSeq(job.id)).toBe(3);
@@ -334,15 +353,81 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
     it('approvals are signed at enqueue for that job and that workspace (the worker honours no other)', async () => {
       const { queue: q, root } = await make('approvals');
       const approval = { fingerprint: 'b'.repeat(64), by: 'test' as const, at: '2026-11-09T10:00:00.000Z' };
-      const input = { version: 1, kind: 'hooks', project: 'northfield-fixture', env: 'local', source: 'reset', dry: false, journal_id: '20261017-150000-hooks-reset', submitted_by: 'test', approvals: [approval] };
+      const input = {
+        version: 1,
+        kind: 'hooks',
+        project: 'northfield-fixture',
+        env: 'local',
+        source: 'reset',
+        dry: false,
+        journal_id: '20261017-150000-hooks-reset',
+        submitted_by: 'test',
+        approvals: [approval],
+      };
       const rec = await q.enqueue(input as never);
       const signed = (rec.input as { approvals?: Array<{ sig?: string }> }).approvals!;
       expect(signed[0]!.sig).toMatch(/^[0-9a-f]{64}$/);
-      expect((await verifiedApprovals(rec.input, { jobId: rec.id, root })).approvals).toHaveLength(1);
-      expect((await verifiedApprovals(rec.input, { jobId: newJobId(), root })).rejected).toBe(1);
+      expect((await verifiedApprovals(rec.input, { jobId: rec.id, root, env: process.env })).approvals).toHaveLength(1);
+      expect((await verifiedApprovals(rec.input, { jobId: newJobId(Date.now()), root, env: process.env })).rejected).toBe(1);
       expect((await q.stored(rec.id))?.input).toEqual(rec.input);
       // A job without approvals carries none.
       expect('approvals' in (await q.enqueue(RUN_INPUT)).input).toBe(false);
+    });
+
+    it("stamps its records, markers, claims and events with the clock it is handed (the composition root's)", async () => {
+      const clock = new ManualClock('2026-03-04T05:06:07.008Z');
+      const { queue: q } = await make('clock', undefined, clock);
+      const a = await q.enqueue(RUN_INPUT);
+      expect(a.created_at).toBe('2026-03-04T05:06:07.008Z');
+      // The id is made at the clock's time too (a ULID: its first 10 characters are the milliseconds).
+      expect(a.id.slice(2, 12)).toBe(newJobId(clock.now()).slice(2, 12));
+      clock.advance(1_000);
+      expect(await q.claim(a.id, await selfIdentity())).toBe(true);
+      expect((await q.claimOf(a.id))?.at).toBe(stampOf(clock));
+      clock.advance(1_000);
+      await q.requestPause(a.id, true, 'test');
+      expect((await q.pauseOf(a.id))?.at).toBe('2026-03-04T05:06:09.008Z');
+      clock.advance(1_000);
+      await q.requestStop(a.id, 'test');
+      expect((await q.stopOf(a.id))?.at).toBe('2026-03-04T05:06:10.008Z');
+      clock.advance(1_000);
+      expect((await q.cancel(a.id, 'test')).cancel_requested_at).toBe('2026-03-04T05:06:11.008Z');
+      clock.advance(1_000);
+      await q.append(a.id, 0, [{ type: 'log', level: 'info', message: 'one' }]);
+      expect((await q.events(a.id)).map((e) => e.t)).toEqual(['2026-03-04T05:06:12.008Z']);
+      // A queue with its own memory keeps the clock.
+      const own = q.withOwnMemory('retake -C x');
+      clock.set('2027-01-01T00:00:00.000Z');
+      expect((await own.enqueue(RUN_INPUT)).created_at).toBe('2027-01-01T00:00:00.000Z');
+    });
+
+    it('exclusive (L7.26): one holder at a time per key, its queues with their own memory too; other keys are not held; a throw releases it', async () => {
+      const { queue: q } = await make('exclusive');
+      const own = q.withOwnMemory();
+      const tick = () => new Promise((r) => setTimeout(r, 5));
+      let inside = 0;
+      let most = 0;
+      const order: string[] = [];
+      let other: string | undefined;
+      const hold = (by: JobQueue, name: string) =>
+        by.exclusive('run\0p\0s', async () => {
+          inside++;
+          most = Math.max(most, inside);
+          order.push(`${name} in`);
+          // Another key is taken while this one is held (were it the same lock, it would wait for this holder).
+          if (name === 'a') other = await Promise.race([q.exclusive('render\0p\0s', async () => 'free'), new Promise<string>((r) => setTimeout(() => r('held'), 2_000))]);
+          await tick();
+          order.push(`${name} out`);
+          inside--;
+          return name;
+        });
+      expect(await Promise.all([hold(q, 'a'), hold(own, 'b'), hold(q, 'c')])).toEqual(['a', 'b', 'c']);
+      expect(most).toBe(1);
+      expect(order).toEqual(['a in', 'a out', 'b in', 'b out', 'c in', 'c out']);
+      expect(other).toBe('free');
+      // A holder that throws releases the lock: its error is the caller's, the next one gets in.
+      await expect(q.exclusive('run\0p\0s', async () => Promise.reject(new EngineError('conflict', 'taken')))).rejects.toMatchObject({ code: 'conflict', message: 'taken' });
+      expect(await q.exclusive('run\0p\0s', async () => 'next')).toBe('next');
     });
   });
 }

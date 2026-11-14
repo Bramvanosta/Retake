@@ -66,7 +66,10 @@ describe('the content hash covers what the bundler loads (L4.7 review A H1)', ()
     let changed = 0;
     for (const c of components) {
       const check = await checkComponentEntry(c.dir, c.entry);
-      expect(check.issues.filter((i) => i.severity === 'error'), c.id).toEqual([]);
+      expect(
+        check.issues.filter((i) => i.severity === 'error'),
+        c.id,
+      ).toEqual([]);
       const hashed = componentHashedFiles(c.dir).map((f) => rel(c.dir, f));
       for (const f of check.files) expect(hashed, `${c.id}: ${f}`).toContain(f);
       if (c.id === 'acme/crafted') expect(check.files.sort()).toEqual(['data.json', 'index.tsx', 'parts/deep/more.ts', 'parts/label.ts']);
@@ -91,7 +94,10 @@ describe('the content hash covers what the bundler loads (L4.7 review A H1)', ()
 
   it('⚑ the render bundler guard refuses a loaded file the hash skips, and a file of the components folder no component owns', async () => {
     const dir = join(root, 'components', 'acme', 'crafted');
-    const c = [{ id: 'acme/crafted', dir }, { id: 'scaffolds/card', dir: scaffoldDir('card'), scaffold: true }];
+    const c = [
+      { id: 'acme/crafted', dir },
+      { id: 'scaffolds/card', dir: scaffoldDir('card'), scaffold: true },
+    ];
     expect(bundledFileProblem(join(dir, 'index.tsx'), c)).toBeUndefined();
     expect(bundledFileProblem(join(dir, 'parts', 'label.ts'), c)).toBeUndefined();
     expect(bundledFileProblem(`${join(dir, 'data.json')}?query`, c)).toBeUndefined();
@@ -103,7 +109,9 @@ describe('the content hash covers what the bundler loads (L4.7 review A H1)', ()
       ['preview.json', 'preview.json (a generated preview file)'],
       ['notes.txt', "notes.txt (a file type the component's content hash does not read)"],
     ] as const) {
-      expect(bundledFileProblem(join(dir, f), c), f).toBe(`acme/crafted: import "${f}" reaches ${what}: a component's content hash skips dot folders, node_modules, previews and dist, so a change there would go unseen — keep imported code in the component folder or a plain subfolder`);
+      expect(bundledFileProblem(join(dir, f), c), f).toBe(
+        `acme/crafted: import "${f}" reaches ${what}: a component's content hash skips dot folders, node_modules, previews and dist, so a change there would go unseen — keep imported code in the component folder or a plain subfolder`,
+      );
     }
     for (const f of ['components/acme/node_modules/react/index.js', 'components/node_modules/react/index.js']) {
       expect(bundledFileProblem(join(root, f), c), f).toMatch(/from the folder holding acme\/crafted, but it belongs to no component/);

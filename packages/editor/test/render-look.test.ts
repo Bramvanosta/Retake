@@ -18,9 +18,11 @@ import { loadProjectTemplate, readJson, fileFacts } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
 import { planEdit, renderStills } from '@retake/editor';
 import type { EditOverrides, EditPlan, PlanSegment } from '@retake/editor';
-import { REPO, fixtureProject, realTimeline, template } from './helpers.js';
-import { SHARED_CACHE, hasTool, makeColourCapture, renderWorkspace } from './render-helpers.js';
-import type { RenderWorkspace } from './render-helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureProject, realTimeline, template } from '@retake/test-support/timeline';
+import { SHARED_CACHE, makeColourCapture, renderWorkspace } from '@retake/test-support/render';
+import { hasTool } from '@retake/test-support/repo';
+import type { RenderWorkspace } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -173,10 +175,17 @@ beforeAll(async () => {
     [narrow, [['narrow-clip', mid]]],
   ];
   for (const [p, frames] of sessions) {
-    const out = await renderStills({ workPolicy: PERSON_POLICY, plan: p, frames: frames.map(([name, frame]) => ({ frame, out: join(tmp, `${name}.png`) })), root: REPO, registry, cacheDir: SHARED_CACHE });
+    const out = await renderStills({
+      workPolicy: PERSON_POLICY,
+      plan: p,
+      frames: frames.map(([name, frame]) => ({ frame, out: join(tmp, `${name}.png`) })),
+      root: REPO,
+      registry,
+      cacheDir: SHARED_CACHE,
+    });
     out.forEach((f, i) => {
       files.set(frames[i][0], f);
-      stills.set(frames[i][0], readImage(f, PERSON_POLICY));
+      stills.set(frames[i][0], readImage(f));
     });
   }
 }, LONG);
@@ -327,31 +336,35 @@ describe.skipIf(!canRender)('reference look scales with unit (synthetic plan, 96
     await ws?.cleanup();
   });
 
-  it('card, caption rule and brand mark at half the 1920×1080 positions', async () => {
-    const timeline = await readJson<Timeline>(join(ws.runDir, 'timeline.json'));
-    const reg = await loadComponentRegistry({ root: ws.root });
-    const plan = planEdit({
-      timeline,
-      template: await loadProjectTemplate(ws.project, 'editorial', { files: fileFacts(PERSON_POLICY) }),
-      project: ws.project,
-      registry: reg,
-      captureFile: join(ws.runDir, 'capture.mp4'),
-      overrides: { scale: 0.5 },
-    });
-    expect([plan.width, plan.height, plan.unit]).toEqual([960, 540, 0.5]);
-    const [file] = await renderStills({ workPolicy: PERSON_POLICY, plan, frames: [{ frame: 20, out: join(ws.root, 'half.png') }], root: ws.root, registry: reg, cacheDir: SHARED_CACHE });
-    const img = readImage(file, PERSON_POLICY);
-    const card = solidRect(img, 480, 240, 24);
-    expect([card.left, card.right]).toEqual([90, 869]);
-    // Top / bottom: the 16:9 capture is 438.75 px tall in the 439 px card, so the edge rows are mixed (±1).
-    expect(Math.abs(card.top - 20)).toBeLessThanOrEqual(1);
-    expect(Math.abs(card.bottom - 458)).toBeLessThanOrEqual(1);
-    const rule = bbox(img, [70, 465, 115, 490], (p) => p[0] - p[1] > 40)!;
-    expect([rule.x0, rule.x1]).toEqual([93, 110]);
-    expect(rule.y0).toBeGreaterThanOrEqual(477);
-    expect(rule.y1).toBeLessThanOrEqual(480);
-    const mark = bbox(img, [700, 475, 880, 510], accentish)!;
-    expect(Math.abs(centre(mark.y0, mark.y1) - 492.5)).toBeLessThanOrEqual(1.5);
-    expect(mark.y1 - mark.y0 + 1).toBeGreaterThanOrEqual(14);
-  }, LONG);
+  it(
+    'card, caption rule and brand mark at half the 1920×1080 positions',
+    async () => {
+      const timeline = await readJson<Timeline>(join(ws.runDir, 'timeline.json'));
+      const reg = await loadComponentRegistry({ root: ws.root });
+      const plan = planEdit({
+        timeline,
+        template: await loadProjectTemplate(ws.project, 'editorial', { files: fileFacts(PERSON_POLICY) }),
+        project: ws.project,
+        registry: reg,
+        captureFile: join(ws.runDir, 'capture.mp4'),
+        overrides: { scale: 0.5 },
+      });
+      expect([plan.width, plan.height, plan.unit]).toEqual([960, 540, 0.5]);
+      const [file] = await renderStills({ workPolicy: PERSON_POLICY, plan, frames: [{ frame: 20, out: join(ws.root, 'half.png') }], root: ws.root, registry: reg, cacheDir: SHARED_CACHE });
+      const img = readImage(file);
+      const card = solidRect(img, 480, 240, 24);
+      expect([card.left, card.right]).toEqual([90, 869]);
+      // Top / bottom: the 16:9 capture is 438.75 px tall in the 439 px card, so the edge rows are mixed (±1).
+      expect(Math.abs(card.top - 20)).toBeLessThanOrEqual(1);
+      expect(Math.abs(card.bottom - 458)).toBeLessThanOrEqual(1);
+      const rule = bbox(img, [70, 465, 115, 490], (p) => p[0] - p[1] > 40)!;
+      expect([rule.x0, rule.x1]).toEqual([93, 110]);
+      expect(rule.y0).toBeGreaterThanOrEqual(477);
+      expect(rule.y1).toBeLessThanOrEqual(480);
+      const mark = bbox(img, [700, 475, 880, 510], accentish)!;
+      expect(Math.abs(centre(mark.y0, mark.y1) - 492.5)).toBeLessThanOrEqual(1.5);
+      expect(mark.y1 - mark.y0 + 1).toBeGreaterThanOrEqual(14);
+    },
+    LONG,
+  );
 });

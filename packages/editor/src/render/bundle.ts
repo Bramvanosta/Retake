@@ -8,12 +8,13 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COMPONENT_KINDS, relativeInside, statePath } from '@retake/core';
+import { relativeInside, bestEffort } from '@retake/core/base';
+import { COMPONENT_KINDS } from '@retake/core/model';
+import { statePath } from '@retake/core/project';
 import { bundleInfoOrNull } from '@retake/core/io';
-import type { ComponentKind } from '@retake/core';
+import type { ComponentKind } from '@retake/core/model';
 import {
   HASHED_FILE,
   MANIFEST_FILE,
@@ -30,6 +31,7 @@ import {
 import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
 import type { EditPlan } from '../plan-types.js';
 import { usedComponentIds } from '../remotion/preview-mode.js';
+import { bundlerLibrary, libraryVersions } from './library.js';
 
 /** Bump when the generated files or the bundle layout change (invalidates every cached bundle). 2: the CSP meta. */
 export const BUNDLE_FORMAT = 2;
@@ -52,8 +54,6 @@ export const BUNDLE_CACHE_KEEP = 6;
 
 /** packages/editor (this module lives in src/render or dist/render). */
 export const EDITOR_DIR = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
-
-const require = createRequire(import.meta.url);
 
 /** A component implementation to bundle. */
 export interface BundleComponent {
@@ -159,14 +159,6 @@ export function componentHashedFiles(dir: string): string[] {
   return listFiles(dir).filter((x) => HASHED_FILE.test(x) && !PREVIEW_ARTIFACTS.has(basename(x)));
 }
 
-function packageVersion(name: string): string {
-  try {
-    return (JSON.parse(readFileSync(require.resolve(`${name}/package.json`), 'utf8')) as { version: string }).version;
-  } catch {
-    return 'unknown';
-  }
-}
-
 /**
  * The cache key of a bundle: the format, the Remotion versions, the composition sources, the kit, the geometry entry and
  * every bundled component folder (code files, manifest, own assets), by content.
@@ -179,7 +171,7 @@ export async function bundleHash(components: readonly BundleComponent[]): Promis
     h.update('\0');
   };
   add('format', String(BUNDLE_FORMAT));
-  add('remotion', `${packageVersion('remotion')} ${packageVersion('@remotion/bundler')}`);
+  add('remotion', libraryVersions());
   const comp = compositionFiles();
   for (const f of comp.files) add(`composition:${relative(EDITOR_DIR, f).split(sep).join('/')}`, await readFile(f));
   const kit = kitFiles();
@@ -206,10 +198,12 @@ export async function compositionHash(): Promise<string> {
   const kit = kitFiles();
   const geometry = geometryFiles();
   const files = [...comp.files, ...kit.files, ...geometry.files];
-  const stamp = files.map((f) => {
-    const st = statSync(f);
-    return `${f}:${st.size}:${st.mtimeMs}`;
-  }).join('\n');
+  const stamp = files
+    .map((f) => {
+      const st = statSync(f);
+      return `${f}:${st.size}:${st.mtimeMs}`;
+    })
+    .join('\n');
   if (compositionMemo?.stamp === stamp) return compositionMemo.hash;
   const h = createHash('sha256');
   const add = (label: string, data: string | Buffer) => {
@@ -218,7 +212,7 @@ export async function compositionHash(): Promise<string> {
     h.update('\0');
   };
   add('format', String(BUNDLE_FORMAT));
-  add('remotion', `${packageVersion('remotion')} ${packageVersion('@remotion/bundler')}`);
+  add('remotion', libraryVersions());
   for (const f of comp.files) add(`composition:${relative(EDITOR_DIR, f).split(sep).join('/')}`, await readFile(f));
   for (const f of kit.files) add(`kit:${relative(dirname(kit.entry), f).split(sep).join('/')}`, await readFile(f));
   for (const f of geometry.files) add(`geometry:${basename(f)}`, await readFile(f));
@@ -471,7 +465,7 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
   const ids = opts.components.map((c) => c.id).sort();
   if (await isComplete(dir)) {
     const now = new Date();
-    await utimes(join(dir, 'bundle.json'), now, now).catch(() => undefined);
+    await bestEffort(utimes(join(dir, 'bundle.json'), now, now), "the bundle's last use only orders the cache prune");
     return { serveUrl: join(dir, 'bundle'), dir, hash, cached: true, ms: 0, components: ids };
   }
   if (opts.signal?.aborted) throw abortError();
@@ -485,7 +479,7 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
     const geometry = geometryFiles();
     await writeFile(join(tmp, 'src', 'registry.ts'), registryModuleSource(opts.components));
     await writeFile(join(tmp, 'src', 'entry.ts'), entrySource(comp.root));
-    const { bundle } = await import('@remotion/bundler');
+    const { bundle } = await bundlerLibrary();
     const nodeModules = [join(EDITOR_DIR, 'node_modules'), join(dirname(dirname(kit.entry)), '..', 'node_modules')];
     const app = bundleInfoOrNull();
     await bundle({
@@ -530,14 +524,4 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
     await rm(tmp, { recursive: true, force: true }).catch(() => undefined);
     throw e;
   }
-}
-
-/** Cached bundles of a workspace (newest first). */
-export function listCachedBundles(root: string): Array<{ dir: string; hash: string; mtimeMs: number }> {
-  const cacheDir = bundleCacheDir(root);
-  if (!existsSync(cacheDir)) return [];
-  return readdirSync(cacheDir)
-    .filter((n) => n.startsWith('remotion-') && !n.includes('.tmp-') && existsSync(join(cacheDir, n, 'bundle.json')))
-    .map((n) => ({ dir: join(cacheDir, n), hash: n.slice('remotion-'.length), mtimeMs: statSync(join(cacheDir, n, 'bundle.json')).mtimeMs }))
-    .sort((a, b) => b.mtimeMs - a.mtimeMs);
 }

@@ -7,7 +7,6 @@
  */
 import { existsSync } from 'node:fs';
 import { stateDir } from '../workspace-state.js';
-import { buildStamp } from './build.js';
 import { WorkerLock } from './lock.js';
 import { spawnWorker } from './spawn.js';
 import { hasQueued } from './worker-claim.js';
@@ -26,8 +25,8 @@ const sleep = (ms: number, wake: { fn?: () => void }) =>
 
 /** Serve until stopped, gone, idle, past `once` or handing over; resolves true when this worker hands over. */
 export async function serve(w: Worker): Promise<boolean> {
-  const { o, log, root, dirs, build } = w;
-  let lastBuildCheck = Date.now();
+  const { o, log, root, build } = w;
+  let lastBuildCheck = w.clock.monotonic();
   for (;;) {
     if (w.stopping) break;
     const idle = !w.capture && !w.heavy;
@@ -40,7 +39,7 @@ export async function serve(w: Worker): Promise<boolean> {
       w.heavy = undefined;
       await onHeavyExit(w, h);
       w.ended++;
-      w.idleSince = Date.now();
+      w.idleSince = w.clock.monotonic();
     }
     await scanFilming(w);
     if (w.heavy) await steerHeavy(w, w.heavy);
@@ -57,26 +56,25 @@ export async function serve(w: Worker): Promise<boolean> {
     }
     if (empty && o.once && w.ended > 0) break;
     if (claimed) {
-      w.idleSince = Date.now();
+      w.idleSince = w.clock.monotonic();
       continue;
     }
     if (empty) {
-      if (Date.now() - w.idleSince >= w.idleExitMs) {
+      if (w.clock.monotonic() - w.idleSince >= w.idleExitMs) {
         // Idle: release the lock, then look once more — a job queued while a client saw this worker alive must not wait.
         w.lock.release();
         if (!(await hasQueued(w))) break;
-        const again = await WorkerLock.acquire(root, build, log, o.startedBy);
+        const again = await WorkerLock.acquire(root, build, w.clock, log, o.startedBy);
         if (!again) break; // another worker took over
         w.lock = again;
-        w.idleSince = Date.now();
+        w.idleSince = w.clock.monotonic();
         continue;
       }
     }
     // Not while this worker's take films (review B L2: the stamp is a synchronous walk on the take's event loop).
-    if (Date.now() - lastBuildCheck >= w.buildCheckMs && w.capture?.filming !== true) {
-      lastBuildCheck = Date.now();
-      o.jobProcessTest?.buildCheck?.(w.capture?.filming ?? false);
-      if (o.jobProcessTest?.buildChanged?.() === true || buildStamp(dirs) !== build) {
+    if (w.clock.monotonic() - lastBuildCheck >= w.buildCheckMs && w.capture?.filming !== true) {
+      lastBuildCheck = w.clock.monotonic();
+      if (w.processes.buildStamp() !== build) {
         if (!w.buildChanged && !empty) log('the code changed since this worker started: no new job here, handing over once the running ones end');
         w.buildChanged = true;
         continue;
@@ -101,5 +99,6 @@ export async function drain(w: Worker): Promise<void> {
 
 /** After a hand-over: a worker of the new build, when this one was not stopped and jobs still wait. */
 export async function handOver(w: Worker): Promise<void> {
-  if (!w.stopping && existsSync(stateDir(w.root)) && (await hasQueued(w))) await spawnWorker(w.root, { idleExitMs: w.idleExitMs, ...(w.o.startedBy ? { startedBy: w.o.startedBy } : {}) });
+  if (!w.stopping && existsSync(stateDir(w.root)) && (await hasQueued(w)))
+    await spawnWorker(w.root, { idleExitMs: w.idleExitMs, env: w.ports.env, ...(w.o.startedBy ? { startedBy: w.o.startedBy } : {}) });
 }

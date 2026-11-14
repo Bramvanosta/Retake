@@ -15,7 +15,8 @@ import type { ComponentRegistry } from '@retake/components';
 import { brandmarkRect, planEdit } from '@retake/editor/plan';
 import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor/plan';
 import { captionRegion, frameAnchor, segmentSpans, transitionSpans } from '../src/index.js';
-import { REPO, synthTimeline } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { synthTimeline } from '@retake/test-support/timeline';
 
 const FIXTURES = join(REPO, 'packages/editor/test/fixtures');
 const load = (name: string) => JSON.parse(readFileSync(join(FIXTURES, `${name}.timeline.json`), 'utf8')) as Timeline;
@@ -41,7 +42,12 @@ function synthetic(): Timeline {
     duration: 18,
     entries: [
       {
-        id: 's1', t_start: 0, t_end: 6, open_end: 0.5, still: [0.5, 2], caption: { text: 'Scene one' },
+        id: 's1',
+        t_start: 0,
+        t_end: 6,
+        open_end: 0.5,
+        still: [0.5, 2],
+        caption: { text: 'Scene one' },
         steps: [
           { action: 'click', id: 'go', t_start: 2.2, t_end: 3.2, t_click: 2.7, point: { x: 960, y: 540 }, target: { desc: 'button "Go"', bbox: { x: 900, y: 520, w: 120, h: 40 } } },
           { action: 'hold', t_start: 3.3, t_end: 5.95 },
@@ -49,7 +55,12 @@ function synthetic(): Timeline {
       },
       { card: { id: 'chapter-two', slots: { title: 'Part two' } } },
       {
-        id: 's2', t_start: 6, t_end: 13, open_end: 6.5, still: [6.5, 8], caption: { text: 'Scene two' },
+        id: 's2',
+        t_start: 6,
+        t_end: 13,
+        open_end: 6.5,
+        still: [6.5, 8],
+        caption: { text: 'Scene two' },
         steps: [
           { action: 'click', t_start: 8.1, t_end: 9, t_click: 8.6, point: { x: 700, y: 500 }, target: { desc: 'button "Send"', bbox: { x: 650, y: 480, w: 100, h: 40 } } },
           // 9.11 s = capture frame 273.3: the wait lasts 2 ms and starts between two frames, as the fixture's.
@@ -201,7 +212,7 @@ describe('frameAnchor with the motion theme: the caption is a band over the scre
     p = await planOf(synthetic(), {}, 'motion');
   });
 
-  it('a region on the band (while a cue shows) is the caption overlay; on the layout\'s caption area, the screen', () => {
+  it("a region on the band (while a cue shows) is the caption overlay; on the layout's caption area, the screen", () => {
     const s2 = clipOf(p, 's2');
     expect(s2.caption).toMatchObject({ id: 'studio/caption-overlay', params: { position: 'over' } });
     const span = segmentSpans(p).find((x) => x.segment.id === 's2')!;
@@ -238,7 +249,17 @@ describe('frameAnchor on the real fixture timelines', () => {
     const mk = p.markers.find((m) => m.name === 'proposal')!;
     for (const f of [mk.frame, mk.done!]) {
       const a = frameAnchor(p, f, { scenarioText: text, region: { x: 0.67, y: 0.42, w: 0.12, h: 0.08 } });
-      expect(a, `frame ${f}`).toMatchObject({ segment: 'proposal', kind: 'clip', component: 'studio/layout-card', area: 'screen', scene: 'proposal', step: 3, step_ref: 'proposal.3', action: 'wait_for', marker: 'proposal' });
+      expect(a, `frame ${f}`).toMatchObject({
+        segment: 'proposal',
+        kind: 'clip',
+        component: 'studio/layout-card',
+        area: 'screen',
+        scene: 'proposal',
+        step: 3,
+        step_ref: 'proposal.3',
+        action: 'wait_for',
+        marker: 'proposal',
+      });
       expect(a.step_fp).toMatch(/^[0-9a-f]{12}$/);
     }
     expect(frameAnchor(p, mk.done!).overlays).toEqual(['studio/overlay-callout']);
@@ -263,5 +284,4 @@ describe('frameAnchor on the real fixture timelines', () => {
     const single = await planOf(load('quote'));
     expect(frameAnchor(single, clipOf(single, 'proposal').from + 20)).not.toHaveProperty('page');
   });
-
 });

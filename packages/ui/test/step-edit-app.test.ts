@@ -3,8 +3,8 @@
  * edit, the undo / redo history (caps, the versions this screen made), what counts as a field for the shortcuts.
  */
 import { describe, expect, it } from 'vitest';
-import { EditHistory, HISTORY_MAX_CHARS, HISTORY_MAX_ENTRIES, dropMove, editWords, inField, keyboardMove } from '../src/app/step-edit.js';
-import type { HistoryEntry } from '../src/app/step-edit.js';
+import { EditHistory, HISTORY_MAX_CHARS, HISTORY_MAX_ENTRIES, dropMove, editWords, inField, keyboardMove } from '../src/app/script/step-edit.js';
+import type { HistoryEntry } from '../src/app/script/step-edit.js';
 
 const scenes = [
   { id: 'a', count: 2, locked: false },

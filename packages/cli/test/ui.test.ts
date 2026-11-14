@@ -33,8 +33,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readStudioToken, selfIdentity, studioTokenFile } from '@retake/engine';
 import { openBrowser, openLocationScript, shellLineReader, weblocText } from '../src/commands/ui.js';
 import type { Spawner } from '../src/commands/ui.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { BLOCKS_YAML, capture, writeRun } from '@retake/test-support/runs';
 
 const BIN = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'bin.js');
 const built = existsSync(BIN) && existsSync(join(dirname(BIN), '..', '..', 'ui', 'dist', 'index.js'));
@@ -210,7 +210,7 @@ describe.skipIf(!built)('retake ui (built CLI)', () => {
     expect((await first.exit).code).toBe(0);
   });
 
-  it('L5.16c fixes (review c B-L8): the shell\'s stdin lines — whole lines out, the cap counted in bytes, a long line dropped whole', () => {
+  it("L5.16c fixes (review c B-L8): the shell's stdin lines — whole lines out, the cap counted in bytes, a long line dropped whole", () => {
     const got: string[] = [];
     const read = shellLineReader((l) => got.push(l), 16);
     // A three-byte character split between two chunks; a line of 6 such characters is 18 bytes (6 UTF-16 units): dropped.
@@ -248,7 +248,13 @@ describe.skipIf(!built)('retake ui (built CLI)', () => {
       expect(info.player).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
       expect(info.player).not.toBe(`http://127.0.0.1:${info.port}`);
       expect(existsSync(ui())).toBe(true);
-      const lines = () => s.out().split('\n').filter(Boolean).slice(1).map((l) => JSON.parse(l) as Record<string, unknown>);
+      const lines = () =>
+        s
+          .out()
+          .split('\n')
+          .filter(Boolean)
+          .slice(1)
+          .map((l) => JSON.parse(l) as Record<string, unknown>);
       const until = async (f: () => boolean, ms = 8000) => {
         const end = Date.now() + ms;
         while (!f() && Date.now() < end) await new Promise((r) => setTimeout(r, 50));
@@ -259,10 +265,28 @@ describe.skipIf(!built)('retake ui (built CLI)', () => {
       // A job running in the workspace (its worker: this process) shows in the next snapshot, within the 1 s poll.
       const id = `j_${'0'.repeat(25)}1`;
       await mkdir(join(ws, '.retake', 'jobs', id), { recursive: true });
-      const input = { version: 1, kind: 'run', project: 'northfield-fixture', scenario: 'quote', scenario_sha256: '0'.repeat(64), mode: 'capture', run_id: '20261029-120000-quote', submitted_by: 'test' };
-      await writeFile(join(ws, '.retake', 'jobs', id, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input, state: 'running', created_at: new Date().toISOString(), worker: { ...(await selfIdentity()), host: 'test' } }));
+      const input = {
+        version: 1,
+        kind: 'run',
+        project: 'northfield-fixture',
+        scenario: 'quote',
+        scenario_sha256: '0'.repeat(64),
+        mode: 'capture',
+        run_id: '20261029-120000-quote',
+        submitted_by: 'test',
+      };
+      await writeFile(
+        join(ws, '.retake', 'jobs', id, 'job.json'),
+        JSON.stringify({ version: 1, id, kind: 'run', input, state: 'running', created_at: new Date().toISOString(), worker: { ...(await selfIdentity()), host: 'test' } }),
+      );
       expect(await until(() => lines().some((l) => l.jobs_total === 1))).toBe(true);
-      expect(lines().at(-1)).toEqual({ type: 'pending', jobs: [{ kind: 'capture', state: 'running', project: 'northfield-fixture', scenario: 'quote' }], jobs_total: 1, unsaved: [], unsaved_total: 0 });
+      expect(lines().at(-1)).toEqual({
+        type: 'pending',
+        jobs: [{ kind: 'capture', state: 'running', project: 'northfield-fixture', scenario: 'quote' }],
+        jobs_total: 1,
+        unsaved: [],
+        unsaved_total: 0,
+      });
       // Bytes on stdin are read and discarded: still serving.
       s.child.stdin!.write('anything\n');
       await new Promise((r) => setTimeout(r, 200));

@@ -24,7 +24,9 @@ deterministic (no Math.random/Date); no network; may import only `react`, `remot
 `@retake/components/kit` (shared helpers: fades/rises/stagger, easing presets, fitText, Logo, Wordmark,
 background renderer, safe-area helpers; L3.7: also the renderer primitives `useCurrentFrame`, `useVideoConfig`, `Img`,
 `AbsoluteFill`, `Sequence`, `random`, re-exported from remotion in `kit/renderer.ts`, which the scaffolds import instead
-of `remotion`). Text slots must never overflow: fitText shrinks within bounds.
+of `remotion`; L7.2: the built-in components import `react` and the kit only, `kit/renderer.ts` is the one file of the
+kit that names the library — the kit's public names are pinned by a test — and a workspace component may still import
+`remotion`). Text slots must never overflow: fitText shrinks within bounds.
 
 ### 1.2 Built-in library (`packages/components/library/studio/*`), theme-agnostic
 | id | kind | notes |
@@ -419,7 +421,7 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
 ### 1.10 Themes from brand inputs (L3.5)
 `template_create_from_brand` (MCP, trust `mcp`) and `retake theme create` (trust `author`) share
 `createThemeFromBrand(ws, input, {trust})` (engine `brand/create.ts`). Input: core `BrandInputSchema` (`brand.ts`) —
-`name` (`THEME_NAME_RE`, lower-case, ≤ 60), `base` (a theme name, default `editorial`), `colors {accent, text?, paper?,
+`name` (core `isNewThemeName`: `NEW_THEME_NAME_RE`, lower-case, ≤ `NEW_THEME_NAME_MAX` = 60), `base` (a theme name, default `editorial`), `colors {accent, text?, paper?,
 muted?, dark?}` (hex only, `normalizeHex`), `background` (hex = solid, or `{type: radial|linear, from, to}`), `adjust`
 (default true), `logo`, `wordmark?`, `fonts {display?, body?[1..4]}` (a ref or `{file, weight?, italic?}`), `brand
 {name?, url?}`, `replace?`. A file ref is workspace-relative (`brandRefSyntaxProblem`: never absolute, `~`, a drive
@@ -504,7 +506,7 @@ the proxy and are refused (absolute-form GET, unannounced CONNECTs).
   invalid, example, onion, alt), no all-numeric last label. Canonical href = `https://<punycode host><percent-encoded path>`.
   Engine `siteHostConflicts`: the host equal to an environment page's host of any workspace project, or a protected
   host (`protectedHostOf`, patterns included) — refused through MCP, a warning in the CLI. Subresources are not checked
-  against environments. `SiteJobInputSchema` (core `jobs.ts`): `{version, kind: 'site', site_id: s_<ULID>, url (refined
+  against environments. `SiteJobInputSchema` (engine `jobs/job-input.ts`; core `jobs.ts` until L7.35): `{version, kind: 'site', site_id: s_<ULID>, url (refined
   by siteUrlProblem), submitted_by, approvals}`.
 - **Approval** (engine `approvals.ts`): `SiteApprovalRequest {href, host, unicode_host, fingerprint, fix}`,
   `Approver.approveSite?`; `takeSiteApproval` → `[{fingerprint: sha256("site\n" + href), by: human-elicitation}]`,
@@ -679,7 +681,7 @@ exportRender(opts: { project; render /* id | path | latest */; formats?: ExportF
 //  `run_dir` inside the project (`recordPathProblem`), re-renders through planRun's gates; `network` / `onBrowser`
 //  passed to the re-renders (`guard` in the worker). `exportMethod(record, format)` says copy / transcode / render.
 generateTestTrack(out, { seconds? }): Promise<string>   // procedural sine-chord AAC track for tests / demos (ffmpeg)
-listRenders(project): Promise<RenderRecord[]>
+listRenders(project): Promise<StoredRender[]>      // L7.6b: the complete records of their own file (core/io readRendersFolder, core renderRecordsOf), oldest first
 ```
 
 ### 2.1 Planner rules (SPEC §9 + reference look)
@@ -889,7 +891,7 @@ scenario}`, else the edit re-planned with its changes; `plan_preview`'s last lin
 render` print the filmed change as a warning on stderr (`retake render`: the edit re-planned as info; `--json` stays
 parseable). Not repeated by `render_status` or the job result: it matters before a render. The Studio's scenario view
 says `notice: 'changed'` with `filmed_changes` (a filmed change), `edit_changed` (only the edit), or `cannot_tell`.
-Editor `findRun` `latest` considers only folder names that are run ids (`RUN_FOLDER_RE`, ≤ 200 characters) and prefers
+Editor `findRun` `latest` considers only folder names that are run ids (core `isRunId`: `RUN_ID_RE`, ≤ 200 characters) and prefers
 dated ids (`<yyyymmdd>-<hhmmss>-…`): runs/ is writable by an agent and the id reaches trusted summaries; engine
 `planRenderRequest` refuses a planned run id of another shape, and the `render` tool returns the `run_id` it renders.
 Not compared: project.yaml (environments, project vars) — a change there is neither reported nor re-planned beyond the
@@ -978,7 +980,7 @@ over 400 entries / 200 MB, drops other versions of the theme first, then the lea
 touches meta.json). A fresh built-in's committed preview.png is the poster in the editorial starter, decided by real
 path (never for a workspace component or a workspace override of a built-in id).
 
-*Studio server* (L4.7 part C; `packages/ui` `server/library-ops.ts`, `theme-ops.ts`, `library-watch.ts`): own ops in
+*Studio server* (L4.7 part C; `packages/ui` `server/library-ops.ts`, `theme-ops.ts`, the engine's `library-watch.ts`): own ops in
 UI_OPS with strict inputs (names and ids by regex, keys by shape, ≤ 12 per call) and path-free answers; agent-writable
 text (a workspace manifest's name and description, a failure's reason, a site page's URL / host / title) under
 `untrusted`. `library_view {project, theme?}` — the engine's states (`components.library`, the worker's key builder),
@@ -1043,7 +1045,7 @@ hidden characters removed (controls, format and tag characters, variation select
 is selected), the scaffold command is shown for a terminal. The Studio calls no model and queues no job but library
 previews.
 
-*Theme screens* (L4.7 part D2; `packages/ui` app `ThemesScreen.tsx`, `ThemeEditor.tsx`, `theme-words.ts`; route
+*Theme screens* (L4.7 part D2; `packages/ui` app `themes/ThemesScreen.tsx`, `themes/ThemeEditor.tsx`, `words/theme-words.ts`; route
 `#/p/<slug>/themes[/<theme>]`, sidebar "Themes", "Open the theme editor" from the library bar and the Set-as-default
 card). *List*: own op `theme_list {project}` (engine `themeEditList`: every listed theme with `editable` decided by real
 path — the same rule as templates.view —, the project's own folder theme first, read-only "edit it by hand"; hex colours
@@ -1513,8 +1515,11 @@ critique B1 / B2 / B4 / B5 / B9 / B10 / B13):
   holds the proposal (the file's view and the proposal's stay apart). The plan carries the workspace components the
   proposal names: the Studio's preview hold (`heldOf` in the ui ops) reads it there.
 
-**The Studio's comment ops** (L4.6 part C, packages/ui `server/comment-ops.ts`; the server's engine is client `ui`, so
-every entry is written as `studio`, named by the Studio process — never by the page). Own ops on the `UI_OPS`
+**The Studio's comment ops** (L4.6 part C, packages/ui `server/comment-ops.ts`; since L7.16 the engine's operations,
+`packages/engine/src/operations/comment-screen.ts`, which the server serves as they are; the server's engine is client
+`ui`, so every entry is written as `studio`, named by the Studio process — never by the page). The comments façade's
+caller rules are their `callers` (a person creates, reopens and applies; resolve, reopen and apply name the version
+read), checked by invoke after the parse and before anything is read; the façade keeps its copy for the CLI. Own ops on the `UI_OPS`
 allow-list (names distinct from the MCP tools, which stay out: a page is never Claude), strict zod inputs — slugs,
 `COMMENT_ID_RE` / `COMMENT_ENTRY_ID_RE` / `RENDER_ID_RE` ids, an ISO `created_at`, integer frames, a region of four
 numbers in 0..1, texts ≤ 2,000, a 64-hex `if_match` required by the op itself on resolve / reopen / apply; no author,
@@ -1538,8 +1543,12 @@ via, path, marker, time, scenario or proposal field anywhere (a `proposal` from 
   409); `thread_reply {project, comment_id, text}`; `thread_resolve {…, note, render_id?, if_match}`; `thread_reopen
   {…, note?, if_match}`; `thread_apply {project, comment_id, entry_id, if_match}` (engine `comments.apply`; answer
   `{thread, hash, entry?, scenario {name, file, hash, previous {text, hash}}, label, change, warnings, problems}`). The
-  writes of one thread run one at a time in this server; `thread_apply` also runs on the scenario's key of the **one op
-  chain** the Studio shares between `scenario_edit`, `scenario_render` and `thread_apply` (`op-chain.ts`, critique B5):
+  writes of one thread run one at a time in this server (L7.16: `thread_reply` / `thread_resolve` / `thread_reopen`
+  declare the thread's key as their `serialize`); `thread_apply` also runs on the scenario's key of the **one op
+  chain** the Studio shares between `scenario_edit`, `scenario_render`, `thread_apply` and `record_save` (`op-chain.ts`, critique B5;
+  since L7.15 the engine's operation chain, `operationChain(engine)`, on which scenario_render runs by its `serialize`,
+  and since L7.18 scenario_edit and record_save too; thread_apply's key is its thread's scenario, read from the engine,
+  so its handler chains it, then the thread's key):
   an edit sent while an apply runs finds the applied file (409). **Undo apply** is `scenario_edit` `restore` of
   `previous` (a version the engine read); the proposal then reads `undone`, actionable again.
 - `offer` (`proposalOffer`, computed by the server, critique B2 / B3 / B4): `apply` — the newest proposal, pending or
@@ -1562,7 +1571,7 @@ via, path, marker, time, scenario or proposal field anywhere (a `proposal` from 
   (threads on its own `comments`, the proposal state on its own scenario file, newer renders on its project's renders).
   Tests: ui `comment-ops.test.ts` (T11), `events.test.ts` (T12).
 
-**The Comments screen** (L4.6 part D1, packages/ui `app/CommentsScreen.tsx`, pure rules in `app/comment-words.ts`;
+**The Comments screen** (L4.6 part D1, packages/ui `app/review/CommentsScreen.tsx`, pure rules in `app/words/comment-words.ts`;
 R-UI-27, R-UI-29). Routes `#/p/<slug>/s/<name>/comments` (the list; the viewer on the newest finished render),
 `…/comments/<comment id>` (a thread open; the viewer on its render at its frame, or a notice and the thread's still
 when that render is gone) and `…/comments/at/<render id>/<frame>` (a render's frame, composer ready) — ids are inert
@@ -1630,7 +1639,7 @@ What each part holds (L4.6, unchanged in substance):
   pin's Open thread; a vertical drag and an edge drag clamped), `app-source.test.ts` (no `thread_*` call of the app
   sends an author, a via, a proposal or a name).
 
-**The proposal view** (L4.6 part D2, packages/ui `app/ProposalPanel.tsx`, pure rules in `app/comment-words.ts`;
+**The proposal view** (L4.6 part D2, packages/ui `app/ProposalPanel.tsx`, pure rules in `app/words/comment-words.ts`;
 R-UI-28; critique B1–B4, B9, B13). In the thread, under its entries, the newest proposal (`thread_get`'s `proposal`):
 - **The diff**: the server's rows (the canonical diff of the exact bytes Apply writes, rebuilt from today's file, with
   3 context lines; the engine's context after a change stops before the next one, so no line shows twice) as a table —
@@ -1710,7 +1719,9 @@ else `$RETAKE_AUTHOR`, else the OS user name (never git config). Texts are print
 `printableText`. The tool repository ignores `projects/*/comments/` (hand runs on the fixture); a user's workspace
 commits its own `comments/`.
 
-**The MCP tools** (packages/mcp `src/tools/comments.ts`; 45 tools in all since L5.8; the server's engine is client `mcp`):
+**The MCP tools** (packages/mcp `src/tools/comments.ts`; since L7.16 the engine's operations,
+`packages/engine/src/operations/comments.ts`, served as these very objects; 45 tools in all since L5.8; the server's
+engine is client `mcp`; a reply's proposal is refused for any other caller by the operation's `callers`):
 - `comments_list({project, scenario?, render?: id | latest, status? = open, limit? = 20 (≤ 100)})` (READ) →
   `engine.comments.list`: the `CommentListView` as data (threads, `total`, `problems`), a summary of one block per
   thread built from trusted fields only (id, status, channel, render id, frame, timecode, the anchor's kind / segment /

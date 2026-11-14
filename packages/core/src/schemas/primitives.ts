@@ -58,16 +58,12 @@ export const BBoxSchema: z.ZodType<BBox> = z
 
 /** Fields of a target object; spread into click/hover args that mix target + options. */
 export const targetShape = {
-  text: nonEmpty()
-    .describe('Visible text, whitespace-normalised. Exact match first, then case-insensitive substring (unless `exact`).')
-    .optional(),
+  text: nonEmpty().describe('Visible text, whitespace-normalised. Exact match first, then case-insensitive substring (unless `exact`).').optional(),
   contains: z
     .union([nonEmpty(), z.array(nonEmpty()).min(1)])
     .describe('Element whose text contains ALL these strings; the innermost such element wins.')
     .optional(),
-  role: nonEmpty()
-    .describe('ARIA role (explicit or implicit): button, link, textbox, combobox, checkbox, option, menuitem, row, dialog, tab…')
-    .optional(),
+  role: nonEmpty().describe('ARIA role (explicit or implicit): button, link, textbox, combobox, checkbox, option, menuitem, row, dialog, tab…').optional(),
   name: nonEmpty().describe('Accessible name, used together with `role`.').optional(),
   label: nonEmpty().describe('Form control whose label text matches.').optional(),
   aria: nonEmpty().describe('aria-label value (exact first, then substring).').optional(),
@@ -90,20 +86,14 @@ export const TargetObjectSchema = z.strictObject(targetShape).meta({
 
 export const TargetSpecSchema: z.ZodType<TargetSpec> = z.union([nonEmpty(), TargetObjectSchema]).meta({
   id: 'TargetSpec',
-  description:
-    'Visible text ("Save"), a CSS selector string ("#id", ".class", "[attr]", "a > b") or a target object.',
+  description: 'Visible text ("Save"), a CSS selector string ("#id", ".class", "[attr]", "a > b") or a target object.',
 });
 
 export const ScopeSpecSchema: z.ZodType<ScopeSpec> = z
-  .union([
-    z.enum(['dialog', 'menu', 'listbox', 'popover', 'page']),
-    z.strictObject({ row: nonEmpty().describe('Text contained in the row.') }),
-    TargetObjectSchema,
-  ])
+  .union([z.enum(['dialog', 'menu', 'listbox', 'popover', 'page']), z.strictObject({ row: nonEmpty().describe('Text contained in the row.') }), TargetObjectSchema])
   .meta({
     id: 'ScopeSpec',
-    description:
-      'Scope keyword (topmost visible dialog/menu/listbox/popover, or the whole page), {row: "text"} or a target object.',
+    description: 'Scope keyword (topmost visible dialog/menu/listbox/popover, or the whole page), {row: "text"} or a target object.',
   });
 
 export const CaptionSpecSchema: z.ZodType<CaptionSpec> = z
@@ -117,10 +107,7 @@ export const CaptionSpecSchema: z.ZodType<CaptionSpec> = z
   .meta({ id: 'Caption', description: 'Caption text, or {kicker, text}.' });
 
 export const EaseSpecSchema: z.ZodType<EaseSpec> = z
-  .union([
-    z.enum(['slow', 'normal', 'fast', 'linear']),
-    z.tuple([z.number(), z.number(), z.number(), z.number()]),
-  ])
+  .union([z.enum(['slow', 'normal', 'fast', 'linear']), z.tuple([z.number(), z.number(), z.number(), z.number()])])
   .meta({ id: 'Ease', description: 'Easing preset or cubic-bezier [x1, y1, x2, y2].' });
 
 export const CameraHintSchema: z.ZodType<CameraHint> = z
@@ -141,16 +128,12 @@ export const CameraHintSchema: z.ZodType<CameraHint> = z
 
 export const FRAME_STYLES: readonly FrameStyle[] = ['raw', 'card', 'browser', 'laptop', 'phone', 'tablet'];
 
-export const FrameStyleSchema = z
-  .enum(['raw', 'card', 'browser', 'laptop', 'phone', 'tablet'])
-  .describe('How the capture is framed: raw, card, browser chrome, laptop, phone or tablet mockup.');
+export const FrameStyleSchema = z.enum(['raw', 'card', 'browser', 'laptop', 'phone', 'tablet']).describe('How the capture is framed: raw, card, browser chrome, laptop, phone or tablet mockup.');
 
 /** Layouts of a multi-page scene (L2.11). */
 export const MULTI_PAGE_FRAMES: readonly MultiPageFrame[] = ['split', 'pip'];
 
-export const MultiPageFrameSchema = z
-  .enum(['split', 'pip'])
-  .describe('Layout of a multi-page scene: split (side by side, stacked in vertical) or pip (picture in picture).');
+export const MultiPageFrameSchema = z.enum(['split', 'pip']).describe('Layout of a multi-page scene: split (side by side, stacked in vertical) or pip (picture in picture).');
 
 /** Component ids: "namespace/name", lower-case letters, digits and "-" on each side. */
 export const COMPONENT_ID_RE = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/;
@@ -166,9 +149,7 @@ export function componentIdSchema(what = 'component id') {
 
 export const ComponentKindSchema = z.enum(COMPONENT_KINDS as [string, ...string[]]);
 
-export const ComponentParamsSchema = z
-  .record(z.string(), z.unknown())
-  .describe("Component params (see the component's params schema; unset params take its defaults).");
+export const ComponentParamsSchema = z.record(z.string(), z.unknown()).describe("Component params (see the component's params schema; unset params take its defaults).");
 
 export const ComponentRefSchema: z.ZodType<ComponentRef> = z
   .union([
@@ -190,36 +171,36 @@ export const ComponentRefSchema: z.ZodType<ComponentRef> = z
  * `background`, on a step overlay. Which of them apply to which file is checked semantically (positioned errors).
  */
 export const mediaFileShape = {
-  video: nonEmpty()
-    .describe('A video file of the project (.mp4, .mov, .webm, .m4v — H.264, HEVC, VP8, VP9, AV1 or ProRes) shown instead of a component; its own sound is kept.')
-    .optional(),
+  video: nonEmpty().describe('A video file of the project (.mp4, .mov, .webm, .m4v — H.264, HEVC, VP8, VP9, AV1 or ProRes) shown instead of a component; its own sound is kept.').optional(),
   image: nonEmpty().describe('An image file of the project (.png, .jpg, .jpeg, .webp, .svg) shown instead of a component.').optional(),
   lottie: nonEmpty().describe('A Lottie animation of the project (bodymovin .json) played by studio/lottie instead of a component.').optional(),
   from: z.number().min(0).describe('Video: the second of the file the part shown starts at (default 0).').optional(),
   to: z.number().gt(0).describe("Video: the second of the file the part shown ends at (default: the file's end).").optional(),
-  fit: z.enum(MEDIA_FITS as [MediaFit, ...MediaFit[]]).describe('cover (fills, cropped) or contain (whole). Default: an overlay contains; a segment covers when the file has about the frame\'s shape, else contains.').optional(),
-  background: nonEmpty()
-    .describe('Around a contained or transparent file: theme (the theme background, default), a theme colour key (paper, dark, accent…), a CSS colour or none.')
+  fit: z
+    .enum(MEDIA_FITS as [MediaFit, ...MediaFit[]])
+    .describe("cover (fills, cropped) or contain (whole). Default: an overlay contains; a segment covers when the file has about the frame's shape, else contains.")
     .optional(),
+  background: nonEmpty().describe('Around a contained or transparent file: theme (the theme background, default), a theme colour key (paper, dark, accent…), a CSS colour or none.').optional(),
   volume: z.number().min(0).max(1).describe("Video: volume of the file's own sound, 0–1 (default 1).").optional(),
 };
 
 /** Slot values of a component use (title, kicker, text…). */
-export const SlotsSchema = z
-  .record(keyString('slot name'), z.string())
-  .describe('Slot values (title, kicker, text…) as the component declares them.');
+export const SlotsSchema = z.record(keyString('slot name'), z.string()).describe('Slot values (title, kicker, text…) as the component declares them.');
 
 /** A FrameStyle, a multi-page frame or a layout component id. */
 export const FrameSpecSchema: z.ZodType<FrameSpec> = z
   .union([
     FrameStyleSchema,
     MultiPageFrameSchema,
-    z.string().regex(COMPONENT_ID_RE, {
-      error: (iss) =>
-        `expected a frame style (${[...FRAME_STYLES, ...MULTI_PAGE_FRAMES].join(', ')}) or a layout component id "namespace/name" ` +
-        `(${COMPONENT_ID_RULE.replace('studio/intro-stack', 'studio/layout-card')}), got ${JSON.stringify(iss.input)}` +
-        suggestion(String(iss.input), [...FRAME_STYLES, ...MULTI_PAGE_FRAMES]),
-    }).describe('A layout component id "namespace/name", e.g. studio/layout-card or a workspace layout.'),
+    z
+      .string()
+      .regex(COMPONENT_ID_RE, {
+        error: (iss) =>
+          `expected a frame style (${[...FRAME_STYLES, ...MULTI_PAGE_FRAMES].join(', ')}) or a layout component id "namespace/name" ` +
+          `(${COMPONENT_ID_RULE.replace('studio/intro-stack', 'studio/layout-card')}), got ${JSON.stringify(iss.input)}` +
+          suggestion(String(iss.input), [...FRAME_STYLES, ...MULTI_PAGE_FRAMES]),
+      })
+      .describe('A layout component id "namespace/name", e.g. studio/layout-card or a workspace layout.'),
   ])
   .meta({
     id: 'Frame',
@@ -242,21 +223,15 @@ export const SceneTransitionSchema: z.ZodType<SceneTransition> = z
   ])
   .meta({
     id: 'SceneTransition',
-    description:
-      'crossfade, cut or fade-black (the theme\'s transition of that kind), or a transition component: its id ' +
-      '(e.g. studio/transition-tap-open) or {component, params}.',
+    description: "crossfade, cut or fade-black (the theme's transition of that kind), or a transition component: its id " + '(e.g. studio/transition-tap-open) or {component, params}.',
   });
 
 // ── Tutorial overlays (L2.10) ────────────────────────────────────────────────
 
-const tutorialComponent = () =>
-  componentIdSchema('tutorial overlay component id').describe('Overlay component drawing it (default: the built-in one), "namespace/name".');
+const tutorialComponent = () => componentIdSchema('tutorial overlay component id').describe('Overlay component drawing it (default: the built-in one), "namespace/name".');
 
 /** One tutorial overlay: on / off, or {component?, params?}. */
-const TutorialFeatureSchema = z.union([
-  z.boolean(),
-  z.strictObject({ component: tutorialComponent().optional(), params: ComponentParamsSchema.optional() }),
-]);
+const TutorialFeatureSchema = z.union([z.boolean(), z.strictObject({ component: tutorialComponent().optional(), params: ComponentParamsSchema.optional() })]);
 
 const SpotlightModeSchema = z.enum(['steps', 'clicks']);
 const ChapterModeSchema = z.enum(['scenes', 'cards']);

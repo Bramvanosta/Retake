@@ -1,4 +1,3 @@
-import { useCurrentFrame } from 'remotion';
 import {
   CAPTION_BAND_PAD_X,
   CapText,
@@ -14,6 +13,7 @@ import {
   readableOn,
   rise,
   roundTo,
+  useCurrentFrame,
   withAlpha,
 } from '@retake/components/kit';
 import type { CaptionCue, ComponentProps, ThemeTextStyle, ThemeTokens } from '@retake/components/kit';

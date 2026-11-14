@@ -5,8 +5,8 @@
  */
 import { readProjectText, shellDestructiveReason, sqlSource } from './destructive.js';
 import type { DestructiveOptions } from './destructive.js';
-import { channelWords } from './agent-policy.js';
-import type { AgentChannel } from './agent-policy.js';
+import { confinementWords } from './confinement.js';
+import type { Confinement } from './confinement.js';
 import { maskSql } from './sql-text.js';
 import type { HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from './types.js';
 import { graphqlOf, graphqlReadsOnly, graphqlWriteName, isWriteMethod } from './writes.js';
@@ -20,15 +20,12 @@ import { graphqlOf, graphqlReadsOnly, graphqlWriteName, isWriteMethod } from './
 export type HookTrust = 'author' | 'mcp';
 
 /**
- * Why a shell hook writes when its `writes: false` is not trusted (work submitted by an agent), worded for the channel
- * it came through (L4.2: "from the Studio" — a Studio user is never told about MCP).
+ * Why a shell hook writes when its `writes: false` is not trusted (work submitted by an agent), in the words of the
+ * work's confinement (L4.2: "from the Studio" — a Studio user is never told about MCP).
  */
-export function shellAlwaysWrites(via?: AgentChannel): string {
-  return `a shell command (${channelWords(via)} a shell hook always counts as writing: its \`writes: false\` is not trusted)`;
+export function shellAlwaysWrites(via?: Confinement): string {
+  return `a shell command (${confinementWords(via)} a shell hook always counts as writing: its \`writes: false\` is not trusted)`;
 }
-
-/** shellAlwaysWrites through MCP. */
-export const SHELL_ALWAYS_WRITES = shellAlwaysWrites('mcp');
 
 /** Statements that only read (SELECT … INTO, SELECT … FOR UPDATE, data-modifying CTEs are caught below). */
 const READ_STATEMENTS = new Set(['SELECT', 'WITH', 'TABLE', 'VALUES', 'SHOW', 'EXPLAIN', 'SET', 'RESET']);
@@ -54,9 +51,7 @@ function statementWrite(words: readonly string[]): string | null {
   if (first === 'SET' || first === 'RESET') {
     // The transaction's read-only mode and the role are not for a hook to change on a read-only run.
     if (first === 'RESET' && words[1] === 'ALL') return 'SQL RESET ALL';
-    const touches = words.some(
-      (w) => ['TRANSACTION', 'CHARACTERISTICS', 'ROLE', 'AUTHORIZATION'].includes(w) || /READ_ONLY|^DEFAULT_TRANSACTION|^TRANSACTION_/.test(w),
-    );
+    const touches = words.some((w) => ['TRANSACTION', 'CHARACTERISTICS', 'ROLE', 'AUTHORIZATION'].includes(w) || /READ_ONLY|^DEFAULT_TRANSACTION|^TRANSACTION_/.test(w));
     return touches ? `SQL ${first} of the transaction mode or role` : null;
   }
   for (let i = 1; i < words.length; i++) {
@@ -118,7 +113,7 @@ function sqlTextReason(source: { file?: string; query?: string }, opts: Destruct
  * A rollback counts too: an http rollback by its method, a sql rollback by its statements, a shell or js rollback
  * always — a hook that only reads but undoes something with a write is refused like a writing hook.
  */
-export function hookWriteReason(hook: HookStep, opts: DestructiveOptions & { rollback?: boolean; trust?: HookTrust; via?: AgentChannel } = {}): string | null {
+export function hookWriteReason(hook: HookStep, opts: DestructiveOptions & { rollback?: boolean; trust?: HookTrust; via?: Confinement } = {}): string | null {
   // Only setup hooks are rolled back: a rollback declared elsewhere is ignored when it runs, and here.
   const withRollback = opts.rollback !== false;
   if ('http' in hook) {
@@ -167,7 +162,7 @@ export function rollbackWriteReason(action: { kind: string; request?: { method?:
 /** The hooks of a scenario that write, for the refusal of a read-only run (before anything runs). */
 export function writingHooks(
   lists: { setup?: readonly HookStep[]; teardown?: readonly HookStep[]; step?: readonly HookStep[] },
-  opts: DestructiveOptions & { trust?: HookTrust; via?: AgentChannel } = {},
+  opts: DestructiveOptions & { trust?: HookTrust; via?: Confinement } = {},
 ): Array<{ phase: 'setup' | 'teardown' | 'step'; index: number; name?: string; reason: string }> {
   const out: Array<{ phase: 'setup' | 'teardown' | 'step'; index: number; name?: string; reason: string }> = [];
   // `step`: the entries of the named hooks a scenario's `hook:` steps run (L5.8), journaled like setup hooks.

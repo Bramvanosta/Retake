@@ -14,8 +14,9 @@ import type { RunProgress, RunRecord, Scenario } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { DRY_PAGE } from './pages.js';
-import { FAST, makeProject, makeScenario, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, tempDir, testHookRunner } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 
 let server: TestServer;
@@ -37,7 +38,15 @@ afterAll(async () => {
 
 function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<RunRecord> {
   const project = makeProject(dir, { app: server.url });
-  return runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario(name, { pacing: FAST, ...scenario }), mode: 'dry', runId: `${name}-${Date.now()}`, ...opts });
+  return runScenario({
+    policy: PERSON_POLICY,
+    project,
+    scenario: makeScenario(name, { pacing: FAST, ...scenario }),
+    mode: 'dry',
+    runId: `${name}-${Date.now()}`,
+    hookRunner: testHookRunner(),
+    ...opts,
+  });
 }
 
 const HOOKS = {
@@ -52,20 +61,24 @@ describe('pausing a run between steps', () => {
     const events: RunProgress[] = [];
     let duringPause: RunRecord | undefined;
     let runDir = '';
-    const rec = await run('pause-dry', { scenes: THREE }, {
-      pause: gate,
-      onProgress: (e) => {
-        events.push(e);
-        if (e.type === 'run_start') runDir = e.run.dir;
-        if (e.type === 'step_end' && e.step === 0) gate.requested = true;
-        if (e.type === 'pause' && e.state === 'paused') {
-          setTimeout(() => {
-            void readFile(join(runDir, 'run.json'), 'utf8').then((t) => (duringPause = JSON.parse(t) as RunRecord));
-          }, 400);
-          setTimeout(() => (gate.requested = false), 1200);
-        }
+    const rec = await run(
+      'pause-dry',
+      { scenes: THREE },
+      {
+        pause: gate,
+        onProgress: (e) => {
+          events.push(e);
+          if (e.type === 'run_start') runDir = e.run.dir;
+          if (e.type === 'step_end' && e.step === 0) gate.requested = true;
+          if (e.type === 'pause' && e.state === 'paused') {
+            setTimeout(() => {
+              void readFile(join(runDir, 'run.json'), 'utf8').then((t) => (duringPause = JSON.parse(t) as RunRecord));
+            }, 400);
+            setTimeout(() => (gate.requested = false), 1200);
+          }
+        },
       },
-    });
+    );
     expect(rec.status, rec.error?.message).toBe('succeeded');
     expect(rec.steps_done).toBe(3);
     expect(duringPause?.paused).toMatchObject({ scene: 'one', step: 1 });
@@ -85,31 +98,43 @@ describe('pausing a run between steps', () => {
     // Between step 0's end and step 1's start: paused, then resumed.
     const order = events.filter((e) => e.type === 'pause' || e.type === 'step_start' || e.type === 'step_end').map((e) => (e.type === 'pause' ? `pause ${e.state} ${e.step}` : `${e.type} ${e.step}`));
     expect(order).toEqual(['step_start 0', 'step_end 0', 'pause paused 1', 'pause resumed 1', 'step_start 1', 'step_end 1', 'step_start 2', 'step_end 2']);
-    const log = (await readFile(join(rec.dir, 'log.jsonl'), 'utf8')).split('\n').filter(Boolean).map((l) => JSON.parse(l) as RunProgress);
+    const log = (await readFile(join(rec.dir, 'log.jsonl'), 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as RunProgress);
     expect(log.filter((e) => e.type === 'pause').map((e) => (e as { state: string }).state)).toEqual(['paused', 'resumed']);
   });
 
-  it('a cancel while paused ends the wait at once: cancelled, the teardown and the setup\'s rollback still run, no `paused` left', async () => {
+  it("a cancel while paused ends the wait at once: cancelled, the teardown and the setup's rollback still run, no `paused` left", async () => {
     const gate = { requested: true };
     const ac = new AbortController();
     const from = server.hits.length;
     let pausedAt = 0;
-    const rec = await run('pause-cancel', { ...HOOKS, scenes: THREE }, {
-      pause: gate,
-      hooks: 'run',
-      signal: ac.signal,
-      onProgress: (e) => {
-        if (e.type === 'pause' && e.state === 'paused') {
-          pausedAt = Date.now();
-          setTimeout(() => ac.abort(), 300);
-        }
+    const rec = await run(
+      'pause-cancel',
+      { ...HOOKS, scenes: THREE },
+      {
+        pause: gate,
+        hooks: 'run',
+        signal: ac.signal,
+        onProgress: (e) => {
+          if (e.type === 'pause' && e.state === 'paused') {
+            pausedAt = Date.now();
+            setTimeout(() => ac.abort(), 300);
+          }
+        },
       },
-    });
+    );
     expect(Date.now() - pausedAt).toBeLessThan(5000);
     expect(rec.status).toBe('cancelled');
     expect(rec.steps_done).toBe(0);
     expect(rec.hooks).toEqual({ setup: 'ok', teardown: 'ok' });
-    expect(server.hits.slice(from).filter((h) => h.path === '/arm' || h.path === '/reset').map((h) => `${h.method} ${h.path}`)).toEqual(['POST /arm', 'POST /reset', 'DELETE /arm']);
+    expect(
+      server.hits
+        .slice(from)
+        .filter((h) => h.path === '/arm' || h.path === '/reset')
+        .map((h) => `${h.method} ${h.path}`),
+    ).toEqual(['POST /arm', 'POST /reset', 'DELETE /arm']);
     expect(rec.paused).toBeUndefined();
     expect(rec.pauses).toHaveLength(1);
     expect(rec.pauses![0]).toMatchObject({ scene: 'one', step: 0 });

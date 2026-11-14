@@ -47,7 +47,11 @@ const TEXT_FIELD = 'input:is([type="text"], [type="search"], [type="url"], [type
 
 /** Where the focus starts: the default action when it is on, else the first text field, else the first action that is on. */
 export function firstFocus(d: HTMLElement): HTMLElement | null {
-  return d.querySelector<HTMLElement>('[data-default="yes"]:not(:disabled)') ?? d.querySelector<HTMLElement>(`.k-sheet-content :is(${TEXT_FIELD}, textarea:not(:disabled):not([readonly]))`) ?? d.querySelector<HTMLElement>('.k-sheet-actions button:not(:disabled)');
+  return (
+    d.querySelector<HTMLElement>('[data-default="yes"]:not(:disabled)') ??
+    d.querySelector<HTMLElement>(`.k-sheet-content :is(${TEXT_FIELD}, textarea:not(:disabled):not([readonly]))`) ??
+    d.querySelector<HTMLElement>('.k-sheet-actions button:not(:disabled)')
+  );
 }
 
 /** The action Return chooses: the one marked default unless it is destructive, else the cancel action. */

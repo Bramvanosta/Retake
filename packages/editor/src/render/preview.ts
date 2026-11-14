@@ -18,15 +18,16 @@
  * registry and the scaffolds — one bundle per registry state, shared by every library job — instead of the components
  * shown. The Remotion part is a `PreviewBackend` (tests inject their own).
  */
-import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { STARTER_TEMPLATES_DIR, assertOutsideBundle, ffmpegBin, loadTemplate } from '@retake/core/io';
-import { pathInside } from '@retake/core';
-import type { GpuInfo, LoadedTemplate, RenderSettings, WorkPolicy, WorkFileFacts } from '@retake/core';
+import { STARTER_TEMPLATES_DIR, assertOutsideBundle, ffmpegBin, loadTemplate, runMediaTool } from '@retake/core/io';
+import { pathInside } from '@retake/core/base';
+import type { LoadedTemplate, RenderSettings, WorkFileFacts } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { GpuInfo } from '@retake/core/render';
 import {
   PREVIEW_FILE,
   PREVIEW_FORMAT,
@@ -45,6 +46,7 @@ import {
 import type { ComponentManifest, ComponentRegistry, JsonSchemaNode, PreviewMeta } from '@retake/components';
 import { buildComponentPreview, loadPreviewSamples } from '../preview.js';
 import type { BuiltPreview, ComponentPreviewSpec, PreviewSamples } from '../preview.js';
+import { PREVIEW_COMPOSITION, previewProps } from '../remotion/contract.js';
 import { startAssetServer } from './asset-server.js';
 import { assertRenderBrowser, renderBrowser } from './browser.js';
 import { ensureBundle, registryBundleComponents, scaffoldComponents } from './bundle.js';
@@ -55,6 +57,11 @@ import { guardEncoderPipe } from './render.js';
 import type { RenderNetwork } from './render.js';
 import { openRenderBrowser, renderPolicy } from './policy.js';
 import { RenderCancelledError, RenderDiskFullError, RenderError, isDiskFullError } from './types.js';
+import { errorKindOf } from '@retake/core/base';
+import { handedDriver } from './driver-guard.js';
+import { rendererLibrary } from './library.js';
+import type { RenderBrowserHandle } from './library.js';
+import type { DriverPreviewBundle, DriverPreviewSession, DriverPreviews, RenderDriver } from './driver-types.js';
 
 /** The starter templates shipped with Retake (default, editorial, motion). */
 export { STARTER_TEMPLATES_DIR };
@@ -68,8 +75,8 @@ export async function loadPreviewTheme(nameOrDir: string, root: string, files: W
   return loadTemplate(nameOrDir, root, { files });
 }
 
-/** Composition id of component previews (see ../remotion/Root.tsx). */
-export const PREVIEW_COMPOSITION = 'ComponentPreview';
+/** Composition id of component previews (written once, in ../remotion/contract.ts). */
+export { PREVIEW_COMPOSITION };
 
 /**
  * The looping previews of the Studio library (R-UI-06b): GIF 640×360 at 15 fps (every second frame of the 30 fps
@@ -119,7 +126,7 @@ export interface PreviewBackend {
     /** What the work runs under (core WorkPolicy). */
     workPolicy: WorkPolicy;
     /** Tests: the browser's GPU status. */
-    gpuInfo?: (browser: { connection: unknown }) => Promise<GpuInfo | undefined>;
+    gpuInfo?: (browser: RenderBrowserHandle) => Promise<GpuInfo | undefined>;
   }): Promise<PreviewRenderer>;
 }
 
@@ -155,7 +162,9 @@ interface PreviewSessionOptions {
   onWarnings?: (warnings: string[]) => void;
   /** Bundle the components shown (default) or the whole registry. */
   bundle?: PreviewBundleMode;
-  /** Tests: render with this instead of Remotion. */
+  /** What renders the previews (no such key: this package's driver — Remotion, with `cacheDir`; with one, `cacheDir` and `backend` are refused: driver-guard.ts). */
+  renderer?: Pick<RenderDriver, 'previews'>;
+  /** Tests of this package, standalone: render with this instead of Remotion. Never beside `renderer` (refused). */
   backend?: PreviewBackend;
   /** Render settings over the process's (./policy.ts). */
   settings?: RenderSettings;
@@ -251,25 +260,16 @@ export interface RenderLoopsResult {
   warnings: string[];
 }
 
-function run(cmd: string, args: string[]): Promise<{ code: number; stderr: string }> {
-  return new Promise((ok) => {
-    execFile(cmd, args, { maxBuffer: 8 * 1024 * 1024 }, (err, _stdout, stderr) => {
-      const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 127) : 0;
-      ok({ code, stderr: String(stderr) });
-    });
-  });
-}
-
 /**
  * A 256-colour PNG of `src` (ffmpeg palettegen + paletteuse, light ordered dithering: no banding on the theme
  * gradients). Returns false when ffmpeg is not available.
  */
 async function quantizePng(src: string, out: string, work: WorkPolicy): Promise<boolean> {
-  const r = await run(ffmpegBin(work), [
-    '-v', 'error', '-y', '-i', src,
-    '-vf', 'split[a][b];[a]palettegen=max_colors=256:stats_mode=full[p];[b][p]paletteuse=dither=bayer:bayer_scale=4',
-    '-frames:v', '1', out,
-  ]);
+  const r = await runMediaTool(
+    ffmpegBin(work),
+    ['-v', 'error', '-y', '-i', src, '-vf', 'split[a][b];[a]palettegen=max_colors=256:stats_mode=full[p];[b][p]paletteuse=dither=bayer:bayer_scale=4', '-frames:v', '1', out],
+    { maxBuffer: 8 * 1024 * 1024 },
+  );
   return r.code === 0;
 }
 
@@ -332,7 +332,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
   async open(o) {
     const browser = renderBrowser();
     const browserExe = assertRenderBrowser(browser, o.workPolicy);
-    const { openBrowser, renderMedia, renderStill, selectComposition, makeCancelSignal } = await import('@remotion/renderer');
+    const { openBrowser, renderMedia, renderStill, selectComposition, makeCancelSignal } = await rendererLibrary();
     const policy = renderPolicy(o.workPolicy, o.settings);
     guardEncoderPipe();
     let opened: Awaited<ReturnType<typeof openRenderBrowser<Awaited<ReturnType<typeof openBrowser>>>>>;
@@ -383,7 +383,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
         ...common,
         serveUrl: o.serveUrl,
         id: PREVIEW_COMPOSITION,
-        inputProps: { preview: spec },
+        inputProps: previewProps(spec),
         puppeteerInstance: puppeteer,
         browserExecutable: executable,
         ...(remotion.port !== undefined ? { port: remotion.port } : {}),
@@ -391,20 +391,22 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
     return {
       async still(spec, out, scale) {
         const composition = await select(spec);
-        await plainly(() => renderStill({
-          ...common,
-          composition,
-          serveUrl: o.serveUrl,
-          frame: spec.frame,
-          output: out,
-          imageFormat: 'png',
-          scale,
-          overwrite: true,
-          inputProps: { preview: spec },
-          puppeteerInstance: puppeteer,
-          browserExecutable: executable,
-          ...remotion,
-        }));
+        await plainly(() =>
+          renderStill({
+            ...common,
+            composition,
+            serveUrl: o.serveUrl,
+            frame: spec.frame,
+            output: out,
+            imageFormat: 'png',
+            scale,
+            overwrite: true,
+            inputProps: previewProps(spec),
+            puppeteerInstance: puppeteer,
+            browserExecutable: executable,
+            ...remotion,
+          }),
+        );
       },
       async gif(spec, out, g) {
         const composition = await select(spec);
@@ -412,24 +414,26 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
         const onAbort = () => cancel();
         o.signal?.addEventListener('abort', onAbort);
         try {
-          await plainly(() => renderMedia({
-            ...common,
-            composition,
-            serveUrl: o.serveUrl,
-            codec: 'gif',
-            scale: g.scale,
-            everyNthFrame: g.everyNthFrame,
-            numberOfGifLoops: null,
-            frameRange: g.frames,
-            outputLocation: out,
-            overwrite: true,
-            inputProps: { preview: spec },
-            cancelSignal,
-            puppeteerInstance: puppeteer,
-            browserExecutable: executable,
-            ...(opened.chromium.gl ? { chromiumOptions: opened.chromium } : {}),
-            ...remotion,
-          }));
+          await plainly(() =>
+            renderMedia({
+              ...common,
+              composition,
+              serveUrl: o.serveUrl,
+              codec: 'gif',
+              scale: g.scale,
+              everyNthFrame: g.everyNthFrame,
+              numberOfGifLoops: null,
+              frameRange: g.frames,
+              outputLocation: out,
+              overwrite: true,
+              inputProps: previewProps(spec),
+              cancelSignal,
+              puppeteerInstance: puppeteer,
+              browserExecutable: executable,
+              ...(opened.chromium.gl ? { chromiumOptions: opened.chromium } : {}),
+              ...remotion,
+            }),
+          );
         } finally {
           o.signal?.removeEventListener('abort', onAbort);
         }
@@ -439,6 +443,56 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
     };
   },
 };
+
+/**
+ * A preview backend as the previews of a render driver: the bundle's serve URL stays here (a bundle of another driver
+ * is refused), `cacheDir` and `gpuInfo` are the driver's own, and a closed session refuses to render.
+ */
+export function previewDriver(backend: PreviewBackend = REMOTION_PREVIEW_BACKEND, d: { cacheDir?: string; gpuInfo?: Parameters<PreviewBackend['open']>[0]['gpuInfo'] } = {}): DriverPreviews {
+  const served = new WeakMap<DriverPreviewBundle, string>();
+  return {
+    async bundle(o) {
+      const b = await backend.bundle({ root: o.root, components: o.components, ...(d.cacheDir ? { cacheDir: d.cacheDir } : {}), ...(o.signal ? { signal: o.signal } : {}) });
+      const bundle: DriverPreviewBundle = Object.freeze({ hash: b.hash, cached: b.cached });
+      served.set(bundle, b.serveUrl);
+      return bundle;
+    },
+    async open(bundle, o) {
+      const serveUrl = served.get(bundle);
+      if (serveUrl === undefined) throw new RenderError('this preview bundle was made by another renderer');
+      const session = await backend.open({
+        serveUrl,
+        assetPrefix: o.assets,
+        ...(o.network ? { network: o.network } : {}),
+        ...(o.signal ? { signal: o.signal } : {}),
+        ...(o.onProcess ? { onBrowser: o.onProcess } : {}),
+        ...(o.settings ? { settings: o.settings } : {}),
+        workPolicy: o.workPolicy,
+        ...(d.gpuInfo ? { gpuInfo: d.gpuInfo } : {}),
+      });
+      let closed = false;
+      const ready = (): void => {
+        if (closed) throw new RenderError('this preview session is closed');
+      };
+      return {
+        still: async (spec, out, scale) => {
+          ready();
+          await session.still(spec, out, scale);
+        },
+        gif: async (spec, out, g) => {
+          ready();
+          await session.gif(spec, out, g);
+        },
+        warnings: () => session.warnings(),
+        close: async () => {
+          if (closed) return;
+          closed = true;
+          await session.close();
+        },
+      };
+    },
+  };
+}
 
 type Variant = 'still' | 'motion';
 
@@ -453,7 +507,7 @@ interface SessionItem<J extends SessionJob> {
 }
 
 interface SessionContext {
-  renderer: PreviewRenderer;
+  renderer: DriverPreviewSession;
   /** A scratch folder of this session (removed at its end). */
   scratch: string;
   /** What the work runs under (core WorkPolicy): the ffmpeg that quantizes a poster. */
@@ -482,10 +536,12 @@ async function previewSession<J extends SessionJob, R>(
 ): Promise<{ results: Array<{ job: J; value: R }>; failed: Array<SessionFailure<J>>; bundle: { hash: string; cached: boolean } | null; warnings: string[] }> {
   const failed: Array<SessionFailure<J>> = [];
   const results: Array<{ job: J; value: R }> = [];
+  // A renderer handed renders the previews, alone (with `backend` or `cacheDir` beside it the session is refused:
+  // driver-guard.ts); standalone, the previews are this package's, on `backend` when a test hands one.
+  const previews = handedDriver('preview', opts, 'previews')?.previews ?? previewDriver(opts.backend ?? REMOTION_PREVIEW_BACKEND, opts.cacheDir ? { cacheDir: opts.cacheDir } : {});
   if (jobs.length === 0) return { results, failed, bundle: null, warnings: [] };
   cancelled(opts.signal);
   const root = resolve(opts.root);
-  const backend = opts.backend ?? REMOTION_PREVIEW_BACKEND;
   const registry = opts.registry ?? (await loadComponentRegistry({ root }));
   const samples = opts.samples ?? loadPreviewSamples();
   const server = await startAssetServer();
@@ -531,7 +587,7 @@ async function previewSession<J extends SessionJob, R>(
     await server.close();
     return { results, failed, bundle: null, warnings: [] };
   }
-  let renderer: PreviewRenderer | undefined;
+  let renderer: DriverPreviewSession | undefined;
   const scratch = join(tmpdir(), `retake-preview-${process.pid}-${randomBytes(4).toString('hex')}`);
   try {
     const targets = built.map((b) => b.job.target);
@@ -539,21 +595,20 @@ async function previewSession<J extends SessionJob, R>(
       opts.bundle === 'registry'
         ? await registryPreviewComponents(targets, registry)
         : await previewBundleComponents(targets, [...new Set(built.flatMap((b) => Object.values(b.previews).flatMap((p) => p!.components)))], registry);
-    let bundle: Awaited<ReturnType<PreviewBackend['bundle']>>;
+    let bundle: DriverPreviewBundle;
     try {
-      bundle = await backend.bundle({ root, components, ...(opts.cacheDir ? { cacheDir: opts.cacheDir } : {}), ...(opts.signal ? { signal: opts.signal } : {}) });
+      bundle = await previews.bundle({ root, components, ...(opts.signal ? { signal: opts.signal } : {}) });
     } catch (e) {
-      if (o.bundleFailure !== 'items' || e instanceof RenderCancelledError || opts.signal?.aborted || isDiskFullError(e)) throw e;
+      if (o.bundleFailure !== 'items' || errorKindOf(e) === 'cancelled' || opts.signal?.aborted || isDiskFullError(e)) throw e;
       for (const b of built) fail(b.job, e, 'its preview could not be bundled', 'bundle');
       return { results, failed, bundle: null, warnings: [] };
     }
     const open = () =>
-      backend.open({
-        serveUrl: bundle.serveUrl,
-        assetPrefix: server.prefix,
+      previews.open(bundle, {
+        assets: server.prefix,
         ...(opts.network ? { network: opts.network } : {}),
         ...(opts.signal ? { signal: opts.signal } : {}),
-        ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
+        ...(opts.onBrowser ? { onProcess: opts.onBrowser } : {}),
         ...(opts.settings ? { settings: opts.settings } : {}),
         workPolicy: opts.workPolicy,
       });
@@ -566,7 +621,7 @@ async function previewSession<J extends SessionJob, R>(
       try {
         results.push({ job: item.job, value: await each({ renderer, scratch, workPolicy: opts.workPolicy }, item, i) });
       } catch (e) {
-        if (e instanceof RenderCancelledError || opts.signal?.aborted) throw new RenderCancelledError();
+        if (errorKindOf(e) === 'cancelled' || opts.signal?.aborted) throw new RenderCancelledError();
         if (isDiskFullError(e)) throw new RenderDiskFullError(`preview of ${item.job.target.id}: ${(e as Error).message}`);
         fail(item.job, e, 'its preview failed', 'render');
         if (i < built.length - 1) {
@@ -583,7 +638,7 @@ async function previewSession<J extends SessionJob, R>(
     return { results, failed, bundle: { hash: bundle.hash, cached: bundle.cached }, warnings: [...warnings] };
   } catch (e) {
     if (e instanceof RenderError) throw e;
-    if (opts.signal?.aborted) throw new RenderCancelledError();
+    if (opts.signal?.aborted || errorKindOf(e) === 'cancelled') throw new RenderCancelledError();
     if (isDiskFullError(e)) throw new RenderDiskFullError(`component previews: ${(e as Error).message}`);
     throw new RenderError(`component previews failed: ${(e as Error).message}`);
   } finally {

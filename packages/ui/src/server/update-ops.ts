@@ -41,7 +41,6 @@ export const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const versionOk = (v: unknown): v is string => typeof v === 'string' && v.length <= 64 && VERSION_RE.test(v);
 const bytesOk = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 const checkedOk = (v: unknown): v is number | null => v === null || (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0);
-// eslint-disable-next-line no-control-regex
 const BAD_NOTE_CHARS = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
 
 export type UpdateLine =
@@ -86,13 +85,24 @@ export function parseUpdateLine(o: Record<string, unknown>): UpdateLine | null {
       return { type: 'update', state, current, version: o.version, notes: o.notes, checked: o.checked };
     case 'downloading':
       // BL-167: the bytes received so far, of the size the server announced (null: none).
-      return versionOk(o.version) && bytesOk(o.received) && (o.total === null || (bytesOk(o.total) && o.total > 0)) ? { type: 'update', state, current, version: o.version, received: o.received, total: o.total as number | null } : null;
+      return versionOk(o.version) && bytesOk(o.received) && (o.total === null || (bytesOk(o.total) && o.total > 0))
+        ? { type: 'update', state, current, version: o.version, received: o.received, total: o.total as number | null }
+        : null;
     case 'installing':
       return versionOk(o.version) ? { type: 'update', state, current, version: o.version } : null;
     case 'waiting':
-      return versionOk(o.version) && typeof o.jobs === 'number' && Number.isInteger(o.jobs) && o.jobs >= 1 && o.jobs <= 1_000_000 ? { type: 'update', state, current, version: o.version, jobs: o.jobs } : null;
+      return versionOk(o.version) && typeof o.jobs === 'number' && Number.isInteger(o.jobs) && o.jobs >= 1 && o.jobs <= 1_000_000
+        ? { type: 'update', state, current, version: o.version, jobs: o.jobs }
+        : null;
     case 'failed':
-      if (!(UPDATE_FAILURES as readonly unknown[]).includes(o.failure) || !(o.version === null || versionOk(o.version)) || !checkedOk(o.checked) || typeof o.retry !== 'boolean' || (o.retry && o.version === null)) return null;
+      if (
+        !(UPDATE_FAILURES as readonly unknown[]).includes(o.failure) ||
+        !(o.version === null || versionOk(o.version)) ||
+        !checkedOk(o.checked) ||
+        typeof o.retry !== 'boolean' ||
+        (o.retry && o.version === null)
+      )
+        return null;
       return { type: 'update', state, current, failure: o.failure as (typeof UPDATE_FAILURES)[number], version: o.version as string | null, checked: o.checked, retry: o.retry };
   }
 }
@@ -160,7 +170,7 @@ export function updateOps(o: { pipe: DesktopPipe; state: UpdateState }) {
     input: z.strictObject({}),
     annotations: READ,
     async run(): Promise<ToolOutput<UpdateStatus>> {
-      if (!pipe.supervised) return { summary: 'updates: not the desktop app\'s server', data: { available: false, reason: 'not_supervised' } };
+      if (!pipe.supervised) return { summary: "updates: not the desktop app's server", data: { available: false, reason: 'not_supervised' } };
       const l = state.last;
       if (!l) return { summary: 'updates: nothing said yet', data: { available: true, state: 'unknown' } };
       const { type: _t, ...fields } = l;
@@ -176,12 +186,15 @@ export function updateOps(o: { pipe: DesktopPipe; state: UpdateState }) {
   const click = defineTool({
     name: 'desktop_update',
     title: 'Install the update, or later',
-    description: "Install and Restart (the desktop app downloads and checks the update, waits for this workspace's jobs, asks about unsaved text, then restarts) or Later. The desktop app's own server only; the person's click.",
+    description:
+      "Install and Restart (the desktop app downloads and checks the update, waits for this workspace's jobs, asks about unsaved text, then restarts) or Later. The desktop app's own server only; the person's click.",
     input: ClickInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     async run(a) {
-      if (!pipe.supervised) throw new EngineError('conflict', 'this Studio server is not the desktop app\'s (not supervised): there is no update to install here', { details: { reason: 'not_supervised' } });
-      if (a.action === 'install' && !installable(state.last)) throw new EngineError('conflict', 'no update to install (the app has not found one): Help › Check for Updates…', { details: { reason: 'no_update' } });
+      if (!pipe.supervised)
+        throw new EngineError('conflict', "this Studio server is not the desktop app's (not supervised): there is no update to install here", { details: { reason: 'not_supervised' } });
+      if (a.action === 'install' && !installable(state.last))
+        throw new EngineError('conflict', 'no update to install (the app has not found one): Help › Check for Updates…', { details: { reason: 'no_update' } });
       if (!state.take()) throw new EngineError('busy', `too many update clicks this minute (at most ${UPDATE_CLICKS_PER_MIN}): wait a moment`, { details: { reason: 'rate' } });
       pipe.update(a.action);
       return { summary: a.action === 'install' ? 'install asked' : 'later', data: { ok: true } };

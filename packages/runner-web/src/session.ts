@@ -3,8 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
-import { gpuInfoOf } from '@retake/core';
-import type { BrowserConfig, GpuInfo, PageHttpCredentials, ResolvedClock, SystemInfoReply, WorkPolicy } from '@retake/core';
+import { gpuInfoOf } from '@retake/core/render';
+import type { BrowserConfig, ResolvedClock } from '@retake/core/model';
+import type { PageHttpCredentials } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { GpuInfo, SystemInfoReply } from '@retake/core/render';
 import { registerSessionCopy } from './copies.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { RunnerError, StepError } from './errors.js';
@@ -40,7 +43,8 @@ import type {
   ScrollInfo,
   ScrollOp,
 } from './kit/types.js';
-import type { BBox, NearElement, PointSpec, TargetObject } from '@retake/core';
+import type { BBox, NearElement, PointSpec, TargetObject } from '@retake/core/model';
+import { bestEffort } from '@retake/core/base';
 
 export interface SessionOptions {
   /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
@@ -228,7 +232,10 @@ function isContextDestroyed(e: unknown): boolean {
 
 function cleanEvalError(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
-  return m.replace(/^page\.evaluate: /, '').replace(/^Error: /, '').split('\n    at ')[0];
+  return m
+    .replace(/^page\.evaluate: /, '')
+    .replace(/^Error: /, '')
+    .split('\n    at ')[0];
 }
 
 /** The page replaced its document during a kit call that must not be retried (`KitClient.callOnce`). */
@@ -543,7 +550,12 @@ export class BrowserSession {
       throw failed.reason;
     }
     for (const r of launched) if (r.status === 'fulfilled') session.adopt(r.value);
-    for (const realm of session.realms) for (const p of realm.context.pages()) await session.kit(p).install().catch(() => undefined);
+    for (const realm of session.realms)
+      for (const p of realm.context.pages())
+        await session
+          .kit(p)
+          .install()
+          .catch(() => undefined);
     return session;
   }
 
@@ -585,7 +597,7 @@ export class BrowserSession {
     let p = this.browserCdp.get(realm);
     if (!p) {
       const browser = realm.context.browser();
-      p = browser ? browser.newBrowserCDPSession().catch(() => null) : Promise.resolve(null);
+      p = browser ? bestEffort(browser.newBrowserCDPSession(), 'a browser without a browser-level session is not measured', null) : Promise.resolve(null);
       this.browserCdp.set(realm, p);
     }
     return p;
@@ -723,9 +735,7 @@ export class BrowserSession {
     const script = productClockScript(c);
     await context.addInitScript({ content: script });
     const pages = context.pages().filter((p) => !isRealTimePage(p));
-    await Promise.all(
-      pages.flatMap((p) => [...p.frames().map((f) => f.evaluate(script).catch(() => undefined)), ...p.workers().map((w) => w.evaluate(script).catch(() => undefined))]),
-    );
+    await Promise.all(pages.flatMap((p) => [...p.frames().map((f) => f.evaluate(script).catch(() => undefined)), ...p.workers().map((w) => w.evaluate(script).catch(() => undefined))]));
   }
 
   /** The page being recorded and acted on. */
@@ -861,9 +871,9 @@ export class BrowserSession {
     await s.send('Emulation.setTouchEmulationEnabled', vp.touch ? { enabled: true, maxTouchPoints: 5 } : { enabled: false });
     if (vp.mobile) {
       e.ua ??= await page.evaluate(() => navigator.userAgent).catch(() => undefined);
-      if (e.ua) await s.send('Emulation.setUserAgentOverride', { userAgent: mobileUserAgent(e.ua) }).catch(() => undefined);
+      if (e.ua) await bestEffort(s.send('Emulation.setUserAgentOverride', { userAgent: mobileUserAgent(e.ua) }), "a page closing as it opens keeps the browser's own user agent");
     } else if (e.ua) {
-      await s.send('Emulation.setUserAgentOverride', { userAgent: e.ua }).catch(() => undefined);
+      await bestEffort(s.send('Emulation.setUserAgentOverride', { userAgent: e.ua }), "a page closing as it opens keeps the browser's own user agent");
     }
   }
 
@@ -895,7 +905,7 @@ export class BrowserSession {
   close(): Promise<void> {
     this.closed = true;
     this.closing ??= (async () => {
-      const late = await Promise.all([...this.launching.values()].map((p) => p.catch(() => null)));
+      const late = await Promise.all([...this.launching.values()].map((p) => bestEffort(p, 'a browser that failed to launch has nothing to close', null)));
       for (const r of late) if (r && !this.realms.includes(r)) this.realms.push(r);
       // A read-only run: what the pages send while they unload still meets the guard (write-guard.ts).
       await Promise.all(this.realms.map((r) => unloadPages(r.context)));
@@ -906,8 +916,8 @@ export class BrowserSession {
 }
 
 // The GPU status reading moved to core (L5.15: the render browser reads it too); re-exported for this package's users.
-export { gpuInfoOf } from '@retake/core';
-export type { GpuInfo, SystemInfoReply } from '@retake/core';
+export { gpuInfoOf } from '@retake/core/render';
+export type { GpuInfo, SystemInfoReply } from '@retake/core/render';
 
 /** Launch one realm: a persistent context with the kit, the bindings, the notification permission and its session. */
 async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string, session: BrowserSession): Promise<Realm> {
@@ -950,9 +960,7 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
   } catch (e) {
     if (temp) await rm(temp, { recursive: true, force: true }).catch(() => undefined);
     const m = e instanceof Error ? e.message : String(e);
-    const hint = /ProcessSingleton|profile.*in use|SingletonLock/i.test(m)
-      ? ` — the profile ${userDataDir} is already in use by another browser (close it, e.g. the login window)`
-      : '';
+    const hint = /ProcessSingleton|profile.*in use|SingletonLock/i.test(m) ? ` — the profile ${userDataDir} is already in use by another browser (close it, e.g. the login window)` : '';
     throw new RunnerError(`could not launch Chromium${spec.name ? ` (persona ${spec.name})` : ''}${hint}: ${m.split('\n')[0]}`, { cause: e });
   }
   try {
@@ -1019,7 +1027,7 @@ export async function armFileGuard(context: BrowserContext, persona = ''): Promi
     const call = /^file:/i.test(e.request.url)
       ? cdp.send('Fetch.failRequest', { requestId: e.requestId, errorReason: 'BlockedByClient' })
       : cdp.send('Fetch.continueRequest', { requestId: e.requestId });
-    call.catch(() => undefined);
+    bestEffort(call, 'a request of a page that is gone goes with it');
   });
   try {
     await cdp.send('Fetch.enable', { patterns: [{ urlPattern: 'file:*' }] });

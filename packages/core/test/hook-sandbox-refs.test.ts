@@ -10,6 +10,10 @@ import { agentTrustProblems, agentTrustProblemsAt, parseSandboxYaml, personaAuth
 import type { Scenario, ValidationIssue } from '@retake/core';
 import { nodeFileFacts } from '@retake/core/io';
 import { errors, fakeProject } from './helpers.js';
+import { memoryFileFacts } from '@retake/core';
+
+/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+const NO_DISK = memoryFileFacts({});
 
 const msgs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
 
@@ -18,8 +22,7 @@ const project = () =>
     auth: { login_url: '/sign-in', personas: { buyer: { pages: ['console'] }, admin: { pages: ['console'] } } },
   });
 
-const scenario = (extra: Record<string, unknown>): Scenario =>
-  ({ video: 'x', scenes: [{ id: 'a', page: 'console', steps: [{ click: { text: 'Go' } }] }], ...extra }) as unknown as Scenario;
+const scenario = (extra: Record<string, unknown>): Scenario => ({ video: 'x', scenes: [{ id: 'a', page: 'console', steps: [{ click: { text: 'Go' } }] }], ...extra }) as unknown as Scenario;
 
 describe('sandbox references and auth in hooks (hotfix v0.2.3)', () => {
   it('a scenario hook may read {{compose_env:…}} and {{accounts.<persona>.…}} and act as a persona', () => {
@@ -37,7 +40,7 @@ describe('sandbox references and auth in hooks (hotfix v0.2.3)', () => {
       ],
       hooks: { reply: { http: { method: 'POST', url: '{{console}}/api/replies', auth: { persona: 'buyer' } } } },
     });
-    expect(msgs(validateScenario(sc, { project: project() }))).toEqual([]);
+    expect(msgs(validateScenario(sc, { files: NO_DISK, project: project() }))).toEqual([]);
   });
 
   it('refuses: in a scene, a malformed account reference, an unknown persona, a header beside auth', () => {
@@ -49,7 +52,7 @@ describe('sandbox references and auth in hooks (hotfix v0.2.3)', () => {
         { http: { url: '{{console}}/z', auth: { persona: 'buyer' }, headers: { Authorization: 'Bearer x' } } },
       ],
     });
-    expect(msgs(validateScenario(sc, { project: project() }))).toEqual([
+    expect(msgs(validateScenario(sc, { files: NO_DISK, project: project() }))).toEqual([
       "setup.2.http.headers.Authorization: `auth: {persona}` sets the Authorization header from the persona's session: remove one of the two",
       'setup.0.http.url: unknown template key {{accounts.admin.token}}; a sandbox account is read as {{accounts.<persona>.username}} or {{accounts.<persona>.password}}',
       "scenes.0.steps.0.type.text: {{compose_env:API_KEY}} reads a sandbox's compose env file: it is available in hooks (run on a sandbox environment) and as an account's username or password in sandbox.yaml",
@@ -76,10 +79,18 @@ seed:
   });
 
   it('through MCP a scenario never names a sandbox secret (it acts as a persona with auth instead)', () => {
-    const refused = agentTrustProblems({ dir: '/nonexistent/northfield' }, scenario({ setup: [{ http: { url: '{{console}}/x', json: { p: '{{accounts.admin.password}}', k: '{{compose_env:API_KEY}}' } } }] }), { files: nodeFileFacts });
+    const refused = agentTrustProblems(
+      { dir: '/nonexistent/northfield' },
+      scenario({ setup: [{ http: { url: '{{console}}/x', json: { p: '{{accounts.admin.password}}', k: '{{compose_env:API_KEY}}' } } }] }),
+      { files: nodeFileFacts },
+    );
     expect(refused).toEqual([expect.stringContaining('the scenario uses {{accounts.admin.password}}, {{compose_env:API_KEY}}: through MCP a scenario never resolves a secret')]);
     // A username is not a secret.
-    expect(agentTrustProblems({ dir: '/nonexistent/northfield' }, scenario({ setup: [{ http: { url: '{{console}}/x', auth: { persona: 'admin' }, json: { e: '{{accounts.admin.username}}' } } }] }), { files: nodeFileFacts })).toEqual([]);
+    expect(
+      agentTrustProblems({ dir: '/nonexistent/northfield' }, scenario({ setup: [{ http: { url: '{{console}}/x', auth: { persona: 'admin' }, json: { e: '{{accounts.admin.username}}' } } }] }), {
+        files: nodeFileFacts,
+      }),
+    ).toEqual([]);
   });
 
   it("through MCP an http hook acting as a persona targets that persona's own pages only (its URL's origin is one of theirs)", () => {
@@ -90,7 +101,8 @@ seed:
     expect(agentTrustProblems(p, hook('{{console}}/api/replies'), files)).toEqual([]);
     expect(agentTrustProblems(p, hook('https://console.staging.example.com/api/x'), files)).toEqual([]);
     // Another page of the environment, another site, a host the agent's vars choose, a rollback elsewhere: refused.
-    const rule = /^setup\[0\]\.http(\.rollback)?\.url: through MCP an http hook acting as persona buyer \(`auth: \{persona\}`\) sends its session only to that persona's own pages \(https:\/\/console\.staging\.example\.com\)/;
+    const rule =
+      /^setup\[0\]\.http(\.rollback)?\.url: through MCP an http hook acting as persona buyer \(`auth: \{persona\}`\) sends its session only to that persona's own pages \(https:\/\/console\.staging\.example\.com\)/;
     for (const url of ['{{shop}}/api/x', 'https://elsewhere.example/collect', '{{vars.host}}/x', 'https://{{vars.sub}}.example.com/x', '{{console}}@elsewhere.example/x']) {
       const got = agentTrustProblems(p, hook(url), files);
       expect(got, url).toEqual([expect.stringMatching(rule)]);

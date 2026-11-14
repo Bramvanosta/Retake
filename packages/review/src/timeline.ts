@@ -3,8 +3,8 @@
  * markers, step spans, transitions, zooms, overlays and the clicks of the capture placed on the output — all in
  * output frames and seconds, so an agent or the Studio can say "at 00:23.4 the second click of scene X".
  */
-import type { Timeline } from '@retake/core';
-import type { EditPlan, RenderRecord, ResolvedComponent } from '@retake/editor/plan';
+import type { Timeline } from '@retake/core/model';
+import type { EditPlan, NamedRender, ResolvedComponent } from '@retake/editor/plan';
 import { mapPaneRect, mapSourceRect, paneIndexOf } from '@retake/editor/plan';
 import { isClip, meanSpeed, outputFrameOf, round, segmentSpans, transitionSpans } from './spans.js';
 
@@ -115,9 +115,8 @@ export function outputClicks(plan: EditPlan, timeline: Timeline | undefined): Ou
     // A widget (select, date pick…) records every click it made in `data.clicks`; other actions click once.
     const data = ev.data as { clicks?: Array<{ t_click?: number; point?: { x: number; y: number }; bbox?: OutputClick['bbox']; desc?: string }> } | undefined;
     const widget = Array.isArray(data?.clicks) ? data!.clicks.filter((c) => typeof c.t_click === 'number') : [];
-    const moments: Moment[] = widget.length > 0
-      ? widget.map((c) => ({ t: c.t_click!, point: c.point, bbox: c.bbox, desc: c.desc }))
-      : [{ t: ev.t_click, point: ev.point, bbox: ev.target?.bbox, desc: ev.target?.desc }];
+    const moments: Moment[] =
+      widget.length > 0 ? widget.map((c) => ({ t: c.t_click!, point: c.point, bbox: c.bbox, desc: c.desc })) : [{ t: ev.t_click, point: ev.point, bbox: ev.target?.bbox, desc: ev.target?.desc }];
     moments.forEach((m, i) => {
       for (const clip of plan.segments.filter(isClip)) {
         if (clip.scene !== ev.scene) continue;
@@ -150,7 +149,7 @@ export function outputClicks(plan: EditPlan, timeline: Timeline | undefined): Ou
   return out.sort((a, b) => a.frame - b.frame);
 }
 
-export function buildOutputTimeline(record: RenderRecord, timeline?: Timeline): OutputTimeline {
+export function buildOutputTimeline(record: NamedRender, timeline?: Timeline): OutputTimeline {
   const plan = record.plan;
   const fps = plan.fps;
   const s = (f: number) => round(f / fps, 3);

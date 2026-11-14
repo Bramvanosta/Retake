@@ -6,7 +6,7 @@
  * L5.16 Library hygiene: an MCP server a test starts gets CFFIXED_USER_HOME too — the SDK's stdio transport passes only
  * the variables it is given, and a server without it starts workers whose Chromium writes its crash reporter's
  * settings.dat into the account's ~/Library (the leak of the lot-end run).
- * L5.15 fixes (review B M3): those processes get the render pin of vitest.setup.ts too (child-env.ts testChildEnv).
+ * L5.15 fixes (review B M3): those processes get the render pin of vitest.setup.ts too (test-support child-env.ts testChildEnv).
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
@@ -14,11 +14,12 @@ import { homedir, tmpdir, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { retakeHome } from '../src/io/index.js';
-import { testChildEnv } from './child-env.js';
+import { testChildEnv } from '@retake/test-support/child-env';
+import { scratchHome, withHome } from '@retake/test-support/home';
 
 const REPO = join(import.meta.dirname, '..', '..', '..');
 
-/** Every .ts / .tsx / .mjs file under packages/<name>/test. */
+/** Every .ts / .tsx / .mjs file under packages/<name>/test, and the tests' shared helpers (packages/test-support/src: test code too). */
 function testFiles(): string[] {
   const files: string[] = [];
   const walk = (dir: string) => {
@@ -31,7 +32,7 @@ function testFiles(): string[] {
   };
   for (const pkg of readdirSync(join(REPO, 'packages'))) {
     try {
-      walk(join(REPO, 'packages', pkg, 'test'));
+      walk(join(REPO, 'packages', pkg, pkg === 'test-support' ? 'src' : 'test'));
     } catch {
       /* no test folder */
     }
@@ -40,7 +41,7 @@ function testFiles(): string[] {
 }
 
 describe('the test environment (vitest.config.ts)', () => {
-  it('L5.14: every test file films its takes in a marker folder of its own (0700, under the run\'s scratch parent), which its children inherit', () => {
+  it("L5.14: every test file films its takes in a marker folder of its own (0700, under the run's scratch parent), which its children inherit", () => {
     const dir = process.env.RETAKE_CAPTURES_DIR?.trim();
     const parent = process.env.RETAKE_TEST_CAPTURES?.trim();
     expect(dir).toBeTruthy();
@@ -54,6 +55,42 @@ describe('the test environment (vitest.config.ts)', () => {
   it('a test never runs on the real ~/.retake', () => {
     expect(process.env.RETAKE_HOME?.trim()).toBeTruthy();
     expect(retakeHome()).not.toBe(join(homedir(), '.retake'));
+  });
+
+  it("L7.37: the shared home helper points RETAKE_HOME at a test's folder and puts back what it found (the run's scratch home), the other variables named with it too, an unset one deleted again", async () => {
+    // Kept by hand here, the one place (the ratchet's home-restore entry): a broken helper must not leave its own test's home behind.
+    const run = process.env.RETAKE_HOME;
+    expect(run?.trim()).toBeTruthy();
+    const PROBE = 'RETAKE_TEST_HOME_HELPER_PROBE';
+    const SET = 'RETAKE_TEST_HOME_HELPER_SET';
+    expect(process.env[PROBE]).toBeUndefined();
+    try {
+      // Made on the run's home: use sets the test's own, restore puts the run's back.
+      const own = scratchHome();
+      expect(own.use('/scratch/own-home')).toBe('/scratch/own-home');
+      expect(process.env.RETAKE_HOME).toBe('/scratch/own-home');
+      own.restore();
+      expect(process.env.RETAKE_HOME).toBe(run);
+      // A variable named with it that was unset is deleted again; one that was set is put back.
+      process.env[SET] = 'before';
+      const both = scratchHome(PROBE, SET);
+      both.use('/scratch/other');
+      process.env[PROBE] = 'during';
+      process.env[SET] = 'during';
+      both.restore();
+      expect(PROBE in process.env).toBe(false);
+      expect(process.env[SET]).toBe('before');
+      expect(process.env.RETAKE_HOME).toBe(run);
+      // withHome: the home for one call, put back after it — also when it throws.
+      expect(await withHome('/scratch/call', () => process.env.RETAKE_HOME)).toBe('/scratch/call');
+      expect(process.env.RETAKE_HOME).toBe(run);
+      await expect(withHome('/scratch/throws', () => Promise.reject(new Error('boom')))).rejects.toThrow('boom');
+      expect(process.env.RETAKE_HOME).toBe(run);
+    } finally {
+      process.env.RETAKE_HOME = run;
+      Reflect.deleteProperty(process.env, PROBE);
+      Reflect.deleteProperty(process.env, SET);
+    }
   });
 
   it('vitest refuses a RETAKE_HOME that is a real home: ~/.retake, or a link to it (review A M3)', () => {
@@ -108,7 +145,7 @@ describe('the test environment (vitest.config.ts)', () => {
     expect(starts.filter((s) => !/CFFIXED_USER_HOME: process\.env\.CFFIXED_USER_HOME|\.\.\.process\.env\b|^testChildEnv$/.test(s.env)).map((s) => `${s.at}: ${s.env}`)).toEqual([]);
   });
 
-  it('L5.14a fixes (review B M2): every process environment a test builds by hand carries RETAKE_CAPTURES_DIR (a take there never writes the person\'s markers folder)', () => {
+  it("L5.14a fixes (review B M2): every process environment a test builds by hand carries RETAKE_CAPTURES_DIR (a take there never writes the person's markers folder)", () => {
     // A process started with an explicit environment (spawn / spawnSync / execFile / an MCP transport): an `env` literal
     // that names RETAKE_HOME (a scratch home) without spreading process.env must name RETAKE_CAPTURES_DIR too — directly, or
     // through the object it spreads (a file's `env` / `runEnv` set once and spread per start).
@@ -167,6 +204,13 @@ describe('the test environment (vitest.config.ts)', () => {
       }
     }
     expect(unpinned).toEqual([]);
+  });
+
+  it("L7.3: the render pin names the ffmpeg of the frames too — the rendering library's — in this process and in every process started through testChildEnv", () => {
+    if (process.env.RETAKE_TEST_RENDER_POLICY === 'keep') return;
+    expect(process.env.RETAKE_RENDER_FFMPEG).toBe('library');
+    expect(testChildEnv({ RETAKE_HOME: '/scratch/h' })).toMatchObject({ RETAKE_RENDER_FFMPEG: 'library', RETAKE_RENDER_GL: 'software', RETAKE_RENDER_ENCODER: 'libx264' });
+    expect(readFileSync(join(REPO, 'vitest.setup.ts'), 'utf8')).toMatch(/process\.env\.RETAKE_RENDER_FFMPEG = 'library';/);
   });
 
   it("the run's Library guard (vitest.teardown.mjs): the account's two Chromium files, a change reported, none when untouched", async () => {

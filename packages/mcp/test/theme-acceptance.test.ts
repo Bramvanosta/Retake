@@ -21,11 +21,12 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { parseYaml } from '@retake/core';
 import { readWorkerLock } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { TEMPLATES, linkSharedCache } from '../../editor/test/render-helpers.js';
-import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
-import type { BrandSite } from '../../runner-web/test/site-fixture.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { TEMPLATES } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
+import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '@retake/test-support/site';
+import type { BrandSite } from '@retake/test-support/site';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
@@ -69,7 +70,8 @@ async function follow(name: string, args: Record<string, unknown>, done: (r: Res
 
 const images = (r: Result) => r.content.filter((b) => b.type === 'image');
 const data = <T>(r: Result) => r.structuredContent as T;
-const finished = (x: Result) => ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(data<{ job?: { state: string }; state?: string }>(x).job?.state ?? data<{ state?: string }>(x).state ?? '');
+const finished = (x: Result) =>
+  ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(data<{ job?: { state: string }; state?: string }>(x).job?.state ?? data<{ state?: string }>(x).state ?? '');
 
 /** The colour of a still at (40, height / 2), read with ffmpeg. */
 function pixel(file: string): number[] {
@@ -142,85 +144,114 @@ describe.skipIf(!ENABLED)('theme acceptance through MCP: a theme from a site and
     if (root) await rm(root, { recursive: true, force: true });
   });
 
-  it('reads the brand site through template_from_site (approved by the user): colours by role, a site: logo, a draft', async () => {
-    let r = await call('template_from_site', { url: 'https://brand.test/', wait_s: 25 });
-    if (!finished(r)) r = await follow('job_status', { job_id: data<{ job: { id: string } }>(r).job.id }, finished);
-    const v = data<{ site_id: string; status: string; palette: { roles: Record<string, string> }; candidates: Array<{ ref: string; file: string }>; draft: typeof draft }>(r);
-    expect(v.status, r.content[0].text).toBe('ok');
-    expect(asked.filter((a) => /^URL: https:\/\/brand\.test\/$/m.test(a))).toHaveLength(1);
-    expect(v.palette.roles).toEqual(BRAND_SITE_COLORS);
-    expect(v.candidates.length).toBeGreaterThanOrEqual(2);
-    for (const c of v.candidates) expect(existsSync(c.file), c.file).toBe(true);
-    expect(v.draft?.brand_input.logo).toBe(`site:${v.site_id}/logo-1`);
-    ids.site = v.site_id;
-    ids.logo = v.draft!.brand_input.logo;
-    draft = v.draft!;
-    expect(images(r).length).toBeGreaterThanOrEqual(2);
-    expect(site.escape).toEqual({ tcp: 0, udp: 0, upgrades: 0 });
-    expect(site.writes).toEqual([]);
-    await keep('site', v.candidates.map((c) => c.file));
-  }, STEP);
+  it(
+    'reads the brand site through template_from_site (approved by the user): colours by role, a site: logo, a draft',
+    async () => {
+      let r = await call('template_from_site', { url: 'https://brand.test/', wait_s: 25 });
+      if (!finished(r)) r = await follow('job_status', { job_id: data<{ job: { id: string } }>(r).job.id }, finished);
+      const v = data<{ site_id: string; status: string; palette: { roles: Record<string, string> }; candidates: Array<{ ref: string; file: string }>; draft: typeof draft }>(r);
+      expect(v.status, r.content[0].text).toBe('ok');
+      expect(asked.filter((a) => /^URL: https:\/\/brand\.test\/$/m.test(a))).toHaveLength(1);
+      expect(v.palette.roles).toEqual(BRAND_SITE_COLORS);
+      expect(v.candidates.length).toBeGreaterThanOrEqual(2);
+      for (const c of v.candidates) expect(existsSync(c.file), c.file).toBe(true);
+      expect(v.draft?.brand_input.logo).toBe(`site:${v.site_id}/logo-1`);
+      ids.site = v.site_id;
+      ids.logo = v.draft!.brand_input.logo;
+      draft = v.draft!;
+      expect(images(r).length).toBeGreaterThanOrEqual(2);
+      expect(site.escape).toEqual({ tcp: 0, udp: 0, upgrades: 0 });
+      expect(site.writes).toEqual([]);
+      await keep(
+        'site',
+        v.candidates.map((c) => c.file),
+      );
+    },
+    STEP,
+  );
 
-  it('creates the theme from the draft with the site logo, the brand/ fonts and the chosen colours; template_list shows it', async () => {
-    const input = {
-      ...draft!.brand_input,
-      name: THEME,
-      logo: ids.logo,
-      colors: { ...draft!.brand_input.colors },
-      fonts: { display: 'brand/Quill-Display-Bold.ttf', body: ['brand/Quill-Text-Regular.ttf', 'brand/Quill-Text-SemiBold.ttf', 'brand/Quill-Text-Bold.ttf'] },
-      brand: { name: 'Quillmere', url: 'quillmere.test' },
-    };
-    const r = await call('template_create_from_brand', input);
-    const dir = join(root, 'templates', THEME);
-    expect(r.structuredContent).toMatchObject({ name: THEME, dir, base: 'editorial', replaced: false });
-    const made = data<{ files: string[]; fonts: Array<{ file: string }> }>(r);
-    expect(made.files).toEqual(expect.arrayContaining(['template.yaml', 'logo.png', 'LICENSES.md']));
-    expect(made.fonts.map((f) => f.file)).toEqual(['fonts/display-Bold.ttf', 'fonts/body-Regular.ttf', 'fonts/body-SemiBold.ttf', 'fonts/body-Bold.ttf']);
-    const file = parseYaml(await readFile(join(dir, 'template.yaml'), 'utf8')).value as { colors: Record<string, string>; logo: string; brand: { name: string; url: string }; outro: { url?: string } };
-    expect(file.colors).toMatchObject({ accent: BRAND_SITE_COLORS.accent, text: BRAND_SITE_COLORS.text, paper: BRAND_SITE_COLORS.paper });
-    expect(file.logo).toBe('logo.png');
-    expect(file.brand).toEqual({ name: 'Quillmere', url: 'quillmere.test' });
-    expect(file.outro.url).toBe('quillmere.test');
-    expect((JSON.parse(await readFile(join(dir, '.retake-theme.json'), 'utf8')) as { site_id: string }).site_id).toBe(ids.site);
-    const l = await call('template_list', {});
-    expect(l.content[0].text).toMatch(new RegExp(`- ${THEME} \\(workspace, real\\)`));
-  }, STEP);
+  it(
+    'creates the theme from the draft with the site logo, the brand/ fonts and the chosen colours; template_list shows it',
+    async () => {
+      const input = {
+        ...draft!.brand_input,
+        name: THEME,
+        logo: ids.logo,
+        colors: { ...draft!.brand_input.colors },
+        fonts: { display: 'brand/Quill-Display-Bold.ttf', body: ['brand/Quill-Text-Regular.ttf', 'brand/Quill-Text-SemiBold.ttf', 'brand/Quill-Text-Bold.ttf'] },
+        brand: { name: 'Quillmere', url: 'quillmere.test' },
+      };
+      const r = await call('template_create_from_brand', input);
+      const dir = join(root, 'templates', THEME);
+      expect(r.structuredContent).toMatchObject({ name: THEME, dir, base: 'editorial', replaced: false });
+      const made = data<{ files: string[]; fonts: Array<{ file: string }> }>(r);
+      expect(made.files).toEqual(expect.arrayContaining(['template.yaml', 'logo.png', 'LICENSES.md']));
+      expect(made.fonts.map((f) => f.file)).toEqual(['fonts/display-Bold.ttf', 'fonts/body-Regular.ttf', 'fonts/body-SemiBold.ttf', 'fonts/body-Bold.ttf']);
+      const file = parseYaml(await readFile(join(dir, 'template.yaml'), 'utf8')).value as {
+        colors: Record<string, string>;
+        logo: string;
+        brand: { name: string; url: string };
+        outro: { url?: string };
+      };
+      expect(file.colors).toMatchObject({ accent: BRAND_SITE_COLORS.accent, text: BRAND_SITE_COLORS.text, paper: BRAND_SITE_COLORS.paper });
+      expect(file.logo).toBe('logo.png');
+      expect(file.brand).toEqual({ name: 'Quillmere', url: 'quillmere.test' });
+      expect(file.outro.url).toBe('quillmere.test');
+      expect((JSON.parse(await readFile(join(dir, '.retake-theme.json'), 'utf8')) as { site_id: string }).site_id).toBe(ids.site);
+      const l = await call('template_list', {});
+      expect(l.content[0].text).toMatch(new RegExp(`- ${THEME} \\(workspace, real\\)`));
+    },
+    STEP,
+  );
 
-  it('template_preview renders its stills', async () => {
-    let r = await call('template_preview', { project: 'northfield-fixture', template: THEME, wait_s: 25 });
-    if (!finished(r)) r = await follow('job_status', { job_id: data<{ job: { id: string } }>(r).job.id }, finished);
-    const stills = data<{ stills: Array<{ kind: string; file: string; bytes: number }> }>(r).stills;
-    expect(stills.map((s) => s.kind)).toEqual(['intro', 'layout', 'card', 'interstitial', 'outro']);
-    for (const s of stills) expect(s.bytes).toBeGreaterThan(5_000);
-    expect(images(r).length).toBeGreaterThanOrEqual(1);
-    // The palette drawn: the interstitial on the site's dark colour, the outro on (a tint of) its paper.
-    const near = (a: number[], hex: string, tol: number) => [1, 3, 5].every((o, i) => Math.abs(a[i] - parseInt(hex.slice(o, o + 2), 16)) <= tol);
-    expect(near(pixel(stills.find((s) => s.kind === 'interstitial')!.file), BRAND_SITE_COLORS.dark, 6)).toBe(true);
-    expect(near(pixel(stills.find((s) => s.kind === 'outro')!.file), BRAND_SITE_COLORS.paper, 14)).toBe(true);
-    await keep('preview', stills.map((s) => s.file));
-  }, STEP);
+  it(
+    'template_preview renders its stills',
+    async () => {
+      let r = await call('template_preview', { project: 'northfield-fixture', template: THEME, wait_s: 25 });
+      if (!finished(r)) r = await follow('job_status', { job_id: data<{ job: { id: string } }>(r).job.id }, finished);
+      const stills = data<{ stills: Array<{ kind: string; file: string; bytes: number }> }>(r).stills;
+      expect(stills.map((s) => s.kind)).toEqual(['intro', 'layout', 'card', 'interstitial', 'outro']);
+      for (const s of stills) expect(s.bytes).toBeGreaterThan(5_000);
+      expect(images(r).length).toBeGreaterThanOrEqual(1);
+      // The palette drawn: the interstitial on the site's dark colour, the outro on (a tint of) its paper.
+      const near = (a: number[], hex: string, tol: number) => [1, 3, 5].every((o, i) => Math.abs(a[i] - parseInt(hex.slice(o, o + 2), 16)) <= tol);
+      expect(near(pixel(stills.find((s) => s.kind === 'interstitial')!.file), BRAND_SITE_COLORS.dark, 6)).toBe(true);
+      expect(near(pixel(stills.find((s) => s.kind === 'outro')!.file), BRAND_SITE_COLORS.paper, 14)).toBe(true);
+      await keep(
+        'preview',
+        stills.map((s) => s.file),
+      );
+    },
+    STEP,
+  );
 
-  it('captures quote on the fixture and renders it with the new theme (guarded: nothing blocked); the review is clean', async () => {
-    const run = await call('run_capture', { project: 'northfield-fixture', scenario: 'quote' });
-    ids.run = data<{ id: string }>(run).id;
-    const rs = await follow('run_status', { project: 'northfield-fixture', run_id: ids.run }, (x) => data<{ finished: boolean }>(x).finished === true);
-    expect(data<{ status: string }>(rs).status, rs.content[0].text).toBe('succeeded');
+  it(
+    'captures quote on the fixture and renders it with the new theme (guarded: nothing blocked); the review is clean',
+    async () => {
+      const run = await call('run_capture', { project: 'northfield-fixture', scenario: 'quote' });
+      ids.run = data<{ id: string }>(run).id;
+      const rs = await follow('run_status', { project: 'northfield-fixture', run_id: ids.run }, (x) => data<{ finished: boolean }>(x).finished === true);
+      expect(data<{ status: string }>(rs).status, rs.content[0].text).toBe('succeeded');
 
-    const r = await call('render', { project: 'northfield-fixture', scenario: 'quote', run_id: ids.run, template: THEME });
-    ids.render = data<{ render_id: string }>(r).render_id;
-    const st = await follow('render_status', { project: 'northfield-fixture', render_id: ids.render }, (x) => data<{ finished: boolean }>(x).finished === true);
-    const view = data<{ status: string; file: string; record: { template: string; width: number }; untrusted: { warnings: string[] } }>(st);
-    expect(view.status, st.content[0].text).toBe('succeeded');
-    expect(view.record).toMatchObject({ template: THEME, width: 1920 });
-    expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
+      const r = await call('render', { project: 'northfield-fixture', scenario: 'quote', run_id: ids.run, template: THEME });
+      ids.render = data<{ render_id: string }>(r).render_id;
+      const st = await follow('render_status', { project: 'northfield-fixture', render_id: ids.render }, (x) => data<{ finished: boolean }>(x).finished === true);
+      const view = data<{ status: string; file: string; record: { template: string; width: number }; untrusted: { warnings: string[] } }>(st);
+      expect(view.status, st.content[0].text).toBe('succeeded');
+      expect(view.record).toMatchObject({ template: THEME, width: 1920 });
+      expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
 
-    const rv = await call('review', { project: 'northfield-fixture', render_id: ids.render, wait_s: 25 });
-    const done = data<{ finished: boolean }>(rv).finished ? rv : await follow('review_get', { project: 'northfield-fixture', render_id: ids.render }, (x) => data<{ finished: boolean }>(x).finished === true);
-    const v = data<{ clean: boolean; counts: Record<string, number>; files: { sheets: string[] } }>(done);
-    expect(v.counts.error, done.content[0].text).toBe(0);
-    expect(v.clean, done.content[0].text).toBe(true);
-    expect(images(done).length).toBeGreaterThanOrEqual(1);
-    await keep('render', [...v.files.sheets, view.file]);
-    expect(stderr).not.toMatch(/unhandled|cancelRender/i);
-  }, STEP);
+      const rv = await call('review', { project: 'northfield-fixture', render_id: ids.render, wait_s: 25 });
+      const done = data<{ finished: boolean }>(rv).finished
+        ? rv
+        : await follow('review_get', { project: 'northfield-fixture', render_id: ids.render }, (x) => data<{ finished: boolean }>(x).finished === true);
+      const v = data<{ clean: boolean; counts: Record<string, number>; files: { sheets: string[] } }>(done);
+      expect(v.counts.error, done.content[0].text).toBe(0);
+      expect(v.clean, done.content[0].text).toBe(true);
+      expect(images(done).length).toBeGreaterThanOrEqual(1);
+      await keep('render', [...v.files.sheets, view.file]);
+      expect(stderr).not.toMatch(/unhandled|cancelRender/i);
+    },
+    STEP,
+  );
 });

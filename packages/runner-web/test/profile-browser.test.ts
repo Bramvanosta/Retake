@@ -22,7 +22,7 @@ const profile = () => {
 };
 
 describe('the Chromium major of a launch', () => {
-  it('Playwright\'s own builds by the pinned versions (the headless shell without a channel); an app by its Info.plist; else unknown', () => {
+  it("Playwright's own builds by the pinned versions (the headless shell without a channel); an app by its Info.plist; else unknown", () => {
     const pins = () => ({ chromium: '141.0.7390.37', 'chromium-headless-shell': '140.0.7339.16' });
     expect(launchMajor({ channel: 'chromium' }, pins)).toBe(141);
     expect(launchMajor({}, pins)).toBe(140);
@@ -31,7 +31,10 @@ describe('the Chromium major of a launch', () => {
     expect(launchMajor({ channel: 'chromium' })).toBeGreaterThanOrEqual(100);
     const app = join(base, 'Chromium.app');
     mkdirSync(join(app, 'Contents', 'MacOS'), { recursive: true });
-    writeFileSync(join(app, 'Contents', 'Info.plist'), '<plist><dict><key>CFBundleName</key><string>Chromium</string><key>CFBundleShortVersionString</key>\n\t<string>142.0.7444.0</string></dict></plist>');
+    writeFileSync(
+      join(app, 'Contents', 'Info.plist'),
+      '<plist><dict><key>CFBundleName</key><string>Chromium</string><key>CFBundleShortVersionString</key>\n\t<string>142.0.7444.0</string></dict></plist>',
+    );
     expect(launchMajor({ executablePath: join(app, 'Contents', 'MacOS', 'Chromium') })).toBe(142);
     expect(launchMajor({ executablePath: '/opt/chromium/chrome' })).toBeNull();
     expect(launchMajor({ executablePath: join(base, 'Missing.app', 'Contents', 'MacOS', 'X') })).toBeNull();
@@ -39,7 +42,7 @@ describe('the Chromium major of a launch', () => {
 });
 
 describe('what a profile records', () => {
-  it('ours and Chromium\'s own Last Version: the newest counts; garbage is nothing', () => {
+  it("ours and Chromium's own Last Version: the newest counts; garbage is nothing", () => {
     const p = profile();
     expect(profileMajor(p)).toBeNull();
     writeFileSync(join(p, 'Last Version'), '141.0.7390.37');
@@ -72,7 +75,7 @@ describe('what a profile records', () => {
   });
 });
 
-describe('the launch of a persona\'s profile', () => {
+describe("the launch of a persona's profile", () => {
   it('BrowserSession.open refuses a profile a newer Chromium opened, before any browser starts', async () => {
     // A fake Chromium app (version 141) that does not run: were the check missing, the launch would fail on it, never
     // start a real browser.
@@ -88,12 +91,19 @@ describe('the launch of a persona\'s profile', () => {
   it('the sign-in window and the recording window check the profile before their launch (static)', () => {
     const src = (f: string) => readFileSync(join(__dirname, '..', 'src', f), 'utf8');
     const login = src('login.ts');
+    // L7.34 (finding C4): kept as an order check of the two headed launches (a behaviour test would sign a persona in
+    // through a visible window), loosened to the calls' names and the profile they are handed — not their statements.
+    // The headless launch's refusal is the behaviour case above.
     const headed = login.slice(login.indexOf('async function headedSession'));
-    expect(headed.indexOf('checkProfileBrowser(userDataDir, major);')).toBeGreaterThan(0);
-    expect(headed.indexOf('checkProfileBrowser(userDataDir, major);')).toBeLessThan(headed.indexOf('chromium.launchPersistentContext('));
-    expect(headed.indexOf('recordProfileBrowser(userDataDir, major);')).toBeGreaterThan(headed.indexOf('chromium.launchPersistentContext('));
+    const launch = headed.indexOf('chromium.launchPersistentContext(userDataDir');
+    // The version argument is pinned (review fix): the major the launch will run, checked and then recorded.
+    const major = headed.search(/\bconst major = launchMajor\(\{ executablePath, channel \}\)/);
+    expect(major).toBeGreaterThan(0);
+    expect(headed.search(/\bcheckProfileBrowser\(userDataDir, major\)/)).toBeGreaterThan(major);
+    expect(headed.search(/\bcheckProfileBrowser\(userDataDir, major\)/)).toBeLessThan(launch);
+    expect(headed.search(/\brecordProfileBrowser\(userDataDir, major\)/)).toBeGreaterThan(launch);
     const rec = src('record-session.ts');
-    expect(rec.indexOf('if (persona) checkProfileBrowser(userDataDir, launchMajor({ executablePath, channel }), persona.name);')).toBeGreaterThan(0);
+    expect(rec).toMatch(/\bif \(persona\) checkProfileBrowser\(userDataDir, launchMajor\(\{ executablePath, channel \}\), persona\.name\)/);
     expect(rec.indexOf('checkProfileBrowser(')).toBeLessThan(rec.indexOf('chromium.launchPersistentContext('));
   });
 });

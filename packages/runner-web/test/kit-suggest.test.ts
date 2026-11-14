@@ -9,9 +9,9 @@ import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { kitConfigFor, kitSource, openSession } from '../src/index.js';
 import type { BrowserSession, InventoryElement, KitInventory } from '../src/index.js';
-import { startServer } from './helpers.js';
+import { startServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
-import type { TestServer } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 const LAB = `<!doctype html><html><body>
 <h1>Suggest lab</h1>
@@ -211,12 +211,20 @@ describe('alternative targets (kit 1.6.0, the recorder only)', () => {
         const alts = (sel: string) => kit.suggestFor(document.querySelector(sel)!, { alternatives: 3, alternatives_budget_ms: 50 });
         const o = alts('#o5');
         const c = alts('#card');
-        return { option: { target: o?.target, alts: o?.alternatives?.map((a) => a.target) }, card: { target: c?.target, alts: c?.alternatives?.map((a) => a.target) } };
+        return { option: { main: o?.suggested?.target, alts: o?.alternatives?.map((a) => a.target) }, card: { main: c?.suggested?.target, alts: c?.alternatives?.map((a) => a.target) } };
       } finally {
         box.remove();
       }
     });
     const texts = (ts: unknown[] | undefined) => (ts ?? []).flatMap((t) => (t && typeof t === 'object' && 'text' in t ? [(t as { text: string }).text] : []));
+    // The main suggestion too: the element's test id, not one of its noisy texts.
+    // The main suggestion too, not only the alternatives: a target is suggested, and it is none of the noisy texts.
+    for (const main of [r.option.main, r.card.main]) expect(main && Object.keys(main).length).toBeGreaterThan(0);
+    expect(texts([r.option.main])).not.toContain('€36.40 / kg');
+    expect(texts([r.option.main])).not.toContain('5 kg€36.40 / kg');
+    expect(JSON.stringify(r.option.main)).not.toContain('36.40');
+    expect(texts([r.card.main])).not.toContain('Cerro VerdePeru · Natural');
+    expect(JSON.stringify(r.card.main)).not.toContain('VerdePeru');
     expect(texts(r.option.alts)).not.toContain('€36.40 / kg');
     expect(texts(r.option.alts)).not.toContain('5 kg€36.40 / kg');
     expect(JSON.stringify(r.option.alts)).not.toContain('36.40');
@@ -237,7 +245,7 @@ describe('alternative targets (kit 1.6.0, the recorder only)', () => {
   });
 });
 
-describe('the passive kit (the recorder\'s copy)', () => {
+describe("the passive kit (the recorder's copy)", () => {
   it('draws no cursor, patches no API, still resolves and inventories', async () => {
     const p = await browser.newPage();
     try {

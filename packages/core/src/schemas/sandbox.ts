@@ -20,7 +20,10 @@ const HealthSchema = z
       path: nonEmpty().describe('Path on the service\'s url (default "/").').optional(),
       url: httpUrl().describe('An absolute local URL instead of a path.').optional(),
       tcp: z.number().int().min(1).max(65_535).describe('process services only: a port that must accept a connection.').optional(),
-      status: z.union([statusSchema, z.array(statusSchema).min(1)]).describe('Expected status code(s) (default 200–399).').optional(),
+      status: z
+        .union([statusSchema, z.array(statusSchema).min(1)])
+        .describe('Expected status code(s) (default 200–399).')
+        .optional(),
       text: nonEmpty().describe('Text the answer must contain.').optional(),
       timeout_s: positiveSeconds().describe('Seconds before the service counts as not healthy (default 60 for a process, 120 for compose).').optional(),
       interval_ms: z.number().int().min(50).max(10_000).describe('Delay between two tries in ms (default 250).').optional(),
@@ -31,10 +34,7 @@ const HealthSchema = z
 const ServiceSchema = z
   .strictObject({
     url: httpUrl().describe('Base URL of the service on this machine (localhost only); the default health check GETs it.').optional(),
-    pages: z
-      .record(z.string(), PageValueSchema)
-      .describe('Environment pages this service serves: page key → URL (localhost only), or {url, display} (the URL the video shows).')
-      .optional(),
+    pages: z.record(z.string(), PageValueSchema).describe('Environment pages this service serves: page key → URL (localhost only), or {url, display} (the URL the video shows).').optional(),
     health: HealthSchema.optional(),
     command: z
       .union([nonEmpty(), z.array(nonEmpty()).min(1)])
@@ -79,11 +79,13 @@ const AccountSchema = z
   .strictObject({
     username: nonEmpty().describe('{{account.username}} in its login steps.').optional(),
     password: nonEmpty()
-      .describe('{{account.password}} in its login steps: plain (every sandbox URL is local; masked in logs) or {{env:VAR}} / {{keychain:service/account}}, or {{compose_env:NAME}}: the value NAME has in the sandbox\'s compose env file (docker-compose).')
+      .describe(
+        "{{account.password}} in its login steps: plain (every sandbox URL is local; masked in logs) or {{env:VAR}} / {{keychain:service/account}}, or {{compose_env:NAME}}: the value NAME has in the sandbox's compose env file (docker-compose).",
+      )
       .optional(),
     ...personaShape,
   })
-  .describe('A demo account the seed creates: the persona of the same name on this sandbox\'s environment (signed in automatically by its login steps).');
+  .describe("A demo account the seed creates: the persona of the same name on this sandbox's environment (signed in automatically by its login steps).");
 
 /** sandbox.yaml `databases`: project.yaml's shape, plus `external`. */
 const SandboxDatabasesSchema = z.record(
@@ -102,7 +104,7 @@ const SandboxDatabasesSchema = z.record(
 /** sandbox.yaml (version 1). */
 export const SandboxFileSchema = z
   .strictObject({
-    version: z.literal(1).describe('Version of this file\'s format (1).'),
+    version: z.literal(1).describe("Version of this file's format (1)."),
     provider: z.enum(SANDBOX_PROVIDERS).describe('docker-compose: `docker compose` on the compose files; process: local processes started by Retake.'),
     compose: z
       .strictObject({
@@ -114,7 +116,9 @@ export const SandboxFileSchema = z
           .optional(),
         env_file: z
           .union([nonEmpty(), z.literal(false)])
-          .describe('The env file docker compose reads `${VAR}` values from (image versions, settings), relative to sandbox.yaml; default .env next to the first compose file when there is one; false: none.')
+          .describe(
+            'The env file docker compose reads `${VAR}` values from (image versions, settings), relative to sandbox.yaml; default .env next to the first compose file when there is one; false: none.',
+          )
           .optional(),
       })
       .describe('docker-compose only.')
@@ -127,9 +131,7 @@ export const SandboxFileSchema = z
           .enum(SANDBOX_RESET_STRATEGIES)
           .describe('reseed (default): run the seed again before each take; snapshot: restore a Postgres snapshot taken after the seed (docker-compose).')
           .optional(),
-        snapshot: z
-          .strictObject({ database: keyString('database').describe('Key of `databases` (default the first one): dropped and recreated at every reset.').optional() })
-          .optional(),
+        snapshot: z.strictObject({ database: keyString('database').describe('Key of `databases` (default the first one): dropped and recreated at every reset.').optional() }).optional(),
         restart: z.array(nonEmpty()).describe('Services restarted after each reset (apps that do not survive a database swap).').optional(),
         firebase_auth: z
           .strictObject({
@@ -137,12 +139,14 @@ export const SandboxFileSchema = z
             project: nonEmpty().describe("The emulator's project id (demo-…)."),
           })
           .describe(
-            "A Firebase Auth emulator of the sandbox: its accounts are emptied before each seed, saved after it, and put back at every reset (after `restart`) — the database snapshot does not cover it.",
+            'A Firebase Auth emulator of the sandbox: its accounts are emptied before each seed, saved after it, and put back at every reset (after `restart`) — the database snapshot does not cover it.',
           )
           .optional(),
         hooks: z
           .array(SeedStepSchema)
-          .describe('Steps (http, sql, shell, exec) run at every reset once the data is back — after `restart` and `firebase_auth` —, before the take: what each take needs undone that the snapshot does not cover.')
+          .describe(
+            'Steps (http, sql, shell, exec) run at every reset once the data is back — after `restart` and `firebase_auth` —, before the take: what each take needs undone that the snapshot does not cover.',
+          )
           .optional(),
       })
       .optional(),
@@ -158,12 +162,9 @@ export const SandboxFileSchema = z
           )
           .optional(),
       })
-      .describe('The test mailbox of the sandbox (read by wait_for_email on this environment instead of the project\'s).')
+      .describe("The test mailbox of the sandbox (read by wait_for_email on this environment instead of the project's).")
       .optional(),
     login_url: LoginPatternsSchema.describe('Sign-in pages of every account.').optional(),
-    accounts: z
-      .record(slugString('account name'), AccountSchema)
-      .describe('Demo accounts the seed creates, each one the persona of the same name on this environment.')
-      .optional(),
+    accounts: z.record(slugString('account name'), AccountSchema).describe('Demo accounts the seed creates, each one the persona of the same name on this environment.').optional(),
   })
   .meta({ id: 'Sandbox', title: 'Retake sandbox', description: 'sandbox.yaml (version 1): a disposable, local copy of the product, seeded and reset before each take.' });

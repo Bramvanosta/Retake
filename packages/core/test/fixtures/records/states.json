@@ -1,0 +1,112 @@
+{
+  "about": "The states of a run folder NEW beside a good older capture OLD of scenario `quote` (test data: see README.md). `record` and `timeline` say how NEW's run.json and timeline.json differ from the base ones: absent = the base, null = no file, {raw} = this text, {value} = this JSON value, {fixture, set, unset} = another base file and dotted paths set or removed. `$ID`, `$DIR` and `$PROJECT` are replaced by the folder's name, its path and the project's slug.",
+  "scenario": "quote",
+  "old": "20261001-100000-quote",
+  "new": "20261002-100000-quote",
+  "timeline_fixture": "packages/editor/test/fixtures/quote.timeline.json",
+  "record": {
+    "version": 1,
+    "id": "$ID",
+    "project": "$PROJECT",
+    "scenario": "quote",
+    "mode": "capture",
+    "status": "succeeded",
+    "started_at": "2026-10-02T08:00:00.000Z",
+    "finished_at": "2026-10-02T08:01:00.000Z",
+    "dir": "$DIR",
+    "env": "local",
+    "options": { "hooks": "run", "headed": false },
+    "environment": { "access": "read-write" },
+    "steps_total": 3,
+    "steps_done": 3,
+    "screenshots": [],
+    "hooks": { "setup": "none", "teardown": "none" },
+    "warnings": [],
+    "engine": { "retake": "0.2.1", "node": "22.16.0", "os": "darwin 25.6.0 arm64" },
+    "capture": "$DIR/capture.mp4",
+    "timeline": "$DIR/timeline.json"
+  },
+  "states": {
+    "ctl": { "about": "control: a good newer capture" },
+    "a": {
+      "about": "running, no timeline",
+      "record": { "set": { "status": "running", "steps_done": 1, "current": { "scene": "catalog", "step": 1, "action": "click" } }, "unset": ["finished_at", "capture", "timeline"] },
+      "timeline": null,
+      "film": "none"
+    },
+    "b": {
+      "about": "queued (the reserved run)",
+      "record": { "set": { "status": "queued", "steps_done": 0 }, "unset": ["finished_at", "capture", "timeline", "environment", "engine"] },
+      "timeline": null,
+      "film": "none"
+    },
+    "c": {
+      "about": "failed, timeline, partial film",
+      "record": { "set": { "status": "failed", "steps_done": 1, "error": { "message": "no element \"Add\"", "scene": "catalog", "step": 1, "action": "click" } } }
+    },
+    "d": {
+      "about": "failed, timeline, no film",
+      "record": { "set": { "status": "failed", "steps_done": 1, "error": { "message": "no element \"Add\"", "scene": "catalog", "step": 1, "action": "click" } }, "unset": ["capture"] },
+      "timeline": { "set": { "capture.file": "" } },
+      "film": "none"
+    },
+    "e": {
+      "about": "cancelled (its timeline names no film)",
+      "record": { "set": { "status": "cancelled", "steps_done": 1, "error": { "message": "cancelled" } }, "unset": ["capture"] },
+      "timeline": { "set": { "capture.file": "" } },
+      "film": "none"
+    },
+    "f": {
+      "about": "a dry run",
+      "record": { "set": { "mode": "dry" }, "unset": ["capture"] },
+      "timeline": { "set": { "mode": "dry", "capture.file": "" } },
+      "film": "none"
+    },
+    "g": { "about": "succeeded, film gone", "film": "none" },
+    "gn": { "about": "succeeded, neither timeline nor film", "timeline": null, "film": "none" },
+    "gf": { "about": "succeeded, frames kept, no film", "film": "none", "frames": true },
+    "h": { "about": "succeeded, frames kept and film", "frames": true },
+    "i": {
+      "about": "a record as an older build wrote it: no version, `engine` and `perf.cpu` without `retake`, each with one key this build does not know",
+      "record": { "fixture": "past/run-0.1.0/run.json", "set": { "id": "$ID", "project": "$PROJECT", "dir": "$DIR", "capture": "$DIR/capture.mp4", "timeline": "$DIR/timeline.json", "engine.x": "0.1.0", "perf.cpu.x": 1.5 }, "unset": ["version"] }
+    },
+    "j": { "about": "run.json truncated; timeline and film fine", "record": { "raw": "{\"version\":1,\"id\":\"2026" } },
+    "k": { "about": "no run.json; timeline and film fine", "record": null },
+    "l": { "about": "timeline.json truncated; record succeeded, film fine", "timeline": { "raw": "{\"version\":1,\"run_id\":\"2026" } },
+    "o": { "about": "run.json of a newer format", "record": { "set": { "version": 2 } } },
+    "of": { "about": "run.json of a newer format, failed", "record": { "set": { "version": 2, "status": "failed", "error": { "message": "stopped" } } } },
+    "p": { "about": "the folder's name says quote; record and timeline say another scenario", "record": { "set": { "scenario": "other" } }, "timeline": { "set": { "scenario": "other" } } },
+    "p2": { "about": "the record says another scenario, the timeline says quote", "record": { "set": { "scenario": "other" } } },
+    "r": { "about": "a status the runner never writes", "record": { "set": { "status": "done" } } },
+    "s": { "about": "run.json is an empty list", "record": { "value": [] } },
+    "m": { "about": "a hand-named folder sorting above every date, a full capture with its record", "name": "zz-quote" },
+    "m2": { "about": "another hand-named folder (upper case, a dot), a full capture with its record", "name": "Take.1-quote" },
+    "q": { "about": "a stamped folder renamed; the record says quote", "name": "20261002-100000-Quote" },
+    "t5": { "about": "T-5: succeeded, the timeline names no film, capture.mp4 on disk", "timeline": { "set": { "capture.file": "" } } },
+    "t6": {
+      "about": "T-6: succeeded, stopped by --until",
+      "record": { "set": { "options.until": "catalog.1", "steps_total": 2, "steps_done": 2, "stopped_at": { "scene": "catalog", "step": 1, "reason": "until" } } }
+    },
+    "t7": {
+      "about": "T-7: the record says running, timeline and film on disk (the process died at the very end)",
+      "record": { "set": { "status": "running", "current": { "scene": "catalog", "step": 2, "action": "click" } }, "unset": ["finished_at"] }
+    },
+    "t8": { "about": "T-8: a folder whose name is no run id (named runs only)", "name": "my take", "named_only": true },
+    "t9": { "about": "T-9: the film is a symbolic link inside a real run folder", "film": "link" },
+    "hr": { "about": "a timeline made by hand: no run id in it (record, lists and film fine)", "timeline": { "unset": ["run_id"] } },
+    "hf": { "about": "a timeline made by hand: its capture block names no film; capture.mp4 on disk", "timeline": { "unset": ["capture.file"] } },
+    "v": {
+      "about": "a record a later version of the same format wrote: words and blocks this build does not know",
+      "record": { "fixture": "future/run-next-minor.json", "set": { "id": "$ID", "project": "$PROJECT", "dir": "$DIR", "capture": "$DIR/capture.mp4", "timeline": "$DIR/timeline.json" } }
+    },
+    "k1": { "about": "the run folder is a symbolic link to a good run folder outside the project", "folder": "link-out" },
+    "k1f": {
+      "about": "the run folder is a symbolic link to a failed run folder outside the project",
+      "folder": "link-out",
+      "record": { "set": { "status": "failed", "error": { "message": "stopped" } } }
+    },
+    "k2": { "about": "a dangling symbolic link beside OLD", "folder": "dangling" },
+    "k3": { "about": "plain files in runs/ beside OLD", "folder": "files" },
+    "z": { "about": "a stamped folder with a future date: record, timeline and film", "name": "20991231-235959-quote" }
+  }
+}

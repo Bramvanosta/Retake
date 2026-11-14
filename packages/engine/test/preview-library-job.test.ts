@@ -21,9 +21,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createComponent } from '@retake/components';
 import { bundleHash } from '@retake/editor';
 import type { ComponentPreviewSpec, PreviewBackend } from '@retake/editor';
-import { LIBRARY_FILES, createEngine, libraryCacheDir, runWorker } from '../src/index.js';
-import type { Engine, JobRecord, LibraryStatesView, PreviewJobResult, PreviewJobTestHooks } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { LIBRARY_FILES, createEngine, editorRenderer, libraryCacheDir, runWorker, withPreviewBackend } from '../src/index.js';
+import type { Engine, FreeBytes, JobRecord, LibraryStatesView, PreviewJobResult, WorkerPortsGiven } from '../src/index.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
 const plainWrite = async (file: string, text: string): Promise<void> => {
@@ -36,26 +37,25 @@ const GIF = Buffer.concat([Buffer.from('GIF89a', 'latin1'), Buffer.from('loop')]
 
 let root: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-library-job-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await mkdir(join(root, 'templates'), { recursive: true });
   for (const t of ['editorial', 'motion', 'default']) await cp(join(REPO, 'templates', t), join(root, 'templates', t), { recursive: true });
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   const dir = join(root, 'projects', 'demo');
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
-  await createComponent(root, { write: plainWrite,  id: 'acme/thrower', kind: 'card', description: 'A card that throws.' });
+  await createComponent(root, { write: plainWrite, id: 'acme/thrower', kind: 'card', description: 'A card that throws.' });
   // A workspace override of a built-in id: never the built-in's committed poster.
-  await createComponent(root, { write: plainWrite,  id: 'studio/card-chart', kind: 'card', description: 'An override.' });
+  await createComponent(root, { write: plainWrite, id: 'studio/card-chart', kind: 'card', description: 'An override.' });
   engine = await createEngine({ root, client: 'test', autoStartWorker: false });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 
@@ -93,15 +93,32 @@ function fake(o: { fail?: (spec: ComponentPreviewSpec, what: 'still' | 'gif') =>
   };
 }
 
-const plenty: PreviewJobTestHooks['freeBytes'] = async () => 50_000_000_000;
+const plenty: FreeBytes = async () => 50_000_000_000;
 
-async function work(test: PreviewJobTestHooks, id: string): Promise<JobRecord> {
-  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, previewTest: test });
+/** The stand-ins of a library job: a preview backend in place of Remotion, the free space the disk gate sees. */
+interface LibraryStandIns {
+  backend?: PreviewBackend;
+  freeBytes?: FreeBytes;
+}
+
+/** The worker's ports of these stand-ins (L7.29: the backend draws the previews of the worker's renderer). */
+const libraryPorts = (test: LibraryStandIns): WorkerPortsGiven => ({
+  ...(test.backend ? { renderer: withPreviewBackend(editorRenderer(), test.backend) } : {}),
+  ...(test.freeBytes ? { freeBytes: test.freeBytes } : {}),
+});
+
+async function work(test: LibraryStandIns, id: string): Promise<JobRecord> {
+  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, heavyInProcess: true, ports: libraryPorts(test) });
   return engine.jobs.get(id);
 }
 
 /** Submit and run one library job of these components (poster + loop, the keys of `states`). */
-async function renderLibrary(states: LibraryStatesView, ids: string[], test: PreviewJobTestHooks, o: { template?: string; retry?: boolean; what?: 'poster' | 'loop' | 'both' } = {}): Promise<{ job: JobRecord; result: PreviewJobResult }> {
+async function renderLibrary(
+  states: LibraryStatesView,
+  ids: string[],
+  test: LibraryStandIns,
+  o: { template?: string; retry?: boolean; what?: 'poster' | 'loop' | 'both' } = {},
+): Promise<{ job: JobRecord; result: PreviewJobResult }> {
   const what = o.what ?? 'both';
   const items = ids.map((id) => {
     const s = states.items.find((i) => i.component === id)!;
@@ -209,7 +226,10 @@ describe('library preview jobs (injected backend)', () => {
         const hash = await bundleHash(components);
         const dir = join(r, '.retake', 'cache', `remotion-${hash}`);
         await mkdir(dir, { recursive: true });
-        pages.set(dir, components.map((c) => c.id));
+        pages.set(
+          dir,
+          components.map((c) => c.id),
+        );
         return { serveUrl: dir, hash, cached: false };
       },
       async open({ serveUrl }) {
@@ -258,7 +278,19 @@ describe('library preview jobs (injected backend)', () => {
     const stalePoster = (await engine.components.library({ project: 'demo', template: 'motion', components: ['studio/outro-stack'] })).items[0];
     const dir = join(cache(), stalePoster.poster.key);
     await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, LIBRARY_FILES.failed), JSON.stringify({ format: 1, key: stalePoster.poster.key, kind: 'poster', component: 'studio/outro-stack', theme: { name: 'motion', hash: 'x' }, at: new Date().toISOString(), reason: 'old', bundle: registryHash }));
+    await writeFile(
+      join(dir, LIBRARY_FILES.failed),
+      JSON.stringify({
+        format: 1,
+        key: stalePoster.poster.key,
+        kind: 'poster',
+        component: 'studio/outro-stack',
+        theme: { name: 'motion', hash: 'x' },
+        at: new Date().toISOString(),
+        reason: 'old',
+        bundle: registryHash,
+      }),
+    );
     expect((await engine.components.library({ project: 'demo', template: 'motion', components: ['studio/outro-stack'] })).items[0].poster.state).toBe('missing');
     const rerun = await renderLibrary({ theme: fixed.theme, items: [stalePoster] }, ['studio/outro-stack'], { backend: page, freeBytes: plenty }, { template: 'motion', what: 'poster' });
     expect(rerun.result.library!.entries.map((e) => e.state)).toEqual(['written']);

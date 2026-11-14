@@ -30,15 +30,20 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { lstat, lutimes, mkdir, readdir, rename, rm, statfs, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { LIBRARY_PREVIEW_KEY_RE, insideFolder, realPathOf, statePath, STATE_DIR, STATE_DIRS } from '@retake/core';
+import { realPathOf } from '@retake/core/policy';
+import { statePath, STATE_DIR, STATE_DIRS } from '@retake/core/project';
+import { insideFolder } from '@retake/core/scenario';
+import { LIBRARY_PREVIEW_KEY_RE } from './jobs/job-input.js';
 import { STARTER_TEMPLATES_DIR, readPlainFile, nodeFileFacts } from '@retake/core/io';
-import type { LoadedTemplate, WorkPolicy } from '@retake/core';
+import type { LoadedTemplate } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
 import type { PreviewSamples } from '@retake/editor';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
 import { editor } from './lazy.js';
 import type { OpenedWorkspace } from './workspace.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Bump when the cache layout or what a key covers changes (every key changes). */
 export const LIBRARY_PREVIEW_FORMAT = 1;
@@ -211,7 +216,8 @@ export async function ensureLibraryCacheDir(ws: Pick<OpenedWorkspace, 'root'>): 
     const st = await lstat(parent);
     if (!st.isDirectory()) throw new EngineError('refused', `${parent} is not a folder (a link or a file): library previews are written only into plain folders of the workspace — remove it`);
   }
-  if (!insideFolder(realPathOf(resolve(ws.root), nodeFileFacts), realPathOf(parent, nodeFileFacts), nodeFileFacts)) throw new EngineError('refused', `${parent} leaves the workspace: library previews stay in it`);
+  if (!insideFolder(realPathOf(resolve(ws.root), nodeFileFacts), realPathOf(parent, nodeFileFacts), nodeFileFacts))
+    throw new EngineError('refused', `${parent} leaves the workspace: library previews stay in it`);
   return parent;
 }
 
@@ -258,11 +264,7 @@ export interface LibraryFailure {
   bundle?: string;
 }
 
-export type LibraryEntry =
-  | { state: 'missing' }
-  | { state: 'cached'; meta: LibraryEntryMeta }
-  | { state: 'too_large'; meta: LibraryEntryMeta }
-  | { state: 'failed'; failure: LibraryFailure };
+export type LibraryEntry = { state: 'missing' } | { state: 'cached'; meta: LibraryEntryMeta } | { state: 'too_large'; meta: LibraryEntryMeta } | { state: 'failed'; failure: LibraryFailure };
 
 function jsonOf(bytes: Buffer): unknown {
   try {
@@ -349,7 +351,7 @@ export async function readLibraryImage(ws: Pick<OpenedWorkspace, 'root'>, key: s
   const e = await readLibraryEntry(dir, key, { image: true });
   if (e.state !== 'cached' || !e.image) return null;
   const now = new Date();
-  await lutimes(join(dir, key, LIBRARY_FILES.meta), now, now).catch(() => undefined);
+  await bestEffort(lutimes(join(dir, key, LIBRARY_FILES.meta), now, now), "the entry's last use only orders the cache prune");
   return { kind: e.meta.kind, component: e.meta.component, bytes: e.image };
 }
 
@@ -402,7 +404,6 @@ export async function dropLibraryEntry(cacheDir: string, key: string): Promise<v
 
 /** A failure's reason as kept: one line of printable text, capped. */
 export function libraryReason(reason: string): string {
-  // eslint-disable-next-line no-control-regex
   const flat = reason
     .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]+/g, ' ')
     .replace(/ {2,}/g, ' ')
@@ -411,7 +412,10 @@ export function libraryReason(reason: string): string {
 }
 
 /** Sweep abandoned temporary folders and prune over the caps (see the module comment). Returns what it removed. */
-export async function pruneLibraryCache(cacheDir: string, o: { theme?: { name: string; hash: string }; now?: number; maxEntries?: number; maxBytes?: number } = {}): Promise<{ swept: number; pruned: number }> {
+export async function pruneLibraryCache(
+  cacheDir: string,
+  o: { theme?: { name: string; hash: string }; now?: number; maxEntries?: number; maxBytes?: number } = {},
+): Promise<{ swept: number; pruned: number }> {
   const now = o.now ?? Date.now();
   const maxEntries = o.maxEntries ?? LIBRARY_CACHE_MAX_ENTRIES;
   const maxBytes = o.maxBytes ?? LIBRARY_CACHE_MAX_BYTES;

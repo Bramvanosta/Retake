@@ -1,30 +1,3 @@
-
-function pad(n: number, w = 2): string {
-  return String(n).padStart(w, '0');
-}
-
-function runSlug(scenario: string): string {
-  return scenario.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'run';
-}
-
-/** "20261011-142233-catalogue" (local time). */
-export function newRunId(scenario: string, date: Date = new Date()): string {
-  const slug = runSlug(scenario);
-  return (
-    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-` +
-    `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}-${slug}`
-  );
-}
-
-/**
- * Whether a run id is a run of `scenario`: the scenario slug of a "<date>-<time>-<slug>" id must EQUAL the scenario's
- * (a run of "mobile-quote" is not a run of "quote"); ids in another format fall back to a "-<scenario>" suffix.
- */
-export function runIdMatchesScenario(id: string, scenario: string): boolean {
-  const m = /^\d{8}-\d{6}-(.+)$/.exec(id);
-  return m ? m[1] === runSlug(scenario) : id.endsWith(`-${scenario}`);
-}
-
 /** "my Project!" → "my-project" */
 export function slugify(s: string): string {
   return (

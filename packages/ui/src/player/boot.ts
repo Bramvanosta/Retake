@@ -35,7 +35,18 @@ const attrNameOf = (getOwnPropertyDescriptor(Attr.prototype, 'localName') ?? get
 const attrValueOf = getOwnPropertyDescriptor(Attr.prototype, 'value')!.get!;
 const ATTRIBUTE_NODE = 2;
 
-const REMOVED = ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCSessionDescription', 'RTCIceCandidate', 'RTCRtpSender', 'RTCRtpReceiver', 'RTCRtpTransceiver', 'WebTransport', 'XSLTProcessor'] as const;
+const REMOVED = [
+  'RTCPeerConnection',
+  'webkitRTCPeerConnection',
+  'RTCDataChannel',
+  'RTCSessionDescription',
+  'RTCIceCandidate',
+  'RTCRtpSender',
+  'RTCRtpReceiver',
+  'RTCRtpTransceiver',
+  'WebTransport',
+  'XSLTProcessor',
+] as const;
 /** Elements that make a child browsing context (a fresh realm). */
 const FRAME_TAGS = ['iframe', 'frame', 'frameset', 'object', 'embed', 'fencedframe', 'portal'];
 

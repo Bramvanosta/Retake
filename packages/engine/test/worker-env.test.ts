@@ -14,25 +14,25 @@ import { programProblem, PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import { loadWorkspaceConfig, nodeFileFacts } from '@retake/core/io';
 import { cleanWorkerEnv, createEngine } from '../src/index.js';
 import type { WorkerSpawnFn } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import type { WorkPolicy } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;
 
 let ws: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   ws = await realpath(await mkdtemp(join(tmpdir(), 'engine-worker-env-')));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await mkdir(join(ws, 'bin'), { recursive: true });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(ws, { recursive: true, force: true });
 });
 
@@ -104,9 +104,11 @@ describe('cleanWorkerEnv', () => {
     policy = workPolicyFrom([ws], policy.ffmpeg, policy.render);
     try {
       // What the worker's mediaBin / launchTarget / docker check say of these values (core programProblem).
-      expect(programProblem(policy, env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG', { files: nodeFileFacts })).toMatch(/^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/);
-      expect(programProblem(policy, env.RETAKE_FFPROBE!, '$RETAKE_FFPROBE', { files: nodeFileFacts })).toMatch(/is a relative path/);
-      expect(programProblem(policy, env.RETAKE_DOCKER!, '$RETAKE_DOCKER', { files: nodeFileFacts })).toMatch(/lies inside the workspace/);
+      expect(programProblem(policy, env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG', { path: '', files: nodeFileFacts })).toMatch(
+        /^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/,
+      );
+      expect(programProblem(policy, env.RETAKE_FFPROBE!, '$RETAKE_FFPROBE', { path: '', files: nodeFileFacts })).toMatch(/is a relative path/);
+      expect(programProblem(policy, env.RETAKE_DOCKER!, '$RETAKE_DOCKER', { path: '', files: nodeFileFacts })).toMatch(/lies inside the workspace/);
     } finally {
       policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
@@ -114,18 +116,28 @@ describe('cleanWorkerEnv', () => {
 
   it("all the workspace's folders count (its templates or components folder outside the root): PATH and load-path entries there are dropped", () => {
     const templates = join(ws, '..', `${ws.split('/').pop()}-templates`);
-    const env = cleanWorkerEnv({ PATH: [join(templates, 'bin'), '/usr/bin'].join(delimiter), NODE_PATH: join(templates, 'lib'), DYLD_LIBRARY_PATH: '/opt/lib' }, ws, { node: '/n/bin/node', exists: () => false, folders: [ws, templates] });
+    const env = cleanWorkerEnv({ PATH: [join(templates, 'bin'), '/usr/bin'].join(delimiter), NODE_PATH: join(templates, 'lib'), DYLD_LIBRARY_PATH: '/opt/lib' }, ws, {
+      node: '/n/bin/node',
+      exists: () => false,
+      folders: [ws, templates],
+    });
     expect(env.PATH).toBe(['/n/bin', '/usr/bin'].join(delimiter));
     expect(env.NODE_PATH).toBeUndefined();
     expect(env.DYLD_LIBRARY_PATH).toBe('/opt/lib');
     // The root alone: that folder is not the workspace's.
-    expect(cleanWorkerEnv({ PATH: join(templates, 'bin'), NODE_PATH: join(templates, 'lib') }, ws, { node: '/n/bin/node', exists: () => false })).toMatchObject({ PATH: ['/n/bin', join(templates, 'bin')].join(delimiter), NODE_PATH: join(templates, 'lib') });
+    expect(cleanWorkerEnv({ PATH: join(templates, 'bin'), NODE_PATH: join(templates, 'lib') }, ws, { node: '/n/bin/node', exists: () => false })).toMatchObject({
+      PATH: ['/n/bin', join(templates, 'bin')].join(delimiter),
+      NODE_PATH: join(templates, 'lib'),
+    });
   });
 
   it('PATH: no entry inside the workspace under another case or spelling (realpath.native)', () => {
     const up = (p: string) => (process.platform === 'darwin' ? p.toUpperCase() : p);
     // An existing folder under another case (the file system's own spelling: realpath.native), one not created yet.
-    const env = cleanWorkerEnv({ PATH: [up(join(ws, 'bin')), join(ws, 'bin'), join(ws, 'not', 'yet'), up(join(ws, 'not', 'yet')), '/usr/bin'].join(delimiter) }, ws, { node: '/n/bin/node', exists: () => false });
+    const env = cleanWorkerEnv({ PATH: [up(join(ws, 'bin')), join(ws, 'bin'), join(ws, 'not', 'yet'), up(join(ws, 'not', 'yet')), '/usr/bin'].join(delimiter) }, ws, {
+      node: '/n/bin/node',
+      exists: () => false,
+    });
     expect(env.PATH).toBe(['/n/bin', '/usr/bin'].join(delimiter));
   });
 });

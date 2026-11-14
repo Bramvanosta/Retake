@@ -1,5 +1,5 @@
-import { GUIDE } from '@retake/core';
-import type { ErrorKind } from '@retake/core';
+import { GUIDE } from '@retake/core/base';
+import type { ErrorKind } from '@retake/core/base';
 
 /** A hook could not be prepared or failed while running. */
 export class HookError extends Error {
@@ -25,8 +25,11 @@ export class HookError extends Error {
 export class HookSecurityError extends Error {
   constructor(
     message: string,
-    /** `mcp`: work submitted through MCP references a file or a secret it may not (core agent-trust). */
-    public readonly reason: 'host' | 'destructive' | 'read-only' | 'mcp',
+    /**
+     * `mcp`: work submitted through MCP references a file or a secret it may not (core agent-trust). `trust` (L7.39): a
+     * file the hook reads is not as the person checked it before the run (HookContext.trustedFiles).
+     */
+    public readonly reason: 'host' | 'destructive' | 'read-only' | 'mcp' | 'trust',
   ) {
     super(message);
     this.name = 'HookSecurityError';

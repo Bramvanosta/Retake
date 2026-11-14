@@ -16,25 +16,26 @@ import { DISCOVERY_VERSION, discoveryFile, newSecret, readDiscovery, readStudioT
 import { TOOLS } from '@retake/mcp';
 import { CALL_BODY_MAX, INDEX_HTML, INDEX_OPS, OWN_OPS, UI_OPS, buildUi, launchStudio, startStudioServer, uiTools } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const README = () => join(ws, 'projects', 'northfield-fixture', 'README.md');
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-server-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws });
 });
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -64,7 +65,7 @@ describe('static app from memory', () => {
     expect(Object.keys(index.headers).filter((k) => k.startsWith('access-control-'))).toEqual([]);
   });
 
-  it('L5.9: the bundled Geist pair at /fonts/<file> (font/woff2, the files\' bytes, from memory); the stylesheet names those two URLs only; the document preloads them and names its colour schemes', async () => {
+  it("L5.9: the bundled Geist pair at /fonts/<file> (font/woff2, the files' bytes, from memory); the stylesheet names those two URLs only; the document preloads them and names its colour schemes", async () => {
     for (const file of ['Geist-Variable.woff2', 'GeistMono-Variable.woff2']) {
       const r = await raw(studio.port, 'GET', `/fonts/${file}`);
       expect(r.status, file).toBe(200);
@@ -156,13 +157,92 @@ describe('/v1/info and the session', () => {
 
 describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
   it("every UI op is an MCP tool or one of the Studio's own reads (never an MCP name); any other tool is 404 unknown op and runs nothing", async () => {
-    const names = new Set(TOOLS.map((t) => t.name));
+    const names = new Set<string>(TOOLS.map((t) => t.name));
     for (const op of UI_OPS) expect(names.has(op) !== (OWN_OPS as readonly string[]).includes(op), op).toBe(true);
     expect([...INDEX_OPS]).toEqual(['activity_list', 'search']);
-    expect([...OWN_OPS]).toEqual(['activity_list', 'search', 'projects_overview', 'project_board', 'scenario_blocks', 'scenario_actions', 'run_thumbs', 'scenario_forms', 'scenario_run', 'scenario_edit', 'run_pause', 'scenario_sessions', 'sign_in_cancel', 'timeline_view', 'timeline_leave', 'preview_allow', 'scenario_render', 'scenario_renders', 'render_cancel', 'render_review', 'review_image', 'review_export', 'threads_list', 'threads_counts', 'thread_get', 'thread_still', 'render_outline', 'render_frame', 'frame_anchor', 'thread_add', 'thread_reply', 'thread_resolve', 'thread_reopen', 'thread_apply', 'library_view', 'library_images', 'library_render', 'library_component', 'theme_list', 'theme_view', 'theme_edit', 'theme_copy', 'theme_create', 'brand_files', 'site_list', 'theme_preview', 'record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save', 'unsaved_report', 'desktop_answer', 'setup_status', 'setup_cli_install', 'setup_cli_choose', 'setup_cli_remove', 'setup_claude_code_run', 'setup_claude_desktop_add', 'setup_notifications', 'setup_done', 'desktop_update_status', 'desktop_update']);
+    expect([...OWN_OPS]).toEqual([
+      'activity_list',
+      'search',
+      'projects_overview',
+      'project_board',
+      'scenario_blocks',
+      'scenario_actions',
+      'run_thumbs',
+      'scenario_forms',
+      'scenario_run',
+      'scenario_edit',
+      'run_pause',
+      'scenario_sessions',
+      'sign_in_cancel',
+      'timeline_view',
+      'timeline_leave',
+      'preview_allow',
+      'scenario_render',
+      'scenario_renders',
+      'render_cancel',
+      'render_review',
+      'review_image',
+      'review_export',
+      'threads_list',
+      'threads_counts',
+      'thread_get',
+      'thread_still',
+      'render_outline',
+      'render_frame',
+      'frame_anchor',
+      'thread_add',
+      'thread_reply',
+      'thread_resolve',
+      'thread_reopen',
+      'thread_apply',
+      'library_view',
+      'library_images',
+      'library_render',
+      'library_component',
+      'theme_list',
+      'theme_view',
+      'theme_edit',
+      'theme_copy',
+      'theme_create',
+      'brand_files',
+      'site_list',
+      'theme_preview',
+      'record_options',
+      'record_start',
+      'record_view',
+      'record_annotate',
+      'record_stop',
+      'record_discard',
+      'record_save',
+      'unsaved_report',
+      'desktop_answer',
+      'setup_status',
+      'setup_cli_install',
+      'setup_cli_choose',
+      'setup_cli_remove',
+      'setup_claude_code_run',
+      'setup_claude_desktop_add',
+      'setup_notifications',
+      'setup_done',
+      'desktop_update_status',
+      'desktop_update',
+    ]);
     expect(() => uiTools([{ ...TOOLS.find((t) => t.name === 'run_capture')! }])).toThrow(/shadow/);
     const before = studio.calls;
-    for (const op of ['run_capture', 'run_dry', 'hooks_run', 'job_cancel', 'project_create', 'scenario_save', 'sandbox_reset', 'template_from_site', 'comment_reply', 'template_create_from_brand', 'component_preview', 'scenario_record']) {
+    for (const op of [
+      'run_capture',
+      'run_dry',
+      'hooks_run',
+      'job_cancel',
+      'project_create',
+      'scenario_save',
+      'sandbox_reset',
+      'template_from_site',
+      'comment_reply',
+      'template_create_from_brand',
+      'component_preview',
+      'scenario_record',
+    ]) {
       const r = await call(op, {});
       expect(r.status, op).toBe(404);
       expect(r.json<{ error: { message: string } }>().error.message).toContain('unknown op');
@@ -234,7 +314,9 @@ describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
     const r = await call('projects_overview');
     expect(r.status).toBe(200);
     expect(studio.calls).toBe(before + 1);
-    const [p] = r.json<{ data: { projects: Array<{ slug: string; environments: Array<{ name: string; production: boolean; access: string; sandbox: boolean }>; last_run: { id: string; scenario: string } | null }> } }>().data.projects;
+    const [p] = r.json<{
+      data: { projects: Array<{ slug: string; environments: Array<{ name: string; production: boolean; access: string; sandbox: boolean }>; last_run: { id: string; scenario: string } | null }> };
+    }>().data.projects;
     expect(p.slug).toBe('northfield-fixture');
     expect(p.environments.some((e) => e.production && e.access === 'read-only')).toBe(true);
     expect(p.environments.some((e) => e.sandbox)).toBe(true);
@@ -263,7 +345,9 @@ describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
       expect(r.headers['content-security-policy']).toBe(studioCsp(studio.player.origin));
     }
     // A CORS preflight never succeeds: refused at the Origin layer (another page), or 405 (OPTIONS) for this origin.
-    expect((await raw(studio.port, 'OPTIONS', '/v1/call/project_update_readme', { ...auth(), origin: `http://127.0.0.1:${studio.port + 1}`, 'access-control-request-method': 'POST' })).status).toBe(403);
+    expect((await raw(studio.port, 'OPTIONS', '/v1/call/project_update_readme', { ...auth(), origin: `http://127.0.0.1:${studio.port + 1}`, 'access-control-request-method': 'POST' })).status).toBe(
+      403,
+    );
     expect((await raw(studio.port, 'OPTIONS', '/v1/call/project_update_readme', { ...auth(), origin: `http://127.0.0.1:${studio.port}`, 'access-control-request-method': 'POST' })).status).toBe(405);
     expect(studio.calls).toBe(before);
     expect(sha256Hex(await readFile(README()))).toBe(hash);
@@ -284,11 +368,11 @@ describe('one server per workspace (discovery file, token in the Retake home)', 
 
   it('a Retake home inside the workspace is refused before anything starts: the token would lie where an agent reads files', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-ui-home-'));
-    const before = process.env.RETAKE_HOME;
+    const inside = scratchHome();
     try {
       await fixtureWorkspace(dir);
       for (const home of [join(dir, '.home'), join(dir, 'projects', 'h')]) {
-        process.env.RETAKE_HOME = home;
+        inside.use(home);
         const e = await launchStudio({ root: dir }).then(
           () => null,
           (x: unknown) => x as { code: string; message: string; fix?: string },
@@ -300,12 +384,12 @@ describe('one server per workspace (discovery file, token in the Retake home)', 
         await expect(stat(join(home, 'ui'))).rejects.toThrow();
       }
     } finally {
-      process.env.RETAKE_HOME = before;
+      inside.restore();
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  it('a second launch reuses the first with a fresh code; ui.json holds no token, the home\'s 0600 record does; close removes both', async () => {
+  it("a second launch reuses the first with a fresh code; ui.json holds no token, the home's 0600 record does; close removes both", async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-ui-launch-'));
     try {
       await fixtureWorkspace(dir);
@@ -319,7 +403,7 @@ describe('one server per workspace (discovery file, token in the Retake home)', 
       const text = await readFile(file, 'utf8');
       expect(text).not.toContain(first.server.token);
       expect(text).not.toContain('#c=');
-      const tokenFile = await studioTokenFile(dir);
+      const tokenFile = await studioTokenFile(dir, process.env);
       expect(tokenFile.startsWith(join(process.env.RETAKE_HOME!, 'ui'))).toBe(true);
       expect((await stat(tokenFile)).mode & 0o777).toBe(0o600);
       expect(await readStudioToken(tokenFile, dir)).toMatchObject({ pid: process.pid, port: first.port, token: first.server.token });
@@ -336,7 +420,7 @@ describe('one server per workspace (discovery file, token in the Retake home)', 
     }
   });
 
-  it('a ui.json rewritten in the workspace to name another port: the reuse goes to the port of the home\'s record, the other port gets nothing', async () => {
+  it("a ui.json rewritten in the workspace to name another port: the reuse goes to the port of the home's record, the other port gets nothing", async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-ui-launch-'));
     const other = await decoy();
     try {
@@ -360,27 +444,46 @@ describe('one server per workspace (discovery file, token in the Retake home)', 
   it('a live server of another Retake home, or an older record (version 1, with its token): told what to do, nothing sent to its port', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-ui-launch-'));
     const other = await decoy();
-    const home = process.env.RETAKE_HOME;
+    const otherHome = scratchHome();
     try {
       await fixtureWorkspace(dir);
       const first = await launchStudio({ root: dir });
       if (first.reused) throw new Error('expected a new server');
-      process.env.RETAKE_HOME = join(dir, '..', `${basename(dir)}-other-home`);
-      const e = await launchStudio({ root: dir }).then(() => undefined, (x: unknown) => x);
+      const elsewhere = otherHome.use(join(dir, '..', `${basename(dir)}-other-home`));
+      const e = await launchStudio({ root: dir }).then(
+        () => undefined,
+        (x: unknown) => x,
+      );
       expect(e).toMatchObject({ code: 'busy', message: expect.stringContaining(`a Studio server (pid ${process.pid}) serves this workspace, but its token is not in this Retake home`) });
       expect((e as { fix: string }).fix).toContain('run retake ui with the RETAKE_HOME that server was started with');
-      await rm(process.env.RETAKE_HOME, { recursive: true, force: true });
-      process.env.RETAKE_HOME = home;
+      await rm(elsewhere, { recursive: true, force: true });
+      otherHome.restore();
       await first.server.close();
       // An older Retake's record, its holder alive (this process), its port the decoy.
       const me = await selfIdentity();
       const secret = newSecret();
-      await writeFile(discoveryFile(dir), JSON.stringify({ version: 1, kind: 'ui', pid: me.pid, ...(me.started_at ? { started_at: me.started_at } : {}), port: other.port, url: `http://127.0.0.1:${other.port}/`, token: secret, since: new Date().toISOString() }), { mode: 0o600 });
-      const old = await launchStudio({ root: dir }).then(() => undefined, (x: unknown) => x);
+      await writeFile(
+        discoveryFile(dir),
+        JSON.stringify({
+          version: 1,
+          kind: 'ui',
+          pid: me.pid,
+          ...(me.started_at ? { started_at: me.started_at } : {}),
+          port: other.port,
+          url: `http://127.0.0.1:${other.port}/`,
+          token: secret,
+          since: new Date().toISOString(),
+        }),
+        { mode: 0o600 },
+      );
+      const old = await launchStudio({ root: dir }).then(
+        () => undefined,
+        (x: unknown) => x,
+      );
       expect(old).toMatchObject({ code: 'busy', message: expect.stringContaining('a Studio server of an older Retake'), fix: expect.stringContaining(`kill ${me.pid}`) });
       expect(other.seen).toEqual([]);
     } finally {
-      process.env.RETAKE_HOME = home;
+      otherHome.restore();
       await other.close();
       await rm(dir, { recursive: true, force: true });
     }

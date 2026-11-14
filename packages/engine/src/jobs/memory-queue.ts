@@ -6,7 +6,14 @@
  * behaviour, so nothing of the port may need a path. Approvals are still signed with the Retake home's key for `root`
  * (signing.ts), and the derived states still look at the recorded processes (proc.ts), as the file queue does.
  */
-import type { JobFileRead, TakeHold } from './job-queue.js';
+import type { EngineEnv } from '../env.js';
+import { opChain } from '../admission.js';
+import type { OpChain } from '../admission.js';
+import { stampOf, systemClock } from '../clock.js';
+import type { Clock } from '../clock.js';
+import { jobsDir } from '../workspace-state.js';
+import type { JobFileRead, JobQueues, TakeHold } from './job-queue.js';
+import { JobFiles } from './queue.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';
 import type { JobEntries } from './queue-core.js';
 
@@ -15,6 +22,9 @@ function gone(id: string): Error {
 }
 
 class MemoryEntries implements JobEntries {
+  /** `clock`: an entry's time (the file queue's mtime). */
+  constructor(private readonly clock: Clock) {}
+
   private readonly jobs = new Map<string, Map<string, { text: string; at: string }>>();
 
   private job(id: string): Map<string, { text: string; at: string }> | undefined {
@@ -24,7 +34,7 @@ class MemoryEntries implements JobEntries {
   private set(id: string, name: string, text: string): void {
     const job = this.job(id);
     if (!job) throw gone(id);
-    job.set(name, { text, at: new Date().toISOString() });
+    job.set(name, { text, at: stampOf(this.clock) });
   }
 
   async ids(): Promise<string[]> {
@@ -89,7 +99,14 @@ export interface MemoryJobQueueOptions {
    * withOwnMemory() queues — each its own memory of the takes, as each file queue has its own marker watch.
    */
   filming?: () => () => Promise<TakeHold>;
+  /** What the queue stamps its records, markers and entries with (default the system's clock: tests). */
+  clock?: Clock;
+  /** The environment whose Retake home signs its approvals (default this process's: tests). */
+  env?: EngineEnv;
 }
+
+/** The locks of the queues on one set of entries (MemoryJobQueue.exclusive). */
+const MEMORY_LOCKS = new WeakMap<JobEntries, OpChain>();
 
 export class MemoryJobQueue extends StoredJobQueue {
   private readonly hold: (() => Promise<TakeHold>) | undefined;
@@ -98,10 +115,17 @@ export class MemoryJobQueue extends StoredJobQueue {
   constructor(
     root: string,
     private readonly o: MemoryJobQueueOptions = {},
-    entries: JobEntries = new MemoryEntries(),
+    entries: JobEntries = new MemoryEntries(o.clock ?? systemClock),
   ) {
-    super(root, o.cli ?? 'retake', entries);
+    super(root, o.cli ?? 'retake', entries, o.clock ?? systemClock, o.env ?? process.env);
     this.hold = o.filming?.();
+  }
+
+  /** `fn` under the lock of `key`, shared by the queues on these entries (withOwnMemory): one holder at a time per key, in this process. */
+  exclusive<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    let chain = MEMORY_LOCKS.get(this.entries);
+    if (!chain) MEMORY_LOCKS.set(this.entries, (chain = opChain()));
+    return chain(key, fn);
   }
 
   /** The same jobs (one map), no finished job seen yet and a filming source of its own. */
@@ -112,4 +136,22 @@ export class MemoryJobQueue extends StoredJobQueue {
   protected async filming(): Promise<TakeHold> {
     return this.hold ? this.hold() : undefined;
   }
+}
+
+/**
+ * The JobQueues port in memory (ports.ts EnginePorts `queues`): one MemoryJobQueue per workspace root, made on the first
+ * call (with that call's clock); every later call for that root is handed the same jobs (withOwnMemory, its `cli`), so
+ * an engine and an in-process worker given the same factory share one queue. The file part names the paths of the
+ * workspace's jobs folder: nothing is read or written there by the queue (a worker's own files — a render's
+ * browser.json, a run's live.json — are written there by the code that is handed them).
+ */
+export function memoryJobQueues(o: Omit<MemoryJobQueueOptions, 'cli' | 'clock' | 'env'> = {}): JobQueues & { of(root: string): MemoryJobQueue | undefined } {
+  const queues = new Map<string, MemoryJobQueue>();
+  const make: JobQueues = (root, cli, clock, env) => {
+    const first = queues.get(root);
+    const queue = first ? first.withOwnMemory(cli) : new MemoryJobQueue(root, { ...o, cli, clock, env });
+    if (!first) queues.set(root, queue);
+    return { queue, files: new JobFiles(jobsDir(root)) };
+  };
+  return Object.assign(make, { of: (root: string) => queues.get(root) });
 }

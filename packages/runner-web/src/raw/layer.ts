@@ -7,11 +7,12 @@
  * transparent background at the capture's device scale; Node then composites the sprites frame by frame from the
  * cursor track (`cursorFrames`) and pipes raw RGBA to ffmpeg.
  */
-import { spawn } from 'node:child_process';
-import { execFile } from 'node:child_process';
+import type { ChildProcessByStdio } from 'node:child_process';
+import type { Readable, Writable } from 'node:stream';
 import { chromium } from 'playwright-core';
-import type { BrowserConfig, CursorIcon, RawLayerFormat, WorkPolicy } from '@retake/core';
-import { ffmpegBin } from '@retake/core/io';
+import type { BrowserConfig, CursorIcon, RawLayerFormat } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import { ffmpegBin, runMediaTool, startMediaTool, stderrLines } from '@retake/core/io';
 import { EncodeError } from '../errors.js';
 import { kitSource } from '../kit/source.js';
 import type { KitConfig } from '../kit/types.js';
@@ -49,14 +50,10 @@ export function scaleStep(scale: number): number {
   return Math.max(0, Math.min(ATLAS.scale_steps, Math.round(u * ATLAS.scale_steps)));
 }
 
-function run(bin: string, args: string[], input?: Buffer): Promise<Buffer> {
-  return new Promise((ok, fail) => {
-    const child = execFile(bin, args, { encoding: 'buffer', maxBuffer: 512 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) fail(new EncodeError(`${bin} failed: ${String(stderr).trim().split('\n').slice(-3).join(' | ') || err.message}`));
-      else ok(stdout as unknown as Buffer);
-    });
-    if (input) child.stdin?.end(input);
-  });
+async function run(bin: string, args: string[], input?: Buffer): Promise<Buffer> {
+  const r = await runMediaTool(bin, args, { encoding: 'buffer', maxBuffer: 512 * 1024 * 1024, ...(input ? { input } : {}) });
+  if (r.error) throw new EncodeError(`${bin} failed: ${stderrLines(r.stderr, 3) || r.error.message}`);
+  return r.stdout;
 }
 
 /** Opaque bounding box of a cell → sprite (null when the cell is empty). */
@@ -209,18 +206,60 @@ export function layerArgs(format: RawLayerFormat, width: number, height: number,
   const tags = ['-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709'];
   if (format === 'webm') {
     return [
-      '-y', '-hide_banner', '-loglevel', 'error', ...input,
-      '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuva420p',
-      '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', '18', '-deadline', 'good', '-cpu-used', '4', '-row-mt', '1', '-auto-alt-ref', '0',
-      ...tags, '-frames:v', String(frames), '-an', out,
+      '-y',
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      ...input,
+      '-vf',
+      'scale=out_color_matrix=bt709:out_range=tv,format=yuva420p',
+      '-c:v',
+      'libvpx-vp9',
+      '-pix_fmt',
+      'yuva420p',
+      '-b:v',
+      '0',
+      '-crf',
+      '18',
+      '-deadline',
+      'good',
+      '-cpu-used',
+      '4',
+      '-row-mt',
+      '1',
+      '-auto-alt-ref',
+      '0',
+      ...tags,
+      '-frames:v',
+      String(frames),
+      '-an',
+      out,
     ];
   }
   return [
-    '-y', '-hide_banner', '-loglevel', 'error', ...input,
-    '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuva444p10le',
+    '-y',
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    ...input,
+    '-vf',
+    'scale=out_color_matrix=bt709:out_range=tv,format=yuva444p10le',
     // prores_aw: ≈ 5× faster than prores_ks on these mostly empty frames, alpha kept within 1/255 (measured).
-    '-c:v', 'prores_aw', '-profile:v', '4', '-pix_fmt', 'yuva444p10le', '-vendor', 'apl0',
-    ...tags, '-timecode', timecode, '-frames:v', String(frames), '-an', out,
+    '-c:v',
+    'prores_aw',
+    '-profile:v',
+    '4',
+    '-pix_fmt',
+    'yuva444p10le',
+    '-vendor',
+    'apl0',
+    ...tags,
+    '-timecode',
+    timecode,
+    '-frames:v',
+    String(frames),
+    '-an',
+    out,
   ];
 }
 
@@ -246,16 +285,22 @@ export async function encodeCursorLayer(opts: {
 }): Promise<void> {
   const { width, height } = opts;
   const bin = ffmpegBin(opts.policy, opts.ffmpeg);
-  const child = spawn(bin, layerArgs(opts.format, width, height, opts.fps, opts.frames.length, opts.out, opts.timecode), { stdio: ['pipe', 'ignore', 'pipe'] });
-  let err = '';
-  child.stderr.on('data', (d: Buffer) => {
-    err = (err + d.toString()).slice(-4000);
+  const tool = startMediaTool(bin, layerArgs(opts.format, width, height, opts.fps, opts.frames.length, opts.out, opts.timecode), {
+    stdio: ['pipe', 'ignore', 'pipe'],
+    stderr: { keep: 'tail', max: 4000 },
   });
-  const done = new Promise<void>((ok, fail) => {
-    child.on('error', (e: NodeJS.ErrnoException) => fail(new EncodeError(e.code === 'ENOENT' ? `${bin} not found: install ffmpeg` : e.message)));
-    child.on('close', (code) => (code === 0 ? ok() : fail(new EncodeError(`${bin} exited with code ${code} (cursor layer): ${err.trim().split('\n').slice(-4).join(' | ')}`))));
+  const child = tool.child as ChildProcessByStdio<Writable, null, Readable>;
+  // An ffmpeg that quits while frames are written closes the pipe: the write fails (EPIPE), the frames stop and its exit
+  // says why (`done`), never an unhandled stream error that would end this process.
+  child.stdin.on('error', () => undefined);
+  const done = tool.exited.then((end) => {
+    if (end.error) throw new EncodeError(end.error.code === 'ENOENT' ? `${bin} not found: install ffmpeg` : end.error.message);
+    if (end.code !== 0) throw new EncodeError(`${bin} exited with code ${end.code} (cursor layer): ${stderrLines(tool.stderr, 4)}`);
   });
-  const onAbort = () => child.kill('SIGTERM');
+  // Handled at the end, once the frames are written (a tool that fails early ends their writes: the write fails above).
+  done.catch(() => undefined);
+  // A cancel while the frames are written stops them and the tool (SIGTERM); the encode of the last ones is not cancelled.
+  const onAbort = () => tool.kill('cancelled', 'SIGTERM');
   opts.signal?.addEventListener('abort', onAbort, { once: true });
   const frame = Buffer.alloc(width * height * 4);
   let dirty: Array<{ x: number; y: number; w: number; h: number }> = [];

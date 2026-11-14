@@ -65,7 +65,24 @@ export interface StepForms {
 }
 
 /** The actions of the palette (critique C3): those whose required values fit the form fields. */
-export const PALETTE_ACTIONS = ['open', 'click', 'double_click', 'hover', 'type', 'press', 'select', 'wait', 'wait_for', 'hold', 'screenshot', 'scroll', 'menu', 'date', 'notify', 'hook'] as const satisfies readonly ActionName[];
+export const PALETTE_ACTIONS = [
+  'open',
+  'click',
+  'double_click',
+  'hover',
+  'type',
+  'press',
+  'select',
+  'wait',
+  'wait_for',
+  'hold',
+  'screenshot',
+  'scroll',
+  'menu',
+  'date',
+  'notify',
+  'hook',
+] as const satisfies readonly ActionName[];
 
 /** Actions without a form: code, custom events, cursor points (the YAML view). */
 const NO_FORM: ReadonlySet<ActionName> = new Set<ActionName>(['eval', 'emit', 'cursor']);
@@ -331,7 +348,14 @@ export function stepFormValues(raw: unknown): StepFormValues | undefined {
   }
   // What else it holds: keys of the step, of its action's object form and of its targets that no field covers.
   const known = new Set(fields.map((f) => f.key));
-  const containers = new Set(fields.flatMap((f) => f.key.split('.').slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join('.'))));
+  const containers = new Set(
+    fields.flatMap((f) =>
+      f.key
+        .split('.')
+        .slice(0, -1)
+        .map((_, i, a) => a.slice(0, i + 1).join('.')),
+    ),
+  );
   const yaml_only: string[] = [];
   const walk = (v: unknown, path: string[]) => {
     const key = path.join('.');

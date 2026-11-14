@@ -5,7 +5,9 @@
  * seed and the reset, and keeps the state file; a provider reads and updates `ctx.state` and calls `ctx.save()` as soon
  * as something it started exists.
  */
-import type { ExecStepSpec, HookTrust, LoadedProject, LoadedSandbox, SandboxProvider, WorkPolicy } from '@retake/core';
+import type { ExecStepSpec, LoadedProject, LoadedSandbox, SandboxProvider } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { HookTrust } from '@retake/core/hooks';
 import type { HookApprovalRequest } from '@retake/hooks';
 import type { SandboxPaths } from './paths.js';
 import type { SandboxState } from './state.js';
@@ -64,7 +66,15 @@ export interface ProviderContext {
   signal?: AbortSignal;
   seedTrust?: SeedTrust;
   recordSeedRun?: SeedRecorder;
+  /**
+   * What the sandbox's secret references (sandbox.yaml's service env, exec steps' env, a Postgres URL, the mailbox
+   * headers) are resolved with: its opener's (the engine's Secrets port). Required: never read on the way.
+   */
+  resolveSecret: SecretRefResolver;
 }
+
+/** Resolves one secret reference (`env:VAR`, `keychain:service/account`) to its value. */
+export type SecretRefResolver = (ref: string) => Promise<string>;
 
 export interface UpResult {
   /** Services started by this call (each one healthy). */
@@ -135,8 +145,59 @@ export interface ProviderLogs {
   text: string;
 }
 
+/**
+ * What a provider can do beyond the methods every provider has (X8, L7.25: the methods that were optional, made
+ * explicit). Every method of `Provider` exists on every provider; a capability that is false means its method refuses
+ * (exec, logs, followLogs, publishedBy: a SandboxError) or gives the neutral answer (address: undefined, hashInputs:
+ * none), and the Sandbox tests the capability before it calls, in its own words. A contract suite holds both providers
+ * to it (packages/sandbox/test/provider-capabilities.test.ts; the engine's sandboxes contract, through the Sandbox).
+ */
+export interface ProviderCapabilities {
+  /** `exec` seed and reset steps (a command in a service's container). */
+  exec: boolean;
+  /** The provider reads the services' logs itself (`logs`); otherwise they are files (`logFiles`). */
+  logs: boolean;
+  /** Follow the logs until a signal aborts (`followLogs`). */
+  followLogs: boolean;
+  /** Snapshot resets: the database's port is published by a service of the sandbox (`publishedBy`). */
+  snapshots: boolean;
+  /** Its own address for a port its services publish (`address`: 127.0.0.1 or ::1, never `localhost`). */
+  address: boolean;
+  /** More inputs of the seed hash (`hashInputs`: the services' image ids). */
+  hashInputs: boolean;
+  /** `up --build`: the images built first. */
+  build: boolean;
+  /** `down --volumes`: the named volumes (the data, the snapshot) removed too; without it the data stays. */
+  volumes: boolean;
+}
+
+/** The process provider's capabilities: its services are programs of this machine, their logs files. */
+export const PROCESS_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
+  exec: false,
+  logs: false,
+  followLogs: false,
+  snapshots: false,
+  address: false,
+  hashInputs: false,
+  build: false,
+  volumes: false,
+});
+/** The docker-compose provider's capabilities: all of them. */
+export const COMPOSE_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
+  exec: true,
+  logs: true,
+  followLogs: true,
+  snapshots: true,
+  address: true,
+  hashInputs: true,
+  build: true,
+  volumes: true,
+});
+
 export interface Provider {
   readonly kind: SandboxProvider;
+  /** What it can do beyond the methods every provider answers (ProviderCapabilities). */
+  readonly capabilities: Readonly<ProviderCapabilities>;
   /** Start what is not running (declaration order), wait until every service is healthy and serves its own ports. */
   up(ctx: ProviderContext, opts?: UpOptions): Promise<UpResult>;
   /** Stop every service of the state (reverse order), sandbox.yaml's or not. */
@@ -145,34 +206,35 @@ export interface Provider {
   status(ctx: ProviderContext): Promise<ServiceStatus[]>;
   /** Stop then start one service, healthy again (reset.restart). */
   restart(ctx: ProviderContext, service: string): Promise<void>;
-  /** An `exec` seed step (docker-compose); a process sandbox has none (validation refuses them). */
-  exec?(ctx: ProviderContext, step: ExecStepSpec): Promise<string>;
+  /** An `exec` seed step (capability `exec`; a process sandbox has none: validation refuses them). */
+  exec(ctx: ProviderContext, step: ExecStepSpec): Promise<string>;
   /** The services this provider instance started (this call): stopped when the call fails or is interrupted. */
   stopStarted(ctx: ProviderContext): Promise<string[]>;
   /** The same, synchronously, with SIGKILL (a second Ctrl-C: nothing can be awaited). */
   killStartedSync(ctx: ProviderContext): void;
   /** Log files of the services (the process provider's; none when the provider reads its logs itself). */
   logFiles(ctx: ProviderContext): ServiceLogFile[];
-  /** The last `lines` lines of each service's logs, read by the provider (docker-compose). */
-  logs?(ctx: ProviderContext, opts: { service?: string; lines: number }): Promise<ProviderLogs[]>;
-  /** Follow the logs until `signal` aborts (docker-compose). */
-  followLogs?(ctx: ProviderContext, opts: { service?: string; lines: number; signal: AbortSignal; write: (line: string) => void }): Promise<void>;
+  /** The last `lines` lines of each service's logs, read by the provider (capability `logs`). */
+  logs(ctx: ProviderContext, opts: { service?: string; lines: number }): Promise<ProviderLogs[]>;
+  /** Follow the logs until `signal` aborts (capability `followLogs`). */
+  followLogs(ctx: ProviderContext, opts: { service?: string; lines: number; signal: AbortSignal; write: (line: string) => void }): Promise<void>;
   /**
    * The service of the sandbox publishing this host port, which nothing else listens on (a snapshot's database must be
-   * the sandbox's own). Throws SandboxError otherwise; a provider without it cannot take snapshots.
+   * the sandbox's own). Throws SandboxError otherwise; capability `snapshots` (a provider without it cannot take
+   * snapshots).
    */
-  publishedBy?(ctx: ProviderContext, port: number, use?: OwnerUse): Promise<string>;
+  publishedBy(ctx: ProviderContext, port: number, use?: OwnerUse): Promise<string>;
   /**
    * The service of the sandbox serving this host port, which nothing else listens on: what a reset empties or a seed
    * rewrites (the mailbox, a seed's database) must be the sandbox's own. Throws SandboxError otherwise.
    */
   servedBy(ctx: ProviderContext, port: number, use: OwnerUse): Promise<string>;
   /**
-   * Where to connect to a port the sandbox's own services publish (docker-compose: the address Docker publishes it on,
-   * 127.0.0.1 or ::1 — never `localhost`, which may reach another container publishing the same port on ::1);
-   * undefined when the URL's own host is used.
+   * Where to connect to a port the sandbox's own services publish (capability `address`; docker-compose: the address
+   * Docker publishes it on, 127.0.0.1 or ::1 — never `localhost`, which may reach another container publishing the
+   * same port on ::1); undefined when the URL's own host is used (always, without the capability).
    */
-  address?(ctx: ProviderContext, port: number): Promise<string | undefined>;
-  /** More inputs of the seed hash (docker-compose: the services' image ids — a rebuilt app makes the seed stale). */
-  hashInputs?(ctx: ProviderContext): Promise<string[]>;
+  address(ctx: ProviderContext, port: number): Promise<string | undefined>;
+  /** More inputs of the seed hash (capability `hashInputs`; docker-compose: the services' image ids — a rebuilt app makes the seed stale); none without it. */
+  hashInputs(ctx: ProviderContext): Promise<string[]>;
 }

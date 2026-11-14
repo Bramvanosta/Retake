@@ -1,15 +1,17 @@
 import { resolve } from 'node:path';
-import { loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core';
+import { loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core/environment';
 import { listProjects } from '@retake/core/io';
 import { LoginOptionError, loginTarget, projectPersonaStates, signInPersona as signInCore, tildePath } from '@retake/engine';
 import type { LoginCommandOf, PersonaState } from '@retake/engine';
-import type { LoadedProject, ResolvedPersona, WorkPolicy } from '@retake/core';
+import type { LoadedProject } from '@retake/core/model';
+import type { ResolvedPersona } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
 import type { PersonaCheckResult } from '@retake/runner-web';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { Ui } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 // Moved into @retake/engine (L3.1); re-exported for the commands that import them from here.
@@ -83,6 +85,9 @@ export async function signInPersona(
       { mode, policy: opts.policy, ...(opts.page !== undefined ? { page: opts.page } : {}), ...(opts.url !== undefined ? { url: opts.url } : {}) },
       {
         interrupts: { open: (o) => onInterrupt(ui, o) },
+        sessions: cliPorts.capture.sessions,
+        env: cliPorts.env,
+        secrets: cliPorts.secrets,
         log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
         onOpen: (url) =>
           ui.line(
@@ -187,7 +192,7 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
   }
   const rows: Array<{ persona: ResolvedPersona; state: PersonaState; project: LoadedProject }> = [];
   for (const project of projects) {
-    for (const r of await projectPersonaStates(project, command, opts.env)) rows.push({ ...r, project });
+    for (const r of await projectPersonaStates(project, command, cliPorts.capture.sessions, opts.env)) rows.push({ ...r, project });
   }
   if (opts.check) {
     const { checkSavedSession, profileLock, writeStatus, PreflightError } = await import('@retake/runner-web');
@@ -213,7 +218,7 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
             env: resolveEnvironment(r.project, r.state.env),
             persona: r.persona,
             signal: stop.signal,
-            log: (level, msg) => ui.debug(msg),
+            log: (_level, msg) => ui.debug(msg),
           });
         } catch (e) {
           if (stop.interrupted) return EXIT.interrupted;
@@ -248,7 +253,9 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
     return opts.check && bad ? EXIT.failure : EXIT.ok;
   }
   if (rows.length === 0) {
-    ui.line(`no personas${opts.project !== undefined ? ` in ${opts.project}` : ' in this workspace'}: name the accounts a project films in auth.personas of its project.yaml (docs/guide/environments.md: "Signing in: personas and sessions")`);
+    ui.line(
+      `no personas${opts.project !== undefined ? ` in ${opts.project}` : ' in this workspace'}: name the accounts a project films in auth.personas of its project.yaml (docs/guide/environments.md: "Signing in: personas and sessions")`,
+    );
     return EXIT.ok;
   }
   printStates(

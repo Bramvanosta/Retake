@@ -4,18 +4,19 @@
  * the window and the document, and the kit's answers on a fixed page — in a top document, in a same-origin frame and
  * for the recorder's passive copy, installed the way a capture installs it (an init script) and the way a re-install
  * does (evaluated in a loaded page). The golden (test/golden/kit-page.json) holds what the kit gave before it was built
- * from modules (recorded from the kit of 6e25104, `kit/kit.ts`); it is written only on request (RETAKE_UPDATE_GOLDEN=1)
+ * from modules (recorded from the kit of 6e25104, `kit/kit.ts`); it is written only on request (RETAKE_WRITE_SNAPSHOTS=1)
  * and looked at when it is.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { kitConfigFor, kitSource } from '../src/index.js';
 import type { KitConfig } from '../src/index.js';
-import { startServer } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { startServer } from '@retake/test-support/capture';
+import type { TestServer } from '@retake/test-support/capture';
+import { recordGolden } from '@retake/test-support/golden';
 
 const GOLDEN = fileURLToPath(new URL('./golden/kit-page.json', import.meta.url));
 
@@ -76,7 +77,9 @@ const NATIVES = `({
 
 /** Each native the kit may patch: still native, or replaced. */
 async function natives(page: Page): Promise<Record<string, string>> {
-  return page.evaluate(`(() => { const n = ${NATIVES}; const out = {}; for (const k of Object.keys(n)) out[k] = n[k] === null ? 'absent' : /\\{\\s*\\[native code\\]\\s*\\}\\s*$/.test(Function.prototype.toString.call(n[k])) ? 'native' : 'patched'; return out; })()`);
+  return page.evaluate(
+    `(() => { const n = ${NATIVES}; const out = {}; for (const k of Object.keys(n)) out[k] = n[k] === null ? 'absent' : /\\{\\s*\\[native code\\]\\s*\\}\\s*$/.test(Function.prototype.toString.call(n[k])) ? 'native' : 'patched'; return out; })()`,
+  );
 }
 
 /** The window's own property names (sorted). */
@@ -118,7 +121,9 @@ async function listeners(page: Page, frame: 'main' | 'child' = 'main'): Promise<
     const out: Record<string, string[]> = {};
     for (const name of ['window', 'document']) {
       const { result } = (await cdp.send('Runtime.evaluate', { expression: name, contextId })) as { result: { objectId?: string } };
-      const { listeners: list } = (await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId! })) as { listeners: Array<{ type: string; useCapture: boolean; passive: boolean; once: boolean }> };
+      const { listeners: list } = (await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId! })) as {
+        listeners: Array<{ type: string; useCapture: boolean; passive: boolean; once: boolean }>;
+      };
       out[name] = list.map((l) => `${l.type}${l.useCapture ? ' capture' : ''}${l.passive ? ' passive' : ''}${l.once ? ' once' : ''}`).sort();
     }
     return out;
@@ -266,7 +271,13 @@ async function more(page: Page): Promise<unknown> {
     };
     // A native date input with a range.
     const when = k.find({ label: 'When' }) as { ref: string };
-    out.date = { out_of_range: k.setNativeValue(when.ref, '2027-01-01'), bad: k.setNativeValue(when.ref, 'soon'), ok: k.setNativeValue(when.ref, '2026-05-05'), value: k.fieldValue(when.ref), state: k.fieldState(when.ref) };
+    out.date = {
+      out_of_range: k.setNativeValue(when.ref, '2027-01-01'),
+      bad: k.setNativeValue(when.ref, 'soon'),
+      ok: k.setNativeValue(when.ref, '2026-05-05'),
+      value: k.fieldValue(when.ref),
+      state: k.fieldState(when.ref),
+    };
     // A modal dialog opened with showModal(): the popups, its confirm button, the overlay kept in the top layer.
     const dlg = document.getElementById('dlg') as HTMLDialogElement;
     dlg.showModal();
@@ -311,7 +322,13 @@ async function more(page: Page): Promise<unknown> {
 async function framePointer(page: Page): Promise<unknown> {
   const frame = page.mainFrame().childFrames()[0];
   const out: unknown[] = [];
-  for (const m of [{ hello: 1 }, { __retakePtr: 1, type: 'move', x: 5, y: 6 }, { __retakePtr: 1, type: 'down', x: 7, y: 8 }, { __retakePtr: 1, type: 'up', x: 7, y: 8 }, { __retakePtr: 1, type: 'move', x: 'a', y: 1 }]) {
+  for (const m of [
+    { hello: 1 },
+    { __retakePtr: 1, type: 'move', x: 5, y: 6 },
+    { __retakePtr: 1, type: 'down', x: 7, y: 8 },
+    { __retakePtr: 1, type: 'up', x: 7, y: 8 },
+    { __retakePtr: 1, type: 'move', x: 'a', y: 1 },
+  ]) {
     // The kit's listener was added when it installed: it runs before this one.
     const got = page.evaluate(
       () =>
@@ -365,7 +382,9 @@ async function snapshotOf(): Promise<Record<string, unknown>> {
   // Evaluated again in the same document: the healthy kit of the same version stays (same object).
   out.reinstall_same = await page.evaluate(`(() => { const a = window.__retake; ${kitSource(config)}; return { same: window.__retake === a, healthy: a.healthy() }; })()`);
   // Disposed, then evaluated again: a new kit carries the cursor over.
-  out.after_dispose = await page.evaluate(`(() => { const a = window.__retake; a.dispose(); const healthy = a.healthy(); ${kitSource(config)}; const b = window.__retake; return { healthy, replaced: b !== a, cursor: b.cursor.state(), hosts: document.querySelectorAll('retake-cursor').length }; })()`);
+  out.after_dispose = await page.evaluate(
+    `(() => { const a = window.__retake; a.dispose(); const healthy = a.healthy(); ${kitSource(config)}; const b = window.__retake; return { healthy, replaced: b !== a, cursor: b.cursor.state(), hosts: document.querySelectorAll('retake-cursor').length }; })()`,
+  );
   out.after_dispose_listeners = await listeners(page);
   await page.close();
 
@@ -402,10 +421,8 @@ function stable(snap: Record<string, unknown>): Record<string, unknown> {
 describe('what the page receives from the kit', () => {
   it('the same globals, API, look, patches, listeners and answers as the kit before modules', async () => {
     const now = stable(await snapshotOf());
-    if (process.env.RETAKE_UPDATE_GOLDEN === '1' || !existsSync(GOLDEN)) {
-      expect(process.env.RETAKE_UPDATE_GOLDEN, `${GOLDEN} is missing: written now; run again with RETAKE_UPDATE_GOLDEN=1 to accept it`).toBe('1');
-      writeFileSync(GOLDEN, JSON.stringify(now, null, 1) + '\n');
-    }
+    recordGolden(GOLDEN, JSON.stringify(now, null, 1) + '\n');
+    expect(existsSync(GOLDEN), `${GOLDEN} is missing: run with RETAKE_WRITE_SNAPSHOTS=1, then review it`).toBe(true);
     const golden = JSON.parse(readFileSync(GOLDEN, 'utf8')) as Record<string, unknown>;
     for (const key of Object.keys(golden)) expect(now[key], key).toEqual(golden[key]);
     expect(Object.keys(now).sort()).toEqual(Object.keys(golden).sort());

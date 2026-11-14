@@ -5,9 +5,26 @@
  */
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { agentTrustProblems, agentTrustProblemsAt, canonicalAddress, canonicalIp, canonicalOrigin, isPageOrigin, navigationProblem, pageOrigins, parseScenario, parseYaml, scenarioNavigationRefs } from '@retake/core';
+import {
+  agentTrustProblems,
+  agentTrustProblemsAt,
+  canonicalAddress,
+  canonicalIp,
+  canonicalOrigin,
+  isPageOrigin,
+  navigationProblem,
+  pageOrigins,
+  parseScenario,
+  parseYaml,
+  scenarioNavigationRefs,
+} from '@retake/core';
 import { loadProject, nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, Scenario } from '@retake/core';
+import { memoryFileFacts } from '@retake/core';
+import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
+
+/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+const NO_DISK = memoryFileFacts({});
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -61,7 +78,7 @@ const ACCEPTED = ['/x', 'quotes/1', '?tab=2', 'about:blank', 'http://localhost:4
 let fixture: LoadedProject | undefined;
 const project = async (): Promise<LoadedProject> => (fixture ??= await loadProject('northfield-fixture', ROOT));
 const errorsAt = (text: string, p: LoadedProject | undefined, path: Array<string | number>) =>
-  parseScenario(text, p ? { project: p } : {}).issues.filter((i) => i.severity === 'error' && JSON.stringify(i.path) === JSON.stringify(path));
+  parseScenario(text, p ? { files: NO_DISK, project: p } : {}).issues.filter((i) => i.severity === 'error' && JSON.stringify(i.path) === JSON.stringify(path));
 
 describe('navigationProblem: the scheme rule', () => {
   it.each(REFUSED)('%j is refused, with what to write instead', (url, why) => {
@@ -72,6 +89,12 @@ describe('navigationProblem: the scheme rule', () => {
 
   it.each(ACCEPTED)('%j is accepted (a path is resolved when it runs)', (url) => {
     expect(navigationProblem(url)).toBeNull();
+  });
+
+  it('a password without a user name is sign-in details too (`http://:pw@host/`, `//:pw@host/`)', () => {
+    expect(navigationProblem('http://:pw@localhost:4402/x')).toMatch(/holds sign-in details/);
+    expect(navigationProblem('//:pw@localhost:4402/x')).toMatch(/holds sign-in details/);
+    expect(navigationProblem('http://:pw@localhost:4402/x')).not.toMatch(/pw/);
   });
 
   it('a message never shows the sign-in details, and writes hidden characters out', () => {
@@ -105,7 +128,7 @@ describe('navigationProblem: the environment origins (agent work)', () => {
     expect(navigationProblem('about:blank', { origins })).toBeNull();
     expect(navigationProblem('/x', { origins })).toBeNull();
     for (const u of ['http://localhost:4403/x', 'https://localhost:4402/x', 'http://127.0.0.1:4402/x', 'https://elsewhere.example.test/']) {
-      const p = navigationProblem(u, { origins, envName: 'local', via: 'studio' });
+      const p = navigationProblem(u, { origins, envName: 'local', via: STUDIO_CONFINEMENT });
       expect(p, u).toContain("not an origin of environment local's pages (http://localhost:4401, http://localhost:4402)");
       expect(p, u).toContain('from the Studio a scenario opens only its environment');
       expect(p, u).toContain('add its origin as a page of environment local in project.yaml');
@@ -207,9 +230,10 @@ describe('validation: every scenario', () => {
   it('a `<page>:` prefix that names no page is refused even when it would open nothing a browser reads (`admin_consol:/x`)', async () => {
     const f = FIELDS[1];
     for (const u of ['"shop_x:/quotes"', '"_shop:/quotes"']) {
-      expect(errorsAt(f.yaml(u), await project(), f.path).map((e) => e.message), u).toEqual([
-        expect.stringMatching(/: "_?shop_?x?:" is not a page of environment "local".*\(available: console, shop\) — write `<page>:\/path` with a page of the environment/),
-      ]);
+      expect(
+        errorsAt(f.yaml(u), await project(), f.path).map((e) => e.message),
+        u,
+      ).toEqual([expect.stringMatching(/: "_?shop_?x?:" is not a page of environment "local".*\(available: console, shop\) — write `<page>:\/path` with a page of the environment/)]);
     }
   });
 
@@ -235,7 +259,11 @@ describe('agent trust: the environment origins', () => {
       const p = await project();
       for (const url of ['http://localhost:4403/x', 'https://elsewhere.example.test/']) {
         const s = sc(f.yaml(JSON.stringify(url)));
-        expect(agentTrustProblems(p, s, { files: nodeFileFacts, env }), url).toEqual([expect.stringMatching(new RegExp(`^${f.path.map((k) => (typeof k === 'number' ? `\\[${k}\\]` : `\\.?${k}`)).join('')}: .* is on .*add its origin as a page of environment local in project\\.yaml`))]);
+        expect(agentTrustProblems(p, s, { files: nodeFileFacts, env }), url).toEqual([
+          expect.stringMatching(
+            new RegExp(`^${f.path.map((k) => (typeof k === 'number' ? `\\[${k}\\]` : `\\.?${k}`)).join('')}: .* is on .*add its origin as a page of environment local in project\\.yaml`),
+          ),
+        ]);
         expect(agentTrustProblems(p, s, { files: nodeFileFacts }), url).toEqual([]);
       }
       for (const url of ['http://localhost:4402/x', 'http://LOCALHOST:4401/', '/x', 'about:blank', '{{vars.u}}']) {
@@ -252,9 +280,9 @@ describe('agent trust: the environment origins', () => {
 
   it('agentTrustProblemsAt places each refused URL at its line, worded for the channel', async () => {
     const text = ['video: x', 'scenes:', '  - id: a', '    page: shop', '    open: /', '    steps:', '      - click: Go', '      - open: "http://localhost:4499/admin"', ''].join('\n');
-    const at = agentTrustProblemsAt(await project(), sc(text), text, { files: nodeFileFacts, via: 'studio', env });
+    const at = agentTrustProblemsAt(await project(), sc(text), text, { files: nodeFileFacts, via: STUDIO_CONFINEMENT, env });
     expect(at.map((p) => [p.line, p.path.join('.')])).toEqual([[8, 'scenes.0.steps.1.open']]);
     expect(at[0].message).toContain('from the Studio a scenario opens only');
-    expect(agentTrustProblemsAt(await project(), sc(text), text, { files: nodeFileFacts, via: 'studio' })).toEqual([]);
+    expect(agentTrustProblemsAt(await project(), sc(text), text, { files: nodeFileFacts, via: STUDIO_CONFINEMENT })).toEqual([]);
   });
 });

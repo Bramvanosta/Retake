@@ -63,10 +63,10 @@ import {
   timeExample,
   viewerKey,
   whereWords,
-} from '../src/app/comment-words.js';
-import type { FrameAsk, FrameOutcome } from '../src/app/comment-words.js';
+} from '../src/app/words/comment-words.js';
+import type { FrameAsk, FrameOutcome } from '../src/app/words/comment-words.js';
 import { hrefTo, parseRoute } from '../src/app/route.js';
-import { dropProposalFocus, focusProposalOf, proposalFocusRouteChanged, takeProposalFocus } from '../src/app/proposal-focus.js';
+import { dropProposalFocus, focusProposalOf, proposalFocusRouteChanged, takeProposalFocus } from '../src/app/review/proposal-focus.js';
 
 /** A deterministic random source (mulberry32). */
 function rng(seed: number): () => number {
@@ -161,9 +161,18 @@ describe('regions (critique B11)', () => {
     expect(made).toBeGreaterThan(15_000);
     // Edge drags that round past 1 without the clamp.
     for (const [a, b] of [
-      [{ x: 0.33335, y: 0.1 }, { x: 1.2, y: 0.5 }],
-      [{ x: 0.99994, y: 0.1 }, { x: 0.1, y: 0.99996 }],
-      [{ x: 0.00005, y: 0.00005 }, { x: 0.99995, y: 0.99995 }],
+      [
+        { x: 0.33335, y: 0.1 },
+        { x: 1.2, y: 0.5 },
+      ],
+      [
+        { x: 0.99994, y: 0.1 },
+        { x: 0.1, y: 0.99996 },
+      ],
+      [
+        { x: 0.00005, y: 0.00005 },
+        { x: 0.99995, y: 0.99995 },
+      ],
     ] as const) {
       const g = regionOfDrag(a, b);
       expect(g).not.toBeNull();
@@ -181,7 +190,7 @@ describe('regions (critique B11)', () => {
     expect(regionOfDrag({ x: 0.4, y: 0.4 }, { x: 0.4 + REGION_MIN * 2, y: 0.4 + REGION_MIN * 2 })).not.toBeNull();
   });
 
-  it('⚑ the pointer maths use the image\'s own box (a vertical render: no letterbox), clamped to it', () => {
+  it("⚑ the pointer maths use the image's own box (a vertical render: no letterbox), clamped to it", () => {
     // A 9:16 picture 270 px wide at (100, 50).
     const box = { left: 100, top: 50, width: 270, height: 480 };
     expect(pointIn(box, 100, 50)).toEqual({ x: 0, y: 0 });
@@ -204,14 +213,20 @@ describe('regions (critique B11)', () => {
     expect(fieldsOf(null)).toEqual({ x: '', y: '', w: '', h: '' });
     expect(regionOfFields({ x: '12.5', y: '30', w: '40', h: '20' })).toEqual({ x: 0.125, y: 0.3, w: 0.4, h: 0.2 });
     expect(regionOfFields({ x: '50', y: '50', w: '80', h: '80' })).toEqual({ x: 0.5, y: 0.5, w: 0.5, h: 0.5 });
-    for (const bad of [{ x: '', y: '1', w: '1', h: '1' }, { x: 'a', y: '1', w: '1', h: '1' }, { x: '1', y: '1', w: '0', h: '1' }, { x: '100', y: '1', w: '5', h: '1' }]) expect(regionOfFields(bad)).toBeNull();
+    for (const bad of [
+      { x: '', y: '1', w: '1', h: '1' },
+      { x: 'a', y: '1', w: '1', h: '1' },
+      { x: '1', y: '1', w: '0', h: '1' },
+      { x: '100', y: '1', w: '5', h: '1' },
+    ])
+      expect(regionOfFields(bad)).toBeNull();
     expect(regionWords({ x: 0.12, y: 0.3, w: 0.4, h: 0.2 })).toBe('from 12 % left, 30 % top, 40 % × 20 % of the frame');
     expect(regionWords(null)).toBe('the whole frame');
   });
 });
 
 describe('time, chips, keys', () => {
-  it('a typed time is the frame on screen then (the CLI\'s --at rule); the end of the video is its last frame', () => {
+  it("a typed time is the frame on screen then (the CLI's --at rule); the end of the video is its last frame", () => {
     expect(parseTimecode('12.4', 30, 900)).toEqual({ frame: 372 });
     expect(parseTimecode('0:12.40', 30, 900)).toEqual({ frame: 372 });
     expect(parseTimecode('00:12.40', 30, 900)).toEqual({ frame: 372 });
@@ -236,7 +251,14 @@ describe('time, chips, keys', () => {
     expect(timeExample(2396, 30)).toBe('00:53.20');
     expect(timeExample(1, 30)).toBe('00:00.00');
     expect(timeExample(0, 0)).toBe('00:00.00');
-    for (const [frames, fps] of [[180, 30], [12, 24], [2396, 30], [90_000, 25], [7, 60], [1, 30]] as const) {
+    for (const [frames, fps] of [
+      [180, 30],
+      [12, 24],
+      [2396, 30],
+      [90_000, 25],
+      [7, 60],
+      [1, 30],
+    ] as const) {
       const r = parseTimecode(timeExample(frames, fps), fps, frames);
       expect(r, `${frames} @ ${fps}`).toHaveProperty('frame');
       expect((r as { frame: number }).frame).toBeLessThan(frames);
@@ -278,7 +300,7 @@ describe('time, chips, keys', () => {
     expect(whereWords({ segment: 'intro', kind: 'intro' })).toBe('intro intro');
   });
 
-  it('the viewer\'s keys: ← / → one frame, Shift one second — never while typing, never on the slider; the timeline\'s C', () => {
+  it("the viewer's keys: ← / → one frame, Shift one second — never while typing, never on the slider; the timeline's C", () => {
     const body = { tag: 'BODY' };
     expect(viewerKey({ key: 'ArrowRight' }, body, 30)).toBe(1);
     expect(viewerKey({ key: 'ArrowLeft' }, body, 30)).toBe(-1);
@@ -286,14 +308,23 @@ describe('time, chips, keys', () => {
     expect(viewerKey({ key: 'ArrowLeft', shiftKey: true }, body, 24)).toBe(-24);
     expect(viewerKey({ key: 'ArrowUp' }, body, 30)).toBeNull();
     expect(viewerKey({ key: 'ArrowRight', metaKey: true }, body, 30)).toBeNull();
-    for (const t of [{ tag: 'INPUT', type: 'text' }, { tag: 'INPUT', type: 'number' }, { tag: 'INPUT', type: 'range' }, { tag: 'TEXTAREA' }, { tag: 'SELECT' }, { tag: 'DIV', editable: true }, { tag: 'INPUT', type: 'radio', inRadioGroup: true }]) {
+    for (const t of [
+      { tag: 'INPUT', type: 'text' },
+      { tag: 'INPUT', type: 'number' },
+      { tag: 'INPUT', type: 'range' },
+      { tag: 'TEXTAREA' },
+      { tag: 'SELECT' },
+      { tag: 'DIV', editable: true },
+      { tag: 'INPUT', type: 'radio', inRadioGroup: true },
+    ]) {
       expect(viewerKey({ key: 'ArrowRight' }, t, 30), JSON.stringify(t)).toBeNull();
     }
     expect(viewerKey({ key: 'ArrowRight' }, { tag: 'BUTTON' }, 30)).toBe(1);
     expect(commentKey({ key: 'c' }, body)).toBe(true);
     expect(commentKey({ key: 'C' }, { tag: 'BUTTON' })).toBe(true);
     expect(commentKey({ key: 'c' }, { tag: 'INPUT', type: 'range' })).toBe(true);
-    for (const t of [{ tag: 'INPUT', type: 'text' }, { tag: 'TEXTAREA' }, { tag: 'SELECT' }, { tag: 'DIV', editable: true }, { tag: 'BUTTON', inRadioGroup: true }]) expect(commentKey({ key: 'c' }, t), JSON.stringify(t)).toBe(false);
+    for (const t of [{ tag: 'INPUT', type: 'text' }, { tag: 'TEXTAREA' }, { tag: 'SELECT' }, { tag: 'DIV', editable: true }, { tag: 'BUTTON', inRadioGroup: true }])
+      expect(commentKey({ key: 'c' }, t), JSON.stringify(t)).toBe(false);
     expect(commentKey({ key: 'c', metaKey: true }, body)).toBe(false);
     expect(commentKey({ key: 'x' }, body)).toBe(false);
   });
@@ -370,7 +401,7 @@ describe('the frame requests (FrameRequests)', () => {
     expect(Math.max(...f.timers.map((t) => t.ms))).toBe(BACKOFF_MAX_MS);
   });
 
-  it('⚑ a 409 cancelled (superseded by this tab\'s own newer request) is ignored; another failure is said', async () => {
+  it("⚑ a 409 cancelled (superseded by this tab's own newer request) is ignored; another failure is said", async () => {
     const f = fakeFrames();
     f.r.want(ask(8));
     f.calls[0].reject(fail(409, 'cancelled'));
@@ -453,12 +484,21 @@ describe('the frame requests (FrameRequests)', () => {
 });
 
 describe('the comments routes', () => {
-  it('the list, a thread, a render\'s frame; ids are inert strings, frames whole numbers within range', () => {
+  it("the list, a thread, a render's frame; ids are inert strings, frames whole numbers within range", () => {
     expect(parseRoute('#/p/demo/s/quote/comments')).toEqual({ name: 'comments', slug: 'demo', scenario: 'quote' });
     expect(parseRoute('#/p/demo/s/quote/comments/c_01JAAAAAAAAAAAAAAAAAAAAAAA')).toEqual({ name: 'comments', slug: 'demo', scenario: 'quote', thread: 'c_01JAAAAAAAAAAAAAAAAAAAAAAA' });
     expect(parseRoute('#/p/demo/s/quote/comments/at/quote-v2-vertical/412')).toEqual({ name: 'comments', slug: 'demo', scenario: 'quote', at: { render: 'quote-v2-vertical', frame: 412 } });
     expect(parseRoute('#/p/demo/s/quote/comments/%3Cimg%20src%3Dx%3E')).toEqual({ name: 'comments', slug: 'demo', scenario: 'quote', thread: '<img src=x>' });
-    for (const bad of ['#/p/d/s/q/comments/at', '#/p/d/s/q/comments/at/r', '#/p/d/s/q/comments/at/r/-1', '#/p/d/s/q/comments/at/r/1.5', '#/p/d/s/q/comments/at/r/99999999', '#/p/d/s/q/comments/a/b', '#/p/d/s/q/comments/at/r/1/x', '#/p/d/s/q/comments/%E0%A4%A']) {
+    for (const bad of [
+      '#/p/d/s/q/comments/at',
+      '#/p/d/s/q/comments/at/r',
+      '#/p/d/s/q/comments/at/r/-1',
+      '#/p/d/s/q/comments/at/r/1.5',
+      '#/p/d/s/q/comments/at/r/99999999',
+      '#/p/d/s/q/comments/a/b',
+      '#/p/d/s/q/comments/at/r/1/x',
+      '#/p/d/s/q/comments/%E0%A4%A',
+    ]) {
       expect(parseRoute(bad), bad).toMatchObject({ name: 'not-found' });
     }
     for (const r of [
@@ -477,7 +517,6 @@ describe('the comments routes', () => {
   });
 });
 
-
 describe('the proposal (L4.6 part D2, T13)', () => {
   it('⚑ a line is drawn code-safe: edge spaces ·, tabs →, the spaces inside kept — indentation and trailing spaces are visible', () => {
     // An indentation-only change (a key moved into a mapping) and a trailing-space change: two different rows.
@@ -490,7 +529,11 @@ describe('the proposal (L4.6 part D2, T13)', () => {
     expect(lineShown('key:\tv')).toBe('key:→v');
     expect(lineShown('   ')).toBe('···');
     expect(lineShown('')).toBe('');
-    expect(linePieces('  a  b ')).toEqual([{ kind: 'space', count: 2 }, { kind: 'text', text: 'a  b' }, { kind: 'space', count: 1 }]);
+    expect(linePieces('  a  b ')).toEqual([
+      { kind: 'space', count: 2 },
+      { kind: 'text', text: 'a  b' },
+      { kind: 'space', count: 1 },
+    ]);
   });
 
   it('⚑ every unseen character is a visible [U+…] mark: direction controls, zero-width, BOM, controls, other spaces — markup and RTL text stay text', () => {
@@ -525,7 +568,14 @@ describe('the proposal (L4.6 part D2, T13)', () => {
 
   it('the rows: sign, word, line numbers; a gap says how many lines it leaves out; a missing text is an empty line', () => {
     const v = diffRowsView(
-      [{ kind: 'gap', count: 4 }, { kind: 'context', base: 5, line: 5 }, { kind: 'del', base: 6 }, { kind: 'add', line: 6 }, { kind: 'add', line: 7 }, { kind: 'gap', count: 1 }],
+      [
+        { kind: 'gap', count: 4 },
+        { kind: 'context', base: 5, line: 5 },
+        { kind: 'del', base: 6 },
+        { kind: 'add', line: 6 },
+        { kind: 'add', line: 7 },
+        { kind: 'gap', count: 1 },
+      ],
       ['', 'scenes:', '  - id: a', '  - id: <b>a</b>'],
     );
     expect(v.map((r) => [r.kind, r.sign, r.word, r.base, r.line])).toEqual([
@@ -536,7 +586,10 @@ describe('the proposal (L4.6 part D2, T13)', () => {
       ['add', '+', 'added', null, 7],
       ['gap', '…', '1 unchanged line not shown', null, null],
     ]);
-    expect(v[3].pieces).toEqual([{ kind: 'space', count: 2 }, { kind: 'text', text: '- id: <b>a</b>' }]);
+    expect(v[3].pieces).toEqual([
+      { kind: 'space', count: 2 },
+      { kind: 'text', text: '- id: <b>a</b>' },
+    ]);
     expect(v[4].pieces).toEqual([]);
     expect(diffRowsView([{ kind: 'context', base: -1, line: 1.5 }], [42 as unknown as string])[0]).toMatchObject({ base: null, line: null, pieces: [] });
     expect(proposalSummary({ added: 1, removed: 1, hunks: 1 })).toBe('1 line added, 1 removed, in 1 place');
@@ -550,7 +603,14 @@ describe('the proposal (L4.6 part D2, T13)', () => {
     expect(hasRtl('caption: مرحبا')).toBe(true);
     expect(hasRtl('caption: 𐤀')).toBe(true);
     for (const ltr of ['caption: Café — 東京', 'caption: 10 20', '👩‍💻 ❤️', 'Ελληνικά, кириллица']) expect(hasRtl(ltr), ltr).toBe(false);
-    const rows = diffRowsView([{ kind: 'add', line: 1 }, { kind: 'del', base: 1 }, { kind: 'context', base: 2, line: 2 }], ['a: "ע 10 20"', 'a: "10 20"', '# שלום']);
+    const rows = diffRowsView(
+      [
+        { kind: 'add', line: 1 },
+        { kind: 'del', base: 1 },
+        { kind: 'context', base: 2, line: 2 },
+      ],
+      ['a: "ע 10 20"', 'a: "10 20"', '# שלום'],
+    );
     expect(rows.map((r) => r.rtl)).toEqual([true, false, true]);
     // Combining marks: up to COMBINING_MARKS_SHOWN on one character are drawn; every one past it is a visible mark.
     expect(COMBINING_MARKS_SHOWN).toBe(3);
@@ -565,7 +625,7 @@ describe('the proposal (L4.6 part D2, T13)', () => {
     expect(lineShown('👩‍💻 ❤️ 1️⃣')).toBe('👩‍💻 ❤️ 1️⃣');
   });
 
-  it('⚑ what an apply says beside its write: its problems and the scenario\'s warnings (review B M2)', () => {
+  it("⚑ what an apply says beside its write: its problems and the scenario's warnings (review B M2)", () => {
     expect(appliedWords({ warnings: [], problems: [] })).toBeNull();
     expect(appliedWords({})).toBeNull();
     expect(appliedWords({ warnings: [], problems: ['the apply was written to scenarios/q.yaml but not recorded in the thread'] })).toEqual({
@@ -577,7 +637,7 @@ describe('the proposal (L4.6 part D2, T13)', () => {
     expect(w?.words).toBe('Applied, but: p\nThe scenario has 5 warnings: a · b · c …');
   });
 
-  it('⚑ the rewrite note past 25 % of the file (core\'s number)', () => {
+  it("⚑ the rewrite note past 25 % of the file (core's number)", () => {
     expect(REWRITE_NOTE_PCT).toBe(PROPOSAL_REWRITE_NOTE_PCT);
     expect(rewriteNote(undefined)).toBeNull();
     expect(rewriteNote(REWRITE_NOTE_PCT)).toBeNull();
@@ -587,8 +647,14 @@ describe('the proposal (L4.6 part D2, T13)', () => {
 
   it('⚑ the buttons come from the offer only: a literal true each; why is said when something is not offered', () => {
     expect(proposalButtons({ apply: true, preview: true, apply_render: true })).toEqual({ buttons: ['apply', 'preview', 'apply_render'], why: null });
-    expect(proposalButtons({ apply: true, preview: true, apply_render: false, why: 'The comment is on a vertical render' })).toEqual({ buttons: ['apply', 'preview'], why: 'The comment is on a vertical render' });
-    expect(proposalButtons({ apply: true, preview: false, apply_render: false, why: 'It does not render on the commented take' })).toEqual({ buttons: ['apply'], why: 'It does not render on the commented take' });
+    expect(proposalButtons({ apply: true, preview: true, apply_render: false, why: 'The comment is on a vertical render' })).toEqual({
+      buttons: ['apply', 'preview'],
+      why: 'The comment is on a vertical render',
+    });
+    expect(proposalButtons({ apply: true, preview: false, apply_render: false, why: 'It does not render on the commented take' })).toEqual({
+      buttons: ['apply'],
+      why: 'It does not render on the commented take',
+    });
     expect(proposalButtons({ apply: false, preview: false, apply_render: false, why: 'Applied: the scenario holds it' })).toEqual({ buttons: [], why: 'Applied: the scenario holds it' });
     expect(proposalButtons({ apply: false, preview: false, apply_render: false })).toEqual({ buttons: [], why: 'Nothing can be done with this proposal now' });
     // Not a literal true: no button (whatever else the page might think of the state).

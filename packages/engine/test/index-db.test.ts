@@ -10,43 +10,71 @@
 import { execFile, spawn, spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
-import { appendFile, lstat, mkdir, mkdtemp, readFile, rename, rm, stat, symlink, truncate, writeFile } from 'node:fs/promises';
+import { appendFile, chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, stat, symlink, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
-import type { WorkspaceConfig } from '@retake/core';
-import { FileJobQueue, JobsWatch, WorkspaceIndex, ftsQuery, historyFile, indexFile, isCorruptionError, newJobId, processStart, scanSources, diffSources, workspaceChanges } from '../src/index.js';
-import { REPO, fixtureWorkspace } from './helpers.js';
+import type { OpenedWorkspace } from '../src/index.js';
+import { readRenders } from '../src/index-db/index-db.js';
+import {
+  FileJobQueue,
+  JobsWatch,
+  WorkspaceIndex,
+  ftsQuery,
+  historyFile,
+  indexFile,
+  isCorruptionError,
+  newJobId,
+  processStart,
+  scanSources,
+  diffSources,
+  workspaceChanges,
+  diskWorkspaceReads,
+} from '../src/index.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
-let cfg: WorkspaceConfig;
+let cfg: OpenedWorkspace;
 const P = 'northfield-fixture';
 const project = () => join(ws, 'projects', P);
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const line = (o: Record<string, unknown>) => `${JSON.stringify({ v: 1, submitted_by: 'cli', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: 0 }, ...o })}\n`;
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-index-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(project(), 'README.md'), '# Northfield\n\nA wholesale console for coffee importers and their roasters.\n');
   await mkdir(join(project(), 'renders'), { recursive: true });
-  await writeFile(join(project(), 'renders', 'quote-v1.json'), JSON.stringify({ version: 1, id: 'quote-v1', scenario: 'quote', run_id: '20261016-090000-catalogue', status: 'succeeded', template: 'editorial', created_at: '2026-10-16T08:00:00.000Z', plan: {} }));
+  await writeFile(
+    join(project(), 'renders', 'quote-v1.json'),
+    JSON.stringify({
+      version: 1,
+      id: 'quote-v1',
+      scenario: 'quote',
+      run_id: '20261016-090000-catalogue',
+      status: 'succeeded',
+      template: 'editorial',
+      created_at: '2026-10-16T08:00:00.000Z',
+      plan: {},
+    }),
+  );
   await mkdir(join(ws, '.retake'), { recursive: true });
   await writeFile(
     historyFile(ws),
     line({ at: '2026-10-16T07:01:00.000Z', kind: 'run', project: P, run: { id: '20261016-090000-catalogue', scenario: 'catalogue', mode: 'capture', status: 'succeeded' } }) +
-      line({ at: '2026-10-16T08:00:00.000Z', kind: 'render', project: P, job: newJobId(), submitted_by: 'mcp', render: { id: 'quote-v1', scenario: 'quote' } }),
+      line({ at: '2026-10-16T08:00:00.000Z', kind: 'render', project: P, job: newJobId(Date.now()), submitted_by: 'mcp', render: { id: 'quote-v1', scenario: 'quote' } }),
   );
-  cfg = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY };
+  cfg = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY, reads: diskWorkspaceReads };
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -80,7 +108,13 @@ describe('the workspace index', () => {
       expect(first.keys).toEqual(expect.arrayContaining([`project:${P}`, `readme:${P}`, `runs:${P}`, `renders:${P}`, 'history']));
       expect(ix.counts()).toMatchObject({ projects: 1, runs: 2, renders: 1, history: 2 });
       expect(ix.search('roast')).toEqual([expect.objectContaining({ kind: 'project', project: P, ref: P, title: 'Northfield (fixture)', snippet: expect.stringContaining('roasters') })]);
-      expect(ix.search('quo').map((h) => [h.kind, h.ref])).toEqual(expect.arrayContaining([['scenario', 'quote'], ['run', '20261017-120000-quote'], ['render', 'quote-v1']]));
+      expect(ix.search('quo').map((h) => [h.kind, h.ref])).toEqual(
+        expect.arrayContaining([
+          ['scenario', 'quote'],
+          ['run', '20261017-120000-quote'],
+          ['render', 'quote-v1'],
+        ]),
+      );
       expect(ix.search('20261016').map((h) => h.ref)).toEqual(['20261016-090000-catalogue']);
       expect(ix.search('catalogue capture').map((h) => h.ref)).toContain('20261016-090000-catalogue');
       expect(ix.search('')).toEqual([]);
@@ -106,7 +140,26 @@ describe('the workspace index', () => {
       // A run being written: its run.json is re-read while it is unfinished.
       const run = join(project(), 'runs', '20261018-100000-quote');
       await mkdir(run, { recursive: true });
-      const rec = (status: string) => JSON.stringify({ version: 1, id: '20261018-100000-quote', scenario: 'quote', mode: 'capture', status, env: 'local', started_at: '2026-10-18T10:00:00.000Z', steps_total: 3, steps_done: 1 });
+      // A record as the runner writes it (a run.json that is no run record is not a run of the lists: L7.6a).
+      const rec = (status: 'running' | 'succeeded') =>
+        JSON.stringify({
+          version: 1,
+          id: '20261018-100000-quote',
+          project: P,
+          scenario: 'quote',
+          mode: 'capture',
+          status,
+          started_at: '2026-10-18T10:00:00.000Z',
+          dir: run,
+          env: 'local',
+          options: { hooks: 'run', headed: false },
+          steps_total: 3,
+          steps_done: 1,
+          screenshots: [],
+          hooks: { setup: 'none', teardown: 'none' },
+          warnings: [],
+          ...(status === 'succeeded' ? { finished_at: '2026-10-18T10:01:00.000Z' } : {}),
+        });
       await writeFile(join(run, 'run.json'), rec('running'));
       expect((await ix.reconcile()).keys).toEqual([`runs:${P}`]);
       expect(ix.search('20261018').map((h) => h.title)).toEqual(['quote · capture · running']);
@@ -220,7 +273,7 @@ describe('the workspace index', () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-index-link-'));
     try {
       await fixtureWorkspace(dir);
-      const c = { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY };
+      const c = { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads };
       const file = indexFile(dir);
       await mkdir(join(dir, '.retake'), { recursive: true });
       const target = join(dir, 'elsewhere', 'planted.sqlite');
@@ -255,11 +308,31 @@ describe('the workspace index', () => {
       const proj = join(dir, 'projects', P);
       const outside = join(dir, 'outside');
       await mkdir(outside, { recursive: true });
-      await writeFile(join(outside, 'r.json'), JSON.stringify({ version: 1, id: 'outsidernine', scenario: 'outsiderscene', status: 'succeeded', template: 'x', created_at: '2026-10-16T08:00:00.000Z' }));
-      await writeFile(join(outside, 'run.json'), JSON.stringify({ version: 1, id: '20261018-080000-outsiderrun', project: P, scenario: 'outsiderrun', mode: 'dry', status: 'succeeded', started_at: '2026-10-18T08:00:00.000Z', env: 'local', steps_total: 1, steps_done: 1 }));
+      await writeFile(
+        join(outside, 'r.json'),
+        JSON.stringify({ version: 1, id: 'outsidernine', scenario: 'outsiderscene', status: 'succeeded', template: 'x', created_at: '2026-10-16T08:00:00.000Z' }),
+      );
+      await writeFile(
+        join(outside, 'run.json'),
+        JSON.stringify({
+          version: 1,
+          id: '20261018-080000-outsiderrun',
+          project: P,
+          scenario: 'outsiderrun',
+          mode: 'dry',
+          status: 'succeeded',
+          started_at: '2026-10-18T08:00:00.000Z',
+          env: 'local',
+          steps_total: 1,
+          steps_done: 1,
+        }),
+      );
       await writeFile(join(outside, 'readme.md'), '# outsidertext\n');
       await mkdir(join(proj, 'renders'), { recursive: true });
-      await writeFile(join(proj, 'renders', 'quote-v1.json'), JSON.stringify({ version: 1, id: 'quote-v1', scenario: 'quote', status: 'succeeded', template: 'editorial', created_at: '2026-10-16T08:00:00.000Z' }));
+      await writeFile(
+        join(proj, 'renders', 'quote-v1.json'),
+        JSON.stringify({ version: 1, id: 'quote-v1', scenario: 'quote', status: 'succeeded', template: 'editorial', created_at: '2026-10-16T08:00:00.000Z' }),
+      );
       await symlink(join(outside, 'r.json'), join(proj, 'renders', 'leak-v1.json'));
       await mkdir(join(proj, 'runs', '20261018-080000-outsiderrun'), { recursive: true });
       await symlink(join(outside, 'run.json'), join(proj, 'runs', '20261018-080000-outsiderrun', 'run.json'));
@@ -269,7 +342,7 @@ describe('the workspace index', () => {
       expect(spawnSync('mkfifo', [join(proj, 'renders', 'pipe-v1.json')]).status).toBe(0);
       await mkdir(join(proj, 'runs', '20261018-090000-pipe'), { recursive: true });
       expect(spawnSync('mkfifo', [join(proj, 'runs', '20261018-090000-pipe', 'run.json')]).status).toBe(0);
-      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir), { queue: new FileJobQueue(dir) });
+      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads }, { queue: new FileJobQueue(dir) });
       try {
         const done = await Promise.race([ix!.reconcile().then(() => 'reconciled'), new Promise((r) => setTimeout(() => r('blocked on a FIFO'), 5000))]);
         expect(done).toBe('reconciled');
@@ -284,11 +357,122 @@ describe('the workspace index', () => {
     }
   });
 
+  it('a render is the record of its own file (D-10, L7.6c): a copy, a renamed record, a link, a record of a newer Retake or without a status is no row; an unknown status is `unknown`; renders/ outside the project is not read', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'studio-index-own-'));
+    try {
+      await fixtureWorkspace(dir);
+      const proj = join(dir, 'projects', P);
+      const renders = join(proj, 'renders');
+      await mkdir(renders, { recursive: true });
+      const rec = (id: string, o: Record<string, unknown> = {}) =>
+        JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261016-090000-catalogue', status: 'succeeded', template: 'editorial', created_at: '2026-10-16T08:00:00.000Z', plan: {}, ...o });
+      await writeFile(join(renders, 'quote-v1.json'), rec('quote-v1'));
+      // A copy beside its original (before L7.6c: two rows of one id — the transaction failed, the whole index stayed behind).
+      await writeFile(join(renders, 'quote-v1 copy.json'), rec('quote-v1'));
+      // A record renamed by hand (before: a row under the id it says).
+      await writeFile(join(renders, 'quote-final.json'), rec('quote-v7', { template: 'renamedtheme' }));
+      // A link to another file of the project (before: followed and listed under the id the target says).
+      await writeFile(join(proj, 'kept.json'), rec('quote-v8', { template: 'linkedtheme' }));
+      await symlink(join(proj, 'kept.json'), join(renders, 'quote-v8.json'));
+      await writeFile(join(renders, 'quote-v2.json'), rec('quote-v2', { status: 'paused' }));
+      // A record of a status Retake never writes renamed by hand: no row either.
+      await writeFile(join(renders, 'quote-v6.json'), rec('quote-v9', { status: 'paused', template: 'pausedrenamedtheme' }));
+      await writeFile(join(renders, 'quote-v3.json'), rec('quote-v3', { version: 2, template: 'newertheme' }));
+      const { status: _s, ...noStatus } = JSON.parse(rec('quote-v4', { template: 'nostatustheme' })) as Record<string, unknown>;
+      await writeFile(join(renders, 'quote-v4.json'), JSON.stringify(noStatus));
+      // A record bigger than the index's old cap (1 MB) and within the reader's: a row (before: skipped).
+      await writeFile(join(renders, 'quote-v5.json'), rec('quote-v5', { warnings: ['x'.repeat(1_100_000)] }));
+      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads }, { queue: new FileJobQueue(dir) });
+      try {
+        await ix!.reconcile();
+        expect(ix!.counts().renders).toBe(3);
+        expect(
+          ix!
+            .search('quote')
+            .filter((h) => h.kind === 'render')
+            .map((h) => `${h.ref}|${h.title}`)
+            .sort(),
+        ).toEqual(['quote-v1|quote · editorial · succeeded', 'quote-v2|quote · editorial · unknown', 'quote-v5|quote · editorial · succeeded']);
+        for (const word of ['renamedtheme', 'pausedrenamedtheme', 'linkedtheme', 'newertheme', 'nostatustheme', 'paused']) expect(ix!.search(word), word).toEqual([]);
+      } finally {
+        ix!.close();
+      }
+      // A member a record lacks is no column (as before: the file's own value when it is a text, else none).
+      const { scenario: _sc, ...noScenario } = JSON.parse(rec('quote-v1')) as Record<string, unknown>;
+      await writeFile(join(renders, 'quote-v1.json'), JSON.stringify(noScenario));
+      expect((await readRenders(proj)).find((r) => r.id === 'quote-v1')).toEqual({
+        id: 'quote-v1',
+        run_id: '20261016-090000-catalogue',
+        status: 'succeeded',
+        template: 'editorial',
+        created_at: '2026-10-16T08:00:00.000Z',
+      });
+      await writeFile(join(renders, 'quote-v1.json'), rec('quote-v1'));
+      // renders/ itself a link out of the project: nothing of it is indexed (a link inside the project is read).
+      const outside = join(dir, 'outside-renders');
+      await rename(renders, outside);
+      await symlink(outside, renders);
+      // (A folder renamed keeps its inode and mtime: a fresh index, so that renders/ is read again.)
+      await rm(indexFile(dir), { force: true });
+      const ix2 = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads }, { queue: new FileJobQueue(dir) });
+      try {
+        await ix2!.reconcile();
+        expect(ix2!.counts().renders).toBe(0);
+      } finally {
+        ix2!.close();
+      }
+      await rm(renders);
+      await rename(outside, join(proj, 'renders-real'));
+      await symlink(join(proj, 'renders-real'), renders);
+      await rm(indexFile(dir), { force: true });
+      const ix3 = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads }, { queue: new FileJobQueue(dir) });
+      try {
+        await ix3!.reconcile();
+        expect(ix3!.counts().renders).toBe(3);
+      } finally {
+        ix3!.close();
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a runs/ folder that cannot be read keeps its rows and is read again on the next pass, never indexed as "no runs"', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'studio-index-unreadable-'));
+    const runs = join(dir, 'projects', P, 'runs');
+    try {
+      await fixtureWorkspace(dir);
+      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads }, { queue: new FileJobQueue(dir) });
+      if (!ix) throw new Error('node:sqlite is missing on this Node.js');
+      try {
+        await ix.reconcile();
+        const before = ix.counts().runs;
+        expect(before).toBeGreaterThan(0);
+        // runs/ changes (a new folder), then cannot be listed.
+        await mkdir(join(runs, '20261019-100000-quote'));
+        await chmod(runs, 0o000);
+        const pass = await ix.reconcile();
+        expect(pass.keys).not.toContain(`runs:${P}`);
+        expect(pass.runs).toEqual([]);
+        expect(ix.counts().runs).toBe(before);
+        // Readable again: the next pass reads it (its signature was not taken while it could not be read).
+        await chmod(runs, 0o755);
+        expect((await ix.reconcile()).keys).toContain(`runs:${P}`);
+        expect(ix.counts().runs).toBe(before);
+      } finally {
+        ix.close();
+      }
+    } finally {
+      await chmod(runs, 0o755).catch(() => undefined);
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('a Node.js without node:sqlite: no index (null), nothing written', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-index-nosqlite-'));
     try {
       await fixtureWorkspace(dir);
-      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir), { queue: new FileJobQueue(dir), loader: async () => null });
+      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads }, { queue: new FileJobQueue(dir), loader: async () => null });
       expect(ix).toBeNull();
       await expect(stat(indexFile(dir))).rejects.toThrow();
     } finally {
@@ -342,7 +526,7 @@ describe('the activity feed and the job watch (critique B2)', () => {
     try {
       await ix.reconcile();
       const started = await processStart(child.pid!);
-      const id = newJobId();
+      const id = newJobId(Date.now());
       await mkdir(join(queue.files.dir, id), { recursive: true });
       const job = {
         version: 1,
@@ -359,7 +543,16 @@ describe('the activity feed and the job watch (critique B2)', () => {
       expect(await watch.poll()).toEqual([id]);
       expect(await watch.poll()).toEqual([]);
       const a = await ix.activity({ limit: 5 });
-      expect(a[0]).toMatchObject({ source: 'queue', job: id, state: 'running', kind: 'run', project: P, submitted_by: 'ui', run: { id: '20261018-100000-quote', scenario: 'quote', mode: 'capture' }, progress: { steps_done: 1 } });
+      expect(a[0]).toMatchObject({
+        source: 'queue',
+        job: id,
+        state: 'running',
+        kind: 'run',
+        project: P,
+        submitted_by: 'ui',
+        run: { id: '20261018-100000-quote', scenario: 'quote', mode: 'capture' },
+        progress: { steps_done: 1 },
+      });
       expect(a.slice(1).every((x) => x.source === 'history')).toBe(true);
       const kill = new Promise((r) => child.once('exit', r));
       child.kill('SIGKILL');
@@ -368,7 +561,7 @@ describe('the activity feed and the job watch (critique B2)', () => {
       expect(b[0]).toMatchObject({ source: 'queue', job: id, state: 'interrupted' });
       expect(await watch.poll()).toEqual([id]);
       expect(await watch.poll()).toEqual([]);
-      expect((await ix.activity({ project: 'nope' }))).toEqual([]);
+      expect(await ix.activity({ project: 'nope' })).toEqual([]);
       expect(JSON.parse(await readFile(join(queue.files.dir, id, 'job.json'), 'utf8')).state).toBe('running');
     } finally {
       child.kill('SIGKILL');
@@ -381,7 +574,17 @@ describe('the activity feed and the job watch (critique B2)', () => {
     const queue = new FileJobQueue(ws);
     const watch = new JobsWatch(queue);
     await watch.poll();
-    const job = await queue.enqueue({ version: 1, kind: 'render', project: P, scenario: 'quote', run_id: '20261016-090000-catalogue', timeline_sha256: 'a'.repeat(64), render_id: 'quote-v9', overrides: {}, submitted_by: 'test' });
+    const job = await queue.enqueue({
+      version: 1,
+      kind: 'render',
+      project: P,
+      scenario: 'quote',
+      run_id: '20261016-090000-catalogue',
+      timeline_sha256: 'a'.repeat(64),
+      render_id: 'quote-v9',
+      overrides: {},
+      submitted_by: 'test',
+    });
     const file = join(queue.files.dir, job.id, 'job.json');
     const text = await readFile(file, 'utf8');
     await rm(file);
@@ -406,14 +609,25 @@ describe('the activity feed reads a finished job once (review B L1)', () => {
       await fixtureWorkspace(dir);
       const queue = new FileJobQueue(dir);
       const write = async (state: string) => {
-        const id = newJobId();
+        const id = newJobId(Date.now());
         await mkdir(join(queue.files.dir, id), { recursive: true });
-        await writeFile(join(queue.files.dir, id, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' }, state, created_at: new Date().toISOString(), ...(state === 'queued' ? {} : { finished_at: new Date().toISOString() }) }));
+        await writeFile(
+          join(queue.files.dir, id, 'job.json'),
+          JSON.stringify({
+            version: 1,
+            id,
+            kind: 'run',
+            input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' },
+            state,
+            created_at: new Date().toISOString(),
+            ...(state === 'queued' ? {} : { finished_at: new Date().toISOString() }),
+          }),
+        );
         return id;
       };
       for (let i = 0; i < 40; i++) await write(i % 2 ? 'succeeded' : 'failed');
       const queued = await write('queued');
-      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir), { queue: new FileJobQueue(dir) });
+      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads }, { queue: new FileJobQueue(dir) });
       const spy = vi.spyOn(FileJobQueue.prototype, 'stored');
       try {
         expect((await ix!.activity({ limit: 5 }))[0]).toMatchObject({ source: 'queue', job: queued });

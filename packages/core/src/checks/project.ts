@@ -3,7 +3,7 @@ import { passEnvProblem, sandboxOffArgsProblems } from '../agent-policy.js';
 import { AUTH_KEYS } from '../auth.js';
 import { environmentAccess, environmentHttpCredentials, rawEnvironmentPages, rawEnvironments } from '../env.js';
 import { allowedHosts, isHostAllowed } from '../hosts.js';
-import type { FileFacts } from '../file-facts.js';
+import type { FilesWith } from '../file-facts.js';
 import type { IssuePath } from '../issues.js';
 import { parseRequestPattern } from '../writes.js';
 import { KEY_RE, SLUG_RE } from '../schemas/primitives.js';
@@ -43,14 +43,7 @@ function templatedStrings(v: unknown, path: IssuePath, out: IssuePath[] = []): I
  * Mocks and allow entries (L1.7) of a scenario or an environment: the page key of each pattern must be one of the
  * environment's pages, a mock has at most one of `json` / `body`, and nothing in a mock is templated.
  */
-export function checkWriteRules(
-  list: unknown,
-  base: IssuePath,
-  pages: readonly string[] | undefined,
-  ctx: CheckContext,
-  what: 'mock' | 'allow',
-  envName?: string,
-): void {
+export function checkWriteRules(list: unknown, base: IssuePath, pages: readonly string[] | undefined, ctx: CheckContext, what: 'mock' | 'allow', envName?: string): void {
   if (!Array.isArray(list)) return;
   list.forEach((entry, i) => {
     const p = [...base, i];
@@ -84,11 +77,7 @@ function checkReadOnly(env: Record<string, unknown>, envName: string, pages: rea
   const production = env.production === true;
   const access = env.access === 'read-only' || env.access === 'read-write' ? env.access : undefined;
   if (!production && environmentAccess({ access }) === 'read-write') {
-    ctx.warning(
-      base,
-      `read_only applies only to read-only runs, and environment ${envName} is read-write: set \`access: read-only\` (or \`production: true\`) to use it`,
-      { path: base, key: true },
-    );
+    ctx.warning(base, `read_only applies only to read-only runs, and environment ${envName} is read-write: set \`access: read-only\` (or \`production: true\`) to use it`, { path: base, key: true });
   }
 }
 
@@ -139,12 +128,8 @@ export function checkWorkspace(value: unknown, structural: readonly LocatedIssue
   return ctx.out;
 }
 
-/** Semantic checks of a project.yaml value; `projectDir` resolves hook files. */
-export function checkProject(
-  value: unknown,
-  structural: readonly LocatedIssue[],
-  opts: { projectDir?: string; files?: FileFacts } = {},
-): LocatedIssue[] {
+/** Semantic checks of a project.yaml value; `projectDir` resolves hook files (looked at through `files`, required with it). */
+export function checkProject(value: unknown, structural: readonly LocatedIssue[], opts: { projectDir?: string } & FilesWith<'projectDir'> = {}): LocatedIssue[] {
   if (!isObj(value)) return [];
   const ctx = new CheckContext(structural, opts.projectDir, undefined, opts.files);
   const written = isObj(value.environments) && !ctx.broken(['environments']) ? value.environments : {};
@@ -184,10 +169,7 @@ export function checkProject(
 
   if (typeof value.default_env === 'string' && !Object.hasOwn(envs, value.default_env) && !sandboxNames.includes(value.default_env)) {
     const all = [...envNames, ...sandboxNames];
-    ctx.error(
-      ['default_env'],
-      `unknown environment "${value.default_env}"${suggestion(value.default_env, all)} (available: ${all.join(', ') || 'none'})`,
-    );
+    ctx.error(['default_env'], `unknown environment "${value.default_env}"${suggestion(value.default_env, all)} (available: ${all.join(', ') || 'none'})`);
   }
 
   checkBrowserArgs(value.browser, ctx);

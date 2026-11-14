@@ -168,7 +168,10 @@ function plantCanary(nm: string, name: string, log: string): void {
   const dir = join(nm, ...name.split('/'));
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'package.json'), JSON.stringify({ name, version: '0.0.0', main: 'index.js' }));
-  writeFileSync(join(dir, 'index.js'), `/* ${CANARY_MARK} */\nif (typeof process === 'object' && process.versions && process.versions.node) eval('require')('node:fs').appendFileSync(${JSON.stringify(log)}, ${JSON.stringify(name)} + ' ' + __filename + '\\n');\nmodule.exports = {};\n`);
+  writeFileSync(
+    join(dir, 'index.js'),
+    `/* ${CANARY_MARK} */\nif (typeof process === 'object' && process.versions && process.versions.node) eval('require')('node:fs').appendFileSync(${JSON.stringify(log)}, ${JSON.stringify(name)} + ' ' + __filename + '\\n');\nmodule.exports = {};\n`,
+  );
 }
 
 /** Files under `dir` whose text holds CANARY_MARK. */
@@ -210,7 +213,16 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     report.build_ms = Date.now() - t0;
     const home = join(base, 'home');
     for (const d of ['home', 'retake-home', 'tmp', 'bin']) mkdirSync(join(base, d), { recursive: true });
-    env = { HOME: home, CFFIXED_USER_HOME: home, RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(base, 'retake-home'), TMPDIR: `${join(base, 'tmp')}/`, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8', RETAKE_DISK_WARN: 'off' };
+    env = {
+      HOME: home,
+      CFFIXED_USER_HOME: home,
+      RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '',
+      RETAKE_HOME: join(base, 'retake-home'),
+      TMPDIR: `${join(base, 'tmp')}/`,
+      PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+      LANG: 'en_US.UTF-8',
+      RETAKE_DISK_WARN: 'off',
+    };
     launcher = join(app, 'Contents', 'Resources', 'bin', 'retake');
     symlinkSync(launcher, join(base, 'bin', 'retake'));
     libraryBefore = libraryEntries();
@@ -222,10 +234,42 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     if (builtOut) above.push(join(builtOut, 'node_modules'));
     for (const nm of above) for (const name of canaries) plantCanary(nm, name, canaryLog);
     report.canaries = { names: canaries.length, folders: above.length };
-    report.sizes = { app: du(app), ...(builtOut ? { dmg: statSync(readdirSync(builtOut).filter((f) => f.endsWith('.dmg')).map((f) => join(builtOut!, f))[0]!).size } : {}) };
+    report.sizes = {
+      app: du(app),
+      ...(builtOut
+        ? {
+            dmg: statSync(
+              readdirSync(builtOut)
+                .filter((f) => f.endsWith('.dmg'))
+                .map((f) => join(builtOut!, f))[0]!,
+            ).size,
+          }
+        : {}),
+    };
     // The fixture product (the filmed web app, from the repository) on this test's ports.
-    fixture = spawn(process.execPath, ['fixtures/wholesale/server.mjs', '--console-port', String(PORTS.console), '--shop-port', String(PORTS.shop), '--auth-console-port', String(PORTS.authConsole), '--auth-shop-port', String(PORTS.authShop)], { cwd: REPO, stdio: 'ignore' });
-    await until(async () => (await fetch(`http://127.0.0.1:${PORTS.shop}/`).then((r) => r.ok).catch(() => false)), 60_000, 'the fixture product');
+    fixture = spawn(
+      process.execPath,
+      [
+        'fixtures/wholesale/server.mjs',
+        '--console-port',
+        String(PORTS.console),
+        '--shop-port',
+        String(PORTS.shop),
+        '--auth-console-port',
+        String(PORTS.authConsole),
+        '--auth-shop-port',
+        String(PORTS.authShop),
+      ],
+      { cwd: REPO, stdio: 'ignore' },
+    );
+    await until(
+      async () =>
+        await fetch(`http://127.0.0.1:${PORTS.shop}/`)
+          .then((r) => r.ok)
+          .catch(() => false),
+      60_000,
+      'the fixture product',
+    );
     marker = join(base, 'marker');
     writeFileSync(marker, '');
     await sleep(1100); // mtimes have a second's grain on some file systems: anything written later is newer
@@ -240,7 +284,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     if (base && !process.env.RETAKE_TEST_KEEP) rmSync(base, { recursive: true, force: true });
   });
 
-  it('the launcher: --version names the app (directly and through a link); doctor: every tool is the app\'s own', () => {
+  it("the launcher: --version names the app (directly and through a link); doctor: every tool is the app's own", () => {
     for (const via of [launcher, join(base, 'bin', 'retake')]) {
       const v = retake(['--version'], { via });
       expect(v.status, v.out).toBe(0);
@@ -266,172 +310,222 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     expect(check('App updates').detail).toMatch(/^updates are off in this build/);
   });
 
-  it('a workspace by retake init, then a capture and a render of the fixture quote through the launcher', async () => {
-    ws = join(base, 'ws');
-    const init = retake(['init', ws]);
-    expect(init.status, init.out).toBe(0);
-    expect(existsSync(join(ws, 'retake.yaml'))).toBe(true);
-    const project = join(ws, 'projects', 'northfield-fixture');
-    const from = join(REPO, 'projects', 'northfield-fixture');
-    cpSync(from, project, { recursive: true, filter: (src) => !['runs', 'renders', 'review', 'exports'].includes(src.slice(from.length + 1).split('/')[0]!) });
-    // This test's ports; no sandboxes (they start the fixture from the repository).
-    const yaml = readFileSync(join(project, 'project.yaml'), 'utf8')
-      .replace(/localhost:4401/g, `localhost:${PORTS.console}`)
-      .replace(/localhost:4402/g, `localhost:${PORTS.shop}`)
-      .replace(/localhost:4403/g, `localhost:${PORTS.authConsole}`)
-      .replace(/localhost:4404/g, `localhost:${PORTS.authShop}`)
-      .replace(/^sandboxes:\n(?: {2}.*\n)+/m, '');
-    expect(yaml).not.toMatch(/sandboxes:|localhost:440\d/);
-    writeFileSync(join(project, 'project.yaml'), yaml);
-    rmSync(join(project, 'sandbox'), { recursive: true, force: true });
+  it(
+    'a workspace by retake init, then a capture and a render of the fixture quote through the launcher',
+    async () => {
+      ws = join(base, 'ws');
+      const init = retake(['init', ws]);
+      expect(init.status, init.out).toBe(0);
+      expect(existsSync(join(ws, 'retake.yaml'))).toBe(true);
+      const project = join(ws, 'projects', 'northfield-fixture');
+      const from = join(REPO, 'projects', 'northfield-fixture');
+      cpSync(from, project, { recursive: true, filter: (src) => !['runs', 'renders', 'review', 'exports'].includes(src.slice(from.length + 1).split('/')[0]!) });
+      // This test's ports; no sandboxes (they start the fixture from the repository).
+      const yaml = readFileSync(join(project, 'project.yaml'), 'utf8')
+        .replace(/localhost:4401/g, `localhost:${PORTS.console}`)
+        .replace(/localhost:4402/g, `localhost:${PORTS.shop}`)
+        .replace(/localhost:4403/g, `localhost:${PORTS.authConsole}`)
+        .replace(/localhost:4404/g, `localhost:${PORTS.authShop}`)
+        .replace(/^sandboxes:\n(?: {2}.*\n)+/m, '');
+      expect(yaml).not.toMatch(/sandboxes:|localhost:440\d/);
+      writeFileSync(join(project, 'project.yaml'), yaml);
+      rmSync(join(project, 'sandbox'), { recursive: true, force: true });
 
-    const run = retake(['--root', ws, 'run', 'northfield-fixture', 'quote'], { timeout: 10 * 60_000 });
-    report.capture_ms = run.ms;
-    expect(run.status, run.out.slice(-3000)).toBe(0);
-    const runs = readdirSync(join(project, 'runs')).filter((r) => r.endsWith('-quote'));
-    expect(runs).toHaveLength(1);
-    const rec = JSON.parse(readFileSync(join(project, 'runs', runs[0]!, 'run.json'), 'utf8')) as { status: string; steps_done: number; steps_total: number };
-    expect(rec.status).toBe('succeeded');
-    expect(rec.steps_done).toBe(rec.steps_total);
-    report.capture = { steps: rec.steps_total, size: statSync(join(project, 'runs', runs[0]!, 'capture.mp4')).size };
+      const run = retake(['--root', ws, 'run', 'northfield-fixture', 'quote'], { timeout: 10 * 60_000 });
+      report.capture_ms = run.ms;
+      expect(run.status, run.out.slice(-3000)).toBe(0);
+      const runs = readdirSync(join(project, 'runs')).filter((r) => r.endsWith('-quote'));
+      expect(runs).toHaveLength(1);
+      const rec = JSON.parse(readFileSync(join(project, 'runs', runs[0]!, 'run.json'), 'utf8')) as { status: string; steps_done: number; steps_total: number };
+      expect(rec.status).toBe('succeeded');
+      expect(rec.steps_done).toBe(rec.steps_total);
+      report.capture = { steps: rec.steps_total, size: statSync(join(project, 'runs', runs[0]!, 'capture.mp4')).size };
 
-    const render = retake(['--root', ws, 'render', 'northfield-fixture', 'quote', '--review', '--json'], { timeout: 15 * 60_000 });
-    report.render_ms = render.ms;
-    expect(render.status, render.out.slice(-3000)).toBe(0);
-    const r = JSON.parse(render.stdout) as { status: string; file: string; frames: number; duration_s: number; size_bytes: number; timings: unknown; browser: { path: string; source: string }; review: { clean: boolean; counts: Record<string, number> }; policy?: { gl: { used: string; renderer?: string }; encoder: { used: string }; fallback?: unknown }; encoding: { encoder?: string } };
-    expect(r.status).toBe('succeeded');
-    // L5.15: the signed app's path (its relinked compositor, hardened runtime) draws with ANGLE and encodes with
-    // VideoToolbox — the only check of that path (render-gpu.test.ts checks the repository's and a relinked copy's probe).
-    expect(r.policy, JSON.stringify(r.policy)).toMatchObject({ gl: { used: 'angle', renderer: expect.stringMatching(/Metal/) }, encoder: { used: 'h264_videotoolbox' } });
-    expect(r.policy?.fallback).toBeUndefined();
-    expect(r.encoding.encoder).toBe('h264_videotoolbox');
-    expect(r.browser.source).toBe('bundled');
-    expect(r.browser.path).toContain(join(app, 'Contents', 'Resources', 'browsers'));
-    expect(statSync(r.file).size).toBe(r.size_bytes);
-    expect(r.review.counts.error ?? 0, JSON.stringify(r.review.counts)).toBe(0);
-    report.render = { frames: r.frames, duration_s: r.duration_s, size_bytes: r.size_bytes, timings: r.timings, review: r.review.counts, clean: r.review.clean, policy: r.policy };
-    // The render bundle took no canary either (renderBundleRestriction: the app, the workspace, the cache).
-    expect(canaryMarked(join(ws, '.retake'))).toEqual([]);
-  }, 30 * 60_000);
+      const render = retake(['--root', ws, 'render', 'northfield-fixture', 'quote', '--review', '--json'], { timeout: 15 * 60_000 });
+      report.render_ms = render.ms;
+      expect(render.status, render.out.slice(-3000)).toBe(0);
+      const r = JSON.parse(render.stdout) as {
+        status: string;
+        file: string;
+        frames: number;
+        duration_s: number;
+        size_bytes: number;
+        timings: unknown;
+        browser: { path: string; source: string };
+        review: { clean: boolean; counts: Record<string, number> };
+        policy?: { gl: { used: string; renderer?: string }; encoder: { used: string }; fallback?: unknown };
+        encoding: { encoder?: string };
+      };
+      expect(r.status).toBe('succeeded');
+      // L5.15: the signed app's path (its relinked compositor, hardened runtime) draws with ANGLE and encodes with
+      // VideoToolbox — the only check of that path (render-gpu.test.ts checks the repository's and a relinked copy's probe).
+      expect(r.policy, JSON.stringify(r.policy)).toMatchObject({ gl: { used: 'angle', renderer: expect.stringMatching(/Metal/) }, encoder: { used: 'h264_videotoolbox' } });
+      expect(r.policy?.fallback).toBeUndefined();
+      expect(r.encoding.encoder).toBe('h264_videotoolbox');
+      expect(r.browser.source).toBe('bundled');
+      expect(r.browser.path).toContain(join(app, 'Contents', 'Resources', 'browsers'));
+      expect(statSync(r.file).size).toBe(r.size_bytes);
+      expect(r.review.counts.error ?? 0, JSON.stringify(r.review.counts)).toBe(0);
+      report.render = { frames: r.frames, duration_s: r.duration_s, size_bytes: r.size_bytes, timings: r.timings, review: r.review.counts, clean: r.review.clean, policy: r.policy };
+      // The render bundle took no canary either (renderBundleRestriction: the app, the workspace, the cache).
+      expect(canaryMarked(join(ws, '.retake'))).toEqual([]);
+    },
+    30 * 60_000,
+  );
 
-  it('the shell binary started directly serves the Studio from the app\'s own Node.js and engine', async () => {
-    const t0 = Date.now();
-    let out = '';
-    // Outside the repository, as from Finder (review B L2): a cwd-relative lookup into the checkout would fail here.
-    shell = spawn(join(app, 'Contents', 'MacOS', BIN_NAME), ['--root', ws], { cwd: base, env: { ...env, RETAKE_ROOT: '', RETAKE_DESKTOP_TEST: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
-    shell.stdout!.on('data', (c: Buffer) => (out += c.toString('utf8')));
-    shell.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
-    const exited = new Promise<number | null>((r) => shell!.on('exit', (code) => r(code)));
-    const uiJson = join(ws, '.retake', 'ui.json');
-    const rec = await until(() => studioRecord(ws, env.RETAKE_HOME), 60_000, `the Studio server (${out.slice(-500)})`);
-    expect(readFileSync(uiJson, 'utf8')).not.toContain(rec.token);
-    report.studio_start_ms = Date.now() - t0;
-    const cmd = spawnSync('ps', ['-o', 'command=', '-p', String(rec.pid)], { encoding: 'utf8' }).stdout.trim();
-    const res = join(app, 'Contents', 'Resources');
-    expect(cmd.startsWith(`${res}/node/bin/node --require ${res}/node/guard.cjs ${res}/engine/dist/bin.js --root ${ws} ui --supervised`), cmd).toBe(true);
-    expect(cmd).not.toContain(REPO);
-    const info = async () => (await (await fetch(`http://127.0.0.1:${rec.port}/v1/info`, { headers: { authorization: `Bearer ${rec.token}` } })).json()) as { ok: boolean; data: { counters: { sessions: number } } };
-    expect((await info()).ok).toBe(true);
-    await until(async () => (await info()).data.counters.sessions >= 1, 30_000, 'the page redeeming its code');
-    shell.kill('SIGTERM');
-    expect(await exited).toBe(0);
-    shell = undefined;
-    expect(existsSync(uiJson)).toBe(false);
-    expect(out).toMatch(/quit: SIGTERM/);
-  }, 3 * 60_000);
+  it(
+    "the shell binary started directly serves the Studio from the app's own Node.js and engine",
+    async () => {
+      const t0 = Date.now();
+      let out = '';
+      // Outside the repository, as from Finder (review B L2): a cwd-relative lookup into the checkout would fail here.
+      shell = spawn(join(app, 'Contents', 'MacOS', BIN_NAME), ['--root', ws], { cwd: base, env: { ...env, RETAKE_ROOT: '', RETAKE_DESKTOP_TEST: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+      shell.stdout!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+      shell.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+      const exited = new Promise<number | null>((r) => shell!.on('exit', (code) => r(code)));
+      const uiJson = join(ws, '.retake', 'ui.json');
+      const rec = await until(() => studioRecord(ws, env.RETAKE_HOME), 60_000, `the Studio server (${out.slice(-500)})`);
+      expect(readFileSync(uiJson, 'utf8')).not.toContain(rec.token);
+      report.studio_start_ms = Date.now() - t0;
+      const cmd = spawnSync('ps', ['-o', 'command=', '-p', String(rec.pid)], { encoding: 'utf8' }).stdout.trim();
+      const res = join(app, 'Contents', 'Resources');
+      expect(cmd.startsWith(`${res}/node/bin/node --require ${res}/node/guard.cjs ${res}/engine/dist/bin.js --root ${ws} ui --supervised`), cmd).toBe(true);
+      expect(cmd).not.toContain(REPO);
+      const info = async () =>
+        (await (await fetch(`http://127.0.0.1:${rec.port}/v1/info`, { headers: { authorization: `Bearer ${rec.token}` } })).json()) as { ok: boolean; data: { counters: { sessions: number } } };
+      expect((await info()).ok).toBe(true);
+      await until(async () => (await info()).data.counters.sessions >= 1, 30_000, 'the page redeeming its code');
+      shell.kill('SIGTERM');
+      expect(await exited).toBe(0);
+      shell = undefined;
+      expect(existsSync(uiJson)).toBe(false);
+      expect(out).toMatch(/quit: SIGTERM/);
+    },
+    3 * 60_000,
+  );
 
-  it('L5.16c: the first run (no workspace: test mode answers Create ~/Retake), then the Set-up sheet\'s ops on the app\'s own server: the command linked into the scratch HOME and run through the link, the folder panel and the notification request through the pipe', async () => {
-    const t0 = Date.now();
-    let out = '';
-    const home2 = join(base, 'home-first-run');
-    const pick = join(home2, 'tools');
-    mkdirSync(pick, { recursive: true });
-    shell = spawn(join(app, 'Contents', 'MacOS', BIN_NAME), [], {
-      cwd: base,
-      env: { ...env, HOME: home2, CFFIXED_USER_HOME: home2, RETAKE_HOME: join(base, 'retake-home-first-run'), RETAKE_ROOT: '', RETAKE_DESKTOP_TEST: '1', RETAKE_DESKTOP_TEST_ANSWERS: '0', RETAKE_DESKTOP_TEST_PICK: pick },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    shell.stdout!.on('data', (c: Buffer) => (out += c.toString('utf8')));
-    shell.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
-    const exited = new Promise<number | null>((r) => shell!.on('exit', (code) => r(code)));
-    const made = join(home2, 'Retake');
-    const rec = await until(() => studioRecord(made, join(base, 'retake-home-first-run')), 60_000, `the first run's Studio server (${out.slice(-800)})`);
-    report.first_run_ms = Date.now() - t0;
-    expect(out).toContain('(test mode) alert: Welcome to Retake');
-    expect(out).toContain(`first run: retake init ${made}`);
-    expect(existsSync(join(made, 'retake.yaml'))).toBe(true);
-    expect(existsSync(join(made, 'projects'))).toBe(true);
-    const call = async (op: string, args: object = {}) => {
-      const r = await fetch(`http://127.0.0.1:${rec.port}/v1/call/${op}`, { method: 'POST', headers: { authorization: `Bearer ${rec.token}`, 'content-type': 'application/json' }, body: JSON.stringify(args) });
-      return { status: r.status, body: (await r.json()) as { data: Record<string, any>; error?: { details?: { reason?: string } } } };
-    };
-    const st = (await call('setup_status')).body.data;
-    expect(st).toMatchObject({ available: true, location: 'ok', seen: false, app, workspace: made });
-    expect(st.cli).toMatchObject({ dir: join(home2, '.local', 'bin'), state: 'absent' });
-    const inst = await call('setup_cli_install', { folder: 'default' });
-    expect(inst.body.data, JSON.stringify(inst.body)).toMatchObject({ result: 'created' });
-    const link = join(home2, '.local', 'bin', 'retake');
-    const v = retake(['--version'], { via: link });
-    expect(v.stdout.trim()).toContain(`(app bundle: ${app})`);
-    // The folder panel (test mode: RETAKE_DESKTOP_TEST_PICK) answers on the server's stdin; then the command goes there
-    // — once the one in ~/.local/bin is uninstalled (one command per app: review c B-M1).
-    expect((await call('setup_cli_choose')).status).toBe(200);
-    await until(async () => (await call('setup_status')).body.data.cli.chosen === true, 15_000, `the panel's answer (${out.slice(-500)})`);
-    expect((await call('setup_cli_install', { folder: 'chosen' })).body.error?.details?.reason).toBe('installed_elsewhere');
-    expect((await call('setup_cli_remove')).body.data).toMatchObject({ result: 'removed', path: link });
-    expect((await call('setup_cli_install', { folder: 'chosen' })).body.data).toMatchObject({ result: 'created', path: join(pick, 'retake') });
-    // A second panel gives nothing (test mode's picks are used up): said as cancelled, the chosen link kept.
-    expect((await call('setup_cli_choose')).status).toBe(200);
-    await until(async () => (await call('setup_status')).body.data.cli.panel === 'cancelled', 15_000, `the cancelled panel (${out.slice(-500)})`);
-    expect((await call('setup_status')).body.data.cli).toMatchObject({ installed: join(pick, 'retake'), state: 'ours' });
-    // The notification request reaches the shell (test mode: logged, never UN) and its answer comes back.
-    expect((await call('setup_notifications')).status).toBe(200);
-    await until(() => out.includes('(test mode) notifications: the permission would be asked now'), 15_000, 'the notification request');
-    // Claude Desktop has no folder in the scratch HOME: refused, nothing created under its Library.
-    expect((await call('setup_claude_desktop_add')).body.error?.details?.reason).toMatch(/no_claude|claude_running/);
-    expect(existsSync(join(home2, 'Library', 'Application Support', 'Claude'))).toBe(false);
-    expect((await call('setup_cli_remove')).body.data).toMatchObject({ result: 'removed', path: join(pick, 'retake') });
-    expect(existsSync(join(pick, 'retake'))).toBe(false);
-    expect((await call('setup_done')).status).toBe(200);
-    shell.kill('SIGTERM');
-    expect(await exited).toBe(0);
-    shell = undefined;
-    // Remembered: the next start opens it with no question.
-    expect(readFileSync(join(base, 'retake-home-first-run', 'desktop.json'), 'utf8')).toContain(made);
-  }, 3 * 60_000);
+  it(
+    "L5.16c: the first run (no workspace: test mode answers Create ~/Retake), then the Set-up sheet's ops on the app's own server: the command linked into the scratch HOME and run through the link, the folder panel and the notification request through the pipe",
+    async () => {
+      const t0 = Date.now();
+      let out = '';
+      const home2 = join(base, 'home-first-run');
+      const pick = join(home2, 'tools');
+      mkdirSync(pick, { recursive: true });
+      shell = spawn(join(app, 'Contents', 'MacOS', BIN_NAME), [], {
+        cwd: base,
+        env: {
+          ...env,
+          HOME: home2,
+          CFFIXED_USER_HOME: home2,
+          RETAKE_HOME: join(base, 'retake-home-first-run'),
+          RETAKE_ROOT: '',
+          RETAKE_DESKTOP_TEST: '1',
+          RETAKE_DESKTOP_TEST_ANSWERS: '0',
+          RETAKE_DESKTOP_TEST_PICK: pick,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      shell.stdout!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+      shell.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+      const exited = new Promise<number | null>((r) => shell!.on('exit', (code) => r(code)));
+      const made = join(home2, 'Retake');
+      const rec = await until(() => studioRecord(made, join(base, 'retake-home-first-run')), 60_000, `the first run's Studio server (${out.slice(-800)})`);
+      report.first_run_ms = Date.now() - t0;
+      expect(out).toContain('(test mode) alert: Welcome to Retake');
+      expect(out).toContain(`first run: retake init ${made}`);
+      expect(existsSync(join(made, 'retake.yaml'))).toBe(true);
+      expect(existsSync(join(made, 'projects'))).toBe(true);
+      const call = async (op: string, args: object = {}) => {
+        const r = await fetch(`http://127.0.0.1:${rec.port}/v1/call/${op}`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${rec.token}`, 'content-type': 'application/json' },
+          body: JSON.stringify(args),
+        });
+        return { status: r.status, body: (await r.json()) as { data: Record<string, any>; error?: { details?: { reason?: string } } } };
+      };
+      const st = (await call('setup_status')).body.data;
+      expect(st).toMatchObject({ available: true, location: 'ok', seen: false, app, workspace: made });
+      expect(st.cli).toMatchObject({ dir: join(home2, '.local', 'bin'), state: 'absent' });
+      const inst = await call('setup_cli_install', { folder: 'default' });
+      expect(inst.body.data, JSON.stringify(inst.body)).toMatchObject({ result: 'created' });
+      const link = join(home2, '.local', 'bin', 'retake');
+      const v = retake(['--version'], { via: link });
+      expect(v.stdout.trim()).toContain(`(app bundle: ${app})`);
+      // The folder panel (test mode: RETAKE_DESKTOP_TEST_PICK) answers on the server's stdin; then the command goes there
+      // — once the one in ~/.local/bin is uninstalled (one command per app: review c B-M1).
+      expect((await call('setup_cli_choose')).status).toBe(200);
+      await until(async () => (await call('setup_status')).body.data.cli.chosen === true, 15_000, `the panel's answer (${out.slice(-500)})`);
+      expect((await call('setup_cli_install', { folder: 'chosen' })).body.error?.details?.reason).toBe('installed_elsewhere');
+      expect((await call('setup_cli_remove')).body.data).toMatchObject({ result: 'removed', path: link });
+      expect((await call('setup_cli_install', { folder: 'chosen' })).body.data).toMatchObject({ result: 'created', path: join(pick, 'retake') });
+      // A second panel gives nothing (test mode's picks are used up): said as cancelled, the chosen link kept.
+      expect((await call('setup_cli_choose')).status).toBe(200);
+      await until(async () => (await call('setup_status')).body.data.cli.panel === 'cancelled', 15_000, `the cancelled panel (${out.slice(-500)})`);
+      expect((await call('setup_status')).body.data.cli).toMatchObject({ installed: join(pick, 'retake'), state: 'ours' });
+      // The notification request reaches the shell (test mode: logged, never UN) and its answer comes back.
+      expect((await call('setup_notifications')).status).toBe(200);
+      await until(() => out.includes('(test mode) notifications: the permission would be asked now'), 15_000, 'the notification request');
+      // Claude Desktop has no folder in the scratch HOME: refused, nothing created under its Library.
+      expect((await call('setup_claude_desktop_add')).body.error?.details?.reason).toMatch(/no_claude|claude_running/);
+      expect(existsSync(join(home2, 'Library', 'Application Support', 'Claude'))).toBe(false);
+      expect((await call('setup_cli_remove')).body.data).toMatchObject({ result: 'removed', path: join(pick, 'retake') });
+      expect(existsSync(join(pick, 'retake'))).toBe(false);
+      expect((await call('setup_done')).status).toBe(200);
+      shell.kill('SIGTERM');
+      expect(await exited).toBe(0);
+      shell = undefined;
+      // Remembered: the next start opens it with no question.
+      expect(readFileSync(join(base, 'retake-home-first-run', 'desktop.json'), 'utf8')).toContain(made);
+    },
+    3 * 60_000,
+  );
 
-  it('L5.16c fixes (review c B-L5): the first run\'s Choose a Folder… — a folder that is not empty is refused by retake init and the question comes back with the reason; then an empty folder becomes the workspace', async () => {
-    const t0 = Date.now();
-    let out = '';
-    const home3 = join(base, 'home-first-run-choose');
-    const full = join(home3, 'Documents');
-    const empty = join(home3, 'Videos');
-    mkdirSync(full, { recursive: true });
-    mkdirSync(empty, { recursive: true });
-    writeFileSync(join(full, 'notes.txt'), 'the person\'s file\n');
-    shell = spawn(join(app, 'Contents', 'MacOS', BIN_NAME), [], {
-      cwd: base,
-      env: { ...env, HOME: home3, CFFIXED_USER_HOME: home3, RETAKE_HOME: join(base, 'retake-home-choose'), RETAKE_ROOT: '', RETAKE_DESKTOP_TEST: '1', RETAKE_DESKTOP_TEST_ANSWERS: '1,1', RETAKE_DESKTOP_TEST_PICK: `${full}:${empty}` },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    shell.stdout!.on('data', (c: Buffer) => (out += c.toString('utf8')));
-    shell.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
-    const exited = new Promise<number | null>((r) => shell!.on('exit', (code) => r(code)));
-    const uiJson = join(empty, '.retake', 'ui.json');
-    await until(() => existsSync(uiJson), 60_000, `the chosen folder's Studio server (${out.slice(-800)})`);
-    report.first_run_choose_ms = Date.now() - t0;
-    expect(out).toContain(`first run: retake init ${full}`);
-    expect(out).toContain('first run: retake init failed');
-    expect(out).toContain(`first run: retake init ${empty}`);
-    // Asked twice (the second time with the reason), the person's folder left as it was.
-    expect(out.split('(test mode) alert: Welcome to Retake').length - 1).toBe(2);
-    expect(readdirSync(full)).toEqual(['notes.txt']);
-    expect(existsSync(join(empty, 'retake.yaml'))).toBe(true);
-    shell.kill('SIGTERM');
-    expect(await exited).toBe(0);
-    shell = undefined;
-    expect(readFileSync(join(base, 'retake-home-choose', 'desktop.json'), 'utf8')).toContain(empty);
-  }, 3 * 60_000);
+  it(
+    "L5.16c fixes (review c B-L5): the first run's Choose a Folder… — a folder that is not empty is refused by retake init and the question comes back with the reason; then an empty folder becomes the workspace",
+    async () => {
+      const t0 = Date.now();
+      let out = '';
+      const home3 = join(base, 'home-first-run-choose');
+      const full = join(home3, 'Documents');
+      const empty = join(home3, 'Videos');
+      mkdirSync(full, { recursive: true });
+      mkdirSync(empty, { recursive: true });
+      writeFileSync(join(full, 'notes.txt'), "the person's file\n");
+      shell = spawn(join(app, 'Contents', 'MacOS', BIN_NAME), [], {
+        cwd: base,
+        env: {
+          ...env,
+          HOME: home3,
+          CFFIXED_USER_HOME: home3,
+          RETAKE_HOME: join(base, 'retake-home-choose'),
+          RETAKE_ROOT: '',
+          RETAKE_DESKTOP_TEST: '1',
+          RETAKE_DESKTOP_TEST_ANSWERS: '1,1',
+          RETAKE_DESKTOP_TEST_PICK: `${full}:${empty}`,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      shell.stdout!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+      shell.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+      const exited = new Promise<number | null>((r) => shell!.on('exit', (code) => r(code)));
+      const uiJson = join(empty, '.retake', 'ui.json');
+      await until(() => existsSync(uiJson), 60_000, `the chosen folder's Studio server (${out.slice(-800)})`);
+      report.first_run_choose_ms = Date.now() - t0;
+      expect(out).toContain(`first run: retake init ${full}`);
+      expect(out).toContain('first run: retake init failed');
+      expect(out).toContain(`first run: retake init ${empty}`);
+      // Asked twice (the second time with the reason), the person's folder left as it was.
+      expect(out.split('(test mode) alert: Welcome to Retake').length - 1).toBe(2);
+      expect(readdirSync(full)).toEqual(['notes.txt']);
+      expect(existsSync(join(empty, 'retake.yaml'))).toBe(true);
+      shell.kill('SIGTERM');
+      expect(await exited).toBe(0);
+      shell = undefined;
+      expect(readFileSync(join(base, 'retake-home-choose', 'desktop.json'), 'utf8')).toContain(empty);
+    },
+    3 * 60_000,
+  );
 
   it('above Resources: a clone of the app with canaries in Contents/node_modules and Retake.app/node_modules runs doctor without loading them', () => {
     const clone = join(base, 'clone', 'Retake.app');
@@ -445,7 +539,11 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
 
   it("bundle.json's sha256 values are the app's signed files' (review B M3)", () => {
     const res = join(app, 'Contents', 'Resources');
-    const m = JSON.parse(readFileSync(join(res, 'bundle.json'), 'utf8')) as { paths: { node: string; ffmpeg: string | null }; sha256: { node: string }; ffmpeg: { sha256: Record<string, string> } | null };
+    const m = JSON.parse(readFileSync(join(res, 'bundle.json'), 'utf8')) as {
+      paths: { node: string; ffmpeg: string | null };
+      sha256: { node: string };
+      ffmpeg: { sha256: Record<string, string> } | null;
+    };
     const sha = (p: string) => createHash('sha256').update(readFileSync(p)).digest('hex');
     expect(m.sha256.node).toBe(sha(join(res, m.paths.node)));
     if (m.ffmpeg && m.paths.ffmpeg) for (const t of ['ffmpeg', 'ffprobe']) expect(m.ffmpeg.sha256[t], t).toBe(sha(join(res, m.paths.ffmpeg, t)));

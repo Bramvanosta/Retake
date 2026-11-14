@@ -70,7 +70,10 @@ async function browserWith(user: { token: string; expires: number } | null, cook
         r.onupgradeneeded = () => r.result.createObjectStore('firebaseLocalStorage', { keyPath: 'fbase_key' });
         r.onsuccess = () => {
           const tx = r.result.transaction('firebaseLocalStorage', 'readwrite');
-          tx.objectStore('firebaseLocalStorage').put({ fbase_key: 'firebase:authUser:demo-key:[DEFAULT]', value: { uid: 'u1', stsTokenManager: { accessToken: u.token, refreshToken: 'r', expirationTime: u.expires } } });
+          tx.objectStore('firebaseLocalStorage').put({
+            fbase_key: 'firebase:authUser:demo-key:[DEFAULT]',
+            value: { uid: 'u1', stsTokenManager: { accessToken: u.token, refreshToken: 'r', expirationTime: u.expires } },
+          });
           tx.oncomplete = () => done();
         };
       });
@@ -96,7 +99,9 @@ describe('the session of a persona as an http hook sends it (hotfix v0.2.3)', ()
       expect(await read(`${url}/api/things`)).toEqual({ authorization: 'Bearer fresh-token', cookie: 'sid=session-cookie-1' });
       let touched = false;
       const guarded = await reader(new Proxy(context, { get: (t, k) => ((touched = true), Reflect.get(t, k)) }), [own]);
-      await expect(guarded('https://elsewhere.example/collect')).rejects.toThrow(/persona buyer .*sends its session only to that persona's own pages .*https:\/\/elsewhere\.example is not one of them/);
+      await expect(guarded('https://elsewhere.example/collect')).rejects.toThrow(
+        /persona buyer .*sends its session only to that persona's own pages .*https:\/\/elsewhere\.example is not one of them/,
+      );
       expect(touched).toBe(false);
     } finally {
       await context.close();

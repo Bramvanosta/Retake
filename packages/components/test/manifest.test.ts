@@ -2,12 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { COMPONENT_KINDS, formatIssues } from '@retake/core';
-import {
-  ComponentManifestFileSchema,
-  PACKAGE_DIR,
-  componentJsonSchema,
-  parseManifest,
-} from '@retake/components';
+import { ComponentManifestFileSchema, PACKAGE_DIR, componentJsonSchema, parseManifest } from '@retake/components';
 import type { ComponentIssue } from '@retake/components';
 import { cardManifest } from './helpers.js';
 
@@ -30,7 +25,9 @@ geometry:
 
 describe('parseManifest (R-CMP-04)', () => {
   it('accepts a complete manifest and applies defaults (entry, slots)', () => {
-    const { manifest, issues } = parseManifest(cardManifest('acme/title-card', 'publisher: Acme Studio\nlicense: MIT\ntags: [title, chapter]\ntokens: [colors.accent, fonts.display, colors.highlight]\nvariants: [landscape, vertical]'));
+    const { manifest, issues } = parseManifest(
+      cardManifest('acme/title-card', 'publisher: Acme Studio\nlicense: MIT\ntags: [title, chapter]\ntokens: [colors.accent, fonts.display, colors.highlight]\nvariants: [landscape, vertical]'),
+    );
     expect(issues).toEqual([]);
     expect(manifest).toMatchObject({
       id: 'acme/title-card',
@@ -62,14 +59,14 @@ describe('parseManifest (R-CMP-04)', () => {
     expect(out).toMatch(/component\.yaml:1:5 error id: component id must be "namespace\/name"/);
     expect(out).toMatch(/:2:10 error version: version must be a semantic version like "1\.0\.0", got "1\.0"/);
     expect(out).toMatch(/:3:7 error kind: expected one of .* got "intr" \(did you mean "intro"\?\)/);
-    expect(out).toMatch(/:7:17 error slots\.title\.type: expected one of "text", "image", "url", "color", "screen", "email", "document", "notification", "capture", "frame", "data", "media", "lottie", got "txt"/);
+    expect(out).toMatch(
+      /:7:17 error slots\.title\.type: expected one of "text", "image", "url", "color", "screen", "email", "document", "notification", "capture", "frame", "data", "media", "lottie", got "txt"/,
+    );
     expect(errors('id: a/b\nversion: 1.2.3-beta.1+build.5\nkind: card\nname: X\ndescription: Y\n')).toEqual([]);
   });
 
   it('checks that the id matches the folder path', () => {
-    expect(fmt(errors(cardManifest('acme/title-card'), 'acme/other-card'))).toMatch(
-      /:1:5 error id: id "acme\/title-card" does not match the folder path "acme\/other-card"/,
-    );
+    expect(fmt(errors(cardManifest('acme/title-card'), 'acme/other-card'))).toMatch(/:1:5 error id: id "acme\/title-card" does not match the folder path "acme\/other-card"/);
     expect(errors(cardManifest('acme/title-card'), 'acme/title-card')).toEqual([]);
   });
 

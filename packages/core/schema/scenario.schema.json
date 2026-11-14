@@ -318,7 +318,7 @@
         "max_s"
       ],
       "additionalProperties": false,
-      "description": "The length this video aims at (L5.5): the review's video-length rule uses it instead of the reference 60–120 s."
+      "description": "The length this video aims at: the review's video-length rule uses it instead of the reference 60–120 s."
     },
     "caption_component": {
       "type": "string",

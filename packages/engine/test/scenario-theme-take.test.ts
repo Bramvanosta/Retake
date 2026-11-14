@@ -14,7 +14,8 @@ import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { themeContentHash } from '@retake/editor';
 import { clearTimelineViewMemo, createEngine } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { scratchHome } from '@retake/test-support/home';
 
 const SCENARIO = 'tl';
 const RUN = '20260101-120000-tl';
@@ -31,7 +32,7 @@ scenes:
 `;
 let root: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const view = async (r: Promise<TimelineViewResult>) => {
   const v = await r;
   if (!('view' in v)) throw new Error(`blocked: ${JSON.stringify(v.blocked)}`);
@@ -40,7 +41,7 @@ const view = async (r: Promise<TimelineViewResult>) => {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-scenario-theme-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), join(root, 'templates', 'brand'), { recursive: true });
   // Its own name (a byte-identical copy would have the starter's content hash).
@@ -63,7 +64,24 @@ beforeAll(async () => {
   await writeFile(join(runDir, 'scenario.yaml'), TEXT);
   await writeFile(
     join(runDir, 'run.json'),
-    JSON.stringify({ version: 1, id: RUN, project: 'demo', scenario: SCENARIO, mode: 'capture', status: 'succeeded', started_at: '2026-01-01T12:00:00.000Z', finished_at: '2026-01-01T12:01:00.000Z', dir: runDir, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'ok', teardown: 'ok' }, warnings: [] }),
+    JSON.stringify({
+      version: 1,
+      id: RUN,
+      project: 'demo',
+      scenario: SCENARIO,
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: '2026-01-01T12:00:00.000Z',
+      finished_at: '2026-01-01T12:01:00.000Z',
+      dir: runDir,
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 1,
+      steps_done: 1,
+      screenshots: [],
+      hooks: { setup: 'ok', teardown: 'ok' },
+      warnings: [],
+    }),
   );
   await writeFile(join(runDir, 'capture.mp4'), 'not a video');
   await writeFile(join(dir, 'scenarios', `${SCENARIO}.yaml`), TEXT);
@@ -71,13 +89,12 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 
-describe('a scenario\'s theme on an existing take (critique B1)', () => {
-  it('set_field template → the take\'s next plan uses the new theme and its hash; a theme edit changes the hash; removing it restores the project\'s', async () => {
+describe("a scenario's theme on an existing take (critique B1)", () => {
+  it("set_field template → the take's next plan uses the new theme and its hash; a theme edit changes the hash; removing it restores the project's", async () => {
     clearTimelineViewMemo();
     const before = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     expect(before).toMatchObject({ theme: 'editorial', theme_sha256: themeContentHash(join(STARTER_TEMPLATES_DIR, 'editorial')), source: { scenario_changed: false } });

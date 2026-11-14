@@ -31,8 +31,10 @@ import type { Engine } from '@retake/engine';
 import type { RenderRecord } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO } from '../../engine/test/helpers.js';
-import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { hasTool } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
+import { scratchHome } from '@retake/test-support/home';
 
 const CHROME_APP = '/Applications/Google Chrome.app';
 const gated = process.env.RETAKE_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
@@ -59,7 +61,7 @@ let studio: StudioServer;
 let mcp: Engine;
 let browser: Browser;
 let page: Page;
-const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };
+const retakeHome = scratchHome('RETAKE_AUTHOR');
 const consoleErrors: string[] = [];
 /** The capture, the thread and its frame (each test goes on from the one before). */
 const ids = { run: '', thread: '', frame: 0, entry: '' };
@@ -127,7 +129,10 @@ async function timeFrame(render: string, frame: number, how: 'route' | 'slider')
 
 /** Keyframe indexes of a video (ffprobe, keyframes only). */
 function keyframes(file: string, fps: number): number[] {
-  const out = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-skip_frame', 'nokey', '-show_entries', 'frame=pts_time', '-of', 'csv=p=0', file], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  const out = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-skip_frame', 'nokey', '-show_entries', 'frame=pts_time', '-of', 'csv=p=0', file], {
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
   return out
     .split('\n')
     .filter((l) => l.trim() !== '')
@@ -139,7 +144,10 @@ async function viewerLatency(rec: RenderRecord): Promise<{ first: number; times:
   const keys = keyframes(rec.file, rec.fps);
   const gaps = keys.slice(1).map((k, i) => k - keys[i]);
   // Worst cases: the frame before each of three keyframes (a decode from the keyframe before); and frames spread over the take.
-  const before = keys.filter((k) => k > 1).slice(0, 3).map((k) => k - 1);
+  const before = keys
+    .filter((k) => k > 1)
+    .slice(0, 3)
+    .map((k) => k - 1);
   const spread = [0.12, 0.27, 0.41, 0.58, 0.73, 0.88, 0.97].map((q) => Math.floor(q * (rec.frames - 1)));
   const targets = [...new Set([...before, ...spread])].filter((f) => f > 5 && f < rec.frames).sort((a, b) => a - b);
   const first = await timeFrame(rec.id, 3, 'route');
@@ -154,13 +162,16 @@ beforeAll(async () => {
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
   for (const u of Object.values(fixture.urls)) expect([4401, 4402, 4403, 4404]).not.toContain(Number(new URL(u).port));
   root = await mkdtemp(join(tmpdir(), 'ds-e2e-comments-chrome-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   process.env.RETAKE_AUTHOR = AUTHOR;
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   dir = join(root, 'projects', P);
   await cp(FIXTURE_PROJECT, dir, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
   const yaml = await readFile(join(dir, 'project.yaml'), 'utf8');
-  await writeFile(join(dir, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')));
+  await writeFile(
+    join(dir, 'project.yaml'),
+    yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')),
+  );
   await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
   await linkSharedCache(root);
   studio = await startStudioServer({ root, startWorker: false, pollMs: 100 });
@@ -183,15 +194,12 @@ afterAll(async () => {
   await browser?.close();
   await studio?.close();
   await fixture?.close();
-  for (const [k, val] of [['RETAKE_HOME', saved.home], ['RETAKE_AUTHOR', saved.author]] as const) {
-    if (val === undefined) delete process.env[k];
-    else process.env[k] = val;
-  }
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 
 describe.skipIf(!gated)('frame comments on the fixture product in the installed Google Chrome (L4.6 part E)', () => {
-  it('capture highlights, Render from its timeline; Comment at the total; a region; Post → a studio thread at the viewer\'s frame', async () => {
+  it("capture highlights, Render from its timeline; Comment at the total; a region; Post → a studio thread at the viewer's frame", async () => {
     // The capture (the worker in this process), then Render from the timeline: the files' theme, reviewed inline.
     const sub = await studio.engine.runs.submit({ project: P, scenario: S, mode: 'capture' });
     ids.run = sub.run_id;
@@ -299,7 +307,12 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     await expect.poll(() => page.getByTestId('preview').getAttribute('data-loading'), POLL).toBe('no');
     // The switched-off chips look off (part E's nit; L5.12a: the kit's chips are dashed, the checked one too), and the
     // banner never applies (review A M1).
-    expect(await page.locator('[data-testid="inspector"] [role="radiogroup"][aria-disabled="true"] [role="radio"][aria-checked="true"]').first().evaluate((el) => getComputedStyle(el).borderTopStyle)).toBe('dashed');
+    expect(
+      await page
+        .locator('[data-testid="inspector"] [role="radiogroup"][aria-disabled="true"] [role="radio"][aria-checked="true"]')
+        .first()
+        .evaluate((el) => getComputedStyle(el).borderTopStyle),
+    ).toBe('dashed');
     await page.getByTestId('banner-back').waitFor(POLL);
     expect(await page.locator('[data-testid="proposal-banner"] button').count()).toBe(0);
     expect(await readFile(scenarioFile(), 'utf8')).toBe(before);
@@ -328,13 +341,34 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     await shot('6-resolved');
   }, 900_000);
 
-  it('the viewer\'s frame latency on the real render and on a 4K copy; the sidebar stays put in a real scroll', async () => {
+  it("the viewer's frame latency on the real render and on a 4K copy; the sidebar stays put in a real scroll", async () => {
     const v1 = JSON.parse(await readFile(join(dir, 'renders', `${S}-v1.json`), 'utf8')) as RenderRecord;
     // A 4K copy of v1 as a render of its own: x264 with its default GOP (keyframes up to 250 frames apart) and B-frames.
     const id4k = `${S}-v3`;
     const file4k = join(dir, 'renders', `${id4k}.mp4`);
     const t0 = Date.now();
-    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', v1.file, '-vf', 'scale=3840:2160:flags=bicubic', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '16', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart', file4k]);
+    execFileSync('ffmpeg', [
+      '-v',
+      'error',
+      '-y',
+      '-i',
+      v1.file,
+      '-vf',
+      'scale=3840:2160:flags=bicubic',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '16',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'copy',
+      '-movflags',
+      '+faststart',
+      file4k,
+    ]);
     const encodeMs = Date.now() - t0;
     const created = new Date(Date.parse(v1.created_at) + 3_600_000).toISOString();
     const r4k: RenderRecord = { ...v1, id: id4k, file: file4k, record: join(dir, 'renders', `${id4k}.json`), render_version: 3, created_at: created, finished_at: created, width: 3840, height: 2160 };
@@ -344,7 +378,9 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     for (const rec of [v1, r4k]) {
       const m = await viewerLatency(rec);
       expect(m.times.length).toBeGreaterThan(5);
-      lines.push(`${rec.id} ${rec.width}×${rec.height} ${rec.frames} frames (${m.gop}): first frame (outline, probe, frame) ${m.first} ms; ${m.times.length} uncached frames median ${pct(m.times, 0.5)} ms, p90 ${pct(m.times, 0.9)} ms, worst ${Math.max(...m.times)} ms (${m.targets.map((f, i) => `${f}:${m.times[i]}`).join(' ')})`);
+      lines.push(
+        `${rec.id} ${rec.width}×${rec.height} ${rec.frames} frames (${m.gop}): first frame (outline, probe, frame) ${m.first} ms; ${m.times.length} uncached frames median ${pct(m.times, 0.5)} ms, p90 ${pct(m.times, 0.9)} ms, worst ${Math.max(...m.times)} ms (${m.targets.map((f, i) => `${f}:${m.times[i]}`).join(' ')})`,
+      );
       if (rec === r4k) await shot('7-viewer-4k');
     }
     console.log(`viewer latency (render_frame → frame shown), 4K encode ${encodeMs} ms:\n  ${lines.join('\n  ')}`);
@@ -356,9 +392,15 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     await page.getByTestId('thread').waitFor(POLL);
     await page.getByTestId('filter-all').check();
     const pane = '.sh-inspector';
-    const tall = await page.evaluate((sel) => { const m = document.querySelector(sel)!; return m.scrollHeight - m.clientHeight; }, pane);
+    const tall = await page.evaluate((sel) => {
+      const m = document.querySelector(sel)!;
+      return m.scrollHeight - m.clientHeight;
+    }, pane);
     expect(tall).toBeGreaterThan(200);
-    await page.evaluate((sel) => { const m = document.querySelector(sel)!; m.scrollTop = m.scrollHeight; }, pane);
+    await page.evaluate((sel) => {
+      const m = document.querySelector(sel)!;
+      m.scrollTop = m.scrollHeight;
+    }, pane);
     await expect.poll(() => page.evaluate((sel) => document.querySelector(sel)!.scrollTop, pane), POLL).toBeGreaterThan(200);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
     // L5.12b: the shell's browser pane (it holds the thread list now) stays under the title bar.

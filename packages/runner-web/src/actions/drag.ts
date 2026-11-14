@@ -1,8 +1,9 @@
 import { readFile, stat } from 'node:fs/promises';
 import { basename, isAbsolute, join } from 'node:path';
 import type { ElementHandle } from 'playwright-core';
-import { isPoint, projectFileProblem } from '@retake/core';
-import type { DragArgs, DropFileArgs, PointSpec, TargetSpec } from '@retake/core';
+import { isPoint } from '@retake/core/language';
+import { projectFileProblem } from '@retake/core/scenario';
+import type { DragArgs, DropFileArgs, PointSpec, TargetSpec } from '@retake/core/model';
 import { nodeFileFacts } from '@retake/core/io';
 import { StepError } from '../errors.js';
 import { distance, moveDuration } from '../motion.js';
@@ -158,9 +159,7 @@ export async function dropFile(ctx: StepContext, args: DropFileArgs): Promise<Ac
   if (!delivered) {
     const inputRef = input?.ref ?? (await kit.fileInputFor(zone.ref));
     if (!inputRef) {
-      throw new StepError(
-        `drop_file: ${zone.spec} did not accept the dropped file and no <input type=file> was found in or around it (pass \`input\`)`,
-      );
+      throw new StepError(`drop_file: ${zone.spec} did not accept the dropped file and no <input type=file> was found in or around it (pass \`input\`)`);
     }
     const handle = await elementHandle(ctx, inputRef);
     await handle.setInputFiles({

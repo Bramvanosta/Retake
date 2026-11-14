@@ -31,5 +31,7 @@ export function otherCopyWords(o: OtherCopy | undefined): string {
 
 /** What a submit's "queued" line adds when another copy's worker takes the job (empty otherwise). */
 export function submitNotice(o: OtherCopy | undefined): string {
-  return o ? `. It runs in another copy of ${APP_NAME} (${o.version}${o.engine ? `, ${o.engine}` : ''}), with that copy's browsers and tools: to use this one, let that worker finish (it stops a minute after its last job) and start it again` : '';
+  return o
+    ? `. It runs in another copy of ${APP_NAME} (${o.version}${o.engine ? `, ${o.engine}` : ''}), with that copy's browsers and tools: to use this one, let that worker finish (it stops a minute after its last job) and start it again`
+    : '';
 }

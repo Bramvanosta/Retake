@@ -10,7 +10,9 @@
  */
 import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { SITE_ID_RE, parseSiteUrl, unsafeTestResolve, statePath } from '@retake/core';
+import { SITE_ID_RE, ULID_PREFIXES, ulidTime } from '@retake/core/ids';
+import { statePath } from '@retake/core/project';
+import { parseSiteUrl, unsafeTestResolve } from '@retake/core/theme';
 import { readPlainFile } from '@retake/core/io';
 import type { PaletteCheck } from '@retake/components';
 import { components } from './components.js';
@@ -19,7 +21,6 @@ import type { OpenedWorkspace } from './workspace.js';
 
 const SITE_JSON_MAX = 1024 * 1024;
 const TEXT_MAX = 300;
-const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 export interface SiteListEntry {
   site_id: string;
@@ -36,14 +37,9 @@ export interface SiteList {
   sites: SiteListEntry[];
 }
 
-/** The time of a ULID-style id (its first 10 Crockford characters), or undefined. */
+/** The time a site extraction id holds (its ULID's), or undefined. */
 function idTime(id: string): string | undefined {
-  let ms = 0;
-  for (const c of id.slice(2, 12)) {
-    const v = CROCKFORD.indexOf(c);
-    if (v < 0) return undefined;
-    ms = ms * 32 + v;
-  }
+  const ms = ulidTime(id.slice(ULID_PREFIXES.site.length));
   const d = new Date(ms);
   return Number.isFinite(d.getTime()) && ms > 0 ? d.toISOString() : undefined;
 }
@@ -69,7 +65,10 @@ export async function siteList(ws: OpenedWorkspace): Promise<SiteList> {
   } catch {
     return { sites: [] };
   }
-  const ids = names.filter((n) => SITE_ID_RE.test(n)).sort().reverse();
+  const ids = names
+    .filter((n) => SITE_ID_RE.test(n))
+    .sort()
+    .reverse();
   const lib = await components();
   const sites: SiteListEntry[] = [];
   for (const id of ids) {

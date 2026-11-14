@@ -10,7 +10,7 @@
  * - Set only by the Studio's own op `preview_allow` (the Allow button of the timeline screen, which names the component
  *   and its hash): no MCP tool and no engine call reaches it.
  */
-import { COMPONENT_ID_RE } from '@retake/core';
+import { COMPONENT_ID_RE } from '@retake/core/model';
 
 /** Components allowed per session, at most (a workspace has a few dozen). */
 export const PREVIEW_ALLOW_MAX = 512;

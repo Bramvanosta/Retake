@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RETAKE_VERSION } from '@retake/core';
 import { installedVersion, staleEngine } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { startMcpServer, staleWords } from '../src/index.js';
 
 let ws: string;

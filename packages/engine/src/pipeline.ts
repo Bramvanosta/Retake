@@ -1,20 +1,25 @@
 /**
  * The pipeline, run in this process: plan, render, still, export and review — one function each, shared by the CLI's
  * commands (through in-process.ts: they run no job) and the worker's jobs (render-job.ts, export-job.ts, review-job.ts).
- * Each is the adapter's own call (the editor's planRun / renderVideo / renderStill / exportRender, the review's
- * reviewRender) behind the engine's lazy imports: the caller passes its own options — trust, network guard and reserved
- * id for a job; output location and concurrency for the CLI — and gets the adapter's result and errors unchanged. A run
+ * Each is the adapter's own call (the editor's planRun / renderVideo / renderStill / exportRender, the reviewer's
+ * review) behind the engine's lazy imports or its ports: the caller passes its own options — trust, network guard and
+ * reserved id for a job; output location and concurrency for the CLI — and gets the adapter's result and errors
+ * unchanged. What renders takes the renderer to draw with (render/renderer.ts), what reviews the reviewer
+ * (review/reviewer.ts): only a composition root chooses them. A run
  * and an inspection have theirs already (executeRun in execute-run.ts, runInspection in jobs/inspect-job.ts). None
  * writes the history: the worker writes a job's line, in-process.ts the CLI's.
  */
-import { projectPath } from '@retake/core';
-import type { LoadedProject } from '@retake/core';
+import { RENDER_VARIANT_SUFFIX } from '@retake/core/ids';
+import { projectPath } from '@retake/core/project';
+import type { LoadedProject } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import type {
   EditOverrides,
   ExportFormat,
   ExportProgress,
   ExportRenderOptions,
   ExportResult,
+  FoundRender,
   PlanRunOptions,
   PlannedRun,
   RenderProgress,
@@ -23,10 +28,24 @@ import type {
   RenderVideoOptions,
   RunRef,
 } from '@retake/editor';
-import type { ReviewOptions, ReviewResult } from '@retake/review';
-import { editor, review } from './lazy.js';
+import type { ReviewResult } from '@retake/review/checks';
+import { editor } from './lazy.js';
 
-export type { EditOverrides, ExportFormat, ExportProgress, ExportRenderOptions, ExportResult, PlannedRun, RenderProgress, RenderRecord, RenderStillOptions, RenderVideoOptions, ReviewResult, RunRef };
+export type {
+  EditOverrides,
+  ExportFormat,
+  ExportProgress,
+  ExportRenderOptions,
+  ExportResult,
+  FoundRender,
+  PlannedRun,
+  RenderProgress,
+  RenderRecord,
+  RenderStillOptions,
+  RenderVideoOptions,
+  ReviewResult,
+  RunRef,
+};
 
 // ── the pipeline ──
 
@@ -35,25 +54,55 @@ export async function planWork(o: PlanRunOptions): Promise<PlannedRun> {
   return (await editor()).planRun(o);
 }
 
-/** Render a run into renders/<scenario>-v<N>.mp4 + .json (the editor's renderVideo). */
-export async function renderWork(o: RenderVideoOptions): Promise<RenderRecord> {
-  return (await editor()).renderVideo(o);
+/** What `planOfRun` is asked: the run's scenario (with `latest`), a theme in place of the run's, the overrides, who asks. */
+export interface PlanOfRunOptions {
+  /** With `latest`: the latest capture of this scenario; else the run must be of it. */
+  scenario?: string;
+  /** A theme (a name, or a ./path for a person) instead of the one the run used. */
+  theme?: string;
+  /** The frame, the variant… (`theme` is set to the theme's name when one is asked). */
+  overrides?: EditOverrides;
+  /**
+   * A person at a terminal only (no trust gate: a theme may be a ./path). The run is resolved as a terminal resolves it
+   * (findRun), so work an agent asks never comes through here: plan_preview and the render submit plan under `mcp`.
+   */
+  trust: 'author';
+  /** The run found, before anything of it is read: what a terminal says of `latest` comes before any refusal. */
+  onRun?: (run: RunRef) => void;
 }
 
-/** Render one output frame of a plan to a PNG (the editor's renderStill). */
-export async function stillWork(o: RenderStillOptions): Promise<string> {
-  return (await editor()).renderStill(o);
+/**
+ * A run's edit plan, on its own (`retake plan`, L7.22): the run found by the rule every reader of runs shares (findRunOf:
+ * an id, a directory or `latest`), then the planning of a render (planWork: the edit of today's scenario file when
+ * its filmed part is unchanged, the theme, the registry, the planner) — for a plan alone (`purpose: 'plan'`: its
+ * refusals say plan, a run without its film plans, no music measured). With the summary's lines (the editor's
+ * summarizePlan), so a shell prints it without the editor. The plan of plan_preview and of a render is the same
+ * function with `purpose: 'render'`.
+ */
+export async function planOfRun(ws: { root: string; policy: WorkPolicy }, project: LoadedProject, runArg: string, o: PlanOfRunOptions): Promise<PlannedRun & { summary: string[] }> {
+  const run = await findRunOf(project, runArg, o.scenario);
+  o.onRun?.(run);
+  const planned = await planWork({
+    workPolicy: ws.policy,
+    project,
+    run,
+    ...(o.scenario !== undefined ? { scenario: o.scenario } : {}),
+    ...(o.theme !== undefined ? { template: o.theme } : {}),
+    overrides: o.overrides ?? {},
+    root: ws.root,
+    trust: o.trust,
+    measureMusic: false,
+    purpose: 'plan',
+  });
+  return { ...planned, summary: (await editor()).summarizePlan(planned.plan) };
 }
 
-/** Export a render's delivery files into exports/<render-id>/ (the editor's exportRender). */
-export async function exportWork(o: ExportRenderOptions): Promise<ExportResult> {
-  return (await editor()).exportRender(o);
-}
+// What renders — a video, a still, an export's re-rendered formats — runs on the renderer its caller hands (render/work.ts).
+export { exportWork, renderWork, stillWork } from './render/work.js';
+export type { OnRenderer } from './render/work.js';
 
-/** Review a render into review/<render-id>/ (the review's reviewRender). */
-export async function reviewWork(o: ReviewOptions): Promise<ReviewResult> {
-  return (await review()).reviewRender(o);
-}
+// What reviews a render runs on the reviewer its caller hands (review/work.ts).
+export { reviewWork } from './review/work.js';
 
 // ── lookups and errors of the pipeline, for a caller that does not load the adapters itself ──
 
@@ -62,15 +111,18 @@ export async function findRunOf(project: LoadedProject, arg: string, scenario?: 
   return (await editor()).findRun(project, arg, scenario);
 }
 
-/** The render record named: `latest` (of `scenario`), an id, or a .json / .mp4 path (the editor's findRenderRecord; ExportError otherwise). */
-export async function findRenderOf(project: LoadedProject, arg: string, scenario?: string): Promise<RenderRecord> {
-  return (await editor()).findRenderRecord(project, arg, scenario);
+/**
+ * The render named at a terminal: `latest` (of `scenario`), an id, or a .json / .mp4 path (the editor's
+ * locateRenderRecord; ExportError otherwise) — the record, the FILE it was read from (`entry.name`: what a command then
+ * names, never the id the record says) and, with `latest`, what it passed over.
+ */
+export async function findRenderOf(project: LoadedProject, arg: string, scenario?: string): Promise<FoundRender> {
+  return (await editor()).locateRenderRecord(project, arg, scenario);
 }
 
 /** Where a still of `scenario` goes by default: renders/stills/<scenario><variant suffix>-f<frame, 5 digits>.png. */
 export async function defaultStillFile(project: Pick<LoadedProject, 'dir'>, scenario: string, variant: PlannedRun['plan']['variant'], frame: number): Promise<string> {
-  const { VARIANT_SUFFIX } = await editor();
-  return projectPath(project.dir, 'renders', 'stills', `${scenario}${VARIANT_SUFFIX[variant]}-f${String(frame).padStart(5, '0')}.png`);
+  return projectPath(project.dir, 'renders', 'stills', `${scenario}${RENDER_VARIANT_SUFFIX[variant]}-f${String(frame).padStart(5, '0')}.png`);
 }
 
 /**

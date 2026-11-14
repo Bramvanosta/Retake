@@ -250,7 +250,9 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
   const base = url.replace(/#.*$/, '');
   // The running server keeps its port (review B L4): say so instead of silently ignoring --port.
   if (reused && opts.port !== undefined && port !== 0 && launched.port !== port) {
-    ui.warn(`a Studio server already serves this workspace on port ${launched.port}: --port ${port} is not used (stop that server — Ctrl-C in its terminal, or kill ${launched.pid} — then run retake ui --port ${port} again)`);
+    ui.warn(
+      `a Studio server already serves this workspace on port ${launched.port}: --port ${port} is not used (stop that server — Ctrl-C in its terminal, or kill ${launched.pid} — then run retake ui --port ${port} again)`,
+    );
   }
   if (json) ui.result(JSON.stringify({ type: 'ui', v: supervised ? SUPERVISED_LINE_VERSION : UI_LINE_VERSION, url, port: launched.port, pid: launched.pid, reused, ...(player ? { player } : {}) }));
   else {

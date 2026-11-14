@@ -6,7 +6,7 @@
  * is Node-only).
  */
 export * from './types.js';
-export { COMPONENT_KINDS } from '@retake/core';
+export { COMPONENT_KINDS } from '@retake/core/model';
 export { ComponentError, formatComponentIssues } from './errors.js';
 export {
   MANIFEST_FILE,
@@ -43,7 +43,7 @@ export {
   isMultiPaneGeometry,
   parseGeometryExpression,
 } from './geometry.js';
-export { ANCHOR_BUILTINS, ANCHOR_KEYS, anchorScope, evalAnchor, oneHotName, paramEnums } from './geometry.js';
+export { ANCHOR_KEYS, anchorScope, evalAnchor, oneHotName, paramEnums } from './geometry.js';
 export type { AnchorContext } from './geometry.js';
 export type { GeometryValue } from './geometry.js';
 export {

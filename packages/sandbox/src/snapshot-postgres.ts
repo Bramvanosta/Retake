@@ -22,9 +22,9 @@
  * port explicitly, never the URL (whose query parameters would win over them).
  */
 import pg from 'pg';
-import { interpolateDeep } from '@retake/core';
+import { interpolateDeep } from '@retake/core/base';
 import { prefetchSecrets } from '@retake/core/io';
-import type { LoadedProject, LoadedSandbox } from '@retake/core';
+import type { LoadedProject, LoadedSandbox } from '@retake/core/model';
 import { databaseTarget, sandboxDatabaseProblem } from '@retake/hooks';
 import { SandboxError, errorMessage } from './errors.js';
 
@@ -86,8 +86,8 @@ export interface SnapshotState {
 }
 
 /** A Postgres URL with its secrets resolved ({{env:…}} / {{keychain:…}} in the password). */
-export async function resolveDatabaseUrl(project: Pick<LoadedProject, 'config'>, url: string): Promise<string> {
-  const { resolver } = await prefetchSecrets(url);
+export async function resolveDatabaseUrl(project: Pick<LoadedProject, 'config'>, url: string, resolveSecret: (ref: string) => Promise<string>): Promise<string> {
+  const { resolver } = await prefetchSecrets(url, resolveSecret);
   return interpolateDeep(url, { vars: project.config.vars ?? {}, secrets: resolver });
 }
 
@@ -116,13 +116,17 @@ export function describeDatabase(t: Pick<SnapshotTarget, 'database' | 'host' | '
 }
 
 /** The database a snapshot reset works on: `reset.snapshot.database` (a key of `databases`), default the first. */
-export async function snapshotTarget(project: Pick<LoadedProject, 'config'>, sandbox: Pick<LoadedSandbox, 'env' | 'manifest'>): Promise<SnapshotTarget> {
+export async function snapshotTarget(
+  project: Pick<LoadedProject, 'config'>,
+  sandbox: Pick<LoadedSandbox, 'env' | 'manifest'>,
+  resolveSecret: (ref: string) => Promise<string>,
+): Promise<SnapshotTarget> {
   const dbs = sandbox.manifest.databases ?? {};
   const key = sandbox.manifest.reset?.snapshot?.database ?? Object.keys(dbs)[0];
   if (key === undefined || !Object.hasOwn(dbs, key)) {
     throw new SandboxError(`sandbox ${sandbox.env}: a snapshot reset needs a Postgres database in sandbox.yaml \`databases\``);
   }
-  const url = await resolveDatabaseUrl(project, dbs[key].url);
+  const url = await resolveDatabaseUrl(project, dbs[key].url, resolveSecret);
   const endpoint = pgEndpoint(url, `sandbox ${sandbox.env}: database ${key}`);
   if (!endpoint.database) throw new SandboxError(`sandbox ${sandbox.env}: database ${key}: its URL names no database (postgres://…/<db>)`);
   if (['postgres', 'template0', 'template1'].includes(endpoint.database.toLowerCase())) {
@@ -263,6 +267,7 @@ export class PostgresSnapshot {
     const app = quoteIdent(database);
     const tpl = quoteIdent(template);
     await this.q(`ALTER DATABASE ${app} WITH ALLOW_CONNECTIONS false`);
+    let failed: { error: unknown } | undefined;
     try {
       // The app's pool cannot reconnect while it is copied; the copy needs no other session on it.
       await this.q(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`, [database]);
@@ -271,9 +276,17 @@ export class PostgresSnapshot {
         await this.q(`DROP DATABASE IF EXISTS ${tpl} WITH (FORCE)`);
       }
       await this.q(`CREATE DATABASE ${tpl} TEMPLATE ${app}`);
-    } finally {
-      await this.q(`ALTER DATABASE ${app} WITH ALLOW_CONNECTIONS true`).catch(() => undefined);
+    } catch (e) {
+      failed = { error: e };
     }
+    try {
+      await this.q(`ALTER DATABASE ${app} WITH ALLOW_CONNECTIONS true`);
+    } catch (e) {
+      // A copy that failed throws its own error (the next reset repairs the database first: repair()); after a copy
+      // that worked, a database left refusing connections would fail the app on camera: said, not swallowed.
+      if (!failed) throw new SandboxError(`database ${database} was left refusing connections after its snapshot (${errorMessage(e)}): the next reset lets them in again`);
+    }
+    if (failed) throw failed.error;
     await this.q(`ALTER DATABASE ${tpl} WITH ALLOW_CONNECTIONS false IS_TEMPLATE true`);
     await this.q(`COMMENT ON DATABASE ${tpl} IS ${quoteLiteral(snapshotComment(hash))}`);
     return { owner: db.owner, ms: Date.now() - t0 };

@@ -7,6 +7,7 @@
  * `retake sandbox init` (files, ports, project.yaml edited in place, existing files, validation) and core
  * addSandboxEntry.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import { existsSync } from 'node:fs';
@@ -17,7 +18,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { addSandboxEntry, PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import { addSandboxEntry, PERSON_POLICY } from '@retake/core';
 import { loadProject } from '@retake/core/io';
 import type { LoadedProject, WorkPolicy } from '@retake/core';
 import {
@@ -133,7 +134,9 @@ function psLine(o: { service: string; state?: string; health?: string; id?: stri
 
 function configJson(services: Record<string, number[]>): string {
   return JSON.stringify({
-    services: Object.fromEntries(Object.entries(services).map(([s, ports]) => [s, { image: `${s}:1`, ports: ports.map((p) => ({ host_ip: '127.0.0.1', target: 80, published: String(p), protocol: 'tcp' })) }])),
+    services: Object.fromEntries(
+      Object.entries(services).map(([s, ports]) => [s, { image: `${s}:1`, ports: ports.map((p) => ({ host_ip: '127.0.0.1', target: 80, published: String(p), protocol: 'tcp' })) }]),
+    ),
   });
 }
 
@@ -141,6 +144,7 @@ function ctxOf(project: LoadedProject): ProviderContext & { logs: string[] } {
   const sandbox = project.sandboxes!.sandbox;
   const logs: string[] = [];
   const ctx = {
+    resolveSecret: resolveSecretRef,
     project,
     policy,
     sandbox,
@@ -173,7 +177,11 @@ describe('compose project, argv and output parsing', () => {
   });
 
   it('builds every compose call with --ansi never, the project name, its folder and its files', async () => {
-    const project = await composeProjectDir('argv', ['compose: {files: [compose.yaml], project: retake-test-argv}', 'services:', '  app: {url: "http://localhost:4600", pages: {app: "http://localhost:4600"}}']);
+    const project = await composeProjectDir('argv', [
+      'compose: {files: [compose.yaml], project: retake-test-argv}',
+      'services:',
+      '  app: {url: "http://localhost:4600", pages: {app: "http://localhost:4600"}}',
+    ]);
     const ref = composeProject(project, project.sandboxes!.sandbox);
     expect(ref.name).toBe('retake-test-argv');
     expect(composeArgs(ref)).toEqual(['compose', '--ansi', 'never', '-p', 'retake-test-argv', '--project-directory', ref.dir, '-f', join(ref.dir, 'compose.yaml')]);
@@ -189,7 +197,10 @@ describe('compose project, argv and output parsing', () => {
       ExitCode: 0,
       Status: 'Up 1 minute (healthy)',
       Labels: 'com.docker.compose.project.config_files=/a/compose.yaml,/a/extra.yaml,com.docker.compose.project.working_dir=/a,com.docker.compose.service=db',
-      Publishers: [{ URL: '127.0.0.1', TargetPort: 5432, PublishedPort: 4601, Protocol: 'tcp' }, { URL: '', TargetPort: 9, PublishedPort: 0, Protocol: 'tcp' }],
+      Publishers: [
+        { URL: '127.0.0.1', TargetPort: 5432, PublishedPort: 4601, Protocol: 'tcp' },
+        { URL: '', TargetPort: 9, PublishedPort: 0, Protocol: 'tcp' },
+      ],
     });
     const oneoff = JSON.stringify({ Service: 'db', Name: 'p-db-run-1', State: 'running', Labels: 'com.docker.compose.oneoff=True' });
     const nd = parsePs(`${line}\n${oneoff}\n`);
@@ -207,7 +218,13 @@ describe('compose project, argv and output parsing', () => {
     const cfg = parseComposeConfig(
       JSON.stringify({
         services: {
-          app: { ports: [{ published: '4700-4702', target: 80, protocol: 'tcp' }, { target: 81, protocol: 'tcp' }, { published: '4703', target: 53, protocol: 'udp' }] },
+          app: {
+            ports: [
+              { published: '4700-4702', target: 80, protocol: 'tcp' },
+              { target: 81, protocol: 'tcp' },
+              { published: '4703', target: 53, protocol: 'udp' },
+            ],
+          },
           db: { image: 'postgres:17-alpine', ports: [{ host_ip: '127.0.0.1', published: '4601', target: 5432, protocol: 'tcp' }] },
         },
       }),
@@ -266,9 +283,12 @@ describe('compose project, argv and output parsing', () => {
     const run = (routes: Array<[RegExp, Partial<DockerResult>]>) => dockerReady(fakeDocker(routes).exec, 'docker');
     await expect(run([[/compose version/, { code: 1, stderr: "docker: 'compose' is not a docker command." }]])).rejects.toThrow(/`docker compose` is not available .*Compose v2 plugin/);
     await expect(run([[/compose version/, ok('2.12.2')]])).rejects.toThrow(/this one is 2\.12\.2 — update Docker/);
-    await expect(run([[/compose version/, ok('2.20.0')], [/^info/, { code: 1, stderr: 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?' }]])).rejects.toThrow(
-      /the Docker daemon is not running \(start Docker Desktop or OrbStack\): Cannot connect/,
-    );
+    await expect(
+      run([
+        [/compose version/, ok('2.20.0')],
+        [/^info/, { code: 1, stderr: 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?' }],
+      ]),
+    ).rejects.toThrow(/the Docker daemon is not running \(start Docker Desktop or OrbStack\): Cannot connect/);
     await expect(run([[/compose version/, { code: null, error: 'spawn docker ENOENT' }]])).rejects.toThrow(/could not be run \(spawn docker ENOENT\)/);
     expect(await run(READY)).toEqual({ bin: 'docker', compose: '5.1.2', server: '29.4.0' });
   });
@@ -300,7 +320,9 @@ describe('the compose provider on a fake docker', () => {
     const err = await provider.up(ctx).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SandboxError);
     expect((err as SandboxError).code).toBe('unhealthy');
-    expect((err as Error).message).toMatch(/not every service is running and healthy after 120 s:\n {2}db: running, health starting \(not healthy yet\)\n— last lines of docker compose logs db:\n {4}database system is starting up/);
+    expect((err as Error).message).toMatch(
+      /not every service is running and healthy after 120 s:\n {2}db: running, health starting \(not healthy yet\)\n— last lines of docker compose logs db:\n {4}database system is starting up/,
+    );
     // The project was on disk before anything started.
     expect(ctx.state.provider_state?.compose).toMatchObject({ project: composeProject(project, project.sandboxes!.sandbox).name });
     expect(await provider.stopStarted(ctx)).toEqual(['app', 'db']);
@@ -330,7 +352,9 @@ describe('the compose provider on a fake docker', () => {
       const { exec, calls } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [port], db: [] }))], [/ ps --all --format json$/, ok('')]]);
       const err = await new ComposeProvider({ policy, exec }).up(ctxOf(project)).catch((e: unknown) => e);
       expect((err as SandboxError).code).toBe('port');
-      expect((err as Error).message).toMatch(new RegExp(`port ${port} \\(service app, published\\) is in use by another program \\(node, pid ${process.pid}\\) — stop it or change the port in .*compose\\.yaml`));
+      expect((err as Error).message).toMatch(
+        new RegExp(`port ${port} \\(service app, published\\) is in use by another program \\(node, pid ${process.pid}\\) — stop it or change the port in .*compose\\.yaml`),
+      );
       expect(calls.some((c) => c.includes('up'))).toBe(false);
 
       const unpublished = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [port + 1], db: [] }))], [/ ps --all --format json$/, ok('')]]);
@@ -347,7 +371,8 @@ describe('the compose provider on a fake docker', () => {
       const project = await composeProjectDir('up-foreign', ['services:', `  app: {url: "http://localhost:${port}", pages: {app: "http://localhost:${port}"}}`]);
       const ps = [psLine({ service: 'app', ports: [port] }), psLine({ service: 'db' })].join('\n');
       const { exec } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [port], db: [] }))], [/ ps --all --format json$/, ok(ps)], [/ up -d --wait /, ok()]]);
-      const provider = new ComposeProvider({ policy,
+      const provider = new ComposeProvider({
+        policy,
         exec,
         listeners: async () => [
           { pid: 1, pgid: 1, command: 'OrbStack Helper', port },
@@ -367,7 +392,9 @@ describe('the compose provider on a fake docker', () => {
     const ps = psLine({ service: 'app', wd: '/somewhere/else/sandbox' });
     const { exec, calls } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [47392], db: [] }))], [/ ps --all --format json$/, ok(ps)]]);
     const provider = new ComposeProvider({ policy, exec });
-    await expect(provider.up(ctxOf(project))).rejects.toThrow(/compose project retake-test-shared belongs to another folder \(\/somewhere\/else\/sandbox\): give this sandbox its own name \(compose\.project in/);
+    await expect(provider.up(ctxOf(project))).rejects.toThrow(
+      /compose project retake-test-shared belongs to another folder \(\/somewhere\/else\/sandbox\): give this sandbox its own name \(compose\.project in/,
+    );
     await expect(provider.down(ctxOf(project))).rejects.toThrow(/belongs to another folder/);
     expect(calls.some((c) => c.includes('up') || c.includes('down'))).toBe(false);
   });
@@ -409,12 +436,16 @@ describe('the compose provider on a fake docker', () => {
     const ctx = ctxOf(project);
     ctx.state.provider_state = { compose: { project: 'retake-test-old', dir: ref.dir } };
     await expect(provider.up(ctx)).rejects.toMatchObject({
-      message: expect.stringMatching(/compose project retake-test-old — the name an earlier up of this sandbox used \(compose\.project changed since\) — is still running: retake sandbox down renamed takes it down/),
+      message: expect.stringMatching(
+        /compose project retake-test-old — the name an earlier up of this sandbox used \(compose\.project changed since\) — is still running: retake sandbox down renamed takes it down/,
+      ),
     });
     expect(calls.some((c) => c.includes('up'))).toBe(false);
     const st = await provider.status(ctx);
     expect(st.map((x) => x.name)).toEqual(['app', 'db']);
-    expect(ctx.logs).toContain('compose project retake-test-old — the name an earlier up of this sandbox used (compose.project changed since) — still has 1 container (running) and its volumes (retake-test-old_data): retake sandbox down renamed --volumes removes them');
+    expect(ctx.logs).toContain(
+      'compose project retake-test-old — the name an earlier up of this sandbox used (compose.project changed since) — still has 1 container (running) and its volumes (retake-test-old_data): retake sandbox down renamed --volumes removes them',
+    );
     // down: the old name too (from its folder); its volume stays, so does its name.
     await provider.down(ctx);
     expect(calls.some((c) => c.join(' ') === `compose --ansi never -p retake-test-old --project-directory ${ref.dir} down --remove-orphans`)).toBe(true);
@@ -427,9 +458,18 @@ describe('the compose provider on a fake docker', () => {
   });
 
   it('every command reads the project first: status, publishedBy, exec, restart and logs refuse a compose project of the same name made from another folder (K2)', async () => {
-    const project = await composeProjectDir('other-dir-all', ['compose: {project: retake-test-shared2}', 'services:', '  app: {url: "http://localhost:47404", pages: {app: "http://localhost:47404"}}']);
+    const project = await composeProjectDir('other-dir-all', [
+      'compose: {project: retake-test-shared2}',
+      'services:',
+      '  app: {url: "http://localhost:47404", pages: {app: "http://localhost:47404"}}',
+    ]);
     const ps = psLine({ service: 'db', ports: [47405], wd: '/somewhere/else/sandbox' });
-    const { exec, calls } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [47404], db: [47405] }))], [/ ps --all --format json$/, ok(ps)], [/ (exec|restart|logs) /, ok('done\n')]]);
+    const { exec, calls } = fakeDocker([
+      ...READY,
+      [/ config --format json$/, ok(configJson({ app: [47404], db: [47405] }))],
+      [/ ps --all --format json$/, ok(ps)],
+      [/ (exec|restart|logs) /, ok('done\n')],
+    ]);
     const provider = new ComposeProvider({ policy, exec, listeners: async () => [] });
     const other = /compose project retake-test-shared2 belongs to another folder \(\/somewhere\/else\/sandbox\)/;
     await expect(provider.status(ctxOf(project))).rejects.toThrow(other);
@@ -450,7 +490,11 @@ describe('the compose provider on a fake docker', () => {
   it('another container publishing a port of the sandbox (on [::1] / [::], next to its 127.0.0.1) is refused before up, after up and by publishedBy (K3)', async () => {
     const project = await composeProjectDir('intruder', ['services:', '  app: {url: "http://localhost:47406", pages: {app: "http://localhost:47406"}}']);
     const ref = composeProject(project, project.sandboxes!.sandbox);
-    const intruder = JSON.stringify({ Names: 'other-web-1', Labels: 'com.docker.compose.project=other,com.docker.compose.project.working_dir=/work/other', Ports: '[::]:47406->8080/tcp, [::]:47407->5432/tcp' });
+    const intruder = JSON.stringify({
+      Names: 'other-web-1',
+      Labels: 'com.docker.compose.project=other,com.docker.compose.project.working_dir=/work/other',
+      Ports: '[::]:47406->8080/tcp, [::]:47407->5432/tcp',
+    });
     const own = JSON.stringify({ Names: 'p-app-1', Labels: `com.docker.compose.project=${ref.name},com.docker.compose.project.working_dir=${ref.dir}`, Ports: '127.0.0.1:47406->8080/tcp' });
     let others = `${own}\n${intruder}`;
     const ps = [psLine({ service: 'app', ports: [47406], wd: ref.dir }), psLine({ service: 'db', ports: [47407], wd: ref.dir })].join('\n');
@@ -464,21 +508,29 @@ describe('the compose provider on a fake docker', () => {
     const provider = new ComposeProvider({ policy, exec, listeners: async () => [{ pid: 1, pgid: 1, command: 'OrbStack Helper', port: 47406 }] });
     const before = await provider.up(ctxOf(project)).catch((e: unknown) => e);
     expect(before).toMatchObject({ code: 'port' });
-    expect((before as Error).message).toMatch(/port 47406 \(service app, published\) is also published by container other-web-1 of compose project other \(on \[::\]\); port 47407 \(service db, published\) is also published by container other-web-1 of compose project other \(on \[::\]\) — localhost could reach it instead of the sandbox: stop it or change the port in /);
+    expect((before as Error).message).toMatch(
+      /port 47406 \(service app, published\) is also published by container other-web-1 of compose project other \(on \[::\]\); port 47407 \(service db, published\) is also published by container other-web-1 of compose project other \(on \[::\]\) — localhost could reach it instead of the sandbox: stop it or change the port in /,
+    );
     expect(calls.some((c) => c.includes('up'))).toBe(false);
     // Free before up, published by another container once up ran.
     others = own;
     const after = await provider.up(ctxOf(project)).catch((e: unknown) => e);
     expect((after as Error).message).toMatch(/port 47406 \(service app, published\) is also published by container other-web-1 .* — part of the traffic would reach it, not the sandbox/);
     others = intruder;
-    await expect(provider.publishedBy(ctxOf(project), 47407)).rejects.toThrow(/port 47407 \(the snapshot's database\) is also published by container other-web-1 of compose project other \(on \[::\]\)/);
+    await expect(provider.publishedBy(ctxOf(project), 47407)).rejects.toThrow(
+      /port 47407 \(the snapshot's database\) is also published by container other-web-1 of compose project other \(on \[::\]\)/,
+    );
     others = own;
     expect(await provider.publishedBy(ctxOf(project), 47407)).toBe('db');
   });
 
   it('parses docker ps and picks the address to connect to: 127.0.0.1 for 0.0.0.0, ::1 for ::, IPv4 first (K3)', () => {
     const text = [
-      JSON.stringify({ Names: 'a', Labels: 'com.docker.compose.project=p,com.docker.compose.project.working_dir=/w', Ports: '0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp, 127.0.0.1:9000-9001->9000-9001/tcp, 1110/tcp, 0.0.0.0:53->53/udp' }),
+      JSON.stringify({
+        Names: 'a',
+        Labels: 'com.docker.compose.project=p,com.docker.compose.project.working_dir=/w',
+        Ports: '0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp, 127.0.0.1:9000-9001->9000-9001/tcp, 1110/tcp, 0.0.0.0:53->53/udp',
+      }),
       JSON.stringify({ Names: 'b', Labels: '', Ports: '' }),
     ].join('\n');
     expect(parseDockerPs(text)).toEqual([
@@ -526,7 +578,21 @@ describe('the compose provider on a fake docker', () => {
     expect(await checkOnce({ kind: 'http', url, text: 'ready', address: '127.0.0.1' })).toBeNull();
     expect(seen.pop()).toBe(`v4 GET /up host=localhost:${port}`);
     if (v6ok) expect(await checkOnce({ kind: 'http', url })).toBe('HTTP 503'); // what localhost alone reaches here
-    expect(pinHealth({ service: 'app', targets: [{ kind: 'http', url }, { kind: 'http', url: `http://127.0.0.1:${port}/` }, { kind: 'http', url: 'http://localhost:1/' }], timeoutMs: 1000, intervalMs: 10 }, new Map([[port, '127.0.0.1']])).targets).toEqual([
+    expect(
+      pinHealth(
+        {
+          service: 'app',
+          targets: [
+            { kind: 'http', url },
+            { kind: 'http', url: `http://127.0.0.1:${port}/` },
+            { kind: 'http', url: 'http://localhost:1/' },
+          ],
+          timeoutMs: 1000,
+          intervalMs: 10,
+        },
+        new Map([[port, '127.0.0.1']]),
+      ).targets,
+    ).toEqual([
       { kind: 'http', url, address: '127.0.0.1' },
       { kind: 'http', url: `http://127.0.0.1:${port}/` },
       { kind: 'http', url: 'http://localhost:1/' },
@@ -534,9 +600,18 @@ describe('the compose provider on a fake docker', () => {
     expect(pinnedAddress(`http://db.localhost:${port}/`, new Map([[port, '::1']]))).toBe('::1');
     expect(pinnedAddress(`http://[::1]:${port}/`, new Map([[port, '127.0.0.1']]))).toBeUndefined();
     // up: the manifest's health check goes to the published address.
-    const project = await composeProjectDir('pinned', ['services:', `  app: {url: "http://localhost:${port}", health: {path: /up, text: ready}, pages: {app: "http://localhost:${port}"}}`, 'mailbox: {provider: mailpit, url: "http://localhost:' + port + '"}']);
+    const project = await composeProjectDir('pinned', [
+      'services:',
+      `  app: {url: "http://localhost:${port}", health: {path: /up, text: ready}, pages: {app: "http://localhost:${port}"}}`,
+      'mailbox: {provider: mailpit, url: "http://localhost:' + port + '"}',
+    ]);
     const ref = composeProject(project, project.sandboxes!.sandbox);
-    const { exec } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [port], db: [] }))], [/ ps --all --format json$/, ok([psLine({ service: 'app', health: 'healthy', ports: [port], wd: ref.dir }), psLine({ service: 'db', wd: ref.dir })].join('\n'))], [/ up -d --wait /, ok()]]);
+    const { exec } = fakeDocker([
+      ...READY,
+      [/ config --format json$/, ok(configJson({ app: [port], db: [] }))],
+      [/ ps --all --format json$/, ok([psLine({ service: 'app', health: 'healthy', ports: [port], wd: ref.dir }), psLine({ service: 'db', wd: ref.dir })].join('\n'))],
+      [/ up -d --wait /, ok()],
+    ]);
     const provider = new ComposeProvider({ policy, exec, listeners: async () => [{ pid: 1, pgid: 1, command: 'OrbStack Helper', port }] });
     const ctx = ctxOf(project);
     seen.length = 0;
@@ -546,12 +621,17 @@ describe('the compose provider on a fake docker', () => {
     expect(await provider.address(ctx, port)).toBe('127.0.0.1');
     // The mailbox clear: DELETE on the published address.
     seen.length = 0;
-    expect(await clearMailbox(project, project.sandboxes!.sandbox, (p) => provider.address(ctx, p))).toBe('cleared');
+    expect(await clearMailbox(project, project.sandboxes!.sandbox, resolveSecretRef, (p) => provider.address(ctx, p))).toBe('cleared');
     expect(seen).toEqual([`v4 DELETE /api/v1/messages host=localhost:${port}`]);
   });
 
   it('exec: the command inside the service (sh -c for a string), values passed in the environment, output returned; a failure gives the exit code and the last lines', async () => {
-    const project = await composeProjectDir('exec', ['services:', '  app: {url: "http://localhost:47394", pages: {app: "http://localhost:47394"}}', 'seed:', '  - exec: {service: db, command: "psql -c \'select 1\'", env: {PGUSER: demo}}']);
+    const project = await composeProjectDir('exec', [
+      'services:',
+      '  app: {url: "http://localhost:47394", pages: {app: "http://localhost:47394"}}',
+      'seed:',
+      '  - exec: {service: db, command: "psql -c \'select 1\'", env: {PGUSER: demo}}',
+    ]);
     let env: Record<string, string> | undefined;
     const { exec, calls } = fakeDocker([
       ...READY,
@@ -584,7 +664,7 @@ describe('the compose provider on a fake docker', () => {
     expect(log).not.toContain('from-env-token-7');
   });
 
-  it('exec: the hosts a step names are checked like a shell hook\'s — a compose service, localhost or an allowed host; never a production one (I5)', async () => {
+  it("exec: the hosts a step names are checked like a shell hook's — a compose service, localhost or an allowed host; never a production one (I5)", async () => {
     const project = await composeProjectDir('exechosts', ['services:', '  app: {url: "http://localhost:47402", pages: {app: "http://localhost:47402"}}']);
     project.config.environments.production = { app: 'https://app.example.com' };
     project.config.environment_settings = { ...project.config.environment_settings, production: { production: true } };
@@ -594,13 +674,21 @@ describe('the compose provider on a fake docker', () => {
     const ctx = ctxOf(project);
     expect(await provider.exec(ctx, { service: 'app', command: 'curl -fsS http://db:5432/ http://localhost:47402/' })).toBe('done\n');
     // Templated hosts are seen once rendered (validation could not see them).
-    await expect(provider.exec(ctx, { service: 'app', command: 'curl -fsS {{vars.remote}}' })).rejects.toMatchObject({ code: 'seed', message: expect.stringMatching(/^refusing an exec step that names host data\.example\.net \(/) });
+    await expect(provider.exec(ctx, { service: 'app', command: 'curl -fsS {{vars.remote}}' })).rejects.toMatchObject({
+      code: 'seed',
+      message: expect.stringMatching(/^refusing an exec step that names host data\.example\.net \(/),
+    });
     await expect(provider.exec(ctx, { service: 'app', command: ['curl', '-X', 'POST', 'https://app.example.com/api/reset'] })).rejects.toThrow(/a host of environment production/);
     expect(calls.filter((c) => c.includes('exec') && c.join(' ').includes('curl')).length).toBe(1);
   });
 
-  it('exec: an interrupt or a timeout stops the step\'s processes inside the container too, and stays an interrupt (K6)', async () => {
-    const project = await composeProjectDir('execkill', ['services:', '  app: {url: "http://localhost:47403", pages: {app: "http://localhost:47403"}}', 'seed:', '  - exec: {service: db, command: "sleep 30"}']);
+  it("exec: an interrupt or a timeout stops the step's processes inside the container too, and stays an interrupt (K6)", async () => {
+    const project = await composeProjectDir('execkill', [
+      'services:',
+      '  app: {url: "http://localhost:47403", pages: {app: "http://localhost:47403"}}',
+      'seed:',
+      '  - exec: {service: db, command: "sleep 30"}',
+    ]);
     const killed: string[][] = [];
     const ready = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [47403], db: [] }))], [/ ps --all --format json$/, ok('')]]);
     const exec: DockerExec = async (args, opts) => {
@@ -654,20 +742,19 @@ describe('the compose provider on a fake docker', () => {
     ]);
     const provider = new ComposeProvider({ policy, exec });
     const seen: unknown[] = [];
-    const ctx = { ...ctxOf(project), recordSeedRun: async (r: { index: number; name?: string; kind?: string; phase: string; status: string }) => void seen.push({ index: r.index, name: r.name, kind: r.kind, phase: r.phase, status: r.status, ...r }) };
+    const ctx = { ...ctxOf(project), recordSeedRun: async (r: { index: number; name?: string; kind?: string; phase: string; status: string }) => void seen.push({ name: r.name, kind: r.kind, ...r }) };
     await expect(runSeed(ctx, provider, { by: 'test', log: () => undefined })).rejects.toMatchObject({ code: 'seed', message: expect.stringContaining('seed step 5/5') });
-    expect(seen.map((r) => { const x = r as Record<string, unknown>; return `${x.index} ${x.name} ${x.kind} ${x.phase} ${x.status}`; })).toEqual([
-      '0 first shell seed ok',
-      '1 load exec seed ok',
-      '2 second shell seed ok',
-      '3 third shell seed ok',
-      '4 broken exec seed failed',
-    ]);
+    expect(
+      seen.map((r) => {
+        const x = r as Record<string, unknown>;
+        return `${x.index} ${x.name} ${x.kind} ${x.phase} ${x.status}`;
+      }),
+    ).toEqual(['0 first shell seed ok', '1 load exec seed ok', '2 second shell seed ok', '3 third shell seed ok', '4 broken exec seed failed']);
     // An exec step's report carries no command text.
     for (const r of seen.slice(1, 2).concat(seen.slice(4))) expect(JSON.stringify(r)).not.toMatch(/echo loaded|exit 4/);
   });
 
-  it('status: every compose service (the manifest\'s first), its container and docker\'s health; logs through docker compose logs', async () => {
+  it("status: every compose service (the manifest's first), its container and docker's health; logs through docker compose logs", async () => {
     // health: false still probes the pages (served here).
     const { server, port } = await httpServer();
     afterAllClose.push(server);
@@ -703,24 +790,36 @@ describe('the compose provider on a fake docker', () => {
       ...READY,
       [/ config --format json$/, ok(configJson({ app: [47396], db: [] }))],
       [/^image inspect --format \{\{\.Id\}\} app:1 db:1$/, ok('sha256:aaa\nsha256:bbb\n')],
-      [/ ps --all --format json$/, ok([psLine({ service: 'db', ports: [47397], wd: composeProject(project, project.sandboxes!.sandbox).dir }), psLine({ service: 'app', state: 'exited', ports: [] })].join('\n'))],
+      [
+        / ps --all --format json$/,
+        ok([psLine({ service: 'db', ports: [47397], wd: composeProject(project, project.sandboxes!.sandbox).dir }), psLine({ service: 'app', state: 'exited', ports: [] })].join('\n')),
+      ],
     ]);
     const provider = new ComposeProvider({ policy, exec, listeners: async () => [] });
     expect(await provider.hashInputs(ctxOf(project))).toEqual(['image app=sha256:aaa', 'image db=sha256:bbb']);
     expect(await provider.publishedBy(ctxOf(project), 47397)).toBe('db');
-    await expect(provider.publishedBy(ctxOf(project), 5432)).rejects.toThrow(/port 5432 \(the snapshot's database\) is not published by a running service of compose project retake-hash-sandbox-[0-9a-f]{8}/);
+    await expect(provider.publishedBy(ctxOf(project), 5432)).rejects.toThrow(
+      /port 5432 \(the snapshot's database\) is not published by a running service of compose project retake-hash-sandbox-[0-9a-f]{8}/,
+    );
     // servedBy (the mailbox, a seed's database): the same rule, its own words.
     await expect(provider.servedBy(ctxOf(project), 8025, { what: 'the mailbox http://localhost:8025', why: 'every reset empties it' })).rejects.toThrow(
       /port 8025 \(the mailbox http:\/\/localhost:8025\) is not published by a running service of compose project .* — every reset empties it$/,
     );
     expect(await provider.servedBy(ctxOf(project), 47397, { what: 'the mailbox', why: 'x' })).toBe('db');
-    const foreign = new ComposeProvider({ policy, exec, listeners: async () => [{ pid: 9, pgid: 9, command: 'OrbStack Helper', port: 47397 }, { pid: 10, pgid: 10, command: 'postgres', port: 47397 }] });
+    const foreign = new ComposeProvider({
+      policy,
+      exec,
+      listeners: async () => [
+        { pid: 9, pgid: 9, command: 'OrbStack Helper', port: 47397 },
+        { pid: 10, pgid: 10, command: 'postgres', port: 47397 },
+      ],
+    });
     await expect(foreign.publishedBy(ctxOf(project), 47397)).rejects.toThrow(/also used by another program \(postgres, pid 10\)/);
   });
 
   it('a docker-compose sandbox without docker says how to get it (status, up)', async () => {
     const project = await composeProjectDir('nodocker', ['services:', '  app: {url: "http://localhost:47398", pages: {app: "http://localhost:47398"}}']);
-    const sb = openSandbox(project, undefined, policy);
+    const sb = openSandbox(project, undefined, policy, resolveSecretRef);
     const exec: DockerExec = async () => ({ code: null, stdout: '', stderr: '', ms: 0, error: 'spawn docker ENOENT' });
     const provider = new ComposeProvider({ policy, exec, docker: '/nowhere/docker' });
     await expect(provider.status(ctxOf(project))).rejects.toThrow(/sandbox sandbox: docker-compose sandboxes need Docker with Compose v2\.17 or later: \/nowhere\/docker could not be run/);
@@ -746,7 +845,7 @@ describe('snapshot helpers', () => {
     ]);
     process.env.RETAKE_TEST_SNAP_PW = 'from-env-pass';
     try {
-      const t = await snapshotTarget(project, project.sandboxes!.sandbox);
+      const t = await snapshotTarget(project, project.sandboxes!.sandbox, resolveSecretRef);
       expect(t).toEqual({
         key: 'second',
         url: 'postgres://demo:from-env-pass@localhost:47401/shop',
@@ -786,7 +885,7 @@ describe('retake sandbox init', () => {
     const yaml = ['# My project', 'name: Init test', 'environments:', '  local: {app: "http://localhost:4600"}   # the dev server', ''].join('\n');
     const project = await bareProject('init', yaml);
     const busy = new Set([4601]);
-    const res = await initSandbox(project, { write: plainWrite,  isFree: async (p) => !busy.has(p) });
+    const res = await initSandbox(project, { write: plainWrite, isFree: async (p) => !busy.has(p) });
     // 4600: a page of environment local; 4601: busy.
     expect(res.ports).toEqual({ app: 4602, db: 4603, mailpit: 4604 });
     expect(res.projectYaml).toBe('added');
@@ -807,7 +906,7 @@ describe('retake sandbox init', () => {
     expect(loaded.config.environments.sandbox).toEqual({ app: 'http://localhost:4602' });
 
     // A second one: its own folder and ports, the first one's ports skipped.
-    const second = await initSandbox(loaded, { write: plainWrite,  env: 'demo', isFree: async () => true });
+    const second = await initSandbox(loaded, { write: plainWrite, env: 'demo', isFree: async () => true });
     expect(second.dir).toBe(join(project.dir, 'sandbox', 'demo'));
     // 4601 is free now; 4602–4604 are the first sandbox's.
     expect(second.ports).toEqual({ app: 4601, db: 4605, mailpit: 4606 });
@@ -817,10 +916,10 @@ describe('retake sandbox init', () => {
     expect(Object.keys(both.sandboxes!)).toEqual(['sandbox', 'demo']);
 
     // Names taken, an existing sandbox without --force; --force rewrites its files on its own ports.
-    await expect(initSandbox(both, { write: plainWrite,  env: 'local' })).rejects.toThrow(/environment local already exists in project\.yaml: give the sandbox another name/);
-    await expect(initSandbox(both, { write: plainWrite,  env: 'demo' })).rejects.toThrow(/sandbox demo already exists \(sandbox\/demo\/sandbox\.yaml\): --force/);
-    await expect(initSandbox(both, { write: plainWrite,  env: 'Bad Name' })).rejects.toThrow(/cannot name an environment/);
-    const again = await initSandbox(both, { write: plainWrite,  env: 'demo', force: true, isFree: async () => true });
+    await expect(initSandbox(both, { write: plainWrite, env: 'local' })).rejects.toThrow(/environment local already exists in project\.yaml: give the sandbox another name/);
+    await expect(initSandbox(both, { write: plainWrite, env: 'demo' })).rejects.toThrow(/sandbox demo already exists \(sandbox\/demo\/sandbox\.yaml\): --force/);
+    await expect(initSandbox(both, { write: plainWrite, env: 'Bad Name' })).rejects.toThrow(/cannot name an environment/);
+    const again = await initSandbox(both, { write: plainWrite, env: 'demo', force: true, isFree: async () => true });
     expect(again.projectYaml).toBe('kept');
     expect(again.ports).toEqual({ app: 4601, db: 4605, mailpit: 4606 });
   });
@@ -830,13 +929,13 @@ describe('retake sandbox init', () => {
     await mkdir(join(project.dir, 'sandbox', 'seed'), { recursive: true });
     await writeFile(join(project.dir, 'sandbox', 'compose.yaml'), 'services: {mine: {image: busybox:1.38.0}}\n');
     await writeFile(join(project.dir, 'sandbox', 'seed', '01-demo-data.sql'), '-- mine\n');
-    await expect(initSandbox(project, { write: plainWrite,  isFree: async () => true })).rejects.toThrow(
+    await expect(initSandbox(project, { write: plainWrite, isFree: async () => true })).rejects.toThrow(
       'sandbox/compose.yaml, sandbox/seed/01-demo-data.sql already exist: --force writes the scaffold over them, or give the sandbox another name (--env)',
     );
     expect(await readFile(join(project.dir, 'sandbox', 'compose.yaml'), 'utf8')).toBe('services: {mine: {image: busybox:1.38.0}}\n');
     expect(existsSync(join(project.dir, 'sandbox', 'sandbox.yaml'))).toBe(false);
     expect(await readFile(project.file, 'utf8')).not.toContain('sandboxes');
-    const forced = await initSandbox(project, { write: plainWrite,  force: true, isFree: async () => true });
+    const forced = await initSandbox(project, { write: plainWrite, force: true, isFree: async () => true });
     expect(await readFile(join(forced.dir, 'compose.yaml'), 'utf8')).toContain('postgres:17-alpine');
   });
 
@@ -853,7 +952,8 @@ describe('retake sandbox init', () => {
     expect(addSandboxEntry('name: X\nsandboxes:\n', 'one', 'a.yaml')).toBe('name: X\nsandboxes:\n  one: a.yaml\n');
     expect(addSandboxEntry('name: X  # keep me\nsandboxes: {one: a.yaml}\n', 'two', 'b.yaml')).toBe('name: X  # keep me\nsandboxes: {one: a.yaml, two: b.yaml}\n');
     // Long lines, other flow mappings and comments stay as written; a `...` document end stays last; CRLF stays CRLF.
-    const long = 'name: X\ndescription: "a fairly long description string that goes well past eighty characters in width, surely"\nenvironments: {local: {app: "http://localhost:9"}}   # keep\nsandboxes: {}\n';
+    const long =
+      'name: X\ndescription: "a fairly long description string that goes well past eighty characters in width, surely"\nenvironments: {local: {app: "http://localhost:9"}}   # keep\nsandboxes: {}\n';
     expect(addSandboxEntry(long, 'sandbox', 'sandbox/sandbox.yaml')).toBe(long.replace('sandboxes: {}', 'sandboxes: {sandbox: sandbox/sandbox.yaml}'));
     expect(addSandboxEntry('name: X\nvars: {k: v}\n...\n', 'sandbox', 'a.yaml')).toBe('name: X\nvars: {k: v}\nsandboxes:\n  sandbox: a.yaml\n...\n');
     expect(addSandboxEntry('name: X\r\nsandboxes:\r\n  a: a.yaml\r\n', 'b', 'b.yaml')).toBe('name: X\r\nsandboxes:\r\n  a: a.yaml\r\n  b: b.yaml\r\n');

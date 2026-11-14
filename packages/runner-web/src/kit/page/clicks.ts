@@ -43,10 +43,7 @@ export function pointerSequence(id: string, x: number, y: number): void {
   let mdOk = true;
   if (downOk) mdOk = t.dispatchEvent(new realm.MouseEvent('mousedown', { ...base, buttons: 1 }));
   if (downOk && mdOk) {
-    const focusable = deepClosest(
-      t,
-      'button,a[href],input,select,textarea,[tabindex],[contenteditable=""],[contenteditable=true]',
-    ) as HTMLElement | null;
+    const focusable = deepClosest(t, 'button,a[href],input,select,textarea,[tabindex],[contenteditable=""],[contenteditable=true]') as HTMLElement | null;
     focusable?.focus?.({ preventScroll: true });
   }
   t.dispatchEvent(new realm.PointerEvent('pointerup', { ...ptr, buttons: 0, pressure: 0 }));

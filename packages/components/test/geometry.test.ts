@@ -4,15 +4,7 @@
  * evaluates them for one use (the planner does it for every layout use).
  */
 import { describe, expect, it } from 'vitest';
-import {
-  GeometryExpressionError,
-  evalGeometryValue,
-  evalLayoutGeometry,
-  expressionIdentifiers,
-  geometryIsDynamic,
-  geometryScope,
-  parseManifest,
-} from '@retake/components';
+import { GeometryExpressionError, evalGeometryValue, evalLayoutGeometry, expressionIdentifiers, geometryIsDynamic, geometryScope, parseManifest } from '@retake/components';
 import type { LayoutGeometrySpec } from '@retake/components';
 
 const fmt = (issues: Array<{ line?: number; col?: number; severity: string; path: Array<string | number>; message: string }>) =>

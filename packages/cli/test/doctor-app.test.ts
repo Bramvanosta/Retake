@@ -12,11 +12,12 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, w
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { RETAKE_VERSION } from '@retake/core';
+import { PERSON_POLICY, RETAKE_VERSION } from '@retake/core';
 import { APP_BUNDLE_ID, UPDATES_FILE, readUpdateChecks, writeAppSettings } from '@retake/engine/integrations';
 import type { BundleInfo } from '@retake/core/io';
 import { appChecks, doctorChecks, launchUpdates, updateCheck } from '../src/commands/doctor.js';
 import type { DoctorProbes } from '../src/commands/doctor.js';
+import { diskWorkspaceReads } from '@retake/engine';
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'doctor-app-')));
 afterAll(() => rmSync(base, { recursive: true, force: true }));
@@ -41,7 +42,18 @@ function setup(): { home: string; bin: string; app: ReturnType<typeof fakeApp> }
   return { home, bin, app: fakeApp(join(d, 'Applications')) };
 }
 
-const probes = (o: Partial<DoctorProbes>): DoctorProbes => ({ platform: 'darwin', nodeVersion: '22.16.0', env: {}, which: () => null, exec: async () => null, exists: () => false, chromium: async () => ({}) as never, head: async () => ({ ms: 0 }), readOnly: () => false, ...o });
+const probes = (o: Partial<DoctorProbes>): DoctorProbes => ({
+  platform: 'darwin',
+  nodeVersion: '22.16.0',
+  env: {},
+  which: () => null,
+  exec: async () => null,
+  exists: () => false,
+  chromium: async () => ({}) as never,
+  head: async () => ({ ms: 0 }),
+  readOnly: () => false,
+  ...o,
+});
 
 describe('doctor: App location and the retake command', () => {
   it('an installed app: its location OK, the command not installed, installed, or behind another retake on PATH', () => {
@@ -64,7 +76,7 @@ describe('doctor: App location and the retake command', () => {
     expect(c.detail).toContain(`${join(other, 'retake')} comes first on this PATH`);
   });
 
-  it('the link the app recorded (app.json), a link to another copy, a file that is not Retake\'s', () => {
+  it("the link the app recorded (app.json), a link to another copy, a file that is not Retake's", () => {
     const { home, bin, app } = setup();
     const env = { HOME: home, RETAKE_HOME: join(home, '.retake-scratch'), PATH: '/usr/bin' };
     const chosen = join(home, 'tools');
@@ -75,7 +87,11 @@ describe('doctor: App location and the retake command', () => {
     writeAppSettings(env.RETAKE_HOME, { cli: null });
     const old = fakeApp(join(base, `old-${n}`), 'Retake Old');
     symlinkSync(old.launcher, join(bin, 'retake'));
-    expect(appChecks(probes({ bundle: app.bundle, env }))[1]).toMatchObject({ status: 'warn', detail: `${join(bin, 'retake')} runs another copy of Retake (${old.launcher})`, hint: expect.stringContaining('Replace') });
+    expect(appChecks(probes({ bundle: app.bundle, env }))[1]).toMatchObject({
+      status: 'warn',
+      detail: `${join(bin, 'retake')} runs another copy of Retake (${old.launcher})`,
+      hint: expect.stringContaining('Replace'),
+    });
     rmSync(join(bin, 'retake'));
     writeFileSync(join(bin, 'retake'), '#!/bin/sh\nexec pnpm retake "$@"\n');
     expect(appChecks(probes({ bundle: app.bundle, env }))[1]).toMatchObject({ status: 'warn', detail: expect.stringContaining("is not Retake's command (file)") });
@@ -88,7 +104,12 @@ describe('doctor: App location and the retake command', () => {
     rmSync(gone.bundle.sealed, { recursive: true });
     const env = { HOME: home, PATH: '/usr/bin' };
     expect(appChecks(probes({ bundle: null, env }))).toEqual([
-      { status: 'warn', name: 'retake command', detail: `${join(bin, 'retake')} points to a Retake app that is gone (${gone.launcher}): the command fails`, hint: `install it again from the app (Help › Install the retake Command…), or remove it: rm ${join(bin, 'retake')}` },
+      {
+        status: 'warn',
+        name: 'retake command',
+        detail: `${join(bin, 'retake')} points to a Retake app that is gone (${gone.launcher}): the command fails`,
+        hint: `install it again from the app (Help › Install the retake Command…), or remove it: rm ${join(bin, 'retake')}`,
+      },
     ]);
     rmSync(join(bin, 'retake'));
     writeFileSync(join(bin, 'retake'), '#!/bin/sh\n');
@@ -125,12 +146,26 @@ describe('doctor: App location and the retake command', () => {
   });
 });
 
-describe('doctor: the workspace\'s worker of another copy of Retake (critique M6)', () => {
-  const ws = { root: join(base, 'ws'), projectsDir: join(base, 'ws', 'projects'), templatesDir: join(base, 'ws', 'templates'), componentsDir: join(base, 'ws', 'components') };
+describe("doctor: the workspace's worker of another copy of Retake (critique M6)", () => {
+  const ws = {
+    root: join(base, 'ws'),
+    projectsDir: join(base, 'ws', 'projects'),
+    templatesDir: join(base, 'ws', 'templates'),
+    componentsDir: join(base, 'ws', 'components'),
+    policy: PERSON_POLICY,
+    reads: diskWorkspaceReads,
+  };
   mkdirSync(ws.projectsDir, { recursive: true });
   const mcpLine = async (worker: Awaited<ReturnType<NonNullable<DoctorProbes['worker']>>>) => {
     const checks = await doctorChecks(
-      probes({ env: { PATH: '/usr/bin' }, engine: '/Applications/Retake.app', execPath: '/Applications/Retake.app/Contents/Resources/node/bin/node', worker: async () => worker, chromium: async () => ({ path: null, source: 'playwright', exists: false, launched: false, ms: 0 }) as never, exec: async () => null }),
+      probes({
+        env: { PATH: '/usr/bin' },
+        engine: '/Applications/Retake.app',
+        execPath: '/Applications/Retake.app/Contents/Resources/node/bin/node',
+        worker: async () => worker,
+        chromium: async () => ({ path: null, source: 'playwright', exists: false, launched: false, ms: 0 }) as never,
+        exec: async () => null,
+      }),
       ws,
     );
     return checks.find((c) => c.name === 'MCP')!;
@@ -149,7 +184,7 @@ describe('doctor: the workspace\'s worker of another copy of Retake (critique M6
     expect(version.detail).toContain("this workspace's worker runs another copy of Retake (0.1.0, /Applications/Retake.app)");
   });
 
-  it('review c A-L4: the lock\'s text reaches this terminal without control or hidden characters', async () => {
+  it("review c A-L4: the lock's text reaches this terminal without control or hidden characters", async () => {
     const odd = await mcpLine({ pid: 42, since: '2026-11-03T00:00:00Z', version: '0.1.0\u001b[2J', engine: '/Apps/\u202eppa.ekateR', started_by: 'mcp\u0007' });
     expect(odd.detail).not.toMatch(/[\u0000-\u001f\u202e]/);
     expect(odd.detail).toContain('0.1.0?[2J');
@@ -158,7 +193,7 @@ describe('doctor: the workspace\'s worker of another copy of Retake (critique M6
 });
 
 describe('doctor: App updates (L5.16d, critique L7)', () => {
-  const now = Date.UTC(2026, 10, 10, 12, 0) ;
+  const now = Date.UTC(2026, 10, 10, 12, 0);
   const write = (dir: string, text: string) => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, UPDATES_FILE), text);
@@ -199,6 +234,13 @@ describe('doctor: App updates (L5.16d, critique L7)', () => {
     expect(line()).toEqual(off);
     writeFileSync(join(app.bundle.root, 'launch.json'), JSON.stringify({ version: 2, bundled: true, updates: 'on' }));
     expect(line()?.detail).toMatch(/^last successful check /);
-    expect([launchUpdates('{"updates":"on"}'), launchUpdates('{"updates":"off"}'), launchUpdates('{"updates":true}'), launchUpdates('not json'), launchUpdates(null), launchUpdates('null')]).toEqual(['on', 'off', null, null, null, null]);
+    expect([launchUpdates('{"updates":"on"}'), launchUpdates('{"updates":"off"}'), launchUpdates('{"updates":true}'), launchUpdates('not json'), launchUpdates(null), launchUpdates('null')]).toEqual([
+      'on',
+      'off',
+      null,
+      null,
+      null,
+      null,
+    ]);
   });
 });

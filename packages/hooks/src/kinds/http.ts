@@ -1,6 +1,8 @@
 import { STATUS_CODES } from 'node:http';
-import { httpWriteReason, personaAuthOriginProblem, personaPageOrigins, resolvePersonas } from '@retake/core';
-import type { HttpHookSpec } from '@retake/core';
+import { resolvePersonas } from '@retake/core/environment';
+import { httpWriteReason } from '@retake/core/hooks';
+import { personaAuthOriginProblem, personaPageOrigins } from '@retake/core/scenario';
+import type { HttpHookSpec } from '@retake/core/model';
 import { checkHostAllowed, checkWriteHosts } from '../allow-list.js';
 import { describeHttp } from '../describe.js';
 import { HookError, HookSecurityError, errorMessage } from '../errors.js';
@@ -101,7 +103,9 @@ async function withPersona(call: HttpCall, ctx: HookContext): Promise<HttpCall> 
   const persona = call.persona;
   if (persona === undefined) return call;
   if (!ctx.personaAuth) {
-    throw new HookError(`http hook: \`auth: {persona: ${persona}}\` needs the saved session of the persona, and none exists here (a sandbox seed runs before anyone signs in): sign in with the product's own API and {{accounts.${persona}.password}}`);
+    throw new HookError(
+      `http hook: \`auth: {persona: ${persona}}\` needs the saved session of the persona, and none exists here (a sandbox seed runs before anyone signs in): sign in with the product's own API and {{accounts.${persona}.password}}`,
+    );
   }
   personaOriginGuard(call, ctx);
   const auth = await ctx.personaAuth(persona, call.url);
@@ -215,11 +219,7 @@ async function sendChecked(plain: HttpCall, ctx: HookContext): Promise<SavedHttp
   return res;
 }
 
-async function rollbackAction(
-  ctx: HookContext,
-  template: HttpRequestSpec,
-  response: SavedHttpResponse,
-): Promise<RollbackAction> {
+async function rollbackAction(ctx: HookContext, template: HttpRequestSpec, response: SavedHttpResponse): Promise<RollbackAction> {
   const tpl = await hookTemplateContext(ctx, template, { response });
   const call = toCall(renderDeep(template, tpl), ctx);
   checkHostAllowed(call.url, ctx.project);
@@ -263,7 +263,9 @@ export async function prepareHttp(spec: HttpHookSpec, k: KindEnv): Promise<Prepa
   const rendered = renderDeep(request, tpl);
   const call = toCall(rendered, ctx);
   if (call.persona !== undefined && k.phase === 'seed') {
-    throw new HookError(`http hook: \`auth: {persona: ${call.persona}}\` is not available in a sandbox seed (no persona is signed in while the data is being built): sign in with the product's own API and {{accounts.${call.persona}.password}}`);
+    throw new HookError(
+      `http hook: \`auth: {persona: ${call.persona}}\` is not available in a sandbox seed (no persona is signed in while the data is being built): sign in with the product's own API and {{accounts.${call.persona}.password}}`,
+    );
   }
   checkHostAllowed(call.url, ctx.project);
   personaOriginGuard(call, ctx);

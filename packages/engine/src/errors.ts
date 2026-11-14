@@ -2,8 +2,8 @@
  * Typed engine errors for clients outside the CLI (the MCP server; later the jobs worker and the HTTP API). The CLI keeps
  * its native errors, messages and exit codes: `toEngineError` maps them at the client boundary only.
  */
-import { ERROR_KINDS, docsUrl, errorKindOf } from '@retake/core';
-import type { KindedError } from '@retake/core';
+import { ERROR_KINDS, docsUrl, errorKindOf } from '@retake/core/base';
+import type { KindedError } from '@retake/core/base';
 
 /** The codes of an EngineError: core's error kinds (core error-kind.ts, each documented there). */
 export const ENGINE_ERROR_CODES = ERROR_KINDS;
@@ -73,9 +73,18 @@ function copiedOptions(e: Error): EngineError['opts'] {
  * message kept, no stack). An EngineError of another module copy keeps its code, fix, details and docs. The classes and
  * their kinds: engine test/error-kinds.test.ts.
  */
+/** A thrown value that is no Error, as text: `String(x)` throws on an object without a prototype or a throwing toString. */
+function thrownText(e: unknown): string {
+  try {
+    return String(e);
+  } catch {
+    return 'a value that cannot be shown as text was thrown';
+  }
+}
+
 export function toEngineError(e: unknown): EngineError {
   if (e instanceof EngineError) return e;
-  if (!(e instanceof Error)) return new EngineError('internal', String(e));
+  if (!(e instanceof Error)) return new EngineError('internal', thrownText(e));
   const kind = errorKindOf(e);
   if (kind === undefined) return new EngineError('internal', e.message);
   const { issues, errorDocs, clientMessage } = e as Partial<KindedError> & { issues?: unknown };
@@ -85,4 +94,9 @@ export function toEngineError(e: unknown): EngineError {
     ...(details ? { details } : {}),
     ...(typeof errorDocs === 'string' ? { docs: docsUrl(errorDocs) } : {}),
   });
+}
+
+/** Any thrown value's message, for a log line: an Error's message, else the value as text (never a throw of its own). */
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : thrownText(e);
 }

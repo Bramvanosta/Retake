@@ -5,8 +5,9 @@ import { RunRecordSchema, TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { ACCEPT_PAGE } from './pages.js';
-import { debugTemplate, ffprobeDuration, frameAt, jpegSize, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { debugTemplate, ffprobeDuration, frameAt, magentaCentroid, makeScenario, startServer } from '@retake/test-support/capture';
+import { jpegSize, makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
 const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
@@ -34,7 +35,8 @@ describe('acceptance: 1920×1080 capture with the debug cursor', () => {
 
   it('captures a multi-step scenario to capture.mp4 + timeline.json', async () => {
     const project = makeProject(dir, { console: server.url }, { width: W, height: H });
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       template: debugTemplate(),
       mode: 'capture',

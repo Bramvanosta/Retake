@@ -18,28 +18,29 @@ function sourceFrame(src: MessageEventSource | null): Element | null {
 }
 /** Pointer input a sub-frame forwards: offset by the frame's position, passed up to the top document, drawn there. */
 export function relayFramePointer(): void {
-  if (!config.passive) on(window, 'message', (ev: Event) => {
-    const e = ev as MessageEvent;
-    const d = e.data as { __retakePtr?: number; type?: string; x?: number; y?: number } | null;
-    if (!d || d.__retakePtr !== 1 || typeof d.x !== 'number' || typeof d.y !== 'number') return;
-    const frame = sourceFrame(e.source);
-    if (!frame) return;
-    const o = contentOffset(frame);
-    const x = d.x + o.x;
-    const y = d.y + o.y;
-    if (!isTop) {
-      try {
-        window.parent.postMessage({ ...d, x, y }, '*');
-      } catch {
-        /* detached */
+  if (!config.passive)
+    on(window, 'message', (ev: Event) => {
+      const e = ev as MessageEvent;
+      const d = e.data as { __retakePtr?: number; type?: string; x?: number; y?: number } | null;
+      if (!d || d.__retakePtr !== 1 || typeof d.x !== 'number' || typeof d.y !== 'number') return;
+      const frame = sourceFrame(e.source);
+      if (!frame) return;
+      const o = contentOffset(frame);
+      const x = d.x + o.x;
+      const y = d.y + o.y;
+      if (!isTop) {
+        try {
+          window.parent.postMessage({ ...d, x, y }, '*');
+        } catch {
+          /* detached */
+        }
+        return;
       }
-      return;
-    }
-    if (d.type === 'move') moveTo(x, y);
-    else if (d.type === 'down') {
-      moveTo(x, y);
-      press(true);
-      ripple(x, y);
-    } else if (d.type === 'up') press(false);
-  });
+      if (d.type === 'move') moveTo(x, y);
+      else if (d.type === 'down') {
+        moveTo(x, y);
+        press(true);
+        ripple(x, y);
+      } else if (d.type === 'up') press(false);
+    });
 }

@@ -13,7 +13,7 @@
  *   once) — the edit shortens them.
  * Pure but for `ActivityRecorder`, which only stores 18 bytes a frame.
  */
-import type { CursorEffect, CursorSample, TimelineBusy, TimelineEvent, TimelineLoading } from '@retake/core';
+import type { CursorEffect, CursorSample, TimelineBusy, TimelineEvent, TimelineLoading } from '@retake/core/model';
 import { THUMB_H, THUMB_W } from './stream.js';
 import { round3 } from './util.js';
 
@@ -176,7 +176,9 @@ export function analyzeActivity(input: ActivityInput): ActivityResult {
   const clicks = clicksOf(input.events);
   // Explicit pauses: a step's hold, a `hold` or `wait` step (capture seconds of their start).
   const pauses = input.events
-    .flatMap((e) => (e.step < 0 ? [] : [...(e.hold && e.hold.t_end > e.hold.t_start ? [e.hold.t_start] : []), ...((e.action === 'hold' || e.action === 'wait') && e.t_end > e.t_start ? [e.t_start] : [])]))
+    .flatMap((e) =>
+      e.step < 0 ? [] : [...(e.hold && e.hold.t_end > e.hold.t_start ? [e.hold.t_start] : []), ...((e.action === 'hold' || e.action === 'wait') && e.t_end > e.t_start ? [e.t_start] : [])],
+    )
     .sort((a, b) => a - b);
   const moves = cursor.map((s) => s);
   const transitions: ActivityResult['transitions'] = [];

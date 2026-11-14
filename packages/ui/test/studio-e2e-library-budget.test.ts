@@ -17,7 +17,8 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -29,7 +30,7 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const renders = () => page.evaluate(() => (window as unknown as { __cardRenders: string[] }).__cardRenders);
 /** Waits until no card rendered for a second (the page settled), then counts from zero. */
@@ -51,7 +52,7 @@ async function quiet(): Promise<void> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-lib-budget-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(ws, 'templates'));
@@ -98,7 +99,15 @@ beforeAll(async () => {
     body.data.items = Array.from({ length: CARDS }, (_x, i) => {
       const b = base[i % base.length];
       const key = (n: number) => `${(i * 2 + n).toString(16).padStart(32, '0')}`;
-      return { ...b, component: `acme/budget-${String(i).padStart(3, '0')}`, source: 'workspace', theme_default: [], poster: { key: key(0), state: 'missing', queued: true }, loop: { key: key(1), state: 'missing', queued: true }, untrusted: { name: `Budget card ${i + 1}`, description: 'A card of the budget test.' } };
+      return {
+        ...b,
+        component: `acme/budget-${String(i).padStart(3, '0')}`,
+        source: 'workspace',
+        theme_default: [],
+        poster: { key: key(0), state: 'missing', queued: true },
+        loop: { key: key(1), state: 'missing', queued: true },
+        untrusted: { name: `Budget card ${i + 1}`, description: 'A card of the budget test.' },
+      };
     });
     body.data.queued = 0;
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
@@ -110,8 +119,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -129,7 +137,11 @@ describe('the Library with 240 cards (L5.12c)', () => {
     }
     await quiet();
     // A card selected (from the page: no pointer move over others): it and nothing else; then another — the two.
-    const pick = (id: string) => page.locator(`[data-testid="lib-card"][data-component="${id}"] .k-card`).first().evaluate((el) => (el as HTMLButtonElement).click());
+    const pick = (id: string) =>
+      page
+        .locator(`[data-testid="lib-card"][data-component="${id}"] .k-card`)
+        .first()
+        .evaluate((el) => (el as HTMLButtonElement).click());
     // (L5.12c fixes, review A-M3: the grid's one tab stop moves from the first card shown to the selected one — the two.)
     const first = (await page.getByTestId('lib-card').first().getAttribute('data-component'))!;
     expect(first).not.toBe('acme/budget-005');
@@ -141,7 +153,10 @@ describe('the Library with 240 cards (L5.12c)', () => {
     await expect.poll(async () => [...new Set(await renders())].sort(), POLL).toEqual(['acme/budget-005', 'acme/budget-120']);
     await quiet();
     // Play: the one card played.
-    await page.locator('[data-testid="lib-card"][data-component="acme/budget-007"] [data-testid="lib-play"]').first().evaluate((el) => (el as HTMLButtonElement).click());
+    await page
+      .locator('[data-testid="lib-card"][data-component="acme/budget-007"] [data-testid="lib-play"]')
+      .first()
+      .evaluate((el) => (el as HTMLButtonElement).click());
     await expect.poll(async () => [...new Set(await renders())].sort(), POLL).toEqual(['acme/budget-007']);
     await quiet();
     // A re-read of the view (the window's focus) hands new objects with the same values: no card renders.
@@ -157,13 +172,22 @@ describe('the Library with 240 cards (L5.12c)', () => {
     const sel = page.locator('[data-testid="lib-card"][data-component="acme/budget-120"] .k-card').first();
     expect(await sel.getAttribute('aria-pressed')).toBe('true');
     // One card's controls are stops: every other card's are not.
-    const stops = await page.locator('.lb-grid').evaluateAll((uls) => uls.flatMap((ul) => [...ul.querySelectorAll<HTMLElement>('button, a[href]')].filter((e) => e.tabIndex >= 0 && !(e as HTMLButtonElement).disabled).map((e) => e.closest('[data-testid="lib-card"]')!.getAttribute('data-component'))));
+    const stops = await page
+      .locator('.lb-grid')
+      .evaluateAll((uls) =>
+        uls.flatMap((ul) =>
+          [...ul.querySelectorAll<HTMLElement>('button, a[href]')]
+            .filter((e) => e.tabIndex >= 0 && !(e as HTMLButtonElement).disabled)
+            .map((e) => e.closest('[data-testid="lib-card"]')!.getAttribute('data-component')),
+        ),
+      );
     expect([...new Set(stops)]).toEqual(['acme/budget-120']);
     await sel.focus();
-    const where = () => page.evaluate(() => {
-      const a = document.activeElement as HTMLElement | null;
-      return a?.closest('[data-testid="lib-inspector"]') ? 'inspector' : (a?.getAttribute('data-testid') ?? a?.tagName ?? 'none');
-    });
+    const where = () =>
+      page.evaluate(() => {
+        const a = document.activeElement as HTMLElement | null;
+        return a?.closest('[data-testid="lib-inspector"]') ? 'inspector' : (a?.getAttribute('data-testid') ?? a?.tagName ?? 'none');
+      });
     const path: string[] = [];
     for (let i = 0; i < 5 && (path.at(-1) ?? '') !== 'inspector'; i++) {
       await page.keyboard.press('Tab');

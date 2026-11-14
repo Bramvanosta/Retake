@@ -1,6 +1,6 @@
 /**
  * L4.5 part D: the timeline inspector end to end in headless Chromium, against a real Studio server, its player origin
- * and the real preview bundle, on the self-numbering VP9 take of part C (timeline-take.ts):
+ * and the real preview bundle, on the self-numbering VP9 take of part C (test-support take.ts):
  * - a segment selected by a click and by ] (the inspector shows its switches); the radios sit in `role="radiogroup"`:
  *   arrows move the focus only — no seek, no write;
  * - one click switches scene a's layout to Laptop: the file gains exactly one line, the preview changes (the capture's
@@ -28,8 +28,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { TimelineViewResult } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { BITS_TEXT, bitsTimeline, readBits, takeWorkspace, writeTake } from './timeline-take.js';
+import { hasTool } from '@retake/test-support/repo';
+import { BITS_TEXT, bitsTimeline, readBits, takeWorkspace, writeTake } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -41,7 +42,7 @@ let studio: StudioServer;
 let browser: Browser;
 let page: Page;
 let plan: Extract<TimelineViewResult, { view: unknown }>;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const consoleErrors: string[] = [];
 const switchMs: Array<[string, number]> = [];
 const file = () => join(dir, 'scenarios', 'bits.yaml');
@@ -79,7 +80,11 @@ async function settled(): Promise<{ frame: number; png: Buffer; src: number }> {
 
 /** Raw RGB of a PNG (ffmpeg), with its size. */
 function rgbOf(png: Buffer): { w: number; h: number; rgb: Buffer } {
-  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', '-i', 'pipe:0'], { input: png }).toString().trim().split(',').map(Number);
+  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', '-i', 'pipe:0'], { input: png })
+    .toString()
+    .trim()
+    .split(',')
+    .map(Number);
   return { w, h, rgb: execFileSync('ffmpeg', ['-v', 'error', '-i', 'pipe:0', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { input: png, maxBuffer: 64 * 1024 * 1024 }) };
 }
 
@@ -90,10 +95,11 @@ function diff(a: Buffer, b: Buffer, y0 = 0, y1 = 1): number {
   expect([A.w, A.h]).toEqual([B.w, B.h]);
   let sum = 0;
   let n = 0;
-  for (let y = Math.floor(A.h * y0); y < Math.floor(A.h * y1); y++) for (let i = y * A.w * 3; i < (y + 1) * A.w * 3; i++) {
-    sum += Math.abs(A.rgb[i] - B.rgb[i]);
-    n++;
-  }
+  for (let y = Math.floor(A.h * y0); y < Math.floor(A.h * y1); y++)
+    for (let i = y * A.w * 3; i < (y + 1) * A.w * 3; i++) {
+      sum += Math.abs(A.rgb[i] - B.rgb[i]);
+      n++;
+    }
   return sum / n;
 }
 
@@ -101,10 +107,11 @@ function diff(a: Buffer, b: Buffer, y0 = 0, y1 = 1): number {
 function colourAt(png: Buffer, fx: number, fy: number): [number, number, number] {
   const { w, h, rgb } = rgbOf(png);
   const c = [0, 0, 0];
-  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-    const i = ((Math.floor(h * fy) + dy) * w + Math.floor(w * fx) + dx) * 3;
-    for (let k = 0; k < 3; k++) c[k] += rgb[i + k] / 25;
-  }
+  for (let dy = -2; dy <= 2; dy++)
+    for (let dx = -2; dx <= 2; dx++) {
+      const i = ((Math.floor(h * fy) + dy) * w + Math.floor(w * fx) + dx) * 3;
+      for (let k = 0; k < 3; k++) c[k] += rgb[i + k] / 25;
+    }
   return c.map(Math.round) as [number, number, number];
 }
 
@@ -154,7 +161,7 @@ async function undoKey(label: string): Promise<void> {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-switch-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 8 });
   studio = await startStudioServer({ root: ws, startWorker: false, pollMs: 100 });
@@ -186,8 +193,7 @@ afterAll(async () => {
   if (switchMs.length) console.log(`timeline switch → preview settled (ms): ${switchMs.map(([w, ms]) => `${w} ${ms}`).join(', ')}`);
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -239,8 +245,14 @@ describe.skipIf(!canRun)('the timeline inspector in Chromium', () => {
     expect(diff(before.png, laptop.png)).toBeGreaterThan(12);
     const cornerRaw = colourAt(before.png, 0.02, 0.03);
     const cornerLaptop = colourAt(laptop.png, 0.02, 0.03);
-    expect(cornerRaw.every((c) => Math.abs(c - 0x20) < 12), `raw corner ${cornerRaw}`).toBe(true);
-    expect(cornerLaptop.some((c, k) => Math.abs(c - cornerRaw[k]) > 40), `laptop corner ${cornerLaptop}`).toBe(true);
+    expect(
+      cornerRaw.every((c) => Math.abs(c - 0x20) < 12),
+      `raw corner ${cornerRaw}`,
+    ).toBe(true);
+    expect(
+      cornerLaptop.some((c, k) => Math.abs(c - cornerRaw[k]) > 40),
+      `laptop corner ${cornerLaptop}`,
+    ).toBe(true);
     expect(await page.locator('iframe').count()).toBe(1);
     console.log(`switch: layout → laptop settled in ${Math.round(ms)} ms; corner ${cornerRaw} → ${cornerLaptop}`);
     await shot('switch-2-laptop');

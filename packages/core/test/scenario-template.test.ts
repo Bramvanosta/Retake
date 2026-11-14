@@ -101,15 +101,15 @@ describe('templateSceneEntry (R-RUN-16)', () => {
   });
 
   it('resolves secret references in steps through the context, and names the string of an unknown key', () => {
-    process.env.RETAKE_TEST_PASSWORD = 'S3cret-pw-42';
     const scene: Scene = { id: 'login', steps: [{ type: { into: { label: 'Password' }, text: '{{env:RETAKE_TEST_PASSWORD}}' } }] };
-    expect(templateSceneEntry(scene, 0, ctx).steps[0]).toEqual({ type: { into: { label: 'Password' }, text: 'S3cret-pw-42' } });
-    const viaResolver = templateSceneEntry(
-      { id: 'kc', steps: [{ type: '{{keychain:demo-test/agent}}' }] } as Scene,
-      0,
-      { ...ctx, secrets: (ref) => (ref === 'keychain:demo-test/agent' ? 'kc-value-1' : undefined) },
-    );
-    expect(viaResolver.steps[0]).toEqual({ type: 'kc-value-1' });
+    const resolved = { ...ctx, secrets: (ref: string) => (ref === 'env:RETAKE_TEST_PASSWORD' ? 'S3cret-pw-42' : undefined) };
+    expect(templateSceneEntry(scene, 0, resolved).steps[0]).toEqual({ type: { into: { label: 'Password' }, text: 'S3cret-pw-42' } });
+    expect(() => templateSceneEntry(scene, 0, ctx)).toThrow(/^scenes\[0\]\.steps\[0\]\.type\.text: \{\{env:RETAKE_TEST_PASSWORD\}\} is a secret reference and no secret resolver/);
+    const viaResolver = templateSceneEntry({ id: 'kc', steps: [{ type: { text: '{{keychain:demo-test/agent}}' } }] }, 0, {
+      ...ctx,
+      secrets: (ref) => (ref === 'keychain:demo-test/agent' ? 'kc-value-1' : undefined),
+    });
+    expect(viaResolver.steps[0]).toEqual({ type: { text: 'kc-value-1' } });
     const bad: Scene = { id: 'bad', steps: [{ wait: 1 }, { type: { text: '{{vars.nope}}' } }] };
     expect(() => templateSceneEntry(bad, 3, ctx)).toThrow(TemplateError);
     expect(() => templateSceneEntry(bad, 3, ctx)).toThrow(/^scenes\[3\]\.steps\[1\]\.type\.text: unknown template key \{\{vars\.nope\}\}/);
@@ -125,7 +125,7 @@ describe('display URLs in edit text (L1.7, R-ENV-01)', () => {
     expect(displayPages({ pages: { app: 'http://localhost:3000/' } })).toEqual({ app: 'http://localhost:3000/' });
   });
 
-  it('captions, cards, overlay slots, page labels and tutorial text read the display URL; steps, open and targets (an overlay\'s too) the real one', () => {
+  it("captions, cards, overlay slots, page labels and tutorial text read the display URL; steps, open and targets (an overlay's too) the real one", () => {
     const scene: Scene = {
       id: 'shop',
       caption: { kicker: 'Live', text: 'Order at {{shop}}' },
@@ -149,7 +149,7 @@ describe('display URLs in edit text (L1.7, R-ENV-01)', () => {
     // Multi-page labels and cards.
     const multi: Scene = { id: 'both', pages: { buyer: { page: 'shop', open: '{{shop}}/', label: 'Café · {{shop}}' } }, steps: [{ wait: 1 }] };
     const m = templateSceneEntry(multi, 1, ctx, edit);
-    expect(m.pages!.buyer).toMatchObject({ open: 'http://localhost:4402/', label: 'Café · https://shop.example.com' });
+    expect((m.pages as Record<string, unknown>).buyer).toMatchObject({ open: 'http://localhost:4402/', label: 'Café · https://shop.example.com' });
     const card: CardScene = { card: { slots: { title: 'Try {{shop}}', url: '{{console}}' } } };
     expect(templateSceneEntry(card, 2, ctx, edit).card).toEqual({ slots: { title: 'Try https://shop.example.com', url: 'http://localhost:4401/app' } });
     // Without an edit context everything reads the real URLs (as before L1.7).

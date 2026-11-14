@@ -4,7 +4,7 @@ import { checkMediaFields } from './checks/media.js';
 import { isTemplateMediaRef, resolveThemeComponents } from './components.js';
 import { FORMAT_VERSIONS } from './formats.js';
 import type { ThemeComponent } from './components.js';
-import type { CheckFiles } from './file-facts.js';
+import type { CheckFiles, FilesWith } from './file-facts.js';
 import { hasErrors } from './issues.js';
 import { TemplateFileSchema, TemplateSchema } from './schemas/template.js';
 import { DEFAULT_TEMPLATE } from './template-defaults.js';
@@ -58,9 +58,7 @@ const LEGACY_FIELDS: Partial<Record<ComponentKind, { section: string; keys: stri
 /** JSON with object keys in locale order (`localeCompare`): a choice's params as a theme description shows and compares them. */
 function localeSortedJson(v: unknown): string {
   return JSON.stringify(v, (_k, x: unknown) =>
-    x && typeof x === 'object' && !Array.isArray(x)
-      ? Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
-      : x,
+    x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))) : x,
   );
 }
 
@@ -138,10 +136,16 @@ function checkTemplateMedia(value: unknown, structural: readonly LocatedIssue[],
  * when there is no error-level issue. With `dir` (the template folder), the theme's own files are checked too (through
  * `files`, and its VideoProber for a video file).
  */
-export function parseTemplateYaml(text: string, opts: { dir?: string; files?: CheckFiles } = {}): { template?: Template; issues: ValidationIssue[] } {
-  const { value, issues } = checkYamlDocument(text, TemplateFileSchema, (v, st) => [...checkTemplateFile(v, st), ...checkTemplateMedia(v, st, opts.dir, opts.files)], {}, {
-    formatVersion: { file: TEMPLATE_FILE, supported: FORMAT_VERSIONS.template },
-  });
+export function parseTemplateYaml(text: string, opts: { dir?: string } & FilesWith<'dir', CheckFiles> = {}): { template?: Template; issues: ValidationIssue[] } {
+  const { value, issues } = checkYamlDocument(
+    text,
+    TemplateFileSchema,
+    (v, st) => [...checkTemplateFile(v, st), ...checkTemplateMedia(v, st, opts.dir, opts.files)],
+    {},
+    {
+      formatVersion: { file: TEMPLATE_FILE, supported: FORMAT_VERSIONS.template },
+    },
+  );
   if (hasErrors(issues)) return { issues };
   // `version` is the file's format, not part of the template merged over the defaults.
   const { version: _version, ...file } = value as TemplateFile;

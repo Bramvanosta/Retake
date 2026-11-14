@@ -154,12 +154,19 @@ const block = (selector: string, scheme: Appearance, decls: Map<string, string>,
 
 /** The dialogs' veil for one appearance, declared on `selector` (review A-L9). */
 const veils = (selector: string, a: Appearance, indent = '') =>
-  `${indent}${selector} {\n${[...colourTokens(a)].filter(([k]) => k === '--ui-backdrop').map(([k, v]) => `${indent}  ${k}: ${v};`).join('\n')}\n${indent}}\n`;
+  `${indent}${selector} {\n${[...colourTokens(a)]
+    .filter(([k]) => k === '--ui-backdrop')
+    .map(([k, v]) => `${indent}  ${k}: ${v};`)
+    .join('\n')}\n${indent}}\n`;
 
 /** tokens.css, generated (scripts/gen-tokens.ts writes it; app-source.test.ts compares it). */
 export function tokensCss(): string {
-  const fonts = FONT_FILES.map((f) => `@font-face {\n  font-family: '${f.family}';\n  src: url('/fonts/${f.file}') format('woff2');\n  font-weight: 100 900;\n  font-style: normal;\n  font-display: swap;\n}\n`).join('');
-  const statics = Object.entries(UI_STATIC).map(([k, v]) => `  --ui-${k}: ${v};`).join('\n');
+  const fonts = FONT_FILES.map(
+    (f) => `@font-face {\n  font-family: '${f.family}';\n  src: url('/fonts/${f.file}') format('woff2');\n  font-weight: 100 900;\n  font-style: normal;\n  font-display: swap;\n}\n`,
+  ).join('');
+  const statics = Object.entries(UI_STATIC)
+    .map(([k, v]) => `  --ui-${k}: ${v};`)
+    .join('\n');
   return [
     '/* Generated from src/app/tokens.ts by scripts/gen-tokens.ts (pnpm -F @retake/ui gen:tokens): do not edit. */\n',
     fonts,

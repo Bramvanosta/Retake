@@ -27,10 +27,7 @@ const TRANSIENT_PATH = /(?:^|[\\/])node_modules[\\/]\.bin(?:[\\/]|$)|[\\/]corepa
  */
 export function clientPath(node: string, current = process.env.PATH ?? '', exists: (p: string) => boolean = existsSync, workspace?: string | readonly string[]): string {
   const folders = workspace === undefined ? [] : typeof workspace === 'string' ? [workspace] : workspace;
-  const parts = [
-    dirname(node),
-    ...current.split(delimiter).filter((p) => p && isAbsolute(p) && !TRANSIENT_PATH.test(p) && !folders.some((f) => isUnder(p, f, nodeFileFacts))),
-  ];
+  const parts = [dirname(node), ...current.split(delimiter).filter((p) => p && isAbsolute(p) && !TRANSIENT_PATH.test(p) && !folders.some((f) => isUnder(p, f, nodeFileFacts)))];
   for (const p of EXTRA_PATH) if (exists(p)) parts.push(p);
   return [...new Set(parts)].join(delimiter);
 }

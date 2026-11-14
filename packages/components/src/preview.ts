@@ -14,7 +14,7 @@ import { paramDefaults } from './json-schema.js';
 import type { JsonSchemaNode } from './json-schema.js';
 import { PACKAGE_DIR } from './paths.js';
 import type { ComponentManifest } from './types.js';
-import { relativeInside } from '@retake/core';
+import { relativeInside } from '@retake/core/base';
 
 /** The committed preview image of a component folder. */
 export const PREVIEW_FILE = 'preview.png';

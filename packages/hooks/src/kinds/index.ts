@@ -1,4 +1,4 @@
-import type { HookKind, HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from '@retake/core';
+import type { HookKind, HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from '@retake/core/model';
 import type { RollbackAction } from '../types.js';
 import type { KindEnv, PreparedHook, RollbackEnv } from './common.js';
 import { prepareHttp, rollbackHttp } from './http.js';

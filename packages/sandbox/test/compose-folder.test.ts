@@ -6,6 +6,7 @@
  * multi-call binary picks its role from argv[0]: OrbStack's `docker`). An account's `{{compose_env:NAME}}` password:
  * the value of the sandbox's compose env file.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -44,7 +45,10 @@ async function project(name: string, manifest: string[], files: Record<string, s
   const dir = join(tmp, name, 'workspace');
   await mkdir(join(dir, 'sandbox'), { recursive: true });
   await writeFile(join(dir, 'project.yaml'), ['name: Compose folder test', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', '  stage: sandbox/sandbox.yaml', ''].join('\n'));
-  const service = provider === 'process' ? '  app: {command: "node server.js", url: "http://localhost:4791", health: false, pages: {app: "http://localhost:4791"}}' : '  app: {url: "http://localhost:4791", health: false, pages: {app: "http://localhost:4791"}}';
+  const service =
+    provider === 'process'
+      ? '  app: {command: "node server.js", url: "http://localhost:4791", health: false, pages: {app: "http://localhost:4791"}}'
+      : '  app: {url: "http://localhost:4791", health: false, pages: {app: "http://localhost:4791"}}';
   await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), ['version: 1', `provider: ${provider}`, ...manifest, 'services:', service, ''].join('\n'));
   for (const [rel, text] of Object.entries(files)) {
     await mkdir(join(dir, 'sandbox', rel, '..'), { recursive: true });
@@ -54,13 +58,33 @@ async function project(name: string, manifest: string[], files: Record<string, s
 }
 
 function ctxOf(p: LoadedProject): ProviderContext {
-  return { project: p, policy: PERSON_POLICY, sandbox: p.sandboxes!.stage, paths: sandboxPaths(p.dir, 'stage'), state: emptyState('stage', 'docker-compose'), save: () => undefined, log: () => undefined };
+  return {
+    resolveSecret: resolveSecretRef,
+    project: p,
+    policy: PERSON_POLICY,
+    sandbox: p.sandboxes!.stage,
+    paths: sandboxPaths(p.dir, 'stage'),
+    state: emptyState('stage', 'docker-compose'),
+    save: () => undefined,
+    log: () => undefined,
+  };
 }
 
-const psLine = (wd: string) => JSON.stringify({ Service: 'app', Name: 'p-app-1', ID: 'abc', State: 'running', Health: '', ExitCode: 0, Status: 'Up', Publishers: [], Labels: `com.docker.compose.project.working_dir=${wd},com.docker.compose.service=app` });
+const psLine = (wd: string) =>
+  JSON.stringify({
+    Service: 'app',
+    Name: 'p-app-1',
+    ID: 'abc',
+    State: 'running',
+    Health: '',
+    ExitCode: 0,
+    Status: 'Up',
+    Publishers: [],
+    Labels: `com.docker.compose.project.working_dir=${wd},com.docker.compose.service=app`,
+  });
 
 describe('compose files outside the folder of sandbox.yaml (v0.2.1)', () => {
-  it('the compose project\'s folder is the first compose file\'s: --project-directory and the name\'s hash', async () => {
+  it("the compose project's folder is the first compose file's: --project-directory and the name's hash", async () => {
     const p = await project('elsewhere', ['compose: {files: [../../product/docker/compose.yaml]}'], { '../../product/docker/compose.yaml': COMPOSE, '../../product/docker/.env': 'APP_TAG=1\n' });
     const sandboxDir = join(tmp, 'elsewhere', 'workspace', 'sandbox');
     const composeDir = join(tmp, 'elsewhere', 'product', 'docker');
@@ -79,7 +103,7 @@ describe('compose files outside the folder of sandbox.yaml (v0.2.1)', () => {
     expect(ref.name).toBe(composeProjectName(p.slug, 'stage', ref.dir));
   });
 
-  it('containers made from the compose folder or from sandbox.yaml\'s folder (v0.2.0) are the sandbox\'s own; another folder\'s are refused', async () => {
+  it("containers made from the compose folder or from sandbox.yaml's folder (v0.2.0) are the sandbox's own; another folder's are refused", async () => {
     const p = await project('own', ['compose: {files: [../../product/compose.yaml], project: retake-test-own}'], { '../../product/compose.yaml': COMPOSE });
     const ref = composeProject(p, p.sandboxes!.stage);
     const psFrom = (wd: string) => {
@@ -94,7 +118,7 @@ describe('compose files outside the folder of sandbox.yaml (v0.2.1)', () => {
 });
 
 describe('docker under the agent policy keeps the name it was found as (v0.2.1)', () => {
-  it('the checked real path is started as argv[0] = the link\'s name; a plain binary and a typed command are left alone', async () => {
+  it("the checked real path is started as argv[0] = the link's name; a plain binary and a typed command are left alone", async () => {
     const dir = join(tmp, 'bin');
     await mkdir(dir, { recursive: true });
     const link = join(dir, 'docker');
@@ -116,12 +140,18 @@ describe('docker under the agent policy keeps the name it was found as (v0.2.1)'
   });
 });
 
-describe('an account\'s {{compose_env:NAME}} (v0.2.1)', () => {
+describe("an account's {{compose_env:NAME}} (v0.2.1)", () => {
   it('reads env files as docker compose does for the common forms', () => {
-    expect(envFileValues('# demo\nA=plain value # a comment\nexport B="two\\nlines \\"q\\""\nC=\'as $it is # kept\'\n D = x#y\nE=\nA=last wins\n')).toEqual({ A: 'last wins', B: 'two\nlines "q"', C: 'as $it is # kept', D: 'x#y', E: '' });
+    expect(envFileValues('# demo\nA=plain value # a comment\nexport B="two\\nlines \\"q\\""\nC=\'as $it is # kept\'\n D = x#y\nE=\nA=last wins\n')).toEqual({
+      A: 'last wins',
+      B: 'two\nlines "q"',
+      C: 'as $it is # kept',
+      D: 'x#y',
+      E: '',
+    });
   });
 
-  it('the password is the env file\'s value: in the login steps, and a secret of the persona', async () => {
+  it("the password is the env file's value: in the login steps, and a secret of the persona", async () => {
     const p = await project('account', ACCOUNT, { 'compose.yaml': COMPOSE, '.env': 'APP_TAG=1\nDEMO_BUYER_PASSWORD="buyer-pass-4791"\n' });
     const sb = p.sandboxes!.stage;
     expect(sb.secrets.buyer).toEqual(['buyer-pass-4791']);

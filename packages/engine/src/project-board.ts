@@ -29,26 +29,30 @@
 import { lstatSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, TEMPLATE_NAME_RE, filmedChanges, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
-import type { LoadedProject, RunRecord } from '@retake/core';
-import type { RenderRecord } from '@retake/editor';
-import { fileFacts } from '@retake/core/io';
+import { SLUG_RE } from '@retake/core/model';
+import { isRunId, isThemeName, parseRenderId } from '@retake/core/ids';
+import { projectPath } from '@retake/core/project';
+import { SCENARIO_COMPARE_MAX_BYTES, filmedChanges, scenarioBlocks, scenarioTextChanged } from '@retake/core/scenario';
+import { orderRenders } from '@retake/core/render';
+import type { LoadedProject, RunStatus } from '@retake/core/model';
+import type { RenderEntry, StoredRenderRecord } from '@retake/core/render';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobRecord } from './jobs/types.js';
 import { jobProject } from './jobs/queue-core.js';
 import type { JobQueueView } from './jobs/job-queue.js';
 import type { JobFiles } from './jobs/queue.js';
-import { RUN_ID_RE } from './refs.js';
 import { RunDataCache, errorScreenshotName, runPictures, stepScreenshotName } from './run-data.js';
 import { RunFolder, lsig } from './run-files.js';
 import type { ThumbSource } from './run-thumbs.js';
-import { readRenderRecord, renderView, failureWords } from './renders.js';
+import { readListedRecord, renderView, failureWords, scenarioRenderOf } from './renders.js';
 import type { ScenarioRenderView } from './renders.js';
-import { readRecord } from './runs.js';
+import { readRecord, runFolderIds, takeVerdict } from './runs.js';
+import type { RunRecordOnDisk } from './runs.js';
 import { capturePicture, stepRef } from './scenario-view.js';
 import type { ViewRunStatus } from './scenario-view.js';
 import { getScenario, validateScenarioText } from './scenarios.js';
 import type { OpenedWorkspace } from './workspace.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Scenarios the board describes, at most (past it: names only, `truncated`). */
 export const BOARD_SCENARIOS_MAX = 200;
@@ -111,6 +115,12 @@ export interface BoardScenario {
   dry?: { id: string; finished_at?: string };
   /** The newest succeeded landscape render (a render the Studio lists, review included). */
   render?: ScenarioRenderView;
+  /**
+   * With `render`: whether it shows today's file — the same capture, file bytes and theme (by the theme's folder, a
+   * theme the row cannot name included; a record of before L7.9 by its folder's name), no option beyond the files'.
+   * The Studio says "Rendered" only then.
+   */
+  render_current?: boolean;
   /** The newest render attempt failed (its record or its job), after `render` if any. */
   render_failed?: { render_id: string; at: string };
   /** A render of the scenario queued or running. */
@@ -147,7 +157,7 @@ export interface ProjectBoardContext {
   files: Pick<JobFiles, 'record'>;
   project(slug: string): Promise<LoadedProject>;
   /** The run's status with its job overlaid, for a run whose job is not in the board's queue pass (a pass cut short). */
-  overlay(slug: string, run: { id: string; status: RunRecord['status'] }): Promise<ViewRunStatus>;
+  overlay(slug: string, run: { id: string; status: RunStatus }): Promise<ViewRunStatus>;
 }
 
 /** What the board knows of one scenario file (not core's FileFacts port). */
@@ -169,7 +179,7 @@ interface BoardFileFacts {
 
 interface RunEntry {
   sig: string;
-  record: RunRecord | null;
+  record: RunRecordOnDisk | null;
 }
 
 function remember<K, V>(map: Map<K, V>, key: K, value: V, max: number): V {
@@ -193,8 +203,6 @@ async function pool<T, R>(items: readonly T[], n: number, fn: (t: T) => Promise<
   return out;
 }
 
-const RENDER_FILE_RE = /^(.+)-v\d+(?:-(vertical|square))?\.json$/;
-
 /** A stat signature without awaiting (thousands of job.json per board read: review A-M3). */
 function lsigSync(path: string): string {
   try {
@@ -205,7 +213,7 @@ function lsigSync(path: string): string {
   }
 }
 
-type Found = { id: string; record: RunRecord };
+type Found = { id: string; record: RunRecordOnDisk };
 /** A scenario's runs as the board groups them. */
 interface RunGroup {
   running?: Found;
@@ -225,12 +233,26 @@ const overlaid = (status: string, job: JobRecord): ViewRunStatus | undefined =>
 
 /**
  * The theme name a render of today's file records (editor plan-run themeRef → the template folder's name): a name as it
- * is, a path its folder's name; undefined when that is not a theme name.
+ * is, a path its folder's name; undefined when that is not a theme's name (core isThemeName — the one rule for a theme
+ * that exists). The same test as a render view's `theme` (renders.ts renderView): the two are compared to tell whether
+ * a render shows today's file, so a name one side drops and the other keeps would make a render of another theme look
+ * current.
  */
 function themeName(p: LoadedProject, ref: string | undefined): string | undefined {
-  if (typeof ref !== 'string' || ref === '' || ref.length > 200) return undefined;
-  const name = SLUG_RE.test(ref) ? ref : basename(resolve(p.dir, ref));
-  return TEMPLATE_NAME_RE.test(name) ? name : undefined;
+  if (typeof ref !== 'string' || ref.length > 200) return undefined;
+  const name = themeIdentity(p, ref);
+  return name !== undefined && isThemeName(name) ? name : undefined;
+}
+
+/**
+ * The theme's name as a render record holds it (`template`: the name of the folder the editor loaded, core io
+ * template.ts loadTemplateDir), whatever that folder is called and however long its reference: a name as it is, a
+ * path its folder's name. The board compares it with a record that holds no `template_folder` (one of before L7.9),
+ * never shows it (`theme` is themeName).
+ */
+function themeIdentity(p: LoadedProject, ref: string | undefined): string | undefined {
+  if (typeof ref !== 'string' || ref === '') return undefined;
+  return SLUG_RE.test(ref) ? ref : basename(resolve(p.dir, ref));
 }
 
 /** The project boards of one engine (memos apart from the scenario views'). */
@@ -239,9 +261,10 @@ export class ProjectBoards {
   private readonly paths = new Map<string, string>();
   private readonly runs = new Map<string, RunEntry>();
   private readonly pictures = new Map<string, Awaited<ReturnType<typeof runPictures>>>();
+  private readonly takes = new Map<string, boolean>();
   private readonly currents = new Map<string, boolean | null>();
   private readonly posters = new Map<string, RunPoster>();
-  private readonly renderRecords = new Map<string, { sig: string; record: RenderRecord | undefined }>();
+  private readonly renderRecords = new Map<string, { sig: string; entry: RenderEntry }>();
   private readonly jobMemo = new Map<string, { sig: string; rec: JobRecord | null }>();
   private readonly older = new Map<string, OlderIndex>();
   /** The board's own run reader (never the scenario screen's cache). */
@@ -263,6 +286,14 @@ export class ProjectBoards {
     const runJobs = new Map(jobs.filter((j) => j.input.kind === 'run').map((j) => [j.input.kind === 'run' ? j.input.run_id : '', j]));
     const records = await this.renderRecordsOf(p, new Set(names));
     const shownJobs = new Set<string>();
+    // Today's theme folder of each reference (core io projectTemplateFolderId, the editor's rule), once per board.
+    const folders = new Map<string, Promise<string | undefined>>();
+    const folderIds = (ref: string | undefined): Promise<string | undefined> => {
+      if (typeof ref !== 'string') return Promise.resolve(undefined);
+      let id = folders.get(ref);
+      if (!id) folders.set(ref, (id = bestEffort(this.ctx.ws.reads.projectTemplateFolderId(p, ref), 'a theme reference that does not resolve has no folder id')));
+      return id;
+    };
     const out: BoardScenario[] = [];
     for (let i = 0; i < names.length; i++) {
       const name = names[i];
@@ -277,13 +308,18 @@ export class ProjectBoards {
       } else if (p.config.default_env) s.env = p.config.default_env;
       const theme = themeName(p, f.template ?? p.config.template);
       if (theme) s.theme = theme;
+      const ref = f.template ?? p.config.template;
+      const themeId = themeIdentity(p, ref);
+      const themeFolder = await folderIds(ref);
       if (f.title) s.untrusted.title = f.title;
       if (f.error) s.untrusted.error = f.error;
       // The running take, its job's state overlaid (a worker that died: interrupted).
       if (g.running) {
         const job = runJobs.get(g.running.id);
         // Not in the pass: a take from a terminal (no job) — unless the pass stopped at its cap.
-        const status = job ? (overlaid(g.running.record.status, job) ?? g.running.record.status) : pass.complete ? this.statusOf(g.running.record.status) : await this.ctx.overlay(slug, { id: g.running.id, status: g.running.record.status });
+        // A group's running take is one whose record says queued or running (runGroups).
+        const raw: RunStatus = g.running.record.status === 'queued' ? 'queued' : 'running';
+        const status = job ? (overlaid(raw, job) ?? raw) : pass.complete ? this.statusOf(raw) : await this.ctx.overlay(slug, { id: g.running.id, status: raw });
         const run = this.boardRun(g.running.id, g.running.record, status, job?.id);
         // Its job is not in `jobs`: a take's progress is the page's run_status, never a board read (critique M2).
         if (status === 'queued' || status === 'running') s.running = run;
@@ -294,7 +330,12 @@ export class ProjectBoards {
       if (g.capture) {
         const current = f.yaml !== undefined && f.hash ? await this.current(p, g.capture.id, f.yaml, f.hash) : null;
         const fin = iso(g.capture.record.finished_at);
-        s.capture = { id: g.capture.id, env: typeof g.capture.record.env === 'string' && g.capture.record.env.length <= 100 && SLUG_RE.test(g.capture.record.env) ? g.capture.record.env : 'unknown', ...(fin ? { finished_at: fin } : {}), current };
+        s.capture = {
+          id: g.capture.id,
+          env: typeof g.capture.record.env === 'string' && g.capture.record.env.length <= 100 && SLUG_RE.test(g.capture.record.env) ? g.capture.record.env : 'unknown',
+          ...(fin ? { finished_at: fin } : {}),
+          current,
+        };
       }
       if (g.dry) {
         const fin = iso(g.dry.record.finished_at);
@@ -306,10 +347,19 @@ export class ProjectBoards {
       // The newest render that shows today's file (render-words sameVersion's rule, review B-L2), else the newest one.
       const landscape = recs.filter((r) => r.status !== 'failed' && r.status !== 'cancelled' && (r.variant ?? 'landscape') === 'landscape');
       const views = landscape.map((r) => ({ r, v: renderView(p.dir, r, mine, reviewJobs) }));
-      const shows = (v: ScenarioRenderView) => !!f.hash && !!g.capture && v.edit.sha256 === f.hash && v.run_id === g.capture.id && (!s.theme || v.theme === s.theme) && v.overrides.length === 0;
-      const pick = views.find((x) => shows(x.v)) ?? views[0];
+      // The theme by its identity (BL-164): the record's folder against today's (two folders of one name are two
+      // themes); a record of before L7.9, which holds no folder, by its folder's name — also when it is no theme name.
+      const sameTheme = (r: StoredRenderRecord): boolean =>
+        typeof r.template_folder === 'string' && themeFolder !== undefined ? r.template_folder === themeFolder : themeId === undefined || r.template === themeId;
+      const shows = (x: { r: StoredRenderRecord; v: ScenarioRenderView }) =>
+        !!f.hash && !!g.capture && x.v.edit.sha256 === f.hash && x.v.run_id === g.capture.id && sameTheme(x.r) && x.v.overrides.length === 0;
+      const shown = views.find(shows);
+      const pick = shown ?? views[0];
       const best = pick?.r;
-      if (pick) s.render = pick.v;
+      if (pick) {
+        s.render = pick.v;
+        s.render_current = shown !== undefined;
+      }
       const newestRec = recs[0];
       if (newestRec && newestRec.status === 'failed' && newestRec !== best) s.render_failed = { render_id: newestRec.id, at: newestRec.created_at };
       const newestJob = mine[0];
@@ -319,7 +369,12 @@ export class ProjectBoards {
       }
       const open = mine.find((j) => !FINISHED_JOB_STATES.has(j.state));
       if (open) {
-        s.render_job = { job: open.id, state: open.state === 'running' ? 'running' : 'queued', reviewing: open.state === 'running' && (open.progress?.phase ?? '').startsWith('review:'), ...(open.progress?.fraction !== undefined ? { fraction: open.progress.fraction } : {}) };
+        s.render_job = {
+          job: open.id,
+          state: open.state === 'running' ? 'running' : 'queued',
+          reviewing: open.state === 'running' && (open.progress?.phase ?? '').startsWith('review:'),
+          ...(open.progress?.fraction !== undefined ? { fraction: open.progress.fraction } : {}),
+        };
         shownJobs.add(open.id);
       }
       for (const j of reviewJobs) if (j.input.kind === 'review' && recs.some((r) => r.id === (j.input as { render_id: string }).render_id)) shownJobs.add(j.id);
@@ -350,13 +405,22 @@ export class ProjectBoards {
     const hit = this.posters.get(key);
     if (hit) return hit;
     this.stats.posters++;
-    const run = RUN_ID_RE.test(runId) ? await this.runData.get(p.dir, runId) : null;
+    const run = isRunId(runId) ? await this.runData.get(p.dir, runId) : null;
     let found: string | null = null;
     let seconds: number | undefined;
     if (run) {
       // A failed take: the error screenshot of the step it failed at (run_thumbs serves it under that key, either mode).
       const err = run.record?.status === 'failed' ? run.record.error : undefined;
-      if (err && typeof err.scene === 'string' && SLUG_RE.test(err.scene) && typeof err.step === 'number' && Number.isInteger(err.step) && err.step >= 0 && run.screenshots.has(errorScreenshotName(err.scene, err.step))) found = `${err.scene}.${err.step}`;
+      if (
+        err &&
+        typeof err.scene === 'string' &&
+        SLUG_RE.test(err.scene) &&
+        typeof err.step === 'number' &&
+        Number.isInteger(err.step) &&
+        err.step >= 0 &&
+        run.screenshots.has(errorScreenshotName(err.scene, err.step))
+      )
+        found = `${err.scene}.${err.step}`;
       const seen = new Map<string, ThumbSource | null>();
       const events = [...run.events.values()];
       for (let i = events.length - 1; i >= 0 && found === null; i--) {
@@ -428,7 +492,7 @@ export class ProjectBoards {
     }
     const filesRead = new Set<string>();
     const at = Date.now();
-    const { ok, issues } = await validateScenarioText(p, text.yaml, { files: fileFacts(this.ctx.ws.policy), name, filesRead });
+    const { ok, issues } = await validateScenarioText(p, text.yaml, { files: this.ctx.ws.reads.fileFacts(this.ctx.ws.policy), reads: this.ctx.ws.reads, name, filesRead });
     const deps = [...filesRead].sort();
     const depSig = await this.depSig(deps);
     const blocks = scenarioBlocks(text.yaml, { issues });
@@ -465,7 +529,7 @@ export class ProjectBoards {
     return KNOWN.has(raw) ? (raw as ViewRunStatus) : 'unknown';
   }
 
-  private boardRun(id: string, r: RunRecord, status: ViewRunStatus, job: string | undefined): BoardRun {
+  private boardRun(id: string, r: RunRecordOnDisk, status: ViewRunStatus, job: string | undefined): BoardRun {
     let partial: string | undefined;
     if (status === 'cancelled') partial = 'cancelled';
     else if (status === 'interrupted') partial = 'interrupted';
@@ -486,7 +550,7 @@ export class ProjectBoards {
   }
 
   /** run.json of a run: re-checked by its stat (`check`), else held once read (an older finished run). */
-  private async record(projectDir: string, id: string, check: boolean): Promise<RunRecord | null> {
+  private async record(projectDir: string, id: string, check: boolean): Promise<RunRecordOnDisk | null> {
     const file = projectPath(projectDir, 'runs', id, 'run.json');
     const key = `${projectDir}\0${id}`;
     const held = this.runs.get(key);
@@ -506,11 +570,21 @@ export class ProjectBoards {
     return remember(this.pictures, key, await runPictures(projectDir, id, mode), 2048);
   }
 
+  /** Whether a run is a take (core takeOf over the one reader), held while its folder and its timeline keep their signatures. */
+  private async takeOf(projectDir: string, id: string): Promise<boolean> {
+    const dir = projectPath(projectDir, 'runs', id);
+    const key = `${projectDir}\0${id}\0${await lsig(dir)}\0${await lsig(join(dir, 'timeline.json'))}`;
+    if (this.takes.has(key)) return this.takes.get(key)!;
+    // As the board's pictures: only of a run folder that really lies in the project (RunFolder).
+    return remember(this.takes, key, (await takeVerdict(projectDir, id)).usable && (await RunFolder.open(projectDir, id)) !== null, 2048);
+  }
+
   /** One finished run into its scenario's group (newest first: the first of each kind wins). */
-  private async addFinished(p: LoadedProject, g: RunGroup, id: string, r: RunRecord): Promise<void> {
+  private async addFinished(p: LoadedProject, g: RunGroup, id: string, r: RunRecordOnDisk): Promise<void> {
     const status = this.statusOf(r.status);
     if (!g.last) g.last = { id, record: r };
-    if (r.mode === 'capture' && status === 'succeeded' && !g.capture && ['video', 'frames'].includes((await this.picturesOf(p.dir, id, r.mode)) ?? '')) g.capture = { id, record: r };
+    // The scenario's capture is the take a render edits: the one rule, never this file's own (frames without a film are no take).
+    if (r.mode === 'capture' && status === 'succeeded' && !g.capture && (await this.takeOf(p.dir, id))) g.capture = { id, record: r };
     if (r.mode === 'dry' && status === 'succeeded' && !g.dry && r.stopped_at?.reason !== 'until' && !g.capture && (await this.picturesOf(p.dir, id, r.mode)) !== null) g.dry = { id, record: r };
   }
 
@@ -548,7 +622,11 @@ export class ProjectBoards {
       for (const [name, h] of head) {
         const o = groups.get(name) ?? {};
         // The head is newer: its last take and capture win; a dry run counts only when no newer capture exists.
-        groups.set(name, { ...(h.last ?? o.last ? { last: h.last ?? o.last } : {}), ...(h.capture ?? o.capture ? { capture: h.capture ?? o.capture } : {}), ...(h.dry ? { dry: h.dry } : !h.capture && o.dry ? { dry: o.dry } : {}) });
+        groups.set(name, {
+          ...((h.last ?? o.last) ? { last: h.last ?? o.last } : {}),
+          ...((h.capture ?? o.capture) ? { capture: h.capture ?? o.capture } : {}),
+          ...(h.dry ? { dry: h.dry } : !h.capture && o.dry ? { dry: o.dry } : {}),
+        });
       }
     } else groups = await this.summed(p, ids);
     remember(this.older, p.dir, { ids: [...ids], groups }, OLDER_MEMO_MAX);
@@ -559,11 +637,11 @@ export class ProjectBoards {
     const groups = new Map<string, RunGroup>();
     let ids: string[] = [];
     try {
-      ids = (await readdir(projectPath(p.dir, 'runs'), { withFileTypes: true })).filter((d) => d.isDirectory() && RUN_ID_RE.test(d.name)).map((d) => d.name);
+      // The one order of runs (core orderRuns): a folder named to sort above the dates is never before a dated run.
+      ids = await runFolderIds(p.dir);
     } catch {
       return groups;
     }
-    ids.sort().reverse();
     // The window is read at once (stats in parallel) and re-checked at every read.
     const window = await Promise.all(ids.slice(0, BOARD_RUNS_WINDOW).map((id) => this.record(p.dir, id, true)));
     for (let i = 0; i < window.length; i++) {
@@ -635,7 +713,7 @@ export class ProjectBoards {
       let held = this.jobMemo.get(id);
       if (!held || held.sig !== sig) {
         this.stats.jobs++;
-        const stored = sig === '-' ? undefined : await q.stored(id).catch(() => undefined);
+        const stored = sig === '-' ? undefined : await bestEffort(q.stored(id), 'a job removed meanwhile reads as gone');
         held = { sig, rec: stored && JOB_KINDS.has(stored.kind) ? stored : null };
         remember(this.jobMemo, id, held, JOB_MEMO_MAX);
       }
@@ -649,28 +727,37 @@ export class ProjectBoards {
   // ── Renders ─────────────────────────────────────────────────────────────
 
   /** The project's render records per scenario, newest first (one readdir; records held while their stat holds). */
-  private async renderRecordsOf(p: LoadedProject, names: ReadonlySet<string>): Promise<Map<string, RenderRecord[]>> {
-    const out = new Map<string, RenderRecord[]>();
+  private async renderRecordsOf(p: LoadedProject, names: ReadonlySet<string>): Promise<Map<string, StoredRenderRecord[]>> {
+    const out = new Map<string, StoredRenderRecord[]>();
     const files = await readdir(projectPath(p.dir, 'renders')).catch(() => [] as string[]);
-    await Promise.all(
-      files.map(async (f) => {
-        const m = RENDER_FILE_RE.exec(f);
-        if (!m || !names.has(m[1])) return;
-        const key = `${p.dir}\0${f}`;
-        const sig = await lsig(projectPath(p.dir, 'renders', f));
-        let held = this.renderRecords.get(key);
-        if (!held || held.sig !== sig) {
-          held = { sig, record: readRenderRecord(p.dir, f) };
-          remember(this.renderRecords, key, held, 4096);
-        }
-        if (held.record) {
-          const list = out.get(m[1]) ?? [];
-          list.push(held.record);
-          out.set(m[1], list);
-        }
-      }),
-    );
-    for (const list of out.values()) list.sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
+    // renders/<render id>.json of one of the scenarios (named by the file first: no other file is read); the record is
+    // filed under the scenario its name gives when it is a render of it (core's rule: a complete record of its own
+    // file that says that scenario).
+    const wanted: Array<{ f: string; scenario: string }> = [];
+    for (const f of files) {
+      const scenario = f.endsWith('.json') ? parseRenderId(f.slice(0, -5))?.scenario : undefined;
+      if (scenario !== undefined && names.has(scenario)) wanted.push({ f, scenario });
+    }
+    const sigs = await Promise.all(wanted.map((w) => lsig(projectPath(p.dir, 'renders', w.f))));
+    // The files whose stat changed are read one after another: a record's text (megabytes with its plan) is parsed and
+    // let go before the next one is read — two hundred of them held at once cost a cold board a tenth of its time.
+    for (const [i, { f, scenario }] of wanted.entries()) {
+      const key = `${p.dir}\0${f}`;
+      const sig = sigs[i] as string;
+      let held = this.renderRecords.get(key);
+      if (!held || held.sig !== sig) {
+        held = { sig, entry: await readListedRecord(p.dir, f.slice(0, -5)) };
+        remember(this.renderRecords, key, held, 4096);
+      }
+      const record = scenarioRenderOf(held.entry, scenario);
+      if (record) {
+        const list = out.get(scenario) ?? [];
+        list.push(record);
+        out.set(scenario, list);
+      }
+    }
+    // Newest first (the one order of renders, reversed).
+    for (const [scenario, list] of out) out.set(scenario, orderRenders(list).reverse());
     return out;
   }
 }

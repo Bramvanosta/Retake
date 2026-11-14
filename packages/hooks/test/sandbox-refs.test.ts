@@ -114,7 +114,10 @@ describe('sandbox references in hooks (hotfix v0.2.3)', () => {
     const project = await sandboxProject();
     const { ctx, text } = contextOf(project, 'stage', { dryRun: true });
     const journal = await Journal.open(join(tmp.dir, 'runs/r2/hooks-journal.json'));
-    const ok = await runHooks([{ http: { method: 'POST', url: '{{console}}/api/replies', json: { a: '{{compose_env:CONSOLE_API_KEY}}', b: '{{accounts.buyer.password}}' } } }], ctx, { phase: 'setup', journal });
+    const ok = await runHooks([{ http: { method: 'POST', url: '{{console}}/api/replies', json: { a: '{{compose_env:CONSOLE_API_KEY}}', b: '{{accounts.buyer.password}}' } } }], ctx, {
+      phase: 'setup',
+      journal,
+    });
     expect(ok.ok).toBe(true);
     expect(JSON.stringify(ok.results) + text()).not.toContain(API_KEY);
     expect(JSON.stringify(ok.results) + text()).not.toContain(PASSWORD);
@@ -151,7 +154,17 @@ describe('auth: {persona} on an http hook (hotfix v0.2.3)', () => {
     });
     const journal = await Journal.open(join(tmp.dir, 'runs/r4/hooks-journal.json'));
     const res = await runHooks(
-      [{ http: { method: 'POST', url: '{{console}}/api/replies', auth: { persona: 'buyer' }, json: { text: 'hello' }, rollback: { method: 'DELETE', url: '{{console}}/api/replies/{{response.json.id}}', auth: { persona: 'admin' } } } }],
+      [
+        {
+          http: {
+            method: 'POST',
+            url: '{{console}}/api/replies',
+            auth: { persona: 'buyer' },
+            json: { text: 'hello' },
+            rollback: { method: 'DELETE', url: '{{console}}/api/replies/{{response.json.id}}', auth: { persona: 'admin' } },
+          },
+        },
+      ],
       ctx,
       { phase: 'setup', journal },
     );

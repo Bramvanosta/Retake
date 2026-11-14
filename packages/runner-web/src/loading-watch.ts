@@ -5,7 +5,7 @@
  * ones the video shows (`loading-filmed`). Pure but for the timer and the page probe.
  */
 import type { Page } from 'playwright-core';
-import type { TimelineLoadingUi } from '@retake/core';
+import type { TimelineLoadingUi } from '@retake/core/model';
 import { round3 } from './util.js';
 
 export const PROBE_MS = 250;

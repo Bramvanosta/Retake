@@ -44,10 +44,10 @@ import {
   switchedBackground,
   textProblem,
   themeEventAction,
-  useInScenarioPlan,
+  planUseInScenario,
   usedByWords,
   zoomProblem,
-} from '../src/app/theme-words.js';
+} from '../src/app/words/theme-words.js';
 
 const comp = (id: string, extra: Partial<ThemeEditView['components']['intro']> = {}): ThemeEditView['components']['intro'] => ({ written: 'id', id, resolved: { id, params: {} }, ...extra });
 const view = (over: Partial<ThemeEditView> = {}): ThemeEditView =>
@@ -69,8 +69,15 @@ const view = (over: Partial<ThemeEditView> = {}): ThemeEditView =>
       overlay: comp('studio/overlay-callout'),
       transition: { written: 'none', resolved: null },
     },
-    fonts: [{ file: 'fonts/a.ttf', weight: 400 }, { file: 'fonts/b.ttf', weight: 700 }, { file: 'fonts/bad.ttf', problem: 'not a font' }],
-    images: [{ file: 'logo.svg', bytes: 10 }, { file: 'evil.svg', bytes: 10, problem: 'holds a script' }],
+    fonts: [
+      { file: 'fonts/a.ttf', weight: 400 },
+      { file: 'fonts/b.ttf', weight: 700 },
+      { file: 'fonts/bad.ttf', problem: 'not a font' },
+    ],
+    images: [
+      { file: 'logo.svg', bytes: 10 },
+      { file: 'evil.svg', bytes: 10, problem: 'holds a script' },
+    ],
     links: [],
     palette: null,
     warnings: [],
@@ -82,7 +89,7 @@ const view = (over: Partial<ThemeEditView> = {}): ThemeEditView =>
 const STARTER = { why: 'editorial is a starter theme shipped with Retake: copy it to edit it' };
 
 describe('mirrors of core', () => {
-  it('the hex pattern, the removable fields and the text caps are core\'s', () => {
+  it("the hex pattern, the removable fields and the text caps are core's", () => {
     expect(HEX_RE.source).toBe(HEX_COLOR_RE.source);
     expect([...REMOVABLE].sort()).toEqual([...THEME_REMOVABLE_FIELDS].sort());
     for (const [field, max] of Object.entries(TEXT_MAX)) {
@@ -95,7 +102,7 @@ describe('mirrors of core', () => {
   });
 });
 
-describe('a control\'s set_field', () => {
+describe("a control's set_field", () => {
   it('from what the view showed; absent when not written; the same value → nothing; a removal only where allowed', () => {
     expect(fieldEdit(view(), 'colors.accent', '#225588')).toEqual({ edit: { kind: 'set_field', field: 'colors.accent', from: '#8a2332', to: '#225588' } });
     expect(fieldEdit(view(), 'colors.accent', '#225588', { ripple: true })).toEqual({ edit: { kind: 'set_field', field: 'colors.accent', from: '#8a2332', to: '#225588', ripple: true } });
@@ -117,7 +124,7 @@ describe('a control\'s set_field', () => {
     expect(fieldEdit(view(), 'brand.name', 'a\nb')).toMatchObject({ why: expect.stringMatching(/one line/) });
   });
 
-  it('body fonts: 1 to 4 files in the folder\'s order', () => {
+  it("body fonts: 1 to 4 files in the folder's order", () => {
     const order = ['fonts/a.ttf', 'fonts/b.ttf', 'fonts/c.ttf', 'fonts/d.ttf', 'fonts/e.ttf'];
     expect(bodyFonts(['fonts/b.ttf'], 'fonts/a.ttf', true, order)).toEqual(['fonts/a.ttf', 'fonts/b.ttf']);
     expect(bodyFonts(['fonts/a.ttf'], 'fonts/a.ttf', false, order)).toMatchObject({ why: expect.stringMatching(/at least one/) });
@@ -145,16 +152,31 @@ describe('⚑ compound edits (critique B7)', () => {
   it('a component: from as written (absent omitted, none null), none only for captions / transitions, params kept or dropped; a media file by hand', () => {
     const v = view();
     expect(componentEdit(v, 'intro', 'acme/intro', 'drop')).toEqual({ edit: { kind: 'set_component', component: 'intro', from: 'studio/intro-stack', id: 'acme/intro', params: 'drop' } });
-    expect(componentEdit(v, 'layout', 'studio/layout-browser', 'keep')).toEqual({ edit: { kind: 'set_component', component: 'layout', from: 'studio/layout-card', id: 'studio/layout-browser', params: 'keep' } });
-    expect(componentEdit(v, 'interstitial', 'studio/interstitial-dark', 'drop')).toEqual({ edit: { kind: 'set_component', component: 'interstitial', id: 'studio/interstitial-dark', params: 'drop' } });
-    expect(componentEdit(v, 'transition', 'studio/transition-crossfade', 'drop')).toEqual({ edit: { kind: 'set_component', component: 'transition', from: null, id: 'studio/transition-crossfade', params: 'drop' } });
+    expect(componentEdit(v, 'layout', 'studio/layout-browser', 'keep')).toEqual({
+      edit: { kind: 'set_component', component: 'layout', from: 'studio/layout-card', id: 'studio/layout-browser', params: 'keep' },
+    });
+    expect(componentEdit(v, 'interstitial', 'studio/interstitial-dark', 'drop')).toEqual({
+      edit: { kind: 'set_component', component: 'interstitial', id: 'studio/interstitial-dark', params: 'drop' },
+    });
+    expect(componentEdit(v, 'transition', 'studio/transition-crossfade', 'drop')).toEqual({
+      edit: { kind: 'set_component', component: 'transition', from: null, id: 'studio/transition-crossfade', params: 'drop' },
+    });
     expect(componentEdit(v, 'caption', null, 'drop')).toEqual({ edit: { kind: 'set_component', component: 'caption', from: 'studio/caption-below', id: null, params: 'drop' } });
     expect(componentEdit(v, 'intro', null, 'drop')).toMatchObject({ why: expect.stringMatching(/always has/) });
     expect(componentEdit(v, 'outro', 'studio/outro-stack', 'drop')).toMatchObject({ why: expect.stringMatching(/own video, image or Lottie/) });
     expect(componentEdit(v, 'intro', 'studio/intro-stack', 'drop')).toBeNull();
     expect(componentEdit(v, 'intro', '../x', 'drop')).toMatchObject({ why: 'not a component id' });
     expect(componentEdit(view({ editable: STARTER }), 'intro', 'acme/intro', 'drop')).toEqual({ why: STARTER.why });
-    expect(componentChoices([{ id: 'studio/a', kind: 'card', source: 'builtin' }, { id: 'acme/b', kind: 'interstitial', kinds: ['card'], source: 'workspace' }, { id: 'x', kind: 'card', source: 'builtin' }], 'card')).toEqual(['studio/a', 'acme/b']);
+    expect(
+      componentChoices(
+        [
+          { id: 'studio/a', kind: 'card', source: 'builtin' },
+          { id: 'acme/b', kind: 'interstitial', kinds: ['card'], source: 'workspace' },
+          { id: 'x', kind: 'card', source: 'builtin' },
+        ],
+        'card',
+      ),
+    ).toEqual(['studio/a', 'acme/b']);
     // Review A N3: a written id not among the choices is the file's words, its direction controls visible in the option.
     expect(componentOptionWords('studio/a', ['studio/a'])).toBe('studio/a');
     expect(componentOptionWords(`acme/x${String.fromCharCode(0x202e)}gnp`, ['studio/a'])).toBe('acme/x[U+202E]gnp (as written)');
@@ -206,10 +228,10 @@ describe('⚑ the draft throttle', () => {
     // A drag: a move every 16 ms for one second.
     for (let i = 0; i <= 60; i++) {
       now = i * 16;
-      for (const x of [...timers]) if (x.at <= now) (timers.splice(timers.indexOf(x), 1), x.fn());
+      for (const x of [...timers]) if (x.at <= now) timers.splice(timers.indexOf(x), 1), x.fn();
       t.push(`#0000${String(i).padStart(2, '0')}`);
     }
-    for (now = 960; now < 2000; now += 10) for (const x of [...timers]) if (x.at <= now) (timers.splice(timers.indexOf(x), 1), x.fn());
+    for (now = 960; now < 2000; now += 10) for (const x of [...timers]) if (x.at <= now) timers.splice(timers.indexOf(x), 1), x.fn();
     expect(sent[0]).toEqual({ at: 0, v: '#000000' });
     for (let i = 1; i < sent.length; i++) expect(sent[i].at - sent[i - 1].at).toBeGreaterThanOrEqual(200);
     expect(sent.length).toBeLessThanOrEqual(6);
@@ -220,19 +242,24 @@ describe('⚑ the draft throttle', () => {
     now = 2050;
     t.push('#ffffff');
     t.cancel();
-    for (now = 2050; now < 3000; now += 10) for (const x of [...timers]) if (x.at <= now) (timers.splice(timers.indexOf(x), 1), x.fn());
+    for (now = 2050; now < 3000; now += 10) for (const x of [...timers]) if (x.at <= now) timers.splice(timers.indexOf(x), 1), x.fn();
     expect(sent.at(-1)).toEqual({ at: 2000, v: '#aaaaaa' });
   });
 });
 
 describe('Use in this scenario (critique B1)', () => {
-  const facts = (template?: string, ok = true) => ({ hash: 'h', text: 't', blocks: { parsed: true, video: template !== undefined ? { template } : {} }, edit: { blocks: ok ? ({ ok: true } as const) : ({ ok: false, why: 'it holds what agent trust refuses' } as const) } });
-  it('set_field template with from as written; already; refused with the scenario\'s why; a hostile name never', () => {
-    expect(useInScenarioPlan(facts(), 'mine')).toEqual({ edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', to: 'mine' } });
-    expect(useInScenarioPlan(facts('editorial'), 'mine')).toEqual({ edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', from: 'editorial', to: 'mine' } });
-    expect(useInScenarioPlan(facts('mine'), 'mine')).toEqual({ already: true });
-    expect(useInScenarioPlan(facts(undefined, false), 'mine')).toEqual({ why: 'it holds what agent trust refuses' });
-    expect(useInScenarioPlan(facts(), '../x')).toEqual({ why: 'not a theme name' });
+  const facts = (template?: string, ok = true) => ({
+    hash: 'h',
+    text: 't',
+    blocks: { parsed: true, video: template !== undefined ? { template } : {} },
+    edit: { blocks: ok ? ({ ok: true } as const) : ({ ok: false, why: 'it holds what agent trust refuses' } as const) },
+  });
+  it("set_field template with from as written; already; refused with the scenario's why; a hostile name never", () => {
+    expect(planUseInScenario(facts(), 'mine')).toEqual({ edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', to: 'mine' } });
+    expect(planUseInScenario(facts('editorial'), 'mine')).toEqual({ edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', from: 'editorial', to: 'mine' } });
+    expect(planUseInScenario(facts('mine'), 'mine')).toEqual({ already: true });
+    expect(planUseInScenario(facts(undefined, false), 'mine')).toEqual({ why: 'it holds what agent trust refuses' });
+    expect(planUseInScenario(facts(), '../x')).toEqual({ why: 'not a theme name' });
   });
 });
 
@@ -258,7 +285,7 @@ describe('New theme, the list, events, the route', () => {
     expect(freeThemeName('site-theme', ['site-theme', 'site-theme-2'])).toBe('site-theme-3');
   });
 
-  it('Copy to edit on a listed read-only theme; the project\'s own folder theme opens nowhere; used-by words', () => {
+  it("Copy to edit on a listed read-only theme; the project's own folder theme opens nowhere; used-by words", () => {
     expect(offersCopy({ name: 'editorial', source: 'starter', editable: STARTER })).toBe(true);
     expect(offersCopy({ name: 'mine', source: 'workspace', editable: true })).toBe(false);
     expect(offersCopy({ name: './theme', source: 'project', editable: { why: 'by hand' } })).toBe(false);
@@ -272,10 +299,10 @@ describe('New theme, the list, events, the route', () => {
     expect(UI_OPS).toContain('theme_list');
     expect(UI_OPS).not.toContain('template_from_site');
     expect((UI_OPS as readonly string[]).filter((op) => /site/.test(op))).toEqual(['site_list']);
-    expect(themeEventAction({ type: 'workspace', projects: [], themes: ['mine'] }, 'p', 'mine')).toBe(true);
-    expect(themeEventAction({ type: 'workspace', projects: [], themes: ['other'] }, 'p', 'mine')).toBe(false);
-    expect(themeEventAction({ type: 'workspace', projects: [], site: true }, 'p')).toBe(true);
-    expect(themeEventAction({ type: 'workspace', projects: ['p'] }, 'p')).toBe(true);
+    expect(themeEventAction({ type: 'workspace', projects: [], readme: [], themes: ['mine'] }, 'p', 'mine')).toBe(true);
+    expect(themeEventAction({ type: 'workspace', projects: [], readme: [], themes: ['other'] }, 'p', 'mine')).toBe(false);
+    expect(themeEventAction({ type: 'workspace', projects: [], readme: [], site: true }, 'p')).toBe(true);
+    expect(themeEventAction({ type: 'workspace', projects: ['p'], readme: [] }, 'p')).toBe(true);
     expect(themeEventAction({ type: 'jobs', changed: ['x'] }, 'p')).toBe(false);
     expect(themeEventAction({ type: 'resync' }, 'p', 'mine')).toBe(true);
   });

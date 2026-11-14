@@ -128,7 +128,9 @@ export function parseShortcut(keys: string, platform: KeyPlatform = 'mac'): KeyC
     const label = platform === 'mac' ? MAC_MODIFIERS[m].label : PC_MODIFIERS[platform][m];
     if (seen.has(label)) continue;
     seen.add(label);
-    caps.push(platform === 'mac' ? { label, hint: MAC_MODIFIERS[m].hint, glyph: MAC_MODIFIERS[m].glyph, modifier: true, wide: false, key: m } : { label, modifier: true, wide: label.length > 1, key: m });
+    caps.push(
+      platform === 'mac' ? { label, hint: MAC_MODIFIERS[m].hint, glyph: MAC_MODIFIERS[m].glyph, modifier: true, wide: false, key: m } : { label, modifier: true, wide: label.length > 1, key: m },
+    );
   }
   for (const r of rest) caps.push({ ...keyLabel(r, platform), modifier: false, key: r });
   return caps;
@@ -141,7 +143,11 @@ export function shortcutText(keys: string, platform: KeyPlatform = 'mac'): strin
 }
 
 /** Sizes of the key-cap plate of studio/overlay-shortcut (cap height `size` design px; a little larger in vertical / square). */
-export function shortcutPlateMetrics(size: number, unit: number, variant: 'landscape' | 'vertical' | 'square'): { u: number; capH: number; pad: number; gap: number; height: number; inset: number; clearance: number } {
+export function shortcutPlateMetrics(
+  size: number,
+  unit: number,
+  variant: 'landscape' | 'vertical' | 'square',
+): { u: number; capH: number; pad: number; gap: number; height: number; inset: number; clearance: number } {
   const u = unit * (variant === 'landscape' ? 1 : 1.12);
   const capH = size * u;
   const pad = capH * 0.22;
@@ -187,7 +193,16 @@ export interface ShortcutPlateLayout {
  * The plate of studio/overlay-shortcut measured (caps, separators, label, count chip): the component draws it, the
  * composition and the review place it with the same numbers (`shortcutPlateBox`).
  */
-export function shortcutPlateLayout(o: { keys: string; label?: string; times?: number; platform: KeyPlatform; size: number; unit: number; variant: 'landscape' | 'vertical' | 'square'; fontFamily: string }): ShortcutPlateLayout {
+export function shortcutPlateLayout(o: {
+  keys: string;
+  label?: string;
+  times?: number;
+  platform: KeyPlatform;
+  size: number;
+  unit: number;
+  variant: 'landscape' | 'vertical' | 'square';
+  fontFamily: string;
+}): ShortcutPlateLayout {
   const caps = parseShortcut(o.keys, o.platform);
   const m = shortcutPlateMetrics(o.size, o.unit, o.variant);
   const u = m.u;
@@ -196,7 +211,18 @@ export function shortcutPlateLayout(o: { keys: string; label?: string; times?: n
   const pc = o.platform !== 'mac';
   const font = o.fontFamily;
   const layouts = caps.map((c): PlateCap => {
-    const word = c.glyph ? null : capTextLayout({ text: c.label, width: 600 * u, maxFontSize: capH * (c.label.length > 1 ? 0.34 : 0.44), minFontSize: capH * 0.2, maxLines: 1, lineHeight: 1.1, fontFamily: font, fontWeight: 600 });
+    const word = c.glyph
+      ? null
+      : capTextLayout({
+          text: c.label,
+          width: 600 * u,
+          maxFontSize: capH * (c.label.length > 1 ? 0.34 : 0.44),
+          minFontSize: capH * 0.2,
+          maxLines: 1,
+          lineHeight: 1.1,
+          fontFamily: font,
+          fontWeight: 600,
+        });
     const w = c.glyph || !c.wide ? capH : Math.max(capH, (word?.width ?? 0) + capH * 0.6);
     return { cap: c, word, w };
   });

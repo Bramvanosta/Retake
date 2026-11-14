@@ -14,8 +14,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { extractSite } from '../src/index.js';
 import type { SiteReport } from '../src/index.js';
-import { BRAND_SITE_COLORS, BRAND_SITE_URL, hasOpenssl, startBrandSite } from './site-fixture.js';
-import type { BrandSite } from './site-fixture.js';
+import { BRAND_SITE_COLORS, BRAND_SITE_URL, hasOpenssl, startBrandSite } from '@retake/test-support/site';
+import type { BrandSite } from '@retake/test-support/site';
 import { PERSON_POLICY } from '@retake/core';
 
 const can = hasOpenssl();
@@ -28,12 +28,7 @@ describe.skipIf(!can)('site extraction of the brand-site fixture', () => {
   beforeAll(async () => {
     site = await startBrandSite();
     out = await mkdtemp(join(tmpdir(), 'site-extract-'));
-    report = await extractSite({ policy: PERSON_POLICY,
-      url: BRAND_SITE_URL,
-      host: 'brand.test',
-      outDir: out,
-      testResolve: site.testResolve,
-    });
+    report = await extractSite({ policy: PERSON_POLICY, url: BRAND_SITE_URL, host: 'brand.test', outDir: out, testResolve: site.testResolve });
   }, 120_000);
 
   afterAll(async () => {

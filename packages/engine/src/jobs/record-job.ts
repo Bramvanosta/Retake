@@ -19,17 +19,23 @@
  * text and page text never enter job.json, the job's events or the worker log); scene ids (made from page paths), the
  * draft's issues and the check's failure are under `untrusted`. scenario_record reads draft.yaml from the folder.
  */
+import { noDisplay } from '../env.js';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_INPUT_VERSION, SLUG_RE, resolveRunAccess } from '@retake/core';
-import type { RecordJobInput, RecordedEvent } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { resolveRunAccess } from '@retake/core/environment';
+import { JOB_INPUT_VERSION } from './job-input.js';
+import type { RecordedEvent } from '@retake/core/run';
+import type { RecordJobInput } from './job-input.js';
+import { stampOf } from '../clock.js';
 import { ENGINE_TRUST, submittedInStudio } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { checkSandboxEnv } from '../execute-run.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { newRecordId, recordDir, recordScenario, recordStart } from '../record.js';
-import type { RecordOutcome, RecordPorts } from '../record.js';
+import type { RecordOutcome } from '../record.js';
+import type { RecordWindow } from './worker-ports.js';
 import { settleDiscardAtJobEnd } from '../record-studio.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { checkEnvName } from './hooks-job.js';
@@ -37,6 +43,8 @@ import type { JobQueueView } from './job-queue.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, RecordJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
+import { bestEffort } from '@retake/core/base';
 
 export interface RecordSubmitRequest {
   project: string;
@@ -76,7 +84,10 @@ export function recordCommandLine(cli: string, r: { project: string; scenario?: 
 const hasTemplate = (v: unknown) => v !== undefined && JSON.stringify(v).includes('{{');
 
 /** Check where the recording starts (as the worker will), then queue a `record` job with a reserved recording id. */
-export async function submitRecordJob(ctx: SubmitContext, req: RecordSubmitRequest): Promise<{ job: JobRecord; rec_id: string; env: string; page: string; path: string; persona: string | null; warnings: string[] }> {
+export async function submitRecordJob(
+  ctx: SubmitContext,
+  req: RecordSubmitRequest,
+): Promise<{ job: JobRecord; rec_id: string; env: string; page: string; path: string; persona: string | null; warnings: string[] }> {
   checkProjectSlug(req.project);
   checkEnvName(req.env);
   for (const [k, v] of Object.entries({ page: req.page, path: req.path, url: req.url, persona: req.persona })) {
@@ -96,14 +107,18 @@ export async function submitRecordJob(ctx: SubmitContext, req: RecordSubmitReque
     page: start.page,
     path: start.path,
   });
-  if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
-    throw new EngineError('unavailable', 'a recording opens a browser window for a person and this machine has no display (DISPLAY / WAYLAND_DISPLAY are not set): record on a machine with a screen', { fix });
+  if (noDisplay(ctx.env)) {
+    throw new EngineError('unavailable', 'a recording opens a browser window for a person and this machine has no display (DISPLAY / WAYLAND_DISPLAY are not set): record on a machine with a screen', {
+      fix,
+    });
   }
   // Where it may run (the workspace's protected hosts), as for run_dry.
   await checkWorkspaceProtection(ctx.ws, project, start.env.name, fix);
   const warnings: string[] = [];
-  if (req.scenario !== undefined && project.scenarios.includes(req.scenario)) warnings.push(`scenario ${req.scenario} exists: the draft will be kept in the recording's folder only (not saved over it)`);
-  if (resolveRunAccess(start.env, { allowWrites: false, project }).mode === 'read-only') warnings.push(`environment ${start.env.name} is read-only: writes made in the window are stopped or answered by a mock, as in a dry run`);
+  if (req.scenario !== undefined && project.scenarios.includes(req.scenario))
+    warnings.push(`scenario ${req.scenario} exists: the draft will be kept in the recording's folder only (not saved over it)`);
+  if (resolveRunAccess(start.env, { allowWrites: false, project }).mode === 'read-only')
+    warnings.push(`environment ${start.env.name} is read-only: writes made in the window are stopped or answered by a mock, as in a dry run`);
   const recId = newRecordId();
   const input: RecordJobInput = {
     version: JOB_INPUT_VERSION,
@@ -120,10 +135,8 @@ export async function submitRecordJob(ctx: SubmitContext, req: RecordSubmitReque
   return { job: await ctx.queue.enqueue(input), rec_id: recId, env: start.env.name, page: start.page, path: start.path, persona: start.persona?.name ?? null, warnings };
 }
 
-/** Test hooks of the worker (in-process tests only): Playwright plays the person in a headless "headed" window. */
-export type RecordJobTestHooks = Pick<RecordPorts, 'drive' | 'headless' | 'windowSize'>;
-
-export interface RecordJobContext {
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
+export interface RecordJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   /** The workspace's job queue (a recording whose job is queued or running is never pruned). */
@@ -139,7 +152,8 @@ export interface RecordJobContext {
   jobId?: string;
   event(e: JobEventBody): void;
   progress(p: JobProgress): void;
-  test?: RecordJobTestHooks;
+  /** The window it opens (the worker's port, worker-ports.ts; absent: a headed window a person drives). */
+  window?: RecordWindow;
 }
 
 const ACTIONS = new Set<RecordedEvent['kind']>(['pointer', 'type', 'key', 'select_native', 'file']);
@@ -186,10 +200,10 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
   const project = await openProjectBySlug(ctx.ws, input.project);
   const start = recordStart(project, { env: input.env, persona: input.persona, page: input.source.page, path: input.source.path });
   await checkWorkspaceProtection(ctx.ws, project, start.env.name);
-  await checkSandboxEnv(project, start.env.name, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy);
-  const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'preflight', updated_at: new Date().toISOString() };
+  await checkSandboxEnv(project, start.env.name, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy, ctx.sandboxes);
+  const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'preflight', updated_at: stampOf(ctx.clock) };
   const update = (patch: Partial<JobProgress>) => {
-    Object.assign(progress, patch, { updated_at: new Date().toISOString() });
+    Object.assign(progress, patch, { updated_at: stampOf(ctx.clock) });
     ctx.progress({ ...progress });
   };
   let actions = 0;
@@ -220,6 +234,12 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
       },
       {
         queue: ctx.queue,
+        clock: ctx.clock,
+        env: ctx.env,
+        stores: ctx.stores,
+        capture: ctx.capture,
+        secrets: ctx.secrets,
+        hooks: ctx.hooks,
         // Messages of the engine and the runner: counts and enums, never page text or a typed value.
         log: (level, message) => {
           if (level !== 'debug') ctx.event({ type: 'log', level, message });
@@ -245,11 +265,11 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
         hookTrust: ENGINE_TRUST,
         loginCommand,
         history: false,
-        ...(ctx.test ?? {}),
+        ...(ctx.window ?? {}),
       },
     );
     // A Discard asked during the draft or the check: the folder goes now (B9 / B-L2), even with no Record screen open.
-    if (submittedInStudio(input) && outcome.dir && (await settleDiscardAtJobEnd(project, input.rec_id).catch(() => false))) {
+    if (submittedInStudio(input) && outcome.dir && (await bestEffort(settleDiscardAtJobEnd(project, input.rec_id), 'a discard that cannot settle now is settled on the next listing', false))) {
       return recordResult({ ...outcome, dir: null, draft: null });
     }
     return recordResult(outcome);

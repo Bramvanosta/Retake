@@ -16,8 +16,8 @@ import { CancelledError, DEFAULT_BROWSER_ARGS, UNROUTED_APIS_BLOCK, extractSite,
 import { readFacts } from '../src/site/page-script.js';
 import type { PageFacts } from '../src/site/page-script.js';
 import type { SiteReport } from '../src/index.js';
-import { hasOpenssl, startBrandSite } from './site-fixture.js';
-import type { BrandSite } from './site-fixture.js';
+import { hasOpenssl, startBrandSite } from '@retake/test-support/site';
+import type { BrandSite } from '@retake/test-support/site';
 import { PERSON_POLICY } from '@retake/core';
 
 const can = hasOpenssl();
@@ -58,7 +58,9 @@ describe('shared workers and fetchLater are removed by each layer alone (no netw
       expect(await page.evaluate(`(() => { try { fetchLater('https://page.test/later', { method: 'POST' }); return 'queued'; } catch (e) { return e.name; } })()`)).toBe('SecurityError');
       // Non-configurable, read-only: the page cannot put another one in its place.
       expect(
-        await page.evaluate(`(() => { for (const n of ['SharedWorker', 'fetchLater']) { try { delete globalThis[n]; } catch {} try { globalThis[n] = function () {}; } catch {} } try { new SharedWorker(${blob}); return 'started'; } catch (e) { return e.name; } })()`),
+        await page.evaluate(
+          `(() => { for (const n of ['SharedWorker', 'fetchLater']) { try { delete globalThis[n]; } catch {} try { globalThis[n] = function () {}; } catch {} } try { new SharedWorker(${blob}); return 'started'; } catch (e) { return e.name; } })()`,
+        ),
       ).toBe('SecurityError');
     } finally {
       await browser.close();
@@ -87,7 +89,9 @@ describe('the page reader cuts what the page controls (no network: a page set in
         `<html><head><link rel="icon" href="data:image/png;base64,${big}"><link rel="apple-touch-icon" href="data:image/png;base64,AAAA"><link rel="mask-icon" href="https://cdn.example.net/${'p'.repeat(6000)}.svg"></head><body><h1 style="font-family: '${'F'.repeat(5000)}'">x</h1><p>y</p></body></html>`,
       );
       await page.evaluate(`document.fonts.add(new FontFace("${'G'.repeat(5000)}", "local(Arial)"))`);
-      const facts = (await page.evaluate(`(() => { var __name = (f) => f; return (${readFacts.toString()})(${JSON.stringify({ maxCandidates: 6, svgMax: 400_000, urlMax: 4096, dataUrlMax: 50_000 })}); })()`)) as PageFacts;
+      const facts = (await page.evaluate(
+        `(() => { var __name = (f) => f; return (${readFacts.toString()})(${JSON.stringify({ maxCandidates: 6, svgMax: 400_000, urlMax: 4096, dataUrlMax: 50_000 })}); })()`,
+      )) as PageFacts;
       expect(Object.keys(facts.fonts.display).every((f) => f.length <= 200)).toBe(true);
       expect(facts.faces.every((f) => f.family.length <= 200)).toBe(true);
       const urls = facts.candidates.map((c) => ('url' in c ? c.url : ''));
@@ -126,7 +130,15 @@ describe.skipIf(!can)('a site extraction against hostile pages', () => {
 
   it('and at the deadline when calls may take longer', async () => {
     const t0 = Date.now();
-    const r = await extractSite({ policy: PERSON_POLICY, url: 'https://hostile.test/hang', host: 'hostile.test', outDir: await outDir(), testResolve: site.testResolve, callTimeoutMs: 120_000, deadlineMs: 9000 });
+    const r = await extractSite({
+      policy: PERSON_POLICY,
+      url: 'https://hostile.test/hang',
+      host: 'hostile.test',
+      outDir: await outDir(),
+      testResolve: site.testResolve,
+      callTimeoutMs: 120_000,
+      deadlineMs: 9000,
+    });
     expect(r.status).toBe('failed');
     expect(r.untrusted.error).toMatch(/took more than 9 s/);
     expect(Date.now() - t0).toBeLessThan(20_000);
@@ -135,7 +147,8 @@ describe.skipIf(!can)('a site extraction against hostile pages', () => {
   it('a cancel ends it within seconds, whatever the page does', async () => {
     const ac = new AbortController();
     let abortedAt = 0;
-    const p = extractSite({ policy: PERSON_POLICY,
+    const p = extractSite({
+      policy: PERSON_POLICY,
       url: 'https://hostile.test/hang',
       host: 'hostile.test',
       outDir: await outDir(),

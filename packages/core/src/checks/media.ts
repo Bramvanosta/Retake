@@ -98,10 +98,7 @@ export function checkMediaFields(spec: unknown, p: IssuePath, ctx: CheckContext,
 
   const ext = fileExtension(path);
   if (!MEDIA_EXTENSIONS[kind].includes(ext)) {
-    ctx.error(
-      [...p, kind],
-      `"${path}": ${article(kind)} must be a ${MEDIA_EXTENSIONS[kind].join(', ')} file${ext ? ` (not ${ext})` : ''}${containerHint(kind, ext)}`,
-    );
+    ctx.error([...p, kind], `"${path}": ${article(kind)} must be a ${MEDIA_EXTENSIONS[kind].join(', ')} file${ext ? ` (not ${ext})` : ''}${containerHint(kind, ext)}`);
     return out;
   }
   const dir = opts.dir ?? ctx.projectDir;
@@ -169,10 +166,7 @@ export function checkMediaFields(spec: unknown, p: IssuePath, ctx: CheckContext,
     }
   }
   if (opts.overlay && !v.alpha) {
-    ctx.warning(
-      [...p, kind],
-      `"${path}" has no alpha channel: it covers the capture inside its box — export ProRes 4444 (.mov) or VP9 with alpha (.webm) for a transparent overlay (${DOC})`,
-    );
+    ctx.warning([...p, kind], `"${path}" has no alpha channel: it covers the capture inside its box — export ProRes 4444 (.mov) or VP9 with alpha (.webm) for a transparent overlay (${DOC})`);
   }
   if (typeof spec.volume === 'number' && spec.volume > 0 && !v.audio) ctx.warning([...p, 'volume'], `"${path}" has no sound: \`volume\` changes nothing`);
   return out;

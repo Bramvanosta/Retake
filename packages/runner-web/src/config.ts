@@ -1,6 +1,8 @@
 import { isAbsolute, resolve } from 'node:path';
-import { DEFAULT_CAPTURE, DEFAULT_PACING, authFor, expandHome } from '@retake/core';
-import type { BrowserConfig, CaptureSettings, LoadedProject, Pacing } from '@retake/core';
+import { expandHome } from '@retake/core/base';
+import { DEFAULT_CAPTURE, DEFAULT_PACING } from '@retake/core/model';
+import { authFor } from '@retake/core/environment';
+import type { BrowserConfig, CaptureSettings, LoadedProject, Pacing } from '@retake/core/model';
 
 function defined<T extends object>(o: Partial<T> | undefined): Partial<T> {
   const out: Partial<T> = {};

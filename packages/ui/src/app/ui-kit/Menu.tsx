@@ -99,7 +99,17 @@ export function Menu({ label, icon, text, items, onSelect }: { label: string; ic
   let n = -1;
   return (
     <>
-      <button ref={trigger} type="button" className={text ? 'k-btn k-btn-ghost k-btn-md' : 'k-iconbtn k-iconbtn-md'} aria-label={text ? undefined : label} aria-haspopup="menu" aria-expanded={open} aria-controls={id} popoverTarget={id} onKeyDown={onTriggerKey}>
+      <button
+        ref={trigger}
+        type="button"
+        className={text ? 'k-btn k-btn-ghost k-btn-md' : 'k-iconbtn k-iconbtn-md'}
+        aria-label={text ? undefined : label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={id}
+        popoverTarget={id}
+        onKeyDown={onTriggerKey}
+      >
         {icon && <Icon name={icon} />}
         {text && <span className="k-btn-label">{shown(text)}</span>}
         {text && <Icon name="chevron-down" />}
@@ -122,7 +132,9 @@ export function Menu({ label, icon, text, items, onSelect }: { label: string; ic
                 onSelect(item.id);
               }}
             >
-              <span className="k-menu-label"><Txt text={item.label} /></span>
+              <span className="k-menu-label">
+                <Txt text={item.label} />
+              </span>
               {item.kbd && <Kbd keys={item.kbd} />}
             </button>
           );

@@ -12,9 +12,25 @@ import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry, VideoMedia } from '@retake/components';
 import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, Timeline, TimelineEvent } from '@retake/core';
-import { MARK_WINDOW_S, OVERLAY_BOX_MARGIN, WAIT_KEEP_S, duckSpans, mapSourceRect, musicVolumeAt, overlayBoxAt, planEdit, planFileRefs, protectedSpans, stepBoxes, themeFileRefs, waitingSpans } from '@retake/editor';
+import {
+  MARK_WINDOW_S,
+  OVERLAY_BOX_MARGIN,
+  WAIT_KEEP_S,
+  duckSpans,
+  mapSourceRect,
+  musicVolumeAt,
+  overlayBoxAt,
+  planEdit,
+  planFileRefs,
+  protectedSpans,
+  stepBoxes,
+  themeFileRefs,
+  waitingSpans,
+} from '@retake/editor';
 import type { ClipSegment, EditOverrides, EditPlan, PlanInputFile } from '@retake/editor';
-import { REPO, fixtureProject, seg, synthTimeline } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureProject, synthTimeline } from '@retake/test-support/timeline';
+import { seg } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
 let registry: ComponentRegistry;
@@ -45,7 +61,16 @@ const FILES: Record<string, PlanInputFile> = {
 };
 
 function plan(timeline: Timeline, opts: { template?: LoadedTemplate; files?: Record<string, PlanInputFile>; music?: number; overrides?: EditOverrides } = {}): EditPlan {
-  return planEdit({ timeline, template: opts.template ?? editorial, project, registry, captureFile: '/captures/capture.mp4', files: opts.files ?? FILES, ...(opts.music ? { musicDuration_s: opts.music } : {}), ...(opts.overrides ? { overrides: opts.overrides } : {}) });
+  return planEdit({
+    timeline,
+    template: opts.template ?? editorial,
+    project,
+    registry,
+    captureFile: '/captures/capture.mp4',
+    files: opts.files ?? FILES,
+    ...(opts.music ? { musicDuration_s: opts.music } : {}),
+    ...(opts.overrides ? { overrides: opts.overrides } : {}),
+  });
 }
 
 const overlay = (o: NonNullable<TimelineEvent['overlay']>) => o;
@@ -55,7 +80,14 @@ describe('segments that are your own files (R-OWN-01)', () => {
   const tl = () =>
     synthTimeline({
       duration: 12,
-      video: { title: { text: 'Own' }, intro: { video: 'assets/intro.mp4', volume: 0.8 }, outro: { image: 'assets/end.png', duration: 3 }, frame: 'card', template: 'editorial', music: { file: 'assets/bed.m4a' } },
+      video: {
+        title: { text: 'Own' },
+        intro: { video: 'assets/intro.mp4', volume: 0.8 },
+        outro: { image: 'assets/end.png', duration: 3 },
+        frame: 'card',
+        template: 'editorial',
+        music: { file: 'assets/bed.m4a' },
+      },
       entries: [{ ...SCENE, steps: [{ action: 'click', t_start: 2, t_end: 4 }] }, { card: { id: 'cup' } }, { interstitial: { id: 'later', text: 'Later' } }],
     });
 
@@ -64,7 +96,13 @@ describe('segments that are your own files (R-OWN-01)', () => {
     t.scenes[1].card = { lottie: 'assets/cup.json', params: { colors: { '#ff5a1f': 'accent' } } };
     t.scenes[2].interstitial = { video: 'assets/intro.mp4', from: 1, to: 3.5 };
     const p = plan(t);
-    expect(p.segments.map((s) => `${s.kind}:${s.id}:${s.component.id}`)).toEqual(['intro:intro:studio/media', 'clip:s:studio/layout-card', 'card:cup:studio/lottie', 'interstitial:later:studio/media', 'outro:outro:studio/media']);
+    expect(p.segments.map((s) => `${s.kind}:${s.id}:${s.component.id}`)).toEqual([
+      'intro:intro:studio/media',
+      'clip:s:studio/layout-card',
+      'card:cup:studio/lottie',
+      'interstitial:later:studio/media',
+      'outro:outro:studio/media',
+    ]);
     const intro = seg(p, 'intro');
     expect(intro.component).toMatchObject({ kind: 'intro', source: 'scenario', params: { volume: 0.8, fit: 'auto', background: 'theme', from: 0, loop: false }, slots: { file: 'assets/intro.mp4' } });
     const m = intro.component.media!.file as VideoMedia;
@@ -124,7 +162,16 @@ describe('segments that are your own files (R-OWN-01)', () => {
   it('planFileRefs lists the files of segments and file overlays (planInputFiles reads them)', () => {
     const t = tl();
     t.scenes[1].card = { lottie: 'assets/cup.json' };
-    t.events.push({ scene: 's', scene_index: 0, step: 1, action: 'hover', t_start: 4, t_end: 5, status: 'ok', overlay: overlay({ component: 'studio/media', slots: { file: 'assets/burst.webm' }, params: {} }) });
+    t.events.push({
+      scene: 's',
+      scene_index: 0,
+      step: 1,
+      action: 'hover',
+      t_start: 4,
+      t_end: 5,
+      status: 'ok',
+      overlay: overlay({ component: 'studio/media', slots: { file: 'assets/burst.webm' }, params: {} }),
+    });
     expect(planFileRefs(t)).toEqual(['assets/burst.webm', 'assets/cup.json', 'assets/end.png', 'assets/intro.mp4']);
   });
 
@@ -181,7 +228,18 @@ describe('overlays that are your own files (R-OWN-02, R-OWN-03)', () => {
     });
 
   it('a video on the target from the click: its own size × scale in page px, its own length, on the screen layer', () => {
-    const p = plan(tl([overlay({ component: 'studio/media', slots: { file: 'assets/burst.webm' }, params: { fit: 'contain', background: 'none' }, at: 'click', box: { anchor: 'target', scale: 0.5 }, bbox: { x: 800, y: 500, w: 200, h: 60 } })]));
+    const p = plan(
+      tl([
+        overlay({
+          component: 'studio/media',
+          slots: { file: 'assets/burst.webm' },
+          params: { fit: 'contain', background: 'none' },
+          at: 'click',
+          box: { anchor: 'target', scale: 0.5 },
+          bbox: { x: 800, y: 500, w: 200, h: 60 },
+        }),
+      ]),
+    );
     const c = seg(p, 's') as ClipSegment;
     const o = c.overlays[0];
     expect(o.component).toMatchObject({ id: 'studio/media', kind: 'overlay', media: { file: { kind: 'video', alpha: true } } });
@@ -201,7 +259,13 @@ describe('overlays that are your own files (R-OWN-02, R-OWN-03)', () => {
     const p = plan(
       tl([
         overlay({ component: 'studio/overlay-callout', slots: { text: 'x' }, params: {} }),
-        overlay({ component: 'studio/lottie', slots: { file: 'assets/check.json' }, params: { loop: true, fit: 'contain', background: 'none' }, at: 'mark:m', box: { anchor: 'top-right', scale: 0.5 } }),
+        overlay({
+          component: 'studio/lottie',
+          slots: { file: 'assets/check.json' },
+          params: { loop: true, fit: 'contain', background: 'none' },
+          at: 'mark:m',
+          box: { anchor: 'top-right', scale: 0.5 },
+        }),
         overlay({ component: 'studio/media', slots: { file: 'assets/end.png' }, params: {}, at: 0.5, box: { rect: { x: 0, y: 0, w: 960, h: 540 } } }),
       ]),
     );
@@ -227,7 +291,14 @@ describe('overlays that are your own files (R-OWN-02, R-OWN-03)', () => {
   it('a kind-wide overlay override restyles the provided overlays, not your own files (with a note)', () => {
     const p = plan(
       tl([
-        overlay({ component: 'studio/media', slots: { file: 'assets/burst.webm' }, params: { fit: 'contain', background: 'none' }, at: 'click', box: { anchor: 'target' }, bbox: { x: 800, y: 500, w: 200, h: 60 } }),
+        overlay({
+          component: 'studio/media',
+          slots: { file: 'assets/burst.webm' },
+          params: { fit: 'contain', background: 'none' },
+          at: 'click',
+          box: { anchor: 'target' },
+          bbox: { x: 800, y: 500, w: 200, h: 60 },
+        }),
         overlay({ component: 'studio/lottie', slots: { file: 'assets/check.json' }, params: { fit: 'contain', background: 'none' }, box: { anchor: 'top-right' } }),
         overlay({ component: 'studio/overlay-callout', slots: { text: 'Sent' }, params: {} }),
       ]),
@@ -294,16 +365,27 @@ describe('your own overlays in a vertical / square framing (R-OWN-02, review fix
     expect(Math.min(...visibleShare(p, c, o))).toBeGreaterThan(0.99);
   });
 
-  it('a corner file moves to the nearest free corner when, in this framing, it would cover the step\'s target (note); landscape keeps it', () => {
+  it("a corner file moves to the nearest free corner when, in this framing, it would cover the step's target (note); landscape keeps it", () => {
     // A wide row near the top of the page, hovered on its right part; a check badge asked at the top-right.
     const t = synthTimeline({
       duration: 12,
-      cursor: [[0, 960, 540], [2, 1250, 150]],
+      cursor: [
+        [0, 960, 540],
+        [2, 1250, 150],
+      ],
       entries: [
         {
           ...SCENE,
           steps: [
-            { action: 'hover', t_start: 2, t_end: 3, holdS: 2, point: { x: 1250, y: 150 }, target: { desc: 'row', bbox: { x: 700, y: 120, w: 700, h: 60 } }, overlay: overlay({ ...check, box: { anchor: 'top-right', scale: 1.4 } }) },
+            {
+              action: 'hover',
+              t_start: 2,
+              t_end: 3,
+              holdS: 2,
+              point: { x: 1250, y: 150 },
+              target: { desc: 'row', bbox: { x: 700, y: 120, w: 700, h: 60 } },
+              overlay: overlay({ ...check, box: { anchor: 'top-right', scale: 1.4 } }),
+            },
             { action: 'click', t_start: 6, t_end: 7, t_click: 6.5, point: { x: 1250, y: 150 }, target: { desc: 'row', bbox: { x: 700, y: 120, w: 700, h: 60 } } },
           ] as never,
         },
@@ -316,7 +398,9 @@ describe('your own overlays in a vertical / square framing (R-OWN-02, review fix
     const c = seg(v, 's') as ClipSegment;
     const o = c.overlays[0];
     expect(o.box?.anchor).not.toBe('top-right');
-    expect(v.notes.filter((n) => n.includes('would cover'))).toEqual([`scene "s" step 0 overlay: at top-right it would cover the hover target of step 0 (row) in this vertical framing: placed at ${o.box!.anchor}`]);
+    expect(v.notes.filter((n) => n.includes('would cover'))).toEqual([
+      `scene "s" step 0 overlay: at top-right it would cover the hover target of step 0 (row) in this vertical framing: placed at ${o.box!.anchor}`,
+    ]);
     // Clear of the row (around the cursor and its leading part) on every frame.
     const ev = t.events.find((e) => e.step === 0)!;
     for (let k = 0; k < o.durationInFrames; k += 3) {
@@ -332,7 +416,16 @@ describe('your own overlays in a vertical / square framing (R-OWN-02, review fix
 });
 
 describe('waiting plays faster (the catalogue long-wait, root cause)', () => {
-  const ev = (step: number, action: TimelineEvent['action'], t_start: number, t_end: number, extra: Partial<TimelineEvent> = {}): TimelineEvent => ({ scene: 's', scene_index: 0, step, action, t_start, t_end, status: 'ok', ...extra });
+  const ev = (step: number, action: TimelineEvent['action'], t_start: number, t_end: number, extra: Partial<TimelineEvent> = {}): TimelineEvent => ({
+    scene: 's',
+    scene_index: 0,
+    step,
+    action,
+    t_start,
+    t_end,
+    status: 'ok',
+    ...extra,
+  });
 
   it('a wait step, and the pause after a page change before a wait that still waited (the page was loading)', () => {
     const events = [ev(0, 'click', 1, 3.5, { t_click: 1.8 }), ev(1, 'wait_for', 3.5, 3.52), ev(2, 'wait_for', 3.53, 6.4, { mark: 'reveal' }), ev(3, 'scroll', 6.5, 8)];
@@ -354,13 +447,27 @@ describe('waiting plays faster (the catalogue long-wait, root cause)', () => {
       [(6 - MARK_WINDOW_S) * 30, (7 + MARK_WINDOW_S) * 30],
     ]);
     // Waits not played faster (overrides.trim_idle: false): the whole marked step, as before.
-    expect(protectedSpans(clips, 30, false).filter((s) => s.reason === 'mark' && s.step === 0).map((s) => [s.a, s.b])).toEqual([[(2 - MARK_WINDOW_S) * 30, (6 + MARK_WINDOW_S) * 30]]);
+    expect(
+      protectedSpans(clips, 30, false)
+        .filter((s) => s.reason === 'mark' && s.step === 0)
+        .map((s) => [s.a, s.b]),
+    ).toEqual([[(2 - MARK_WINDOW_S) * 30, (6 + MARK_WINDOW_S) * 30]]);
   });
 
   it('the planner plays the waiting at up to 4× (ramped), the rest of the scene at its speed, with a note', () => {
     const t = synthTimeline({
       duration: 14,
-      entries: [{ ...SCENE, t_end: 14, steps: [{ action: 'click', t_start: 2, t_end: 3 }, { action: 'wait_for', t_start: 3, t_end: 9 }, { action: 'click', t_start: 9, t_end: 14 }] }],
+      entries: [
+        {
+          ...SCENE,
+          t_end: 14,
+          steps: [
+            { action: 'click', t_start: 2, t_end: 3 },
+            { action: 'wait_for', t_start: 3, t_end: 9 },
+            { action: 'click', t_start: 9, t_end: 14 },
+          ],
+        },
+      ],
     });
     const p = plan(t);
     const c = seg(p, 's') as ClipSegment;

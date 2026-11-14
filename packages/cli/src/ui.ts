@@ -1,7 +1,7 @@
-import { isAbsolute, parse, relative } from 'node:path';
+import { isAbsolute, parse } from 'node:path';
 import pc from 'picocolors';
-import { formatPath, relativeInside } from '@retake/core';
-import type { ValidationIssue } from '@retake/core';
+import { formatPath, relativeInside } from '@retake/core/base';
+import type { ValidationIssue } from '@retake/core/model';
 import type { Colors, Io } from './io.js';
 
 export { formatMs } from '@retake/engine';

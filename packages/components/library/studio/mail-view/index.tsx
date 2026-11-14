@@ -1,7 +1,7 @@
-import { Img, useCurrentFrame } from 'remotion';
 import {
   Background,
   CapText,
+  Img,
   SYSTEM_COLORS,
   biasMotion,
   capTextLayout,
@@ -15,6 +15,7 @@ import {
   progress,
   readableOn,
   roundTo,
+  useCurrentFrame,
   withAlpha,
 } from '@retake/components/kit';
 import type { ComponentProps, EmailMedia } from '@retake/components/kit';

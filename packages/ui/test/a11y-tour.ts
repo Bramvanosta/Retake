@@ -1,7 +1,7 @@
 /**
  * L4.9 part C: the screen tour's shared set-up (a test helper): a scratch workspace holding a copy of
  * projects/northfield-fixture (with the fixture workspace's failed dry run and capture, engine test helpers) and the
- * synthetic `demo` project with the bits take (timeline-take.ts: VP9, two comment threads at one frame, Claude's proposal
+ * synthetic `demo` project with the bits take (test-support take.ts: VP9, two comment threads at one frame, Claude's proposal
  * on the first — an in-process engine of client `mcp`, as `comment_reply` makes one — whose diff holds a trailing space
  * and right-to-left text), a scenario file that does not parse, an editable workspace theme `tour-theme` (a copy of editorial in the
  * workspace's own templates folder: the theme editor is toured with its fields enabled); the Studio server with no
@@ -25,10 +25,12 @@ import type { Engine } from '@retake/engine';
 import type { EditPlan } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { WALK_MAX, auditPage, familyWalk, formatFindings, settle, tabWalk } from './a11y.js';
 import type { Audit, Finding, TabWalk } from './a11y.js';
-import { BITS_TEXT, bitsTimeline, bitsVideo, takeWorkspace, writeTake, writeThread } from './timeline-take.js';
+import { BITS_TEXT, bitsTimeline, bitsVideo, takeWorkspace, writeTake, writeThread } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 export const N = 'northfield-fixture';
 export const RUN = '20260101-120000-bits';
@@ -45,7 +47,10 @@ const SHOTS = process.env.RETAKE_UI_SHOTS;
 /** The workspace's own theme (editable in the Studio). */
 export const TOUR_THEME = 'tour-theme';
 /** Claude's proposal on the thread: a caption change, a trailing space and an added line of right-to-left text. */
-export const PROPOSED = BITS_TEXT.replace('caption: Every frame carries its number.', 'caption: Every frame shows its number. ').replace('  - card: {slots: {title: Chapter two}}', '  - card: {slots: {title: Chapter two}}\n    # עברית: a note in right-to-left text');
+export const PROPOSED = BITS_TEXT.replace('caption: Every frame carries its number.', 'caption: Every frame shows its number. ').replace(
+  '  - card: {slots: {title: Chapter two}}',
+  '  - card: {slots: {title: Chapter two}}\n    # עברית: a note in right-to-left text',
+);
 
 export interface Tour {
   ws: string;
@@ -73,11 +78,35 @@ export async function writeRender(dir: string, plan: EditPlan, edit: string): Pr
   bitsVideo(file, Math.ceil(plan.durationInFrames / plan.fps), 'h264-x264', `${plan.width / 2}x${plan.height / 2}`);
   const at = '2026-01-01T13:00:00.000Z';
   const record = {
-    version: 1, id: 'bits-v1', project: 'demo', scenario: 'bits', run_id: RUN, run_dir: join(dir, 'runs', RUN), template: 'editorial', overrides: {},
-    edit: { from: 'scenario', sha256: edit }, variant: plan.variant, status: 'succeeded', file, record: join(renders, 'bits-v1.json'), render_version: 1,
-    created_at: at, finished_at: at, duration_s: plan.durationInFrames / plan.fps, frames: plan.durationInFrames, fps: plan.fps, width: plan.width, height: plan.height,
-    size_bytes: 0, encoding: { codec: 'h264', crf: 18, pixel_format: 'yuv420p', faststart: true, audio: 'silent' }, concurrency: 1,
-    bundle: { hash: 'synthetic', cached: true, ms: 0 }, browser: { path: null, source: 'playwright' }, timings: { plan_ms: 0, bundle_ms: 0, render_ms: 0, total_ms: 0 }, warnings: [], plan,
+    version: 1,
+    id: 'bits-v1',
+    project: 'demo',
+    scenario: 'bits',
+    run_id: RUN,
+    run_dir: join(dir, 'runs', RUN),
+    template: 'editorial',
+    overrides: {},
+    edit: { from: 'scenario', sha256: edit },
+    variant: plan.variant,
+    status: 'succeeded',
+    file,
+    record: join(renders, 'bits-v1.json'),
+    render_version: 1,
+    created_at: at,
+    finished_at: at,
+    duration_s: plan.durationInFrames / plan.fps,
+    frames: plan.durationInFrames,
+    fps: plan.fps,
+    width: plan.width,
+    height: plan.height,
+    size_bytes: 0,
+    encoding: { codec: 'h264', crf: 18, pixel_format: 'yuv420p', faststart: true, audio: 'silent' },
+    concurrency: 1,
+    bundle: { hash: 'synthetic', cached: true, ms: 0 },
+    browser: { path: null, source: 'playwright' },
+    timings: { plan_ms: 0, bundle_ms: 0, render_ms: 0, total_ms: 0 },
+    warnings: [],
+    plan,
   };
   await writeFile(record.record, JSON.stringify(record));
 }
@@ -86,7 +115,11 @@ export async function writeRender(dir: string, plan: EditPlan, edit: string): Pr
 export async function writeReview(dir: string): Promise<void> {
   const rv = join(dir, 'review', 'bits-v1');
   await mkdir(rv, { recursive: true });
-  for (const [f, c] of [['sheet_1fps.jpg', 'navy'], ['sheet_scene_a.jpg', 'teal']]) execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=${c}:s=960x270`, '-frames:v', '1', join(rv, f)]);
+  for (const [f, c] of [
+    ['sheet_1fps.jpg', 'navy'],
+    ['sheet_scene_a.jpg', 'teal'],
+  ])
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=${c}:s=960x270`, '-frames:v', '1', join(rv, f)]);
   await writeFile(
     join(rv, 'report.json'),
     JSON.stringify({
@@ -107,14 +140,11 @@ export async function writeReview(dir: string): Promise<void> {
 /** The tour's workspace, server and browser (`prepare`: the caller's own changes to the workspace, e.g. fixture ports). */
 export async function startTour(o: { prefix: string; prepare?: (ws: string) => Promise<void> }): Promise<Tour> {
   const ws = await mkdtemp(join(tmpdir(), o.prefix));
-  const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };
+  const retakeHome = scratchHome('RETAKE_AUTHOR');
   let studio: StudioServer | undefined;
   let browser: Browser | undefined;
   const restore = () => {
-    for (const [k, val] of [['RETAKE_HOME', saved.home], ['RETAKE_AUTHOR', saved.author]] as const) {
-      if (val === undefined) delete process.env[k];
-      else process.env[k] = val;
-    }
+    retakeHome.restore();
   };
   const cleanUp = async () => {
     await browser?.close().catch(() => undefined);
@@ -123,7 +153,7 @@ export async function startTour(o: { prefix: string; prepare?: (ws: string) => P
     await rm(ws, { recursive: true, force: true });
   };
   try {
-    process.env.RETAKE_HOME = join(ws, '.home');
+    retakeHome.use(join(ws, '.home'));
     process.env.RETAKE_AUTHOR = 'Studio Person';
     const dir = await takeWorkspace(ws);
     // The fixture project (and the repository's templates: northfield uses editorial too).
@@ -136,8 +166,27 @@ export async function startTour(o: { prefix: string; prepare?: (ws: string) => P
     // A project whose persona cannot sign in by itself (no login steps): a capture asks first (the sessions dialog).
     const board = join(ws, 'projects', 'board');
     await mkdir(join(board, 'scenarios'), { recursive: true });
-    await writeFile(join(board, 'project.yaml'), ['version: 1', 'name: Board', 'environments:', '  local: {app: "http://app.test"}', '  signed-in: {app: "http://app.test"}', 'auth:', '  signed-in:', '    login_url: /sign-in', '    personas:', '      owner: {pages: [app], check: {url: "app:/members", expect_text: Members}}', 'template: editorial', ''].join('\n'));
-    await writeFile(join(board, 'scenarios', 'members.yaml'), ['version: 1', 'video: members', 'env: signed-in', 'scenes:', '  - id: list', '    page: app', '    open: /members', '    steps:', '      - hold: 0.5', ''].join('\n'));
+    await writeFile(
+      join(board, 'project.yaml'),
+      [
+        'version: 1',
+        'name: Board',
+        'environments:',
+        '  local: {app: "http://app.test"}',
+        '  signed-in: {app: "http://app.test"}',
+        'auth:',
+        '  signed-in:',
+        '    login_url: /sign-in',
+        '    personas:',
+        '      owner: {pages: [app], check: {url: "app:/members", expect_text: Members}}',
+        'template: editorial',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(
+      join(board, 'scenarios', 'members.yaml'),
+      ['version: 1', 'video: members', 'env: signed-in', 'scenes:', '  - id: list', '    page: app', '    open: /members', '    steps:', '      - hold: 0.5', ''].join('\n'),
+    );
     await o.prepare?.(ws);
     studio = await startStudioServer({ root: ws, startWorker: false, pollMs: 150, log: () => undefined });
     const v = await studio.engine.timeline.view({ project: 'demo', scenario: 'bits' });
@@ -244,8 +293,14 @@ export async function station(t: Tour, name: string, reach: () => Promise<void>,
       findings.push(...a.findings.map((f) => ({ ...f, detail: `${at} ${f.detail}` })));
       if (a.stats.statusTokens === 0) findings.push({ rule: 'colour-only', el: 'document', detail: `${at} the colour-only rule found no status token to watch` });
       const over = a.stats.unmeasured.length - (o.unmeasuredMax ?? 0);
-      if (over > 0) findings.push({ rule: 'contrast', el: 'unmeasured', detail: `${at} ${a.stats.unmeasured.length} texts unmeasured (budget ${o.unmeasuredMax ?? 0}): ${a.stats.unmeasured.slice(0, 6).join('; ')}` });
-      if (a.stats.exempt > (o.exemptMax ?? 10)) findings.push({ rule: 'contrast', el: 'exempt', detail: `${at} ${a.stats.exempt} texts exempt as disabled (budget ${o.exemptMax ?? 10}): the state toured is not the one a person edits` });
+      if (over > 0)
+        findings.push({
+          rule: 'contrast',
+          el: 'unmeasured',
+          detail: `${at} ${a.stats.unmeasured.length} texts unmeasured (budget ${o.unmeasuredMax ?? 0}): ${a.stats.unmeasured.slice(0, 6).join('; ')}`,
+        });
+      if (a.stats.exempt > (o.exemptMax ?? 10))
+        findings.push({ rule: 'contrast', el: 'exempt', detail: `${at} ${a.stats.exempt} texts exempt as disabled (budget ${o.exemptMax ?? 10}): the state toured is not the one a person edits` });
       if (SHOTS) {
         await mkdir(SHOTS, { recursive: true });
         await page.screenshot({ path: join(SHOTS, `a11y-${name}-${scheme}-${width}.png`) });
@@ -260,7 +315,9 @@ export async function station(t: Tour, name: string, reach: () => Promise<void>,
   const first = Object.values(result.all)[0];
   const families = [...new Set(Object.values(result.all).flatMap((x) => x.stats.families))];
   for (const f of families) findings.push(...(await familyWalk(page, f)));
-  t.log.push(`${name}: ${first.stats.texts} texts (${first.stats.overMedia} over media, ${first.stats.unmeasured.length} unmeasured, ${first.stats.exempt} exempt), ${first.stats.placeholders} placeholders, ${first.stats.controls} controls named, ${first.stats.selected} selected states compared (${first.stats.selectedAlone} alone), ${first.stats.statusTokens} status colours watched, ${result.walk ? `${result.walk.stops} Tab stops${result.walk.frames ? ` (${result.walk.frames} frames)` : ''}` : 'no walk'}${families.length ? `, ${families.length} shared tab stop${families.length > 1 ? 's' : ''} crossed` : ''}, ${Object.keys(result.all).join(' ')}; ${findings.length} findings`);
+  t.log.push(
+    `${name}: ${first.stats.texts} texts (${first.stats.overMedia} over media, ${first.stats.unmeasured.length} unmeasured, ${first.stats.exempt} exempt), ${first.stats.placeholders} placeholders, ${first.stats.controls} controls named, ${first.stats.selected} selected states compared (${first.stats.selectedAlone} alone), ${first.stats.statusTokens} status colours watched, ${result.walk ? `${result.walk.stops} Tab stops${result.walk.frames ? ` (${result.walk.frames} frames)` : ''}` : 'no walk'}${families.length ? `, ${families.length} shared tab stop${families.length > 1 ? 's' : ''} crossed` : ''}, ${Object.keys(result.all).join(' ')}; ${findings.length} findings`,
+  );
   return { findings, report: `${name}:\n${formatFindings(findings)}`, result };
 }
 

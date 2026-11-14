@@ -9,7 +9,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core/base';
 
 /** The package.json of the folder of a module (its package's root: the first folder up that has one). */
 function packageRoot(from: string): string | undefined {
@@ -40,7 +40,7 @@ export function buildDirs(): string[] {
   const seen = new Set<string>();
   const queue: Array<{ name: string; from: string }> = [];
   const enqueue = (root: string | undefined, from: string) => {
-    if (root) for (const name of retakeDeps(root)) if (!seen.has(name)) (seen.add(name), queue.push({ name, from }));
+    if (root) for (const name of retakeDeps(root)) if (!seen.has(name)) seen.add(name), queue.push({ name, from });
   };
   enqueue(packageRoot(own), import.meta.url);
   while (queue.length) {

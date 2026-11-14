@@ -11,7 +11,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_ID_RE, RunRecordSchema } from '@retake/core';
 import { reserveRunId } from '@retake/core/io';
-import type { RunJobInput } from '@retake/core';
+import type { Scene } from '@retake/core';
+import type { RunJobInput } from '@retake/engine';
 import {
   EngineError,
   FileJobQueue,
@@ -31,13 +32,17 @@ import {
   sha256Hex,
   signalInterrupts,
   toEngineError,
+  systemClock,
+  enginePorts,
+  diskWorkspaceReads,
 } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const INPUT: RunJobInput = {
   version: 1,
@@ -58,20 +63,19 @@ function deadPid(): number {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-jobs-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   engine = await createEngine({ root: ws, client: 'test', autoStartWorker: false });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(ws, { recursive: true, force: true });
 });
 
 describe('job ids', () => {
   it('are "j_" + a ULID, sortable in creation order', () => {
-    const ids = Array.from({ length: 50 }, () => newJobId());
+    const ids = Array.from({ length: 50 }, () => newJobId(Date.now()));
     for (const id of ids) expect(id).toMatch(JOB_ID_RE);
     expect([...ids].sort()).toEqual(ids);
     expect(new Set(ids).size).toBe(50);
@@ -141,7 +145,7 @@ describe('FileJobQueue', () => {
     await q.cancel(take.id, 'test');
     expect(await q.position(r1.id)).toEqual({ ahead: 0 });
     // A take filming on this Mac (a marker of another workspace, or a terminal) holds them too.
-    const m = FilmingMarker.open({ root: join(ws, 'elsewhere'), source: 'cli', owner: await selfIdentity() })!;
+    const m = FilmingMarker.open({ env: process.env, root: join(ws, 'elsewhere'), source: 'cli', owner: await selfIdentity() })!;
     try {
       expect(await q.position(r1.id)).toEqual({ ahead: 0, held_by: 'take' });
       expect(await q.position(dry.id)).toEqual({ ahead: 0 });
@@ -193,7 +197,10 @@ describe('FileJobQueue', () => {
   it('events: appended with increasing seq, read after a seq', async () => {
     const q = new FileJobQueue(join(ws, 'q-events'));
     const job = await q.enqueue(INPUT);
-    let seq = await q.append(job.id, 0, [{ type: 'state', state: 'running' }, { type: 'log', level: 'info', message: 'one' }]);
+    let seq = await q.append(job.id, 0, [
+      { type: 'state', state: 'running' },
+      { type: 'log', level: 'info', message: 'one' },
+    ]);
     seq = await q.append(job.id, seq, [{ type: 'log', level: 'warn', message: 'two' }]);
     expect(seq).toBe(3);
     const all = await q.events(job.id);
@@ -205,15 +212,15 @@ describe('FileJobQueue', () => {
 describe('the worker lock', () => {
   it('one holder; a stale lock (its process gone) is taken over', async () => {
     const root = join(ws, 'lock');
-    const a = await WorkerLock.acquire(root, 'b1');
+    const a = await WorkerLock.acquire(root, 'b1', systemClock);
     expect(a).not.toBeNull();
-    expect(await WorkerLock.acquire(root, 'b1')).toBeNull();
+    expect(await WorkerLock.acquire(root, 'b1', systemClock)).toBeNull();
     expect(readWorkerLock(root)).toMatchObject({ pid: process.pid, build: 'b1' });
     a!.release();
     expect(readWorkerLock(root)).toBeNull();
     await writeFile(join(root, '.retake', 'workers', 'worker.lock'), JSON.stringify({ pid: deadPid(), host: 'h', version: '0', build: 'old', since: '2026-01-01T00:00:00.000Z' }));
     const notes: string[] = [];
-    const b = await WorkerLock.acquire(root, 'b2', (m) => notes.push(m));
+    const b = await WorkerLock.acquire(root, 'b2', systemClock, (m) => notes.push(m));
     expect(b).not.toBeNull();
     expect(notes[0]).toContain('took over a stale worker lock');
     b!.release();
@@ -221,14 +228,17 @@ describe('the worker lock', () => {
 
   it('started_by (L4.2): the client that started it, a client name only — anything else is dropped, written or read', async () => {
     const root = join(ws, 'lock-started-by');
-    const a = await WorkerLock.acquire(root, 'b1', undefined, 'ui');
+    const a = await WorkerLock.acquire(root, 'b1', systemClock, undefined, 'ui');
     expect(readWorkerLock(root)).toMatchObject({ pid: process.pid, started_by: 'ui' });
     a!.release();
-    const odd = await WorkerLock.acquire(root, 'b1', undefined, 'ui <b>x</b>');
+    const odd = await WorkerLock.acquire(root, 'b1', systemClock, undefined, 'ui <b>x</b>');
     expect(readWorkerLock(root)?.started_by).toBeUndefined();
     expect(await readFile(join(root, '.retake', 'workers', 'worker.lock'), 'utf8')).not.toContain('started_by');
     odd!.release();
-    await writeFile(join(root, '.retake', 'workers', 'worker.lock'), JSON.stringify({ pid: process.pid, host: 'h', version: '0', build: 'b', since: '2026-01-01T00:00:00.000Z', started_by: '<img src=x>' }));
+    await writeFile(
+      join(root, '.retake', 'workers', 'worker.lock'),
+      JSON.stringify({ pid: process.pid, host: 'h', version: '0', build: 'b', since: '2026-01-01T00:00:00.000Z', started_by: '<img src=x>' }),
+    );
     const read = readWorkerLock(root);
     expect(read?.pid).toBe(process.pid);
     expect(read?.started_by).toBeUndefined();
@@ -247,7 +257,7 @@ describe('the worker lock', () => {
         expect(await liveWorker(root), String(pid)).toBeNull();
       }
       // The forged lock is taken over by a real worker, whose own lock (with its start time) is alive.
-      const lock = await WorkerLock.acquire(root, 'b1', undefined, 'ui');
+      const lock = await WorkerLock.acquire(root, 'b1', systemClock, undefined, 'ui');
       expect(lock).not.toBeNull();
       expect(await liveWorker(root)).toMatchObject({ pid: process.pid, started_by: 'ui' });
       lock!.release();
@@ -337,7 +347,7 @@ describe('engine.runs.submit (no worker started)', () => {
       expect(e, JSON.stringify(req)).toBeInstanceOf(EngineError);
       expect((e as EngineError).code, JSON.stringify(req)).toBe('invalid');
     }
-    expect((await engine.runs.submit({ project: 'northfield-fixture', scenario: 'nope', mode: 'dry' }).catch((x: unknown) => x as EngineError) as EngineError).code).toBe('not_found');
+    expect(((await engine.runs.submit({ project: 'northfield-fixture', scenario: 'nope', mode: 'dry' }).catch((x: unknown) => x as EngineError)) as EngineError).code).toBe('not_found');
   });
 
   it('maps the run executor errors: options → invalid, a take interrupted → cancelled, busy → busy', () => {
@@ -364,7 +374,8 @@ describe('a job runs the scenario bytes it was submitted with', () => {
     try {
       const events: unknown[] = [];
       const e = await executeRunJob({
-        ws: await openWorkspace({ root: ws }),
+        ...enginePorts(),
+        ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads }),
         cli: 'retake',
         input: sub.job.input as RunJobInput,
         signal: new AbortController().signal,
@@ -386,7 +397,7 @@ describe('a job runs the scenario bytes it was submitted with', () => {
   });
 
   it('prepareRun reads the file once: the sandbox it picks, the scenario it parses and their hash come from that one read', async () => {
-    const w = await openWorkspace({ root: ws });
+    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     const disk = join(ws, 'projects', 'northfield-fixture', 'scenarios', 'sandbox-quote.yaml');
     const onDisk = await readFile(disk, 'utf8');
@@ -406,11 +417,11 @@ describe('a job runs the scenario bytes it was submitted with', () => {
     expect(prepared.sandboxEnv).toBe('sandbox-docker');
     expect(prepared.scenario.text).toBe(first);
     expect(prepared.scenario.sha256).toBe(sha256Hex(first));
-    expect(prepared.scenario.scenario.scenes[0].steps).toContainEqual(expect.objectContaining({ hold: 2.5 }));
+    expect((prepared.scenario.scenario.scenes[0] as Scene).steps).toContainEqual(expect.objectContaining({ hold: 2.5 }));
   });
 
   it('an inspection of a scenario: the hash of the bytes it parsed, a pinned one checked on those bytes', async () => {
-    const w = await openWorkspace({ root: ws });
+    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     const text = await readFile(file());
     const pinned = await prepareInspect(w, project, { kind: 'scenario', scenario: 'quote' }, undefined);
@@ -446,7 +457,7 @@ describe('captures first in the job views (L5.14b)', () => {
     expect(heldWorkWords(watch.held()!)).toBe('a review waits for a take to finish (in this workspace)');
     await q.cancel(take.id, 'test');
     // A take filming elsewhere on this Mac (a marker of another workspace): "elsewhere", nothing of it named.
-    const m = FilmingMarker.open({ root: join(ws, 'q-yield-other'), source: 'cli', owner: await selfIdentity() })!;
+    const m = FilmingMarker.open({ env: process.env, root: join(ws, 'q-yield-other'), source: 'cli', owner: await selfIdentity() })!;
     try {
       const held = (await q.list({ kinds: ['review'] }))[0]!;
       expect(held.yield).toEqual({ state: 'waiting', cause: 'elsewhere' });

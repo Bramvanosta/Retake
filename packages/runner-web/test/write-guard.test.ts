@@ -17,7 +17,8 @@ import { WriteRefusedError, compileWritePolicy, PERSON_POLICY } from '@retake/co
 import type { LoadedProject, ResolvedEnvironment, RunProgress, Scenario, WriteMockSpec } from '@retake/core';
 import { closePage, evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { BrowserSession, GuardedWrite } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir, testHookRunner } from './helpers.js';
 
 let server: Server;
 let A = ''; // the app: guarded
@@ -28,7 +29,8 @@ let dir = '';
 
 const html = (body: string) => `<!doctype html><html><head><title>Guard</title></head><body>${body}</body></html>`;
 
-const UNLOAD = (path: string) => html(`<h1>Leaving</h1><script>
+const UNLOAD = (path: string) =>
+  html(`<h1>Leaving</h1><script>
   addEventListener('pagehide', () => {
     navigator.sendBeacon('${path}/beacon-pagehide', 'b');
     fetch('${path}/keepalive-pagehide', { method: 'POST', body: 'k', keepalive: true }).catch(() => {});
@@ -73,7 +75,9 @@ beforeAll(async () => {
       if (path === '/unload.html') return void res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }).end(UNLOAD('/api'));
       if (path === '/worker.js') return js(`onmessage = (e) => fetch(e.data, { method: 'POST', body: 'w' }).then((r) => postMessage('reached ' + r.status), () => postMessage('blocked'));`);
       if (path === '/shared.js') {
-        return js(`onconnect = (e) => { const port = e.ports[0]; port.onmessage = (m) => fetch(m.data, { method: 'POST', body: 's' }).then((r) => port.postMessage('reached ' + r.status), () => port.postMessage('blocked')); port.start(); };`);
+        return js(
+          `onconnect = (e) => { const port = e.ports[0]; port.onmessage = (m) => fetch(m.data, { method: 'POST', body: 's' }).then((r) => port.postMessage('reached ' + r.status), () => port.postMessage('blocked')); port.start(); };`,
+        );
       }
       // A page that uses fetchLater and a shared worker when the browser has them (as apps do: feature-detected).
       if (path === '/deferred.html') {
@@ -162,7 +166,11 @@ describe('the context guard: every way a page writes (R-ENV-03)', () => {
     const page = await s.session.page('app');
     await page.goto(`${A}/`);
     const out = await page.evaluate(async (L) => {
-      const fate = (p: Promise<Response>) => p.then((r) => `reached ${r.status}`, () => 'blocked');
+      const fate = (p: Promise<Response>) =>
+        p.then(
+          (r) => `reached ${r.status}`,
+          () => 'blocked',
+        );
       const xhr = () =>
         new Promise<string>((resolve) => {
           const x = new XMLHttpRequest();
@@ -237,7 +245,11 @@ describe('the context guard: every way a page writes (R-ENV-03)', () => {
         const f = document.createElement('iframe');
         document.body.append(f);
         const w = window.open('about:blank');
-        const r = [typeof (f.contentWindow as unknown as Record<string, unknown>).fetchLater, typeof (f.contentWindow as unknown as Record<string, unknown>).SharedWorker, typeof (w as unknown as Record<string, unknown>)?.SharedWorker];
+        const r = [
+          typeof (f.contentWindow as unknown as Record<string, unknown>).fetchLater,
+          typeof (f.contentWindow as unknown as Record<string, unknown>).SharedWorker,
+          typeof (w as unknown as Record<string, unknown>)?.SharedWorker,
+        ];
         w?.close();
         return r;
       }),
@@ -254,11 +266,15 @@ describe('the context guard: every way a page writes (R-ENV-03)', () => {
   it('a WebSocket to a guarded host is let through and reported (its messages are not checked)', async () => {
     const page = await s.session.page('app');
     await page.goto(`${A}/`);
-    await page.evaluate((url) => new Promise((resolve) => {
-      const ws = new WebSocket(url);
-      ws.onclose = () => resolve(null);
-      ws.onerror = () => resolve(null);
-    }), A.replace('http', 'ws') + '/live');
+    await page.evaluate(
+      (url) =>
+        new Promise((resolve) => {
+          const ws = new WebSocket(url);
+          ws.onclose = () => resolve(null);
+          ws.onerror = () => resolve(null);
+        }),
+      A.replace('http', 'ws') + '/live',
+    );
     await settle(200);
     expect(s.sockets).toEqual(['127.0.0.1']);
   });
@@ -275,7 +291,11 @@ describe('mocks, allow entries, GraphQL (R-ENV-03)', () => {
       await page.goto(`${A}/`);
       const out = await page.evaluate(async () => {
         const post = (path: string, body: unknown) => fetch(path, { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
-        const fate = (p: Promise<Response>) => p.then(async (r) => `${r.status} ${r.status === 204 ? '' : await r.text()}`.trim(), () => 'blocked');
+        const fate = (p: Promise<Response>) =>
+          p.then(
+            async (r) => `${r.status} ${r.status === 204 ? '' : await r.text()}`.trim(),
+            () => 'blocked',
+          );
         const t = performance.now();
         const quote = await fate(post('/api/quotes', { bag: '1 kg' }));
         const quoteMs = performance.now() - t;
@@ -320,7 +340,14 @@ describe('mocks, allow entries, GraphQL (R-ENV-03)', () => {
     try {
       const page = await s.session.page('app');
       await page.goto(`${A}/`);
-      const out = await page.evaluate((L) => fetch(`${L}/api/third`, { method: 'POST', body: 't' }).then((r) => `reached ${r.status}`, () => 'blocked'), L);
+      const out = await page.evaluate(
+        (L) =>
+          fetch(`${L}/api/third`, { method: 'POST', body: 't' }).then(
+            (r) => `reached ${r.status}`,
+            () => 'blocked',
+          ),
+        L,
+      );
       expect(out).toBe('reached 200');
       await settle(200);
       expect(hits).toEqual(['POST localhost /api/third']);
@@ -381,7 +408,10 @@ describe('service workers (D10): what a service worker sends meets the guard', (
         await navigator.serviceWorker.register('/sw.js');
         await navigator.serviceWorker.ready;
         for (let i = 0; i < 40 && !navigator.serviceWorker.controller; i++) await new Promise((r) => setTimeout(r, 50));
-        const proxied = await fetch('/sw-proxied').then((r) => `reached ${r.status}`, () => 'blocked');
+        const proxied = await fetch('/sw-proxied').then(
+          (r) => `reached ${r.status}`,
+          () => 'blocked',
+        );
         const background = await new Promise((resolve) => {
           navigator.serviceWorker.onmessage = (e) => resolve(e.data);
           navigator.serviceWorker.controller!.postMessage('go');
@@ -414,7 +444,15 @@ describe('the automated sign-in tab: exempt on its sign-in page only, and it byp
       const page = await (await s.session.contextOf('')).newPage();
       await s.session.markSignIn(page, onSignIn);
       await page.goto(`${A}/sign-in`);
-      const post = (path: string) => page.evaluate((p) => fetch(p, { method: 'POST', body: '{}' }).then((r) => `reached ${r.status}`, () => 'blocked'), path);
+      const post = (path: string) =>
+        page.evaluate(
+          (p) =>
+            fetch(p, { method: 'POST', body: '{}' }).then(
+              (r) => `reached ${r.status}`,
+              () => 'blocked',
+            ),
+          path,
+        );
       expect(await post('/api/auth/login')).toBe('reached 200');
       await page.goto(`${A}/`);
       expect(await post('/api/onboarding/complete')).toBe('blocked');
@@ -427,14 +465,17 @@ describe('the automated sign-in tab: exempt on its sign-in page only, and it byp
     }
   });
 
-  it('a service worker that passes POSTs through: the sign-in tab bypasses it (its sign-in POST is exempt); a capture page\'s goes through it and is stopped', async () => {
+  it("a service worker that passes POSTs through: the sign-in tab bypasses it (its sign-in POST is exempt); a capture page's goes through it and is stopped", async () => {
     const s = await guarded();
     const viaWorker = (p: import('playwright-core').Page) =>
       p.evaluate(async () => {
         await navigator.serviceWorker.register('/sw-pass.js');
         await navigator.serviceWorker.ready;
         for (let i = 0; i < 40 && !navigator.serviceWorker.controller; i++) await new Promise((r) => setTimeout(r, 50));
-        return fetch('/api/auth/login', { method: 'POST', body: '{}' }).then((r) => `reached ${r.status}`, () => 'blocked');
+        return fetch('/api/auth/login', { method: 'POST', body: '{}' }).then(
+          (r) => `reached ${r.status}`,
+          () => 'blocked',
+        );
       });
     try {
       const signIn = await (await s.session.contextOf('')).newPage();
@@ -461,7 +502,15 @@ describe('every browser of a read-only run is guarded', () => {
       for (const id of ['supplier', 'buyer', 'later']) {
         const page = await s.session.page(id);
         await page.goto(`${A}/`);
-        expect(await page.evaluate(() => fetch('/api/write', { method: 'POST' }).then(() => 'reached', () => 'blocked')), id).toBe('blocked');
+        expect(
+          await page.evaluate(() =>
+            fetch('/api/write', { method: 'POST' }).then(
+              () => 'reached',
+              () => 'blocked',
+            ),
+          ),
+          id,
+        ).toBe('blocked');
       }
       expect(s.session.contexts).toHaveLength(3);
       await settle(200);
@@ -503,7 +552,7 @@ describe('js hook tabs on a read-only run: their own guard, never mocked', () =>
   });
 });
 
-describe('js hook tabs never have fetchLater nor SharedWorker (their requests would escape the tab\'s own guard)', () => {
+describe("js hook tabs never have fetchLater nor SharedWorker (their requests would escape the tab's own guard)", () => {
   it('on a read-write run too (the allow-list guard)', async () => {
     const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     const opts = { project: makeProject(dir, { app: A }), env: { name: 'test', pages: { app: A } }, log: () => undefined };
@@ -545,7 +594,15 @@ describe('a read-only run (R-ENV-03)', () => {
         },
       ],
     };
-    const rec = await runScenario({ policy: PERSON_POLICY, project: project(), scenario: makeScenario('ro-form', scenario), mode: 'capture', env: 'test', runId: `ro-form-${Date.now()}`, onProgress: (e) => events.push(e) });
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
+      project: project(),
+      scenario: makeScenario('ro-form', scenario),
+      mode: 'capture',
+      env: 'test',
+      runId: `ro-form-${Date.now()}`,
+      onProgress: (e) => events.push(e),
+    });
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     const tl = await readTimeline(rec.timeline!);
@@ -554,7 +611,9 @@ describe('a read-only run (R-ENV-03)', () => {
     expect(tl.warnings.filter((w) => w.includes('did not commit'))).toEqual([]);
     const stopped = tl.warnings.filter((w) => w.startsWith('a write was stopped'));
     expect(stopped).toHaveLength(1);
-    expect(stopped[0]).toMatch(/^a write was stopped \(POST app:\/api\/form, step request\.0, \d+\.\d s\): environment test is read-only — the app may show an error; answer it with a mock \(`mocks:` of the scenario\)$/);
+    expect(stopped[0]).toMatch(
+      /^a write was stopped \(POST app:\/api\/form, step request\.0, \d+\.\d s\): environment test is read-only — the app may show an error; answer it with a mock \(`mocks:` of the scenario\)$/,
+    );
     expect(tl.environment).toMatchObject({ name: 'test', production: true, access: 'read-only' });
     const writes = tl.environment!.writes!;
     expect(writes.map((w) => [w.method, w.outcome, w.via, w.status ?? null, typeof w.t])).toEqual([
@@ -570,7 +629,8 @@ describe('a read-only run (R-ENV-03)', () => {
   });
 
   it('a js setup hook whose write is stopped is refused (read-only), never mocked; nothing reached the server', async () => {
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: project(),
       scenario: makeScenario('ro-hook', {
         pacing: FAST,
@@ -582,6 +642,7 @@ describe('a read-only run (R-ENV-03)', () => {
       hooks: 'run',
       env: 'test',
       runId: `ro-hook-${Date.now()}`,
+      hookRunner: testHookRunner(),
     });
     expect(rec.status).toBe('failed');
     expect(rec.hooks.setup).toBe('failed');
@@ -597,7 +658,8 @@ describe('a read-only run (R-ENV-03)', () => {
     p.config.environments.production = { app: A };
     p.config.environment_settings = { production: { production: true } };
     const events: RunProgress[] = [];
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: p,
       scenario: makeScenario('rw-cross', {
         pacing: FAST,
@@ -620,15 +682,19 @@ describe('a read-only run (R-ENV-03)', () => {
       hooks: 'run',
       env: 'test',
       runId: `rw-cross-${Date.now()}`,
+      hookRunner: testHookRunner(),
       onProgress: (e) => events.push(e),
     });
     expect(rec.status).toBe('failed');
     // The js hook's write to production's host was refused (never tolerated by `optional`).
-    expect(rec.error?.message).toContain(`refusing a hook that writes (POST ${new URL(A).host}/api/hook-reset, stopped in its tab) to a host of environment production — this run is on environment test`);
+    expect(rec.error?.message).toContain(
+      `refusing a hook that writes (POST ${new URL(A).host}/api/hook-reset, stopped in its tab) to a host of environment production — this run is on environment test`,
+    );
     expect(hits).toEqual([]);
     // Without the hook: the page's write to its own host passes, the one to production's host is stopped.
     hits.length = 0;
-    const rec2 = await runScenario({ policy: PERSON_POLICY,
+    const rec2 = await runScenario({
+      policy: PERSON_POLICY,
       project: p,
       scenario: makeScenario('rw-cross2', {
         pacing: FAST,
@@ -657,13 +723,18 @@ describe('a read-only run (R-ENV-03)', () => {
     const tl = await readTimeline(rec2.timeline!);
     expect(tl.environment?.access).toBe('read-write');
     expect(tl.environment?.writes?.map((w) => [w.method, w.url, w.outcome, w.via, w.protected_by])).toEqual([['POST', `${A}/api/prod`, 'blocked', 'page', 'production']]);
-    expect(tl.warnings.filter((w) => w.startsWith('a write was stopped'))).toEqual([expect.stringMatching(/^a write was stopped \(POST 127\.0\.0\.1:\d+\/api\/prod, step a\.0, [\d.]+ s\): 127\.0\.0\.1 is a host of read-only environment production, and this run is on environment test/)]);
+    expect(tl.warnings.filter((w) => w.startsWith('a write was stopped'))).toEqual([
+      expect.stringMatching(
+        /^a write was stopped \(POST 127\.0\.0\.1:\d+\/api\/prod, step a\.0, [\d.]+ s\): 127\.0\.0\.1 is a host of read-only environment production, and this run is on environment test/,
+      ),
+    ]);
     expect(events.some((e) => e.type === 'log' && e.message === 'writes to the hosts of read-only environment production (127.0.0.1) are stopped')).toBe(true);
   });
 
   it('a read-write run arms nothing: the same writes reach the server, no environment writes', async () => {
     const p = makeProject(dir, { app: A });
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: p,
       scenario: makeScenario('rw-form', { pacing: FAST, scenes: [{ id: 'a', page: 'app', open: '/', steps: [{ eval: `await fetch('/api/quotes', { method: 'POST', body: '{}' })` }] }] }),
       mode: 'dry',

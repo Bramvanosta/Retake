@@ -13,6 +13,8 @@ import type { HookApprovalRequest } from '@retake/hooks';
 import { writingHooks } from '@retake/core';
 import type { HookAccess, HookStep } from '@retake/core';
 import { makeContext, makeProject, startApi, tempProject } from './helpers.js';
+import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
+import { AGENT_CONFINEMENT } from '@retake/core';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
 let api: Awaited<ReturnType<typeof startApi>>;
@@ -51,14 +53,16 @@ describe('hook trust', () => {
   });
 
   it('from the Studio (via studio, L4.2): the same refusals, worded for a Studio user — never MCP', async () => {
-    const refused = await runHooks([DELETE_CONFIRMED], context({ trust: 'mcp', via: 'studio' }).ctx, { phase: 'teardown', journal: await journal() });
+    const refused = await runHooks([DELETE_CONFIRMED], context({ trust: 'mcp', via: STUDIO_CONFINEMENT }).ctx, { phase: 'teardown', journal: await journal() });
     expect(refused.results[0]).toMatchObject({ status: 'refused' });
     expect(refused.results[0].error).toContain('without a human approval: from the Studio, "confirm: true" does not count and the Studio cannot approve hooks yet — run it in a terminal');
-    const ro = await runHooks([SHELL_READS], context({ trust: 'mcp', via: 'studio', access: READ_ONLY }).ctx, { phase: 'teardown', journal: await journal() });
+    const ro = await runHooks([SHELL_READS], context({ trust: 'mcp', via: STUDIO_CONFINEMENT, access: READ_ONLY }).ctx, { phase: 'teardown', journal: await journal() });
     expect(ro.results[0].status).toBe('refused');
     expect(ro.results[0].error).toContain('from the Studio a shell hook always counts as writing');
     for (const r of [...refused.results, ...ro.results]) expect(r.error).not.toMatch(/MCP/);
-    expect(writingHooks({ teardown: [SHELL_READS] }, { trust: 'mcp', via: 'studio' })[0].reason).toBe('a shell command (from the Studio a shell hook always counts as writing: its `writes: false` is not trusted)');
+    expect(writingHooks({ teardown: [SHELL_READS] }, { trust: 'mcp', via: STUDIO_CONFINEMENT })[0].reason).toBe(
+      'a shell command (from the Studio a shell hook always counts as writing: its `writes: false` is not trusted)',
+    );
     expect(api.requests).toEqual([]);
   });
 
@@ -115,7 +119,7 @@ describe('hook trust', () => {
     expect(asked).toEqual([]);
   });
 
-  it('the runner\'s static check of a read-only run counts a `writes: false` shell hook as writing with trust mcp', () => {
+  it("the runner's static check of a read-only run counts a `writes: false` shell hook as writing with trust mcp", () => {
     expect(writingHooks({ setup: [SHELL_READS] })).toEqual([]);
     expect(writingHooks({ setup: [SHELL_READS] }, { trust: 'mcp' })).toEqual([
       { phase: 'setup', index: 0, name: 'echo', reason: 'a shell command (through MCP a shell hook always counts as writing: its `writes: false` is not trusted)' },
@@ -140,7 +144,10 @@ describe('hook trust', () => {
 });
 
 describe('trust mcp: rollbacks and referenced files', () => {
-  const ARMED: HookStep = { name: 'arm', http: { method: 'POST', url: '{{console}}/api/replies', json: { text: 'x' }, rollback: { method: 'DELETE', url: '{{console}}/api/replies/{{response.json.id}}' } } };
+  const ARMED: HookStep = {
+    name: 'arm',
+    http: { method: 'POST', url: '{{console}}/api/replies', json: { text: 'x' }, rollback: { method: 'DELETE', url: '{{console}}/api/replies/{{response.json.id}}' } },
+  };
   const UNDO_POST: HookStep = { name: 'undo-post', http: { method: 'POST', url: '{{console}}/api/replies', json: { text: 'y' }, rollback: { method: 'POST', url: '{{console}}/api/replies' } } };
   const PLAIN: HookStep = { name: 'plain', http: { method: 'POST', url: '{{console}}/api/replies', json: { text: 'z' } } };
   const JS_UNDO: HookStep = { name: 'js-undo', js: { code: 'return 1', rollback: 'localStorage.clear()' } };
@@ -226,6 +233,13 @@ describe('trust mcp: rollbacks and referenced files', () => {
     expect(changed.results[0]).toMatchObject({ status: 'refused' });
   });
 
+  it('a file named inside a command or process substitution is bound too (its words read as a script)', async () => {
+    await mkdir(join(tmp.dir, 'scripts'), { recursive: true });
+    for (const f of ['a.sql', 'b.txt', 'c.sh']) await writeFile(join(tmp.dir, 'scripts', f), f);
+    const hook: HookStep = { name: 'seed', shell: { run: 'psql -c "$(cat ./scripts/a.sql)" && echo `cat ./scripts/b.txt` && diff <(sh ./scripts/c.sh) x' }, writes: false };
+    expect(Object.keys(hookFiles(hook, { projectDir: tmp.dir }).files).sort()).toEqual(['./scripts/a.sql', './scripts/b.txt', './scripts/c.sh']);
+  });
+
   it('a hook written by the agent may not set a loader variable — in its env, as a NAME= word before the program or an env / export argument, its rollback too; nothing runs', async () => {
     const confirm = vi.fn(() => true);
     const marker = join(tmp.dir, 'ran');
@@ -243,13 +257,28 @@ describe('trust mcp: rollbacks and referenced files', () => {
     expect(res.results[0].error).toBe(
       'refusing shell hook: it uses its env `NODE_OPTIONS` (a loader variable) — a shell hook written through MCP is plain words (letters, digits and . / : = @ % + , - _) separated by single spaces, commands joined by ` && `, with no saved response or secret in it: have a person put it in hooks/<name>.yaml (`retake hooks run <project> hooks/<name>.yaml`), or run it in a terminal',
     );
-    const expected = ['its env `NODE_OPTIONS`', '`LD_PRELOAD=` (it sets LD_PRELOAD', '`PATH=` (it sets PATH', '`GIT_DIR=` (it sets GIT_DIR', 'its rollback uses `HOME=` (it sets HOME', 'its env name `BASH_FUNC_touch%%`', 'its env `PSQLRC`'];
+    const expected = [
+      'its env `NODE_OPTIONS`',
+      '`LD_PRELOAD=` (it sets LD_PRELOAD',
+      '`PATH=` (it sets PATH',
+      '`GIT_DIR=` (it sets GIT_DIR',
+      'its rollback uses `HOME=` (it sets HOME',
+      'its env name `BASH_FUNC_touch%%`',
+      'its env `PSQLRC`',
+    ];
     for (const [i, hook] of hooks.entries()) {
-      const one = await runHooks([hook], context({ trust: 'mcp', via: i === 2 ? 'studio' : 'mcp', confirmDestructive: confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true });
+      const one = await runHooks([hook], context({ trust: 'mcp', via: i === 2 ? STUDIO_CONFINEMENT : AGENT_CONFINEMENT, confirmDestructive: confirm }).ctx, {
+        phase: 'setup',
+        journal: await journal(),
+        agentWritten: true,
+      });
       expect(one.results[0].status, hook.name).toBe('refused');
       expect(one.results[0].error, hook.name).toContain(expected[i]);
     }
-    expect((await runHooks([hooks[2]], context({ trust: 'mcp', via: 'studio', confirmDestructive: confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true })).results[0].error).toContain('a shell hook written from the Studio is plain words');
+    expect(
+      (await runHooks([hooks[2]], context({ trust: 'mcp', via: STUDIO_CONFINEMENT, confirmDestructive: confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true })).results[0]
+        .error,
+    ).toContain('a shell hook written from the Studio is plain words');
     // A dry run (the submit's preflight) refuses it the same way, before anyone is asked.
     const dry = await runHooks([hooks[1]], context({ trust: 'mcp', dryRun: true }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true });
     expect(dry.results[0].status).toBe('refused');
@@ -272,13 +301,23 @@ describe('trust mcp: rollbacks and referenced files', () => {
   it("a project hook rendered with the agent's variables counts as the agent's (HookContext.agentVars); one using a person's variable does not", async () => {
     const confirm = vi.fn(() => true);
     const hook: HookStep = { name: 'warm', shell: { run: '{{vars.prefix}} echo warm' } };
-    const agent = await runHooks([hook], context({ trust: 'mcp', vars: { prefix: 'PATH=/tmp/bin' }, agentVars: ['prefix'], confirmDestructive: confirm }).ctx, { phase: 'step', journal: await journal() });
+    const agent = await runHooks([hook], context({ trust: 'mcp', vars: { prefix: 'PATH=/tmp/bin' }, agentVars: ['prefix'], confirmDestructive: confirm }).ctx, {
+      phase: 'step',
+      journal: await journal(),
+    });
     expect(agent.results[0].status).toBe('refused');
     expect(agent.results[0].error).toContain('it sets PATH');
     // A bare {{prefix}} is the same variable.
-    const bare = await runHooks([{ name: 'warm', shell: { run: '{{prefix}} echo warm' } }], context({ trust: 'mcp', vars: { prefix: 'PATH=/tmp/bin' }, agentVars: ['prefix'], confirmDestructive: confirm }).ctx, { phase: 'step', journal: await journal() });
+    const bare = await runHooks(
+      [{ name: 'warm', shell: { run: '{{prefix}} echo warm' } }],
+      context({ trust: 'mcp', vars: { prefix: 'PATH=/tmp/bin' }, agentVars: ['prefix'], confirmDestructive: confirm }).ctx,
+      { phase: 'step', journal: await journal() },
+    );
     expect(bare.results[0].status).toBe('refused');
-    const person = await runHooks([hook], context({ trust: 'mcp', vars: { prefix: 'PATH=/usr/bin:/bin', sku: 'x' }, agentVars: ['sku'], confirmDestructive: confirm }).ctx, { phase: 'step', journal: await journal() });
+    const person = await runHooks([hook], context({ trust: 'mcp', vars: { prefix: 'PATH=/usr/bin:/bin', sku: 'x' }, agentVars: ['sku'], confirmDestructive: confirm }).ctx, {
+      phase: 'step',
+      journal: await journal(),
+    });
     expect(person.results[0].status).toBe('ok');
   });
 
@@ -353,7 +392,7 @@ describe('trust mcp: rollbacks and referenced files', () => {
       expect(dry.results[0].error, `${hook.name} (dry)`).toContain(expected[i]);
     }
     // From the Studio, worded for it.
-    const studio = await runHooks([hooks[0]], context({ trust: 'mcp', via: 'studio', confirmDestructive: confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true });
+    const studio = await runHooks([hooks[0]], context({ trust: 'mcp', via: STUDIO_CONFINEMENT, confirmDestructive: confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true });
     expect(studio.results[0].error).toContain('a shell hook written from the Studio is plain words');
     expect(confirm).not.toHaveBeenCalled();
     expect(existsSync(marker)).toBe(false);
@@ -394,7 +433,11 @@ describe('trust mcp: rollbacks and referenced files', () => {
     // A saved response has no value when the hook is asked about: refused in the preflight and the run, however written.
     for (const run of ['echo id {{hooks.reply.json.id}}', 'echo {{ hooks .reply.status }}']) {
       for (const dryRun of [true, false]) {
-        const r = await runHooks([post, { name: 'saved', shell: { run } }], context({ trust: 'mcp', dryRun, confirmDestructive: confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true });
+        const r = await runHooks([post, { name: 'saved', shell: { run } }], context({ trust: 'mcp', dryRun, confirmDestructive: confirm }).ctx, {
+          phase: 'setup',
+          journal: await journal(),
+          agentWritten: true,
+        });
         expect(r.results[1].status, `${run} dry=${dryRun}`).toBe('refused');
         expect(r.results[1].error).toContain('(a saved response: its value is not known when the hook is asked about)');
       }

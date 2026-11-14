@@ -16,7 +16,23 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, readlink, realpath, rm, stat, s
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DISCOVERY_VERSION, EngineError, LOOPBACK, claimDiscovery, discoveryFile, isLoopbackAddress, listenLoopback, newSecret, readDiscovery, readStudioToken, releaseDiscovery, releaseStudioToken, selfIdentity, studioTokenFile, writeStudioToken } from '../src/index.js';
+import {
+  DISCOVERY_VERSION,
+  EngineError,
+  LOOPBACK,
+  claimDiscovery,
+  discoveryFile,
+  isLoopbackAddress,
+  listenLoopback,
+  newSecret,
+  readDiscovery,
+  readStudioToken,
+  releaseDiscovery,
+  releaseStudioToken,
+  selfIdentity,
+  studioTokenFile,
+  writeStudioToken,
+} from '../src/index.js';
 import type { DiscoveryRecord } from '../src/index.js';
 
 let ws: string;
@@ -44,7 +60,10 @@ describe('listenLoopback', () => {
       expect(a.address()).toMatchObject({ address: '127.0.0.1', family: 'IPv4', port });
       expect(LOOPBACK).toBe('127.0.0.1');
       const b = createServer();
-      const e = await listenLoopback(b, port).then(() => undefined, (x: unknown) => x);
+      const e = await listenLoopback(b, port).then(
+        () => undefined,
+        (x: unknown) => x,
+      );
       expect(e).toBeInstanceOf(EngineError);
       expect((e as EngineError).code).toBe('busy');
       for (const bad of [-1, 65536, 1.5, Number.NaN]) await expect(listenLoopback(createServer(), bad)).rejects.toMatchObject({ code: 'invalid' });
@@ -154,7 +173,10 @@ describe('discovery file', () => {
     try {
       await mkdir(join(dir, '.retake'), { mode: 0o500 });
       await chmod(join(dir, '.retake'), 0o500);
-      const e = await claimDiscovery(discoveryFile(dir), await record(4112)).then(() => undefined, (x: unknown) => x);
+      const e = await claimDiscovery(discoveryFile(dir), await record(4112)).then(
+        () => undefined,
+        (x: unknown) => x,
+      );
       expect(e).toBeInstanceOf(EngineError);
       expect(e).toMatchObject({ code: 'refused', message: expect.stringContaining('is not writable (EACCES)'), fix: expect.stringContaining('chmod u+w') });
     } finally {
@@ -167,7 +189,14 @@ describe('discovery file', () => {
     const file = discoveryFile(ws);
     const r = await record(4108);
     const secret = newSecret();
-    for (const bad of [{ ...r, url: `http://127.0.0.1:4108/#c=${secret}` }, { ...r, port: 0, url: 'http://127.0.0.1:0/' }, { ...r, version: 3 }, { ...r, token: secret }, { ...r, version: 1 }, { ...r, version: 1, token: 'short' }]) {
+    for (const bad of [
+      { ...r, url: `http://127.0.0.1:4108/#c=${secret}` },
+      { ...r, port: 0, url: 'http://127.0.0.1:0/' },
+      { ...r, version: 3 },
+      { ...r, token: secret },
+      { ...r, version: 1 },
+      { ...r, version: 1, token: 'short' },
+    ]) {
       await writeFile(file, JSON.stringify(bad), { mode: 0o600 });
       expect(await readDiscovery(file)).toBeNull();
       await rm(file);

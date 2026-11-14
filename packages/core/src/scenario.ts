@@ -1,9 +1,9 @@
 import { parse as parseYamlText, parseDocument } from 'yaml';
 import { checkScenario } from './checks/scenario.js';
 import { FORMAT_VERSIONS, newerFormatMessage } from './formats.js';
-import type { ScenarioCheckOptions } from './checks/scenario.js';
+import type { ScenarioCheckFields, ScenarioCheckOptions } from './checks/scenario.js';
+import type { CheckFiles } from './file-facts.js';
 import { hasErrors, issuesMessage } from './issues.js';
-import { SLUG_RE } from './schemas/primitives.js';
 import { ScenarioSchema } from './schemas/scenario.js';
 import type { LoadedProject, LoadedScenario, Scenario, ValidationIssue } from './types.js';
 import { checkYamlDocument } from './validation/document.js';
@@ -13,7 +13,7 @@ import { canonicalJson } from './canonical-json.js';
 import { GUIDE, missingOrInvalid } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
 
-export type { ScenarioCheckOptions } from './checks/scenario.js';
+export type { ScenarioCheckFields, ScenarioCheckOptions } from './checks/scenario.js';
 export { ARTEFACT_SLOTS, DOCUMENT_FILE_EXTENSIONS, isDocumentPath } from './checks/scenario.js';
 
 /** Thrown when a scenario has error-level issues (or cannot be found / saved). */
@@ -127,8 +127,8 @@ export function scenarioSourceEnv(text: string): string | undefined {
   return typeof env === 'string' ? env : undefined;
 }
 
-/** Validate a scenario source of a project. Throws ScenarioError on any error-level issue. */
-export function parseScenarioSource(project: LoadedProject, src: ScenarioSource, opts: Omit<ScenarioCheckOptions, 'project' | 'file'> = {}): LoadedScenario {
+/** Validate a scenario source of a project (its files looked at through `opts.files`). Throws ScenarioError on any error-level issue. */
+export function parseScenarioSource(project: LoadedProject, src: ScenarioSource, opts: Omit<ScenarioCheckFields, 'project' | 'file' | 'files'> & { files: CheckFiles }): LoadedScenario {
   const { scenario, issues } = parseScenario(src.text, { ...opts, file: src.file, project });
   if (!scenario) throw new ScenarioError(issuesMessage('scenario', issues, src.file), issues, src.file);
   return { name: src.name, file: src.file, text: src.text, sha256: src.sha256, scenario, issues };

@@ -94,7 +94,11 @@ export function progressWords(s: UpdateStatus): { state: MarkState; title: strin
       if (verifying(s)) return { state: 'running', title: 'Checking the signature', text: `${APP_NAME} checks the update against the key it was built with.` };
       return { state: 'running', title: `Downloading v${s.version}`, text: `${APP_NAME} downloads the update, then checks its signature against the key it was built with. Later stops it.` };
     case 'waiting':
-      return { state: 'running', title: `Waiting for ${s.jobs === 1 ? 'a job' : `${s.jobs} jobs`}`, text: `${APP_NAME} restarts once ${s.jobs === 1 ? 'the job' : `the ${s.jobs} jobs`} of this workspace end. Later stops waiting.` };
+      return {
+        state: 'running',
+        title: `Waiting for ${s.jobs === 1 ? 'a job' : `${s.jobs} jobs`}`,
+        text: `${APP_NAME} restarts once ${s.jobs === 1 ? 'the job' : `the ${s.jobs} jobs`} of this workspace end. Later stops waiting.`,
+      };
     case 'installing':
       return {
         state: 'running',
@@ -108,7 +112,9 @@ export function progressWords(s: UpdateStatus): { state: MarkState; title: strin
     case 'off':
       return { state: 'fail', title: 'Updates are off', text: s.reason && s.reason !== 'not_supervised' ? OFF_WORDS[s.reason] : OFF_WORDS.build };
     case 'failed':
-      return s.failure ? { state: 'fail', title: s.failure === 'not_writable' ? 'The update cannot be installed here' : 'The update did not go through', text: failureWords(s.failure, s.current ?? '') } : null;
+      return s.failure
+        ? { state: 'fail', title: s.failure === 'not_writable' ? 'The update cannot be installed here' : 'The update did not go through', text: failureWords(s.failure, s.current ?? '') }
+        : null;
     default:
       return null;
   }

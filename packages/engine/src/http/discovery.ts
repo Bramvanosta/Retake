@@ -23,6 +23,7 @@
  * A record of an older Retake (version 1, which also held the token) is read for its holder only: its token is never
  * used — a live holder is named (stop it, then run retake ui again), a dead one replaced.
  */
+import type { EngineEnv } from '../env.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { chmod, link, lstat, mkdir, readFile, realpath, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -199,7 +200,7 @@ export interface StudioTokenRecord {
 }
 
 /** The folder of the Studio token records: `<Retake home>/ui`. */
-export function studioTokenDir(env: NodeJS.ProcessEnv = process.env): string {
+export function studioTokenDir(env: EngineEnv): string {
   return join(retakeHome(env), 'ui');
 }
 
@@ -209,7 +210,7 @@ async function realRoot(root: string): Promise<string> {
 }
 
 /** `<Retake home>/ui/<sha256 of the workspace's real path, 16 hex>.token`. */
-export async function studioTokenFile(root: string, env: NodeJS.ProcessEnv = process.env): Promise<string> {
+export async function studioTokenFile(root: string, env: EngineEnv): Promise<string> {
   const real = await realRoot(root);
   return join(studioTokenDir(env), `${createHash('sha256').update(real, 'utf8').digest('hex').slice(0, 16)}.token`);
 }

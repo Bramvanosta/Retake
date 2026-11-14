@@ -15,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
 import { CAP_CARRY_MS, FilmingMarker, FilmingWatch, MARKER_MAX_BYTES, capturesDir, capturesLocation, selfIdentity, workspaceCaptureId } from '../src/index.js';
 import type { ProcessIdentity } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 
 let base: string;
 let dir: string;
@@ -128,7 +128,7 @@ describe('filming markers (L5.14)', () => {
     expect((await new FilmingWatch({ root: wsB, env }).scan()).holding).toBe(false);
   });
 
-  it('stale: an old time (no heartbeat), a dead pid, a pid of another start time or without one, another user\'s pid — never held, removed', async () => {
+  it("stale: an old time (no heartbeat), a dead pid, a pid of another start time or without one, another user's pid — never held, removed", async () => {
     clear();
     const old = FilmingMarker.open({ root: wsA, source: 'cli', owner: me, env, beatMs: 3_600_000 })!;
     const past = new Date(Date.now() - 60_000);
@@ -173,7 +173,7 @@ describe('filming markers (L5.14)', () => {
     m.closeSync();
   });
 
-  it('a newer copy\'s marker (v 2) with a live owner holds; a malformed one is ignored; tmp names are never read', async () => {
+  it("a newer copy's marker (v 2) with a live owner holds; a malformed one is ignored; tmp names are never read", async () => {
     clear();
     writeMarker({ v: 2, pid: me.pid, started_at: me.started_at, ws: 'y', source: 'job', more: true });
     writeFileSync(join(dir, `k_${ulid()}.json`), '{not json');
@@ -195,7 +195,7 @@ describe('filming markers (L5.14)', () => {
     m.closeSync();
   });
 
-  it('the cap counts holding time from each reader\'s first sight; a rewritten marker does not restart it; a long gap counts 5 s', async () => {
+  it("the cap counts holding time from each reader's first sight; a rewritten marker does not restart it; a long gap counts 5 s", async () => {
     clear();
     let t = 1_000_000;
     const capEnv = { ...env, RETAKE_CAPTURE_HOLD_MAX_MIN: '0.2' }; // 12 s
@@ -218,7 +218,7 @@ describe('filming markers (L5.14)', () => {
     m.closeSync();
   });
 
-  it('review A L2 / B L4: the cap is the owner\'s — a renamed file, or one removed as stale and written again, does not restart it; a new take after a pause in its markers does', async () => {
+  it("review A L2 / B L4: the cap is the owner's — a renamed file, or one removed as stale and written again, does not restart it; a new take after a pause in its markers does", async () => {
     clear();
     let t = 2_000_000;
     const capEnv = { ...env, RETAKE_CAPTURE_HOLD_MAX_MIN: '0.2' }; // 12 s
@@ -262,7 +262,7 @@ describe('the owner of a marker (L5.14)', () => {
     const mod = join(REPO, 'packages/engine/src/jobs/captures.ts');
     const proc = join(REPO, 'packages/engine/src/jobs/proc.ts');
     const script = `const { FilmingMarker } = await import(${JSON.stringify(mod)}); const { selfIdentity } = await import(${JSON.stringify(proc)});
-      const m = FilmingMarker.open({ root: ${JSON.stringify(wsA)}, source: 'cli', owner: await selfIdentity(), beatMs: 100 }); process.stdout.write(m.name + '\\n'); ${code}`;
+      const m = FilmingMarker.open({ env: process.env, root: ${JSON.stringify(wsA)}, source: 'cli', owner: await selfIdentity(), beatMs: 100 }); process.stdout.write(m.name + '\\n'); ${code}`;
     const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', '--input-type=module', '-e', script], { cwd: REPO, env, stdio: ['ignore', 'pipe', 'inherit'] });
     children.push(child);
     let out = '';

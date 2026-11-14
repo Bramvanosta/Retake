@@ -19,30 +19,17 @@
  *   must have the stored result hash, and the hunks must be the canonical diff of those bytes — else nothing is shown as
  *   exact, previewed or applied.
  */
-import {
-  CommentProposalSchema,
-  canonicalJson,
-  PROPOSAL_CHANGED_LINES_MAX,
-  SCENARIO_EDIT_MAX_CHARS,
-  ScenarioError,
-  applyHunks,
-  diffLines,
-  filmedChangesOf,
-  joinLines,
-  lineBreaks,
-  parseYaml,
-  proposalHunksProblem,
-  proposalLineProblem,
-  sameHunks,
-  textEol,
-  textLines,
-} from '@retake/core';
-import type { CommentProposal, LoadedProject, ValidationIssue, WorkFileFacts } from '@retake/core';
+import { canonicalJson, applyHunks, diffLines, joinLines, lineBreaks, parseYaml, sameHunks, textLines } from '@retake/core/base';
+import { SCENARIO_EDIT_MAX_CHARS, ScenarioError, filmedChangesOf, textEol } from '@retake/core/scenario';
+import { CommentProposalSchema, PROPOSAL_CHANGED_LINES_MAX, proposalHunksProblem, proposalLineProblem } from '@retake/core/comments';
+import type { LoadedProject, ValidationIssue, WorkFileFacts } from '@retake/core/model';
+import type { CommentProposal } from '@retake/core/comments';
 import type { ComponentRegistry } from '@retake/components';
 import { EngineError } from './errors.js';
 import { getScenario, prepareScenarioEdit } from './scenarios.js';
 import type { ScenarioText } from './scenarios.js';
 import { sha256Hex } from './storage.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /** Context lines shown around each change of a proposal (the only lines the diff leaves out are unchanged ones). */
 export const PROPOSAL_CONTEXT_LINES = 3;
@@ -144,7 +131,10 @@ function restage(e: unknown, stage: Stage): unknown {
 function fileEol(today: ScenarioText, stage: Stage): '\n' | '\r\n' {
   const lb = lineBreaks(today.yaml);
   if (lb.crlf > 0 && lb.lf > 0) {
-    throw new EngineError('refused', `not ${stage}: ${today.file} mixes LF and CR LF line breaks — a proposal is shown and applied line by line, so the file's line breaks must be one kind: fix them in your editor`);
+    throw new EngineError(
+      'refused',
+      `not ${stage}: ${today.file} mixes LF and CR LF line breaks — a proposal is shown and applied line by line, so the file's line breaks must be one kind: fix them in your editor`,
+    );
   }
   return textEol(today.yaml);
 }
@@ -165,11 +155,16 @@ export async function checkProposedText(
   today: ScenarioText,
   text: string,
   stage: Stage,
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<ValidationIssue[]> {
   let prepared: Awaited<ReturnType<typeof prepareScenarioEdit>>;
   try {
-    prepared = await prepareScenarioEdit(project, scenario, { hash: today.hash, edit: { kind: 'replace_text', text } }, { agent: true, via: 'studio', files: o.files, ...(o.registry ? { registry: o.registry } : {}) });
+    prepared = await prepareScenarioEdit(
+      project,
+      scenario,
+      { hash: today.hash, edit: { kind: 'replace_text', text } },
+      { agent: true, via: 'studio', files: o.files, reads: o.reads, ...(o.registry ? { registry: o.registry } : {}) },
+    );
   } catch (e) {
     throw restage(e, stage);
   }
@@ -202,11 +197,17 @@ export async function checkProposedText(
  * `conflict` (the file changed since Claude read it), `invalid` (the text: line breaks, caps, identical), `refused`
  * (what the Studio would refuse), ScenarioError (validation errors, with their lines).
  */
-export async function buildProposal(project: LoadedProject, scenario: string, input: ProposalInput, o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts }): Promise<BuiltProposal> {
+export async function buildProposal(
+  project: LoadedProject,
+  scenario: string,
+  input: ProposalInput,
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
+): Promise<BuiltProposal> {
   if (!input || typeof input !== 'object') throw invalid('a proposal is {scenario_yaml, scenario_hash}', 'proposal');
   const raw = input.scenario_yaml;
   if (typeof raw !== 'string' || raw.trim() === '') throw invalid('proposal.scenario_yaml is the whole new text of the scenario file', 'proposal.scenario_yaml');
-  if (raw.length > SCENARIO_EDIT_MAX_CHARS) throw invalid(`proposal.scenario_yaml holds ${raw.length.toLocaleString('en')} characters: at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')}`, 'proposal.scenario_yaml');
+  if (raw.length > SCENARIO_EDIT_MAX_CHARS)
+    throw invalid(`proposal.scenario_yaml holds ${raw.length.toLocaleString('en')} characters: at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')}`, 'proposal.scenario_yaml');
   if (typeof input.scenario_hash !== 'string' || !/^[0-9a-f]{64}$/.test(input.scenario_hash)) {
     throw invalid('proposal.scenario_hash is the hash scenario_get returned for the file (64 hex characters)', 'proposal.scenario_hash');
   }
@@ -226,7 +227,7 @@ export async function buildProposal(project: LoadedProject, scenario: string, in
   const eol = fileEol(today, 'proposed');
   const lb = lineBreaks(raw);
   if (lb.cr > 0) throw invalid('not proposed: the text holds a carriage return without a line feed (an editor shows a line break there, YAML reads none)', 'proposal.scenario_yaml');
-  if (lb.crlf > 0 && lb.lf > 0) throw invalid('not proposed: the text mixes LF and CR LF line breaks — use one kind (the file\'s own)', 'proposal.scenario_yaml');
+  if (lb.crlf > 0 && lb.lf > 0) throw invalid("not proposed: the text mixes LF and CR LF line breaks — use one kind (the file's own)", 'proposal.scenario_yaml');
   const baseLines = textLines(today.yaml);
   const lines = textLines(raw);
   const text = joinLines(lines, eol);
@@ -244,9 +245,13 @@ export async function buildProposal(project: LoadedProject, scenario: string, in
     for (const [j, l] of h.del.entries()) {
       const p = proposalLineProblem(l);
       if (p) {
-        throw new EngineError('refused', `not proposed: line ${h.at + j} of ${today.file} ${p.startsWith('it holds ') ? p.slice('it '.length) : `is ${p}`} — a proposal never removes or changes such a line: the person changes it in their editor`, {
-          details: { line: h.at + j },
-        });
+        throw new EngineError(
+          'refused',
+          `not proposed: line ${h.at + j} of ${today.file} ${p.startsWith('it holds ') ? p.slice('it '.length) : `is ${p}`} — a proposal never removes or changes such a line: the person changes it in their editor`,
+          {
+            details: { line: h.at + j },
+          },
+        );
       }
     }
   }

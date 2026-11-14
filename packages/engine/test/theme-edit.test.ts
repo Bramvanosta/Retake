@@ -18,15 +18,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
-import { THEME_USES_STATS, createEngine, openWorkspace, templateView } from '../src/index.js';
+import { THEME_USES_STATS, createEngine, openWorkspace, templateView, diskWorkspaceReads } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 let root: string;
 let engine: Engine;
 let mcp: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const themeDir = () => join(root, 'templates', 'brand');
 const themeFile = () => join(themeDir(), 'template.yaml');
 const ORIGINAL = readFileSync(join(STARTER_TEMPLATES_DIR, 'editorial', 'template.yaml'), 'utf8').replace('name: editorial', 'name: brand');
@@ -55,7 +56,7 @@ async function reset(): Promise<string> {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-theme-edit-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), themeDir(), { recursive: true });
   await writeFile(themeFile(), ORIGINAL);
@@ -69,8 +70,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 
@@ -78,9 +78,21 @@ describe('theme view (L4.7)', () => {
   it('fields, components, fonts and images checked, palette checks, used by — path-free', async () => {
     const v = await engine.templates.view('brand');
     expect(v).toMatchObject({ name: 'brand', source: 'workspace', editable: true, sha256: sha(ORIGINAL), yaml: ORIGINAL, issues: [], warnings: [] });
-    expect(v.fields).toMatchObject({ 'colors.accent': '#8a2332', 'background.from': '#f8f4ef', 'brand.name': 'Atelier', logo: 'logo.svg', 'fonts.body': ['fonts/Inter-Regular.ttf', 'fonts/Inter-SemiBold.ttf', 'fonts/Inter-Bold.ttf'], 'motion.default_zoom': 'none' });
+    expect(v.fields).toMatchObject({
+      'colors.accent': '#8a2332',
+      'background.from': '#f8f4ef',
+      'brand.name': 'Atelier',
+      logo: 'logo.svg',
+      'fonts.body': ['fonts/Inter-Regular.ttf', 'fonts/Inter-SemiBold.ttf', 'fonts/Inter-Bold.ttf'],
+      'motion.default_zoom': 'none',
+    });
     expect(v.background).toEqual({ type: 'radial', from: '#f8f4ef', to: '#ebe4dc' });
-    expect(v.components.layout).toEqual({ written: 'params', id: 'studio/layout-card', params: { width: 1560, radius: 18, shadow: 'soft' }, resolved: { id: 'studio/layout-card', params: expect.objectContaining({ width: 1560 }) } });
+    expect(v.components.layout).toEqual({
+      written: 'params',
+      id: 'studio/layout-card',
+      params: { width: 1560, radius: 18, shadow: 'soft' },
+      resolved: { id: 'studio/layout-card', params: expect.objectContaining({ width: 1560 }) },
+    });
     expect(v.components.intro).toMatchObject({ written: 'id', id: 'studio/intro-stack', resolved: { id: 'studio/intro-stack' } });
     expect(v.fonts.map((f) => [f.file, f.weight, f.problem]).sort()).toEqual([
       ['fonts/InstrumentSerif-Regular.ttf', 400, undefined],
@@ -99,7 +111,7 @@ describe('theme view (L4.7)', () => {
     for (const bad of [root, themeDir(), '/Users/', tmpdir()]) expect(json, bad).not.toContain(bad);
   });
 
-  it('review B L6: used_by is memoised on the projects\' file-level signature (no re-parse while nothing moved)', async () => {
+  it("review B L6: used_by is memoised on the projects' file-level signature (no re-parse while nothing moved)", async () => {
     await engine.templates.view('brand');
     const n = THEME_USES_STATS.computed;
     await engine.templates.view('brand');
@@ -117,10 +129,10 @@ describe('theme view (L4.7)', () => {
     expect((await engine.templates.view('brand')).used_by).toEqual({ projects: ['demo'], scenarios: [{ project: 'demo', scenario: 'q' }] });
   });
 
-  it('⚑ editable by real path (critique B15): starters, the repository\'s starters, links and hard links are read-only with why', async () => {
+  it("⚑ editable by real path (critique B15): starters, the repository's starters, links and hard links are read-only with why", async () => {
     expect((await engine.templates.view('motion')).editable).toEqual({ why: expect.stringMatching(/starter theme shipped with Retake: copy it to edit it/) });
     // The repository as a workspace lists its starters as `workspace` (templates_dir: templates): still not editable.
-    const repoWs = await openWorkspace({ root: REPO });
+    const repoWs = await openWorkspace({ root: REPO, agent: false, reads: diskWorkspaceReads });
     const rv = await templateView(repoWs, 'editorial');
     expect(rv.source).toBe('workspace');
     expect(rv.editable).toEqual({ why: expect.stringMatching(/shipped with Retake \(its folder lies in the Retake package\)/) });
@@ -158,7 +170,10 @@ describe('theme edit (L4.7)', () => {
     expect(r).toMatchObject({ name: 'brand', sha256: sha(now), removed: [], warnings: [] });
     expect(r.label).toMatch(/^Set the accent colour to #123456, the cursor ripple following/);
     expect(now).toBe(ORIGINAL.replace('accent: "#8a2332"', 'accent: "#123456"').replace('"rgba(138, 35, 50, 0.45)"', '"rgba(18, 52, 86, 0.45)"'));
-    const r2 = await engine.templates.edit('brand', { if_match: r.sha256, edit: { kind: 'set_component', component: 'layout', from: 'studio/layout-card', id: 'studio/layout-browser', params: 'keep' } });
+    const r2 = await engine.templates.edit('brand', {
+      if_match: r.sha256,
+      edit: { kind: 'set_component', component: 'layout', from: 'studio/layout-card', id: 'studio/layout-browser', params: 'keep' },
+    });
     expect(r2.removed).toEqual(['frame.style', 'frame.width', 'frame.radius', 'frame.shadow']);
     expect(r2.kept_params).toEqual({ width: 1560, radius: 18, shadow: 'soft' });
     expect((await engine.templates.view('brand')).components.layout).toMatchObject({ written: 'params', id: 'studio/layout-browser' });
@@ -227,7 +242,8 @@ describe('theme edit (L4.7)', () => {
 
   it('⚑ the registry resolves the components: an unknown id, the wrong kind, kept params the new component refuses', async () => {
     const hash = await reset();
-    const comp = (component: string, from: string, id: string, params: 'keep' | 'drop') => engine.templates.edit('brand', { if_match: hash, edit: { kind: 'set_component', component, from, id, params } as never });
+    const comp = (component: string, from: string, id: string, params: 'keep' | 'drop') =>
+      engine.templates.edit('brand', { if_match: hash, edit: { kind: 'set_component', component, from, id, params } as never });
     expect((await failure(comp('intro', 'studio/intro-stack', 'acme/missing', 'drop'))).message).toMatch(/acme\/missing/);
     expect((await failure(comp('layout', 'studio/layout-card', 'studio/caption-below', 'drop'))).code).toBe('invalid');
     expect((await failure(comp('layout', 'studio/layout-card', 'studio/layout-raw', 'keep'))).code).toBe('invalid');
@@ -274,7 +290,7 @@ describe('theme edit (L4.7)', () => {
   });
 });
 
-describe('a scenario\'s theme (critique B1)', () => {
+describe("a scenario's theme (critique B1)", () => {
   it('set_field template takes a theme the workspace lists, never another name', async () => {
     const s = await engine.scenarios.get('demo', 'other');
     const e = await failure(engine.scenarios.edit('demo', 'other', { hash: s.hash, edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', to: 'nope' } }));

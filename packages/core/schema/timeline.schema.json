@@ -723,7 +723,7 @@
             "$ref": "#/$defs/Point"
           },
           "end_point": {
-            "description": "Cursor at the end of the step, before any park or hold (L5.5): anchors an overlay or a zoom added after the capture.",
+            "description": "Cursor at the end of the step, before any park or hold: anchors an overlay or a zoom added after the capture.",
             "$ref": "#/$defs/Point"
           },
           "mark": {
@@ -1149,7 +1149,7 @@
           "held_frames"
         ],
         "additionalProperties": false,
-        "description": "A full-page load the capture did not show (R-ISS-08): the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold)."
+        "description": "A full-page load the capture did not show: the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold)."
       },
       "description": "Page loads `capture` did not show (the previous frame held until the new page painted)."
     },
@@ -1274,7 +1274,7 @@
           "step"
         ],
         "additionalProperties": false,
-        "description": "A pause of the take between steps (L4.4): capture time did not run meanwhile; the video goes on at t from where it paused."
+        "description": "A pause of the take between steps: capture time did not run meanwhile; the video goes on at t from where it paused."
       },
       "description": "Where the take was paused between steps (from the Studio): not filmed."
     },
@@ -1624,7 +1624,7 @@
             "additionalProperties": false
           }
         ],
-        "description": "A captured email, document or web notification (L2.9), or a text read by capture_text (L2.10)."
+        "description": "A captured email, document or web notification, or a text read by capture_text."
       },
       "description": "Emails, documents, web notifications and texts captured by the run."
     },
@@ -1847,7 +1847,7 @@
                 "held_frames"
               ],
               "additionalProperties": false,
-              "description": "A full-page load the capture did not show (R-ISS-08): the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold)."
+              "description": "A full-page load the capture did not show: the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold)."
             },
             "description": "Page loads this track did not show."
           }
@@ -2053,7 +2053,7 @@
             "provider"
           ],
           "additionalProperties": false,
-          "description": "A sandbox environment (L1.8): its provider and the reset made before the take."
+          "description": "A sandbox environment: its provider and the reset made before the take."
         }
       },
       "required": [
@@ -2061,7 +2061,7 @@
         "access"
       ],
       "additionalProperties": false,
-      "description": "The environment of the run (L1.7): access, display URLs, clock, writes seen on a read-only run."
+      "description": "The environment of the run: access, display URLs, clock, writes seen on a read-only run."
     },
     "warnings": {
       "type": "array",

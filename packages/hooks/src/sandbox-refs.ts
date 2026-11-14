@@ -5,9 +5,10 @@
  * Anywhere else than a sandbox environment both are refused with what to write instead.
  */
 import { readFile } from 'node:fs/promises';
-import { composeEnvRef, envFileValues, listTemplateTokens } from '@retake/core';
+import { listTemplateTokens } from '@retake/core/base';
+import { composeEnvRef, envFileValues } from '@retake/core/sandbox';
 import { composeEnvFile, resolveSecretRef } from '@retake/core/io';
-import type { LoadedSandbox } from '@retake/core';
+import type { LoadedSandbox } from '@retake/core/model';
 import { HookError, errorMessage } from './errors.js';
 import type { HookContext } from './types.js';
 
@@ -102,9 +103,7 @@ export async function sandboxAccounts(ctx: HookContext, value: unknown, env: str
   const accounts = sandbox?.manifest.accounts;
   if (!accounts || !Object.keys(accounts).length) {
     if (Object.hasOwn({ ...(ctx.project.config.vars ?? {}), ...ctx.vars }, 'accounts')) return undefined;
-    throw new HookError(
-      `{{${refs[0]}}} reads an account of a sandbox: ${sandbox ? `sandbox ${env} declares no accounts (accounts: in its sandbox.yaml)` : `environment "${env}" is not a sandbox`}`,
-    );
+    throw new HookError(`{{${refs[0]}}} reads an account of a sandbox: ${sandbox ? `sandbox ${env} declares no accounts (accounts: in its sandbox.yaml)` : `environment "${env}" is not a sandbox`}`);
   }
   const out: SandboxAccounts = { root: {}, secrets: [] };
   roots.add(out.root);
@@ -129,7 +128,7 @@ export async function sandboxAccounts(ctx: HookContext, value: unknown, env: str
       if (resolved === undefined || resolved === '') throw new HookError(`{{${expr}}}: ${fromFile} is not set (or empty) in the compose env file of sandbox ${env}`);
     } else if (ref !== undefined) {
       secret = true;
-      resolved = ctx.dryRun ? '***' : await resolveSecretRef(ref);
+      resolved = ctx.dryRun ? '***' : await (ctx.resolveSecret ?? resolveSecretRef)(ref);
     }
     if (secret && ctx.dryRun) resolved = '***';
     else if (secret) out.secrets.push(resolved);

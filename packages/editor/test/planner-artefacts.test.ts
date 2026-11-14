@@ -13,7 +13,8 @@ import type { ComponentRegistry, DocumentMedia, EmailMedia, NotificationMedia } 
 import { PLAN_ASSET_SCHEME, planEdit } from '@retake/editor';
 import type { CardSegment, ClipSegment, EditPlan } from '@retake/editor';
 import type { Timeline } from '@retake/core';
-import { FIXTURES, REPO, fixtureProject, template } from './helpers.js';
+import { FIXTURES, fixtureProject, template } from '@retake/test-support/timeline';
+import { REPO } from '@retake/test-support/repo';
 
 const RUN = '/virtual/runs/r';
 const load = (name: string) => JSON.parse(readFileSync(join(FIXTURES, `${name}.timeline.json`), 'utf8')) as Timeline;
@@ -74,7 +75,10 @@ describe('artefact slots → media', () => {
     // The app names the page's host as the video shows it (L1.7): a local host without a display URL never shows —
     // the theme's brand name instead; with the run's display table, the display host.
     expect(n).toMatchObject({ kind: 'notification', name: 'quote-request', title: 'New quote request', app: 'Atelier' });
-    const displayed = await plan({ ...tl, environment: { name: 'local', access: 'read-write', display: [{ page: 'console', url: 'http://localhost:4401', display: 'https://console.northfield.example' }] } });
+    const displayed = await plan({
+      ...tl,
+      environment: { name: 'local', access: 'read-write', display: [{ page: 'console', url: 'http://localhost:4401', display: 'https://console.northfield.example' }] },
+    });
     const n2 = clipOf(displayed, 'request').overlays.find((x) => x.component.id === 'studio/notification')!.component.media?.notification as NotificationMedia;
     expect(n2.app).toBe('console.northfield.example');
     expect(n.icon?.url).toBe(`${PLAN_ASSET_SCHEME}artefact-notification-quote-request-icon.png`);

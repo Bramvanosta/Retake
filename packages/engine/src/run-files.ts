@@ -18,10 +18,12 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, re
 import type { Stats } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
-import { pathInside, projectPath } from '@retake/core';
+import { pathInside } from '@retake/core/base';
+import { parseRunId } from '@retake/core/ids';
+import { projectPath } from '@retake/core/project';
+import type { RunId } from '@retake/core/ids';
 import { readPlainFile } from '@retake/core/io';
 import type { PlainFileProblem, PlainFileRead } from '@retake/core/io';
-import { RUN_ID_RE } from './refs.js';
 
 /** A frame's file name in a frame index (the recorder writes `NNNNNN.jpg` / `.png`). */
 export const RUN_FRAME_NAME_RE = /^\d{6}\.(jpe?g|png)$/;
@@ -114,6 +116,14 @@ export function readPlainRange(file: string, offset: number, max: number, o: { v
   }
 }
 
+/**
+ * runs/<id> of a project, for RunFolder.open: from a parsed run id only (never a client's text). The engine's other
+ * readers of a run folder build the path from a string they checked or listed themselves (projectPath).
+ */
+function runFolderPath(projectDir: string, id: RunId): string {
+  return projectPath(projectDir, 'runs', id);
+}
+
 /** One run folder of a project, opened safely (RunFolder.open). */
 export class RunFolder {
   private constructor(
@@ -126,8 +136,9 @@ export class RunFolder {
 
   /** `runs/<id>` of the project when it is a real folder inside the project; null otherwise (missing, a link, outside). */
   static async open(projectDir: string, id: string): Promise<RunFolder | null> {
-    if (!RUN_ID_RE.test(id) || id.length > 200) return null;
-    const path = projectPath(projectDir, 'runs', id);
+    const run = parseRunId(id);
+    if (run === null) return null;
+    const path = runFolderPath(projectDir, run);
     try {
       const st = await lstat(path);
       if (!st.isDirectory()) return null;

@@ -21,9 +21,6 @@ import type { RecordAnnotations, RecordInsert } from './record-annotations.js';
 
 export const RECORDING_VERSION = 1;
 
-/** "rec_" + 26 Crockford base32 characters (10 of time, 16 random): the folder of one recording. */
-export const RECORD_ID_RE = /^rec_[0-9A-HJKMNP-TV-Z]{26}$/;
-
 /** The kinds of secret-class fields: a draft names its placeholder after the kind (`{{vars.password_1}}`). */
 export const SECRET_FIELD_KINDS = ['password', 'one_time_code', 'card_number', 'card_code', 'card_expiry', 'iban', 'national_id', 'pin', 'api_key', 'secret'] as const;
 export type SecretFieldKind = (typeof SECRET_FIELD_KINDS)[number];
@@ -105,7 +102,10 @@ const base = {
   /** The recorder's page id ("p1": the window's page). */
   page: z.string().regex(/^p\d+$/),
   /** The path of the page the event happened on (never a query or a fragment; empty when not known). */
-  path: z.string().max(2048).refine((p) => !/[?#]/.test(p), 'a path without a query or a fragment'),
+  path: z
+    .string()
+    .max(2048)
+    .refine((p) => !/[?#]/.test(p), 'a path without a query or a fragment'),
   /** How many strings of the event the secret memory masked. */
   redacted: z.number().int().min(1).optional(),
 };
@@ -156,13 +156,15 @@ const SelectNativeEventSchema = z.strictObject({ ...base, kind: z.literal('selec
 const FileEventSchema = z.strictObject({ ...base, kind: z.literal('file'), el: RecordedElementSchema.nullable(), via: z.enum(['input', 'drop']), names: z.array(short).max(20) });
 
 /** A whitelisted key (or a Control / Meta shortcut) pressed outside typing, with the focused element. */
-const KeyEventSchema = z.strictObject({
-  ...base,
-  kind: z.literal('key'),
-  key: z.union([z.enum(RECORDED_KEYS), z.string().regex(RECORDED_SHORTCUT_KEY_RE)]),
-  modifiers: z.array(z.enum(['Control', 'Meta', 'Alt', 'Shift'])).max(4),
-  el: RecordedElementSchema.nullable(),
-}).refine((e) => (RECORDED_KEYS as readonly string[]).includes(e.key) || e.modifiers.includes('Control') || e.modifiers.includes('Meta'), 'a letter or digit only with Control or Meta');
+const KeyEventSchema = z
+  .strictObject({
+    ...base,
+    kind: z.literal('key'),
+    key: z.union([z.enum(RECORDED_KEYS), z.string().regex(RECORDED_SHORTCUT_KEY_RE)]),
+    modifiers: z.array(z.enum(['Control', 'Meta', 'Alt', 'Shift'])).max(4),
+    el: RecordedElementSchema.nullable(),
+  })
+  .refine((e) => (RECORDED_KEYS as readonly string[]).includes(e.key) || e.modifiers.includes('Control') || e.modifiers.includes('Meta'), 'a letter or digit only with Control or Meta');
 
 /** A scroll the person made (wheel, keys, scrollbar), net per container after a pause. */
 const ScrollEventSchema = z.strictObject({
@@ -238,7 +240,6 @@ export const RecordedEventSchema = z.union([
   StopEventSchema,
 ]);
 export type RecordedEvent = z.infer<typeof RecordedEventSchema>;
-export type RecordedEventKind = RecordedEvent['kind'];
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The draft generator (L3.4 part 2): a recording's events → a draft scenario. Pure (no I/O, no clock): the CLI, the
@@ -487,7 +488,9 @@ export function recordedAlternatives(el: RecordedElement | null | undefined): Ar
   if (!el?.alternatives || el.secret || targetOf(el) === null) return [];
   const main = el.target as TargetObject;
   return el.alternatives.flatMap((a, i) =>
-    hasMask(a.target) || hasTemplate(a.target) || hasHidden(a.target) || a.target.nth !== undefined || sameTarget(a.target, main) ? [] : [{ index: i + 1, target: targetValue(a.target), fragile: [...a.fragile] }],
+    hasMask(a.target) || hasTemplate(a.target) || hasHidden(a.target) || a.target.nth !== undefined || sameTarget(a.target, main)
+      ? []
+      : [{ index: i + 1, target: targetValue(a.target), fragile: [...a.fragile] }],
   );
 }
 
@@ -540,7 +543,8 @@ function sceneIdOf(path: string): string {
 }
 
 const TEMPLATE_MESSAGE = 'a recorded text held a {{…}} template, which a scenario would resolve (a var, an environment variable): left out — add the step by hand';
-const HIDDEN_MESSAGE = 'a recorded text held a hidden character (a direction control, a zero-width or line-separator character): it would read as something else than it does, so the step is left out — add it by hand';
+const HIDDEN_MESSAGE =
+  'a recorded text held a hidden character (a direction control, a zero-width or line-separator character): it would read as something else than it does, so the step is left out — add it by hand';
 
 /**
  * Turn a recording's events (core RecordedEvent, in `seq` order) into a draft scenario: click, type (always with
@@ -569,135 +573,270 @@ const HIDDEN_MESSAGE = 'a recorded text held a hidden character (a direction con
  * either part is the step's. `aliases: false` (every Studio recording's draft): no YAML anchor or alias — a target
  * shared by a helper and its action is written twice, so the block editor can delete or duplicate a helper.
  */
-export function draftFromRecording(
-  events: readonly RecordedEvent[],
-  ctx: DraftContext,
-  annotations?: RecordAnnotations | null,
-  opts: { final?: boolean; aliases?: boolean } = {},
-): RecordingDraft {
+export function draftFromRecording(events: readonly RecordedEvent[], ctx: DraftContext, annotations?: RecordAnnotations | null, opts: { final?: boolean; aliases?: boolean } = {}): RecordingDraft {
   const evs = [...events].sort((a, b) => a.seq - b.seq);
   const final = opts.final ?? evs.some((e) => e.kind === 'stop');
   const choices = annotations?.choices ?? {};
   const inserts: readonly RecordInsert[] = annotations?.inserts ?? [];
-  const issues: DraftIssue[] = [];
-  const scenes: DraftScene[] = [];
-  const meta = new Map<Step, StepMeta>();
-  const secretSteps: Array<{ step: Step; name: string; kind: SecretFieldKind; project_var: boolean }> = [];
-  const stats = { scenes: 0, steps: 0, actions: 0, noise: 0, secrets: 0, fallbacks: 0 };
-  const vars: Record<string, string> = {};
-  const secretCount = new Map<string, number>();
-  const projectVars = ctx.projectVars ?? {};
-  type Raw = Omit<DraftIssue, 'scene' | 'step'>;
-  /**
-   * Issues in the order raised (`t`), located once scene ids and step indexes are known: about a step (`step`), or
-   * between steps — after `after` in `scene` (null: at its start; no scene yet: the draft's start) — or already
-   * located (`at`), or about the whole draft.
-   */
-  const raised: Array<{ issue: Raw; t: number; step?: Step; scene?: DraftScene | null; after?: Step | null; at?: { scene: string; step: number } }> = [];
-  let now = 0;
-  const note = (step: Step, issue: Raw) => raised.push({ issue, t: now, step });
+  const writes = evs.filter((e): e is EvOf<'write'> => e.kind === 'write');
+  const stream = evs.filter((e) => e.kind !== 'write');
+  // 1. The event walk: scenes and their steps, each step's sources, the issues raised on the way.
+  const walk = new EventWalk(ctx, stream, inserts);
+  walk.run();
+  if (walk.scene !== null) walk.flushScroll(stream.at(-1) ?? evs[0], null);
+  const d: Walked = walk;
+  const elAt = elementsBySeq(evs);
+  // 2. The Studio annotations (L4.8): target picks, then inserts.
+  applyChoices(d, choices, elAt);
+  const { pending, late } = applyInserts(d, inserts, final);
+  // 3. The scenes kept, their ids, where each step is.
+  const kept = keepScenes(d, ctx);
+  // 4. Every write to the step that caused it; 5. the issues, located.
+  const { writes: outWrites, firstWrite, steps } = attributeWrites(d, kept, writes);
+  const issues = locateIssues(d, kept, late);
+  // 6. The scenario, its YAML (checked), where each step came from, the secret placeholders.
+  const value = scenarioOf(ctx, d.vars, kept);
+  d.stats.scenes = kept.scenes.length;
+  d.stats.steps = steps;
+  const yaml = draftYaml(value, { annotated: inserts.length > 0 || Object.keys(choices).length > 0, aliases: opts.aliases !== false });
+  for (const x of parseScenario(yaml).issues) {
+    if (x.severity === 'error') issues.push(draftInvalidIssue(x, kept.ids, 'the draft does not validate (a recorder bug)'));
+  }
+  const sources = sourcesOf(d, kept, elAt);
+  const placeholders = d.secretSteps.flatMap((x): DraftPlaceholder[] => {
+    const at = kept.where.get(x.step);
+    return at ? [{ name: x.name, kind: x.kind, project_var: x.project_var, ...at }] : [];
+  });
+  return { scenario: value, yaml, issues, writes: outWrites, firstWrite, stats: d.stats, sources, pending, placeholders };
+}
+
+type Raw = Omit<DraftIssue, 'scene' | 'step'>;
+
+/**
+ * An issue in the order raised (`t`), located once scene ids and step indexes are known: about a step (`step`), or
+ * between steps — after `after` in `scene` (null: at its start; no scene yet: the draft's start) — or already located
+ * (`at`), or about the whole draft.
+ */
+interface Raised {
+  issue: Raw;
+  t: number;
+  step?: Step;
+  scene?: DraftScene | null;
+  after?: Step | null;
+  at?: { scene: string; step: number };
+}
+
+/** A secret field's typing step and its placeholder. */
+interface SecretStep {
+  step: Step;
+  name: string;
+  kind: SecretFieldKind;
+  project_var: boolean;
+}
+
+/** Scrolling not yet written as a step (it goes before the next action, when it moved far enough). */
+interface PendingScroll {
+  dy: number;
+  dx: number;
+  container: 'document' | 'element';
+  el: El | null;
+  seqs: [number, number];
+}
+
+/** What the event walk made, which the later steps read and change. */
+interface Walked {
+  readonly scenes: DraftScene[];
+  readonly meta: Map<Step, StepMeta>;
+  readonly secretSteps: SecretStep[];
+  readonly stats: RecordingDraft['stats'];
+  readonly vars: Record<string, string>;
+  readonly raised: Raised[];
+}
+
+/** The kept scenes, their unique ids, and where each step is in the draft. */
+interface KeptScenes {
+  scenes: DraftScene[];
+  ids: string[];
+  where: Map<Step, { scene: string; step: number }>;
+  /** The scenes before empty ones were dropped (an issue raised in a dropped scene goes to the next kept one). */
+  all: DraftScene[];
+}
+
+/** The main-target facts of a step whose target is `el`'s verified target (else nothing: no pick there). */
+function siteOf(el: El | null, target: TargetSpec | null, seqs: number[], site: NonNullable<StepMeta['site']>): Partial<StepMeta> {
+  return target !== null && targetOf(el) !== null ? { target, targetSeqs: seqs, site } : target !== null ? { target } : {};
+}
+
+/** A scene's `open:` (a URL path and query: a `{{` is written percent-encoded, as the browser reads it). */
+function openOf(rel: string): string {
+  const out = rel.replaceAll(TEMPLATE, '%7B%7B');
+  return hidden(out) ? Array.from(out, (c) => (hidden(c) ? encodeURIComponent(c) : c)).join('') : out;
+}
+
+/** A press that closes an open list or popover without choosing anything (outside it, on nothing interactive). */
+function isClosingPress(e: Ev | undefined): boolean {
+  return e?.kind === 'pointer' && (e.el === null || e.el.target === null || (e.el.role !== null && CONTAINER_ROLES.has(e.el.role)));
+}
+
+/** An event of a list (Radix / Base UI select, a multi-select popover): a press or typing inside the listbox it opened. */
+function inList(x: Ev | undefined): boolean {
+  return !!x && (x.kind === 'pointer' || x.kind === 'type') && (x.el?.in === 'listbox' || x.el?.in === 'popover');
+}
+
+/**
+ * The walk over the recording's events (writes aside), in `seq` order: the scenes and their steps, each step's sources
+ * (StepMeta), the secret placeholders, the counts and the issues raised — see draftFromRecording.
+ */
+class EventWalk implements Walked {
+  readonly scenes: DraftScene[] = [];
+  readonly meta = new Map<Step, StepMeta>();
+  readonly secretSteps: SecretStep[] = [];
+  readonly stats: RecordingDraft['stats'] = { scenes: 0, steps: 0, actions: 0, noise: 0, secrets: 0, fallbacks: 0 };
+  readonly vars: Record<string, string> = {};
+  readonly raised: Raised[] = [];
+  /** The scene steps go to now. */
+  scene: DraftScene | null = null;
+  private readonly secretCount = new Map<string, number>();
+  private readonly projectVars: Record<string, string>;
+  /** The time of the event read now (issues are ordered by it). */
+  private now = 0;
+  private lastActionT = -Infinity;
+  /** The next action is the first after a document load (everything on the page counts as appeared there). */
+  private afterLoad = true;
+  /** Actions are not recorded until the window is back on an environment page. */
+  private away: 'sign_in' | 'foreign' | null = null;
+  private scroll: PendingScroll | null = null;
+  private otpMerged = false;
+
+  constructor(
+    private readonly ctx: DraftContext,
+    private readonly stream: readonly Ev[],
+    private readonly inserts: readonly RecordInsert[],
+  ) {
+    this.projectVars = ctx.projectVars ?? {};
+  }
+
+  /** Read every event: what the window did (navigation, a stop, dropped events, a new tab), then the person's actions. */
+  run(): void {
+    const { stream } = this;
+    for (let i = 0; i < stream.length; i++) {
+      const e = stream[i];
+      this.now = e.t;
+      if (this.notice(e)) continue;
+      if (this.away !== null) continue;
+      i = this.action(e, i);
+    }
+  }
+
+  private note(step: Step, issue: Raw): void {
+    this.raised.push({ issue, t: this.now, step });
+  }
+
   /** Something that happened here, between steps. */
-  const raise = (issue: Raw) => raised.push({ issue, t: now, scene, after: scene?.steps.at(-1)?.step ?? null });
+  private raise(issue: Raw): void {
+    this.raised.push({ issue, t: this.now, scene: this.scene, after: this.scene?.steps.at(-1)?.step ?? null });
+  }
+
   /** A step replaced by another (a click folded into the typing that followed it): its issues follow. */
-  const moved = (from: Step, to: Step) => {
-    for (const r of raised) {
+  private moved(from: Step, to: Step): void {
+    for (const r of this.raised) {
       if (r.step === from) r.step = to;
       if (r.after === from) r.after = to;
     }
-    for (const m of meta.values()) if (m.group === from) m.group = to;
-  };
+    for (const m of this.meta.values()) if (m.group === from) m.group = to;
+  }
+
   /** Helpers (a wait_for, a scroll) pushed for `action`. */
-  const group = (helpers: ReadonlyArray<Step | null>, action: Step) => {
+  private group(helpers: ReadonlyArray<Step | null>, action: Step): void {
     for (const h of helpers) {
-      const m = h ? meta.get(h) : undefined;
+      const m = h ? this.meta.get(h) : undefined;
       if (m) {
         m.role = 'helper';
         m.group = action;
       }
     }
-  };
-  /** The main-target facts of a step whose target is `el`'s verified target (else nothing: no pick there). */
-  const siteOf = (el: El | null, target: TargetSpec | null, seqs: number[], site: NonNullable<StepMeta['site']>): Partial<StepMeta> =>
-    target !== null && targetOf(el) !== null ? { target, targetSeqs: seqs, site } : target !== null ? { target } : {};
+  }
 
-  let scene: DraftScene | null = null;
-  let lastActionT = -Infinity;
-  /** The next action is the first after a document load (everything on the page counts as appeared there). */
-  let afterLoad = true;
-  /** Actions are not recorded until the window is back on an environment page. */
-  let away: 'sign_in' | 'foreign' | null = null;
-  let scroll: { dy: number; dx: number; container: 'document' | 'element'; el: El | null; seqs: [number, number] } | null = null;
-  let otpMerged = false;
-
-  const writes = evs.filter((e): e is EvOf<'write'> => e.kind === 'write');
-  const stream = evs.filter((e) => e.kind !== 'write');
-
-  const newScene = (seq: number, page: string, path: string, open?: string): DraftScene => {
+  private newScene(seq: number, page: string, path: string, open?: string): DraftScene {
     const s: DraftScene = { page, path, ...(open !== undefined ? { open } : {}), seq, steps: [] };
-    scenes.push(s);
-    scene = s;
+    this.scenes.push(s);
+    this.scene = s;
     return s;
-  };
-  const current = (e: Ev): DraftScene => scene ?? newScene(e.seq, Object.keys(ctx.pages)[0] ?? 'page', e.path || '/', e.path ? pathUnderPage(e.path, Object.keys(ctx.pages)[0] ?? '', ctx.pages) : '/');
+  }
+
+  private current(e: Ev): DraftScene {
+    const { pages } = this.ctx;
+    return this.scene ?? this.newScene(e.seq, Object.keys(pages)[0] ?? 'page', e.path || '/', e.path ? pathUnderPage(e.path, Object.keys(pages)[0] ?? '', pages) : '/');
+  }
+
   /** Add a step — never one holding a recorded template (left out, `template_text`). False when left out. */
-  const push = (e: Ev, step: Step, t0: number, t1 = t0, m: Partial<StepMeta> = {}): boolean => {
-    current(e);
+  private push(e: Ev, step: Step, t0: number, t1 = t0, m: Partial<StepMeta> = {}): boolean {
+    this.current(e);
     if (JSON.stringify(step).replace(PLACEHOLDER_RE, '').includes(TEMPLATE)) {
-      raise({ severity: 'warning', code: 'template_text', message: TEMPLATE_MESSAGE });
+      this.raise({ severity: 'warning', code: 'template_text', message: TEMPLATE_MESSAGE });
       return false;
     }
     if (hasHidden(step)) {
-      raise({ severity: 'warning', code: 'hidden_text', message: HIDDEN_MESSAGE });
+      this.raise({ severity: 'warning', code: 'hidden_text', message: HIDDEN_MESSAGE });
       return false;
     }
-    current(e).steps.push({ step, t0, t1 });
-    meta.set(step, { seqs: [e.seq, e.seq], role: 'action', ...m });
-    stats.steps++;
+    this.current(e).steps.push({ step, t0, t1 });
+    this.meta.set(step, { seqs: [e.seq, e.seq], role: 'action', ...m });
+    this.stats.steps++;
     return true;
-  };
-  /** A scene's `open:` (a URL path and query: a `{{` is written percent-encoded, as the browser reads it). */
-  const openOf = (rel: string): string => {
-    const out = rel.replaceAll(TEMPLATE, '%7B%7B');
-    return hidden(out) ? Array.from(out, (c) => (hidden(c) ? encodeURIComponent(c) : c)).join('') : out;
-  };
-  const checkOpen = (open: string) => {
-    if (open.includes(MASK)) raise({ severity: 'warning', code: 'secret_path', message: 'a page address held a value that looks like a token or an e-mail address: it is masked (•••) in `open:` — put a demo value back by hand' });
-  };
-  const lastStep = (): Step | undefined => scene?.steps.at(-1)?.step;
+  }
+
+  private checkOpen(open: string): void {
+    if (open.includes(MASK))
+      this.raise({
+        severity: 'warning',
+        code: 'secret_path',
+        message: 'a page address held a value that looks like a token or an e-mail address: it is masked (•••) in `open:` — put a demo value back by hand',
+      });
+  }
+
+  private lastStep(): Step | undefined {
+    return this.scene?.steps.at(-1)?.step;
+  }
 
   /** A pending scroll before the action on `target` (or by its amount when there is no target): the step pushed, if any. */
-  const flushScroll = (e: Ev, target: TargetSpec | null): Step | null => {
-    const s = scroll;
-    scroll = null;
+  flushScroll(e: Ev, target: TargetSpec | null): Step | null {
+    const s = this.scroll;
+    this.scroll = null;
     if (!s || Math.abs(s.dy) < RECORD_SCROLL_MIN_PX) return null;
     const container = s.container === 'element' ? targetOf(s.el) : null;
     const step: Step = target !== null ? { scroll: { to: target, ...(container !== null ? { in: container } : {}) } } : { scroll: { by: s.dy, ...(container !== null ? { in: container } : {}) } };
-    return push(e, step, e.t, e.t, { seqs: [...s.seqs] }) ? step : null;
-  };
+    return this.push(e, step, e.t, e.t, { seqs: [...s.seqs] }) ? step : null;
+  }
 
   /** Before an action on `el`: the scroll that led to it, and a wait when it appeared after a pause (the steps pushed). */
-  const before = (e: Ev, el: El | null, target: TargetSpec | null): Array<Step | null> => {
-    const gap = e.t - lastActionT;
+  private before(e: Ev, el: El | null, target: TargetSpec | null): Array<Step | null> {
+    const gap = e.t - this.lastActionT;
     let wait: Step | null = null;
-    if (target !== null && el?.appeared && !afterLoad && Number.isFinite(gap) && gap >= RECORD_WAIT_GAP_MS) {
+    if (target !== null && el?.appeared && !this.afterLoad && Number.isFinite(gap) && gap >= RECORD_WAIT_GAP_MS) {
       const step: Step = { wait_for: { target, timeout: Math.max(15, Math.ceil((2 * gap) / 1000)) } };
-      if (push(e, step, e.t)) wait = step;
+      if (this.push(e, step, e.t)) wait = step;
     }
-    return [wait, flushScroll(e, target)];
-  };
-  const acted = (t: number, n = 1) => {
-    lastActionT = t;
-    afterLoad = false;
-    stats.actions += n;
-  };
+    return [wait, this.flushScroll(e, target)];
+  }
+
+  private acted(t: number, n = 1): void {
+    this.lastActionT = t;
+    this.afterLoad = false;
+    this.stats.actions += n;
+  }
 
   /** The target a press is replayed on: the verified one, else a fallback from its own text (warned), else null. */
-  const pressTarget = (el: El, step: () => Step): TargetSpec | null => {
+  private pressTarget(el: El, step: () => Step): TargetSpec | null {
     const t = targetOf(el);
     if (t !== null) {
       if (el.fragile.includes('nth') || el.fragile.includes('css')) {
         const s = step();
-        note(s, { severity: 'info', code: 'fragile_target', message: `the recorded target depends on ${el.fragile.includes('nth') ? 'its position among look-alikes' : 'a CSS selector'}: check it with page_inspect` });
+        this.note(s, {
+          severity: 'info',
+          code: 'fragile_target',
+          message: `the recorded target depends on ${el.fragile.includes('nth') ? 'its position among look-alikes' : 'a CSS selector'}: check it with page_inspect`,
+        });
       }
       return t;
     }
@@ -705,85 +844,39 @@ export function draftFromRecording(
     if (hasMask(el.target) || hasTemplate(el.target) || unsafe(text)) return null;
     if (!text || text.length > 80 || (el.role !== null && CONTAINER_ROLES.has(el.role))) return null;
     return { text, ...(el.in !== 'page' && el.in !== 'row' ? { in: el.in } : {}) };
-  };
+  }
 
-  const nextAction = (from: number): number => {
+  private nextAction(from: number): number {
+    const { stream } = this;
     for (let j = from; j < stream.length; j++) {
       const k = stream[j].kind;
       if (ACTION_KINDS.has(k) || k === 'navigation' || k === 'stop') return j;
     }
     return stream.length;
-  };
+  }
 
-  /** A press that closes an open list or popover without choosing anything (outside it, on nothing interactive). */
-  const isClosingPress = (e: Ev | undefined): boolean =>
-    e?.kind === 'pointer' && (e.el === null || e.el.target === null || (e.el.role !== null && CONTAINER_ROLES.has(e.el.role)));
+  private dropFile(zone: TargetSpec, names: readonly string[]): Step {
+    const name = unsafe(names[0]) ? 'file.csv' : names[0];
+    const step: Step = { drop_file: { zone, name, fake: true } };
+    this.note(step, {
+      severity: 'info',
+      code: 'fake_file',
+      message: `drop_file uses a placeholder file with the chosen file's name${names.length > 1 ? ` (the first of ${names.length})` : ''}: give it a real file under the project (path:) if the product reads its content`,
+    });
+    return step;
+  }
 
-  for (let i = 0; i < stream.length; i++) {
-    const e = stream[i];
-    now = e.t;
+  /** What the window did rather than the person (a page change, the end, dropped events, a new tab): true when `e` was one. */
+  private notice(e: Ev): boolean {
     switch (e.kind) {
-      case 'navigation': {
-        if (e.where !== 'environment' || e.page_key === null) {
-          if (away !== e.where) {
-            away = e.where === 'environment' ? 'foreign' : e.where;
-            raise(
-              away === 'sign_in'
-                ? { severity: 'warning', code: 'signed_out', message: `the window reached a sign-in page${ctx.persona ? ` (persona ${ctx.persona} signed out)` : ''}: nothing done there was recorded — sign the persona in (retake login / auth_login) and record that part again` }
-                : { severity: 'warning', code: 'foreign_page', message: 'the window left the environment\'s pages (another site): nothing done there was recorded' },
-            );
-          }
-          if (scroll) scroll = null;
-          continue;
-        }
-        const wasAway = away !== null;
-        away = null;
-        const path = e.path || '/';
-        const rel = pathUnderPage(path, e.page_key, ctx.pages);
-        if (e.cause === 'start') {
-          newScene(e.seq, e.page_key, path, openOf(rel));
-          checkOpen(rel);
-          afterLoad = true;
-          continue;
-        }
-        if (!scene) {
-          const open = openOf(rel + (e.cause === 'typed' && e.query ? e.query : ''));
-          newScene(e.seq, e.page_key, path, open);
-          checkOpen(open);
-          afterLoad = true;
-          continue;
-        }
-        const cur: DraftScene = scene;
-        if (path === cur.path && e.same_document) continue;
-        if (scroll && Math.abs(scroll.dy) >= RECORD_SCROLL_MIN_PX) flushScroll(e, null);
-        scroll = null;
-        const caused = e.t - lastActionT <= RECORD_NAV_WINDOW_MS;
-        const byAddress = wasAway || (!e.same_document && !caused && ['typed', 'reload', 'other'].includes(e.cause));
-        if (byAddress) {
-          const open = openOf(rel + (e.cause === 'typed' && e.query ? e.query : ''));
-          if (cur.steps.length === 0) {
-            cur.page = e.page_key;
-            cur.path = path;
-            cur.open = open;
-            cur.seq = e.seq;
-          } else newScene(e.seq, e.page_key, path, open);
-          checkOpen(open);
-          if (!wasAway) raise({ severity: 'info', code: 'opened_by_address', message: 'a scene opens its page by address: the address bar, a reload or a script changed the page with no action before it' });
-        } else if (cur.steps.length > 0) {
-          if (e.page_key !== cur.page) raise({ severity: 'warning', code: 'page_changed', message: `an action led to another environment page (${e.page_key}) in the same window: the scene continues on page ${cur.page} — check the replay` });
-          newScene(e.seq, cur.page, path);
-        } else {
-          cur.path = path;
-          cur.seq = e.seq;
-        }
-        if (!e.same_document) afterLoad = true;
-        continue;
-      }
+      case 'navigation':
+        this.navigation(e);
+        return true;
       case 'stop':
-        if (e.reason === 'max_duration') raise({ severity: 'warning', code: 'max_duration', message: 'the recording reached its maximum duration and stopped: what came after is missing' });
-        continue;
+        if (e.reason === 'max_duration') this.raise({ severity: 'warning', code: 'max_duration', message: 'the recording reached its maximum duration and stopped: what came after is missing' });
+        return true;
       case 'dropped':
-        raise({
+        this.raise({
           severity: e.reason === 'invalid' ? 'info' : 'warning',
           code: 'dropped',
           message:
@@ -793,213 +886,344 @@ export function draftFromRecording(
                 ? `${e.count} action(s) inside a frame were not recorded (frames are not recorded)`
                 : `${e.count} event(s) the recorder could not read were dropped`,
         });
-        continue;
+        return true;
       case 'new_page':
-        raise({ severity: 'warning', code: 'new_page', message: 'the page opened a tab or a popup: tabs and popups are not recorded — what was done there is missing' });
-        continue;
+        this.raise({ severity: 'warning', code: 'new_page', message: 'the page opened a tab or a popup: tabs and popups are not recorded — what was done there is missing' });
+        return true;
       default:
-        break;
+        return false;
     }
-    if (away !== null) continue;
+  }
 
-    if (e.kind === 'scroll') {
-      if (!scroll || scroll.container !== e.container || (e.container === 'element' && !sameEl(scroll.el, e.el))) {
-        scroll = { dy: 0, dx: 0, container: e.container, el: e.el, seqs: [e.seq, e.seq] };
+  /** A page change: a scene starts where the page changed (`open:` only when the address bar or nothing done changed it). */
+  private navigation(e: EvOf<'navigation'>): void {
+    const { ctx } = this;
+    if (e.where !== 'environment' || e.page_key === null) {
+      if (this.away !== e.where) {
+        this.away = e.where === 'environment' ? 'foreign' : e.where;
+        this.raise(
+          this.away === 'sign_in'
+            ? {
+                severity: 'warning',
+                code: 'signed_out',
+                message: `the window reached a sign-in page${ctx.persona ? ` (persona ${ctx.persona} signed out)` : ''}: nothing done there was recorded — sign the persona in (retake login / auth_login) and record that part again`,
+              }
+            : { severity: 'warning', code: 'foreign_page', message: "the window left the environment's pages (another site): nothing done there was recorded" },
+        );
       }
-      scroll.seqs[1] = e.seq;
-      scroll.dy += e.dy;
-      scroll.dx += e.dx;
-      continue;
+      if (this.scroll) this.scroll = null;
+      return;
     }
-
-    if (e.kind === 'pointer') {
-      const el = e.el;
-      if (el === null) {
-        stats.noise++;
-        continue;
-      }
-      if (e.button === 'middle') {
-        raise({ severity: 'info', code: 'middle_click', message: 'a middle click (a new tab) was not recorded' });
-        continue;
-      }
-      // A double click: this press, a second one on the same element, then `dblclick`.
-      const j1 = nextAction(i + 1);
-      const n1 = stream[j1];
-      const n2 = stream[nextAction(j1 + 1)];
-      if (n1?.kind === 'pointer' && n1.el && sameEl(n1.el, el) && n2?.kind === 'dblclick') {
-        let step: Step = {};
-        const t = pressTarget(el, () => step);
-        if (t === null) {
-          i = nextAction(j1 + 1);
-          continue;
-        }
-        const hs = before(e, el, t);
-        step = { double_click: t };
-        if (push(e, step, e.t, n2.t, { seqs: [e.seq, n2.seq], ...siteOf(el, t, [e.seq], 'double_click') })) group(hs, step);
-        acted(n2.t, 2);
-        i = nextAction(j1 + 1);
-        continue;
-      }
-
-      // A list (Radix / Base UI select, a multi-select popover): options chosen in the listbox it opened.
-      const inList = (x: Ev | undefined) => !!x && (x.kind === 'pointer' || x.kind === 'type') && (x.el?.in === 'listbox' || x.el?.in === 'popover');
-      if (inList(n1)) {
-        let j = j1;
-        let search: string | undefined;
-        const options: string[] = [];
-        let tEnd = e.t;
-        let sEnd = e.seq;
-        while (j < stream.length) {
-          const x = stream[j];
-          if (x.kind === 'type' && options.length === 0 && !x.secret && x.text !== undefined && (x.el?.in === 'listbox' || x.el?.in === 'popover')) {
-            search = x.text;
-            tEnd = x.t;
-            sEnd = x.seq;
-          } else if (x.kind === 'pointer' && x.el?.in === 'listbox' && x.el.role === 'option' && itemName(x.el) && !unsafe(itemName(x.el))) {
-            options.push(itemName(x.el));
-            tEnd = x.t;
-            sEnd = x.seq;
-          } else if (x.kind === 'pointer' && (x.el?.in === 'listbox' || x.el?.in === 'popover') && x.el.role !== 'option' && options.length === 0) {
-            // a press in the list that is not an option (a search box): part of the choice
-            tEnd = x.t;
-            sEnd = x.seq;
-          } else break;
-          j = nextAction(j + 1);
-        }
-        if (options.length > 0) {
-          const after = stream[j];
-          let close: 'escape' | 'outside' | 'none' | null = null;
-          if (after?.kind === 'key' && after.key === 'Escape' && after.modifiers.length === 0) close = 'escape';
-          else if (isClosingPress(after)) close = 'outside';
-          const hint = el.action.kind === 'select' && el.action.field ? el.action.field : null;
-          const trigger = targetOf(el);
-          if (hint !== null || trigger !== null) {
-            const label = hint ?? (clean(el.label) && !unsafe(clean(el.label)) ? clean(el.label) : null);
-            const hs = before(e, el, trigger);
-            let step: Step;
-            let m: Partial<StepMeta> = {};
-            if (options.length === 1 && (hint !== null || close === null)) {
-              step = { select: { ...(hint !== null ? { field: hint } : { combobox: trigger }), option: options[0], ...(search !== undefined ? { search } : {}) } };
-              if (hint === null) m = siteOf(el, trigger, [e.seq], 'select');
-            } else {
-              const field: unknown = label ?? (el.target ? { ...el.target } : null);
-              step = { pick: { field, option: options.length === 1 ? options[0] : options, ...(search !== undefined ? { search } : {}), close: close ?? (after && ACTION_KINDS.has(after.kind) ? 'outside' : 'none') } };
-            }
-            if (!push(e, step, e.t, close !== null ? after!.t : tEnd, { seqs: [e.seq, close !== null ? after!.seq : sEnd], ...m })) stats.noise++;
-            else group(hs, step);
-            acted(close !== null ? after!.t : tEnd, options.length + 1);
-            i = close !== null ? j : j - 1;
-            continue;
-          }
-        }
-      }
-
-      // A row's action menu: trigger → item (→ the confirmation dialog's button).
-      if (el.action.kind === 'menu' && n1?.kind === 'pointer' && n1.el?.in === 'menu' && itemName(n1.el) && !unsafe(itemName(n1.el))) {
-        const item = itemName(n1.el);
-        const j2 = nextAction(j1 + 1);
-        const c = stream[j2];
-        let confirm: string | undefined;
-        if (c?.kind === 'pointer' && c.el && c.el.in === 'dialog' && c.el.appeared && c.el.role === 'button' && c.t - n1.t <= 10_000) {
-          const name = itemName(c.el);
-          const a = name.toLowerCase();
-          const b = item.toLowerCase();
-          if (name && !unsafe(name) && (a === b || a.startsWith(`${b} `) || CONFIRM_WORD.test(name))) confirm = name;
-        }
-        const trigger = targetOf(el);
-        const row = el.action.row && !unsafe(el.action.row) ? el.action.row : null;
-        if (row !== null || trigger !== null) {
-          const hs = before(e, el, trigger);
-          const end = confirm !== undefined ? c!.t : n1.t;
-          const step: Step = { menu: { ...(row !== null ? { row } : { trigger }), item, ...(confirm !== undefined ? { confirm } : {}) } };
-          if (push(e, step, e.t, end, { seqs: [e.seq, confirm !== undefined ? c!.seq : n1.seq] })) group(hs, step);
-          acted(end, confirm !== undefined ? 3 : 2);
-          i = confirm !== undefined ? j2 : j1;
-          continue;
-        }
-      }
-
-      // A file zone: the file chosen in the chooser it opened (or dropped on it).
-      if (el.action.kind === 'drop_file') {
-        if (n1?.kind === 'file') {
-          const zone = targetOf(el) ?? targetOf(n1.el);
-          if (zone !== null && n1.names.length > 0) {
-            const hs = before(e, el, zone);
-            const step = dropFile(zone, n1.names);
-            const own = targetOf(el) !== null;
-            if (push(e, step, e.t, n1.t, { seqs: [e.seq, n1.seq], ...siteOf(own ? el : n1.el, zone, [own ? e.seq : n1.seq], 'drop_file') })) group(hs, step);
-            acted(n1.t, 2);
-            i = j1;
-            continue;
-          }
-        } else {
-          raise({ severity: 'info', code: 'file_cancelled', message: 'a file zone was pressed and no file was chosen: not recorded' });
-          continue;
-        }
-      }
-
-      let step: Step = {};
-      const t = pressTarget(el, () => step);
-      if (t === null) {
-        stats.noise++;
-        const own = clean(el.name) || clean(el.text);
-        const secret = hasMask(bare(el));
-        const templated = !secret && (hasTemplate(el.target) || own.includes(TEMPLATE));
-        const hid = !secret && !templated && (hasHidden(el.target) || hidden(own));
-        raise({
+    const wasAway = this.away !== null;
+    this.away = null;
+    const path = e.path || '/';
+    const rel = pathUnderPage(path, e.page_key, ctx.pages);
+    if (e.cause === 'start') {
+      this.newScene(e.seq, e.page_key, path, openOf(rel));
+      this.checkOpen(rel);
+      this.afterLoad = true;
+      return;
+    }
+    if (!this.scene) {
+      const open = openOf(rel + (e.cause === 'typed' && e.query ? e.query : ''));
+      this.newScene(e.seq, e.page_key, path, open);
+      this.checkOpen(open);
+      this.afterLoad = true;
+      return;
+    }
+    const cur: DraftScene = this.scene;
+    if (path === cur.path && e.same_document) return;
+    if (this.scroll && Math.abs(this.scroll.dy) >= RECORD_SCROLL_MIN_PX) this.flushScroll(e, null);
+    this.scroll = null;
+    const caused = e.t - this.lastActionT <= RECORD_NAV_WINDOW_MS;
+    const byAddress = wasAway || (!e.same_document && !caused && ['typed', 'reload', 'other'].includes(e.cause));
+    if (byAddress) {
+      const open = openOf(rel + (e.cause === 'typed' && e.query ? e.query : ''));
+      if (cur.steps.length === 0) {
+        cur.page = e.page_key;
+        cur.path = path;
+        cur.open = open;
+        cur.seq = e.seq;
+      } else this.newScene(e.seq, e.page_key, path, open);
+      this.checkOpen(open);
+      if (!wasAway)
+        this.raise({ severity: 'info', code: 'opened_by_address', message: 'a scene opens its page by address: the address bar, a reload or a script changed the page with no action before it' });
+    } else if (cur.steps.length > 0) {
+      if (e.page_key !== cur.page)
+        this.raise({
           severity: 'warning',
-          code: secret ? 'secret_target' : templated ? 'template_text' : hid ? 'hidden_text' : 'unresolved_press',
-          message: secret
-            ? 'a press on an element whose text holds a secret value was not recorded'
-            : templated
-              ? TEMPLATE_MESSAGE
-              : hid
-                ? HIDDEN_MESSAGE
-                : 'a press the recorder could not name was dropped: add it by hand if it mattered (page_inspect)',
+          code: 'page_changed',
+          message: `an action led to another environment page (${e.page_key}) in the same window: the scene continues on page ${cur.page} — check the replay`,
         });
-        continue;
-      }
-      const hs = before(e, el, t);
-      const opts = e.button === 'right' ? { button: 'right' } : {};
-      const obj = typeof t === 'string' ? { text: t } : t;
-      step.click = Object.keys(opts).length ? { ...obj, ...opts } : t;
-      if (!push(e, step, e.t, e.t, siteOf(el, t, [e.seq], 'click'))) {
-        stats.noise++;
-        continue;
-      }
-      group(hs, step);
-      acted(e.t);
-      if (!el.target) {
-        stats.fallbacks++;
-        note(step, { severity: 'warning', code: 'fallback_target', message: 'no verified target for this press (it was still appearing, or the page was too large): the target is guessed from its text — check it with page_inspect' });
-      }
-      continue;
+      this.newScene(e.seq, cur.page, path);
+    } else {
+      cur.path = path;
+      cur.seq = e.seq;
     }
+    if (!e.same_document) this.afterLoad = true;
+  }
 
-    if (e.kind === 'dblclick') continue; // after its two presses (handled above), or alone: nothing to add
+  /** One of the person's actions at stream index `i`: the index of the last event it took. */
+  private action(e: Ev, i: number): number {
+    switch (e.kind) {
+      case 'scroll':
+        this.scrolled(e);
+        return i;
+      case 'pointer':
+        return this.pointer(e, i);
+      case 'dblclick':
+        return i; // after its two presses (handled with the first), or alone: nothing to add
+      case 'type':
+        this.typed(e, i);
+        return i;
+      case 'select_native':
+        this.selectNative(e);
+        return i;
+      case 'file':
+        this.file(e);
+        return i;
+      case 'key':
+        this.key(e);
+        return i;
+      default:
+        return i;
+    }
+  }
 
-    if (e.kind === 'type') {
-      if (!e.secret && (e.text ?? '').includes(TEMPLATE)) {
-        // Typed text a scenario would resolve as a template: left out (the click that focused the field stays).
-        current(e);
-        raise({ severity: 'warning', code: 'template_text', message: TEMPLATE_MESSAGE });
-        continue;
-      }
-      if (!e.secret && hidden(e.text ?? '')) {
-        // Typed or pasted text with a hidden character: left out too (never quoted).
-        current(e);
-        raise({ severity: 'warning', code: 'hidden_text', message: HIDDEN_MESSAGE });
-        continue;
-      }
-      const into = targetOf(e.el);
-      const secretKind = e.secret ? ((SECRET_FIELD_KINDS as readonly string[]).includes(e.field_kind) ? e.field_kind : 'secret') : undefined;
-      // The same field typed again with nothing between (a visit to the Studio blurred the window and committed the
-      // first part): one typing step — a secret one keeps its one placeholder — unless an insert was placed between
-      // them, or the text would make a template or pass the longest recorded text. The step keeps the time of each part:
-      // a write that follows either is attributed to it.
-      const prevStep = lastStep();
-      const pm = prevStep ? meta.get(prevStep) : undefined;
-      if (
+  /** Scrolling, summed until the next action (one container at a time). */
+  private scrolled(e: EvOf<'scroll'>): void {
+    if (!this.scroll || this.scroll.container !== e.container || (e.container === 'element' && !sameEl(this.scroll.el, e.el))) {
+      this.scroll = { dy: 0, dx: 0, container: e.container, el: e.el, seqs: [e.seq, e.seq] };
+    }
+    this.scroll.seqs[1] = e.seq;
+    this.scroll.dy += e.dy;
+    this.scroll.dx += e.dx;
+  }
+
+  /** A press: a double click, a list's choice, a row's menu, a file zone, else a click. */
+  private pointer(e: EvOf<'pointer'>, i: number): number {
+    const el = e.el;
+    if (el === null) {
+      this.stats.noise++;
+      return i;
+    }
+    if (e.button === 'middle') {
+      this.raise({ severity: 'info', code: 'middle_click', message: 'a middle click (a new tab) was not recorded' });
+      return i;
+    }
+    const j1 = this.nextAction(i + 1);
+    const done = this.doubleClick(e, el, j1) ?? this.listChoice(e, el, j1) ?? this.rowMenu(e, el, j1) ?? this.fileZone(e, el, i, j1);
+    if (done !== null) return done;
+    this.press(e, el);
+    return i;
+  }
+
+  /** A double click: this press, a second one on the same element, then `dblclick`. Null when it is not one. */
+  private doubleClick(e: EvOf<'pointer'>, el: El, j1: number): number | null {
+    const n1 = this.stream[j1];
+    const n2 = this.stream[this.nextAction(j1 + 1)];
+    if (!(n1?.kind === 'pointer' && n1.el && sameEl(n1.el, el) && n2?.kind === 'dblclick')) return null;
+    let step: Step = {};
+    const t = this.pressTarget(el, () => step);
+    if (t === null) return this.nextAction(j1 + 1);
+    const hs = this.before(e, el, t);
+    step = { double_click: t };
+    if (this.push(e, step, e.t, n2.t, { seqs: [e.seq, n2.seq], ...siteOf(el, t, [e.seq], 'double_click') })) this.group(hs, step);
+    this.acted(n2.t, 2);
+    return this.nextAction(j1 + 1);
+  }
+
+  /** A list (Radix / Base UI select, a multi-select popover): options chosen in the listbox it opened. Null when it is not one. */
+  private listChoice(e: EvOf<'pointer'>, el: El, j1: number): number | null {
+    const { stream } = this;
+    if (!inList(stream[j1])) return null;
+    let j = j1;
+    let search: string | undefined;
+    const options: string[] = [];
+    let tEnd = e.t;
+    let sEnd = e.seq;
+    while (j < stream.length) {
+      const x = stream[j];
+      if (x.kind === 'type' && options.length === 0 && !x.secret && x.text !== undefined && (x.el?.in === 'listbox' || x.el?.in === 'popover')) {
+        search = x.text;
+        tEnd = x.t;
+        sEnd = x.seq;
+      } else if (x.kind === 'pointer' && x.el?.in === 'listbox' && x.el.role === 'option' && itemName(x.el) && !unsafe(itemName(x.el))) {
+        options.push(itemName(x.el));
+        tEnd = x.t;
+        sEnd = x.seq;
+      } else if (x.kind === 'pointer' && (x.el?.in === 'listbox' || x.el?.in === 'popover') && x.el.role !== 'option' && options.length === 0) {
+        // a press in the list that is not an option (a search box): part of the choice
+        tEnd = x.t;
+        sEnd = x.seq;
+      } else break;
+      j = this.nextAction(j + 1);
+    }
+    if (options.length === 0) return null;
+    const after = stream[j];
+    let close: 'escape' | 'outside' | 'none' | null = null;
+    if (after?.kind === 'key' && after.key === 'Escape' && after.modifiers.length === 0) close = 'escape';
+    else if (isClosingPress(after)) close = 'outside';
+    const hint = el.action.kind === 'select' && el.action.field ? el.action.field : null;
+    const trigger = targetOf(el);
+    if (hint === null && trigger === null) return null;
+    const label = hint ?? (clean(el.label) && !unsafe(clean(el.label)) ? clean(el.label) : null);
+    const hs = this.before(e, el, trigger);
+    let step: Step;
+    let m: Partial<StepMeta> = {};
+    if (options.length === 1 && (hint !== null || close === null)) {
+      step = { select: { ...(hint !== null ? { field: hint } : { combobox: trigger }), option: options[0], ...(search !== undefined ? { search } : {}) } };
+      if (hint === null) m = siteOf(el, trigger, [e.seq], 'select');
+    } else {
+      const field: unknown = label ?? (el.target ? { ...el.target } : null);
+      step = {
+        pick: { field, option: options.length === 1 ? options[0] : options, ...(search !== undefined ? { search } : {}), close: close ?? (after && ACTION_KINDS.has(after.kind) ? 'outside' : 'none') },
+      };
+    }
+    if (!this.push(e, step, e.t, close !== null ? after!.t : tEnd, { seqs: [e.seq, close !== null ? after!.seq : sEnd], ...m })) this.stats.noise++;
+    else this.group(hs, step);
+    this.acted(close !== null ? after!.t : tEnd, options.length + 1);
+    return close !== null ? j : j - 1;
+  }
+
+  /** A row's action menu: trigger → item (→ the confirmation dialog's button). Null when it is not one. */
+  private rowMenu(e: EvOf<'pointer'>, el: El, j1: number): number | null {
+    const n1 = this.stream[j1];
+    if (!(el.action.kind === 'menu' && n1?.kind === 'pointer' && n1.el?.in === 'menu' && itemName(n1.el) && !unsafe(itemName(n1.el)))) return null;
+    const item = itemName(n1.el);
+    const j2 = this.nextAction(j1 + 1);
+    const c = this.stream[j2];
+    let confirm: string | undefined;
+    if (c?.kind === 'pointer' && c.el && c.el.in === 'dialog' && c.el.appeared && c.el.role === 'button' && c.t - n1.t <= 10_000) {
+      const name = itemName(c.el);
+      const a = name.toLowerCase();
+      const b = item.toLowerCase();
+      if (name && !unsafe(name) && (a === b || a.startsWith(`${b} `) || CONFIRM_WORD.test(name))) confirm = name;
+    }
+    const trigger = targetOf(el);
+    const row = el.action.row && !unsafe(el.action.row) ? el.action.row : null;
+    if (row === null && trigger === null) return null;
+    const hs = this.before(e, el, trigger);
+    const end = confirm !== undefined ? c!.t : n1.t;
+    const step: Step = { menu: { ...(row !== null ? { row } : { trigger }), item, ...(confirm !== undefined ? { confirm } : {}) } };
+    if (this.push(e, step, e.t, end, { seqs: [e.seq, confirm !== undefined ? c!.seq : n1.seq] })) this.group(hs, step);
+    this.acted(end, confirm !== undefined ? 3 : 2);
+    return confirm !== undefined ? j2 : j1;
+  }
+
+  /** A file zone: the file chosen in the chooser it opened (or dropped on it). Null when it is not one, or no step came of it. */
+  private fileZone(e: EvOf<'pointer'>, el: El, i: number, j1: number): number | null {
+    if (el.action.kind !== 'drop_file') return null;
+    const n1 = this.stream[j1];
+    if (n1?.kind !== 'file') {
+      this.raise({ severity: 'info', code: 'file_cancelled', message: 'a file zone was pressed and no file was chosen: not recorded' });
+      return i;
+    }
+    const zone = targetOf(el) ?? targetOf(n1.el);
+    if (zone === null || n1.names.length === 0) return null;
+    const hs = this.before(e, el, zone);
+    const step = this.dropFile(zone, n1.names);
+    const own = targetOf(el) !== null;
+    if (this.push(e, step, e.t, n1.t, { seqs: [e.seq, n1.seq], ...siteOf(own ? el : n1.el, zone, [own ? e.seq : n1.seq], 'drop_file') })) this.group(hs, step);
+    this.acted(n1.t, 2);
+    return j1;
+  }
+
+  /** A click (a right click keeps its button); a press the recorder could not name is dropped and said. */
+  private press(e: EvOf<'pointer'>, el: El): void {
+    let step: Step = {};
+    const t = this.pressTarget(el, () => step);
+    if (t === null) {
+      this.stats.noise++;
+      const own = clean(el.name) || clean(el.text);
+      const secret = hasMask(bare(el));
+      const templated = !secret && (hasTemplate(el.target) || own.includes(TEMPLATE));
+      const hid = !secret && !templated && (hasHidden(el.target) || hidden(own));
+      this.raise({
+        severity: 'warning',
+        code: secret ? 'secret_target' : templated ? 'template_text' : hid ? 'hidden_text' : 'unresolved_press',
+        message: secret
+          ? 'a press on an element whose text holds a secret value was not recorded'
+          : templated
+            ? TEMPLATE_MESSAGE
+            : hid
+              ? HIDDEN_MESSAGE
+              : 'a press the recorder could not name was dropped: add it by hand if it mattered (page_inspect)',
+      });
+      return;
+    }
+    const hs = this.before(e, el, t);
+    const opts = e.button === 'right' ? { button: 'right' } : {};
+    const obj = typeof t === 'string' ? { text: t } : t;
+    step.click = Object.keys(opts).length ? { ...obj, ...opts } : t;
+    if (!this.push(e, step, e.t, e.t, siteOf(el, t, [e.seq], 'click'))) {
+      this.stats.noise++;
+      return;
+    }
+    this.group(hs, step);
+    this.acted(e.t);
+    if (!el.target) {
+      this.stats.fallbacks++;
+      this.note(step, {
+        severity: 'warning',
+        code: 'fallback_target',
+        message: 'no verified target for this press (it was still appearing, or the page was too large): the target is guessed from its text — check it with page_inspect',
+      });
+    }
+  }
+
+  /** Typing (always with `into`; clear / enter); a secret field's as a placeholder; the press that focused the field folded in. */
+  private typed(e: EvOf<'type'>, i: number): void {
+    if (!e.secret && (e.text ?? '').includes(TEMPLATE)) {
+      // Typed text a scenario would resolve as a template: left out (the click that focused the field stays).
+      this.current(e);
+      this.raise({ severity: 'warning', code: 'template_text', message: TEMPLATE_MESSAGE });
+      return;
+    }
+    if (!e.secret && hidden(e.text ?? '')) {
+      // Typed or pasted text with a hidden character: left out too (never quoted).
+      this.current(e);
+      this.raise({ severity: 'warning', code: 'hidden_text', message: HIDDEN_MESSAGE });
+      return;
+    }
+    const into = targetOf(e.el);
+    const secretKind = e.secret ? ((SECRET_FIELD_KINDS as readonly string[]).includes(e.field_kind) ? e.field_kind : 'secret') : undefined;
+    if (this.mergeTyping(e, i, into, secretKind)) return;
+    // The press that focused the field is the type's `into` (its issues follow it).
+    let folded: Step | null = null;
+    if (into !== null && isClickOn(this.lastStep(), into)) {
+      folded = this.scene!.steps.pop()!.step;
+      this.stats.steps--;
+    }
+    const fm = folded ? this.meta.get(folded) : undefined;
+    const typeMeta = (): Partial<StepMeta> => ({ seqs: [fm?.seqs[0] ?? e.seq, e.seq], ...siteOf(e.el, into, [...(fm?.targetSeqs ?? []), e.seq], 'type') });
+    if (e.secret) {
+      this.secretTyping(e, i, into, folded, typeMeta);
+      return;
+    }
+    const text = e.text ?? '';
+    const step: Step = { type: { ...(into !== null ? { into } : {}), text, ...(e.clear ? { clear: true } : {}), ...(e.enter ? { enter: true } : {}) } };
+    const hs = this.before(e, e.el, into);
+    if (this.push(e, step, e.t, e.t, { ...typeMeta(), ...(into !== null && !e.enter ? { typeIdx: i } : {}) })) this.group(hs, step);
+    if (folded) this.moved(folded, step);
+    this.acted(e.t);
+    if (into === null)
+      this.note(step, { severity: 'warning', code: 'fallback_target', message: 'the field typed into has no verified target: the step types into the focused element — add `into` (page_inspect)' });
+    if (e.field_kind === 'contenteditable')
+      this.note(step, { severity: 'info', code: 'contenteditable', message: 'typed into a rich text editor: its text is recorded as it shows, formatting aside — check the replay' });
+  }
+
+  /**
+   * The same field typed again with nothing between (a visit to the Studio blurred the window and committed the first
+   * part): one typing step — a secret one keeps its one placeholder — unless an insert was placed between them, or the
+   * text would make a template or pass the longest recorded text. The step keeps the time of each part: a write that
+   * follows either is attributed to it. True when merged.
+   */
+  private mergeTyping(e: EvOf<'type'>, i: number, into: TargetSpec | null, secretKind: string | undefined): boolean {
+    const prevStep = this.lastStep();
+    const pm = prevStep ? this.meta.get(prevStep) : undefined;
+    if (
+      !(
         prevStep &&
         pm?.typeIdx !== undefined &&
         pm.target !== undefined &&
@@ -1007,332 +1231,354 @@ export function draftFromRecording(
         !e.clear &&
         into !== null &&
         sameTarget(normalizeTarget(pm.target), normalizeTarget(into)) &&
-        stream.slice(pm.typeIdx + 1, i).every((x) => x.kind === 'scroll') &&
-        (scroll === null || Math.abs(scroll.dy) < RECORD_SCROLL_MIN_PX) &&
-        !inserts.some((x) => x.after_seq >= pm.seqs[1] && x.after_seq < e.seq)
-      ) {
-        const ty = prevStep.type as { text: string; enter?: boolean };
-        const merged = secretKind !== undefined ? ty.text : ty.text + (e.text ?? '');
-        if (secretKind !== undefined || (!merged.includes(TEMPLATE) && merged.length <= RECORD_TEXT_MAX)) {
-          ty.text = merged;
-          if (e.enter) ty.enter = true;
-          const last = scene!.steps.at(-1)!;
-          last.tw = [...(last.tw ?? [last.t1]), e.t];
-          pm.seqs[1] = e.seq;
-          pm.targetSeqs?.push(e.seq);
-          pm.typeIdx = e.enter ? undefined : i;
-          acted(e.t);
-          continue;
-        }
-      }
-      // The press that focused the field is the type's `into` (its issues follow it).
-      let folded: Step | null = null;
-      if (into !== null && isClickOn(lastStep(), into)) {
-        folded = scene!.steps.pop()!.step;
-        stats.steps--;
-      }
-      const fm = folded ? meta.get(folded) : undefined;
-      const typeMeta = (): Partial<StepMeta> => ({ seqs: [fm?.seqs[0] ?? e.seq, e.seq], ...siteOf(e.el, into, [...(fm?.targetSeqs ?? []), e.seq], 'type') });
-      let text: string;
-      if (e.secret) {
-        const kind = (SECRET_FIELD_KINDS as readonly string[]).includes(e.field_kind) ? e.field_kind : 'secret';
-        const prev = lastStep();
-        if (kind === 'one_time_code' && prev && typeof prev.type === 'object' && String((prev.type as { text?: string }).text ?? '').startsWith('{{vars.one_time_code_')) {
-          // One-time-code boxes: one typing step on the first box (the app must move to the next box by itself).
-          if (!otpMerged) {
-            note(prev, { severity: 'warning', code: 'one_time_code', message: 'one-time-code boxes were typed one by one: merged into one typing step on the first box — it replays only if the app moves to the next box by itself' });
-            otpMerged = true;
-          }
-          const last2 = scene!.steps.at(-1)!;
-          last2.t1 = e.t;
-          const m2 = meta.get(last2.step);
-          if (m2) m2.seqs[1] = e.seq;
-          if (folded) moved(folded, last2.step);
-          acted(e.t);
-          continue;
-        }
-        const n = (secretCount.get(kind) ?? 0) + 1;
-        secretCount.set(kind, n);
-        const name = `${kind}_${n}`;
-        text = `{{vars.${name}}}`;
-        if (!Object.hasOwn(projectVars, name)) vars[name] = RECORD_SECRET_PLACEHOLDER;
-        stats.secrets++;
-        const step: Step = { type: { ...(into !== null ? { into } : {}), text, ...(e.clear ? { clear: true } : {}), ...(e.enter ? { enter: true } : {}) } };
-        const hs = before(e, e.el, into);
-        if (push(e, step, e.t, e.t, { ...typeMeta(), ...(into !== null && !e.enter ? { typeIdx: i } : {}), secretKind: kind })) {
-          group(hs, step);
-          secretSteps.push({ step, name, kind: kind as SecretFieldKind, project_var: Object.hasOwn(projectVars, name) });
-        }
-        if (folded) moved(folded, step);
-        acted(e.t);
-        note(step, {
+        this.stream.slice(pm.typeIdx + 1, i).every((x) => x.kind === 'scroll') &&
+        (this.scroll === null || Math.abs(this.scroll.dy) < RECORD_SCROLL_MIN_PX) &&
+        !this.inserts.some((x) => x.after_seq >= pm.seqs[1] && x.after_seq < e.seq)
+      )
+    ) {
+      return false;
+    }
+    const ty = prevStep.type as { text: string; enter?: boolean };
+    const merged = secretKind !== undefined ? ty.text : ty.text + (e.text ?? '');
+    if (!(secretKind !== undefined || (!merged.includes(TEMPLATE) && merged.length <= RECORD_TEXT_MAX))) return false;
+    ty.text = merged;
+    if (e.enter) ty.enter = true;
+    const last = this.scene!.steps.at(-1)!;
+    last.tw = [...(last.tw ?? [last.t1]), e.t];
+    pm.seqs[1] = e.seq;
+    pm.targetSeqs?.push(e.seq);
+    pm.typeIdx = e.enter ? undefined : i;
+    this.acted(e.t);
+    return true;
+  }
+
+  /** A secret field's typing: `{{vars.<kind>_N}}` (project.yaml's var when it has one); one-time-code boxes merged into the first. */
+  private secretTyping(e: EvOf<'type'>, i: number, into: TargetSpec | null, folded: Step | null, typeMeta: () => Partial<StepMeta>): void {
+    const { projectVars } = this;
+    const kind = (SECRET_FIELD_KINDS as readonly string[]).includes(e.field_kind) ? e.field_kind : 'secret';
+    const prev = this.lastStep();
+    if (kind === 'one_time_code' && prev && typeof prev.type === 'object' && String((prev.type as { text?: string }).text ?? '').startsWith('{{vars.one_time_code_')) {
+      // One-time-code boxes: one typing step on the first box (the app must move to the next box by itself).
+      if (!this.otpMerged) {
+        this.note(prev, {
           severity: 'warning',
-          code: e.autofill ? 'autofill' : 'secret_field',
-          message: Object.hasOwn(projectVars, name)
-            ? `a secret field (${kind}) was typed: its value was never recorded — the draft types project.yaml's vars.${name}`
-            : `a secret field (${kind})${e.autofill ? ' was filled by the browser' : ' was typed'}: its value was never recorded — set vars.${name} to a showable demo value (a real secret only as {{env:…}}, by hand, which makes the scenario CLI-only)`,
+          code: 'one_time_code',
+          message: 'one-time-code boxes were typed one by one: merged into one typing step on the first box — it replays only if the app moves to the next box by itself',
         });
-        continue;
+        this.otpMerged = true;
       }
-      text = e.text ?? '';
-      const step: Step = { type: { ...(into !== null ? { into } : {}), text, ...(e.clear ? { clear: true } : {}), ...(e.enter ? { enter: true } : {}) } };
-      const hs = before(e, e.el, into);
-      if (push(e, step, e.t, e.t, { ...typeMeta(), ...(into !== null && !e.enter ? { typeIdx: i } : {}) })) group(hs, step);
-      if (folded) moved(folded, step);
-      acted(e.t);
-      if (into === null) note(step, { severity: 'warning', code: 'fallback_target', message: 'the field typed into has no verified target: the step types into the focused element — add `into` (page_inspect)' });
-      if (e.field_kind === 'contenteditable') note(step, { severity: 'info', code: 'contenteditable', message: 'typed into a rich text editor: its text is recorded as it shows, formatting aside — check the replay' });
-      continue;
+      const last2 = this.scene!.steps.at(-1)!;
+      last2.t1 = e.t;
+      const m2 = this.meta.get(last2.step);
+      if (m2) m2.seqs[1] = e.seq;
+      if (folded) this.moved(folded, last2.step);
+      this.acted(e.t);
+      return;
     }
-
-    if (e.kind === 'select_native') {
-      const t = targetOf(e.el);
-      const field = e.el ? clean(e.el.label) : '';
-      if (t === null && (!field || unsafe(field))) {
-        raise({ severity: 'warning', code: 'unresolved_press', message: 'a choice in a list the recorder could not name was dropped: add it by hand (page_inspect)' });
-        continue;
-      }
-      if (unsafe(e.option)) {
-        raise(
-          e.option.includes(MASK)
-            ? { severity: 'warning', code: 'secret_target', message: 'a choice whose text holds a secret value was not recorded' }
-            : e.option.includes(TEMPLATE)
-              ? { severity: 'warning', code: 'template_text', message: TEMPLATE_MESSAGE }
-              : { severity: 'warning', code: 'hidden_text', message: HIDDEN_MESSAGE },
-        );
-        continue;
-      }
-      let folded: Step | null = null;
-      if (t !== null && isClickOn(lastStep(), t)) {
-        folded = scene!.steps.pop()!.step;
-        stats.steps--;
-      }
-      const hs = before(e, e.el, t);
-      const step: Step = { select: { ...(t !== null ? { combobox: t } : { field }), option: e.option } };
-      const fm = folded ? meta.get(folded) : undefined;
-      if (push(e, step, e.t, e.t, { seqs: [fm?.seqs[0] ?? e.seq, e.seq], ...siteOf(e.el, t, [...(fm?.targetSeqs ?? []), e.seq], 'select') })) group(hs, step);
-      if (folded) moved(folded, step);
-      acted(e.t);
-      continue;
+    const n = (this.secretCount.get(kind) ?? 0) + 1;
+    this.secretCount.set(kind, n);
+    const name = `${kind}_${n}`;
+    const text = `{{vars.${name}}}`;
+    if (!Object.hasOwn(projectVars, name)) this.vars[name] = RECORD_SECRET_PLACEHOLDER;
+    this.stats.secrets++;
+    const step: Step = { type: { ...(into !== null ? { into } : {}), text, ...(e.clear ? { clear: true } : {}), ...(e.enter ? { enter: true } : {}) } };
+    const hs = this.before(e, e.el, into);
+    if (this.push(e, step, e.t, e.t, { ...typeMeta(), ...(into !== null && !e.enter ? { typeIdx: i } : {}), secretKind: kind })) {
+      this.group(hs, step);
+      this.secretSteps.push({ step, name, kind: kind as SecretFieldKind, project_var: Object.hasOwn(projectVars, name) });
     }
-
-    if (e.kind === 'file') {
-      const zone = targetOf(e.el);
-      if (zone === null || e.names.length === 0) {
-        raise({ severity: 'warning', code: 'unresolved_press', message: 'a file was chosen in a field the recorder could not name: add a drop_file step by hand' });
-        continue;
-      }
-      const hs = before(e, e.el, zone);
-      const step = dropFile(zone, e.names);
-      if (push(e, step, e.t, e.t, siteOf(e.el, zone, [e.seq], 'drop_file'))) group(hs, step);
-      acted(e.t);
-      continue;
-    }
-
-    if (e.kind === 'key') {
-      const key = e.key === ' ' ? 'Space' : e.key;
-      const combo = [...e.modifiers.filter((m) => m !== 'Shift' || key.length > 1), key].join('+');
-      const h = flushScroll(e, null);
-      const step: Step = { press: combo };
-      if (push(e, step, e.t)) group([h], step);
-      acted(e.t);
-    }
-  }
-  if (scene !== null) flushScroll(stream.at(-1) ?? evs[0], null);
-
-  function dropFile(zone: TargetSpec, names: readonly string[]): Step {
-    const name = unsafe(names[0]) ? 'file.csv' : names[0];
-    const step: Step = { drop_file: { zone, name, fake: true } };
-    note(step, {
-      severity: 'info',
-      code: 'fake_file',
-      message: `drop_file uses a placeholder file with the chosen file's name${names.length > 1 ? ` (the first of ${names.length})` : ''}: give it a real file under the project (path:) if the product reads its content`,
+    if (folded) this.moved(folded, step);
+    this.acted(e.t);
+    this.note(step, {
+      severity: 'warning',
+      code: e.autofill ? 'autofill' : 'secret_field',
+      message: Object.hasOwn(projectVars, name)
+        ? `a secret field (${kind}) was typed: its value was never recorded — the draft types project.yaml's vars.${name}`
+        : `a secret field (${kind})${e.autofill ? ' was filled by the browser' : ' was typed'}: its value was never recorded — set vars.${name} to a showable demo value (a real secret only as {{env:…}}, by hand, which makes the scenario CLI-only)`,
     });
-    return step;
   }
 
-  // ── Studio annotations (L4.8) ──
+  /** A native `<select>`'s choice (the press that opened it folded in). */
+  private selectNative(e: EvOf<'select_native'>): void {
+    const t = targetOf(e.el);
+    const field = e.el ? clean(e.el.label) : '';
+    if (t === null && (!field || unsafe(field))) {
+      this.raise({ severity: 'warning', code: 'unresolved_press', message: 'a choice in a list the recorder could not name was dropped: add it by hand (page_inspect)' });
+      return;
+    }
+    if (unsafe(e.option)) {
+      this.raise(
+        e.option.includes(MASK)
+          ? { severity: 'warning', code: 'secret_target', message: 'a choice whose text holds a secret value was not recorded' }
+          : e.option.includes(TEMPLATE)
+            ? { severity: 'warning', code: 'template_text', message: TEMPLATE_MESSAGE }
+            : { severity: 'warning', code: 'hidden_text', message: HIDDEN_MESSAGE },
+      );
+      return;
+    }
+    let folded: Step | null = null;
+    if (t !== null && isClickOn(this.lastStep(), t)) {
+      folded = this.scene!.steps.pop()!.step;
+      this.stats.steps--;
+    }
+    const hs = this.before(e, e.el, t);
+    const step: Step = { select: { ...(t !== null ? { combobox: t } : { field }), option: e.option } };
+    const fm = folded ? this.meta.get(folded) : undefined;
+    if (this.push(e, step, e.t, e.t, { seqs: [fm?.seqs[0] ?? e.seq, e.seq], ...siteOf(e.el, t, [...(fm?.targetSeqs ?? []), e.seq], 'select') })) this.group(hs, step);
+    if (folded) this.moved(folded, step);
+    this.acted(e.t);
+  }
+
+  /** A file chosen in a file field (a placeholder file of its name). */
+  private file(e: EvOf<'file'>): void {
+    const zone = targetOf(e.el);
+    if (zone === null || e.names.length === 0) {
+      this.raise({ severity: 'warning', code: 'unresolved_press', message: 'a file was chosen in a field the recorder could not name: add a drop_file step by hand' });
+      return;
+    }
+    const hs = this.before(e, e.el, zone);
+    const step = this.dropFile(zone, e.names);
+    if (this.push(e, step, e.t, e.t, siteOf(e.el, zone, [e.seq], 'drop_file'))) this.group(hs, step);
+    this.acted(e.t);
+  }
+
+  /** A key press (with its modifiers; Shift only with a named key). */
+  private key(e: EvOf<'key'>): void {
+    const key = e.key === ' ' ? 'Space' : e.key;
+    const combo = [...e.modifiers.filter((m) => m !== 'Shift' || key.length > 1), key].join('+');
+    const h = this.flushScroll(e, null);
+    const step: Step = { press: combo };
+    if (this.push(e, step, e.t)) this.group([h], step);
+    this.acted(e.t);
+  }
+}
+
+/** The element an event at `seq` recorded (null: none, or no such event). */
+function elementsBySeq(evs: readonly Ev[]): (seq: number) => El | null {
   const bySeq = new Map(evs.map((e) => [e.seq, e] as const));
-  const elAt = (seq: number): El | null => {
+  return (seq) => {
     const e = bySeq.get(seq);
     return e && 'el' in e ? e.el : null;
   };
-  const same = (a: TargetSpec, b: TargetSpec) => sameTarget(normalizeTarget(a), normalizeTarget(b));
-  // Picks, substituted now that every fold and merge decision compared the recorded targets: the latest of a step's
-  // target events that has a choice wins; the generator's own wait_for / scroll before that action follow it.
-  if (Object.keys(choices).length > 0) {
-    for (const sc of scenes) {
-      for (const { step } of sc.steps) {
-        const m = meta.get(step);
-        if (!m?.site || !m.targetSeqs || m.target === undefined) continue;
-        for (const seq of [...m.targetSeqs].sort((x, y) => y - x)) {
-          if (!Object.hasOwn(choices, String(seq))) continue;
-          const index = choices[String(seq)];
-          const alt = index === 0 ? null : recordedAlternatives(elAt(seq)).find((x) => x.index === index);
-          if (alt === undefined) continue;
-          m.chosen = { seq, index };
-          if (alt === null) break;
-          writeTarget(step, m.site, alt.target);
-          for (const [h, hm] of meta) if (hm.group === step && hm.role === 'helper') retarget(h, m.target, alt.target);
-          m.emitted = alt.target;
-          break;
-        }
+}
+
+const sameSpec = (a: TargetSpec, b: TargetSpec) => sameTarget(normalizeTarget(a), normalizeTarget(b));
+
+/**
+ * Picks (L4.8), substituted now that every fold and merge decision compared the recorded targets: the latest of a
+ * step's target events that has a choice wins; the generator's own wait_for / scroll before that action follow it.
+ */
+function applyChoices(d: Walked, choices: Record<string, number>, elAt: (seq: number) => El | null): void {
+  if (Object.keys(choices).length === 0) return;
+  const { meta } = d;
+  for (const sc of d.scenes) {
+    for (const { step } of sc.steps) {
+      const m = meta.get(step);
+      if (!m?.site || !m.targetSeqs || m.target === undefined) continue;
+      for (const seq of [...m.targetSeqs].sort((x, y) => y - x)) {
+        if (!Object.hasOwn(choices, String(seq))) continue;
+        const index = choices[String(seq)];
+        const alt = index === 0 ? null : recordedAlternatives(elAt(seq)).find((x) => x.index === index);
+        if (alt === undefined) continue;
+        m.chosen = { seq, index };
+        if (alt === null) break;
+        writeTarget(step, m.site, alt.target);
+        for (const [h, hm] of meta) if (hm.group === step && hm.role === 'helper') retarget(h, m.target, alt.target);
+        m.emitted = alt.target;
+        break;
       }
     }
   }
+}
 
-  // Inserts (see the function comment): hold / wait_for steps where their anchor says, caption / mark / camera on the
-  // action they come before.
+/** An action with the helpers the recorder put before it (contiguous, in scene order: helpers first). */
+interface StepGroup {
+  head: Step;
+  scene: DraftScene;
+  steps: Step[];
+  max: number;
+}
+
+/** An issue raised once the walk is over (inserts): after the walk's own, located by its step when it has one. */
+interface LateIssue {
+  issue: Raw;
+  step?: Step;
+}
+
+/**
+ * Inserts (see draftFromRecording): hold / wait_for steps where their anchor says, caption / mark / camera on the action
+ * they come before. The ids of the inserts waiting for the next action, and the issues they raised.
+ */
+function applyInserts(d: Walked, inserts: readonly RecordInsert[], final: boolean): { pending: string[]; late: LateIssue[] } {
   const pending: string[] = [];
-  const late: Array<{ issue: Raw; step?: Step }> = [];
-  if (inserts.length > 0) {
-    const inScene = new Set(scenes.flatMap((sc) => sc.steps.map((x) => x.step)));
-    /** An action with the helpers the recorder put before it (contiguous, in scene order: helpers first). */
-    type Group = { head: Step; scene: DraftScene; steps: Step[]; max: number };
-    const groups: Group[] = [];
-    const byHead = new Map<Step, Group>();
-    const groupOf = new Map<Step, Group>();
-    for (const sc of scenes) {
-      for (const { step } of sc.steps) {
-        const m = meta.get(step)!;
-        const head = m.role === 'helper' && m.group && inScene.has(m.group) ? m.group : step;
-        let g = byHead.get(head);
-        if (!g) {
-          g = { head, scene: sc, steps: [], max: -1 };
-          byHead.set(head, g);
-          groups.push(g);
-        }
-        g.steps.push(step);
-        groupOf.set(step, g);
-        g.max = Math.max(g.max, m.seqs[1]);
+  const late: LateIssue[] = [];
+  if (inserts.length === 0) return { pending, late };
+  const { scenes, meta } = d;
+  const { groups, groupOf } = stepGroups(scenes, meta);
+  const sceneAt = (a: number): DraftScene | undefined => {
+    let at: DraftScene | undefined;
+    for (const sc of scenes) if (sc.seq <= a) at = sc;
+    return at ?? scenes[0];
+  };
+  /** The recorder's wait before the action at event `seq` (`row: 'wait'`: an insert placed right after it). */
+  const waitAt = (seq: number): Step | undefined => {
+    for (const g of groups) {
+      for (const st of g.steps) {
+        const m = meta.get(st)!;
+        if (st !== g.head && m.role === 'helper' && 'wait_for' in st && m.seqs[1] === seq) return st;
       }
     }
-    const sceneAt = (a: number): DraftScene | undefined => {
-      let at: DraftScene | undefined;
-      for (const sc of scenes) if (sc.seq <= a) at = sc;
-      return at ?? scenes[0];
-    };
-    /** The recorder's wait before the action at event `seq` (`row: 'wait'`: an insert placed right after it). */
-    const waitAt = (seq: number): Step | undefined => {
-      for (const g of groups) {
-        for (const st of g.steps) {
-          const m = meta.get(st)!;
-          if (st !== g.head && m.role === 'helper' && 'wait_for' in st && m.seqs[1] === seq) return st;
+    return undefined;
+  };
+  const listIn = <K>(map: Map<K, Step[]>, k: K): Step[] => {
+    let l = map.get(k);
+    if (!l) map.set(k, (l = []));
+    return l;
+  };
+  const beforeStep = new Map<Step, Step[]>();
+  const afterStep = new Map<Step, Step[]>();
+  const atEnd = new Map<DraftScene, Step[]>();
+  /** Where each step insert went (an insert placed after it goes right after it), and the action it comes before. */
+  const placedAt = new Map<string, { list: Step[]; step: Step; g?: StepGroup }>();
+  const removed = new Set<Step>();
+  const applied = new Map<Step, Map<string, string>>();
+  const order = inserts.map((x, k) => ({ x, k })).sort((p, q) => p.x.after_seq - q.x.after_seq || p.k - q.k);
+  for (const { x } of order) {
+    if (JSON.stringify(x).includes(TEMPLATE)) continue; // never a template (the annotations' schema refuses it too)
+    // The anchor: after another insert (when it is still placed), after the recorder's wait before an action, else
+    // the position — the action whose latest event comes after it. The row it was made on is gone: the position.
+    const ref = x.after_insert !== undefined ? placedAt.get(x.after_insert) : undefined;
+    const wait = ref ? undefined : x.row === 'wait' ? waitAt(x.after_seq) : undefined;
+    const g = ref ? ref.g : wait ? groupOf.get(wait) : groups.find((y) => y.max > (x.row === 'wait' ? x.after_seq - 1 : x.after_seq));
+    if (x.kind === 'hold' || x.kind === 'wait_for') {
+      let step: Step;
+      if (x.kind === 'hold') step = { hold: x.seconds };
+      else if (x.until === 'idle') step = { wait_for: { network_idle: true } };
+      else if (x.until === 'text') step = { wait_for: { text: x.text } };
+      else {
+        const hm = g ? meta.get(g.head) : undefined;
+        const t = hm?.emitted ?? hm?.target ?? (g ? fieldTarget(g.head) : undefined);
+        if (!g || t === undefined) {
+          step = { wait_for: { network_idle: true } };
+          late.push({
+            step,
+            issue: {
+              severity: 'info',
+              code: 'insert_wait_idle',
+              message: 'a wait for the next target you inserted: the next action has no target (or there is none yet), so the step waits for the page to be idle',
+            },
+          });
+        } else {
+          // The recorder's own wait for that target before the action: replaced by this one (its timeout kept).
+          const auto = g.steps.find((st) => {
+            const ym = meta.get(st);
+            const w = st.wait_for as { target?: TargetSpec } | undefined;
+            return st !== g.head && ym?.role === 'helper' && !removed.has(st) && w?.target !== undefined && sameSpec(w.target, t);
+          });
+          const timeout = auto ? (auto.wait_for as { timeout?: number }).timeout : undefined;
+          step = { wait_for: { target: JSON.parse(JSON.stringify(t)) as TargetSpec, ...(timeout !== undefined ? { timeout } : {}) } };
+          if (auto) {
+            removed.add(auto);
+            late.push({ step, issue: { severity: 'info', code: 'insert_replaced', message: 'the wait you inserted replaces the one the recorder put before this action (same target)' } });
+          }
         }
       }
-      return undefined;
-    };
-    const listIn = <K,>(map: Map<K, Step[]>, k: K): Step[] => {
-      let l = map.get(k);
-      if (!l) map.set(k, (l = []));
-      return l;
-    };
-    const beforeStep = new Map<Step, Step[]>();
-    const afterStep = new Map<Step, Step[]>();
-    const atEnd = new Map<DraftScene, Step[]>();
-    /** Where each step insert went (an insert placed after it goes right after it), and the action it comes before. */
-    const placedAt = new Map<string, { list: Step[]; step: Step; g?: Group }>();
-    const removed = new Set<Step>();
-    const applied = new Map<Step, Map<string, string>>();
-    const order = inserts.map((x, k) => ({ x, k })).sort((p, q) => p.x.after_seq - q.x.after_seq || p.k - q.k);
-    for (const { x } of order) {
-      if (JSON.stringify(x).includes(TEMPLATE)) continue; // never a template (the annotations' schema refuses it too)
-      // The anchor: after another insert (when it is still placed), after the recorder's wait before an action, else
-      // the position — the action whose latest event comes after it. The row it was made on is gone: the position.
-      const ref = x.after_insert !== undefined ? placedAt.get(x.after_insert) : undefined;
-      const wait = ref ? undefined : x.row === 'wait' ? waitAt(x.after_seq) : undefined;
-      const g = ref ? ref.g : wait ? groupOf.get(wait) : groups.find((y) => y.max > (x.row === 'wait' ? x.after_seq - 1 : x.after_seq));
-      if (x.kind === 'hold' || x.kind === 'wait_for') {
-        let step: Step;
-        if (x.kind === 'hold') step = { hold: x.seconds };
-        else if (x.until === 'idle') step = { wait_for: { network_idle: true } };
-        else if (x.until === 'text') step = { wait_for: { text: x.text } };
-        else {
-          const hm = g ? meta.get(g.head) : undefined;
-          const t = hm?.emitted ?? hm?.target ?? (g ? fieldTarget(g.head) : undefined);
-          if (!g || t === undefined) {
-            step = { wait_for: { network_idle: true } };
-            late.push({ step, issue: { severity: 'info', code: 'insert_wait_idle', message: 'a wait for the next target you inserted: the next action has no target (or there is none yet), so the step waits for the page to be idle' } });
-          } else {
-            // The recorder's own wait for that target before the action: replaced by this one (its timeout kept).
-            const auto = g.steps.find((st) => {
-              const ym = meta.get(st);
-              const w = st.wait_for as { target?: TargetSpec } | undefined;
-              return st !== g.head && ym?.role === 'helper' && !removed.has(st) && w?.target !== undefined && same(w.target, t);
-            });
-            const timeout = auto ? (auto.wait_for as { timeout?: number }).timeout : undefined;
-            step = { wait_for: { target: JSON.parse(JSON.stringify(t)) as TargetSpec, ...(timeout !== undefined ? { timeout } : {}) } };
-            if (auto) {
-              removed.add(auto);
-              late.push({ step, issue: { severity: 'info', code: 'insert_replaced', message: 'the wait you inserted replaces the one the recorder put before this action (same target)' } });
-            }
-          }
+      meta.set(step, { seqs: [x.after_seq, x.after_seq], role: 'insert', insert: x.id });
+      let list: Step[];
+      if (ref) {
+        list = ref.list;
+        list.splice(list.indexOf(ref.step) + 1, 0, step);
+      } else if (wait) {
+        list = listIn(afterStep, wait);
+        list.push(step);
+      } else if (g) {
+        // After the action's helpers that ended at or before the position (a scroll made before the insert), before
+        // the others (the recorder's wait, made with the action).
+        let anchor: Step | undefined;
+        for (const st of g.steps) if (st !== g.head && meta.get(st)!.role === 'helper' && meta.get(st)!.seqs[1] <= x.after_seq) anchor = st;
+        list = anchor ? listIn(afterStep, anchor) : listIn(beforeStep, g.steps[0]);
+        list.push(step);
+      } else {
+        const sc = sceneAt(x.after_seq);
+        if (!sc) {
+          late.push({ issue: { severity: 'warning', code: 'insert_unplaced', message: `a ${x.kind} you inserted has no scene to go in (nothing was recorded): left out` } });
+          continue;
         }
-        meta.set(step, { seqs: [x.after_seq, x.after_seq], role: 'insert', insert: x.id });
-        let list: Step[];
-        if (ref) {
-          list = ref.list;
-          list.splice(list.indexOf(ref.step) + 1, 0, step);
-        } else if (wait) {
-          list = listIn(afterStep, wait);
-          list.push(step);
-        } else if (g) {
-          // After the action's helpers that ended at or before the position (a scroll made before the insert), before
-          // the others (the recorder's wait, made with the action).
-          let anchor: Step | undefined;
-          for (const st of g.steps) if (st !== g.head && meta.get(st)!.role === 'helper' && meta.get(st)!.seqs[1] <= x.after_seq) anchor = st;
-          list = anchor ? listIn(afterStep, anchor) : listIn(beforeStep, g.steps[0]);
-          list.push(step);
-        } else {
-          const sc = sceneAt(x.after_seq);
-          if (!sc) {
-            late.push({ issue: { severity: 'warning', code: 'insert_unplaced', message: `a ${x.kind} you inserted has no scene to go in (nothing was recorded): left out` } });
-            continue;
-          }
-          list = listIn(atEnd, sc);
-          list.push(step);
-        }
-        placedAt.set(x.id, { list, step, ...(g ? { g } : {}) });
+        list = listIn(atEnd, sc);
+        list.push(step);
+      }
+      placedAt.set(x.id, { list, step, ...(g ? { g } : {}) });
+      continue;
+    }
+    // caption, mark, camera: on the action they come before.
+    let head = g?.head;
+    if (head === undefined) {
+      if (!final) {
+        pending.push(x.id);
         continue;
       }
-      // caption, mark, camera: on the action they come before.
-      let head = g?.head;
+      head = groups.at(-1)?.head;
       if (head === undefined) {
-        if (!final) {
-          pending.push(x.id);
-          continue;
-        }
-        head = groups.at(-1)?.head;
-        if (head === undefined) {
-          late.push({ issue: { severity: 'warning', code: 'insert_unplaced', message: `a ${x.kind} you inserted has no step to go on (nothing was recorded): left out` } });
-          continue;
-        }
-        late.push({ step: head, issue: { severity: 'info', code: 'insert_moved', message: `a ${x.kind} you inserted for the next action had no action after it: it is on the last action` } });
+        late.push({ issue: { severity: 'warning', code: 'insert_unplaced', message: `a ${x.kind} you inserted has no step to go on (nothing was recorded): left out` } });
+        continue;
       }
-      const kinds = applied.get(head) ?? new Map<string, string>();
-      applied.set(head, kinds);
-      if (kinds.has(x.kind)) late.push({ step: head, issue: { severity: 'info', code: 'insert_replaced', message: `a later ${x.kind} you inserted replaces an earlier one on this step` } });
-      kinds.set(x.kind, x.id);
-      head[x.kind] = x.kind === 'caption' ? (x.kicker !== undefined ? { kicker: x.kicker, text: x.text } : x.text) : x.kind === 'mark' ? x.name : { zoom: x.zoom, until: x.until };
-      meta.get(head)!.modifiers = [...kinds.values()];
+      late.push({ step: head, issue: { severity: 'info', code: 'insert_moved', message: `a ${x.kind} you inserted for the next action had no action after it: it is on the last action` } });
     }
-    for (const sc of scenes) {
-      const out: DraftScene['steps'] = [];
-      for (const x of sc.steps) {
-        for (const step of beforeStep.get(x.step) ?? []) out.push({ step, t0: x.t0, t1: x.t0 });
-        if (!removed.has(x.step)) out.push(x);
-        for (const step of afterStep.get(x.step) ?? []) out.push({ step, t0: x.t0, t1: x.t0 });
+    const kinds = applied.get(head) ?? new Map<string, string>();
+    applied.set(head, kinds);
+    if (kinds.has(x.kind)) late.push({ step: head, issue: { severity: 'info', code: 'insert_replaced', message: `a later ${x.kind} you inserted replaces an earlier one on this step` } });
+    kinds.set(x.kind, x.id);
+    head[x.kind] = x.kind === 'caption' ? (x.kicker !== undefined ? { kicker: x.kicker, text: x.text } : x.text) : x.kind === 'mark' ? x.name : { zoom: x.zoom, until: x.until };
+    meta.get(head)!.modifiers = [...kinds.values()];
+  }
+  spliceInserts(scenes, { beforeStep, afterStep, atEnd, removed });
+  return { pending, late };
+}
+
+/** The actions of the scenes, each with the helpers the recorder put before it; the group of each step. */
+function stepGroups(scenes: readonly DraftScene[], meta: Map<Step, StepMeta>): { groups: StepGroup[]; groupOf: Map<Step, StepGroup> } {
+  const inScene = new Set(scenes.flatMap((sc) => sc.steps.map((x) => x.step)));
+  const groups: StepGroup[] = [];
+  const byHead = new Map<Step, StepGroup>();
+  const groupOf = new Map<Step, StepGroup>();
+  for (const sc of scenes) {
+    for (const { step } of sc.steps) {
+      const m = meta.get(step)!;
+      const head = m.role === 'helper' && m.group && inScene.has(m.group) ? m.group : step;
+      let g = byHead.get(head);
+      if (!g) {
+        g = { head, scene: sc, steps: [], max: -1 };
+        byHead.set(head, g);
+        groups.push(g);
       }
-      const end = sc.steps.at(-1)?.t1 ?? 0;
-      for (const step of atEnd.get(sc) ?? []) out.push({ step, t0: end, t1: end });
-      sc.steps = out;
+      g.steps.push(step);
+      groupOf.set(step, g);
+      g.max = Math.max(g.max, m.seqs[1]);
     }
   }
+  return { groups, groupOf };
+}
 
-  // Empty scenes go (a page opened and left without an action), except a lone one.
+/** The inserted steps put in their scenes (before or after a step, at a scene's end); the recorder's waits they replace removed. */
+function spliceInserts(scenes: readonly DraftScene[], at: { beforeStep: Map<Step, Step[]>; afterStep: Map<Step, Step[]>; atEnd: Map<DraftScene, Step[]>; removed: Set<Step> }): void {
+  for (const sc of scenes) {
+    const out: DraftScene['steps'] = [];
+    for (const x of sc.steps) {
+      for (const step of at.beforeStep.get(x.step) ?? []) out.push({ step, t0: x.t0, t1: x.t0 });
+      if (!at.removed.has(x.step)) out.push(x);
+      for (const step of at.afterStep.get(x.step) ?? []) out.push({ step, t0: x.t0, t1: x.t0 });
+    }
+    const end = sc.steps.at(-1)?.t1 ?? 0;
+    for (const step of at.atEnd.get(sc) ?? []) out.push({ step, t0: end, t1: end });
+    sc.steps = out;
+  }
+}
+
+/** Empty scenes go (a page opened and left without an action), except a lone one; the ids, unique; where each step is. */
+function keepScenes(d: Walked, ctx: DraftContext): KeptScenes {
+  const { scenes } = d;
   let kept = scenes.filter((s) => s.steps.length > 0);
   if (kept.length === 0 && scenes.length > 0) kept = [scenes[0]];
-  // Scene ids, unique.
   const used = new Map<string, number>();
   const ids = kept.map((s) => {
     const base = sceneIdOf(s.open?.split(/[?#]/)[0] ?? pathUnderPage(s.path, s.page, ctx.pages));
@@ -1342,15 +1588,21 @@ export function draftFromRecording(
   });
   const where = new Map<Step, { scene: string; step: number }>();
   kept.forEach((s, si) => s.steps.forEach((x, k) => where.set(x.step, { scene: ids[si], step: k })));
+  return { scenes: kept, ids, where, all: scenes };
+}
 
-  // Every write (any host), to the step that caused it (the last one that ended within the window: its note); the
-  // first step followed by a write that went through — however long after — bounds the check replay.
-  const flat = kept.flatMap((s, si) => s.steps.map((x, k) => ({ ...x, scene: ids[si], index: k })));
+/**
+ * Every write (any host), to the step that caused it (the last one that ended within the window: its note); the first
+ * step followed by a write that went through — however long after — bounds the check replay. A write no step caused
+ * raises an issue. The draft's step count with it.
+ */
+function attributeWrites(d: Walked, kept: KeptScenes, writes: readonly EvOf<'write'>[]): { writes: DraftWrite[]; firstWrite: RecordingDraft['firstWrite']; steps: number } {
+  const flat = kept.scenes.flatMap((s, si) => s.steps.map((x, k) => ({ ...x, scene: kept.ids[si], index: k })));
   const outWrites: DraftWrite[] = [];
   let firstWrite: RecordingDraft['firstWrite'] = null;
   for (const w of writes) {
     let prev: (typeof flat)[number] | undefined;
-    for (const s of flat) if (s.t1 <= w.t && meta.get(s.step)?.role !== 'insert') prev = s;
+    for (const s of flat) if (s.t1 <= w.t && d.meta.get(s.step)?.role !== 'insert') prev = s;
     // A merged typing step ended at each of its parts: the window counts from the latest one before the write.
     const end = prev ? Math.max(...(prev.tw ?? [prev.t1]).filter((t) => t <= w.t)) : 0;
     const by = prev && w.t - end <= RECORD_WRITE_WINDOW_MS ? prev : undefined;
@@ -1358,7 +1610,7 @@ export function draftFromRecording(
     if (through && prev && !firstWrite) firstWrite = { scene: prev.scene, step: prev.index };
     outWrites.push({ label: w.label, outcome: w.outcome, scene: by?.scene ?? null, step: by?.index ?? null });
     if (!by) {
-      raised.push({
+      d.raised.push({
         issue: { severity: 'info', code: 'ambient_write', message: 'the page sent a write no action caused within 2 s (a poll, telemetry, a slow answer): not attributed to a step' },
         t: w.t,
         ...(prev ? { at: { scene: prev.scene, step: prev.index + 1 } } : { scene: null, after: null }),
@@ -1370,27 +1622,33 @@ export function draftFromRecording(
     const before = typeof by.step.note === 'string' ? `${by.step.note}; ` : '';
     by.step.note = `${before}sends ${what}`;
   }
+  return { writes: outWrites, firstWrite, steps: flat.length };
+}
 
-  // Issues, in the order they were raised, each located.
-  const keptIndex = (s: DraftScene | null | undefined): number => (s ? kept.indexOf(s) : -1);
-  const locate = (r: (typeof raised)[number]): { scene: string; step: number } | null => {
+/** The issues, in the order they were raised, each located; then the late ones (inserts). */
+function locateIssues(d: Walked, kept: KeptScenes, late: readonly LateIssue[]): DraftIssue[] {
+  const { ids, where, all: scenes } = kept;
+  const ks = kept.scenes;
+  const issues: DraftIssue[] = [];
+  const keptIndex = (s: DraftScene | null | undefined): number => (s ? ks.indexOf(s) : -1);
+  const locate = (r: Raised): { scene: string; step: number } | null => {
     if (r.at) return r.at;
     if (r.step) return where.get(r.step) ?? null;
-    if (kept.length === 0) return null;
+    if (ks.length === 0) return null;
     if (!r.scene) return { scene: ids[0], step: 0 };
     let si = keptIndex(r.scene);
     if (si >= 0) {
-      const k = r.after ? kept[si].steps.findIndex((x) => x.step === r.after) : -1;
-      return { scene: ids[si], step: r.after ? (k >= 0 ? k + 1 : kept[si].steps.length) : 0 };
+      const k = r.after ? ks[si].steps.findIndex((x) => x.step === r.after) : -1;
+      return { scene: ids[si], step: r.after ? (k >= 0 ? k + 1 : ks[si].steps.length) : 0 };
     }
     // An empty scene (dropped): the next kept one's start, else the end of the last one before it.
     const from = scenes.indexOf(r.scene);
-    si = kept.findIndex((s) => scenes.indexOf(s) > from);
+    si = ks.findIndex((s) => scenes.indexOf(s) > from);
     if (si >= 0) return { scene: ids[si], step: 0 };
-    return { scene: ids[kept.length - 1], step: kept[kept.length - 1].steps.length };
+    return { scene: ids[ks.length - 1], step: ks[ks.length - 1].steps.length };
   };
-  raised.sort((a, b) => a.t - b.t);
-  for (const r of raised) {
+  d.raised.sort((a, b) => a.t - b.t);
+  for (const r of d.raised) {
     // A step's issue whose step is not in the draft (it was left out) goes with it.
     if (r.step && !where.has(r.step)) continue;
     const at = locate(r);
@@ -1400,15 +1658,19 @@ export function draftFromRecording(
     const at = l.step ? where.get(l.step) : undefined;
     issues.push({ ...l.issue, ...(at ?? {}) });
   }
+  return issues;
+}
 
-  // The scenario.
+/** The scenario value: its name, env, vars, and each kept scene (its page, `open:`, a first scene's persona, its steps). */
+function scenarioOf(ctx: DraftContext, vars: Record<string, string>, kept: KeptScenes): Record<string, unknown> {
+  const { scenes, ids } = kept;
   const value: Record<string, unknown> = { version: RECORDING_VERSION, video: ctx.name };
   if (!ctx.envIsDefault) value.env = ctx.env;
   if (Object.keys(vars).length) value.vars = vars;
-  value.scenes = kept.map((s, si) => {
+  value.scenes = scenes.map((s, si) => {
     const out: Record<string, unknown> = { id: ids[si] };
     if (si === 0 || s.open !== undefined) {
-      if (si === 0 || s.page !== kept[si - 1].page) out.page = s.page;
+      if (si === 0 || s.page !== scenes[si - 1].page) out.page = s.page;
       if (s.open !== undefined) out.open = s.open;
     }
     if (si === 0) {
@@ -1418,18 +1680,19 @@ export function draftFromRecording(
     out.steps = s.steps.map((x) => x.step);
     return out;
   });
-  stats.scenes = kept.length;
-  stats.steps = flat.length;
+  return value;
+}
 
-  // A Studio recording's draft holds no anchor or alias (`aliases: false`): the shared targets are written twice.
-  const doc = new Document(value, { aliasDuplicateObjects: opts.aliases !== false });
+/**
+ * The draft's YAML: its header comment (arranged in the Studio when it was `annotated`), each step's maps and lists in
+ * flow style. A Studio recording's draft holds no anchor or alias (`aliases: false`): the shared targets are written twice.
+ */
+function draftYaml(value: Record<string, unknown>, o: { annotated: boolean; aliases: boolean }): string {
+  const doc = new Document(value, { aliasDuplicateObjects: o.aliases });
   doc.commentBefore = (
-    inserts.length === 0 && Object.keys(choices).length === 0
-      ? [
-          ' Recorded with retake record: a draft. Captions are empty and nothing is held — add them, check the steps flagged',
-          ' in the recording\'s report (page_inspect), then run_dry.',
-        ]
-      : [' Recorded with retake record and arranged in the Studio: a draft. Check the steps flagged in the recording\'s', ' report (page_inspect), then run_dry.']
+    !o.annotated
+      ? [' Recorded with retake record: a draft. Captions are empty and nothing is held — add them, check the steps flagged', " in the recording's report (page_inspect), then run_dry."]
+      : [" Recorded with retake record and arranged in the Studio: a draft. Check the steps flagged in the recording's", ' report (page_inspect), then run_dry.']
   ).join('\n');
   visit(doc, {
     Pair(_, pair) {
@@ -1440,21 +1703,20 @@ export function draftFromRecording(
       }
     },
   });
-  const yaml = doc.toString({ lineWidth: 0, flowCollectionPadding: false });
-  const { issues: checked } = parseScenario(yaml);
-  for (const x of checked) {
-    if (x.severity === 'error') issues.push(draftInvalidIssue(x, ids, 'the draft does not validate (a recorder bug)'));
-  }
-  // Where each step came from; the secret placeholders.
+  return doc.toString({ lineWidth: 0, flowCollectionPadding: false });
+}
+
+/** Where each step of the draft came from, in draft order (DraftSource). */
+function sourcesOf(d: Walked, kept: KeptScenes, elAt: (seq: number) => El | null): DraftSource[] {
   const sources: DraftSource[] = [];
-  kept.forEach((sc, si) =>
+  kept.scenes.forEach((sc, si) =>
     sc.steps.forEach(({ step }, k) => {
-      const m = meta.get(step)!;
+      const m = d.meta.get(step)!;
       const targets = m.site && m.targetSeqs ? [...m.targetSeqs] : undefined;
       const offer = targets ? [...targets].sort((x, y) => y - x).find((q) => recordedAlternatives(elAt(q)).length > 0) : undefined;
       const helper = m.role === 'helper' ? ('wait_for' in step ? 'wait' : 'scroll') : undefined;
       sources.push({
-        scene: ids[si],
+        scene: kept.ids[si],
         step: k,
         seqs: [m.seqs[0], m.seqs[1]],
         role: m.role,
@@ -1468,11 +1730,7 @@ export function draftFromRecording(
       });
     }),
   );
-  const placeholders = secretSteps.flatMap((x): DraftPlaceholder[] => {
-    const at = where.get(x.step);
-    return at ? [{ name: x.name, kind: x.kind, project_var: x.project_var, ...at }] : [];
-  });
-  return { scenario: value, yaml, issues, writes: outWrites, firstWrite, stats, sources, pending, placeholders };
+  return sources;
 }
 
 /** The field a select or pick step names, as a target (a wait for the next target before it, L4.8 review). */

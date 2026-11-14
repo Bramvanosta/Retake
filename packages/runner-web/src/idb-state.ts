@@ -30,8 +30,17 @@ export interface IdbDatabase {
 /* c8 ignore start */
 async function idbInPage(arg: { mode: 'collect' | 'restore'; dbs?: IdbDatabase[] }): Promise<IdbDatabase[] | string[]> {
   const TYPED: Record<string, { new (b: ArrayBuffer): ArrayBufferView }> = {
-    i8: Int8Array, ui8: Uint8Array, ui8c: Uint8ClampedArray, i16: Int16Array, ui16: Uint16Array, i32: Int32Array,
-    ui32: Uint32Array, f32: Float32Array, f64: Float64Array, bi64: BigInt64Array, bui64: BigUint64Array,
+    i8: Int8Array,
+    ui8: Uint8Array,
+    ui8c: Uint8ClampedArray,
+    i16: Int16Array,
+    ui16: Uint16Array,
+    i32: Int32Array,
+    ui32: Uint32Array,
+    f32: Float32Array,
+    f64: Float64Array,
+    bi64: BigInt64Array,
+    bui64: BigUint64Array,
   };
   const isPlain = (v: unknown, depth = 0): boolean => {
     if (v === null || typeof v === 'string' || typeof v === 'boolean') return true;
@@ -176,7 +185,10 @@ async function idbInPage(arg: { mode: 'collect' | 'restore'; dbs?: IdbDatabase[]
     try {
       const withRecords = saved.stores.filter((s) => s.records?.length);
       if (withRecords.length) {
-        const tx = db.transaction(withRecords.map((s) => s.name), 'readwrite');
+        const tx = db.transaction(
+          withRecords.map((s) => s.name),
+          'readwrite',
+        );
         const finished = new Promise<void>((resolve, reject) => {
           tx.addEventListener('complete', () => resolve());
           tx.addEventListener('error', () => reject(tx.error));

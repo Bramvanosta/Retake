@@ -19,10 +19,12 @@ import { loadProject } from '@retake/core/io';
 import { renderVideo } from '@retake/editor';
 import { FileJobQueue, createEngine, historyFile } from '../src/index.js';
 import type { Engine, RecordedBrowser } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
-import { REPO } from './helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache, makeColourCapture, syntheticRunRecord } from '@retake/test-support/render';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -31,7 +33,7 @@ let root: string;
 let engine: Engine;
 let queue: FileJobQueue;
 const children: ChildProcess[] = [];
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 function startWorker(...args: string[]): { child: ChildProcess; exited: Promise<number | null>; err(): string } {
   const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(REPO, 'packages/engine/src/worker-main.ts'), '--root', root, ...args], {
@@ -88,7 +90,7 @@ function shellsOf(profile: string): string[] {
 beforeAll(async () => {
   if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'studio-render-kill-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   const runDir = join(root, 'projects', 'demo', 'runs', '20260101-120000-synthetic');
   await mkdir(runDir, { recursive: true });
@@ -106,6 +108,8 @@ beforeAll(async () => {
   t.project = 'demo';
   t.scenario = 'synthetic';
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
+  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: '20260101-120000-synthetic', scenario: 'synthetic', project: 'demo' })));
   makeColourCapture(join(runDir, 'capture.mp4'), 12);
   await linkSharedCache(root);
   engine = await createEngine({ root, client: 'test', autoStartWorker: false });
@@ -114,75 +118,90 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const c of children) if (c.exitCode === null && c.signalCode === null) c.kill('SIGKILL');
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 
 describe.skipIf(!canRender)('a render job whose worker is killed', () => {
-  it('SIGKILL mid-render: interrupted; the next worker kills the orphan browser and removes its profile, the lock and the partial video', async () => {
-    const sub = await engine.renders.submit({ project: 'demo', scenario: 'synthetic' });
-    const renders = join(root, 'projects', 'demo', 'renders');
-    const w = startWorker('--idle-exit', '5000');
-    const browserFile = queue.files.browser(sub.job.id);
-    await waitFor('the render running with its browser recorded', async () => {
-      const j = await queue.get(sub.job.id);
-      return j?.state === 'running' && (j.progress?.steps_done ?? 0) > 0 && existsSync(browserFile);
-    });
-    const browser = JSON.parse(await readFile(browserFile, 'utf8')) as RecordedBrowser;
-    expect(browser.pid).toBeGreaterThan(1);
-    expect(browser.started_at).toBeTruthy();
-    expect(browser.user_data_dir).toMatch(/puppeteer_dev_chrome_profile-/);
-    await crash(w, sub.job.id);
+  it(
+    'SIGKILL mid-render: interrupted; the next worker kills the orphan browser and removes its profile, the lock and the partial video',
+    async () => {
+      const sub = await engine.renders.submit({ project: 'demo', scenario: 'synthetic' });
+      const renders = join(root, 'projects', 'demo', 'renders');
+      const w = startWorker('--idle-exit', '5000');
+      const browserFile = queue.files.browser(sub.job.id);
+      await waitFor('the render running with its browser recorded', async () => {
+        const j = await queue.get(sub.job.id);
+        return j?.state === 'running' && (j.progress?.steps_done ?? 0) > 0 && existsSync(browserFile);
+      });
+      const browser = JSON.parse(await readFile(browserFile, 'utf8')) as RecordedBrowser;
+      expect(browser.pid).toBeGreaterThan(1);
+      expect(browser.started_at).toBeTruthy();
+      expect(browser.user_data_dir).toMatch(/puppeteer_dev_chrome_profile-/);
+      await crash(w, sub.job.id);
 
-    // The browser outlived its worker (Remotion starts it detached): what the next worker must clean up.
-    expect(alive(browser.pid)).toBe(true);
-    const job = await waitFor('interrupted', async () => {
-      const j = await queue.get(sub.job.id);
-      return j?.state === 'interrupted' ? j : undefined;
-    }, 10_000);
-    expect(job.error?.message).toContain(`nothing was written under ${sub.render_id}`);
-    expect((await engine.jobs.get(sub.job.id)).error?.fix).toBe(`retake -C ${root} render demo synthetic --run 20260101-120000-synthetic`);
-    expect(await engine.renders.status('demo', sub.render_id)).toMatchObject({ status: 'interrupted', finished: true });
-    expect((await readdir(renders)).some((f) => f === `.synthetic-v1.lock`)).toBe(true);
+      // The browser outlived its worker (Remotion starts it detached): what the next worker must clean up.
+      expect(alive(browser.pid)).toBe(true);
+      const job = await waitFor(
+        'interrupted',
+        async () => {
+          const j = await queue.get(sub.job.id);
+          return j?.state === 'interrupted' ? j : undefined;
+        },
+        10_000,
+      );
+      expect(job.error?.message).toContain(`nothing was written under ${sub.render_id}`);
+      expect((await engine.jobs.get(sub.job.id)).error?.fix).toBe(`retake -C ${root} render demo synthetic --run 20260101-120000-synthetic`);
+      expect(await engine.renders.status('demo', sub.render_id)).toMatchObject({ status: 'interrupted', finished: true });
+      expect((await readdir(renders)).some((f) => f === `.synthetic-v1.lock`)).toBe(true);
 
-    const next = startWorker('--idle-exit', '300');
-    expect(await next.exited).toBe(0);
-    expect(next.err()).toContain(`killed the render browser it left (pid ${browser.pid})`);
-    await waitFor('the browser gone', async () => !alive(browser.pid), 10_000);
-    expect(shellsOf(browser.user_data_dir!)).toEqual([]);
-    expect(existsSync(browser.user_data_dir!)).toBe(false);
-    expect(await readdir(renders)).toEqual([]);
-    expect((await queue.stored(sub.job.id))?.state).toBe('interrupted');
-    const last = JSON.parse((await readFile(historyFile(root), 'utf8')).trim().split('\n').at(-1)!) as Record<string, unknown>;
-    expect(last).toMatchObject({ kind: 'render', state: 'interrupted', render: { id: sub.render_id }, counted: { renders: 0 } });
-  }, LONG);
+      const next = startWorker('--idle-exit', '300');
+      expect(await next.exited).toBe(0);
+      expect(next.err()).toContain(`killed the render browser it left (pid ${browser.pid})`);
+      await waitFor('the browser gone', async () => !alive(browser.pid), 10_000);
+      expect(shellsOf(browser.user_data_dir!)).toEqual([]);
+      expect(existsSync(browser.user_data_dir!)).toBe(false);
+      expect(await readdir(renders)).toEqual([]);
+      expect((await queue.stored(sub.job.id))?.state).toBe('interrupted');
+      const last = JSON.parse((await readFile(historyFile(root), 'utf8')).trim().split('\n').at(-1)!) as Record<string, unknown>;
+      expect(last).toMatchObject({ kind: 'render', state: 'interrupted', render: { id: sub.render_id }, counted: { renders: 0 } });
+    },
+    LONG,
+  );
 
-  it('L5.14: SIGKILL of the worker alone: its job process ends the render itself — interrupted, its browser closed, the lock and the partial video removed, no submit needed', async () => {
-    const sub = await engine.renders.submit({ project: 'demo', scenario: 'synthetic' });
-    const renders = join(root, 'projects', 'demo', 'renders');
-    const w = startWorker('--idle-exit', '5000');
-    const browserFile = queue.files.browser(sub.job.id);
-    const running = await waitFor('the render running in its job process, its browser recorded', async () => {
-      const j = await queue.get(sub.job.id);
-      return j?.state === 'running' && (j.progress?.steps_done ?? 0) > 0 && existsSync(browserFile) ? j : undefined;
-    });
-    const browser = JSON.parse(await readFile(browserFile, 'utf8')) as RecordedBrowser;
-    expect(running.supervisor?.pid).toBe(w.child.pid);
-    const jobPid = running.worker!.pid;
-    expect(jobPid).not.toBe(w.child.pid);
-    w.child.kill('SIGKILL');
-    await w.exited;
-    const job = await waitFor('interrupted, written by the job process', async () => {
-      const j = await queue.stored(sub.job.id);
-      return j?.state === 'interrupted' ? j : undefined;
-    }, 30_000);
-    expect(job.error?.message).toMatch(/^interrupted: its jobs worker \(pid \d+\) stopped while the job ran/);
-    await waitFor('the job process gone', async () => !alive(jobPid), 10_000);
-    await waitFor('the browser gone', async () => !alive(browser.pid), 10_000);
-    expect(existsSync(browser.user_data_dir!)).toBe(false);
-    expect(await readdir(renders)).toEqual([]);
-  }, LONG);
+  it(
+    'L5.14: SIGKILL of the worker alone: its job process ends the render itself — interrupted, its browser closed, the lock and the partial video removed, no submit needed',
+    async () => {
+      const sub = await engine.renders.submit({ project: 'demo', scenario: 'synthetic' });
+      const renders = join(root, 'projects', 'demo', 'renders');
+      const w = startWorker('--idle-exit', '5000');
+      const browserFile = queue.files.browser(sub.job.id);
+      const running = await waitFor('the render running in its job process, its browser recorded', async () => {
+        const j = await queue.get(sub.job.id);
+        return j?.state === 'running' && (j.progress?.steps_done ?? 0) > 0 && existsSync(browserFile) ? j : undefined;
+      });
+      const browser = JSON.parse(await readFile(browserFile, 'utf8')) as RecordedBrowser;
+      expect(running.supervisor?.pid).toBe(w.child.pid);
+      const jobPid = running.worker!.pid;
+      expect(jobPid).not.toBe(w.child.pid);
+      w.child.kill('SIGKILL');
+      await w.exited;
+      const job = await waitFor(
+        'interrupted, written by the job process',
+        async () => {
+          const j = await queue.stored(sub.job.id);
+          return j?.state === 'interrupted' ? j : undefined;
+        },
+        30_000,
+      );
+      expect(job.error?.message).toMatch(/^interrupted: its jobs worker \(pid \d+\) stopped while the job ran/);
+      await waitFor('the job process gone', async () => !alive(jobPid), 10_000);
+      await waitFor('the browser gone', async () => !alive(browser.pid), 10_000);
+      expect(existsSync(browser.user_data_dir!)).toBe(false);
+      expect(await readdir(renders)).toEqual([]);
+    },
+    LONG,
+  );
 });
 
 describe.skipIf(!canRender)('review and export jobs whose worker is killed', () => {
@@ -193,64 +212,80 @@ describe.skipIf(!canRender)('review and export jobs whose worker is killed', () 
     renderId = r.id;
   }, LONG);
 
-  it('SIGKILL mid re-render of an export: interrupted; the next worker kills the browser, removes the partial files; nothing counted', async () => {
-    const sub = await engine.exports.submit({ project: 'demo', render_id: renderId, formats: ['vertical_9x16'] });
-    const w = startWorker('--idle-exit', '5000');
-    const browserFile = queue.files.browser(sub.job.id);
-    const dir = join(root, 'projects', 'demo', 'exports', renderId);
-    await waitFor('the re-render rendering, its browser recorded', async () => {
-      const j = await queue.get(sub.job.id);
-      return j?.state === 'running' && (j.progress?.fraction ?? 0) > 0.1 && existsSync(browserFile);
-    });
-    const browser = JSON.parse(await readFile(browserFile, 'utf8')) as RecordedBrowser;
-    await crash(w, sub.job.id);
-    expect(alive(browser.pid)).toBe(true);
-    const job = await waitFor('interrupted', async () => {
-      const j = await queue.get(sub.job.id);
-      return j?.state === 'interrupted' ? j : undefined;
-    }, 10_000);
-    expect(job.error?.message).toContain(`The export stopped: formats written before stay in exports/${renderId}/`);
-    expect((await engine.jobs.get(sub.job.id)).error?.fix).toBe(`retake -C ${root} export demo ${renderId} --formats vertical_9x16`);
-    // Remotion writes the re-render's file at its end: a partial file as an earlier kill (or ffmpeg) leaves it.
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, `.${renderId}-vertical.partial-0badc0de.mp4`), 'partial');
+  it(
+    'SIGKILL mid re-render of an export: interrupted; the next worker kills the browser, removes the partial files; nothing counted',
+    async () => {
+      const sub = await engine.exports.submit({ project: 'demo', render_id: renderId, formats: ['vertical_9x16'] });
+      const w = startWorker('--idle-exit', '5000');
+      const browserFile = queue.files.browser(sub.job.id);
+      const dir = join(root, 'projects', 'demo', 'exports', renderId);
+      await waitFor('the re-render rendering, its browser recorded', async () => {
+        const j = await queue.get(sub.job.id);
+        return j?.state === 'running' && (j.progress?.fraction ?? 0) > 0.1 && existsSync(browserFile);
+      });
+      const browser = JSON.parse(await readFile(browserFile, 'utf8')) as RecordedBrowser;
+      await crash(w, sub.job.id);
+      expect(alive(browser.pid)).toBe(true);
+      const job = await waitFor(
+        'interrupted',
+        async () => {
+          const j = await queue.get(sub.job.id);
+          return j?.state === 'interrupted' ? j : undefined;
+        },
+        10_000,
+      );
+      expect(job.error?.message).toContain(`The export stopped: formats written before stay in exports/${renderId}/`);
+      expect((await engine.jobs.get(sub.job.id)).error?.fix).toBe(`retake -C ${root} export demo ${renderId} --formats vertical_9x16`);
+      // Remotion writes the re-render's file at its end: a partial file as an earlier kill (or ffmpeg) leaves it.
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, `.${renderId}-vertical.partial-0badc0de.mp4`), 'partial');
 
-    const next = startWorker('--idle-exit', '300');
-    expect(await next.exited).toBe(0);
-    expect(next.err()).toContain(`killed the render browser it left (pid ${browser.pid})`);
-    await waitFor('the browser gone', async () => !alive(browser.pid), 10_000);
-    expect(shellsOf(browser.user_data_dir!)).toEqual([]);
-    expect(await readdir(dir)).toEqual([]);
-    const last = JSON.parse((await readFile(historyFile(root), 'utf8')).trim().split('\n').at(-1)!) as Record<string, unknown>;
-    expect(last).toMatchObject({ kind: 'export', state: 'interrupted', export: { render: renderId, formats: [] }, counted: { renders: 0 } });
-  }, LONG);
+      const next = startWorker('--idle-exit', '300');
+      expect(await next.exited).toBe(0);
+      expect(next.err()).toContain(`killed the render browser it left (pid ${browser.pid})`);
+      await waitFor('the browser gone', async () => !alive(browser.pid), 10_000);
+      expect(shellsOf(browser.user_data_dir!)).toEqual([]);
+      expect(await readdir(dir)).toEqual([]);
+      const last = JSON.parse((await readFile(historyFile(root), 'utf8')).trim().split('\n').at(-1)!) as Record<string, unknown>;
+      expect(last).toMatchObject({ kind: 'export', state: 'interrupted', export: { render: renderId, formats: [] }, counted: { renders: 0 } });
+    },
+    LONG,
+  );
 
-  it('SIGKILL mid-review (even between the two renames of its swap): the next worker puts the previous review back', async () => {
-    const first = await engine.reviews.submit({ project: 'demo', render_id: renderId, previous: false });
-    const w0 = startWorker('--idle-exit', '300');
-    expect(await w0.exited).toBe(0);
-    expect((await engine.jobs.get(first.job.id)).state).toBe('succeeded');
-    const reviews = join(root, 'projects', 'demo', 'review');
-    const final = join(reviews, renderId);
-    const before = await readFile(join(final, 'report.json'), 'utf8');
+  it(
+    'SIGKILL mid-review (even between the two renames of its swap): the next worker puts the previous review back',
+    async () => {
+      const first = await engine.reviews.submit({ project: 'demo', render_id: renderId, previous: false });
+      const w0 = startWorker('--idle-exit', '300');
+      expect(await w0.exited).toBe(0);
+      expect((await engine.jobs.get(first.job.id)).state).toBe('succeeded');
+      const reviews = join(root, 'projects', 'demo', 'review');
+      const final = join(reviews, renderId);
+      const before = await readFile(join(final, 'report.json'), 'utf8');
 
-    const sub = await engine.reviews.submit({ project: 'demo', render_id: renderId, fps: 2, previous: false });
-    const w = startWorker('--idle-exit', '5000');
-    await waitFor('the review running', async () => (await queue.get(sub.job.id))?.state === 'running', 60_000);
-    const dead = await crash(w, sub.job.id);
-    const job = await waitFor('interrupted', async () => {
-      const j = await queue.get(sub.job.id);
-      return j?.state === 'interrupted' ? j : undefined;
-    }, 10_000);
-    expect(job.error?.message).toContain(`the previous review of ${renderId} is kept`);
-    // As if it died between the two renames of the swap: the previous review set aside, the new one unfinished.
-    if (existsSync(final)) await rename(final, `${final}.old-${dead}-abcdef`);
-    await mkdir(`${final}.tmp-${dead}-123456`, { recursive: true });
+      const sub = await engine.reviews.submit({ project: 'demo', render_id: renderId, fps: 2, previous: false });
+      const w = startWorker('--idle-exit', '5000');
+      await waitFor('the review running', async () => (await queue.get(sub.job.id))?.state === 'running', 60_000);
+      const dead = await crash(w, sub.job.id);
+      const job = await waitFor(
+        'interrupted',
+        async () => {
+          const j = await queue.get(sub.job.id);
+          return j?.state === 'interrupted' ? j : undefined;
+        },
+        10_000,
+      );
+      expect(job.error?.message).toContain(`the previous review of ${renderId} is kept`);
+      // As if it died between the two renames of the swap: the previous review set aside, the new one unfinished.
+      if (existsSync(final)) await rename(final, `${final}.old-${dead}-abcdef`);
+      await mkdir(`${final}.tmp-${dead}-123456`, { recursive: true });
 
-    const next = startWorker('--idle-exit', '300');
-    expect(await next.exited).toBe(0);
-    expect(await readFile(join(final, 'report.json'), 'utf8')).toBe(before);
-    expect((await readdir(reviews)).sort()).toEqual([renderId]);
-    expect(await engine.reviews.get('demo', renderId)).toMatchObject({ status: 'interrupted', clean: expect.any(Boolean) });
-  }, LONG);
+      const next = startWorker('--idle-exit', '300');
+      expect(await next.exited).toBe(0);
+      expect(await readFile(join(final, 'report.json'), 'utf8')).toBe(before);
+      expect((await readdir(reviews)).sort()).toEqual([renderId]);
+      expect(await engine.reviews.get('demo', renderId)).toMatchObject({ status: 'interrupted', clean: expect.any(Boolean) });
+    },
+    LONG,
+  );
 });

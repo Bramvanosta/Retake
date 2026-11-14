@@ -1,31 +1,40 @@
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AccessError, ConfigError, ScenarioError } from '@retake/core';
 import { HookSecurityError } from '@retake/hooks';
 import { CancelledError } from '@retake/runner-web';
 import { SandboxError } from '@retake/sandbox';
-import { EngineError, LocalStorage, checkRef, createEngine, firstErrorLine, maskUrlCredentials, sha256Hex, toEngineError } from '../src/index.js';
+import { EngineError, LocalStorage, MemoryWorkspace, checkRef, createEngine, memoryJobQueues, firstErrorLine, maskUrlCredentials, sha256Hex, toEngineError } from '../src/index.js';
 import type { Engine } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace, memoryFixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let home: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+/** The fixture workspace in memory (L7.38: a MemoryWorkspace — the engine's reads and store on one Map, no folder), its jobs in a memory queue. */
+const MEM = join(sep, 'retake-memory', 'engine');
+let memory: Engine;
+const memoryQueues = memoryJobQueues();
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-engine-'));
   home = join(ws, '.home');
-  process.env.RETAKE_HOME = home;
+  retakeHome.use(home);
   await fixtureWorkspace(ws);
   engine = await createEngine({ root: ws, client: 'test' });
+  const mem = new MemoryWorkspace();
+  await memoryFixtureWorkspace(mem, MEM);
+  memory = await createEngine({ root: MEM, client: 'test', autoStartWorker: false, ports: { ...mem.ports(), queues: memoryQueues } });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(ws, { recursive: true, force: true });
 });
 
@@ -97,27 +106,24 @@ describe('engine: projects', () => {
   it('a project that does not load is listed with its first problem, not just "has 1 error:" (review B L5)', async () => {
     expect(firstErrorLine('project.yaml has 1 error:\n  environments.local: expected an object\n')).toBe('project.yaml has 1 error: environments.local: expected an object');
     expect(firstErrorLine('no project.yaml in /x')).toBe('no project.yaml in /x');
-    const dir = await mkdtemp(join(tmpdir(), 'studio-engine-broken-'));
-    try {
-      await mkdir(join(dir, 'projects', 'broken'), { recursive: true });
-      await writeFile(join(dir, 'projects', 'broken', 'project.yaml'), 'version: 1\nname: Broken\nenvironments:\n  local: "not a page map"\n');
-      const e = await createEngine({ root: dir, client: 'test', autoStartWorker: false });
-      const [b] = await e.projects.list();
-      expect(b.error).toMatch(/error[^\n]*: \S/);
-      expect(b.error).toContain('local');
-      expect(b.error).not.toMatch(/:$/);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    // In memory (L7.38): the workspace's reads are the port's, nothing is written.
+    const dir = join(sep, 'retake-memory', 'broken');
+    const mem = new MemoryWorkspace().seed(join(dir, 'projects', 'broken', 'project.yaml'), 'version: 1\nname: Broken\nenvironments:\n  local: "not a page map"\n');
+    const e = await createEngine({ root: dir, client: 'test', autoStartWorker: false, ports: mem.ports() });
+    const [b] = await e.projects.list();
+    expect(b.error).toMatch(/error[^\n]*: \S/);
+    expect(b.error).toContain('local');
+    expect(b.error).not.toMatch(/:$/);
   });
 
   it('lists projects and reads one without session paths, login steps or account passwords', async () => {
-    const list = await engine.projects.list();
+    // On the fixture in memory (L7.38): its README is the fixture's own bytes.
+    const list = await memory.projects.list();
     expect(list.map((p) => p.slug)).toEqual(['northfield-fixture']);
     expect(list[0].scenarios).toContain('quote');
-    const p = await engine.projects.get('northfield-fixture');
+    const p = await memory.projects.get('northfield-fixture');
     expect(p.readme).toContain('Northfield');
-    expect(p.readme_hash).toBe(sha256Hex(await readFile(join(ws, 'projects', 'northfield-fixture', 'README.md'))));
+    expect(p.readme_hash).toBe(sha256Hex(await readFile(join(REPO, 'projects', 'northfield-fixture', 'README.md'))));
     expect(p.file).toBe('project.yaml');
     const prod = p.environments.find((e) => e.name === 'production');
     expect(prod).toMatchObject({ production: true, access: 'read-only', sandbox: false });
@@ -131,11 +137,21 @@ describe('engine: projects', () => {
     expect(p.config).not.toHaveProperty('auth');
   });
 
+  it('runs on the memory queue entirely: a job submitted lands in the queue its ports made, read back through the engine; nothing of the disk is made', async () => {
+    const sub = await memory.hooks.submit({ project: 'northfield-fixture', source: 'quote:setup', dry: true });
+    expect(memory.queue).toBe(memoryQueues.of(MEM));
+    expect(await memoryQueues.of(MEM)?.ids()).toEqual([sub.job.id]);
+    expect((await memory.jobs.get(sub.job.id)).state).toBe('queued');
+    expect((await memory.jobs.list({ project: 'northfield-fixture' })).map((j) => j.id)).toEqual([sub.job.id]);
+    expect(memory.jobFiles.record(sub.job.id)).toBe(join(MEM, '.retake', 'jobs', sub.job.id, 'job.json'));
+    expect(existsSync(join(sep, 'retake-memory'))).toBe(false);
+  });
+
   it('refuses paths where a slug is expected', async () => {
     for (const bad of ['../northfield-fixture', '/etc', './x', 'projects/northfield-fixture']) {
-      await expect(engine.projects.get(bad)).rejects.toMatchObject({ name: 'EngineError', code: 'invalid' });
+      await expect(memory.projects.get(bad)).rejects.toMatchObject({ name: 'EngineError', code: 'invalid' });
     }
-    await expect(engine.projects.get('nope')).rejects.toThrow(/not found/);
+    await expect(memory.projects.get('nope')).rejects.toThrow(/not found/);
   });
 
   it('creates a project and replaces its README only with the right if_match', async () => {
@@ -204,12 +220,21 @@ describe('engine: runs, auth, sandbox', () => {
     const dry = await engine.runs.status('northfield-fixture', '20261017-120000-quote');
     expect(dry).toMatchObject({ status: 'failed', mode: 'dry', steps_done: 1, finished: true, error: { scene: 'catalog', step: 1, action: 'click' } });
     // run.json was written elsewhere (the project moved): refs follow the run folder, paths are the current ones.
-    expect(dry.screenshots).toEqual([{ ref: 'runs/20261017-120000-quote/screenshots/001-catalog.0.png', path: join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'screenshots', '001-catalog.0.png') }]);
+    expect(dry.screenshots).toEqual([
+      { ref: 'runs/20261017-120000-quote/screenshots/001-catalog.0.png', path: join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'screenshots', '001-catalog.0.png') },
+    ]);
     expect(dry.error?.screenshot?.ref).toBe('runs/20261017-120000-quote/error-catalog-1.png');
     expect(dry.untrusted.error_message).toContain('ignore your rules');
     // L5.6: the scene's other missing targets (their closest elements are page text) and the failed optional steps.
     expect(dry.untrusted.missing_targets).toEqual([{ scene: 'catalog', step: 3, action: 'type', target: 'label="Quantity"', near: [{ role: 'textbox', name: 'Quantity (kg)' }] }]);
-    expect(dry.optional_failures).toEqual([{ scene: 'catalog', step: 0, action: 'hover', screenshot: { ref: 'runs/20261017-120000-quote/error-catalog-0.png', path: join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'error-catalog-0.png') } }]);
+    expect(dry.optional_failures).toEqual([
+      {
+        scene: 'catalog',
+        step: 0,
+        action: 'hover',
+        screenshot: { ref: 'runs/20261017-120000-quote/error-catalog-0.png', path: join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'error-catalog-0.png') },
+      },
+    ]);
     expect(dry.untrusted.optional_errors).toEqual(['no element "Featured" — page text']);
     expect(dry.untrusted.warnings).toHaveLength(1);
     expect(JSON.stringify({ ...dry, untrusted: undefined })).not.toContain('ignore');
@@ -222,7 +247,10 @@ describe('engine: runs, auth, sandbox', () => {
 
   it('auth status: personas with the command a human runs, no session paths', async () => {
     const r = await engine.auth.status({ project: 'northfield-fixture', env: 'signed-in' });
-    expect(r.personas.map((p) => [p.persona, p.status])).toEqual([['supplier', 'never'], ['buyer', 'never']]);
+    expect(r.personas.map((p) => [p.persona, p.status])).toEqual([
+      ['supplier', 'never'],
+      ['buyer', 'never'],
+    ]);
     expect(r.personas[0].command).toBe(`retake -C ${ws} login northfield-fixture --env signed-in --persona supplier`);
     expect(JSON.stringify(r)).not.toContain(home);
     await expect(engine.auth.status({ env: 'local' })).rejects.toMatchObject({ code: 'invalid' });

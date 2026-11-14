@@ -20,7 +20,8 @@
  * - Other platforms: nothing (heavy jobs still wait to start; BL-147).
  */
 import { execFile } from 'node:child_process';
-import type { ProcInfo } from '@retake/sandbox';
+import { parseLstart } from '@retake/core/io';
+import type { ProcInfo } from '@retake/core/io';
 import { signalablePid, treeOf } from './signal.js';
 
 export { treeOf } from './signal.js';
@@ -64,7 +65,6 @@ export function parseQosTable(text: string, parseLstart: (s: string) => number |
 
 /** Every process with its QoS, from one `ps` with a time limit (empty when it fails or takes too long). */
 export async function qosTable(): Promise<QosProc[]> {
-  const { parseLstart } = await import('@retake/sandbox');
   return new Promise((resolve) => {
     execFile('ps', ['-A', '-o', 'pid=,ppid=,pgid=,pri=,lstart='], { env: { ...process.env, LC_ALL: 'C', LANG: 'C' }, maxBuffer: 16 * 1024 * 1024, timeout: PS_TIMEOUT_MS }, (err, stdout) =>
       resolve(err ? [] : parseQosTable(String(stdout), parseLstart)),
@@ -94,7 +94,7 @@ export class QosYield {
     readonly root: number,
     readonly opts: { group?: boolean; rewalkMs?: number; self?: boolean; deps?: Partial<QosDeps> } = {},
   ) {
-    this.deps = { table: opts.deps?.table ?? qosTable, apply: opts.deps?.apply ?? taskpolicy, now: opts.deps?.now ?? Date.now };
+    this.deps = { table: opts.deps?.table ?? qosTable, apply: opts.deps?.apply ?? taskpolicy, now: opts.deps?.now ?? (() => performance.now()) };
     this.usable = opts.self === true ? root === process.pid : signalablePid(root);
   }
 
@@ -142,7 +142,11 @@ export class QosYield {
       const { fresh } = this.learn(table);
       this.holding = true;
       for (const p of fresh) this.made.add(p.pid);
-      if (fresh.length) await this.deps.apply(fresh.map((p) => p.pid), true);
+      if (fresh.length)
+        await this.deps.apply(
+          fresh.map((p) => p.pid),
+          true,
+        );
     });
   }
 

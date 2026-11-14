@@ -1,5 +1,6 @@
-import type { DateArgs, TargetSpec } from '@retake/core';
-import { isoDay, normalizeTarget, parseDay } from '@retake/core';
+import type { DateArgs, TargetSpec } from '@retake/core/model';
+import { isoDay, parseDay } from '@retake/core/base';
+import { normalizeTarget } from '@retake/core/language';
 import { StepError } from '../errors.js';
 import type { CalendarDay, CalendarInfo } from '../kit/types.js';
 import { distance } from '../motion.js';
@@ -70,7 +71,10 @@ export function matchDay(days: readonly CalendarDay[], query: string): CalendarD
 export function monthDirection(days: readonly CalendarDay[], query: string): 'next' | 'previous' | 'inside' {
   const q = parseDay(query);
   if (q === null) return 'next';
-  const inMonth = days.filter((d) => !d.outside).map(dayOf).filter((n): n is number => n !== null);
+  const inMonth = days
+    .filter((d) => !d.outside)
+    .map(dayOf)
+    .filter((n): n is number => n !== null);
   const shown = inMonth.length ? inMonth : days.map(dayOf).filter((n): n is number => n !== null);
   if (!shown.length) return 'next';
   if (q < Math.min(...shown)) return 'previous';
@@ -161,10 +165,15 @@ async function pickDay(ctx: StepContext, day: string, args: DateArgs, runs: Quic
       lastPress = t;
     }
     // The month must change before the next press: a calendar that slides ignores presses meanwhile.
-    const moved = await poll(ctx, async () => {
-      const c = await rt.kit.calendar();
-      return c !== null && signature(c) !== before;
-    }, MONTH_CHANGE_WAIT_MS, 20);
+    const moved = await poll(
+      ctx,
+      async () => {
+        const c = await rt.kit.calendar();
+        return c !== null && signature(c) !== before;
+      },
+      MONTH_CHANGE_WAIT_MS,
+      20,
+    );
     if (moved) stalls = 0;
     else if (++stalls >= MAX_STALLS) throw new StepError(`date: the calendar did not change after ${MAX_STALLS} clicks on ${nav.desc}; ${shownDays(cal)}`);
   }

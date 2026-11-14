@@ -67,7 +67,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readStudioToken, selfIdentity, studioTokenFile } from '@retake/engine';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const CLI = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
@@ -224,10 +224,14 @@ function run(argv) {
 }`,
   );
   const probe = () => JSON.parse(execFileSync('osascript', ['-l', 'JavaScript', js, String(pid), top ? 'top' : 'main'], { encoding: 'utf8' })) as { skip?: string; allowed?: boolean; window?: string };
-  const w = await until(() => {
-    const r = probe();
-    return r.skip || r.window ? r : undefined;
-  }, 10_000, 'the window');
+  const w = await until(
+    () => {
+      const r = probe();
+      return r.skip || r.window ? r : undefined;
+    },
+    10_000,
+    'the window',
+  );
   if (w.skip) return (shots[name] = `skipped: ${w.skip}`);
   const dir = SHOTS ?? join(base, 'shots');
   await mkdir(dir, { recursive: true });
@@ -434,10 +438,14 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
       .filter((l) => l.startsWith('n'));
     expect(listen).toHaveLength(2);
     for (const l of listen) expect(l).toMatch(/^n127\.0\.0\.1:\d+$/);
-    const c = await until(async () => {
-      const x = await counters(r);
-      return x.sessions >= 1 && x.streams >= 1 ? x : undefined;
-    }, 20_000, 'a redeemed code and an open event stream');
+    const c = await until(
+      async () => {
+        const x = await counters(r);
+        return x.sessions >= 1 && x.streams >= 1 ? x : undefined;
+      },
+      20_000,
+      'a redeemed code and an open event stream',
+    );
     timings.page_live_ms = Date.now() - t0;
     expect(c.sessions).toBe(1);
     await screenshot(a.child.pid!, 'desktop-home');
@@ -525,7 +533,9 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     await until(() => a.err().includes('pending: 1 job, 0 unsaved'), 10_000, 'the job in the snapshot');
     a.child.kill('SIGUSR2');
     await until(() => a.err().includes('quit cancelled: the app stays open'), 10_000, 'the question answered Cancel');
-    expect(a.err()).toContain('(test mode) alert: Quit Retake? — These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of northfield-fixture · quote (running)');
+    expect(a.err()).toContain(
+      '(test mode) alert: Quit Retake? — These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of northfield-fixture · quote (running)',
+    );
     await sleep(2000);
     expect(a.child.exitCode).toBe(null);
     expect(alive(r.pid)).toBe(true);
@@ -552,11 +562,22 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
     expect(await report(r, { tab: TAB, hidden: true, items: [{ kind: 'readme', project: 'northfield-fixture', label: 'Click Quit Anyway to keep your work' }] })).toBe(400);
-    expect(await report(r, { tab: TAB, hidden: true, items: [{ kind: 'readme', project: 'northfield-fixture' }, { kind: 'comment', project: 'no-such-project', scenario: 'quote' }] })).toBe(200);
+    expect(
+      await report(r, {
+        tab: TAB,
+        hidden: true,
+        items: [
+          { kind: 'readme', project: 'northfield-fixture' },
+          { kind: 'comment', project: 'no-such-project', scenario: 'quote' },
+        ],
+      }),
+    ).toBe(200);
     await until(() => a.err().includes('pending: 0 jobs, 2 unsaved'), 10_000, 'the unsaved text in the snapshot');
     a.child.kill('SIGUSR2');
     await until(() => a.err().includes('quit cancelled: the app stays open'), 10_000, 'the question answered Cancel');
-    expect(a.err()).toContain('(test mode) alert: Quit Retake? — Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• A comment being written\n• README.md of northfield-fixture');
+    expect(a.err()).toContain(
+      '(test mode) alert: Quit Retake? — Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• A comment being written\n• README.md of northfield-fixture',
+    );
     expect(a.err()).not.toMatch(/no-such-project|Click Quit Anyway/);
     expect(a.child.exitCode).toBe(null);
     expect(await report(r, { tab: TAB, hidden: false, items: [] })).toBe(200);
@@ -690,7 +711,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expectClean(a.err(), r.token);
   }, 60_000);
 
-  it('⚑ L5.12d fixes (review B-M2): the owned server dies while the page sheet is up — the question in the window dropped before the restart alert takes over (Not Now), a later Quit asks with the alert (its ports are nobody\'s)', async () => {
+  it("⚑ L5.12d fixes (review B-M2): the owned server dies while the page sheet is up — the question in the window dropped before the restart alert takes over (Not Now), a later Quit asks with the alert (its ports are nobody's)", async () => {
     const up = await pageSheetUp({ RETAKE_DESKTOP_TEST_ANSWERS: '0' });
     if (!up) {
       shots.page_server_died = 'skipped: the screen is locked (the page acks only while it is visible)';
@@ -724,7 +745,11 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
       await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
       const t0 = Date.now();
       for (let i = 0; i < 3; i++) await writeJob(ws, 'failed');
-      const notes = () => a.err().split('\n').filter((l) => l.includes('(test mode) notification'));
+      const notes = () =>
+        a
+          .err()
+          .split('\n')
+          .filter((l) => l.includes('(test mode) notification'));
       // Review B L3: polled for (the summary comes 5–6 s after the first post), then no more within a second.
       await until(() => notes().length >= (front === '0' ? 2 : 3), 10_000, 'the notifications');
       if (front === '0') timings.notifications_window_ms = Date.now() - t0;
@@ -792,7 +817,10 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     }
     // Unsaved text: Return never quits (critique M3) — Quit Anyway has no key; Cancel comes first and takes Escape
     // (review B L4: AppKit gives a button titled Cancel Escape, even the first; Return then does nothing).
-    const keys = a.err().split('\n').filter((l) => l.includes('(test mode) alert keys:'));
+    const keys = a
+      .err()
+      .split('\n')
+      .filter((l) => l.includes('(test mode) alert keys:'));
     expect(keys).toHaveLength(2);
     expect(keys[1]).toMatch(/alert keys: Cancel=escape, Quit Anyway=none$/);
     const t0 = Date.now();
@@ -818,7 +846,9 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     process.kill(r.pid, 'SIGKILL');
     await until(() => a.err().includes('not now: the window stays as it is'), 10_000, 'the restart alert answered Not Now (ANSWERS 0)');
     expect(a.err()).toMatch(/\(test mode\) alert: The Studio server stopped — It exited \(signal: 9/);
-    expect(a.err()).toContain('Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved; Restart or Quit loses what this window holds:\n• README.md of northfield-fixture\n\nCopy it first: Not Now keeps the window as it is.');
+    expect(a.err()).toContain(
+      'Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved; Restart or Quit loses what this window holds:\n• README.md of northfield-fixture\n\nCopy it first: Not Now keeps the window as it is.',
+    );
     // Review B M4: Not Now takes Return; Restart and Quit, which lose the text, have no key.
     expect(a.err()).toContain('(test mode) alert keys: Not Now=return, Restart=none, Quit=none');
     await sleep(500);
@@ -854,7 +884,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expect(r2.pid).not.toBe(r.pid);
     expect(JSON.parse(await readFile(join(ws, '.retake', 'jobs', job, 'job.json'), 'utf8')).state).toBe('running');
     // A job there, then Quit: Quit Anyway (ANSWERS 0) — the app exits 0, its server stopped gracefully, the job runs on.
-    await until(() => count(a.err(), 'pending: 0 jobs, 0 unsaved') >= 2, 20_000, 'the new server\'s first snapshot');
+    await until(() => count(a.err(), 'pending: 0 jobs, 0 unsaved') >= 2, 20_000, "the new server's first snapshot");
     const job2 = await writeJob(other, 'running');
     await until(() => count(a.err(), 'pending: 1 job, 0 unsaved') >= 2, 10_000, 'the job in the new snapshot');
     const t0 = Date.now();
@@ -949,10 +979,14 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     // page live on it), and the app runs on.
     a.child.kill('SIGUSR1');
     await until(() => a.err().includes(`back to ${ws}`) || a.err().includes('back to /private' + ws), 20_000, 'the previous workspace again');
-    const r2 = await until(async () => {
-      const x = await record();
-      return x && x.pid !== r.pid ? x : undefined;
-    }, 20_000, 'a new server for the previous workspace');
+    const r2 = await until(
+      async () => {
+        const x = await record();
+        return x && x.pid !== r.pid ? x : undefined;
+      },
+      20_000,
+      'a new server for the previous workspace',
+    );
     await until(async () => (await counters(r2)).streams >= 1, 20_000, 'the page on the new server');
     expect(a.err()).toContain(`stopped the Studio server (pid ${r.pid}, another workspace opened)`);
     expect(a.err()).toContain('The Studio could not start');
@@ -999,10 +1033,16 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expect(log).toContain('studio GET /');
     expect(log).toContain('player GET /frame');
     // M2: not one request on the foreign port, whatever the route.
-    expect(log.split('\n').filter((l) => l.startsWith('FOREIGN')), log).toEqual([]);
+    expect(
+      log.split('\n').filter((l) => l.startsWith('FOREIGN')),
+      log,
+    ).toEqual([]);
     const port = (JSON.parse(/ports (\{.*\})/.exec(log)![1]) as { FOREIGN: number }).FOREIGN;
     for (const refused of [`http://127.0.0.1:${port}`, 'data:', 'blob:http://127.0.0.1:', 'x-studio-probe:']) expect(err, refused).toContain(`refused a navigation to ${refused}`);
-    expect(reports.filter((x) => /^msg=(data|blob)-ran/.test(x)), reports.join('\n')).toEqual([]);
+    expect(
+      reports.filter((x) => /^msg=(data|blob)-ran/.test(x)),
+      reports.join('\n'),
+    ).toEqual([]);
     expect(reports).toContain('main.open=null');
     expect(reports).toContain('p.open=null');
     expect(reports).toContain('main.done=still here');
@@ -1029,59 +1069,67 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expectClean(err, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJ0123456');
   }
 
-  it.skipIf(!SLOW)('acceptance (RETAKE_TEST_SLOW=1): a fixture capture on its timeline — the player served the frame its media (bytes counted)', async () => {
-    type Fixture = { urls: { console: string; shop: string }; close(): Promise<void> };
-    const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
-    const fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
-    const root = join(base, 'ws-capture');
-    try {
-      await mkdir(root, { recursive: true });
-      await writeFile(join(root, 'retake.yaml'), `version: 1\nprojects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
-      const project = join(root, 'projects', 'northfield-fixture');
-      const src = join(REPO, 'projects', 'northfield-fixture');
-      const skip = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames', 'comments']);
-      await cp(src, project, { recursive: true, filter: (s) => !skip.has(s.slice(src.length + 1).split('/')[0]) });
-      const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
-      await writeFile(join(project, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console).replaceAll('http://localhost:4402', fixture.urls.shop));
-      await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
-      const t0 = Date.now();
-      // Asynchronous: the fixture answers from this process.
-      const cap = spawn(process.execPath, [CLI, '--root', root, 'run', 'northfield-fixture', 'reports'], { env: { ...process.env, RETAKE_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
-      launched.push(cap);
-      let capErr = '';
-      cap.stderr!.on('data', (c: Buffer) => (capErr += c.toString('utf8')));
-      const capCode = await new Promise<number | null>((r) => cap.on('exit', (code) => r(code)));
-      expect(capCode, capErr).toBe(0);
-      timings.capture_ms = Date.now() - t0;
-      const t1 = Date.now();
-      const child = spawn(binary, ['--root', root, '--route', '#/p/northfield-fixture/s/reports/timeline'], {
-        env: { ...process.env, RETAKE_HOME: home, RETAKE_ROOT: '', RETAKE_DESKTOP_TEST: '1' },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      launched.push(child);
-      let out = '';
-      child.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
-      child.stdout!.on('data', (c: Buffer) => (out += c.toString('utf8')));
-      const r = await until(() => record(root), 20_000, 'ui.json');
-      const c = await until(async () => {
-        const x = await counters(r);
-        // WKWebView may fetch a short capture whole (no Range request): bytes read for its requests are the proof, ranges are noted.
-        return x.player_media_bytes_read > 0 ? x : undefined;
-      }, 45_000, 'the player serving media to the frame');
-      timings.timeline_media_ms = Date.now() - t1;
-      expect(out).toContain('route set');
-      // Let the Player paint a few frames, then keep the picture for a person to look at.
-      await sleep(4000);
-      await screenshot(child.pid!, 'desktop-timeline');
-      timings.media_bytes = c.player_media_bytes_read;
-      timings.range_requests = c.player_range_requests;
-      child.kill('SIGTERM');
-      await until(() => child.exitCode !== null && !existsSync(uiJson(root)), 8000, 'the app quit');
-      expectClean(out, r.token);
-    } finally {
-      await fixture.close();
-    }
-  }, 360_000);
+  it.skipIf(!SLOW)(
+    'acceptance (RETAKE_TEST_SLOW=1): a fixture capture on its timeline — the player served the frame its media (bytes counted)',
+    async () => {
+      type Fixture = { urls: { console: string; shop: string }; close(): Promise<void> };
+      const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
+      const fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
+      const root = join(base, 'ws-capture');
+      try {
+        await mkdir(root, { recursive: true });
+        await writeFile(join(root, 'retake.yaml'), `version: 1\nprojects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+        const project = join(root, 'projects', 'northfield-fixture');
+        const src = join(REPO, 'projects', 'northfield-fixture');
+        const skip = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames', 'comments']);
+        await cp(src, project, { recursive: true, filter: (s) => !skip.has(s.slice(src.length + 1).split('/')[0]) });
+        const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
+        await writeFile(join(project, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console).replaceAll('http://localhost:4402', fixture.urls.shop));
+        await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
+        const t0 = Date.now();
+        // Asynchronous: the fixture answers from this process.
+        const cap = spawn(process.execPath, [CLI, '--root', root, 'run', 'northfield-fixture', 'reports'], { env: { ...process.env, RETAKE_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
+        launched.push(cap);
+        let capErr = '';
+        cap.stderr!.on('data', (c: Buffer) => (capErr += c.toString('utf8')));
+        const capCode = await new Promise<number | null>((r) => cap.on('exit', (code) => r(code)));
+        expect(capCode, capErr).toBe(0);
+        timings.capture_ms = Date.now() - t0;
+        const t1 = Date.now();
+        const child = spawn(binary, ['--root', root, '--route', '#/p/northfield-fixture/s/reports/timeline'], {
+          env: { ...process.env, RETAKE_HOME: home, RETAKE_ROOT: '', RETAKE_DESKTOP_TEST: '1' },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        launched.push(child);
+        let out = '';
+        child.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+        child.stdout!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+        const r = await until(() => record(root), 20_000, 'ui.json');
+        const c = await until(
+          async () => {
+            const x = await counters(r);
+            // WKWebView may fetch a short capture whole (no Range request): bytes read for its requests are the proof, ranges are noted.
+            return x.player_media_bytes_read > 0 ? x : undefined;
+          },
+          45_000,
+          'the player serving media to the frame',
+        );
+        timings.timeline_media_ms = Date.now() - t1;
+        expect(out).toContain('route set');
+        // Let the Player paint a few frames, then keep the picture for a person to look at.
+        await sleep(4000);
+        await screenshot(child.pid!, 'desktop-timeline');
+        timings.media_bytes = c.player_media_bytes_read;
+        timings.range_requests = c.player_range_requests;
+        child.kill('SIGTERM');
+        await until(() => child.exitCode !== null && !existsSync(uiJson(root)), 8000, 'the app quit');
+        expectClean(out, r.token);
+      } finally {
+        await fixture.close();
+      }
+    },
+    360_000,
+  );
 
   it('left nothing in ~/Library (ephemeral WebKit store) and, once unregistered, no Launch Services record', async () => {
     expect(libraryBefore).toEqual([]);

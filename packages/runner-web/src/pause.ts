@@ -14,13 +14,15 @@
  * shows after the resume — a jump at that point when it changed.
  */
 import type { Page } from 'playwright-core';
-import type { RunProgress, RunRecord, TimelinePause } from '@retake/core';
+import type { TimelinePause } from '@retake/core/model';
+import type { RunProgress, RunningRun } from '@retake/core/run';
 import { CancelledError } from './errors.js';
 import type { ScreencastRecorder } from './recorder.js';
 import type { LogLevel } from './runtime.js';
 import { RIPPLE_S } from './timeline.js';
 import type { CaptureClock } from './timeline.js';
 import { sleep, throwIfAborted, wallNow } from './util.js';
+import { bestEffort } from '@retake/core/base';
 
 /** The longest pause by default (ms): 30 min. */
 export const PAUSE_MAX_MS = 30 * 60_000;
@@ -58,7 +60,7 @@ export interface PausePoint {
   gate: PauseGate;
   /** The run's signal (the cancel and the sign-in guard). */
   signal: AbortSignal;
-  record: RunRecord;
+  record: RunningRun;
   take: PauseTake;
   emit(e: RunProgress): void;
   save(): void;
@@ -92,7 +94,8 @@ export class RunPauser {
     const t = take.clock.pause(wallNow());
     const filming = take.filming();
     const stopped = Promise.all(filming.map((f) => f.recorder.pause()));
-    await take.sampler()?.pause().catch(() => undefined);
+    const sampler = take.sampler();
+    if (sampler) await bestEffort(sampler.pause(), 'the performance sampler only measures: a pause it misses leaves a gap in the measure');
     await stopped;
     this.p.filming?.(false);
     record.paused = { scene, step, since: since.toISOString() };
@@ -157,7 +160,8 @@ export class RunPauser {
       }
     }
     const cut = take.clock.resume(to);
-    await take.sampler()?.resume().catch(() => undefined);
+    const sampler = take.sampler();
+    if (sampler) await bestEffort(sampler.resume(), 'the performance sampler only measures: a resume it misses leaves a gap in the measure');
     return cut;
   }
 }

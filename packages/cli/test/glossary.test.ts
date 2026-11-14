@@ -113,27 +113,42 @@ async function admissionRefusals(channel: 'mcp' | 'studio'): Promise<string[]> {
   const take = { project: {}, scenario: { name: 's', scenario: {} }, env: undefined } as unknown as PreparedTake;
   const out: string[] = [];
   const refusal = async (p: Promise<unknown>) => {
-    const e = await p.then(() => undefined, (x: unknown) => x as Error);
+    const e = await p.then(
+      () => undefined,
+      (x: unknown) => x as Error,
+    );
     expect(e, 'an admission refusal').toBeInstanceOf(Error);
     out.push(e!.message);
   };
   const of = (jobs: JobRecord[], personas: Array<{ persona: string; status: string; auto: boolean; has_check: boolean }> = []) =>
-    admission({ channel, queue: { list: async (f) => jobs.filter((j) => !f?.kinds || f.kinds.includes(j.input.kind)) }, sessions: async () => ({ personas }) });
+    admission({ channel, queue: { list: async (f) => jobs.filter((j) => !f?.kinds || f.kinds.includes(j.input.kind)), exclusive: (_key, fn) => fn() }, sessions: async () => ({ personas }) });
   for (const mode of ['dry', 'capture'] as const) {
     await refusal(of([job('j1', { kind: 'run', project: 'p', scenario: 's', mode, run_id: '20261109-120000-s' })]).run({ project: 'p', scenario: 's', mode: 'dry' }, async () => undefined));
   }
-  const personas = [{ persona: 'a', status: 'never', auto: false, has_check: true }, { persona: 'b', status: 'expired', auto: false, has_check: false }];
+  const personas = [
+    { persona: 'a', status: 'never', auto: false, has_check: true },
+    { persona: 'b', status: 'expired', auto: false, has_check: false },
+  ];
   for (const list of [personas, personas.slice(0, 1)]) await refusal(of([], list).run({ project: 'p', scenario: 's', mode: 'capture' }, (admit) => admit.prepared(take)));
   await refusal(of([job('j2', { kind: 'render', project: 'p', scenario: 's', render_id: 's-v2' })]).render({ project: 'p', scenario: 's' }, async () => undefined));
   await refusal(of([job('j3', { kind: 'export', project: 'p', render_id: 's-v2' })]).export({ project: 'p', render_id: 's-v2' }, async () => undefined));
-  await refusal(of([job('j4', { kind: 'export', project: 'p', render_id: 's-v3' }), job('j5', { kind: 'export', project: 'p', render_id: 's-v4' })]).export({ project: 'p', render_id: 's-v2' }, async () => undefined));
+  await refusal(
+    of([job('j4', { kind: 'export', project: 'p', render_id: 's-v3' }), job('j5', { kind: 'export', project: 'p', render_id: 's-v4' })]).export(
+      { project: 'p', render_id: 's-v2' },
+      async () => undefined,
+    ),
+  );
   return out;
 }
 
 describe('the glossary in the CLI and the MCP tools', () => {
   // The words come from the glossary's table (a new row needs no change here); this checks the table is read whole.
   it("reads the retired words from every row of the glossary's table: lower-case words or phrases", () => {
-    const rows = readFileSync(join(ROOT, 'docs/GLOSSARY.md'), 'utf8').split('<!-- retired-words:start -->')[1]!.split('<!-- retired-words:end -->')[0]!.split('\n').filter((l) => l.startsWith('| '));
+    const rows = readFileSync(join(ROOT, 'docs/GLOSSARY.md'), 'utf8')
+      .split('<!-- retired-words:start -->')[1]!
+      .split('<!-- retired-words:end -->')[0]!
+      .split('\n')
+      .filter((l) => l.startsWith('| '));
     expect(WORDS.length).toBeGreaterThan(0);
     expect(WORDS.length).toBe(rows.length - 1); // the header row is not a word
     for (const w of WORDS) expect(w).toMatch(/^[a-z]+( [a-z]+)*$/);
@@ -144,7 +159,17 @@ describe('the glossary in the CLI and the MCP tools', () => {
   it('finds a retired word, its plural, its inflections and a phrase across a line break, and not inside another word', () => {
     const found = (text: string) => findRetired(text, WORDS).map((h) => h.split(' in ')[0]);
     expect(found('Start a Rehearsal; two rehearsals; the template\n name; broadcast; a production')).toEqual(['"Rehearsal"', '"rehearsals"', '"template\n name"']);
-    expect(found('rehearsed, rehearsing, rehearses; shooting, shoots; casting, casts; locations; template names')).toEqual(['"rehearsed"', '"rehearsing"', '"rehearses"', '"shooting"', '"shoots"', '"casting"', '"casts"', '"locations"', '"template names"']);
+    expect(found('rehearsed, rehearsing, rehearses; shooting, shoots; casting, casts; locations; template names')).toEqual([
+      '"rehearsed"',
+      '"rehearsing"',
+      '"rehearses"',
+      '"shooting"',
+      '"shoots"',
+      '"casting"',
+      '"casts"',
+      '"locations"',
+      '"template names"',
+    ]);
     expect(found('a screenshot, the forecast, located, relocation, productionsite')).toEqual([]);
   });
 

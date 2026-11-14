@@ -22,9 +22,42 @@ const REPO = join(import.meta.dirname, '..', '..', '..');
 
 /** The command's sub-commands (Commander's, the hidden worker, and the ones the docs name before they exist). */
 const SUB = [
-  'export-capture', 'components', 'validate', 'sandbox', 'inspect', 'comment', 'doctor', 'record', 'render', 'review',
-  'export', 'schema', 'worker', 'migrate', 'skills', 'player', 'outline', 'delete', 'theme', 'still', 'hooks', 'login',
-  'prune', 'shell', 'draft', 'list', 'plan', 'auth', 'jobs', 'help', 'lint', 'new', 'run', 'env', 'mcp', 'ui',
+  'export-capture',
+  'components',
+  'validate',
+  'sandbox',
+  'inspect',
+  'comment',
+  'doctor',
+  'record',
+  'render',
+  'review',
+  'export',
+  'schema',
+  'worker',
+  'migrate',
+  'skills',
+  'player',
+  'outline',
+  'delete',
+  'theme',
+  'still',
+  'hooks',
+  'login',
+  'prune',
+  'shell',
+  'draft',
+  'list',
+  'plan',
+  'auth',
+  'jobs',
+  'help',
+  'lint',
+  'new',
+  'run',
+  'env',
+  'mcp',
+  'ui',
 ];
 const WRAP = String.raw`(?:[ \t]*\n[ \t]*(?:(?:\*|\/\/|#|>)[ \t]+)?|[ \t]+)`;
 const NEXT = String.raw`(?:(?:${SUB.join('|')})(?![\w-])|…|\.\.\.|\$\{|<[A-Za-z]|\[|-{1,2}[A-Za-z])`;
@@ -106,7 +139,10 @@ export function pathHits(path: string): Hit[] {
 }
 
 function scannedFiles(): string[] {
-  const git = (args: string[]) => execFileSync('git', args, { cwd: REPO, encoding: 'utf8', maxBuffer: 64 << 20 }).split('\0').filter(Boolean);
+  const git = (args: string[]) =>
+    execFileSync('git', args, { cwd: REPO, encoding: 'utf8', maxBuffer: 64 << 20 })
+      .split('\0')
+      .filter(Boolean);
   const untracked = git(['ls-files', '-z', '-o', '--exclude-standard']).filter((f) => SOURCE_DIRS.some((d) => f.startsWith(d)));
   const tracked = git(['ls-files', '-z', '-c']);
   return [...new Set([...tracked, ...untracked])].filter((f) => !BINARY.test(f)).sort();
@@ -126,7 +162,7 @@ describe('the old name is gone (L5.13)', () => {
       '`studio run northfield quote`',
       'then run studio ui again',
       'the command studio\n  // export-capture northfield',
-      "message: `studio ${name} is available`",
+      'message: `studio ${name} is available`',
       'Usage: studio [options]',
       "if (!fix.startsWith('studio ')) return",
       "const ctx = { ws, cli: 'studio', input }",
@@ -145,7 +181,8 @@ describe('the old name is gone (L5.13)', () => {
       'studioHome()',
       "new Command('studio')",
       '--config studio=/r/bin.js',
-    ]) expect(oldNameHits(planted, false).length, planted).toBeGreaterThan(0);
+    ])
+      expect(oldNameHits(planted, false).length, planted).toBeGreaterThan(0);
     for (const kept of [
       'card: studio/card-title',
       "window.dispatchEvent(new CustomEvent('studio:command'))",
@@ -153,15 +190,20 @@ describe('the old name is gone (L5.13)', () => {
       'the Studio writes the channel `studio`',
       'Open the Studio',
       'a thread by studio whose change',
-      "ui/src/server/studio.ts, studio-e2e-run.test.ts",
+      'ui/src/server/studio.ts, studio-e2e-run.test.ts',
       "comments.apply('demo', studioId)",
       '`retake run`, the retake.yaml file, RETAKE_HOME',
       'a demo of the Studio',
-    ]) expect(oldNameHits(kept, false), kept).toEqual([]);
+    ])
+      expect(oldNameHits(kept, false), kept).toEqual([]);
   });
 
   it('no legacy module is allowed any more (v0.2.1); a path of the old name is a hit (reviews B L2, B L4)', () => {
-    for (const f of ['packages/core/src/legacy.ts', 'packages/engine/src/legacy.ts', 'packages/ui/src/legacy.ts', 'scripts/rename-l513.mjs']) expect(WHOLE.some((re) => re.test(f)), f).toBe(false);
+    for (const f of ['packages/core/src/legacy.ts', 'packages/engine/src/legacy.ts', 'packages/ui/src/legacy.ts', 'scripts/rename-l513.mjs'])
+      expect(
+        WHOLE.some((re) => re.test(f)),
+        f,
+      ).toBe(false);
     for (const path of ['skills/demo-studio-scenario/SKILL.md', 'projects/x/studio.yaml', 'docs/DemoStudio.md']) expect(pathHits(path).length, path).toBeGreaterThan(0);
     for (const path of ['skills/retake-scenario/SKILL.md', 'packages/ui/src/server/studio.ts', 'packages/components/library/studio/card-title/index.tsx']) expect(pathHits(path), path).toEqual([]);
   });

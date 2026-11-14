@@ -9,17 +9,17 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { canonicalJson } from '../canonical-json.js';
 import { composeEnvFilePath, composeEnvRef, envFileValues } from '../checks/sandbox.js';
 import { sqlSource } from '../destructive.js';
+import type { WorkspaceDisk } from '../file-facts.js';
 import { issuesMessage } from '../issues.js';
 import { SANDBOX_SEED_DIR, SandboxConfigError, parseSandboxYaml, sandboxAuth } from '../sandbox.js';
 import type { LoadedSandbox, ProjectConfig, SandboxManifest } from '../types.js';
-import { nodeFileFacts } from './file-facts.js';
 
 /**
- * Read the manifests of project.yaml `sandboxes:` (paths relative to the project dir). Throws SandboxConfigError
- * (positioned in the manifest) when one has errors: a broken manifest fails every command of the project, like a broken
- * project.yaml. Undefined when the project declares none.
+ * Read the manifests of project.yaml `sandboxes:` (paths relative to the project dir) on a disk. Throws
+ * SandboxConfigError (positioned in the manifest) when one has errors: a broken manifest fails every command of the
+ * project, like a broken project.yaml. Undefined when the project declares none.
  */
-export async function loadSandboxes(projectDir: string, config: ProjectConfig): Promise<Record<string, LoadedSandbox> | undefined> {
+export async function loadSandboxesOn(disk: WorkspaceDisk, projectDir: string, config: ProjectConfig): Promise<Record<string, LoadedSandbox> | undefined> {
   const entries = Object.entries(config.sandboxes ?? {});
   if (entries.length === 0) return undefined;
   const out: Record<string, LoadedSandbox> = {};
@@ -27,39 +27,39 @@ export async function loadSandboxes(projectDir: string, config: ProjectConfig): 
     const file = resolve(projectDir, rel);
     let text: string;
     try {
-      text = await readFile(file, 'utf8');
+      text = (await disk.readFile(file)).toString('utf8');
     } catch (e) {
       const why = (e as NodeJS.ErrnoException).code === 'ENOENT' ? 'not found' : `cannot be read: ${(e as Error).message}`;
       throw new SandboxConfigError(`sandbox ${env}: ${file} ${why} (project.yaml sandboxes.${env})`, [], file, env);
     }
-    const { manifest, issues } = parseSandboxYaml(text, file, { env, project: { config }, files: nodeFileFacts });
+    const { manifest, issues } = parseSandboxYaml(text, file, { env, project: { config }, files: disk.facts });
     if (!manifest) throw new SandboxConfigError(issuesMessage(`sandbox ${env}`, issues, file), issues, file, env);
-    const composeEnv = await accountsComposeEnv(dirname(file), manifest, env, file);
+    const composeEnv = await accountsComposeEnvOn(disk, dirname(file), manifest, env, file);
     out[env] = { env, file, dir: dirname(file), manifest, issues, ...(composeEnv ? { composeEnv } : {}), secrets: sandboxAuth(manifest, composeEnv).secrets };
   }
   return out;
 }
 
 /**
- * What the accounts' `{{compose_env:NAME}}` references read from the sandbox's compose env file: those names only.
- * Undefined when no account uses one. Throws SandboxConfigError when the file or a name is missing (never the value).
+ * What the accounts' `{{compose_env:NAME}}` references read from the sandbox's compose env file on a disk: those names
+ * only. Undefined when no account uses one. Throws SandboxConfigError when the file or a name is missing (never the value).
  */
-export async function accountsComposeEnv(dir: string, manifest: SandboxManifest, env: string, file: string): Promise<Record<string, string> | undefined> {
+export async function accountsComposeEnvOn(disk: WorkspaceDisk, dir: string, manifest: SandboxManifest, env: string, file: string): Promise<Record<string, string> | undefined> {
   const names = new Set<string>();
   for (const a of Object.values(manifest.accounts ?? {})) for (const v of [a.username, a.password]) if (composeEnvRef(v) !== undefined) names.add(composeEnvRef(v)!);
   if (!names.size) return undefined;
-  const envFile = composeEnvFilePath(dir, manifest, existsSync);
+  const envFile = composeEnvFilePath(dir, manifest, (p) => disk.facts.kind(p) !== undefined);
   const fail = (why: string) => new SandboxConfigError(`sandbox ${env}: ${file}: ${why}`, [], file, env);
   if (!envFile) throw fail(`{{compose_env:${[...names][0]}}} reads the sandbox's compose env file, and there is none (compose.env_file, or a .env next to the first compose file)`);
   let values: Record<string, string>;
   try {
-    values = envFileValues(await readFile(envFile, 'utf8'));
+    values = envFileValues((await disk.readFile(envFile)).toString('utf8'));
   } catch (e) {
     throw fail(`the compose env file ${envFile} cannot be read: ${(e as Error).message}`);
   }
   const out: Record<string, string> = {};
   for (const n of names) {
-    if (!Object.hasOwn(values, n) || values[n] === "") throw fail(`{{compose_env:${n}}}: ${n} is not set (or empty) in the compose env file (${envFile})`);
+    if (!Object.hasOwn(values, n) || values[n] === '') throw fail(`{{compose_env:${n}}}: ${n} is not set (or empty) in the compose env file (${envFile})`);
     out[n] = values[n];
   }
   return out;

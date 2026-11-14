@@ -137,7 +137,10 @@ describe('draftScenarioFromScript', () => {
     const at = d.issues.map((i) => `${i.line}:${i.col ?? '-'} ${i.message}`);
     expect(at).toContain('4:3 time "0:1": expected M:SS or a range M:SS–M:SS — the row starts where the previous one ends');
     // The row with a bad time shares the span up to the next time with the row before it.
-    expect(d.outline.scenes[0].beats.map((b) => [b.start_s, b.duration_s])).toEqual([[0, 15], [15, 15]]);
+    expect(d.outline.scenes[0].beats.map((b) => [b.start_s, b.duration_s])).toEqual([
+      [0, 15],
+      [15, 15],
+    ]);
     expect(at).toContain('5:- ends at or before its start (0:30): 5 s assumed');
     expect(at).toContain('6:3 starts at 0:29, before the previous row ends (0:35)');
     expect(at).toContain('3:- scene "One" lasts 30 s: long — split it (the look: 4–25 s per scene)');

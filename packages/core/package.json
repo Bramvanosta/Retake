@@ -11,6 +11,81 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./base": {
+      "source": "./src/entries/base.ts",
+      "types": "./dist/entries/base.d.ts",
+      "default": "./dist/entries/base.js"
+    },
+    "./model": {
+      "source": "./src/entries/model.ts",
+      "types": "./dist/entries/model.d.ts",
+      "default": "./dist/entries/model.js"
+    },
+    "./ids": {
+      "source": "./src/entries/ids.ts",
+      "types": "./dist/entries/ids.d.ts",
+      "default": "./dist/entries/ids.js"
+    },
+    "./language": {
+      "source": "./src/entries/language.ts",
+      "types": "./dist/entries/language.d.ts",
+      "default": "./dist/entries/language.js"
+    },
+    "./environment": {
+      "source": "./src/entries/environment.ts",
+      "types": "./dist/entries/environment.d.ts",
+      "default": "./dist/entries/environment.js"
+    },
+    "./policy": {
+      "source": "./src/entries/policy.ts",
+      "types": "./dist/entries/policy.d.ts",
+      "default": "./dist/entries/policy.js"
+    },
+    "./hooks": {
+      "source": "./src/entries/hooks.ts",
+      "types": "./dist/entries/hooks.d.ts",
+      "default": "./dist/entries/hooks.js"
+    },
+    "./project": {
+      "source": "./src/entries/project.ts",
+      "types": "./dist/entries/project.d.ts",
+      "default": "./dist/entries/project.js"
+    },
+    "./sandbox": {
+      "source": "./src/entries/sandbox.ts",
+      "types": "./dist/entries/sandbox.d.ts",
+      "default": "./dist/entries/sandbox.js"
+    },
+    "./scenario": {
+      "source": "./src/entries/scenario.ts",
+      "types": "./dist/entries/scenario.d.ts",
+      "default": "./dist/entries/scenario.js"
+    },
+    "./comments": {
+      "source": "./src/entries/comments.ts",
+      "types": "./dist/entries/comments.d.ts",
+      "default": "./dist/entries/comments.js"
+    },
+    "./run": {
+      "source": "./src/entries/run.ts",
+      "types": "./dist/entries/run.d.ts",
+      "default": "./dist/entries/run.js"
+    },
+    "./render": {
+      "source": "./src/entries/render.ts",
+      "types": "./dist/entries/render.d.ts",
+      "default": "./dist/entries/render.js"
+    },
+    "./theme": {
+      "source": "./src/entries/theme.ts",
+      "types": "./dist/entries/theme.d.ts",
+      "default": "./dist/entries/theme.js"
+    },
+    "./schema": {
+      "source": "./src/entries/schema.ts",
+      "types": "./dist/entries/schema.d.ts",
+      "default": "./dist/entries/schema.js"
+    },
     "./io": {
       "source": "./src/io/index.ts",
       "types": "./dist/io/index.d.ts",

@@ -305,9 +305,6 @@ export function oneHotName(param: string, value: string): string {
   return `${param}_${value.replace(/[^A-Za-z0-9_]/g, '_')}`;
 }
 
-/** Built-in names of anchor expressions (besides `aspect`): the frame of the variant and the clip's capture rect. */
-export const ANCHOR_BUILTINS = ['frame_w', 'frame_h', 'screen_x', 'screen_y', 'screen_w', 'screen_h'] as const;
-
 /** What an anchor is evaluated against: the variant's design frame, and (overlays) the clip's screen rect. */
 export interface AnchorContext {
   /** Design space of the variant (default landscape 1920×1080). */

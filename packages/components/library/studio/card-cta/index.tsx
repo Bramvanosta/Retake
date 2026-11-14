@@ -1,4 +1,3 @@
-import { useCurrentFrame } from 'remotion';
 import {
   Background,
   CapText,
@@ -16,6 +15,7 @@ import {
   qrPath,
   readableOn,
   roundTo,
+  useCurrentFrame,
   withAlpha,
 } from '@retake/components/kit';
 import type { ComponentProps, QrLevel, ThemeTokens } from '@retake/components/kit';

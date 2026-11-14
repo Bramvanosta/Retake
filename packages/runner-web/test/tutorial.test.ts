@@ -11,7 +11,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { TextArtefact, Timeline } from '@retake/core';
 import { captureValue, runScenario } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
 
 const APP = `<!doctype html><html><head><title>Form</title></head><body style="font-family:sans-serif;padding:40px">
 <label>Name <input id="name"></label><br><br>
@@ -27,7 +28,7 @@ let tl: Timeline;
 let runDir: string;
 
 beforeAll(async () => {
-  const srv = createServer((req, res) => {
+  const srv = createServer((_req, res) => {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     res.end(APP);
   });
@@ -35,7 +36,8 @@ beforeAll(async () => {
   const { port } = srv.address() as AddressInfo;
   server = { url: `http://127.0.0.1:${port}`, close: () => new Promise<void>((r) => (srv.closeAllConnections(), srv.close(() => r()))) };
   dir = await tempDir('rw-tutorial-');
-  const rec = await runScenario({ policy: PERSON_POLICY,
+  const rec = await runScenario({
+    policy: PERSON_POLICY,
     project: makeProject(dir, { app: server.url }),
     scenario: makeScenario('tutorial', {
       pacing: FAST,

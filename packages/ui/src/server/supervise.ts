@@ -33,8 +33,10 @@ import { JobsWatch, liveWorker, submittedInStudio } from '@retake/engine';
 import type { JobQueueView, JobRecord } from '@retake/engine';
 import type { UnsavedBoard, UnsavedItem } from './unsaved.js';
 import type { DesktopPipe } from './desktop.js';
-import { projectPath } from '@retake/core';
-import type { JobClient } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { renderSuffix } from '@retake/core/ids';
+import { PROJECT_SLUG_RE, projectPath } from '@retake/core/project';
+import type { JobClient } from '@retake/engine';
 
 /** The kinds on the pipe: the shell's words are keyed by them. */
 export const PIPE_KINDS = ['capture', 'dry_run', 'render', 'review', 'export', 'recording', 'studio_recording', 'hooks', 'env_reset', 'sandbox_start', 'sandbox_reset'] as const;
@@ -54,9 +56,10 @@ export const JOB_END_PER_MIN = 20;
 /** Job ids remembered as ended (a job ends once). */
 const ENDED_MAX = 1000;
 
-/** The shell's slug rules (desktop_core pipe.rs): a project, a scenario. */
-export const PIPE_PROJECT_RE = /^[a-z0-9][a-z0-9-]{0,99}$/;
-export const PIPE_SCENARIO_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
+/** The shell's slug rules (desktop_core pipe.rs): a project slug and a scenario name (core's grammars), each of at most 100 characters. */
+export const PIPE_NAME_MAX = 100;
+export const isPipeProject = (v: string): boolean => v.length <= PIPE_NAME_MAX && PROJECT_SLUG_RE.test(v);
+export const isPipeScenario = (v: string): boolean => v.length <= PIPE_NAME_MAX && SLUG_RE.test(v);
 
 export interface PipeJob {
   kind: PipeKind;
@@ -136,11 +139,14 @@ export function jobNames(job: Pick<JobRecord, 'kind' | 'input'>): { project?: st
   const project = str(i.project);
   let scenario: string | undefined;
   if (job.kind === 'run' || job.kind === 'render' || job.kind === 'record') scenario = str(i.scenario);
-  else if (job.kind === 'review' || job.kind === 'export') scenario = str(i.render_id)?.replace(/-v\d+(?:-vertical|-square)?$/, '');
-  else if (job.kind === 'hooks') scenario = /^([^:]+):(?:setup|teardown)$/.exec(str(i.source) ?? '')?.[1];
+  else if (job.kind === 'review' || job.kind === 'export') {
+    // The id without its last "-v<N>[-vertical|-square]"; an id without one, whole (a record written with --out).
+    const id = str(i.render_id);
+    scenario = id === undefined ? undefined : (renderSuffix(id)?.stem ?? id);
+  } else if (job.kind === 'hooks') scenario = /^([^:]+):(?:setup|teardown)$/.exec(str(i.source) ?? '')?.[1];
   return {
-    ...(project !== undefined && PIPE_PROJECT_RE.test(project) ? { project } : {}),
-    ...(scenario !== undefined && PIPE_SCENARIO_RE.test(scenario) ? { scenario } : {}),
+    ...(project !== undefined && isPipeProject(project) ? { project } : {}),
+    ...(scenario !== undefined && isPipeScenario(scenario) ? { scenario } : {}),
   };
 }
 
@@ -190,8 +196,8 @@ export function jobOutcome(job: Pick<JobRecord, 'kind' | 'state' | 'result'>): {
 function pipeItem(i: UnsavedItem): UnsavedItem {
   return {
     kind: i.kind,
-    ...(i.project !== undefined && PIPE_PROJECT_RE.test(i.project) ? { project: i.project } : {}),
-    ...(i.project !== undefined && PIPE_PROJECT_RE.test(i.project) && i.scenario !== undefined && PIPE_SCENARIO_RE.test(i.scenario) ? { scenario: i.scenario } : {}),
+    ...(i.project !== undefined && isPipeProject(i.project) ? { project: i.project } : {}),
+    ...(i.project !== undefined && isPipeProject(i.project) && i.scenario !== undefined && isPipeScenario(i.scenario) ? { scenario: i.scenario } : {}),
   };
 }
 
@@ -425,12 +431,26 @@ export class Supervisor {
  * `server.close()` (which stops it first), polls again after each Studio write op.
  */
 export function startSupervisor(o: {
-  server: { engine: { workspace: { root: string; projectsDir: string }; queue: JobQueueView }; unsaved: UnsavedBoard; desktop?: DesktopPipe; onWrite(f: () => void): () => void; close(): Promise<void> };
+  server: {
+    engine: { workspace: { root: string; projectsDir: string }; queue: JobQueueView };
+    unsaved: UnsavedBoard;
+    desktop?: DesktopPipe;
+    onWrite(f: () => void): () => void;
+    close(): Promise<void>;
+  };
   out: PipeOut;
   pollMs?: number;
   log?: (message: string) => void;
 }): Supervisor {
-  const sup = new Supervisor({ root: o.server.engine.workspace.root, queue: o.server.engine.queue, projectsDir: o.server.engine.workspace.projectsDir, board: o.server.unsaved, out: o.out, ...(o.pollMs ? { pollMs: o.pollMs } : {}), ...(o.log ? { log: o.log } : {}) });
+  const sup = new Supervisor({
+    root: o.server.engine.workspace.root,
+    queue: o.server.engine.queue,
+    projectsDir: o.server.engine.workspace.projectsDir,
+    board: o.server.unsaved,
+    out: o.out,
+    ...(o.pollMs ? { pollMs: o.pollMs } : {}),
+    ...(o.log ? { log: o.log } : {}),
+  });
   const off = o.server.onWrite(() => void sup.nudge());
   // L5.12d: the window page's ack and answer to the quit question go out on the same pipe.
   o.server.desktop?.attach((line) => sup.pageLine(line));

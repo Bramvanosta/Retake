@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "id": "20261028-090000-quote",
+  "project": "northfield-fixture",
+  "scenario": "quote",
+  "mode": "dry",
+  "status": "succeeded",
+  "started_at": "2026-10-28T08:00:00.000Z",
+  "dir": "/workspace/projects/northfield-fixture/runs/20261028-090000-quote",
+  "env": "local",
+  "options": { "hooks": "skip", "headed": false, "until": "quote.2" },
+  "steps_total": 14,
+  "steps_done": 14,
+  "screenshots": ["/workspace/projects/northfield-fixture/runs/20261028-090000-quote/screenshots/001-catalog.0.png", "/workspace/projects/northfield-fixture/runs/20261028-090000-quote/screenshots/002-catalog.1.png"],
+  "hooks": { "setup": "skipped", "teardown": "skipped" },
+  "warnings": [],
+  "environment": { "access": "read-write" },
+  "engine": { "node": "22.16.0", "chromium": "141.0.7390.37", "os": "darwin 25.6.0 arm64", "fonts": { "files": 611, "digest": "857b9ada6edf" } },
+  "stopped_at": { "scene": "quote", "step": 2, "reason": "until" },
+  "timeline": "/workspace/projects/northfield-fixture/runs/20261028-090000-quote/timeline.json",
+  "finished_at": "2026-10-28T08:00:21.000Z"
+}

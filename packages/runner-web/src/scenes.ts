@@ -1,36 +1,10 @@
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  TemplateError,
-  describeTarget,
-  isCaptureScene,
-  isCard,
-  isInterstitial,
-  isPoint,
-  normalizeStep,
-  normalizeTarget,
-  overlayUseOf,
-  resolvePageUrl,
-  resolveScenePages,
-  sceneId,
-  templateSceneEntry,
-} from '@retake/core';
-import type {
-  CameraHint,
-  CaptionSpec,
-  MenuArgs,
-  MissingTarget,
-  NormalizedStep,
-  OverlaySpec,
-  RunProgress,
-  RunRecord,
-  Scenario,
-  Scene,
-  SceneEntry,
-  TargetSpec,
-  TimelineEvent,
-  TimelineScene,
-} from '@retake/core';
+import { TemplateError, resolvePageUrl } from '@retake/core/base';
+import { isCaptureScene, isCard, isInterstitial, overlayUseOf } from '@retake/core/model';
+import { describeTarget, isPoint, normalizeStep, normalizeTarget, resolveScenePages, sceneId, templateSceneEntry } from '@retake/core/language';
+import type { CameraHint, CaptionSpec, MenuArgs, MissingTarget, NormalizedStep, OverlaySpec, Scenario, Scene, SceneEntry, TargetSpec, TimelineEvent, TimelineScene } from '@retake/core/model';
+import type { RunProgress, RunningRun } from '@retake/core/run';
 import { ACTIONS, primaryTarget } from './actions/index.js';
 import type { ActionResult } from './actions/types.js';
 import { approach, settleLatePopup } from './actions/click.js';
@@ -79,7 +53,7 @@ export interface SceneLoopOptions {
   scenario: Scenario;
   scenarioName: string;
   until: { sceneIndex: number; stepIndex: number } | null;
-  record: RunRecord;
+  record: RunningRun;
   emit: (e: RunProgress) => void;
   save: () => void;
   /**
@@ -93,7 +67,7 @@ export interface SceneLoopOptions {
  * Template part of the scenario (R-RUN-16): a TemplateError fails the run; a {{hooks.…}} token that cannot resolve
  * because the setup hooks were skipped says how to run them.
  */
-export function templated<T>(fn: () => T, record: RunRecord): T {
+export function templated<T>(fn: () => T, record: RunningRun): T {
   try {
     return fn();
   } catch (e) {
@@ -393,7 +367,10 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
     let popupsBefore: number[] | undefined;
     if (rt.parkWatch && ACTING_ACTIONS.has(step.action)) {
       await rt.kit.watchChanges().catch(() => undefined);
-      popupsBefore = await rt.kit.popupState().then((ps) => ps.map((p) => p.id), () => undefined);
+      popupsBefore = await rt.kit.popupState().then(
+        (ps) => ps.map((p) => p.id),
+        () => undefined,
+      );
     }
     // A click before this step may still be watched for its effect (R-FLD-12): its check ends before this step acts.
     if (ACTING_ACTIONS.has(step.action)) await settleEffectChecks(ctx);
@@ -703,12 +680,16 @@ async function runPagesScene(rt: Runtime, opts: SceneLoopOptions, scene: Scene, 
     for (const pg of pages) {
       await rt.act(pg.id);
       const own = (scene.steps ?? []).filter((raw) => ((raw as { on?: string }).on ?? pages[0].id) === pg.id);
-      const placed = await placeSceneCursor(rt, { id, steps: own, ...(pg.cursor !== undefined ? { cursor: pg.cursor } : {}) }, {
-        loading: opened.has(pg.id) || fresh.has(pg.id),
-        idle: own.length === 0,
-        stillMs: stillS * 1000,
-        jitter: new Jitter(`${opts.scenarioName}:${scene.id}:${pg.id}:cursor`, rt.pacing.jitter),
-      });
+      const placed = await placeSceneCursor(
+        rt,
+        { id, steps: own, ...(pg.cursor !== undefined ? { cursor: pg.cursor } : {}) },
+        {
+          loading: opened.has(pg.id) || fresh.has(pg.id),
+          idle: own.length === 0,
+          stillMs: stillS * 1000,
+          jitter: new Jitter(`${opts.scenarioName}:${scene.id}:${pg.id}:cursor`, rt.pacing.jitter),
+        },
+      );
       records[pg.id] = placed.record;
       if (placed.glide) glides.push({ id: pg.id, glide: placed.glide });
     }

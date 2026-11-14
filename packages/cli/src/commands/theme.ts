@@ -1,10 +1,10 @@
-import { printableText } from '@retake/core';
+import { printableText } from '@retake/core/base';
 import { EngineError, createThemeFromBrand, extractSiteForAuthor, personScope } from '@retake/engine';
 import type { SiteJobResult, ThemeCreated } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
-import { openWorkspace, workspaceQueue } from '../workspace.js';
+import { cliPorts, openWorkspace, workspaceQueue } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface ThemeCreateOptions {
@@ -38,7 +38,11 @@ function printCreated(ui: Ui, c: ThemeCreated): void {
   const k = ui.c;
   ui.ok(`${c.replaced ? 'replaced' : 'created'} theme ${k.bold(c.name)} over ${c.base} (${c.palette.tone}) in ${ui.path(c.dir)}`);
   ui.line(k.dim(`  files: ${c.files.join(', ')}`));
-  ui.line(`  colours: ${Object.entries(c.palette.colors).map(([n, v]) => `${n} ${v}`).join(', ')}`);
+  ui.line(
+    `  colours: ${Object.entries(c.palette.colors)
+      .map(([n, v]) => `${n} ${v}`)
+      .join(', ')}`,
+  );
   ui.line(`  contrast: ${c.palette.checks.map((x) => `${x.check} ${x.ratio}${x.ok ? '' : ` (< ${x.min})`}`).join(', ')}`);
   for (const a of c.palette.adjusted) ui.line(`  adjusted ${a.key}${a.given ? ' (given)' : ''} ${a.from} → ${a.to} (${a.check} ${a.ratio_before} → ${a.ratio_after})`);
   if (c.palette.suggestions.accent) ui.line(`  suggested accent (not applied): ${c.palette.suggestions.accent}`);
@@ -65,15 +69,13 @@ export async function themeCreateCommand(ui: Ui, global: GlobalOptions, name: st
     ...(opts.adjust === false ? { adjust: false } : {}),
     logo: opts.logo,
     ...(opts.wordmark ? { wordmark: opts.wordmark } : {}),
-    ...(opts.displayFont || opts.bodyFont?.length
-      ? { fonts: { ...(opts.displayFont ? { display: opts.displayFont } : {}), ...(opts.bodyFont?.length ? { body: opts.bodyFont } : {}) } }
-      : {}),
+    ...(opts.displayFont || opts.bodyFont?.length ? { fonts: { ...(opts.displayFont ? { display: opts.displayFont } : {}), ...(opts.bodyFont?.length ? { body: opts.bodyFont } : {}) } } : {}),
     ...(opts.brandName || opts.brandUrl ? { brand: { ...(opts.brandName ? { name: opts.brandName } : {}), ...(opts.brandUrl ? { url: opts.brandUrl } : {}) } } : {}),
     ...(opts.replace ? { replace: true } : {}),
   };
   let created: ThemeCreated;
   try {
-    created = await createThemeFromBrand(ws, input, { trust: 'author', cwd: process.cwd(), scope: personScope(ws.root) });
+    created = await createThemeFromBrand(ws, input, { trust: 'author', cwd: process.cwd(), scope: personScope(ws.root, cliPorts) });
   } catch (e) {
     if (e instanceof EngineError) throw new CliError(`${e.message}${e.fix ? `\n  fix: ${e.fix}` : ''}`);
     throw e;
@@ -104,9 +106,17 @@ function printSite(ui: Ui, r: SiteJobResult): void {
   if (fonts) ui.line(k.dim(`  fonts seen (names from the page): display ${names(fonts.display)}; body ${names(fonts.body)} — give the font files yourself (--display-font / --body-font)`));
   for (const c of r.candidates) ui.line(`  logo candidate ${c.ref}: ${c.file} (${c.width}×${c.height}, ${c.source})`);
   if (r.screenshot) ui.line(`  screenshot: ${ui.path(r.screenshot)}`);
-  const blocked = Object.entries(r.network.blocked).map(([why, n]) => `${n} ${why}`).join(', ');
-  const refused = Object.entries(r.network.refused).map(([why, n]) => `${n} ${why}`).join(', ');
-  ui.line(k.dim(`  network: ${r.network.requests} requests, ${r.network.tunnels} connections, ${Math.round(r.network.bytes / 1024)} KB${blocked ? `; blocked: ${blocked}` : ''}${refused ? `; refused connections: ${refused}` : ''}`));
+  const blocked = Object.entries(r.network.blocked)
+    .map(([why, n]) => `${n} ${why}`)
+    .join(', ');
+  const refused = Object.entries(r.network.refused)
+    .map(([why, n]) => `${n} ${why}`)
+    .join(', ');
+  ui.line(
+    k.dim(
+      `  network: ${r.network.requests} requests, ${r.network.tunnels} connections, ${Math.round(r.network.bytes / 1024)} KB${blocked ? `; blocked: ${blocked}` : ''}${refused ? `; refused connections: ${refused}` : ''}`,
+    ),
+  );
   for (const w of r.warnings) ui.warn(w);
   if (r.draft) {
     const d = r.draft.brand_input as { name: string; base: string; colors: Record<string, string>; logo?: string; brand?: { url?: string } };
@@ -124,7 +134,7 @@ export async function themeFromSiteCommand(ui: Ui, global: GlobalOptions, url: s
   const ws = await openWorkspace(global);
   let r: SiteJobResult;
   try {
-    r = await extractSiteForAuthor(ws, url, { queue: workspaceQueue(ws) });
+    r = await extractSiteForAuthor(ws, url, { queue: workspaceQueue(ws), clock: cliPorts.clock, capture: cliPorts.capture });
   } catch (e) {
     if (e instanceof EngineError) throw new CliError(`${e.message}${e.fix ? `\n  fix: ${e.fix}` : ''}`);
     throw e;

@@ -199,6 +199,7 @@ describe('zod schemas', () => {
       mode: 'capture',
       status: 'succeeded',
       started_at: base.created_at,
+      finished_at: base.created_at,
       dir: '/tmp/runs/r',
       env: 'local',
       options: { hooks: 'run', headed: false },
@@ -223,9 +224,9 @@ describe('zod schemas', () => {
     expect(RunRecordSchema.safeParse(run).success).toBe(true);
     expect(RunRecordSchema.safeParse({ ...run, perf: { ...run.perf, frames: { ...run.perf!.frames, extra: 1 } } }).success).toBe(false);
     expect(perfSummary(run.perf!)).toBe('0.95 cores (Chromium 0.64, encoder 0.16, retake 0.15, product 0.00) · 34.4 fps (moves ≥ 55) · no freeze · 1 slow transition: reports.1 1.9 s · 20 MB');
-    expect(perfSummary({ ...run.perf!, cpu: undefined, gpu: { accelerated: false }, stalls: [{ t: 1, ms: 250, during: 'ripple' }], transitions: undefined, disk: undefined, frame_rate_limit: false })).toBe(
-      'no GPU · 34.4 fps (moves ≥ 55) · 1 freeze (cut by the edit) · frame-rate limiter off',
-    );
+    expect(
+      perfSummary({ ...run.perf!, cpu: undefined, gpu: { accelerated: false }, stalls: [{ t: 1, ms: 250, during: 'ripple' }], transitions: undefined, disk: undefined, frame_rate_limit: false }),
+    ).toBe('no GPU · 34.4 fps (moves ≥ 55) · 1 freeze (cut by the edit) · frame-rate limiter off');
     // L5.14b: what ran beside the take (captures first) is recorded and said.
     const beside = { ...run.perf!, machine: { ...run.perf!.machine, takes_beside: 1, heavy_slowed: true as const } };
     expect(RunRecordSchema.safeParse({ ...run, perf: beside }).success).toBe(true);

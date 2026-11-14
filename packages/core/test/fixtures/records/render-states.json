@@ -1,0 +1,147 @@
+{
+  "about": "The states of a project's renders/ folder (test data: see README.md). Every project holds two good captures of `quote` — OLD (1 Oct) and NEW (2 Oct) — and, unless the state gives its own `base`, one good render `quote-v1` made on NEW. `files` are then written in order. An entry: `file` (the base name, without .json), `id` (the id the record says: the file's name when absent), `run` (OLD or NEW: the take it was made on), `at` (its created_at), `set` / `unset` (dotted paths set or removed in the base record), `raw` (this text instead of a record), `link` (the record is written outside the project and renders/<file>.json is a link to it), `video` (false: no video beside it), `film` (`alt`: the second film, so that two videos differ by their bytes), `only` (`lock`: a version lock and nothing else; `video`: a video and no record). `$ID`, `$FILE`, `$DIR`, `$PROJECT`, `$RUN` and `$AT` are replaced by the inner id, the file's name, the project folder, its slug, the run id and the creation time; `render_version` is the N of a `…-v<N>` id.",
+  "scenario": "quote",
+  "record": {
+    "version": 1,
+    "id": "$ID",
+    "project": "$PROJECT",
+    "scenario": "quote",
+    "run_id": "$RUN",
+    "run_dir": "$DIR/runs/$RUN",
+    "template": "editorial",
+    "template_sha256": "0123456789abcdef",
+    "overrides": {},
+    "edit": { "from": "run" },
+    "variant": "landscape",
+    "status": "succeeded",
+    "file": "$DIR/renders/$ID.mp4",
+    "record": "$DIR/renders/$ID.json",
+    "created_at": "$AT",
+    "finished_at": "$AT",
+    "duration_s": 1,
+    "frames": 30,
+    "fps": 30,
+    "width": 1920,
+    "height": 1080,
+    "size_bytes": 18,
+    "encoding": { "codec": "h264", "encoder": "libx264", "crf": 16, "pixel_format": "yuv420p", "faststart": true, "audio": "silent" },
+    "concurrency": 2,
+    "bundle": { "hash": "abc", "cached": true, "ms": 1 },
+    "browser": { "path": null, "source": "none" },
+    "timings": { "plan_ms": 1, "bundle_ms": 1, "render_ms": 1, "total_ms": 3 },
+    "warnings": [],
+    "plan": {
+      "version": 1,
+      "variant": "landscape",
+      "fps": 30,
+      "width": 1920,
+      "height": 1080,
+      "durationInFrames": 30,
+      "segments": [{ "id": "card-1", "kind": "card", "from": 0, "durationInFrames": 30, "component": { "id": "studio/title-card" } }],
+      "captions": [],
+      "markers": [],
+      "timemap": [],
+      "assets": {},
+      "meta": { "run_id": "$RUN", "project": "$PROJECT", "scenario": "quote", "theme": "editorial" },
+      "warnings": [],
+      "notes": []
+    },
+    "policy": {
+      "gl": { "asked": "auto", "source": "default", "resolved": "software", "used": "software" },
+      "encoder": { "asked": "auto", "source": "default", "used": "libx264" },
+      "concurrency_source": "default"
+    }
+  },
+  "base": [{ "file": "quote-v1", "run": "NEW", "at": "2026-10-02T09:01:00.000Z" }],
+  "states": {
+    "ctl": { "about": "control: quote-v1 alone", "files": [] },
+    "v2": { "about": "control: a good newer quote-v2", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z" }] },
+    "no-created": { "about": "quote-v2.json without created_at", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "unset": ["created_at"] }] },
+    "created-5": { "about": "quote-v2.json with created_at: 5", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "set": { "created_at": 5 } }] },
+    "renamed-newest": {
+      "about": "the newest render renamed by hand, record and video: quote-final.json holding id quote-v2 (its stored paths still say quote-v2)",
+      "files": [{ "file": "quote-final", "id": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z" }]
+    },
+    "renamed-fixed": {
+      "about": "the same, its `file` and `record` corrected by hand",
+      "files": [{ "file": "quote-final", "id": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "set": { "file": "$DIR/renders/quote-final.mp4", "record": "$DIR/renders/quote-final.json" } }]
+    },
+    "renamed-old": {
+      "about": "C2: an old render renamed by hand (quote-final.json holding id quote-v0, made on OLD) and three newer renders",
+      "files": [
+        { "file": "quote-final", "id": "quote-v0", "run": "OLD", "at": "2026-10-01T09:00:00.000Z" },
+        { "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z" },
+        { "file": "quote-v3", "run": "NEW", "at": "2026-10-02T09:03:00.000Z" }
+      ]
+    },
+    "renamed-reused": {
+      "about": "C3: an old render renamed by hand (quote-final.json holding id quote-v1, made on OLD, its own video beside it) whose number a new render took: renders/quote-v1.mp4 is now another render's video",
+      "base": [],
+      "files": [
+        { "file": "quote-final", "id": "quote-v1", "run": "OLD", "at": "2026-10-01T09:00:00.000Z", "film": "alt" },
+        { "file": "quote-v1", "run": "NEW", "at": "2026-10-02T09:01:00.000Z" },
+        { "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z" },
+        { "file": "quote-v3", "run": "NEW", "at": "2026-10-02T09:03:00.000Z" },
+        { "file": "quote-v4", "run": "NEW", "at": "2026-10-02T09:04:00.000Z" }
+      ]
+    },
+    "copy": { "about": "a copy of the record beside its original: `quote-v1 copy.json`", "files": [{ "file": "quote-v1 copy", "id": "quote-v1", "run": "NEW", "at": "2026-10-02T09:01:00.000Z", "video": false }] },
+    "copy-backup": { "about": "the same under a name with no space: `quote-v1-backup.json`", "files": [{ "file": "quote-v1-backup", "id": "quote-v1", "run": "NEW", "at": "2026-10-02T09:01:00.000Z", "video": false }] },
+    "video-gone": { "about": "quote-v2.json, its video gone", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "video": false }] },
+    "scenario-other": { "about": "quote-v2.json says `scenario: other`", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "set": { "scenario": "other" } }] },
+    "scenario-7": { "about": "quote-v2.json says `scenario: 7`", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "set": { "scenario": 7 } }] },
+    "no-scenario": { "about": "quote-v2.json without `scenario`", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "unset": ["scenario"] }] },
+    "no-variant": { "about": "quote-v2.json without `variant`", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "unset": ["variant"] }] },
+    "lock-only": { "about": "a version lock left behind: .quote-v2.lock and nothing else", "files": [{ "file": "quote-v2", "only": "lock" }] },
+    "video-only": { "about": "a video without its record: quote-v2.mp4", "files": [{ "file": "quote-v2", "only": "video" }] },
+    "paused": { "about": "a status Retake never writes: `paused`", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "set": { "status": "paused" } }] },
+    "failed": { "about": "`status: failed` written by hand, made on OLD", "files": [{ "file": "quote-v2", "run": "OLD", "at": "2026-10-02T09:02:00.000Z", "set": { "status": "failed", "error": "the render stopped" }, "video": false }] },
+    "variant-cube": {
+      "about": "words this version does not know: `variant: cube`, an encoder, a browser source, a policy word",
+      "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "set": { "variant": "cube", "encoding.audio": "voice", "browser.source": "system", "policy.gl.used": "metal", "edit.from": "draft" } }]
+    },
+    "version-2": { "about": "a record of a newer format (`version: 2`), made on OLD", "files": [{ "file": "quote-v2", "run": "OLD", "at": "2026-10-02T09:02:00.000Z", "set": { "version": 2 } }] },
+    "link": { "about": "quote-v2.json is a link to a record outside the project", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "link": true }] },
+    "out-name": {
+      "about": "a render written with `--out renders/quote-final.mp4`: a complete record of its file whose id is no render id of its scenario",
+      "files": [{ "file": "quote-final", "run": "NEW", "at": "2026-10-02T09:02:00.000Z" }]
+    },
+    "no-plan": { "about": "quote-v2.json without `plan`, made on OLD", "files": [{ "file": "quote-v2", "run": "OLD", "at": "2026-10-02T09:02:00.000Z", "unset": ["plan"] }] },
+    "cut-short": { "about": "quote-v2.json cut short", "files": [{ "file": "quote-v2", "raw": "{\"version\": 1, \"id\": \"quote-v2\", \"sce" }] },
+    "array": { "about": "quote-v2.json holds `[]`", "files": [{ "file": "quote-v2", "raw": "[]" }] },
+    "null": { "about": "quote-v2.json holds `null`", "files": [{ "file": "quote-v2", "raw": "null" }] },
+    "no-status": { "about": "quote-v2.json without `status`", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "unset": ["status"] }] },
+    "no-run-id": { "about": "quote-v2.json without `run_id`", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "unset": ["run_id"] }] },
+    "empty-id": { "about": "x.json with `id: \"\"`", "files": [{ "file": "x", "id": "", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "set": { "file": "$DIR/renders/x.mp4", "record": "$DIR/renders/x.json" } }] },
+    "file-outside": { "about": "quote-v2.json whose `file` is a path outside the project", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "set": { "file": "/etc/hosts" } }] },
+    "keep-json": {
+      "about": "a stray keep.json that says `id: quote-v1` under another scenario, beside an old quote-v1 (made on OLD) and three newer renders",
+      "base": [{ "file": "quote-v1", "run": "OLD", "at": "2026-10-01T09:00:00.000Z" }],
+      "files": [
+        { "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z" },
+        { "file": "quote-v3", "run": "NEW", "at": "2026-10-02T09:03:00.000Z" },
+        { "file": "quote-v4", "run": "NEW", "at": "2026-10-02T09:04:00.000Z" },
+        { "file": "keep", "id": "quote-v1", "run": "OLD", "at": "2026-10-01T09:00:00.000Z", "set": { "scenario": "other" }, "video": false }
+      ]
+    },
+    "keep-json-without": {
+      "about": "the same without keep.json (what the stray file changes)",
+      "base": [{ "file": "quote-v1", "run": "OLD", "at": "2026-10-01T09:00:00.000Z" }],
+      "files": [
+        { "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z" },
+        { "file": "quote-v3", "run": "NEW", "at": "2026-10-02T09:03:00.000Z" },
+        { "file": "quote-v4", "run": "NEW", "at": "2026-10-02T09:04:00.000Z" }
+      ]
+    },
+    "final-files": {
+      "about": "quote-v1.final.json and quote-v1.final.mp4 (a record of its own file, written under that name) beside an old quote-v1 and three newer renders",
+      "base": [{ "file": "quote-v1", "run": "OLD", "at": "2026-10-01T09:00:00.000Z" }],
+      "files": [
+        { "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z" },
+        { "file": "quote-v3", "run": "NEW", "at": "2026-10-02T09:03:00.000Z" },
+        { "file": "quote-v4", "run": "NEW", "at": "2026-10-02T09:04:00.000Z" },
+        { "file": "quote-v1.final", "run": "NEW", "at": "2026-10-02T09:05:00.000Z" }
+      ]
+    }
+  }
+}

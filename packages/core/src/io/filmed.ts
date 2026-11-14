@@ -3,7 +3,7 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { canonicalJson } from '../comments.js';
+import { canonicalJson } from '../canonical-json.js';
 import { SCENARIO_COMPARE_MAX_BYTES, filmedChanges } from '../filmed.js';
 import type { ScenarioSinceRun } from '../filmed.js';
 import { projectPath } from '../layout.js';

@@ -31,7 +31,8 @@ export function parseShellLine(line: string): ShellLine | null {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const o = v as Record<string, unknown>;
   const keys = Object.keys(o).sort().join(',');
-  if (o.type === 'cli_folder' && keys === 'path,type' && typeof o.path === 'string' && o.path.startsWith('/') && o.path.length <= 4096 && !/[\0\n\r]/.test(o.path)) return { type: 'cli_folder', path: o.path };
+  if (o.type === 'cli_folder' && keys === 'path,type' && typeof o.path === 'string' && o.path.startsWith('/') && o.path.length <= 4096 && !/[\0\n\r]/.test(o.path))
+    return { type: 'cli_folder', path: o.path };
   if (o.type === 'cli_folder_open' && keys === 'type') return { type: 'cli_folder_open' };
   if (o.type === 'cli_folder_cancelled' && keys === 'type') return { type: 'cli_folder_cancelled' };
   if (o.type === 'notifications' && keys === 'state,type' && (o.state === 'on' || o.state === 'off' || o.state === 'unknown')) return { type: 'notifications', state: o.state };

@@ -10,7 +10,7 @@
  *   the scope's, nothing of this Mac's folders), draft colours in memory only; ⚑ B10: a theme whose intro is its own
  *   image is not previewed; ⚑ a workspace component the preview renders is held until preview_allow; a theme page's
  *   lease ends with timeline_leave (the project's URLs revoked);
- * - the `themes` watch: a theme edit is a change of that theme only (library-watch.ts);
+ * - the `themes` watch: a theme edit is a change of that theme only (the engine's library-watch.ts);
  * - L4.7 part D2: theme_list — ⚑ editable by real path (starters read-only with why, a workspace copy editable, the
  *   project's own folder theme read-only), hex colours only, what uses each, the components by id and kind, the
  *   project's scenarios; path-free.
@@ -24,16 +24,18 @@ import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
 import type { ComponentPreviewSpec } from '@retake/editor';
 import type { ThemeEditView } from '@retake/engine';
-import { COMPONENT_PREVIEW_FORMAT, UI_OPS, WATCH_SCAN_BUDGET, libraryChanges, libraryWatchScan, startStudioServer } from '../src/index.js';
+import { COMPONENT_PREVIEW_FORMAT, UI_OPS, startStudioServer } from '../src/index.js';
+import { WATCH_SCAN_BUDGET, libraryChanges, libraryWatchScan } from '@retake/engine';
 import type { SiteListAnswer, StudioServer, ThemePreviewAnswer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 const LEASE = 'themeLeaseAAAAAAAAAAA';
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const call = (op: string, args: unknown = {}) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 async function ok<T>(op: string, args: unknown): Promise<{ data: T; body: string }> {
@@ -53,7 +55,7 @@ const playerGet = (url: string) => {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-theme-ops-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(ws, 'templates'));
@@ -69,8 +71,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -215,7 +216,7 @@ describe('theme_preview', () => {
     return doc.spec;
   };
 
-  it('intro, clip, outro and one component: a component-preview on the player origin, every URL one of the scope\'s; drafts in memory only', async () => {
+  it("intro, clip, outro and one component: a component-preview on the player origin, every URL one of the scope's; drafts in memory only", async () => {
     const before = await readFile(join(ws, 'templates', 'mine', 'template.yaml'), 'utf8');
     for (const target of ['intro', 'clip', 'outro', { component: 'studio/card-title' }]) {
       const r = await call('theme_preview', { project: P, theme: 'mine', target, lease: LEASE });
@@ -229,6 +230,7 @@ describe('theme_preview', () => {
       const text = JSON.stringify({ ...spec, ...(spec.scene ? { scene: { ...spec.scene, url: undefined } } : {}) });
       expect(text).not.toContain(ws);
       expect(text).not.toContain(homedir());
+      if (!('plan_url' in d)) throw new Error('no preview');
       const media = d.plan_url.slice(0, d.plan_url.indexOf('/plan/') + 1);
       for (const u of text.match(/https?:\/\/[^"]+/g) ?? []) expect(u.startsWith(media), u).toBe(true);
       if (target === 'clip') expect(spec.scene).toBeDefined();
@@ -282,18 +284,37 @@ describe('theme_preview', () => {
 });
 
 describe('theme_list (part D2)', () => {
-  it('⚑ editable by real path: starters read-only with why, a workspace theme editable, the project\'s own folder theme read-only; path-free', async () => {
+  it("⚑ editable by real path: starters read-only with why, a workspace theme editable, the project's own folder theme read-only; path-free", async () => {
     // A second project whose theme is its own folder (a path in project.yaml).
     const own = join(ws, 'projects', 'own');
     await mkdir(join(own, 'scenarios'), { recursive: true });
     await cp(join(ws, 'templates', 'mine'), join(own, 'theme'), { recursive: true });
     await writeFile(join(own, 'project.yaml'), 'version: 1\nname: Own\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: ./theme\n');
-    type List = { project: string; project_theme?: string; themes: Array<{ name: string; source: string; default?: true; editable: true | { why: string }; colors: Record<string, string>; issues: string[]; used_by: { projects: string[]; scenarios: unknown[] } }>; components: Array<{ id: string; kind: string; source: string }>; scenarios: string[] };
+    type List = {
+      project: string;
+      project_theme?: string;
+      themes: Array<{
+        name: string;
+        source: string;
+        default?: true;
+        editable: true | { why: string };
+        colors: Record<string, string>;
+        issues: string[];
+        used_by: { projects: string[]; scenarios: unknown[] };
+      }>;
+      components: Array<{ id: string; kind: string; source: string }>;
+      scenarios: string[];
+    };
     const r = await ok<List>('theme_list', { project: P });
     pathFree(r.body);
     const by = new Map(r.data.themes.map((t) => [t.name, t]));
     expect(r.data.project_theme).toBe('editorial');
-    expect(by.get('editorial')).toMatchObject({ source: 'starter', default: true, editable: { why: expect.stringMatching(/starter theme shipped with Retake: copy it to edit it/) }, colors: { accent: '#8a2332' } });
+    expect(by.get('editorial')).toMatchObject({
+      source: 'starter',
+      default: true,
+      editable: { why: expect.stringMatching(/starter theme shipped with Retake: copy it to edit it/) },
+      colors: { accent: '#8a2332' },
+    });
     expect(by.get('editorial')!.used_by.projects).toContain(P);
     for (const n of ['default', 'motion']) expect(by.get(n)!.editable).toMatchObject({ why: expect.any(String) });
     expect(by.get('mine')).toMatchObject({ source: 'workspace', editable: true, issues: [] });

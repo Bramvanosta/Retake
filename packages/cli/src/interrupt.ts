@@ -1,5 +1,7 @@
 import { EXIT } from './errors.js';
+import { cliPorts } from './workspace.js';
 import type { Ui } from './ui.js';
+import { bestEffort } from '@retake/core/base';
 
 /** A command's handling of Ctrl-C / SIGTERM (onInterrupt). */
 export interface Interrupt {
@@ -21,11 +23,13 @@ export interface Interrupt {
  * L1.8) and exits. `message` replaces the "closing the browser" line of the first signal.
  */
 export async function onInterrupt(ui: Ui, opts: { exit?: () => Promise<void>; onQuitSync?: () => void; message?: string } = {}): Promise<Interrupt> {
-  const { removeSessionCopiesSync } = await import('@retake/runner-web');
+  // Loaded before the handlers: a second signal removes the session copies synchronously (the capture port).
+  const capture = cliPorts.capture;
+  await capture.load();
   const controller = new AbortController();
   let count = 0;
   const quit = (): never => {
-    removeSessionCopiesSync();
+    capture.cleanupSync();
     try {
       opts.onQuitSync?.();
     } catch {
@@ -39,7 +43,7 @@ export async function onInterrupt(ui: Ui, opts: { exit?: () => Promise<void>; on
     ui.clearStatus();
     ui.warn(opts.message ?? 'interrupted: closing the browser…');
     controller.abort();
-    if (opts.exit) void opts.exit().catch(() => undefined).finally(quit);
+    if (opts.exit) void bestEffort(opts.exit(), 'the process quits whatever the clean-up did: the interrupt was asked for').finally(quit);
   };
   process.on('SIGINT', handler);
   process.on('SIGTERM', handler);

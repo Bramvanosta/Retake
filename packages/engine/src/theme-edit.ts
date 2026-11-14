@@ -22,19 +22,24 @@
 import { readdirSync, statSync } from 'node:fs';
 import { lstat, readdir } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { COMPONENT_KINDS, StepEditError, TEMPLATE_FILE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, applyThemeEdit, insideFolder, isTemplateMediaRef, isTemplatePath, newHiddenCharProblem, parseTemplateYaml, parseYaml, realPathOf, verifyEditText, pathInside, projectPath } from '@retake/core';
-import { STARTER_TEMPLATES_DIR, listTemplates, loadProjectTemplate, loadTemplate, readPlainFile, nodeFileFacts, fileFacts } from '@retake/core/io';
-import type { ComponentKind, Template, TemplateEntry, ThemeEdit, ThemeField } from '@retake/core';
+import { parseYaml, pathInside } from '@retake/core/base';
+import { COMPONENT_KINDS } from '@retake/core/model';
+import { realPathOf } from '@retake/core/policy';
+import { projectPath } from '@retake/core/project';
+import { StepEditError, insideFolder, isTemplatePath, newHiddenCharProblem, verifyEditText } from '@retake/core/scenario';
+import { TEMPLATE_FILE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, applyThemeEdit, isTemplateMediaRef, parseTemplateYaml } from '@retake/core/theme';
+import { STARTER_TEMPLATES_DIR, readPlainFile, nodeFileFacts } from '@retake/core/io';
+import type { ComponentKind, Template } from '@retake/core/model';
+import type { TemplateEntry, ThemeEdit, ThemeField } from '@retake/core/theme';
 import type { PaletteCheck } from '@retake/components';
 import { FONT_MAX_BYTES, IMAGE_MAX_BYTES, SVG_MAX_BYTES, checkImage, sniffFont } from './brand/files.js';
 import { components, workspaceRegistry } from './components.js';
 import { callerOf, editsThemes } from './caller.js';
-import type { EngineClient } from './caller.js';
+import type { Caller, EngineClient } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { listProjectSummaries, openProjectBySlug } from './projects.js';
 import { sha256Hex } from './storage.js';
-import { ProjectStore } from './store/project-store.js';
-import type { StoreScope } from './store/project-store.js';
+import type { StoreScope } from './store/store.js';
 import { checkTemplateName } from './templates.js';
 import type { OpenedWorkspace } from './workspace.js';
 
@@ -82,7 +87,7 @@ export function knownThemeVersion(realFile: string, hash: string): boolean {
 /** The theme `name` of the workspace (a listed name, never a path) and whether the Studio may edit it. */
 async function locateTheme(ws: OpenedWorkspace, name: string): Promise<ThemeLocation> {
   checkTemplateName(name);
-  const entry = (await listTemplates(ws.root)).find((e) => e.name === name);
+  const entry = (await ws.reads.listTemplates(ws.root)).find((e) => e.name === name);
   if (!entry) throw new EngineError('not_found', `theme "${name}" not found (the themes list names them)`);
   const realDir = realPathOf(entry.dir, nodeFileFacts);
   const realFile = realPathOf(join(entry.dir, TEMPLATE_FILE), nodeFileFacts);
@@ -92,10 +97,12 @@ async function locateTheme(ws: OpenedWorkspace, name: string): Promise<ThemeLoca
 /** Why the Studio may not write this theme (critique B15), or true. */
 async function editability(ws: OpenedWorkspace, entry: TemplateEntry, realDir: string): Promise<ThemeEditable> {
   if (entry.source === 'starter') return { why: `${entry.name} is a starter theme shipped with Retake: copy it to edit it` };
-  if (pathInside(realDir, realPathOf(PACKAGE_DIR, nodeFileFacts), { dotDotPrefix: true })) return { why: `${entry.name} is a theme shipped with Retake (its folder lies in the Retake package): copy it to edit it` };
+  if (pathInside(realDir, realPathOf(PACKAGE_DIR, nodeFileFacts), { dotDotPrefix: true }))
+    return { why: `${entry.name} is a theme shipped with Retake (its folder lies in the Retake package): copy it to edit it` };
   const realRoot = realPathOf(resolve(ws.root), nodeFileFacts);
   const realTemplates = realPathOf(resolve(ws.templatesDir), nodeFileFacts);
-  if (!pathInside(realTemplates, realRoot, { dotDotPrefix: true })) return { why: `templates_dir lies outside the workspace: the Studio edits themes of the workspace only — edit ${entry.name} by hand` };
+  if (!pathInside(realTemplates, realRoot, { dotDotPrefix: true }))
+    return { why: `templates_dir lies outside the workspace: the Studio edits themes of the workspace only — edit ${entry.name} by hand` };
   try {
     const st = await lstat(entry.dir);
     if (st.isSymbolicLink() || !st.isDirectory()) return { why: `${entry.name} is a link to another folder: the Studio edits only real theme folders — edit it by hand` };
@@ -130,7 +137,8 @@ function readThemeText(loc: ThemeLocation): { text: string; sha256: string; utf8
 function textBlocker(name: string, t: { text: string; utf8: boolean; sha256: string; unread?: string }): string | null {
   if (t.unread !== undefined) return `${name}/template.yaml is ${t.unread}: edit it by hand`;
   if (!t.utf8) return `${name}/template.yaml is not UTF-8 text: saving it here would replace the bytes that cannot be read — edit it by hand`;
-  if (t.text.length > THEME_EDIT_MAX_CHARS) return `${name}/template.yaml holds ${t.text.length.toLocaleString('en')} characters: the Studio edits themes of at most ${THEME_EDIT_MAX_CHARS.toLocaleString('en')} — edit it by hand`;
+  if (t.text.length > THEME_EDIT_MAX_CHARS)
+    return `${name}/template.yaml holds ${t.text.length.toLocaleString('en')} characters: the Studio edits themes of at most ${THEME_EDIT_MAX_CHARS.toLocaleString('en')} — edit it by hand`;
   const cr = /\r(?!\n)/.exec(t.text);
   if (cr) return `${name}/template.yaml holds a carriage return without a line feed (line ${t.text.slice(0, cr.index).split('\n').length}): fix its line breaks in your editor`;
   return null;
@@ -341,7 +349,7 @@ export async function templateView(ws: OpenedWorkspace, name: string): Promise<T
     for (const k of f.split('.')) cur = isObj(cur) ? cur[k] : undefined;
     if (cur !== undefined && cur !== null) fields[f] = cur;
   }
-  const parsed = read.utf8 ? parseTemplateYaml(read.text, { dir: loc.realDir, files: fileFacts(ws.policy) }) : { issues: [], template: undefined };
+  const parsed = read.utf8 ? parseTemplateYaml(read.text, { dir: loc.realDir, files: ws.reads.fileFacts(ws.policy) }) : { issues: [], template: undefined };
   const issues: string[] = parsed.issues.filter((i) => i.severity === 'error').map((i) => i.message);
   const warnings = parsed.issues.filter((i) => i.severity === 'warning').map((i) => `${i.path.join('.')}: ${i.message}`);
   const comps = isObj(root.components) ? root.components : {};
@@ -393,7 +401,8 @@ export async function templateView(ws: OpenedWorkspace, name: string): Promise<T
         const info = sniffFont({ ref: file, ext: file.slice(file.lastIndexOf('.')).toLowerCase(), bytes: r.bytes });
         const face = lib.fontFileFace(join(loc.realDir, ...file.split('/')));
         fonts.push({ file, format: info.format, weight: info.weight ?? face.weight, italic: info.italic ?? face.style === 'italic' });
-        if (info.names.family || info.names.subfamily) untrustedFonts.push({ file, ...(info.names.family ? { family: info.names.family.slice(0, 120) } : {}), ...(info.names.subfamily ? { subfamily: info.names.subfamily.slice(0, 120) } : {}) });
+        if (info.names.family || info.names.subfamily)
+          untrustedFonts.push({ file, ...(info.names.family ? { family: info.names.family.slice(0, 120) } : {}), ...(info.names.subfamily ? { subfamily: info.names.subfamily.slice(0, 120) } : {}) });
       } catch (e) {
         fonts.push({ file, problem: toEngineError(e).message });
       }
@@ -416,8 +425,23 @@ export async function templateView(ws: OpenedWorkspace, name: string): Promise<T
   const c = parsed.template?.colors;
   if (c && [c.accent, c.text, c.muted, c.paper].every((x) => HEX.test(x)) && (c.dark === undefined || HEX.test(c.dark))) {
     const bg = parsed.template!.background;
-    const background = bg.type === 'solid' ? (bg.color && HEX.test(bg.color) ? bg.color : undefined) : bg.from && bg.to && HEX.test(bg.from) && HEX.test(bg.to) ? { type: bg.type, from: bg.from, to: bg.to } : undefined;
-    const p = lib.derivePalette({ accent: c.accent, text: c.text, muted: c.muted, paper: c.paper, ...(c.dark !== undefined ? { dark: c.dark } : {}), ...(background !== undefined ? { background } : {}), adjust: false });
+    const background =
+      bg.type === 'solid'
+        ? bg.color && HEX.test(bg.color)
+          ? bg.color
+          : undefined
+        : bg.from && bg.to && HEX.test(bg.from) && HEX.test(bg.to)
+          ? { type: bg.type, from: bg.from, to: bg.to }
+          : undefined;
+    const p = lib.derivePalette({
+      accent: c.accent,
+      text: c.text,
+      muted: c.muted,
+      paper: c.paper,
+      ...(c.dark !== undefined ? { dark: c.dark } : {}),
+      ...(background !== undefined ? { background } : {}),
+      adjust: false,
+    });
     palette = { checks: p.checks, warnings: p.warnings };
   }
   return {
@@ -460,12 +484,22 @@ export interface ThemeEditResult {
 }
 
 /**
+ * The theme-edit caller rule (editsThemes): MCP is refused — themes are never edited through it. theme_edit's `callers`
+ * (operations/themes.ts: checked after the parse, before the theme is read) and editTemplate's own first check, in the
+ * same words.
+ */
+export function themeEditRefused(c: Caller): EngineError | undefined {
+  return editsThemes(c) ? undefined : new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)');
+}
+
+/**
  * One write of a theme from the Studio (see the header). `client` is the engine's: MCP is refused (themes are never
  * edited through it). Errors: conflict (if_match; a value changed since the page read it: `details.stale`), refused
  * (not editable, a file the theme may not serve, not a known version), invalid (the edit or its value).
  */
 export async function editTemplate(ws: OpenedWorkspace, name: string, req: ThemeEditRequest, o: { client: EngineClient; scope: StoreScope }): Promise<ThemeEditResult> {
-  if (!editsThemes(callerOf(o.client))) throw new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)');
+  const refused = themeEditRefused(callerOf(o.client));
+  if (refused) throw refused;
   const loc = await locateTheme(ws, name);
   if (loc.editable !== true) throw new EngineError('refused', `not saved: ${loc.editable.why}`);
   const base = readThemeText(loc);
@@ -484,7 +518,9 @@ export async function editTemplate(ws: OpenedWorkspace, name: string, req: Theme
       throw new EngineError('invalid', 'the text to restore is not the version named by text_hash: nothing written', { details: { argument: 'edit.text_hash' } });
     }
     if (!knownThemeVersion(loc.realFile, edit.text_hash)) {
-      throw new EngineError('refused', `the text to restore is not a version of ${name}/template.yaml the Studio showed or wrote: nothing written — read the theme again`, { details: { argument: 'edit.text_hash' } });
+      throw new EngineError('refused', `the text to restore is not a version of ${name}/template.yaml the Studio showed or wrote: nothing written — read the theme again`, {
+        details: { argument: 'edit.text_hash' },
+      });
     }
     text = edit.text;
     label = 'Restored an earlier version';
@@ -507,9 +543,16 @@ export async function editTemplate(ws: OpenedWorkspace, name: string, req: Theme
   }
   if (text.length > THEME_EDIT_MAX_CHARS) throw new EngineError('invalid', `not saved: the theme would hold more than ${THEME_EDIT_MAX_CHARS.toLocaleString('en')} characters`);
   // The theme as a render will load it: valid, every file it names served from its own folder, every kind resolved.
-  const parsed = parseTemplateYaml(text, { dir: loc.realDir, files: fileFacts(ws.policy) });
+  const parsed = parseTemplateYaml(text, { dir: loc.realDir, files: ws.reads.fileFacts(ws.policy) });
   const errors = parsed.issues.filter((i) => i.severity === 'error');
-  if (!parsed.template || errors.length) throw new EngineError('invalid', `not saved: the theme would not validate (${errors.map((i) => `${i.path.join('.') || '(file)'}: ${i.message}`).slice(0, 3).join('; ')})`);
+  if (!parsed.template || errors.length)
+    throw new EngineError(
+      'invalid',
+      `not saved: the theme would not validate (${errors
+        .map((i) => `${i.path.join('.') || '(file)'}: ${i.message}`)
+        .slice(0, 3)
+        .join('; ')})`,
+    );
   parsed.template.name ??= name;
   for (const f of namedFiles(parsed.template)) {
     const p = await themeFileProblem(loc.realDir, f.rel, f.role);
@@ -522,7 +565,7 @@ export async function editTemplate(ws: OpenedWorkspace, name: string, req: Theme
   }
   const realRoot = realPathOf(resolve(ws.root), nodeFileFacts);
   const ref = relative(realRoot, loc.realFile).split(sep).join('/');
-  const res = await new ProjectStore(realRoot, o.scope).writeText(ref, text, { ifMatch: base.sha256, what: 'theme' });
+  const res = await o.scope.stores.at(realRoot, o.scope).writeText(ref, text, { ifMatch: base.sha256, what: 'theme' });
   rememberVersion(loc.realFile, base.sha256);
   rememberVersion(loc.realFile, res.sha256);
   const warnings = parsed.issues.filter((i) => i.severity === 'warning').map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -574,7 +617,7 @@ export async function themeEditList(ws: OpenedWorkspace, projectSlug?: string): 
     let t: Template | undefined;
     const issues: string[] = [];
     try {
-      t = (await loadProjectTemplate(project, undefined, { files: fileFacts(ws.policy) })).template;
+      t = (await ws.reads.loadProjectTemplate(project, undefined, { files: ws.reads.fileFacts(ws.policy) })).template;
     } catch (e) {
       issues.push(toEngineError(e).message);
     }
@@ -588,7 +631,7 @@ export async function themeEditList(ws: OpenedWorkspace, projectSlug?: string): 
       used_by: { projects: [project.slug], scenarios: [] },
     });
   }
-  for (const e of await listTemplates(ws.root)) {
+  for (const e of await ws.reads.listTemplates(ws.root)) {
     let editable: ThemeEditable;
     try {
       editable = await editability(ws, e, realPathOf(e.dir, nodeFileFacts));
@@ -598,11 +641,19 @@ export async function themeEditList(ws: OpenedWorkspace, projectSlug?: string): 
     let t: Template | undefined;
     const issues: string[] = [];
     try {
-      t = (await loadTemplate(e.dir, undefined, { files: fileFacts(ws.policy) })).template;
+      t = (await ws.reads.loadTemplate(e.dir, undefined, { files: ws.reads.fileFacts(ws.policy) })).template;
     } catch (err) {
       issues.push(toEngineError(err).message);
     }
-    themes.push({ name: e.name, source: e.source, ...(own === e.name ? { default: true as const } : {}), editable, colors: colorsOf(t), issues: issues.slice(0, 3), used_by: uses.get(e.name) ?? { projects: [], scenarios: [] } });
+    themes.push({
+      name: e.name,
+      source: e.source,
+      ...(own === e.name ? { default: true as const } : {}),
+      editable,
+      colors: colorsOf(t),
+      issues: issues.slice(0, 3),
+      used_by: uses.get(e.name) ?? { projects: [], scenarios: [] },
+    });
   }
   return { themes, ...(own !== undefined ? { project_theme: own } : {}) };
 }

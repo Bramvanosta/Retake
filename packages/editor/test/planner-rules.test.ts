@@ -6,11 +6,13 @@
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAMERA_EASINGS, cubicBezier } from '@retake/components';
-import type { LoadedTemplate } from '@retake/core';
+import type { LoadedTemplate, TimelineEvent } from '@retake/core';
 import { PlanError, loadsBesideOtherPages, mapSourceRect, planEdit, planRunTiming, viewOf } from '@retake/editor';
 import type { CardSegment, ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
-import { clip, clips, fixtureProject, plan, seg, studioWorkspace, synthTimeline, template } from './helpers.js';
-import type { EntrySpec, PlanContext, Workspace } from './helpers.js';
+import { clip, clips, plan, seg, studioWorkspace } from './helpers.js';
+import { fixtureProject, synthTimeline, template } from '@retake/test-support/timeline';
+import type { EntrySpec } from '@retake/test-support/timeline';
+import type { PlanContext, Workspace } from './helpers.js';
 
 const FPS = 30;
 let ctx: PlanContext;
@@ -19,8 +21,7 @@ let alt: Workspace;
 beforeAll(async () => {
   ctx = { ws: await studioWorkspace(), project: await fixtureProject(), editorial: await template('editorial') };
   alt = await studioWorkspace(
-    {
-    },
+    {},
     {
       extra: [
         ['acme/card-scn', 'card'],
@@ -392,7 +393,7 @@ describe('idle trims', () => {
 });
 
 describe('held page loads (R-ISS-08)', () => {
-  const marked = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
+  const marked: TimelineEvent[] = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
   const run = (loading: Array<{ t_start: number; t_end: number }>, more: { idle?: Array<{ t_start: number; t_end: number }>; trimIdle?: boolean } = {}) =>
     planRunTiming({
       clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events: marked }],
@@ -415,7 +416,7 @@ describe('held page loads (R-ISS-08)', () => {
   });
 
   it('a multi-page run: a load held on one page is cut only where no other page acts (a step, a mark window, the still)', () => {
-    const events = [
+    const events: TimelineEvent[] = [
       { scene: 'n', scene_index: 0, step: -1, action: 'scene_still', t_start: 0, t_end: 1, page: 'a', status: 'ok' as const },
       { scene: 'n', scene_index: 0, step: 0, action: 'press', t_start: 4.6, t_end: 4.8, page: 'a', status: 'ok' as const },
       { scene: 'n', scene_index: 0, step: 1, action: 'click', t_start: 5, t_end: 5.6, t_click: 5.4, page: 'b', mark: 'click-b', status: 'ok' as const },
@@ -434,7 +435,15 @@ describe('held page loads (R-ISS-08)', () => {
       [1, 1.5, 'b'],
     ]);
     // The other page's marked click (5.0–5.6 s, page a held 4.8–6.0 s) is shown whole.
-    const r = planRunTiming({ clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events }], srcFps: 30, outFps: 30, idle: [], trimIdle: true, idleThresholdS: 1.2, loading: loadsBesideOtherPages([{ t_start: 4.8, t_end: 6, page: 'a' }], events) });
+    const r = planRunTiming({
+      clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events }],
+      srcFps: 30,
+      outFps: 30,
+      idle: [],
+      trimIdle: true,
+      idleThresholdS: 1.2,
+      loading: loadsBesideOtherPages([{ t_start: 4.8, t_end: 6, page: 'a' }], events),
+    });
     expect(r.cuts).toEqual([]);
     expect(r.src.filter((f) => f >= 150 && f < 168).length).toBe(18);
   });
@@ -491,8 +500,14 @@ describe('held page loads (R-ISS-08)', () => {
 });
 
 describe('freezes of the capture and waits after a click (L5.7, R-FLD-20, R-FLD-26)', () => {
-  const marked = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
-  const run = (more: { frozen?: Array<{ t_start: number; t_end: number }>; busy?: Array<{ t_start: number; t_end: number }>; idle?: Array<{ t_start: number; t_end: number }>; loading?: Array<{ t_start: number; t_end: number }>; trimIdle?: boolean }) =>
+  const marked: TimelineEvent[] = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
+  const run = (more: {
+    frozen?: Array<{ t_start: number; t_end: number }>;
+    busy?: Array<{ t_start: number; t_end: number }>;
+    idle?: Array<{ t_start: number; t_end: number }>;
+    loading?: Array<{ t_start: number; t_end: number }>;
+    trimIdle?: boolean;
+  }) =>
     planRunTiming({
       clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events: marked }],
       srcFps: 30,
@@ -578,7 +593,15 @@ function cameraScene(): EntrySpec[] {
 
 describe('camera', () => {
   it('clamps the zoom to max_zoom, focuses point → cursor, eases in output time and clamps the view', () => {
-    const tl = synthTimeline({ entries: cameraScene(), duration: 20, cursor: [[0, 960, 540], [8.5, 1500, 300], [9.5, 1500, 300]] });
+    const tl = synthTimeline({
+      entries: cameraScene(),
+      duration: 20,
+      cursor: [
+        [0, 960, 540],
+        [8.5, 1500, 300],
+        [9.5, 1500, 300],
+      ],
+    });
     const p = plan(ctx, tl);
     const c = clip(p, 'c');
     const cam = c.camera!;
@@ -669,7 +692,16 @@ describe('captions', () => {
 
   it('drops the scene caption when the first step has its own; no captions when disabled or when the theme has none', () => {
     const first: EntrySpec[] = [
-      { id: 'f', t_start: 0, t_end: 5, caption: { text: 'Scene' }, steps: [{ action: 'click', t_start: 0, t_end: 2, caption: { text: 'First' } }, { action: 'wait', t_start: 2, t_end: 5 }] },
+      {
+        id: 'f',
+        t_start: 0,
+        t_end: 5,
+        caption: { text: 'Scene' },
+        steps: [
+          { action: 'click', t_start: 0, t_end: 2, caption: { text: 'First' } },
+          { action: 'wait', t_start: 2, t_end: 5 },
+        ],
+      },
     ];
     expect(plan(ctx, synthTimeline({ entries: first, duration: 5 })).captions.map((c) => c.text)).toEqual(['First']);
     const off = plan(ctx, synthTimeline({ entries, duration: 10 }), { captions: false });
@@ -688,7 +720,9 @@ describe('captions', () => {
     const old: EntrySpec[] = [{ ...entries[0], caption: { text: 'Hello {{vars.customer}}' } }];
     const p = plan(ctx, synthTimeline({ entries: old, duration: 10 }));
     expect(p.captions[0].text).toBe('Hello {{vars.customer}}');
-    expect(literal(p)).toEqual(['scene k still shows {{…}} tokens as written: a run captured before scenario templating (L1.2), or a token inside a `vars` value (inserted as written) — fix it and capture again']);
+    expect(literal(p)).toEqual([
+      'scene k still shows {{…}} tokens as written: a run captured before scenarios were templated (an older run format), or a token inside a `vars` value (inserted as written) — fix it and capture again',
+    ]);
   });
 });
 
@@ -702,7 +736,12 @@ describe('overlays', () => {
         still: [0, 1],
         steps: [
           { action: 'click', t_start: 1, t_end: 2, overlay: { component: 'studio/overlay-callout', slots: { text: 'Hi' }, params: {}, point: { x: 10, y: 20 } } },
-          { action: 'click', t_start: 2, t_end: 5, overlay: { component: 'studio/overlay-callout', slots: { text: 'Late', bogus: 'x' }, params: {}, duration: 30, bbox: { x: 100, y: 100, w: 50, h: 20 } } },
+          {
+            action: 'click',
+            t_start: 2,
+            t_end: 5,
+            overlay: { component: 'studio/overlay-callout', slots: { text: 'Late', bogus: 'x' }, params: {}, duration: 30, bbox: { x: 100, y: 100, w: 50, h: 20 } },
+          },
           { action: 'click', t_start: 5, t_end: 5.5, overlay: { component: 'acme/nope', slots: { text: 'Fallback' }, params: {} } },
           { action: 'wait', t_start: 5.5, t_end: 6 },
         ],
@@ -821,7 +860,10 @@ describe('layouts and output size', () => {
   });
 
   it('plans the vertical variant: 1080×1920, geometry_vertical (a 4:5 card), a crop that follows the cursor smoothly', () => {
-    const glide: Array<[number, number, number]> = [[0, 300, 500], [4.9, 300, 500]];
+    const glide: Array<[number, number, number]> = [
+      [0, 300, 500],
+      [4.9, 300, 500],
+    ];
     for (let i = 1; i <= 10; i++) glide.push([4.9 + i * 0.07, 300 + (1300 * i) / 10, 500]);
     glide.push([10, 1600, 500]);
     const tl = synthTimeline({
@@ -915,7 +957,17 @@ describe('music, overrides, errors', () => {
     const tl = synthTimeline({ entries, duration: 5 });
     tl.video = { ...tl.video, music: { file: 'assets/bed.mp3', volume: 0.4 } };
     const p = plan(ctx, tl);
-    expect(p.music).toEqual({ url: 'ds-asset:music.mp3', file: join(ctx.project.dir, 'assets/bed.mp3'), volume: 0.4, duck: 0.5, duck_ramp_s: 0.5, fadeIn_s: 1, fadeOut_s: 2, loop: true, crossfade_s: 1 });
+    expect(p.music).toEqual({
+      url: 'ds-asset:music.mp3',
+      file: join(ctx.project.dir, 'assets/bed.mp3'),
+      volume: 0.4,
+      duck: 0.5,
+      duck_ramp_s: 0.5,
+      fadeIn_s: 1,
+      fadeOut_s: 2,
+      loop: true,
+      crossfade_s: 1,
+    });
     expect(p.assets['ds-asset:music.mp3']).toBe(p.music!.file);
     expect(plan(ctx, tl, { music: false }).music).toBeUndefined();
     expect(plan(ctx, tl, { music: '/abs/other.wav' }).music).toMatchObject({ file: '/abs/other.wav', volume: 0.4 });
@@ -978,7 +1030,7 @@ describe('raw captures (L2.13)', () => {
 export type _Clip = ClipSegment;
 
 describe('off camera: hook steps and offscreen scenes (L5.8, R-FLD-31)', () => {
-  const marked = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
+  const marked: TimelineEvent[] = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
   const run = (offcamera: Array<{ t_start: number; t_end: number }>, more: { trimIdle?: boolean; loading?: Array<{ t_start: number; t_end: number }> } = {}) =>
     planRunTiming({
       clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events: marked }],
@@ -991,7 +1043,7 @@ describe('off camera: hook steps and offscreen scenes (L5.8, R-FLD-31)', () => {
       offcamera,
     });
 
-  it('a hook step\'s span is cut whole, idle trimming on or off, inside a mark window too; a load inside it is one cut', () => {
+  it("a hook step's span is cut whole, idle trimming on or off, inside a mark window too; a load inside it is one cut", () => {
     const r = run([{ t_start: 6, t_end: 8 }]);
     expect(r.cuts).toEqual([expect.objectContaining({ a: 180, b: 240, reason: 'hook', clip: 0 })]);
     expect(r.length).toBeCloseTo(240, 6);

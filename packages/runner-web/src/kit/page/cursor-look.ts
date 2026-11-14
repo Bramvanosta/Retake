@@ -8,8 +8,7 @@ const light = config.cursor.style === 'arrow-light';
 const debug = config.cursor.style === 'debug';
 const arrowFill = light ? '#fff' : '#111';
 const arrowStroke = light ? '#111' : '#fff';
-const svg = (cls: string, hx: number, hy: number, body: string) =>
-  `<svg class="${cls}" width="${S}" height="${S}" viewBox="0 0 24 24" style="left:${-hx * k}px;top:${-hy * k}px">${body}</svg>`;
+const svg = (cls: string, hx: number, hy: number, body: string) => `<svg class="${cls}" width="${S}" height="${S}" viewBox="0 0 24 24" style="left:${-hx * k}px;top:${-hy * k}px">${body}</svg>`;
 const arrowSvg = svg(
   'arrow',
   4,
@@ -25,9 +24,7 @@ const fingers: Array<[number, number, number, number, number]> = [
 ];
 const palm = 'M8.25 12.2 H18.7 V16.6 C18.7 19.7 16.7 21.7 13.7 21.7 H12.6 C10.9 21.7 9.8 21 8.9 19.8 L8.25 18.9 Z';
 const capsules = (color: string, extra: number) =>
-  fingers
-    .map(([x1, y1, x2, y2, wd]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${wd + extra}" stroke-linecap="round"/>`)
-    .join('');
+  fingers.map(([x1, y1, x2, y2, wd]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${wd + extra}" stroke-linecap="round"/>`).join('');
 const handSvg = svg(
   'hand',
   9.6,
@@ -72,8 +69,7 @@ export const lookCss = `
     .g .d{font-size:12px;color:#6b605d;line-height:1.3;margin-top:2px}
   `;
 export const lookHtml =
-  `<div class="rps"></div><div class="g"></div>` +
-  `<div class="c" data-k="arrow"><div class="s">${arrowSvg}${handSvg}${ibeamSvg}</div>${debug ? '<div class="dbg"></div>' : ''}</div>`;
+  `<div class="rps"></div><div class="g"></div>` + `<div class="c" data-k="arrow"><div class="s">${arrowSvg}${handSvg}${ibeamSvg}</div>${debug ? '<div class="dbg"></div>' : ''}</div>`;
 // Raw capture without the cursor (L2.13): the pointer, its icon, presses and ripples keep working and are reported,
 // nothing of them is drawn (the file-drag ghost card stays: it is the page's content being dragged).
 export const css = lookCss + (config.cursor.hidden ? '.c,.rps{display:none!important}' : '');

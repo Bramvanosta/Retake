@@ -98,11 +98,7 @@ export const LOUPE_ACTIONS: readonly string[] = ['type'];
  *  - `<seconds>s` (e.g. `12.5s`): that capture time;
  *  - a file with an image extension (relative to the project), e.g. `assets/before.png`.
  */
-export type FrameRef =
-  | { kind: 'mark'; name: string }
-  | { kind: 'scene'; at: 'start' | 'end'; scene: string }
-  | { kind: 'time'; t: number }
-  | { kind: 'file'; path: string };
+export type FrameRef = { kind: 'mark'; name: string } | { kind: 'scene'; at: 'start' | 'end'; scene: string } | { kind: 'time'; t: number } | { kind: 'file'; path: string };
 
 /** Image files a frame / image slot accepts. */
 export const IMAGE_FILE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'];

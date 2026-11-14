@@ -1,5 +1,5 @@
 /** What changed on the page since an action started (where the cursor parks after it). */
-import type { BBox } from '@retake/core';
+import type { BBox } from '@retake/core/model';
 import { host } from './host.js';
 import { cleanups } from './lifecycle.js';
 import { isVisible } from './visibility.js';

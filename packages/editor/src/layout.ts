@@ -87,10 +87,7 @@ export function fitRect(box: Rect, aspect: number): Rect {
  * whole capture when the aspects match, else a reframe (the largest such region, narrowed so the capture shows at
  * least REFRAME_MIN_SCALE design px per CSS px) whose centre follows `ClipSegment.reframe`.
  */
-export function planLayout(
-  geometry: LayoutGeometry,
-  opts: { variant: PlanVariant; unit: number; cssWidth: number; cssHeight: number; radius?: number; fallback?: boolean },
-): PlanLayout {
+export function planLayout(geometry: LayoutGeometry, opts: { variant: PlanVariant; unit: number; cssWidth: number; cssHeight: number; radius?: number; fallback?: boolean }): PlanLayout {
   const screen = scale(geometry.screen, opts.unit);
   const aspect = opts.cssWidth / opts.cssHeight;
   const out: PlanLayout = { capture: screen, card: screen, radius: round((opts.radius ?? geometry.radius ?? 0) * opts.unit, 3) };
@@ -153,12 +150,7 @@ export function viewOf(plan: Pick<EditPlan, 'source' | 'variant'>, clip: Extract
 }
 
 /** A source rectangle (CSS px; a point is a 0×0 rect) mapped to output px at one frame of a clip. */
-export function mapSourceRect(
-  plan: Pick<EditPlan, 'source' | 'variant'>,
-  clip: Extract<PlanSegment, { kind: 'clip' }>,
-  frame: number,
-  rect: { x: number; y: number; w?: number; h?: number },
-): Rect {
+export function mapSourceRect(plan: Pick<EditPlan, 'source' | 'variant'>, clip: Extract<PlanSegment, { kind: 'clip' }>, frame: number, rect: { x: number; y: number; w?: number; h?: number }): Rect {
   const view = viewOf(plan, clip, frame);
   const cap = clip.layout.capture;
   const sx = cap.w / view.w;

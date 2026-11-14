@@ -12,25 +12,25 @@ import { TOOLS } from '@retake/mcp';
 import { FileJobQueue } from '@retake/engine';
 import { DesktopPipe, OWN_OPS, SHOWN_PER_MIN, UI_OPS, UnsavedBoard, startStudioServer, startSupervisor } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const ID = 'quitQuestion0000000_-a';
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-desktop-answer-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws, startWorker: false });
 });
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -53,7 +53,11 @@ describe('DesktopPipe', () => {
     pipe.answer(ID, 'cancel');
     pipe.answer(ID, 'proceed');
     expect(lines).toHaveLength(SHOWN_PER_MIN + 2);
-    expect(lines.slice(-3)).toEqual([JSON.stringify({ type: 'shown', id: ID, shown: true }), JSON.stringify({ type: 'answer', id: ID, answer: 'cancel' }), JSON.stringify({ type: 'answer', id: ID, answer: 'proceed' })]);
+    expect(lines.slice(-3)).toEqual([
+      JSON.stringify({ type: 'shown', id: ID, shown: true }),
+      JSON.stringify({ type: 'answer', id: ID, answer: 'cancel' }),
+      JSON.stringify({ type: 'answer', id: ID, answer: 'proceed' }),
+    ]);
     // A minute later, acks again.
     t += 60_000;
     expect(pipe.shown(ID)).toBe(true);
@@ -62,7 +66,13 @@ describe('DesktopPipe', () => {
   it('the supervisor frames the page lines like its own, on its pipe', async () => {
     const out: string[] = [];
     const desktop = new DesktopPipe();
-    const server = { engine: { workspace: { root: ws, projectsDir: join(ws, 'projects') }, queue: new FileJobQueue(ws) }, unsaved: new UnsavedBoard(join(ws, 'projects')), desktop, onWrite: () => () => undefined, close: async () => undefined };
+    const server = {
+      engine: { workspace: { root: ws, projectsDir: join(ws, 'projects') }, queue: new FileJobQueue(ws) },
+      unsaved: new UnsavedBoard(join(ws, 'projects')),
+      desktop,
+      onWrite: () => () => undefined,
+      close: async () => undefined,
+    };
     const sup = startSupervisor({ server, out: { write: (t) => (out.push(t), true), once: () => undefined }, pollMs: 60_000 });
     expect(desktop.supervised).toBe(true);
     desktop.answer(ID, 'proceed');
@@ -124,7 +134,10 @@ describe('the op desktop_answer through the Studio server', () => {
     off();
     // Review B-L6: a pipe that can no longer be written (the supervisor stopped) — 503, reason stopped, never 200.
     studio.desktop.attach(() => false);
-    for (const body of [{ id: ID, answer: 'proceed' }, { id: ID, shown: true }]) {
+    for (const body of [
+      { id: ID, answer: 'proceed' },
+      { id: ID, shown: true },
+    ]) {
       const r = await call(body);
       expect(r.status, JSON.stringify(body)).toBe(503);
       expect(r.json<{ error: { code: string; details: { reason: string } } }>().error).toMatchObject({ code: 'unavailable', details: { reason: 'stopped' } });

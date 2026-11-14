@@ -4,7 +4,7 @@
  * presses and ripples the kit reported as it drew them; runs captured before L2.13 have none: approximated from the
  * steps, see `approximateEffects`). Clicks with their step and target. Pure.
  */
-import type { BBox, CursorEffect, CursorIcon, CursorSample, Timeline, TimelineEvent } from '@retake/core';
+import type { BBox, CursorEffect, CursorIcon, CursorSample, Timeline, TimelineEvent } from '@retake/core/model';
 import { gridFrameOf, type RawClipPlan, type RawPlan, sequenceStartOf } from './plan.js';
 
 /**
@@ -186,7 +186,7 @@ export interface RawClick {
  * The clicks of a clip: every step's click (widgets: each of `data.clicks`), at its press time, on the clip's page
  * (multi-page scenes); a click inside a cut is placed on the first frame after it.
  */
-export function clipClicks(clip: RawClipPlan, fps: number, clipFrameAt: (t: number) => number | null): RawClick[] {
+export function clipClicks(clip: RawClipPlan, clipFrameAt: (t: number) => number | null): RawClick[] {
   const out: RawClick[] = [];
   for (const e of clip.events) {
     if (e.step < 0 || e.status === 'skipped') continue;
@@ -258,7 +258,7 @@ export function cursorJson(plan: RawPlan, data: readonly ClipCursorData[], meta:
             height: d.clip.source.height,
             frames: d.clip.frames,
             seq_start_frame: seq,
-            icon_source: d.approximated ? 'approximated (run captured before L2.13)' : 'recorded',
+            icon_source: d.approximated ? 'approximated (the run did not record the cursor icon)' : 'recorded',
             samples: d.frames.map((c) => ({
               f: c.f,
               t: round4(c.f / fps),

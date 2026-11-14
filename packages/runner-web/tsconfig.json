@@ -3,5 +3,5 @@
   "compilerOptions": { "outDir": "dist", "rootDir": "src", "tsBuildInfoFile": "dist/.tsbuildinfo" },
   "include": ["src"],
   "exclude": ["src/kit/page"],
-  "references": [{ "path": "../core" },{ "path": "../hooks" },{ "path": "src/kit/page/tsconfig.check.json" }]
+  "references": [{ "path": "../core" },{ "path": "src/kit/page/tsconfig.check.json" }]
 }

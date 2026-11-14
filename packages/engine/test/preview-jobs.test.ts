@@ -5,7 +5,8 @@
  * built-in id); a component preview with slot values and params and a theme preview rendered by the worker (in this
  * process, `once`) into .retake/previews/<id>/ — the built-in component's folder is left byte for byte; a guarded
  * preview of a workspace component that reaches for a second local server (B gets nothing, the origin is a warning);
- * refusals at submit; a cancel before start; previews count nothing in the history. Needs ffmpeg and a headless shell.
+ * refusals at submit; a cancel before start (on the in-memory renderer, L7.37); previews count nothing in the history.
+ * Needs ffmpeg and a headless shell.
  */
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -19,10 +20,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { LIBRARY_DIR, PREVIEW_FILE } from '@retake/components';
 import { renderComponentPreviews, loadPreviewTheme } from '@retake/editor';
 import { createEngine, historyFile, runWorker } from '../src/index.js';
+import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { Engine, JobRecord, PreviewJobResult } from '../src/index.js';
-import { TEMPLATES, hasTool, linkSharedCache, pixelAt } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache, pixelAt } from '@retake/test-support/render';
 import { fileFacts } from '@retake/core/io';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -32,7 +36,7 @@ let engine: Engine;
 let b: Server;
 let bPort = 0;
 let hits: string[] = [];
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined });
 
@@ -79,7 +83,7 @@ export default function Reaching() {
 beforeAll(async () => {
   if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'studio-preview-jobs-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   // Workspace themes: editorial and motion copied, plus one whose logo lies outside its folder.
   const templates = join(root, 'templates');
   await mkdir(templates, { recursive: true });
@@ -105,13 +109,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((r) => (b ? b.close(() => r()) : r()));
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 
 describe.skipIf(!canRender)('themes and components (read side, scaffold)', () => {
-  it('template list: workspace themes with their component per kind, the project\'s marked; a detail by name', async () => {
+  it("template list: workspace themes with their component per kind, the project's marked; a detail by name", async () => {
     const v = await engine.templates.list({ project: 'demo' });
     expect(v.project_theme).toBe('editorial');
     const names = v.templates.map((t) => `${t.name}:${t.source}`);
@@ -164,42 +167,58 @@ describe.skipIf(!canRender)('themes and components (read side, scaffold)', () =>
 });
 
 describe.skipIf(!canRender)('preview jobs', () => {
-  it('a component preview with slot values and params: one still in .retake/previews/<id>/; the built-in folder unchanged; history counts nothing', async () => {
-    const dir = join(LIBRARY_DIR, 'studio', 'card-title');
-    const before = await folderHash(dir);
-    const sub = await engine.components.preview({ project: 'demo', component: 'studio/card-title', slots: { title: 'Quotes in two clicks' }, params: { tone: 'dark' }, at_s: 1.5 });
-    expect(sub).toMatchObject({ theme: 'editorial', targets: ['studio/card-title'], skipped: [] });
-    expect(sub.preview_id).toMatch(/^p_[0-9A-Z]{26}$/);
-    expect(sub.job.input).toMatchObject({ kind: 'preview', project: 'demo', target: { kind: 'component', component: 'studio/card-title', slots: { title: 'Quotes in two clicks' } } });
-    await work();
-    const job = await engine.jobs.get(sub.job.id);
-    expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
-    const r = job.result as PreviewJobResult;
-    expect(r.dir).toBe(join(root, '.retake', 'previews', sub.preview_id));
-    expect(r.images).toHaveLength(1);
-    expect(r.images[0]).toMatchObject({ component: 'studio/card-title', kind: 'card', at: 1.5 });
-    expect(r.images[0].file.startsWith(`${r.dir}/`)).toBe(true);
-    expect(r.untrusted.warnings).toEqual([]);
-    // tone: dark → the theme's night tone, not the paper background.
-    const [red, green, blue] = pixelAt(r.images[0].file, 0, 20, 20);
-    expect(red + green + blue).toBeLessThan(200);
-    expect(await folderHash(dir)).toBe(before);
-    const history = (await readFile(historyFile(root), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
-    expect(history.at(-1)).toMatchObject({ kind: 'preview', state: 'succeeded', preview: { id: sub.preview_id, target: 'studio/card-title', theme: 'editorial' }, counted: { captures: 0, dry_runs: 0, renders: 0 } });
-  }, LONG);
+  it(
+    'a component preview with slot values and params: one still in .retake/previews/<id>/; the built-in folder unchanged; history counts nothing',
+    async () => {
+      const dir = join(LIBRARY_DIR, 'studio', 'card-title');
+      const before = await folderHash(dir);
+      const sub = await engine.components.preview({ project: 'demo', component: 'studio/card-title', slots: { title: 'Quotes in two clicks' }, params: { tone: 'dark' }, at_s: 1.5 });
+      expect(sub).toMatchObject({ theme: 'editorial', targets: ['studio/card-title'], skipped: [] });
+      expect(sub.preview_id).toMatch(/^p_[0-9A-Z]{26}$/);
+      expect(sub.job.input).toMatchObject({ kind: 'preview', project: 'demo', target: { kind: 'component', component: 'studio/card-title', slots: { title: 'Quotes in two clicks' } } });
+      await work();
+      const job = await engine.jobs.get(sub.job.id);
+      expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
+      const r = job.result as PreviewJobResult;
+      expect(r.dir).toBe(join(root, '.retake', 'previews', sub.preview_id));
+      expect(r.images).toHaveLength(1);
+      expect(r.images[0]).toMatchObject({ component: 'studio/card-title', kind: 'card', at: 1.5 });
+      expect(r.images[0].file.startsWith(`${r.dir}/`)).toBe(true);
+      expect(r.untrusted.warnings).toEqual([]);
+      // tone: dark → the theme's night tone, not the paper background.
+      const [red, green, blue] = pixelAt(r.images[0].file, 0, 20, 20);
+      expect(red + green + blue).toBeLessThan(200);
+      expect(await folderHash(dir)).toBe(before);
+      const history = (await readFile(historyFile(root), 'utf8'))
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l) as Record<string, unknown>);
+      expect(history.at(-1)).toMatchObject({
+        kind: 'preview',
+        state: 'succeeded',
+        preview: { id: sub.preview_id, target: 'studio/card-title', theme: 'editorial' },
+        counted: { captures: 0, dry_runs: 0, renders: 0 },
+      });
+    },
+    LONG,
+  );
 
-  it('a theme preview: intro, layout, card, interstitial, outro of the theme named (not the project\'s)', async () => {
-    const sub = await engine.templates.preview({ project: 'demo', template: 'motion' });
-    expect(sub.theme).toBe('motion');
-    await work();
-    const job = await engine.jobs.get(sub.job.id);
-    expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
-    const r = job.result as PreviewJobResult;
-    const shown = [...r.images.map((i) => i.kind), ...(r.skipped ?? [])];
-    expect(shown.sort()).toEqual(['card', 'interstitial', 'intro', 'layout', 'outro']);
-    expect(r.images.map((i) => i.file)).toEqual(r.images.map((i) => join(r.dir, `${i.kind}.png`)));
-    for (const i of r.images) expect(i.bytes).toBeGreaterThan(5_000);
-  }, LONG);
+  it(
+    "a theme preview: intro, layout, card, interstitial, outro of the theme named (not the project's)",
+    async () => {
+      const sub = await engine.templates.preview({ project: 'demo', template: 'motion' });
+      expect(sub.theme).toBe('motion');
+      await work();
+      const job = await engine.jobs.get(sub.job.id);
+      expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
+      const r = job.result as PreviewJobResult;
+      const shown = [...r.images.map((i) => i.kind), ...(r.skipped ?? [])];
+      expect(shown.sort()).toEqual(['card', 'interstitial', 'intro', 'layout', 'outro']);
+      expect(r.images.map((i) => i.file)).toEqual(r.images.map((i) => join(r.dir, `${i.kind}.png`)));
+      for (const i of r.images) expect(i.bytes).toBeGreaterThan(5_000);
+    },
+    LONG,
+  );
 
   it('refused at submit: unknown or file slots, invalid params, a theme path, an unknown component, a theme serving a file from outside', async () => {
     const sub = (o: Record<string, unknown>) => engine.components.preview({ project: 'demo', component: 'studio/card-title', ...o } as Parameters<Engine['components']['preview']>[0]);
@@ -216,37 +235,63 @@ describe.skipIf(!canRender)('preview jobs', () => {
     expect((await engine.jobs.list({ project: 'demo' })).filter((j) => j.state === 'queued')).toEqual([]);
   });
 
-  it('a workspace component reaching for another local server: guarded, B gets nothing, its origin is a warning', async () => {
-    const created = await engine.components.create({ id: 'acme/reaching', kind: 'card', description: 'Reaches out.' });
-    await writeFile(join(created.dir, 'index.tsx'), reachingCard(bPort));
-    expect((await engine.components.validate('acme/reaching')).ok).toBe(true); // the scan does not see it
-    hits = [];
-    const sub = await engine.components.preview({ project: 'demo', component: 'acme/reaching' });
-    await work();
-    const job = await engine.jobs.get(sub.job.id);
-    expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
-    expect(hits).toEqual([]);
-    const r = job.result as PreviewJobResult;
-    expect(r.untrusted.warnings.join('\n')).toContain(`http://127.0.0.1:${bPort}`);
-    expect(r.untrusted.warnings.join('\n')).not.toMatch(/\/fetch|\/img/);
-    expect(existsSync(join(created.dir, PREVIEW_FILE))).toBe(false);
-  }, LONG);
+  it(
+    'a workspace component reaching for another local server: guarded, B gets nothing, its origin is a warning',
+    async () => {
+      const created = await engine.components.create({ id: 'acme/reaching', kind: 'card', description: 'Reaches out.' });
+      await writeFile(join(created.dir, 'index.tsx'), reachingCard(bPort));
+      expect((await engine.components.validate('acme/reaching')).ok).toBe(true); // the scan does not see it
+      hits = [];
+      const sub = await engine.components.preview({ project: 'demo', component: 'acme/reaching' });
+      await work();
+      const job = await engine.jobs.get(sub.job.id);
+      expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
+      expect(hits).toEqual([]);
+      const r = job.result as PreviewJobResult;
+      expect(r.untrusted.warnings.join('\n')).toContain(`http://127.0.0.1:${bPort}`);
+      expect(r.untrusted.warnings.join('\n')).not.toMatch(/\/fetch|\/img/);
+      expect(existsSync(join(created.dir, PREVIEW_FILE))).toBe(false);
+    },
+    LONG,
+  );
+});
 
-  it('a cancel before start closes the job without rendering; an aborted signal stops renderComponentPreviews before any image', async () => {
-    const sub = await engine.templates.preview({ project: 'demo' });
-    await engine.jobs.cancel(sub.job.id);
-    await work();
-    const job: JobRecord = await engine.jobs.get(sub.job.id);
-    expect(job.state).toBe('cancelled');
-    expect(existsSync(join(root, '.retake', 'previews', sub.preview_id))).toBe(false);
-    const ac = new AbortController();
-    ac.abort();
-    const out = join(root, 'aborted');
-    const reg = await import('@retake/components').then((c) => c.loadComponentRegistry({ root }));
-    const info = reg.get('studio/card-title');
-    await expect(
-      renderComponentPreviews({ workPolicy: PERSON_POLICY, root, registry: reg, template: await loadPreviewTheme('editorial', root, fileFacts(PERSON_POLICY)), targets: [{ id: info.manifest.id, dir: info.dir, entry: info.entry, manifest: info.manifest }], outDir: out, signal: ac.signal }),
-    ).rejects.toMatchObject({ name: 'CancelledError' });
-    expect(existsSync(out)).toBe(false);
-  }, LONG);
+/**
+ * L7.37: a cancel before start is the engine's (the worker closes the job before any render): its worker runs on the
+ * in-memory renderer, which shows nothing reached it. renderComponentPreviews' own stop on an aborted signal is the
+ * editor's, called directly. The real renders (pixels, a theme's images, the guard) are the cases above.
+ */
+describe.skipIf(!canRender)('preview jobs on the in-memory renderer', () => {
+  it(
+    'a cancel before start closes the job without rendering; an aborted signal stops renderComponentPreviews before any image',
+    async () => {
+      const sub = await engine.templates.preview({ project: 'demo' });
+      await engine.jobs.cancel(sub.job.id);
+      const renderer = new MemoryRenderer();
+      await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { renderer } });
+      const job: JobRecord = await engine.jobs.get(sub.job.id);
+      expect(job.state).toBe('cancelled');
+      // Closed by the worker without a render: nothing reached the renderer.
+      expect(renderer.calls).toEqual([]);
+      expect(existsSync(join(root, '.retake', 'previews', sub.preview_id))).toBe(false);
+      const ac = new AbortController();
+      ac.abort();
+      const out = join(root, 'aborted');
+      const reg = await import('@retake/components').then((c) => c.loadComponentRegistry({ root }));
+      const info = reg.get('studio/card-title');
+      await expect(
+        renderComponentPreviews({
+          workPolicy: PERSON_POLICY,
+          root,
+          registry: reg,
+          template: await loadPreviewTheme('editorial', root, fileFacts(PERSON_POLICY)),
+          targets: [{ id: info.manifest.id, dir: info.dir, entry: info.entry, manifest: info.manifest }],
+          outDir: out,
+          signal: ac.signal,
+        }),
+      ).rejects.toMatchObject({ name: 'CancelledError' });
+      expect(existsSync(out)).toBe(false);
+    },
+    LONG,
+  );
 });

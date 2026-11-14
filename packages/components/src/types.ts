@@ -9,7 +9,7 @@
  * Resolution order of component ids: workspace `components/` → built-in library → (V2) cloud marketplace cache.
  */
 
-import type { ComponentKind, ValidationIssue } from '@retake/core';
+import type { ComponentKind, ValidationIssue } from '@retake/core/model';
 
 /** A caption to show, in output frames [from, to) relative to the segment (or the video for plans). */
 export interface CaptionCue {
@@ -24,7 +24,7 @@ export interface CaptionCue {
  * Component kinds and references are part of the shared data model (templates and scenarios refer to components):
  * their single source of truth is @retake/core.
  */
-export type { ComponentId, ComponentKind, ComponentRef } from '@retake/core';
+export type { ComponentId, ComponentKind, ComponentRef } from '@retake/core/model';
 
 /** Output orientations: landscape 16:9 (1920×1080 design space), vertical 9:16 (1080×1920), square 1:1 (1080×1080). */
 export type OutputVariant = 'landscape' | 'vertical' | 'square';

@@ -12,16 +12,23 @@
 import { existsSync, statSync } from 'node:fs';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseScenario, PERSON_POLICY } from '@retake/core';
 import { loadScenario, fileFacts } from '@retake/core/io';
-import type { LoadedProject, WorkspaceConfig } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
 import { runScenario } from '@retake/runner-web';
-import { EngineError, FileJobQueue, historyFile, openProject, openWorkspace, recordScenario, recordsRoot } from '../src/index.js';
-import type { RecordOutcome, RecordPorts, RecordRequest } from '../src/index.js';
-import { REPO, fixtureWorkspace } from './helpers.js';
+import { EngineError, FileJobQueue, historyFile, openProject, openWorkspace, recordScenario, recordsRoot, enginePorts, diskWorkspaceReads } from '../src/index.js';
+import type { OpenedWorkspace, RecordOutcome, RecordPorts, RecordRequest } from '../src/index.js';
+import { ManualClock } from '../src/clock.js';
+import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
+import { MemorySessions, memoryRecord } from '../src/capture/memory-sessions.js';
+import type { MemoryRecordOptions, MemorySessionsOptions } from '../src/capture/memory-sessions.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { oneButtonPress } from './recorded-events.js';
+import { scratchHome } from '@retake/test-support/home';
 
 type Page = Parameters<NonNullable<RecordPorts['drive']>>[0];
 
@@ -33,9 +40,9 @@ interface Fixture {
 const PROJECT = 'northfield-fixture';
 let fixture: Fixture;
 let root: string;
-let ws: WorkspaceConfig;
+let ws: OpenedWorkspace;
 let csv: string;
-const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN, buyer: process.env.NORTHFIELD_BUYER_PASSWORD };
+const retakeHome = scratchHome('RETAKE_RECORD_MAX_MIN', 'NORTHFIELD_BUYER_PASSWORD');
 
 beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
@@ -43,7 +50,7 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   root = await mkdtemp(join(tmpdir(), 'studio-record-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   delete process.env.RETAKE_RECORD_MAX_MIN;
   delete process.env.NORTHFIELD_BUYER_PASSWORD;
   await fixtureWorkspace(root);
@@ -57,20 +64,13 @@ beforeAll(async () => {
   await writeFile(join(projectDir, 'project.yaml'), yaml);
   csv = join(root, 'prices.csv');
   await writeFile(csv, 'lot,price\nA,10\n');
-  ws = await openWorkspace({ root });
+  ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
 }, 120_000);
 
 afterAll(async () => {
   await fixture?.close();
   if (root) await rm(root, { recursive: true, force: true });
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_RECORD_MAX_MIN', saved.max],
-    ['NORTHFIELD_BUYER_PASSWORD', saved.buyer],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
 });
 
 const project = (): Promise<LoadedProject> => openProject(ws, PROJECT);
@@ -83,6 +83,7 @@ async function reset(): Promise<void> {
 async function record(req: RecordRequest, drive: (page: Page) => Promise<void>, ports: Partial<RecordPorts> = {}): Promise<{ o: RecordOutcome; logs: string[] }> {
   const logs: string[] = [];
   const o = await recordScenario(ws, await project(), req, {
+    ...enginePorts(),
     queue: new FileJobQueue(ws.root),
     headless: true,
     windowSize: { width: 1400, height: 1000 },
@@ -95,6 +96,27 @@ async function record(req: RecordRequest, drive: (page: Page) => Promise<void>, 
       await page.waitForTimeout(400).catch(() => undefined);
       await page.close().catch(() => undefined);
     },
+    ...ports,
+  });
+  return { o, logs };
+}
+
+/**
+ * Record through the in-memory capture runner (the engine's logic: preflight, folders, draft, save, history): its window
+ * "presses" Request a quote on the shop's first page, then closes, unless `m` says otherwise. `memoryWindows` counts
+ * the windows it opened.
+ */
+let memoryWindows = 0;
+async function recordInMemory(req: RecordRequest, m: MemoryRecordOptions & { sessions?: MemorySessionsOptions } = {}, ports: Partial<RecordPorts> = {}): Promise<{ o: RecordOutcome; logs: string[] }> {
+  const logs: string[] = [];
+  const window = memoryRecord({ events: oneButtonPress({ pageKey: 'shop', button: 'Request a quote' }), ...m });
+  const capture = new MemoryCaptureRunner({ sessions: new MemorySessions(m.sessions), record: async (o) => (memoryWindows++, window(o)) });
+  // `drive` stands for the person (no display needed); the in-memory window never reads it.
+  const o = await recordScenario(ws, await project(), req, {
+    ...enginePorts({ capture }),
+    queue: new FileJobQueue(ws.root),
+    drive: async () => undefined,
+    log: (l, msg) => logs.push(`${l} ${msg}`),
     ...ports,
   });
   return { o, logs };
@@ -162,13 +184,21 @@ async function catalogueFlow(page: Page): Promise<void> {
   // The address bar: a new scene that opens its page.
   await page.goto(new URL('/availability/products/finca-lirandel-geisha', page.url()).href);
   await page.waitForTimeout(800);
-  await page.getByRole('row', { name: /Iceland/ }).getByRole('button').last().click();
+  await page
+    .getByRole('row', { name: /Iceland/ })
+    .getByRole('button')
+    .last()
+    .click();
   await page.waitForTimeout(400);
   await page.getByRole('menuitem', { name: 'Pause' }).click();
   await page.waitForTimeout(400);
   await page.getByRole('alertdialog').getByRole('button', { name: 'Pause' }).click();
   await page.waitForTimeout(500);
-  await page.getByRole('row', { name: /Sweden/ }).getByRole('button').last().click();
+  await page
+    .getByRole('row', { name: /Sweden/ })
+    .getByRole('button')
+    .last()
+    .click();
   await page.waitForTimeout(400);
   await page.getByRole('menuitem', { name: 'Edit' }).click();
   await page.waitForTimeout(500);
@@ -271,7 +301,7 @@ describe('recordScenario: names, stop, cancel, limits', () => {
     await page.getByRole('button', { name: 'Request a quote' }).waitFor();
   };
 
-  it('a taken name: the draft is kept in the recording\'s folder, never saved over the scenario; the check still runs', async () => {
+  it("a taken name: the draft is kept in the recording's folder, never saved over the scenario; the check still runs", async () => {
     const p = await project();
     const before = await readFile(join(p.dir, 'scenarios', 'quote.yaml'), 'utf8');
     const { o } = await record({ page: 'shop', name: 'quote' }, oneClick);
@@ -285,24 +315,23 @@ describe('recordScenario: names, stop, cancel, limits', () => {
 
   it('stop keeps what was recorded; cancel discards it (the folder removed); nothing done = nothing recorded', async () => {
     const stop = new AbortController();
-    const { o } = await record({ page: 'shop', check: false }, async (page) => {
-      await oneClick(page);
-      await page.waitForTimeout(300);
-      stop.abort();
-      await page.waitForEvent('close', { timeout: 10_000 }).catch(() => undefined);
-    }, { stop: stop.signal });
+    // The recording's stamps come from the clock of its ports (the engine's), never the system's.
+    const at = '2030-06-15T10:20:30.000Z';
+    const { o } = await recordInMemory({ page: 'shop', check: false }, { during: async () => stop.abort() }, { stop: stop.signal, clock: new ManualClock(at) });
     expect(o.stop).toBe('stopped');
     expect(o.saved).not.toBeNull();
     expect(o.check).toMatchObject({ status: 'skipped', reason: 'disabled' });
+    expect((JSON.parse(await readFile(join(o.dir!, 'meta.json'), 'utf8')) as { started_at: string }).started_at).toBe(at);
+    const local = new Date(at);
+    const two = (n: number) => String(n).padStart(2, '0');
+    expect(o.name).toMatch(new RegExp(`^recorded-${local.getFullYear()}${two(local.getMonth() + 1)}${two(local.getDate())}-${two(local.getHours())}${two(local.getMinutes())}(-\\d+)?$`));
+    const line = JSON.parse((await readFile(historyFile(root), 'utf8')).trim().split('\n').at(-1)!) as Record<string, unknown>;
+    expect(line).toMatchObject({ kind: 'record', at, record: { id: basename(o.dir!) } });
 
     const p = await project();
     const folders = await readdir(recordsRoot(p));
     const cancel = new AbortController();
-    const e = await record({ page: 'shop' }, async (page) => {
-      await oneClick(page);
-      cancel.abort();
-      await page.waitForEvent('close', { timeout: 10_000 }).catch(() => undefined);
-    }, { signal: cancel.signal }).then(
+    const e = await recordInMemory({ page: 'shop' }, { during: async () => cancel.abort() }, { signal: cancel.signal }).then(
       () => null,
       (x: unknown) => x as EngineError,
     );
@@ -310,10 +339,10 @@ describe('recordScenario: names, stop, cancel, limits', () => {
     expect(e!.code).toBe('cancelled');
     expect(await readdir(recordsRoot(p))).toEqual(folders);
 
-    const { o: none } = await record({ page: 'shop' }, async () => undefined);
+    const { o: none } = await recordInMemory({ page: 'shop' }, { events: [] });
     expect(none).toMatchObject({ dir: null, draft: null, saved: null, not_saved: 'nothing_recorded', check: { status: 'skipped', reason: 'nothing_recorded' } });
     expect(await readdir(recordsRoot(p))).toEqual(folders);
-  }, 120_000);
+  });
 
   it('RETAKE_RECORD_MAX_MIN: the recording stops at it and keeps what it has; a bad value is refused before the window opens', async () => {
     process.env.RETAKE_RECORD_MAX_MIN = '0.05';
@@ -326,7 +355,7 @@ describe('recordScenario: names, stop, cancel, limits', () => {
       expect(o.counts.actions).toBe(1);
       expect(o.issues.map((i) => i.code)).toContain('max_duration');
       process.env.RETAKE_RECORD_MAX_MIN = 'soon';
-      const e = await recordScenario(ws, await project(), { page: 'shop' }, { queue: new FileJobQueue(ws.root), headless: true, drive: async () => undefined }).then(
+      const e = await recordScenario(ws, await project(), { page: 'shop' }, { ...enginePorts(), queue: new FileJobQueue(ws.root), headless: true, drive: async () => undefined }).then(
         () => null,
         (x: unknown) => x as EngineError,
       );
@@ -338,7 +367,7 @@ describe('recordScenario: names, stop, cancel, limits', () => {
 });
 
 describe('recordScenario: access, sign-in, secrets', () => {
-  it('a read-only environment: the window\'s writes are answered by a mock, noted on their step; the whole draft is checked', async () => {
+  it("a read-only environment: the window's writes are answered by a mock, noted on their step; the whole draft is checked", async () => {
     const { o } = await record({ env: 'production', page: 'shop', path: '/record-lab', name: 'bell' }, async (page) => {
       await page.getByRole('heading', { name: 'Recording lab' }).waitFor();
       await page.getByRole('button', { name: 'Mark notifications read' }).click();
@@ -355,8 +384,14 @@ describe('recordScenario: access, sign-in, secrets', () => {
   it('refused before any window opens: a persona that cannot sign in (with the command that signs it in), another origin, an unknown page', async () => {
     const p = await project();
     const folders = existsSync(recordsRoot(p)) ? await readdir(recordsRoot(p)) : [];
+    // The buyer's saved session is expired and its login steps fail (its password is not set here).
+    const sessions: MemorySessionsOptions = {
+      checks: { buyer: { status: 'expired', detail: 'shop:/account landed on the sign-in page', ms: 0 } },
+      signIn: () => new Error('{{env:NORTHFIELD_BUYER_PASSWORD}} is not set'),
+    };
+    const windows = memoryWindows;
     const refusal = (req: RecordRequest) =>
-      recordScenario(ws, p, req, { queue: new FileJobQueue(ws.root), headless: true, drive: async () => undefined }).then(
+      recordInMemory(req, { sessions }).then(
         () => null,
         (x: unknown) => x as EngineError,
       );
@@ -369,7 +404,27 @@ describe('recordScenario: access, sign-in, secrets', () => {
     expect((await refusal({ page: 'shop', persona: 'nobody' }))?.code).toBe('not_found');
     expect((await refusal({ page: 'shop', name: '../x' }))?.code).toBe('invalid');
     expect(existsSync(recordsRoot(p)) ? await readdir(recordsRoot(p)) : []).toEqual(folders);
-  }, 120_000);
+    expect(memoryWindows).toBe(windows);
+  });
+
+  it('a persona whose saved session expired is signed in by its login steps (headless) before the window opens, signed in as it', async () => {
+    const sessions = new MemorySessions({ checks: { buyer: { status: 'expired', detail: 'shop:/account landed on the sign-in page', ms: 0 } } });
+    const capture = new MemoryCaptureRunner({ sessions, record: memoryRecord({ events: oneButtonPress({ pageKey: 'shop', button: 'Request a quote' }) }) });
+    const logs: string[] = [];
+    const o = await recordScenario(
+      ws,
+      await project(),
+      { env: 'signed-in', page: 'shop', check: false },
+      { ...enginePorts({ capture }), queue: new FileJobQueue(ws.root), drive: async () => undefined, log: (l, m) => logs.push(`${l} ${m}`) },
+    );
+    expect(sessions.calls).toEqual([
+      { member: 'check', persona: 'buyer' },
+      { member: 'signIn', persona: 'buyer', mode: 'auto' },
+    ]);
+    expect(logs).toContain('info persona buyer: session expired — signing in with its login steps (headless)');
+    expect(o.persona).toBe('buyer');
+    expect(o.counts.actions).toBe(1);
+  });
 
   it('text typed with a {{…}} template (submitted through MCP): left out with an issue at its place, so the draft is saved under agent trust and its check resolves nothing', async () => {
     const { o, logs } = await record({ page: 'shop', path: '/record-lab', name: 'lab-template', agent: true }, async (page) => {
@@ -396,10 +451,7 @@ describe('recordScenario: access, sign-in, secrets', () => {
     let o: RecordOutcome;
     let logs: string[];
     try {
-      ({ o, logs } = await record({ page: 'shop', name: 'cannot-save', check: false }, async (page) => {
-        await page.getByText('Selowa Ridge').first().click();
-        await page.getByRole('button', { name: 'Request a quote' }).waitFor();
-      }));
+      ({ o, logs } = await recordInMemory({ page: 'shop', name: 'cannot-save', check: false }));
     } finally {
       await chmod(dir, 0o755);
     }
@@ -409,7 +461,7 @@ describe('recordScenario: access, sign-in, secrets', () => {
     const all = [JSON.stringify(o.issues), ...logs].join('\n');
     expect(all).not.toMatch(/EACCES|permission denied|cannot-save\.yaml|\/scenarios\//i);
     expect(logs.join('\n')).toMatch(/the draft was not saved: saving it was refused/);
-  }, 120_000);
+  });
 
   it('a secret typed in the recording lab: a {{vars.password_1}} placeholder; the value is in no file, result or history', async () => {
     const sentinel = `Sentinel-${randomBytes(6).toString('hex')}`;

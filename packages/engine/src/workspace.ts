@@ -1,7 +1,8 @@
 import { resolve } from 'node:path';
-import { workPolicy } from '@retake/core';
-import { findWorkspaceRoot, loadProject, loadWorkspaceConfig } from '@retake/core/io';
-import type { BrowserConfig, LoadedProject, WorkPolicy, WorkspaceConfig } from '@retake/core';
+import { workPolicy } from '@retake/core/policy';
+import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /** Where a workspace is: `root` (the CLI's `--root`), else $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
 export interface WorkspaceOptions {
@@ -13,6 +14,11 @@ export interface WorkspaceOptions {
    * policy, the CLI's), never left to a default.
    */
   agent: boolean;
+  /**
+   * What the workspace is read by (ports.ts EnginePorts `reads`): the composition root's port — the disk's for the
+   * product, a MemoryWorkspace's in tests. Said by every caller, never left to a default.
+   */
+  reads: WorkspaceReads;
 }
 
 /** A workspace as a command opened it: its retake.yaml, and the policy its work runs under (core WorkPolicy). */
@@ -23,6 +29,8 @@ export interface OpenedWorkspace extends WorkspaceConfig {
    * every adapter that starts a program, a browser or ffmpeg.
    */
   readonly policy: WorkPolicy;
+  /** What this workspace is read by (WorkspaceOptions.reads): every load of its projects, scenarios and themes. */
+  readonly reads: WorkspaceReads;
 }
 
 /**
@@ -30,9 +38,10 @@ export interface OpenedWorkspace extends WorkspaceConfig {
  * policy its work runs under (`agent`: the agent policy on for its folders).
  */
 export async function openWorkspace(opts: WorkspaceOptions): Promise<OpenedWorkspace> {
-  const root = opts.root ? resolve(opts.root) : findWorkspaceRoot();
-  const ws = await loadWorkspaceConfig(root);
-  return { ...ws, policy: workPolicy(ws, { agent: !!opts.agent }) };
+  const { reads } = opts;
+  const root = opts.root ? resolve(opts.root) : reads.findWorkspaceRoot();
+  const ws = await reads.loadWorkspaceConfig(root);
+  return { ...ws, policy: workPolicy(ws, { agent: !!opts.agent }), reads };
 }
 
 /** retake.yaml `browser` ← project.yaml `browser` (the project wins; args from both are kept). */
@@ -51,8 +60,8 @@ function mergeBrowserConfig(ws?: BrowserConfig, project?: BrowserConfig): Browse
  * `locale` is more specific than the workspace `browser.locale` default: the runner uses it as the browser locale
  * unless the project's own `browser.locale` is set.
  */
-export async function openProject(ws: WorkspaceConfig, slugOrDir: string): Promise<LoadedProject> {
-  const project = await loadProject(slugOrDir, ws.root);
+export async function openProject(ws: WorkspaceConfig & Pick<OpenedWorkspace, 'reads'>, slugOrDir: string): Promise<LoadedProject> {
+  const project = await ws.reads.loadProject(slugOrDir, ws.root);
   let wsBrowser = ws.browser;
   if (wsBrowser?.locale !== undefined && project.config.locale !== undefined) {
     wsBrowser = { ...wsBrowser };

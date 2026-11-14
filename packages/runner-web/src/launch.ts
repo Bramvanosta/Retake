@@ -7,9 +7,12 @@
  */
 import { createRequire } from 'node:module';
 import type { Browser } from 'playwright-core';
-import { environmentHttpCredentials, policyArgsProblems, policyProgram, programProblem, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core';
-import type { BrowserConfig, LoadedProject, PageHttpCredentials, WorkPolicy } from '@retake/core';
-import { programLookup } from '@retake/core/io';
+import { environmentHttpCredentials } from '@retake/core/environment';
+import { policyArgsProblems, policyProgram, programProblem, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core/policy';
+import type { BrowserConfig, LoadedProject } from '@retake/core/model';
+import type { PageHttpCredentials } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import { playwrightBrowser, programLookup } from '@retake/core/io';
 import { RunnerError } from './errors.js';
 
 const require = createRequire(import.meta.url);
@@ -39,22 +42,14 @@ export function launchOptions(o: { args: readonly string[]; browserArgs?: readon
   return { chromiumSandbox: true, args: all.includes(SITE_PER_PROCESS) ? all : [...all, SITE_PER_PROCESS] };
 }
 
-interface PlaywrightRegistry {
-  registry: { findExecutable(name: string): { executablePath(lang?: string): string | undefined } | undefined };
-}
-
 /**
  * The executable playwright-core starts for `channel` (its own browsers: PLAYWRIGHT_BROWSERS_PATH, else its cache; a
  * channel such as `chrome`: the installed one) — the headless shell for a headless launch without a channel, as
- * playwright-core picks it. Null when playwright-core does not say.
+ * playwright-core picks it. Null when playwright-core does not say (core/io playwrightBrowser: the registry read once, through
+ * this package's playwright-core).
  */
 export function playwrightExecutable(channel: string | undefined, headless: boolean): string | null {
-  try {
-    const { registry } = require('playwright-core/lib/server/registry/index') as PlaywrightRegistry;
-    return registry.findExecutable(channel ?? (headless ? 'chromium-headless-shell' : 'chromium'))?.executablePath('javascript') || null;
-  } catch {
-    return null;
-  }
+  return playwrightBrowser(require, channel ?? (headless ? 'chromium-headless-shell' : 'chromium'));
 }
 
 /**

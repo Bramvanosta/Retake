@@ -4,7 +4,19 @@
  * names: the classes a hand-kept list missed print one line too.
  */
 import { describe, expect, it } from 'vitest';
-import { AccessError, ClockError, ConfigError, EnvironmentError, HostRefusedError, SandboxConfigError, ScenarioChangedError, ScenarioError, StepError as ScenarioStepError, TemplateError, WriteRefusedError } from '@retake/core';
+import {
+  AccessError,
+  ClockError,
+  ConfigError,
+  EnvironmentError,
+  HostRefusedError,
+  SandboxConfigError,
+  ScenarioChangedError,
+  ScenarioError,
+  StepError as ScenarioStepError,
+  TemplateError,
+  WriteRefusedError,
+} from '@retake/core';
 import { BundleError, H264EncoderError } from '@retake/core/io';
 import { ComponentError } from '@retake/components';
 import { ExportError, PlanError, PlanTrustError, RenderCancelledError, RenderDiskFullError, RenderError } from '@retake/editor';

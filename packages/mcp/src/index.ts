@@ -18,7 +18,7 @@
  * separate process, runs them. L4.1: the same tools over Streamable HTTP too (`retake mcp --http`, http.ts: 127.0.0.1,
  * the engine's gate refusing any request a browser could send, a stable token in the Retake home).
  */
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core/base';
 import { staleEngine } from '@retake/core/io';
 import type { StaleEngine } from '@retake/core/io';
 import { createEngine } from '@retake/engine';
@@ -35,11 +35,24 @@ export { PORT_LOOKUP_TIMEOUT_MS, listenersAreOurs, lsofPortListeners, portHolder
 export type { PortHolderVerdict, PortListener, PortListenerLookup } from './port-holder.js';
 export { MCP_HTTP_IDLE_MS, MCP_HTTP_SESSIONS_MAX } from './server.js';
 export { UNTRUSTED_MAX, capUntrusted, errorResult, imageCaps, imageResult, okResult } from './result.js';
-export { APPROVAL_TIMEOUT_MS, approvalForm, approvalMessage, approvalTimeoutMs, elicitationApprover, pruneApprovalForm, pruneApprovalMessage, siteApprovalForm, siteApprovalMessage } from './approval.js';
+export {
+  APPROVAL_TIMEOUT_MS,
+  approvalForm,
+  approvalMessage,
+  approvalTimeoutMs,
+  elicitationApprover,
+  pruneApprovalForm,
+  pruneApprovalMessage,
+  siteApprovalForm,
+  siteApprovalMessage,
+} from './approval.js';
 export type { ImageCaps, Thumbnailer, ToolImage, ToolOutput } from './result.js';
 export type { ToolDef, ToolContext } from './tools/define.js';
-/** One call of an operation, SDK-free: the operation contract's (the Studio's server runs its ops through it too). */
-export { callTool } from '@retake/engine/contract';
+/**
+ * One call of an operation, SDK-free: the operation contract's (`invoke`, which the Studio's server runs its ops
+ * through too). Its deprecated alias `callTool` (L7.13) was removed in L7.21.
+ */
+export { invoke } from '@retake/engine/contract';
 export type { ToolCallOutcome } from '@retake/engine/contract';
 export { COMMENTS_LIST_UNTRUSTED_MAX, COMMENT_ENTRIES_SHOWN } from './tools/comments.js';
 

@@ -1,0 +1,7 @@
+// The type check of this package alone (an editor's, or `npx tsc -p packages/test-support`): no build, no output — the
+// test files import these sources through tsconfig.test.json's paths and vitest.config.ts's aliases, and
+// `pnpm typecheck` checks them with the test files that import them. Not referenced by the root tsconfig.json.
+{
+  "extends": "../../tsconfig.test.json",
+  "include": ["src/**/*.ts"]
+}

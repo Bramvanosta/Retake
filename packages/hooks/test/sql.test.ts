@@ -5,6 +5,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { Journal, databaseTarget, maskSql, runHooks, transactionControl } from '@retake/hooks';
 import type { HookStep, ProjectConfig } from '@retake/core';
 import { makeContext, makeProject, tempProject, writeFiles } from './helpers.js';
+import { postgresForTests, startPostgres } from '@retake/test-support/postgres';
+import type { TestPostgres } from '@retake/test-support/postgres';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
 beforeEach(async () => {
@@ -30,8 +32,8 @@ describe('SQL text analysis', () => {
     ['START TRANSACTION; SELECT 1', 'START TRANSACTION'],
     ['SELECT 1; END;', 'END'],
     ['SAVEPOINT a; INSERT INTO t VALUES (1); ROLLBACK TO SAVEPOINT a;', null],
-    ["DO $$ BEGIN UPDATE t SET a = 1; END $$;", null],
-    ["CREATE FUNCTION f() RETURNS int LANGUAGE sql BEGIN ATOMIC SELECT 1; SELECT 2; END; SELECT f();", null],
+    ['DO $$ BEGIN UPDATE t SET a = 1; END $$;', null],
+    ['CREATE FUNCTION f() RETURNS int LANGUAGE sql BEGIN ATOMIC SELECT 1; SELECT 2; END; SELECT f();', null],
     ["INSERT INTO log VALUES ('COMMIT'); -- BEGIN", null],
   ])('%s → %s', (sql, expected) => {
     expect(transactionControl(sql)).toBe(expected);
@@ -56,11 +58,10 @@ describe('sql hooks without a server', () => {
     const journal = await journalAt();
     const none = await runHooks([{ sql: 'select 1' }], makeContext(project({})).ctx, { phase: 'teardown', journal });
     expect(none.results[0].error).toBe('sql hooks need a database: add `databases: {main: {url: "postgres://…"}}` to project.yaml');
-    const unknown = await runHooks(
-      [{ sql: { query: 'select 1', db: 'analytics' } }],
-      makeContext(project({ databases: { main: { url: 'postgres://app@localhost/northfield' } } })).ctx,
-      { phase: 'teardown', journal },
-    );
+    const unknown = await runHooks([{ sql: { query: 'select 1', db: 'analytics' } }], makeContext(project({ databases: { main: { url: 'postgres://app@localhost/northfield' } } })).ctx, {
+      phase: 'teardown',
+      journal,
+    });
     expect(unknown.results[0].error).toBe('unknown database "analytics" (project.yaml declares: main)');
   });
 
@@ -68,9 +69,7 @@ describe('sql hooks without a server', () => {
     await writeFiles(tmp.dir, { 'hooks/tx.sql': 'BEGIN;\nINSERT INTO replies (text) VALUES (1);\nCOMMIT;\n' });
     const { ctx } = makeContext(project({ databases: { main: { url: 'postgres://app@localhost/northfield' } } }));
     const res = await runHooks([{ sql: 'hooks/tx.sql' }, { sql: 'hooks/missing.sql' }], ctx, { phase: 'teardown', journal: await journalAt() });
-    expect(res.results[0].error).toBe(
-      'hooks/tx.sql contains its own transaction control (BEGIN); sql hooks already run inside BEGIN … COMMIT, remove it',
-    );
+    expect(res.results[0].error).toBe('hooks/tx.sql contains its own transaction control (BEGIN); sql hooks already run inside BEGIN … COMMIT, remove it');
     expect(res.results[1].error).toBe(`SQL file hooks/missing.sql not found (looked for ${join(tmp.dir, 'hooks/missing.sql')})`);
   });
 
@@ -85,24 +84,35 @@ describe('sql hooks without a server', () => {
 });
 
 /**
- * Real Postgres: set RETAKE_TEST_PG to a connection URL whose role may create tables, e.g.
- * postgres://retake:retake_pw@127.0.0.1:5432/retake_test
+ * Real Postgres, by default wherever it can run (test-support postgres.ts): RETAKE_TEST_PG as given (a connection URL
+ * whose role may create tables, e.g. postgres://retake:retake_pw@127.0.0.1:5432/retake_test), else a throwaway
+ * container when Docker runs and the image is here; skipped otherwise, saying why.
  */
-const PG = process.env.RETAKE_TEST_PG;
+const POSTGRES = postgresForTests('hooks sql.test.ts');
 
-describe.skipIf(!PG)('sql hooks against Postgres', () => {
+describe.skipIf(!POSTGRES.ok)('sql hooks against Postgres', () => {
   const table = `nf_replies_${process.pid}_${Date.now() % 100000}`;
-  const password = PG ? databaseTarget(PG).password : undefined;
+  let server: TestPostgres | undefined;
+  let PG: string;
+  let password: string | undefined;
   let admin: pg.Client;
 
   beforeAll(async () => {
+    server = await startPostgres();
+    PG = server.url;
+    password = databaseTarget(PG).password;
     admin = new pg.Client({ connectionString: PG });
     await admin.connect();
     await admin.query(`CREATE TABLE ${table} (id serial PRIMARY KEY, text text NOT NULL, shown_on date)`);
   });
   afterAll(async () => {
-    await admin.query(`DROP TABLE IF EXISTS ${table}`);
-    await admin.end();
+    // The container goes whatever happened to the table or the connection (a server gone, a failed beforeAll).
+    try {
+      await admin?.query(`DROP TABLE IF EXISTS ${table}`);
+      await admin?.end();
+    } finally {
+      await server?.stop();
+    }
   });
   beforeEach(async () => {
     await admin.query(`TRUNCATE ${table}`);
@@ -153,8 +163,7 @@ describe.skipIf(!PG)('sql hooks against Postgres', () => {
     const refused = await runHooks([insert, shift], ctx, { phase: 'setup', journal });
     expect(refused.results.map((r) => r.status)).toEqual(['ok', 'refused']);
     expect(refused.results[1].error).toMatch(/^refusing destructive hook \(SQL UPDATE\) without "confirm: true"/);
-    const dates = async () =>
-      (await admin.query(`SELECT to_char(shown_on, 'YYYY-MM-DD') AS d FROM ${table}`)).rows.map((r: { d: string }) => r.d);
+    const dates = async () => (await admin.query(`SELECT to_char(shown_on, 'YYYY-MM-DD') AS d FROM ${table}`)).rows.map((r: { d: string }) => r.d);
     expect(await texts()).toEqual(["Roaster's note"]); // no rollback declared: it stays
     expect(await dates()).toEqual(['2027-03-01']);
 
@@ -169,9 +178,7 @@ describe.skipIf(!PG)('sql hooks against Postgres', () => {
     const { ctx } = context();
     const res = await runHooks([{ sql: 'hooks/bad.sql' }], ctx, { phase: 'setup', journal: await journalAt() });
     expect(res.ok).toBe(false);
-    expect(res.results[0].error).toBe(
-      `hooks/bad.sql failed, transaction rolled back: column "nope" of relation "${table}" does not exist (line 2)`,
-    );
+    expect(res.results[0].error).toBe(`hooks/bad.sql failed, transaction rolled back: column "nope" of relation "${table}" does not exist (line 2)`);
     expect(await texts()).toEqual([]);
   });
 
@@ -230,9 +237,7 @@ describe.skipIf(!PG)('sql hooks against Postgres', () => {
     const url = `postgres://${t.user}:wrong-password-123@${t.host}:${t.port}/${t.database}`;
     const { ctx, logText } = context(url);
     const res = await runHooks([{ sql: { query: 'SELECT 1' } }], ctx, { phase: 'setup', journal: await journalAt() });
-    expect(res.results[0].error).toBe(
-      `cannot connect to database main (${t.host}:${t.port}/${t.database}): password authentication failed for user "${t.user}"`,
-    );
+    expect(res.results[0].error).toBe(`cannot connect to database main (${t.host}:${t.port}/${t.database}): password authentication failed for user "${t.user}"`);
     expect(logText()).toContain('warn databases.main.url contains a clear-text password: use {{env:VAR}} or {{keychain:service/account}}');
     expect(logText()).not.toContain('wrong-password-123');
   });

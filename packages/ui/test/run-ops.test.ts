@@ -22,11 +22,12 @@ import type { JobRecord } from '@retake/engine';
 import { writeStatus } from '@retake/runner-web';
 import { LIVE_OPS, UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const savedBuyer = process.env.NORTHFIELD_BUYER_PASSWORD;
 let ws: string;
 let home: string;
@@ -52,7 +53,7 @@ const plain = (video: string, env?: string) =>
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-runops-'));
   home = join(ws, '.home');
-  process.env.RETAKE_HOME = home;
+  retakeHome.use(home);
   await fixtureWorkspace(ws);
   // The supplier's login steps use a variable the worker's environment lacks: no run signs it in by itself. The buyer's
   // is set (the Studio reads the worker's environment when it starts).
@@ -71,8 +72,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (savedBuyer === undefined) delete process.env.NORTHFIELD_BUYER_PASSWORD;
   else process.env.NORTHFIELD_BUYER_PASSWORD = savedBuyer;
   if (ws) await rm(ws, { recursive: true, force: true });
@@ -120,7 +120,7 @@ describe('the Sessions panel: auth_status, auth_login (headed only, no wait), si
     await call('run_cancel', { project: P, run_id: run.run_id });
   });
 
-  it('auth_status reads every persona without a path; the last check\'s text under untrusted', async () => {
+  it("auth_status reads every persona without a path; the last check's text under untrusted", async () => {
     const files = personaPaths(home, P, 'signed-in', 'buyer');
     await mkdir(join(files.snapshot, '..'), { recursive: true });
     await writeFile(files.snapshot, '{"cookies":[],"origins":[]}', { mode: 0o600 });
@@ -137,7 +137,12 @@ describe('the Sessions panel: auth_status, auth_login (headed only, no wait), si
 describe('run_pause', () => {
   it('pinned arguments; a queued run 409 (no marker); a running dry run pauses and resumes; a running capture too; a finished run 409', async () => {
     const q = (await call('scenario_run', { project: P, name: 'pause-a', mode: 'dry' })).json<{ data: { run_id: string; job: string } }>().data;
-    for (const bad of [{ project: P, run_id: q.run_id }, { project: P, run_id: q.run_id, paused: 'yes' }, { project: P, run_id: q.run_id, paused: true, scene: 'a' }, { project: P, run_id: '../x', paused: true }]) {
+    for (const bad of [
+      { project: P, run_id: q.run_id },
+      { project: P, run_id: q.run_id, paused: 'yes' },
+      { project: P, run_id: q.run_id, paused: true, scene: 'a' },
+      { project: P, run_id: '../x', paused: true },
+    ]) {
       expect((await call('run_pause', bad)).status, JSON.stringify(bad)).toBe(400);
     }
     const queued = await call('run_pause', { project: P, run_id: q.run_id, paused: true });

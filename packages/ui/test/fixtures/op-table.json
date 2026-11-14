@@ -1473,7 +1473,7 @@
       "pattern": "^[A-Za-z0-9_-]{16,43}$"
      },
      "proposal": {
-      "description": "L4.6: preview Claude's proposal on that thread (its newest pending or undone one) instead of the file: planned on the commented take in memory, nothing written; switches off.",
+      "description": "Preview Claude's proposal on that thread (its newest pending or undone one) instead of the file: planned on the commented take in memory, nothing written; switches off.",
       "type": "object",
       "properties": {
        "comment_id": {
@@ -2869,7 +2869,7 @@
      },
      "name": {
       "type": "string",
-      "maxLength": 100,
+      "maxLength": 60,
       "pattern": "^[a-z0-9][a-z0-9-]*$",
       "description": "The new theme folder of templates_dir."
      }

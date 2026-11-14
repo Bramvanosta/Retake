@@ -12,13 +12,37 @@ import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
+import { printableText, bestEffort } from '@retake/core/base';
 import type { EditPlan } from '@retake/editor/plan';
-import { captionRegion, checkArtefactOrder, checkCamera, checkCaptions, checkCursor, checkDurations, checkEnvironment, checkLongScenes, checkRender, checkSlowTransitions, checkTextSlots, checkButtonContrast, checkOverlayCover, checkLoadingFilmed, checkZoomScroll, checkCaptionContradictions, checkOverlaysKept, checkTransitionsOnClicks, checkTutorial, planFontFiles, reviewEnvironment, segmentDurations } from './checks.js';
+import {
+  captionRegion,
+  checkArtefactOrder,
+  checkCamera,
+  checkCaptions,
+  checkCursor,
+  checkDurations,
+  checkEnvironment,
+  checkLongScenes,
+  checkRender,
+  checkSlowTransitions,
+  checkTextSlots,
+  checkButtonContrast,
+  checkOverlayCover,
+  checkLoadingFilmed,
+  checkZoomScroll,
+  checkCaptionContradictions,
+  checkOverlaysKept,
+  checkTransitionsOnClicks,
+  checkTutorial,
+  planFontFiles,
+  reviewEnvironment,
+  segmentDurations,
+} from './checks.js';
 import type { CheckContext } from './checks.js';
 import { diffFindings, diffRecords, framePairs } from './diff.js';
 import { extractFrames, probeVideo } from './ffmpeg.js';
 import { fontFileMeasurer } from './fonts.js';
-import { ReviewError, findPrevious, findRender, openProject, renderRun, renderTimeline, reviewsDir } from './load.js';
+import { ReviewError, findPrevious, locateRender, openProject, renderRun, renderTimeline, reviewsDir } from './load.js';
 import { checkPixels, sourceFramesAtStarts, sourceKey, stillPair, stillSourceFrames } from './pixel-checks.js';
 import type { FrameAnalysis } from './pixel-checks.js';
 import type { RegionStats, RgbImage } from './pixels.js';
@@ -32,15 +56,11 @@ import { buildOutputTimeline, outputClicks } from './timeline.js';
 import { DEFAULT_RULES, DEFAULT_SHEET } from './types.js';
 import type { DiffFrame, Finding, ReviewDiff, ReviewFiles, ReviewOptions, ReviewResult, ReviewRules, ReviewThumbnail, Severity } from './types.js';
 import { ReviewCancelledError } from './types.js';
-import { summaryLine } from './report.js';
+import { summaryLine } from './report-lines.js';
+import { reviewImages, safeName } from './images.js';
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, info: 2 };
 const MAX_DIFF_PAIRS = 30;
-
-/** File-system-safe key frame name. */
-export function safeName(name: string): string {
-  return name.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'frame';
-}
 
 /** Sample frames at `rate` per second over output frames [from, to): the middle of each interval. */
 export function sampleFrames(from: number, to: number, fps: number, rate: number): number[] {
@@ -78,22 +98,6 @@ export function keyframePlan(spans: SegmentSpan[], markers: Array<{ name: string
   return out;
 }
 
-/**
- * The images of a review an agent looks at, as [name, file]: the contact sheet pages and the marker key frames
- * (`sheets`), or also every key frame, the per-scene sheets and the diff sheet (`all`).
- */
-export function reviewImages(files: ReviewFiles, o: { fps: 1 | 2; markers: Iterable<string>; mode: 'sheets' | 'all' }): Array<[string, string]> {
-  const all = o.mode === 'all';
-  const list: Array<[string, string]> = files.sheets.map((f, i) => [`sheet_${o.fps}fps${i ? `_p${i + 1}` : ''}`, f]);
-  const markerNames = new Set([...o.markers].map(safeName));
-  for (const [name, f] of Object.entries(files.keyframes)) if (all || markerNames.has(name)) list.push([`keyframe:${name}`, f]);
-  if (all) {
-    for (const [id, fl] of Object.entries(files.scene_sheets)) fl.forEach((f, i) => list.push([`sheet_scene_${id}${i ? `_p${i + 1}` : ''}`, f]));
-    if (files.diff_sheet) list.push(['diff', files.diff_sheet]);
-  }
-  return list;
-}
-
 /** The pid a review's temporary folder (`<id>.tmp-<pid>-<hex>`, `<id>.old-<pid>-<hex>`) belongs to. */
 function aside(name: string, id: string): { kind: 'tmp' | 'old'; pid: number } | undefined {
   if (!name.startsWith(`${id}.`)) return undefined;
@@ -129,7 +133,7 @@ export async function recoverReviewDir(finalDir: string): Promise<void> {
     const a = aside(name, id);
     if (!a || pidAlive(a.pid)) continue;
     const dir = join(parent, name);
-    if (a.kind === 'old' && !existsSync(finalDir)) await rename(dir, finalDir).catch(() => undefined);
+    if (a.kind === 'old' && !existsSync(finalDir)) await bestEffort(rename(dir, finalDir), 'the previous review stays where it was: the new one is written beside it');
     else await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 }
@@ -175,9 +179,12 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   check();
   progress({ stage: 'loading' });
   const project = await openProject(opts.project, opts.root);
-  const record = await findRender(project, opts.render, opts.scenario);
+  const found = await locateRender(project, opts.render, opts.scenario);
+  const record = found.record;
+  // The name of its folder of review/ (never an empty name or a path: an id written by hand is any text).
+  const name = found.output;
   const plan = record.plan;
-  if (!existsSync(record.file)) throw new ReviewError(`the video of render ${record.id} is missing: ${record.file}`);
+  if (!existsSync(record.file)) throw new ReviewError(`the video of render ${printableText(name)} is missing: ${record.file ? printableText(record.file) : 'no "file" in its record'}`);
   const fps = opts.fps ?? 1;
   if (fps !== 1 && fps !== 2) throw new ReviewError(`fps ${String(fps)}: the contact sheet takes 1 or 2 frames per second`);
   const rules = reviewRules(plan, opts.rules);
@@ -219,7 +226,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   const wanted = new Set<number>([...mainFrames, ...sceneSet, ...keyframes.values(), ...stills.flat()]);
 
   // ── Output directory (written aside, swapped in at the end) ──
-  const finalDir = opts.out ?? join(reviewsDir(project), record.id);
+  const finalDir = opts.out ?? join(reviewsDir(project), name);
   // Leftovers of a review that died are put back in order first (the previous review set aside comes back).
   await recoverReviewDir(finalDir);
   const tmpDir = `${finalDir}.tmp-${process.pid}-${randomBytes(3).toString('hex')}`;
@@ -236,31 +243,42 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
     const keyFiles: Record<string, string> = {};
     const fullStep = Math.max(2, Math.round(Math.min(plan.width, plan.height) / 180));
     let done = 0;
-    const delivered = await extractFrames(record.file, [...wanted], { width: plan.width, height: plan.height, videoWidth: probed.width, videoHeight: probed.height, policy: opts.policy, ...(signal ? { signal } : {}) }, async (f, img) => {
-      const span = spanAt(spans, f);
-      if (mainSet.has(f) || sceneSet.has(f)) tiles.set(f, await makeTile(img, layout.tile));
-      for (const name of keyByFrame.get(f) ?? []) {
-        const file = join(tmpDir, 'keyframes', `${name}.png`);
-        await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 3 } }).png({ compressionLevel: 6 }).toFile(file);
-        keyFiles[name] = file;
-      }
-      const a: FrameAnalysis = { frame: f, full: regionStats(img, { x: 0, y: 0, w: img.width, h: img.height }, { step: fullStep }) };
-      if (span && isClip(span.segment)) {
-        const cap = span.segment.layout.capture;
-        const screen = inset(cap, span.segment.layout.radius + 2 * plan.unit);
-        a.screen = regionStats(img, screen);
-        a.screenSig = signature(img, screen, 64, 36);
-        const region = captionRegion(plan, span.segment);
-        if (region) a.captionSd = regionStats(img, region.rect, { step: Math.max(1, Math.round(plan.unit * 2)) }).sd;
-      }
-      if (previous && mainSet.has(f)) a.sig = signature(img, { x: 0, y: 0, w: img.width, h: img.height });
-      analyses.set(f, a);
-      done++;
-      if (done % 10 === 0) progress({ stage: 'frames', progress: done / wanted.size });
-    });
+    const delivered = await extractFrames(
+      record.file,
+      [...wanted],
+      { width: plan.width, height: plan.height, videoWidth: probed.width, videoHeight: probed.height, policy: opts.policy, ...(signal ? { signal } : {}) },
+      async (f, img) => {
+        const span = spanAt(spans, f);
+        if (mainSet.has(f) || sceneSet.has(f)) tiles.set(f, await makeTile(img, layout.tile));
+        for (const name of keyByFrame.get(f) ?? []) {
+          const file = join(tmpDir, 'keyframes', `${name}.png`);
+          await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 3 } })
+            .png({ compressionLevel: 6 })
+            .toFile(file);
+          keyFiles[name] = file;
+        }
+        const a: FrameAnalysis = { frame: f, full: regionStats(img, { x: 0, y: 0, w: img.width, h: img.height }, { step: fullStep }) };
+        if (span && isClip(span.segment)) {
+          const cap = span.segment.layout.capture;
+          const screen = inset(cap, span.segment.layout.radius + 2 * plan.unit);
+          a.screen = regionStats(img, screen);
+          a.screenSig = signature(img, screen, 64, 36);
+          const region = captionRegion(plan, span.segment);
+          if (region) a.captionSd = regionStats(img, region.rect, { step: Math.max(1, Math.round(plan.unit * 2)) }).sd;
+        }
+        if (previous && mainSet.has(f)) a.sig = signature(img, { x: 0, y: 0, w: img.width, h: img.height });
+        analyses.set(f, a);
+        done++;
+        if (done % 10 === 0) progress({ stage: 'frames', progress: done / wanted.size });
+      },
+    );
     const missingFrames = [...wanted].filter((f) => !delivered.includes(f));
     if (missingFrames.length) {
-      notes.push({ severity: 'warning', code: 'frames-missing', message: `${missingFrames.length} of the ${wanted.size} frames sampled could not be decoded (the video ends at ${probed.duration_s.toFixed(2)} s?)` });
+      notes.push({
+        severity: 'warning',
+        code: 'frames-missing',
+        message: `${missingFrames.length} of the ${wanted.size} frames sampled could not be decoded (the video ends at ${probed.duration_s.toFixed(2)} s?)`,
+      });
     }
 
     // ── Pass 2: the capture behind the clips (scene starts, blank suspects) — the main capture and the pages' tracks ──
@@ -305,7 +323,11 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
         check();
         sources = undefined;
         sourceSigs = undefined;
-        notes.push({ severity: 'info', code: 'capture-unreadable', message: `the capture ${captureFile} could not be read (${(e as Error).message}): scene starts checked on the rendered frames only` });
+        notes.push({
+          severity: 'info',
+          code: 'capture-unreadable',
+          message: `the capture ${captureFile} could not be read (${(e as Error).message}): scene starts checked on the rendered frames only`,
+        });
       }
     } else {
       notes.push({ severity: 'info', code: 'capture-missing', message: `the capture of run ${record.run_id} is not available: scene starts checked on the rendered frames only` });
@@ -323,10 +345,15 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
       const prevTiles = new Map<number, { data: Buffer; width: number; height: number }>();
       try {
         const info = await probeVideo(previous.file, opts.policy);
-        await extractFrames(previous.file, pairs.map((p) => p.previous_frame), { width: previous.plan.width, height: previous.plan.height, videoWidth: info.width, videoHeight: info.height, policy: opts.policy, ...(signal ? { signal } : {}) }, async (f, img) => {
-          prevSigs.set(f, signature(img, { x: 0, y: 0, w: img.width, h: img.height }));
-          prevTiles.set(f, await makeTile(img, layout.tile));
-        });
+        await extractFrames(
+          previous.file,
+          pairs.map((p) => p.previous_frame),
+          { width: previous.plan.width, height: previous.plan.height, videoWidth: info.width, videoHeight: info.height, policy: opts.policy, ...(signal ? { signal } : {}) },
+          async (f, img) => {
+            prevSigs.set(f, signature(img, { x: 0, y: 0, w: img.width, h: img.height }));
+            prevTiles.set(f, await makeTile(img, layout.tile));
+          },
+        );
         const changed: DiffFrame[] = [];
         let compared = 0;
         for (const p of pairs) {
@@ -339,7 +366,10 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
         }
         diff = { ...base, compared, changed_frames: changed };
         // The most changed frames, in time order.
-        const shown = [...changed].sort((x, y) => y.changed - x.changed).slice(0, MAX_DIFF_PAIRS).sort((x, y) => x.frame - y.frame);
+        const shown = [...changed]
+          .sort((x, y) => y.changed - x.changed)
+          .slice(0, MAX_DIFF_PAIRS)
+          .sort((x, y) => x.frame - y.frame);
         for (const c of shown) {
           const pt = prevTiles.get(c.previous_frame);
           const ct = tiles.get(c.frame);
@@ -470,7 +500,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
     const result: Omit<ReviewResult, 'thumbnails'> = {
       version: 1,
       render: {
-        id: record.id,
+        id: name,
         file: record.file,
         record: record.record,
         scenario: record.scenario,
@@ -507,7 +537,8 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
     try {
       await rename(tmpDir, finalDir);
     } catch (e) {
-      if (hadOld) await rename(old, finalDir).catch(() => undefined);
+      if (hadOld)
+        await bestEffort(rename(old, finalDir), "the rename's own error is thrown; when putting the old review back fails too, it stays aside under its .old- name (recoverReviewDir brings it back)");
       throw e;
     }
     if (hadOld) await rm(old, { recursive: true, force: true });

@@ -61,7 +61,7 @@ export function projectPersonaNames(config: Pick<ProjectConfig, 'auth' | 'enviro
   const out = new Set<string>();
   const a = config.auth;
   if (!isObject(a)) return [];
-  const blocks = isGlobalAuth(a) ? [a] : Object.values(a).filter(isObject) as AuthConfig[];
+  const blocks = isGlobalAuth(a) ? [a] : (Object.values(a).filter(isObject) as AuthConfig[]);
   for (const b of blocks) {
     if (b.profile !== undefined || b.storage_state !== undefined) out.add(LEGACY_PERSONA);
     if (isObject(b.personas)) for (const n of Object.keys(b.personas)) out.add(n);
@@ -116,11 +116,7 @@ function projectPath(dir: string, p: string): string {
 }
 
 /** The personas of an environment (none when it declares no auth); on a sandbox, its accounts (L1.8). */
-export function resolvePersonas(
-  project: Pick<LoadedProject, 'slug' | 'dir' | 'config'> & Partial<Pick<LoadedProject, 'sandboxes'>>,
-  env: string,
-  opts: { home: string },
-): ResolvedPersona[] {
+export function resolvePersonas(project: Pick<LoadedProject, 'slug' | 'dir' | 'config'> & Partial<Pick<LoadedProject, 'sandboxes'>>, env: string, opts: { home: string }): ResolvedPersona[] {
   const auth = authFor(project.config, env);
   if (!auth) return [];
   const sandbox = project.sandboxes && Object.hasOwn(project.sandboxes, env) ? project.sandboxes[env] : undefined;
@@ -516,11 +512,15 @@ export function planPersonas(sc: Scenario, opts: PlanPersonasOptions): PersonaPl
       (Array.isArray(list) ? list : [list]).forEach((h, i) => {
         if (!isObject(h) || !isObject(h.http)) return;
         const at: IssuePath = Array.isArray(list) ? [...path, i, 'http'] : [...path, 'http'];
-        for (const [req, rp] of [[h.http, at], [h.http.rollback, [...at, 'rollback']]] as Array<[unknown, IssuePath]>) {
+        for (const [req, rp] of [
+          [h.http, at],
+          [h.http.rollback, [...at, 'rollback']],
+        ] as Array<[unknown, IssuePath]>) {
           const persona = isObject(req) && isObject(req.auth) ? req.auth.persona : undefined;
           if (typeof persona !== 'string') continue;
           if (names.has(persona)) hookAuth.add(persona);
-          else plan.issues.push({ path: [...rp, 'auth', 'persona'], kind: 'unknown', message: `persona "${persona}" is not declared for environment "${opts.env}" (personas: ${[...names].join(', ')})` });
+          else
+            plan.issues.push({ path: [...rp, 'auth', 'persona'], kind: 'unknown', message: `persona "${persona}" is not declared for environment "${opts.env}" (personas: ${[...names].join(', ')})` });
         }
       });
     };

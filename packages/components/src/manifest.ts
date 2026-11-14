@@ -6,17 +6,10 @@
  * JSON Schema and its defaults, preview samples) and returns positioned issues.
  */
 import { z } from 'zod';
-import {
-  COMPONENT_KINDS,
-  brokenUnder,
-  checkYamlDocument,
-  componentIdSchema,
-  didYouMean,
-  hasErrors,
-  keyString,
-  locatedIssue,
-} from '@retake/core';
-import type { ComponentKind, LocatedIssue } from '@retake/core';
+import { brokenUnder, checkYamlDocument, didYouMean, hasErrors, locatedIssue } from '@retake/core/base';
+import { COMPONENT_KINDS, componentIdSchema, keyString } from '@retake/core/model';
+import type { LocatedIssue } from '@retake/core/base';
+import type { ComponentKind } from '@retake/core/model';
 import { applyParamDefaults, checkParamsSchema, isPlainObject, paramDefaults, validateParamValue } from './json-schema.js';
 import { ANCHOR_KEYS, GEOMETRY_BUILTINS, GEOMETRY_KEYS, anchorScope, evalAnchor, evalLayoutGeometry, expressionIdentifiers, geometryIsDynamic, paramEnums } from './geometry.js';
 import type { JsonSchemaNode } from './json-schema.js';
@@ -157,9 +150,7 @@ export const LayoutGeometrySchema = z
       .max(2)
       .describe('Multi-page layouts (split screen): the screen of each page of a multi-page scene; `screen` is their area. Expressions may use `aspect2` (the second page).')
       .optional(),
-    inset: RectSchema.describe(
-      "Picture in picture: the second page's screen over `screen` (the first page's) at its default corner; the planner moves it between the corners of `screen`.",
-    ).optional(),
+    inset: RectSchema.describe("Picture in picture: the second page's screen over `screen` (the first page's) at its default corner; the planner moves it between the corners of `screen`.").optional(),
   })
   .meta({
     id: 'LayoutGeometry',
@@ -182,15 +173,13 @@ export const AnchorSchema = z
   .meta({
     id: 'Anchor',
     description:
-      "Where the component draws its tap target (a notification banner, an app icon) at the end of its segment: a transition " +
+      'Where the component draws its tap target (a notification banner, an app icon) at the end of its segment: a transition ' +
       'such as studio/transition-tap-open zooms from it. Expressions may use numeric params, `<param>_<value>` one-hot names ' +
       'of string params (e.g. style_macos), vars and aspect.',
   });
 
 /** The params schema is checked by `checkParamsSchema` (supported JSON Schema subset); zod only wants a mapping. */
-export const ParamsJsonSchemaSchema = z
-  .record(z.string(), z.unknown())
-  .describe('JSON Schema (type: object) of the params, with a default for each optional param.');
+export const ParamsJsonSchemaSchema = z.record(z.string(), z.unknown()).describe('JSON Schema (type: object) of the params, with a default for each optional param.');
 
 export const ComponentManifestFileSchema = z
   .strictObject({
@@ -220,12 +209,12 @@ export const ComponentManifestFileSchema = z
       })
       .describe('What the component needs from Retake (absent: kit API 1).')
       .optional(),
-    slots: z
-      .record(keyString('slot name'), SlotSpecSchema)
-      .describe('Values the component renders, by name (title, kicker, logo…).')
-      .optional(),
+    slots: z.record(keyString('slot name'), SlotSpecSchema).describe('Values the component renders, by name (title, kicker, logo…).').optional(),
     params: ParamsJsonSchemaSchema.optional(),
-    tokens: z.array(nonEmpty()).describe(`Theme tokens the component reads: ${THEME_TOKENS.join(', ')}, colors.<key>.`).optional(),
+    tokens: z
+      .array(nonEmpty())
+      .describe(`Theme tokens the component reads: ${THEME_TOKENS.join(', ')}, colors.<key>.`)
+      .optional(),
     duration: z
       .strictObject({
         default: z.number().gt(0).describe('Seconds.'),
@@ -240,29 +229,18 @@ export const ComponentManifestFileSchema = z
     anchor: AnchorSchema.describe('Tap target at the end of the segment (1920×1080 design space), for tap-open transitions.').optional(),
     anchor_vertical: AnchorSchema.describe('Tap target in the vertical variant (1080×1920).').optional(),
     anchor_square: AnchorSchema.describe('Tap target in the square variant (1080×1080).').optional(),
-    variants: z
-      .array(z.enum(VARIANTS))
-      .min(1)
-      .describe('Output orientations the component supports (default [landscape]).')
-      .optional(),
+    variants: z.array(z.enum(VARIANTS)).min(1).describe('Output orientations the component supports (default [landscape]).').optional(),
     preview: z
       .strictObject({
         slots: z.record(z.string(), z.string()).describe('Sample slot values (every required slot not filled from the theme).').optional(),
         params: z.record(z.string(), z.unknown()).describe('Params of the preview (over the defaults).').optional(),
-        at: z
-          .array(z.number().min(0))
-          .min(1)
-          .describe('Seconds at which preview stills are taken (the committed preview.png shows the last one).')
-          .optional(),
-        screen: z
-          .enum(['desktop', 'tablet', 'phone'])
-          .describe('Sample screen shown in the preview (layouts, captions, overlays, transitions; default desktop).')
-          .optional(),
+        at: z.array(z.number().min(0)).min(1).describe('Seconds at which preview stills are taken (the committed preview.png shows the last one).').optional(),
+        screen: z.enum(['desktop', 'tablet', 'phone']).describe('Sample screen shown in the preview (layouts, captions, overlays, transitions; default desktop).').optional(),
         screens: z
           .array(z.enum(['desktop', 'tablet', 'phone']))
           .min(2)
           .max(2)
-          .describe('Multi-page layouts (L2.11): the sample screen of each page (e.g. [desktop, phone] for picture in picture).')
+          .describe('Multi-page layouts: the sample screen of each page (e.g. [desktop, phone] for picture in picture).')
           .optional(),
         target: z
           .enum(['button', 'field'])
@@ -366,20 +344,15 @@ function checkGeometry(g: LayoutGeometrySpec, key: GeometryKey, paramTypes: Read
       }
     }
     if (sized && !rectInside(r, space)) {
-      out.push(
-        locatedIssue(
-          'error',
-          [key, name],
-          `${name} rect {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}}${withDefaults} leaves the ${space.width}×${space.height} design space`,
-        ),
-      );
+      out.push(locatedIssue('error', [key, name], `${name} rect {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}}${withDefaults} leaves the ${space.width}×${space.height} design space`));
     }
   }
   if (e.radius !== undefined && e.radius < 0) out.push(locatedIssue('error', [key, 'radius'], `must be ≥ 0, is ${e.radius}${withDefaults}`));
   const extra: Array<{ path: Array<string | number>; r: Rect1920 }> = [...(e.panes ?? []).map((r, i) => ({ path: ['panes', i], r })), ...(e.inset ? [{ path: ['inset'], r: e.inset }] : [])];
   for (const { path, r } of extra) {
     if (r.w <= 0 || r.h <= 0) out.push(locatedIssue('error', [key, ...path], `must have a size > 0, is ${r.w}×${r.h}${withDefaults}`));
-    else if (!rectInside(r, space)) out.push(locatedIssue('error', [key, ...path], `rect {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}}${withDefaults} leaves the ${space.width}×${space.height} design space`));
+    else if (!rectInside(r, space))
+      out.push(locatedIssue('error', [key, ...path], `rect {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}}${withDefaults} leaves the ${space.width}×${space.height} design space`));
   }
 }
 
@@ -424,7 +397,8 @@ function checkAnchor(spec: AnchorSpec, key: string, variant: 'landscape' | 'vert
     const r = evalAnchor(spec, defaults, { enums, frame: { w: frame.width, h: frame.height } });
     const space = frame;
     if (r.w < 0 || r.h < 0) out.push(locatedIssue('error', [key], 'w and h must be ≥ 0 (with the param defaults)'));
-    else if (!rectInside(r, space)) out.push(locatedIssue('error', [key], `anchor {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}} leaves the ${space.width}×${space.height} design space (param defaults)`));
+    else if (!rectInside(r, space))
+      out.push(locatedIssue('error', [key], `anchor {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}} leaves the ${space.width}×${space.height} design space (param defaults)`));
   } catch (e) {
     out.push(locatedIssue('error', [key], `the anchor cannot be evaluated with the param defaults: ${(e as Error).message}`));
   }
@@ -445,13 +419,7 @@ export function checkManifest(value: unknown, structural: readonly LocatedIssue[
     if (!ok(['slots', name]) || !isPlainObject(slot)) continue;
     if (slot.default_from !== undefined && !(SLOT_SOURCES as readonly string[]).includes(slot.default_from)) {
       const s = didYouMean(slot.default_from, SLOT_SOURCES);
-      out.push(
-        locatedIssue(
-          'warning',
-          ['slots', name, 'default_from'],
-          `unknown slot source "${slot.default_from}"${s ? ` (did you mean "${s}"?)` : ''}; known: ${SLOT_SOURCES.join(', ')}`,
-        ),
-      );
+      out.push(locatedIssue('warning', ['slots', name, 'default_from'], `unknown slot source "${slot.default_from}"${s ? ` (did you mean "${s}"?)` : ''}; known: ${SLOT_SOURCES.join(', ')}`));
     }
     if (slot.max_chars !== undefined && slot.type !== 'text' && slot.type !== 'url') {
       out.push(locatedIssue('warning', ['slots', name, 'max_chars'], `max_chars only applies to text and url slots ("${name}" is ${slot.type})`));
@@ -574,7 +542,10 @@ export function checkManifest(value: unknown, structural: readonly LocatedIssue[
   const previewSlots = preview && isPlainObject(preview.slots) ? preview.slots : {};
   for (const name of Object.keys(previewSlots)) {
     if (slots[name] !== undefined || !ok(['slots'])) continue;
-    const s = didYouMean(name, Object.keys(slots).filter((k) => previewSlots[k] === undefined));
+    const s = didYouMean(
+      name,
+      Object.keys(slots).filter((k) => previewSlots[k] === undefined),
+    );
     out.push(
       locatedIssue('error', ['preview', 'slots'], `unknown slot "${name}"${s ? ` (did you mean "${s}"?)` : ''}: declare it under slots`, {
         path: ['preview', 'slots', name],
@@ -636,8 +607,7 @@ export function parseManifest(text: string, file: string = MANIFEST_FILE, opts: 
         locatedIssue(
           'error',
           ['id'],
-          `id "${id}" does not match the folder path "${opts.folderId}": a component lives in <components>/<namespace>/<name>/ — ` +
-            `rename the folder or set id: ${opts.folderId}`,
+          `id "${id}" does not match the folder path "${opts.folderId}": a component lives in <components>/<namespace>/<name>/ — ` + `rename the folder or set id: ${opts.folderId}`,
         ),
       );
     }

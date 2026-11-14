@@ -3,7 +3,7 @@
  * starting with the queue's `cli`). Derived by the queue for a dead worker (queue-core.ts), written by the worker that
  * saw its job process die (worker.ts) and by a job process whose worker stopped (run-job-record.ts).
  */
-import { stateRef } from '@retake/core';
+import { stateRef } from '@retake/core/project';
 import { submittedInStudio } from '../caller.js';
 import type { JobRecord } from './types.js';
 
@@ -106,7 +106,11 @@ export function interrupted(rec: JobRecord, cli: string, why: string): JobRecord
   const env = i.env ? ` --env ${i.env}` : '';
   const error: JobRecord['error'] =
     i.kind === 'auth_login'
-      ? { code: 'cancelled', message: `interrupted: ${why}. The sign-in stopped with it: its session may not have been saved`, fix: `${cli} login ${i.project}${env}${i.persona ? ` --persona ${i.persona}` : ''}${i.mode === 'auto' ? ' --auto' : ''}` }
+      ? {
+          code: 'cancelled',
+          message: `interrupted: ${why}. The sign-in stopped with it: its session may not have been saved`,
+          fix: `${cli} login ${i.project}${env}${i.persona ? ` --persona ${i.persona}` : ''}${i.mode === 'auto' ? ' --auto' : ''}`,
+        }
       : i.kind === 'sandbox_up' || i.kind === 'sandbox_reset'
         ? {
             code: 'cancelled',

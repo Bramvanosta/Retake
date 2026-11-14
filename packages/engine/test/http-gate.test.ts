@@ -155,7 +155,12 @@ describe('gate layer 2: Origin and Sec-Fetch-Site (other pages), with a valid to
 describe('gate layer 3: route and method, with a valid token', () => {
   it('unknown path 404; OPTIONS and other methods 405 with Allow; never an Access-Control header', async () => {
     expect((await raw('GET', '/nope', auth())).status).toBe(404);
-    const pre = await raw('OPTIONS', '/v1/call/op', { ...auth(), origin: `http://127.0.0.1:${port}`, 'access-control-request-method': 'POST', 'access-control-request-headers': 'authorization, content-type' });
+    const pre = await raw('OPTIONS', '/v1/call/op', {
+      ...auth(),
+      origin: `http://127.0.0.1:${port}`,
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'authorization, content-type',
+    });
     expect(pre.status).toBe(405);
     expect(pre.headers.allow).toBe('POST');
     expect((await raw('GET', '/v1/call/op', auth())).status).toBe(405);
@@ -233,14 +238,23 @@ describe('gate order', () => {
     expect(checkRequest({ method: 'GET', url: 'http://127.0.0.1:4000/v1/info', headers: { host: '127.0.0.1:4000' } }, o)).toMatchObject({ ok: false, status: 400 });
     expect(checkRequest({ method: 'GET', url: '/../v1/info', headers: { host: '127.0.0.1:4000' } }, o)).toMatchObject({ ok: false, status: 404 });
     // A declared Content-Length over the cap is refused by the gate itself, before any byte is read.
-    const post = (length: number) => checkRequest({ method: 'POST', url: '/v1/call/op', headers: { host: '127.0.0.1:4000', authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json', 'content-length': String(length) } }, o);
+    const post = (length: number) =>
+      checkRequest(
+        { method: 'POST', url: '/v1/call/op', headers: { host: '127.0.0.1:4000', authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json', 'content-length': String(length) } },
+        o,
+      );
     expect(post(MAX)).toMatchObject({ ok: true });
     expect(post(MAX + 1)).toMatchObject({ ok: false, status: 413 });
   });
 });
 
 describe('refuseBrowsers (MCP over HTTP): after Host, before everything else', () => {
-  const o = { port: 4000, token: TOKEN, route: (p: string) => (p === '/mcp' ? ({ methods: ['GET', 'POST', 'DELETE'], token: true, api: true, maxBody: MAX } as RouteSpec) : undefined), refuseBrowsers: true };
+  const o = {
+    port: 4000,
+    token: TOKEN,
+    route: (p: string) => (p === '/mcp' ? ({ methods: ['GET', 'POST', 'DELETE'], token: true, api: true, maxBody: MAX } as RouteSpec) : undefined),
+    refuseBrowsers: true,
+  };
   const req = (headers: Record<string, string>, method = 'POST') =>
     checkRequest({ method, url: '/mcp', headers: { host: '127.0.0.1:4000', authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json', ...headers } }, o);
 
@@ -248,12 +262,27 @@ describe('refuseBrowsers (MCP over HTTP): after Host, before everything else', (
     expect(req({})).toMatchObject({ ok: true, path: '/mcp' });
     expect(req({}, 'DELETE')).toMatchObject({ ok: true });
     expect(req({ 'sec-fetch-mode': 'cors' })).toMatchObject({ ok: true });
-    for (const h of [{ origin: 'http://127.0.0.1:4000' }, { origin: 'null' }, { 'sec-fetch-site': 'none' }, { 'sec-fetch-site': 'same-origin' }, { 'sec-fetch-dest': 'empty' }, { 'sec-fetch-mode': 'navigate' }, { 'sec-fetch-mode': 'no-cors' }, { 'sec-fetch-user': '?1' }, { 'sec-fetch-mode': 'cors', 'sec-fetch-site': 'same-origin' }]) {
+    for (const h of [
+      { origin: 'http://127.0.0.1:4000' },
+      { origin: 'null' },
+      { 'sec-fetch-site': 'none' },
+      { 'sec-fetch-site': 'same-origin' },
+      { 'sec-fetch-dest': 'empty' },
+      { 'sec-fetch-mode': 'navigate' },
+      { 'sec-fetch-mode': 'no-cors' },
+      { 'sec-fetch-user': '?1' },
+      { 'sec-fetch-mode': 'cors', 'sec-fetch-site': 'same-origin' },
+    ] as Array<Record<string, string>>) {
       expect(req(h), JSON.stringify(h)).toMatchObject({ ok: false, status: 403, code: 'browser' });
     }
     // Host still answers first; without the option, the Studio's rules apply (its own Origin is fine).
     expect(checkRequest({ method: 'POST', url: '/mcp', headers: { host: 'rebind.test:4000', origin: 'http://127.0.0.1:4000' } }, o)).toMatchObject({ status: 421 });
-    expect(checkRequest({ method: 'POST', url: '/mcp', headers: { host: '127.0.0.1:4000', origin: 'http://127.0.0.1:4000', authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' } }, { ...o, refuseBrowsers: false })).toMatchObject({ ok: true });
+    expect(
+      checkRequest(
+        { method: 'POST', url: '/mcp', headers: { host: '127.0.0.1:4000', origin: 'http://127.0.0.1:4000', authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' } },
+        { ...o, refuseBrowsers: false },
+      ),
+    ).toMatchObject({ ok: true });
     expect(fromBrowser({ 'sec-fetch-mode': 'cors' })).toBe(false);
     expect(fromBrowser({ origin: 'x' })).toBe(true);
   });
@@ -287,13 +316,15 @@ describe('security headers and error statuses', () => {
 describe('the player origin (L4.5)', () => {
   const ASSET: RouteSpec = { methods: ['GET', 'HEAD'], token: false, api: false };
   const o = { port: 4000, token: TOKEN, route: () => ASSET };
-  const get = (headers: Record<string, string>, opts: Partial<Parameters<typeof checkRequest>[1]> = {}) => checkRequest({ method: 'GET', url: '/m/x', headers: { host: '127.0.0.1:4000', ...headers } }, { ...o, ...opts });
+  const get = (headers: Record<string, string>, opts: Partial<Parameters<typeof checkRequest>[1]> = {}) =>
+    checkRequest({ method: 'GET', url: '/m/x', headers: { host: '127.0.0.1:4000', ...headers } }, { ...o, ...opts });
 
   it('⚑ allowNullOrigin takes `Origin: null` (the sandboxed frame) and nothing else; without it, null is refused', () => {
     expect(get({ origin: 'null' }, { allowNullOrigin: true })).toMatchObject({ ok: true });
     expect(get({ origin: 'null', 'sec-fetch-site': 'cross-site' }, { allowNullOrigin: true })).toMatchObject({ ok: true });
     expect(get({}, { allowNullOrigin: true })).toMatchObject({ ok: true });
-    for (const origin of ['http://127.0.0.1:4001', 'http://evil.example', 'NULL', 'null ', 'file://']) expect(get({ origin }, { allowNullOrigin: true }), origin).toMatchObject({ ok: false, status: 403 });
+    for (const origin of ['http://127.0.0.1:4001', 'http://evil.example', 'NULL', 'null ', 'file://'])
+      expect(get({ origin }, { allowNullOrigin: true }), origin).toMatchObject({ ok: false, status: 403 });
     expect(get({ origin: 'null' })).toMatchObject({ ok: false, status: 403, code: 'cross_origin' });
     // Host first, POST refused (405) even with a null Origin.
     expect(get({ origin: 'null', host: 'rebind.test:4000' }, { allowNullOrigin: true })).toMatchObject({ status: 421 });
@@ -306,7 +337,8 @@ describe('the player origin (L4.5)', () => {
       "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-src http://127.0.0.1:4100; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     );
     expect(securityHeaders('static', { frameSrc: 'http://127.0.0.1:4100' })['Content-Security-Policy']).toBe(studioCsp('http://127.0.0.1:4100'));
-    for (const bad of ['http://localhost:4100', 'https://127.0.0.1:4100', 'http://127.0.0.1:4100/', "http://127.0.0.1:4100; script-src *", '*', 'http://example.test']) expect(() => studioCsp(bad), bad).toThrow(/frame-src/);
+    for (const bad of ['http://localhost:4100', 'https://127.0.0.1:4100', 'http://127.0.0.1:4100/', 'http://127.0.0.1:4100; script-src *', '*', 'http://example.test'])
+      expect(() => studioCsp(bad), bad).toThrow(/frame-src/);
   });
 });
 

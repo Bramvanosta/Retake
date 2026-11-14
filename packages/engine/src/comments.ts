@@ -4,7 +4,7 @@
  * enter git), and the views clients read.
  *
  * Writes: a thread is created whole (a link: never over an existing file); an entry is appended under the thread's lock
- * (`<project>/.retake/locks/comment-<id>.lock`, the sandbox package's TakeLock: created whole, stale only when its
+ * (`<project>/.retake/locks/comment-<id>.lock`, core/io's TakeLock: created whole, stale only when its
  * process is gone — never by age —, retried while busy), read → checked → appended → written atomically (temp + rename)
  * with the hash just read, so `ifMatch` (comment_resolve's if_match) is checked inside the lock. A file that does not
  * read as a thread is never overwritten.
@@ -23,7 +23,18 @@
  * its time grows with the frame's position, a failure is a warning); `CommentIndex` counts and places threads from the
  * thread files alone (no render records, no views), memoised per file signature.
  */
-export { COMMENT_FILE_MAX_BYTES, COMMENT_LIST_MAX_FILES, COMMENT_LOCK_WAIT_MS, COMMENT_STILL_MAX_BYTES, MCP_AUTHOR_NAME, checkCommentId, commentLockFile, commentRef, commentStillFile, defaultAuthorName } from './comments/store.js';
+export {
+  COMMENT_FILE_MAX_BYTES,
+  COMMENT_LIST_MAX_FILES,
+  COMMENT_LOCK_WAIT_MS,
+  COMMENT_STILL_MAX_BYTES,
+  MCP_AUTHOR_NAME,
+  checkCommentId,
+  commentLockFile,
+  commentRef,
+  commentStillFile,
+  defaultAuthorName,
+} from './comments/store.js';
 export { COMMENT_COUNT_MAX_FOLDERS, CommentIndex, getComment, listComments, recordShapeOk, timecodeOf } from './comments/views.js';
 export type { CommentCountsView, CommentEntryView, CommentListRequest, CommentListView, CommentProposalSummary, CommentSummary, CommentView } from './comments/views.js';
 export { addComment, anchorAt, prepareComment, reopenComment, replyComment, resolveComment } from './comments/threads.js';

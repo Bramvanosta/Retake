@@ -8,9 +8,10 @@ import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import type { LookupFunction } from 'node:net';
 import { connect, isIP } from 'node:net';
-import { isLoopbackHost } from '@retake/core';
-import type { SandboxService } from '@retake/core';
+import { isLoopbackHost } from '@retake/core/environment';
+import type { SandboxService } from '@retake/core/model';
 import { SandboxError, interrupted } from './errors.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Default seconds before a process service counts as not healthy. */
 export const PROCESS_HEALTH_TIMEOUT_S = 60;
@@ -133,10 +134,7 @@ export function pinnedAddress(url: string, addresses: ReadonlyMap<number, string
  * URL's). Answers its status and, when `read`, its body (redirects are not followed). Rejects like fetch does on a
  * network error (`code` ECONNREFUSED…), or with a TimeoutError.
  */
-export function pinnedRequest(
-  url: string,
-  opts: { address: string; method?: string; headers?: Record<string, string>; timeoutMs: number; read?: boolean },
-): Promise<{ status: number; body: string }> {
+export function pinnedRequest(url: string, opts: { address: string; method?: string; headers?: Record<string, string>; timeoutMs: number; read?: boolean }): Promise<{ status: number; body: string }> {
   const u = new URL(url);
   const family = isIP(opts.address) === 6 ? 6 : 4;
   const lookup: LookupFunction = (_host, o, cb) => {
@@ -171,7 +169,7 @@ export async function checkOnce(t: HealthTarget, ms = HEALTH_TRY_MS): Promise<st
     } else {
       const res = await fetch(t.url, { redirect: 'manual', signal: AbortSignal.timeout(ms) });
       status = res.status;
-      if (t.text !== undefined && statusOk(status)) body = await res.text().catch(() => '');
+      if (t.text !== undefined && statusOk(status)) body = await bestEffort(res.text(), 'a body that cannot be read does not contain the expected text', '');
       else await res.body?.cancel().catch(() => undefined);
     }
   } catch (e) {

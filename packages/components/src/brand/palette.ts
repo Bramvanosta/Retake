@@ -13,8 +13,8 @@
  * is reported. The accent itself is never changed: a failing accent gives a warning and a suggested value, the caller
  * decides (brand accents are often light).
  */
-import { normalizeHex } from '@retake/core';
-import type { BrandBackground } from '@retake/core';
+import { normalizeHex } from '@retake/core/theme';
+import type { BrandBackground } from '@retake/core/theme';
 import { backgroundSample, contrastRatio, liftToContrast, luminance, mixColors, withAlpha } from '../kit/style.js';
 
 export type PaletteTone = 'light' | 'dark';
@@ -110,7 +110,7 @@ export function derivePalette(input: PaletteInput): Palette {
   for (const k of ['text', 'paper', 'muted', 'dark'] as const) if (input[k] !== undefined) given.push(k);
   if (input.background !== undefined) given.push('background');
   const gPaper = hex(input.paper);
-  const tone: PaletteTone = gPaper ? paletteTone(gPaper) : input.tone ?? 'light';
+  const tone: PaletteTone = gPaper ? paletteTone(gPaper) : (input.tone ?? 'light');
   const light = tone === 'light';
   const extreme = light ? '#000000' : '#ffffff';
 
@@ -172,7 +172,12 @@ export function derivePalette(input: PaletteInput): Palette {
       // Reported, not warned: the reference look itself draws a deep accent hand on the ink (a 4.5 px stroke).
       continue;
     } else {
-      const what = { text_on_paper: `the text ${text} on the paper ${paper}`, text_on_background: `the text ${text} on the background (${bgSample})`, muted_on_paper: `the muted ${muted} on the paper ${paper}`, light_on_dark: `${lightTone} on the night tone ${dark}` }[c.check];
+      const what = {
+        text_on_paper: `the text ${text} on the paper ${paper}`,
+        text_on_background: `the text ${text} on the background (${bgSample})`,
+        muted_on_paper: `the muted ${muted} on the paper ${paper}`,
+        light_on_dark: `${lightTone} on the night tone ${dark}`,
+      }[c.check];
       warnings.push(`${what} reads at ${c.ratio}:1 (needs ${c.min}:1)${adjust ? ' even lifted as far as it goes' : ' (adjust is off)'}`);
     }
   }

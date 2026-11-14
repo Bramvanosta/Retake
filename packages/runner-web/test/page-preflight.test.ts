@@ -3,7 +3,7 @@
  * error counts, a refused connection or a timeout does not, and the refusal names each page and its URL.
  */
 import { createServer } from 'node:http';
-import type { Server } from 'node:http';
+import type { RequestListener, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { preflightRefusal, probePages } from '@retake/runner-web';
@@ -16,7 +16,7 @@ let slow = '';
 let dead = '';
 let hits = 0;
 
-async function serve(handler: Parameters<typeof createServer>[0]): Promise<string> {
+async function serve(handler: RequestListener): Promise<string> {
   const s = createServer(handler);
   await new Promise<void>((res) => s.listen(0, '127.0.0.1', () => res()));
   servers.push(s);
@@ -61,6 +61,8 @@ describe('page pre-flight (L5.8)', () => {
     expect(preflightRefusal('local', down)).toBe(
       `environment local: 2 pages do not answer — page console (${dead}): connection refused (nothing listens on that port); page shop (${gateway}): HTTP 503. Nothing was filmed: start the product (or check that its dev server still listens on that port: ports can move between two takes), then run again`,
     );
-    expect(preflightRefusal('sandbox', down.slice(0, 1), { sandbox: 'retake sandbox up fx --env sandbox' })).toMatch(/^environment sandbox: a page does not answer — .* Nothing was filmed: start the sandbox \(retake sandbox up fx --env sandbox\) and check its ports$/);
+    expect(preflightRefusal('sandbox', down.slice(0, 1), { sandbox: 'retake sandbox up fx --env sandbox' })).toMatch(
+      /^environment sandbox: a page does not answer — .* Nothing was filmed: start the sandbox \(retake sandbox up fx --env sandbox\) and check its ports$/,
+    );
   });
 });

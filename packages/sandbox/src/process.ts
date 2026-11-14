@@ -14,16 +14,19 @@ import type { ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { interpolateDeep, policyChildEnv, resolveEnvironment } from '@retake/core';
+import { interpolateDeep } from '@retake/core/base';
+import { resolveEnvironment } from '@retake/core/environment';
+import { policyChildEnv } from '@retake/core/policy';
 import { prefetchSecrets, nodeFileFacts } from '@retake/core/io';
-import type { SandboxService } from '@retake/core';
+import type { SandboxService } from '@retake/core/model';
 import { SandboxError, errorMessage, interrupted } from './errors.js';
 import { healthNow, serviceHealth, waitHealthy } from './health.js';
 import { serviceLog, shownPath } from './paths.js';
 import { busyPorts, describeListeners, listeners, portLabel, probePort, sandboxPorts } from './ports.js';
 import type { SandboxPort } from './ports.js';
 import { bootTime, groupMembers, groupTree, identify, killGroupSync, processStart, processTable, signalState, stopGroup } from './proc.js';
-import type { DownResult, OwnerUse, Provider, ProviderContext, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
+import { PROCESS_CAPABILITIES } from './provider.js';
+import type { DownResult, OwnerUse, Provider, ProviderCapabilities, ProviderContext, ProviderLogs, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
 import { isProcessService, writeState } from './state.js';
 import type { ProcessServiceState } from './state.js';
 
@@ -58,12 +61,16 @@ export function serviceHash(svc: SandboxService): string {
  * an MCP client) only core childEnv's allow-list of it (the shell's own variables and project.yaml `pass_env:`) —,
  * sandbox.yaml's `env` (templated) and RETAKE_SANDBOX.
  */
-export async function serviceEnv(ctx: Pick<ProviderContext, 'project' | 'sandbox' | 'policy'>, svc: SandboxService, base: NodeJS.ProcessEnv = process.env): Promise<NodeJS.ProcessEnv> {
+export async function serviceEnv(
+  ctx: Pick<ProviderContext, 'project' | 'sandbox' | 'policy' | 'resolveSecret'>,
+  svc: SandboxService,
+  base: NodeJS.ProcessEnv = process.env,
+): Promise<NodeJS.ProcessEnv> {
   const out: NodeJS.ProcessEnv = {};
   const inherited = policyChildEnv(ctx.policy, base, { pass: ctx.project.config.pass_env, files: nodeFileFacts }) ?? base;
   for (const [k, v] of Object.entries(inherited)) if (v !== undefined && !DROPPED_ENV.test(k) && !DROPPED_EXACT.has(k)) out[k] = v;
   if (svc.env) {
-    const { resolver } = await prefetchSecrets(svc.env);
+    const { resolver } = await prefetchSecrets(svc.env, ctx.resolveSecret);
     const pages = resolveEnvironment(ctx.project, ctx.sandbox.env).pages;
     Object.assign(out, interpolateDeep(svc.env, { pages, vars: ctx.project.config.vars ?? {}, secrets: resolver }));
   }
@@ -95,6 +102,7 @@ function exitText(e: NonNullable<Started['exit']>): string {
 
 export class ProcessProvider implements Provider {
   readonly kind = 'process' as const;
+  readonly capabilities: Readonly<ProviderCapabilities> = PROCESS_CAPABILITIES;
   /** Services this instance started (this call), by name. */
   private readonly started = new Map<string, Started>();
 
@@ -111,16 +119,19 @@ export class ProcessProvider implements Provider {
     const file = serviceLog(ctx.paths, service);
     const tail = tailLines(file, LOG_TAIL_LINES);
     const shown = shownPath(file);
-    return tail ? `${message} — last lines of ${shown}:\n${tail.split('\n').map((l) => `    ${l}`).join('\n')}` : `${message} (log: ${shown})`;
+    return tail
+      ? `${message} — last lines of ${shown}:\n${tail
+          .split('\n')
+          .map((l) => `    ${l}`)
+          .join('\n')}`
+      : `${message} (log: ${shown})`;
   }
 
   /** Refuse to start a service whose ports something already listens on, naming it. */
   private async checkFree(ctx: ProviderContext, service: string): Promise<void> {
     const busy = await busyPorts(this.ports(ctx, service));
     if (!busy.length) return;
-    const lines = busy.map(({ port, by }) =>
-      `${portLabel(port)} is in use by ${by ? `another program (${describeListeners(by)})` : 'another program (lsof cannot see it: another user\'s?)'}`,
-    );
+    const lines = busy.map(({ port, by }) => `${portLabel(port)} is in use by ${by ? `another program (${describeListeners(by)})` : "another program (lsof cannot see it: another user's?)"}`);
     throw new SandboxError(`sandbox ${ctx.sandbox.env}: ${lines.join('; ')} — stop it or change the port in ${shownPath(ctx.sandbox.file)}`, 'port');
   }
 
@@ -290,7 +301,8 @@ export class ProcessProvider implements Provider {
             await waitHealthy(health, { signal: ctx.signal, gone });
             await this.checkOwned(ctx, name, entry.pid, Math.max(0, health.timeoutMs - (Date.now() - t0)), gone);
           } catch (e) {
-            if (e instanceof SandboxError && e.code === 'unhealthy') throw new SandboxError(this.withLog(ctx, name, `sandbox ${ctx.sandbox.env}: ${e.message} (it was already running, pid ${entry.pid})`), 'unhealthy');
+            if (e instanceof SandboxError && e.code === 'unhealthy')
+              throw new SandboxError(this.withLog(ctx, name, `sandbox ${ctx.sandbox.env}: ${e.message} (it was already running, pid ${entry.pid})`), 'unhealthy');
             throw e;
           }
           entry.status = 'running';
@@ -432,4 +444,40 @@ export class ProcessProvider implements Provider {
       /* exiting anyway */
     }
   }
+  // Not capabilities of a process sandbox (PROCESS_CAPABILITIES): the Sandbox tests the capability before it calls,
+  // in its own words; these answer a direct caller.
+  /** No `exec` steps: a process sandbox has no containers (validation refuses them). */
+  async exec(ctx: ProviderContext): Promise<string> {
+    throw notCapable(ctx, 'exec steps');
+  }
+
+  /** Its logs are files (logFiles). */
+  async logs(ctx: ProviderContext): Promise<ProviderLogs[]> {
+    throw notCapable(ctx, 'reading logs other than its log files');
+  }
+
+  /** Its logs are files: tail -f them. */
+  async followLogs(ctx: ProviderContext): Promise<void> {
+    throw notCapable(ctx, 'following logs');
+  }
+
+  /** No snapshots: the database must be published by a container of the sandbox. */
+  async publishedBy(ctx: ProviderContext): Promise<string> {
+    throw notCapable(ctx, 'snapshot resets');
+  }
+
+  /** The URL's own host is used. */
+  async address(): Promise<string | undefined> {
+    return undefined;
+  }
+
+  /** The seed hash has no inputs of its own. */
+  async hashInputs(): Promise<string[]> {
+    return [];
+  }
+}
+
+/** A call of a method whose capability the process provider does not have (a direct caller's). */
+function notCapable(ctx: ProviderContext, what: string): SandboxError {
+  return new SandboxError(`sandbox ${ctx.sandbox.env}: ${what} — a capability of the docker-compose provider, not of a process sandbox`);
 }

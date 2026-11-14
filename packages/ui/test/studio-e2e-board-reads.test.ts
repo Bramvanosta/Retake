@@ -25,12 +25,14 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 const POLL = { timeout: 20_000 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const STEPS = 24;
 
 interface Fixture {
@@ -72,13 +74,24 @@ async function plantJob(project: string, n: number): Promise<string> {
   const id = `j_01JC${Array.from({ length: 22 }, (_, k) => ALPHA[(n * 7 + k) % 32]).join('')}`;
   const dir = join(ws, '.retake', 'jobs', id);
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input: { kind: 'run', project, scenario: 'quote', run_id: `20261001-10000${n}-quote` }, state: 'succeeded', created_at: new Date().toISOString(), finished_at: new Date().toISOString() }));
+  await writeFile(
+    join(dir, 'job.json'),
+    JSON.stringify({
+      version: 1,
+      id,
+      kind: 'run',
+      input: { kind: 'run', project, scenario: 'quote', run_id: `20261001-10000${n}-quote` },
+      state: 'succeeded',
+      created_at: new Date().toISOString(),
+      finished_at: new Date().toISOString(),
+    }),
+  );
   return id;
 }
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-reads-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: Record<string, unknown>): Promise<Fixture> };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
@@ -93,7 +106,10 @@ beforeAll(async () => {
       .replaceAll('http://localhost:4404', strip(fixture.urls.signedIn!.shop)),
   );
   // A take of many quick steps (each one rewrites run.json: a progress event).
-  await writeFile(join(ws, 'projects', P, 'scenarios', 'many-steps.yaml'), `version: 1\nvideo: many-steps\nscenes:\n  - id: look\n    page: console\n    open: /products\n    steps:\n${'      - wait_for: {text: Sales reports}\n'.repeat(STEPS)}`);
+  await writeFile(
+    join(ws, 'projects', P, 'scenarios', 'many-steps.yaml'),
+    `version: 1\nvideo: many-steps\nscenes:\n  - id: look\n    page: console\n    open: /products\n    steps:\n${'      - wait_for: {text: Sales reports}\n'.repeat(STEPS)}`,
+  );
   // A project with one project.yaml warning (no environment yet).
   await mkdir(join(ws, 'projects', 'warned', 'scenarios'), { recursive: true });
   await writeFile(join(ws, 'projects', 'warned', 'project.yaml'), 'version: 1\nname: Warned\nenvironments: {}\n');
@@ -109,8 +125,7 @@ afterAll(async () => {
   await browser?.close();
   await studio?.close();
   await fixture?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -129,7 +144,10 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
     let out = '';
     try {
       const code = await new Promise<number | null>((resolve, reject) => {
-        const child = spawn(process.execPath, [join(REPO, 'packages/cli/dist/bin.js'), '-C', ws, 'run', P, 'many-steps', '--dry'], { env: { ...process.env, RETAKE_HOME: join(ws, '.home') }, stdio: ['ignore', 'pipe', 'pipe'] });
+        const child = spawn(process.execPath, [join(REPO, 'packages/cli/dist/bin.js'), '-C', ws, 'run', P, 'many-steps', '--dry'], {
+          env: { ...process.env, RETAKE_HOME: join(ws, '.home') },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
         child.stdout.on('data', (d: Buffer) => (out += d.toString()));
         child.stderr.on('data', (d: Buffer) => (out += d.toString()));
         child.on('error', reject);
@@ -142,7 +160,10 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
       a.stop();
       b.stop();
     }
-    const id = (await readdir(join(ws, 'projects', P, 'runs'))).filter((n) => n.endsWith('-many-steps')).sort().at(-1)!;
+    const id = (await readdir(join(ws, 'projects', P, 'runs')))
+      .filter((n) => n.endsWith('-many-steps'))
+      .sort()
+      .at(-1)!;
     const rec = JSON.parse(await readFile(join(ws, 'projects', P, 'runs', id, 'run.json'), 'utf8')) as { steps_done: number; status: string };
     const tally = (c: ReturnType<typeof countOps>) => ({ project_board: c.count('project_board'), project_get: c.count('project_get'), auth_status: c.count('auth_status') });
     console.log(`a ${rec.steps_done}-step dry run from a terminal: Project screen ${JSON.stringify(tally(a))} (run_status ${a.count('run_status')}), Cast ${JSON.stringify(tally(b))}`);
@@ -215,7 +236,7 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
     await page.context().close();
   });
 
-  it('⚑ L5.11a (critique H2): 10 quick arrow keys read the status bar\'s scenario ≤ 2 times; on the Scenario screen a change of the file is one scenario_blocks and no scenario_actions', async () => {
+  it("⚑ L5.11a (critique H2): 10 quick arrow keys read the status bar's scenario ≤ 2 times; on the Scenario screen a change of the file is one scenario_blocks and no scenario_actions", async () => {
     const page = await tab(`/p/${P}`);
     const grid = page.getByRole('listbox');
     await page.locator('[role="option"]').first().waitFor(POLL);
@@ -271,7 +292,7 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
   });
 });
 
-describe('the Project screen\'s homes and widths (reviews B-M1, B-M2)', () => {
+describe("the Project screen's homes and widths (reviews B-M1, B-M2)", () => {
   it('the inspector hidden: the selected production, then the project, then a location show in the centre pane, under a heading', async () => {
     const page = await tab(`/p/${P}`);
     await page.locator('[role="option"]').first().click();
@@ -294,14 +315,18 @@ describe('the Project screen\'s homes and widths (reviews B-M1, B-M2)', () => {
     await page.context().close();
   });
 
-  it('at 900 px (the desktop app\'s narrowest window) the posters reflow: none narrower than 200 px, a state line on at most two lines', async () => {
+  it("at 900 px (the desktop app's narrowest window) the posters reflow: none narrower than 200 px, a state line on at most two lines", async () => {
     const page = await tab(`/p/${P}`, { width: 900, height: 700 });
     await page.locator('[role="option"]').first().waitFor(POLL);
     const sizes = await page.evaluate(() => {
       const cards = [...document.querySelectorAll<HTMLElement>('.k-poster')];
       const meta = [...document.querySelectorAll<HTMLElement>('.k-poster .k-card-meta')];
       const lead = parseFloat(getComputedStyle(meta[0]).lineHeight) || 20;
-      return { width: Math.min(...cards.map((c) => c.getBoundingClientRect().width)), lines: Math.max(...meta.map((m) => m.getBoundingClientRect().height / lead)), scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+      return {
+        width: Math.min(...cards.map((c) => c.getBoundingClientRect().width)),
+        lines: Math.max(...meta.map((m) => m.getBoundingClientRect().height / lead)),
+        scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
     });
     console.log(`posters at 900 px: narrowest ${sizes.width.toFixed(0)} px, state line ${sizes.lines.toFixed(2)} lines`);
     expect(sizes.width).toBeGreaterThanOrEqual(200);
@@ -330,7 +355,7 @@ describe('the Project screen\'s homes and widths (reviews B-M1, B-M2)', () => {
     await page.context().close();
   });
 
-  it('A-L6, B-L6, B-L1: the warnings\' disclosure says what it shows; the README preview a tab stop; the folder its full path in a tooltip; a persona\'s location on its own line', async () => {
+  it("A-L6, B-L6, B-L1: the warnings' disclosure says what it shows; the README preview a tab stop; the folder its full path in a tooltip; a persona's location on its own line", async () => {
     const page = await tab('/p/warned');
     await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor(POLL);
     expect(await page.locator('main summary').innerText()).toBe('Show the warning');
@@ -348,7 +373,12 @@ describe('the Project screen\'s homes and widths (reviews B-M1, B-M2)', () => {
     const details = await page.locator('.sh-browser [aria-label="Personas"] .k-source-detail').allInnerTexts();
     expect(details.length).toBe(await rows.count());
     expect(details.every((d) => d.length > 0)).toBe(true);
-    expect(await page.locator('.sh-browser [aria-label="Personas"] .k-source-label').first().evaluate((el) => (el.textContent ?? '').includes(' · '))).toBe(false);
+    expect(
+      await page
+        .locator('.sh-browser [aria-label="Personas"] .k-source-label')
+        .first()
+        .evaluate((el) => (el.textContent ?? '').includes(' · ')),
+    ).toBe(false);
     await page.context().close();
   });
 });

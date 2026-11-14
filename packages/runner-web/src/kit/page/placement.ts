@@ -1,6 +1,6 @@
 /** Popups and where the cursor goes: the open popups, blank points outside them, rest points next to a target. */
 import type { OutsidePlan, PopupEntry } from '../types.js';
-import type { BBox, PointSpec } from '@retake/core';
+import type { BBox, PointSpec } from '@retake/core/model';
 import { config } from './config.js';
 import { host } from './host.js';
 import { pointFor } from './points.js';
@@ -11,8 +11,7 @@ import { deepClosest, deepContains, deepHit, deepQsa, frameOffset, rectOf, style
 import { bboxOf, isVisible } from './visibility.js';
 
 // ───────────────────────────── popups ─────────────────────────────
-export const POPUP_SEL =
-  '[role=menu],[role=listbox],[role=dialog],[role=alertdialog],dialog[open],[data-radix-popper-content-wrapper],[popover]';
+export const POPUP_SEL = '[role=menu],[role=listbox],[role=dialog],[role=alertdialog],dialog[open],[data-radix-popper-content-wrapper],[popover]';
 export const popupIds = new WeakMap<Element, number>();
 let popupSeq = 0;
 export function popupState(): PopupEntry[] {
@@ -85,10 +84,7 @@ export function outsidePlan(near: PointSpec, avoidIds: number[]): OutsidePlan | 
   if (dlg) {
     const lb = dlg.getAttribute('aria-labelledby');
     const byId = lb ? treeOf(dlg).getElementById(lb.split(/\s+/)[0]) : null;
-    const title =
-      (byId && dlg.contains(byId) ? byId : null) ??
-      Array.from(dlg.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading]')).find((h) => isVisible(h)) ??
-      null;
+    const title = (byId && dlg.contains(byId) ? byId : null) ?? Array.from(dlg.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading]')).find((h) => isVisible(h)) ?? null;
     if (title && isVisible(title)) {
       const c = textRectCentre(title) ?? pointFor(ref(title))!;
       if (c && blankAt(c.x, c.y, avoid)) return plan('dialog-title', c.x, c.y, ref(title));
@@ -137,8 +133,27 @@ export function restPoint(where: 'side' | 'centre' = 'side', avoid?: BBox[]): Po
   const H = window.innerHeight;
   const cands: Array<[number, number]> =
     where === 'centre'
-      ? [[0.5, 0.5], [0.5, 0.42], [0.44, 0.5], [0.56, 0.5], [0.5, 0.58], [0.42, 0.42], [0.58, 0.42], [0.42, 0.58], [0.58, 0.58]]
-      : [[0.8, 0.5], [0.84, 0.44], [0.76, 0.58], [0.88, 0.52], [0.72, 0.46], [0.82, 0.66], [0.9, 0.36], [0.66, 0.62]];
+      ? [
+          [0.5, 0.5],
+          [0.5, 0.42],
+          [0.44, 0.5],
+          [0.56, 0.5],
+          [0.5, 0.58],
+          [0.42, 0.42],
+          [0.58, 0.42],
+          [0.42, 0.58],
+          [0.58, 0.58],
+        ]
+      : [
+          [0.8, 0.5],
+          [0.84, 0.44],
+          [0.76, 0.58],
+          [0.88, 0.52],
+          [0.72, 0.46],
+          [0.82, 0.66],
+          [0.9, 0.36],
+          [0.66, 0.62],
+        ];
   for (const [fx, fy] of cands) {
     const x = Math.round(W * fx);
     const y = Math.round(H * fy);
@@ -204,7 +219,16 @@ export function restNear(box: BBox, at: { point?: PointSpec; ref?: string; avoid
   if (usual) return usual;
   // No usual spot is free (a form in a dialog: fields all around): look closer to the click point, below-right
   // first — the gap between two rows of fields, a label — before settling on something interactive.
-  const DIRS: Array<[string, number]> = [['below-right', 0.25], ['below', 0.5], ['right', 0], ['below-left', 0.75], ['above-right', -0.25], ['above', -0.5], ['left', 1], ['above-left', -0.75]];
+  const DIRS: Array<[string, number]> = [
+    ['below-right', 0.25],
+    ['below', 0.5],
+    ['right', 0],
+    ['below-left', 0.75],
+    ['above-right', -0.25],
+    ['above', -0.5],
+    ['left', 1],
+    ['above-left', -0.75],
+  ];
   for (const r of [40, 56, 72, 96, 128, 160]) {
     for (const [side, turn] of DIRS) {
       const x = Math.round(px + r * Math.cos(turn * Math.PI));

@@ -12,16 +12,24 @@ if (!a || !b) {
 console.log(`${a.date} (${a.commit?.slice(0, 7)}) → ${b.date} (${b.commit?.slice(0, 7)})`);
 const walk = (x, y, at) => {
   if (Array.isArray(x) || Array.isArray(y)) {
-    const xs = new Set(x ?? []); const ys = new Set(y ?? []);
-    const added = [...ys].filter((v) => !xs.has(v)); const removed = [...xs].filter((v) => !ys.has(v));
-    if (added.length || removed.length) console.log(`${at}: ${added.map((v) => `+${v}`).concat(removed.map((v) => `-${v}`)).join(' ')}`);
+    const xs = new Set(x ?? []);
+    const ys = new Set(y ?? []);
+    const added = [...ys].filter((v) => !xs.has(v));
+    const removed = [...xs].filter((v) => !ys.has(v));
+    if (added.length || removed.length)
+      console.log(
+        `${at}: ${added
+          .map((v) => `+${v}`)
+          .concat(removed.map((v) => `-${v}`))
+          .join(' ')}`,
+      );
     return;
   }
   if (typeof x === 'number' || typeof y === 'number') {
     if (x !== y) console.log(`${at}: ${x ?? '–'} → ${y ?? '–'}${typeof x === 'number' && typeof y === 'number' ? ` (${y - x > 0 ? '+' : ''}${y - x})` : ''}`);
     return;
   }
-  if (x && typeof x === 'object' || y && typeof y === 'object') {
+  if ((x && typeof x === 'object') || (y && typeof y === 'object')) {
     for (const k of new Set([...Object.keys(x ?? {}), ...Object.keys(y ?? {})])) walk(x?.[k], y?.[k], at ? `${at}.${k}` : k);
   }
 };

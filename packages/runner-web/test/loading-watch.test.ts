@@ -44,7 +44,10 @@ describe('loading indicators in the filmed page (hotfix v0.2.6)', () => {
         <div class="skeleton-row" style="position:absolute;top:3000px;height:200px;width:800px"></div>
         <div class="loading-shimmer" style="visibility:hidden;height:200px;width:800px"></div>`);
       const t0 = Date.now();
-      const w = new LoadingWatch(() => page, () => (Date.now() - t0) / 1000);
+      const w = new LoadingWatch(
+        () => page,
+        () => (Date.now() - t0) / 1000,
+      );
       w.start();
       await page.waitForTimeout(900);
       await page.evaluate(() => (document.getElementById('m')!.innerHTML = '<h1>Catalogue</h1><p>42 films</p>'));

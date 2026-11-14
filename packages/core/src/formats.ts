@@ -20,7 +20,7 @@ export const RETAKE_VERSION = '0.2.6';
 export const RETAKE_REPOSITORY = 'https://github.com/Bramvanosta/Retake';
 
 /** The format version of each file this Retake reads and writes (a file without `version` is version 1). */
-export const FORMAT_VERSIONS = { scenario: 1, project: 1, template: 1, workspace: 1, run: 1 } as const;
+export const FORMAT_VERSIONS = { scenario: 1, project: 1, template: 1, workspace: 1, run: 1, render: 1 } as const;
 
 /** A file's format, for the newer-version check: how messages name it and the highest version this Retake reads. */
 export interface FormatVersion {

@@ -40,7 +40,7 @@ export function timelineApi(ctx: EngineContext): Engine['timeline'] {
 
 /** engine.reviews. */
 export function reviewsApi(ctx: EngineContext): Engine['reviews'] {
-  const { ws, queue, submitCtx, startWorker } = ctx;
+  const { ws, queue, submitCtx, startWorker, ports } = ctx;
   return {
     submit: async (req) => {
       const r = await submitReviewJob(submitCtx, req);
@@ -48,7 +48,7 @@ export function reviewsApi(ctx: EngineContext): Engine['reviews'] {
       return { ...r, ...(worker ? { worker } : {}) };
     },
     get: (slug, renderId, o = {}) => reviewGet(ws, queue, slug, renderId, o),
-    image: (slug, renderId, image) => reviewImage(ws, slug, renderId, image),
+    image: (slug, renderId, image) => reviewImage(ws, ports.reviewer.frames, slug, renderId, image),
   };
 }
 

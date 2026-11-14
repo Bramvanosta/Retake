@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import type { ResolvedPersona, RunRecord, Timeline, TimelineEvent } from '@retake/core';
 import { RunSecrets, autoLogin, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import { DOC_PAGE, DRY_PAGE, OPTIONS_PAGE, SHOP_PAGE, STRATEGY_PAGE, WIDGETS_PAGE } from './pages.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 
 let server: TestServer;
@@ -37,7 +38,8 @@ const steps = (events: TimelineEvent[]) => events.filter((e) => e.step >= 0);
 describe('composite widgets and the other actions', () => {
   it('select (native + searchable listbox), menu with confirm (re-open quirk), pick in a dialog, and more', async () => {
     const project = makeProject(dir, { app: server.url });
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       mode: 'dry',
       runId: 'widgets',
@@ -134,7 +136,8 @@ describe('composite widgets and the other actions', () => {
 
   it('switches pages per scene, interpolates templates, records interstitials and skipped scenes', async () => {
     const project = makeProject(dir, { app: server.url, shop: `${server.url}/s` });
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       mode: 'dry',
       runId: 'pages',
@@ -158,13 +161,7 @@ describe('composite widgets and the other actions', () => {
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     const tl = await readTimeline(rec.timeline!);
-    expect(tl.scenes.map((s) => `${s.id}:${s.kind}:${s.status}`)).toEqual([
-      'console:scene:ok',
-      'interstitial-1:interstitial:ok',
-      'shop:scene:ok',
-      'back:scene:ok',
-      'later:scene:skipped',
-    ]);
+    expect(tl.scenes.map((s) => `${s.id}:${s.kind}:${s.status}`)).toEqual(['console:scene:ok', 'interstitial-1:interstitial:ok', 'shop:scene:ok', 'back:scene:ok', 'later:scene:skipped']);
     const inter = tl.scenes[1];
     expect(inter.t_start).toBe(inter.t_end);
     expect(inter.interstitial).toMatchObject({ text: 'A few hours later' });
@@ -204,7 +201,8 @@ describe('options of the scenario language (L1.4)', () => {
 
   beforeAll(async () => {
     const project = makeProject(dir, { app: server.url, other: server.url });
-    rec = await runScenario({ policy: PERSON_POLICY,
+    rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       mode: 'dry',
       runId: 'options',
@@ -467,8 +465,16 @@ describe('options of the scenario language (L1.4)', () => {
     const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
     try {
       const pages = { app: server.url };
-      const persona = (login: ResolvedPersona['login']): ResolvedPersona =>
-        ({ name: 'probe', env: 'test', legacy: false, pages: ['app'], session: 'profile', loginPatterns: [], statusFile: '', login });
+      const persona = (login: ResolvedPersona['login']): ResolvedPersona => ({
+        name: 'probe',
+        env: 'test',
+        legacy: false,
+        pages: ['app'],
+        session: 'profile',
+        loginPatterns: [],
+        statusFile: '',
+        login,
+      });
       const secrets = new RunSecrets(async () => '');
       const deps = { envPages: pages, kitSource: session.source, secrets, template: { pages, vars: {}, run: { id: 'login' }, hooks: {}, secrets: secrets.resolver } };
       const open = { open: 'app:/options.html' };
@@ -496,7 +502,11 @@ describe('options of the scenario language (L1.4)', () => {
     expect(out.point!.y).toBeLessThanOrEqual(b.y + b.h);
     const menu = byId('menu-trigger');
     expect(roles(menu).slice(0, 3)).toEqual(['trigger', 'item', 'confirm']);
-    expect(roles(menu).slice(3).every((r) => r === 'outside')).toBe(true);
+    expect(
+      roles(menu)
+        .slice(3)
+        .every((r) => r === 'outside'),
+    ).toBe(true);
     expect(value('states')).toEqual(['Paused', 'Active']);
     // trigger wins over row discovery: a trigger that does not exist fails even though the row has one.
     expect(byId('trigger-wins').status).toBe('failed');

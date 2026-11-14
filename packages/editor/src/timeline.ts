@@ -9,7 +9,7 @@
  * Text the scenario or the filmed product wrote (caption text, marker names, step labels, page labels) is only under
  * `untrusted`, by index or key; everything else is numbers, ids (slugs) and component ids.
  */
-import type { Timeline } from '@retake/core';
+import type { Timeline } from '@retake/core/model';
 import type { EditPlan, PlanSegment, ResolvedComponent } from './plan-types.js';
 
 /** A component use as the timeline shows it (where it came from: the theme, the scenario, an override). */
@@ -232,7 +232,8 @@ export function timelineOf(plan: EditPlan, opts: TimelineOptions = {}): Timeline
       }
       // Every cut of the planner (idle, a held page load, a freeze, a busy wait, a hook step) is a trim with the reason
       // the planner cut it for (a plan made before it recorded one: what the run's timeline says of the time skipped).
-      for (const tr of s.trims) cuts.push({ at: s.from + tr.at, src_from_s: tr.src_from_s, src_to_s: tr.src_to_s, scene: s.scene, reason: tr.reason ?? reasonOf(tr.src_from_s, tr.src_to_s, opts.timeline) });
+      for (const tr of s.trims)
+        cuts.push({ at: s.from + tr.at, src_from_s: tr.src_from_s, src_to_s: tr.src_to_s, scene: s.scene, reason: tr.reason ?? reasonOf(tr.src_from_s, tr.src_to_s, opts.timeline) });
     }
     segments.push(seg);
   });
@@ -311,7 +312,11 @@ export interface PlacedPin {
  * when the view shows today's edit, at today's step (`step_now`); else it is listed beside the track ("made on another
  * take": no position invented).
  */
-export function placePins(model: Pick<TimelineModel, 'steps' | 'segments' | 'markers' | 'untrusted'> & { frames?: number }, threads: readonly PinThread[], view: { run_id: string; edit: 'scenario' | 'run' }): { placed: PlacedPin[]; elsewhere: string[] } {
+export function placePins(
+  model: Pick<TimelineModel, 'steps' | 'segments' | 'markers' | 'untrusted'> & { frames?: number },
+  threads: readonly PinThread[],
+  view: { run_id: string; edit: 'scenario' | 'run' },
+): { placed: PlacedPin[]; elsewhere: string[] } {
   const firstOf = (key: string) => {
     let f: number | undefined;
     for (const s of model.steps) if (s.key === key && (f === undefined || s.from < f)) f = s.from;

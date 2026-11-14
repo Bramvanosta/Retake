@@ -69,7 +69,11 @@ describe('tutorial switches (R-TUT-01…05)', () => {
   it('validate on scenarios, scenes and steps', () => {
     const p = project();
     const ok = parseScenario(
-      scenario(['tutorial: {shortcuts: true, spotlight: clicks, steps: true, loupe: true, progress: scenes}'], ['- type: {into: Email, text: a@b.c}', '  tutorial: {spotlight: false}', '- press: Tab', '  tutorial: {shortcuts: {params: {platform: mac}}}'], ['    tutorial: {loupe: false}']),
+      scenario(
+        ['tutorial: {shortcuts: true, spotlight: clicks, steps: true, loupe: true, progress: scenes}'],
+        ['- type: {into: Email, text: a@b.c}', '  tutorial: {spotlight: false}', '- press: Tab', '  tutorial: {shortcuts: {params: {platform: mac}}}'],
+        ['    tutorial: {loupe: false}'],
+      ),
       { files: fileFacts(PERSON_POLICY), project: p },
     );
     expect(errs(ok.issues)).toEqual([]);
@@ -80,7 +84,12 @@ describe('tutorial switches (R-TUT-01…05)', () => {
     expect(errs(parseScenario(scenario(['tutorial: {zoom: true}'], ['- wait: 1']), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n')).toMatch(/zoom/);
     expect(errs(parseScenario(scenario(['tutorial: {steps: {component: Bad}}'], ['- wait: 1']), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n')).toMatch(/namespace\/name/);
 
-    const w = warns(parseScenario(scenario([], ['- wait: 1', '  tutorial: {shortcuts: true, loupe: true, progress: true}', '- press: Enter', '  tutorial: {spotlight: true}']), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n');
+    const w = warns(
+      parseScenario(scenario([], ['- wait: 1', '  tutorial: {shortcuts: true, loupe: true, progress: true}', '- press: Enter', '  tutorial: {spotlight: true}']), {
+        files: fileFacts(PERSON_POLICY),
+        project: p,
+      }).issues,
+    ).join('\n');
     expect(w).toMatch(/steps\.0\.tutorial\.shortcuts: shortcuts shows the keys of `press` steps: nothing to show on this wait step/);
     expect(w).toMatch(/steps\.0\.tutorial\.loupe: loupe magnifies the field/);
     expect(w).toMatch(/steps\.0\.tutorial\.progress: `progress` is a video-wide switch/);
@@ -97,13 +106,20 @@ describe('capture_text and text artefacts (R-STO-01)', () => {
   it('parses, checks the pattern and the capture references', () => {
     const p = project();
     const card = (slots: string) => ['  - card: {component: studio/card-figure, slots: ' + slots + '}'];
-    const r = parseScenario(scenario([], ['- capture_text: {target: {testid: total}, as: total, pattern: "/€\\\\s?([\\\\d.,]+)/"}'], card('{capture: total, label: Total}')), { files: fileFacts(PERSON_POLICY), project: p });
+    const r = parseScenario(scenario([], ['- capture_text: {target: {testid: total}, as: total, pattern: "/€\\\\s?([\\\\d.,]+)/"}'], card('{capture: total, label: Total}')), {
+      files: fileFacts(PERSON_POLICY),
+      project: p,
+    });
     expect(errs(r.issues)).toEqual([]);
-    expect(errs(parseScenario(scenario([], ['- capture_text: {target: Total, as: t, pattern: "("}']), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n')).toMatch(/invalid regular expression/);
+    expect(errs(parseScenario(scenario([], ['- capture_text: {target: Total, as: t, pattern: "("}']), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n')).toMatch(
+      /invalid regular expression/,
+    );
     expect(errs(parseScenario(scenario([], ['- capture_text: {target: {nth: 1}, as: t}']), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n')).toMatch(/target needs at least one of/);
     const unknown = errs(parseScenario(scenario([], ['- capture_text: {target: Total, as: total}'], card('{capture: totl}')), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n');
     expect(unknown).toMatch(/unknown capture "totl": no capture_text step captures it as `as: totl` \(did you mean "total"\?\)/);
-    expect(errs(parseScenario(scenario([], ['- capture_text: {target: A, as: x}', '- capture_text: {target: B, as: x}']), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n')).toMatch(/text "x" is already captured/);
+    expect(errs(parseScenario(scenario([], ['- capture_text: {target: A, as: x}', '- capture_text: {target: B, as: x}']), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n')).toMatch(
+      /text "x" is already captured/,
+    );
   });
 
   it('the timeline schema accepts text artefacts', () => {
@@ -122,7 +138,19 @@ describe('capture_text and text artefacts (R-STO-01)', () => {
       pages: [],
       cursor: [],
       idle: [],
-      artefacts: [{ kind: 'text', name: 'total', t: 1, file: 'artefacts/texts/total.json', value: '720.00', text: 'Total €720.00', target: 'testid "total"', bbox: { x: 1, y: 2, w: 3, h: 4 }, pattern: '[\\d.]+' }],
+      artefacts: [
+        {
+          kind: 'text',
+          name: 'total',
+          t: 1,
+          file: 'artefacts/texts/total.json',
+          value: '720.00',
+          text: 'Total €720.00',
+          target: 'testid "total"',
+          bbox: { x: 1, y: 2, w: 3, h: 4 },
+          pattern: '[\\d.]+',
+        },
+      ],
       warnings: [],
     };
     expect(TimelineSchema.safeParse(tl).success).toBe(true);
@@ -149,7 +177,9 @@ describe('frame references, data and image files of card slots (R-STO-03/04/06)'
     const e = errs(parseScenario(scenario([], steps, card('{before: dne, after: end:nope}')), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n');
     expect(e).toMatch(/slots\.before: unknown mark "dne"/);
     expect(e).toMatch(/slots\.after: unknown scene "nope"/);
-    expect(errs(parseScenario(scenario([], steps, card('{before: assets/missing.png, after: "two words"}')), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n')).toMatch(/not found[\s\S]*is not a frame/);
+    expect(errs(parseScenario(scenario([], steps, card('{before: assets/missing.png, after: "two words"}')), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n')).toMatch(
+      /not found[\s\S]*is not a frame/,
+    );
     const chart = (slots: string) => ['  - card: {component: studio/card-chart, slots: ' + slots + '}'];
     expect(errs(parseScenario(scenario([], steps, chart('{data: data/orders.csv}')), { files: fileFacts(PERSON_POLICY), project: p }).issues)).toEqual([]);
     expect(errs(parseScenario(scenario([], steps, chart('{data: data/orders.xlsx}')), { files: fileFacts(PERSON_POLICY), project: p }).issues).join('\n')).toMatch(/must be a \.csv or \.tsv file/);

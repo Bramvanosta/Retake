@@ -10,37 +10,52 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, FilmingMarker, createEngine, selfIdentity } from '@retake/engine';
 import type { Engine, JobRecord } from '@retake/engine';
 import { TOOLS } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import type { ToolDef, ToolOutput } from '../src/index.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
 let other: string;
 let engine: Engine;
 let queue: FileJobQueue;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
-const tool = (name: string, args: Record<string, unknown>) => TOOLS.find((t) => t.name === name)!.run(args as never, { engine, signal: new AbortController().signal });
+/** One tool by its name, called with loose arguments: its answer's data as a plain record (each test reads the keys it expects). */
+const tool = (name: string, args: Record<string, unknown>) => {
+  const t: ToolDef = TOOLS.find((x) => x.name === name)!;
+  return t.run(args, { engine, signal: new AbortController().signal }) as Promise<ToolOutput<Record<string, unknown>>>;
+};
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-mcp-captures-'));
   other = await mkdtemp(join(tmpdir(), 'retake-mcp-captures-secret-ws-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await fixtureWorkspace(root);
   engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
   queue = new FileJobQueue(root);
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   for (const d of [root, other]) if (d) await rm(d, { recursive: true, force: true });
 });
 
 describe('captures first through MCP (L5.14b)', () => {
-  it('waiting, then slowed: words and an enum, never another workspace\'s names', async () => {
-    const job = await queue.enqueue({ version: 1, kind: 'render', project: 'northfield-fixture', scenario: 'quote', run_id: '20261104-120000-quote', render_id: 'quote-v1', timeline_sha256: 'a'.repeat(64), overrides: {}, submitted_by: 'mcp' } as never);
+  it("waiting, then slowed: words and an enum, never another workspace's names", async () => {
+    const job = await queue.enqueue({
+      version: 1,
+      kind: 'render',
+      project: 'northfield-fixture',
+      scenario: 'quote',
+      run_id: '20261104-120000-quote',
+      render_id: 'quote-v1',
+      timeline_sha256: 'a'.repeat(64),
+      overrides: {},
+      submitted_by: 'mcp',
+    } as never);
     const quiet = await tool('engine_info', {});
     expect(quiet.data.held).toBeNull();
-    const m = FilmingMarker.open({ root: other, source: 'job', owner: await selfIdentity() })!;
+    const m = FilmingMarker.open({ env: process.env, root: other, source: 'job', owner: await selfIdentity() })!;
     try {
       const st = await tool('job_status', { job_id: job.id });
       expect((st.data as { yield?: unknown }).yield).toEqual({ state: 'waiting', cause: 'elsewhere' });
@@ -56,7 +71,14 @@ describe('captures first through MCP (L5.14b)', () => {
       // Running at background priority (its worker's yield.json).
       const me = { ...(await selfIdentity()), host: hostname() };
       const rec = (await queue.stored(job.id))!;
-      await queue.write({ ...rec, state: 'running', started_at: new Date().toISOString(), worker: me, supervisor: me, progress: { phase: 'rendering', fraction: 0.25, steps_done: 0, steps_total: 0 } } as JobRecord);
+      await queue.write({
+        ...rec,
+        state: 'running',
+        started_at: new Date().toISOString(),
+        worker: me,
+        supervisor: me,
+        progress: { phase: 'rendering', fraction: 0.25, steps_done: 0, steps_total: 0 },
+      } as JobRecord);
       await writeFile(queue.files.yield(job.id), JSON.stringify({ v: 1, state: 'background', since: '2026-11-04T14:02:00.000Z', cause: 'elsewhere' }));
       const run = await tool('job_status', { job_id: job.id });
       expect((run.data as { yield?: unknown }).yield).toEqual({ state: 'background', cause: 'elsewhere', since: '2026-11-04T14:02:00.000Z' });
