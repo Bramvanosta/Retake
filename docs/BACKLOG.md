@@ -509,7 +509,11 @@ layouts centre themselves — or grow — when the block is empty.
 ## Distribution & packaging
 
 ### BL-36 — Signed installer, notarisation and auto-update
-*M · earlier V2 candidate · builds on: L5.2, BL-41*
+*M · earlier V2 candidate · builds on: L5.2, BL-41 · **done in L5.16***
+
+*Done in L5.16 (L5.16a – f):* the standalone app with everything inside (Node, the engine, the CLI, the MCP server,
+Chromium, ffmpeg), signed with a Developer ID and notarised, a DMG and an updater whose feed is a GitHub release;
+releases from GitHub Actions (`docs/RELEASING.md`), v0.2.0 the first. The text below is the study as it was.
 
 Developer ID signing and notarisation of the macOS app and every bundled executable (Node, Chromium and ffmpeg sidecars). An updater with its own signing key, update channels, and a documented offline install.
 
@@ -1871,7 +1875,11 @@ the job's phase (no live worker while it runs, or the same phase for 5 min). If 
 
 ### BL-124 — Studio redesign « Épure » and the Retake name
 *L–XL · design validated 2026-10-29 · lots L5.9 – L5.13, right after L5.2 · builds on: L4.9 · amends R-UI-02 ·
-overlaps BL-120, BL-122 and L5.2*
+overlaps BL-120, BL-122 and L5.2 · **done in L5.9 – L5.13***
+
+*Done in L5.9 – L5.13:* the reference note and the Studio's design system (L5.9), the Project and Scenario screens
+(L5.10), Shoot (L5.11), Edit, Review, Library, the theme editor and the palette (L5.12), the rename to Retake and the
+mark (L5.13a, L5.13b) — the split below. The text below is the design as it was validated.
 
 The founder validated a new Studio design through four rounds on a design canvas (private:
 `https://claude.ai/artifact/FhBXE6GvhbPsbpg592GfnR`; one page per round, decisions noted on it). Two reference
@@ -2297,8 +2305,8 @@ and `job_end` lines); what remains:
 
 ### BL-144 — A CI workflow for pull requests and main
 *S · noted in L5.16e · builds on: L5.16e · partly done (2026-11-10): `.github/workflows/ci.yml` exists (build, guards,
-the shell's rules; the test suite taken out until BL-163); left: the suite back in the CI, the release job waiting for
-main's green run, `actionlint`*
+the shell's rules; the test suite taken out until BL-163); since L7.43 the tests' deterministic tier runs there too
+(`pnpm test:ci`, BL-163); left: the release job waiting for main's green run, `actionlint`*
 
 - The repository has only the release workflow (`.github/workflows/release.yml`, on `v*` tags): nothing runs
   `pnpm build` and the test suite on a pull request or a push to main, so the release job checks that the tagged
@@ -2460,7 +2468,14 @@ a Mac shared with other accounts:
   sending it) would close this; within one account, that program could read the token file anyway.
 
 ### BL-163 — A faster, steadier test suite, back in the CI
-*M · noted when the suite left the CI (2026-11-10) · builds on: BL-144, the architecture series*
+*M · noted when the suite left the CI (2026-11-10) · builds on: BL-144, the architecture series · **done in part
+(L7.43, L7.53b, L7.53c)***
+
+*Done:* the deterministic tier of the tests, `pnpm test:ci` (the files `scripts/test-ci.json` lists under `ci`: no
+browser, ffmpeg, Docker or Postgres; about 4 minutes on the Mac), runs in `ci.yml`'s checks job on every pull request
+and push to main (L7.43); a weekly run of that tier in a shuffled order (`.github/workflows/shuffled.yml`, L7.53b),
+which passes in any order (L7.53c). *Left:* the browser / render tier and the full suite stay on the Mac, and the
+release does not wait for main's run (BL-144). The text below is the note as it was.
 
 The default suite (`pnpm test`, about 440 files) takes about 20 minutes on the Mac and about 50 on a shared macOS
 runner (three cores, no GPU), where some timing tests failed on every run — a different set each time (19, 7, then 12
@@ -2498,9 +2513,11 @@ a time stalled after 62 files and ran past two hours. So `ci.yml` runs the build
   stops early, or a memo for the default.
 - `latest` reads one run.json per newer run (about 0.1 ms each): a project with hundreds of failed or foreign runs
   above its last capture pays it on every `render`, twice (the "scenario changed" note resolves the run too).
-- `run_status` reads the record of a run folder that is a symbolic link, which the lists skip.
+- ~~`run_status` reads the record of a run folder that is a symbolic link, which the lists skip.~~ — done in L7.47:
+  `run_status` reads no run folder that is a link out of runs/ and follows a link only inside its run folder.
 - Through MCP a capture whose film has more than one name (a hard link) is picked as `latest` and then refused by the
-  plan: it could be passed over like a linked film, so that an older capture renders.
+  plan: it could be passed over like a linked film, so that an older capture renders. *In part, L7.47c:* `run_status`
+  refuses a file with another name as a link; `latest` passing over such a capture is not checked.
 - `retake plan` resolves `latest` with the editor's rule but plans on its own (it reads no film): a named run without
   its film still plans there and fails at `render`.
 - The raw export's manifest for a run whose run.json is no record: `run.status` / `run.env` are absent with no word
@@ -2730,6 +2747,10 @@ left (the file times and the app set-up). It touches the worker's scheduler and 
 `Date.now()`, so it is a lot of its own. *From:* L7.10.
 
 ### BL-172 — `retake auth status --check` through the engine
+*Done in L7.50:* the check is engine work (`recheckSessions` in the engine's auth.ts, the status written through the
+capture sessions port's `save`); `packages/cli/src/commands/auth.ts` imports no runner package. The text below is the
+note as it was.
+
 `retake auth status` reads every persona's state through the engine and its capture runner (L7.12); its `--check`
 still imports the runner package itself (`packages/cli/src/commands/auth.ts`: `checkSavedSession`, `profileLock`,
 `writeStatus`, `PreflightError`) — the CLI's one R4 entry of a session. Moving it means an engine operation for a
