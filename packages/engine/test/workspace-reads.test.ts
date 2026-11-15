@@ -115,6 +115,8 @@ describe('a MemoryWorkspace: one Map for the reads and the store', () => {
     await memoryCopy(mem, STARTER_TEMPLATES_DIR);
     const engine = await createEngine({ root, client: 'mcp', autoStartWorker: false, ports: { ...mem.ports(), clock: new ManualClock('2026-05-06T07:08:09.000Z') } });
     expect(engine.workspace.reads).toBe(mem.reads);
+    // Its generated folders are in memory too (MemoryWorkspace.ports() hands its MemoryOutputs).
+    expect(engine.workspace.outputs).toBe(mem.outputs);
     const p = await engine.projects.create({ name: 'Acme', environments: { local: { app: 'http://127.0.0.1:4999' } } });
     expect([p.slug, p.dir, p.scenarios]).toEqual(['acme', join(root, 'projects', 'acme'), []]);
     expect((await engine.projects.list()).map((x) => x.slug)).toEqual(['acme']);

@@ -1,9 +1,9 @@
 /** Claude's proposals on a thread: apply, the diff shown, the preview (see ../comments.ts). */
 import type { RenderOutputs } from '../outputs/outputs.js';
+import { RunFolder } from '../outputs/run-files.js';
 import { applyHunks, diffLines, hunkStats, invertHunks, joinLines, sameHunks, textLines, errorMessage } from '@retake/core/base';
 import { COMMENT_ENTRY_ID_RE } from '@retake/core/ids';
-import { projectPath } from '@retake/core/project';
-import { textEol } from '@retake/core/scenario';
+import { SCENARIO_COMPARE_MAX_BYTES, textEol } from '@retake/core/scenario';
 import { COMMENT_AUTHOR_MAX, deriveStatus, PROPOSAL_CHANGED_LINES_MAX, proposalStates } from '@retake/core/comments';
 import { scenarioSinceRun } from '@retake/core/io';
 import type { LoadedProject, ValidationIssue, WorkFileFacts } from '@retake/core/model';
@@ -296,7 +296,10 @@ export async function getProposal(
   if (verified && (st.state === 'pending' || st.state === 'undone')) {
     let since: ReturnType<typeof scenarioSinceRun>;
     try {
-      since = scenarioSinceRun(project, projectPath(project.dir, 'runs', checkRunId(r.thread.render.run_id)), r.thread.scenario, joinLines(result!, textEol(today!.yaml)));
+      // The take's snapshot read as the run's other files are (outputs/run-files.ts RunFolder: no link followed, capped).
+      const folder = await RunFolder.open(project.dir, checkRunId(r.thread.render.run_id));
+      const snap = folder ? await folder.read('scenario.yaml', SCENARIO_COMPARE_MAX_BYTES) : undefined;
+      since = scenarioSinceRun(project, { then: snap?.ok ? snap.bytes.toString('utf8') : undefined }, r.thread.scenario, joinLines(result!, textEol(today!.yaml)));
     } catch {
       since = undefined;
     }

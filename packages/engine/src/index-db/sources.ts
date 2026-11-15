@@ -22,6 +22,7 @@ import { SLUG_RE } from '@retake/core/model';
 import { projectPath } from '@retake/core/project';
 import { isFinishedRunStatus } from '@retake/core/run';
 import type { OpenedWorkspace } from '../workspace.js';
+import { runFolderOf, runsDirOf } from '../outputs/outputs.js';
 
 export type SourceKind = 'project' | 'readme' | 'runs' | 'renders' | 'scenario' | 'comments' | 'history';
 
@@ -44,6 +45,8 @@ async function sig(path: string): Promise<string> {
     return '-';
   }
 }
+
+const FOLLOW = { follow: true } as const;
 
 /** Project folders of the workspace (a folder of projects_dir holding a project.yaml), by slug. */
 async function projectSlugs(ws: OpenedWorkspace): Promise<string[]> {
@@ -102,12 +105,14 @@ export async function scanSources(ws: OpenedWorkspace, unfinished: ReadonlyMap<s
     if (yaml === '-') continue;
     out.set(`project:${slug}`, [yaml, await sig(join(dir, 'sandbox.yaml')), await sig(projectPath(dir, 'scenarios'))].join('|'));
     out.set(`readme:${slug}`, await sig(join(dir, 'README.md')));
-    const runs = [await sig(projectPath(dir, 'runs'))];
-    for (const id of unfinished.get(slug) ?? []) runs.push(`${id}=${await sig(projectPath(dir, 'runs', id, 'run.json'))}`);
+    // The generated folders through the Outputs port, signed as the other sources are (links followed: a stat).
+    const { runs: runOutputs, renders, reviews } = ws.outputs;
+    const runs = [await runOutputs.signature(runsDirOf(dir), FOLLOW)];
+    for (const id of unfinished.get(slug) ?? []) runs.push(`${id}=${await runOutputs.signature(join(runFolderOf(dir, id), 'run.json'), FOLLOW)}`);
     out.set(`runs:${slug}`, runs.join('|'));
     // L5.10a fixes (review A-L4): review/ too — a review run from a terminal swaps review/<id> in by a rename (no job,
     // no renders/ change): a board or a render list re-reads its verdict.
-    out.set(`renders:${slug}`, `${await sig(projectPath(dir, 'renders'))}|${await sig(projectPath(dir, 'review'))}`);
+    out.set(`renders:${slug}`, `${await renders.signature(renders.dirOf(dir), FOLLOW)}|${await reviews.signature(reviews.dirOf(dir), FOLLOW)}`);
     for (const [name, files] of await scenarioFiles(projectPath(dir, 'scenarios'))) {
       out.set(`scenario:${slug}/${name}`, (await Promise.all(files.map((f) => sig(projectPath(dir, 'scenarios', f))))).join('|'));
     }

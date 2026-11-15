@@ -438,7 +438,8 @@ const TABLE: Record<string, Row> = {
   // L7.7 P-1: prune — a linked folder is never the last capture: OLD stays (it listed OLD)
   k1: {
     list: 'OLD:succeeded',
-    status: 'succeeded',
+    // run_status reads no run folder that is a link out of runs/ (the refusal runs.ts gives).
+    status: "invalid: run NEW: runs/NEW is not a folder of the project's runs/ (a link out of it is not read)",
     choices: 'OLD:succeeded:video',
     render: 'OLD',
     board: 'OLD',
@@ -449,7 +450,8 @@ const TABLE: Record<string, Row> = {
   // L7.7 P-1: prune — a linked folder is never listed (it listed NEW)
   k1f: {
     list: 'OLD:succeeded',
-    status: 'failed',
+    // run_status reads no run folder that is a link out of runs/ (the refusal runs.ts gives).
+    status: "invalid: run NEW: runs/NEW is not a folder of the project's runs/ (a link out of it is not read)",
     choices: 'OLD:succeeded:video',
     render: 'OLD',
     board: 'OLD',
@@ -458,7 +460,8 @@ const TABLE: Record<string, Row> = {
   },
   k2: {
     list: 'OLD:succeeded',
-    status: 'not_found: run "NEW" not found in s-k2 (no runs/NEW/run.json): run_list names its runs',
+    // run_status reads no run folder that is a link out of runs/ (the refusal runs.ts gives).
+    status: "invalid: run NEW: runs/NEW is not a folder of the project's runs/ (a link out of it is not read)",
     choices: 'OLD:succeeded:video',
     render: 'OLD',
     board: 'OLD',

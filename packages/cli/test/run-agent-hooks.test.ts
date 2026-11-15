@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const fakes = vi.hoisted(() => ({ runs: [] as Array<Record<string, unknown>> }));
+const fakes = vi.hoisted(() => ({ runs: [] as Array<Record<string, unknown>>, fail: false }));
 
 vi.mock('@retake/runner-web', async (importOriginal) => {
   const real = await importOriginal<typeof import('@retake/runner-web')>();
@@ -23,6 +23,7 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
     ...real,
     runScenario: async (o: Record<string, unknown>) => {
       fakes.runs.push(o);
+      if (fakes.fail) throw new Error('the browser could not start');
       const id = `20260101-12000${fakes.runs.length % 10}-x`;
       return {
         version: 1,
@@ -121,6 +122,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   fakes.runs.length = 0;
+  fakes.fail = false;
 });
 
 describe('retake run: the shell hooks of a scenario an agent wrote', () => {
@@ -173,6 +175,19 @@ describe('retake run: the shell hooks of a scenario an agent wrote', () => {
     expect(r.questions).toEqual([]);
     expect(r.err).toContain('the shell hooks are accepted by --yes');
     expect(fakes.runs).toHaveLength(1);
+  });
+
+  it('a run that throws before it starts leaves no folder of the run id its listing reserved', async () => {
+    fakes.fail = true;
+    const before = await readdir(join(projectDir, 'runs')).catch(() => [] as string[]);
+    const r = await retake(['run', 'demo', 'agent', '--yes']);
+    expect(r.code).toBe(EXIT.failure);
+    expect(r.err).toContain('the browser could not start');
+    // The listing reserved the id the runner was handed; the run threw: that empty folder is gone again.
+    const id = fakes.runs[0]!.runId as string;
+    expect(id).toMatch(/^\d{8}-\d{6}-agent$/);
+    expect(before).not.toContain(id);
+    expect(await readdir(join(projectDir, 'runs')).catch(() => [] as string[])).toEqual(before);
   });
 
   it('a dry run without its hooks, or --hooks skip, lists them and asks nothing; --dry --hooks run asks', async () => {

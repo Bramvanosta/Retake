@@ -721,6 +721,27 @@ describe('the import-rules ratchet', () => {
       expect(at('packages/editor/src/render/runs.ts', "import { readRunFolder } from '@retake/core/io';")).toEqual([]);
     });
 
+    it("flags a path into a generated folder spelt by core's layout helpers in the engine outside the port's folder: by name, alias or namespace; not another folder, not types, not other packages", () => {
+      expect(lib.OUTPUT_PATH_FOLDERS).toEqual({ projectPath: ['runs', 'renders', 'review', 'exports'], statePath: ['inspect'], runPath: ['*'] });
+      const f = 'packages/engine/src/reviews-x.ts';
+      expect(at(f, "import { projectPath } from '@retake/core/project';\nconst d = projectPath(p, 'review', id);\nconst e = projectPath(p, 'exports');")).toEqual([
+        `${f} → projectPath(…, 'review')`,
+        `${f} → projectPath(…, 'exports')`,
+      ]);
+      expect(at(f, "import { projectPath as pp, statePath, runPath } from '@retake/core/project';\npp(p, 'runs', id);\nstatePath(p, 'inspect');\nrunPath(p, id, 'run.json');")).toEqual([
+        `${f} → projectPath(…, 'runs')`,
+        `${f} → statePath(…, 'inspect')`,
+        `${f} → runPath(…)`,
+      ]);
+      expect(at(f, "import * as layout from '@retake/core/project';\nlayout.projectPath(p, 'renders', 'x.json');")).toEqual([`${f} → projectPath(…, 'renders')`]);
+      expect(at(f, "import * as layout from '@retake/core/project';\nlayout['statePath'](p, 'inspect');\nlayout['toString']();")).toEqual([`${f} → statePath(…, 'inspect')`]);
+      // Another folder of the project, a state folder of its own, a ref (text, not a path) and a type: free.
+      expect(at(f, "import { projectPath, projectRef, statePath } from '@retake/core/project';\nprojectPath(p, 'scenarios', n);\nstatePath(p, 'journals');\nprojectRef('runs', id);")).toEqual([]);
+      expect(at(f, "import type { projectPath } from '@retake/core/project';\ntype P = typeof projectPath;")).toEqual([]);
+      expect(at('packages/engine/src/outputs/outputs.ts', "import { projectPath } from '@retake/core/project';\nprojectPath(p, 'runs');")).toEqual([]);
+      expect(at('packages/review/src/load.ts', "import { projectPath } from '@retake/core/project';\nprojectPath(p, 'renders');")).toEqual([]);
+    });
+
     it('flags the disk adapter of the port, and its in-memory one, named as a value outside their roots', () => {
       expect(lib.PORT_ROOTS.diskOutputs).toEqual(['packages/engine/src/outputs/disk-outputs.ts', 'packages/engine/src/ports.ts']);
       expect(ports('packages/engine/src/runs.ts', "import { diskOutputs } from './outputs/disk-outputs.js';\nconst r = diskOutputs.runs;")).toEqual([
@@ -732,6 +753,9 @@ describe('the import-rules ratchet', () => {
         'output-read packages/engine/src/engine.ts → MemoryOutputs outside a root',
       ]);
       expect(ports('packages/engine/src/index.ts', "export { MemoryOutputs } from './outputs/memory-outputs.js';")).toEqual([]);
+      // The in-memory workspace hands its own (MemoryWorkspace.ports()): a root of the memory's.
+      expect(lib.PORT_ROOTS.MemoryOutputs).toEqual(['packages/engine/src/outputs/memory-outputs.ts', 'packages/engine/src/workspace-reads/memory-reads.ts']);
+      expect(ports('packages/engine/src/workspace-reads/memory-reads.ts', "import { MemoryOutputs } from '../outputs/memory-outputs.js';\nconst m = new MemoryOutputs();")).toEqual([]);
     });
 
     it('holds today: the engine reads and reserves its run folders, and reads renders/, through the port only (no entry)', () => {
@@ -2243,8 +2267,8 @@ describe('the import-rules ratchet', () => {
         'packages/core/src/project.ts',
         'packages/core/src/schemas/primitives.ts',
         'packages/engine/src/jobs/job-input.ts',
+        'packages/engine/src/outputs/run-files.ts',
         'packages/engine/src/reviews.ts',
-        'packages/engine/src/run-files.ts',
       ]);
       const entries = today.filter((e: string) => e.startsWith('id-grammar '));
       expect(entries).toEqual(hits.map((h) => `id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`).sort());

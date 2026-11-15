@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS } from '@retake/core/model';
 import { editReplannedMessage, scenarioChangedMessage } from '@retake/core/scenario';
@@ -238,7 +237,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (scale !== undefined) overrides.scale = scale;
   if (opts.music === false) overrides.music = false;
   // A path from the shell (cwd) when it exists there, else relative to the project like the scenario's `music.file`.
-  else if (typeof opts.music === 'string') overrides.music = existsSync(resolve(opts.music)) ? resolve(opts.music) : opts.music;
+  else if (typeof opts.music === 'string') overrides.music = ws.reads.disk.facts.kind(resolve(opts.music)) !== undefined ? resolve(opts.music) : opts.music;
   if (opts.intro === false) overrides.intro = false;
   if (opts.outro === false) overrides.outro = false;
   if (opts.tutorial !== undefined) overrides.tutorial = opts.tutorial;

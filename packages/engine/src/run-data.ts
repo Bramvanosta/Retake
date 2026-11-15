@@ -17,7 +17,7 @@ import { SCENARIO_COMPARE_MAX_BYTES } from '@retake/core/scenario';
 import { parseRunRecord } from '@retake/core/run';
 import { parseTimeline } from '@retake/core/run';
 import { RUN_RECORD_MAX, TIMELINE_MAX } from '@retake/core/io';
-import { RUN_FRAME_NAME_RE, RunFolder, TRACK_FRAMES_RE, TRACK_VIDEO_RE, lsig } from './run-files.js';
+import { RUN_FRAME_NAME_RE, RunFolder, TRACK_FRAMES_RE, TRACK_VIDEO_RE, lsig } from './outputs/run-files.js';
 import { listedRecord } from './runs.js';
 import type { RunRecordOnDisk } from './runs.js';
 

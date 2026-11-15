@@ -15,11 +15,11 @@
  *
  * The editor is imported lazily: a capture-only worker, and an MCP process that never plans, do not load Remotion.
  */
-import { readFile, readdir, rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { formatRenderId, isRunId, isThemeName, renderIdOf } from '@retake/core/ids';
-import { projectPath, projectRef } from '@retake/core/project';
+import { projectRef } from '@retake/core/project';
 import { SCENARIO_EDIT_MAX_CHARS } from '@retake/core/scenario';
 import { untilStep } from '@retake/core/run';
 import { EditOverridesInputSchema, JOB_INPUT_VERSION } from './job-input.js';
@@ -50,6 +50,8 @@ import { planWork, renderWork } from '../pipeline.js';
 import type { Renderer } from '../render/renderer.js';
 import type { Reviewer } from '../review/reviewer.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import { runFolderOf } from '../outputs/outputs.js';
+import type { OutputFolder, RunOutputs } from '../outputs/outputs.js';
 import { portsOf } from '../ports.js';
 import type { EnginePorts } from '../ports.js';
 import { storedJson } from '../stored-json.js';
@@ -247,7 +249,7 @@ export async function submitRenderJob(
 > {
   const { project, planned, overrides, source } = await planRenderRequest(ctx.ws, ctx.cli, req);
   if (req.expect_edit_sha256 !== undefined) await checkShownEdit(project, req.scenario, planned, req.expect_edit_sha256);
-  const timelineSha = sha256Hex(await readFile(join(planned.run.dir, 'timeline.json')));
+  const timelineSha = sha256Hex(await timelineBytes(ctx.ws.outputs.runs, planned.run.dir));
   const scenario = planned.timeline.scenario;
   const renders = ctx.ws.outputs.renders;
   const { version, release } = await reserveVersion(renders, renders.dirOf(project.dir), scenario, `submitted by ${ctx.client} (pid ${process.pid})`);
@@ -335,17 +337,24 @@ export async function cleanupInterruptedRender(ws: OpenedWorkspace, files: JobFi
   try {
     await releaseRenderLock(ws, input);
     const project = await openProjectBySlug(ws, input.project);
-    await removePartials(projectPath(project.dir, 'renders'), `.${input.render_id}.partial-`);
+    await removePartials(ws.outputs.renders, ws.outputs.renders.dirOf(project.dir), `.${input.render_id}.partial-`);
     // A worker killed during the inline review (L4.5): the previous review set aside comes back.
-    if (input.review) await reviewer.recover(projectPath(project.dir, 'review', input.render_id));
+    if (input.review) await reviewer.recover(join(ws.outputs.reviews.dirOf(project.dir), input.render_id));
   } catch (e) {
     log(`job ${job.id}: render leftovers not removed (${errorMessage(e)})`);
   }
 }
 
-/** Remove the files of `dir` whose name starts with `prefix` (partial videos of a killed render). */
-export async function removePartials(dir: string, prefix: string): Promise<void> {
-  for (const f of await readdir(dir).catch(() => [] as string[])) if (f.startsWith(prefix)) await rm(join(dir, f), { force: true });
+/** Remove the files of `dir` (a folder of `folder`) whose name starts with `prefix` (partial videos of a killed render): files only. */
+export async function removePartials(folder: Pick<OutputFolder, 'names' | 'removeFile'>, dir: string, prefix: string): Promise<void> {
+  for (const f of await folder.names(dir)) if (f.startsWith(prefix)) await folder.removeFile(join(dir, f));
+}
+
+/** The bytes of a run's timeline.json, as the render's check hashes them (read as the run's files are: through the port). */
+async function timelineBytes(runs: Pick<RunOutputs, 'readBytes'>, runDir: string): Promise<Buffer> {
+  const bytes = await runs.readBytes(runDir, 'timeline.json');
+  if (bytes === undefined) throw Object.assign(new Error(`ENOENT: no such file or directory, open '${join(runDir, 'timeline.json')}'`), { code: 'ENOENT' });
+  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
 /**
@@ -455,7 +464,7 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
   const project = await openProjectBySlug(ctx.ws, input.project);
   const { version, variant } = renderVersionOf(input.render_id, input.scenario);
   try {
-    const sha = sha256Hex(await readFile(projectPath(project.dir, 'runs', input.run_id, 'timeline.json')));
+    const sha = sha256Hex(await timelineBytes(ctx.ws.outputs.runs, runFolderOf(project.dir, input.run_id)));
     if (sha !== input.timeline_sha256) {
       throw new EngineError('conflict', `the timeline of run ${input.run_id} changed since the render was submitted: submit it again`, { details: { submitted: input.timeline_sha256, current: sha } });
     }

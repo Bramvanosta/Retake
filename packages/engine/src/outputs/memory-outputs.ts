@@ -8,7 +8,8 @@
  * one name: `describe` never refuses a file for another name), no symbolic link (`inside` is a
  * folder's being there: no real path differs from its spelling), no file mode, no special file, case counts; a write
  * is atomic by being one Map entry. A signature is the path's write count, not a time. What reads a run folder outside
- * the port — a run's pictures, frames and videos (run-files.ts RunFolder, run-data.ts), the editor's and the review's
+ * the port — a run's pictures, frames, videos and scenario snapshot (run-files.ts RunFolder: the disk's, held to
+ * descriptors; run-data.ts), the editor's and the review's
  * own reads of a take, the real capture runner's writes, the video a renderer writes (the render's record and lock go
  * through the port), the review
  * package's review folder — still goes to the disk (a worker handed these outputs must be handed its own capture
@@ -140,6 +141,12 @@ export class MemoryOutputs implements Outputs {
         const data = this.#files.get(p);
         if (data === undefined) throw this.#isFolder(p) ? fsError('EISDIR', 'read', p) : fsError('ENOENT', 'open', p);
         return data.toString('utf8');
+      },
+      readBytes: async (path) => {
+        const p = normalize(path);
+        const data = this.#files.get(p);
+        if (data === undefined) throw this.#isFolder(p) ? fsError('EISDIR', 'read', p) : fsError('ENOENT', 'open', p);
+        return Uint8Array.from(data);
       },
       readdir: async (path) => {
         const p = normalize(path);

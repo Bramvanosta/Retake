@@ -30,14 +30,15 @@ function scenarioFileOf(project: Pick<LoadedProject, 'dir'>, scenario: string): 
  * not a regular file, over SCENARIO_COMPARE_MAX_BYTES or unreadable: a run of a file elsewhere, a scenario since
  * deleted, a run without a snapshot. `scenario` is a name, never a path. `nowText` (L4.5, critique B5): the text of the
  * file as a render job snapshotted it at submit, used instead of today's file (a switch made while the render waited
- * in the queue no longer changes what it renders).
+ * in the queue no longer changes what it renders). `run` is the run folder whose snapshot is read here, or the snapshot's
+ * text as its caller read it (`then`; undefined: none to tell).
  */
-export function scenarioSinceRun(project: Pick<LoadedProject, 'dir'>, runDir: string, scenario: string, nowText?: string): ScenarioSinceRun | undefined {
+export function scenarioSinceRun(project: Pick<LoadedProject, 'dir'>, run: string | { then: string | undefined }, scenario: string, nowText?: string): ScenarioSinceRun | undefined {
   if (scenario === '' || /[\\/]/.test(scenario)) return undefined;
   const file = scenarioFileOf(project, scenario) ?? (nowText !== undefined ? projectPath(project.dir, 'scenarios', `${scenario}.yaml`) : undefined);
   if (!file) return undefined;
   const now = nowText !== undefined ? (nowText.length <= SCENARIO_COMPARE_MAX_BYTES ? nowText : undefined) : readSmallPlainFile(file, SCENARIO_COMPARE_MAX_BYTES);
-  const then = now === undefined ? undefined : readSmallPlainFile(join(runDir, 'scenario.yaml'), SCENARIO_COMPARE_MAX_BYTES);
+  const then = now === undefined ? undefined : typeof run === 'string' ? readSmallPlainFile(join(run, 'scenario.yaml'), SCENARIO_COMPARE_MAX_BYTES) : run.then;
   if (now === undefined || then === undefined) return undefined;
   const a = parseYaml(now).value;
   const b = parseYaml(then).value;

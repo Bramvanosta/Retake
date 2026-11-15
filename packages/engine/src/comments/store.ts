@@ -91,17 +91,6 @@ export function cleanText(raw: unknown, what: string, argument: string, required
   return text;
 }
 
-/** A small regular file of the project read whole (null: missing, a link, too large or not a file). */
-export async function readPlainFile(path: string, max: number): Promise<Buffer | null> {
-  const st = await lstatOrNull(path);
-  if (!st || !st.isFile() || st.size > max) return null;
-  try {
-    return await readFile(path);
-  } catch {
-    return null;
-  }
-}
-
 /** The comments/ folder name that differs from `scenario` only by case (a case-insensitive disk would mix them), if any. */
 export async function caseVariantFolder(projectDir: string, scenario: string): Promise<string | undefined> {
   const root = join(projectDir, COMMENTS_DIR);

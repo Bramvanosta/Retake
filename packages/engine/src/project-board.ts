@@ -27,7 +27,7 @@
  * capped; strings from run.json only when they have the expected shape (an environment name, an ISO time).
  */
 import { lstatSync } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { SLUG_RE } from '@retake/core/model';
 import { isRunId, isThemeName, parseRenderId } from '@retake/core/ids';
@@ -43,12 +43,12 @@ import { jobProject } from './jobs/queue-core.js';
 import type { JobQueueView } from './jobs/job-queue.js';
 import type { JobFiles } from './jobs/queue.js';
 import { RunDataCache, errorScreenshotName, runPictures, stepScreenshotName } from './run-data.js';
-import { RunFolder, lsig } from './run-files.js';
+import { RunFolder, lsig } from './outputs/run-files.js';
 import type { ThumbSource } from './run-thumbs.js';
 import { readListedRecord, renderView, failureWords, scenarioRenderOf } from './renders.js';
 import type { ScenarioRenderView } from './renders.js';
 import { readRecord, runFolderIds, takeVerdict } from './runs.js';
-import { runsDirOf } from './outputs/outputs.js';
+import { runFolderOf, runsDirOf } from './outputs/outputs.js';
 import type { RunRecordOnDisk } from './runs.js';
 import { capturePicture, stepRef } from './scenario-view.js';
 import type { ViewRunStatus } from './scenario-view.js';
@@ -405,8 +405,9 @@ export class ProjectBoards {
 
   /** The last pictured step of a run's timeline and its scenes' length (memoised by the folder's and timeline's stat). */
   async poster(p: LoadedProject, runId: string): Promise<RunPoster> {
-    const dir = projectPath(p.dir, 'runs', runId);
-    const key = `${dir}\0${await lsig(dir)}\0${await lsig(join(dir, 'timeline.json'))}`;
+    const runs = this.ctx.ws.outputs.runs;
+    const dir = runFolderOf(p.dir, runId);
+    const key = `${dir}\0${await runs.signature(dir)}\0${await runs.signature(join(dir, 'timeline.json'))}`;
     const hit = this.posters.get(key);
     if (hit) return hit;
     this.stats.posters++;
@@ -571,7 +572,7 @@ export class ProjectBoards {
   }
 
   private async picturesOf(projectDir: string, id: string, mode: string): Promise<Awaited<ReturnType<typeof runPictures>>> {
-    const key = `${projectDir}\0${id}\0${await lsig(projectPath(projectDir, 'runs', id))}`;
+    const key = `${projectDir}\0${id}\0${await this.ctx.ws.outputs.runs.signature(runFolderOf(projectDir, id))}`;
     if (this.pictures.has(key)) return this.pictures.get(key)!;
     return remember(this.pictures, key, await runPictures(projectDir, id, mode), 2048);
   }
@@ -684,8 +685,8 @@ export class ProjectBoards {
 
   /** Whether today's file films the capture's take: unchanged, or only its edit changed (null: no snapshot to tell). */
   private async current(p: LoadedProject, runId: string, yaml: string, hash: string): Promise<boolean | null> {
-    const snap = projectPath(p.dir, 'runs', runId, 'scenario.yaml');
-    const key = `${snap}\0${await lsig(snap)}\0${hash}`;
+    const snap = join(runFolderOf(p.dir, runId), 'scenario.yaml');
+    const key = `${snap}\0${await this.ctx.ws.outputs.runs.signature(snap)}\0${hash}`;
     if (this.currents.has(key)) return this.currents.get(key)!;
     this.stats.current++;
     const folder = await RunFolder.open(p.dir, runId);
@@ -736,7 +737,9 @@ export class ProjectBoards {
   /** The project's render records per scenario, newest first (one readdir; records held while their stat holds). */
   private async renderRecordsOf(p: LoadedProject, names: ReadonlySet<string>): Promise<Map<string, StoredRenderRecord[]>> {
     const out = new Map<string, StoredRenderRecord[]>();
-    const files = await readdir(projectPath(p.dir, 'renders')).catch(() => [] as string[]);
+    const renders = this.ctx.ws.outputs.renders;
+    const rendersDir = renders.dirOf(p.dir);
+    const files = await renders.names(rendersDir);
     // renders/<render id>.json of one of the scenarios (named by the file first: no other file is read); the record is
     // filed under the scenario its name gives when it is a render of it (core's rule: a complete record of its own
     // file that says that scenario).
@@ -745,7 +748,7 @@ export class ProjectBoards {
       const scenario = f.endsWith('.json') ? parseRenderId(f.slice(0, -5))?.scenario : undefined;
       if (scenario !== undefined && names.has(scenario)) wanted.push({ f, scenario });
     }
-    const sigs = await Promise.all(wanted.map((w) => lsig(projectPath(p.dir, 'renders', w.f))));
+    const sigs = await Promise.all(wanted.map((w) => renders.signature(join(rendersDir, w.f))));
     // The files whose stat changed are read one after another: a record's text (megabytes with its plan) is parsed and
     // let go before the next one is read — two hundred of them held at once cost a cold board a tenth of its time.
     for (const [i, { f, scenario }] of wanted.entries()) {

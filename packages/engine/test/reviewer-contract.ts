@@ -45,7 +45,8 @@ export function reviewerContract(name: string, setup: () => Promise<ReviewerCase
 
     it('loads no project by itself: a project slug or folder is refused before any render is looked for, nothing written', async () => {
       const c = await setup();
-      for (const project of [c.project.slug, c.project.dir, undefined]) {
+      // An object without its folder too (one guard for both adapters: review isHandedProject).
+      for (const project of [c.project.slug, c.project.dir, undefined, null, { slug: c.project.slug }]) {
         await expect(c.reviewer.review({ policy: PERSON_POLICY, project: project as never, render: c.render, thumbnails: false }), String(project)).rejects.toThrow(
           'no loaded project was handed (the caller loads the project; a slug or a folder is not read here)',
         );

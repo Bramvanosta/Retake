@@ -15,8 +15,12 @@
  * (engine/test/outputs-contract.ts).
  *
  * Paths are absolute, as core's readers take them and as run.json records them: a runs folder (`runsDirOf`), a run
- * folder in it, a file of the run folder named by one segment.
+ * folder in it (`runFolderOf`), a file of the run folder named by one segment. Where each folder is lies here only
+ * (`OUTPUT_DIRS`, a member's `dirOf`): the engine spells no path into a generated folder elsewhere (the `output-read`
+ * check). A run's own files on the disk — its pictures, frames, videos and scenario snapshot, read through checked
+ * descriptors — are this folder's run-files.ts (`RunFolder`).
  */
+import { join } from 'node:path';
 import { projectPath, statePath } from '@retake/core/project';
 import type { RunId } from '@retake/core/ids';
 import type { Read, RunFolderFacts, RunRead } from '@retake/core/run';
@@ -58,6 +62,8 @@ export interface RunOutputs {
   record(dir: string, o?: { follow?: boolean }): Promise<RunRead>;
   /** The UTF-8 text of the file `file` of the run folder `dir`; undefined when it is not there. */
   readText(dir: string, file: string): Promise<string | undefined>;
+  /** The bytes of the file `file` of the run folder `dir`, read as `readText` reads it; undefined when it is not there. */
+  readBytes(dir: string, file: string): Promise<Uint8Array | undefined>;
   /**
    * What is at `file` of the run folder `dir`: undefined when nothing is there; a regular file's size (and, `hash`, its
    * sha256); `{}` for anything else. A link is followed only to a real path inside the run folder's real path; any
@@ -66,9 +72,10 @@ export interface RunOutputs {
   describe(dir: string, file: string, o?: { hash?: boolean }): Promise<RunFileFacts | undefined>;
   /**
    * What tells a held read of `path` (a run folder, a file of one) that it is stale: a text that changes when it does,
-   * `-` when nothing is there. Nothing is followed (a link is said as a link).
+   * `-` when nothing is there. Nothing is followed (a link is said as a link) but with `follow` (a watch of what a link
+   * leads to: its target's text).
    */
-  signature(path: string): Promise<string>;
+  signature(path: string, o?: { follow?: boolean }): Promise<string>;
   /**
    * Whether runs/<id> of the project is a folder (not a link) whose real path lies inside the project's real runs
    * folder, which lies in the project: the run folders the engine's views offer as takes.
@@ -123,12 +130,26 @@ export interface OutputFolder {
   size(path: string): Promise<number>;
   /** Remove a file or a folder and everything under it (nothing there: done). */
   remove(path: string): Promise<void>;
+  /** Remove one file (a link is removed, never what it leads to); a folder there is a failure; nothing there is done. */
+  removeFile(path: string): Promise<void>;
+  /**
+   * Make the folder `path` and its parents (one there already: done), inside the project `projectDir` once links are
+   * followed: the nearest folder already there is checked before anything is made, the folder made after it — a link
+   * out of the project is refused (EngineError `refused`) and nothing is made where it leads.
+   */
+  makeFolder(path: string, projectDir: string): Promise<void>;
   /** Write the file `path` atomically (its folder made); a text is written as UTF-8. */
   write(path: string, data: string | Uint8Array): Promise<void>;
   /** Write a JSON file (core io writeJson's form: two-space indent, a final newline). */
   writeJson(path: string, value: unknown): Promise<void>;
-  /** What tells a held read of `path` that it is stale (`-` when nothing is there; no link followed). */
-  signature(path: string): Promise<string>;
+  /** What tells a held read of `path` that it is stale (`-` when nothing is there; no link followed but with `follow`). */
+  signature(path: string, o?: { follow?: boolean }): Promise<string>;
+  /**
+   * Whether this folder of the project `projectDir` — or `path`, a folder in it — lies inside the project once links
+   * are followed (both real paths; false when either cannot be resolved): a folder linked out of the project is not
+   * read, written or cleaned as the project's.
+   */
+  within(projectDir: string, path?: string): Promise<boolean>;
 }
 
 /** renders/ of the projects: a generated folder, and its records through core's one reader of renders/. */
@@ -165,6 +186,11 @@ export interface Outputs {
 /** The runs folder of a project (runs/). */
 export function runsDirOf(projectDir: string): string {
   return projectPath(projectDir, 'runs');
+}
+
+/** The run folder `id` of a project (runs/<id>): a path only, the id as the caller checked or listed it. */
+export function runFolderOf(projectDir: string, id: string): string {
+  return join(runsDirOf(projectDir), id);
 }
 
 /** Where each generated folder of a project is (the members' `dirOf`). */

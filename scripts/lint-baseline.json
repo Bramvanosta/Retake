@@ -123,7 +123,6 @@
    "packages/core/test/test-typecheck.test.ts": 1,
    "packages/editor/src/camera.ts": 3,
    "packages/editor/src/planner/entries.ts": 1,
-   "packages/engine/src/comments/store.ts": 1,
    "packages/engine/src/comments/views.ts": 1,
    "packages/engine/src/jobs/export-job.ts": 1,
    "packages/engine/src/jobs/job-child.ts": 1,

@@ -39,7 +39,7 @@ import type { RunBlocker } from './jobs/run-job.js';
 import { errorScreenshotName, fileSlug, stepScreenshotName } from './run-data.js';
 import type { RunData, RunDataCache } from './run-data.js';
 import { runPictures } from './run-data.js';
-import { lsig } from './run-files.js';
+import { lsig } from './outputs/run-files.js';
 import { runsDirOf } from './outputs/outputs.js';
 import type { ThumbSource } from './run-thumbs.js';
 import { isReadRun, latestCapture, listRuns, takeVerdict } from './runs.js';

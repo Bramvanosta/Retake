@@ -57,6 +57,7 @@ export const nodeOutputFs: OutputFs = {
   lstat,
   stat,
   readFile: (path) => readFile(path, 'utf8'),
+  readBytes: (path) => readFile(path),
   readdir: (path) => readdir(path, { withFileTypes: true }),
   mkdir: (path, opts) => mkdir(path, opts),
   writeAtomic,

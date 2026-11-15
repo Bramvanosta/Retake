@@ -219,6 +219,18 @@ export interface ReviewOptions {
   signal?: AbortSignal;
 }
 
+/** Why a review refuses its `project`: the caller loads the project, the reviewer reads no slug and no folder. */
+export const NOT_HANDED_PROJECT = 'no loaded project was handed (the caller loads the project; a slug or a folder is not read here)';
+
+/**
+ * Whether a review's `project` is a loaded project its caller handed (an object with its folder): the one guard of
+ * every reviewer (the package's load.ts handedProject, the engine's in-memory reviewer), which refuse anything else
+ * with NOT_HANDED_PROJECT.
+ */
+export function isHandedProject(project: unknown): project is LoadedProject {
+  return typeof project === 'object' && project !== null && typeof (project as LoadedProject).dir === 'string';
+}
+
 /** A review stopped by its signal (nothing replaced the previous review). */
 export class ReviewCancelledError extends Error {
   constructor(message = 'review cancelled') {

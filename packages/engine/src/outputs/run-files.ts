@@ -118,7 +118,7 @@ export function readPlainRange(file: string, offset: number, max: number, o: { v
 
 /**
  * runs/<id> of a project, for RunFolder.open: from a parsed run id only (never a client's text). The engine's other
- * readers of a run folder build the path from a string they checked or listed themselves (projectPath).
+ * readers of a run folder build the path from a string they checked or listed themselves (outputs.ts runFolderOf).
  */
 function runFolderPath(projectDir: string, id: RunId): string {
   return projectPath(projectDir, 'runs', id);

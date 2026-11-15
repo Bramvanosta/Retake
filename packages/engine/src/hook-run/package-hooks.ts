@@ -4,10 +4,11 @@
  * calls the package's function with the same arguments: what runs, what is journaled and signed, and every approval's
  * fingerprint are the package's, unchanged. Made by the composition roots only (ports.ts enginePorts).
  */
-import { projectPath } from '@retake/core/project';
+import { join } from 'node:path';
 import type { HookStep } from '@retake/core/model';
 import { EngineError } from '../errors.js';
 import { hooks } from '../lazy.js';
+import { runFolderOf } from '../outputs/outputs.js';
 import type { HookJournal, HookRunner, PendingHookJournal } from './runner.js';
 
 type Hooks = Awaited<ReturnType<typeof hooks>>;
@@ -35,7 +36,7 @@ export function packageHookRunner(): HookRunner {
       standaloneFile: async (projectDir, id) => (await hooks()).standaloneJournalFile(projectDir, id),
       find: async (projectDir, id) => {
         const h = await hooks();
-        return { file: h.findJournal(projectDir, id), looked: [projectPath(projectDir, 'runs', id, h.JOURNAL_FILE), h.standaloneJournalFile(projectDir, id)] };
+        return { file: h.findJournal(projectDir, id), looked: [join(runFolderOf(projectDir, id), h.JOURNAL_FILE), h.standaloneJournalFile(projectDir, id)] };
       },
       openPending: async (projectDir): Promise<PendingHookJournal[]> => (await hooks()).openPendingJournals(projectDir),
       rollback: async (list, ctx) => {

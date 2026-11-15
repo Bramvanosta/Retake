@@ -14,6 +14,7 @@ import type { StoredRunRecord, UnknownStatusRun } from '@retake/core/run';
 import type { NamedRenderFound } from '@retake/core/io';
 import { withPlan } from '@retake/editor/plan';
 import type { NamedRender, StoredRender } from '@retake/editor/plan';
+import { NOT_HANDED_PROJECT, isHandedProject } from './types.js';
 
 /** A review that cannot start (message written for the user). */
 export class ReviewError extends Error {
@@ -34,10 +35,8 @@ export class ReviewError extends Error {
 
 /** The loaded project a review was handed: the review loads no project by itself (a slug or a folder is refused). */
 export function handedProject(project: unknown): LoadedProject {
-  if (typeof project !== 'object' || project === null || typeof (project as LoadedProject).dir !== 'string') {
-    throw new ReviewError('no loaded project was handed (the caller loads the project; a slug or a folder is not read here)');
-  }
-  return project as LoadedProject;
+  if (!isHandedProject(project)) throw new ReviewError(NOT_HANDED_PROJECT);
+  return project;
 }
 
 /** `<project>/renders`: where the project's renders and their records are. */

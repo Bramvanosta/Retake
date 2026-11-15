@@ -29,7 +29,8 @@ import { createHash } from 'node:crypto';
 import { join, sep } from 'node:path';
 import { canonicalJson, errorMessage, listTemplateTokens } from '@retake/core/base';
 import { AGENT_SQL_REASON, journalsRollback } from '@retake/core/hooks';
-import { projectPath, runPath, statePath } from '@retake/core/project';
+import { statePath } from '@retake/core/project';
+import { runFolderOf, runsDirOf } from '../outputs/outputs.js';
 import type { HookKind, HookStep } from '@retake/core/model';
 import type { HookContext, HookPhase, HookResult, JournalEntry, RollbackAction, TrustFilesPlace, TrustedHookFiles } from '@retake/core/hooks';
 import { describeHook, describeRollback, hookKindOf } from '@retake/hooks/describe';
@@ -365,7 +366,7 @@ export class MemoryHookRunner implements HookRunner {
     },
     find: async (projectDir: string, id: string): Promise<{ file: string | null; looked: [run: string, standalone: string] }> => {
       this.calls.push({ op: 'journals.find', arg: id });
-      const looked: [string, string] = [runPath(projectDir, id, RUN_JOURNAL_FILE), join(statePath(projectDir, 'journals'), `${id}.json`)];
+      const looked: [string, string] = [join(runFolderOf(projectDir, id), RUN_JOURNAL_FILE), join(statePath(projectDir, 'journals'), `${id}.json`)];
       // A journal exists once it holds an entry (the package's is written on its first entry).
       return { file: looked.find((f) => (this.journalFiles.get(f)?.entries.length ?? 0) > 0) ?? null, looked };
     },
@@ -399,7 +400,7 @@ export class MemoryHookRunner implements HookRunner {
 
   /** The journals of a project with pending rollbacks, most recent first (journal ids are timestamps). */
   #pending(projectDir: string): PendingHookJournal[] {
-    const inside = [projectPath(projectDir, 'runs'), statePath(projectDir, 'journals')].map((d) => `${d}${sep}`);
+    const inside = [runsDirOf(projectDir), statePath(projectDir, 'journals')].map((d) => `${d}${sep}`);
     return [...this.journalFiles.values()]
       .filter((j) => inside.some((d) => j.file.startsWith(d)) && j.pending().length > 0)
       .sort((a, b) => journalIdOf(b.file).localeCompare(journalIdOf(a.file)))

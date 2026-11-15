@@ -9,7 +9,8 @@ import { link, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { MemoryOutputs, createEngine, diskOutputs, runWorker, runsDirOf } from '../src/index.js';
+import { MemoryOutputs, createEngine, diskOutputs, pruneInspections, runWorker, runsDirOf } from '../src/index.js';
+import type { LoadedProject } from '@retake/core/model';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
@@ -47,6 +48,80 @@ outputsContract('memory', async () => {
 });
 
 describe('what only the disk has: a link', () => {
+  it('a folder made is checked again once made: a .retake/inspect swapped for a link out between the look and the mkdir is refused', async () => {
+    const project = join(temp, 'swapped-inspect');
+    const elsewhere = join(temp, 'swapped-elsewhere');
+    await mkdir(join(project, '.retake', 'inspect'), { recursive: true });
+    await mkdir(elsewhere, { recursive: true });
+    const root = join(project, '.retake', 'inspect');
+    const swapping: OutputFs = {
+      ...nodeOutputFs,
+      mkdir: async (path, opts) => {
+        await rm(root, { recursive: true });
+        await symlink(elsewhere, root);
+        return nodeOutputFs.mkdir(path, opts);
+      },
+    };
+    const inspections = outputsOn(swapping).inspections;
+    expect(
+      await inspections.makeFolder(join(root, 'i_x'), project).then(
+        () => 'made',
+        (e: { code?: string }) => e.code,
+      ),
+    ).toBe('refused');
+  });
+
+  it('an inspection never writes or prunes through a .retake/inspect linked out of the project: refused, nothing made or removed there', async () => {
+    const project = join(temp, 'linked-inspect');
+    const elsewhere = join(temp, 'inspect-elsewhere');
+    const ids = Array.from({ length: 25 }, (_, i) => `i_${String(i).padStart(26, '0')}`);
+    for (const id of ids) await mkdir(join(elsewhere, id), { recursive: true });
+    await mkdir(join(project, '.retake'), { recursive: true });
+    const root = diskOutputs.inspections.dirOf(project);
+    await symlink(elsewhere, root);
+    const fresh = `i_${'Z'.repeat(26)}`;
+    expect(
+      await diskOutputs.inspections.makeFolder(join(root, fresh), project).then(
+        () => 'made',
+        (e: { code?: string }) => e.code,
+      ),
+    ).toBe('refused');
+    expect(existsSync(join(elsewhere, fresh))).toBe(false);
+    expect(await pruneInspections(diskOutputs.inspections, { dir: project, slug: 'linked-inspect' } as LoadedProject, 20)).toEqual([]);
+    for (const id of ids) expect(existsSync(join(elsewhere, id)), id).toBe(true);
+    // An inspection's own folder linked out, under a real .retake/inspect: refused too.
+    const own = join(temp, 'linked-inspect-own');
+    const ownRoot = diskOutputs.inspections.dirOf(own);
+    await mkdir(ownRoot, { recursive: true });
+    await symlink(elsewhere, join(ownRoot, fresh));
+    expect(
+      await diskOutputs.inspections.makeFolder(join(ownRoot, fresh, 'shots'), own).then(
+        () => 'made',
+        (e: { code?: string }) => e.code,
+      ),
+    ).toBe('refused');
+    expect(existsSync(join(elsewhere, 'shots'))).toBe(false);
+  });
+
+  it("a generated folder linked out of the project is not within it; one file removed is the link, never what it leads to; a followed signature is the target's", async () => {
+    const project = join(temp, 'linked-renders');
+    const elsewhere = join(temp, 'renders-elsewhere');
+    await mkdir(elsewhere, { recursive: true });
+    await mkdir(project, { recursive: true });
+    await symlink(elsewhere, diskOutputs.renders.dirOf(project));
+    expect(await diskOutputs.renders.within(project)).toBe(false);
+    await mkdir(diskOutputs.reviews.dirOf(project));
+    expect(await diskOutputs.reviews.within(project)).toBe(true);
+    const target = join(elsewhere, 'kept.mp4');
+    await writeFile(target, 'kept');
+    const review = diskOutputs.reviews.dirOf(project);
+    await symlink(target, join(review, '.a.partial-1.mp4'));
+    expect(await diskOutputs.reviews.signature(join(review, '.a.partial-1.mp4'), { follow: true })).toBe(await diskOutputs.reviews.signature(target));
+    expect(await diskOutputs.reviews.signature(join(review, '.a.partial-1.mp4'))).not.toBe(await diskOutputs.reviews.signature(target));
+    await diskOutputs.reviews.removeFile(join(review, '.a.partial-1.mp4'));
+    expect([await diskOutputs.reviews.kind(join(review, '.a.partial-1.mp4')), await diskOutputs.reviews.readText(target)]).toEqual([undefined, 'kept']);
+  });
+
   it('a runs/ linked out of the project holds no run folder that lies in it, and a listing does not follow a linked run folder', async () => {
     const project = join(temp, 'linked');
     const elsewhere = join(temp, 'elsewhere');

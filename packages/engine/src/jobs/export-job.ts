@@ -9,7 +9,7 @@
  * must lie in the project folder. No output location: the folder is fixed. A cancel stops between formats and kills
  * ffmpeg or the re-render; a killed worker's leftovers (the re-render's browser, partial files) are removed by the next.
  */
-import { projectPath } from '@retake/core/project';
+import { join } from 'node:path';
 import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES } from '@retake/core/render';
 import { JOB_INPUT_VERSION } from './job-input.js';
 import type { ExportFormatName } from '@retake/core/render';
@@ -129,7 +129,8 @@ export async function submitExportJob(
 
 /**
  * After an export job was interrupted (its worker killed): the re-render's browser it recorded is killed, and the partial
- * files of exports/<render_id>/ are removed. Best effort.
+ * files of exports/<render_id>/ are removed, with a manifest left half written (`manifest.json.<hex>.tmp`, its atomic
+ * write's temporary file). Files only, through the Outputs port. Best effort.
  */
 export async function cleanupInterruptedExport(ws: OpenedWorkspace, files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
   if (job.input.kind !== 'export') return;
@@ -137,13 +138,20 @@ export async function cleanupInterruptedExport(ws: OpenedWorkspace, files: JobFi
   await killRecordedBrowser(files, job, log);
   try {
     const project = await openProjectBySlug(ws, input.project);
-    const dir = projectPath(project.dir, 'exports', input.render_id);
+    const exports = ws.outputs.exports;
+    const dir = join(exports.dirOf(project.dir), input.render_id);
+    // An exports/<id> (or exports/) that leads out of the project is not the project's: nothing in it is removed.
+    if (!(await exports.within(project.dir, dir))) return;
     // ".<id>-vertical.partial-<pid>.mp4" (a format) and ".<id>-vertical.partial-…" (a re-render's own temporary files).
-    await removePartials(dir, `.${input.render_id}`);
+    await removePartials(exports, dir, `.${input.render_id}`);
+    for (const f of await exports.names(dir)) if (MANIFEST_TEMP_RE.test(f)) await exports.removeFile(join(dir, f));
   } catch (e) {
     log(`job ${job.id}: export leftovers not removed (${errorMessage(e)})`);
   }
 }
+
+/** The temporary file of a manifest's atomic write (disk-outputs.ts writeAtomic: `<file>.<8 hex>.tmp`). */
+const MANIFEST_TEMP_RE = /^manifest\.json\.[0-9a-f]{8}\.tmp$/;
 
 /** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface ExportJobContext extends EnginePorts {

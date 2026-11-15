@@ -14,7 +14,9 @@ release — for the person about to click Install and Restart.
 ### Changed
 - A run's status (MCP's `run_status`, the Studio) follows a symbolic link in a run folder only to a file inside that
   run folder: a run file that is a link leading out of it, or nowhere, is listed as a refused link (`link: "refused"`)
-  with no size and no sha256.
+  with no size and no sha256. A run folder that is itself a link out of `runs/` is not read at all: `run_status`
+  answers `run <id>: runs/<id> is not a folder of the project's runs/ (a link out of it is not read)`, as every other
+  reader of runs already passed such a folder over.
 - A run's status (MCP's `run_status`, the Studio) also shows a run file that has another name (a hard link)
   the same way: a refused link (`link: "refused"`), with no size and no sha256, as a render's video with another name
   is never shown.
@@ -339,6 +341,9 @@ release — for the person about to click Install and Restart.
   block or with `{{…}}` tokens as written ("an older run format").
 
 ### Fixed
+- An inspection and an export's clean-up never write or remove anything through a symbolic link that leads out of the
+  project: an inspection whose `.retake/inspect` (or its own folder) leads out is refused before anything is made,
+  pruned or queued, and the clean-up of an interrupted export leaves an `exports/<id>` that leads out as it is.
 - `retake doctor` says when the workspace's projects or themes cannot be listed (a `projects` folder that is a file, a
   folder it may not read): a FAIL line with the reason, instead of "no projects" or "no themes". A jobs worker whose
   state cannot be read is a WARN of the MCP line ("worker state unknown"), no longer "worker idle".

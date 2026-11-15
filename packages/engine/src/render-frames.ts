@@ -22,13 +22,13 @@
  * that does not start at 0 or has a variable frame rate is refused (frame times would not be frame numbers).
  */
 import type { RenderOutputs } from './outputs/outputs.js';
-import { oneName } from './outputs/outputs.js';
+import { OUTPUT_DIRS, oneName } from './outputs/outputs.js';
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } from 'node:fs';
 import { lstat, realpath } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { join } from 'node:path';
 import { isRenderId } from '@retake/core/ids';
-import { projectPath, PROJECT_DIRS, projectRef } from '@retake/core/project';
+import { PROJECT_DIRS, projectRef } from '@retake/core/project';
 import { openVideoArgs, openVideoFromJson, readFfprobeJson, sameRender } from '@retake/core/render';
 import { ffprobeBin, startMediaTool } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core/model';
@@ -239,7 +239,7 @@ export class RenderFrames {
         details: { current: record.created_at },
       });
     }
-    const dir = projectPath(project.dir, 'renders');
+    const dir = OUTPUT_DIRS.renders(project.dir);
     const d = await lstat(dir).catch(() => null);
     if (!d || d.isSymbolicLink() || !d.isDirectory()) throw new EngineError('refused', `${PROJECT_DIRS.renders}/ is not a real folder of the project: its videos are not shown`);
     const file = join(dir, `${renderId}.mp4`);

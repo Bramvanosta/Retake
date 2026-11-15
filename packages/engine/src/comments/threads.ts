@@ -1,11 +1,12 @@
 /** Creating a thread and appending entries to it: reply, resolve, reopen (see ../comments.ts). */
 import type { RenderOutputs } from '../outputs/outputs.js';
+import { RunFolder } from '../outputs/run-files.js';
 import { randomBytes } from 'node:crypto';
 import { rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';
 import { renderIdOf } from '@retake/core/ids';
-import { projectPath, projectRef } from '@retake/core/project';
+import { projectRef } from '@retake/core/project';
 import {
   COMMENT_ENTRIES_MAX,
   COMMENT_THREAD_VERSION,
@@ -36,20 +37,7 @@ import type { RenderForWork } from '../renders.js';
 import { storeOf } from '../store/store.js';
 import type { StoreScope } from '../store/store.js';
 import { stampOf } from '../clock.js';
-import {
-  RUN_FILE_MAX_BYTES,
-  appendedThread,
-  argError,
-  caseVariantFolder,
-  checkIfMatch,
-  cleanText,
-  commentRef,
-  commentStillFile,
-  locateThread,
-  lockThread,
-  readPlainFile,
-  readThread,
-} from './store.js';
+import { RUN_FILE_MAX_BYTES, appendedThread, argError, caseVariantFolder, checkIfMatch, cleanText, commentRef, commentStillFile, locateThread, lockThread, readThread } from './store.js';
 import { frameAnchor } from '@retake/review/checks';
 import type { FrameTools } from '../review/reviewer.js';
 import type { ThreadFile } from './store.js';
@@ -127,15 +115,23 @@ export function pickFrame(req: CommentPrepareRequest, record: RenderForWork): nu
   return frame;
 }
 
-/** The run's scenario snapshot and (for a plan whose markers carry no step: before L3.6) its timeline, by run id. */
+/**
+ * The run's scenario snapshot and (for a plan whose markers carry no step: before L3.6) its timeline, by run id: read
+ * as the run's other files are (outputs/run-files.ts RunFolder: runs/<id> a real folder of the project, no link
+ * followed, each file within its cap).
+ */
 export async function runInputs(projectDir: string, record: RenderForWork, warnings: string[]): Promise<{ scenarioText?: string; timeline?: Pick<Timeline, 'markers' | 'events'> }> {
-  const runDir = projectPath(projectDir, 'runs', checkRunId(record.run_id));
+  const folder = await RunFolder.open(projectDir, checkRunId(record.run_id));
+  const read = async (file: string): Promise<Buffer | null> => {
+    const r = folder ? await folder.read(file, RUN_FILE_MAX_BYTES) : undefined;
+    return r?.ok ? r.bytes : null;
+  };
   const out: { scenarioText?: string; timeline?: Pick<Timeline, 'markers' | 'events'> } = {};
-  const yaml = await readPlainFile(join(runDir, 'scenario.yaml'), RUN_FILE_MAX_BYTES);
+  const yaml = await read('scenario.yaml');
   if (yaml) out.scenarioText = yaml.toString('utf8');
   else warnings.push(`${projectRef('runs', record.run_id, 'scenario.yaml')} is missing: the anchor has no step fingerprint`);
   if (record.plan.markers.some((m) => m.step === undefined)) {
-    const tl = await readPlainFile(join(runDir, 'timeline.json'), RUN_FILE_MAX_BYTES);
+    const tl = await read('timeline.json');
     try {
       // The bytes within this file's own cap; what they are is the one parse boundary's to say (core parseTimeline).
       const t = tl ? parseTimeline(JSON.parse(tl.toString('utf8'))) : undefined;

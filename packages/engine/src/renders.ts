@@ -11,9 +11,10 @@ import { join, resolve } from 'node:path';
 import { canonicalJson } from '@retake/core/base';
 import { SLUG_RE } from '@retake/core/model';
 import { formatRenderId, isRenderId, isRunId, isThemeName, renderIdOf } from '@retake/core/ids';
-import { projectPath, projectRef } from '@retake/core/project';
+import { projectRef } from '@retake/core/project';
 import { latestProjectRender, orderRenders, projectRenderOf, renderLackWords, renderNot, renderNotWords } from '@retake/core/render';
 import { readPlainFile } from '@retake/core/io';
+import { OUTPUT_DIRS } from './outputs/outputs.js';
 import type { RenderOutputs } from './outputs/outputs.js';
 import type { LoadedProject } from '@retake/core/model';
 import type { ProjectRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord, UnknownStatusRender } from '@retake/core/render';
@@ -526,7 +527,7 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
     view.untrusted.record = rest;
     if (rest.policy?.fallback) view.untrusted.fallback_reason = rest.policy.fallback.reason;
     if (rest.policy?.ffmpeg?.failed !== undefined) view.untrusted.ffmpeg_failed = rest.policy.ffmpeg.failed;
-    const renders = projectPath(project.dir, 'renders');
+    const renders = OUTPUT_DIRS.renders(project.dir);
     // The video: renders/<id>.mp4 as Retake spells it, when the record names that file — never the record's own string
     // (a text that resolves to it may hold anything before its `..`); the record: the file read.
     const video = join(renders, `${renderId}.mp4`);
@@ -723,7 +724,7 @@ function reportOf(file: string): { counts: Record<string, unknown>; at: string }
 
 /** The review verdict of review/<id>/report.json (written after the render: `since`), or undefined. */
 function reportSummary(projectDir: string, id: string, since: string): { summary: RenderReviewSummary; at: string } | undefined {
-  const r = reportOf(projectPath(projectDir, 'review', id, 'report.json'));
+  const r = reportOf(join(OUTPUT_DIRS.reviews(projectDir), id, 'report.json'));
   if (!r) return undefined;
   const at = r.at;
   // A review of an earlier render of the id (its record pruned, the id reused) is not this render's.

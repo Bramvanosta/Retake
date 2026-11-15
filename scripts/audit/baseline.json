@@ -19,9 +19,8 @@
   },
   {
    "rule": "R6",
-   "reason": "CLI commands read and write files or start processes themselves (render, ui) until they go through the engine.",
+   "reason": "CLI commands read and write files or start processes themselves (ui) until they go through the engine.",
    "entries": [
-    "packages/cli/src/commands/render.ts → node:fs",
     "packages/cli/src/commands/ui.ts → node:child_process",
     "packages/cli/src/commands/ui.ts → node:fs/promises"
    ]
@@ -182,8 +181,8 @@
     "packages/core/src/project.ts → 1 hand-written id pattern",
     "packages/core/src/schemas/primitives.ts → 1 hand-written id pattern",
     "packages/engine/src/jobs/job-input.ts → 1 hand-written id pattern",
-    "packages/engine/src/reviews.ts → 1 hand-written id pattern",
-    "packages/engine/src/run-files.ts → 1 hand-written id pattern"
+    "packages/engine/src/outputs/run-files.ts → 1 hand-written id pattern",
+    "packages/engine/src/reviews.ts → 1 hand-written id pattern"
    ]
   },
   {

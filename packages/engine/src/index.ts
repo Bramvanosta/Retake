@@ -98,8 +98,8 @@ export type { RecordAnnotated, RecordCheckView, RecordDiscarded, RecordListItem,
 export type { ScriptDraftView } from './authoring.js';
 export { listRuns, runStatus } from './runs.js';
 export type { RunStatusView, RunSummary } from './runs.js';
-export { RUN_FRAME_NAME_RE, RunFolder, TRACK_FRAMES_RE, TRACK_VIDEO_RE, readPlainRange } from './run-files.js';
-export type { RangeRead, RunFileProblem, RunFileRead } from './run-files.js';
+export { RUN_FRAME_NAME_RE, RunFolder, TRACK_FRAMES_RE, TRACK_VIDEO_RE, readPlainRange } from './outputs/run-files.js';
+export type { RangeRead, RunFileProblem, RunFileRead } from './outputs/run-files.js';
 export { RunData, RunDataCache, errorScreenshotName, frameAt, gridFrame, parseFrameIndex, runPictures, seekTime, stepScreenshotName } from './run-data.js';
 export type { FrameIndex, PageSource } from './run-data.js';
 export { RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, RUN_THUMBS_RESPONSE_MAX, RunThumbs, SCREENSHOT_MAX, Semaphore, THUMB_BASE64_MAX, THUMB_CACHE_BYTES } from './run-thumbs.js';

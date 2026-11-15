@@ -235,6 +235,8 @@ export const SECRETS_HOME = 'packages/engine/src/secrets/system-secrets.ts';
 export const OUTPUTS_HOME = 'packages/engine/src/outputs/';
 /** Core io's readers of a run folder and its reservation of one (io run-folder.ts, files.ts reserveRunId): the run outputs' code. */
 export const RUN_FOLDER_READERS = ['readRunFolder', 'readNamedRunFolder', 'readNamedRun', 'readRunRecord', 'readTimeline', 'readTimelineHead', 'reserveRunId'];
+/** Core's layout helpers (`@retake/core/project`) and the generated folders they would spell outside the port (output-read): `runPath` names runs/ whatever its arguments. */
+export const OUTPUT_PATH_FOLDERS = { projectPath: ['runs', 'renders', 'review', 'exports'], statePath: ['inspect'], runPath: ['*'] };
 /** Core io's readers of renders/ as a listing and a by-id call read it (io render-folder.ts): the render outputs' code. */
 export const RENDER_FOLDER_READERS = ['readRendersFolder', 'readListedRender', 'readRenderById'];
 /** Core io's secret resolvers (io secrets.ts): on this process's environment unless handed another. */
@@ -296,7 +298,7 @@ export const PORT_ROOTS = {
   editorRenderer: ['packages/engine/src/render/editor-renderer.ts', 'packages/engine/src/ports.ts'],
   systemSecrets: ['packages/engine/src/secrets/system-secrets.ts', 'packages/engine/src/ports.ts'],
   diskOutputs: ['packages/engine/src/outputs/disk-outputs.ts', 'packages/engine/src/ports.ts'],
-  MemoryOutputs: ['packages/engine/src/outputs/memory-outputs.ts'],
+  MemoryOutputs: ['packages/engine/src/outputs/memory-outputs.ts', 'packages/engine/src/workspace-reads/memory-reads.ts'],
   FileJobQueue: ['packages/engine/src/jobs/queue.ts', 'packages/engine/src/ports.ts'],
 };
 /** The check that holds each product adapter of PORT_ROOTS to its roots (its entries: `<name> outside a root`). */
@@ -608,7 +610,7 @@ export const CHECKS = [
   },
   {
     id: 'output-read',
-    title: `the engine reads and reserves its run folders, and reads renders/, through its Outputs port (${OUTPUTS_HOME}): in packages/engine/src outside it, core io's readers of a run folder and its reservation of one (${RUN_FOLDER_READERS.join(', ')}) and its readers of renders/ (${RENDER_FOLDER_READERS.join(', ')}) imported from \`@retake/core/io\` as a value under their name or an alias, read off a namespace import of it (\`io.readRunFolder\`, \`io['reserveRunId']\`) or re-exported from it are hits (entries: the file and the name); and the port's adapters \`diskOutputs\` and \`MemoryOutputs\` named as values in packages/*/src outside PORT_ROOTS (\`<name> outside a root\`: the disk's at the composition roots, the memory's a test's fake). Not seen: a reader reached through another module that re-exports it under its own name, a namespace member taken by destructuring or aliased, a key computed at run time, a run folder read with node:fs directly; an \`import()\` or \`require()\` of core io is workspace-read's hit`,
+    title: `the engine reads and reserves its run folders, and reads renders/, through its Outputs port (${OUTPUTS_HOME}): in packages/engine/src outside it, core io's readers of a run folder and its reservation of one (${RUN_FOLDER_READERS.join(', ')}) and its readers of renders/ (${RENDER_FOLDER_READERS.join(', ')}) imported from \`@retake/core/io\` as a value under their name or an alias, read off a namespace import of it (\`io.readRunFolder\`, \`io['reserveRunId']\`) or re-exported from it are hits (entries: the file and the name); and a path into a generated folder spelt there by core's layout helpers (\`@retake/core/project\`, by name, import alias or namespace member, \`P['projectPath']\` too: \`projectPath(…, 'runs' | 'renders' | 'review' | 'exports')\`, \`statePath(…, 'inspect')\`, any \`runPath(…)\`) is a hit too (entries: the file and the call's form) — the port says where its folders are (runsDirOf, runFolderOf, OUTPUT_DIRS, a member's \`dirOf\`), and a run's own files are read by its folder's run-files.ts; and the port's adapters \`diskOutputs\` and \`MemoryOutputs\` named as values in packages/*/src outside PORT_ROOTS (\`<name> outside a root\`: the disk's at the composition roots, the memory's a test's fake and MemoryWorkspace's). Not seen: a reader reached through another module that re-exports it under its own name, a namespace member taken by destructuring or aliased, a key computed at run time, a folder's name held in a variable or spelt by node:path (the layout check's), a layout helper aliased by an assignment (\`const f = projectPath\`) or called through \`.call\` / \`.apply\`, a layout helper re-exported by an engine module and called from another, a path the port gave read with node:fs; an \`import()\` or \`require()\` of core io is workspace-read's hit`,
   },
   {
     id: 'env-read',
@@ -1276,7 +1278,62 @@ export function secretResolveHits(root, files) {
  * core io is workspace-read's hit.
  */
 export function outputReadHits(root, files) {
-  return coreIoNameHits(root, files, { rule: 'output-read', names: [...RUN_FOLDER_READERS, ...RENDER_FOLDER_READERS], home: (rel) => rel.startsWith(OUTPUTS_HOME), loads: false });
+  return [
+    ...coreIoNameHits(root, files, { rule: 'output-read', names: [...RUN_FOLDER_READERS, ...RENDER_FOLDER_READERS], home: (rel) => rel.startsWith(OUTPUTS_HOME), loads: false }),
+    ...outputPathHits(root, files),
+  ];
+}
+
+const CORE_PROJECT = '@retake/core/project';
+
+/**
+ * A path into a generated folder spelt outside the port (output-read): in packages/engine/src outside OUTPUTS_HOME, a
+ * call of core's layout helpers (`@retake/core/project`: by its name, an alias or a member of a namespace import) that
+ * names one — `projectPath(…, '<folder>', …)` with a folder of OUTPUT_PATH_FOLDERS.projectPath, `statePath(…,
+ * 'inspect', …)`, any `runPath(…)` — is a hit (entries: the file and the call's form). The port says where its folders
+ * are (outputs.ts runsDirOf, runFolderOf, OUTPUT_DIRS, a member's `dirOf`).
+ */
+export function outputPathHits(root, files) {
+  const ts = loadTs(root);
+  const hits = [];
+  for (const { rel, text } of files) {
+    if (!rel.startsWith('packages/engine/src/') || rel.startsWith(OUTPUTS_HOME) || !text.includes(CORE_PROJECT)) continue;
+    const sf = parse(ts, rel, text);
+    const fns = new Map(); // local name → projectPath | statePath | runPath
+    const spaces = new Set();
+    sf.forEachChild((n) => {
+      if (!ts.isImportDeclaration(n) || literal(ts, n.moduleSpecifier) !== CORE_PROJECT || !n.importClause || n.importClause.isTypeOnly) return;
+      const b = n.importClause.namedBindings;
+      if (b && ts.isNamespaceImport(b)) spaces.add(b.name.text);
+      if (b && ts.isNamedImports(b)) for (const e of b.elements) if (!e.isTypeOnly && OUTPUT_PATH_FOLDERS[(e.propertyName ?? e.name).text]) fns.set(e.name.text, (e.propertyName ?? e.name).text);
+    });
+    const found = new Set();
+    (function visit(n) {
+      if (ts.isCallExpression(n)) {
+        let e = n.expression;
+        while (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e)) e = e.expression;
+        // A member of a namespace import, by name or by a key spelt as a string (`P.projectPath`, `P['projectPath']`).
+        const key = ts.isPropertyAccessExpression(e) ? e.name.text : ts.isElementAccessExpression(e) ? constText(ts, e.argumentExpression) : undefined;
+        const fn = ts.isIdentifier(e)
+          ? fns.get(e.text)
+          : (ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e)) &&
+              ts.isIdentifier(e.expression) &&
+              spaces.has(e.expression.text) &&
+              key !== undefined &&
+              Object.hasOwn(OUTPUT_PATH_FOLDERS, key)
+            ? key
+            : undefined;
+        if (fn === 'runPath') found.add('runPath(…)');
+        else if (fn !== undefined) {
+          const folder = literal(ts, n.arguments[1]);
+          if (folder !== undefined && OUTPUT_PATH_FOLDERS[fn].includes(folder)) found.add(`${fn}(…, '${folder}')`);
+        }
+      }
+      n.forEachChild(visit);
+    })(sf);
+    for (const k of found) hits.push({ rule: 'output-read', file: rel, spec: k });
+  }
+  return hits;
 }
 
 /** Names of `@retake/core/io` used as values in packages/engine/src outside a home (`loads`: an import() or require() of core io is a hit too). */

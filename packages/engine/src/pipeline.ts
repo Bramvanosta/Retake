@@ -10,7 +10,8 @@
  * writes the history: the worker writes a job's line, in-process.ts the CLI's.
  */
 import { RENDER_VARIANT_SUFFIX } from '@retake/core/ids';
-import { projectPath } from '@retake/core/project';
+import { join } from 'node:path';
+import { OUTPUT_DIRS } from './outputs/outputs.js';
 import type { LoadedProject } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { EditOverrides, ExportProgress, RenderProgress, RenderRecord } from '@retake/editor/plan';
@@ -95,5 +96,5 @@ export { reviewWork } from './review/work.js';
 
 /** Where a still of `scenario` goes by default: renders/stills/<scenario><variant suffix>-f<frame, 5 digits>.png. */
 export async function defaultStillFile(project: Pick<LoadedProject, 'dir'>, scenario: string, variant: PlannedRun['plan']['variant'], frame: number): Promise<string> {
-  return projectPath(project.dir, 'renders', 'stills', `${scenario}${RENDER_VARIANT_SUFFIX[variant]}-f${String(frame).padStart(5, '0')}.png`);
+  return join(OUTPUT_DIRS.renders(project.dir), 'stills', `${scenario}${RENDER_VARIANT_SUFFIX[variant]}-f${String(frame).padStart(5, '0')}.png`);
 }

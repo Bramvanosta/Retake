@@ -15,6 +15,7 @@ import { readJournalLine } from '../src/store/journal.js';
 import { workerLockFile } from '../src/jobs/lock.js';
 import { readMarker } from '../src/jobs/captures.js';
 import { readInspectReport } from '../src/jobs/inspect-job.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import { liveFrameHeaderOf, readLiveChannel } from '../src/jobs/live-channel.js';
 import { killRecordedBrowser } from '../src/jobs/render-job.js';
 import { libraryReason } from '../src/library.js';
@@ -178,10 +179,10 @@ describe('an inspection’s report that is not one reads as none', () => {
   it('readInspectReport', async () => {
     const dir = await folder('inspect');
     const file = join(dir, 'inspect.json');
-    expect(await readInspectReport(file)).toBeNull();
+    expect(await readInspectReport(diskOutputs.inspections, file)).toBeNull();
     const ok = { version: 1, status: 'ok', screenshot: null, elements: [], counts: {}, untrusted: { warnings: [] } };
     await writeFile(file, JSON.stringify(ok));
-    expect(await readInspectReport(file)).toMatchObject({ status: 'ok' });
+    expect(await readInspectReport(diskOutputs.inspections, file)).toMatchObject({ status: 'ok' });
     for (const bad of [
       { ...ok, version: 2 },
       { ...ok, status: 'odd' },
@@ -189,7 +190,7 @@ describe('an inspection’s report that is not one reads as none', () => {
       { ...ok, screenshot: 3 },
     ]) {
       await writeFile(file, JSON.stringify(bad));
-      expect(await readInspectReport(file), JSON.stringify(bad)).toBeNull();
+      expect(await readInspectReport(diskOutputs.inspections, file), JSON.stringify(bad)).toBeNull();
     }
   });
 });

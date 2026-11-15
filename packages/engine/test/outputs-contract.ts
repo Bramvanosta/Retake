@@ -149,6 +149,18 @@ export function outputsContract(name: string, make: () => Promise<OutputsFixture
       expect(await runs.signature(file)).not.toBe(one);
     });
 
+    it("reads a run file's bytes as its text is read; nothing there is undefined; a path that is no plain name is refused", async () => {
+      const { runs, runsDir } = await project();
+      const { dir } = await runs.reserve(runsDir, 'quote', AT);
+      expect(await runs.readBytes(dir, 'timeline.json')).toBeUndefined();
+      await runs.write(dir, 'timeline.json', 'é{}');
+      expect(Buffer.from((await runs.readBytes(dir, 'timeline.json'))!).toString('hex')).toBe(Buffer.from('é{}').toString('hex'));
+      await expect(runs.readBytes(dir, '../x')).rejects.toThrow(/invalid run file name/);
+      // A followed signature of a path: `-` when nothing is there, the same text as the plain one for a file (no link here).
+      expect(await runs.signature(join(dir, 'gone'), { follow: true })).toBe('-');
+      expect(await runs.signature(join(dir, 'timeline.json'), { follow: true })).toBe(await runs.signature(join(dir, 'timeline.json')));
+    });
+
     it('says a run folder lies in its project when runs/<id> is a folder there; not when it is missing or a file', async () => {
       const { f, runs, dir, runsDir } = await project();
       const { id } = await runs.reserve(runsDir, 'quote', AT);
@@ -240,6 +252,39 @@ export function outputsContract(name: string, make: () => Promise<OutputsFixture
         await member.remove(join(at, 'never'));
         expect(await member.names(at), kind).toEqual(['a.json']);
         expect(await member.signature(join(at, 'b')), kind).toBe('-');
+      }
+    });
+
+    it('makes a folder (one there: done), removes one file only (a folder there refused, nothing there done), says a member lies in its project', async () => {
+      const { o, dir } = await project();
+      for (const [kind, member] of members(o)) {
+        const at = member.dirOf(dir);
+        expect(await member.within(dir), `${kind}: not there yet`).toBe(false);
+        await member.makeFolder(join(at, 'x', 'y'), dir);
+        await member.makeFolder(join(at, 'x', 'y'), dir);
+        expect(await member.kind(join(at, 'x', 'y')), kind).toBe('folder');
+        expect(await member.within(dir), kind).toBe(true);
+        await member.write(join(at, 'x', 'one.txt'), '1');
+        await member.removeFile(join(at, 'x', 'one.txt'));
+        await member.removeFile(join(at, 'x', 'never.txt'));
+        expect(await member.kind(join(at, 'x', 'one.txt')), kind).toBeUndefined();
+        const refused = await member.removeFile(join(at, 'x')).then(
+          () => 'removed',
+          () => 'refused',
+        );
+        expect([refused, await member.kind(join(at, 'x', 'y'))], kind).toEqual(['refused', 'folder']);
+        // A folder that does not lie in the project is not made (the port's one rule: refused, nothing made).
+        const away = join(dir, '..', `away-${kind}`, 'z');
+        expect(
+          await member.makeFolder(away, join(dir, 'x')).then(
+            () => 'made',
+            (e: { code?: string }) => e.code,
+          ),
+          kind,
+        ).toBe('refused');
+        expect(await member.kind(away), kind).toBeUndefined();
+        expect(await member.within(dir, join(at, 'x')), kind).toBe(true);
+        expect(await member.within(dir, join(at, 'never')), `${kind}: not there`).toBe(false);
       }
     });
 

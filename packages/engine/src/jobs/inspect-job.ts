@@ -14,14 +14,14 @@
  * When the replay ends before the page could be inspected (a preflight or sign-in failure, a refused scenario), the job
  * still succeeds and reports the run's error under `untrusted` (and which persona must sign in); a cancel cancels it.
  */
+import { OUTPUT_DIRS } from '../outputs/outputs.js';
 import type { OutputFolder } from '../outputs/outputs.js';
 import type { RunOutputs } from '../outputs/outputs.js';
 import type { Secrets } from '../secrets/secrets.js';
-import { mkdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { INSPECT_ID_RE, newUlidId } from '@retake/core/ids';
 import { resolveEnvironment } from '@retake/core/environment';
-import { statePath, projectRef } from '@retake/core/project';
+import { projectRef } from '@retake/core/project';
 import { inspectPathProblem, inspectScenario, isPageOrigin, pageOrigins } from '@retake/core/run';
 import { JOB_INPUT_VERSION } from './job-input.js';
 import type { LoadedProject, LoadedScenario, TargetSpec } from '@retake/core/model';
@@ -73,7 +73,7 @@ export interface InspectSubmitRequest {
 
 /** <project>/.retake/inspect */
 export function inspectRoot(project: LoadedProject): string {
-  return statePath(project.dir, 'inspect');
+  return OUTPUT_DIRS.inspections(project.dir);
 }
 
 /** <project>/.retake/inspect/<id> (the id checked: never a path). */
@@ -102,6 +102,8 @@ export async function pruneInspections(inspections: OutputFolder, project: Loade
   if (active === null) return [];
   except = [...except, ...active];
   const root = inspectRoot(project);
+  // A .retake/inspect that leads out of the project is not the project's: nothing in it is removed.
+  if (!(await inspections.within(project.dir, root))) return [];
   const names: string[] = [];
   for (const name of await inspections.names(root)) if (INSPECT_ID_RE.test(name) && (await inspections.kind(join(root, name))) === 'folder') names.push(name);
   const old = names
@@ -273,7 +275,9 @@ export async function submitInspectJob(
   await checkWorkspaceProtection(ctx.ws, project, p.env, fix, agentChannel(ctx.client));
   const id = newInspectId();
   const dir = inspectDir(project, id);
-  await mkdir(dir, { recursive: true });
+  // Made inside the project only (the port refuses a .retake/inspect, or a folder of it, that leads out): before
+  // anything is pruned or queued.
+  await ctx.ws.outputs.inspections.makeFolder(dir, project.dir);
   await pruneInspections(ctx.ws.outputs.inspections, project, INSPECT_KEEP, [id], ctx.queue);
   const input: InspectJobInput = {
     version: JOB_INPUT_VERSION,
@@ -292,7 +296,7 @@ export async function submitInspectJob(
   try {
     job = await ctx.queue.enqueue(input);
   } catch (e) {
-    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    await ctx.ws.outputs.inspections.remove(dir).catch(() => undefined);
     throw e;
   }
   const sc = p.scenario.scenario;
@@ -483,9 +487,9 @@ const InspectReportSchema = z.object({
   untrusted: z.record(z.string(), z.unknown()),
 });
 
-/** inspect.json as a report, or null when there is none or it is not one. */
-export async function readInspectReport(file: string): Promise<InspectReport | null> {
-  return inspectReportOf(await readFile(file, 'utf8').catch(() => undefined));
+/** inspect.json (a file of `inspections`) as a report, or null when there is none or it is not one. */
+export async function readInspectReport(inspections: Pick<OutputFolder, 'readText'>, file: string): Promise<InspectReport | null> {
+  return inspectReportOf(await inspections.readText(file).catch(() => undefined));
 }
 
 /** An inspection's report from its file's text (undefined: no file), through its schema; null when it is none. */

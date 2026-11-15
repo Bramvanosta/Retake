@@ -5,7 +5,7 @@
  * bytes lie — never in a rule.
  */
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { pathInside } from '@retake/core/base';
 import { isRunId } from '@retake/core/ids';
 import { orderRuns } from '@retake/core/run';
@@ -27,6 +27,8 @@ export interface OutputStat extends RunFolderStat {
 /** What the outputs ask of a storage: core's RunFolderFs and RecordFs, and the writes, the removal, the hash and the real path. */
 export interface OutputFs extends RunFolderFs, RecordFs {
   lstat(path: string): Promise<OutputStat>;
+  /** A file's bytes, as `readFile` reads its text. */
+  readBytes(path: string): Promise<Uint8Array>;
   stat(path: string): Promise<OutputStat>;
   readdir(path: string): Promise<Array<{ name: string; isFile(): boolean; isDirectory(): boolean }>>;
   /** Without `recursive`: fails with code EEXIST when the folder is there (core reserveRunId reserves this way). */
@@ -98,12 +100,22 @@ async function namesOf(fs: OutputFs, dir: string): Promise<string[]> {
   }
 }
 
-async function signatureOf(fs: OutputFs, path: string): Promise<string> {
+async function signatureOf(fs: OutputFs, path: string, o: { follow?: boolean } = {}): Promise<string> {
   try {
-    const s = await fs.lstat(path);
+    const s = await (o.follow ? fs.stat(path) : fs.lstat(path));
     return `${s.ino}:${s.size}:${s.mtimeMs}`;
   } catch {
     return '-';
+  }
+}
+
+/** Whether `path` lies inside the project `projectDir` once links are followed (both real paths; false when either cannot be resolved). */
+async function insideProject(fs: OutputFs, projectDir: string, path: string): Promise<boolean> {
+  try {
+    const [project, real] = await Promise.all([fs.realpath(projectDir), fs.realpath(path)]);
+    return pathInside(real, project, { dotDotPrefix: true });
+  } catch {
+    return false;
   }
 }
 
@@ -124,9 +136,26 @@ function outputFolderOn(fs: OutputFs, dirOf: (projectDir: string) => string): Ou
     readCapped: (path, o) => fs.text(path, o),
     size: (path) => sizeOf(fs, path),
     remove: (path) => fs.remove(path),
+    removeFile: (path) => fs.removeFile(path),
+    makeFolder: async (path, projectDir) => {
+      const refused = () => new EngineError('refused', `${path} leads out of the project ${projectDir} (a symbolic link): not made`);
+      let there = dirname(path);
+      while (
+        dirname(there) !== there &&
+        !(await fs.realpath(there).then(
+          () => true,
+          () => false,
+        ))
+      )
+        there = dirname(there);
+      if (!(await insideProject(fs, projectDir, there))) throw refused();
+      await fs.mkdir(path, { recursive: true });
+      if (!(await insideProject(fs, projectDir, path))) throw refused();
+    },
     write: (path, data) => fs.writeAtomic(path, data),
     writeJson: (path, value) => fs.writeAtomic(path, JSON.stringify(value, null, 2) + '\n'),
-    signature: (path) => signatureOf(fs, path),
+    signature: (path, o) => signatureOf(fs, path, o),
+    within: (projectDir, path = dirOf(projectDir)) => insideProject(fs, projectDir, path),
   };
 }
 
@@ -188,6 +217,15 @@ export function runOutputsOn(fs: OutputFs): RunOutputs {
         throw e;
       }
     },
+    readBytes: async (dir, file) => {
+      const path = fileOf(dir, file);
+      try {
+        return await fs.readBytes(path);
+      } catch (e) {
+        if (missing(e)) return undefined;
+        throw e;
+      }
+    },
     describe: async (dir, file, o = {}) => {
       const path = fileOf(dir, file);
       let st: OutputStat;
@@ -224,7 +262,7 @@ export function runOutputsOn(fs: OutputFs): RunOutputs {
       }
       return { bytes: st.size, ...(sha256 !== undefined ? { sha256 } : {}) };
     },
-    signature: (path) => signatureOf(fs, path),
+    signature: (path, o) => signatureOf(fs, path, o),
     names: (runsDir) => namesOf(fs, runsDir),
     readCapped: (dir, file, o) => fs.text(fileOf(dir, file), o),
     size: (path) => sizeOf(fs, path),

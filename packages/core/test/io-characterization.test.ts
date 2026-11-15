@@ -236,6 +236,9 @@ describe('core loaders and disk probes (characterization)', () => {
     ]);
     write('ws/projects/p/runs/r2/scenario.yaml', scenarioText('data/old.csv'));
     broken.sinceRun = shown(scenarioSinceRun(p2, join(tmp, 'ws/projects/p/runs/r2'), 'present') ?? null);
+    // The snapshot handed as its caller read it (the engine reads a run's files through its Outputs port): the same answer.
+    expect(scenarioSinceRun(p2, { then: scenarioText('data/old.csv') }, 'present')).toEqual(scenarioSinceRun(p2, join(tmp, 'ws/projects/p/runs/r2'), 'present'));
+    expect(scenarioSinceRun(p2, { then: undefined }, 'present')).toBeUndefined();
     // The seed of a synthetic sandbox: the files it reads (its SQL steps, its seed folder) and their hash.
     write('ws/projects/p/seeded/seed/01-schema.sql', 'CREATE TABLE quotes (id int);\n');
     write('ws/projects/p/seeded/seed/rows/quotes.csv', 'id\n1\n');

@@ -229,6 +229,8 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
       },
     );
   } catch (e) {
+    // The folder reserved for the listing goes again when the run left it empty (it never started), as the engine's own.
+    await (listedRun as { release(): Promise<void> } | undefined)?.release();
     fail(errorText(e));
     return e instanceof SandboxTakeError && e.interrupted ? EXIT.interrupted : EXIT.failure;
   } finally {

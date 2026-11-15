@@ -10,7 +10,7 @@
  * data goes into job.json: review_get makes thumbnails when it is read.
  */
 import { isRenderId } from '@retake/core/ids';
-import { projectPath } from '@retake/core/project';
+import { join } from 'node:path';
 import { JOB_INPUT_VERSION } from './job-input.js';
 import type { ReviewJobInput } from './job-input.js';
 import type { ReviewProgress } from '@retake/review/checks';
@@ -90,7 +90,7 @@ export async function submitReviewJob(
 /** review/<render_id>/ of a review job's project. */
 export async function reviewDirOf(ws: OpenedWorkspace, input: Pick<ReviewJobInput, 'project' | 'render_id'>): Promise<string> {
   const project = await openProjectBySlug(ws, input.project);
-  return projectPath(project.dir, 'review', input.render_id);
+  return join(ws.outputs.reviews.dirOf(project.dir), input.render_id);
 }
 
 /** After a review job was interrupted: the previous review set aside comes back, temporary folders go (the reviewer's `recover`). */

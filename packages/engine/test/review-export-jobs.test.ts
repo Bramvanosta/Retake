@@ -20,6 +20,7 @@ import { basename, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_INPUT_VERSION } from '@retake/engine';
 import type { RenderRecord } from '@retake/editor';
+import { cleanupInterruptedExport } from '../src/jobs/export-job.js';
 import { FileJobQueue, JobFiles, cleanupInterruptedRender, cleanupInterruptedReview, createEngine, historyFile, openWorkspace, runWorker, diskWorkspaceReads, diskOutputs } from '../src/index.js';
 import type { Engine, ExportJobResult, JobRecord, ReviewJobResult } from '../src/index.js';
 import { MEMORY_JPEG, MemoryReviewer } from '../src/review/memory-reviewer.js';
@@ -325,6 +326,45 @@ describe('a review job on the in-memory reviewer: the engine around it (L7.11)',
       expect(reviewer.calls.at(-1)).toEqual({ op: 'recover', dir });
       expect(await readFile(join(dir, 'report.json'), 'utf8')).toBe(report);
       expect((await readdir(join(mws.project.dir, 'review'))).filter((n) => n.startsWith('long-v1.'))).toEqual([]);
+      expect(logs).toEqual([]);
+    },
+    LONG,
+  );
+
+  it(
+    "a worker that died mid-export or mid-render: the cleanups remove the partial files and a manifest's temporary file, files only (other files, what a link leads to and an exports/<id> linked out of the project stay)",
+    async () => {
+      const ows = await openWorkspace({ root: mws.root, agent: true, reads: diskWorkspaceReads, outputs: diskOutputs });
+      const exp = join(mws.project.dir, 'exports', 'long-v1');
+      const renders = join(mws.project.dir, 'renders');
+      const outside = join(mws.root, 'outside.mp4');
+      await mkdir(exp, { recursive: true });
+      await writeFile(outside, 'kept');
+      for (const f of ['.long-v1-vertical.partial-123.mp4', 'manifest.json.0a1b2c3d.tmp', 'manifest.json', 'long-v1.mp4', 'manifest.json.zz.tmp']) await writeFile(join(exp, f), f);
+      await symlink(outside, join(exp, '.long-v1-square.partial-9.mp4'));
+      await writeFile(join(renders, '.long-v1.partial-77.mp4'), 'p');
+      const logs: string[] = [];
+      const exportJob = {
+        id: 'j_dead3',
+        input: { version: JOB_INPUT_VERSION, kind: 'export', project: 'demo', render_id: 'long-v1', formats: ['mp4_1080p'], submitted_by: 'test' },
+      } as unknown as JobRecord;
+      await cleanupInterruptedExport(ows, new JobFiles(mws.root), exportJob, (m) => void logs.push(m));
+      expect((await readdir(exp)).sort()).toEqual(['long-v1.mp4', 'manifest.json', 'manifest.json.zz.tmp']);
+      expect(await readFile(outside, 'utf8')).toBe('kept');
+      // An exports/<id> linked out of the project: nothing there is removed.
+      const away = join(mws.root, 'exports-away');
+      await mkdir(away, { recursive: true });
+      for (const f of ['.long-v2-vertical.partial-5.mp4', 'manifest.json.0a1b2c3d.tmp']) await writeFile(join(away, f), f);
+      await symlink(away, join(mws.project.dir, 'exports', 'long-v2'));
+      const linkedJob = {
+        id: 'j_dead5',
+        input: { version: JOB_INPUT_VERSION, kind: 'export', project: 'demo', render_id: 'long-v2', formats: ['mp4_1080p'], submitted_by: 'test' },
+      } as unknown as JobRecord;
+      await cleanupInterruptedExport(ows, new JobFiles(mws.root), linkedJob, (m) => void logs.push(m));
+      expect((await readdir(away)).sort()).toEqual(['.long-v2-vertical.partial-5.mp4', 'manifest.json.0a1b2c3d.tmp']);
+      const render = { id: 'j_dead4', input: { version: JOB_INPUT_VERSION, kind: 'render', project: 'demo', scenario: 'long', render_id: 'long-v1', submitted_by: 'test' } } as unknown as JobRecord;
+      await cleanupInterruptedRender(ows, new JobFiles(mws.root), render, (m) => void logs.push(m), reviewer);
+      expect((await readdir(renders)).filter((f) => f.includes('.partial-'))).toEqual([]);
       expect(logs).toEqual([]);
     },
     LONG,

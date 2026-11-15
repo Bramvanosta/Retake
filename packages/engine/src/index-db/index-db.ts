@@ -19,7 +19,7 @@
  * - Text in it is shown by the Studio as text (never HTML); a search query becomes quoted prefix terms bound as a
  *   parameter — no FTS syntax from the user reaches SQLite.
  */
-import { lstat, mkdir, open as openFile, realpath, rm, stat } from 'node:fs/promises';
+import { lstat, mkdir, open as openFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { historyFile, readHistoryLine } from '../history.js';
@@ -38,7 +38,7 @@ import { isCorruptionError, loadSqlite } from './sqlite.js';
 import type { SqliteLoader } from './sqlite.js';
 import { diffSources, runChanges, scanSources, sourceKey } from './sources.js';
 import type { RunChange, RunRow } from './sources.js';
-import { pathInside, bestEffort } from '@retake/core/base';
+import { bestEffort } from '@retake/core/base';
 import { renderOfFile } from '@retake/core/render';
 import type { RenderOutputs } from '../outputs/outputs.js';
 import { renderEntries } from '../render-records.js';
@@ -170,12 +170,7 @@ async function readSmall(dir: string, ref: string, max: number): Promise<string 
  * folder linked out of the project is never indexed).
  */
 export async function readRenders(renders: RenderOutputs, dir: string): Promise<RenderRow[]> {
-  try {
-    const [project, real] = await Promise.all([realpath(dir), realpath(renders.dirOf(dir))]);
-    if (!pathInside(real, project, { dotDotPrefix: true })) return [];
-  } catch {
-    return [];
-  }
+  if (!(await renders.within(dir))) return [];
   const out: RenderRow[] = [];
   // One record at a time (a record holds its whole plan): the names as the reader lists them, nothing read for that …
   const names: string[] = [];

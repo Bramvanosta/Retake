@@ -2051,7 +2051,7 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   refuses what its predicate refuses (`zRenderId` holds the version's bound in a refinement). A value that
   passed a predicate or a parse carries a branded type (`RunId`, `RenderId`, `JobId`, `ThemeName`, `NewThemeName`);
   generators and formatters return plain strings, and no brand is cast outside the module. Two private path builders
-  take a brand — the run folder `RunFolder.open` opens (engine `run-files.ts`) and a job's folder (`jobs/queue.ts`) —
+  take a brand — the run folder `RunFolder.open` opens (engine `outputs/run-files.ts`) and a job's folder (`jobs/queue.ts`) —
   and so does the name check of a new theme (`templates.ts` `checkNewThemeName`, `brand/create.ts` `checkNewName`);
   every other path is built from a string its site checked or listed, and records and job inputs still type their ids
   as strings. One definition says which record of `renders/` is a render of its scenario (engine `refs.ts`
@@ -2841,7 +2841,7 @@ cache of the files, written only by the Studio server holding ui.json (the worke
 
 Part 1 — the model and the safe reads (core `blocks.ts`, `step-match.ts`, `plain-file.ts`, targets `plainTarget`;
 engine `scenarios.check`, `runBlockers`, `LocalStorage.readText`). Part 2 — the view, the thumbnails and the events
-(engine `scenario-view.ts`, `run-thumbs.ts`, `run-data.ts`, `run-files.ts`, review `./thumbs`, index-db `sources.ts`;
+(engine `scenario-view.ts`, `run-thumbs.ts`, `run-data.ts`, `outputs/run-files.ts`, review `./thumbs`, index-db `sources.ts`;
 Studio ops `scenario_blocks`, `run_thumbs`, `run_status`). Part 3 — the read-only screen (ui `src/app/`
 ScenarioScreen.tsx, Inspector.tsx, YamlView.tsx, Thumb.tsx, thumbs.ts, scenario-words.ts, events.ts; route.ts). Part 4
 — the run actions and the Studio's worker (Studio op `scenario_run`, `run_cancel`, `studioWorkerEnv`; engine worker
@@ -2980,7 +2980,7 @@ untrusted}`.
   file signatures). A repeat with nothing changed reads the file, hashes it and stats a few paths (1,200 steps: first
   66 ms, repeat 4 ms, 454 KB of JSON); 20 rewrites of a running run's run.json recompute no text layer and no binding.
 
-**Run files** (engine `run-files.ts`, `run-data.ts`; critique B6). `RunFolder.open(projectDir, id)`: `runs/<id>` must be
+**Run files** (engine `outputs/run-files.ts`, `run-data.ts`; critique B6). `RunFolder.open(projectDir, id)`: `runs/<id>` must be
 a real folder (lstat: not a link) whose real path is inside the project's `runs/`. A file is named by the code from
 validated parts — at most `<folder>/<file>`, each segment `^[A-Za-z0-9][A-Za-z0-9._-]*$`; the folder a real folder
 (lstat) inside the run; the file read by core `readPlainFile` (no link followed, no FIFO held, capped on the

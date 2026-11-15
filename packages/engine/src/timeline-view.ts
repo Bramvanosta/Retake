@@ -32,6 +32,7 @@ import { isTemplatePath, parseScenario, scenarioBlocks, stepGuard } from '@retak
 import { locateAnchorStep } from '@retake/core/comments';
 import { ffprobePackets, packetsArgs, readFfprobeJson, renderOfFile, sameRender } from '@retake/core/render';
 import { readPlainFile, ffprobeBin, startMediaTool } from '@retake/core/io';
+import { runFolderOf } from './outputs/outputs.js';
 import type { RenderOutputs } from './outputs/outputs.js';
 import type { LoadedProject } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
@@ -606,7 +607,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
   // asks the same rule the same way (scenario-view.ts captureOf). Its timeline.json's size and mtime are in the key.
   const asked = proposal?.run_id ?? req.run_id;
   const runId = asked ?? (await (await import('./runs.js')).latestCapture(ws.outputs.runs, project, req.scenario)).take?.run;
-  const timelineStat = runId ? statKey(projectPath(project.dir, 'runs', runId, 'timeline.json')) : 'none';
+  const timelineStat = runId ? await ws.outputs.runs.signature(join(runFolderOf(project.dir, runId), 'timeline.json'), { follow: true }) : 'none';
   // The scenario's comment folder (its mtime moves when a thread is added or rewritten: an entry is a rename): new pins.
   const commentsStat = statKey(projectPath(project.dir, 'comments', req.scenario));
   const projectStat = statKey(join(project.dir, 'project.yaml'));

@@ -17,14 +17,13 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { RENDER_VARIANT_SUFFIX } from '@retake/core/ids';
-import { projectPath } from '@retake/core/project';
 import { isIsoUtcDate } from '@retake/core/comments';
-import type { LoadedProject } from '@retake/core/model';
 import type { RenderVariant } from '@retake/core/ids';
 import { findNamedRender, pidExists } from '@retake/core/io';
-import { DEFAULT_RULES, ReviewCancelledError } from '@retake/review/checks';
+import { DEFAULT_RULES, NOT_HANDED_PROJECT, ReviewCancelledError, isHandedProject } from '@retake/review/checks';
 import type { Finding, ReviewOptions, ReviewProgress, ReviewResult } from '@retake/review/checks';
 import { MEMORY_PNG } from '../render/memory-renderer.js';
+import { OUTPUT_DIRS } from '../outputs/outputs.js';
 import type { FrameInput, FrameThumb, FrameThumbOptions, FrameTools, FramesAtOptions, MarkBox, MarksOptions, Reviewer, StillOptions } from './reviewer.js';
 import { bestEffort } from '@retake/core/base';
 
@@ -151,9 +150,9 @@ export class MemoryReviewer implements Reviewer {
       emit({ stage: s, ...(progress !== undefined ? { progress } : {}) });
     };
     stage('loading');
-    const project: LoadedProject = o.project;
-    if (typeof project !== 'object' || project === null) throw new MemoryReviewError('no loaded project was handed (the caller loads the project; a slug or a folder is not read here)');
-    const found = await findNamedRender(projectPath(project.dir, 'renders'), o.render, {
+    const project: unknown = o.project;
+    if (!isHandedProject(project)) throw new MemoryReviewError(NOT_HANDED_PROJECT);
+    const found = await findNamedRender(OUTPUT_DIRS.renders(project.dir), o.render, {
       verb: 'review',
       slug: project.slug,
       videoAlone: true,
@@ -165,7 +164,7 @@ export class MemoryReviewer implements Reviewer {
     if (!existsSync(record.file)) throw new MemoryReviewError(`the video of render ${name} is missing: ${record.file}`);
     const fps = o.fps ?? 1;
     if (fps !== 1 && fps !== 2) throw new MemoryReviewError(`fps ${String(fps)}: the contact sheet takes 1 or 2 frames per second`);
-    const finalDir = o.out ?? projectPath(project.dir, 'review', name);
+    const finalDir = o.out ?? join(OUTPUT_DIRS.reviews(project.dir), name);
     await this.recover(finalDir);
     const tmpDir = `${finalDir}.tmp-${process.pid}-${randomBytes(3).toString('hex')}`;
     await mkdir(tmpDir, { recursive: true });

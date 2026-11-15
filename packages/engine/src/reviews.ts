@@ -9,11 +9,9 @@
  * per-segment changes and whatever did not pass quote the scenario and the filmed site: they are kept under `untrusted`.
  */
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { COMPONENT_ID_RE } from '@retake/core/model';
 import { isRenderId } from '@retake/core/ids';
-import { projectPath } from '@retake/core/project';
 import { insideFolder } from '@retake/core/scenario';
 import { readPlainFile, nodeFileFacts } from '@retake/core/io';
 import { EngineError } from './errors.js';
@@ -108,13 +106,14 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   const project = await openProjectBySlug(ws, slug);
   const record = await renderForWork(ws.outputs.renders, project, renderIdArg, o.scenario !== undefined ? { scenario: o.scenario } : {});
   const id = record.id;
-  const dir = projectPath(project.dir, 'review', id);
+  const reviews = ws.outputs.reviews;
+  const dir = join(reviews.dirOf(project.dir), id);
   const job = (await queue.list({ project: slug, kinds: ['review'], renderId: id, limit: 1 }))[0];
   let report: Record<string, unknown> | undefined;
   const reportFile = join(dir, 'report.json');
-  if (existsSync(reportFile) && insideFolder(dir, reportFile, nodeFileFacts)) {
+  if ((await reviews.signature(reportFile, { follow: true })) !== '-' && insideFolder(dir, reportFile, nodeFileFacts)) {
     // A report of this version with its findings, else none (the job, if any, is shown).
-    const text = await readFile(reportFile, 'utf8').catch(() => undefined);
+    const text = await reviews.readText(reportFile).catch(() => undefined);
     report = text === undefined ? undefined : (storedJson(ReviewReportSchema, text) as Record<string, unknown> | undefined);
   }
   // The job is shown when it is newer than the report (queued, running, or a failed or cancelled attempt after it).
@@ -310,8 +309,9 @@ export async function reviewImage(ws: OpenedWorkspace, frames: Pick<FrameTools, 
   if (typeof image !== 'string' || !REVIEW_IMAGE_RE.test(image))
     throw new EngineError('invalid', `invalid image "${String(image).slice(0, 100)}": a contact sheet of the review (render_review lists them), never a path`);
   const project = await openProjectBySlug(ws, slug);
-  const dir = projectPath(project.dir, 'review', renderId);
-  if (!existsSync(dir)) throw new EngineError('not_found', `render ${renderId} has no review yet`);
+  const reviews = ws.outputs.reviews;
+  const dir = join(reviews.dirOf(project.dir), renderId);
+  if ((await reviews.signature(dir, { follow: true })) === '-') throw new EngineError('not_found', `render ${renderId} has no review yet`);
   if (!insideFolder(project.dir, dir, nodeFileFacts)) throw new EngineError('refused', `the review folder of ${renderId} lies outside the project: not shown`);
   const file = join(dir, image);
   // A key frame's folder too stays in the review folder once links are resolved (the file itself: O_NOFOLLOW below).

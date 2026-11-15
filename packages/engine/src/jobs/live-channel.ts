@@ -29,7 +29,7 @@ import type { Socket } from 'node:net';
 import { chmod, rename, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { isRunId } from '@retake/core/ids';
-import { readPlainRange } from '../run-files.js';
+import { readPlainRange } from '../outputs/run-files.js';
 import type { LiveFrame, LiveSink } from '@retake/runner-web/types';
 import { checkRequest } from '../http/gate.js';
 import type { RouteSpec } from '../http/gate.js';
