@@ -460,7 +460,7 @@ runScenario(opts: RunOptions): Promise<RunRecord>
 RunOptions = {
   project: LoadedProject; scenario: LoadedScenario; template?: LoadedTemplate;
   mode: 'capture' | 'dry'; env?: string; until?: string; hooks?: 'run' | 'skip';   // default: capture=run, dry=skip
-  headed?: boolean; runId?: string; runsDir?: string /* default <project>/runs */;
+  headed?: boolean; runId?: string; runsDir?: string /* default <project>/runs; the engine always hands both: it reserves the run folder */;
   onProgress?: (e: RunProgress) => void; signal?: AbortSignal;
   browser?: BrowserConfig;  // overrides project.browser
   resolveSecret?: (ref) => Promise<string>;   // {{env:…}} / {{keychain:…}} reader (tests inject one)

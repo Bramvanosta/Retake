@@ -179,6 +179,7 @@
     "packages/engine/test/engine-facade.test.ts",
     "packages/engine/test/engine.test.ts",
     "packages/engine/test/error-kinds.test.ts",
+    "packages/engine/test/export-manifest.test.ts",
     "packages/engine/test/hook-context-pages.test.ts",
     "packages/engine/test/hook-fingerprints.test.ts",
     "packages/engine/test/hook-runner.test.ts",

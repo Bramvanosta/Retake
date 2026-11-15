@@ -163,3 +163,11 @@ export async function renderWorkspace(): Promise<RenderWorkspace> {
 export async function noRerender(): Promise<never> {
   throw new Error('this test renders no format of an export again');
 }
+
+/**
+ * An export's place for the tests of the editor's exportRender: exports/<name>/ of the project, as the engine places an
+ * export with no output folder (engine render/export-manifest.ts `exportPlace`, pinned by engine export-manifest.test).
+ */
+export function exportsPlace(projectDir: string): (name: string) => string {
+  return (name) => join(projectDir, 'exports', name);
+}

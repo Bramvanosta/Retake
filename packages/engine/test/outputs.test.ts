@@ -5,7 +5,7 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { link, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -14,6 +14,9 @@ import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { outputsContract } from './outputs-contract.js';
+import { nodeOutputFs } from '../src/outputs/disk-outputs.js';
+import { outputsOn } from '../src/outputs/output-files.js';
+import type { OutputFs } from '../src/outputs/output-files.js';
 
 const temp = await realpath(await mkdtemp(join(tmpdir(), 'retake-outputs-')));
 afterAll(() => rm(temp, { recursive: true, force: true }));
@@ -105,6 +108,75 @@ describe('what only the disk has: a link', () => {
       kind: 'run',
       link: 'refused',
     });
+  });
+
+  it('describes a file that has another name (a hard link) as a refused link (no size, no sha256), and through a link that stays in the run folder too', async () => {
+    const runsDir = runsDirOf(join(temp, 'hard-linked'));
+    const dir = join(runsDir, '20261114-093000-quote');
+    await mkdir(dir, { recursive: true });
+    const secret = join(temp, 'hard-outside.bin');
+    await writeFile(secret, 'bytes kept elsewhere');
+    await link(secret, join(dir, 'capture.mp4'));
+    await symlink(join(dir, 'capture.mp4'), join(dir, 'log.jsonl'));
+    await writeFile(join(dir, 'timeline.json'), '{}');
+    expect(await diskOutputs.runs.describe(dir, 'capture.mp4', { hash: true })).toEqual({ link: 'refused' });
+    expect(await diskOutputs.runs.describe(dir, 'capture.mp4'), 'not hashed: still no size').toEqual({ link: 'refused' });
+    expect(await diskOutputs.runs.describe(dir, 'log.jsonl', { hash: true }), 'a link in the folder to a hard-linked file').toEqual({ link: 'refused' });
+    expect(await diskOutputs.runs.describe(dir, 'timeline.json', { hash: true }), 'a file of one name').toEqual({
+      bytes: 2,
+      sha256: createHash('sha256').update('{}').digest('hex'),
+    });
+  });
+
+  it('describes a file given another name between the look and the hash (a hard link swapped in) as a refused link, plain or through a link inside the run folder', async () => {
+    const dir = join(runsDirOf(join(temp, 'hard-race')), '20261114-093000-quote');
+    await mkdir(dir, { recursive: true });
+    const secret = join(temp, 'hard-race-outside.bin');
+    await writeFile(secret, 'bytes kept elsewhere');
+    await writeFile(join(dir, 'capture.mp4'), 'the film');
+    await writeFile(join(dir, 'timeline.json'), '{}');
+    await symlink(join(dir, 'timeline.json'), join(dir, 'log.jsonl'));
+    // The layer of the disk, but its look at `swap` is followed by `swap` made another name of a file elsewhere.
+    let swap = '';
+    const fs: OutputFs = {
+      ...nodeOutputFs,
+      lstat: async (path) => {
+        const st = await nodeOutputFs.lstat(path);
+        if (path === swap && st.isFile()) {
+          swap = '';
+          await rm(path);
+          await link(secret, path);
+        }
+        return st;
+      },
+    };
+    const runs = outputsOn(fs).runs;
+    swap = join(dir, 'capture.mp4');
+    expect(await runs.describe(dir, 'capture.mp4', { hash: true })).toEqual({ link: 'refused' });
+    swap = join(dir, 'timeline.json');
+    expect(await runs.describe(dir, 'log.jsonl', { hash: true }), 'through a link that stays in the run folder').toEqual({ link: 'refused' });
+  });
+
+  it('run_status shows a run file that has another name (a hard link) as a refused link, with no size and no sha256', async () => {
+    const ws = join(temp, 'ws-hard-link');
+    await mkdir(ws, { recursive: true });
+    await fixtureWorkspace(ws);
+    const project = join(ws, 'projects', 'northfield-fixture');
+    const engine = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
+    const sub = await engine.runs.submit({ project: 'northfield-fixture', scenario: 'quote', mode: 'dry', until: 'discover.1' });
+    const dir = join(runsDirOf(project), sub.run_id);
+    const secret = join(temp, 'hard-status.bin');
+    await writeFile(secret, 'not the run');
+    await link(secret, join(dir, 'log.jsonl'));
+    const status = await engine.runs.status('northfield-fixture', sub.run_id);
+    expect(status.outputs.find((o) => o.ref === `runs/${sub.run_id}/log.jsonl`)).toEqual({
+      ref: `runs/${sub.run_id}/log.jsonl`,
+      path: join(dir, 'log.jsonl'),
+      kind: 'run',
+      link: 'refused',
+    });
+    const record = status.outputs.find((o) => o.ref === `runs/${sub.run_id}/run.json`);
+    expect(record?.bytes, "the run folder's own files are still described").toBeGreaterThan(0);
   });
 
   it('run_status reads no run folder that is a link out of runs/: neither its record nor its files', async () => {

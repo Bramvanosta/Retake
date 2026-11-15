@@ -7,11 +7,10 @@
  * `manifest.json` describing each file (format, method, size, duration, codecs, the ffprobe of the file).
  */
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, rename, rm, stat } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { GUIDE, missingOrInvalid, printableText, bestEffort, errorMessage } from '@retake/core/base';
 import { isThemeName } from '@retake/core/ids';
-import { projectPath } from '@retake/core/project';
 import { isTemplatePath } from '@retake/core/scenario';
 import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES } from '@retake/core/render';
 import {
@@ -40,7 +39,7 @@ import { RenderError } from './types.js';
 import { withPlan } from '../render-record.js';
 import type { NamedRender, RenderRecord } from '../render-record.js';
 import { recordPathProblem } from '../render-fields.js';
-import type { ExportFormat, ExportOutput, ExportRenderOptions, ExportRerender, ExportResult } from '../work-types.js';
+import type { ExportFormat, ExportMade, ExportOutput, ExportPlace, ExportRenderOptions, ExportRerender } from '../work-types.js';
 export type { ExportProgress, ExportFormat, ExportOutput, ExportRenderOptions, ExportResult } from '../work-types.js';
 
 /** Delivery formats (one list with core's job input). */
@@ -63,6 +62,13 @@ function handedRerender(opts: object): ExportRerender {
   const r = (opts as { rerender?: unknown }).rerender;
   if (typeof r !== 'function') throw new RenderError('export: nothing was handed to render a format again with (the caller renders: its render use case)');
   return r as ExportRerender;
+}
+
+/** Where the export goes (the caller's rule), or a refusal: a caller outside the type checker forgot it. */
+function handedPlace(opts: object): ExportPlace {
+  const p = (opts as { place?: unknown }).place;
+  if (typeof p !== 'function') throw new RenderError('export: no place was handed for its files (the caller places the export)');
+  return p as ExportPlace;
 }
 
 /** An export that cannot start (message written for the user). */
@@ -251,14 +257,15 @@ export async function transcodeMp4(bin: string, input: string, size: readonly [n
 }
 
 /**
- * Export `render` to `formats` (default: mp4_1080p, webm, gif_preview). Each format is written under a temporary name
- * and renamed when complete; a format that fails is reported in `failures` and the others still go out. The manifest
- * (`manifest.json`) keeps the entries of formats exported earlier into the same folder.
+ * Export `render` to `formats` (default: mp4_1080p, webm, gif_preview) into the folder `place` names. Each format is
+ * written under a temporary name and renamed when complete; a format that fails is reported in `failures` and the
+ * others still go out. The manifest is the caller's (ExportMade: the engine's export use case writes it).
  */
-export async function exportRender(opts: ExportRenderOptions): Promise<ExportResult> {
+export async function exportRender(opts: ExportRenderOptions): Promise<ExportMade> {
   // Before any work: an export handed nothing to render a format again with is refused, whatever the formats need.
   const rerenderWith = handedRerender(opts);
   const project = handedProject(opts.project);
+  const place = handedPlace(opts);
   const trust = opts.trust ?? 'author';
   // Through MCP: a render id, its own file (core/io findNamedRender). At a terminal: as a person names it.
   const found = await locateRenderRecord(project, opts.render, opts.scenario, { trust });
@@ -280,14 +287,14 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
   const formats = [...new Set(opts.formats && opts.formats.length > 0 ? opts.formats : DEFAULT_EXPORT_FORMATS)];
   for (const f of formats) if (!(EXPORT_FORMATS as readonly string[]).includes(f)) throw new ExportError(`unknown export format "${f}": use ${EXPORT_FORMATS.join(', ')}`);
   const bin = ffmpegBin(opts.workPolicy, opts.ffmpeg);
-  const dir = resolve(opts.out ?? projectPath(project.dir, 'exports', name));
+  const dir = resolve(place(name));
   await mkdir(dir, { recursive: true });
   const emit = opts.onProgress ?? (() => undefined);
   const master = { file: record.file, record: record.record, variant, width: record.width, height: record.height, duration_s: record.duration_s, fps: record.fps };
   const base = SIZES[variant].base;
   const isBase = record.width === base[0] && record.height === base[1];
   const outputs: ExportOutput[] = [];
-  const failures: ExportResult['failures'] = [];
+  const failures: ExportMade['failures'] = [];
 
   const finish = async (format: ExportFormat, file: string, method: ExportOutput['method'], t0: number, extra: Partial<ExportOutput> = {}): Promise<ExportOutput> => {
     const probe = await probeMedia(file, opts.workPolicy);
@@ -421,15 +428,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
     }
   }
 
-  const manifest = join(dir, 'manifest.json');
-  let previous: ExportOutput[] = [];
-  try {
-    const old = JSON.parse(await readFile(manifest, 'utf8')) as ExportResult;
-    if (old.render === name) previous = (old.outputs ?? []).filter((o) => !outputs.some((n) => n.format === o.format) && existsSync(o.file));
-  } catch {
-    // no manifest yet
-  }
-  const result: ExportResult = {
+  return {
     version: 1,
     project: project.slug,
     render: name,
@@ -437,11 +436,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
     run_id: record.run_id,
     master,
     dir,
-    manifest,
-    created_at: new Date().toISOString(),
-    outputs: [...previous, ...outputs].sort((a, b) => EXPORT_FORMATS.indexOf(a.format) - EXPORT_FORMATS.indexOf(b.format)),
+    outputs,
     failures,
   };
-  await writeFile(manifest, `${JSON.stringify(result, null, 2)}\n`);
-  return result;
 }

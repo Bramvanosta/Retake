@@ -22,6 +22,7 @@
  * that does not start at 0 or has a variable frame rate is refused (frame times would not be frame numbers).
  */
 import type { RenderOutputs } from './outputs/outputs.js';
+import { oneName } from './outputs/outputs.js';
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } from 'node:fs';
 import { lstat, realpath } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
@@ -257,7 +258,7 @@ export class RenderFrames {
     try {
       const st = fstatSync(fd);
       if (!st.isFile()) throw new EngineError('refused', `${projectRef('renders', `${renderId}.mp4`)} is not a file: not shown`);
-      if (st.nlink !== 1) throw new EngineError('refused', `${projectRef('renders', `${renderId}.mp4`)} has another name (a hard link): not shown`);
+      if (!oneName(st)) throw new EngineError('refused', `${projectRef('renders', `${renderId}.mp4`)} has another name (a hard link): not shown`);
       if (!stillThere(file, st)) throw new EngineError('refused', `${projectRef('renders', `${renderId}.mp4`)} changed while it was opened: not shown`);
       return { record, fd, file, st, sig: `${st.dev}:${st.ino}:${st.size}:${st.mtimeMs}` };
     } catch (e) {
@@ -270,7 +271,7 @@ export class RenderFrames {
   private reopen(opened: Opened): number {
     const fd = openSync(opened.file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
     const st = fstatSync(fd);
-    if (!st.isFile() || st.ino !== opened.st.ino || st.dev !== opened.st.dev || st.nlink !== 1) {
+    if (!st.isFile() || st.ino !== opened.st.ino || st.dev !== opened.st.dev || !oneName(st)) {
       closeSync(fd);
       throw new EngineError('refused', `${projectRef('renders', `${opened.record.id}.mp4`)} changed while it was read: not shown`);
     }

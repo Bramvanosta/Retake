@@ -334,8 +334,8 @@ How it works (`@retake/editor`, `docs/DESIGN-phase2.md` §2.2):
   `render:` keys below, over the workspace's); `renderStill({plan,
   frame, out, root})` → the PNG path; `renderStills({plan, frames: [{frame, out}…], root})` renders several frames in one
   browser session (≈ 0.3–0.6 s per extra frame); `listRenders(project)` → the complete records of their own file in `renders/`, oldest first;
-  `renderPlan({plan, out, root})` renders any plan; `exportRender({…, rerender})` is handed what renders a format again
-  (the engine's render use case).
+  `renderPlan({plan, out, root})` renders any plan; `exportRender({…, place, rerender})` is handed where its files go and
+  what renders a format again (the engine's: its export use case places the folder and writes the manifest).
 
 Render times on the 4-CPU Linux container (no GPU, concurrency 3): ≈ 3–3.5 minutes for a 1-minute 1080p video
 (≈ 8–9 output frames per second); a still takes 1–2 s once the bundle is cached. On an M4 Mac (10 cores) a 1-minute

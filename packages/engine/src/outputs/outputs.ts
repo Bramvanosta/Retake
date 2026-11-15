@@ -34,7 +34,8 @@ export interface RunFolderReadOptions {
 
 /**
  * A file of a run folder as described: when it is a regular file, its size and, asked, the sha256 of its bytes; a link
- * whose real path leaves the run folder (or leads nowhere) is `link: 'refused'`, with neither.
+ * whose real path leaves the run folder (or leads nowhere), and a file that has another name (a hard link: `oneName`),
+ * is `link: 'refused'`, with neither.
  */
 export interface RunFileFacts {
   bytes?: number;
@@ -60,7 +61,7 @@ export interface RunOutputs {
   /**
    * What is at `file` of the run folder `dir`: undefined when nothing is there; a regular file's size (and, `hash`, its
    * sha256); `{}` for anything else. A link is followed only to a real path inside the run folder's real path; any
-   * other link is `{ link: 'refused' }`.
+   * other link, and a file that has another name (a hard link), is `{ link: 'refused' }`.
    */
   describe(dir: string, file: string, o?: { hash?: boolean }): Promise<RunFileFacts | undefined>;
   /**
@@ -89,6 +90,15 @@ export interface RunOutputs {
   write(dir: string, file: string, data: string | Uint8Array): Promise<void>;
   /** Write a JSON file of the run folder (core io writeJson's form: two-space indent, a final newline). */
   writeJson(dir: string, file: string, value: unknown): Promise<void>;
+}
+
+/**
+ * Whether a file has its one name only: a file with another name (a hard link, `nlink` above 1) may be any file of the
+ * machine under a name in a generated folder, so neither a render's video (render-frames.ts) nor a run file's size and
+ * sha256 (output-files.ts `describe`) is shown of it. The rule those two share.
+ */
+export function oneName(st: { nlink: number }): boolean {
+  return st.nlink === 1;
 }
 
 /** What is at a path of a generated folder, no link followed: undefined when nothing is there. */

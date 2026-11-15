@@ -8,13 +8,18 @@ import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, rmdir, sta
 import { dirname } from 'node:path';
 import { NODE_RECORD_FS } from '@retake/core/io';
 import type { Outputs } from './outputs.js';
+import { oneName } from './outputs.js';
 import { outputsOn } from './output-files.js';
 import type { OutputFs } from './output-files.js';
 
-/** The sha256 of a file's bytes, opened without following a link (O_NOFOLLOW: a link swapped in fails with ELOOP). */
+/**
+ * The sha256 of a file's bytes, opened without following a link (O_NOFOLLOW: a link swapped in fails with ELOOP); a
+ * file that has another name once opened (a hard link, outputs.ts `oneName`) fails with EMLINK.
+ */
 async function hashFile(path: string): Promise<string> {
   const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
+    if (!oneName(await handle.stat())) throw Object.assign(new Error(`EMLINK: another name of '${path}'`), { code: 'EMLINK', path });
     const h = createHash('sha256');
     for await (const chunk of handle.createReadStream({ autoClose: false })) h.update(chunk as Buffer);
     return h.digest('hex');
@@ -47,7 +52,8 @@ async function createExclusive(path: string, text: string): Promise<void> {
   }
 }
 
-const nodeOutputFs: OutputFs = {
+/** The file layer of the disk (exported for the tests of what only the disk has: a file swapped between two reads). */
+export const nodeOutputFs: OutputFs = {
   lstat,
   stat,
   readFile: (path) => readFile(path, 'utf8'),

@@ -635,13 +635,12 @@ describe('the import-rules ratchet', () => {
       expect(ports('packages/engine/src/index.ts', "export { MemoryWorkspace } from './workspace-reads/memory-reads.js';")).toEqual([]);
     });
 
-    it("holds today: every loader the engine calls goes through the port but agent-written.ts's (the lot beside this one) and the in-memory reviewer's, pinned", () => {
+    it("holds today: every loader the engine calls goes through the port but agent-written.ts's (the lot beside this one), pinned; the in-memory reviewer loads none (it is handed the loaded project)", () => {
       const entries = ratchetOfRepo().filter((e) => e.startsWith('workspace-read '));
       expect(entries).toEqual([
         'workspace-read packages/engine/src/agent-written.ts → findWorkspaceUpward',
         'workspace-read packages/engine/src/agent-written.ts → loadScenario',
         'workspace-read packages/engine/src/agent-written.ts → loadWorkspaceConfig',
-        'workspace-read packages/engine/src/review/memory-reviewer.ts → loadProject',
       ]);
       // Every loader the port binds is one the check knows (a loader added to the reader and not to the list fails here).
       const reader = readFileSync(join(ROOT, 'packages/core/src/io/reader.ts'), 'utf8');

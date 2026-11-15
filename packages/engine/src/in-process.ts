@@ -15,6 +15,8 @@ import type { RunRecord } from '@retake/core/run';
 import { executeRun } from './execute-run.js';
 import type { ExecuteRunOptions, PreparedRun, RunPorts, RunRequest } from './execute-run.js';
 import type { Clock } from './clock.js';
+import { dateOf } from './clock.js';
+import { runsDirOf } from './outputs/outputs.js';
 import { appendHistory, runCounted } from './history.js';
 import type { HistoryEntry } from './history.js';
 import { INSPECT_KEEP, pruneInspections, runInspection } from './jobs/inspect-job.js';
@@ -59,9 +61,24 @@ export async function exportInProcess(o: ExportWorkOptions & { project: LoadedPr
 }
 
 /** A run without a job (`retake run`): executeRun, then the history line of the run it recorded (a failed run included). */
-export async function runInProcess(p: PreparedRun, req: RunRequest, opts: ExecuteRunOptions & { clock: Clock }, ports: RunPorts): Promise<RunRecord> {
-  const { clock, ...run } = opts;
-  const record = await executeRun(p, req, run, ports);
+export async function runInProcess(p: PreparedRun, req: RunRequest, opts: Omit<ExecuteRunOptions, 'runId'> & { runId?: string; clock: Clock }, ports: RunPorts): Promise<RunRecord> {
+  const { clock, runId: given, ...run } = opts;
+  // The run folder is the engine's to place: unless given, reserved (the next free second of runs/, on the Outputs port)
+  // once the sandbox take or check is done, so that nothing is reserved while they run; one the run never wrote into
+  // (refused before it started) is removed again.
+  const runs = p.ws.outputs.runs;
+  let reserved: { id: string; dir: string } | undefined;
+  const reserve = async (): Promise<string> => {
+    reserved = await runs.reserve(runsDirOf(p.project.dir), p.scenario.name, dateOf(clock));
+    return reserved.id;
+  };
+  let record: RunRecord;
+  try {
+    record = await executeRun(p, req, { ...run, runId: given ?? reserve }, ports);
+  } catch (e) {
+    if (reserved) await runs.unreserve(reserved.dir);
+    throw e;
+  }
   await appendHistory(
     p.ws.root,
     {

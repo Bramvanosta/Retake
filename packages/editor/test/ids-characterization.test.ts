@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import { exportRender, findRun } from '../src/index.js';
-import { noRerender, syntheticRunRecord } from '@retake/test-support/render';
+import { exportsPlace, noRerender, syntheticRunRecord } from '@retake/test-support/render';
 
 let tmp: string;
 let n = 0;
@@ -147,7 +147,7 @@ describe("an export under an agent's trust names its render by its id", () => {
     await mkdir(join(p.dir, 'runs', 'r'), { recursive: true });
     const exported = async (render: string) => {
       try {
-        await exportRender({ project: p, render, trust: 'mcp', workPolicy: PERSON_POLICY, rerender: noRerender });
+        await exportRender({ project: p, render, trust: 'mcp', workPolicy: PERSON_POLICY, rerender: noRerender, place: exportsPlace(p.dir) });
         return 'exported';
       } catch (e) {
         return (e as Error).message.split(p.dir).join('<project>');

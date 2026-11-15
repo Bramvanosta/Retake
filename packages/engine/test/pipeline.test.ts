@@ -47,12 +47,13 @@ vi.mock('@retake/editor', async (importOriginal) => {
     exportRender: async (o: Record<string, unknown>) => {
       seen.calls.push({ call: 'exportRender', options: o });
       const formats = o.formats as string[];
+      // Placed where the engine says (its exports/<render>/), the manifest left to the engine.
+      const dir = (o.place as (name: string) => string)(String(o.render));
       return {
         render: o.render,
-        dir: '/exports',
-        manifest: '/exports/manifest.json',
+        dir,
         master: { width: 1920, height: 1080, duration_s: 2 },
-        outputs: formats.map((format) => ({ format, file: `/exports/${format}`, method: seen.exportMethod, width: 1, height: 1, duration_s: 2, size_bytes: 1, ms: 1, warnings: [] })),
+        outputs: formats.map((format) => ({ format, file: `${dir}/${format}`, method: seen.exportMethod, width: 1, height: 1, duration_s: 2, size_bytes: 1, ms: 1, warnings: [] })),
         failures: [],
       };
     },
@@ -206,7 +207,9 @@ describe('the jobs run the shared pipeline with their own options', () => {
     const rev: ReviewJobInput = { version: 1, kind: 'review', project: 'demo', render_id: `${SCENARIO}-v1`, fps: 2, previous: false, submitted_by: 'test' };
     const r = ctx(rev);
     const reviewed = await executeReviewJob(r);
-    expect(seen.calls[1]).toMatchObject({ call: 'reviewRender', options: { render: `${SCENARIO}-v1`, fps: 2, previous: false, thumbnails: false, root } });
+    // The review is handed the loaded project (its root with it), never a slug and a root to find it in.
+    expect(seen.calls[1]).toMatchObject({ call: 'reviewRender', options: { render: `${SCENARIO}-v1`, fps: 2, previous: false, thumbnails: false, project: { slug: 'demo', root } } });
+    expect('root' in seen.calls[1].options).toBe(false);
     expect(seen.calls[1].options.signal).toBe(r.signal);
     expect(reviewed).toMatchObject({ kind: 'review', clean: true, ms: 5 });
     // A format rendered again goes through the render use case, on the job's renderer and its workspace's renders.
@@ -296,6 +299,7 @@ describe('the in-process functions write one history line each; the pipeline non
     expect(seen.calls.map((c) => c.call)).toEqual(['renderVideo', 'renderStill', 'exportRender', 'renderComponentPreviews', 'renderComponentLoops']);
     for (const c of seen.calls) expect(c.options.renderer, c.call).toBe(c.call === 'exportRender' ? undefined : renderer);
     expect(typeof seen.calls[2].options.rerender).toBe('function');
+    expect((seen.calls[2].options.place as (name: string) => string)('x-v1')).toBe(join(project.dir, 'exports', 'x-v1'));
     // After the request's own fields: what it asked is what the use case got, the renderer beside it.
     for (const c of seen.calls) expect(c.options, c.call).toMatchObject({ project, root, workPolicy: PERSON_POLICY });
     // The editor read a failure too (diskFullWork): its own rule.

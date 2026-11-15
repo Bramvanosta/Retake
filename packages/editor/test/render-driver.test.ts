@@ -288,6 +288,18 @@ describe('the editor finds no workspace and loads no project by itself', () => {
     expect(rerendered).toBe(0);
   });
 
+  it('exportRender places no export by itself: one handed no place for its files is refused, before any lookup, nothing written', async () => {
+    let rerendered = 0;
+    const rerender = async () => (rerendered++, { record: '', warnings: [] });
+    for (const place of [undefined, null, 'exports', {}]) {
+      expect(await refused(exportRender(loose({ workPolicy: PERSON_POLICY, project, root, render: 'no-such-render', formats: ['webm'], rerender, place })))).toBe(
+        'export: no place was handed for its files (the caller places the export)',
+      );
+    }
+    expect(rerendered).toBe(0);
+    expect(existsSync(join(project.dir, 'exports'))).toBe(false);
+  });
+
   it('a still and a video of a plan refuse a request with no workspace root, whatever the current folder holds', async () => {
     const { plan } = await planRun({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
     const here = process.cwd();

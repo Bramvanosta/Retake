@@ -11,9 +11,11 @@ import type { RenderRecord } from '@retake/editor/plan';
 import { EngineError } from '../errors.js';
 import { editor } from '../lazy.js';
 import { renderVideoWork } from './render-video.js';
-import type { RenderVideoOptions } from './render-video.js';
+import type { RenderPlace, RenderVideoOptions } from './render-video.js';
+import type { OutputFolder } from '../outputs/outputs.js';
 import type { Renderer } from './renderer.js';
 import { versionLockFile } from './versions.js';
+import { exportPlace, writeExportManifest } from './export-manifest.js';
 
 export type { RenderVideoOptions } from './render-video.js';
 
@@ -73,18 +75,26 @@ export async function stillWork(o: OnRenderer<RenderStillOptions>): Promise<stri
   return onRenderer('still', o, (ed, on) => ed.renderStill(on));
 }
 
-/** What an export is asked: the editor's options, the renderer its re-rendered formats are drawn with, the workspace they are placed in and the clock that stamps their records. */
-export type ExportWorkOptions = Omit<OnRenderer<ExportRenderOptions>, 'rerender'> & Pick<RenderVideoOptions, 'ws' | 'clock'>;
+/**
+ * What an export is asked: the editor's options, the renderer its re-rendered formats are drawn with, the workspace
+ * they are placed in (its exports and renders), the clock that stamps their records and its manifest, and `out`, an
+ * output folder instead of exports/<render-id>/.
+ */
+export type ExportWorkOptions = Omit<OnRenderer<ExportRenderOptions>, 'rerender' | 'place'> &
+  Pick<RenderVideoOptions, 'clock'> & { ws: RenderPlace & { outputs: { exports: OutputFolder } }; out?: string };
 
 /**
- * Export a render's delivery files into exports/<render-id>/ (the editor's exportRender): a format rendered again from
- * the master is the engine's render use case, on the renderer and the renders handed (its version, its record).
+ * Export a render's delivery files into exports/<render-id>/ (the editor's exportRender writes the formats where the
+ * engine places them; export-manifest.ts writes the manifest): a format rendered again from the master is the engine's
+ * render use case, on the renderer and the renders handed (its version, its record).
  */
 export async function exportWork(o: ExportWorkOptions): Promise<ExportResult> {
-  return onRenderer('export', o, (ed, on) => {
-    const { renderer, ws, clock, ...rest } = on;
-    return ed.exportRender({
+  return onRenderer('export', o, async (ed, on) => {
+    const { renderer, ws, clock, out, ...rest } = on;
+    const made = await ed.exportRender({
       ...rest,
+      // Asked once the editor checked what it was handed (a loaded project): exports/<name>/ of it, or `out`.
+      place: (name) => exportPlace(ws.outputs.exports, on.project.dir, out)(name),
       rerender: (r) =>
         renderVideoWork({
           ...r,
@@ -96,6 +106,7 @@ export async function exportWork(o: ExportWorkOptions): Promise<ExportResult> {
           clock,
         }),
     });
+    return writeExportManifest(ws.outputs.exports, made, clock);
   });
 }
 

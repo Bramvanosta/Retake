@@ -674,10 +674,11 @@ renderComponentPreviews(opts: { root; targets: { id, dir, entry, manifest, slots
 buildComponentPreview(opts: { …, slots?, params?, at? }): { spec: ComponentPreviewSpec; at; screen?; components }   // pure
 //  A theme preview (MCP template_preview, L3.2) is renderComponentPreviews over the theme's own pick per kind (intro,
 //  layout, card, interstitial, outro, each with the theme's params): no separate previewTemplate.
-exportRender(opts: { project /* loaded */; render /* id | path | latest */; formats?: ExportFormat[]; out?; gif?: {start_s?,
-                     duration_s?}; concurrency?; signal?; onProgress? }): Promise<ExportResult>   // L2.8
-//  'mp4_1080p' | 'mp4_4k' | 'webm' | 'vertical_9x16' | 'square_1x1' | 'gif_preview' → <project>/exports/<render-id>/
-//  + manifest.json. Derived from the master with ffmpeg: 1080p (copy, or scaled from 4K), WebM (VP9 CRF 32 + Opus),
+exportRender(opts: { project /* loaded */; render /* id | path | latest */; formats?: ExportFormat[]; place; rerender;
+                     gif?: {start_s?, duration_s?}; concurrency?; signal?; onProgress? }): Promise<ExportMade>   // L2.8
+//  'mp4_1080p' | 'mp4_4k' | 'webm' | 'vertical_9x16' | 'square_1x1' | 'gif_preview' → the folder `place` names: the
+//  engine's <project>/exports/<render-id>/ (or `--out`). The engine's export use case (render/work.ts exportWork,
+//  render/export-manifest.ts) writes manifest.json from what the editor made, beside the formats exported earlier. Derived from the master with ffmpeg: 1080p (copy, or scaled from 4K), WebM (VP9 CRF 32 + Opus),
 //  GIF (480 px, 12 fps, palette, 15 s around the first marker else the first 15 s). Re-rendered from the run through
 //  the planner (same theme and overrides): vertical, square, and 4K from a non-4K master (capture upscaled, warning).
 //  L3.2: `trust: 'mcp'` (export jobs) — the render named by id only, read from renders/<id>.json, its `file` and
@@ -1219,8 +1220,10 @@ own files with `planFileRefs` / `themeFileRefs`). project.yaml `raw` (core `RawS
 ## 3. Review (`packages/review`)
 
 ```ts
-reviewRender(opts: { project; render: string; fps?: 1 | 2; previous?: string | false }): Promise<ReviewResult>
+reviewRender(opts: { project: LoadedProject; render: string; fps?: 1 | 2; previous?: string | false }): Promise<ReviewResult>
 ```
+The project is the loaded one its caller hands (the engine's review job, `retake review`): the review loads no project
+by itself, and a slug or a folder is refused.
 Writes `review/<render-id>/`: `sheet_<fps>fps.jpg` (+ pages), `sheet_scene_<id>.jpg`, `keyframes/<marker>.png` (the
 screen once the marked step is done — `plan.markers[].done`, a marked wait's awaited state; L2.14)
 (+ scene first/last), `timeline.json` (output-time: segments with components, captions, markers, step spans),

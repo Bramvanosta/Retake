@@ -40,8 +40,15 @@ import type { Outputs, RunOutputs } from '../outputs/outputs.js';
  * (`browser`), the hook runner its setup, teardown and hook steps run through and the resolver of its secrets (both
  * required: every run the engine starts hands its composition root's).
  */
-export type CaptureRequest = Omit<RunOptions, 'browser' | 'resolveSecret' | 'hookRunner'> & {
+export type CaptureRequest = Omit<RunOptions, 'browser' | 'resolveSecret' | 'hookRunner' | 'runId' | 'runsDir'> & {
   hookRunner: HookRunner;
+  /**
+   * The run folder's id, reserved by the engine before the run (a job's at submit, `retake run`'s in in-process.ts, an
+   * inspection's and a recording's check their own): a runner places no run folder of its own.
+   */
+  runId: string;
+  /** The folder of `runId` (runs/ of the project, an inspection's folder, a recording's check folder). */
+  runsDir: string;
   /** What the run's secret references are resolved with: its composition root's Secrets port (required: never the runner's own). */
   resolveSecret: (ref: string) => Promise<string>;
   /**

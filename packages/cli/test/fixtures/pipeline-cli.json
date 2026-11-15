@@ -76,7 +76,6 @@
      "previous": "<undefined>",
      "project": "<project demo>",
      "render": "<ws>/projects/demo/renders/tour-v2.json",
-     "root": "<ws>",
      "scenario": "<undefined>",
      "thumbnails": false
     }
@@ -227,7 +226,7 @@
  "export rerender": {
   "code": 0,
   "out": "",
-  "err": "export tour-v1 (1920×1080, 2.00 s) → <ws>/projects/demo/exports/tour-v1 <t>\n✓ vertical 9:16 <ws>/projects/demo/exports/tour-v1/tour-v1-vertical_9x16.mp4  1080×1920 h264 + aac, 2.00 s, 2.0 KB render · 1.2 s\n✓ WebM (VP9)    <ws>/projects/demo/exports/tour-v1/tour-v1-webm.mp4  1080×1920 h264 (no audio), 2.00 s, 2.0 KB transcode · 1.2 s\n!   no audio track in the master\n  manifest <ws>/projects/demo/exports/tour-v1/manifest.json\n",
+  "err": "export tour-v1 (1920×1080, 2.00 s) → <ws>/projects/demo/exports/tour-v1 <t>\n✓ WebM (VP9)    <ws>/projects/demo/exports/tour-v1/tour-v1-webm.mp4  1080×1920 h264 (no audio), 2.00 s, 2.0 KB transcode · 1.2 s\n!   no audio track in the master\n✓ vertical 9:16 <ws>/projects/demo/exports/tour-v1/tour-v1-vertical_9x16.mp4  1080×1920 h264 + aac, 2.00 s, 2.0 KB render · 1.2 s\n  manifest <ws>/projects/demo/exports/tour-v1/manifest.json\n",
   "history": [
    "{\"v\":1,\"at\":\"<at>\",\"kind\":\"export\",\"project\":\"demo\",\"submitted_by\":\"cli\",\"state\":\"succeeded\",\"counted\":{\"captures\":0,\"dry_runs\":0,\"renders\":1}}"
   ],
@@ -242,7 +241,7 @@
       "webm"
      ],
      "onProgress": "<function>",
-     "out": "<undefined>",
+     "place": "<function>",
      "project": "<project demo>",
      "render": "tour-v1",
      "rerender": "<function>",
@@ -258,7 +257,7 @@
  },
  "export transcode latest": {
   "code": 0,
-  "out": "{\n  \"render\": \"tour-v1\",\n  \"dir\": \"<ws>/projects/demo/exports/tour-v1\",\n  \"manifest\": \"<ws>/projects/demo/exports/tour-v1/manifest.json\",\n  \"master\": {\n    \"width\": 1920,\n    \"height\": 1080,\n    \"duration_s\": 2\n  },\n  \"outputs\": [\n    {\n      \"format\": \"webm\",\n      \"file\": \"<ws>/projects/demo/exports/tour-v1/tour-v1-webm.mp4\",\n      \"method\": \"transcode\",\n      \"width\": 1080,\n      \"height\": 1920,\n      \"video_codec\": \"h264\",\n      \"duration_s\": 2,\n      \"size_bytes\": 2048,\n      \"ms\": 1200,\n      \"warnings\": [\n        \"no audio track in the master\"\n      ]\n    }\n  ],\n  \"failures\": []\n}\n",
+  "out": "{\n  \"render\": \"tour-v1\",\n  \"master\": {\n    \"width\": 1920,\n    \"height\": 1080,\n    \"duration_s\": 2\n  },\n  \"dir\": \"<ws>/projects/demo/exports/tour-v1\",\n  \"manifest\": \"<ws>/projects/demo/exports/tour-v1/manifest.json\",\n  \"created_at\": \"<now>\",\n  \"outputs\": [\n    {\n      \"format\": \"webm\",\n      \"file\": \"<ws>/projects/demo/exports/tour-v1/tour-v1-webm.mp4\",\n      \"method\": \"transcode\",\n      \"width\": 1080,\n      \"height\": 1920,\n      \"video_codec\": \"h264\",\n      \"duration_s\": 2,\n      \"size_bytes\": 2048,\n      \"ms\": 1200,\n      \"warnings\": [\n        \"no audio track in the master\"\n      ]\n    }\n  ],\n  \"failures\": []\n}\n",
   "err": "",
   "history": [],
   "journal": [],
@@ -271,7 +270,7 @@
       "webm"
      ],
      "onProgress": "<function>",
-     "out": "<undefined>",
+     "place": "<function>",
      "project": "<project demo>",
      "render": "tour-v1",
      "rerender": "<function>",
@@ -319,7 +318,6 @@
      "previous": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
-     "root": "<ws>",
      "scenario": "<undefined>",
      "thumbnails": false
     }
@@ -344,7 +342,6 @@
      "previous": false,
      "project": "<project demo>",
      "render": "tour-v1",
-     "root": "<ws>",
      "scenario": "tour",
      "thumbnails": false
     }
@@ -393,6 +390,8 @@
      },
      "project": "<project demo>",
      "recordHookRun": "<function>",
+     "runId": "<id>",
+     "runsDir": "<ws>/projects/demo/runs",
      "scenario": "<scenario tour>",
      "template": "<template>",
      "until": "<undefined>"
@@ -426,6 +425,8 @@
      },
      "project": "<project demo>",
      "recordHookRun": "<function>",
+     "runId": "<id>",
+     "runsDir": "<ws>/projects/demo/runs",
      "scenario": "<scenario tour>",
      "template": "<template>",
      "until": "<undefined>"
@@ -457,6 +458,8 @@
      },
      "project": "<project demo>",
      "recordHookRun": "<function>",
+     "runId": "<id>",
+     "runsDir": "<ws>/projects/demo/runs",
      "scenario": "<scenario tour>",
      "template": "<template>",
      "until": "<undefined>"
@@ -652,7 +655,7 @@
       "gif_preview"
      ],
      "onProgress": "<function>",
-     "out": "<undefined>",
+     "place": "<function>",
      "project": "<project demo>",
      "render": "tour-v1",
      "rerender": "<function>",
@@ -681,7 +684,7 @@
       "webm"
      ],
      "onProgress": "<function>",
-     "out": "<undefined>",
+     "place": "<function>",
      "project": "<project demo>",
      "render": "tour-v9",
      "rerender": "<function>",
@@ -710,7 +713,7 @@
       "vertical_9x16"
      ],
      "onProgress": "<function>",
-     "out": "<undefined>",
+     "place": "<function>",
      "project": "<project demo>",
      "render": "tour-v1",
      "rerender": "<function>",

@@ -316,6 +316,15 @@ export interface ExportResult {
   failures: Array<{ format: ExportFormat; error: string }>;
 }
 
+/**
+ * What the editor's exportRender made: the export without its manifest. The caller (the engine's export use case)
+ * keeps the formats exported earlier into the same folder, stamps it and writes `manifest.json`: the ExportResult.
+ */
+export type ExportMade = Omit<ExportResult, 'manifest' | 'created_at'>;
+
+/** Where an export is placed: the folder of the render named `name` (its folder name), made by the caller's rule. */
+export type ExportPlace = (name: string) => string;
+
 export interface ExportRenderOptions {
   /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
   workPolicy: WorkPolicy;
@@ -325,8 +334,11 @@ export interface ExportRenderOptions {
   render: string;
   scenario?: string;
   formats?: readonly ExportFormat[];
-  /** Output folder (default `<project>/exports/<render-id>/`). */
-  out?: string;
+  /**
+   * The folder the export goes in, from the name of the render found (the engine's: `<project>/exports/<render-id>/`,
+   * or the caller's output folder). Required: this package places no export by itself.
+   */
+  place: ExportPlace;
   /** GIF window (default: around the first marker, else the first 15 s). */
   gif?: { start_s?: number; duration_s?: number };
   /** Workspace root of the re-rendered formats (default: the project's; the re-render is handed it by its caller). */

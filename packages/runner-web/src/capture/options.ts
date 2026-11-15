@@ -25,8 +25,9 @@ export interface RunOptions {
   /** Default: capture = run, dry = skip. */
   hooks?: 'run' | 'skip';
   headed?: boolean;
+  /** The run folder's id (the engine reserves it and always hands it); absent, a direct caller's run takes the next free one. */
   runId?: string;
-  /** Default <project>/runs. */
+  /** The folder of the run folders (the engine always hands it); default <project>/runs. */
   runsDir?: string;
   onProgress?: (e: RunProgress) => void;
   signal?: AbortSignal;

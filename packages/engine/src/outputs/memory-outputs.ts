@@ -4,7 +4,8 @@
  * test reads back what the engine and the in-memory capture runner wrote — no folder of the disk exists for it. The
  * same contract suite runs on both adapters (engine/test/outputs-contract.ts).
  *
- * Limits (what only the disk has, said so a test does not rely on the fake for it): no symbolic link (`inside` is a
+ * Limits (what only the disk has, said so a test does not rely on the fake for it): no hard link (every file has its
+ * one name: `describe` never refuses a file for another name), no symbolic link (`inside` is a
  * folder's being there: no real path differs from its spelling), no file mode, no special file, case counts; a write
  * is atomic by being one Map entry. A signature is the path's write count, not a time. What reads a run folder outside
  * the port — a run's pictures, frames and videos (run-files.ts RunFolder, run-data.ts), the editor's and the review's
@@ -126,6 +127,7 @@ export class MemoryOutputs implements Outputs {
       size: data?.length ?? 0,
       ino: n,
       mtimeMs: n,
+      nlink: 1,
     };
   }
 

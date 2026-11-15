@@ -30,6 +30,7 @@ import type { OpenedWorkspace } from './workspace.js';
 import type { JournalAs } from './store/journal.js';
 import { confinementOf } from './caller.js';
 import { EngineError } from './errors.js';
+import { runsDirOf } from './outputs/outputs.js';
 
 /** A run option that cannot be used as given (the CLI reports it as a usage error, exit 2). */
 export class RunOptionError extends Error {
@@ -175,8 +176,11 @@ export interface ExecuteRunOptions {
   hooks: HookRunner;
   /** What takes a sandbox's take (`sandbox: true`) or checks a sandbox environment (its composition root's Sandboxes port). */
   sandboxes: Sandboxes;
-  /** A run id reserved ahead (core reserveRunId: a job's); default a new one. */
-  runId?: string;
+  /**
+   * The run's id in runs/ of the project (the Outputs port's `reserve`): reserved ahead (a job's, at submit), or the
+   * reservation to make once the sandbox take or check is done (runInProcess's: nothing is reserved before them).
+   */
+  runId: string | (() => Promise<string>);
   /** `--allow-writes` (L1.7): checked by the caller first (checkAllowWrites). */
   allowWrites?: boolean;
   /** Capture without the in-page cursor (`run --raw --cursor none|layer`). */
@@ -270,6 +274,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
   else await checkSandboxEnv(project, resolveEnvironment(project, req.env ?? scenario.scenario.env).name, ports.note, opts.policy, opts.sandboxes);
 
   try {
+    const runId = typeof opts.runId === 'string' ? opts.runId : await opts.runId();
     return await opts.capture.run({
       resolveSecret: (ref) => opts.secrets.resolve(ref),
       runs: ws.outputs.runs,
@@ -284,7 +289,8 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
       headed: req.headed,
       ffmpeg: ws.ffmpeg,
       ...(opts.loginCommand ? { loginCommand: opts.loginCommand } : {}),
-      ...(opts.runId !== undefined ? { runId: opts.runId } : {}),
+      runId,
+      runsDir: runsDirOf(project.dir),
       ...(opts.signal ? { signal: opts.signal } : {}),
       ...(opts.allowWrites ? { allowWrites: true } : {}),
       ...(opts.hideCursor ? { hideCursor: true } : {}),

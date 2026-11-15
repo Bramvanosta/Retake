@@ -12,7 +12,7 @@
  * Not here, because it is not an adapter's: what the engine builds the request from (execute-run.ts, inspect-job.ts:
  * capture-runner.test.ts), and everything a real browser does on a page (runner-web's own tests).
  */
-import { MemorySecrets, diskOutputs } from '../src/index.js';
+import { MemorySecrets, diskOutputs, runsDirOf } from '../src/index.js';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -47,9 +47,10 @@ export function captureRunnerContract(adapter: string, make: (name: string) => P
       scenario: makeScenario(name, { pacing: FAST, ...scenario }),
       mode: 'dry',
       env: 'test',
-      runId: `20261111-1200${String(n++).padStart(2, '0')}-${name}`,
       hookRunner: new MemoryHookRunner(),
       ...over,
+      runId: over.runId ?? `20261111-1200${String(n++).padStart(2, '0')}-${name}`,
+      runsDir: over.runsDir ?? runsDirOf(c.project.dir),
     });
     const onDisk = async (rec: RunRecord) => JSON.parse(await readFile(join(rec.dir, 'run.json'), 'utf8')) as RunRecord;
 

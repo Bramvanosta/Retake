@@ -13,13 +13,15 @@ import { findNamedRender, readListedRender, readNamedRun, readRenderById, readRe
 import type { RecordFs, RunFolderFs, RunFolderStat } from '@retake/core/io';
 import { EngineError } from '../errors.js';
 import type { OutputFolder, OutputKind, Outputs, RenderOutputs, RunOutputs } from './outputs.js';
-import { OUTPUT_DIRS, runsDirOf } from './outputs.js';
+import { OUTPUT_DIRS, oneName, runsDirOf } from './outputs.js';
 
 /** A path's facts as the layer gives them (node's Stats has them all). */
 export interface OutputStat extends RunFolderStat {
   /** What the signature is made of: an inode (or the memory's write count), the size, the last change. */
   ino: number;
   mtimeMs: number;
+  /** The file's names (its hard links); 1 in the memory, which has none. */
+  nlink: number;
 }
 
 /** What the outputs ask of a storage: core's RunFolderFs and RecordFs, and the writes, the removal, the hash and the real path. */
@@ -33,7 +35,7 @@ export interface OutputFs extends RunFolderFs, RecordFs {
   writeAtomic(path: string, data: string | Uint8Array): Promise<void>;
   /** Create a file that is not there yet with `text`, its folder made; fails with code EEXIST when anything is there. */
   createExclusive(path: string, text: string): Promise<void>;
-  /** The sha256 of a file's bytes (streamed on a disk), never through a link (refused: ELOOP). */
+  /** The sha256 of a file's bytes (streamed on a disk), never through a link (refused: ELOOP) nor of a file with another name (refused: EMLINK). */
   hash(path: string): Promise<string>;
   realpath(path: string): Promise<string>;
   /** Remove a file or a folder and everything under it; nothing there is no failure. */
@@ -194,8 +196,9 @@ export function runOutputsOn(fs: OutputFs): RunOutputs {
       } catch {
         return undefined;
       }
-      // A link is followed only while its real path stays in the run folder; one that leaves it (or leads nowhere) is
-      // said as a refused link: no size, no hash of what lies elsewhere.
+      // A link is followed only while its real path stays in the run folder; one that leaves it (or leads nowhere), and
+      // a file that has another name (a hard link: any file of the machine), is said as a refused link: no size, no hash
+      // of what lies elsewhere.
       let target = path;
       if (st.isSymbolicLink()) {
         try {
@@ -208,12 +211,15 @@ export function runOutputsOn(fs: OutputFs): RunOutputs {
         }
       }
       if (!st.isFile()) return {};
+      if (!oneName(st)) return { link: 'refused' };
       let sha256: string | undefined;
       try {
         if (o.hash) sha256 = await fs.hash(target);
       } catch (e) {
-        // Turned into a link between the look and the read (the hash opens without following one): a refused link.
-        if ((e as NodeJS.ErrnoException).code === 'ELOOP') return { link: 'refused' };
+        // Turned into a link, or given another name, between the look and the read (the hash opens without following
+        // one and checks the opened file's names): a refused link.
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code === 'ELOOP' || code === 'EMLINK') return { link: 'refused' };
         throw e;
       }
       return { bytes: st.size, ...(sha256 !== undefined ? { sha256 } : {}) };

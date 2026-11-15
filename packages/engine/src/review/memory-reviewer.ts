@@ -21,7 +21,7 @@ import { projectPath } from '@retake/core/project';
 import { isIsoUtcDate } from '@retake/core/comments';
 import type { LoadedProject } from '@retake/core/model';
 import type { RenderVariant } from '@retake/core/ids';
-import { findNamedRender, loadProject, pidExists } from '@retake/core/io';
+import { findNamedRender, pidExists } from '@retake/core/io';
 import { DEFAULT_RULES, ReviewCancelledError } from '@retake/review/checks';
 import type { Finding, ReviewOptions, ReviewProgress, ReviewResult } from '@retake/review/checks';
 import { MEMORY_PNG } from '../render/memory-renderer.js';
@@ -151,7 +151,8 @@ export class MemoryReviewer implements Reviewer {
       emit({ stage: s, ...(progress !== undefined ? { progress } : {}) });
     };
     stage('loading');
-    const project: LoadedProject = typeof o.project === 'string' ? await loadProject(o.project, o.root) : o.project;
+    const project: LoadedProject = o.project;
+    if (typeof project !== 'object' || project === null) throw new MemoryReviewError('no loaded project was handed (the caller loads the project; a slug or a folder is not read here)');
     const found = await findNamedRender(projectPath(project.dir, 'renders'), o.render, {
       verb: 'review',
       slug: project.slug,

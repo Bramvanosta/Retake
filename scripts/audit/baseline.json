@@ -133,13 +133,6 @@
    ]
   },
   {
-   "rule": "workspace-read",
-   "reason": "the in-memory reviewer stands for the review package, which loads the project a review names by slug itself (core io loadProject, outside the engine): the fake does what the adapter does",
-   "entries": [
-    "packages/engine/src/review/memory-reviewer.ts → loadProject"
-   ]
-  },
-  {
    "rule": "shell-op",
    "reason": "The Studio's own ops (18 in 6 files on 2026-11-12, after L7.14 moved its ten read-only queries, L7.17 its eleven theme and library ops, L7.15 its six submits and job controls, L7.16 its twelve comment ops and L7.18 scenario_edit and its seven record ops): every use case the engine serves is its operation now; these hold the server's own state (its index, player, leases, set-up and update state, unsaved tabs, the desktop pipe) and stay here.",
    "entries": [

@@ -146,7 +146,6 @@ export async function executeReviewJob(ctx: ReviewJobContext): Promise<ReviewJob
   const result = await reviewWork(ctx.reviewer, {
     policy: ctx.ws.policy,
     project,
-    root: ctx.ws.root,
     render: record.id,
     fps: input.fps,
     previous,

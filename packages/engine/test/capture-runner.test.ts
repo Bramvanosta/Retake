@@ -8,6 +8,7 @@
  * run-live-pause.test.ts and the CLI's run tests.
  */
 import { MemorySecrets } from '../src/index.js';
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,7 +16,20 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_CAPTURE, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, RunRecord } from '@retake/core';
 import { chromiumExecutable } from '@retake/runner-web';
-import { createEngine, historyFile, openWorkspace, prepareRun, runInProcess, runWorker, runnerWebCapture, signalInterrupts, systemClock, diskWorkspaceReads, diskOutputs } from '../src/index.js';
+import {
+  createEngine,
+  historyFile,
+  openWorkspace,
+  prepareRun,
+  runInProcess,
+  runWorker,
+  runnerWebCapture,
+  signalInterrupts,
+  systemClock,
+  diskWorkspaceReads,
+  diskOutputs,
+  runsDirOf,
+} from '../src/index.js';
 import type { InspectJobResult, RunPorts } from '../src/index.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import type { CaptureRequest } from '../src/capture/runner.js';
@@ -77,6 +91,8 @@ describe('the in-memory capture runner', () => {
       scenario: makeScenario('fail', { scenes: [{ id: 'one', page: 'app', open: '/', steps: [{ hold: 0.05 }, { click: 'Go' }, { hold: 0.05 }] }] }),
       mode: 'dry',
       env: 'test',
+      runId: '20261111-120000-fail',
+      runsDir: runsDirOf(project.dir),
       hookRunner: new MemoryHookRunner(),
     });
     expect(rec).toMatchObject({ status: 'failed', steps_done: 2, error: { message: 'no such button', scene: 'one', step: 1, action: 'click' } });
@@ -139,7 +155,7 @@ describe('what the engine hands the capture runner (in memory)', () => {
     expect(onDisk.status).toBe('succeeded');
   });
 
-  it("a run in process (the CLI's): the hook runner handed, no run id, trust author, then its history line as the cli's", async () => {
+  it("a run in process (the CLI's): the hook runner handed, the run id the engine reserved in runs/, trust author, then its history line as the cli's", async () => {
     const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     const prepared = await prepareRun(w, project, 'quote', { dry: true, until: 'discover.0' });
@@ -156,7 +172,9 @@ describe('what the engine hands the capture runner (in memory)', () => {
     expect(await req!.resolveSecret('env:SHOP_TOKEN')).toBe('s3cret');
     await expect(req!.resolveSecret('env:NOT_HANDED')).rejects.toThrow('environment variable NOT_HANDED is not set');
     expect(secrets.asked).toEqual(['env:SHOP_TOKEN', 'env:NOT_HANDED']);
-    expect(req!.runId).toBeUndefined();
+    // The run folder is the engine's to place: reserved in runs/ before the run, handed to the runner.
+    expect(req!.runId).toBe(rec.id);
+    expect(req!.runsDir).toBe(join(ws, 'projects', 'northfield-fixture', 'runs'));
     expect(req!.hookTrust).toBeUndefined();
     expect(req!.policy.agentFolders).toBeNull();
     expect(progress[0]).toBe('run_start');
@@ -166,6 +184,48 @@ describe('what the engine hands the capture runner (in memory)', () => {
       .split('\n')
       .map((l) => JSON.parse(l) as Record<string, unknown>);
     expect(history.at(-1)).toMatchObject({ kind: 'run', submitted_by: 'cli', run: { id: rec.id, scenario: 'quote', mode: 'dry', status: 'succeeded' } });
+  });
+
+  it('a run in process that fails before it starts leaves no run folder: the one the engine reserved is removed again', async () => {
+    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+    const project = await openProjectBySlug(w, 'northfield-fixture');
+    const prepared = await prepareRun(w, project, 'quote', { dry: true, until: 'discover.0' });
+    const capture = new MemoryCaptureRunner();
+    let handed: CaptureRequest | undefined;
+    capture.run = async (req) => {
+      handed = req;
+      throw new Error('the browser did not start');
+    };
+    const ports: RunPorts = { issues: () => undefined, note: () => undefined, sandboxLog: () => undefined, progress: () => undefined, interrupts: signalInterrupts() };
+    const run = runInProcess(
+      prepared,
+      { dry: true, until: 'discover.0' },
+      { policy: w.policy, capture, hooks: new MemoryHookRunner(), sandboxes: new MemorySandboxes(), secrets: new MemorySecrets(), clock: systemClock },
+      ports,
+    );
+    await expect(run).rejects.toThrow('the browser did not start');
+    expect(handed?.runId).toBeTypeOf('string');
+    expect(existsSync(join(handed!.runsDir, handed!.runId))).toBe(false);
+  });
+
+  it('a run in process reserves its run folder only once the sandbox check is done: a check that fails reserves nothing', async () => {
+    const reserved: string[] = [];
+    const outputs = { ...diskOutputs, runs: { ...diskOutputs.runs, reserve: async (...a: Parameters<typeof diskOutputs.runs.reserve>) => (reserved.push(a[1]), diskOutputs.runs.reserve(...a)) } };
+    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs });
+    const project = await openProjectBySlug(w, 'northfield-fixture');
+    // A scenario of the sandbox environment, filmed without --sandbox: its sandbox is checked first (here: down).
+    const prepared = await prepareRun(w, project, 'sandbox-quote', { dry: true });
+    const capture = new MemoryCaptureRunner();
+    const ports: RunPorts = { issues: () => undefined, note: () => undefined, sandboxLog: () => undefined, progress: () => undefined, interrupts: signalInterrupts() };
+    const run = runInProcess(
+      prepared,
+      { dry: true },
+      { policy: w.policy, capture, hooks: new MemoryHookRunner(), sandboxes: new MemorySandboxes(), secrets: new MemorySecrets(), clock: systemClock },
+      ports,
+    );
+    await expect(run).rejects.toThrow(/sandbox/);
+    expect(reserved).toEqual([]);
+    expect(requests(capture)).toEqual([]);
   });
 
   it("an inspect job: the inspection's folder and id, a dry replay with the worker's hook runner, its report read back", async () => {

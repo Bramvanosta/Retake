@@ -4,10 +4,10 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { GUIDE, errorMessage, missingOrInvalid } from '@retake/core/base';
+import { GUIDE, missingOrInvalid } from '@retake/core/base';
 import { projectPath } from '@retake/core/project';
 import { previousRender, renderRecordsOf } from '@retake/core/render';
-import { findNamedRender, loadProject, readRendersFolder, readRunRecord, readTimeline } from '@retake/core/io';
+import { findNamedRender, readRendersFolder, readRunRecord, readTimeline } from '@retake/core/io';
 import type { ErrorKind } from '@retake/core/base';
 import type { LoadedProject, Timeline } from '@retake/core/model';
 import type { StoredRunRecord, UnknownStatusRun } from '@retake/core/run';
@@ -32,13 +32,12 @@ export class ReviewError extends Error {
   }
 }
 
-export async function openProject(project: LoadedProject | string, root?: string): Promise<LoadedProject> {
-  if (typeof project !== 'string') return project;
-  try {
-    return await loadProject(project, root);
-  } catch (e) {
-    throw new ReviewError(`project "${project}": ${errorMessage(e)}`);
+/** The loaded project a review was handed: the review loads no project by itself (a slug or a folder is refused). */
+export function handedProject(project: unknown): LoadedProject {
+  if (typeof project !== 'object' || project === null || typeof (project as LoadedProject).dir !== 'string') {
+    throw new ReviewError('no loaded project was handed (the caller loads the project; a slug or a folder is not read here)');
   }
+  return project as LoadedProject;
 }
 
 /** `<project>/renders`: where the project's renders and their records are. */

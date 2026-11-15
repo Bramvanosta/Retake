@@ -65,13 +65,12 @@ export function printReview(ui: Ui, r: ReviewResult): void {
 export async function runReview(
   ui: Ui,
   reviewer: Reviewer,
-  opts: { policy: WorkPolicy; project: Parameters<typeof reviewWork>[1]['project']; root: string; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
+  opts: { policy: WorkPolicy; project: Parameters<typeof reviewWork>[1]['project']; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
 ): Promise<ReviewResult> {
   try {
     return await reviewWork(reviewer, {
       policy: opts.policy,
       project: opts.project,
-      root: opts.root,
       render: opts.render,
       scenario: opts.scenario,
       fps: opts.fps,
@@ -113,7 +112,7 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (gate.waited) ui.info(`reviewing render ${printableText(renderId)}`);
   let result: ReviewResult;
   try {
-    result = await runReview(ui, cliPorts.reviewer, { policy: ws.policy, project, root: ws.root, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
+    result = await runReview(ui, cliPorts.reviewer, { policy: ws.policy, project, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
   } catch (e) {
     if (e instanceof Error && e.name === 'ReviewError') throw new CliError(e.message);
     throw e;

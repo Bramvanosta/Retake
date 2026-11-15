@@ -43,6 +43,16 @@ export function reviewerContract(name: string, setup: () => Promise<ReviewerCase
     const dirOf = (c: ReviewerCase) => join(c.project.dir, 'review', c.render);
     const leftovers = async (c: ReviewerCase) => (await readdir(join(c.project.dir, 'review')).catch(() => [] as string[])).filter((n) => n.startsWith(`${c.render}.`));
 
+    it('loads no project by itself: a project slug or folder is refused before any render is looked for, nothing written', async () => {
+      const c = await setup();
+      for (const project of [c.project.slug, c.project.dir, undefined]) {
+        await expect(c.reviewer.review({ policy: PERSON_POLICY, project: project as never, render: c.render, thumbnails: false }), String(project)).rejects.toThrow(
+          'no loaded project was handed (the caller loads the project; a slug or a folder is not read here)',
+        );
+      }
+      expect(existsSync(join(c.project.dir, 'review'))).toBe(false);
+    });
+
     it(
       'writes review/<id>/ with every file result.files names; report.json is the result without its thumbnails',
       async () => {

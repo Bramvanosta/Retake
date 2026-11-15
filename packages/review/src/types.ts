@@ -190,10 +190,8 @@ export const DEFAULT_RULES: Readonly<ReviewRules> = Object.freeze({
 export interface ReviewOptions {
   /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
   policy: WorkPolicy;
-  /** A loaded project, or a project slug / directory (resolved in `root`). */
-  project: LoadedProject | string;
-  /** Workspace root (when `project` is a slug); default: the project's root. */
-  root?: string;
+  /** The loaded project (its caller loads it: the review loads no project by itself, a slug or a folder is refused). */
+  project: LoadedProject;
   /** Render id ("catalogue-v3"), a render record (.json) or video (.mp4) path, or "latest". */
   render: string;
   /** With "latest": the latest render of this scenario. */

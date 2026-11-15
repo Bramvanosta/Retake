@@ -61,6 +61,8 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
     runScenario: (o: Record<string, unknown>) => {
       fakes.hookRunners.push(o.hookRunner);
       fakes.resolvers.push(o.resolveSecret);
+      // The run folder the engine reserved for it (named after the time of now): a placeholder.
+      fakes.volatile.push(String(o.runId));
       const { hookRunner: _handed, resolveSecret: _resolver, ...rest } = o;
       return fakes.runScenario(rest);
     },
@@ -107,6 +109,8 @@ const SPAN = String.raw`(?:\d+ ms|\d+\.\d s|\d+ m \d\d s)`;
 function normalise(text: string): string {
   let t = text.split(ws).join('<ws>');
   for (const v of fakes.volatile) t = t.split(v).join('<id>');
+  // An export's manifest is stamped by the CLI's clock (the fixed results' stamps are of 2026-01-01: kept).
+  t = t.replace(/(created_at\\?": \\?")(?!2026-01-01T)\d{4}-\d\d-\d\dT[\d:.]+Z/g, '$1<now>');
   return t.replace(new RegExp(String.raw`(<ws>\S*) ${SPAN}$`, 'gm'), '$1 <t>').replace(new RegExp(String.raw`\bin ${SPAN} ·`, 'g'), 'in <t> ·');
 }
 

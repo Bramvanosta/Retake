@@ -42,7 +42,7 @@ import type { CheckContext } from './checks.js';
 import { diffFindings, diffRecords, framePairs } from './diff.js';
 import { extractFrames, probeVideo } from './ffmpeg.js';
 import { fontFileMeasurer } from './fonts.js';
-import { ReviewError, findPrevious, locateRender, openProject, renderRun, renderTimeline, reviewsDir } from './load.js';
+import { ReviewError, findPrevious, handedProject, locateRender, renderRun, renderTimeline, reviewsDir } from './load.js';
 import { checkPixels, sourceFramesAtStarts, sourceKey, stillPair, stillSourceFrames } from './pixel-checks.js';
 import type { FrameAnalysis } from './pixel-checks.js';
 import type { RegionStats, RgbImage } from './pixels.js';
@@ -169,7 +169,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   };
   check();
   progress({ stage: 'loading' });
-  const project = await openProject(opts.project, opts.root);
+  const project = handedProject(opts.project);
   const found = await locateRender(project, opts.render, opts.scenario);
   const record = found.record;
   // The name of its folder of review/ (never an empty name or a path: an id written by hand is any text).
