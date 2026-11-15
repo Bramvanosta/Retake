@@ -2,7 +2,7 @@
  * The preview bundle's generated modules (bundle-player.ts writes them; frame-main.tsx imports them). Types only: they
  * exist inside the esbuild build, never on disk.
  */
-declare module 'ds:composition' {
+declare module 'retake:composition' {
   import type { ComponentType, Context } from 'react';
   /** PlanVideo, the composition of every render (packages/editor src/remotion). */
   export const PlanVideo: ComponentType<Record<string, unknown>>;
@@ -13,7 +13,7 @@ declare module 'ds:composition' {
   export function usedComponentIds(plan: unknown): string[];
 }
 
-declare module 'ds:modules' {
+declare module 'retake:modules' {
   /** The bundle's hash (16 hex). */
   export const bundle: string;
   /** Each component of the workspace, by id: its module, evaluated only when the preview first needs it. */

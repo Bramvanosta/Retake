@@ -5,7 +5,7 @@
  * choices with each option usable or disabled with why, whether the file takes edits from the Studio, and the capture's
  * codec and keyframe spacing (a long GOP makes scrubbing slow).
  *
- * - Path-free and plan-free: the view holds no absolute path, no `ds-asset:` map and no plan; text the scenario or the
+ * - Path-free and plan-free: the view holds no absolute path, no `retake-asset:` map and no plan; text the scenario or the
  *   filmed product wrote (captions, markers, step and page labels, warnings, notes, comment text) is only under
  *   `untrusted`. The plan itself goes beside the view (`plan`, `folders`) for the in-process caller that serves the
  *   preview (Part B's player origin), never into a result.
@@ -57,6 +57,7 @@ import type { ThemeHashes } from '../theme-files.js';
 import type { RenderEditSource } from '../jobs/render-job.js';
 import { getScenario, scenarioEditBlocker } from '../scenarios.js';
 import type { VersionLedger } from '../version-ledger.js';
+import type { ProjectStores } from '../store/store.js';
 import { sha256Hex } from '../storage.js';
 import { themeUnusable } from '../templates.js';
 import type { OpenedWorkspace } from '../workspace.js';
@@ -600,7 +601,7 @@ export async function timelineView(
   ws: OpenedWorkspace,
   cli: string,
   req: TimelineViewRequest,
-  o: { agent: boolean; via: AgentChannel; memos: TimelineMemos; seen: VersionLedger },
+  o: { agent: boolean; via: AgentChannel; memos: TimelineMemos; stores: ProjectStores; seen: VersionLedger },
 ): Promise<TimelineViewResult> {
   const memos = o.memos;
   const t0 = performance.now();
@@ -610,7 +611,7 @@ export async function timelineView(
   const project = await openProjectBySlug(ws, req.project);
   let file: { hash?: string; yaml?: string; blocked?: string } = {};
   try {
-    const text = await getScenario(project, req.scenario, o.seen);
+    const text = await getScenario(project, req.scenario, o);
     const parsed = text.utf8 ? parseScenario(text.yaml, { files: ws.reads.fileFacts(ws.policy), file: text.path, project }).scenario : undefined;
     const blocked = scenarioEditBlocker(project, text, parsed, o);
     file = { hash: text.hash, yaml: text.yaml, ...(blocked ? { blocked: blocked.why } : {}) };
@@ -629,6 +630,7 @@ export async function timelineView(
       registry: async () => (await memos.registry.get(ws)).registry,
       files: ws.reads.fileFacts(ws.policy),
       reads: ws.reads,
+      stores: o.stores,
       seen: o.seen,
     });
     if (req.run_id !== undefined && req.run_id !== proposal.run_id) {

@@ -5,6 +5,7 @@ import { needFiles } from '../file-facts.js';
 import type { CheckFiles, FilesWith } from '../file-facts.js';
 import type { Confinement } from '../confinement.js';
 import { formatPath } from '../issues.js';
+import { isLoadedUrl } from '../plan-asset-url.js';
 import type { IssuePath } from '../issues.js';
 import { isEditTextPath, isLiteralPath } from '../scenario-template.js';
 import { environmentAccess } from '../env.js';
@@ -565,7 +566,7 @@ class ScenarioChecker {
     }
     for (const name of IMAGE_FILE_SLOTS) {
       const v = slots[name];
-      if (typeof v !== 'string' || v.trim() === '' || /^(https?:|data:|ds-asset:)/.test(v.trim())) continue;
+      if (typeof v !== 'string' || v.trim() === '' || isLoadedUrl(v.trim())) continue;
       if (!isImagePath(v)) this.ctx.error([...p, name], `${name} "${v}": an image must be a ${IMAGE_FILE_EXTENSIONS.join(', ')} file of the project or an http(s) URL`);
       else this.ctx.file(v.trim(), [...p, name], 'image', 'error');
     }

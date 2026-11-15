@@ -160,6 +160,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.49b | Per-engine state (A-S6 rest): EngineCaches in the engine context (timeline, render, theme-edit, theme-preview memos, the registry, both undo ledgers: restore accepts only this engine's versions); CLI commands handed their ports by main() (`cliPorts` gone); the Studio's events.jsonl and live.json read through the JobQueue port (`eventsRange`, `liveRecord`), `Engine.jobFiles` removed; engine_info's started_in handed by the shell; ratchet check `engine-state`, no baseline entry | M | **done** (baseline 105 → 105, lint 456) |
 | L7.54 | Names and docs | CC-S10 (the compositions `PlanVideo` / `PlanVertical` / `PlanSquare`, `pageRecorder` and its `__retakeRec…` globals, engine `editTheme` / `themeEditView` / `runTheme`; old-name.test scans the short forms), A-N3 (glossary: template-in-code rule, *record* homonym, brand / site extraction / inspection / board / lease / approval · signature), A-S13 (admission line, target port list, store-new reason) | done (store-new's 3 entries not moved: L7.49b's files) |
 | L7.51 | Package entries (final audit A-S4, CC-S5, CC-S9, A-N7; A-S10 left) | done | `@retake/engine` is the façade (createEngine, its errors, the types); a shell's in-process values are `@retake/engine/shell`, other packages' test-only values `@retake/engine/testing` (no product source imports it); the adapters' and the Studio's roots hold what another package names, plus their domain entry whole; no memory adapter in a production entry; the record corpus and the Studio's op builder are shared test helpers (`@retake/test-support/records/*`, `/studio-tools` on `@retake/ui/testing`); `engine-entries.test.ts` holds it. Baseline 105 → 73 |
+| L7.54b | The last short forms of the old name; the store-new entries | the player's virtual modules and parent meta, the font family names and the plan's asset scheme renamed (`retake-…`), the earlier scheme read in render records' plans and signed alike (core plan-asset-url.ts); the sandbox snapshot `<db>__retake_snap`, the earlier template renamed or dropped at a reset (Postgres and Docker tests); getScenario on ports.stores; old-name.test catches the two-letter prefix, a camelCase composition prefix, no digit before the recorder globals | done (todayText and readSmall stay on the baseline: their callers hold no stores port) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -343,7 +344,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   overlap); overlays with source-px anchors + `mapSourceRect`; StepSpans, markers, time map; layout geometry from the
   manifest fitted to the capture; 1920×1080 × scale and the 1080×1920 vertical variant with a smoothed reframe track;
   music; every EditOverrides field; notes/warnings. Additive plan-type fields (PlanTransition, clip cues/layout/src/
-  speeds/trims/zooms/heldFrames, OverlayUse.anchor, PlanLayout.crop, `missing`, `assets` with `ds-asset:` URLs +
+  speeds/trims/zooms/heldFrames, OverlayUse.anchor, PlanLayout.crop, `missing`, `assets` with `retake-asset:` URLs +
   `resolvePlanAssets`, `meta`). `retake plan <project> <run|latest>` (summary, `--json`, `--out`, `--theme`,
   `--frame`, `--vertical`); README "Editing". 49 new tests (45 planner on the real catalogue/quote timelines in
   `packages/editor/test/fixtures/` + synthetic cases, 4 CLI); 476 tests pass (6 Postgres tests skipped). R-ED-22 stays
@@ -1343,6 +1344,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.51 — Package entries (M; decided 2026-11-13)
 - **Goal:** each root holds what others use: the engine's main entry the façade, ./shell what the shells run in process, ./testing what tests use; the adapters' roots cut to their callers' names
 - **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.51)". engine . façade + types (1,160 → 483 names), ./shell (150 values), ./testing (63), adapter roots cut (runner-web 418 → 36, editor 396 → 61…), no memory adapter in a product entry, records corpus and studio-tools in test-support; baseline 105 → 73; final audits A-S4, CC-S5, CC-S9, A-N7 closed (A-S10 with L7.51b)
+
+### L7.54b — The last short forms of the old name (M; decided 2026-11-15)
+- **Goal:** the player's modules, the theme fonts, the plan's asset scheme and the sandbox snapshot database take Retake's name; what earlier versions wrote is still read
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.54b)". retake:composition / retake:modules, retake-<theme>-display fonts, retake-asset: written and both spellings read (planSignature alike), <db>__retake_snap with the earlier template adopted (templates only), getScenario through ports.stores, old-name.test on the generated prefixes; final audit CC-S10 closed
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

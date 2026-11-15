@@ -1,9 +1,10 @@
 /**
  * A step of `planEdit`: the media of component slots — artefacts (L2.9: `email` / `document` / `notification` slots →
- * media with ds-asset images), frames of the capture (L2.10: before / after cards), project images, user files
+ * media with asset-URL images), frames of the capture (L2.10: before / after cards), project images, user files
  * (L2.12: video, Lottie) and CSV tables. The resolver asks for them as it fills slots.
  */
 import { dirname, isAbsolute, join } from 'node:path';
+import { isLoadedUrl } from '@retake/core/base';
 import { VIDEO_FILE_EXTENSIONS, fileExtension } from '@retake/core/model';
 import { parseFrameRef } from '@retake/core/language';
 import { displayUrl as displayedUrl, isLocalHost } from '@retake/core/environment';
@@ -170,7 +171,7 @@ export function planSlotMedia(c: PlanContext & PlanAddresses & PlanSources): Slo
       if (spec.type === 'image') {
         // An image file of the project: served by the renderer, the slot holds its URL.
         const v = value.trim();
-        if (!/^(https?:|data:|ds-asset:)/.test(v)) {
+        if (!isLoadedUrl(v)) {
           const f = input.files?.[v];
           if (f?.missing) warnings.add(`${where}: image ${v} not found`);
           slots[slot] = asset(`image-${slugOf(v)}`, f?.file ?? projectFile(v));

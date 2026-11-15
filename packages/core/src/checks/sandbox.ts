@@ -29,7 +29,7 @@ import { decodeOrKeep, errorMessage } from '../util.js';
 
 /** Compose files read when `compose.files` is absent. */
 export const DEFAULT_COMPOSE_FILES: readonly string[] = ['compose.yaml'];
-/** Postgres truncates identifiers at 63 bytes: the snapshot database is `<db>__ds_snapshot`. */
+/** Postgres truncates identifiers at 63 bytes: the snapshot database is `<db>__retake_snap`. */
 export const SNAPSHOT_DATABASE_MAX = 50;
 /** Databases a snapshot reset never drops. */
 const SYSTEM_DATABASES = new Set(['postgres', 'template0', 'template1']);
@@ -741,7 +741,7 @@ function checkSnapshot(r: Record<string, unknown>, databases: Record<string, unk
   else if (SYSTEM_DATABASES.has(name.toLowerCase())) {
     ctx.error(['databases', key, 'url'], `database ${key} is "${name}": a snapshot reset drops and recreates its database at every take — give the sandbox a database of its own`);
   } else if (name.length > SNAPSHOT_DATABASE_MAX) {
-    ctx.error(['databases', key, 'url'], `database name "${name}" is longer than ${SNAPSHOT_DATABASE_MAX} characters: its snapshot "${name}__ds_snapshot" would be cut by Postgres (63 bytes at most)`);
+    ctx.error(['databases', key, 'url'], `database name "${name}" is longer than ${SNAPSHOT_DATABASE_MAX} characters: its snapshot "${name}__retake_snap" would be cut by Postgres (63 bytes at most)`);
   }
 }
 

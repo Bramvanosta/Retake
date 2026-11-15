@@ -5,10 +5,10 @@
  * maintenance connection is a stand-in that answers each statement.
  */
 import { describe, expect, it } from 'vitest';
-import { PostgresSnapshot } from '../src/snapshot-postgres.js';
+import { EARLIER_SNAPSHOT_SUFFIX, PostgresSnapshot } from '../src/snapshot-postgres.js';
 import { SandboxError } from '../src/index.js';
 
-const TARGET = { key: 'app', url: 'postgres://u@db.test/shop', host: 'db.test', port: 5432, user: 'u', database: 'shop', template: 'shop__ds_snapshot' };
+const TARGET = { key: 'app', url: 'postgres://u@db.test/shop', host: 'db.test', port: 5432, user: 'u', database: 'shop', template: 'shop__retake_snap', earlier: `shop${EARLIER_SNAPSHOT_SUFFIX}` };
 
 /** A snapshot whose client answers `sql` with `answer` (a thrown error for a refused statement), the statements kept. */
 function snapshot(answer: (sql: string) => unknown) {

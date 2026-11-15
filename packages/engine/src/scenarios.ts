@@ -32,9 +32,9 @@ import { components } from './components.js';
 import { EngineError } from './errors.js';
 import { fieldFitProblem } from './field-options.js';
 import { checkScenarioName } from './refs.js';
-import { LocalStorage, sha256Hex } from './storage.js';
+import { sha256Hex } from './storage.js';
 import { storeOf } from './store/store.js';
-import type { StoreScope } from './store/store.js';
+import type { ProjectStores, StoreScope } from './store/store.js';
 import { confinementOf } from './caller.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';
 import type { VersionLedger } from './version-ledger.js';
@@ -80,15 +80,21 @@ function existingScenarioRef(project: LoadedProject, name: string): string {
   return scenarioRef(name);
 }
 
+/** What a scenario's file is read through: the stores port (the project's folder) and the engine's version ledger. */
+export interface ScenarioReadFrom {
+  stores: ProjectStores;
+  seen: VersionLedger | undefined;
+}
+
 /**
- * A scenario's file as it is. `seen`: the versions of each scenario file the engine reading it showed or wrote (its
- * context's ledger; review A L3) — undo / redo `restore` only these, an earlier version the person had on disk may
- * hold a hidden character today's file no longer has. Undefined: no engine's ledger (a job's own check, a direct
+ * A scenario's file as it is, read through the project's folder of `o.stores`. `o.seen`: the versions of each
+ * scenario file the engine reading it showed or wrote (its context's ledger; review A L3) — undo / redo `restore` only
+ * these, an earlier version the person had on disk may hold a hidden character today's file no longer has. Undefined: no engine's ledger (a job's own check, a direct
  * caller) — the read or write is remembered nowhere, and an edit's `restore` is refused.
  */
-export async function getScenario(project: LoadedProject, name: string, seen: VersionLedger | undefined): Promise<ScenarioText> {
+export async function getScenario(project: LoadedProject, name: string, o: ScenarioReadFrom): Promise<ScenarioText> {
   checkScenarioName(name);
-  const storage = new LocalStorage(project.dir);
+  const storage = o.stores.folder(project.dir);
   const ref = existingScenarioRef(project, name);
   const twin = caseTwin(project, ref);
   if (twin) throw new EngineError('not_found', `scenario "${name}" not found in ${project.slug}: the file is scenarios/${twin} (scenario names are case-sensitive)`);
@@ -98,7 +104,7 @@ export async function getScenario(project: LoadedProject, name: string, seen: Ve
   }
   const path = storage.resolve(ref);
   const [realScenarios, real, realProject] = await Promise.all([realpath(projectPath(project.dir, 'scenarios')), realpath(path), realpath(project.dir)]);
-  seen?.remember(path, read.sha256);
+  o.seen?.remember(path, read.sha256);
   return {
     name,
     file: ref,
@@ -351,7 +357,7 @@ export async function editScenario(
   req: ScenarioEditRequest,
   o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<ScenarioEditResult> {
-  const p = await prepareScenarioEdit(project, name, req, o);
+  const p = await prepareScenarioEdit(project, name, req, { ...o, stores: o.scope.stores });
   const res = await storeOf(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
   o.seen?.remember(p.base.path, res.sha256);
   // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
@@ -387,9 +393,9 @@ export async function prepareScenarioEdit(
   project: LoadedProject,
   name: string,
   req: ScenarioEditRequest,
-  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
+  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
 ): Promise<PreparedScenarioEdit> {
-  const base = await getScenario(project, name, o.seen);
+  const base = await getScenario(project, name, o);
   if (base.hash !== req.hash) {
     throw new EngineError('conflict', `${base.file} changed since it was read (its hash is no longer the one the edit was made on): read it again`, {
       details: { current: base.hash },

@@ -34,7 +34,7 @@ export function rendersApi(ctx: EngineContext): Engine['renders'] {
 export function timelineApi(ctx: EngineContext): Engine['timeline'] {
   const { agent, via, ws, studio, caches } = ctx;
   return {
-    view: (req) => timelineView(ws, studio, req, { agent, via, memos: caches.timeline, seen: caches.scenarioVersions }),
+    view: (req) => timelineView(ws, studio, req, { agent, via, memos: caches.timeline, stores: ctx.scope.stores, seen: caches.scenarioVersions }),
     forget: () => caches.timeline.clear(),
   };
 }

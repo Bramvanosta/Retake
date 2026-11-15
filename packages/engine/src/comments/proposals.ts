@@ -11,7 +11,7 @@ import type { LoadedProject, ValidationIssue, WorkFileFacts } from '@retake/core
 import type { CommentAuthor, CommentEntry, CommentProposal, CommentThread, ProposalState } from '@retake/core/comments';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import { EngineError } from '../errors.js';
-import type { StoreScope } from '../store/store.js';
+import type { ProjectStores, StoreScope } from '../store/store.js';
 import { checkRunId } from '../refs.js';
 import { PROPOSAL_CONTEXT_LINES, checkProposedText, diffRows, rebuildProposal } from '../comment-proposals.js';
 import type { ProposalRow } from '../comment-proposals.js';
@@ -121,12 +121,13 @@ export async function applyProposal(
     if (!r.ok) throw new EngineError('invalid', `${r.problem} — the file is never overwritten: fix it or remove it`);
     checkIfMatch(f, r.hash, req.ifMatch);
     const entry = proposalEntry(r.thread, req.entry_id);
-    const today = await getScenario(project, r.thread.scenario, o.seen);
+    const read = { ...o, stores: scope.stores };
+    const today = await getScenario(project, r.thread.scenario, read);
     const why = notActionable(r.thread, entry, today, 'applied');
     if (why) throw why;
     const text = rebuildProposal(today, entry.proposal, 'applied');
     // Edit-only and the Studio's checks once more before the write (editScenario repeats the latter while writing).
-    await checkProposedText(project, r.thread.scenario, today, text, 'applied', o);
+    await checkProposedText(project, r.thread.scenario, today, text, 'applied', read);
     // The apply entry must fit the thread (entries, size) before the scenario is written (review A L5 / B M3): a full
     // thread refuses with nothing changed. The entry written after names the hash editScenario returns (= this one).
     try {
@@ -226,7 +227,7 @@ export async function getProposal(
   project: LoadedProject,
   id: string,
   entryId: string | undefined,
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
 ): Promise<CommentProposalView> {
   const f = await locateThread(project.dir, id);
   const r = await readThread(project.dir, f);
@@ -235,7 +236,7 @@ export async function getProposal(
   const p = entry.proposal;
   let today: ScenarioText | null = null;
   try {
-    today = await getScenario(project, r.thread.scenario, o.seen);
+    today = await getScenario(project, r.thread.scenario, o);
   } catch (e) {
     if (!(e instanceof EngineError && e.code === 'not_found')) throw e;
   }
@@ -355,7 +356,7 @@ export async function proposalForPreview(
   project: LoadedProject,
   scenario: string,
   req: { comment_id: string; entry_id: string },
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
 ): Promise<ProposalPreview> {
   const f = await locateThread(project.dir, req.comment_id);
   const r = await readThread(project.dir, f);
@@ -363,7 +364,7 @@ export async function proposalForPreview(
   if (r.thread.scenario !== scenario) throw argError('proposal', `comment ${r.thread.id} is a comment on ${r.thread.scenario}, not on ${scenario}`);
   if (typeof req.entry_id !== 'string' || !COMMENT_ENTRY_ID_RE.test(req.entry_id)) throw argError('entry_id', `invalid entry id "${String(req.entry_id).slice(0, 80)}": r_ + 26 characters`);
   const entry = proposalEntry(r.thread, req.entry_id);
-  const today = await getScenario(project, scenario, o.seen);
+  const today = await getScenario(project, scenario, o);
   const why = notActionable(r.thread, entry, today, 'previewed');
   if (why) throw why;
   const text = rebuildProposal(today, entry.proposal, 'previewed');

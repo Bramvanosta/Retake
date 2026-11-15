@@ -5,8 +5,8 @@
  * component of the workspace (built-in and workspace components, plus the per-kind scaffolds), so a switch in the
  * Studio never rebuilds it — and `boot.js`, the frame's first script (boot.ts).
  *
- * - Lazy components (B3): the generated `ds:modules` maps each component id to `() => import(entry)`; esbuild turns each
- *   into a lazily initialised module inside the one IIFE. Nothing a component's module does runs before the frame
+ * - Lazy components (B3): the generated `retake:modules` maps each component id to `() => import(entry)`; esbuild
+ *   turns each into a lazily initialised module inside the one IIFE. Nothing a component's module does runs before the frame
  *   asks for it (the plan uses it), and a module that throws rejects its own import only.
  * - Import allow-list (B11), because a workspace component is code an agent may write: a component may import only
  *   files inside its own folder (compile.ts `importProblem`, the rule `retake components` checks), `react`, `remotion`
@@ -151,7 +151,7 @@ export async function playerBundleHash(components: readonly BundleComponent[], h
   return h.digest('hex').slice(0, 16);
 }
 
-/** Source of the generated `ds:modules` (pure). */
+/** Source of the generated `retake:modules` (pure). */
 export function modulesSource(hash: string, components: readonly BundleComponent[], held: readonly string[] = []): string {
   const own = components.filter((c) => !c.scaffold).sort((a, b) => a.id.localeCompare(b.id));
   const scaffolds = components.filter((c) => c.scaffold).sort((a, b) => a.kind.localeCompare(b.kind));
@@ -173,7 +173,7 @@ export function modulesSource(hash: string, components: readonly BundleComponent
   ].join('\n');
 }
 
-/** Source of the generated `ds:composition`: the render's own composition modules (pure). */
+/** Source of the generated `retake:composition`: the render's own composition modules (pure). */
 export function compositionSource(rootFile: string): string {
   const dir = dirname(rootFile).split(sep).join('/');
   const ext = rootFile.endsWith('.tsx') ? { tsx: '.tsx', ts: '.ts' } : { tsx: '.js', ts: '.js' };
@@ -252,16 +252,20 @@ async function buildOnce(components: readonly BundleComponent[], hash: string, c
   const plugin: Plugin = {
     name: 'retake-preview',
     setup(b) {
-      b.onResolve({ filter: /^ds:(modules|composition)$/ }, (args) => ({ path: args.path, namespace: 'ds' }));
-      b.onLoad({ filter: /.*/, namespace: 'ds' }, (args) => ({ contents: args.path === 'ds:modules' ? modulesSource(hash, components, held) : composition, loader: 'js', resolveDir: PLAYER_DIR }));
+      b.onResolve({ filter: /^retake:(modules|composition)$/ }, (args) => ({ path: args.path, namespace: 'retake' }));
+      b.onLoad({ filter: /.*/, namespace: 'retake' }, (args) => ({
+        contents: args.path === 'retake:modules' ? modulesSource(hash, components, held) : composition,
+        loader: 'js',
+        resolveDir: PLAYER_DIR,
+      }));
       b.onResolve({ filter: /.*/ }, async (args) => {
         if (args.kind === 'entry-point' || (args.pluginData as { own?: boolean } | undefined)?.own) return undefined;
         const spec = args.path;
         let owner: Owner | undefined;
-        if (args.namespace === 'ds') {
+        if (args.namespace === 'retake') {
           const id = entryOwner.get(spec);
           if (id === undefined) {
-            if (args.importer === 'ds:composition') return undefined;
+            if (args.importer === 'retake:composition') return undefined;
             return { errors: [{ text: `the generated modules import ${basename(spec)}, which is no component entry` }] };
           }
           owner = byId.get(id);
@@ -278,7 +282,7 @@ async function buildOnce(components: readonly BundleComponent[], hash: string, c
           }
           return undefined;
         }
-        if (args.namespace !== 'ds') {
+        if (args.namespace !== 'retake') {
           const { importProblem } = await import('@retake/components');
           const problem = importProblem(spec, args.resolveDir, owner.realDir);
           if (problem) return fail(owner, problem);

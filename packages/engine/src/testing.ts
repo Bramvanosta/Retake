@@ -51,4 +51,5 @@ export { ScenarioViews } from './views/scenario-view.js';
 export { jobsDir } from './workspace-state.js';
 export { systemClock } from './clock.js';
 export { diskOutputs } from './outputs/disk-outputs.js';
+export { diskProjectStores } from './store/project-store.js';
 export { diskWorkspaceReads } from './workspace-reads/disk-reads.js';

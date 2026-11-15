@@ -31,3 +31,4 @@ export { didYouMean, editDistance, suggestion } from '../validation/suggest.js';
 export { attachPositions, locateOffset, parseYaml } from '../validation/yaml-source.js';
 export type { ParsedYaml, YamlSource } from '../validation/yaml-source.js';
 export { describeValue, zodIssues } from '../validation/zod-issues.js';
+export { EARLIER_PLAN_ASSET_SCHEME, PLAN_ASSET_SCHEME, PLAN_ASSET_SCHEMES, isLoadedUrl, isPlanAssetUrl, planAssetName, planTextInPresentSpelling } from '../plan-asset-url.js';

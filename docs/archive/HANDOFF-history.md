@@ -2034,7 +2034,7 @@ sandbox, a hook step and compact results through Claude Code).
   CFR frame indices (frame n = capture time n/fps; `timeline.capture.frames` is the screencast frame count, the CFR
   count is round(duration·fps)). Plan types extended additively (PlanTransition on segments; clip cues/layout/src/
   speeds/trims/zooms/heldFrames; OverlayUse.anchor in source px; PlanLayout.crop/fallback; ResolvedComponent.missing;
-  `plan.assets` maps `ds-asset:<name>` URLs → files and `plan.meta`). `retake plan <project> <run|latest>` (summary,
+  `plan.assets` maps `retake-asset:<name>` URLs → files and `plan.meta`). `retake plan <project> <run|latest>` (summary,
   `--json`, `--out`, `--theme`, `--frame`, `--vertical`, `--scenario`); README "Editing". Tests: real timelines
   `packages/editor/test/fixtures/{catalogue,quote}.timeline.json` (runs 20261011-182524-catalogue /
   20261011-182706-quote) + synthetic timelines; a temp workspace scaffolds `components/studio/*` with
@@ -2195,7 +2195,7 @@ sandbox, a hook step and compact results through Claude Code).
   192 px PNG. **Web notifications**: the kit patches `new Notification` / `ServiceWorkerRegistration.prototype.
   showNotification` once per window; the session grants `notifications` and exposes `__retakeNotification`;
   `watchNotifications` records artefact + event (step −1 of the current scene). **Planner**: artefact slots →
-  serialisable `props.media` (images as `ds-asset:` plan assets; warnings naming what the run captured), notification
+  serialisable `props.media` (images as `retake-asset:` plan assets; warnings naming what the run captured), notification
   overlays start when the notification showed (inside the clip), `OverlayUse.componentFrames` when cut, tap anchors:
   manifest `anchor` / `anchor_vertical` / `anchor_square` expressions (builtins `frame_w/h`, `screen_x/y/w/h`, `aspect`,
   one-hot `style_<value>` params; `evalAnchor`, `checkAnchor`) evaluated on the outgoing overlay (last second) or card

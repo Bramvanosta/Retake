@@ -273,6 +273,17 @@ export class Sandbox {
       const recorded = ctx.state.provider_state?.snapshot as SnapshotState | undefined;
       if (snap) {
         if (await snap.repair()) ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} accepted no connections (an interrupted reset): repaired`);
+        const adopted = await snap.adoptEarlier();
+        if (adopted) {
+          ctx.log(
+            'info',
+            `sandbox ${this.env}: the snapshot of ${snap.target.database} under its earlier name ${snap.target.earlier}: ${adopted === 'renamed' ? `renamed ${snap.target.template}` : `dropped (${snap.target.template} exists)`}`,
+          );
+          if (recorded) {
+            ctx.state.provider_state = { ...(ctx.state.provider_state ?? {}), snapshot: { ...recorded, template: snap.target.template } };
+            ctx.save();
+          }
+        }
         const valid =
           !opts.reseed && ctx.state.seed?.hash === hash && recorded?.hash === hash && recorded.database === snap.target.database && (fa === null || fa.valid(hash)) && (await snap.valid(hash));
         if (valid) {

@@ -25,6 +25,7 @@ import { VersionLedger } from '../src/version-ledger.js';
 import { WorkspaceIndex } from '../src/index-db/index-db.js';
 import { openProjectBySlug } from '../src/projects.js';
 import { runChanges, workspaceChanges } from '../src/index-db/sources.js';
+import { diskProjectStores } from '../src/store/project-store.js';
 import type { Engine, ScenarioView, StepBinding } from '../src/index.js';
 import { BLOCKS_YAML, BLUE, GREEN, RED, capture, writeRun } from '@retake/test-support/runs';
 import { scratchHome } from '@retake/test-support/home';
@@ -370,6 +371,7 @@ describe('review fixes (L4.2)', () => {
       overlay: async (_slug, r) => r.status,
       runs: new RunDataCache(),
       seen: new VersionLedger(),
+      stores: diskProjectStores,
     });
     const w = await views.view(P, 'blocks');
     expect(w.run_blockers.dry[0].message).toBe('refused from the Studio: step 1 of scene two (click) and setup hook 1 need a person; scene one too');
@@ -427,6 +429,7 @@ describe('memo (B1)', () => {
       overlay: async (_slug, r) => r.status,
       runs,
       seen: new VersionLedger(),
+      stores: diskProjectStores,
     });
     const a = await views.view(P, 'blocks');
     const reads = runs.reads;

@@ -69,7 +69,7 @@ function addressEntry(url: string, table: readonly DisplayEntry[]): { url: strin
   return isLocalUrl(shown) ? { url: shown, hidden: true } : { url: shown };
 }
 
-/** The plan's assets (`ds-asset:` URLs → files): the capture, the page tracks, the theme's logo, wordmark and fonts. */
+/** The plan's assets (`retake-asset:` URLs → files): the capture, the page tracks, the theme's logo, wordmark and fonts. */
 export function planSources(c: PlanContext): PlanSources {
   const { input, timeline, template, cap, srcFps, cssW, cssH, srcFrameCount, variant, outFps, width, height, unit } = c;
   const assets: Record<string, string> = {};

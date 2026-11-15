@@ -350,15 +350,15 @@ describe('quote (real timeline)', () => {
     expect(JSON.stringify(tl)).toBe(before);
   });
 
-  it('refers to assets through ds-asset: URLs that resolvePlanAssets swaps for served URLs', () => {
+  it('refers to assets through retake-asset: URLs that resolvePlanAssets swaps for served URLs', () => {
     const json = JSON.stringify(p);
-    const urls = [...new Set(json.match(/ds-asset:[a-z0-9.-]+/g) ?? [])];
+    const urls = [...new Set(json.match(/retake-asset:[a-z0-9.-]+/g) ?? [])];
     expect(urls.length).toBeGreaterThan(4);
     for (const u of urls) expect(p.assets[u]).toBeTruthy();
     expect(p.assets[p.source.url]).toBe('/captures/capture.mp4');
     const served = resolvePlanAssets(p, (url) => url.replace(PLAN_ASSET_SCHEME, 'http://127.0.0.1:9000/'));
     // Every URL is swapped; the assets map keeps its keys (url → file) for the renderer.
-    expect(JSON.stringify({ ...served, assets: {} }).includes('"ds-asset:')).toBe(false);
+    expect(JSON.stringify({ ...served, assets: {} }).includes('"retake-asset:')).toBe(false);
     expect(Object.keys(served.assets)).toEqual(Object.keys(p.assets));
     expect(served.source.url).toBe('http://127.0.0.1:9000/capture.mp4');
     expect(JSON.stringify(p)).toBe(json);

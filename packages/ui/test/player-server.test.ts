@@ -68,9 +68,9 @@ afterAll(async () => {
 
 function plan(layout: string): EditPlan {
   return {
-    assets: { 'ds-asset:capture': join(dirs.run, 'capture.mp4'), 'ds-asset:font': join(dirs.theme, 'Display Font (1).ttf') },
-    source: { file: join(dirs.run, 'capture.mp4'), url: 'ds-asset:capture', fps: 30, width: 320, height: 180 },
-    brand: { tokens: { font_faces: [{ family: 'Display', url: 'ds-asset:font', weight: 400, style: 'normal' }] } },
+    assets: { 'retake-asset:capture': join(dirs.run, 'capture.mp4'), 'retake-asset:font': join(dirs.theme, 'Display Font (1).ttf') },
+    source: { file: join(dirs.run, 'capture.mp4'), url: 'retake-asset:capture', fps: 30, width: 320, height: 180 },
+    brand: { tokens: { font_faces: [{ family: 'Display', url: 'retake-asset:font', weight: 400, style: 'normal' }] } },
     segments: [
       { id: 'a', kind: 'clip', from: 0, durationInFrames: 30, component: { id: layout, kind: 'layout', params: {} }, urls: [{ frame: 0, url: 'http://localhost:4402/private', hidden: true }] },
     ],
@@ -102,7 +102,7 @@ describe('the player origin', () => {
     // Two scripts, both by URL under the capability; no inline script, no event handler attribute.
     expect([...r.body.matchAll(/<script([^>]*)>/g)].map((m) => m[1].trim())).toEqual([`src="/s/${cap}/boot.${BUNDLE.hash}.js"`, `src="/s/${cap}/b.${BUNDLE.hash}.js" defer`]);
     expect(r.body).not.toMatch(/<script[^>]*>[^<]+<\/script>|\son\w+=/);
-    expect(r.body).toContain(`<meta name="ds-parent" content="http://127.0.0.1:${STUDIO_PORT} http://localhost:${STUDIO_PORT}">`);
+    expect(r.body).toContain(`<meta name="retake-parent" content="http://127.0.0.1:${STUDIO_PORT} http://localhost:${STUDIO_PORT}">`);
     for (const name of ['boot', 'b']) {
       const s = await get(`/s/${cap}/${name}.${BUNDLE.hash}.js`, { origin: 'null', 'sec-fetch-site': 'cross-site' });
       expect(s.status).toBe(200);
@@ -241,7 +241,7 @@ describe('the player origin', () => {
     expect(pa.brand.tokens.font_faces[0].url).toMatch(/\/Display_Font_1_\.ttf$/);
     expect(pa.source.file).toBeUndefined();
     expect(pa.segments[0].urls[0].url).toBe('');
-    for (const bad of [root, 'ds-asset:', '"display"', '"notes"', '"warnings"', '"assets"', 'localhost:4402']) expect(ra.body, bad).not.toContain(bad);
+    for (const bad of [root, 'retake-asset:', '"display"', '"notes"', '"warnings"', '"assets"', 'localhost:4402']) expect(ra.body, bad).not.toContain(bad);
     expect((await get(pathOf(pa.source.url), { range: 'bytes=0-9' })).status).toBe(206);
   });
 

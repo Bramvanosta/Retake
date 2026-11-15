@@ -1,15 +1,15 @@
 /**
- * The plan the Studio's preview plays (L4.5, critique B4): the EditPlan with every `ds-asset:` URL swapped for the URL
+ * The plan the Studio's preview plays (L4.5, critique B4): the EditPlan with every `retake-asset:` URL swapped for the URL
  * the player origin serves the file at, and nothing that names a file of this Mac — no `assets` map, no `file` of the
  * capture, the page tracks or the music, no absolute path left in a slot (a theme's own file), no real local URL a
  * browser bar would hide (`hidden` entries keep their frame, lose their URL) — nor the planner's display table, notes
  * and warnings (they may name paths; the timeline view reports them). Pure.
  *
- * Refused (PreviewPlanError): a `ds-asset:` URL the plan's asset map does not name, a URL the caller's `urlFor` does not
+ * Refused (PreviewPlanError): a `retake-asset:` URL the plan's asset map does not name, a URL the caller's `urlFor` does not
  * give, and any string left that holds one of the folders the caller names (the project, the run, the theme, the
  * workspace, the home folder) or a `file:` URL.
  */
-import { PLAN_ASSET_SCHEME } from './plan-types.js';
+import { isPlanAssetUrl } from '@retake/core/base';
 import type { EditPlan } from './plan-types.js';
 
 export class PreviewPlanError extends Error {
@@ -20,7 +20,7 @@ export class PreviewPlanError extends Error {
 }
 
 export interface PreviewPlanOptions {
-  /** The URL the player serves an asset at (`ds-asset:<name>` and its absolute file), or undefined (refused). */
+  /** The URL the player serves an asset at (`retake-asset:<name>` and its absolute file), or undefined (refused). */
   urlFor: (asset: string, file: string) => string | undefined;
   /** Folders whose paths must not reach the preview (checked on every string of the result). */
   forbid: readonly string[];
@@ -52,7 +52,7 @@ export function previewPlan(plan: EditPlan, o: PreviewPlanOptions): PreviewPlan 
   if (out.music) delete (out.music as Record<string, unknown>).file;
   const walk = (v: unknown, key: string | undefined): unknown => {
     if (typeof v === 'string') {
-      if (v.startsWith(PLAN_ASSET_SCHEME)) {
+      if (isPlanAssetUrl(v)) {
         const u = urls.get(v);
         if (u === undefined) throw new PreviewPlanError(`${key ?? 'a value'} names ${v.slice(0, 80)}, which the plan's assets do not serve`);
         return u;

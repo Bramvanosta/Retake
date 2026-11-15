@@ -19,7 +19,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { issuesMessage, GUIDE } from '@retake/core/base';
+import { issuesMessage, GUIDE, planAssetName } from '@retake/core/base';
 import { isCaptureScene } from '@retake/core/model';
 import { timelineVideo } from '@retake/core/language';
 import { displayPages, resolveEnvironment } from '@retake/core/environment';
@@ -34,7 +34,6 @@ import type { ComponentRegistry } from '@retake/components/geometry';
 import { planFileUses, planInputFiles, remoteSlotUses } from '../inputs.js';
 import { planEdit } from '../plan.js';
 import { musicFile, musicSpecOf } from '../planner/music.js';
-import { PLAN_ASSET_SCHEME } from '../plan-types.js';
 import type { EditOverrides, EditPlan } from '../plan-types.js';
 import { probeMedia } from './probe.js';
 import { locateRun, recordEnv, runScenario } from './runs.js';
@@ -109,7 +108,7 @@ export function preReadProblems(
 export function servedFileProblems(plan: Pick<EditPlan, 'assets'>, folders: { project: string; run: string; theme: string }): string[] {
   const problems: string[] = [];
   for (const [url, file] of Object.entries(plan.assets)) {
-    const name = url.startsWith(PLAN_ASSET_SCHEME) ? url.slice(PLAN_ASSET_SCHEME.length) : url;
+    const name = planAssetName(url);
     if (insideFolder(folders.project, file, nodeFileFacts) || insideFolder(folders.run, file, nodeFileFacts) || insideFolder(folders.theme, file, nodeFileFacts)) {
       // A hard link inside the folders may be the same file as one outside them (review A N4): never served.
       if (hardLinked(file)) problems.push(`the plan serves ${name} from ${file}, a file with more than one name (a hard link): through MCP a render serves none`);

@@ -218,7 +218,7 @@ describe('built-in library renders with any theme', () => {
     }
     for (const id of ['studio/intro-stack', 'studio/outro-stack', 'studio/card-title', 'studio/interstitial-clock', 'studio/caption-below']) {
       expect(render(id, { theme: LIGHT, at: 60 }), id).not.toBe(render(id, { theme: DARK, at: 60 }));
-      expect(render(id, { theme: LIGHT, at: 60 }), id).toMatch(/ds-light-(display|body)/);
+      expect(render(id, { theme: LIGHT, at: 60 }), id).toMatch(/retake-light-(display|body)/);
     }
   });
 
@@ -580,7 +580,7 @@ describe('built-in library renders with any theme', () => {
   it('intro and outro: the wordmark is the brand name in the display font when the theme has no wordmark image', () => {
     for (const id of ['studio/intro-stack', 'studio/outro-stack']) {
       const html = render(id, { theme: LIGHT, at: 80 });
-      expect(html, id).toMatch(/font-family:&quot;ds-light-display&quot;, serif;font-size:[\d.]+px[^>]*>Atelier<\/span>/);
+      expect(html, id).toMatch(/font-family:&quot;retake-light-display&quot;, serif;font-size:[\d.]+px[^>]*>Atelier<\/span>/);
       expect(render(id, { theme: DARK, at: 80 }), id).toContain('src="http://assets.local/wordmark.svg"');
     }
   });

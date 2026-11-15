@@ -3,7 +3,7 @@
  * fixture's `quote` timeline:
  * - the tracks, the edit source (today's file re-planned on the run), the inspector's choices with every option usable
  *   or disabled with why (critique B7), whether the file takes switches now;
- * - ⚑ path-free and plan-free (critique B4): no absolute path, no `ds-asset:` map, no plan key; text the scenario wrote
+ * - ⚑ path-free and plan-free (critique B4): no absolute path, no `retake-asset:` map, no plan key; text the scenario wrote
  *   only under `untrusted`;
  * - a filmed change pending: switches disabled with why; a trust refusal: `blocked` with the command (no exception);
  * - the memo (critique B13): one planning per change — a second read, the event after a write, are memo hits — and
@@ -210,7 +210,7 @@ describe('timeline view (L4.5)', () => {
   it('⚑ path-free and plan-free: no absolute path, no asset map, no plan; scenario text only under untrusted', async () => {
     const { view: v, plan, folders } = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     const json = JSON.stringify(v);
-    for (const bad of [root, dir, folders.run, folders.theme, 'ds-asset:', '"plan"', '"assets"', '"file"', '/Users/', process.env.HOME ?? '/nonexistent']) expect(json, bad).not.toContain(bad);
+    for (const bad of [root, dir, folders.run, folders.theme, 'retake-asset:', '"plan"', '"assets"', '"file"', '/Users/', process.env.HOME ?? '/nonexistent']) expect(json, bad).not.toContain(bad);
     const { untrusted: _u, ...shape } = v;
     expect(JSON.stringify(shape)).not.toContain('Every frame has its own colour.');
     // The plan beside it (for the in-process player) is the plan a render would make.

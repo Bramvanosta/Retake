@@ -12,6 +12,13 @@ release — for the person about to click Install and Restart.
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
+- A sandbox's Postgres snapshot (`reset: {strategy: snapshot}`) is now the template database `<db>__retake_snap`.
+  A snapshot your sandbox took before keeps working: its next reset or take renames it (its seed kept, so it is
+  restored, not seeded again), or drops it when one under the new name already exists. `retake validate`'s limit of
+  50 characters for such a database's name is unchanged.
+- An edit plan (`retake plan --json`, a render's record) names the files it serves `retake-asset:<name>` and the
+  theme's fonts `retake-<theme>-display` / `-body`. The plan of a render made before is read as it was: its earlier
+  asset URLs are served and checked alike, and the Studio still counts that render as one of the same edit.
 - A run's status (MCP's `run_status`, the Studio) follows a symbolic link in a run folder only to a file inside that
   run folder: a run file that is a link leading out of it, or nowhere, is listed as a refused link (`link: "refused"`)
   with no size and no sha256. A run folder that is itself a link out of `runs/` is not read at all: `run_status`

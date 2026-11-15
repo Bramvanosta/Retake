@@ -10,12 +10,12 @@ export function scenariosApi(ctx: EngineContext): Engine['scenarios'] {
   const { agent, via, ws, files, scope, project, submitCtx, views, caches } = ctx;
   const seen = caches.scenarioVersions;
   return {
-    get: async (slug, name) => getScenario(await project(slug), name, seen),
+    get: async (slug, name) => getScenario(await project(slug), name, { stores: scope.stores, seen }),
     // What an agent (the MCP server, the Studio app) writes is checked as the work it submits will be (core agent-trust).
     validate: async (slug, yaml, o) => validateScenarioText(await project(slug), yaml, { ...o, agent, via, files, reads: ws.reads }),
     check: async (slug, name, o = {}) => {
       const p = await project(slug);
-      const text = await getScenario(p, name, seen);
+      const text = await getScenario(p, name, { stores: scope.stores, seen });
       const { ok, issues } = await validateScenarioText(p, text.yaml, { files, reads: ws.reads, name, ...(o.env !== undefined ? { env: o.env } : {}) });
       const run_blockers = await runBlockers(submitCtx, { project: slug, scenario: name, ...(o.env !== undefined ? { env: o.env } : {}) });
       return { ...text, ok, issues, run_blockers };

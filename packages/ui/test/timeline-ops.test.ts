@@ -2,7 +2,7 @@
  * L4.5 part C: the Studio op `timeline_view` (ops.ts timelineOps) over HTTP — the engine's view plus the preview's two
  * capability URLs on the player origin:
  * - ⚑ the answer is path-free and plan-free (critique B4): no `plan` / `folders` key, no absolute path (workspace, home),
- *   no `ds-asset:` name, no product URL; the frame and plan URLs hold one capability of the player origin, and the plan
+ *   no `retake-asset:` name, no product URL; the frame and plan URLs hold one capability of the player origin, and the plan
  *   they name is served there (its capture under the same capability);
  * - a re-read of the same take answers the same URLs (the engine's memo); an edit of the file publishes a new plan URL
  *   on the same frame URL and keeps every media URL (critique B6: no reload of the capture);
@@ -125,7 +125,7 @@ describe.skipIf(!canRun)('timeline_view', () => {
     expect(previewUrls(d.frame_url, d.plan_url)).toEqual({ frame: d.frame_url, plan: d.plan_url });
     // ⚑ No plan, no folders, no path, no asset map, no product URL.
     for (const k of ['plan', 'folders', 'memo', 'assets']) expect(Object.prototype.hasOwnProperty.call(d, k), k).toBe(false);
-    for (const needle of [ws, homedir(), dir, 'ds-asset:', 'http://app.test', 'capture.mp4', '"file"']) expect(r.body.includes(needle), needle).toBe(false);
+    for (const needle of [ws, homedir(), dir, 'retake-asset:', 'http://app.test', 'capture.mp4', '"file"']) expect(r.body.includes(needle), needle).toBe(false);
     // The plan is served on the player origin, with its capture under the same capability.
     const cap = /\/s\/([A-Za-z0-9_-]{43})\/frame$/.exec(d.frame_url)![1];
     const planPath = d.plan_url.slice(studio.player.origin.length);

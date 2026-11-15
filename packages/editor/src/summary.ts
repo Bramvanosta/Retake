@@ -3,7 +3,7 @@
  * per clip the source range, speeds, trims, zooms, overlays and captions, then captions, markers, notes, warnings.
  */
 import type { ClipSegment, EditPlan, PlanSegment, ResolvedComponent } from './plan-types.js';
-import { PLAN_ASSET_SCHEME } from './plan-types.js';
+import { isPlanAssetUrl } from '@retake/core/base';
 
 const s = (frames: number, fps: number) => `${(frames / fps).toFixed(2)} s`;
 
@@ -99,7 +99,7 @@ export function summarizePlan(plan: EditPlan): string[] {
     if (g.kind === 'clip') for (const l of clipLines(plan, g)) lines.push(`${pad}${l}`);
     else {
       const slots = Object.entries(g.component.slots)
-        .filter(([, v]) => v !== undefined && !String(v).startsWith(PLAN_ASSET_SCHEME))
+        .filter(([, v]) => v !== undefined && !isPlanAssetUrl(String(v)))
         .map(([k, v]) => `${k}: "${v}"`)
         .join(', ');
       if (slots) lines.push(`${pad}${slots}`);
@@ -130,13 +130,13 @@ export function summarizePlan(plan: EditPlan): string[] {
 }
 
 /**
- * The plan with every `ds-asset:` URL replaced by `resolveUrl(url, file)` (the renderer's asset server). Pure: the
+ * The plan with every asset URL (either spelling) replaced by `resolveUrl(url, file)` (the renderer's asset server). Pure: the
  * input plan is not modified.
  */
 export function resolvePlanAssets(plan: EditPlan, resolveUrl: (url: string, file: string) => string): EditPlan {
   const map = new Map(Object.entries(plan.assets).map(([url, file]) => [url, resolveUrl(url, file)]));
   const walk = (v: unknown): unknown => {
-    if (typeof v === 'string') return v.startsWith(PLAN_ASSET_SCHEME) ? (map.get(v) ?? v) : v;
+    if (typeof v === 'string') return isPlanAssetUrl(v) ? (map.get(v) ?? v) : v;
     if (Array.isArray(v)) return v.map(walk);
     if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
     return v;

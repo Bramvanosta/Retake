@@ -15,7 +15,7 @@ export function authApi(ctx: EngineContext): Engine['auth'] {
   const { opts, ws, project, loginCommand, queue, submitCtx, startWorker, sessionsOf } = ctx;
   const forScenario = async (slug: string, name: string, o: { env?: string; mode?: RunMode } = {}): Promise<ScenarioSessions> => {
     const p = await project(slug);
-    const text = await getScenario(p, name, ctx.caches.scenarioVersions);
+    const text = await getScenario(p, name, { stores: ctx.scope.stores, seen: ctx.caches.scenarioVersions });
     const { scenario } = parseScenario(text.yaml, { files: ctx.ws.reads.fileFacts(ctx.ws.policy), file: text.path, project: p });
     if (!scenario) throw new EngineError('invalid', `${projectRef('scenarios', name)} does not parse: fix it first (scenario_check lists its issues)`);
     return sessionsOf(p, name, scenario, o);

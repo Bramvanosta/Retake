@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { StoredRenderRecord } from '@retake/core/render';
 import { RenderMemos, memoPlanSignature } from '../src/renders.js';
 import { planSignature } from '../src/renders.js';
+import { EARLIER_PLAN_ASSET_SCHEME, PLAN_ASSET_SCHEME } from '@retake/core/base';
 
 const record = (project: string, plan: object): StoredRenderRecord =>
   ({
@@ -39,5 +40,19 @@ describe('memoPlanSignature', () => {
     mine.planSigs.set([...mine.planSigs.keys()][0]!, 'held');
     expect(memoPlanSignature(mine, a)).toBe('held');
     expect(memoPlanSignature(theirs, a)).toBe(planSignature(a.plan));
+  });
+});
+
+describe('planSignature', () => {
+  it("a render record's plan in the earlier spelling (asset URLs, font family names) signs as the same plan today", () => {
+    const earlierFont = `${EARLIER_PLAN_ASSET_SCHEME.replace(/asset:$/, '')}editorial-display`;
+    const plan = (scheme: string, font: string) => ({
+      assets: { [`${scheme}logo.svg`]: '/t/logo.svg' },
+      brand: { fonts: { display: { family: font, url: `${scheme}font.ttf` } } },
+      segments: [{ component: { slots: { logo: `${scheme}logo.svg`, title: 'Quotes' } } }],
+    });
+    const today = planSignature(plan(PLAN_ASSET_SCHEME, 'retake-editorial-display'));
+    expect(planSignature(plan(EARLIER_PLAN_ASSET_SCHEME, earlierFont))).toBe(today);
+    expect(planSignature({ ...plan(PLAN_ASSET_SCHEME, 'retake-editorial-display'), segments: [] })).not.toBe(today);
   });
 });

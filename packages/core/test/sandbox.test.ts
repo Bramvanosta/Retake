@@ -256,7 +256,7 @@ reset: {strategy: snapshot}
     ]);
     const long = 'a'.repeat(51);
     expect(check(`reset: {strategy: snapshot}\ndatabases: {main: {url: "postgres://u:sandbox-db-4632@localhost:1/${long}"}}\n`)).toEqual([
-      `error 6:25 databases.main.url: database name "${long}" is longer than 50 characters: its snapshot "${long}__ds_snapshot" would be cut by Postgres (63 bytes at most)`,
+      `error 6:25 databases.main.url: database name "${long}" is longer than 50 characters: its snapshot "${long}__retake_snap" would be cut by Postgres (63 bytes at most)`,
     ]);
     expect(check('reset: {snapshot: {database: main}}\ndatabases: {main: {url: "postgres://u:sandbox-db-4632@localhost:1/app"}}\n')).toEqual([
       'warning 5:9 reset.snapshot: `snapshot` is only used with `strategy: snapshot` (this sandbox reseeds)',

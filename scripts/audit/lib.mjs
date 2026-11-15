@@ -552,6 +552,7 @@ export const CORE_CONTEXTS = [
       'validation/yaml-source',
       'validation/zod-issues',
       'schemas/keyed',
+      'plan-asset-url',
     ],
   },
   { name: 'model', files: ['types', 'schemas/primitives', 'media', 'file-facts', 'render-settings', 'confinement', 'checks/context', 'checks/tokens', 'checks/media'] },

@@ -23,6 +23,7 @@ import { openProjectBySlug } from '../src/projects.js';
 import { openWorkspace } from '../src/workspace.js';
 import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { diskProjectStores } from '../src/store/project-store.js';
 import type { Engine, RunBlocker } from '../src/index.js';
 import { blockerKind } from '../src/jobs/run-job.js';
 import { writeRun } from '@retake/test-support/runs';
@@ -190,6 +191,7 @@ describe('memo (critique H2)', () => {
       overlay: async (_slug, r) => r.status,
       runs: new RunDataCache(),
       seen: new VersionLedger(),
+      stores: diskProjectStores,
     });
     return { v, blockers: () => blockers };
   };

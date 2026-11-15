@@ -29,6 +29,7 @@ import type { ComponentRegistry } from '@retake/components/geometry';
 import { EngineError } from './errors.js';
 import { getScenario, prepareScenarioEdit } from './scenarios.js';
 import type { ScenarioText } from './scenarios.js';
+import type { ProjectStores } from './store/store.js';
 import { sha256Hex } from './storage.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';
 
@@ -156,7 +157,7 @@ export async function checkProposedText(
   today: ScenarioText,
   text: string,
   stage: Stage,
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
 ): Promise<ValidationIssue[]> {
   let prepared: Awaited<ReturnType<typeof prepareScenarioEdit>>;
   try {
@@ -164,7 +165,7 @@ export async function checkProposedText(
       project,
       scenario,
       { hash: today.hash, edit: { kind: 'replace_text', text } },
-      { agent: true, via: 'studio', files: o.files, reads: o.reads, seen: o.seen, ...(o.registry ? { registry: o.registry } : {}) },
+      { agent: true, via: 'studio', files: o.files, reads: o.reads, stores: o.stores, seen: o.seen, ...(o.registry ? { registry: o.registry } : {}) },
     );
   } catch (e) {
     throw restage(e, stage);
@@ -202,7 +203,7 @@ export async function buildProposal(
   project: LoadedProject,
   scenario: string,
   input: ProposalInput,
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
 ): Promise<BuiltProposal> {
   if (!input || typeof input !== 'object') throw invalid('a proposal is {scenario_yaml, scenario_hash}', 'proposal');
   const raw = input.scenario_yaml;
@@ -214,7 +215,7 @@ export async function buildProposal(
   }
   let today: ScenarioText;
   try {
-    today = await getScenario(project, scenario, o.seen);
+    today = await getScenario(project, scenario, o);
   } catch (e) {
     if (e instanceof EngineError && e.code === 'not_found') throw new EngineError('not_found', `not proposed: the thread's scenario file scenarios/${scenario}.yaml is not there`);
     throw e;

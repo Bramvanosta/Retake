@@ -960,7 +960,7 @@ describe('music, overrides, errors', () => {
     tl.video = { ...tl.video, music: { file: 'assets/bed.mp3', volume: 0.4 } };
     const p = plan(ctx, tl);
     expect(p.music).toEqual({
-      url: 'ds-asset:music.mp3',
+      url: 'retake-asset:music.mp3',
       file: join(ctx.project.dir, 'assets/bed.mp3'),
       volume: 0.4,
       duck: 0.5,
@@ -970,7 +970,7 @@ describe('music, overrides, errors', () => {
       loop: true,
       crossfade_s: 1,
     });
-    expect(p.assets['ds-asset:music.mp3']).toBe(p.music!.file);
+    expect(p.assets['retake-asset:music.mp3']).toBe(p.music!.file);
     expect(plan(ctx, tl, { music: false }).music).toBeUndefined();
     expect(plan(ctx, tl, { music: '/abs/other.wav' }).music).toMatchObject({ file: '/abs/other.wav', volume: 0.4 });
     expect(plan(ctx, synthTimeline({ entries, duration: 5 })).music).toBeUndefined();

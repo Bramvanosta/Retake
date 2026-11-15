@@ -3,6 +3,7 @@
  * area, brand mark), text slots, cursor at clicks, long scenes at ~1×, camera zooms, transitions over clicks, and the
  * render itself (status, probe, missing components, plan warnings). Pixel checks live in ./pixel-checks.ts.
  */
+import { isPlanAssetUrl } from '@retake/core/base';
 import { displayUrl, findLocalUrls, isLocalUrl, shownUrl as namedUrl } from '@retake/core/environment';
 import type { Timeline, TimelineLoadingUi, TimelineWrite } from '@retake/core/model';
 import type { DisplayEntry } from '@retake/core/environment';
@@ -231,7 +232,7 @@ export function checkArtefactOrder(ctx: CheckContext): Finding[] {
 /** Faces of the plan's theme fonts: CSS family + weight → file (through plan.assets). */
 export function planFontFiles(plan: EditPlan): Array<{ family: string; weight: number; style: 'normal' | 'italic'; file: string }> {
   const faces = plan.brand.tokens.font_faces ?? [];
-  return faces.map((f) => ({ family: f.family, weight: f.weight, style: f.style, file: plan.assets[f.url] ?? f.url })).filter((f) => !f.file.startsWith('ds-asset:'));
+  return faces.map((f) => ({ family: f.family, weight: f.weight, style: f.style, file: plan.assets[f.url] ?? f.url })).filter((f) => !isPlanAssetUrl(f.file));
 }
 
 interface CaptionFit {

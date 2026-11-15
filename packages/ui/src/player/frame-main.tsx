@@ -28,8 +28,8 @@ import type { ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Player } from '@remotion/player';
 import type { PlayerRef } from '@remotion/player';
-import { ComponentPreview, PlanVideo, ModulesContext, PreviewContext, usedComponentIds } from 'ds:composition';
-import { bundle, defaults, held, loaders, scaffolds } from 'ds:modules';
+import { ComponentPreview, PlanVideo, ModulesContext, PreviewContext, usedComponentIds } from 'retake:composition';
+import { bundle, defaults, held, loaders, scaffolds } from 'retake:modules';
 import { latest } from './frame-store.js';
 import { LIST_MAX, PROTOCOL_VERSION, clip, isPreviewDisplayText, parseParentMessage } from './protocol.js';
 import type { FrameMessage, ParentMessage } from './protocol.js';
@@ -402,7 +402,7 @@ function App() {
 // ── hello ────────────────────────────────────────────────────────────────────
 
 function parentOrigins(): string[] {
-  const meta = document.querySelector('meta[name="ds-parent"]');
+  const meta = document.querySelector('meta[name="retake-parent"]');
   return (meta?.getAttribute('content') ?? '').split(/\s+/).filter((o) => /^http:\/\/(127\.0\.0\.1|localhost):\d{1,5}$/.test(o));
 }
 

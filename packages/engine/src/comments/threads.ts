@@ -410,7 +410,7 @@ export async function replyComment(
   }
   // The target is the thread's own scenario (its folder, checked against the file by readThread): never an argument.
   const f = await locateThread(project.dir, id);
-  const built = await buildProposal(project, f.scenario, o.proposal, { files: o.files, reads: o.reads, seen: o.seen, ...(o.registry ? { registry: o.registry } : {}) });
+  const built = await buildProposal(project, f.scenario, o.proposal, { files: o.files, reads: o.reads, stores: o.scope.stores, seen: o.seen, ...(o.registry ? { registry: o.registry } : {}) });
   const w = await appendEntry(
     project,
     id,

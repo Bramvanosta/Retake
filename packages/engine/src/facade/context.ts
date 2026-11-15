@@ -176,6 +176,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
       return { job: open.id, state: open.state === 'running' ? 'running' : 'queued', ...(open.progress?.fraction !== undefined ? { fraction: open.progress.fraction } : {}) };
     },
     runs: runData,
+    stores: ports.stores,
     seen: caches.scenarioVersions,
   });
   // L5.10a: the Project screen's board, its memos apart from the views' (critique H1: never evict the open scenario's).
@@ -189,6 +190,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
       return (job ? overlaid(run.status, job) : undefined) ?? run.status;
     },
     renderMemos: caches.renders,
+    stores: ports.stores,
     seen: caches.scenarioVersions,
   });
   // The sessions of a parsed scenario on an environment: the Run screen's panel (auth.forScenario) and the capture's

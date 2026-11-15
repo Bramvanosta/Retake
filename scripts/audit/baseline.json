@@ -113,11 +113,10 @@
   },
   {
    "rule": "store-new",
-   "reason": "Reads of a project folder through the media storage (R-ARC-03), not authored writes: a scenario's text (getScenario, 14 callers), a thread view's scenario text, the search index's small files. The port exists (ProjectStores.folder, a ProjectFolder); these functions are handed a folder path and no ports, and move once their callers hand them ports.stores.folder(dir) (getScenario with the engine's own version ledger).",
+   "reason": "Reads of a project folder through the media storage (R-ARC-03), not authored writes: a thread view's scenario text (todayText, reached from the comment listings every caller hands only the renders port), the search index's README (readSmall, reached from WorkspaceIndex.open, which the Studio server opens from the Engine, which hands out no ports). The port exists (ProjectStores.folder, a ProjectFolder); these move once their callers hand them ports.stores.",
    "entries": [
     "packages/engine/src/comments/views.ts → new LocalStorage",
-    "packages/engine/src/index-db/index-db.ts → new LocalStorage",
-    "packages/engine/src/scenarios.ts → new LocalStorage"
+    "packages/engine/src/index-db/index-db.ts → new LocalStorage"
    ]
   },
   {

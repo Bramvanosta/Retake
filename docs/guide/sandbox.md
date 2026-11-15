@@ -371,24 +371,25 @@ it, named, before anything is written; `--force` writes the scaffold over them (
 ### Snapshot reset (Postgres)
 
 With `reset: {strategy: snapshot}` (docker-compose only), the sandbox's database (`reset.snapshot.database`, a key of
-`databases`, default the first) is copied as a template database `<db>__ds_snapshot` right after the seed, and every
+`databases`, default the first) is copied as a template database `<db>__retake_snap` right after the seed, and every
 reset drops the database and creates it again from that copy — a file-level copy inside Postgres, with no `pg_dump`
-on this machine:
+on this machine. A snapshot a sandbox took under the template's earlier name is renamed `<db>__retake_snap` at its
+next reset (its seed kept, so it is restored, not retaken), or dropped when one under the present name exists:
 
 ```sql
 -- after the seed (take)
 ALTER DATABASE "app" WITH ALLOW_CONNECTIONS false;            -- the app's pool cannot reconnect during the copy
 SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'app' AND pid <> pg_backend_pid();
-ALTER DATABASE "app__ds_snapshot" WITH IS_TEMPLATE false;     -- a retake only, when it exists
-DROP DATABASE IF EXISTS "app__ds_snapshot" WITH (FORCE);
-CREATE DATABASE "app__ds_snapshot" TEMPLATE "app";            -- STRATEGY left to the server (WAL_LOG from 15)
+ALTER DATABASE "app__retake_snap" WITH IS_TEMPLATE false;     -- a retake only, when it exists
+DROP DATABASE IF EXISTS "app__retake_snap" WITH (FORCE);
+CREATE DATABASE "app__retake_snap" TEMPLATE "app";            -- STRATEGY left to the server (WAL_LOG from 15)
 ALTER DATABASE "app" WITH ALLOW_CONNECTIONS true;
-ALTER DATABASE "app__ds_snapshot" WITH ALLOW_CONNECTIONS false IS_TEMPLATE true;
-COMMENT ON DATABASE "app__ds_snapshot" IS 'retake snapshot <seed hash>';
+ALTER DATABASE "app__retake_snap" WITH ALLOW_CONNECTIONS false IS_TEMPLATE true;
+COMMENT ON DATABASE "app__retake_snap" IS 'retake snapshot <seed hash>';
 -- before every take (restore)
 ALTER DATABASE "app" WITH ALLOW_CONNECTIONS false;
 DROP DATABASE IF EXISTS "app" WITH (FORCE);                   -- its sessions are terminated
-CREATE DATABASE "app" TEMPLATE "app__ds_snapshot" OWNER "<owner at the take>";
+CREATE DATABASE "app" TEMPLATE "app__retake_snap" OWNER "<owner at the take>";
 ```
 
 - **Only the sandbox's own database**: the database's port must be published by a running service of the sandbox's

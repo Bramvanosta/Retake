@@ -13,7 +13,7 @@ import { probeVideoFile } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, MediaFileFields, Timeline } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { PlanInputFile } from './planner/input.js';
-import { errorMessage } from '@retake/core/base';
+import { errorMessage, isLoadedUrl } from '@retake/core/base';
 
 const DATA_RE = /\.(csv|tsv)$/i;
 
@@ -35,7 +35,7 @@ export function planFileUses(timeline: PlanTimeline): PlanFileUse[] {
   const add = (slots: Record<string, string> | undefined, where: string) => {
     for (const [name, v] of Object.entries(slots ?? {})) {
       const s = String(v).trim();
-      if (!s || /^(https?:|data:|ds-asset:)/.test(s)) continue;
+      if (!s || isLoadedUrl(s)) continue;
       if (DATA_RE.test(s) || isImagePath(s)) out.push({ ref: s, where: `${where} slot ${name}` });
     }
   };

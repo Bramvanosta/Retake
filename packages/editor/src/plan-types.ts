@@ -44,12 +44,12 @@ export interface PlanBrand {
 }
 
 /**
- * URL scheme of the assets a plan refers to (capture, logo, wordmark, fonts, music): `ds-asset:<name>`. The planner
- * is pure and does not know where the renderer serves files, so every URL in a plan uses this scheme and
- * `EditPlan.assets` maps each such URL to its absolute file; the renderer serves the files and swaps the URLs
- * (`resolvePlanAssets`).
+ * URL scheme of the assets a plan refers to (capture, logo, wordmark, fonts, music): `retake-asset:<name>` (core
+ * plan-asset-url.ts: a stored plan's earlier spelling is read too). The planner is pure and does not know where the
+ * renderer serves files, so every URL in a plan uses this scheme and `EditPlan.assets` maps each such URL to its
+ * absolute file; the renderer serves the files and swaps the URLs (`resolvePlanAssets`).
  */
-export const PLAN_ASSET_SCHEME = 'ds-asset:';
+export { PLAN_ASSET_SCHEME } from '@retake/core/base';
 
 /** Geometry of the main layout (computed by the planner from the frame style + template). */
 export interface PlanLayout {
@@ -92,7 +92,7 @@ export interface ResolvedComponent {
   /** Where the choice came from (for the UI: "theme default" vs "scenario override"). */
   source: 'theme' | 'scenario' | 'override' | 'builtin-default';
   /**
-   * The run artefacts its `email` / `document` / `notification` slots name (key = slot name), with `ds-asset:` image
+   * The run artefacts its `email` / `document` / `notification` slots name (key = slot name), with `retake-asset:` image
    * URLs (L2.9). Handed to the component as `props.media`.
    */
   media?: Record<string, MediaValue>;
@@ -507,7 +507,7 @@ export interface EditPlan {
   music?: PlanMusic;
   /** Tutorial overlays (L2.10): what was planned, what could not be shown, the progress bar. Absent when none is on. */
   tutorial?: PlanTutorial;
-  /** Every `ds-asset:` URL of the plan → absolute file (capture, logo, wordmark, fonts, music). */
+  /** Every asset URL of the plan → absolute file (capture, logo, wordmark, fonts, music). */
   assets: Record<string, string>;
   /**
    * The display table the edit used (L1.7, core editDisplayTable): project.yaml's current pages of the run's

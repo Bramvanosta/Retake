@@ -1,8 +1,8 @@
 /**
  * L4.5 part A, the preview's plan (editor preview-plan.ts `previewPlan`, critique B4): what the Studio's player plays
- * names no file of this Mac — every `ds-asset:` URL swapped for the player's URL, the asset map, the capture / track /
+ * names no file of this Mac — every `retake-asset:` URL swapped for the player's URL, the asset map, the capture / track /
  * music files, the display table, the notes and warnings gone, an absolute path in a slot blanked, a hidden local URL
- * without its address — and refuses (⚑) a `ds-asset:` URL the plan does not serve, an asset without a player URL, and
+ * without its address — and refuses (⚑) a `retake-asset:` URL the plan does not serve, an asset without a player URL, and
  * any string left that names one of the folders the caller forbids. On real fixture plans (quote; live-quote: tracks
  * and hidden URLs).
  */
@@ -76,13 +76,13 @@ describe('previewPlan (critique B4)', () => {
     expect(JSON.stringify(out)).not.toContain('localhost:4401');
   });
 
-  it('⚑ refuses a ds-asset URL the plan does not serve, an asset without a player URL, a forbidden folder left in any string', async () => {
+  it('⚑ refuses a retake-asset URL the plan does not serve, an asset without a player URL, a forbidden folder left in any string', async () => {
     const p = await plan('quote');
     const unknown = structuredClone(p);
     unknown.segments[0].component.slots.logo = `${PLAN_ASSET_SCHEME}secret-key`;
     expect(() => previewPlan(unknown, { urlFor, forbid: FORBID })).toThrow(PreviewPlanError);
     expect(() => previewPlan(unknown, { urlFor, forbid: FORBID })).toThrow(/which the plan's assets do not serve/);
-    expect(() => previewPlan(p, { urlFor: (a, f) => (f.endsWith('.mp4') ? undefined : urlFor(a, f)), forbid: FORBID })).toThrow(/no preview URL for ds-asset:/);
+    expect(() => previewPlan(p, { urlFor: (a, f) => (f.endsWith('.mp4') ? undefined : urlFor(a, f)), forbid: FORBID })).toThrow(/no preview URL for retake-asset:/);
     const leaked = structuredClone(p);
     leaked.captions[0].text = `see ${RUN}/notes.txt`;
     expect(() => previewPlan(leaked, { urlFor, forbid: FORBID })).toThrow(/names a folder of this Mac/);

@@ -198,8 +198,8 @@ describe('kit fitText (R-CMP-08): text never overflows its box', () => {
     expect(measureText('Hello world', { family: 'x', size: 40 })).toBe(estimateTextWidth('Hello world', { family: 'x', size: 40 }));
     expect(estimateTextWidth('WWW', { family: 'x', size: 10 })).toBeGreaterThan(estimateTextWidth('iii', { family: 'x', size: 10 }));
     expect(estimateTextWidth('Bold', { family: 'x', size: 10, weight: 700 })).toBeGreaterThan(estimateTextWidth('Bold', { family: 'x', size: 10 }));
-    const a = fitText({ text: 'Quotes in two clicks', width: 600, maxFontSize: 96, fontFamily: 'ds-x-display', maxLines: 2 });
-    const b = fitText({ text: 'Quotes in two clicks', width: 600, maxFontSize: 96, fontFamily: 'ds-x-display', maxLines: 2 });
+    const a = fitText({ text: 'Quotes in two clicks', width: 600, maxFontSize: 96, fontFamily: 'retake-x-display', maxLines: 2 });
+    const b = fitText({ text: 'Quotes in two clicks', width: 600, maxFontSize: 96, fontFamily: 'retake-x-display', maxLines: 2 });
     expect(a).toEqual(b);
     expect(a.width).toBeLessThanOrEqual(600);
   });
@@ -207,8 +207,8 @@ describe('kit fitText (R-CMP-08): text never overflows its box', () => {
 
 describe('kit style helpers', () => {
   it('fonts, backgrounds, colours, text styles, safe areas', () => {
-    expect(cssFontFamily('ds-editorial-display')).toBe('"ds-editorial-display", sans-serif');
-    expect(cssFontFamily('ds-x', 'serif')).toBe('"ds-x", serif');
+    expect(cssFontFamily('retake-editorial-display')).toBe('"retake-editorial-display", sans-serif');
+    expect(cssFontFamily('retake-x', 'serif')).toBe('"retake-x", serif');
     expect(cssFontFamily('"A", serif')).toBe('"A", serif');
     expect(cssFontFamily('system-ui')).toBe('system-ui');
     expect(backgroundCss(LIGHT)).toBe('radial-gradient(ellipse 150% 100% at 50% 0%, #f8f4ef 0%, 60%, #ebe4dc 100%)');
@@ -243,7 +243,7 @@ describe('kit style helpers', () => {
     expect(darkLight(LIGHT)).toEqual({ dark: LIGHT.colors.text, light: LIGHT.colors.paper });
     expect(darkLight(DARK)).toEqual({ dark: DARK.colors.paper, light: DARK.colors.text });
     expect(textStyleCss(LIGHT.captions!.kicker, 2)).toEqual({
-      fontFamily: '"ds-light-body", sans-serif',
+      fontFamily: '"retake-light-body", sans-serif',
       fontSize: 30,
       color: '#8a2332',
       lineHeight: 1.2,
@@ -309,7 +309,7 @@ describe('kit React elements (render-tested)', () => {
     expect(img).toContain('height:30px');
     const text = html(createElement(Wordmark, { theme: LIGHT, height: 30, unit: 0.5 }));
     expect(text).toContain('>Atelier</span>');
-    expect(text).toContain('font-family:&quot;ds-light-display&quot;, serif');
+    expect(text).toContain('font-family:&quot;retake-light-display&quot;, serif');
     // Visual height 15 px: a box that tall, the text set at 15 × WORDMARK_TEXT_SCALE with its baseline on the bottom.
     expect(text).toContain(`font-size:${15 * WORDMARK_TEXT_SCALE}px`);
     expect(text).toContain('height:15px');
@@ -320,8 +320,8 @@ describe('kit React elements (render-tested)', () => {
   it('SafeArea insets its children; FitText draws the fitted lines', () => {
     const safe = html(createElement(SafeArea, { width: 1920, height: 1080 }, 'x'));
     expect(safe).toContain('left:96px;top:54px;width:1728px;height:972px');
-    const fit = html(createElement(FitText, { text: 'one two three four five six', width: 300, maxFontSize: 80, maxLines: 2, fontFamily: 'ds-x-display', color: '#123456' }));
-    const expected = fitText({ text: 'one two three four five six', width: 300, maxFontSize: 80, maxLines: 2, fontFamily: 'ds-x-display', lineHeight: 1.15 });
+    const fit = html(createElement(FitText, { text: 'one two three four five six', width: 300, maxFontSize: 80, maxLines: 2, fontFamily: 'retake-x-display', color: '#123456' }));
+    const expected = fitText({ text: 'one two three four five six', width: 300, maxFontSize: 80, maxLines: 2, fontFamily: 'retake-x-display', lineHeight: 1.15 });
     expect(fit).toContain(`font-size:${expected.fontSize}px`);
     expect(fit).toContain('color:#123456');
     for (const line of expected.lines) expect(fit).toContain(`>${line}</div>`);

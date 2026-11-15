@@ -18,7 +18,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
 import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, RenderMemos, ScenarioViews, VersionLedger, renderRecordReads, reportReads } from '@retake/engine/testing';
 import { openProjectBySlug, scanSources } from '@retake/engine/shell';
-import { diskWorkspaceReads, diskOutputs } from '@retake/engine/testing';
+import { diskWorkspaceReads, diskOutputs, diskProjectStores } from '@retake/engine/testing';
 import type { BoardScenario, OpenedWorkspace, ProjectBoardView } from '@retake/engine';
 import { OWN_OPS } from '../src/server/ops.js';
 import { UI_OPS } from '../src/server/studio.js';
@@ -225,6 +225,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
       project: (slug) => openProjectBySlug(wsc, slug),
       renderMemos: new RenderMemos(),
       seen: new VersionLedger(),
+      stores: diskProjectStores,
       overlay: async (_slug, r) => {
         overlays++;
         return r.status;

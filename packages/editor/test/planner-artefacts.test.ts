@@ -1,5 +1,5 @@
 /**
- * L2.9 planner: artefact slots (`email`, `document`, `notification`) resolved into `media` with ds-asset images, a
+ * L2.9 planner: artefact slots (`email`, `document`, `notification`) resolved into `media` with retake-asset images, a
  * notification overlay placed when the notification showed, overlays cut by the clip end keeping their own length,
  * transitions as components on scenes and cards, and the tap target (`anchor`) a transition opens from — on the real
  * signup / quote timelines of the fixture (runs 20261012-015003-signup, 20261012-015606-quote) with the built-in

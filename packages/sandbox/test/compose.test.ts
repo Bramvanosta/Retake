@@ -33,6 +33,7 @@ import { loadProject } from '@retake/core/io';
 import type { LoadedProject, WorkPolicy } from '@retake/core';
 import { SandboxError, dockerEnv, findDocker, initSandbox, openSandbox, probePort } from '@retake/sandbox';
 import type { SandboxLog } from '../src/provider.js';
+import { EARLIER_SNAPSHOT_SUFFIX } from '../src/snapshot-postgres.js';
 import { PERSON_POLICY } from '@retake/core';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
@@ -228,9 +229,17 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     expect(await count()).toBe(7);
     const tpl = await query(
       url.replace(/\/app$/, '/postgres'),
-      "SELECT shobj_description(oid, 'pg_database') AS c, datistemplate AS t, datallowconn AS a FROM pg_database WHERE datname = 'app__ds_snapshot'",
+      "SELECT shobj_description(oid, 'pg_database') AS c, datistemplate AS t, datallowconn AS a FROM pg_database WHERE datname = 'app__retake_snap'",
     );
     expect(tpl).toEqual([{ c: `retake snapshot ${r3.hash}`, t: true, a: false }]);
+
+    // A sandbox whose snapshot was taken before the template's present name: its reset restores it, renamed.
+    const admin = url.replace(/\/app$/, '/postgres');
+    await query(admin, `ALTER DATABASE app__retake_snap RENAME TO app${EARLIER_SNAPSHOT_SUFFIX}`);
+    await query(url, 'DELETE FROM demo_customers');
+    expect(await changed.reset({ log })).toMatchObject({ restored: true, snapshot: { action: 'restored' }, seed: { steps: 0 } });
+    expect(await count()).toBe(7);
+    expect((await query(admin, "SELECT datname AS n FROM pg_database WHERE datname LIKE 'app\\_\\_%' ORDER BY 1")).map((r) => r.n)).toEqual(['app__retake_snap']);
 
     const dbLogs = await changed.logs({ service: 'db', lines: 5 });
     expect(dbLogs[0].source).toBe(`docker compose -p ${name} logs db`);

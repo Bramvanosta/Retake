@@ -42,7 +42,7 @@ import { dockerReady, parseVersion, versionAtLeast } from '../src/docker.js';
 import { checkOnce, pinHealth, pinnedAddress } from '../src/health.js';
 import { clearMailbox, runSeed } from '../src/seed.js';
 import { emptyState } from '../src/state.js';
-import { parsePostgresUrl, pgEndpoint, quoteIdent, quoteLiteral, snapshotComment, snapshotTarget } from '../src/snapshot-postgres.js';
+import { EARLIER_SNAPSHOT_SUFFIX, parsePostgresUrl, pgEndpoint, quoteIdent, quoteLiteral, snapshotComment, snapshotTarget } from '../src/snapshot-postgres.js';
 import { schemaRef } from '../src/init.js';
 import type { DockerExec, DockerResult } from '../src/docker.js';
 import type { Listener } from '../src/ports.js';
@@ -844,7 +844,8 @@ describe('snapshot helpers', () => {
         database: 'shop',
         user: 'demo',
         password: 'from-env-pass',
-        template: 'shop__ds_snapshot',
+        template: 'shop__retake_snap',
+        earlier: `shop${EARLIER_SNAPSHOT_SUFFIX}`,
       });
     } finally {
       delete process.env.RETAKE_TEST_SNAP_PW;

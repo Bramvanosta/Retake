@@ -98,7 +98,7 @@ describe("the engine's entries", () => {
     const testingEntries = SRC.filter((f) => /^packages\/[a-z-]+\/src\/testing\.ts$/.test(f.rel)).map((f) => f.rel);
     expect(testingEntries.sort()).toEqual(['packages/engine/src/testing.ts', 'packages/ui/src/testing.ts']);
     expect(SRC.filter((f) => /(?:from|import\()\s*['"]@retake\/[a-z-]+\/testing['"]/.test(f.text)).map((f) => f.rel)).toEqual([]);
-    expect(values.length).toBeLessThanOrEqual(63);
+    expect(values.length).toBeLessThanOrEqual(64);
   });
 });
 

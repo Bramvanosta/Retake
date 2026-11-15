@@ -46,6 +46,7 @@ import { isReadRun, latestCapture, listRuns, takeVerdict } from '../runs.js';
 import type { RunRecordOnDisk, RunSummary } from '../runs.js';
 import { getScenario, scenarioEditBlocker, validateScenarioText } from '../scenarios.js';
 import type { VersionLedger } from '../version-ledger.js';
+import type { ProjectStores } from '../store/store.js';
 import type { ScenarioText } from '../scenarios.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { WorkspaceReads } from '../workspace-reads/reads.js';
@@ -255,6 +256,8 @@ export interface ScenarioViewContext {
   runs: RunDataCache;
   /** The engine's ledger of the scenario versions it showed or wrote (the view shows the file's text). */
   seen: VersionLedger;
+  /** The stores port: a scenario's file is read through its project folder. */
+  stores: ProjectStores;
 }
 
 interface TextLayer {
@@ -341,7 +344,7 @@ export class ScenarioViews {
   async view(slug: string, name: string, o: { run?: string; env?: string } = {}): Promise<ScenarioView> {
     if (o.run !== undefined && !isRunId(o.run)) throw new EngineError('invalid', `"${String(o.run).slice(0, 60)}" is not a run id`);
     const p = await this.ctx.project(slug);
-    const file = await getScenario(p, name, this.ctx.seen);
+    const file = await getScenario(p, name, this.ctx);
     const text = await this.textLayer(p, slug, name, file, o.env);
     const runs = await this.runChoices(p, slug, name);
     const running = runningOf(runs);
@@ -424,7 +427,7 @@ export class ScenarioViews {
    */
   async actions(slug: string, name: string, o: { env?: string } = {}): Promise<ScenarioActions> {
     const p = await this.ctx.project(slug);
-    const file = await getScenario(p, name, this.ctx.seen);
+    const file = await getScenario(p, name, this.ctx);
     const layer = await this.actionsLayer(p, slug, name, file, o.env);
     const runs = await this.runChoices(p, slug, name);
     const running = runningOf(runs);

@@ -2139,7 +2139,6 @@ and `job_end` lines); what remains:
   rename script, every old name the code detected or recognised (home, workspace file, tool folders, variables,
   safety lists, theme and raw-package markers, the snapshot key, the old perf field) and the idea of a migration
   command are gone — an installation from before L5.13 is simply not seen.
-- The `ds` abbreviations (`__ds_snapshot` is a database name in the person's sandboxes, `ds-asset`…).
 - The built-in `studio/` component namespace → `retake/`, with a migration of every theme and scenario that names it
   (if ever wanted); the `studio` comment channel and the `studio:*` page events likewise.
 - One `TOOL_DIR` constant for the ~45 `.retake` path literals.

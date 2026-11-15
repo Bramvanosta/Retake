@@ -4,7 +4,7 @@
  * slots/params; for clips the layout component with `screen` = the capture (one source frame per output frame, under
  * the camera transform), the caption component with the clip's cues in the layout's caption area, the overlays placed
  * from their source anchor through layout + camera, and the brand mark; the music bed. Every URL in the plan is
- * already an http URL (the renderer swapped the `ds-asset:` URLs for the asset server's).
+ * already an http URL (the renderer swapped the `retake-asset:` URLs for the asset server's).
  */
 import { useMemo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';

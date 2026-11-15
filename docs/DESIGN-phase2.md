@@ -272,7 +272,7 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
   notifications are also events `{action: notification, step: -1}` (excluded from step provenance by the planner).
 - **Slots → media**: slot types `email`, `document`, `notification` (manifest) name an artefact; `ComponentResolver`
   resolves them through the planner's artefact index into `ResolvedComponent.media` (`EmailMedia`, `DocumentMedia`,
-  `NotificationMedia` with `ds-asset:artefact-…` image URLs in `plan.assets`); the composition passes it as
+  `NotificationMedia` with `retake-asset:artefact-…` image URLs in `plan.assets`); the composition passes it as
   `props.media`. Unknown names: a plan warning (core validation checks `email:` / `document:` against the scenario's
   `as` names and project files). A notification overlay starts at the notification's capture time when it lies in the
   clip. `OverlayUse.componentFrames`: an overlay cut by the clip end is rendered with its own length (no early exit).
@@ -655,7 +655,7 @@ planEdit(input: { timeline; template: LoadedTemplate; project; registry: Compone
 //  scenario = optional context (edit info of timelines without a `video` block); overrides.theme: the caller loads
 //  that template and passes it as `template`. Plan types grew additively (see plan-types.ts): PlanTransition per
 //  segment, clip cues/layout/src/speeds/trims/zooms/heldFrames, OverlayUse.anchor (source px), PlanLayout.crop,
-//  ResolvedComponent.missing, plan.assets (`ds-asset:` URL → file, swapped by resolvePlanAssets) and plan.meta.
+//  ResolvedComponent.missing, plan.assets (`retake-asset:` URL → file, swapped by resolvePlanAssets) and plan.meta.
 //  L6.10: plan.ts runs the named steps of src/planner/ (context, sources, components, entries and runs, cameras,
 //  segments, transitions, clip details, tap targets, brand, music) in order; `@retake/editor/plan` is the editor
 //  without its renderer (it reaches the components only through `@retake/components/geometry`).

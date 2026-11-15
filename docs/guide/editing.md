@@ -318,7 +318,7 @@ How it works (`@retake/editor`, `docs/DESIGN-phase2.md` §2.2):
 - **Bundle cache**: `<workspace>/.retake/cache/remotion-<hash>/` (git-ignored), the hash covering the composition
   sources, the kit, every bundled component folder and the Remotion version; a render rebuilds the bundle (≈ 10 s)
   only when one of them changed, and the six most recently used bundles are kept.
-- **Assets**: the capture, fonts, logo, wordmark and music (`ds-asset:` URLs in the plan) are served by a local HTTP
+- **Assets**: the capture, fonts, logo, wordmark and music (`retake-asset:` URLs in the plan; the plan of an older render record may hold their earlier spelling, read alike) are served by a local HTTP
   server on 127.0.0.1 (random port, random path token, Range requests, CORS) for the duration of the render.
 - **Browser**: `$RETAKE_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell (found through
   playwright-core's browser registry: `playwright-core install chromium-headless-shell`; the app bundle's own when

@@ -75,6 +75,66 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.54b)
+- **L7.54b done (2026-11-15; branch `claude/arch-l7`)** — the old name's two-letter prefix is gone from generated
+  names; the two stored ones are read in their earlier spelling too; one store-new entry of three is moved.
+  - Code: the Studio player's virtual modules `retake:composition` / `retake:modules` (esbuild namespace `retake`) and
+    its parent meta `retake-parent` (ui player/bundle-player.ts, frame-main.tsx, virtual.d.ts, server/player.ts: only
+    those names); the theme's font families `retake-<theme>-display` / `-body` (components theme.ts). New core
+    `plan-asset-url.ts` (base context): `PLAN_ASSET_SCHEME = 'retake-asset:'` written, the earlier spelling read
+    (`isPlanAssetUrl`, `planAssetName`, `isLoadedUrl`), used by the planner, preview-plan, resolvePlanAssets,
+    summarizePlan, servedFileProblems, planFileUses, the review's font check and the scenario check;
+    `planTextInPresentSpelling` makes engine `planSignature` sign a render record's plan in the earlier spelling as
+    today's (the Studio still counts that render as one of the same edit). Sandbox: the snapshot template is
+    `<db>__retake_snap` (as long as the earlier suffix: the 50-character limit holds);
+    `PostgresSnapshot.adoptEarlier` renames a template under its earlier name at the next reset (comment, so seed hash,
+    kept: restored, not reseeded) or drops it when the present one exists, the state's `template` follows;
+    `dropTemplate` removes both. The two readings carry `old-name:` tags; core plan-asset-url.ts and sandbox
+    snapshot-postgres.ts are in old-name.test's TAGGED. Store-new: `getScenario` reads through
+    `ports.stores.folder(project.dir)` (`ScenarioReadFrom {stores, seen}`; its 14 callers and the views' / board's
+    contexts hand `stores`); its baseline entry removed (105 → 104). Docs: DESIGN, DESIGN-phase2, guide/editing,
+    guide/sandbox, guide/development, archive/HANDOFF-history follow; CHANGELOG (Unreleased, Changed): the snapshot
+    database's name and the plan's names.
+  - Tests: new core plan-asset-url.test (both spellings, the scenario check), editor plan-earlier-spelling.test (an
+    earlier-spelled plan previews, serves, summarises, checks its files and renders the same stills as today's: one
+    real render), sandbox snapshot-earlier-name.test (Postgres: renamed, dropped, never made under the earlier name;
+    in `pnpm test:pg`); engine plan-signature-memo +1 (same signature); sandbox compose.test's scaffold (Docker) restores
+    a template put back under its earlier name. old-name.test: the two-letter prefix of generated names caught, the
+    compositions with a camelCase prefix, the recorder globals not after a digit (planted and kept cases). Two titles
+    renamed (the scheme's new spelling), see below. operations-cli fixture follows the plan's new names.
+  - Mutations: earlier scheme dropped from the read list → plan-asset-url.test and plan-earlier-spelling.test red;
+    planSignature without the respelling → plan-signature-memo red; the rename to a wrong name → snapshot-earlier-name
+    red (3); the reset's adoption removed → compose.test's scaffold red; the new short-forms pattern cut, the camelCase
+    `\b` put back, the digit let through → old-name.test's scanner red. All restored.
+  - Gates: `npx tsc -b`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `rules.mjs --check` (104), test-guard
+    (2 renamed titles), `--check-cites` on a scratch copy with the edits: all 0. Alone, green: test:pg (sql,
+    agent-sql, snapshot-earlier-name), compose (Docker), plan-asset-url, plan-signature-memo, plan-earlier-spelling,
+    components theme / kit / library / scaffolds, core sandbox / import-rules, editor preview-plan / planner-real /
+    planner-rules / planner-artefacts, sandbox compose-units / snapshot-take-connections / types-entry, engine
+    scenario-view / scenario-actions / timeline-view / comment-proposals, ui board-ops / player-server / timeline-ops
+    / player-bundle / player-preview (Chromium), cli operations-cli / test-ci-tier, review checks; old-name green but
+    for the register files (below).
+  - Not done: the two other store-new entries — comments `todayText` (reached from `listComments` / `getComment` /
+    `threadView` / `anchorAt`, whose callers hand only the renders port: ~25 test calls and the CLI's comment command
+    would change) and index-db `readSmall` (reached from `WorkspaceIndex.open`, which the Studio server opens from the
+    Engine, which hands out no ports): baseline reason rewritten. Component previews not regenerated: their source
+    hashes are the components' own files (unchanged), and the stills of a plan with either font family name are
+    pixel-identical (plan-earlier-spelling.test).
+
+**Renamed test titles (test-guard's 2 items):** in editor planner-real and preview-plan, the asset scheme's name in the
+title follows the new spelling; neither is cited in requirements.json.
+
+**New test files:** packages/core/test/plan-asset-url.test.ts (CI tier), packages/editor/test/plan-earlier-spelling.test.ts
+(out: ffmpeg), packages/sandbox/test/snapshot-earlier-name.test.ts (CI tier: skips without Postgres; in test-pg.mjs
+PG_FILES). scripts/test-ci.json lists the three.
+
+**For the sibling L7.51 (the Studio player):** lines touched — `packages/ui/src/player/bundle-player.ts` the header
+comment line 8–9 (rewrapped), the doc comments of `modulesSource` (154) and `compositionSource` (176), the esbuild
+plugin's `onResolve` / `onLoad` (255–260, biome put the onLoad object on 4 lines), `args.namespace === 'retake'` (265),
+`args.importer === 'retake:composition'` (268), `args.namespace !== 'retake'` (285); `frame-main.tsx` 31–32 (the two
+imports) and 405 (the meta name); `virtual.d.ts` 5 and 16; `server/player.ts` 148 (the meta); `ui/test/player-server.test.ts`
+105 and the `retake-asset:` strings of 71–73, 244. Nothing else in the player or bundle.ts.
+
 ## State (after L7.51)
 - **L7.51 done (2026-11-15; branch `claude/arch-l7`)** — every package entry holds what another package imports from it: the engine's main entry is its façade, the shells' in-process values are `@retake/engine/shell`, the values only other packages' tests use are `@retake/engine/testing`; the adapters' and the Studio's roots are cut to their users; no memory adapter is in a production entry; the record corpus and the Studio's op builder are shared test helpers. Closes A-S4, CC-S5, CC-S9, A-N7 (and A-N4's ui half: `@retake/ui` re-exports no engine name). **A-S10 not done** (Questions 1). R14 / R6 entries of L7.48: 2 removed, the rest justified per entry (Questions 2).
   - Code: `packages/engine/src/index.ts` = `createEngine`, `ENGINE_API_VERSION`, `agentTrust`, `EngineError`, `ENGINE_ERROR_CODES`, `toEngineError` + every type (1,160 → 483 names: 6 values, 477 types; the types stay so that the shells' inferred declarations can name them). New `packages/engine/src/shell-entry.ts` (`@retake/engine/shell`, 150 values, each imported by a cli / mcp / ui source) and `packages/engine/src/testing.ts` (`@retake/engine/testing`, 63 values only other packages' tests and `@retake/test-support` import). Roots: runner-web 418 → 36 + `export type * from './types-entry.js'`; review 131 → 9 + `export * from './checks-entry.js'`; sandbox 165 → 11 + its types entry; editor 396 → 61 + `export * from './plan-entry.js'`; hooks 85 → 17 + `export * from './describe-entry.js'`; ui 216 → 5. Components root and kit untouched (a person's components import the kit); mcp root untouched (47 names, has local code). The engine's own tests (and each package's own) import from the declaring files instead of `../src/index.js` (codemod: ~360 files' import lines rewritten, no behaviour change; tsc is the proof). New `packages/ui/src/testing.ts` (`@retake/ui/testing`: `studioTools`, `StudioToolDeps`). Each new entry has its `exports` key, vitest alias and tsconfig.test.json path; `ENGINE_LAYERS` entries list gains `shell-entry.ts`, `testing.ts`. Editor `remotion/PlanVideo.tsx` and `Preview.tsx` type their props from `@retake/components/geometry`. `docs/audit/target-architecture.md`: the entries paragraph and the engine line.
@@ -93,7 +153,7 @@ the archive, above its "State (after L7.34)".
   - Code: editor `remotion/old composition name.tsx` → `remotion/PlanVideo.tsx` (`PlanVideo`, `PlanVideoProps`); composition ids
     `old composition name` / `old composition name` / `old composition name` → `PlanVideo` / `PlanVertical` / `PlanSquare` (contract.ts; nothing
     stores them: contract.ts is hashed into every bundle key, so each cached bundle is rebuilt once); the Studio player's
-    `ds:composition` exports `PlanVideo` (bundle-player.ts, frame-main.tsx, virtual.d.ts). runner-web `the old recorder name` →
+    the player's composition module exports `PlanVideo` (bundle-player.ts, frame-main.tsx, virtual.d.ts). runner-web `the old recorder name` →
     `pageRecorder` (the runner-web entry names the new one; the package is private, no re-export); the recorder's
     globals `the old in-page prefix Installed / Hash / Token / Flush / Verdict` and its binding `the old in-page prefix _<hex>` → `__retakeRec…`, both
     sides at once (kit/record-script.ts, record-session.ts) and the fixture's forgery page (RecordLab.jsx). Engine
@@ -119,8 +179,7 @@ the archive, above its "State (after L7.34)".
     (real recorder, Chromium), render-real (real render), old-name (green but for the register files below).
   - Not done: the store-new entries (getScenario's 14 callers, comments `todayText`, index-db `readSmall`) are not moved
     onto `ports.stores.folder(dir)` — getScenario's file holds the version ledger L7.49b is moving per engine, and the
-    callers are in facade/ and views/ (L7.49b's); the other `ds` short forms (`ds:composition`, `ds-asset:`,
-    `__ds_snapshot`, `ds-<theme>-display`) stay with BACKLOG's line on them (`__ds_snapshot` is a database name in
+    callers are in facade/ and views/ (L7.49b's); the other short forms of generated names went with L7.54b (the snapshot database is a name in
     people's sandboxes). The theme-sense `Template*` names in core and the façade's `templates` member stay (the
     glossary's rule says which, and why).
 

@@ -21,7 +21,7 @@ describe('themeTokens (R-REG-11)', () => {
       name: 'editorial',
       colors: tpl.colors,
       background: tpl.background,
-      fonts: { display: 'ds-editorial-display', body: 'ds-editorial-body' },
+      fonts: { display: 'retake-editorial-display', body: 'retake-editorial-body' },
       logo: { url: 'http://assets.local/editorial/logo.svg' },
       wordmark: { url: 'http://assets.local/editorial/wordmark.svg', text: tpl.brand?.name },
       brand: { name: tpl.brand?.name, url: 'example.com' },
@@ -31,15 +31,15 @@ describe('themeTokens (R-REG-11)', () => {
       motion: { zoom_ease: [0.45, 0, 0.2, 1] },
     });
     expect(t.font_faces).toEqual([
-      { family: 'ds-editorial-display', url: 'http://assets.local/f/display.ttf', weight: 400, style: 'normal' },
-      { family: 'ds-editorial-body', url: 'http://assets.local/f/r.ttf', weight: 400, style: 'normal' },
-      { family: 'ds-editorial-body', url: 'http://assets.local/f/sb.ttf', weight: 600, style: 'normal' },
-      { family: 'ds-editorial-body', url: 'http://assets.local/f/b.ttf', weight: 700, style: 'normal' },
+      { family: 'retake-editorial-display', url: 'http://assets.local/f/display.ttf', weight: 400, style: 'normal' },
+      { family: 'retake-editorial-body', url: 'http://assets.local/f/r.ttf', weight: 400, style: 'normal' },
+      { family: 'retake-editorial-body', url: 'http://assets.local/f/sb.ttf', weight: 600, style: 'normal' },
+      { family: 'retake-editorial-body', url: 'http://assets.local/f/b.ttf', weight: 700, style: 'normal' },
     ]);
     // Caption styles: colour keys resolved to CSS colours, fonts to family names.
     expect(t.captions).toEqual({
-      kicker: { font: 'ds-editorial-body', weight: 600, size: 15, uppercase: true, color: tpl.colors.accent, letter_spacing: 0.14 },
-      line: { font: 'ds-editorial-display', size: 38, color: tpl.colors.text },
+      kicker: { font: 'retake-editorial-body', weight: 600, size: 15, uppercase: true, color: tpl.colors.accent, letter_spacing: 0.14 },
+      line: { font: 'retake-editorial-display', size: 38, color: tpl.colors.text },
     });
     // Tokens are copies: editing them does not touch the template.
     t.colors.accent = '#000000';
@@ -66,7 +66,7 @@ describe('themeTokens (R-REG-11)', () => {
     const t = themeTokens(loaded);
     expect(t.wordmark).toBeUndefined();
     expect(t.brand).toEqual({});
-    expect(t.fonts).toEqual({ display: 'ds-my-theme-display', body: 'ds-my-theme-body' });
+    expect(t.fonts).toEqual({ display: 'retake-my-theme-display', body: 'retake-my-theme-body' });
   });
 
   it('fontFileFace infers weight and style from the file name', () => {

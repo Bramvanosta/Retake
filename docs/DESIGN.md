@@ -1293,10 +1293,10 @@ read-only environment and an unusable clock throw before the run folder is made.
   --no-color --no-log-prefix --tail N <svc>` per service; `followLogs`: `logs --follow`.
 - **Snapshot reset** (`snapshot-postgres.ts`, strategy `snapshot`, in `resetLocked`): `snapshotTarget` (the database
   key, its URL with secrets resolved, `pgEndpoint` — host, port, database, user, password as pg's own parser reads
-  them, refused unless that is the URL's loopback host and port; a system database refused again —, `<db>__ds_snapshot`;
+  them, refused unless that is the URL's loopback host and port; a system database refused again —, `<db>__retake_snap`;
   pg is given the endpoint, never the URL) → `provider.publishedBy(port)` (refused without it: process)
   → `PostgresSnapshot.open` on `provider.address(port)` (127.0.0.1 / ::1, never `localhost`; maintenance connection to `postgres`, else `template1`; `server_version_num` ≥ 130000) →
-  `repair()` (ALLOW_CONNECTIONS back on) → valid = not `--reseed`, `state.seed.hash` = `provider_state.snapshot.hash`
+  `repair()` (ALLOW_CONNECTIONS back on) → `adoptEarlier()` (a template under its earlier name renamed to the present one, or dropped when that one exists; the state's `template` follows) → valid = not `--reseed`, `state.seed.hash` = `provider_state.snapshot.hash`
   = the current hash (core `seedHash(sandbox, hashInputs)`) and the template exists, is a template, with the comment
   `retake snapshot <hash>` → `restore(owner)` (ALTER … ALLOW_CONNECTIONS false, DROP … IF EXISTS … WITH (FORCE),
   CREATE … TEMPLATE … OWNER; no abort check between DROP and CREATE); otherwise `ensureDatabase` (an interrupted
@@ -3733,10 +3733,10 @@ the shown take at its anchored step's first frame (else its marker, else its seg
 (`edit: 'scenario'`) a thread of another take at `step_now`; else listed beside the track (no position invented).
 
 **Preview plan** (editor `preview-plan.ts`, critique B4). `previewPlan(plan, {urlFor, forbid}) → PreviewPlan`: every
-`ds-asset:` URL swapped for the URL the player serves it at (`urlFor(asset, file)`: undefined → refused); `assets`,
+`retake-asset:` URL swapped for the URL the player serves it at (`urlFor(asset, file)`: undefined → refused); `assets`,
 `display`, `notes`, `warnings`, `source.file`, `tracks[].file`, `music.file` removed; an absolute path left in a slot (a
 theme's own file in studio/media's `file`) blanked; a `hidden` URL entry (a local URL without a display one) keeps its
-frame, loses its address; refused (`PreviewPlanError`) — a `ds-asset:` URL the asset map does not serve, a `file:`
+frame, loses its address; refused (`PreviewPlanError`) — a `retake-asset:` URL the asset map does not serve, a `file:`
 URL, any string holding one of the `forbid` folders (project, run, theme, workspace, home). Part B serves it as
 plan.json under the player's capability; nothing in a JSON op.
 
@@ -3827,7 +3827,7 @@ every path, created with the server, replaced by `rotate()`, revoked by `close()
 (a failure logs `retake player: a <frame|media|other> request failed: <Error name>`), never in a Referer
 (`no-referrer` on every answer and the iframe). Routes, nothing else (no `/v1`, no op, no event):
 - `GET /s/<cap>/frame` — the frame document: no inline script; `boot.<hash>.js` (first, classic) then
-  `b.<hash>.js` (defer); `<meta name="ds-parent">` with `http://127.0.0.1:P http://localhost:P`; `Cache-Control:
+  `b.<hash>.js` (defer); `<meta name="retake-parent">` with `http://127.0.0.1:P http://localhost:P`; `Cache-Control:
   no-store`; the frame CSP as a header: `default-src 'none'; script-src Q/s/<cap>/; style-src 'unsafe-inline';
   img-src Q/m/<cap>/ data:; media-src Q/m/<cap>/ data:; font-src Q/m/<cap>/ data:; connect-src Q/m/<cap>/;
   worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; manifest-src 'none'; base-uri 'none';
@@ -3852,9 +3852,9 @@ cross-site / same-site, or Origin `null`) — the sandbox test asserts the frame
 
 **Preview bundle** (part B; ui `player/bundle-player.ts`, critiques B3, B11). esbuild in memory, one classic IIFE per
 script (`b.js` from `frame-main.tsx`, `boot.js` from `boot.ts`), minified, the Studio's browser targets. It holds the
-Remotion Player, PlanVideo (the render's own composition, through the generated `ds:composition`) and **every**
+Remotion Player, PlanVideo (the render's own composition, through the generated `retake:composition`) and **every**
 component of the workspace registry plus the scaffolds (`playerComponents`), so a switch never rebuilds it. The
-generated `ds:modules` maps each id to `() => import(entry)` (and each scaffold by kind): esbuild makes each a lazily
+generated `retake:modules` maps each id to `() => import(entry)` (and each scaffold by kind): esbuild makes each a lazily
 initialised module inside the one IIFE — nothing a component's module does runs before the frame loads it for a plan
 that uses it, and one that throws rejects its own import only. Import allow-list (an esbuild plugin): a component's
 import is checked with components `importProblem` (own folder, react, react/jsx-runtime, remotion, the kit — the rule
@@ -3893,7 +3893,7 @@ per load, 300 characters each.
 
 **Protocol v1** (part B; `player/protocol.ts`, `player/parent.ts`, critique B2). The frame opens a MessageChannel and
 posts one `hello {bundle}` with its port to the parent — to `location.ancestorOrigins[0]` when it is one of the
-`ds-parent` origins, else to each of them (one channel each: only the matching one delivers). The page
+`retake-parent` origins, else to each of them (one channel each: only the matching one delivers). The page
 (`connectPreview(iframe, {onHello, onMessage, onStop, budget?})`) listens on `window` for exactly one message from the
 frame: a valid `hello` with a port connects and the window listener is removed; anything else from the frame stops the
 preview; other windows are ignored; the frame's `load` event re-arms it (a reloaded frame's new hello replaces the
@@ -3915,7 +3915,7 @@ run key). **The op** `timeline_view {project, name, run?}` (strict; not an MCP t
 words (the planner's own error names the runs folder); engine `timeline.view`; a trust refusal → `{blocked}` with the
 command and no URL; else the view plus `frame_url` / `plan_url` from `player.publish(result, {forbid: [workspace,
 home]})` — the plan, its folders and every path stay in the process (a test scans the answer: no `plan` / `folders`
-key, no workspace or home path, no `ds-asset:`, no product URL); a publish failure keeps the view with `preview_error`.
+key, no workspace or home path, no `retake-asset:`, no product URL); a publish failure keeps the view with `preview_error`.
 The engine memo's key gained the scenario's comment folder (size, mtime): a new or answered thread is new pins. **The
 screen** reads it once per route, again on this scenario's file / runs events and `resync` (a re-read of an unchanged
 take is a memo hit and the same `plan_url`: nothing reloads); a new run id remounts the screen (a new playhead), a new

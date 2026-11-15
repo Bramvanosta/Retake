@@ -4,10 +4,13 @@
  * L5.13 — the old name is gone: no file of the repository says "Demo Studio" (any spelling: demo-studio, DEMO_STUDIO_,
  * demoStudio, wrapped across a line), runs the old command (`studio <sub>`, `pnpm studio`, `Usage: studio`…), or names
  * the old workspace file or home, nor its short forms in code (the `Demo…` compositions, the `demo…` recorder, the
- * `ds…rec` page globals). Since v0.2.1 no code knows an old name (the legacy modules, their tests, the rename
- * script and the upgrade guide are gone: an installation of that time is simply not seen). What is left:
+ * `ds…rec` page globals, the two-letter prefix of generated names: the player's virtual modules, the plan's asset
+ * scheme, the theme's font families, the snapshot database). Since v0.2.1 no code knows an old name (the legacy
+ * modules, their tests, the rename script and the upgrade guide are gone: an installation of that time is simply not
+ * seen) but where a stored name is read in its earlier spelling (a render record's plan, a sandbox's snapshot). What
+ * is left:
  * - this test, whole;
- * - the history lines of the records: in the files listed in TAGGED only, a line carrying `old-name:` or a region between `old-name:begin` and
+ * - those readings and the history lines of the records: in the files listed in TAGGED only, a line carrying `old-name:` or a region between `old-name:begin` and
  *   `old-name:end` (critique L6: a tag elsewhere is itself a failure, so a count cannot hide a new leftover).
  * Scanned: every tracked file, and the untracked files git does not ignore under the source folders (a new file is
  * checked before it is committed; a person's own notes elsewhere are not) — their contents and their paths (a file or
@@ -75,8 +78,12 @@ export const PATTERNS: ReadonlyArray<[string, RegExp]> = [
   ['the plugin key', /user_config\.studio\b|--config studio=/g],
   ['the workspace file', /\bstudio\\?\.yaml\b/g],
   ['the home', /\bstudio[ \t]+home\b|\bstudio(?:Home|_home)\b/gi],
-  // The old name's short forms in code: the compositions, the in-page recorder and its page globals.
-  ['the short forms', /\bDemo(?:Video|Vertical|Square)\w*|\bdemoRecorder\b|(?<![A-Za-z])dsrec/g],
+  // The old name's short forms in code: the compositions (a camelCase prefix too), the in-page recorder and its page
+  // globals (not after a letter or a digit: a base64 run is no global).
+  ['the short forms', /Demo(?:Video|Vertical|Square)\w*|\bdemoRecorder\b|(?<![A-Za-z0-9])dsrec/g],
+  // Its two-letter form in generated names: the player's virtual modules and parent meta, the plan's asset scheme, the
+  // theme's font family names, a sandbox's snapshot database.
+  ['the short forms', /(?<![\w-])ds(?::(?:composition|modules)\b|-(?:parent|asset)\b|-\$\{|-[a-z0-9]+(?:-[a-z0-9]+)*-(?:display|body)\b)|_ds_snapshot/g],
 ];
 
 /** Whole files that are about the old names. */
@@ -84,6 +91,8 @@ const WHOLE: readonly RegExp[] = [/^packages\/core\/test\/old-name\.test\.ts$/];
 
 /** Files whose `old-name:` lines and regions are allowed, and why. */
 const TAGGED: Readonly<Record<string, string>> = {
+  'packages/core/src/plan-asset-url.ts': "the plan asset scheme's earlier spelling, read in older render records",
+  'packages/sandbox/src/snapshot-postgres.ts': "the snapshot database's earlier name, adopted at a reset",
   'docs/DESIGN.md': 'the L5.13 section',
   'docs/BACKLOG.md': 'the history line, BL-136',
   'docs/HANDOFF.md': 'the history line',
@@ -192,6 +201,17 @@ describe('the old name is gone (L5.13)', () => {
       'globalThis.__dsrecFlush()',
       'const binding = `__dsrec_${hex}`',
       'filter((n) => /dsrec|binding/i.test(n))',
+      'if (isDemoSquare(v)) return',
+      'const out = renderDemoVideo(plan)',
+      "import { PlanVideo } from 'ds:composition'",
+      "declare module 'ds:modules' {",
+      '<meta name="ds-parent" content="x">',
+      "export const PLAN_ASSET_SCHEME = 'ds-asset:'",
+      '"url": "ds-asset:logo.svg"',
+      'return { display: `ds-${slug}-display` }',
+      "fonts: { display: 'ds-editorial-display', body: 'ds-my-theme-body' }",
+      "export const SNAPSHOT_SUFFIX = '__ds_snapshot'",
+      'CREATE DATABASE "app__ds_snapshot" TEMPLATE "app"',
     ])
       expect(oldNameHits(planted, false).length, planted).toBeGreaterThan(0);
     for (const kept of [
@@ -211,6 +231,15 @@ describe('the old name is gone (L5.13)', () => {
       'globalThis.__retakeRecFlush()',
       'a demo video of the product',
       'guardsRecordings: true',
+      'a base64 run QmF9dsrecX0=',
+      "mkdtemp(join(tmpdir(), 'ds-auth-'))",
+      'W=~/ds-themes; H=~/ds-studio-home',
+      "import { PlanVideo } from 'retake:composition'",
+      "export const PLAN_ASSET_SCHEME = 'retake-asset:'",
+      'return { display: `retake-${slug}-display` }',
+      "export const SNAPSHOT_SUFFIX = '__retake_snap'",
+      'const [rs, ds] = await Promise.all([lstat(a), lstat(b)])',
+      'the ids: string[] of the kinds: ds-',
     ])
       expect(oldNameHits(kept, false), kept).toEqual([]);
   });

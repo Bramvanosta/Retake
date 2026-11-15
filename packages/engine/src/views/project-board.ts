@@ -48,6 +48,7 @@ import type { ThumbSource } from '../run-thumbs.js';
 import { readListedRecord, renderView, failureWords, scenarioRenderOf } from '../renders.js';
 import type { RenderMemos, ScenarioRenderView } from '../renders.js';
 import type { VersionLedger } from '../version-ledger.js';
+import type { ProjectStores } from '../store/store.js';
 import { readRecord, runFolderIds, takeVerdict } from '../runs.js';
 import { runFolderOf, runsDirOf } from '../outputs/outputs.js';
 import type { RunRecordOnDisk } from '../runs.js';
@@ -168,6 +169,8 @@ export interface ProjectBoardContext {
   renderMemos: RenderMemos;
   /** The engine's ledger of the scenario versions it showed or wrote (a file read here is one). */
   seen: VersionLedger;
+  /** The stores port: a scenario's file is read through its project folder. */
+  stores: ProjectStores;
 }
 
 /** What the board knows of one scenario file (not core's FileFacts port). */
@@ -490,7 +493,7 @@ export class ProjectBoards {
     const empty = { scenes: 0, cards: 0, interstitials: 0, steps: 0, hooks: 0 };
     let text: Awaited<ReturnType<typeof getScenario>>;
     try {
-      text = await getScenario(p, name, this.ctx.seen);
+      text = await getScenario(p, name, this.ctx);
     } catch (e) {
       return { file: { parsed: false, ok: false, errors: 1, warnings: 0, unreadable: true }, content: empty, error: failureWords(errorMessage(e)) };
     }

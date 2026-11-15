@@ -145,7 +145,7 @@ export function frameHtml(cap: string, hash: string, studioPort: number): string
 <head>
 <meta charset="utf-8">
 <meta name="referrer" content="no-referrer">
-<meta name="ds-parent" content="http://127.0.0.1:${studioPort} http://localhost:${studioPort}">
+<meta name="retake-parent" content="http://127.0.0.1:${studioPort} http://localhost:${studioPort}">
 <title>Preview</title>
 <script src="/s/${cap}/boot.${hash}.js"></script>
 <script src="/s/${cap}/b.${hash}.js" defer></script>

@@ -96,7 +96,7 @@ describe('scaffolds render with any theme (R-CMP-05)', () => {
       expect(usesLight, kind).toBe(true);
     }
     for (const kind of ['intro', 'outro', 'card', 'interstitial', 'caption', 'overlay'] as const) {
-      expect(render(kind, { theme: LIGHT, at: 60 }), kind).toMatch(/ds-light-(display|body)/);
+      expect(render(kind, { theme: LIGHT, at: 60 }), kind).toMatch(/retake-light-(display|body)/);
     }
   });
 

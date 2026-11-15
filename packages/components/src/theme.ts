@@ -16,7 +16,7 @@ export function themeFontFamilies(templateName: string): { display: string; body
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'theme';
-  return { display: `ds-${slug}-display`, body: `ds-${slug}-body` };
+  return { display: `retake-${slug}-display`, body: `retake-${slug}-body` };
 }
 
 const WEIGHTS: Array<[RegExp, number]> = [

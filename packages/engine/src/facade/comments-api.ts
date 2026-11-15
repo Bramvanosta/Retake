@@ -64,7 +64,7 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
         reads: ws.reads,
       });
     },
-    proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry, seen, files: ctx.files, reads: ws.reads }),
+    proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry, seen, files: ctx.files, reads: ws.reads, stores: scope.stores }),
     counts: async (slug, o = {}) => commentIndex.counts(await project(slug), o),
   };
 }

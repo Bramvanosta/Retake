@@ -8,7 +8,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { canonicalJson } from '@retake/core/base';
+import { canonicalJson, planTextInPresentSpelling } from '@retake/core/base';
 import { SLUG_RE } from '@retake/core/model';
 import { formatRenderId, isRenderId, isRunId, isThemeName, renderIdOf } from '@retake/core/ids';
 import { projectRef } from '@retake/core/project';
@@ -636,7 +636,9 @@ export interface ScenarioRendersView {
 }
 
 /**
- * The signature of an edit plan (24 hex): the plan without its notes and warnings, canonical JSON, sha256. Null — no
+ * The signature of an edit plan (24 hex): the plan without its notes and warnings, canonical JSON in the present
+ * spelling of its generated names (core planTextInPresentSpelling: a render's record made before they changed still
+ * matches), sha256. Null — no
  * signature, so the same as no plan's — when the plan cannot be written as canonical JSON (a plan of a record, which
  * anyone can write, nested deeper than the writer's stack): never a throw.
  */
@@ -644,7 +646,7 @@ export function planSignature(plan: unknown): string | null {
   const p = plan && typeof plan === 'object' ? { ...(plan as Record<string, unknown>), notes: undefined, warnings: undefined } : plan;
   let text: string;
   try {
-    text = canonicalJson(p);
+    text = planTextInPresentSpelling(canonicalJson(p));
   } catch {
     return null;
   }

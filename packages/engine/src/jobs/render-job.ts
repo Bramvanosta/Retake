@@ -25,6 +25,7 @@ import { JOB_INPUT_VERSION } from './job-input.js';
 import type { RenderVariant } from '@retake/core/ids';
 import type { LoadedProject } from '@retake/core/model';
 import type { RenderJobInput } from './job-input.js';
+import type { ProjectStores } from '../store/store.js';
 import type { BrowserProcessInfo, EditOverrides, RenderProgress } from '@retake/editor/plan';
 import type { PlannedRun } from '../render/editor-calls.js';
 import { latestNoticeOf, planRenderRequest } from '../render-request.js';
@@ -61,11 +62,11 @@ export const EDIT_SNAPSHOT_FILE = 'edit.yaml';
  * run (a filmed change pending, no file) — today's scenario file, must be the version the client showed. A conflict
  * otherwise, before anything is reserved.
  */
-async function checkShownEdit(project: LoadedProject, scenario: string, planned: PlannedRun, shown: string): Promise<void> {
+async function checkShownEdit(project: LoadedProject, scenario: string, planned: PlannedRun, shown: string, stores: ProjectStores): Promise<void> {
   let now = planned.edit.sha256;
   if (now === undefined) {
     const { getScenario } = await import('../scenarios.js');
-    now = await getScenario(project, scenario, undefined).then(
+    now = await getScenario(project, scenario, { stores, seen: undefined }).then(
       (t) => t.hash,
       () => undefined,
     );
@@ -92,7 +93,7 @@ export async function submitRenderJob(
   { job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; untrusted?: { passed_over: PassedOverRuns } } & RenderEditSource & LatestRunNotice
 > {
   const { project, planned, overrides, source } = await planRenderRequest(ctx.ws, ctx.cli, req);
-  if (req.expect_edit_sha256 !== undefined) await checkShownEdit(project, req.scenario, planned, req.expect_edit_sha256);
+  if (req.expect_edit_sha256 !== undefined) await checkShownEdit(project, req.scenario, planned, req.expect_edit_sha256, ctx.stores);
   const timelineSha = sha256Hex(await timelineBytes(ctx.ws.outputs.runs, planned.run.dir));
   const scenario = planned.timeline.scenario;
   const renders = ctx.ws.outputs.renders;
