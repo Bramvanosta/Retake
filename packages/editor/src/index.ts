@@ -19,7 +19,17 @@ export { previewGlKey, probeRenderPath, renderPolicy, resolveRenderPolicy } from
 export { PlanTrustError, planRun } from './render/plan-run.js';
 export { findRun } from './render/runs.js';
 export { CONTENT_TYPES, parseRange } from './render/asset-server.js';
-export { scaffoldComponents, bundleHash, componentFolderHash, compositionFiles, compositionHash, ensureBundle, registryBundleComponents, renderBundleRestriction } from './render/bundle.js';
+export {
+  bundleHash,
+  componentFolderHash,
+  compositionHash,
+  ensureBundle,
+  playerBuildEntries,
+  playerComponentSet,
+  registryBundleComponents,
+  renderBundleRestriction,
+  workspaceComponents,
+} from './render/bundle.js';
 export type { BundleComponent } from './render/bundle.js';
 export { HEADLESS_SHELL_ENV, assertRenderBrowser, renderBrowser, renderBrowserIdentity } from './render/browser.js';
 export { buildComponentPreview, loadPreviewSamples } from './preview.js';

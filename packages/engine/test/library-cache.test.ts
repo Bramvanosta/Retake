@@ -36,7 +36,7 @@ import {
 } from '../src/library.js';
 import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
-import type { LibraryEntryMeta, LibraryKeyContext } from '../src/index.js';
+import type { LibraryEntryMeta, LibraryKeyContext } from '../src/library.js';
 import { REPO } from '@retake/test-support/repo';
 import { cleanWorkerEnv } from '../src/jobs/worker-env.js';
 import { openWorkspace } from '../src/workspace.js';

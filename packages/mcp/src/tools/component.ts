@@ -4,7 +4,7 @@
  * tools/list's order.
  */
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
-import type { ToolDef } from './define.js';
+import type { Op, ToolDef } from './define.js';
 
 const {
   component_list: componentList,
@@ -14,4 +14,10 @@ const {
   component_create: componentCreate,
 } = OPERATIONS_BY_NAME;
 
-export const COMPONENT_TOOLS = [componentList, componentGet, componentValidate, componentPreview, componentCreate] as const satisfies readonly ToolDef[];
+export const COMPONENT_TOOLS: readonly [Op<'component_list'>, Op<'component_get'>, Op<'component_validate'>, Op<'component_preview'>, Op<'component_create'>] = [
+  componentList,
+  componentGet,
+  componentValidate,
+  componentPreview,
+  componentCreate,
+] as const satisfies readonly ToolDef[];

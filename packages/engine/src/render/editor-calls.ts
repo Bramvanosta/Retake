@@ -117,6 +117,43 @@ export async function previewMaking(): Promise<PreviewMaking> {
   };
 }
 
+// ── the Studio's preview player ──
+
+/**
+ * What the Studio's preview player is made of outside its own bundler and server: the components of its bundle (the
+ * workspace ones it is allowed to run, by folder content hash; `held` the others), the hash of their inputs, the
+ * composition, kit and geometry entries with the components' import rules its loader applies, the components a plan
+ * uses, a plan's preview form (every file swapped for a URL the player serves, or the refusal: `planError`, the
+ * editor's PreviewPlanError) and the content types and Range reading of the files it serves.
+ */
+export interface PlayerMaking {
+  componentSet: Editor['playerComponentSet'];
+  workspaceComponents: Editor['workspaceComponents'];
+  inputsHash: Editor['bundleHash'];
+  entries: Editor['playerBuildEntries'];
+  usedComponentIds: Editor['usedComponentIds'];
+  previewPlan: Editor['previewPlan'];
+  /** The refusal of a preview (the editor's PreviewPlanError). */
+  planError(message: string): Error;
+  contentTypes: Editor['CONTENT_TYPES'];
+  parseRange: Editor['parseRange'];
+}
+
+export async function playerMaking(): Promise<PlayerMaking> {
+  const ed = await editor();
+  return {
+    componentSet: ed.playerComponentSet,
+    workspaceComponents: ed.workspaceComponents,
+    inputsHash: ed.bundleHash,
+    entries: ed.playerBuildEntries,
+    usedComponentIds: ed.usedComponentIds,
+    previewPlan: ed.previewPlan,
+    planError: (message) => new ed.PreviewPlanError(message),
+    contentTypes: ed.CONTENT_TYPES,
+    parseRange: ed.parseRange,
+  };
+}
+
 // ── the editor's errors ──
 
 /**

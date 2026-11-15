@@ -40,9 +40,9 @@ import { closeSync, constants as fsConstants, createReadStream, fstatSync, lstat
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { basename, extname, resolve } from 'node:path';
-import { checkRequest, listenLoopback, newSecret, secretEquals } from '@retake/engine/shell';
+import { checkRequest, listenLoopback, newSecret, playerMaking, secretEquals } from '@retake/engine/shell';
 import type { RouteSpec } from '@retake/engine';
-import type { ComponentPreviewSpec, EditPlan } from '@retake/editor';
+import type { ComponentPreviewSpec, EditPlan } from '@retake/editor/plan';
 import type { PlayerBundle } from '../player/bundle-player.js';
 import { isPreviewDisplayText } from '../player/protocol.js';
 import { pathInside } from '@retake/core/base';
@@ -72,14 +72,14 @@ const URL_LIKE = /^(?:[a-z][a-z0-9+.-]*:\/\/|\/\/|(?:file|blob|data|javascript|a
  * protocol.ts `isPreviewDisplayText` (a fixed list of paths, the frame applies the same). Throws PreviewPlanError.
  */
 export async function checkPreviewSpec(spec: unknown, media: string, forbid: readonly string[]): Promise<void> {
-  const ed = await import('@retake/editor');
+  const pm = await playerMaking();
   const dirs = forbid.filter((d) => d.length > 1);
   const scan = (v: unknown, path: string): void => {
     if (typeof v === 'string') {
-      if (/^file:/i.test(v)) throw new ed.PreviewPlanError(`${path} is a file: URL`);
-      if (ABSOLUTE.test(v)) throw new ed.PreviewPlanError(`${path} is a path of this Mac`);
-      for (const d of dirs) if (v.includes(d)) throw new ed.PreviewPlanError(`${path} names a folder of this Mac`);
-      if (URL_LIKE.test(v) && !v.startsWith(media) && !isPreviewDisplayText(path, v, spec)) throw new ed.PreviewPlanError(`${path} names a URL this preview does not serve`);
+      if (/^file:/i.test(v)) throw pm.planError(`${path} is a file: URL`);
+      if (ABSOLUTE.test(v)) throw pm.planError(`${path} is a path of this Mac`);
+      for (const d of dirs) if (v.includes(d)) throw pm.planError(`${path} names a folder of this Mac`);
+      if (URL_LIKE.test(v) && !v.startsWith(media) && !isPreviewDisplayText(path, v, spec)) throw pm.planError(`${path} names a URL this preview does not serve`);
       return;
     }
     if (Array.isArray(v)) v.forEach((x, i) => scan(x, `${path}[${i}]`));
@@ -255,8 +255,6 @@ function openRecorded(rec: FileRecord): number | undefined {
   return undefined;
 }
 
-const editor = () => import('@retake/editor');
-
 interface Scope {
   cap: string;
   files: Map<string, FileRecord>;
@@ -346,17 +344,17 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
   };
 
   const serveFile = async (req: IncomingMessage, res: ServerResponse, rec: FileRecord, id: string) => {
-    const ed = await editor();
+    const pm = await playerMaking();
     const fd = openRecorded(rec);
     if (fd === undefined) return notFound(res);
     const etag = `"${id}"`;
-    const headers: Record<string, string> = { ...COMMON_HEADERS, ...MEDIA_HEADERS, 'Content-Type': ed.CONTENT_TYPES[rec.ext] ?? 'application/octet-stream', 'Accept-Ranges': 'bytes', ETag: etag };
+    const headers: Record<string, string> = { ...COMMON_HEADERS, ...MEDIA_HEADERS, 'Content-Type': pm.contentTypes[rec.ext] ?? 'application/octet-stream', 'Accept-Ranges': 'bytes', ETag: etag };
     if (req.headers['if-none-match'] === etag) {
       closeSync(fd);
       res.writeHead(304, headers).end();
       return;
     }
-    const range = ed.parseRange(typeof req.headers.range === 'string' ? req.headers.range : undefined, rec.size);
+    const range = pm.parseRange(typeof req.headers.range === 'string' ? req.headers.range : undefined, rec.size);
     if (range === 'invalid') {
       closeSync(fd);
       res.writeHead(416, { ...headers, 'Content-Range': `bytes */${rec.size}`, 'Content-Length': '0' }).end();
@@ -437,7 +435,7 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
 
   /** Keep a plan body in the scope (as it is now: a release meanwhile drops it with the scope) and give its URLs. */
   const servePlan = async (scope: string, body: Buffer): Promise<PublishedPreview> => {
-    if (body.length > PLAYER_PLAN_MAX) throw new (await editor()).PreviewPlanError(`the preview plan is over ${PLAYER_PLAN_MAX} bytes`);
+    if (body.length > PLAYER_PLAN_MAX) throw (await playerMaking()).planError(`the preview plan is over ${PLAYER_PLAN_MAX} bytes`);
     const id = createHash('sha256').update(body).digest('base64url').slice(0, 22);
     const sc = scopeNamed(scope);
     if (!sc) throw new Error('the preview server is closed');
@@ -473,9 +471,9 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     async publish(view, po = {}) {
       const scope = po.scope ?? DEFAULT_SCOPE;
       if (!scopeNamed(scope)) throw new Error('the preview server is closed');
-      const ed = await editor();
+      const pm = await playerMaking();
       const within = [view.folders.project, view.folders.run, view.folders.theme];
-      const preview = ed.previewPlan(view.plan, {
+      const preview = pm.previewPlan(view.plan, {
         urlFor: (_asset, file) => register(resolve(file), within, scope),
         forbid: [...within, ...(po.forbid ?? [])],
       });

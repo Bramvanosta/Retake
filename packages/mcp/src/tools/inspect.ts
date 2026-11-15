@@ -3,8 +3,8 @@
  * job_status answers an inspection job with the contract's inspectOutput.
  */
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
-import type { ToolDef } from './define.js';
+import type { Op, ToolDef } from './define.js';
 
 const { page_inspect: pageInspect } = OPERATIONS_BY_NAME;
 
-export const INSPECT_TOOLS = [pageInspect] as const satisfies readonly ToolDef[];
+export const INSPECT_TOOLS: readonly [Op<'page_inspect'>] = [pageInspect] as const satisfies readonly ToolDef[];

@@ -24,7 +24,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { siteApprovalFingerprint, PERSON_POLICY } from '@retake/core';
 import { JOB_INPUT_VERSION } from '../src/jobs/job-input.js';
 import { loadWorkspaceConfig } from '@retake/core/io';
-import type { SiteJobInput } from '@retake/engine';
+import type { SiteJobInput } from '../src/jobs/job-input.js';
 import { FileJobQueue } from '../src/jobs/queue.js';
 import { MemoryJobQueue } from '../src/jobs/memory-queue.js';
 import { SITE_KEEP, executeSiteJob, isSiteWarning, makeSiteDir, newSiteId, pruneSites, readSite, siteDir } from '../src/jobs/site-job.js';

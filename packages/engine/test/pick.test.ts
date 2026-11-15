@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { pick, takeWaiting } from '../src/jobs/pick.js';
-import type { PickRecord } from '../src/index.js';
+import type { PickRecord } from '../src/jobs/pick.js';
 
 let n = 0;
 const id = () => `j_01KA${String(n++).padStart(22, '0')}`;

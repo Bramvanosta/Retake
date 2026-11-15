@@ -16,7 +16,8 @@ import { JOURNAL_FILES_MAX } from '../src/store/journal.js';
 import { ManualClock } from '../src/clock.js';
 import { callerOf } from '../src/caller.js';
 import { sha256Hex } from '../src/storage.js';
-import type { EngineError, FolderStage, ProjectStores, StoreScope } from '../src/index.js';
+import type { EngineError } from '../src/index.js';
+import type { FolderStage, ProjectStores, StoreScope } from '../src/store/store.js';
 
 export interface StoreHarness {
   stores: ProjectStores;

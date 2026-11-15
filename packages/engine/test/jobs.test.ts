@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_ID_RE, RunRecordSchema } from '@retake/core';
 import { reserveRunId } from '@retake/core/io';
 import type { Scene } from '@retake/core';
-import type { RunJobInput } from '@retake/engine';
+import type { RunJobInput } from '../src/jobs/job-input.js';
 import { EngineError, createEngine, toEngineError } from '../src/index.js';
 import { FileJobQueue } from '../src/jobs/queue.js';
 import { RunOptionError, SandboxTakeError, prepareRun } from '../src/execute-run.js';

@@ -2,22 +2,6 @@
  "about": "The allowed exceptions of the import-rules ratchet (packages/core/test/import-rules.test.ts, rules in scripts/audit/lib.mjs). Each group has one rule, a one-line reason and its entries (\"<file> → <import>\"). A new entry and a stale one both fail the test: after a change, run node scripts/audit/rules.mjs . --write-baseline, write the reason of any new group, and review the diff.",
  "groups": [
   {
-   "rule": "R4",
-   "reason": "The Studio's player bundles the compositions with the components and the editor's bundle code (componentFolderHash, the kit and the geometry entry) for the in-browser preview: a second render seam, which moves behind a Renderer member or an engine player-bundle use case (security-sensitive: the player serves by capability URL).",
-   "entries": [
-    "packages/ui/src/player/bundle-player.ts → @retake/components",
-    "packages/ui/src/player/bundle-player.ts → @retake/editor"
-   ]
-  },
-  {
-   "rule": "R4",
-   "reason": "The Studio server reads the preview plan (previewPlan, PreviewPlanError), the components a plan uses (usedComponentIds: the preview's allow-list) and the asset server's range and content-type helpers (parseRange, CONTENT_TYPES) from the editor, until engine.timeline.view answers the held components and the preview plan and the helpers move to the engine's http module (security-sensitive: the player serves by capability URL).",
-   "entries": [
-    "packages/ui/src/server/ops.ts → @retake/editor",
-    "packages/ui/src/server/player.ts → @retake/editor"
-   ]
-  },
-  {
    "rule": "R6",
    "reason": "CLI commands read and write files or start processes themselves (ui) until they go through the engine.",
    "entries": [
@@ -41,7 +25,7 @@
   },
   {
    "rule": "R6",
-   "reason": "Shell sources outside the commands, tools and the Studio server, real machine work of the shell itself: the MCP HTTP port holder (its lock file, and `ps` for the process that holds the port: the shell's own listener), the Studio's esbuild bundler of its app (reads its own app sources) and the player's bundle of the compositions (reads the allowed component files it bundles) — until the engine serves the player bundle (the Studio's player seam, see the R4 entries).",
+   "reason": "Shell sources outside the commands, tools and the Studio server, real machine work of the shell itself: the MCP HTTP port holder (its lock file, and `ps` for the process that holds the port: the shell's own listener), the Studio's esbuild bundler of its app (reads its own app sources) and the player's bundler (reads its own frame sources and the Player's version; which components it bundles, their hashes, the composition and the import rules come from the engine).",
    "entries": [
     "packages/mcp/src/port-holder.ts → node:child_process",
     "packages/mcp/src/port-holder.ts → node:fs",

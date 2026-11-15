@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ExportJobInput, RenderJobInput, ReviewJobInput } from '@retake/engine';
+import type { ExportJobInput, RenderJobInput, ReviewJobInput } from '../src/jobs/job-input.js';
 
 const seen = vi.hoisted(() => ({
   calls: [] as Array<{ call: string; options: Record<string, unknown> }>,

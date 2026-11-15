@@ -12,7 +12,8 @@ import { newRunId } from '@retake/core/ids';
 import type { RunId } from '@retake/core/ids';
 import { queuedRun } from '@retake/core/run';
 import { parseRenderRecord } from '@retake/core/render';
-import type { OutputFolder, Outputs } from '../src/index.js';
+import type { Outputs } from '../src/index.js';
+import type { OutputFolder } from '../src/outputs/outputs.js';
 import { runsDirOf } from '../src/outputs/outputs.js';
 
 /** An adapter and where its cases work: `root`, an absolute folder no file is under yet. */

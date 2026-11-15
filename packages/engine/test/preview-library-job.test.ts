@@ -25,7 +25,10 @@ import { LIBRARY_FILES, libraryCacheDir } from '../src/library.js';
 import { createEngine } from '../src/index.js';
 import { editorRenderer, withPreviewBackend } from '../src/render/editor-renderer.js';
 import { runWorker } from '../src/jobs/worker.js';
-import type { Engine, FreeBytes, JobRecord, LibraryStatesView, PreviewJobResult, WorkerPortsGiven } from '../src/index.js';
+import type { Engine, FreeBytes, JobRecord } from '../src/index.js';
+import type { LibraryStatesView } from '../src/library.js';
+import type { PreviewJobResult } from '../src/jobs/types.js';
+import type { WorkerPortsGiven } from '../src/jobs/worker-ports.js';
 import { REPO } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
 

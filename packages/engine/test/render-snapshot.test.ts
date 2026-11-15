@@ -16,7 +16,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RenderJobInput } from '@retake/engine';
+import type { RenderJobInput } from '../src/jobs/job-input.js';
 import { EDIT_SNAPSHOT_FILE, executeRenderJob, reviewInline } from '../src/jobs/render-job.js';
 import { FileJobQueue } from '../src/jobs/queue.js';
 import { createEngine } from '../src/index.js';

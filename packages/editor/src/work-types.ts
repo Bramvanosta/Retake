@@ -100,6 +100,29 @@ export interface BundleComponent {
   scaffold?: boolean;
 }
 
+/** A workspace component as the Studio's preview allow-list sees it: its id, kind and folder content hash (16 hex). */
+export interface WorkspaceComponent {
+  id: string;
+  kind: string;
+  hash: string;
+}
+
+/** Decides whether a workspace component (id, folder content hash) is allowed in the Studio's preview. */
+export type PreviewAllowed = (id: string, hash: string) => boolean;
+
+/**
+ * What the Studio's preview bundle is built from beside its components: the kit's and the geometry entry's files
+ * (refused when missing), the composition's root module, and the components' import rules its loader applies.
+ */
+export interface PlayerBuildEntries {
+  kit: string;
+  geometry: string;
+  composition: string;
+  importProblem: (spec: string, resolveDir: string, componentDir: string) => string | undefined;
+  unhashedFileProblem: (rel: string) => string | undefined;
+  unhashedImportMessage: (spec: string, what: string) => string;
+}
+
 export type PreviewScreenName = 'desktop' | 'tablet' | 'phone';
 
 /** A neutral sample screen (packages/components/preview/, generated once from the fixture by scripts/preview-samples.mjs). */

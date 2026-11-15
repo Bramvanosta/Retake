@@ -355,6 +355,7 @@
     "packages/ui/test/operation-catalogue.test.ts",
     "packages/ui/test/other-copy.test.ts",
     "packages/ui/test/player-bundle.test.ts",
+    "packages/ui/test/player-characterization.test.ts",
     "packages/ui/test/player-protocol.test.ts",
     "packages/ui/test/player-server.test.ts",
     "packages/ui/test/record-app.test.ts",

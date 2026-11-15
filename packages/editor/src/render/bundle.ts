@@ -20,6 +20,7 @@ import {
   PREVIEW_ARTIFACTS,
   UNHASHED_DIRS,
   geometryEntry,
+  importProblem,
   kitEntry,
   paramDefaults,
   parseManifest,
@@ -31,7 +32,7 @@ import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
 import type { EditPlan } from '../plan-types.js';
 import { usedComponentIds } from '../remotion/preview-mode.js';
 import { bundlerLibrary, libraryVersions } from './library.js';
-import type { BundleComponent } from '../work-types.js';
+import type { BundleComponent, PlayerBuildEntries, PreviewAllowed, WorkspaceComponent } from '../work-types.js';
 export type { BundleComponent } from '../work-types.js';
 
 /** Bump when the generated files or the bundle layout change (invalidates every cached bundle). 2: the CSP meta. */
@@ -313,6 +314,48 @@ export async function registryBundleComponents(registry: ComponentRegistry): Pro
   }));
   out.push(...(await scaffoldComponents()));
   return out;
+}
+
+/** A component of the registry as a bundle component. */
+function bundleComponentOf(info: ReturnType<ComponentRegistry['list']>[number]): BundleComponent {
+  return { id: info.manifest.id, kind: info.manifest.kind, dir: info.dir, entry: info.entry, defaults: paramDefaults(info.manifest.params as JsonSchemaNode | undefined) };
+}
+
+/** The registry's workspace components with their folder content hash (componentFolderHash): what the Studio's preview allow-list keys. */
+export async function workspaceComponents(registry: ComponentRegistry): Promise<WorkspaceComponent[]> {
+  const out: WorkspaceComponent[] = [];
+  for (const info of registry.list()) {
+    if (info.source !== 'workspace') continue;
+    out.push({ id: info.manifest.id, kind: info.manifest.kind, hash: await componentFolderHash(bundleComponentOf(info)) });
+  }
+  return out;
+}
+
+/**
+ * The components of the Studio's preview bundle and the per-kind scaffolds: every built-in component, and the workspace
+ * components `allowed` (asked with each one's id and folder content hash; absent: all of them); `held`: the workspace
+ * components left out, sorted.
+ */
+export async function playerComponentSet(registry: ComponentRegistry, allowed?: PreviewAllowed): Promise<{ components: BundleComponent[]; held: string[] }> {
+  const components: BundleComponent[] = [];
+  const held: string[] = [];
+  for (const info of registry.list()) {
+    const c = bundleComponentOf(info);
+    if (info.source === 'workspace' && allowed && !allowed(c.id, await componentFolderHash(c))) held.push(c.id);
+    else components.push(c);
+  }
+  components.push(...(await scaffoldComponents()));
+  return { components, held: held.sort() };
+}
+
+/** What the Studio's preview bundle is built from beside its components (PlayerBuildEntries). */
+export function playerBuildEntries(): PlayerBuildEntries {
+  // The kit and the geometry entry first, each checked, then the composition (the order the player bundle reads them in).
+  const kit = kitEntry();
+  if (!kit) throw new Error('the components kit is missing');
+  const geometry = geometryEntry();
+  if (!geometry) throw new Error('the components geometry entry is missing');
+  return { kit, geometry, composition: compositionFiles().root, importProblem, unhashedFileProblem, unhashedImportMessage };
 }
 
 /** <root>/.retake/cache */

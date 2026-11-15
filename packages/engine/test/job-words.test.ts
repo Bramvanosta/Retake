@@ -6,7 +6,9 @@
 import { describe, expect, it } from 'vitest';
 import { jobOutcome, jobProgress, jobWhat } from '../src/operations/job-words.js';
 import { jobLine } from '../src/contract.js';
-import type { JobInput, JobProgress, JobRecord, JobResult } from '../src/index.js';
+import type { JobRecord } from '../src/index.js';
+import type { JobInput } from '../src/jobs/job-input.js';
+import type { JobProgress, JobResult } from '../src/jobs/types.js';
 
 const input = (i: Record<string, unknown>) => ({ submitted_by: 'mcp', project: 'p', ...i }) as unknown as JobInput;
 const result = (r: Record<string, unknown>) => r as unknown as JobResult;

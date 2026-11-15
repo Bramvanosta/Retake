@@ -1,7 +1,7 @@
 /** Test helpers of the engine's own tests (the fixture workspace is shared: @retake/test-support/workspace). */
 import { callerOf } from '../src/caller.js';
 import { enginePorts } from '../src/ports.js';
-import type { StoreScope } from '../src/index.js';
+import type { StoreScope } from '../src/store/store.js';
 
 /**
  * The scope a comment of `author` was written under before L7.10 made the scope required (the caller its channel

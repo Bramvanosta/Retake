@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RunJobInput } from '@retake/engine';
+import type { RunJobInput } from '../src/jobs/job-input.js';
 import { synthTimeline } from '@retake/test-support/timeline';
 import { hasTool } from '@retake/test-support/repo';
 import { writeTake } from '@retake/test-support/take';

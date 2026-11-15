@@ -4,8 +4,8 @@
  * here as these very objects in tools/list order.
  */
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
-import type { ToolDef } from './define.js';
+import type { Op, ToolDef } from './define.js';
 
 const { scenario_record: scenarioRecord, scenario_from_script: scenarioFromScript } = OPERATIONS_BY_NAME;
 
-export const AUTHORING_TOOLS = [scenarioRecord, scenarioFromScript] as const satisfies readonly ToolDef[];
+export const AUTHORING_TOOLS: readonly [Op<'scenario_record'>, Op<'scenario_from_script'>] = [scenarioRecord, scenarioFromScript] as const satisfies readonly ToolDef[];

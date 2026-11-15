@@ -16,7 +16,7 @@ import { RunRecordSchema, PERSON_POLICY } from '@retake/core';
 import { loadProject, loadScenario, reserveRunId, fileFacts } from '@retake/core/io';
 import { hookFingerprint } from '@retake/hooks';
 import type { RunRecord } from '@retake/core';
-import type { RunJobInput } from '@retake/engine';
+import type { RunJobInput } from '../src/jobs/job-input.js';
 import { FileJobQueue } from '../src/jobs/queue.js';
 import { createEngine } from '../src/index.js';
 import { sha256Hex } from '../src/storage.js';

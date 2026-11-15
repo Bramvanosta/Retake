@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
-import type { JobApproval } from '@retake/engine';
+import type { JobApproval } from '../src/jobs/job-input.js';
 import { loadProject } from '@retake/core/io';
 import { hookFingerprint } from '@retake/hooks';
 import { openSandbox } from '@retake/sandbox';
@@ -28,7 +28,8 @@ import { approvalChecker } from '../src/approvals.js';
 import { createEngine } from '../src/index.js';
 import { packageHookRunner } from '../src/hook-run/package-hooks.js';
 import { seedApprovalItems } from '../src/approvals.js';
-import type { ApprovalItem, ApprovalRequest, Engine } from '../src/index.js';
+import type { ApprovalRequest, Engine } from '../src/index.js';
+import type { ApprovalItem } from '../src/approvals.js';
 import { REPO } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
 

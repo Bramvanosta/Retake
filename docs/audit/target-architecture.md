@@ -56,7 +56,7 @@ domain        @retake/core (pure; an entry per context) · @retake/components/ge
 ```
 
 A package entry holds what another package imports from it: the engine's main entry is its façade (`createEngine`, its
-errors, the types), the values a shell still calls in process are `@retake/engine/shell`, the values only other packages'
+errors, the types another package names), the values a shell still calls in process are `@retake/engine/shell`, the values only other packages'
 tests use are `@retake/engine/testing` (no product source imports it, no memory adapter is in a production entry), and
 an adapter's root holds the names another package uses and its domain entry whole
 (packages/engine/test/engine-entries.test.ts).

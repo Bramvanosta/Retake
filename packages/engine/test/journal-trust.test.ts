@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
-import type { EnvResetJobResult, HooksJobResult } from '../src/index.js';
+import type { EnvResetJobResult, HooksJobResult } from '../src/jobs/types.js';
 import { FileJobQueue } from '../src/jobs/queue.js';
 import { createEngine } from '../src/index.js';
 import { runWorker } from '../src/jobs/worker.js';

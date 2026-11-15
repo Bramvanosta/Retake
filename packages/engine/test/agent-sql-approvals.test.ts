@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AGENT_SQL_REASON, PERSON_POLICY, stepHookList } from '@retake/core';
 import type { HookContext } from '@retake/core';
-import type { HooksJobInput, RunJobInput } from '@retake/engine';
+import type { HooksJobInput, RunJobInput } from '../src/jobs/job-input.js';
 import { fileFacts, loadScenario } from '@retake/core/io';
 import { hookFiles, hookFingerprint } from '@retake/hooks';
 import { EngineError, createEngine } from '../src/index.js';

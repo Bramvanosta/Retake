@@ -32,7 +32,7 @@ import { z } from 'zod';
 import { COMPONENT_ID_RE } from '@retake/core/model';
 import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE } from '@retake/core/ids';
 import { EngineError } from '@retake/engine';
-import { firstErrorLine } from '@retake/engine/shell';
+import { firstErrorLine, playerMaking } from '@retake/engine/shell';
 import type { TimelineView } from '@retake/engine';
 import { READ, defineTool, plural, studioProject as project, studioRun as run, studioScenario as scenario } from '@retake/engine/contract';
 import { PreviewLeases } from './preview-leases.js';
@@ -157,10 +157,9 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
   /** The workspace components a plan uses that are not allowed (empty without an allow-list: every one runs). */
   const heldOf = async (plan: Parameters<PlayerServer['publish']>[0]['plan']): Promise<NonNullable<PreviewHeld['preview_held']>> => {
     if (!o.allow || !o.registry) return [];
-    const { usedComponentIds } = await import('@retake/editor');
-    const used = new Set(usedComponentIds(plan));
-    const { workspaceComponents } = await import('../player/bundle-player.js');
-    return (await workspaceComponents(await o.registry())).filter((c) => used.has(c.id) && !o.allow!.has(c.id, c.hash));
+    const pm = await playerMaking();
+    const used = new Set(pm.usedComponentIds(plan));
+    return (await pm.workspaceComponents(await o.registry())).filter((c) => used.has(c.id) && !o.allow!.has(c.id, c.hash));
   };
   const view = defineTool({
     name: 'timeline_view',
@@ -223,8 +222,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     async run(a) {
       if (!o.allow || !o.registry) throw new EngineError('refused', 'this Studio runs every component in its preview');
-      const { workspaceComponents } = await import('../player/bundle-player.js');
-      const c = (await workspaceComponents(await o.registry())).find((x) => x.id === a.id);
+      const c = (await (await playerMaking()).workspaceComponents(await o.registry())).find((x) => x.id === a.id);
       if (!c) throw new EngineError('not_found', `${a.id} is not a workspace component (a built-in component always runs)`);
       if (c.hash !== a.hash)
         throw new EngineError('conflict', `${a.id} changed since the timeline showed it (its folder is now ${c.hash}): look at it again, then allow it`, { details: { id: a.id, hash: c.hash } });

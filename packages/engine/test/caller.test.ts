@@ -34,7 +34,8 @@ import {
 } from '../src/caller.js';
 import { agentChannel } from '../src/approvals.js';
 import { agentTrust } from '../src/index.js';
-import type { Caller, EngineClient } from '../src/index.js';
+import type { EngineClient } from '../src/index.js';
+import type { Caller } from '../src/caller.js';
 
 type Row = {
   caller: Omit<Caller, 'client'>;

@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
-import type { HooksJobInput, RunJobInput } from '@retake/engine';
+import type { HooksJobInput, RunJobInput } from '../src/jobs/job-input.js';
 import { APPROVALS_USED_DIR, consumeApprovals, pruneUsedApprovals, restoreApprovals, signApprovals, verifiedApprovals } from '../src/jobs/signing.js';
 import { EngineError, createEngine } from '../src/index.js';
 import { buildDirs } from '../src/jobs/build.js';
@@ -23,7 +23,8 @@ import { signalInterrupts } from '../src/interrupts.js';
 import { enginePorts } from '../src/ports.js';
 import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
-import type { Engine, HostResolver } from '../src/index.js';
+import type { Engine } from '../src/index.js';
+import type { HostResolver } from '../src/protected-hosts.js';
 import { scratchHome } from '@retake/test-support/home';
 
 /** The MCP engine's host resolver (its ports' `hosts`): the system's, or the one a test puts in with useHosts. */

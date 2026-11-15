@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
-import type { RenderJobInput } from '@retake/engine';
+import type { RenderJobInput } from '../src/jobs/job-input.js';
 import { JobFiles } from '../src/jobs/queue.js';
 import { createEngine } from '../src/index.js';
 import { editorErrorOf, planWork } from '../src/pipeline.js';

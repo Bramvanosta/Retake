@@ -3,6 +3,10 @@
  * `defineTool` keeps its input, answer and name types (a tool table is typed by them: tool-set.ts TOOLS).
  */
 export type { ToolContext, ToolDef } from '@retake/engine/contract';
+import type { OPERATIONS_BY_NAME } from '@retake/engine/contract';
+
+/** An engine operation as the contract types it: a tool table's explicit type (its declarations stay portable). */
+export type Op<N extends keyof typeof OPERATIONS_BY_NAME> = (typeof OPERATIONS_BY_NAME)[N];
 export { defineTool } from '@retake/engine/contract';
 
 /**

@@ -65,6 +65,7 @@ export { writeNewProject, firstErrorLine, openProjectBySlug } from './projects.j
 export { DEFAULT_KEEP_RENDERS, formatBytes } from './prune.js';
 export { rawExportWork } from './raw-export.js';
 export { recordScenario } from './record.js';
+export { playerMaking } from './render/editor-calls.js';
 export { previewsWork } from './render/work.js';
 export { pathFree } from './renders.js';
 export { listRuns } from './runs.js';

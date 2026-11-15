@@ -1,6 +1,6 @@
 /**
  * What the package entries hold: a name is in an entry because another package imports it there. The engine's main
- * entry is its façade (createEngine, its errors, the types); the values a shell calls in process are
+ * entry is its façade (createEngine, its errors, the types another package names); the values a shell calls in process are
  * `@retake/engine/shell`; the values only other packages' tests import are `@retake/engine/testing`, which no product
  * source imports. The adapters' and the Studio's roots hold what another package names. Read from the entry files'
  * text (their `export { … } from` lines), so nothing is loaded.
@@ -76,6 +76,17 @@ describe("the engine's entries", () => {
     }
   });
 
+  it("the main entry's types are the ones another package names through it, and the Studio app's scenario view", () => {
+    const { types } = entryNames('packages/engine/src/index.ts');
+    // The scenario view's parts: no file names them, but the Studio app's data types reach them through the server's
+    // inferred op answers (without them in the entry, those answers degrade to `{}` in the app).
+    const reached = ['EditAbility', 'SceneFacts', 'ScenarioEnvironmentFacts', 'ScenarioSource', 'ScenarioView', 'ScenarioViewContext'];
+    const unused = types.filter((n) => !reached.includes(n) && namedOutside([...SRC, ...TESTS], 'engine', '@retake/engine', n).length === 0);
+    expect(unused).toEqual([]);
+    for (const n of reached) expect(types, n).toContain(n);
+    expect(types.length).toBeLessThanOrEqual(143);
+  });
+
   it('@retake/engine/shell holds values a shell source imports from it, and nothing else', () => {
     const { values, types, stars } = entryNames('packages/engine/src/shell-entry.ts');
     expect(stars).toEqual([]);
@@ -83,8 +94,9 @@ describe("the engine's entries", () => {
     const shells = SRC.filter((f) => ['cli', 'mcp', 'ui'].includes(pkgOf(f.rel)));
     const unused = values.filter((n) => namedOutside(shells, 'engine', '@retake/engine/shell', n).length === 0);
     expect(unused).toEqual([]);
-    // The count only goes down: a shell's new in-process value is a reason to look for an operation first.
-    expect(values.length).toBeLessThanOrEqual(150);
+    // The count only goes down: a shell's new in-process value is a reason to look for an operation first (151: the
+    // Studio's player making — its bundler and its file server are the shell's own machinery, no operation hands them).
+    expect(values.length).toBeLessThanOrEqual(151);
   });
 
   it('@retake/engine/testing holds values other packages’ tests import from it, and no product source imports a testing entry', () => {

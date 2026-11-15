@@ -33,8 +33,9 @@ import { fileURLToPath } from 'node:url';
 import type { Message, Plugin } from 'esbuild';
 import { pathInside } from '@retake/core/base';
 import { readPlainFile, realpathOr } from '@retake/core/io';
-import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
-import type { BundleComponent } from '@retake/editor';
+import type { ComponentRegistry } from '@retake/components/geometry';
+import type { BundleComponent, PlayerBuildEntries, PreviewAllowed, WorkspaceComponent } from '@retake/editor/plan';
+import { playerMaking } from '@retake/engine/shell';
 import { UI_TARGETS } from '../bundle.js';
 
 /** Bump when the generated modules or the frame's layout change. 2: `held`. 3: ComponentPreview (L4.7). */
@@ -88,32 +89,11 @@ function playerVersion(): string {
   }
 }
 
-const editor = () => import('@retake/editor');
+export type { PreviewAllowed, WorkspaceComponent } from '@retake/editor/plan';
 
-/** A workspace component as the allow-list sees it: its id, kind and folder content hash (16 hex). */
-export interface WorkspaceComponent {
-  id: string;
-  kind: string;
-  hash: string;
-}
-
-/** Decides whether a workspace component (id, folder content hash) is allowed in the preview. */
-export type PreviewAllowed = (id: string, hash: string) => boolean;
-
-const bundleComponentOf = async (info: ReturnType<ComponentRegistry['list']>[number]): Promise<BundleComponent> => {
-  const { paramDefaults } = await import('@retake/components');
-  return { id: info.manifest.id, kind: info.manifest.kind, dir: info.dir, entry: info.entry, defaults: paramDefaults(info.manifest.params as JsonSchemaNode | undefined) };
-};
-
-/** The registry's workspace components with their folder content hash (editor componentFolderHash). */
+/** The registry's workspace components with their folder content hash (the engine's player making: the editor's componentFolderHash). */
 export async function workspaceComponents(registry: ComponentRegistry): Promise<WorkspaceComponent[]> {
-  const ed = await editor();
-  const out: WorkspaceComponent[] = [];
-  for (const info of registry.list()) {
-    if (info.source !== 'workspace') continue;
-    out.push({ id: info.manifest.id, kind: info.manifest.kind, hash: await ed.componentFolderHash(await bundleComponentOf(info)) });
-  }
-  return out;
+  return (await playerMaking()).workspaceComponents(registry);
 }
 
 /**
@@ -122,16 +102,7 @@ export async function workspaceComponents(registry: ComponentRegistry): Promise<
  * workspace components left out.
  */
 export async function playerComponentSet(registry: ComponentRegistry, allowed?: PreviewAllowed): Promise<{ components: BundleComponent[]; held: string[] }> {
-  const ed = await editor();
-  const components: BundleComponent[] = [];
-  const held: string[] = [];
-  for (const info of registry.list()) {
-    const c = await bundleComponentOf(info);
-    if (info.source === 'workspace' && allowed && !allowed(c.id, await ed.componentFolderHash(c))) held.push(c.id);
-    else components.push(c);
-  }
-  components.push(...(await ed.scaffoldComponents()));
-  return { components, held: held.sort() };
+  return (await playerMaking()).componentSet(registry, allowed);
 }
 
 /** Every component of the registry (built-in and workspace) and the per-kind scaffolds, as bundle components. */
@@ -141,9 +112,9 @@ export async function playerComponents(registry: ComponentRegistry): Promise<Bun
 
 /** The memo key of a bundle of these components (16 hex). */
 export async function playerBundleHash(components: readonly BundleComponent[], held: readonly string[] = []): Promise<string> {
-  const ed = await editor();
+  const pm = await playerMaking();
   const h = createHash('sha256');
-  h.update(`format ${PLAYER_BUNDLE_FORMAT}\0player ${playerVersion()}\0inputs ${await ed.bundleHash(components)}\0held ${held.join(',')}\0`);
+  h.update(`format ${PLAYER_BUNDLE_FORMAT}\0player ${playerVersion()}\0inputs ${await pm.inputsHash(components)}\0held ${held.join(',')}\0`);
   for (const f of FRAME_SOURCES)
     h.update(`${f}\0`)
       .update(readFileSync(join(PLAYER_DIR, f)))
@@ -198,19 +169,15 @@ interface Owner {
  */
 export async function buildPlayerBundle(components: readonly BundleComponent[], o: { hash?: string; held?: readonly string[] } = {}): Promise<PlayerBundle> {
   const t0 = performance.now();
-  const ed = await editor();
-  const { geometryEntry, kitEntry } = await import('@retake/components');
-  const kit = kitEntry();
-  if (!kit) throw new Error('the components kit is missing');
-  const geometry = geometryEntry();
-  if (!geometry) throw new Error('the components geometry entry is missing');
+  const entries = (await playerMaking()).entries();
+  const { kit, geometry } = entries;
   const held = [...(o.held ?? [])];
   const hash = o.hash ?? (await playerBundleHash(components, held));
-  const composition = compositionSource(ed.compositionFiles().root);
+  const composition = compositionSource(entries.composition);
   const excluded: Array<{ id: string; why: string }> = [];
   let set = [...components];
   for (let attempt = 0; ; attempt++) {
-    const r = await buildOnce(set, hash, composition, { kit, geometry }, held);
+    const r = await buildOnce(set, hash, composition, { kit, geometry, rules: entries }, held);
     if (r.ok) {
       return {
         hash,
@@ -237,10 +204,19 @@ export async function buildPlayerBundle(components: readonly BundleComponent[], 
 
 type BuildOnce = { ok: true; js: Buffer; boot: Buffer } | { ok: false; byOwner: Map<string, string>; unowned?: string };
 
-async function buildOnce(components: readonly BundleComponent[], hash: string, composition: string, entries: { kit: string; geometry: string }, held: readonly string[]): Promise<BuildOnce> {
+/** The components' import rules the loader applies (the engine's player making: the components' own). */
+type ImportRules = Pick<PlayerBuildEntries, 'importProblem' | 'unhashedFileProblem' | 'unhashedImportMessage'>;
+
+async function buildOnce(
+  components: readonly BundleComponent[],
+  hash: string,
+  composition: string,
+  entries: { kit: string; geometry: string; rules: ImportRules },
+  held: readonly string[],
+): Promise<BuildOnce> {
   const { kit, geometry } = entries;
   const { build } = await import('esbuild');
-  const { unhashedFileProblem, unhashedImportMessage } = await import('@retake/components');
+  const { importProblem, unhashedFileProblem, unhashedImportMessage } = entries.rules;
   const owners: Owner[] = components.map((c) => ({ id: c.id, realDir: realpathOr(c.dir, resolve(c.dir)) })).sort((a, b) => b.realDir.length - a.realDir.length);
   const byId = new Map(owners.map((x) => [x.id, x]));
   const entryOwner = new Map(components.map((c) => [c.entry.split(sep).join('/'), c.id]));
@@ -283,7 +259,6 @@ async function buildOnce(components: readonly BundleComponent[], hash: string, c
           return undefined;
         }
         if (args.namespace !== 'retake') {
-          const { importProblem } = await import('@retake/components');
           const problem = importProblem(spec, args.resolveDir, owner.realDir);
           if (problem) return fail(owner, problem);
         }
