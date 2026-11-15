@@ -81,6 +81,12 @@ const alive = (pid: number) => {
   }
 };
 
+/**
+ * renders/ as it is (none: empty). The review and export describe renders a video into it first, so a case of the
+ * describe above holds that its own render left nothing beyond what was there before it.
+ */
+const listing = async (dir: string) => (existsSync(dir) ? (await readdir(dir)).sort() : []);
+
 /** headless shells whose command line names this profile folder. */
 function shellsOf(profile: string): string[] {
   const out = spawnSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' }).stdout;
@@ -126,8 +132,10 @@ describe.skipIf(!canRender)('a render job whose worker is killed', () => {
   it(
     'SIGKILL mid-render: interrupted; the next worker kills the orphan browser and removes its profile, the lock and the partial video',
     async () => {
-      const sub = await engine.renders.submit({ project: 'demo', scenario: 'synthetic' });
       const renders = join(root, 'projects', 'demo', 'renders');
+      const before = await listing(renders);
+      const sub = await engine.renders.submit({ project: 'demo', scenario: 'synthetic' });
+      expect(before.filter((f) => f.includes(sub.render_id))).toEqual([]);
       const w = startWorker('--idle-exit', '5000');
       const browserFile = queue.files.browser(sub.job.id);
       await waitFor('the render running with its browser recorded', async () => {
@@ -153,7 +161,8 @@ describe.skipIf(!canRender)('a render job whose worker is killed', () => {
       expect(job.error?.message).toContain(`nothing was written under ${sub.render_id}`);
       expect((await engine.jobs.get(sub.job.id)).error?.fix).toBe(`retake -C ${root} render demo synthetic --run 20260101-120000-synthetic`);
       expect(await engine.renders.status('demo', sub.render_id)).toMatchObject({ status: 'interrupted', finished: true });
-      expect((await readdir(renders)).some((f) => f === `.synthetic-v1.lock`)).toBe(true);
+      expect(sub.render_id).toMatch(/^synthetic-v\d+$/);
+      expect((await readdir(renders)).some((f) => f === `.${sub.render_id}.lock`)).toBe(true);
 
       const next = startWorker('--idle-exit', '300');
       expect(await next.exited).toBe(0);
@@ -161,7 +170,7 @@ describe.skipIf(!canRender)('a render job whose worker is killed', () => {
       await waitFor('the browser gone', async () => !alive(browser.pid), 10_000);
       expect(shellsOf(browser.user_data_dir!)).toEqual([]);
       expect(existsSync(browser.user_data_dir!)).toBe(false);
-      expect(await readdir(renders)).toEqual([]);
+      expect(await listing(renders)).toEqual(before);
       expect((await queue.stored(sub.job.id))?.state).toBe('interrupted');
       const last = JSON.parse((await readFile(historyFile(root), 'utf8')).trim().split('\n').at(-1)!) as Record<string, unknown>;
       expect(last).toMatchObject({ kind: 'render', state: 'interrupted', render: { id: sub.render_id }, counted: { renders: 0 } });
@@ -172,8 +181,10 @@ describe.skipIf(!canRender)('a render job whose worker is killed', () => {
   it(
     'L5.14: SIGKILL of the worker alone: its job process ends the render itself — interrupted, its browser closed, the lock and the partial video removed, no submit needed',
     async () => {
-      const sub = await engine.renders.submit({ project: 'demo', scenario: 'synthetic' });
       const renders = join(root, 'projects', 'demo', 'renders');
+      const before = await listing(renders);
+      const sub = await engine.renders.submit({ project: 'demo', scenario: 'synthetic' });
+      expect(before.filter((f) => f.includes(sub.render_id))).toEqual([]);
       const w = startWorker('--idle-exit', '5000');
       const browserFile = queue.files.browser(sub.job.id);
       const running = await waitFor('the render running in its job process, its browser recorded', async () => {
@@ -198,7 +209,7 @@ describe.skipIf(!canRender)('a render job whose worker is killed', () => {
       await waitFor('the job process gone', async () => !alive(jobPid), 10_000);
       await waitFor('the browser gone', async () => !alive(browser.pid), 10_000);
       expect(existsSync(browser.user_data_dir!)).toBe(false);
-      expect(await readdir(renders)).toEqual([]);
+      expect(await listing(renders)).toEqual(before);
     },
     LONG,
   );

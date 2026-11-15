@@ -16,8 +16,8 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   tmp = await tempProject();
-  api.requests.length = 0;
-  api.replies.clear();
+  // A fresh API for each case (the reply ids a case reads start at 42 whatever ran before it).
+  api.reset();
 });
 afterEach(async () => {
   vi.restoreAllMocks();

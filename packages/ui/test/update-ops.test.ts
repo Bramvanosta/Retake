@@ -35,8 +35,8 @@ beforeEach(() => {
   (studio.update as unknown as { window: { start: number; count: number } }).window = { start: 0, count: 0 };
 });
 
-const call = async (op: string, args: Record<string, unknown> = {}) => {
-  const r = await raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
+const call = async (op: string, args: Record<string, unknown> = {}, server = studio) => {
+  const r = await raw(server.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${server.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
   return { status: r.status, body: r.json<{ data: Record<string, any>; error: { code: string; details?: { reason?: string } } }>() };
 };
 const shell = (o: Record<string, unknown>) => applyShellLine(studio.setup, ws, JSON.stringify(o), studio.update);
@@ -152,10 +152,22 @@ describe('who may call them', () => {
   });
 
   it("not the desktop app's server: status says so, the click is refused — nothing written", async () => {
-    expect((await call('desktop_update_status')).body.data).toEqual({ available: false, reason: 'not_supervised' });
-    const r = await call('desktop_update', { action: 'install' });
-    expect(r.status).toBe(409);
-    expect(r.body.error.details?.reason).toBe('not_supervised');
+    // A server of its own: the describe below attaches the shared one to a pipe for good and feeds it the shell's
+    // update lines, and the cases run in any order.
+    const own = join(base, 'own');
+    mkdirSync(own);
+    await fixtureWorkspace(own);
+    const server = await startStudioServer({ root: own, startWorker: false });
+    try {
+      expect((await call('desktop_update_status', {}, server)).body.data).toEqual({ available: false, reason: 'not_supervised' });
+      const r = await call('desktop_update', { action: 'install' }, server);
+      expect(r.status).toBe(409);
+      expect(r.body.error.details?.reason).toBe('not_supervised');
+      expect(server.desktop.written).toBe(0);
+    } finally {
+      await server.close();
+      rmSync(own, { recursive: true, force: true });
+    }
   });
 });
 

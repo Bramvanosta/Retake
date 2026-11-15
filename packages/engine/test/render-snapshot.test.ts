@@ -108,6 +108,8 @@ async function renderUntilStage(job: JobRecord, snapshot: boolean): Promise<Erro
 
 describe('render job snapshot (critique B5)', () => {
   it("submit writes edit.yaml (0600) before job.json: the planned text, its sha256 the job's edit_sha256; the review option is carried", async () => {
+    // The scenario as planned (the switch case leaves its caption switched; the cases run in any order).
+    await writeFile(scenarioFile(), TEXT);
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 }, review: { fps: 1 } });
     const input = sub.job.input as RenderJobInput;
     expect(input).toMatchObject({ edit_sha256: sha(TEXT), review: { fps: 1 } });

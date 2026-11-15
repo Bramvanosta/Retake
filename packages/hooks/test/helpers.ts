@@ -78,6 +78,8 @@ export async function startApi(): Promise<{
   base: string;
   requests: RecordedRequest[];
   replies: Map<number, { id: number; text: string }>;
+  /** Back to a fresh API: no request recorded, no reply, the next reply id 42 again. */
+  reset: () => void;
   close: () => Promise<void>;
 }> {
   const requests: RecordedRequest[] = [];
@@ -121,6 +123,11 @@ export async function startApi(): Promise<{
     base: `http://127.0.0.1:${port}`,
     requests,
     replies,
+    reset: () => {
+      requests.length = 0;
+      replies.clear();
+      nextId = 41;
+    },
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }

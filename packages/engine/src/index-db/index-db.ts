@@ -6,7 +6,8 @@
  *
  * - Rebuilt from files: `reconcile()` stats the sources (sources.ts: a few stats per project), re-reads only what
  *   changed (a project's summary, its README, its runs, its renders; history.jsonl from the byte after the last line it
- *   read — a shorter file or another inode is read again from the start) and writes it in one transaction.
+ *   read — a shorter file, another inode or another first line (a file rewritten in place) is read again from the
+ *   start) and writes it in one transaction.
  * - Missing → built; corrupt (SQLITE_CORRUPT / SQLITE_NOTADB by errcode, or `pragma quick_check` not ok), of another
  *   schema, or not a regular file (a symbolic link: SQLite would create the db, -wal and -shm at its target) → deleted
  *   with its -wal / -shm (links removed, never followed) and rebuilt: a cache, nothing to keep.
@@ -19,7 +20,9 @@
  * - Text in it is shown by the Studio as text (never HTML); a search query becomes quoted prefix terms bound as a
  *   parameter — no FTS syntax from the user reaches SQLite.
  */
+import { createHash } from 'node:crypto';
 import { lstat, mkdir, open as openFile, rm, stat } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { historyFile, readHistoryLine } from '../history.js';
@@ -399,6 +402,7 @@ export class WorkspaceIndex {
         for (const e of history.entries) add.run(e.at, e.kind, e.project ?? null, e.job ?? null, e.submitted_by ?? null, e.state ?? null, JSON.stringify(e));
         this.setMeta('history_ino', history.ino);
         this.setMeta('history_offset', String(history.offset));
+        this.setMeta('history_head', history.head);
       }
       const setSource = db.prepare('INSERT INTO sources(key, sig) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET sig = excluded.sig');
       const delSource = db.prepare('DELETE FROM sources WHERE key = ?');
@@ -417,34 +421,40 @@ export class WorkspaceIndex {
     return { keys: keys.filter((k) => !unreadable.has(k)), runs, generation: this.generation };
   }
 
-  /** history.jsonl from where the last pass stopped (whole lines only); from the start when it shrank or was replaced. */
-  private async readHistory(): Promise<{ reset: boolean; ino: string; offset: number; entries: HistoryEntry[] }> {
+  /**
+   * history.jsonl from where the last pass stopped (whole lines only); from the start when it shrank, was replaced or
+   * was rewritten in place (another first line).
+   */
+  private async readHistory(): Promise<{ reset: boolean; ino: string; head: string; offset: number; entries: HistoryEntry[] }> {
     const file = historyFile(this.ws.root);
     let fh;
     try {
       fh = await openFile(file, 'r');
     } catch {
-      return { reset: true, ino: '-', offset: 0, entries: [] };
+      return { reset: true, ino: '-', head: '-', offset: 0, entries: [] };
     }
     try {
       const st = await fh.stat();
       const ino = String(st.ino);
       let offset = Number(this.meta('history_offset') ?? 0);
-      const reset = this.meta('history_ino') !== ino || st.size < offset;
+      // The first line read last time, by its hash: the same inode and a larger size is also a file rewritten in place
+      // (its first lines would be lost if it were read from the old offset as if appended).
+      const reset = this.meta('history_ino') !== ino || st.size < offset || (offset > 0 && this.meta('history_head') !== (await historyHead(fh, offset)));
       if (reset) offset = 0;
+      const done = async (to: number, entries: HistoryEntry[] = []) => ({ reset, ino, head: await historyHead(fh, to), offset: to, entries });
       const length = st.size - offset;
-      if (length <= 0) return { reset, ino, offset, entries: [] };
+      if (length <= 0) return await done(offset);
       const buf = Buffer.alloc(length);
       const { bytesRead } = await fh.read(buf, 0, length, offset);
       const end = buf.subarray(0, bytesRead).lastIndexOf(0x0a);
-      if (end < 0) return { reset, ino, offset, entries: [] };
+      if (end < 0) return await done(offset);
       const entries: HistoryEntry[] = [];
       for (const line of buf.subarray(0, end).toString('utf8').split('\n')) {
         if (!line.trim()) continue;
         const e = readHistoryLine(line);
         if (e) entries.push(e); // else a torn or foreign line
       }
-      return { reset, ino, offset: offset + end + 1, entries };
+      return await done(offset + end + 1, entries);
     } finally {
       await fh.close();
     }
@@ -555,4 +565,22 @@ export class WorkspaceIndex {
     this.closed = true;
     this.db.close();
   }
+}
+
+/** The most of history.jsonl's first line {@link historyHead} hashes (a line is far shorter). */
+const HISTORY_HEAD_MAX = 64 * 1024;
+
+/**
+ * The sha256 of history.jsonl's first line (with its newline), within the `upTo` bytes already read (at most
+ * HISTORY_HEAD_MAX); `-` when nothing was read yet.
+ */
+async function historyHead(fh: FileHandle, upTo: number): Promise<string> {
+  const length = Math.min(upTo, HISTORY_HEAD_MAX);
+  if (length <= 0) return '-';
+  const buf = Buffer.alloc(length);
+  const { bytesRead } = await fh.read(buf, 0, length, 0);
+  const nl = buf.subarray(0, bytesRead).indexOf(0x0a);
+  return createHash('sha256')
+    .update(buf.subarray(0, nl < 0 ? bytesRead : nl + 1))
+    .digest('hex');
 }

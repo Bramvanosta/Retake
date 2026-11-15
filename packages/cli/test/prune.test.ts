@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createEngine } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
@@ -20,11 +20,19 @@ async function retake(...args: string[]) {
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
-beforeAll(async () => {
+// A workspace per case (the first one prunes what the second one counts on finding).
+beforeEach(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-prune-cli-'));
   await fixtureWorkspace(ws);
   runs = join(ws, 'projects', 'northfield-fixture', 'runs');
-  // An older capture of catalogue nothing uses (the workspace's own one, 20261016-090000, is the last good take).
+});
+
+afterEach(async () => {
+  await rm(ws, { recursive: true, force: true });
+});
+
+/** An older capture of catalogue nothing uses (the workspace's own one, 20261016-090000, is the last good take). */
+async function olderCapture() {
   const old = join(runs, '20261015-090000-catalogue');
   await mkdir(old, { recursive: true });
   await writeFile(join(old, 'capture.mp4'), Buffer.alloc(2_000_000));
@@ -47,14 +55,11 @@ beforeAll(async () => {
       warnings: [],
     }),
   );
-});
-
-afterAll(async () => {
-  await rm(ws, { recursive: true, force: true });
-});
+}
 
 describe('retake prune', () => {
   it('lists what would go and how much it frees; --yes deletes it; a run a queued job names stays', async () => {
+    await olderCapture();
     const dry = await retake('prune', 'northfield-fixture');
     expect(dry.code, dry.err).toBe(EXIT.ok);
     expect(dry.err).toMatch(/would delete +run +20261015-090000-catalogue +older capture nothing uses · 2 MB/);

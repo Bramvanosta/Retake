@@ -1,0 +1,58 @@
+# Once a week, the deterministic tier of the tests (`pnpm test:ci`, scripts/test-ci.mjs: the files scripts/test-ci.json
+# lists under `ci`) in a shuffled order — files and the cases within each file —, so that a case which only passes after
+# another one (a leftover it reads, a count it takes from the start of a shared folder or queue) is found here rather
+# than on the day one case is run alone. A describe whose cases are a chain on one resource says so with
+# `{ shuffle: false }` and keeps its order.
+#  - The seed is the run's date (UTC, YYYYMMDD), printed first: `pnpm test:ci -- --sequence.shuffle
+#    --sequence.seed=<seed>` replays the same order on the Mac.
+#  - The setup is the checks job's of ci.yml, step for step (the pinned Node.js, pnpm, the dependencies, the build);
+#    the guards stay in ci.yml.
+#
+# It can also be started by hand (Actions → Shuffled tests → Run workflow), on the branch chosen there, with today's
+# seed. Either way it runs with no secret, no environment, a read-only token, no cache; nothing is pushed, published or
+# merged. Every action is pinned to a commit, the same pins as ci.yml and release.yml
+# (packages/cli/test/ci-workflow.test.ts).
+name: Shuffled tests
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One run per branch: a run started by hand on a branch never cancels the weekly one on main.
+  group: shuffled-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shuffled:
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Node.js, the pinned build
+        run: bash apps/desktop/scripts/ci-node.sh
+      - name: pnpm (corepack, at package.json's packageManager)
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          set -eu
+          corepack enable
+          pnpm --version
+      - name: Dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build the packages
+        run: pnpm build
+      - name: The deterministic tests, shuffled
+        run: |
+          set -eu
+          SEED=$(date -u +%Y%m%d)
+          echo "seed $SEED (again: pnpm test:ci -- --sequence.shuffle --sequence.seed=$SEED)"
+          pnpm test:ci -- --sequence.shuffle --sequence.seed="$SEED"

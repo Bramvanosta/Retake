@@ -75,6 +75,102 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.53c)
+- **L7.53c done (2026-11-15; branch `claude/arch-l7`)** — the CI tier passes shuffled with seeds 20261115 and 7. Seed 3
+  found 7 more files; they are fixed, and each passes alone with seed 3, but no whole-tier run with seed 3 was left in
+  the budget (see Questions). The four gated render and worker files pass shuffled (seeds 11 and 7). The weekly shuffled workflow has landed, and it can also
+  be started by hand. The workspace index notices a history.jsonl rewritten in place.
+  - Code:
+    - Production: only `packages/engine/src/index-db/index-db.ts`, the history reader (Q1 of L7.53b, the lead's
+      boy-scout fix). It keeps the sha256 of the file's first line in `meta.history_head`. With the same inode, a
+      larger size and another first line, the file is now read again from the start; before, it was read from the old
+      offset as if appended, and its first lines were lost. An index built before this lot has no `history_head`, so
+      its history is read again once (it is a cache). There is no schema change.
+    - Workflow: `.github/workflows/shuffled.yml` (new: the held one plus a `workflow_dispatch` with no inputs). It
+      keeps `contents: read` and has no secret, environment or cache; it pushes, publishes and merges nothing.
+    - No new dependency and no new test file. Ratchet 105 and lint 456: none new, none stale.
+  - Tests:
+    - ci-workflow: the held case lands. It now requires the trigger keys to be exactly `schedule, workflow_dispatch`,
+      the dispatch to have no inputs (`null`), and no `pull_request`, `push:`, `workflow_run`, `workflow_call`,
+      `repository_dispatch` or `inputs:` in the code.
+    - Order-dependent under seed 7 (L7.53b's list), now fixed:
+      - cli.test: `demo()` runs `retake new demo` once, for whichever case needs it first. The creation case asserts
+        its answer, and the usage-error case needs the project to exist. The sandbox describe has a workspace of its
+        own (the list holds demo alone) and `sbx()` writes its project in each case.
+      - cli jobs.test: a workspace per case.
+      - ui events.test: the index-ops case edits its own README and queues its own job (`editReadme()`,
+        `queueDryRun()`). The library case reads the event of the component it removes inside its own stream; before,
+        that event reached the next case's stream (`components: ['acme']` in the README event).
+      - ui theme-ops.test: `mine()` copies editorial → mine once. The copy case asserts its answer, and the seven cases
+        that read or edit mine call it.
+      - engine render-snapshot.test: the submit case writes the scenario as planned first (the switch case leaves it
+        switched).
+    - Found by the seed-3 run of the whole tier, each order-dependent alone and now fixed:
+      - core ids.test: the case that makes a ULID of time 32^10−1 does it on a module instance of its own
+        (`vi.resetModules()`, then a dynamic import). `ulid()` is monotonic within a process, so that time had become
+        the time of every later id.
+      - cli prune.test: a workspace per case. The older capture is written by the first case (`olderCapture()`); the
+        second case counted on the first having pruned.
+      - hooks http.test: `api.reset()`, a new helper in hooks/test/helpers.ts. It also resets the fake API's next reply
+        id, so the ids a case reads start at 42 whatever ran before.
+      - hooks trusted-files.test: the data case removes gen.sh first and after (the run case writes it).
+      - ui desktop-answer.test: the not-supervised case runs on a server of its own. The strict case attaches the shared
+        server for good. It also asserts `desktop.written` is 0 (+1 expect).
+      - ui run-ops.test: the A M2 case removes the supplier's saved session it wrote; the S7 case expects `never`.
+    - setup-ops: the two cases that need no server ("Studio-only own ops…", "the shell's stdin lines…") move to a
+      shuffled top-level describe. Only the server describe stays `{ shuffle: false }` (closes L7.53b-review finding 2).
+    - The gated files:
+      - render-own-ffmpeg: `probedAfresh()` (it calls `resetVideotoolboxProbes()`) in the two cases that count the
+        probe's calls. The probes are cached per process, so a case that ran earlier had already made them.
+      - render-real: `firstRender()` makes v1 once, for whichever case needs it first: the v1 case, the frames, the
+        cancel (v2, renders/ = v1 only), and the still. The music case has a workspace of its own.
+      - worker-process "SIGKILL mid-run": the case queues its own dry run before the capture. The queued list is held
+        exactly as what was queued before plus that dry run, and every one of them must succeed. Before, the case used
+        the dry run the SIGTERM case left.
+      - render-worker-process: the two render-kill cases hold renders/ equal to its listing before their submit (before:
+        `[]`, and the review/export describe's render was there when it ran first). They check the lock by
+        `sub.render_id`, not by `synthetic-v1`, and check that the listing before their submit had none of their files.
+    - index-db: new case "history.jsonl rewritten in place (the same inode), longer and with another first line…".
+      It asserts the same inode, a larger size, the three new lines exactly, and then an append read once.
+    - test-guard: no decrease and no retitled test. Expects added: ci-workflow +22 (1 case), index-db +6 (1 case),
+      render-worker-process +3, cli +1, events +1, theme-ops +1. No expect weaker and none dropped. No
+      `toEqual` → `toMatchObject`, and no timeout changed. desktop-answer adds +1 expect.
+  - Runs:
+    - CI tier, `pnpm test:ci -- --sequence.shuffle --sequence.seed=<n>`, all 4 runs allowed:
+      - 20261115: 382 files, 5151 passed. This run started while the cli and jobs edits were being made.
+      - 7: green except index-db's new case. That run read the index-db source while a mutation was in place (the
+        symptom is exactly the mutation's), and the case passes alone.
+      - 7 again, on the tree with every seed-7 fix: 382 files, 5153 passed, 0 failed.
+      - 3, on the same tree: 8 cases in 7 files failed (listed above). They are now fixed (test files only) and pass
+        alone with seeds 3, 7 and 11. The whole tier has not been run again with seed 3.
+    - The other files that use the hooks fake API (security, seed, read-only, run, secrets, trust, sandbox-refs): alone,
+      seeds 3 and 7, green.
+    - Each fixed file alone: the default order, then seeds 7, 11, 3, 5 and 20261115 (cli also 1 and 2).
+    - Gated files, alone, seeds 11 and 7: render-own-ffmpeg 8/8, render-real 7/7, worker-process 11/11,
+      render-worker-process 4/4.
+  - Mutations, each red and then restored:
+    - index-db: without the head check, the new case is red. With the hash of nothing (every head the same), it is red
+      too.
+    - shuffled.yml: no dispatch, dispatch inputs, a `pull_request`, `contents: write`, or an `environment` are each red.
+    - cli `demo()` made a no-op: 5 cases red.
+    - theme-ops `mine()` made a no-op: 8 cases red.
+    - events, without the index case's own README and job: red under seed 3. Without the library case's removal event:
+      red under seed 7.
+    - render-snapshot, without the rewrite first: red under seed 7.
+    - jobs, a workspace for the whole file: red under seed 7.
+    - hooks `api.reset()` without the id reset: http.test is red under seed 3. run-ops without the cleanup: red under
+      seed 3. ids, prune, trusted-files and desktop-answer: their seed-3 failures before the fix are the evidence.
+    - For the gated files, the L7.53b failures under seed 11 are the evidence. They were not mutated again (one run
+      takes minutes).
+  - Gates (exit 0): `npx tsc -b`, `pnpm typecheck`, `pnpm lint` (none new), `pnpm format:check`,
+    `node scripts/audit/rules.mjs --check` (105), `node scripts/test-guard.mjs` (no decrease),
+    `node scripts/requirements.mjs --check-cites` (no edits).
+  - Not done:
+    - captures-first-acceptance is still not run (gated, about 10 min, on a quiet Mac).
+    - The whole tier with seed 3 after its fixes was not run (the 4-run budget was spent). Only seeds 20261115, 7 and 3
+      were tried; the weekly run will try more.
+    - stdio-inspect's handlers were not moved in-process (T-10).
+
 ## State (after L7.53b)
 - **L7.53b done (2026-11-15; branch `claude/arch-l7`)** — a weekly shuffled run of the CI tier, the order-dependent
   files L7.53 left, and 10 files that only a shuffled CI-tier run found, now pass in any order; record-studio's

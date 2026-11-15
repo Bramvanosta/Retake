@@ -76,11 +76,19 @@ afterAll(async () => {
 });
 
 const viewOf = async (theme: string) => (await ok<ThemeEditView>('theme_view', { theme })).data;
+/**
+ * `theme_copy editorial → mine`, done once by whichever case needs the workspace theme first (the cases run in any
+ * order); its answer, for the case that checks the copy itself.
+ */
+let copied: ReturnType<typeof call> | undefined;
+const mine = () => (copied ??= call('theme_copy', { from: 'editorial', name: 'mine' }));
 
 describe('theme_copy, theme_view, theme_edit', () => {
   it('copy a starter, then its view: editable, text and sha256; the starter read-only with why; path-free', async () => {
     expect(UI_OPS).toEqual(expect.arrayContaining(['theme_view', 'theme_edit', 'theme_copy', 'theme_create', 'brand_files', 'site_list', 'theme_preview']));
-    const c = await ok<{ name: string; from: string; files: string[] }>('theme_copy', { from: 'editorial', name: 'mine' });
+    const copy = await mine();
+    expect(copy.status, `theme_copy: ${copy.body.slice(0, 400)}`).toBe(200);
+    const c = { data: copy.json<{ data: { name: string; from: string; files: string[] } }>().data, body: copy.body };
     expect(c.data).toMatchObject({ name: 'mine', from: 'editorial' });
     expect(c.data.files).toContain('template.yaml');
     pathFree(c.body);
@@ -96,6 +104,7 @@ describe('theme_copy, theme_view, theme_edit', () => {
   });
 
   it('⚑ pinned inputs: a field outside the allow-list, an extra key, a theme that is a path → 400 before anything is read', async () => {
+    await mine();
     const v = await viewOf('mine');
     const bad = [
       { theme: 'mine', if_match: v.sha256, edit: { kind: 'set_field', field: 'captions.kicker.color', to: '#000000' } },
@@ -111,6 +120,7 @@ describe('theme_copy, theme_view, theme_edit', () => {
   });
 
   it('⚑ a write: the new sha256; if_match 409; restore of a version shown only; two writes on one version → one 409', async () => {
+    await mine();
     const v = await viewOf('mine');
     const accent = v.fields['colors.accent'] as string;
     const w = await ok<{ sha256: string; label: string }>('theme_edit', { theme: 'mine', if_match: v.sha256, edit: { kind: 'set_field', field: 'colors.accent', from: accent, to: '#224466' } });
@@ -138,6 +148,7 @@ describe('theme_copy, theme_view, theme_edit', () => {
   });
 
   it('the themes watch: an edit of a theme changes that theme only', async () => {
+    await mine();
     const o = { root: ws, componentsDir: join(ws, 'components'), templatesDir: join(ws, 'templates') };
     const before = await libraryWatchScan(o);
     const v = await viewOf('mine');
@@ -217,6 +228,7 @@ describe('theme_preview', () => {
   };
 
   it("intro, clip, outro and one component: a component-preview on the player origin, every URL one of the scope's; drafts in memory only", async () => {
+    await mine();
     const before = await readFile(join(ws, 'templates', 'mine', 'template.yaml'), 'utf8');
     for (const target of ['intro', 'clip', 'outro', { component: 'studio/card-title' }]) {
       const r = await call('theme_preview', { project: P, theme: 'mine', target, lease: LEASE });
@@ -264,6 +276,7 @@ describe('theme_preview', () => {
   });
 
   it('⚑ a workspace component the preview renders is held until the person allows it (preview_allow)', async () => {
+    await mine();
     const d = await previewOf({ theme: 'mine', target: { component: 'acme/held' } });
     expect(d.preview_held).toEqual([{ id: 'acme/held', kind: 'card', hash: expect.stringMatching(/^[0-9a-f]{16}$/) }]);
     const allowed = await call('preview_allow', { id: 'acme/held', hash: d.preview_held![0].hash });
@@ -274,6 +287,7 @@ describe('theme_preview', () => {
   });
 
   it("a theme page's lease ends with timeline_leave: the project's preview URLs are revoked", async () => {
+    await mine();
     const d = await previewOf({ theme: 'mine', target: 'intro', lease: LEASE });
     if (!('plan_url' in d)) throw new Error('no preview');
     expect((await playerGet(d.plan_url)).status).toBe(200);
@@ -285,6 +299,7 @@ describe('theme_preview', () => {
 
 describe('theme_list (part D2)', () => {
   it("⚑ editable by real path: starters read-only with why, a workspace theme editable, the project's own folder theme read-only; path-free", async () => {
+    await mine();
     // A second project whose theme is its own folder (a path in project.yaml).
     const own = join(ws, 'projects', 'own');
     await mkdir(join(own, 'scenarios'), { recursive: true });

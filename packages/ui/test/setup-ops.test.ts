@@ -101,33 +101,72 @@ const startServer = async () => {
   studio = await startStudioServer({ root: ws, startWorker: false, setup: () => ctx });
 };
 
+// What needs no server: the op lists and the shell's line reader (shuffled with the rest of the suite).
+describe('the setup ops without a server', () => {
+  it('Studio-only own ops in the ui allow-list; never MCP tools', () => {
+    for (const op of SETUP_OPS) {
+      expect(OWN_OPS as readonly string[]).toContain(op);
+      expect(UI_OPS as readonly string[]).toContain(op);
+    }
+    const mcp = TOOLS.map((t) => t.name);
+    expect(mcp.filter((n) => n.startsWith('setup') || (SETUP_OPS as readonly string[]).includes(n))).toEqual([]);
+    expect(SETUP_OPS).toEqual(['setup_status', 'setup_cli_install', 'setup_cli_choose', 'setup_cli_remove', 'setup_claude_code_run', 'setup_claude_desktop_add', 'setup_notifications', 'setup_done']);
+  });
+
+  it("the shell's stdin lines are strict, and the CLI reads them with the same cap", async () => {
+    expect(parseShellLine('{"type":"cli_folder","path":"/Users/me/bin"}')).toEqual({ type: 'cli_folder', path: '/Users/me/bin' });
+    expect(parseShellLine('{"type":"cli_folder_cancelled"}')).toEqual({ type: 'cli_folder_cancelled' });
+    expect(parseShellLine('{"type":"notifications","state":"off"}')).toEqual({ type: 'notifications', state: 'off' });
+    for (const bad of [
+      '{"type":"cli_folder","path":"bin"}',
+      '{"type":"cli_folder","path":"/a\\nb"}',
+      '{"type":"cli_folder","path":"/a\\u0000b"}',
+      '{"type":"cli_folder","path":"/a","extra":1}',
+      `{"type":"cli_folder","path":"/${'a'.repeat(4096)}"}`,
+      '{"type":"notifications","state":"maybe"}',
+      '{"type":"install","path":"/x"}',
+      '[1]',
+      'not json',
+      `{"type":"cli_folder_cancelled","x":"${'a'.repeat(SHELL_LINE_MAX)}"}`,
+      // Review c B-L1: a valid shape past the cap (JSON spaces) — the cap alone refuses it.
+      `{"type":"cli_folder_cancelled"${' '.repeat(SHELL_LINE_MAX)}}`,
+      // Review c B-L8: the cap counts bytes — a path of 3000 three-byte characters (9000 bytes, 3000 UTF-16 units).
+      `{"type":"cli_folder","path":"/${'\u20ac'.repeat(3000)}"}`,
+    ]) {
+      expect(parseShellLine(bad), bad.slice(0, 80)).toBeNull();
+    }
+    expect(parseShellLine(`{"type":"cli_folder_cancelled"${' '.repeat(100)}}`)).toEqual({ type: 'cli_folder_cancelled' });
+    expect(parseShellLine('{"type":"cli_folder_open"}')).toEqual({ type: 'cli_folder_open' });
+    expect(parseShellLine(`{"type":"cli_folder","path":"/${'\u20ac'.repeat(2000)}"}`)).toEqual({ type: 'cli_folder', path: `/${'\u20ac'.repeat(2000)}` });
+    // L7.34: the CLI's reader at this cap — a line of exactly SHELL_LINE_MAX bytes reaches the parser, one byte more is
+    // dropped whole (and the next line is read again), across chunks.
+    const got: string[] = [];
+    const read = shellLineReader((l) => got.push(l), SHELL_LINE_MAX);
+    const at = `{"type":"cli_folder_cancelled"${' '.repeat(SHELL_LINE_MAX - 31)}}`;
+    expect(Buffer.byteLength(at)).toBe(SHELL_LINE_MAX);
+    for (const line of [at, `${at} `, '{"type":"cli_folder_open"}']) {
+      const b = Buffer.from(`${line}\n`);
+      read(b.subarray(0, 5000));
+      read(b.subarray(5000));
+    }
+    expect(got.map((l) => parseShellLine(l))).toEqual([{ type: 'cli_folder_cancelled' }, { type: 'cli_folder_open' }]);
+    // Kept as source checks: the cap is a literal at the call site of a function `retake ui` does not export (stdin of
+    // the supervised process), so only the supervised CLI itself could show it — the number it passes is this cap.
+    const cli = await readFile(join(__dirname, '..', '..', 'cli', 'src', 'commands', 'ui.ts'), 'utf8');
+    expect([...cli.matchAll(/\bstdinClosed\([^;]*?,\s*(\d+)\)/g)].map((m) => Number(m[1]))).toEqual([SHELL_LINE_MAX]);
+    // L5.16d: the update's state goes through the same reader (update-ops.test.ts): the line handler hands it on.
+    expect(cli).toMatch(/\bshellLine = \(\w+\) => void applyShellLine\([^)]*, server\.update\);/);
+  });
+});
+
 /**
  * The cases build on each other on one Studio server and one scratch HOME: the server is unsupervised until the
  * not_supervised case has read it so, then attached for good; a case installs into a chosen folder that the restart case
  * finds recorded; the write window, Done and the Claude Desktop config carry over. They run in their order on purpose,
- * never shuffled.
+ * never shuffled (the cases that need no server are above, shuffled).
  */
 describe('the setup ops on one server, case after case', { shuffle: false }, () => {
   describe('who may call them', () => {
-    it('Studio-only own ops in the ui allow-list; never MCP tools', () => {
-      for (const op of SETUP_OPS) {
-        expect(OWN_OPS as readonly string[]).toContain(op);
-        expect(UI_OPS as readonly string[]).toContain(op);
-      }
-      const mcp = TOOLS.map((t) => t.name);
-      expect(mcp.filter((n) => n.startsWith('setup') || (SETUP_OPS as readonly string[]).includes(n))).toEqual([]);
-      expect(SETUP_OPS).toEqual([
-        'setup_status',
-        'setup_cli_install',
-        'setup_cli_choose',
-        'setup_cli_remove',
-        'setup_claude_code_run',
-        'setup_claude_desktop_add',
-        'setup_notifications',
-        'setup_done',
-      ]);
-    });
-
     it("not the desktop app's server (not supervised): status says so, every other op is refused", async () => {
       expect((await call('setup_status')).body.data).toEqual({ available: false, reason: 'not_supervised' });
       for (const op of SETUP_OPS.slice(1)) {
@@ -451,51 +490,6 @@ describe('the setup ops on one server, case after case', { shuffle: false }, () 
       expect((await call('setup_done')).status).toBe(200);
       expect(readAppSettings(join(base, 'retake-home')).setup_seen).toBe(RETAKE_VERSION);
       expect((await call('setup_status')).body.data.seen).toBe(true);
-    });
-
-    it("the shell's stdin lines are strict, and the CLI reads them with the same cap", async () => {
-      expect(parseShellLine('{"type":"cli_folder","path":"/Users/me/bin"}')).toEqual({ type: 'cli_folder', path: '/Users/me/bin' });
-      expect(parseShellLine('{"type":"cli_folder_cancelled"}')).toEqual({ type: 'cli_folder_cancelled' });
-      expect(parseShellLine('{"type":"notifications","state":"off"}')).toEqual({ type: 'notifications', state: 'off' });
-      for (const bad of [
-        '{"type":"cli_folder","path":"bin"}',
-        '{"type":"cli_folder","path":"/a\\nb"}',
-        '{"type":"cli_folder","path":"/a\\u0000b"}',
-        '{"type":"cli_folder","path":"/a","extra":1}',
-        `{"type":"cli_folder","path":"/${'a'.repeat(4096)}"}`,
-        '{"type":"notifications","state":"maybe"}',
-        '{"type":"install","path":"/x"}',
-        '[1]',
-        'not json',
-        `{"type":"cli_folder_cancelled","x":"${'a'.repeat(SHELL_LINE_MAX)}"}`,
-        // Review c B-L1: a valid shape past the cap (JSON spaces) — the cap alone refuses it.
-        `{"type":"cli_folder_cancelled"${' '.repeat(SHELL_LINE_MAX)}}`,
-        // Review c B-L8: the cap counts bytes — a path of 3000 three-byte characters (9000 bytes, 3000 UTF-16 units).
-        `{"type":"cli_folder","path":"/${'\u20ac'.repeat(3000)}"}`,
-      ]) {
-        expect(parseShellLine(bad), bad.slice(0, 80)).toBeNull();
-      }
-      expect(parseShellLine(`{"type":"cli_folder_cancelled"${' '.repeat(100)}}`)).toEqual({ type: 'cli_folder_cancelled' });
-      expect(parseShellLine('{"type":"cli_folder_open"}')).toEqual({ type: 'cli_folder_open' });
-      expect(parseShellLine(`{"type":"cli_folder","path":"/${'\u20ac'.repeat(2000)}"}`)).toEqual({ type: 'cli_folder', path: `/${'\u20ac'.repeat(2000)}` });
-      // L7.34: the CLI's reader at this cap — a line of exactly SHELL_LINE_MAX bytes reaches the parser, one byte more is
-      // dropped whole (and the next line is read again), across chunks.
-      const got: string[] = [];
-      const read = shellLineReader((l) => got.push(l), SHELL_LINE_MAX);
-      const at = `{"type":"cli_folder_cancelled"${' '.repeat(SHELL_LINE_MAX - 31)}}`;
-      expect(Buffer.byteLength(at)).toBe(SHELL_LINE_MAX);
-      for (const line of [at, `${at} `, '{"type":"cli_folder_open"}']) {
-        const b = Buffer.from(`${line}\n`);
-        read(b.subarray(0, 5000));
-        read(b.subarray(5000));
-      }
-      expect(got.map((l) => parseShellLine(l))).toEqual([{ type: 'cli_folder_cancelled' }, { type: 'cli_folder_open' }]);
-      // Kept as source checks: the cap is a literal at the call site of a function `retake ui` does not export (stdin of
-      // the supervised process), so only the supervised CLI itself could show it — the number it passes is this cap.
-      const cli = await readFile(join(__dirname, '..', '..', 'cli', 'src', 'commands', 'ui.ts'), 'utf8');
-      expect([...cli.matchAll(/\bstdinClosed\([^;]*?,\s*(\d+)\)/g)].map((m) => Number(m[1]))).toEqual([SHELL_LINE_MAX]);
-      // L5.16d: the update's state goes through the same reader (update-ops.test.ts): the line handler hands it on.
-      expect(cli).toMatch(/\bshellLine = \(\w+\) => void applyShellLine\([^)]*, server\.update\);/);
     });
   });
 });

@@ -24,6 +24,7 @@ import { renderRun } from '@retake/test-support/render-use-case';
 import type { RenderProgress } from '@retake/editor';
 import { OWN_FRAME_FILTER, ownEncodeFailedEarlier, ownFfmpeg, readsImagePipe, resetOwnFfmpeg } from '../src/render/encode-tools.js';
 import type { OwnFfmpeg } from '../src/render/encode-tools.js';
+import { resetVideotoolboxProbes } from '../src/render/policy.js';
 import { SHARED_CACHE, renderWorkspace } from '@retake/test-support/render';
 import { hasTool } from '@retake/test-support/repo';
 import type { RenderWorkspace } from '@retake/test-support/render';
@@ -46,6 +47,15 @@ function taken(): string[][] {
   const lines = readFileSync(calls, 'utf8').split('\n').filter(Boolean);
   rmSync(calls);
   return lines.map((l) => JSON.parse(l) as string[]);
+}
+
+/**
+ * A case that counts the probe's calls: the probes are cached per process (policy.ts), so another case that ran first
+ * would have made them; forget them, and the calls noted so far.
+ */
+function probedAfresh(): void {
+  resetVideotoolboxProbes();
+  taken();
 }
 
 /** Of the calls our ffmpeg got, the frame encodes of a render (not the probe's three frames, made and encoded to nowhere). */
@@ -143,7 +153,7 @@ describe.skipIf(!canRender)("a render encoded by this machine's ffmpeg", () => {
     "own: the frame encode — one call, the library's arguments with our filter — goes to our ffmpeg and nothing else does; the record says so; the file is the library's but for the picture's rounding (SSIM ≥ 0.995, same streams, same audio)",
     async (ctx) => {
       if (!real) return ctx.skip();
-      taken();
+      probedAfresh();
       const own = await render('own-sw', { ...SOFTWARE, ffmpeg: 'own' }, { seams: { ownFfmpeg: ours(noting) } });
       const all = taken();
       const got = frameEncodes(all);
@@ -177,7 +187,7 @@ describe.skipIf(!canRender)("a render encoded by this machine's ffmpeg", () => {
     'own on the GPU path: VideoToolbox is probed with our ffmpeg and encodes through it; a key frame every 2 s as before',
     async (ctx) => {
       if (!real?.facts.videotoolbox) return ctx.skip();
-      taken();
+      probedAfresh();
       const gpu = await render('own-gpu', { gl: 'auto', encoder: 'auto', ffmpeg: 'own' }, { seams: { ownFfmpeg: ours(noting) } });
       if (gpu.policy?.gl.used !== 'angle') return ctx.skip(); // no GPU for this run (a VM): the software case above covers it
       const all = taken();

@@ -8,7 +8,7 @@
  *   the patterns they replaced on generated strings (a fixed seed).
  * - A brand comes from a parse; generators and formatters return plain strings.
  */
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
   ANY_THEME_NAME_MAX,
@@ -56,7 +56,6 @@ import {
   runIdOfScenario,
   runIdStamp,
   seededRandom,
-  ulid,
   ulidFileRe,
   ulidTime,
   zNewThemeName,
@@ -467,8 +466,12 @@ describe('the ULID ids', () => {
     expect(new Set(ids).size).toBe(50);
   });
 
-  it('the time of a ULID is read from its first ten characters', () => {
-    for (const t of [1, 1_000, Date.UTC(2026, 9, 17), 32 ** 10 - 1]) expect(ulidTime(ulid(t)), String(t)).toBeGreaterThanOrEqual(t);
+  it('the time of a ULID is read from its first ten characters', async () => {
+    // A module of its own for these: ulid() is monotonic in a process (the latest time it gave is the floor of the next),
+    // and 32 ** 10 - 1 would be the time of every id another case makes after this one.
+    vi.resetModules();
+    const own = await import('../src/ids.js');
+    for (const t of [1, 1_000, Date.UTC(2026, 9, 17), 32 ** 10 - 1]) expect(ulidTime(own.ulid(t)), String(t)).toBeGreaterThanOrEqual(t);
     expect(ulidTime(formatUlid(1_760_000_000_000, new Array<number>(16).fill(0)))).toBe(1_760_000_000_000);
     expect(formatUlid(0, new Array<number>(16).fill(31))).toBe(`${a(10, '0')}${a(16, 'Z')}`);
     expect(ulidTime(a(26, '0'))).toBe(0);

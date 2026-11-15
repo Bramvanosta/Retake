@@ -225,6 +225,43 @@ describe('the workspace index', () => {
     }
   });
 
+  it('history.jsonl rewritten in place (the same inode), longer and with another first line: read again from the start, not as appended', async () => {
+    const ix = await fresh();
+    try {
+      await ix.reconcile();
+      expect(ix.history().map((h) => h.kind)).toEqual(['render', 'run']);
+      const ino = (await stat(historyFile(ws))).ino;
+      const before = (await stat(historyFile(ws))).size;
+      // Three lines over the two the index read: the old offset falls inside the new first lines.
+      await writeFile(
+        historyFile(ws),
+        line({ at: '2026-10-18T13:00:00.000Z', kind: 'review', project: P }) +
+          line({ at: '2026-10-18T14:00:00.000Z', kind: 'export', project: P }) +
+          line({ at: '2026-10-18T15:00:00.000Z', kind: 'run', project: P, job: 'j-rewritten' }),
+      );
+      expect((await stat(historyFile(ws))).ino).toBe(ino);
+      expect((await stat(historyFile(ws))).size).toBeGreaterThan(before);
+      expect((await ix.reconcile()).keys).toEqual(['history']);
+      expect(ix.history().map((h) => `${h.kind}${h.job ? `:${h.job}` : ''}`)).toEqual(['run:j-rewritten', 'export', 'review']);
+      // Appended after it: read from where it stopped (the first line is the same), nothing read twice.
+      await appendFile(historyFile(ws), line({ at: '2026-10-18T16:00:00.000Z', kind: 'render', project: P }));
+      await ix.reconcile();
+      expect(ix.history().map((h) => h.kind)).toEqual(['render', 'run', 'export', 'review']);
+      // Read incrementally, not again from the start: line 2 overwritten in place with garbage of its length (the first
+      // line, the inode and the size unchanged), then a line appended — the entry read before stays, the new one comes.
+      const text = await readFile(historyFile(ws), 'utf8');
+      const [first, second] = text.split('\n');
+      await writeFile(historyFile(ws), `${first}\n${'x'.repeat(second!.length)}${text.slice(first!.length + 1 + second!.length)}`);
+      expect((await stat(historyFile(ws))).ino).toBe(ino);
+      expect((await stat(historyFile(ws))).size).toBe(Buffer.byteLength(text));
+      await appendFile(historyFile(ws), line({ at: '2026-10-18T17:00:00.000Z', kind: 'review', project: P }));
+      await ix.reconcile();
+      expect(ix.history().map((h) => h.kind)).toEqual(['review', 'render', 'run', 'export', 'review']);
+    } finally {
+      ix.close();
+    }
+  });
+
   it('rebuilt when garbage, truncated or of another schema (its -wal and -shm with it); reused otherwise', async () => {
     const file = indexFile(ws);
     (await fresh()).close();

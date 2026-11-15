@@ -8,7 +8,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { FileJobQueue, createEngine, liveWorker, workersDir } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
@@ -22,16 +22,23 @@ async function retake(...args: string[]) {
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
-beforeAll(async () => {
-  ws = await mkdtemp(join(tmpdir(), 'studio-jobs-cli-'));
-  await fixtureWorkspace(ws);
+beforeAll(() => {
   idle = process.env.RETAKE_WORKER_IDLE_MS;
   process.env.RETAKE_WORKER_IDLE_MS = '300';
 });
 
-afterAll(async () => {
+afterAll(() => {
   if (idle === undefined) delete process.env.RETAKE_WORKER_IDLE_MS;
   else process.env.RETAKE_WORKER_IDLE_MS = idle;
+});
+
+// A workspace per case: the first one's "nothing at first" holds in any order (the others leave cancelled jobs).
+beforeEach(async () => {
+  ws = await mkdtemp(join(tmpdir(), 'studio-jobs-cli-'));
+  await fixtureWorkspace(ws);
+});
+
+afterEach(async () => {
   await rm(ws, { recursive: true, force: true });
 });
 

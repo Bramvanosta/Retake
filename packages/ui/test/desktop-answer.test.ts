@@ -34,8 +34,8 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-const call = (args: unknown, token = studio.token) =>
-  raw(studio.port, 'POST', '/v1/call/desktop_answer', { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, JSON.stringify(args));
+const call = (args: unknown, token = studio.token, server = studio) =>
+  raw(server.port, 'POST', '/v1/call/desktop_answer', { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 
 describe('DesktopPipe', () => {
   it('not supervised: a conflict (not_supervised), nothing written; supervised: `shown` capped at 20 a minute, an answer never', () => {
@@ -96,10 +96,21 @@ describe('the op desktop_answer through the Studio server', () => {
   });
 
   it('a server that is not supervised answers 409 (not_supervised) — nothing written', async () => {
-    const r = await call({ id: ID, answer: 'proceed' });
-    expect(r.status).toBe(409);
-    expect(r.json<{ error: { code: string; details: { reason: string } } }>().error.details.reason).toBe('not_supervised');
-    expect((await call({ id: ID, shown: true })).status).toBe(409);
+    // A server of its own: the strict case attaches the shared one (for good), and the cases run in any order.
+    const own = await mkdtemp(join(tmpdir(), 'studio-desktop-answer-own-'));
+    await fixtureWorkspace(own);
+    const server = await startStudioServer({ root: own, startWorker: false });
+    try {
+      const ownCall = (args: unknown) => call(args, server.token, server);
+      const r = await ownCall({ id: ID, answer: 'proceed' });
+      expect(r.status).toBe(409);
+      expect(r.json<{ error: { code: string; details: { reason: string } } }>().error.details.reason).toBe('not_supervised');
+      expect((await ownCall({ id: ID, shown: true })).status).toBe(409);
+      expect(server.desktop.written).toBe(0);
+    } finally {
+      await server.close();
+      await rm(own, { recursive: true, force: true });
+    }
   });
 
   it('strict: the id shape and one form only (extra fields, both forms, other values are 400); supervised, one line each; no token, 401; never a job-watch nudge', async () => {

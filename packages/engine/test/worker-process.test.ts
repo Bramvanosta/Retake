@@ -249,11 +249,14 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
   });
 
   it('SIGKILL mid-run: `interrupted` with the env reset fix, run.json left as it was; the next worker records it and runs the queue', async () => {
+    // A dry run queued before the capture (and whatever another case left queued, as the SIGTERM case does).
+    const before = (await queue.list({ project: 'w', states: ['queued'] })).map((j) => j.id);
+    const first = await engine.runs.submit({ project: 'w', scenario: 'short', mode: 'dry' });
     const killed = await engine.runs.submit({ project: 'w', scenario: 'long', mode: 'capture' }, { approver: YES });
     const queued = (await queue.list({ project: 'w', states: ['queued'] })).map((j) => j.id).filter((id) => id !== killed.job.id);
-    expect(queued).toHaveLength(1);
+    expect([...queued].sort()).toEqual([...before, first.job.id].sort());
     const w = startWorker(ws, '--idle-exit', '5000');
-    // The queued dry run of the previous test runs first (oldest first), then this capture.
+    // The queued dry runs run first (oldest first), then this capture.
     await waitFor('the wait step', waiting(killed.job.id), 90_000);
     w.child.kill('SIGKILL');
     await w.exited;

@@ -2,7 +2,8 @@
  * The CI workflow (.github/workflows/ci.yml, BACKLOG BL-144) read as data: when it runs, what a pull request's code
  * may reach (no secret, no environment, a read-only token, no cache), every action pinned like release.yml's, the
  * pinned Node.js first, the guards after the build, then the deterministic tier of the tests and nothing more of the
- * suite (BL-163: no browser, no render, no gated test on the runner), the shell's Rust from its toolchain file.
+ * suite (BL-163: no browser, no render, no gated test on the runner), the shell's Rust from its toolchain file. And
+ * the weekly shuffled run (.github/workflows/shuffled.yml): the same tier in a shuffled order, on a schedule or by hand.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -131,6 +132,59 @@ describe('the CI workflow (ci.yml)', () => {
     const printed = /^channel = "(.*)"$/m.exec(read('apps/desktop/rust-toolchain.toml'))![1];
     expect(printed).toBe(channel);
     expect(channel).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it('the weekly shuffled run (shuffled.yml): on a schedule or by hand only, read-only, the checks setup step for step, then the CI tier shuffled with a printed seed', () => {
+    const sraw = read('.github/workflows/shuffled.yml');
+    const s = YAML.parse(sraw);
+    const scode = sraw
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+    // When: a weekly cron, or started by hand (no input), nothing else (no pull request's code, no chained trigger).
+    expect(Object.keys(s.on)).toEqual(['schedule', 'workflow_dispatch']);
+    expect(s.on.schedule).toHaveLength(1);
+    expect(s.on.schedule[0].cron).toMatch(/^\d{1,2} \d{1,2} \* \* [0-6]$/);
+    expect(s.on.workflow_dispatch).toBeNull();
+    // One run per branch: a run started by hand on a branch does not cancel the weekly one on main.
+    expect(s.concurrency).toEqual({ group: 'shuffled-tests-${{ github.ref }}', 'cancel-in-progress': true });
+    expect(scode).not.toMatch(/pull_request|push:|workflow_run|workflow_call|repository_dispatch|inputs:/);
+    // What it may reach: a read-only token, no secret, no environment, no cache; nothing pushed, published or merged.
+    expect(s.permissions).toEqual({ contents: 'read' });
+    const sjobs = s.jobs as Record<string, Job & Record<string, unknown>>;
+    expect(Object.keys(sjobs)).toEqual(['shuffled']);
+    const job = sjobs.shuffled!;
+    expect(job.permissions).toEqual({ contents: 'read' });
+    expect(job.environment).toBeUndefined();
+    expect(job.env).toBeUndefined();
+    expect(scode).not.toMatch(/secrets\.|github\.token|GITHUB_TOKEN|actions\/cache|^\s+cache:|git push|gh |npm publish|pnpm publish|merge/m);
+    // Pinned as release.yml pins (and so as ci.yml).
+    const pins = new Map([...read('.github/workflows/release.yml').matchAll(/uses: ([\w/-]+)@([0-9a-f]{40}) # (v[\d.]+)/g)].map((m) => [m[1]!, `${m[2]} # ${m[3]}`]));
+    const uses = [...sraw.matchAll(/uses: (\S+)(.*)/g)];
+    expect(uses.length).toBeGreaterThan(0);
+    for (const [, spec, rest] of uses) {
+      const [action, ref] = spec!.split('@');
+      expect(pins.get(action!), spec).toBe(`${ref}${rest}`);
+    }
+    // The setup: the checks job's steps up to the build, the same ones (ci.yml's guards stay there), on the same machine.
+    expect(job['runs-on']).toBe(jobs.checks!['runs-on']);
+    expect(job['timeout-minutes']).toBe((jobs.checks as unknown as Record<string, unknown>)['timeout-minutes']);
+    const build = names('checks').indexOf('Build the packages');
+    expect(job.steps.slice(0, -1)).toEqual(jobs.checks!.steps.slice(0, build + 1));
+    // Then the tier, shuffled (files and cases) with the run's date as the seed, printed first; no other test command.
+    const last = job.steps.at(-1)!;
+    expect(Object.keys(last).sort()).toEqual(['name', 'run']);
+    expect(last.name).toBe('The deterministic tests, shuffled');
+    expect(last.run!.trim().split('\n')).toEqual([
+      'set -eu',
+      'SEED=$(date -u +%Y%m%d)',
+      'echo "seed $SEED (again: pnpm test:ci -- --sequence.shuffle --sequence.seed=$SEED)"',
+      'pnpm test:ci -- --sequence.shuffle --sequence.seed="$SEED"',
+    ]);
+    expect(scode.match(/pnpm test\S*/g)).toEqual(['pnpm test:ci', 'pnpm test:ci']);
+    expect(scode).not.toMatch(/vitest|playwright|ffmpeg|RETAKE_TEST_/);
+    // scripts/test-ci.mjs hands what follows `--` to vitest.
+    expect(read('scripts/test-ci.mjs')).toContain("const args = process.argv.slice(2).filter((a) => a !== '--');");
   });
 
   it('release.yml says the CI exists and that the release does not wait for it', () => {

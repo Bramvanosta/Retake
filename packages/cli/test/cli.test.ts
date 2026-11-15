@@ -11,16 +11,30 @@ let ws: string;
 /** The bundled starter templates (the temporary workspace uses them as its templates_dir). */
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
 
-/** Run `retake --root <ws> …args` in-process. */
-async function retake(...args: string[]) {
+/** Run `retake --root <root> …args` in-process. */
+async function retakeIn(root: string, ...args: string[]) {
   const io = memoryIo();
-  const code = await main(['node', 'retake', '--root', ws, ...args], io);
+  const code = await main(['node', 'retake', '--root', root, ...args], io);
   return { code, out: io.stdout(), err: io.stderr() };
 }
+/** Run `retake --root <ws> …args` in-process. */
+const retake = (...args: string[]) => retakeIn(ws, ...args);
+
+async function makeWorkspace() {
+  const root = await mkdtemp(join(tmpdir(), 'studio-cli-'));
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  return root;
+}
+
+/**
+ * `retake new demo …`, run once in `ws` by whichever case needs the project first (the cases run in any order); its
+ * result, for the case that checks the creation itself.
+ */
+let created: Promise<{ code: number; out: string; err: string }> | undefined;
+const demo = () => (created ??= retake('new', 'demo', '--name', 'Demo product', '--env', 'staging=app:https://app.staging.example.com,api:https://api.staging.example.com'));
 
 beforeAll(async () => {
-  ws = await mkdtemp(join(tmpdir(), 'studio-cli-'));
-  await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  ws = await makeWorkspace();
 });
 
 afterAll(async () => {
@@ -29,7 +43,7 @@ afterAll(async () => {
 
 describe('retake new / list / validate', () => {
   it('creates a project with environments and lists it', async () => {
-    const r = await retake('new', 'demo', '--name', 'Demo product', '--env', 'staging=app:https://app.staging.example.com,api:https://api.staging.example.com');
+    const r = await demo();
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.err).toContain('created project demo');
     const yaml = await readFile(join(ws, 'projects', 'demo', 'project.yaml'), 'utf8');
@@ -49,6 +63,7 @@ describe('retake new / list / validate', () => {
   });
 
   it('validates scenarios with file:line:col messages and exit codes', async () => {
+    await demo();
     const dir = join(ws, 'projects', 'demo', 'scenarios');
     await writeFile(join(dir, 'good.yaml'), 'video: good\nscenes:\n  - id: home\n    page: app\n    open: /\n    steps:\n      - click: Sign in\n');
     await writeFile(join(dir, 'bad.yaml'), 'video: bad\nscenes:\n  - id: home\n    page: app\n    open: /\n    steps:\n      - clik: Sign in\n');
@@ -81,6 +96,8 @@ describe('retake new / list / validate', () => {
 
 describe('studio usage, schema and later phases', () => {
   it('exits 2 on usage errors', async () => {
+    // `hooks run demo nonsense` is a usage error once the project exists (an unknown project is a failure, exit 1).
+    await demo();
     expect((await retake('run', 'demo')).code).toBe(EXIT.usage);
     expect((await retake('frobnicate')).code).toBe(EXIT.usage);
     expect((await retake('schema', 'nope')).code).toBe(EXIT.usage);
@@ -125,6 +142,7 @@ describe('studio usage, schema and later phases', () => {
   });
 
   it('reports hook sources that do not exist', async () => {
+    await demo();
     const reset = await retake('hooks', 'run', 'demo', 'reset');
     expect(reset.code).toBe(EXIT.failure);
     expect(reset.err).toContain('declares no reset hooks');
@@ -136,7 +154,8 @@ describe('studio usage, schema and later phases', () => {
 
 describe('retake journal: the workspace journal', () => {
   it('lists the authored writes and the hook runs of the workspace, who made them and their outcome', async () => {
-    // `retake new demo` (above) wrote the project's files through the project store, as the person's.
+    // `retake new demo` wrote the project's files through the project store, as the person's.
+    expect((await demo()).code).toBe(EXIT.ok);
     const writes = await retake('journal', '--writes', '--project', 'demo', '--json');
     expect(writes.code, writes.err).toBe(EXIT.ok);
     const lines = (JSON.parse(writes.out) as { entries: Array<{ by: { client: string }; op: string; what: string; path: string; outcome: string }> }).entries;
@@ -177,6 +196,15 @@ describe('parseEnvOptions', () => {
 });
 
 describe('sandboxes in validate, schema and env reset (L1.8)', () => {
+  // A workspace of their own: the first describe's list holds the demo project alone.
+  let sws: string;
+  const retake = (...args: string[]) => retakeIn(sws, ...args);
+  beforeAll(async () => {
+    sws = await makeWorkspace();
+  });
+  afterAll(async () => {
+    await rm(sws, { recursive: true, force: true });
+  });
   const SANDBOX = `version: 1
 provider: process
 services:
@@ -192,14 +220,19 @@ accounts:
     check: {url: "app:/", expect_text: Admin}
 `;
 
-  it('validate reports each sandbox.yaml under its own file; a broken one fails every command, positioned in it', async () => {
-    const dir = join(ws, 'projects', 'sbx');
+  /** The sbx project with its sandbox, written by each case that reads it. */
+  async function sbx() {
+    const dir = join(sws, 'projects', 'sbx');
     await mkdir(join(dir, 'sandbox'), { recursive: true });
     await mkdir(join(dir, 'scenarios'), { recursive: true });
     await writeFile(join(dir, 'project.yaml'), 'name: Sandbox demo\nsandboxes:\n  sandbox: sandbox/sandbox.yaml\n');
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), SANDBOX);
     await writeFile(join(dir, 'scenarios', 'home.yaml'), 'video: home\nenv: sandbox\nscenes:\n  - {id: a, page: app, persona: admin, open: /, steps: [{hold: 1}]}\n');
-    const file = join(dir, 'sandbox', 'sandbox.yaml');
+    return join(dir, 'sandbox', 'sandbox.yaml');
+  }
+
+  it('validate reports each sandbox.yaml under its own file; a broken one fails every command, positioned in it', async () => {
+    const file = await sbx();
 
     const ok = await retake('validate', 'sbx');
     expect(ok.code, ok.err).toBe(EXIT.ok);
@@ -229,6 +262,7 @@ accounts:
   });
 
   it('prints the sandbox schema; env reset on a sandbox says how to restore its seed', async () => {
+    await sbx();
     const s = await retake('schema', 'sandbox');
     expect(s.code).toBe(EXIT.ok);
     expect((JSON.parse(s.out) as { $id: string }).$id).toBe('sandbox.schema.json');

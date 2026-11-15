@@ -98,6 +98,26 @@ const POLL_MS = 200;
 const auth = () => ({ authorization: `Bearer ${studio.token}` });
 const json = { 'content-type': 'application/json' };
 const call = (s: StudioServer, op: string, args: unknown = {}) => raw(s.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${s.token}`, ...json }, JSON.stringify(args));
+/** The README as another editor leaves it (its words are searched for by the index ops). */
+const editReadme = () => writeFile(join(ws, 'projects', P, 'README.md'), '# Northfield\n\nChanged in another editor.\n');
+/** A dry run written to the queue as another process does (no worker here: it stays queued); its id. */
+async function queueDryRun() {
+  const q = new FileJobQueue(ws);
+  const id = newJobId(Date.now());
+  await mkdir(join(q.files.dir, id), { recursive: true });
+  await writeFile(
+    join(q.files.dir, id, 'job.json'),
+    JSON.stringify({
+      version: 1,
+      id,
+      kind: 'run',
+      input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' },
+      state: 'queued',
+      created_at: new Date().toISOString(),
+    }),
+  );
+  return id;
+}
 const until = async (f: () => boolean, ms = 3000) => {
   const end = Date.now() + ms;
   while (!f() && Date.now() < end) await new Promise((r) => setTimeout(r, 20));
@@ -145,26 +165,13 @@ describe('/v1/events', () => {
       expect(s.status).toBe(200);
       expect(await s.next('hello')).toMatchObject({ api: 1, index: true });
       const changed = s.next('workspace');
-      await writeFile(join(ws, 'projects', P, 'README.md'), '# Northfield\n\nChanged in another editor.\n');
+      await editReadme();
       const startedAfter = polls.mock.calls.length;
       expect(await changed).toEqual({ projects: [P], readme: [P], files: [] });
       expect(polls.mock.calls.length - startedAfter).toBeLessThanOrEqual(1);
       expect(polls.mock.calls.length).toBeGreaterThan(0);
       const jobs = s.next('jobs');
-      const q = new FileJobQueue(ws);
-      const id = newJobId(Date.now());
-      await mkdir(join(q.files.dir, id), { recursive: true });
-      await writeFile(
-        join(q.files.dir, id, 'job.json'),
-        JSON.stringify({
-          version: 1,
-          id,
-          kind: 'run',
-          input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' },
-          state: 'queued',
-          created_at: new Date().toISOString(),
-        }),
-      );
+      const id = await queueDryRun();
       // L5.10a fixes (review A-L7): the event names the changed jobs' projects. L5.14b: and what a take holds (nothing).
       expect(await jobs).toEqual({ changed: [id], projects: [P], held: null });
       expect(studio.calls).toBe(calls);
@@ -285,6 +292,10 @@ describe('library events (L4.7, critique B5)', () => {
       await mkdir(site, { recursive: true });
       await writeFile(join(site, 'site.json'), '{}\n');
       expect(await changed).toEqual({ projects: [], readme: [], files: [], site: true });
+      // The component removed: its event read here, not by the next case's stream.
+      changed = s.next('workspace');
+      await rm(comp, { recursive: true, force: true });
+      expect(await changed).toEqual({ projects: [], readme: [], files: [], components: ['acme'] });
     } finally {
       s.close();
       await rm(comp, { recursive: true, force: true });
@@ -296,6 +307,9 @@ describe('library events (L4.7, critique B5)', () => {
 describe('the index ops', () => {
   it('search: README words, scenarios, run ids as prefixes; activity_list: queue first, then history', async () => {
     expect((await stat(indexFile(ws))).isFile()).toBe(true);
+    // Its own edited README and queued job (an op of the index refreshes it first); the cases run in any order.
+    await editReadme();
+    await queueDryRun();
     const s = await call(studio, 'search', { q: 'another edit' });
     expect(s.status).toBe(200);
     expect(s.json<{ data: { hits: Array<{ kind: string; ref: string }> } }>().data.hits).toEqual([expect.objectContaining({ kind: 'project', ref: P })]);

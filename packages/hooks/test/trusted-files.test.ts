@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import { Journal, hookFiles, hookFingerprint, hookTrustFiles, runHooks, scriptTokens } from '@retake/hooks';
 import { trustedFileChanges } from '@retake/core';
 import type { HookStep } from '@retake/core';
@@ -88,7 +88,10 @@ describe('the files a trust binds (hookTrustFiles)', () => {
       codeNames: ['gone.sql', 'tools/q.sql'],
     });
     expect(await keys({ js: { file: 'hooks/x.js' } } as HookStep)).toEqual({ code: ['hooks/x.js'], data: [] });
-    // A code word that does not exist yet is not bound: once it appears it is "added".
+    // A code word that does not exist yet is not bound: once it appears it is "added". (gen.sh is also what the run
+    // case below writes: gone first, and removed after.)
+    await rm(join(dir, 'gen.sh'), { force: true });
+    onTestFinished(() => rm(join(dir, 'gen.sh'), { force: true }));
     const none = await files({ shell: './gen.sh || true' });
     expect(none.code).toEqual({});
     await writeFile(join(dir, 'gen.sh'), 'echo gen\n');

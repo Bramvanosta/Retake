@@ -9,7 +9,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import { loadProjectTemplate, readJson, fileFacts } from '@retake/core/io';
 import type { Timeline } from '@retake/core';
 import { loadComponentRegistry, scaffoldDir } from '@retake/components';
@@ -25,7 +25,6 @@ const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
 
 let ws: RenderWorkspace;
-let record: RenderRecord;
 
 beforeAll(async () => {
   if (canRender) ws = await renderWorkspace();
@@ -87,22 +86,33 @@ describe.skipIf(!canRender)('bundle cache', () => {
   );
 });
 
+/**
+ * The workspace's first render (v1) and the stages it went through, made once by whichever case needs it first: the
+ * cases run in any order, and the frame, cancel and still cases read it.
+ */
+let first: Promise<{ record: RenderRecord; stages: Set<string> }> | undefined;
+const firstRender = () =>
+  (first ??= (async () => {
+    const stages = new Set<string>();
+    const record = await renderRun({
+      workPolicy: PERSON_POLICY,
+      project: ws.project,
+      root: ws.root,
+      run: 'latest',
+      scenario: 'synthetic',
+      overrides: { scale: 0.5 },
+      concurrency: 2,
+      cacheDir: SHARED_CACHE,
+      onProgress: (p) => stages.add(p.stage),
+    });
+    return { record, stages };
+  })());
+
 describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
   it(
     'writes renders/<scenario>-v1.mp4 + .json: the plan duration, fps and size, h264 yuv420p faststart with an audio track',
     async () => {
-      const stages = new Set<string>();
-      record = await renderRun({
-        workPolicy: PERSON_POLICY,
-        project: ws.project,
-        root: ws.root,
-        run: 'latest',
-        scenario: 'synthetic',
-        overrides: { scale: 0.5 },
-        concurrency: 2,
-        cacheDir: SHARED_CACHE,
-        onProgress: (p) => stages.add(p.stage),
-      });
+      const { record, stages } = await firstRender();
       const renders = join(ws.project.dir, 'renders');
       expect(record.id).toBe('synthetic-v1');
       expect(record.render_version).toBe(1);
@@ -161,7 +171,8 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
 
   it(
     "every rendered capture frame is the plan's source frame (incl. source frames past the end of the video)",
-    () => {
+    async () => {
+      const { record } = await firstRender();
       const plan = record.plan;
       const [a, b] = plan.segments as ClipSegment[];
       expect([a.id, b.id, b.from]).toEqual(['a', 'b', 30]);
@@ -180,6 +191,7 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
   it(
     'a cancelled render leaves nothing under the final names',
     async () => {
+      await firstRender();
       const controller = new AbortController();
       let rendered = 0;
       const p = renderRun({
@@ -213,6 +225,7 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
   it(
     'renderStill writes one frame as a PNG',
     async () => {
+      const { record } = await firstRender();
       const out = join(ws.root, 'stills', 'frame-48.png');
       expect(await renderStill({ workPolicy: PERSON_POLICY, plan: record.plan, frame: 48, out, root: ws.root, cacheDir: SHARED_CACHE })).toBe(out);
       const size = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height,codec_name', '-of', 'csv=p=0', out], { encoding: 'utf8' }).trim();
@@ -251,6 +264,9 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
   it(
     'a music bed gives an audible track (scenario music or overrides.music)',
     async () => {
+      // A workspace of its own: its render is not a version the cancel case counts.
+      const ws = await renderWorkspace();
+      onTestFinished(() => ws.cleanup());
       const music = join(ws.project.dir, 'assets', 'bed.wav');
       await mkdir(dirname(music), { recursive: true });
       execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', music]);

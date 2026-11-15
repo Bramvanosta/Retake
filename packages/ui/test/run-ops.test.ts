@@ -221,9 +221,9 @@ describe('S7: the session acknowledgement of a capture', () => {
     const check = '        check: {url: "console:/products", expect_text: Maja Lindqvist}\n';
     expect(yaml).toContain(check);
     await writeFile(join(project(), 'project.yaml'), yaml.replace(check, ''));
+    const files = personaPaths(home, P, 'signed-in', 'supplier');
     try {
       // A saved session, expired at its last check: without a `check`, the run's preflight uses it unverified.
-      const files = personaPaths(home, P, 'signed-in', 'supplier');
       await mkdir(join(files.snapshot, '..'), { recursive: true });
       await writeFile(files.snapshot, '{"cookies":[],"origins":[]}', { mode: 0o600 });
       await writeStatus(files.statusFile, { status: 'expired', by: 'run' });
@@ -239,6 +239,9 @@ describe('S7: the session acknowledgement of a capture', () => {
       expect(e.message).not.toContain('stops before filming');
     } finally {
       await writeFile(join(project(), 'project.yaml'), yaml);
+      // The supplier never signed in again, as the S7 case above expects it in any order.
+      await rm(files.snapshot, { force: true });
+      await rm(files.statusFile, { force: true });
     }
   });
 });
