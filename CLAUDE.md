@@ -88,8 +88,10 @@ node scripts/set-version.mjs <version> | --check                # one version ev
   component system, kit, built-in library (`library/studio/*`), scaffolds · `packages/editor` planner (`planEdit`),
   Remotion compositions (`src/remotion/`), render / export · `packages/review` contact sheets, checks, report ·
   `packages/cli` the `retake` command · `packages/sandbox` sandbox engine (process and docker-compose providers,
-  Postgres snapshots, `init` scaffold) · `packages/engine` engine API shared by the CLI and MCP, job queue and worker ·
-  `packages/mcp` the MCP server (`retake mcp`, stdio and HTTP, SDK imported only in `src/server.ts`) · `packages/ui` the
+  Postgres snapshots, `init` scaffold) · `packages/engine` engine API shared by the CLI, MCP and the Studio (operations,
+  ports, job queue and worker) · `packages/compose` the product's composition: the package adapters behind the
+  engine's ports (`productPorts`) and the jobs worker's entry · `packages/test-support` helpers the tests of several
+  packages share (private, no build) · `packages/mcp` the MCP server (`retake mcp`, stdio and HTTP, SDK imported only in `src/server.ts`) · `packages/ui` the
   Studio web app and its server (`retake ui`; design system in `src/app/ui-kit` + `tokens.ts`, reference
   `docs/reference/studio-ui.md`) · `apps/desktop` the macOS app (Tauri shell around `retake ui --supervised`) ·
   `skills/` the Claude skills and plugin root.

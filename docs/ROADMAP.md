@@ -19,7 +19,9 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   (done 2026-10-13) → L1.6 (done 2026-10-13) → L1.7 (done 2026-10-13) → L1.8 (done 2026-10-14) → L1.4 (done 2026-10-17), stopping before phase 3 (L3.1).
 - **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
   instead of a lot. The founder adds lots from it: L5.5 – L5.8 (2026-10-26, field feedback), L5.9 – L5.15
-  (2026-10-29: the Studio redesign and the rename, captures first, renders on the GPU).
+  (2026-10-29: the Studio redesign and the rename, captures first, renders on the GPU), the architecture series
+  L6.1 – L6.13 and L7.1 – L7.58 (2026-11-09 – 2026-11-15, on main since 2026-11-15), L8.1 – L8.3 (2026-11-15: the
+  second field feedback, `docs/FIELD-FEEDBACK-2.md`, and the app's native menus, BL-166).
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
   is a future topic, parked in `docs/BACKLOG.md`; voice-over is an evolution there too (the MVP keeps a silent track).
 - The tool stays generic: no client/brand/person names in code, docs, fixtures, templates or test data. The market
@@ -87,9 +89,9 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | **done** — L5.16a–f: engine, app + DMG, first run, updater, releases from GitHub Actions, the feed on a GitHub release (2026-11-04) |
 | L5.14 | Captures first: a take before renders, reviews and exports, on the file queue | L | **done** — L5.14a (the worker's two slots, the markers, background QoS, the CLI wait), L5.14b (surfaces, signed journals, approvals bound to their job, the measured acceptance) (2026-11-04) |
 | L5.15 | Renders on the GPU with a lighter load | S | **done** — ANGLE + VideoToolbox at concurrency 3 on a Mac with a GPU, today's software path otherwise (2026-11-05; the captures-first acceptance on the GPU path not passed: R-CAP-03) |
-| L5.17 | Hardening before the first release: approvals and agent-written hooks, the URLs a scenario opens, sandboxed capture and render browsers, the release workflow | L | **done**, pending the person's review of the pull request (2026-11-05; the first of two lots, L5.18 next) |
-| L5.18 | Hardening before the first release, the rest: one flag for the processes that serve agents, the programs, browser switches and environment their jobs get, the production guard's addresses, the Studio's token and link, MCP over HTTP's port | M | **done**, pending the person's review of the pull request (2026-11-09; next: the first release v0.2.0) |
-| L6.1 – L6.13 | Architecture series after the 2026-11-04 audit (action plan T1 – T14): the import-rules ratchet and glossary, the job queue port, one operation catalogue, admission and one caller in the engine, one project store and journal, the CLI on the engine's pipeline, a pure core with its I/O apart and the work policy passed explicitly, the planner apart from the renderer, the in-page kit from modules, the Studio's typed data layer, the worker in parts | L+, in 13 lots | **done**, pending the person's review of the pull request (2026-11-10; no behaviour change beyond the CHANGELOG's [Unreleased]) |
+| L5.17 | Hardening before the first release: approvals and agent-written hooks, the URLs a scenario opens, sandboxed capture and render browsers, the release workflow | L | **done** (2026-11-05; merged as pull request 5, in v0.2.0; the first of two lots, L5.18 next) |
+| L5.18 | Hardening before the first release, the rest: one flag for the processes that serve agents, the programs, browser switches and environment their jobs get, the production guard's addresses, the Studio's token and link, MCP over HTTP's port | M | **done** (2026-11-09; merged as pull request 6, released in v0.2.0) |
+| L6.1 – L6.13 | Architecture series after the 2026-11-04 audit (action plan T1 – T14): the import-rules ratchet and glossary, the job queue port, one operation catalogue, admission and one caller in the engine, one project store and journal, the CLI on the engine's pipeline, a pure core with its I/O apart and the work policy passed explicitly, the planner apart from the renderer, the in-page kit from modules, the Studio's typed data layer, the worker in parts | L+, in 13 lots | **done** (2026-11-10; pull request 8, merged on main 2026-11-15; no behaviour change beyond the CHANGELOG's [Unreleased]) |
 | L7.1 | A `Renderer` port in the engine (2026-11-10 action plan, U6 first slice): video, stills, previews; the editor's driver and an in-memory adapter under one contract suite; ratchet rules R9 and `render-call` | M | **done** (2026-11-10, branch `claude/arch-l7`; no behaviour change; the full suite runs once at the end of the branch) |
 | L7.2 | The renderer seam (action plan U12): five seam files name the rendering library, ratchet rule R10; composition ids once and versioned render props; built-ins on the kit only; `components preview` on the port | M | **done** (2026-11-10, branch `claude/arch-l7`; previews and a fixture video byte-identical before and after on the software path) |
 | L7.3 | This machine's ffmpeg for a render's frame encode, behind `render.ffmpeg`; measured on a fixture render | S | **done** (2026-11-10, branch `claude/arch-l7`; the default on the GPU path only: about a fifth less CPU, no measured gain in wall time) |
@@ -170,6 +172,11 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.57 | CC-N1: a size ratchet (`scripts/audit/size-limits.mjs`, AST: file > 1,000, function > 100 lines, > 5 parameters, nesting > 5; strict, keyed by name path; baseline 176 entries with reasons, in CI); 33 functions split (the Studio's 13 longest screens, its server's three, runner-web capture / record / export / extract, the page recorder into inner helpers, review, editor planner / render / timing / preview, engine capture / jobs / prune, the shell scanner), `review/checks.ts` 1,413 → 351 in five siblings; 17 internal parameter lists to options objects. Functions over 100 lines 158 → 124, files over 1,000 8 → 7 | L | **done** (15 mutations; test-guard no decrease) |
 | L7.57b | Sizes, the rest: the seven files over 1,000 lines and 40-odd over 500 split by responsibility into sibling files (re-exported), 119 long functions split, 25 internal parameter lists to options objects (planActing public); size baseline 176 → 18 entries (files over 1,000 7 → 0, over 500 96 → 49, functions over 100 lines 124 → 5, parameter lists over 5 38 → 12, nesting 7 → 1); the status bar's Pause / Stop flash after a run fixed | L | **done** (test-guard no decrease) |
 | L7.58 | Physical inversion (A-N11) | done | `@retake/compose`: the six package adapters, their default ports (`productPorts`) and the worker entry out of the engine; shells build from it; the engine loads no adapter package (`engine-load`, `engine-deps`, `compose-use`); baseline 63 → 63 |
+| L8.1 | Themes (field feedback 2, points 3, 4, 5, 8): a logo's kind (a wide logo drawn once, sized by its width), component params, a cursor and up to eight body files in a brand theme, variable fonts, `template_update` (a partial update of a theme made through MCP) | M | **done** (2026-11-15; first committed on its work branch with red tests, repaired by L8.1b before main; a real variable font and a real wide logo in a render left to the person) |
+| L8.1b | Themes (field feedback 2, points 6, 7): open-licence fonts by reference (`fontsource:<id>@<version>:<weight>`, `font_fetch` behind an approval, a font store in the workspace), a draft theme from a design-token file (`template_from_tokens`, `retake theme from-tokens`) | M | **done** (2026-11-16; no real fetch from the npm registry: the package layout is an assumption, MACOS-CHECKLIST §20) |
+| L8.2 | Sandboxes (field feedback 2, points 9, 28, 29): an outdated snapshot starts from a base taken before the seed, persona sessions after the accounts are put back, `sandbox_init` over MCP | M | **done** <!-- lead: confirm at merge --> |
+| L8.2b | A project's environments by tool (field feedback 2, point 1: `project_env_set` / `project_env_remove`, `retake env`), no loading state filmed after a client-side route change (point 27) | M | **done** <!-- lead: confirm at merge --> |
+| L8.3 | The app's native menus, the rest (BL-166): menu updates on the main thread only, the shell's own items following its state, one command table each side, Help › Keyboard Shortcuts, ⌘, on Set Up, File › Show Workspace in Finder, native context menus on the Productions posters | M | **done** (2026-11-15; the menus by hand: MACOS-CHECKLIST 14h) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1087,7 +1094,7 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L5.17 — Hardening before the first release (L)
 - **Goal:** what an agent asks for is shown in full and held to plain rules, a scenario opens only the sites it should,
   every browser keeps Chromium's sandbox and site isolation, and a release is built and signed from checked inputs only.
-- **Done (2026-11-05, in a worktree; pending the person's review of the pull request):** approvals and hooks — a job
+- **Done (2026-11-05, in a worktree; merged as pull request 5, in v0.2.0):** approvals and hooks — a job
   runs the scenario bytes it was submitted with; the approval form shows every hook in full, within 4,000 characters
   per hook and 16,000 per form; a hook an agent wrote sets no loader variable, and its shell commands are plain words
   joined by ` && ` with rules per word (no secret, rollbacks checked again on replay); an agent's prune asks the person
@@ -1394,15 +1401,54 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 - **Goal:** the product's adapters, their loaders and the worker entry live in @retake/compose; the shells build their engine from it; the engine loads no adapter package
 - **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.58)". @retake/compose (six package adapters, the loaders, worker-main, productPorts / bindProduct), the engine's /composition entry, bindProduct per process (one product, refused when another is bound), engine-load / engine-deps / compose-use / compose-shell / composition-entry; final audit A-N11 closed
 
+### L8.1 — Themes: a logo's kind, component params, variable fonts, a partial update (M; decided 2026-11-15)
+- **Goal:** a brand with a wordmark only is drawn once and sized by its width; a brand theme takes component params,
+  a cursor of its palette's tone and up to eight body files, a variable font serves a weight range, and a theme made
+  through MCP can be changed key by key (`docs/FIELD-FEEDBACK-2.md` points 3, 4, 5, 8).
+- **Done (2026-11-15):** see HANDOFF "State (after L8.1)". `logo_kind: mark | wordmark` (3:1 or wider by default),
+  the kit's `withLogo` / `BrandLockup`, the outro's `wordmark_width`; `components`, `cursor`, `logo_kind` in the brand
+  input; body files 4 → 8, `wght` ranges (file name, `fvar`, `{weight: "200 800"}`); `template_update`; a theme a
+  person made is no longer replaceable through MCP. Requirements R-FLD-40 – R-FLD-44, R-SEC-41.
+
+### L8.1b — Themes: open-licence fonts by reference, a draft from a design-token file (M; decided 2026-11-15)
+- **Goal:** an agent names an open-licence font instead of a file and the person approves one download; a design-token
+  file becomes a draft theme the person confirms (`docs/FIELD-FEEDBACK-2.md` points 6, 7).
+- **Done (2026-11-16):** see HANDOFF "State (after L8.1b)". `fontsource:` references, `font_fetch` /
+  `retake theme fetch-font` (pinned version, OFL-1.1 or Apache-2.0, integrity checked before the archive is read, latin
+  WOFF2 and the licence kept in `.retake/fonts/`), themes made offline from that store; `template_from_tokens` /
+  `retake theme from-tokens` (a list format and DTCG, a role proposal, nothing written). Requirements R-FLD-45 –
+  R-FLD-48, R-SEC-42.
+
+### L8.2 — Sandboxes: an outdated snapshot, sessions after a reset, `sandbox_init` over MCP (M; decided 2026-11-15) <!-- lead: confirm at merge -->
+- **Goal:** a reset after sandbox.yaml changed starts from a clean base instead of freezing a take's data into the
+  snapshot, personas signed out by accounts put back are signed in again (or said to be), and an agent can scaffold a
+  sandbox (`docs/FIELD-FEEDBACK-2.md` points 9, 28, 29).
+- **Done:** see HANDOFF "State (after L8.2)".
+
+### L8.2b — A project's environments by tool; no loading state filmed after a route change (M; decided 2026-11-15) <!-- lead: confirm at merge -->
+- **Goal:** environments added, changed and removed through MCP and `retake env` (lowering a production or read-only
+  mark stays a person's), and a step that changes the page client-side ends on the painted page, not its loading
+  skeleton (`docs/FIELD-FEEDBACK-2.md` points 1, 27).
+- **Done:** see HANDOFF "State (after L8.2b)".
+
+### L8.3 — The app's native menus, the rest (M; decided 2026-11-15)
+- **Goal:** what BL-166 left after the native menu review: no freeze from two quick menu keys, the shell's own items
+  (Check for Updates, the `retake` command) following what the shell and the server know, one command table on each
+  side compared item by item, the missing items, native context menus.
+- **Done (2026-11-15):** see HANDOFF "State (after L8.3)". Menu updates queued on the main thread; the page's
+  COMMANDS registry (every key cap derived from it) compared with menu.rs; Help › Keyboard Shortcuts, ⌘, on Set Up,
+  File › Show Workspace in Finder; context menus on the Productions posters behind a real secondary click.
+  Requirements R-DSK-05 – R-DSK-07 (R-DSK-03's gap); by hand: MACOS-CHECKLIST 14h.
+
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.
-- **Done (2026-11-10, branch `claude/arch-l6`; pending the person's review of the pull request):** see HANDOFF "State (after the architecture series)" and `docs/audit/target-architecture.md`. Import-rules ratchet 99 → 59 entries (R1 at 0), no import cycle. Open: T15's rest, T16.
+- **Done (2026-11-10, branch `claude/arch-l6`; pull request 8, merged on main 2026-11-15):** see HANDOFF "State (after the architecture series)" and `docs/audit/target-architecture.md`. Import-rules ratchet 99 → 59 entries (R1 at 0), no import cycle. Open: T15's rest, T16.
 
 ### L5.18 — Hardening before the first release, the rest (M)
 - **Goal:** the rest of the hardening decided on 2026-11-05, before the v0.2.0 tag: work an agent can shape runs no
   program of the workspace and gets only what it needs of the environment, and the local servers keep their secrets
   and their ports to themselves.
-- **Done (2026-11-09, in a worktree; pending the person's review of the pull request):** one flag (core
+- **Done (2026-11-09, in a worktree; merged as pull request 6, in v0.2.0):** one flag (core
   `useAgentPolicy`) on in the jobs worker and its job processes, the MCP server and the Studio server, off in the CLI.
   Under it a program a job starts — the capture browser (its executable, `$RETAKE_CHROMIUM` or the one Playwright picks
   for a channel), the render browser, ffmpeg / ffprobe, docker — may not be relative or inside the workspace and is
