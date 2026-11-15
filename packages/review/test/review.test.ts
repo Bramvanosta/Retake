@@ -34,14 +34,28 @@ const codes = (r: ReviewResult) => r.findings.map((f) => f.code);
 const of = (r: ReviewResult, code: string): Finding[] => r.findings.filter((f) => f.code === code);
 const review = (render: string, extra: Partial<Parameters<typeof reviewRender>[0]> = {}) => reviewRender({ policy: PERSON_POLICY, project: ws.project, render, registry: ws.registry, ...extra });
 
+const once = <T>(make: () => Promise<T>) => {
+  let p: Promise<T> | undefined;
+  return () => (p ??= make());
+};
+/** The clean render (`clean-v1`, scenario `clean`), made by the first case that needs it, in whatever order they run. */
+const cleanCase = once(async () => {
+  // L1.7: a run that records its environment gets the line in report.md (and report.json `environment`).
+  const timeline = scenesTimeline([19, 19, 21]);
+  timeline.environment = { name: 'local', access: 'read-write', clock: { at: '2026-11-02T10:24:00', epoch_ms: Date.UTC(2026, 10, 2, 10, 24) } };
+  await makeCase(ws, 'clean', timeline);
+});
+/** The clean render with a review in review/clean-v1/ (the cases that set it aside or keep it put it back as it was). */
+const cleanReviewed = once(async () => {
+  await cleanCase();
+  if (!existsSync(join(ws.project.dir, 'review', 'clean-v1', 'report.json'))) await review('clean-v1', { thumbnails: false });
+});
+
 describe.skipIf(!can)('reviewRender', () => {
   it(
     'a clean synthetic render: no error or warning, every artefact written',
     async () => {
-      // L1.7: a run that records its environment gets the line in report.md (and report.json `environment`).
-      const timeline = scenesTimeline([19, 19, 21]);
-      timeline.environment = { name: 'local', access: 'read-write', clock: { at: '2026-11-02T10:24:00', epoch_ms: Date.UTC(2026, 10, 2, 10, 24) } };
-      await makeCase(ws, 'clean', timeline);
+      await cleanCase();
       const r = await review('clean-v1');
       expect(r.environment).toEqual({ name: 'local', access: 'read-write', clock: { at: '2026-11-02T10:24:00' }, writes: { blocked: 0, mocked: 0, allowed: 0, passed: 0 } });
       expect(
@@ -125,6 +139,7 @@ describe.skipIf(!can)('reviewRender', () => {
   it(
     'base64 thumbnails: JPEG ≤ 1280 px (sheets + marker key frames by default, everything with "all")',
     async () => {
+      await cleanCase();
       const r = await review('clean-v1', { thumbnails: 'all' });
       expect(r.thumbnails.length).toBeGreaterThan(8);
       for (const t of r.thumbnails) {
@@ -372,6 +387,7 @@ describe.skipIf(!can)('reviewRender', () => {
   it(
     'a cancel stops the review (ffmpeg killed), leaves the previous review intact and no temporary folder',
     async () => {
+      await cleanReviewed();
       const dir = join(ws.project.dir, 'review', 'clean-v1');
       const before = await readFile(join(dir, 'report.json'), 'utf8');
       const ac = new AbortController();
@@ -400,6 +416,7 @@ describe.skipIf(!can)('reviewRender', () => {
   it(
     'recoverReviewDir: the previous review set aside by a dead process comes back; temporary folders of dead processes go, live ones stay',
     async () => {
+      await cleanReviewed();
       const reviews = join(ws.project.dir, 'review');
       const dir = join(reviews, 'clean-v1');
       const dead = spawnSync(process.execPath, ['-e', '0']).pid!;
@@ -423,6 +440,7 @@ describe.skipIf(!can)('reviewRender', () => {
   it(
     'finds renders by id, path or latest, and says when one is missing',
     async () => {
+      await cleanCase();
       const byPath = await review(join(ws.project.dir, 'renders', 'clean-v1.mp4'), { thumbnails: false, previous: false });
       expect(byPath.render.id).toBe('clean-v1');
       await expect(review('nope-v9')).rejects.toThrow(/render "nope-v9" not found/);
@@ -434,6 +452,7 @@ describe.skipIf(!can)('reviewRender', () => {
   it(
     "a record renamed by hand is reviewed; one whose id names no folder goes into review/<its file's name>, never review/ itself (L7.6b)",
     async () => {
+      await cleanReviewed();
       const reviews = join(ws.project.dir, 'review');
       const renders = join(ws.project.dir, 'renders');
       const record = JSON.parse(await readFile(join(renders, 'clean-v1.json'), 'utf8')) as Record<string, unknown>;

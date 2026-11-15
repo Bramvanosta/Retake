@@ -128,6 +128,8 @@ describe('discovery file', () => {
 
   it('refuses a file readable by others, a link, or a folder — never trusted, never replaced', async () => {
     const file = discoveryFile(ws);
+    // .retake/ as a claim makes it (this case writes the file by hand).
+    await mkdir(join(ws, '.retake'), { recursive: true });
     const r = await record(4106);
     await writeFile(file, JSON.stringify(r), { mode: 0o600 });
     await chmod(file, 0o644);

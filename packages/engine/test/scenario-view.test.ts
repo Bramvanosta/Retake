@@ -164,10 +164,16 @@ describe('binding a changed file (B4)', () => {
   });
 
   it('no snapshot in the run: bound by position, "cannot tell"', async () => {
-    await writeRun(projectDir, capture('20261019-110000-blocks', { snapshot: undefined, video: false }));
-    const v = await engine.scenarios.view(P, 'blocks', { run: '20261019-110000-blocks' });
-    expect(v.source).toMatchObject({ changed: null, binding: 'position', notice: 'cannot_tell' });
-    expect(bound(v.steps['two.1'])?.run_key).toBe('two.1');
+    // A run of `blocks` of its own, removed after: the other cases list blocks' runs exactly.
+    const id = '20261019-110000-blocks';
+    await writeRun(projectDir, capture(id, { snapshot: undefined, video: false }));
+    try {
+      const v = await engine.scenarios.view(P, 'blocks', { run: id });
+      expect(v.source).toMatchObject({ changed: null, binding: 'position', notice: 'cannot_tell' });
+      expect(bound(v.steps['two.1'])?.run_key).toBe('two.1');
+    } finally {
+      await rm(join(projectDir, 'runs', id), { recursive: true, force: true });
+    }
   });
 });
 

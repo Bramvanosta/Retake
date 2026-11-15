@@ -378,7 +378,9 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('the pipeline commands, held against fixtures/pipeline-cli.json', () => {
+// A chain on purpose, never shuffled: each case adds its results to the golden table (and its ports to the fakes) in
+// this order, and the last cases hold the whole table, in that order, against the fixture.
+describe('the pipeline commands, held against fixtures/pipeline-cli.json', { shuffle: false }, () => {
   it('render: the summary, --json with --review, an unknown run, a cancelled render', async () => {
     expect((await retake('render', 'render', 'demo', 'tour', '--concurrency', '2', '--no-music')).code).toBe(EXIT.ok);
     expect((await retake('render --json --review', 'render', 'demo', 'tour', '--json', '--review', '--vertical')).code).toBe(EXIT.ok);

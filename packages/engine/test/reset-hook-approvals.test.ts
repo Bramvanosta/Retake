@@ -10,6 +10,7 @@
  * what ran from its own start (`markers()`).
  */
 import { resolveSecretRef } from '@retake/core/io';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -144,8 +145,16 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
       ['reset', 1, 'clean', 'shell', 'a shell command (runs local code)'],
     ]);
     const hook = p.sandboxes!.sandbox.manifest.reset!.hooks![1] as never;
-    // With the files the hook names, as the sandbox reads them when it runs (reset-marker.txt, once a reset wrote it).
-    const { files } = await packageHookRunner().approval.files(hook, { projectDir: p.dir, baseDir: p.sandboxes!.sandbox.dir });
+    // With the files the hook names, as the sandbox reads them when it runs: its command's reset-marker.txt (relative to
+    // the sandbox folder), bound by the sha256 of its bytes once a reset wrote it — read here, not from the code under test.
+    const markerFile = join(dir, 'sandbox', 'reset-marker.txt');
+    const files: Record<string, string> = existsSync(markerFile)
+      ? {
+          'reset-marker.txt': createHash('sha256')
+            .update(await readFile(markerFile))
+            .digest('hex'),
+        }
+      : {};
     expect(items[1].fingerprint).toBe(hookFingerprint(hook, { phase: 'reset', index: 1, env: 'sandbox', files }));
     expect(items[1].lines.join('\n')).toContain(RESET);
   });

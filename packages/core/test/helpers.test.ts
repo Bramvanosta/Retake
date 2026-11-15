@@ -2,6 +2,7 @@
  * The small helpers written once (core base: errorMessage, decodeOrKeep, sleep; core io: realpathOr, realTarget,
  * processTree, pidExists, lstatOrNull, realFolderState), each with the rule its former copies held.
  */
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -41,20 +42,28 @@ describe('core base', () => {
 });
 
 describe('core io', () => {
-  it('realpathOr: the real path, else the fallback given', async () => {
+  // real/ and link/ → real/, made by the first case that needs them (the cases read them in any order).
+  const realAndLink = async () => {
+    if (existsSync(join(dir, 'link'))) return;
     await mkdir(join(dir, 'real'));
     await symlink(join(dir, 'real'), join(dir, 'link'));
+  };
+
+  it('realpathOr: the real path, else the fallback given', async () => {
+    await realAndLink();
     expect(realpathOr(join(dir, 'link'), 'x')).toBe(join(dir, 'real'));
     expect(realpathOr(join(dir, 'missing'), undefined)).toBeUndefined();
     expect(realpathOr(join(dir, 'missing'), 'as given')).toBe('as given');
   });
 
-  it('realTarget: the part that exists resolved, a missing tail kept under its real parent', () => {
+  it('realTarget: the part that exists resolved, a missing tail kept under its real parent', async () => {
+    await realAndLink();
     expect(realTarget(join(dir, 'link', 'a', 'b.txt'))).toBe(join(dir, 'real', 'a', 'b.txt'));
     expect(realTarget(join(dir, 'link'))).toBe(join(dir, 'real'));
   });
 
   it('lstatOrNull and realFolderState', async () => {
+    await realAndLink();
     await writeFile(join(dir, 'file'), 'x');
     expect(await lstatOrNull(join(dir, 'missing'))).toBeNull();
     expect(await lstatOrNull(join(dir, 'file', 'below'))).toBeNull(); // ENOTDIR

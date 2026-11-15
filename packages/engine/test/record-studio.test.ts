@@ -139,7 +139,7 @@ class HeldCheck extends MemoryCaptureRunner {
 
 /** The events the lab's real window recorded (redacted as written), for the in-memory windows to replay. */
 const labEvents = async (): Promise<RecordedEvent[]> =>
-  (await readFile(join(await recDir(lab.rec), 'events.jsonl'), 'utf8'))
+  (await readFile(join(await recDir((await labOnce()).sub.rec_id), 'events.jsonl'), 'utf8'))
     .split('\n')
     .filter(Boolean)
     .map((l) => JSON.parse(l) as RecordedEvent);
@@ -275,66 +275,94 @@ afterAll(async () => {
 let lab: { rec: string; job: string };
 
 /**
+ * The lab: a Studio recording of /record-lab through a real window (typing, a blur, a caption at the end, a pick, a
+ * hold, Stop), recorded once by the first case that needs it — the lab case itself, or an in-memory case run alone
+ * (`-t`), whose window replays the lab's events.
+ */
+const labOnce = (() => {
+  let made: ReturnType<typeof recordLab> | undefined;
+  return () => (made ??= recordLab());
+})();
+
+type Alternative = NonNullable<RecordView['untrusted']>['alternatives'][number];
+
+/** The lab recorded, and what was seen on the way (the first case holds it to what it must be). */
+async function recordLab() {
+  const sub = keep(await ui.record.submit({ project: PROJECT, page: 'shop', path: '/record-lab', scenario: 'studio-lab' }));
+  lab = { rec: sub.rec_id, job: sub.job.id };
+  const queued = keep(await ui.record.view(PROJECT, sub.rec_id, { job: sub.job.id }));
+
+  let beforeBlur = -1;
+  let noteSeq = -1;
+  let caption: { rev: number; insert_id?: string } | undefined;
+  let live: RecordView | undefined;
+  let pick: Alternative | undefined;
+  let staleChoice: string | undefined;
+  let choiceRev = -1;
+  let holdRev = -1;
+  let stopped: { action: string } | undefined;
+  await work(async (page) => {
+    await page.getByRole('heading', { name: 'Recording lab' }).waitFor();
+    await page.locator('#lab-password').click();
+    await page.keyboard.type(SENTINEL);
+    await page.getByLabel('Note').click();
+    await page.keyboard.type('Two');
+    // The screen polls: the draft so far, while the window is open.
+    live = keep(
+      await until(async () => {
+        const v = await ui.record.view(PROJECT, sub.rec_id);
+        return v.state === 'recording' && v.counts.actions >= 3 ? v : null;
+      }, 'the live draft'),
+    );
+    beforeBlur = Math.max(...(await fileEvents(sub.rec_id)).map((e) => e.seq));
+    // Switching to the Studio blurs the window: the typing is committed now, after the screen's last poll.
+    await page.getByLabel('Note').blur();
+    noteSeq = (await until(async () => (await fileEvents(sub.rec_id)).find((e) => e.kind === 'type' && e.el?.label === 'Note'), 'the committed typing')).seq;
+    caption = keep(await ui.record.annotate(PROJECT, sub.rec_id, { rev: 0, change: { op: 'insert', at: 'end', insert: { kind: 'caption', text: 'Add a note' } } }));
+    await page.getByRole('button', { name: 'Forgery target' }).click();
+    pick = keep(
+      await until(async () => {
+        const v = await ui.record.view(PROJECT, sub.rec_id);
+        return v.untrusted?.alternatives.find((a) => a.options.some((o) => JSON.stringify(o.target).includes('#lab-forge-target')));
+      }, "the button's alternatives"),
+    );
+    const css = pick.options.find((o) => JSON.stringify(o.target).includes('#lab-forge-target'))!;
+    staleChoice = (await refusal(ui.record.annotate(PROJECT, sub.rec_id, { rev: 0, change: { op: 'choose', seq: pick.seq, index: css.index } }))).code;
+    choiceRev = keep(await ui.record.annotate(PROJECT, sub.rec_id, { rev: 1, change: { op: 'choose', seq: pick.seq, index: css.index } })).rev;
+    holdRev = keep(await ui.record.annotate(PROJECT, sub.rec_id, { rev: 2, change: { op: 'insert', at: 'end', insert: { kind: 'hold', seconds: 2 } } })).rev;
+    await page.getByLabel('Roast level').focus();
+    await page.keyboard.press('d');
+    await page.waitForTimeout(300);
+    // Stop and keep: the window closes as if the person closed it.
+    stopped = keep(await ui.record.stop(PROJECT, sub.rec_id));
+    await page.waitForEvent('close', { timeout: 10_000 }).catch(() => undefined);
+  });
+  return { sub, queued, live, beforeBlur, noteSeq, caption, pick, staleChoice, choiceRev, holdRev, stopped };
+}
+
+/**
  * The cases build on each other on one workspace: the lab recorded by the first is what the later ones copy, edit and
- * save, and one window at a time holds across them. They run in their order on purpose, never shuffled; one case run
- * alone (`-t`) has no lab.
+ * save, and one window at a time holds across them. They run in their order on purpose, never shuffled. The in-memory
+ * cases replay the lab's events through `labOnce()`, so each of them also runs alone (`-t`); the others read the lab
+ * the first case left.
  */
 describe('the Studio side of a recording, case after case', { shuffle: false }, () => {
   describe('a Studio recording: live view, annotations, Stop, Save', () => {
     it('records the lab: meta.json, no auto-save, a caption at the end after a Studio visit, a hold, a pick, Stop runs the check', async () => {
-      const sub = keep(await ui.record.submit({ project: PROJECT, page: 'shop', path: '/record-lab', scenario: 'studio-lab' }));
-      lab = { rec: sub.rec_id, job: sub.job.id };
+      const { sub, queued, live, beforeBlur, noteSeq, caption, pick, staleChoice, choiceRev, holdRev, stopped } = await labOnce();
       expect(sub.job.input).toMatchObject({ kind: 'record', submitted_by: 'ui', check: true });
-      const queued = keep(await ui.record.view(PROJECT, sub.rec_id, { job: sub.job.id }));
       expect(queued).toMatchObject({ state: 'queued', started_by: 'ui', can: { annotate: false, save: false, discard: true, stop: true }, untrusted: null });
-
-      let beforeBlur = -1;
-      let noteSeq = -1;
-      let caption: { rev: number; insert_id?: string } | undefined;
-      await work(async (page) => {
-        await page.getByRole('heading', { name: 'Recording lab' }).waitFor();
-        await page.locator('#lab-password').click();
-        await page.keyboard.type(SENTINEL);
-        await page.getByLabel('Note').click();
-        await page.keyboard.type('Two');
-        // The screen polls: the draft so far, while the window is open.
-        const v1 = keep(
-          await until(async () => {
-            const v = await ui.record.view(PROJECT, sub.rec_id);
-            return v.state === 'recording' && v.counts.actions >= 3 ? v : null;
-          }, 'the live draft'),
-        );
-        expect(v1.can).toMatchObject({ annotate: true, save: false, discard: true, stop: true });
-        expect(v1.untrusted?.yaml).toContain('{{vars.password_1}}');
-        beforeBlur = Math.max(...(await fileEvents(sub.rec_id)).map((e) => e.seq));
-        // Switching to the Studio blurs the window: the typing is committed now, after the screen's last poll.
-        await page.getByLabel('Note').blur();
-        noteSeq = (await until(async () => (await fileEvents(sub.rec_id)).find((e) => e.kind === 'type' && e.el?.label === 'Note'), 'the committed typing')).seq;
-        expect(noteSeq).toBeGreaterThan(beforeBlur);
-        caption = keep(await ui.record.annotate(PROJECT, sub.rec_id, { rev: 0, change: { op: 'insert', at: 'end', insert: { kind: 'caption', text: 'Add a note' } } }));
-        expect(caption.rev).toBe(1);
-        await page.getByRole('button', { name: 'Forgery target' }).click();
-        const pick = keep(
-          await until(async () => {
-            const v = await ui.record.view(PROJECT, sub.rec_id);
-            return v.untrusted?.alternatives.find((a) => a.options.some((o) => JSON.stringify(o.target).includes('#lab-forge-target')));
-          }, "the button's alternatives"),
-        );
-        expect(pick.chosen).toBe(0);
-        expect(pick.options[0].index).toBe(0);
-        const css = pick.options.find((o) => JSON.stringify(o.target).includes('#lab-forge-target'))!;
-        expect((await refusal(ui.record.annotate(PROJECT, sub.rec_id, { rev: 0, change: { op: 'choose', seq: pick.seq, index: css.index } }))).code).toBe('conflict');
-        expect(keep(await ui.record.annotate(PROJECT, sub.rec_id, { rev: 1, change: { op: 'choose', seq: pick.seq, index: css.index } })).rev).toBe(2);
-        expect(keep(await ui.record.annotate(PROJECT, sub.rec_id, { rev: 2, change: { op: 'insert', at: 'end', insert: { kind: 'hold', seconds: 2 } } })).rev).toBe(3);
-        await page.getByLabel('Roast level').focus();
-        await page.keyboard.press('d');
-        await page.waitForTimeout(300);
-        // Stop and keep: the window closes as if the person closed it.
-        const stopped = keep(await ui.record.stop(PROJECT, sub.rec_id));
-        expect(stopped.action).toBe('stopping');
-        await page.waitForEvent('close', { timeout: 10_000 }).catch(() => undefined);
-      });
-
+      // While the window was open: the live draft, the typing committed by the blur, the caption, the pick, Stop.
+      expect(live!.can).toMatchObject({ annotate: true, save: false, discard: true, stop: true });
+      expect(live!.untrusted?.yaml).toContain('{{vars.password_1}}');
+      expect(noteSeq).toBeGreaterThan(beforeBlur);
+      expect(caption!.rev).toBe(1);
+      expect(pick!.chosen).toBe(0);
+      expect(pick!.options[0].index).toBe(0);
+      expect(staleChoice).toBe('conflict');
+      expect(choiceRev).toBe(2);
+      expect(holdRev).toBe(3);
+      expect(stopped!.action).toBe('stopping');
       const job = await ui.jobs.get(sub.job.id);
       expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
       const r = job.result as RecordJobResult;
@@ -456,8 +484,10 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
    */
   describe('a recording Claude started: unchanged, read-only from the Studio (in memory)', () => {
     it('auto-saved by its job; the view rebuilds the same draft; annotate / save / discard refused; the ops refused to MCP', async () => {
+      // The lab's events first (recorded now when this case runs alone): one window at a time.
+      const events = await labEvents();
       const sub = await mcp.record.submit({ project: PROJECT, page: 'shop', scenario: 'by-claude', check: false });
-      const capture = new MemoryCaptureRunner({ record: memoryRecord({ events: await labEvents() }) });
+      const capture = new MemoryCaptureRunner({ record: memoryRecord({ events }) });
       await workInMemory(capture);
       // The window was the in-memory one, never checked (check: false): one recording, no replay.
       expect(capture.calls.filter((c) => c.member === 'run')).toEqual([]);
@@ -490,6 +520,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
 
   describe('discard, cancel and one window at a time (in memory): B16 / B5 / B9', () => {
     it('B16 / B5 while queued; Discard during the check removes the folder once the job is over (B9)', async () => {
+      const events = await labEvents();
       const sub = keep(await ui.record.submit({ project: PROJECT, page: 'shop', scenario: 'to-discard' }));
       // B16: Claude's job_cancel never discards the person's open recording.
       const b16 = await refusal(mcp.jobs.cancel(sub.job.id));
@@ -507,7 +538,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
         discarded = keep(await ui.record.discard(PROJECT, sub.rec_id));
       })();
       // The check replay (the in-memory runner's run) holds until the Discard is asked: the Discard lands during the check.
-      const capture = new HeldCheck(() => until(async () => discarded !== undefined, 'the discard', 60_000).then(() => undefined), { record: memoryRecord({ events: await labEvents() }) });
+      const capture = new HeldCheck(() => until(async () => discarded !== undefined, 'the discard', 60_000).then(() => undefined), { record: memoryRecord({ events }) });
       await workInMemory(capture);
       await watch;
       expect(capture.calls.filter((c) => c.member === 'run')).toHaveLength(1);
@@ -592,9 +623,9 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
 
   describe('discard, cancel and one window at a time (in memory): B-M5', () => {
     it('B-M5: Discard while the window is open ends "discarded" (not "cancelled")', async () => {
+      const events = (await labEvents()).slice(0, 3);
       const sub = keep(await ui.record.submit({ project: PROJECT, page: 'shop', path: '/record-lab' }));
       let d: unknown;
-      const events = (await labEvents()).slice(0, 3);
       let wasOpen = false;
       await workInMemory(
         new MemoryCaptureRunner({

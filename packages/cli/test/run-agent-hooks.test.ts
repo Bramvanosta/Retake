@@ -133,6 +133,7 @@ describe('retake run: the shell hooks of a scenario an agent wrote', () => {
 
   it('without a terminal and without --yes: refused in one sentence naming the hooks and --yes; nothing runs', async () => {
     const before = (await historyLines()).length;
+    const runsBefore = await readdir(join(projectDir, 'runs')).catch(() => [] as string[]);
     const r = await retake(['run', 'demo', 'agent']);
     expect(r.code).toBe(EXIT.failure);
     expect(fakes.runs).toHaveLength(0);
@@ -143,8 +144,8 @@ describe('retake run: the shell hooks of a scenario an agent wrote', () => {
     const refusal = r.err.split('\n').find((l) => l.includes('refused:'));
     expect(refusal).toBe('✗ refused: the shell hooks of scenario agent (setup 1 (seed), teardown 1), last written by an agent, run only once a person says yes — answer in a terminal, or pass --yes');
     expect((await historyLines()).length).toBe(before);
-    // The run id reserved for the listing is given back: no run folder is left.
-    expect(await readdir(join(projectDir, 'runs')).catch(() => [])).toEqual([]);
+    // The run id reserved for the listing is given back: no run folder is left (none beside the other cases' runs).
+    expect(await readdir(join(projectDir, 'runs')).catch(() => [] as string[])).toEqual(runsBefore);
   });
 
   it('input that is not a terminal is never read as an answer (a piped "y" does not count)', async () => {
@@ -311,6 +312,8 @@ describe('retake run: the shell hooks of a scenario an agent wrote', () => {
 
   it('from another workspace, the project given as a folder: the project’s own record still decides', async () => {
     const elsewhere = await mkdtemp(join(tmpdir(), 'retake-run-agent-hooks-elsewhere-'));
+    // No marker left by a case that ran the hook: what this case finds after is its own doing.
+    await rm(join(projectDir, 'seeded.txt'), { force: true });
     try {
       const io = memoryIo();
       const code = await main(['node', 'retake', '--root', elsewhere, '--no-color', 'hooks', 'run', projectDir, 'agent:setup'], io);

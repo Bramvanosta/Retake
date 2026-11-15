@@ -159,10 +159,14 @@ describe('retake run: the sql hooks of a scenario an agent wrote', () => {
   });
 
   it('hooks trust lists the sql hooks and, on yes, makes them the person’s: the next run does not ask', async () => {
-    const t = await retake(['hooks', 'trust', 'demo', 'agent'], ['y']);
+    // A scenario of this case's own, written by the agent as `agent` is: the trust makes it the person's for good, and
+    // the other cases hold `agent` to be the agent's.
+    await mcp.scenarios.save('demo', 'trusted', SQL('trusted'));
+    expect((await retake(['run', 'demo', 'trusted'])).code).toBe(EXIT.failure);
+    const t = await retake(['hooks', 'trust', 'demo', 'trusted'], ['y']);
     expect(t.questions).toEqual(['Mark these 2 sql hooks as yours, as listed (runs no longer ask until they change)?']);
     expect(t.code).toBe(EXIT.ok);
-    const r = await retake(['run', 'demo', 'agent']);
+    const r = await retake(['run', 'demo', 'trusted']);
     expect(r.code).toBe(EXIT.ok);
     expect(r.questions).toEqual([]);
     expect(fakes.runs).toHaveLength(1);

@@ -1,8 +1,8 @@
 /**
  * L5.14b measured acceptance of captures first (heavy: gated by RETAKE_TEST_CAPTURES_FIRST=1, run once by hand with the
  * machine otherwise quiet) — from the Studio's own submits (`scenario_run`, `scenario_render` over its HTTP API) with
- * the real worker it starts, on a copy of projects/northfield-fixture whose shop is the fixture product on ports
- * 4941–4942. The scenario is `quote` without the two hooks the Studio cannot approve (the console tab's js hook and a
+ * the real worker it starts, on a copy of projects/northfield-fixture whose shop is the fixture product on free ports
+ * (port 0: two runs at once, or a stray listener, never collide). The scenario is `quote` without the two hooks the Studio cannot approve (the console tab's js hook and a
  * DELETE rollback): the same 47 s of filmed motion.
  * - 3 takes alone (their spread), then a render of the first alone, unpaused: the reference frames;
  * - 3 times: a render queued and running, then a take submitted — the take starts at once (the render does not hold
@@ -210,7 +210,7 @@ const rate = (a: { t: number; f: number }, b: { t: number; f: number }) => (b.f 
 describe.skipIf(!ENABLED)('captures first, measured from the Studio (RETAKE_TEST_CAPTURES_FIRST=1)', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
-    fixture = await mod.startFixture({ consolePort: 4941, shopPort: 4942, host: '127.0.0.1' });
+    fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'retake-captures-first-acceptance-'));
     retakeHome.use(join(root, '.home'));
     // The shipped default (the suite pins the software path, vitest.setup.ts): the Studio's worker inherits it.

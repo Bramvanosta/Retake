@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { appendFile, chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, stat, symlink, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
 import type { OpenedWorkspace } from '../src/index.js';
 import { readRenders } from '../src/index-db/index-db.js';
@@ -46,7 +46,8 @@ const retakeHome = scratchHome();
 
 const line = (o: Record<string, unknown>) => `${JSON.stringify({ v: 1, submitted_by: 'cli', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: 0 }, ...o })}\n`;
 
-beforeAll(async () => {
+// Each case its own workspace (the cases edit its README, runs, history and index file).
+beforeEach(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-index-'));
   retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
@@ -74,7 +75,7 @@ beforeAll(async () => {
   cfg = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs };
 });
 
-afterAll(async () => {
+afterEach(async () => {
   retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
@@ -130,6 +131,8 @@ describe('the workspace index', () => {
   });
 
   it('reconciles what changed only: a README edit, a new run, a removed project', async () => {
+    // An index built and closed first: the one opened next is reused.
+    (await fresh()).close();
     const ix = await fresh();
     try {
       expect(ix.rebuilt).toBeUndefined();
@@ -241,10 +244,16 @@ describe('the workspace index', () => {
     ix = await fresh();
     expect(ix.rebuilt).toBe('corrupt');
     await ix.reconcile();
-    expect(ix.search('blend').map((h) => h.ref)).toEqual([P]);
+    expect(ix.search('roast').map((h) => h.ref)).toEqual([P]);
     ix.close();
     // A damaged page that opens and reads (quick_check lists the damage instead of throwing): corrupt.
-    await writeFile(historyFile(ws), Array.from({ length: 400 }, (_, n) => line({ at: `2026-10-19T10:00:${String(n % 60).padStart(2, '0')}.000Z`, kind: 'run', project: P, job: `j${n}` })).join(''));
+    // A history of 400 lines that replaces the one the index has read (another file renamed over it: read again from
+    // its start, as an appended file would not be).
+    await writeFile(
+      `${historyFile(ws)}.new`,
+      Array.from({ length: 400 }, (_, n) => line({ at: `2026-10-19T10:00:${String(n % 60).padStart(2, '0')}.000Z`, kind: 'run', project: P, job: `j${n}` })).join(''),
+    );
+    await rename(`${historyFile(ws)}.new`, historyFile(ws));
     ix = await fresh();
     await ix.reconcile();
     expect(ix.counts().history).toBe(400);
@@ -503,6 +512,7 @@ describe('the workspace index', () => {
     expect(ftsQuery('say "hi"')).toBe('"say"* "hi"*');
     expect(ftsQuery('  ')).toBeNull();
     expect(ftsQuery('a"b')).toBe('"a"* "b"*');
+    await writeFile(join(project(), 'README.md'), '# Northfield\n\nNow about tea blenders.\n');
     const ix = await fresh();
     try {
       await ix.reconcile();

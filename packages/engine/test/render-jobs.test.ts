@@ -6,10 +6,10 @@
  * that cannot be written leaves no lock; the history counts what was rendered. Needs ffmpeg and a headless shell.
  */
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { FileJobQueue, createEngine, historyFile, jobsDir, runWorker } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { synthTimeline } from '@retake/test-support/timeline';
@@ -23,6 +23,8 @@ const LONG = 400_000;
 const SCENARIO = 'Synth_Up';
 const RUN = '20260101-120000-synth-up'; // run ids carry the scenario as a lower-case slug
 
+let home: string;
+let colourCapture: string;
 let root: string;
 let renders: string;
 let timelineFile: string;
@@ -37,10 +39,45 @@ async function rendersFiles(): Promise<string[]> {
   return (await readdir(renders).catch(() => [] as string[])).sort();
 }
 
+/** A render of the scenario already in renders/ (its record and its video), as an earlier render leaves them. */
+async function renderedBefore(id: string): Promise<void> {
+  await mkdir(renders, { recursive: true });
+  await writeFile(
+    join(renders, `${id}.json`),
+    JSON.stringify({
+      version: 1,
+      id,
+      project: 'demo',
+      scenario: SCENARIO,
+      run_id: RUN,
+      status: 'succeeded',
+      template: 'editorial',
+      variant: 'landscape',
+      created_at: '2026-01-01T12:10:00.000Z',
+      plan: {},
+    }),
+  );
+  await writeFile(join(renders, `${id}.mp4`), Buffer.alloc(1000));
+}
+
 beforeAll(async () => {
   if (!canRender) return;
+  home = await mkdtemp(join(tmpdir(), 'studio-render-jobs-home-'));
+  retakeHome.use(join(home, '.home'));
+  // The synthetic capture, drawn once; each case's workspace gets a copy.
+  colourCapture = join(home, 'capture.mp4');
+  makeColourCapture(colourCapture);
+}, LONG);
+
+afterAll(async () => {
+  retakeHome.restore();
+  if (home) await rm(home, { recursive: true, force: true });
+});
+
+// Each case its own workspace: the render ids, the locks, the queue and the history of one case are never another's.
+beforeEach(async () => {
+  if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'studio-render-jobs-'));
-  retakeHome.use(join(root, '.home'));
   // L5.15: the workspace's render settings reach the job's render (the job process opens the workspace).
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\nrender:\n  concurrency: 2\n`);
   const dir = join(root, 'projects', 'demo');
@@ -65,7 +102,7 @@ beforeAll(async () => {
   await writeFile(timelineFile, JSON.stringify(t, null, 2));
   // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
   await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: RUN, scenario: SCENARIO, project: 'demo' })));
-  makeColourCapture(join(runDir, 'capture.mp4'));
+  await copyFile(colourCapture, join(runDir, 'capture.mp4'));
   // The renders share the repository's bundle cache (no rebundle per test file).
   await linkSharedCache(root);
   renders = join(dir, 'renders');
@@ -73,8 +110,7 @@ beforeAll(async () => {
   queue = new FileJobQueue(root);
 }, LONG);
 
-afterAll(async () => {
-  retakeHome.restore();
+afterEach(async () => {
   if (root) {
     await chmod(jobsDir(root), 0o755).catch(() => undefined);
     await rm(root, { recursive: true, force: true });
@@ -126,6 +162,7 @@ describe.skipIf(!canRender)('render jobs', () => {
   it(
     'a failed render releases its id: the next render reuses it, render_status shows the newest job, the old job stays failed',
     async () => {
+      await renderedBefore(`${SCENARIO}-v1`);
       const first = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
       expect(first.render_id).toBe(`${SCENARIO}-v2`);
       const original = await readFile(timelineFile, 'utf8');
@@ -212,6 +249,8 @@ describe.skipIf(!canRender)('render jobs', () => {
   });
 
   it('a job that cannot be queued releases the id it reserved', async () => {
+    await renderedBefore(`${SCENARIO}-v1`);
+    await mkdir(jobsDir(root), { recursive: true });
     await chmod(jobsDir(root), 0o500);
     try {
       await expect(engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } })).rejects.toThrow();
@@ -224,9 +263,15 @@ describe.skipIf(!canRender)('render jobs', () => {
   });
 
   it('job_list lines and jobs of other kinds are unaffected: render jobs carry no approvals', async () => {
+    // Render jobs of this case's own: four submitted, listed, then cancelled before any worker starts them.
+    const subs = [];
+    for (let i = 0; i < 4; i++) subs.push(await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } }));
     const jobs: JobRecord[] = await engine.jobs.list({ project: 'demo', kinds: ['render'] });
     expect(jobs.length).toBeGreaterThan(3);
+    expect(jobs.map((j) => j.id).sort()).toEqual(subs.map((s) => s.job.id).sort());
     for (const j of jobs) expect(j.input).not.toHaveProperty('approvals');
+    for (const s of subs) await engine.jobs.cancel(s.job.id);
+    for (const _ of subs) await work();
   });
 
   it('plan_preview and submit say whether the filmed part changed since the run (L3.8, L5.5; .yml too); unknown without both files', async () => {

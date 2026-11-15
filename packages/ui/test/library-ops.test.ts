@@ -19,7 +19,7 @@
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
 import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, editorRenderer, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker, withPreviewBackend } from '@retake/engine';
 import type { FreeBytes } from '@retake/engine';
@@ -124,11 +124,15 @@ describe('library_images', () => {
   it('cached posters and loops by key (magic-checked); ⚑ committed posters of built-ins only (B15); the largest committed poster fits (B6)', async () => {
     const v = (await viewOf()).data;
     const m = item(v, 'acme/marked');
+    const other = item(v, 'studio/card-title');
+    // The entries seeded here go after the case: the view's case reads acme/marked's previews as missing.
+    onTestFinished(async () => {
+      for (const key of [m.poster.key, m.loop.key, other.poster.key]) await rm(join(libraryCacheDir({ root: ws }), key), { recursive: true, force: true });
+    });
     const png = await readFile(join(LIBRARY_DIR, 'studio', 'card-title', 'preview.png'));
     await seed(m.poster.key, 'poster', 'acme/marked', png);
     await seed(m.loop.key, 'loop', 'acme/marked', GIF);
     // A planted entry: a GIF under a poster key.
-    const other = item(v, 'studio/card-title');
     await seed(other.poster.key, 'poster', 'studio/card-title', GIF);
     const { data: d, body } = await ok<LibraryImagesAnswer>('library_images', {
       project: P,
@@ -164,6 +168,9 @@ describe('library_images', () => {
 
 describe('library_render', () => {
   it('⚑ queues at most 12 components; keys already queued are skipped and nothing left queues no job (C1); the view says queued', async () => {
+    // Nothing else queued (another case's jobs cancelled), and the preview jobs there before this case set aside.
+    for (const j of await studio.engine.jobs.list({ project: P, kinds: ['preview'], states: ['queued'] })) await studio.engine.jobs.cancel(j.id);
+    const before = new Set((await studio.engine.jobs.list({ project: P, kinds: ['preview'] })).map((j) => j.id));
     const v = (await viewOf()).data;
     const a = item(v, 'studio/card-title');
     const b = item(v, 'studio/intro-stack');
@@ -190,8 +197,9 @@ describe('library_render', () => {
     expect(item(after, b.component).poster.queued).toBe(true);
     expect(item(after, b.component).loop.queued).toBeUndefined();
     expect(after.queued).toBe(2);
-    const jobs = await studio.engine.jobs.list({ project: P, kinds: ['preview'] });
+    const jobs = (await studio.engine.jobs.list({ project: P, kinds: ['preview'] })).filter((j) => !before.has(j.id));
     expect(jobs).toHaveLength(2);
+    expect(jobs.map((j) => j.id).sort()).toEqual([first.job!.id, mixed.job!.id].sort());
   });
 
   it('pinned: 13 components, no key, a component twice → refused before anything is queued', async () => {

@@ -7,7 +7,7 @@
  * when listed; no form or a decline deletes nothing.
  */
 import { diskOutputs } from '../src/index.js';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readdir, rm, symlink, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -53,7 +53,8 @@ async function render(id: string, runId: string, status: 'succeeded' | 'failed',
   if (status === 'succeeded') await writeFile(join(dir, 'renders', `${id}.mp4`), Buffer.alloc(5000));
 }
 
-beforeAll(async () => {
+// The project of the first describe, made again for each of its cases: the dry run and the deletion each start from it.
+async function makeProject(): Promise<void> {
   dir = await mkdtemp(join(tmpdir(), 'ds-prune-'));
   project = { slug: 'p', dir, root: dir, config: { name: 'P', environments: {} }, readme: null, scenarios: [], file: join(dir, 'project.yaml') } as unknown as LoadedProject;
   await mkdir(join(dir, 'renders'), { recursive: true });
@@ -95,13 +96,14 @@ beforeAll(async () => {
   };
   await mkdir(join(dir, 'comments', 'catalogue'), { recursive: true });
   await writeFile(join(dir, 'comments', 'catalogue', `${thread.id}.json`), JSON.stringify(thread));
-});
-
-afterAll(async () => {
-  if (dir) await rm(dir, { recursive: true, force: true });
-});
+}
 
 describe('retake prune / project_prune (engine pruneProject)', () => {
+  beforeEach(makeProject);
+  afterEach(async () => {
+    if (dir) await rm(dir, { recursive: true, force: true });
+  });
+
   it('a dry run lists what goes and why, how much it frees, and deletes nothing', async () => {
     const busy = (id: string) => id === '20261020-150000-catalogue';
     const r = await pruneProject(diskOutputs, project, { keep_renders: 2, busy });

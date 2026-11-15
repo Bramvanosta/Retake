@@ -77,6 +77,14 @@ afterAll(async () => {
 });
 
 describe.skipIf(!can)('review jobs', () => {
+  /** quote-v1 reviewed by a job, by the first case that needs it (the first case reviews it itself). */
+  const reviewed = async () => {
+    if (existsSync(join(ws.project.dir, 'review', 'quote-v1', 'report.json'))) return;
+    const sub = await engine.reviews.submit({ project: 'demo', render_id: 'quote-v1' });
+    expect(await work()).toBe(0);
+    expect((await engine.jobs.get(sub.job.id)).state).toBe('succeeded');
+  };
+
   it(
     'review "latest" resolves the id at submit; the worker writes review/<id>/; job.json carries no image; the history counts no render',
     async () => {
@@ -103,6 +111,7 @@ describe.skipIf(!can)('review jobs', () => {
   it(
     'review_get: findings without messages (those are untrusted), files and images rebuilt from the review folder',
     async () => {
+      await reviewed();
       const v = await engine.reviews.get('demo', 'quote-v1');
       const dir = join(ws.project.dir, 'review', 'quote-v1');
       expect(v).toMatchObject({ status: 'succeeded', finished: true, dir, fps: 1 });
@@ -275,6 +284,13 @@ describe('a review job on the in-memory reviewer: the engine around it (L7.11)',
   afterAll(async () => {
     await mws?.cleanup();
   });
+  /** long-v1 reviewed by a job, by the first case that needs it (the cancel case reviews it itself first). */
+  const reviewed = async () => {
+    if (existsSync(join(mws.project.dir, 'review', 'long-v1', 'report.json'))) return;
+    const sub = await mengine.reviews.submit({ project: 'demo', render_id: 'long-v1', fps: 2 });
+    await mwork();
+    expect((await mengine.jobs.get(sub.job.id)).state).toBe('succeeded');
+  };
 
   it(
     'a cancel mid-review: cancelled, the previous review intact, no temporary folder',
@@ -307,6 +323,7 @@ describe('a review job on the in-memory reviewer: the engine around it (L7.11)',
   it(
     "a worker that died mid-review or mid inline review: the cleanups put the review folder back with the worker's reviewer",
     async () => {
+      await reviewed();
       const ows = await openWorkspace({ root: mws.root, agent: true, reads: diskWorkspaceReads, outputs: diskOutputs });
       const dir = join(mws.project.dir, 'review', 'long-v1');
       const report = await readFile(join(dir, 'report.json'), 'utf8');

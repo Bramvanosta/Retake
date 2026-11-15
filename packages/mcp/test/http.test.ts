@@ -99,6 +99,8 @@ afterAll(async () => {
 
 describe('MCP over HTTP: the same server as stdio', () => {
   it('lists exactly the tools stdio lists (names, schemas, annotations) with the same instructions', async () => {
+    // Room under the cap of 3: the sessions another case left open are closed first, as the other cases do.
+    await closeAll();
     const { client } = await connect();
     const http = (await client.listTools()).tools;
     expect(http).toHaveLength(TOOLS.length);
@@ -322,6 +324,7 @@ describe('MCP over HTTP: the gate, each check with the valid token and a valid i
   });
 
   it('Host 421, token 401, route 404, OPTIONS 405, content type 415, size 413 — and the same request passes once corrected', async () => {
+    await closeAll();
     const auth = { authorization: `Bearer ${token}`, ...MCP_ACCEPT };
     const sessions = server.sessions;
     const cases: Array<[Record<string, string>, string, number]> = [

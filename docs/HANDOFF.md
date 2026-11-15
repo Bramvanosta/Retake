@@ -75,6 +75,100 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.53b)
+- **L7.53b done (2026-11-15; branch `claude/arch-l7`)** — a weekly shuffled run of the CI tier, the order-dependent
+  files L7.53 left, and 10 files that only a shuffled CI-tier run found, now pass in any order; record-studio's
+  in-memory cases run alone.
+  - Code: tests and one workflow; no production code, no new dependency. New file: `.github/workflows/shuffled.yml`
+    (no new test file). `scripts/test-ci.mjs` needed no change: it already hands what follows `--` to vitest. Ratchet
+    105 and lint 456: none new, none stale.
+  - The weekly run, `.github/workflows/shuffled.yml`:
+    - Trigger: `schedule` only, `17 4 * * 1` (Mondays 04:17 UTC). Like every schedule, it runs main's code.
+    - One job, `shuffled`, on macos-15 with a 45 min timeout. It has a read-only token and no secret, environment
+      or cache; it pushes, publishes and merges nothing.
+    - Its steps are those of ci.yml's `checks` job up to the build, the same ones: checkout (persist-credentials
+      false), the pinned Node.js, pnpm, `pnpm install --frozen-lockfile`, `pnpm build`.
+    - Then it runs `SEED=$(date -u +%Y%m%d)`, prints the seed and how to replay it, and runs
+      `pnpm test:ci -- --sequence.shuffle --sequence.seed="$SEED"`. That shuffles the order of the files and of the
+      cases within each file; `{ shuffle: false }` describes keep their order.
+    - ci-workflow.test holds all of this in one new case: the trigger, the permissions, no secret, push or publish,
+      the pins, the setup equal to checks', and the exact run lines.
+  - Order-dependent files fixed. Each now passes alone in the default order and shuffled with at least two seeds
+    (most with 7, 11, 3 and 5; the new ones also with 20261115):
+    - scenario-view: the no-snapshot case removes the run it adds.
+    - prune: the first describe's project is made again for each case.
+    - index-db: a workspace per case. In the reuse case, an index is built and closed first, so the next open is
+      reused. The FTS case writes its own README. The 400-line history is renamed over the old one: an in-place
+      rewrite is read as appended, see Questions.
+    - review.test: lazy `cleanCase()` / `cleanReviewed()` fixtures.
+    - review-export-jobs: a lazy "reviewed" fixture in both describes.
+    - render-jobs: a workspace per case from a capture drawn once. `renderedBefore()` stands for the earlier render
+      the id numbering counts. job_list submits its own four jobs, and their ids are asserted exactly.
+    - Found by the shuffled CI tier (seeds 20261115 and 7):
+      - operations-cli and pipeline-cli: golden tables collected case by case, pinned `{ shuffle: false }` with a
+        comment.
+      - run-agent-hooks: the run folders counted from the case's own start, and the marker removed first.
+      - run-agent-sql-hooks: the trust case uses its own agent-written scenario.
+      - mcp http: `closeAll()` first in the two cases that open sessions (the cap is 3).
+      - ui library-ops: queued jobs cancelled and counted from the case's start, with ids exact. The seeded cache
+        entries are removed `onTestFinished`.
+      - ui scenario-edit-ops: short.yaml written back.
+      - ui setup-ops: one outer describe pinned `{ shuffle: false }`. It is a chain on one Studio server and HOME:
+        a one-way attach, and the link the restart case reads.
+      - core helpers: lazy `realAndLink()`.
+      - http-discovery: the refusal case makes `.retake/` itself.
+  - Gated render and worker files: run once each, shuffled with seed 11. They are still order-dependent and were not
+    fixed (see "Gated runs" and "Not done").
+  - captures-first-acceptance: the fixture runs on ports 0 instead of 4941–4942 (gated: compiled, not run).
+  - reset-hook-approvals "the items": the expected fingerprint's `files` is now computed by the test. It is
+    `reset-marker.txt` → the sha256 of its bytes once a reset wrote it, and none before; no longer
+    `packageHookRunner().approval.files`.
+  - record-studio: `labOnce()` records the lab once, for the first case that needs it. The in-memory cases (Claude's
+    recording, B16/B5/B9, B-M5) take the lab's events from it, before their own submit (one window at a time), so each
+    runs alone with `-t`. The lab case keeps its 12 checks of what was seen while the window was open: the fixture
+    returns them and the case asserts them. The outer describe stays `{ shuffle: false }`; its comment now says which
+    cases run alone.
+  - Tests: test-guard reports no decrease and no retitled test. Expects added:
+    - ci-workflow +21 (one new case);
+    - render-jobs +1 (the job ids listed);
+    - review-export-jobs +1;
+    - run-agent-sql-hooks +1 (the scenario refused before the trust);
+    - library-ops +1.
+    Expects that changed form (none weaker): run-agent-hooks' runs folder (absolute `[]` → equal to the list before the
+    case); library-ops' preview jobs (`toHaveLength(2)` kept on the jobs that are new, and their ids exact); index-db
+    `search('blend')` → `search('roast')` after a corrupt rebuild (the setup README's word; the same proof that the
+    rebuilt index holds the project).
+  - Mutations, each red and then restored:
+    - review.test without the review in `cleanReviewed`: the cancel case alone is red.
+    - review-export-jobs `reviewed()` skipped: review_get alone is red.
+    - render-jobs `renderedBefore` a no-op: the failed-render case is red.
+    - index-db without the first build: the reuse case is red.
+    - record-studio `labEvents` without `labOnce`: B-M5 alone is red.
+    - reset-hook-approvals' expected files forced to none: red under seeds 7, 11, 3 and 5 (the marker exists),
+      green in the default order (it does not).
+    - shuffled.yml: no shuffle, a `workflow_dispatch`, a different install line, `contents: write` are each red.
+    - Fork's ui files: library-ops without the cleanup (seed 7) or the before-filter (seed 20261115) is red;
+      scenario-edit-ops without the restore is red; setup-ops without the pin is red (4 cases).
+    - helpers / http-discovery: the original failures under seed 7 are the evidence.
+  - Gates (exit 0): `npx tsc -b`, `pnpm typecheck`, `pnpm lint` (none new), `pnpm format:check`,
+    `node scripts/audit/rules.mjs --check` (105), `node scripts/test-guard.mjs` (no decrease),
+    `node scripts/requirements.mjs --check-cites` (no edits).
+  - Not done:
+    - The CI tier is not yet green shuffled. With seed 7 it still fails in 5 files, each order-dependent alone:
+      - cli/test/cli.test (2 cases);
+      - cli/test/jobs.test ("lists nothing at first" sees another case's job);
+      - ui/test/events.test (2);
+      - ui/test/theme-ops.test (5);
+      - engine/test/render-snapshot.test (an edit_sha256 of an edit another case left).
+    - Other seeds will find more. Until they are fixed, the weekly run will be red: that is what it is for, but it
+      should be green before it is trusted. A follow-up lot should run `pnpm test:ci -- --sequence.shuffle
+      --sequence.seed=<n>` for a few seeds and fix each file.
+    - stdio-inspect passes shuffled (seeds 7 and 11), so nothing was needed for T-5. Moving its handlers in-process
+      (T-10) was not done.
+    - captures-first-acceptance was not run (gated, about 10 min, on a quiet Mac).
+    - The four gated render and worker files are still order-dependent (see "Gated runs"). The usual fixes apply: a
+      workspace per case, the render a case reads made by a lazy fixture.
+
 ## State (after L7.47e)
 - **L7.47e done (2026-11-15; branch `claude/arch-l7`)** — `renderView` is async and reads review/<id>/report.json through the Outputs port (`reviews.readPlain`, memo keyed by `reviews.signature`, as before: lstat, no link followed, the list's 16 MB cap); reviews.ts `rebuilt`, the report check and `reviewImage` read through the port (`holds`: core insideFolder's rule on the port; `readPlain` with `oneName`: O_NOFOLLOW, never blocking, a hard link refused, 8 MB cap — the same words); the memory reviewer reads its render and writes review/ (and its frames' files) through the Outputs it is handed, so on a MemoryOutputs nothing reaches the disk; runner-web `RunOptions.runId` / `runsDir` are required (no reservation of its own: the caller's, the engine's at submit); `retake render --music` has its test (missing, a folder, a link, a link to nothing; disk and memory reads). render-frames keeps its descriptor beside the port (ffmpeg is handed an fd of this machine's disk; said in its module comment). Published surfaces unchanged (CLI / MCP / Studio output, file names, layouts).
   - Code: `outputs/outputs.ts` OutputFolder gains `readPlain(path, { max, oneName? })` (core `PlainFileRead`), `holds(dir, path)` (both real paths — the OS's spelling on a disk — a missing tail kept as spelt; `dir` itself counts; no `..`-prefix rule, unlike `within`), `move(from, to)`; RenderOutputs `named` takes `videoAlone`. `output-files.ts` OutputFs `plain`, `rename`, optional `nativeRealpath`; `realPathKept`, `holdsOf`. Disk: `readPlainFile` (verify `oneName`), `rename`, `realpath.native`. Memory: `plain` by `plainFileVerdict`, `rename` (a file or a folder, EEXIST when the target is there). `renders.ts` `reportOf(reviews, file)` / `reportSummary` / `renderView(reviews, projectDir, …)` async (no node:fs `lstatSync` / core `readPlainFile` left there); callers: `scenarioRenders` and project-board (in order, one at a time). `reviews.ts`: no `existsSync`, no `readPlainFile`; `nodeFileFacts` only for `thumbnail` (a workspace path, not an output). `review/memory-reviewer.ts`: `MemoryReviewerOptions.outputs` required; renders `named`, video `signature(follow)`, writes / `move` / `remove` / `names` / `kind` on `outputs.reviews`; frames' `thumbnailOf` reads `readPlain`, `still` / `marks` write there (their folder must be there, as before); no node:fs import. `render-frames.ts`: module comment (why the descriptor stays). runner-web `capture/options.ts` `runId: string; runsDir: string`; `capture/lifecycle.ts` refuses a missing or bad id ("is not a run id") before any folder; `reserveRunId` / `projectPath` no longer imported there. cli `commands/render.ts` `musicOverride(facts, arg)` (exported; same rule). test-support `capture.ts` `inRunsOf(o)` (runsDir = the project's runs/ unless given). docs/DESIGN.md RunOptions line.

@@ -625,7 +625,9 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('the commands U8 moves, held against fixtures/operations-cli.json (U8.0)', () => {
+// A chain on purpose, never shuffled: each case adds its results to the golden table (and its ports to the fakes) in
+// this order, and the last cases hold the whole table, in that order, against the fixture.
+describe('the commands U8 moves, held against fixtures/operations-cli.json (U8.0)', { shuffle: false }, () => {
   it('plan: the summary, --json, --out, a bad --frame, latest --scenario, a dry run, no timeline, a changed scenario', async () => {
     expect.soft((await retake('plan', 'plan', 'film', RUN)).code).toBe(EXIT.ok);
     expect.soft((await retake('plan --json --vertical', 'plan', 'film', RUN, '--json', '--vertical')).code).toBe(EXIT.ok);

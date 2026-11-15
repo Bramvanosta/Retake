@@ -177,6 +177,8 @@ describe('scenario_edit', () => {
       await until((e) => e.event === 'workspace' && Array.isArray(e.data.scenarios) && (e.data.scenarios as string[]).includes(`${P}/short`), 'scenarios event');
     } finally {
       req.destroy();
+      // short.yaml as the other cases start from it (they save on SHORT's hash).
+      await writeFile(file('short'), SHORT);
     }
   });
 });
