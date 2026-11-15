@@ -40,8 +40,22 @@ import { healthNow, pinHealth, serviceHealth, waitHealthy } from './health.js';
 import { shownPath } from './paths.js';
 import { describeListeners } from './ports.js';
 import { COMPOSE_CAPABILITIES } from './provider.js';
-import type { DownOptions, DownResult, OwnerUse, Provider, ProviderCapabilities, ProviderContext, ProviderLogs, ServiceLogFile, ServiceStatus, UpOptions, UpResult } from './provider.js';
-import { COMPOSE_HEALTH_TIMEOUT_S, STARTING_LINE, containerProblem, foreignListeners, indent, serviceProblems, waitTimeoutS } from './compose-parse.js';
+import type {
+  DataStorage,
+  DownOptions,
+  DownResult,
+  OwnerUse,
+  Provider,
+  ProviderCapabilities,
+  ProviderContext,
+  ProviderLogs,
+  ServiceLogFile,
+  ServiceStatus,
+  ServicesAround,
+  UpOptions,
+  UpResult,
+} from './provider.js';
+import { COMPOSE_HEALTH_TIMEOUT_S, STARTING_LINE, containerProblem, dataMount, foreignListeners, indent, serviceProblems, waitTimeoutS } from './compose-parse.js';
 import type { PsEntry } from './compose-parse.js';
 import { composeArgs, startedProgram } from './compose-project.js';
 import type { ComposeProjectRef, ComposeRecord } from './compose-project.js';
@@ -54,6 +68,7 @@ export {
   STARTING_LINE,
   connectAddress,
   containerProblem,
+  dataMount,
   foreignListeners,
   parseComposeConfig,
   parseDockerPs,
@@ -184,7 +199,10 @@ export class ComposeProvider extends ComposeRunner implements Provider {
     const ps = { ...(ctx.state.provider_state ?? {}) };
     delete ps.compose;
     if (left.length) ps.compose = { project: ref.name, dir: ref.dir, previous: left } satisfies ComposeRecord;
-    if (opts.volumes) delete ps.snapshot;
+    if (opts.volumes) {
+      delete ps.snapshot;
+      delete ps.base;
+    }
     ctx.state.provider_state = ps;
     ctx.save();
     return { stopped, dataGone: !!opts.volumes };
@@ -432,6 +450,33 @@ export class ComposeProvider extends ComposeRunner implements Provider {
   /** What a reset empties or a seed rewrites must be published by the project (publishedBy). */
   servedBy(ctx: ProviderContext, port: number, use: OwnerUse): Promise<string> {
     return this.publishedBy(ctx, port, use);
+  }
+
+  /**
+   * The running services (compose files' order), their `depends_on`, and where `database`'s container keeps its data:
+   * a named volume of this compose project or an anonymous one (`down --volumes` removes both), a bind mount or an
+   * external volume (it does not).
+   */
+  async servicesAround(ctx: ProviderContext, database: string): Promise<ServicesAround> {
+    await this.docker(ctx);
+    const ref = this.ref(ctx);
+    const [cfg, ps] = await Promise.all([this.config(ctx, ref), this.ps(ctx, ref)]);
+    const running = cfg.services.filter((s) => ps.some((e) => e.service === s && e.state === 'running'));
+    const db = ps.find((e) => e.service === database && e.state === 'running');
+    let storage: DataStorage = { kind: 'unknown' };
+    if (db) {
+      const r = await this.run(['inspect', '--format', '{{json .Mounts}}', db.id], { timeoutMs: 30_000 });
+      const m = r.code === 0 ? dataMount(r.stdout.trim()) : null;
+      if (m?.type === 'bind') storage = { kind: 'bind', where: m.name };
+      else if (m?.type === 'volume') {
+        if (/^[0-9a-f]{64}$/.test(m.name)) storage = { kind: 'volume' };
+        else {
+          const v = await this.run(['volume', 'inspect', '--format', '{{index .Labels "com.docker.compose.project"}}', m.name], { timeoutMs: 30_000 });
+          storage = v.code === 0 && v.stdout.trim() === ref.name ? { kind: 'volume', where: m.name } : { kind: 'external', where: m.name };
+        }
+      }
+    }
+    return { running, depends: cfg.depends, storage };
   }
 
   /**

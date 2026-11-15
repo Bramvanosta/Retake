@@ -252,9 +252,9 @@ describe('the operation catalogue', () => {
     ]);
   });
 
-  it('counts 128 operations: 48 MCP tools, 78 Studio ops, 58 served by 48 CLI commands; 57 read, 59 write, 12 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
+  it('counts 128 operations: 49 MCP tools, 78 Studio ops, 58 served by 48 CLI commands; 57 read, 59 write, 12 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
     expect(CATALOGUE).toHaveLength(128);
-    expect(servedNames('mcp')).toHaveLength(48);
+    expect(servedNames('mcp')).toHaveLength(49);
     expect(servedNames('studio')).toHaveLength(78);
     expect(servedNames('cli')).toHaveLength(58);
     expect(cliCommandsOf()).toHaveLength(48);
@@ -311,7 +311,7 @@ describe('the operation catalogue', () => {
     expect(CATALOGUE.filter((o) => o.serves).map((o) => o.name)).toEqual(['mcp_serve', 'studio_serve', 'worker_run']);
     // Served by all three, by two, by one.
     const by = (n: number) => CATALOGUE.filter((o) => SHELLS.filter((s) => servedBy(o, s)).length === n).length;
-    expect([by(3), by(2), by(1)]).toEqual([6, 44, 78]);
+    expect([by(3), by(2), by(1)]).toEqual([6, 45, 77]);
   });
 
   it('links 18 use cases served under two names (nothing renamed), one name per shell, and names each', () => {

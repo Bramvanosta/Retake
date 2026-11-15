@@ -16,7 +16,7 @@ export { callerOf, submittedInStudio } from './caller.js';
 export { addComment, defaultAuthorName, listComments, reopenComment, replyComment, resolveComment } from './comments.js';
 export { componentCreateShell, componentListEntries, componentPreviewTargets, componentPreviewTheme, componentReadmeWriter, componentValidateShell } from './components.js';
 export { RunOptionError, SandboxTakeError, checkAllowWrites, checkHeadedDisplay, prepareRun, writesSummary } from './execute-run.js';
-export { formatMs, sandboxUpText } from './format.js';
+export { firebaseAuthText, formatMs, resetLadderText, sandboxUpText, snapshotStatusText } from './format.js';
 export { envResetWork, hooksRunWork, rollbackWork } from './hooks-work.js';
 export { HooksSourceError } from './hooks.js';
 export {

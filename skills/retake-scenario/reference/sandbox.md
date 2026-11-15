@@ -1,15 +1,24 @@
 # Sandboxes, in short
 
 A sandbox is a disposable, local copy of the product that Retake starts, seeds with demo data and resets before
-every take, so two takes show the same data. It is declared by a `sandbox.yaml` the **user** writes (`retake sandbox
-init <project>` in their terminal scaffolds one, and adds `sandboxes: {sandbox: sandbox/sandbox.yaml}` to project.yaml);
-the sandbox then is an environment of its own. Propose it when a project films a local copy of the product with a
+every take, so two takes show the same data. It is declared by a `sandbox.yaml` the **user** fills in: `sandbox_init
+{project}` (with their go-ahead) or `retake sandbox init <project>` in their terminal writes Retake's docker-compose
+scaffold and adds `sandboxes: {sandbox: sandbox/sandbox.yaml}` to project.yaml — never over a file. Its compose.yaml
+and sandbox.yaml are then the user's: propose their text in chat and let the user write them (what they name runs on
+this machine). The sandbox is an environment of its own. Propose it when a project films a local copy of the product with a
 database or a mailbox: `project_get` says so (and so does `retake doctor --project <slug>`, which the user runs in
 their own terminal).
 
-Then: `sandbox_up {project}` (or nothing: `run_capture {project, scenario, env: "sandbox", sandbox: true}` starts it if
-needed, checks its health and resets it before the take). `sandbox_reset` resets it between two dry runs. Shell seed
-steps are approved by the user like hooks. Every URL of a sandbox is on this machine.
+Then: `sandbox_up {project}` (it pulls the compose file's images the first time: ask the user; or nothing:
+`run_capture {project, scenario, env: "sandbox", sandbox: true}` starts it if needed, checks its health and resets it
+before the take). `sandbox_reset` resets it between two dry runs. Shell seed steps are approved by the user like
+hooks. Every URL of a sandbox is on this machine.
+
+**When sandbox.yaml or an image changes** (a seed step, a rebuilt image, `reset.firebase_auth` added), the snapshot is
+outdated: the next reset restores the base — the database as it was before its first seed — and seeds again, never
+on what a take left. A sandbox snapshotted before it kept a base seeds from its outdated snapshot and says how to get
+one (`retake sandbox down … --volumes`, then `up`: the user's, in their terminal; it deletes every volume of the
+sandbox). `sandbox_status` says what the next reset does.
 
 ## The product's own dev server (provider `process`)
 
@@ -85,3 +94,19 @@ One app with several roles: each account may list the same page (`pages: [admin]
 page's default and a scene films another with `persona: <account>`. One video showing both: a multi-page scene with a
 page id per account (`pages: {theirs: {page: admin}, ours: {page: admin, persona: staff}}`). `docs/guide/sandbox.md` of the Retake repository has the whole
 format, and a "stage" sandbox for a product shipped as images.
+
+## A monorepo without app images, a hybrid, an external sign-in
+
+- **Apps without images** (recommended): each app a compose service on a stock runtime image (an exact Node tag) with
+  the repository mounted, a named volume over its packages (the host's macOS binaries do not run in Linux) and a
+  command that installs then starts the app on every interface, beside the infrastructure's images in the same
+  compose file: one compose project, so `strategy: snapshot` works.
+- **Apps on the host, infra in Docker**: provider `process`, the infra one more service whose `command` is `docker
+  compose -p retake-<name>-infra -f infra.yaml up` (attached: `sandbox down` stops it), with no `url` / `health` of its
+  own (Docker holds those ports, a process service must own its ports), the app's health path reading the database,
+  `databases.<key>.external: true`, strategy `reseed` only.
+- **Sign-in**: the provider's emulator as a service (Firebase Auth emulator + `reset.firebase_auth`, the apps pointed
+  at it) or the product's local sign-in mode — never a hosted tenant. With `firebase_auth`, every reset signs the
+  personas out: each take signs them in again with their `login` steps (an account without them is refused).
+
+`docs/guide/sandbox.md` › Recipes has each one in full; propose the files' text to the user, who writes them.

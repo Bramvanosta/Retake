@@ -327,6 +327,8 @@ const ENTRIES = [
   { name: 'sandbox_status', ...R, cli: ['sandbox status'], mcp: true, studio: STUDIO },
   { name: 'sandbox_up', ...JOB_PROJECT_DESTRUCTIVE("a sandbox's data, seeded again when its seed changed"), cli: ['sandbox up'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
   { name: 'sandbox_reset', ...JOB_PROJECT_DESTRUCTIVE("a sandbox's data, put back to its seed"), cli: ['sandbox reset'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
+  // Retake's own scaffold (as component_create's), never over a file; compose.yaml / sandbox.yaml stay the person's to fill.
+  { name: 'sandbox_init', ...W, cli: ['sandbox init'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
 
   // The Studio's own ops.
   {
@@ -477,7 +479,6 @@ const ENTRIES = [
     studio: NO_HOOKS_IN_STUDIO,
   },
   { name: 'hooks_trust', ...W, cli: ['hooks trust'], mcp: no("a person marks an agent's shell and sql hooks as theirs, after reading them, in a terminal: never Claude"), studio: NO_HOOKS_IN_STUDIO },
-  { name: 'sandbox_init', ...W, cli: ['sandbox init'], mcp: no("sandbox.yaml is the person's file, never written through MCP"), studio: NO_SANDBOX_IN_STUDIO },
   {
     name: 'sandbox_down',
     ...PROJECT_DESTRUCTIVE("a sandbox's services, and with --volumes its data"),

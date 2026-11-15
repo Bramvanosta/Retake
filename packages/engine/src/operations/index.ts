@@ -22,7 +22,7 @@ import { renderReview, reviewImage, scenarioRenders } from './render-screen.js';
 import { planPreview, renderStatus } from './renders.js';
 import { reviewGet } from './reviews.js';
 import { runCancel, runList, runStatus } from './runs.js';
-import { sandboxReset, sandboxStatus, sandboxUp } from './sandbox.js';
+import { sandboxInit, sandboxReset, sandboxStatus, sandboxUp } from './sandbox.js';
 import { scenarioEdit } from './scenario-edit.js';
 import { runThumbs, scenarioActions, scenarioBlocks, scenarioForms, scenarioSessions } from './scenario-screen.js';
 import { renderCancel, reviewExport, runPause, scenarioRender, scenarioRun, signInCancel } from './studio-jobs.js';
@@ -84,6 +84,7 @@ export const OPERATIONS = [
   sandboxStatus,
   sandboxUp,
   sandboxReset,
+  sandboxInit,
   projectsOverview,
   projectBoard,
   scenarioBlocks,

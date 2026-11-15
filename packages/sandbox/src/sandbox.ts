@@ -6,8 +6,10 @@
  *   changed (core seedHash) or when it started a service (a restarted process lost its in-memory data); `seed: 'never'`
  *   skips that.
  * - reset: back to the seed — strategy reseed: the seed again; strategy snapshot (docker-compose + Postgres): the
- *   template copy of the seeded database restored, or, when it is missing or stale (seed hash), the seed again and a
- *   new snapshot taken —, the pending rollbacks of the environment superseded as soon as the data is back, then the
+ *   template copy of the seeded database restored, or, when it is outdated (reset-plan.ts), the base — the database
+ *   before its first seed — restored (else the outdated snapshot), the running services restarted, the seed again and
+ *   a new snapshot taken; refused before anything changes when there is neither and the database is not fresh —, the
+ *   pending rollbacks of the environment superseded as soon as the data is back, then the
  *   mailbox emptied and `reset.restart` services restarted. The mailbox and the seed's databases must be the
  *   sandbox's own (checked before anything changes).
  * - prepareTake: the take lock, up (without seeding), health, reset; the caller films, then releases the lock. The
@@ -47,11 +49,14 @@ import type {
 import { checkMailbox, checkSeedDatabases, clearMailbox, runSeed, supersede } from './seed.js';
 import { killGroupSync } from './proc.js';
 import { PostgresSnapshot, describeDatabase, snapshotTarget } from './snapshot-postgres.js';
-import type { SnapshotState } from './snapshot-postgres.js';
+import type { BaseState, SnapshotPort, SnapshotState, SnapshotTarget } from './snapshot-postgres.js';
+import { outdatedText, resetPlan, restartAfterRestore } from './reset-plan.js';
+import type { OutdatedWhy, ResetPlan, ResetPlanInput } from './reset-plan.js';
+import type { DataStorage } from './provider.js';
 import { readState, writeState } from './state.js';
 import { FirebaseAuthSnapshot } from './firebase-auth.js';
 import type { SandboxState } from './state.js';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, errorMessage } from '@retake/core/base';
 
 /** Logs above this size are cut (kept as `<log>.1`) before a take: a sandbox may stay up for days. */
 export const LOG_CAP_BYTES = 20 * 1024 * 1024;
@@ -82,8 +87,23 @@ export interface ResetResult {
   restarted: string[];
   /** Pending rollbacks of the environment that will not be replayed any more. */
   superseded: number;
-  /** Hotfix v0.2.5: the Firebase Auth emulator's accounts put back (`reset.firebase_auth`). */
-  firebase_auth?: { accounts: number };
+  /**
+   * Hotfix v0.2.5: the Firebase Auth emulator's accounts put back (`reset.firebase_auth`); `at`: when — a
+   * persona session saved before it is signed out (state `accounts_at`).
+   */
+  firebase_auth?: {
+    accounts: number;
+    at: string;
+    /** The sandbox's accounts (its personas) a take signs in again with their login steps, and those that have none (a take refuses them). */
+    personas: { login: string[]; no_login: string[] };
+  };
+  /** The base (the database before its first seed) taken before the first seed, or restored before a seed again. */
+  base?: { action: 'taken' | 'restored'; ms: number };
+  /**
+   * The snapshot was outdated — why, what the seed started from (the base, else the outdated snapshot), the
+   * services restarted before the seed, and (no base) how to get one.
+   */
+  outdated?: { why: OutdatedWhy; reason: string; from: 'base' | 'snapshot'; restarted: string[]; hint?: string };
   /** Hotfix v0.2.5: `reset.hooks` run once the data was back. */
   hooks: { steps: number; ms: number };
 }
@@ -106,6 +126,23 @@ export interface SandboxStatus {
   last_reset?: SandboxState['last_reset'];
   /** The take lock, when a live command holds it. */
   lock?: LockRecord;
+  /**
+   * Strategy snapshot: the snapshot now and what the next reset does with it (`next`: reset-plan.ts) — unknown
+   * when the sandbox is down or its Postgres does not answer (`detail`). Read only: nothing renamed, repaired or locked.
+   */
+  snapshot?: {
+    state: 'current' | 'outdated' | 'none' | 'unknown';
+    why?: OutdatedWhy;
+    reason?: string;
+    base: boolean;
+    next?: ResetPlan['kind'];
+    /** Why unknown, in fixed words (`sandbox down`, `its database could not be read`). */
+    detail?: string;
+    /** The error that made it unknown, as it was thrown: text of other programs, never instructions. */
+    error?: string;
+  };
+  /** When the Firebase Auth emulator's accounts were last put back (personas saved before sign in again). */
+  accounts_at?: string;
   /** Folder of the service logs. */
   logs: string;
   notes: string[];
@@ -140,6 +177,17 @@ export function providerFor(sandbox: LoadedSandbox, policy: WorkPolicy): Provide
   return sandbox.manifest.provider === 'process' ? new ProcessProvider() : new ComposeProvider({ policy });
 }
 
+/** What a Sandbox is built with besides its project (tests: a fake provider and a fake Postgres, to see the order of a reset). */
+export interface SandboxDeps {
+  /** The provider of each call (default providerFor). */
+  provider?: (sandbox: LoadedSandbox, policy: WorkPolicy) => Provider;
+  /** What a snapshot reset works through (default PostgresSnapshot.open). */
+  openSnapshot?: (target: SnapshotTarget, env: string, opts: { timeoutMs?: number }) => Promise<SnapshotPort>;
+}
+
+/** How long `status` waits for the sandbox's Postgres (it never blocks a poll for long). */
+const STATUS_PG_TIMEOUT_MS = 2_000;
+
 /** The sandbox of environment `env` (default: the first project.yaml declares), for work under `policy` (core WorkPolicy). */
 export function openSandbox(project: LoadedProject, env: string | undefined, policy: WorkPolicy, resolveSecret: SecretRefResolver, hooks: SandboxHookRunner): Sandbox {
   const names = sandboxNames(project);
@@ -171,7 +219,20 @@ export class Sandbox {
   ) {
     this.env = sandbox.env;
     this.paths = sandboxPaths(project.dir, sandbox.env);
-    this.provider = providerFor(sandbox, policy);
+    this.provider = this.newProvider();
+  }
+
+  private deps: SandboxDeps = {};
+
+  /** A test's fake provider and Postgres (SandboxDeps), for the calls that follow. */
+  withDeps(deps: SandboxDeps): this {
+    this.deps = deps;
+    this.provider = this.newProvider();
+    return this;
+  }
+
+  private newProvider(): Provider {
+    return (this.deps.provider ?? providerFor)(this.sandbox, this.policy);
   }
 
   /** process | docker-compose. */
@@ -221,7 +282,7 @@ export class Sandbox {
    * after its last step — the services it started are stopped again, and only those.
    */
   private async starting<T>(ctx: ProviderContext, what: string, fn: () => Promise<T>): Promise<T> {
-    this.provider = providerFor(this.sandbox, this.policy);
+    this.provider = this.newProvider();
     try {
       const out = await fn();
       if (ctx.signal?.aborted) throw interrupted(`sandbox ${this.env} ${what}`);
@@ -243,21 +304,74 @@ export class Sandbox {
     return this.provider.capabilities.address ? this.provider.address(ctx, port) : Promise.resolve(undefined);
   }
 
-  /** The Postgres snapshot of a snapshot reset: its database must be published by the sandbox's own services. */
-  private async openSnapshot(ctx: ProviderContext): Promise<PostgresSnapshot> {
+  /**
+   * The Postgres snapshot of a snapshot reset: its database must be published by the sandbox's own services (`service`:
+   * the one publishing it).
+   */
+  private async openSnapshot(ctx: ProviderContext, opts: { timeoutMs?: number } = {}): Promise<{ snap: SnapshotPort; service: string }> {
     if (!this.provider.capabilities.snapshots) {
       throw new SandboxError(`sandbox ${this.env}: snapshot resets need provider docker-compose (the database must belong to the sandbox): use strategy reseed`);
     }
     const target = await snapshotTarget(this.project, this.sandbox, this.resolveSecret);
-    await this.provider.publishedBy(ctx, target.port);
+    const service = await this.provider.publishedBy(ctx, target.port);
     // A host name: on the address Docker publishes the port on, never `localhost` (another container may publish the
     // same port on ::1); an address is used as written.
     const address = isIP(target.host) ? undefined : await this.addressOf(ctx, target.port);
-    return PostgresSnapshot.open(address ? { ...target, host: address } : target, this.env);
+    const open = this.deps.openSnapshot ?? ((t, env, o) => PostgresSnapshot.open(t, env, o));
+    return { snap: await open(address ? { ...target, host: address } : target, this.env, opts), service };
+  }
+
+  /** What reset-plan.ts decides from: the state, the cluster's templates and base, the Firebase accounts. */
+  private async planInput(ctx: ProviderContext, snap: SnapshotPort, fa: FirebaseAuthSnapshot | null, hash: string, opts: { reseed?: boolean; earlier?: boolean } = {}): Promise<ResetPlanInput> {
+    const recorded = ctx.state.provider_state?.snapshot as SnapshotState | undefined;
+    const template = await snap.templateState(hash, opts);
+    const base = await snap.hasBase();
+    return {
+      reseed: opts.reseed === true,
+      hash,
+      ...(ctx.state.seed ? { stateSeedHash: ctx.state.seed.hash } : {}),
+      ...(recorded ? { recorded: { hash: recorded.hash, database: recorded.database } } : {}),
+      database: snap.target.database,
+      template,
+      faValid: fa === null || fa.valid(hash),
+      base,
+      everReset: ctx.state.last_reset !== undefined,
+      unseeded: ctx.state.unseeded_at !== undefined,
+      // Asked only when it decides: neither base nor template to start from.
+      empty: !base && !template.present ? await snap.isEmpty() : false,
+    };
+  }
+
+  /** `down --volumes` then `up`, and what `--volumes` removes (every volume of the sandbox; not a bind mount nor an external volume). */
+  private freshDatabaseText(storage: DataStorage): string {
+    const p = this.project.slug;
+    const left =
+      storage.kind === 'bind'
+        ? ` Its database keeps its data in a folder of this machine (${storage.where}, a bind mount): --volumes does not remove it — empty that folder between the two.`
+        : storage.kind === 'external'
+          ? ` Its database keeps its data in the external volume ${storage.where}: --volumes does not remove it — docker volume rm ${storage.where} between the two.`
+          : '';
+    return `retake sandbox down ${p} --env ${this.env} --volumes (it deletes every volume of the sandbox: the database, and any uploads, caches or indexes kept in volumes), then retake sandbox up ${p} --env ${this.env} — its first seed then keeps a base, and later changes seed from it by themselves.${left}`;
+  }
+
+  /** The refusal of an outdated snapshot with neither base nor template, on a database that is not fresh. */
+  private async refusal(ctx: ProviderContext, service: string, why: OutdatedWhy): Promise<SandboxError> {
+    const around = await bestEffort(this.provider.servicesAround(ctx, service), 'where the data lives only adds a sentence to the refusal', null);
+    const snapshotted = ctx.state.provider_state?.snapshot !== undefined;
+    return new SandboxError(
+      `sandbox ${this.env}: the database already holds data and there is no base or snapshot to start from${snapshotted ? ` (${outdatedText(why)})` : ''}: seeding on it would freeze that data into the snapshot. Nothing was changed. Start from a fresh database: ${this.freshDatabaseText(around?.storage ?? { kind: 'unknown' })}`,
+    );
+  }
+
+  /** Where the snapshot's database keeps its data (its service must be running). */
+  private async dataStorage(ctx: ProviderContext): Promise<DataStorage> {
+    const target = await snapshotTarget(this.project, this.sandbox, this.resolveSecret);
+    const service = await this.provider.publishedBy(ctx, target.port);
+    return (await this.provider.servicesAround(ctx, service)).storage;
   }
 
   /** A snapshot kept under its earlier name (a renamed database): renamed or dropped, and the state follows. */
-  private async adoptEarlierSnapshot(ctx: ProviderContext, snap: PostgresSnapshot, recorded: SnapshotState | undefined): Promise<void> {
+  private async adoptEarlierSnapshot(ctx: ProviderContext, snap: SnapshotPort, recorded: SnapshotState | undefined): Promise<void> {
     const adopted = await snap.adoptEarlier();
     if (adopted) {
       ctx.log(
@@ -271,7 +385,11 @@ export class Sandbox {
     }
   }
 
-  /** A reset once the data is back: the mailbox emptied, `reset.restart` services restarted, the emulator's accounts put back, `reset.hooks` run. */
+  /**
+   * A reset once the data is back: the mailbox emptied, `reset.restart` services restarted — always, after the snapshot
+   * was taken (a take ends every session of the database: a service restarted before it would keep a dead pool) —, the
+   * emulator's accounts put back, `reset.hooks` run.
+   */
   private async afterData(
     ctx: ProviderContext,
     by: string,
@@ -289,8 +407,14 @@ export class Sandbox {
     let firebaseAuth: ResetResult['firebase_auth'];
     if (fa) {
       ctx.progress?.step('firebase auth', 'putting back the accounts saved after the seed');
-      firebaseAuth = { accounts: await fa.restore() };
-      ctx.log('info', `sandbox ${this.env}: ${firebaseAuth.accounts} account(s) of the Firebase Auth emulator put back`);
+      const accounts = await fa.restore();
+      // The accounts are new to the emulator — a persona session saved before now is signed out.
+      const at = new Date().toISOString();
+      ctx.state.accounts_at = at;
+      ctx.save();
+      const all = Object.entries(this.sandbox.manifest.accounts ?? {});
+      firebaseAuth = { accounts, at, personas: { login: all.filter(([, a]) => a.login?.length).map(([n]) => n), no_login: all.filter(([, a]) => !a.login?.length).map(([n]) => n) } };
+      ctx.log('info', `sandbox ${this.env}: ${accounts} account(s) of the Firebase Auth emulator put back`);
     }
     // reset.hooks: what each take needs undone that the snapshot does not cover.
     const resetHooks = this.sandbox.manifest.reset?.hooks ?? [];
@@ -301,9 +425,54 @@ export class Sandbox {
   }
 
   /**
-   * The reset itself (lock held, services up). Strategy snapshot: a valid template (same seed hash in the state and in
-   * its comment) is restored; otherwise — first time, seed or images changed, `reseed`, template gone with the
-   * volumes — the seed runs and the template is taken again.
+   * An outdated snapshot: the base restored — else the outdated snapshot (seeds reset what they create) —, never what
+   * the last take left; then the running services but the database's restarted (a rebuilt image's boot migrations run
+   * again on the restored data). The seed follows.
+   */
+  private async startOver(
+    ctx: ProviderContext,
+    opened: { snap: SnapshotPort; service: string },
+    plan: Extract<ResetPlan, { kind: 'from-base' | 'from-snapshot' }>,
+    recorded: SnapshotState | undefined,
+  ): Promise<{ base: ResetResult['base']; outdated: NonNullable<ResetResult['outdated']> }> {
+    const { snap } = opened;
+    const from = plan.kind === 'from-base' ? 'base' : 'snapshot';
+    const owner = recorded?.owner ?? (ctx.state.provider_state?.base as BaseState | undefined)?.owner;
+    ctx.progress?.step('snapshot', `outdated (${outdatedText(plan.why)}): restoring ${from === 'base' ? 'the base (the database before its first seed)' : 'the outdated snapshot'} of ${describeDatabase(snap.target)}`);
+    const r = await snap.restore(owner, from);
+    ctx.log('info', `sandbox ${this.env}: snapshot outdated (${outdatedText(plan.why)}): ${from === 'base' ? 'base' : 'outdated snapshot'} of ${describeDatabase(snap.target)} restored in ${r.ms} ms before the seed`);
+    const around = await this.provider.servicesAround(ctx, opened.service);
+    const restarted = restartAfterRestore({ running: around.running, depends: around.depends, database: opened.service });
+    for (const name of restarted) {
+      ctx.progress?.step(`restart ${name}`, 'after the restore, before the seed');
+      await this.provider.restart(ctx, name);
+    }
+    const hint =
+      from === 'snapshot'
+        ? `no base to start from (the database before its first seed): the seed ran on the outdated snapshot's data, so it must reset what it creates. To give this sandbox a base: ${this.freshDatabaseText(around.storage)}`
+        : undefined;
+    if (hint) ctx.log('info', `sandbox ${this.env}: ${hint}`);
+    return { base: from === 'base' ? { action: 'restored', ms: r.ms } : undefined, outdated: { why: plan.why, reason: outdatedText(plan.why), from, restarted, ...(hint ? { hint } : {}) } };
+  }
+
+  /** A database Retake never touched: made sure of (the seed may create it), then kept as its base before its first seed. */
+  private async firstBase(ctx: ProviderContext, snap: SnapshotPort, recorded: SnapshotState | undefined): Promise<ResetResult['base']> {
+    if (await snap.ensureDatabase(recorded?.owner)) ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} was missing (an interrupted restore): created empty before the seed`);
+    ctx.progress?.step('base', `keeping ${describeDatabase(snap.target)} as it is before its first seed`);
+    const b = await snap.takeBase();
+    const record: BaseState = { database: snap.target.database, owner: b.owner, taken_at: new Date().toISOString(), ms: b.ms };
+    ctx.state.provider_state = { ...(ctx.state.provider_state ?? {}), base: record };
+    ctx.save();
+    ctx.log('info', `sandbox ${this.env}: base of ${describeDatabase(snap.target)} (before its first seed) taken in ${b.ms} ms`);
+    return { action: 'taken', ms: b.ms };
+  }
+
+  /**
+   * The reset itself (lock held, services up). Strategy snapshot: reset-plan.ts decides — a current template is
+   * restored; an outdated one (seed, images, env file, firebase_auth, template gone, reseed) is seeded again from the
+   * base (else from the outdated template), after restarting the running services; a fresh database gets its base
+   * before its first seed; neither base nor template on a database that is not fresh is refused before anything is
+   * changed or forgotten (only an interrupted reset's connections repaired and an earlier template name adopted).
    */
   private async resetLocked(ctx: ProviderContext, by: string, opts: { reseed?: boolean } = {}): Promise<ResetResult> {
     const t0 = Date.now();
@@ -312,20 +481,25 @@ export class Sandbox {
     // reset hooks rewrite (they run at every reset; the seed's are checked before the seed runs).
     await checkMailbox(ctx, this.provider);
     await checkSeedDatabases(ctx, this.provider, 'reset hooks');
-    const snap = this.strategy === 'snapshot' ? await this.openSnapshot(ctx) : null;
+    const opened = this.strategy === 'snapshot' ? await this.openSnapshot(ctx) : null;
+    const snap = opened?.snap ?? null;
     // Hotfix v0.2.5: a Firebase Auth emulator keeps its accounts in memory — saved after the seed, put back below.
     const fa = await FirebaseAuthSnapshot.open(this.sandbox, ctx.paths, (port) => this.addressOf(ctx, port));
     let seed = { steps: 0, ms: 0 };
     let snapshot: ResetResult['snapshot'];
+    let base: ResetResult['base'];
+    let outdated: ResetResult['outdated'];
     let superseded = 0;
     try {
       const recorded = ctx.state.provider_state?.snapshot as SnapshotState | undefined;
-      if (snap) {
+      // Strategy reseed: the seed, always (it resets what it creates by contract).
+      let plan: ResetPlan | null = null;
+      if (opened && snap) {
         if (await snap.repair()) ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} accepted no connections (an interrupted reset): repaired`);
         await this.adoptEarlierSnapshot(ctx, snap, recorded);
-        const valid =
-          !opts.reseed && ctx.state.seed?.hash === hash && recorded?.hash === hash && recorded.database === snap.target.database && (fa === null || fa.valid(hash)) && (await snap.valid(hash));
-        if (valid) {
+        plan = resetPlan(await this.planInput(ctx, snap, fa, hash, { reseed: opts.reseed }));
+        if (plan.kind === 'refuse') throw await this.refusal(ctx, opened.service, plan.why);
+        if (plan.kind === 'restore' && recorded) {
           ctx.progress?.step('snapshot', `restoring ${describeDatabase(snap.target)}`);
           const r = await snap.restore(recorded.owner);
           snapshot = { action: 'restored', ms: r.ms, database: snap.target.database };
@@ -341,8 +515,11 @@ export class Sandbox {
           delete ctx.state.seed;
           ctx.save();
         }
-        if (snap && (await snap.ensureDatabase(recorded?.owner)))
-          ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} was missing (an interrupted restore): created empty before the seed`);
+        if (opened && plan && (plan.kind === 'from-base' || plan.kind === 'from-snapshot')) {
+          ({ base, outdated } = await this.startOver(ctx, opened, plan, recorded));
+        } else if (snap) {
+          base = await this.firstBase(ctx, snap, recorded);
+        }
         if (fa) {
           // The seed creates its accounts on an empty emulator (an account of an earlier take would collide).
           fa.forget();
@@ -365,6 +542,7 @@ export class Sandbox {
           ctx.log('info', `sandbox ${this.env}: snapshot of ${describeDatabase(snap.target)} taken in ${r.ms} ms`);
         }
         ctx.state.seed = { hash, at: new Date().toISOString(), ms: seed.ms };
+        delete ctx.state.unseeded_at;
         ctx.save();
       }
     } finally {
@@ -385,7 +563,9 @@ export class Sandbox {
       seed,
       mailbox,
       ...(snapshot ? { snapshot } : {}),
-      restarted,
+      ...(base ? { base } : {}),
+      ...(outdated ? { outdated } : {}),
+      restarted: [...(outdated?.restarted ?? []), ...restarted],
       superseded,
       ...(firebaseAuth ? { firebase_auth: firebaseAuth } : {}),
       hooks,
@@ -405,7 +585,14 @@ export class Sandbox {
         // The seed as it was: starting a process service drops it (its in-memory data went with the old process).
         const before = ctx.state.seed;
         const res: SandboxUpResult = await this.provider.up(ctx, { build: opts.build });
-        if (opts.seed === 'never') return res;
+        if (opts.seed === 'never') {
+          // The product may now be used without its seed: that data is no clean start (reset-plan.ts freshDatabase).
+          if (!ctx.state.seed && !ctx.state.unseeded_at) {
+            ctx.state.unseeded_at = new Date().toISOString();
+            ctx.save();
+          }
+          return res;
+        }
         const hash = await this.hashOf(ctx);
         const why = !before
           ? 'never seeded'
@@ -430,7 +617,7 @@ export class Sandbox {
   /** Strategy snapshot: why its database cannot serve the app (an interrupted reset dropped or blocked it), else null. */
   private async brokenDatabase(ctx: ProviderContext): Promise<string | null> {
     if (this.strategy !== 'snapshot') return null;
-    const snap = await this.openSnapshot(ctx);
+    const { snap } = await this.openSnapshot(ctx);
     try {
       return await snap.broken();
     } finally {
@@ -447,9 +634,17 @@ export class Sandbox {
     const lock = this.lock('sandbox down', opts.log ?? quiet);
     try {
       const ctx = this.context(opts);
+      // A snapshot sandbox's database may outlive --volumes (a bind mount, an external volume): read where it lives
+      // first (the services are still up); not known (down already) counts as kept.
+      const storage = opts.volumes && this.strategy === 'snapshot' && this.provider.capabilities.snapshots ? await bestEffort(this.dataStorage(ctx), 'not known counts as kept', null) : null;
       const res = await this.provider.down(ctx, { volumes: opts.volumes });
-      if (res.dataGone && ctx.state.seed) {
+      const kept = opts.volumes === true && this.strategy === 'snapshot' && this.provider.capabilities.snapshots && storage?.kind !== 'volume';
+      if (kept && res.dataGone) ctx.log('info', `sandbox ${this.env}: ${storage ? `its database's data is not in a volume of the sandbox (${storage.kind}${storage.where ? ` ${storage.where}` : ''})` : 'where its database keeps its data is not known (it was not running)'}: its seed is kept as recorded`);
+      // The data really went: nothing seeded, reset or used since (reset-plan.ts freshDatabase).
+      if (res.dataGone && !kept && (ctx.state.seed || ctx.state.unseeded_at || (opts.volumes && ctx.state.last_reset))) {
         delete ctx.state.seed;
+        delete ctx.state.unseeded_at;
+        if (opts.volumes) delete ctx.state.last_reset;
         ctx.save();
       }
       return res;
@@ -507,6 +702,7 @@ export class Sandbox {
     const held = readLock(this.paths.lock);
     const hash = await this.hashOf(ctx);
     const seed = ctx.state.seed;
+    const snapshot = this.strategy === 'snapshot' && this.provider.capabilities.snapshots ? await this.snapshotStatus(ctx, state, hash) : undefined;
     return {
       env: this.env,
       provider: this.sandbox.manifest.provider,
@@ -515,10 +711,36 @@ export class Sandbox {
       services,
       ...(seed ? { seed: { hash: seed.hash.slice(0, 12), at: seed.at, ms: seed.ms, current: seed.hash === hash } } : {}),
       ...(ctx.state.last_reset ? { last_reset: ctx.state.last_reset } : {}),
+      ...(snapshot ? { snapshot } : {}),
+      ...(ctx.state.accounts_at ? { accounts_at: ctx.state.accounts_at } : {}),
       ...(held && lockAlive(held) ? { lock: held } : {}),
       logs: this.paths.logs,
       notes,
     };
+  }
+
+  /**
+   * The snapshot as the next reset will find it (reset-plan.ts), read only: nothing repaired or renamed (a template
+   * under its earlier name counts as the template), a short connection timeout, and `unknown` — never an error — when
+   * the sandbox is down or its Postgres cannot be read.
+   */
+  private async snapshotStatus(ctx: ProviderContext, state: SandboxStatus['state'], hash: string): Promise<NonNullable<SandboxStatus['snapshot']>> {
+    const hasBase = (ctx.state.provider_state?.base as BaseState | undefined) !== undefined;
+    if (state === 'down') return { state: 'unknown', base: hasBase, detail: 'sandbox down' };
+    let opened: { snap: SnapshotPort; service: string } | null = null;
+    try {
+      opened = await this.openSnapshot(ctx, { timeoutMs: STATUS_PG_TIMEOUT_MS });
+      const fa = await FirebaseAuthSnapshot.open(this.sandbox, ctx.paths, (port) => this.addressOf(ctx, port));
+      const input = await this.planInput(ctx, opened.snap, fa, hash, { earlier: true });
+      const plan = resetPlan(input);
+      const shown = plan.kind === 'restore' ? 'current' : plan.kind === 'first-seed' ? 'none' : 'outdated';
+      return { state: shown, ...('why' in plan ? { why: plan.why, reason: outdatedText(plan.why) } : {}), base: input.base, next: plan.kind };
+    } catch (e) {
+      // Fixed words; the error itself (another project's names, a server's message) apart, as data.
+      return { state: 'unknown', base: hasBase, detail: 'its database could not be read', error: errorMessage(e) };
+    } finally {
+      await opened?.snap.close();
+    }
   }
 
   /**

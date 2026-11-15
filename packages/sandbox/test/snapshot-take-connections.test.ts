@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { EARLIER_SNAPSHOT_SUFFIX, PostgresSnapshot } from '../src/snapshot-postgres.js';
 import { SandboxError } from '../src/index.js';
 
-const TARGET = { key: 'app', url: 'postgres://u@db.test/shop', host: 'db.test', port: 5432, user: 'u', database: 'shop', template: 'shop__retake_snap', earlier: `shop${EARLIER_SNAPSHOT_SUFFIX}` };
+const TARGET = { key: 'app', url: 'postgres://u@db.test/shop', host: 'db.test', port: 5432, user: 'u', database: 'shop', template: 'shop__retake_snap', earlier: `shop${EARLIER_SNAPSHOT_SUFFIX}`, base: 'shop__retake_base' };
 
 /** A snapshot whose client answers `sql` with `answer` (a thrown error for a refused statement), the statements kept. */
 function snapshot(answer: (sql: string) => unknown) {

@@ -2827,6 +2827,30 @@ registry's, not proven to be its publisher's. npm's registry signatures (`dist.s
 `<name>@<version>:<integrity>`, keys from the registry's keys endpoint) — or provenance attestations — would
 authenticate it; the keys would have to be pinned in Retake to be worth more than the same TLS connection. *From:* L8.1b.
 
+### BL-185 — Agent-written sandbox files asked before `sandbox_up`
+*From:* L8.2 (field feedback 2, point 9). `sandbox_init` writes Retake's scaffold through MCP, but compose.yaml and
+sandbox.yaml stay the person's: `sandbox_up` runs their images, bind mounts, process commands and `pass_env` without
+asking (only shell seed steps are approved). Before an agent may fill them, keep a fingerprint of sandbox.yaml and the
+compose files as the person last ran them, and ask (an approval form listing what changed) when an MCP `sandbox_up` /
+`run_capture {sandbox: true}` finds them changed since. The same holds for the images: nothing asks before an MCP `sandbox_up` (or
+the first `run_capture {sandbox: true}`) pulls the images a compose file names — `sandbox_init` makes that reachable
+from MCP alone; the tools' texts tell Claude to ask the user first, but no approval form does (list the images that are
+not on this machine and ask once, as hooks are asked).
+
+### BL-186 — A signed-out sandbox persona keeps its profile
+*From:* L8.2 (point 29). After a reset that puts Firebase Auth accounts back, a persona's session saved before starts on
+a fresh browser profile: what the profile held besides the sign-in (a dismissed cookie banner, a closed onboarding
+tour, local storage) is not carried. Copying the profile without Firebase's own storage (`firebaseLocalStorageDb` in
+IndexedDB, the `firebase:authUser:*` keys) means editing Chromium's LevelDB files offline. Also open: signing every
+sandbox account out at every reset, not only with `firebase_auth` (a reset drops the sessions the app stored).
+
+### BL-187 — A `process` scaffold for `sandbox init` / `sandbox_init`
+*From:* L8.2 (point 9). Only the docker-compose scaffold exists; the process and hybrid cases are recipes in
+docs/guide/sandbox.md. A process scaffold's command would be a guess at the product. Also cut: an escape flag that
+seeds an outdated snapshot on the current data when there is neither base nor snapshot (`down --volumes`, then `up`,
+is the way).
+- The Studio's location page of a sandbox does not show its snapshot's state (current, outdated, no base, refused) that
+  `retake sandbox status` and `sandbox_status` give.
 ### BL-190 — The app's menus: what L8.3 left
 *S–M each · from L8.3 (BL-142, BL-143, BL-166) · builds on: L8.3*
 

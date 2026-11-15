@@ -26,7 +26,7 @@ import { busyPorts, describeListeners, listeners, portLabel, probePort, sandboxP
 import type { SandboxPort } from './ports.js';
 import { bootTime, groupMembers, groupTree, identify, killGroupSync, processStart, processTable, signalState, stopGroup } from './proc.js';
 import { PROCESS_CAPABILITIES } from './provider.js';
-import type { DownResult, OwnerUse, Provider, ProviderCapabilities, ProviderContext, ProviderLogs, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
+import type { DownResult, OwnerUse, Provider, ProviderCapabilities, ProviderContext, ProviderLogs, ServiceLogFile, ServiceStatus, ServicesAround, UpResult } from './provider.js';
 import { isProcessService, writeState } from './state.js';
 import type { ProcessServiceState } from './state.js';
 
@@ -474,6 +474,11 @@ export class ProcessProvider implements Provider {
   /** The seed hash has no inputs of its own. */
   async hashInputs(): Promise<string[]> {
     return [];
+  }
+
+  /** No snapshots: nothing is restored, nothing restarted around a database. */
+  async servicesAround(ctx: ProviderContext): Promise<ServicesAround> {
+    throw notCapable(ctx, 'snapshot resets');
   }
 }
 

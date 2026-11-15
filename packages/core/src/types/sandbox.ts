@@ -140,6 +140,8 @@ export interface LoadedSandbox {
   composeEnv?: Record<string, string>;
   /** The plain passwords of its accounts, by persona: registered as secret values when one signs in (never printed). */
   secrets: Record<string, string[]>;
+  /** Its state file (layout sandboxPaths), set by the loader: its personas read `accounts_at` there (R-SBX-11). */
+  stateFile?: string;
 }
 
 /** The sandbox of a run (run.json and timeline.json `environment.sandbox`): the reset made before the take, if any. */

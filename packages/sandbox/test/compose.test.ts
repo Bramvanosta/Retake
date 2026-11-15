@@ -14,7 +14,14 @@
  * - a published port another program holds: refused before up (nothing created), and, when the platform lets a
  *   program bind the wildcard address next to Docker's 127.0.0.1, refused after up;
  * - another checkout sharing the compose project name is refused by every command, and another container publishing
- *   the sandbox's port on [::1] (OrbStack allows it next to 127.0.0.1) is refused by up.
+ *   the sandbox's port on [::1] (OrbStack allows it next to 127.0.0.1) is refused by up;
+ * - R-SBX-10: an outdated snapshot is seeded again from the base (the database before its first
+ *   seed), never from a take's data; a sandbox snapshotted without a base seeds from its outdated snapshot and says how
+ *   to get one; neither base nor snapshot is refused with nothing changed; down --volumes, then up, keeps a base. These
+ *   use busybox and postgres:17-alpine only, `pull_policy: never` (no image pulled);
+ * - R-SBX-09: the "monorepo without app images" recipe of docs/guide/sandbox.md — the app run from its source,
+ *   mounted in a stock Node image that is already here (node:24.21.0-bookworm-slim, never pulled), beside its database
+ *   in one compose project, so a snapshot reset works.
  */
 import { resolveSecretRef } from '@retake/core/io';
 import { packageHooks } from './hook-runner.js';
@@ -28,6 +35,7 @@ import { createServer } from 'node:net';
 import type { Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProject } from '@retake/core/io';
 import type { LoadedProject, WorkPolicy } from '@retake/core';
@@ -239,7 +247,8 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     await query(url, 'DELETE FROM demo_customers');
     expect(await changed.reset({ log })).toMatchObject({ restored: true, snapshot: { action: 'restored' }, seed: { steps: 0 } });
     expect(await count()).toBe(7);
-    expect((await query(admin, "SELECT datname AS n FROM pg_database WHERE datname LIKE 'app\\_\\_%' ORDER BY 1")).map((r) => r.n)).toEqual(['app__retake_snap']);
+    // Its base (the database before the first seed, R-SBX-10) beside it; no copy left under __retake_next.
+    expect((await query(admin, "SELECT datname AS n FROM pg_database WHERE datname LIKE 'app\\_\\_%' ORDER BY 1")).map((r) => r.n)).toEqual(['app__retake_base', 'app__retake_snap']);
 
     const dbLogs = await changed.logs({ service: 'db', lines: 5 });
     expect(dbLogs[0].source).toBe(`docker compose -p ${name} logs db`);
@@ -421,6 +430,217 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
       } catch {
         /* never started */
       }
+      await sb.down({ volumes: true });
+    }
+    expect(labelled('container', name)).toEqual([]);
+  });
+
+  /**
+   * A db (postgres:17-alpine) and an app (busybox) in one compose project, strategy snapshot, an additive seed
+   * (no DROP, no TRUNCATE: the field case) that `seed` rewrites. Nothing is pulled.
+   */
+  async function ladderSandbox(slug: string): Promise<{ dir: string; url: string; seedFile: string; name: string }> {
+    const name = `${PREFIX}${slug}-${rand()}`;
+    const dir = await newProject(slug);
+    const base = await freeBase(2);
+    const pw = `pg-sandbox-${base + 1}`;
+    await mkdir(join(dir, 'sandbox', 'seed'), { recursive: true });
+    await writeFile(
+      join(dir, 'sandbox', 'compose.yaml'),
+      [
+        'services:',
+        '  app:',
+        '    image: busybox:1.38.0',
+        '    pull_policy: never',
+        '    init: true',
+        '    command: ["httpd", "-f", "-p", "8080", "-h", "/etc"]',
+        `    ports: ["127.0.0.1:${base}:8080"]`,
+        '    depends_on: {db: {condition: service_healthy}}',
+        '    healthcheck: {test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/hostname"], interval: 1s, timeout: 2s, retries: 30}',
+        '  db:',
+        '    image: postgres:17-alpine',
+        '    pull_policy: never',
+        `    environment: {POSTGRES_USER: demo, POSTGRES_PASSWORD: ${pw}, POSTGRES_DB: app}`,
+        `    ports: ["127.0.0.1:${base + 1}:5432"]`,
+        '    volumes: ["db-data:/var/lib/postgresql/data"]',
+        '    healthcheck: {test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U demo -d app"], interval: 1s, timeout: 3s, retries: 60}',
+        'volumes:',
+        '  db-data:',
+        '',
+      ].join('\n'),
+    );
+    const seedFile = join(dir, 'sandbox', 'seed', '01-demo.sql');
+    await writeFile(seedFile, "CREATE TABLE IF NOT EXISTS demo (id serial PRIMARY KEY, name text NOT NULL);\nINSERT INTO demo (name) VALUES ('Willow Street Bakery'), ('Copper Kettle Cafe');\n");
+    await writeFile(
+      join(dir, 'sandbox', 'sandbox.yaml'),
+      [
+        'version: 1',
+        'provider: docker-compose',
+        `compose: {files: [compose.yaml], project: ${name}}`,
+        'services:',
+        `  app: {url: "http://localhost:${base}", health: /hostname, pages: {app: "http://localhost:${base}"}}`,
+        'seed:',
+        '  - sql: {file: seed/01-demo.sql, db: main}',
+        'reset: {strategy: snapshot}',
+        'databases:',
+        `  main: {url: "postgres://demo:${pw}@localhost:${base + 1}/app"}`,
+        '',
+      ].join('\n'),
+    );
+    await writeFile(join(dir, 'project.yaml'), ['name: Ladder', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', '  sandbox: sandbox/sandbox.yaml', ''].join('\n'));
+    return { dir, url: `postgres://demo:${pw}@localhost:${base + 1}/app`, seedFile, name };
+  }
+
+  it('a changed seed restores the base before seeding: the last take\'s rows are not in the new snapshot', async () => {
+    const { dir, url, seedFile, name } = await ladderSandbox('ladder');
+    const rows = async () => (await query(url, 'SELECT name FROM demo ORDER BY id')).map((r) => r.name);
+    const sb = openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef, packageHooks);
+    try {
+      const up = await sb.up({ log });
+      expect(up.reset).toMatchObject({ base: { action: 'taken' }, snapshot: { action: 'taken' } });
+      expect(await rows()).toEqual(['Willow Street Bakery', 'Copper Kettle Cafe']);
+      await query(url, "INSERT INTO demo (name) VALUES ('TAKE ROW')");
+      // The seed changes (one comment line): the snapshot is outdated — the base, then the seed, then a new snapshot.
+      await writeFile(seedFile, `-- a comment\n${await readFile(seedFile, 'utf8')}`);
+      const changed = openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef, packageHooks);
+      expect((await changed.status()).snapshot).toMatchObject({ state: 'outdated', why: 'seed', base: true, next: 'from-base' });
+      const r = await changed.reset({ log });
+      expect(r).toMatchObject({ restored: false, base: { action: 'restored' }, outdated: { why: 'seed', from: 'base', restarted: ['app'] }, snapshot: { action: 'taken' } });
+      expect(await rows()).toEqual(['Willow Street Bakery', 'Copper Kettle Cafe']);
+      // A take again: the next reset restores exactly the seed's rows.
+      await query(url, "INSERT INTO demo (name) VALUES ('TAKE ROW')");
+      expect(await changed.reset({ log })).toMatchObject({ restored: true });
+      expect(await rows()).toEqual(['Willow Street Bakery', 'Copper Kettle Cafe']);
+      expect((await changed.status()).snapshot).toEqual({ state: 'current', base: true, next: 'restore' });
+      console.log(`[compose ladder] base restored in ${r.base!.ms} ms, reset ${r.ms} ms (app restarted before the seed)`);
+    } finally {
+      await sb.down({ volumes: true });
+    }
+    expect(labelled('volume', name)).toEqual([]);
+  });
+
+  it('a sandbox snapshotted without a base seeds from its outdated snapshot and says how to get one; neither base nor snapshot refuses, changing nothing; down --volumes then up keeps a base', async () => {
+    const { dir, url, seedFile } = await ladderSandbox('nobase');
+    const admin = url.replace(/\/app$/, '/postgres');
+    const rows = async () => (await query(url, 'SELECT name FROM demo ORDER BY id')).map((r) => r.name);
+    const sb = openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef, packageHooks);
+    try {
+      await sb.up({ log });
+      // As a sandbox snapshotted before the base existed: no base in the cluster nor in the state.
+      await query(admin, 'ALTER DATABASE app__retake_base WITH IS_TEMPLATE false');
+      await query(admin, 'DROP DATABASE app__retake_base');
+      const stateFile = join(dir, '.retake', 'sandbox', 'sandbox', 'state.json');
+      const st = JSON.parse(await readFile(stateFile, 'utf8')) as { provider_state: Record<string, unknown> };
+      delete st.provider_state.base;
+      await writeFile(stateFile, JSON.stringify(st));
+      await query(url, "INSERT INTO demo (name) VALUES ('TAKE ROW')");
+      await writeFile(seedFile, `-- a comment\n${await readFile(seedFile, 'utf8')}`);
+      const changed = openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef, packageHooks);
+      const r = await changed.reset({ log });
+      expect(r).toMatchObject({ outdated: { why: 'seed', from: 'snapshot' }, snapshot: { action: 'taken' } });
+      expect(r.base).toBeUndefined();
+      expect(r.outdated?.hint).toMatch(/--volumes \(it deletes every volume of the sandbox/);
+      // The additive seed ran on the snapshot's data (its documented contract is to reset what it creates): never on the take's.
+      expect(await rows()).not.toContain('TAKE ROW');
+      // Neither base nor snapshot: refused, nothing changed.
+      await query(url, "INSERT INTO demo (name) VALUES ('TAKE ROW')");
+      await query(admin, 'ALTER DATABASE app__retake_snap WITH IS_TEMPLATE false');
+      await query(admin, 'DROP DATABASE app__retake_snap');
+      const before = await readFile(stateFile, 'utf8');
+      await expect(changed.reset({ log })).rejects.toThrow(/the database already holds data and there is no base or snapshot to start from \(its snapshot is gone\): .*Nothing was changed\. Start from a fresh database: retake sandbox down \S+ --env sandbox --volumes/);
+      expect(await rows()).toContain('TAKE ROW');
+      expect(await readFile(stateFile, 'utf8')).toBe(before);
+      // A fresh database: down --volumes, then up — its first seed keeps a base again.
+      await changed.down({ log, volumes: true });
+      const again = await openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef, packageHooks).up({ log });
+      expect(again.reset).toMatchObject({ base: { action: 'taken' }, snapshot: { action: 'taken' } });
+      expect(await rows()).toEqual(['Willow Street Bakery', 'Copper Kettle Cafe']);
+    } finally {
+      await sb.down({ volumes: true });
+    }
+  });
+
+  it('the monorepo recipe — the app run from its source in a stock Node image, beside its database: up, seed, snapshot, reset', async () => {
+    const IMAGE = 'node:24.21.0-bookworm-slim';
+    const present = (() => {
+      try {
+        docker(['image', 'inspect', IMAGE, '--format', '{{.Id}}']);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    if (!present) {
+      console.info(`[compose monorepo recipe] skipped: ${IMAGE} is not on this machine (never pulled by the test)`);
+      return;
+    }
+    const name = `${PREFIX}monorepo-${rand()}`;
+    const dir = await newProject('monorepo');
+    const base = await freeBase(3);
+    const repo = fileURLToPath(new URL('../../../', import.meta.url));
+    await mkdir(join(dir, 'sandbox'), { recursive: true });
+    await writeFile(
+      join(dir, 'sandbox', 'compose.yaml'),
+      [
+        'services:',
+        '  web:',
+        `    image: ${IMAGE}`,
+        '    pull_policy: never',
+        '    init: true',
+        `    volumes: ["${join(repo, 'fixtures', 'wholesale')}:/repo/fixtures/wholesale:ro"]`,
+        '    working_dir: /repo/fixtures/wholesale',
+        '    command: ["node", "server.mjs", "--no-build", "--no-auth"]',
+        `    environment: {NORTHFIELD_HOST: 0.0.0.0, NORTHFIELD_CONSOLE_PORT: "${base}", NORTHFIELD_SHOP_PORT: "${base + 1}", DATABASE_URL: "postgres://demo:pg-sandbox-${base + 2}@db:5432/app"}`,
+        `    ports: ["127.0.0.1:${base}:${base}", "127.0.0.1:${base + 1}:${base + 1}"]`,
+        '    depends_on: {db: {condition: service_healthy}}',
+        `    healthcheck: {test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:${base}/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"], interval: 1s, timeout: 3s, retries: 60}`,
+        '  db:',
+        '    image: postgres:17-alpine',
+        '    pull_policy: never',
+        `    environment: {POSTGRES_USER: demo, POSTGRES_PASSWORD: pg-sandbox-${base + 2}, POSTGRES_DB: app}`,
+        `    ports: ["127.0.0.1:${base + 2}:5432"]`,
+        '    volumes: ["db-data:/var/lib/postgresql/data"]',
+        '    healthcheck: {test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U demo -d app"], interval: 1s, timeout: 3s, retries: 60}',
+        'volumes:',
+        '  db-data:',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(
+      join(dir, 'sandbox', 'sandbox.yaml'),
+      [
+        'version: 1',
+        'provider: docker-compose',
+        `compose: {files: [compose.yaml], project: ${name}}`,
+        'services:',
+        `  web: {url: "http://localhost:${base}", health: {path: /api/health, timeout_s: 120}, pages: {console: "http://localhost:${base}", shop: "http://localhost:${base + 1}"}}`,
+        'seed:',
+        '  - http: {method: POST, url: "{{console}}/api/reset"}',
+        '  - sql: {db: main, query: "DROP TABLE IF EXISTS demo; CREATE TABLE demo (n int); INSERT INTO demo VALUES (1)"}',
+        'reset: {strategy: snapshot, restart: [web]}',
+        'databases:',
+        `  main: {url: "postgres://demo:pg-sandbox-${base + 2}@localhost:${base + 2}/app"}`,
+        '',
+      ].join('\n'),
+    );
+    await writeFile(join(dir, 'project.yaml'), ['name: Monorepo', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', '  sandbox: sandbox/sandbox.yaml', ''].join('\n'));
+    const project = await loadProject(dir);
+    expect(project.sandboxes!.sandbox.issues).toEqual([]);
+    const sb = openSandbox(project, undefined, policy, resolveSecretRef, packageHooks);
+    const url = `postgres://demo:pg-sandbox-${base + 2}@localhost:${base + 2}/app`;
+    try {
+      const t0 = Date.now();
+      const up = await sb.up({ log });
+      expect(up.started.sort()).toEqual(['db', 'web']);
+      expect(up.reset).toMatchObject({ seed: { steps: 2 }, base: { action: 'taken' }, snapshot: { action: 'taken' } });
+      const health = (await (await fetch(`http://127.0.0.1:${base}/api/health`)).json()) as { name: string };
+      expect(health.name).toBe('northfield-fixture');
+      await query(url, 'INSERT INTO demo VALUES (2)');
+      const r = await sb.reset({ log });
+      expect(r).toMatchObject({ restored: true, restarted: ['web'] });
+      expect((await query(url, 'SELECT count(*)::int AS n FROM demo'))[0].n).toBe(1);
+      console.log(`[compose monorepo recipe] up ${up.ms} ms (seed ${up.reset!.seed.ms} ms) · reset ${r.ms} ms · total ${Date.now() - t0} ms`);
+    } finally {
       await sb.down({ volumes: true });
     }
     expect(labelled('container', name)).toEqual([]);

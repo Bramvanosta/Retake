@@ -12,7 +12,7 @@ import type { LoadedProject } from '@retake/core/project';
 import type { RunRecord } from '@retake/core/run';
 import { describeLock } from '@retake/core/io';
 import type { ProviderCapabilities, ResetResult, SandboxLog, ServiceStatus, SandboxLogs } from '@retake/sandbox/types';
-import { callerOf, fileWriter, personScope, sandboxUpText, sandboxWork, storeOf } from '@retake/engine/shell';
+import { callerOf, fileWriter, firebaseAuthText, personScope, resetLadderText, sandboxUpText, sandboxWork, snapshotStatusText, storeOf } from '@retake/engine/shell';
 import type { EnginePorts, InterruptPort, SandboxHandle } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -75,19 +75,27 @@ function pagesLine(project: LoadedProject, env: string): string {
 }
 
 /** "reseed 40 ms · seed 1 step · mailbox emptied" / "snapshot 240 ms · snapshot restored in 212 ms · mailbox emptied". */
-function resetText(r: ResetResult): string {
+export function resetText(r: ResetResult): string {
   const parts = [`${r.strategy} ${formatMs(r.ms)}`];
   if (r.snapshot?.action === 'restored') parts.push(`snapshot of ${r.snapshot.database} restored in ${formatMs(r.snapshot.ms)}`);
   else {
+    // An outdated snapshot is seeded again from the base (else from itself), never from a take's data.
+    const ladder = resetLadderText(r);
+    if (ladder) parts.push(ladder);
     parts.push(`seed ${plural(r.seed.steps, 'step')}${r.seed.steps ? ` (${formatMs(r.seed.ms)})` : ''}`);
     if (r.snapshot) parts.push(`snapshot of ${r.snapshot.database} taken in ${formatMs(r.snapshot.ms)}`);
   }
   if (r.mailbox === 'cleared') parts.push('mailbox emptied');
   if (r.restarted.length) parts.push(`restarted ${r.restarted.join(', ')}`);
-  if (r.firebase_auth) parts.push(`${plural(r.firebase_auth.accounts, 'Firebase Auth account')} put back`);
+  if (r.firebase_auth) parts.push(firebaseAuthText(r.firebase_auth));
   if (r.hooks.steps) parts.push(`${plural(r.hooks.steps, 'reset hook')} (${formatMs(r.hooks.ms)})`);
   if (r.superseded) parts.push(`${plural(r.superseded, 'pending rollback')} superseded`);
   return parts.join(' · ');
+}
+
+/** What a reset tells the person besides its line: how to get a base, when it had none to start from. */
+export function resetWarnings(r: ResetResult | undefined): string[] {
+  return r?.outdated?.hint ? [r.outdated.hint] : [];
 }
 
 /** `--build` / `--volumes` / `--follow` are docker-compose flags (capabilities of that provider): a usage error on a process sandbox. */
@@ -126,6 +134,7 @@ export async function sandboxUpCommand(ui: Ui, global: GlobalOptions, projectArg
     ui.line(`  ${c.dim('services')}  ${sandboxUpText(res)} ${c.dim(`(${formatMs(res.ms)})`)}`);
     if (res.reset) ui.line(`  ${c.dim('seed')}      ${resetText(res.reset)}`);
     else if (opts.seed === false) ui.line(`  ${c.dim('seed')}      skipped (--no-seed)`);
+    for (const w of resetWarnings(res.reset)) ui.warn(w);
     ui.line(`  ${c.dim('pages')}     ${pagesLine(project, sb.env)}`);
     if (steps.times().length > 1) ui.line(`  ${c.dim('steps')}     ${steps.summary()}`);
     ui.ok(`sandbox ${sb.env} is up — retake run ${project.slug} <scenario> --sandbox${sb.env === sandboxNames(project)[0] ? '' : ` --env ${sb.env}`} resets it before each take`);
@@ -165,6 +174,7 @@ export async function sandboxResetCommand(ui: Ui, global: GlobalOptions, project
       recordAs: recordAs(global.ports),
     });
     steps.close();
+    for (const w of resetWarnings(res)) ui.warn(w);
     ui.ok(`${project.slug} sandbox ${sb.env} reset: ${resetText(res)}`);
     return EXIT.ok;
   } catch (e) {
@@ -215,6 +225,7 @@ export async function sandboxStatusCommand(ui: Ui, global: GlobalOptions, projec
     `  ${c.dim('seed'.padEnd(width))} ${st.seed ? `${st.seed.hash} · ${since(st.seed.at)}${st.seed.current ? '' : c.yellow(" · sandbox.yaml's seed changed since (the next up or reset seeds again)")}` : c.dim('never seeded')}`,
   );
   if (st.last_reset) ui.line(`  ${c.dim('reset'.padEnd(width))} ${st.last_reset.strategy} · ${since(st.last_reset.at)} · ${formatMs(st.last_reset.ms)} · by ${st.last_reset.by}`);
+  if (st.snapshot) ui.line(`  ${c.dim('snapshot'.padEnd(width))} ${snapshotStatusText(project.slug, sb.env, st.snapshot)}`);
   ui.line(`  ${c.dim('lock'.padEnd(width))} ${st.lock ? c.yellow(`in use: ${describeLock(st.lock)}`) : 'free'}`);
   ui.line(`  ${c.dim('logs'.padEnd(width))} ${ui.path(st.logs)}`);
   for (const n of st.notes) ui.warn(n);

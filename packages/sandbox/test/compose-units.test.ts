@@ -30,6 +30,7 @@ import {
   KILL_EXEC_SCRIPT,
   connectAddress,
   foreignListeners,
+  dataMount,
   parseComposeConfig,
   parseLabels,
   parseDockerPs,
@@ -223,6 +224,19 @@ describe('compose project, argv and output parsing', () => {
     expect(cfg.services).toEqual(['app', 'db']);
     expect(cfg.ports.map((p) => `${p.service}:${p.host || '*'}:${p.port}`)).toEqual(['app:*:4700', 'app:*:4701', 'app:*:4702', 'db:127.0.0.1:4601']);
     expect(cfg.images).toEqual({ app: 'proj-app', db: 'postgres:17-alpine' });
+  });
+
+  it("reads depends_on (list and map forms) and where a database container keeps its data", () => {
+    const cfg = parseComposeConfig(
+      JSON.stringify({ services: { app: { depends_on: { db: { condition: 'service_healthy' }, cache: {} } }, worker: { depends_on: ['app'] }, db: {}, cache: {} } }),
+      'proj',
+    );
+    expect(cfg.depends).toEqual({ app: ['db', 'cache'], worker: ['app'] });
+    const mounts = (m: object[]) => JSON.stringify(m);
+    expect(dataMount(mounts([{ Type: 'volume', Name: 'proj_pgdata', Destination: '/var/lib/postgresql/data' }]))).toEqual({ type: 'volume', name: 'proj_pgdata' });
+    expect(dataMount(mounts([{ Type: 'bind', Source: '/srv/pg', Destination: '/var/lib/postgresql' }]))).toEqual({ type: 'bind', name: '/srv/pg' });
+    expect(dataMount(mounts([{ Type: 'bind', Source: '/srv/seed', Destination: '/docker-entrypoint-initdb.d' }]))).toBeNull();
+    expect(dataMount('not json')).toBeNull();
   });
 
   it('judges containers by state and health, never by the exit code of up --wait', () => {
@@ -846,6 +860,7 @@ describe('snapshot helpers', () => {
         password: 'from-env-pass',
         template: 'shop__retake_snap',
         earlier: `shop${EARLIER_SNAPSHOT_SUFFIX}`,
+        base: 'shop__retake_base',
       });
     } finally {
       delete process.env.RETAKE_TEST_SNAP_PW;

@@ -513,11 +513,23 @@ describe('project.yaml sandboxes: each one an environment (R-SBX-01, R-SBX-03)',
     ]);
     expect(buyer.loginPatterns).toEqual(['/sign-in']);
     expect(buyer.snapshot).toBe('/h/sessions/northfield/sandbox/buyer.json');
+    // Without reset.firebase_auth, no sandbox state to read (a reset signs nobody out).
+    expect(buyer).not.toHaveProperty('sandboxState');
     // A secret reference stays one: resolved (and masked) by the run like any {{env:…}}.
     expect(personas[1].login?.[2]).toEqual({ type: { into: { label: 'Password' }, text: '{{env:NORTHFIELD_SUPPLIER_PASSWORD}}' } });
     // A scenario on the sandbox binds its pages to these personas.
     const { issues } = parseScenario('video: x\nenv: sandbox\nscenes:\n  - {id: a, page: shop, persona: buyer, open: /, steps: [{hold: 1}]}\n', { files: fileFacts(PERSON_POLICY), project: p });
     expect(msgs(issues)).toEqual([]);
+  });
+
+  it('with reset.firebase_auth, each account names its sandbox state file (accounts_at: the reset that signs it out)', async () => {
+    const files = { ...SANDBOX_FILES, 'sandbox/sandbox.yaml': PROCESS.replace('mailbox: {provider', 'reset:\n  firebase_auth: {url: "http://127.0.0.1:4529", project: demo-shop}\nmailbox: {provider') };
+    const dir = await workspace(PROJECT, files);
+    const p = await loadProject(dir);
+    expect(p.issues).toEqual([]);
+    const personas = resolvePersonas(p, 'sandbox', { home: '/h' });
+    expect(personas.map((x) => x.sandboxState)).toEqual([join(dir, '.retake', 'sandbox', 'sandbox', 'state.json'), join(dir, '.retake', 'sandbox', 'sandbox', 'state.json')]);
+    expect(resolvePersonas(p, 'local', { home: '/h' })[0]).not.toHaveProperty('sandboxState');
   });
 
   it('a project without sandboxes loads exactly as before (global auth kept, no derived settings)', async () => {

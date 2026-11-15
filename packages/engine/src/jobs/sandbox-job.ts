@@ -99,6 +99,8 @@ function resetView(r: ResetResult): NonNullable<SandboxJobResult['reset']> {
     seed: r.seed,
     mailbox: r.mailbox,
     ...(r.snapshot ? { snapshot: r.snapshot } : {}),
+    ...(r.base ? { base: r.base } : {}),
+    ...(r.outdated ? { outdated: r.outdated } : {}),
     restarted: r.restarted,
     superseded: r.superseded,
     ...(r.firebase_auth ? { firebase_auth: r.firebase_auth } : {}),

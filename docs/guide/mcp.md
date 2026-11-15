@@ -21,7 +21,8 @@ previews themes and components (stills come back as images), checks components a
 new theme from the brand files the user put in the workspace, or from a draft read off a public site whose URL the
 user approves (`template_from_site`) or a design-token file (`template_from_tokens`), fetches open-licence fonts the
 user approves into the workspace's font store (`font_fetch`), and adjusts a theme it made that nobody changed (`template_update`) — component
-code, themes a person made or changed and project.yaml are never written through the server. People comment frames of a render (`retake comment add`); Claude lists the comments
+code, themes a person made or changed and project.yaml are never written through the server (but the `sandboxes.<env>`
+line of `sandbox_init`, which scaffolds a sandbox the user then fills). People comment frames of a render (`retake comment add`); Claude lists the comments
 with their anchor and still, adapts the video, replies and resolves them with the new render (see
 [Frame comments](review.md#frame-comments)).
 
@@ -157,9 +158,10 @@ same advice if it is not yours. This is checked at start only, the client does n
 | `env_reset` | as a job: replays every pending rollback (captures' and hook runs' journals, an interrupted job's too), then the project's `reset` hooks; dry by default | the environment; the journals |
 | `auth_status` | each persona's last known session state and the `retake login` command a human runs (no live check, no browser) | — |
 | `auth_login` | signs a persona in, as a job: `headed` (default) opens a browser window **on the user's machine** — the user signs in there and closes it, Claude is told to ask them and never sees a password; `auto` plays the persona's `login:` steps (their secrets come from the server's environment or the keychain). The result says whether the session works now (no path, no cookie). The window holds the queue until it is closed, at most 30 minutes (`RETAKE_SIGNIN_MAX_MIN`; then it closes, nothing saved) | the session, in `~/.retake` |
-| `sandbox_status` | a sandbox's services, health, seed, last reset, take lock (starts nothing) | — |
+| `sandbox_status` | a sandbox's services, health, seed, last reset, take lock (starts nothing); strategy snapshot: what the next reset does with the snapshot (current, outdated → seeded again from the base or the outdated snapshot, refused, unknown when down — L8.2) and when Firebase Auth accounts were last put back | — |
 | `sandbox_up` | as a job: starts what is not running, checks health, seeds when it never was or the seed changed | the sandbox (its processes or containers, its data) |
 | `sandbox_reset` | as a job: back to the seed (`reseed: true` runs the seed even when a snapshot could be restored); the sandbox must be up | the sandbox's own data |
+| `sandbox_init` | Retake's docker-compose sandbox scaffold (L8.2: sandbox.yaml, compose.yaml with a placeholder app, Postgres and Mailpit on free local ports, a demo seed, README.md) and the `sandboxes.<env>` line of project.yaml, named in its answer; `env` (default `sandbox`); never over a file (no force), nothing started; the user then fills compose.yaml and sandbox.yaml (Claude proposes the text), and `sandbox_up` pulls their images (asked first) | the new sandbox folder; project.yaml (one line) |
 
 Every result starts with a short summary for Claude, then the data as JSON (also as `structuredContent`) with local
 paths it can read; an error is a tool error with a code (`not_found`, `invalid`, `conflict`, `refused`,

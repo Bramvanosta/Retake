@@ -21,7 +21,15 @@ import type { Provider, ProviderCapabilities, ProviderContext } from '../src/pro
 
 const NAMES: Array<keyof ProviderCapabilities> = ['exec', 'logs', 'followLogs', 'snapshots', 'address', 'hashInputs', 'build', 'volumes'];
 /** The methods a capability gates, by the capability that says they work. */
-const METHODS: Record<string, keyof ProviderCapabilities> = { exec: 'exec', logs: 'logs', followLogs: 'followLogs', publishedBy: 'snapshots', address: 'address', hashInputs: 'hashInputs' };
+const METHODS: Record<string, keyof ProviderCapabilities> = {
+  exec: 'exec',
+  logs: 'logs',
+  followLogs: 'followLogs',
+  publishedBy: 'snapshots',
+  servicesAround: 'snapshots',
+  address: 'address',
+  hashInputs: 'hashInputs',
+};
 
 const sandbox = (provider: LoadedSandbox['manifest']['provider']): LoadedSandbox =>
   ({ env: 'sandbox', file: '/p/sandbox/sandbox.yaml', dir: '/p/sandbox', manifest: { version: 1, provider, services: { app: { command: ['true'] } } }, issues: [] }) as unknown as LoadedSandbox;
@@ -78,6 +86,7 @@ describe('the providers declare their capabilities', () => {
       /^sandbox sandbox: following logs — a capability of the docker-compose provider/,
     );
     expect(await refused(p.publishedBy(ctx, 5432))).toMatch(/^sandbox sandbox: snapshot resets — a capability of the docker-compose provider/);
+    expect(await refused(p.servicesAround(ctx, 'db'))).toMatch(/^sandbox sandbox: snapshot resets — a capability of the docker-compose provider/);
     expect(await p.address(ctx, 5432)).toBeUndefined();
     expect(await p.hashInputs(ctx)).toEqual([]);
   });

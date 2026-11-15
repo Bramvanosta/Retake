@@ -16,6 +16,7 @@ import { SANDBOX_SEED_DIR, SandboxConfigError, parseSandboxYaml, sandboxAuth } f
 import type { LoadedSandbox, SandboxManifest } from '../types/sandbox.js';
 import type { ProjectConfig } from '../types/project.js';
 import { errorMessage } from '../util.js';
+import { sandboxPaths } from '../layout.js';
 
 /**
  * Read the manifests of project.yaml `sandboxes:` (paths relative to the project dir) on a disk. Throws
@@ -38,7 +39,16 @@ export async function loadSandboxesOn(disk: WorkspaceDisk, projectDir: string, c
     const { manifest, issues } = parseSandboxYaml(text, file, { env, project: { config }, files: disk.facts });
     if (!manifest) throw new SandboxConfigError(issuesMessage(`sandbox ${env}`, issues, file), issues, file, env);
     const composeEnv = await accountsComposeEnvOn(disk, dirname(file), manifest, env, file);
-    out[env] = { env, file, dir: dirname(file), manifest, issues, ...(composeEnv ? { composeEnv } : {}), secrets: sandboxAuth(manifest, composeEnv).secrets };
+    out[env] = {
+      env,
+      file,
+      dir: dirname(file),
+      manifest,
+      issues,
+      ...(composeEnv ? { composeEnv } : {}),
+      secrets: sandboxAuth(manifest, composeEnv).secrets,
+      stateFile: sandboxPaths(projectDir, env).state,
+    };
   }
   return out;
 }

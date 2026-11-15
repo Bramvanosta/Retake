@@ -134,7 +134,7 @@ Validation (`retake validate`, and every command: a broken sandbox.yaml stops th
 
 ```sh
 retake sandbox up northfield-fixture          # start what is not running, wait until healthy, seed it if needed
-retake sandbox status northfield-fixture      # services (pid, health), pages, seed, last reset, take lock (--json)
+retake sandbox status northfield-fixture      # services (pid, health), pages, seed, last reset, snapshot, take lock (--json)
 retake sandbox logs northfield-fixture        # the last lines of each service's log ([service] [--lines 50] [--follow])
 retake sandbox reset northfield-fixture       # back to the seed (the sandbox must be up; --reseed)
 retake sandbox down northfield-fixture        # stop it (a process sandbox's data goes with it; --volumes)
@@ -196,10 +196,21 @@ by `✓ step  time` when the step ends; in a pipe or CI, a time-stamped line as 
   `reset.firebase_auth: {url: "http://localhost:9099", project: demo-…}`: its accounts are emptied before each seed,
   saved after it (the emulator's own export, `accounts:batchGet`, in `.retake/sandbox/<env>/firebase-auth.json`), and
   at every reset — after `reset.restart` — emptied and imported again (`accounts:batchCreate`, as `firebase emulators:start
-  --import` does); with strategy `snapshot` a save that does not match the seed reseeds. For anything else,
+  --import` does); with strategy `snapshot` a save that does not match the seed reseeds (from the base: below). For anything else,
   `reset.hooks`: `http`, `sql`, `shell` or `exec` steps (the seed's kinds and checks; never rolled back) run at every
   reset once the data is back — once in sandbox.yaml rather than a setup hook copied into each scenario. `--reseed`
   runs the seed and saves the accounts again.
+- **Accounts put back sign the personas out** (L8.2). The emulator issues new sessions for the accounts it imported:
+  an ID token saved before the reset is no longer accepted (a 401), even when it has not expired. So every reset of a
+  `firebase_auth` sandbox records when it put the accounts back (`accounts_at` in `.retake/sandbox/<env>/state.json`,
+  `sandbox status --json`), and a persona session saved before then is not used: the take starts that persona signed
+  out and its preflight signs it in with its `login` steps, off camera — every `--sandbox` take of such a sandbox signs
+  its personas in again. A persona without `login` steps is refused before the take (`give accounts.<name> login steps
+  in sandbox.yaml`; a session `retake login` saves lasts only until the next reset). A hook's `auth: {persona}` run
+  outside a take (`retake hooks run`, `retake env reset`, their MCP tools) refuses such a session, naming the reset,
+  rather than send its request without a token. The reset says which personas sign in again (`3 Firebase Auth
+  accounts put back — admin, owner sign in again at the next take, off camera`). Signed out means a fresh browser
+  profile: what the profile kept besides the session (a dismissed banner, local storage) is not carried over.
 - **Only what the sandbox owns.** A reset empties the mailbox and the `sql` steps of the seed and of `reset.hooks`
   rewrite their database, so both must be the sandbox's own: served by a service of the sandbox — a port a running
   container of its compose project publishes (made from its folder, with no other project's container publishing that
@@ -368,6 +379,12 @@ the scaffold would write that already exists (`sandbox.yaml`, `compose.yaml`, `R
 it, named, before anything is written; `--force` writes the scaffold over them (project.yaml is left as it is);
 `--json` prints the files and ports.
 
+Through MCP, `sandbox_init {project, env?}` (L8.2) writes the same scaffold with the user's go-ahead — the tool's own
+content only, never over a file (no `--force`), the `sandboxes.<env>` line added to project.yaml and named in its
+answer; nothing is started. What the sandbox then runs (compose.yaml's images, bind mounts, commands; sandbox.yaml's
+seed and accounts) stays the person's to write: Claude proposes the text in chat, and `sandbox_up` pulls the images
+the compose file names (a download, asked first).
+
 ### Snapshot reset (Postgres)
 
 With `reset: {strategy: snapshot}` (docker-compose only), the sandbox's database (`reset.snapshot.database`, a key of
@@ -377,6 +394,10 @@ on this machine. A snapshot a sandbox took under the template's earlier name is 
 next reset (its seed kept, so it is restored, not retaken), or dropped when one under the present name exists:
 
 ```sql
+-- before the first seed (base), only on a database Retake never touched
+CREATE DATABASE "app__retake_base" TEMPLATE "app";            -- the same blocking dance as the take below
+ALTER DATABASE "app__retake_base" WITH ALLOW_CONNECTIONS false IS_TEMPLATE true;
+COMMENT ON DATABASE "app__retake_base" IS 'retake base';
 -- after the seed (take)
 ALTER DATABASE "app" WITH ALLOW_CONNECTIONS false;            -- the app's pool cannot reconnect during the copy
 SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'app' AND pid <> pg_backend_pid();
@@ -390,6 +411,7 @@ COMMENT ON DATABASE "app__retake_snap" IS 'retake snapshot <seed hash>';
 ALTER DATABASE "app" WITH ALLOW_CONNECTIONS false;
 DROP DATABASE IF EXISTS "app" WITH (FORCE);                   -- its sessions are terminated
 CREATE DATABASE "app" TEMPLATE "app__retake_snap" OWNER "<owner at the take>";
+-- an outdated snapshot: the same, from "app__retake_base" — then the seed and a new snapshot
 ```
 
 - **Only the sandbox's own database**: the database's port must be published by a running service of the sandbox's
@@ -397,11 +419,32 @@ CREATE DATABASE "app" TEMPLATE "app__retake_snap" OWNER "<owner at the take>";
   it — a `localhost:5432` that is another stack's Postgres is refused; pg connects to the address the port is
   published on (`127.0.0.1`), never to `localhost`. Postgres 13 or later (`DROP DATABASE … WITH (FORCE)`). The role of the URL needs to drop and create
   databases and terminate the app's sessions: the compose image's `POSTGRES_USER` (a superuser) can.
-- **When the snapshot is stale** it is taken again, after the seed: the seed hash (seed steps, the files they read,
-  `seed/`, the images of the compose services — `up --build` with new migrations makes it stale) differs from the one
-  in the state file or in the template's comment, the template is gone (`down --volumes`), or `reset --reseed` asks.
-  After a change the hash cannot see (a script outside `seed/`, data an `exec` step fetches), run `retake sandbox
-  reset <project> --reseed`.
+- **When the snapshot is outdated** — the seed hash (seed steps, the files they read, `seed/`, the images of the
+  compose services — `up --build` with new migrations makes it stale — and the env file) differs from the one in the
+  state file or in the template's comment, the Firebase Auth accounts saved are missing or of another seed (adding
+  `reset.firebase_auth`), `reset.snapshot.database` names another database, the template is gone, or `reset --reseed`
+  asks — the seed never runs on what the last take left. The reset restores the
+  **base** — the database as the services left it right before its first seed, kept as `<db>__retake_base` when
+  Retake first seeded a database it had never touched —, restarts the services that are running (but the database's
+  service and what it depends on: a rebuilt image's boot migrations run again on the base), empties the Firebase Auth
+  emulator, runs the seed and takes a new snapshot (`snapshot outdated (the seed changed …): base restored in 410 ms
+  · seed 1 step · snapshot taken`). A sandbox snapshotted before it had a base restores its outdated snapshot instead,
+  seeds on it (seeds reset what they create, below) and says, at each such reset, how to get a base: `retake sandbox
+  down <project> --env <env> --volumes` — it deletes every volume of the sandbox (the database, and any uploads,
+  caches or indexes kept in volumes; a bind mount or an external volume is not removed: the message names it) —, then
+  `retake sandbox up`. With neither a base nor a snapshot, the reset asks Postgres: a database with no table, view or
+  sequence of its own (missing, a volume removed by hand, a renamed `reset.snapshot.database`) gets its first seed and
+  a base; so does one nothing ever used by Retake's record (never seeded, reset, snapshotted nor started with
+  `--no-seed` since its data last went — an app that migrates at boot leaves tables before its first seed). Anything
+  else already holds data nobody can vouch for (a sandbox switched from strategy `reseed`, a template dropped by hand,
+  `up --no-seed` and then used): the reset is refused before anything changes (`the database already holds data and
+  there is no base or snapshot to start from`), with the same two commands. `down --volumes` forgets the seed only when
+  the database's data really goes with the volumes: a bind mount or an external volume keeps it, and the seed with it. `retake sandbox status` (and `sandbox_status`) says what the next reset does: `snapshot
+  current · base kept`, `outdated (…) — the next reset restores the base, restarts the services, seeds and takes a
+  new snapshot`, `outdated (…), no base — …`, `no base nor snapshot, and the database already holds data — the next reset refuses: …`, `none
+  yet`, or `unknown (sandbox down)`; it reads the cluster without changing anything (2 s timeout). After a change the
+  hash cannot see (a script outside `seed/`, data an `exec` step fetches), run `retake sandbox reset <project>
+  --reseed`. A database name over 50 bytes is refused (its copies' names must fit Postgres's 63).
 - **Robust to interruptions**: every reset first lets connections in again when an interrupted reset left them
   blocked, recreates the database when an interrupted restore dropped it, and nothing between `DROP` and `CREATE`
   stops for Ctrl-C; `up` resets a sandbox whose database an interrupted reset left missing or closed, even when its
@@ -413,8 +456,13 @@ CREATE DATABASE "app" TEMPLATE "app__retake_snap" OWNER "<owner at the take>";
   node-postgres client emits an `'error'` on its `Pool` — without a handler the process crashes —, and a client held
   in an open transaction stays broken. If the first page of a take fails, add
   `reset: {restart: [app]}` (the app restarts after every reset) and make its health path read the database.
-- **Seeds start from a clean state**: a seed runs on the database as it is (after a take, with its changes), so it
-  drops or truncates what it creates (the scaffold's drops its table first). A plain `pg_dump` file (`COPY … FROM
+- **Every copy is whole or absent**: a snapshot or a base is made as `<db>__retake_next`, marked (template, comment),
+  and only then renamed over the old one — a copy that fails leaves the old snapshot as it was. A `reset.restart`
+  service restarts after the snapshot is taken (the take ends every session of the database), also when an outdated
+  reset already restarted it before the seed.
+- **Seeds start from a clean state**: with strategy `snapshot` a seed runs on the base (or, without one, on the
+  outdated snapshot), never on a take's changes; with strategy `reseed` it runs on the database as the last take left
+  it. Either way it drops or truncates what it creates (the scaffold's drops its table first). A plain `pg_dump` file (`COPY … FROM
   stdin`, `\connect`) is refused by sql steps: dump with `pg_dump --inserts`, or load it with an `exec` step (`exec:
   {service: db, command: "psql -v ON_ERROR_STOP=1 -U demo -d app -f /seed/dump.sql"}`, the file mounted in the db
   service).
@@ -422,7 +470,10 @@ CREATE DATABASE "app" TEMPLATE "app__retake_snap" OWNER "<owner at the take>";
   takes 20–30 ms to run and its snapshot restores in 40–300 ms, so `reseed` is as fast there. With a realistic seed —
   600 000 rows and two indexes, a 114 MB database — the seed takes 1.3–1.9 s (`reseed`: a 1.5–2.1 s reset) and the
   snapshot restores in 230–300 ms (the first one after a take ≈ 0.7 s): a 0.5–0.6 s reset, docker checks included.
-  The take after the seed costs 0.45–0.75 s. `retake sandbox reset` prints both times.
+  The take after the seed costs 0.45–0.75 s. `retake sandbox reset` prints both times. The base is one more copy,
+  taken once (the size of the database before its first seed: a schema, or what init scripts load — then a third full
+  copy); an outdated reset restores it (≈ 0.6 s in the L8.2 Docker test) and restarts the running services before
+  the seed (≈ 3 s there, one app and its health check).
 
 ### The fixture's Docker sandbox (Mailpit)
 
@@ -495,6 +546,98 @@ reset:
   compose project).
 - **A sign-in that survives the reset**: none — a reset drops the sessions the app stored, so the accounts sign in
   again off camera before every take (`accounts`, above).
+
+### A monorepo without app images (recommended)
+
+When the product is a repository of apps (a monorepo) with no images of its own, run each app as a compose service on a
+stock runtime image with its source mounted, beside the infrastructure's images: one compose project, so `strategy:
+snapshot` works, every port is the sandbox's own, and `down` stops everything.
+
+```yaml
+# sandbox/compose.yaml — the apps from their source, the infra from its images (published on 127.0.0.1 only)
+services:
+  web:
+    image: node:24.21.0-bookworm-slim       # an exact tag; pulled once by the first `up` (or `docker pull` it yourself)
+    init: true
+    working_dir: /repo
+    volumes:
+      - ../..:/repo                         # the repository (compose resolves it next to this file)
+      - web-node-modules:/repo/node_modules # Linux packages of their own: the host's macOS binaries do not run here
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter web dev --host 0.0.0.0 --port 4801"
+    environment: {DATABASE_URL: "postgres://demo:sandbox-db-4832@db:5432/app"}
+    ports: ["127.0.0.1:4801:4801"]
+    depends_on: {db: {condition: service_healthy}}
+    healthcheck: {test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4801/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"], interval: 2s, timeout: 3s, retries: 150}
+  db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_USER: demo, POSTGRES_PASSWORD: sandbox-db-4832, POSTGRES_DB: app}
+    ports: ["127.0.0.1:4832:5432"]
+    volumes: ["db-data:/var/lib/postgresql/data"]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U demo -d app"], interval: 1s, timeout: 3s, retries: 60}
+volumes:
+  db-data:
+  web-node-modules:
+```
+
+sandbox.yaml then names `web` (its `url`, a `health` path that reads the database, its `pages`), the seed (`exec`
+steps in `web`: the app's migrations and its seed), `reset: {strategy: snapshot, restart: [web]}` and `databases:
+{main: {url: "postgres://demo:sandbox-db-4832@localhost:4832/app"}}`. The first `up` installs the packages into the
+named volume (minutes); later ones reuse it. Checked by a Docker test (`packages/sandbox/test/compose.test.ts`, "the
+monorepo recipe"): an app's source mounted read-only in `node:24.21.0-bookworm-slim`, seeded, snapshotted and reset
+(`up` ≈ 5 s, a reset with `restart: [web]` ≈ 3 s on this Mac).
+
+### Hybrid: the apps on this machine, the infra in Docker
+
+When the apps must run on the host (a native toolchain, a debugger), use provider `process`: each app a process
+service, and the infrastructure one more process service that runs `docker compose up` attached — `retake sandbox
+down` sends it SIGTERM, and docker compose stops its containers.
+
+```yaml
+# sandbox/sandbox.yaml (provider process), next to infra.yaml (a compose file: Postgres published on 127.0.0.1:4832)
+version: 1
+provider: process
+services:
+  infra:
+    command: "docker compose -p retake-shop-infra -f infra.yaml up"
+    stop_timeout_s: 30                       # at least the compose file's stop_grace_period
+  web:
+    command: "pnpm --filter web dev --port 4801"
+    cwd: ../..
+    env: {DATABASE_URL: "postgres://demo:sandbox-db-4832@localhost:4832/app"}
+    url: http://localhost:4801
+    health: {path: /api/health, timeout_s: 120}   # a path that reads the database: it waits for the infra
+    pages: {app: "http://localhost:4801"}
+seed:
+  - shell: {run: "pnpm --filter web db:reset && pnpm --filter web db:seed", cwd: ../..}
+reset: {strategy: reseed}                    # a snapshot needs the database in the sandbox's own compose project
+databases:
+  main: {url: "postgres://demo:sandbox-db-4832@localhost:4832/app", external: true}
+```
+
+- **No `url` or `health` on `infra`**: its ports are held by Docker's port forwarder, not by the process the sandbox
+  started, and a process service must own the ports it names (`port 4832 (service infra, health) is also used by
+  another program (OrbStack Helper …)`). The app's health path waits for the database instead — a TCP check is not
+  enough there either: Docker's forwarder accepts a connection before Postgres is ready.
+- **`external: true`** on the database for the same reason: the sandbox cannot prove that port is its own.
+- **Strategy `reseed` only**: the seed must reset what it creates (`db:reset`).
+- **After `down`** the containers are stopped, not removed: `docker compose -p retake-shop-infra -f infra.yaml down`
+  removes them (`-v`: the data too). A service killed after `stop_timeout_s` leaves its containers running and their
+  ports taken — the next `up` then fails on its ports until that command runs.
+- **From the Studio, the desktop app or MCP**, a service gets only Retake's own environment: when your Docker needs
+  `DOCKER_HOST` or `DOCKER_CONTEXT`, name them in project.yaml `pass_env:`.
+- Probed once (L8.2, this Mac, OrbStack): `up` 2.1 s on a fresh Postgres (the app's health waits for it), a reset
+  30–50 ms, `down` stopped the container cleanly.
+
+### External sign-in (an identity provider)
+
+A sandbox signs its demo accounts in off camera at every take, so its sign-in must work locally and offline, and be
+reset with it. Run the provider's emulator as a service of the sandbox — for Firebase Auth, the emulator (`firebase
+emulators:start --only auth --project demo-shop` in a Node image, its port published on 127.0.0.1) with
+`reset.firebase_auth: {url, project}` and the apps pointed at it through their own settings
+(`FIREBASE_AUTH_EMULATOR_HOST`) —, or the product's local / development sign-in mode. Never a hosted tenant: it is not
+on this machine, nothing resets it, and a take would sign real accounts in. What a product needs for a sandbox: a way
+to start it locally (images, or source and a runtime), a health path that reads its database, a seed command, demo
+accounts with `login` steps, and a sign-in that works offline.
 
 ### A "stage" sandbox: images of a production build
 

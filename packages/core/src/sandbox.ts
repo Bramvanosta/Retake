@@ -312,11 +312,18 @@ export function sandboxAdvice(project: Pick<LoadedProject, 'config'>): SandboxAd
   return holds.length ? { env: local[0], holds } : null;
 }
 
-/** The advice in words: what the environment holds, what a sandbox does about it, the command that writes one. */
-export function sandboxAdviceText(a: SandboxAdvice, slug: string, cli = 'retake'): { detail: string; hint: string } {
+/**
+ * The advice in words: what the environment holds, what a sandbox does about it, the command that writes one — or
+ * (`via: 'mcp'`) the tool, sandbox_init, whose files the user then fills.
+ */
+export function sandboxAdviceText(a: SandboxAdvice, slug: string, cli = 'retake', via: 'cli' | 'mcp' = 'cli'): { detail: string; hint: string } {
   const holds = a.holds.length > 1 ? `${a.holds.slice(0, -1).join(', ')} and ${a.holds[a.holds.length - 1]}` : a.holds[0];
+  const does = 'a sandbox starts a copy of the product, seeds it and resets it before every take (Postgres snapshot, mailbox emptied, demo accounts)';
   return {
     detail: `none — environment ${a.env} films this machine with ${holds}: each take starts from whatever the last one (or a hand-made reset) left`,
-    hint: `a sandbox starts a copy of the product, seeds it and resets it before every take (Postgres snapshot, mailbox emptied, demo accounts): ${cli} sandbox init ${slug} writes a sandbox.yaml to fill in (docs/guide/sandbox.md), then ${cli} run ${slug} <scenario> --env sandbox --sandbox`,
+    hint:
+      via === 'mcp'
+        ? `${does}: sandbox_init {project: "${slug}"} writes Retake's scaffold (with the user's go-ahead), the user fills its compose.yaml and sandbox.yaml (docs/guide/sandbox.md), then run_capture {sandbox: true}`
+        : `${does}: ${cli} sandbox init ${slug} writes a sandbox.yaml to fill in (docs/guide/sandbox.md), then ${cli} run ${slug} <scenario> --env sandbox --sandbox`,
   };
 }

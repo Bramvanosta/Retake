@@ -51,7 +51,17 @@ export interface SandboxState {
   seed?: { hash: string; at: string; ms: number };
   /** The last successful reset. */
   last_reset?: { strategy: SandboxResetStrategy; at: string; ms: number; restored: boolean; by: string };
-  /** Provider-specific state (docker-compose: `compose {project, dir}`, `snapshot` — snapshot-postgres SnapshotState). */
+  /**
+   * When the Firebase Auth emulator's accounts were last put back (`reset.firebase_auth`): a persona session saved
+   * before it is signed out (runner-web prepareSessions reads it).
+   */
+  accounts_at?: string;
+  /** An `up` without its seed (`--no-seed`) since the data last went: the database may hold what someone did then. */
+  unseeded_at?: string;
+  /**
+   * Provider-specific state (docker-compose: `compose {project, dir}`, `snapshot` — snapshot-postgres SnapshotState —,
+   * `base` — its BaseState).
+   */
   provider_state?: Record<string, unknown>;
 }
 

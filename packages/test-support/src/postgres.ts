@@ -1,6 +1,6 @@
 /**
  * A throwaway Postgres for the SQL hook tests (hooks sql.test.ts, agent-sql.test.ts) and the sandbox snapshot test
- * (sandbox snapshot-earlier-name.test.ts), so they run by default wherever they can:
+ * (sandbox snapshot-earlier-name.test.ts, snapshot-base.test.ts), so they run by default wherever they can:
  * - `RETAKE_TEST_PG` set (a URL whose role may create tables): that server, as it is;
  * - else Docker running and the image postgres:17-alpine on this machine: a container of the file's own,
  *   `retake-pg-test-<hex>` (label retake.test=pg), with a random password, on a loopback port Docker picks, removed

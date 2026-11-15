@@ -28,7 +28,7 @@ import type { CaptureRunner } from './capture/runner.js';
 import type { HookRunner } from './hook-run/runner.js';
 import type { Sandboxes } from './sandboxes/sandboxes.js';
 import { hookRunRecorder } from './store/journal.js';
-import { formatMs, sandboxUpText } from './format.js';
+import { formatMs, resetLadderText, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
 import type { OpenedWorkspace } from './workspace.js';
 import type { JournalAs } from './store/journal.js';
@@ -237,9 +237,19 @@ async function prepareSandboxTake(project: LoadedProject, env: string, scenario:
     await take.release();
     throw new SandboxTakeError(`sandbox ${env}: interrupted`, true, 'interrupted');
   }
-  const restored = take.reset.snapshot?.action === 'restored' ? ` (snapshot restored in ${formatMs(take.reset.snapshot.ms)})` : take.reset.snapshot ? ' (seeded, snapshot taken)' : '';
-  ports.note('info', `sandbox ${env} (${sb.kind}) · ${sandboxUpText(take.up)} · reset ${take.reset.strategy} ${formatMs(take.reset.ms)}${restored}`);
+  for (const [level, message] of sandboxTakeNotes(env, sb.kind, take)) ports.note(level, message);
   return take;
+}
+
+/** A take's sandbox lines for the run: what was up and how it was reset (the ladder's words, its hint as a warning). */
+export function sandboxTakeNotes(env: string, kind: string, take: Pick<Take, 'up' | 'reset'>): Array<['info' | 'warn', string]> {
+  const r = take.reset;
+  const ladder = resetLadderText(r);
+  const how = r.snapshot?.action === 'restored' ? ` (snapshot restored in ${formatMs(r.snapshot.ms)})` : ladder ? ` (${ladder} · seeded, snapshot taken)` : r.snapshot ? ' (seeded, snapshot taken)' : '';
+  return [
+    ['info', `sandbox ${env} (${kind}) · ${sandboxUpText(take.up)} · reset ${r.strategy} ${formatMs(r.ms)}${how}`],
+    ...(r.outdated?.hint ? [['warn', `sandbox ${env}: ${r.outdated.hint}`] as ['warn', string]] : []),
+  ];
 }
 
 /**

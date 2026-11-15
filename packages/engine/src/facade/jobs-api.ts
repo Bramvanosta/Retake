@@ -5,7 +5,11 @@
 import { EngineError } from '../errors.js';
 import { sandboxStatus } from '../sandbox.js';
 import { liveWorker } from '../jobs/lock.js';
-import { submitEnvResetJob, submitHooksJob } from '../jobs/hooks-job.js';
+import { checkEnvName, submitEnvResetJob, submitHooksJob } from '../jobs/hooks-job.js';
+import { SandboxError } from '@retake/core/sandbox';
+import { sandboxWork } from '../sandbox-work.js';
+import { fileWriter } from '../store/project-store.js';
+import { storeOf } from '../store/store.js';
 import { submitSandboxJob } from '../jobs/sandbox-job.js';
 import { checkAgentCancel } from '../record-studio.js';
 import { FINISHED_JOB_STATES } from '../jobs/types.js';
@@ -112,6 +116,38 @@ export function sandboxApi(ctx: EngineContext): Engine['sandbox'] {
       const r = await submitSandboxJob(submitCtx, 'sandbox_reset', req, o.approver);
       const worker = await startWorker();
       return { ...r, ...(worker ? { worker } : {}) };
+    },
+    init: async (slug, env) => {
+      checkEnvName(env);
+      const p = await project(slug);
+      const folder = ctx.scope.stores.folder(p.dir);
+      const ref = (f: string) => folder.refOf(f);
+      let view: Awaited<ReturnType<typeof sandboxWork.init>>;
+      try {
+        // Retake's own scaffold, never over a file (no force); written through the project store as the caller.
+        view = await sandboxWork.init(ctx.ports, p, { ...(env !== undefined ? { env } : {}), write: fileWriter(storeOf(p, ctx.scope), 'sandbox') });
+      } catch (e) {
+        if (!(e instanceof SandboxError)) throw e;
+        // The scaffold's refusals in this tool's words: its argument is `env`, and it never passes --force (the user
+        // decides about their files). A name the scaffold cannot use is an invalid argument, not a conflict.
+        const message = e.message
+          .replace(/: --force writes the scaffold over (its files|it|them)/, ': sandbox_init never writes over a file — the user moves $1 away, or runs retake sandbox init with --force in their terminal')
+          .replace(/ \(--env\)/g, ' (env)');
+        throw new EngineError(/cannot name an environment/.test(e.message) ? 'invalid' : 'conflict', message);
+      }
+      const r = view.result;
+      const rel = ref(r.manifest);
+      return {
+        project: p.slug,
+        env: r.env,
+        dir: ref(r.dir),
+        manifest: rel,
+        files: r.files.map(ref),
+        project_yaml: { action: r.projectYaml === 'added' ? 'added' : 'kept', entry: `sandboxes.${r.env}: ${rel}` },
+        ports: r.ports,
+        is_default: view.isDefault,
+        warnings: view.warnings.map((w) => `${w.path.join('.')}: ${w.message}`),
+      };
     },
   };
 }
