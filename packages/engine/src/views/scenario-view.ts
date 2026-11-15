@@ -754,7 +754,7 @@ function humanPaths(message: string, blocks: ScenarioBlocks): string {
 /** The retake command line for a person without `retake` on their PATH: the built entry run by this node. */
 function nodeCommand(fix: string): string | undefined {
   if (!fix.startsWith('retake ')) return undefined;
-  const bin = fileURLToPath(new URL('../../cli/dist/bin.js', import.meta.url));
+  const bin = fileURLToPath(new URL('../../../cli/dist/bin.js', import.meta.url));
   if (!existsSync(bin)) return undefined;
   const q = (x: string) => (/^[\w@%+=:,./-]+$/.test(x) ? x : `'${x.replace(/'/g, `'\\''`)}'`);
   return `${q(process.execPath)} ${q(bin)} ${fix.slice('retake '.length)}`;
