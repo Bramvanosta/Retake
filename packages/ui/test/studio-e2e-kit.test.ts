@@ -654,6 +654,34 @@ describe('the shell', () => {
     expect(page.url()).toMatch(/#\/ui$/);
   });
 
+  it("a studio:command help-shortcuts opens the shortcuts sheet (Render ⌘B listed, the page's own keys too); Escape closes it; the palette has it as well", async () => {
+    const p = await open(context);
+    try {
+      const sheet = p.locator('dialog[data-testid="shortcuts-sheet"][open]');
+      await p.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'help-shortcuts' } })));
+      await sheet.waitFor(POLL);
+      expect(await sheet.getByRole('heading', { name: 'Keyboard shortcuts' }).count()).toBe(1);
+      const scenario = sheet.getByRole('group', { name: 'Scenario' });
+      expect((await scenario.innerText()).replace(/\s+/g, ' ')).toContain('Render ⌘ B');
+      expect((await sheet.getByRole('group', { name: 'In text and on the board' }).innerText()).replace(/\s+/g, ' ')).toContain('Save the YAML or the README ⌘ S');
+      // A browser tab: the menu's keys are the app's.
+      expect(await sheet.innerText()).toContain("The menu bar's keys are the desktop app's");
+      await p.keyboard.press('Escape');
+      await expect.poll(() => p.locator('dialog[open]').count(), POLL).toBe(0);
+      // The palette's entry opens it too, once the palette has closed (never two modals at once).
+      await p.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));
+      const palette = p.locator('dialog.k-palette[open]');
+      await palette.waitFor(POLL);
+      await palette.getByRole('option', { name: /Keyboard shortcuts/ }).click();
+      await sheet.waitFor(POLL);
+      expect(await p.locator('dialog[open]').count()).toBe(1);
+      await p.keyboard.press('Escape');
+      await expect.poll(() => p.locator('dialog[open]').count(), POLL).toBe(0);
+    } finally {
+      await p.close();
+    }
+  });
+
   it("⚑ the palette (R4-Palette) — its groups in order, an icon per row, the legend; no entry writes (EVERY row run on the Scenario screen — but the Scenario menu's Rehearse, Capture, Render and Stop, which act by design — the ops counted); a scene picked on the YAML view goes to its lines", async () => {
     // A tab of its own (the earlier tests' pages hold sheets, palettes and sessions of theirs).
     const page = await open(context);
@@ -719,6 +747,12 @@ describe('the shell', () => {
         // Let the destination read what it reads (its own ops are counted too), then come back.
         await page.waitForTimeout(250);
         visited.push(`${r.group}: ${r.label} → ${new URL(page.url()).hash}`);
+        // Keyboard shortcuts opens its sheet (read-only): closed before the next row.
+        if (r.label === 'Keyboard shortcuts') {
+          await page.locator('dialog[data-testid="shortcuts-sheet"][open]').waitFor(POLL);
+          await page.keyboard.press('Escape');
+          await expect.poll(() => page.locator('dialog[open]').count(), POLL).toBe(0);
+        }
         if (new URL(page.url()).hash !== home) await back();
         if (r.label === 'Hide inspector' || r.label === 'Show inspector') {
           await openPalette();

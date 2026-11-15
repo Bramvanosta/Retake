@@ -20,7 +20,7 @@ import type { Region, RegionFields } from '../words/comment-words.js';
 import type { Shown } from './FrameViewer.js';
 import { SessionEnded } from '../session.js';
 import { ChipList } from './ThreadPanel.js';
-import { Button, Callout, NumberField, TextArea } from '../ui-kit/index.js';
+import { Button, Callout, NumberField, TextArea, pageKeys } from '../ui-kit/index.js';
 
 const FIELDS: Array<[keyof RegionFields, string]> = [
   ['x', 'Left %'],
@@ -169,7 +169,11 @@ export function Composer(p: {
           {posting ? 'Posting…' : 'Post the comment'}
         </Button>
         <span id={how} className="cm-quiet" role="status" data-testid="comment-how">
-          {posting ? 'Posting… the thread is written, then its still is made.' : '⌘↩ posts. Written as the channel Studio, under the name this Studio was started with.'}
+          <Txt
+            text={
+              posting ? 'Posting… the thread is written, then its still is made.' : `${pageKeys('send').join('')} posts. Written as the channel Studio, under the name this Studio was started with.`
+            }
+          />
         </span>
       </div>
       {error && (

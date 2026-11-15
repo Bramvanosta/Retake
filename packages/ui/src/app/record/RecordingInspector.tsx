@@ -3,7 +3,7 @@ import type { RecordViewAnswer } from '../../server/record-ops.js';
 import { Txt, When, contentKeys, plural, shown } from '../bits.js';
 import { stepWords } from '../words/scenario-words.js';
 import { say } from '../shell/say.js';
-import { Button, Callout, Facts, InspectorSection, TextField } from '../ui-kit/index.js';
+import { Button, Callout, Facts, InspectorSection, TextField, commandKeys } from '../ui-kit/index.js';
 import { CHECK_SCOPE_NOTE, NAME_MAX, PLACEHOLDER_WORDS, SEVERITY_WORDS, checkFailedAt, checkWords, nameProblem, saveWhyWords, startedByWords, writesWords } from '../words/record-words.js';
 import { TONE_MARK, selectedRow, chosenOf } from './draft.js';
 import type { Cursor, RecordingActions, RecordingUi } from './draft.js';
@@ -13,7 +13,7 @@ export function StopControl({ v, ui, act, compact }: { v: RecordViewAnswer; ui: 
   const beforeWindow = v.state === 'queued' || v.state === 'preflight';
   const stopping = Boolean(v.job?.stop_requested || v.job?.cancel_requested);
   const button = (
-    <Button variant="record" recording data-testid="record-stop" disabled={stopping} kbd={ui.inApp ? ['⌘', '.'] : undefined} onClick={act.stop}>
+    <Button variant="record" recording data-testid="record-stop" disabled={stopping} kbd={ui.inApp ? commandKeys('stop') : undefined} onClick={act.stop}>
       {stopping ? 'Stopping…' : beforeWindow ? 'Cancel recording' : 'Stop recording'}
     </Button>
   );

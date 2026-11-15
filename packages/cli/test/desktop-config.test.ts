@@ -32,15 +32,21 @@
  * a feed and a key in the config (the only `.plugin(` of the shell; still no command, handler or capability); Help ›
  * Check for Updates…; Install and Restart as a quit through the guard; the lists of the update line and the click the
  * same in Rust and TypeScript; no `plugins.updater`, key, endpoint or real URL in the repository.
+ * The menus, the rest: one command table each side compared item by item (menu.rs MENUS and the page's
+ * COMMANDS / SHELL_KEYS; a parser that leaves no form unread), the keys unique and clear of macOS's and the page's own;
+ * only the main thread touches a menu item or a menu lock (the pipe reader and the update threads queue and never
+ * wait); the shell's own items set from the shell's state only; the context menus from the shell's table only, popped
+ * through the gate on the main thread as a counted modal; test mode's menu variables read through `test_env` only; one
+ * window, no tabs.
  */
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { COMMAND_EVENT, MENU_COMMANDS } from '../../ui/src/app/ui-kit/commands.js';
+import { COMMANDS, COMMAND_EVENT, CONTEXT_MENUS, MENU_COMMANDS, PAGE_KEYS, SHELL_KEYS, STD_KEYS } from '../../ui/src/app/ui-kit/commands.js';
 import { QUIT_CLOSE_EVENT, QUIT_DETAIL_KEYS, QUIT_EVENT, QUIT_ID_RE as PAGE_QUIT_ID_RE, QUIT_LABEL_MAX, QUIT_TEXT_MAX } from '../../ui/src/app/shell/quit.js';
-import { QUIT_ID_RE as SERVER_QUIT_ID_RE, SETUP_ACTIONS } from '../../ui/src/server/desktop.js';
+import { CLI_STATES, CONTEXT_MENU_IDS, QUIT_ID_RE as SERVER_QUIT_ID_RE, SETUP_ACTIONS } from '../../ui/src/server/desktop.js';
 import { SHELL_LINE_MAX } from '../../ui/src/server/shell-line.js';
 import { SETUP_EVENT, SETUP_SECTIONS } from '../../ui/src/app/shell/setup.js';
 import { UPDATE_EVENT } from '../../ui/src/app/shell/update.js';
@@ -71,6 +77,108 @@ const rustSources = () =>
     .filter((f) => f.endsWith('.rs'))
     .map((f) => read(join('src', f)))
     .join('\n');
+
+interface TableItem {
+  menu: string;
+  form: 'page' | 'cmd' | 'std' | 'separator';
+  id?: string;
+  label?: string;
+  key?: string;
+  kind?: 'plain' | 'check' | 'toggle';
+  alt?: string;
+  /** A shell command's `enabled` at build. */
+  enabled?: boolean;
+  /** A standard item's Std name. */
+  std?: string;
+}
+
+/**
+ * menu.rs MENUS item by item: every form the table writes is read, and anything left over (a form this test does not
+ * know) throws — the comparison cannot skip an item silently.
+ */
+function menuTable(src: string): TableItem[] {
+  const body = /pub const MENUS: &\[\(&str, &\[Item\]\)\] = &\[([\s\S]*?)\n\];/.exec(src)?.[1];
+  if (body === undefined) throw new Error('no MENUS table');
+  const text = body.replace(/\/\/[^\n]*/g, '');
+  const key = '(?:Some\\("([^"]+)"\\)|None)';
+  const forms = new RegExp(
+    [
+      `(page|check)\\("([^"]+)", "([^"]+)", ${key}\\)`,
+      `Item::Page \\{ id: "([^"]+)", label: "([^"]+)", accelerator: ${key}, kind: Kind::(Plain|Check|Toggle\\("([^"]+)"\\)) \\}`,
+      `Item::Cmd \\{ id: ([A-Z_]+), label: "([^"]+)", accelerator: ${key}, enabled: (true|false) \\}`,
+      'Item::Std\\(Std::([A-Za-z]+)\\)',
+      'Item::Separator',
+    ].join('|'),
+    'g',
+  );
+  const out: TableItem[] = [];
+  const menus = /\(\s*"([^"]*)",\s*&\[([\s\S]*?)\]\s*,?\s*\)\s*,/g;
+  const outside = text.replace(menus, (_, title: string, items: string) => {
+    const rest = items.replace(forms, (...g: Untyped[]) => {
+      const [all, helper, hId, hLabel, hKey, pId, pLabel, pKey, pKind, pAlt, cId, cLabel, cKey, cEnabled, std] = g as Array<string | undefined>;
+      if (helper) out.push({ menu: title, form: 'page', id: hId, label: hLabel, key: hKey, kind: helper === 'check' ? 'check' : 'plain', alt: undefined });
+      else if (pId) out.push({ menu: title, form: 'page', id: pId, label: pLabel, key: pKey, kind: pKind === 'Plain' ? 'plain' : pKind === 'Check' ? 'check' : 'toggle', alt: pAlt });
+      else if (cId) out.push({ menu: title, form: 'cmd', id: cId, label: cLabel, key: cKey, enabled: cEnabled === 'true' });
+      else if (std) out.push({ menu: title, form: 'std', std });
+      else out.push({ menu: title, form: all === 'Item::Separator' ? 'separator' : 'std' });
+      return '';
+    });
+    if (!/^[\s,]*$/.test(rest)) throw new Error(`an item this test does not read in menu "${title}": ${rest.trim().slice(0, 80)}`);
+    return '';
+  });
+  if (!/^[\s,]*$/.test(outside)) throw new Error(`an item this test does not read outside the menus: ${outside.trim().slice(0, 80)}`);
+  return out;
+}
+
+/** menu.rs's shell command constants: `OPEN_WORKSPACE` → `open-workspace`. */
+function shellIds(src: string): Map<string, string> {
+  return new Map([...src.matchAll(/^pub const ([A-Z_]+): &str = "([a-z-]+)";$/gm)].map((m) => [m[1]!, m[2]!]));
+}
+
+/** The top-level functions of a Rust file: name → body (from its `{` line to the closing `}` at column 0). */
+function rustFns(src: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const m of src.matchAll(/^(?:pub(?:\(crate\))? )?fn ([a-z_0-9]+)[^\n]*\{\n([\s\S]*?)^\}/gm)) out.set(m[1]!, m[2]!);
+  return out;
+}
+
+/** An accelerator with its modifiers in one order (Shift+Alt+X = Alt+Shift+X). */
+function normKey(a: string): string {
+  const parts = a.split('+');
+  const k = parts.pop()!;
+  return [...parts.sort(), k.toUpperCase()].join('+');
+}
+
+/** macOS's own keys (never the app's): the system's and the standard menus'. */
+const RESERVED_MAC = [
+  'CmdOrCtrl+Q',
+  'CmdOrCtrl+W',
+  'CmdOrCtrl+H',
+  'Alt+CmdOrCtrl+H',
+  'CmdOrCtrl+M',
+  'CmdOrCtrl+`',
+  'Shift+CmdOrCtrl+/',
+  'Ctrl+CmdOrCtrl+F',
+  'CmdOrCtrl+Z',
+  'Shift+CmdOrCtrl+Z',
+  'CmdOrCtrl+X',
+  'CmdOrCtrl+C',
+  'CmdOrCtrl+V',
+  'CmdOrCtrl+A',
+  'CmdOrCtrl+T',
+  'CmdOrCtrl+Space',
+  'Ctrl+CmdOrCtrl+Space',
+  'CmdOrCtrl+Tab',
+  'CmdOrCtrl+Backspace',
+  'CmdOrCtrl+Left',
+  'CmdOrCtrl+Right',
+  'CmdOrCtrl+Up',
+  'CmdOrCtrl+Down',
+  'Alt+CmdOrCtrl+D',
+  'Shift+CmdOrCtrl+3',
+  'Shift+CmdOrCtrl+4',
+  'Shift+CmdOrCtrl+5',
+];
 
 /** The `[section]` of a Cargo.toml as `name → value text` (one line per entry). */
 function section(toml: string, name: string): Map<string, string> {
@@ -134,11 +242,14 @@ describe('desktop shell configuration (static)', () => {
     expect(src.match(/\.eval\(/g)).toHaveLength(2);
     // The second eval is eval_in_window's — called with a menu table's page command or the quit flow's scripts only.
     expect(src).toMatch(/pub\(crate\) fn eval_in_window\(app: &AppHandle, js: String\) \{\n\s*if let Some\(w\) = app\.get_webview_window\(WINDOW\) \{\n\s*let _ = w\.eval\(js\);/);
-    expect(src).toContain('if let Some(js) = menu::page_command_js(id) {\n                    menu::clicked(id);\n                    eval_in_window(app, js);');
+    expect(src).toContain('if let Some(js) = menu::page_command_js(id) {\n                menu::clicked(id);\n                eval_in_window(app, js);');
     // And the Help menu's Set-up sheet (desktop_core setup_page_js: a constant shape).
     // And Help › Check for Updates…'s `studio:update` (update_flow update_page_js: a constant).
-    expect(src.match(/eval_in_window\(/g)).toHaveLength(6);
-    expect(src).toContain('crate::eval_in_window(&h, uf::update_page_js());');
+    // And a context menu's pick (menu::context_command_js: a pair of CONTEXT_MENUS, a constant shape); and Check for
+    // Updates… while an update is known (the update sheet: the same constant).
+    expect(src.match(/eval_in_window\(/g)).toHaveLength(8);
+    expect(src).toMatch(/if let Some\(js\) = menu::context_command_js\(id\) \{\n(?:\s*if test_mode\(\) \{\n\s*log\([^\n]*\n\s*\}\n)?\s*eval_in_window\(app, js\);/);
+    expect(src.match(/crate::eval_in_window\(&h, uf::update_page_js\(\)\);/g)).toHaveLength(2);
     expect(src).toContain('if let Some(js) = dc::setup::setup_page_js(section) {\n        eval_in_window(app, js);');
     expect(read('src/guard.rs').match(/crate::eval_in_window\(app, js\)/g)).toHaveLength(2);
     // And the first run's `retake init` — the same Node.js, both argv only.
@@ -191,7 +302,14 @@ describe('desktop shell configuration (static)', () => {
       '{ version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationTrigger"] }',
     );
     expect(section(toml, 'dependencies').get('block2')).toBe('"0.6"');
-    expect(section(toml, 'dependencies').get('objc2-foundation')).toBe('{ version = "0.3", default-features = false, features = ["std", "NSBundle", "NSError", "NSString", "NSURL"] }');
+    expect(section(toml, 'dependencies').get('objc2-foundation')).toBe(
+      '{ version = "0.3", default-features = false, features = ["std", "NSBundle", "NSError", "NSString", "NSURL", "NSNotification"] }',
+    );
+    // AppKit's feature list pinned: NSEvent / block2 (the context menus' monitor), NSMenu (closing one), NSWorkspace
+    // (Show Workspace in Finder) — lock-neutral features of crates already in Cargo.lock.
+    expect(section(toml, 'dependencies').get('objc2-app-kit')).toBe(
+      '{ version = "0.3", default-features = false, features = ["std", "NSAlert", "NSApplication", "NSButton", "NSControl", "NSOpenPanel", "NSPanel", "NSResponder", "NSRunningApplication", "NSSavePanel", "NSView", "NSWindow", "block2", "NSEvent", "NSMenu", "NSWorkspace"] }',
+    );
     expect([...section(toml, 'build-dependencies').keys()]).toEqual(['tauri-build']);
     const tauri = section(toml, 'dependencies').get('tauri')!;
     expect(tauri).toMatch(/features = \[\]/);
@@ -281,7 +399,7 @@ describe('desktop shell configuration (static)', () => {
       const before = macos.slice(Math.max(0, at - 600), at);
       expect(before, macos.slice(at - 80, at)).toMatch(/let modal = Modal::enter\(\);\n\s*if quitting\(\) \{\n\s*return None;\n\s*\}/);
     }
-    expect(macos).toMatch(/fn end_current\(\) \{[\s\S]{0,200}let Some\(window\) = app\.modalWindow\(\) else \{ return \};/);
+    expect(macos).toMatch(/fn end_current\(\) \{[\s\S]{0,400}let Some\(window\) = app\.modalWindow\(\) else \{ return \};/);
     expect(macos.match(/abortModal\(\)/g)).toHaveLength(1);
     // The quit hook answers Cancel while any modal of the shell is up; Open Workspace… never opens the picker inside
     // one. (read first and handed to the flow, which answers Cancel then — guard_flow's own tests.)
@@ -364,13 +482,15 @@ describe('desktop shell configuration (static)', () => {
         `${ts} / ${rs}`,
       ).toEqual(tsList(supervise, ts));
     expect(rsList('JobState').map((x) => x[1])).toEqual(['running', 'queued']);
+    // The command's link for the Help items: the server's list.
+    expect(rsList('CliState').map((x) => x[1])).toEqual([...CLI_STATES]);
     const unsaved = tsList(ui('server/unsaved.ts'), 'UNSAVED_KINDS');
     expect(rsList('UnsavedKind').map((x) => x[1])).toEqual(unsaved);
     // The page's own union (drafts.ts UnsavedItem) names the same kinds.
     const union = /kind: ((?:'[a-z_]+'(?: \| )?)+);/.exec(ui('app/drafts.ts'))![1]!;
     expect([...union.matchAll(/'([a-z_]+)'/g)].map((x) => x[1])).toEqual(unsaved);
     // Each Rust variant is its wire name in CamelCase (yaml_draft is YamlDraft).
-    for (const rs of ['JobKind', 'Outcome', 'Reason', 'UnsavedKind', 'JobState']) {
+    for (const rs of ['JobKind', 'Outcome', 'Reason', 'UnsavedKind', 'JobState', 'CliState']) {
       for (const [variant, wire] of rsList(rs))
         expect(variant, rs).toBe(
           wire
@@ -435,32 +555,10 @@ describe('desktop shell configuration (static)', () => {
 
   it("prepared for the redesign: one command table, the Scenario menu's keys as page commands only, ⌘S and ⌘Enter left free, one title-bar switch, no forced theme, name and id in one place", () => {
     const menu = read('src/menu.rs');
-    const accelerators = [...menu.matchAll(/Some\("((?:Shift\+|Alt\+)?CmdOrCtrl\+[^"]+)"\)/g)].map((m) => m[1]);
-    // File (New Scenario ⌘N, Open Workspace… ⌘O); View (⌘K, the modes ⌘1 – ⌘4, the views ⌥⌘1 – ⌥⌘3, ⌥⌘I); Go (⌘[ ⌘],
-    // Welcome ⇧⌘H, Productions ⇧⌘P); Scenario (Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘.: page commands, the page's
-    // bus gives them to their owner); Window (⌘0).
-    expect(accelerators).toEqual([
-      'CmdOrCtrl+N',
-      'CmdOrCtrl+O',
-      'CmdOrCtrl+K',
-      'CmdOrCtrl+1',
-      'CmdOrCtrl+2',
-      'CmdOrCtrl+3',
-      'CmdOrCtrl+4',
-      'Alt+CmdOrCtrl+1',
-      'Alt+CmdOrCtrl+2',
-      'Alt+CmdOrCtrl+3',
-      'Alt+CmdOrCtrl+I',
-      'CmdOrCtrl+[',
-      'CmdOrCtrl+]',
-      'Shift+CmdOrCtrl+H',
-      'Shift+CmdOrCtrl+P',
-      'CmdOrCtrl+R',
-      'Shift+CmdOrCtrl+R',
-      'CmdOrCtrl+B',
-      'CmdOrCtrl+.',
-      'CmdOrCtrl+0',
-    ]);
+    // Every key of the table (the page's commands and the shell's own) — compared item by item with the page's
+    // registry below; unique here.
+    const accelerators = [...menu.matchAll(/Some\("((?:Ctrl\+|Shift\+|Alt\+)*CmdOrCtrl\+[^"]+)"\)/g)].map((m) => m[1]);
+    expect(accelerators).toHaveLength(COMMANDS.filter((c) => 'key' in c).length + SHELL_KEYS.length);
     expect(new Set(accelerators).size).toBe(accelerators.length);
     const scenario = /\(\s*"Scenario",\s*&\[([\s\S]*?)\],\s*\),/.exec(menu)?.[1] ?? '';
     expect([...scenario.matchAll(/page\("([^"]+)", "([^"]+)", Some\("([^"]+)"\)\)/g)].map((m) => [m[1], m[2], m[3]])).toEqual([
@@ -477,7 +575,8 @@ describe('desktop shell configuration (static)', () => {
     expect(menu).toContain('sub.set_as_windows_menu_for_nsapp()?;');
     expect(menu).toContain('sub.set_as_help_menu_for_nsapp()?;');
     const src = rustSources();
-    expect(src.match(/MenuItem::with_id\(/g)).toHaveLength(3);
+    // The shell's items, the page's, the context menus' (built once, `build`).
+    expect(src.match(/MenuItem::with_id\(/g)).toHaveLength(4);
     expect(src.match(/CheckMenuItem::with_id\(/g)).toHaveLength(1);
     expect(src).toContain('menu::SHOW_WINDOW => show_window(app),');
     // No Reload item, nothing bound to ⌘S or ⌘Enter (the page's own); the Scenario keys only as page commands.
@@ -498,19 +597,220 @@ describe('desktop shell configuration (static)', () => {
     expect(read('src/main.rs')).toContain('pub const BIN: &str = env!("CARGO_PKG_NAME");');
   });
 
-  it("⚑ the menu's page commands are the page's MENU_COMMANDS (one list each side, compared); the flag script is a constant", () => {
+  it("⚑ one command table each side: menu.rs MENUS and the page's COMMANDS / SHELL_KEYS agree item by item (menu, order, id, label, key, kind, toggle label); the flag script is a constant", () => {
     const menu = read('src/menu.rs');
-    const page = [...menu.matchAll(/(?:page|check)\("([^"]+)", "[^"]+", (?:Some\("[^"]+"\)|None)\)|Item::Page \{ id: "([^"]+)"/g)].map((m) => m[1] ?? m[2]);
-    expect(page.sort()).toEqual([...MENU_COMMANDS].sort());
-    expect(page).toHaveLength(MENU_COMMANDS.length);
+    const table = menuTable(menu);
+    const page = table.filter((i) => i.form === 'page');
+    expect(page.map(({ menu: m, id, label, key, kind, alt }) => ({ menu: m, id, label, key, kind, alt }))).toEqual(
+      COMMANDS.map((c: Untyped) => ({ menu: c.menu, id: c.id, label: c.label, key: c.key, kind: c.kind ?? 'plain', alt: c.alt })),
+    );
+    expect(page.map((i) => i.id)).toEqual([...MENU_COMMANDS]);
+    // The shell's own keyed items: SHELL_KEYS, the app menu as `App`.
+    const ids = shellIds(menu);
+    expect(table.filter((i) => i.form === 'cmd' && i.key).map((i) => ({ id: ids.get(i.id!), menu: i.menu || 'App', label: i.label, key: i.key }))).toEqual(
+      SHELL_KEYS.map((k) => ({ id: k.id, menu: k.menu, label: k.label, key: k.key })),
+    );
+    // macOS's standard items, menu by menu (removing Paste or Quit fails), and their keys in the page's STD_KEYS — the
+    // ones without a key (About, Services, Show All, Zoom, Bring All to Front) the only ones left out.
+    const stds = (m: string) => table.filter((i) => i.form === 'std' && i.menu === m).map((i) => i.std);
+    expect(Object.fromEntries(['', 'File', 'Edit', 'View', 'Go', 'Scenario', 'Window', 'Help'].map((m) => [m, stds(m)]))).toEqual({
+      '': ['About', 'Services', 'Hide', 'HideOthers', 'ShowAll', 'Quit'],
+      File: ['CloseWindow'],
+      Edit: ['Undo', 'Redo', 'Cut', 'Copy', 'Paste', 'SelectAll'],
+      View: ['FullScreen'],
+      Go: [],
+      Scenario: [],
+      Window: ['Minimize', 'Zoom', 'BringAllToFront'],
+      Help: [],
+    });
+    const keyedStd = table.filter((i) => i.form === 'std' && !['About', 'Services', 'ShowAll', 'Zoom', 'BringAllToFront'].includes(i.std!));
+    expect(keyedStd.map((i) => ({ menu: i.menu || 'App', std: i.std }))).toEqual(STD_KEYS.map((k) => ({ menu: k.menu, std: k.std })));
+    // Every shell command enabled at build (the shell's state greys them out later, never the table).
+    const cmds = table.filter((i) => i.form === 'cmd');
+    expect(cmds.length).toBeGreaterThanOrEqual(7);
+    expect(cmds.filter((i) => !i.enabled).map((i) => i.id)).toEqual([]);
+    // The parser leaves nothing unread: an unknown form (a helper the table does not know, fields in another order) fails it.
+    expect(() => menuTable(menu.replace('page("go-readme", "README", None),', 'toggle("go-readme", "README", None),'))).toThrow(/an item this test does not read/);
+    expect(() =>
+      menuTable(
+        menu.replace(
+          'Item::Separator,\n            Item::Std(Std::CloseWindow)',
+          'Item::Separator,\n            Item::Page { label: "x", id: "y", accelerator: None, kind: Kind::Plain },\n            Item::Std(Std::CloseWindow)',
+        ),
+      ),
+    ).toThrow(/an item this test does not read/);
     // The dispatch: only a Page id of MENUS, JSON-quoted into one constant shape.
     expect(menu).toContain('known.then(|| format!("window.dispatchEvent(new CustomEvent(\'studio:command\', {{ detail: {{ id: {} }} }}))", desktop_core::json::quote(id)))');
     expect(menu).toContain('matches!(i, Item::Page { id: p, .. } if *p == id)');
-    expect(menu).toContain(`TitleBar::Standard => "window.__studioShell = Object.freeze({ titleBar: 'standard' });",`);
-    expect(menu).toContain(`TitleBar::Overlay { .. } => "window.__studioShell = Object.freeze({ titleBar: 'overlay' });",`);
+    for (const flag of [
+      `(TitleBar::Standard, false) => "window.__studioShell = Object.freeze({ titleBar: 'standard' });",`,
+      `(TitleBar::Standard, true) => "window.__studioShell = Object.freeze({ titleBar: 'standard', inspect: true });",`,
+      `(TitleBar::Overlay { .. }, false) => "window.__studioShell = Object.freeze({ titleBar: 'overlay' });",`,
+      `(TitleBar::Overlay { .. }, true) => "window.__studioShell = Object.freeze({ titleBar: 'overlay', inspect: true });",`,
+    ])
+      expect(menu).toContain(flag);
+    expect(menu).toContain('pub const SHELL_FLAG_JS: &str = match (&TITLE_BAR, cfg!(debug_assertions)) {');
     expect(menu).toContain(`CustomEvent('${COMMAND_EVENT}'`);
-    // Planted: an id the page does not know would fail the comparison.
-    expect([...page, 'reload'].sort()).not.toEqual([...MENU_COMMANDS].sort());
+  });
+
+  it("the menu's keys: unique, none of macOS's reserved keys nor the page's own (PAGE_KEYS)", () => {
+    const keys = menuTable(read('src/menu.rs'))
+      .map((i) => i.key)
+      .filter((k): k is string => !!k)
+      .map(normKey);
+    expect(keys.length).toBeGreaterThan(20);
+    expect(new Set(keys).size).toBe(keys.length);
+    const reserved = RESERVED_MAC.map(normKey);
+    expect(keys.filter((k) => reserved.includes(k))).toEqual([]);
+    const own = PAGE_KEYS.map((k) => normKey(k.key));
+    expect(keys.filter((k) => own.includes(k))).toEqual([]);
+    // ⌘, is the app's (Set Up {app}…, macOS's Settings key): never in the reserved list.
+    expect(keys).toContain(normKey('CmdOrCtrl+,'));
+    expect(reserved).not.toContain(normKey('CmdOrCtrl+,'));
+    expect(own).toContain(normKey('CmdOrCtrl+S'));
+    expect(normKey('Shift+Alt+CmdOrCtrl+K')).toBe(normKey('Alt+Shift+CmdOrCtrl+K'));
+  });
+
+  it('⚑ only the main thread touches a menu item or a menu lock: the pipe reader and the update threads queue a closure (fire-and-forget) and never wait', () => {
+    const menu = read('src/menu.rs');
+    const fns = rustFns(menu);
+    // The ways in from another thread: each body queues one closure on the main thread.
+    for (const [name, call] of [
+      ['apply', 'apply_now(&items)'],
+      ['context', 'popup_now(&id)'],
+    ] as const) {
+      const body = fns.get(name)!;
+      expect(body, name).toMatch(/^\s*on_main\(move \|\| /);
+      expect(body, name).toContain(call);
+      expect(body.split('on_main(move || ')[0], name).not.toMatch(/locked\(|page_items\(/);
+    }
+    // The shell's own items: the caller stores the latest value (an atomic), the queued closure reads it when it runs —
+    // it carries no value, so a closure queued earlier never shows an older one over a newer one.
+    for (const [name, want] of [
+      ['update_item', 'WANT_UPDATE'],
+      ['cli_state', 'WANT_CLI'],
+      ['set_bundled', 'WANT_BUNDLED'],
+    ] as const)
+      expect(fns.get(name), name).toMatch(new RegExp(`^\\s*${want}\\.store\\([^;\\n]*, Ordering::SeqCst\\);\\n\\s*on_main\\(shell_items_now\\);\\n$`));
+    expect(fns.get('shell_items_now')).toContain('UpdateItem::from_code(WANT_UPDATE.load(Ordering::SeqCst))');
+    expect(fns.get('shell_items_now')).toContain('cli_items(WANT_BUNDLED.load(Ordering::SeqCst), cli_from_code(WANT_CLI.load(Ordering::SeqCst)))');
+    // on_main: run_on_main_thread and no reply waited for.
+    expect(fns.get('on_main')).toContain('let _ = app.run_on_main_thread(f);');
+    expect(menu).not.toMatch(/\.recv\(\)|mpsc|Condvar|block_on/);
+    // Every lock and every setter of a native item sits in a main-thread fn (checked first) or in the menu's build, or
+    // inside an on_main closure.
+    const main = ['apply_now', 'clicked', 'shell_items_now', 'secondary_clicked', 'other_menu_began', 'popup_now', 'build'];
+    for (const [name, body] of fns) {
+      if (name === 'page_items' || name === 'locked') continue;
+      const outsideClosures = body.replace(/on_main\(move \|\| \{[\s\S]*?\n {4}\}\);/g, '');
+      if (/page_items\(\)|locked\(&|\.set_(?:enabled|text|checked)\(|popup_menu/.test(outsideClosures)) expect(main, `${name} touches a menu item or lock`).toContain(name);
+    }
+    for (const name of main.filter((n) => n !== 'build')) expect(fns.get(name), name).toMatch(/^\s*if !main_thread\("[a-z_]+"\) \{\n\s*return;\n\s*\}/);
+    expect(fns.get('main_thread')).toContain('objc2::MainThreadMarker::new().is_some()');
+    // The callers: the reader thread and update.rs only queue.
+    const child = read('src/child.rs');
+    expect(child).toContain('crate::menu::apply(items);');
+    expect(child).toContain('crate::menu::cli_state(Some(state));');
+    expect(child).toContain('crate::menu::context(menu);');
+  });
+
+  it("the shell's own items are held and set from the shell's state only: update.rs set() and the cli pipe line; no page id reaches them", () => {
+    const menu = read('src/menu.rs');
+    const src = rustSources();
+    expect(menu).toContain('if [CHECK_UPDATES, CLI_INSTALL, CLI_REMOVE].contains(id) {\n                        shell.push((id, item.clone()));');
+    // Their words: the core's fixed labels (no version, no feed data, nothing of the page's).
+    const now = rustFns(menu).get('shell_items_now')!;
+    expect(now).toContain('CHECK_UPDATES => (item.label(), update_on),');
+    expect(now).toContain('CLI_INSTALL => (install_label.label(), install),');
+    expect(now).toContain('CLI_REMOVE => ("Uninstall the retake Command…", remove),');
+    expect(now).toContain('cli_items(WANT_BUNDLED.load(Ordering::SeqCst), cli_from_code(WANT_CLI.load(Ordering::SeqCst)))');
+    // Who sets them: update.rs set() (only on a change), the cli pipe line, a new session (forgets), the launch.
+    expect(src.match(/menu::update_item\(/g)).toHaveLength(1);
+    // Stored under ITEM's lock: two threads' states reach the menu in the order they changed it.
+    expect(read('src/update.rs')).toMatch(
+      /let mut shown = lock\(&ITEM\);\n\s*if shown\.replace\(item\) != Some\(item\) \{\n\s*crate::menu::update_item\(item\.0, item\.1\);\n\s*\}\n\s*drop\(shown\);/,
+    );
+    expect(src.match(/menu::cli_state\(/g)).toHaveLength(2);
+    expect(read('src/main.rs')).toMatch(/menu::cli_state\(None\);\n\s*match child::start\(&shell\.cfg, &ws\) \{/);
+    expect(src.match(/menu::set_bundled\(/g)).toHaveLength(1);
+    expect(read('src/main.rs')).toContain('menu::set_bundled(bundled);');
+    // apply (the page's state) holds page items only; the shell's ids are none of the page's.
+    expect(rustFns(menu).get('apply_now')).not.toMatch(/SHELL_ITEMS|locked\(&SHELL/);
+    for (const id of ['check-updates', 'cli-install', 'cli-remove', 'set-up', 'open-workspace', 'show-window', 'show-in-finder']) expect(MENU_COMMANDS as readonly string[]).not.toContain(id);
+    // The core's enum on the pipe is the server's list.
+    const pipe = read('core/src/pipe.rs');
+    const cli = [...(/CliState \{ ([^}]+) \}/.exec(pipe)?.[1] ?? '').matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    expect(cli).toEqual([...CLI_STATES]);
+    // The window became key: a refresh line, through the pure limiter.
+    expect(rustFns(read('src/main.rs')).get('focused')).toMatch(/if !dc::setup::refresh_due\(\*last, now\) \{\n\s*return;\n\s*\}[\s\S]*send_to_server\(dc::setup::CLI_REFRESH_LINE\);/);
+    expect(read('src/main.rs')).toContain('WindowEvent::Focused(true) => focused(window.app_handle()),');
+    // Check for Updates… opens the update sheet only for the states the core says (update_flow opens_sheet).
+    expect(rustFns(read('src/update.rs')).get('check_menu')).toMatch(/^\s*if let Some\(s\) = state_now\(\)\.filter\(\|s\| uf::menu_item\(s\)\.0\.opens_sheet\(\)\) \{/);
+  });
+
+  it("⚑ context menus: ids from the shell's CONTEXT_MENUS only (= the page's CONTEXT_MENUS, each a COMMANDS id), one constant dispatch, popped only through the gate on the main thread as a counted modal", () => {
+    const menu = read('src/menu.rs');
+    const body = /pub const CONTEXT_MENUS: &\[\(&str, &\[Option<&str>\]\)\] = &\[([\s\S]*?)\n\];/.exec(menu)![1]!.replace(/\/\/[^\n]*/g, '');
+    const rs: Record<string, string[]> = {};
+    for (const m of body.matchAll(/\("([a-z-]+)", &\[([^\]]*)\]\)/g)) rs[m[1]!] = [...m[2]!.matchAll(/Some\("([a-z-]+)"\)/g)].map((x) => x[1]!);
+    expect(rs).toEqual(CONTEXT_MENUS);
+    expect(Object.keys(rs)).toEqual([...CONTEXT_MENU_IDS]);
+    for (const ids of Object.values(rs)) for (const id of ids) expect(MENU_COMMANDS as readonly string[]).toContain(id);
+    // The pick: a pair of the table only, both JSON-quoted into one constant shape.
+    const js = rustFns(menu).get('context_command_js')!;
+    expect(js).toContain('let known = CONTEXT_MENUS.iter().any(|(m, items)| *m == menu && items.contains(&Some(command)));');
+    expect(js).toContain(
+      `known.then(|| format!("window.dispatchEvent(new CustomEvent('studio:command', {{ detail: {{ id: {}, context: {} }} }}))", desktop_core::json::quote(command), desktop_core::json::quote(menu)))`,
+    );
+    // Labels are MENUS's (no second copy), no accelerator in a context menu.
+    expect(menu).toContain('m.append(&MenuItem::with_id(app, context_item_id(id, c), label_of(c).unwrap_or(c), true, None::<&str>)?)?');
+    // The popup: once in the source, inside popup_now, after the main-thread, question, origin and gate checks, through
+    // the counted modal of macos.rs.
+    const src = rustSources();
+    expect(src.match(/\.popup_menu(?:_at)?\(/g)).toHaveLength(1);
+    const pop = rustFns(menu).get('popup_now')!;
+    const order = [
+      'if !main_thread("popup")',
+      'crate::guard::GUARD_OPEN.load(Ordering::SeqCst) || crate::macos::modal_up()',
+      'if !crate::window_on_studio(app)',
+      'locked(&GATE).take(crate::now_ms())',
+      'crate::macos::popup(',
+      'w.popup_menu_at(&menu, LogicalPosition::new(x, y))',
+    ].map((t) => pop.indexOf(t));
+    expect(
+      order.every((x) => x >= 0),
+      JSON.stringify(order),
+    ).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const macos = read('src/macos.rs');
+    expect(rustFns(macos).get('popup')).toMatch(/^\s*if quitting\(\) \|\| MainThreadMarker::new\(\)\.is_none\(\) \{\n\s*return false;\n\s*\}\n\s*let modal = Modal::enter\(\);/);
+    // Another menu (WebKit's own) opened on the click: ours never stacks on it.
+    expect(macos).toMatch(/if !POPUP_WANTED\.with\(Cell::get\) \{\n[^\n]*\n\s*crate::menu::other_menu_began\(\);\n\s*return;/);
+    expect(rustFns(menu).get('other_menu_began')).toContain('locked(&GATE).forget();');
+    // A signal ends it as it ends the other modals.
+    expect(rustFns(macos).get('end_current')).toMatch(/if let Some\(m\) = POPUP\.with\(\|p\| p\.borrow\(\)\.clone\(\)\) \{\n\s*m\.cancelTrackingWithoutAnimation\(\);\n\s*return;/);
+    // The monitor counts secondary clicks only (the core's rule) and never consumes an event.
+    expect(macos).toContain('if desktop_core::menu::secondary_click(kind, control, ev.windowNumber() == main_no, in_content) {');
+    expect(macos).toContain('NSEvent::addLocalMonitorForEventsMatchingMask_handler(NSEventMask::RightMouseDown | NSEventMask::LeftMouseDown, &block)');
+    expect(macos).toMatch(/on_click\(\(p\.x, h - p\.y\)\);\n\s*\}\n\s*e\.as_ptr\(\)/);
+    // Clicks of the menu bar and of a context menu go through one named function (test mode's RETAKE_DESKTOP_TEST_MENU too).
+    const main = read('src/main.rs');
+    expect(main).toContain('.on_menu_event(|app, event| menu_event(app, event.id().as_ref()))');
+    expect(main.match(/menu_event\(app, &id\);/g)).toHaveLength(1);
+  });
+
+  it("test mode's menu variables are read through test_env only (None outside test mode); one window, no tabs", () => {
+    const src = rustSources();
+    for (const v of ['RETAKE_DESKTOP_TEST_RIGHT_CLICKS', 'RETAKE_DESKTOP_TEST_CONTEXT_PICK', 'RETAKE_DESKTOP_TEST_MENU']) {
+      expect(src, v).toContain(`test_env("${v}")`);
+      expect(src, v).not.toContain(`std::env::var("${v}")`);
+    }
+    expect(rustFns(read('src/main.rs')).get('test_env')).toMatch(/^\s*if !test_mode\(\) \{\n\s*return None;\n\s*\}/);
+    // The popup's test delay is read under `headless()` only (macos.rs: test mode).
+    expect(rustFns(read('src/macos.rs')).get('popup')).toMatch(/if headless\(\) \{\n\s*let ms = std::env::var\("RETAKE_DESKTOP_TEST_POPUP_MS"\)/);
+    // One window per workspace: one builder, never a tabbing identifier (Tauri then turns automatic tabbing off).
+    expect(src.match(/WebviewWindowBuilder::new\(/g)).toHaveLength(1);
+    expect(src).not.toMatch(/tabbing_identifier\(/);
   });
 });
 
@@ -519,20 +819,24 @@ describe("the installed app's first run and Set-up sheet, shell side (static)", 
     const menu = read('src/menu.rs');
     const cmds = (title: string) => {
       const body = new RegExp(`\\(\\s*"${title}",\\s*&\\[([\\s\\S]*?)\\],\\s*\\),`).exec(menu)?.[1] ?? '';
-      return [...body.matchAll(/Item::Cmd \{ id: ([A-Z_]+), label: "([^"]+)", accelerator: None, enabled: true \}/g)].map((m) => [m[1], m[2]]);
+      return [...body.matchAll(/Item::Cmd \{ id: ([A-Z_]+), label: "([^"]+)", accelerator: (None|Some\("[^"]+"\)), enabled: true \}/g)].map((m) => [m[1], m[2], m[3]]);
     };
+    // Enabled at build: the shell's state greys them out later (`shell_items_now`); Set Up has macOS's Settings key.
     expect(cmds('')).toEqual([
-      ['CHECK_UPDATES', 'Check for Updates…'],
-      ['SET_UP', 'Set Up {app}…'],
+      ['CHECK_UPDATES', 'Check for Updates…', 'None'],
+      ['SET_UP', 'Set Up {app}…', 'Some("CmdOrCtrl+,")'],
     ]);
     expect(cmds('Help')).toEqual([
-      ['CLI_INSTALL', 'Install the retake Command…'],
-      ['CLI_REMOVE', 'Uninstall the retake Command…'],
+      ['CLI_INSTALL', 'Install the retake Command…', 'None'],
+      ['CLI_REMOVE', 'Uninstall the retake Command…', 'None'],
     ]);
+    // Help's first item: the page's Keyboard Shortcuts.
+    expect(menu).toMatch(/"Help",\n\s*&\[\n\s*page\("help-shortcuts", "Keyboard Shortcuts", None\),\n\s*Item::Separator,/);
     expect(menu.indexOf('"Window",')).toBeLessThan(menu.indexOf('"Help",'));
     expect(menu).toContain('label.replace("{app}", name)');
     const main = read('src/main.rs');
-    expect(main).toContain('id @ (menu::SET_UP | menu::CLI_INSTALL | menu::CLI_REMOVE) => setup_menu(app, id),');
+    expect(main).toContain('menu::SET_UP | menu::CLI_INSTALL | menu::CLI_REMOVE => setup_menu(app, id),');
+    expect(main).toContain('menu::SHOW_IN_FINDER => show_in_finder(app),');
     // Install from a misplaced app: the "move" alert first, never the sheet.
     expect(main).toMatch(/if id == menu::CLI_INSTALL && loc != dc::InstallLocation::Ok \{[\s\S]*?macos::alert\(dc::setup::MOVE_TO_APPLICATIONS/);
   });
@@ -587,7 +891,7 @@ describe('the updater, shell side (static)', () => {
     // …with the real stderr: the log filter's pipe dies with the old process (the e2e test's first run lost every line).
     expect(upd).toContain('if let Some(err) = crate::logfilter::real_stderr() {\n            cmd.stderr(err);');
     // The launch check starts once the first workspace is served (an install never races the start).
-    expect(main).toMatch(/Some\(s\) => show\(&h, &shell, s\),[\s\S]{0,600}?update::start\(&h, shell\.home\.clone\(\), loc\);/);
+    expect(main).toMatch(/Some\(s\) => \{\n\s*show\(&h, &shell, s\);[\s\S]{0,900}?update::start\(&h, shell\.home\.clone\(\), loc\);/);
     // The test hook only in test mode and an e2e build; the install only after the guard approved it.
     expect(upd).toContain('if uf::test_install_allowed(test_mode(), std::env::var("RETAKE_DESKTOP_TEST_UPDATE").ok().as_deref(), test_feed()) {');
     expect(upd).toContain('let _ = TEST_FEED.set(uf::is_test_feed(insecure, &endpoints));');

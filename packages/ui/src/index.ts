@@ -10,4 +10,4 @@ export { startStudioServer } from './server/studio.js';
 export type { StudioServer } from './server/studio.js';
 export { launchStudio } from './server/launch.js';
 export { startSupervisor } from './server/supervise.js';
-export { applyShellLine } from './server/setup-ops.js';
+export { applyShellLine, writeCliState } from './server/setup-ops.js';

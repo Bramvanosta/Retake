@@ -10,7 +10,13 @@ import type { UpdateLine } from './update-ops.js';
 export const SHELL_LINE_MAX = 8192;
 
 /** A line the desktop shell wrote on the supervised server's stdin (the update's state). */
-export type ShellLine = { type: 'cli_folder'; path: string } | { type: 'cli_folder_open' } | { type: 'cli_folder_cancelled' } | { type: 'notifications'; state: 'on' | 'off' | 'unknown' } | UpdateLine;
+export type ShellLine =
+  | { type: 'cli_folder'; path: string }
+  | { type: 'cli_folder_open' }
+  | { type: 'cli_refresh' }
+  | { type: 'cli_folder_cancelled' }
+  | { type: 'notifications'; state: 'on' | 'off' | 'unknown' }
+  | UpdateLine;
 
 /**
  * One line of the shell on stdin, or null for anything but its exact shapes: `{"type":"cli_folder_open"}` (its native
@@ -18,6 +24,7 @@ export type ShellLine = { type: 'cli_folder'; path: string } | { type: 'cli_fold
  * <absolute>}` (the folder the person picked there), `{"type":"cli_folder_cancelled"}` (none: cancelled, or the panel
  * could not open while another question was up), `{"type":"notifications","state":"on"|"off"|"unknown"}`. Strict: no
  * other field, a path absolute, one line, no NUL, at most 4096 characters; the line at most SHELL_LINE_MAX bytes (UTF-8).
+ * `{"type":"cli_refresh"}` — the shell's window became key: read the command's link again (its Help items follow it).
  * `{"type":"update","state":…}` — the update's state (update-ops.ts parseUpdateLine: fixed keys per state).
  */
 export function parseShellLine(line: string): ShellLine | null {
@@ -35,6 +42,7 @@ export function parseShellLine(line: string): ShellLine | null {
     return { type: 'cli_folder', path: o.path };
   if (o.type === 'cli_folder_open' && keys === 'type') return { type: 'cli_folder_open' };
   if (o.type === 'cli_folder_cancelled' && keys === 'type') return { type: 'cli_folder_cancelled' };
+  if (o.type === 'cli_refresh' && keys === 'type') return { type: 'cli_refresh' };
   if (o.type === 'notifications' && keys === 'state,type' && (o.state === 'on' || o.state === 'off' || o.state === 'unknown')) return { type: 'notifications', state: o.state };
   if (o.type === 'update') return parseUpdateLine(o);
   return null;

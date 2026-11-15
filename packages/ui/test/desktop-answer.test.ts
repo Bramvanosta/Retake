@@ -3,6 +3,8 @@
  * own op, never an MCP tool), strict input (the question id's shape and one of the two forms), supervised only (409,
  * reason `not_supervised`, on any other server), `shown` capped at 20 a minute while an answer is never capped nor
  * dropped, never a nudge of the job watch; the supervisor frames the lines like its own on the same pipe.
+ * `desktop_menu`'s second form `{popup}`: a context menu id of the shell's table only, one strict line, its own
+ * minute cap; the `cli` line (the command's link for the Help items): one strict line per change.
  */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,7 +12,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TOOLS } from '@retake/mcp';
 import { FileJobQueue } from '@retake/engine/testing';
-import { DesktopPipe, MENU_ITEMS_MAX, MENU_PER_MIN, SHOWN_PER_MIN } from '../src/server/desktop.js';
+import { CLI_STATES, CONTEXT_MENU_IDS, DesktopPipe, MENU_ITEMS_MAX, MENU_PER_MIN, POPUP_PER_MIN, SHOWN_PER_MIN } from '../src/server/desktop.js';
 import { OWN_OPS } from '../src/server/ops.js';
 import { UI_OPS } from '../src/server/studio.js';
 import { UnsavedBoard } from '../src/server/unsaved.js';
@@ -264,5 +266,73 @@ describe('the op desktop_menu through the Studio server (the menu follows the pa
       await server.close();
       await rm(own, { recursive: true, force: true });
     }
+  });
+
+  it('desktop_menu {popup}: a known context menu id only (an unknown id, items beside it, a label are 400); one strict line; its own minute cap', async () => {
+    expect(CONTEXT_MENU_IDS).toEqual(['scenario']);
+    const own = await mkdtemp(join(tmpdir(), 'studio-desktop-popup-'));
+    await fixtureWorkspace(own);
+    const server = await startStudioServer({ root: own, startWorker: false });
+    try {
+      expect((await menuCall({ popup: 'scenario' }, server)).status).toBe(409);
+      const lines: string[] = [];
+      server.desktop.attach((l) => (lines.push(l), true));
+      for (const bad of [
+        { popup: 'project' },
+        { popup: 'Scenario' },
+        { popup: '' },
+        { popup: ['scenario'] },
+        { popup: 'scenario', items: [] },
+        { popup: 'scenario', label: 'Delete everything' },
+        { popup: 'scenario', target: 'quote' },
+      ]) {
+        const res = await menuCall(bad, server);
+        expect(res.status, JSON.stringify(bad)).toBe(400);
+      }
+      expect(lines).toEqual([]);
+      const ok = await menuCall({ popup: 'scenario' }, server);
+      expect(ok.status).toBe(200);
+      expect(ok.json<{ data: unknown }>().data).toEqual({ ok: true, sent: true });
+      expect(lines).toEqual(['{"type":"context","menu":"scenario"}']);
+    } finally {
+      await server.close();
+      await rm(own, { recursive: true, force: true });
+    }
+    // The cap is its own: a full minute of popups leaves the menu's state lines alone, and the reverse.
+    let t = 0;
+    const pipe = new DesktopPipe(() => t);
+    const lines: string[] = [];
+    pipe.attach((l) => (lines.push(l), true));
+    for (let i = 0; i < POPUP_PER_MIN; i++) expect(pipe.context('scenario')).toBe(true);
+    expect(pipe.context('scenario')).toBe(false);
+    expect(pipe.menu([])).toBe(true);
+    for (let i = 1; i < MENU_PER_MIN; i++) pipe.menu([]);
+    expect(pipe.menu([])).toBe(false);
+    t += 60_000;
+    expect(pipe.context('scenario')).toBe(true);
+    expect(lines.filter((l) => l.includes('"context"'))).toHaveLength(POPUP_PER_MIN + 1);
+  });
+
+  it('DesktopPipe.cli: one strict line per change (deduped), not supervised 409', () => {
+    const pipe = new DesktopPipe();
+    expect(() => pipe.cli('ours')).toThrow(expect.objectContaining({ code: 'conflict' }));
+    const lines: string[] = [];
+    pipe.attach((l) => (lines.push(l), true));
+    expect(CLI_STATES).toEqual(['absent', 'ours', 'other_app', 'foreign']);
+    expect(pipe.cli('absent')).toBe(true);
+    expect(pipe.cli('absent')).toBe(false);
+    expect(pipe.cli('ours')).toBe(true);
+    expect(pipe.cli('ours')).toBe(false);
+    expect(pipe.cli('other_app')).toBe(true);
+    expect(lines).toEqual(['{"type":"cli","state":"absent"}', '{"type":"cli","state":"ours"}', '{"type":"cli","state":"other_app"}']);
+    // A pipe that closed wrote nothing: the same state is written again once it can be.
+    const closed = new DesktopPipe();
+    let open = false;
+    const got: string[] = [];
+    closed.attach((l) => (open ? (got.push(l), true) : false));
+    expect(() => closed.cli('ours')).toThrow(expect.objectContaining({ code: 'unavailable' }));
+    open = true;
+    expect(closed.cli('ours')).toBe(true);
+    expect(got).toEqual(['{"type":"cli","state":"ours"}']);
   });
 });

@@ -142,6 +142,67 @@ pub fn notifications_line(granted: Option<bool>) -> String {
     format!("{{\"type\":\"notifications\",\"state\":\"{state}\"}}")
 }
 
+/// Help's Install item's two labels (fixed words): another copy's command is replaced (the sheet's Replace).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CliLabel {
+    Install,
+    Replace,
+}
+
+impl CliLabel {
+    pub fn label(self) -> &'static str {
+        match self {
+            CliLabel::Install => "Install the retake Command…",
+            CliLabel::Replace => "Replace the retake Command…",
+        }
+    }
+}
+
+/// Help's Install / Uninstall the retake Command… by what is installed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CliItems {
+    pub install: bool,
+    pub install_label: CliLabel,
+    pub remove: bool,
+}
+
+/// The items for a build (`bundled`: the installed app — a developer build has no command of its own) and the
+/// server's last word on the link (None: not told — an attached server, a server just started: both on, the sheet
+/// says). This app's command (`ours`): Uninstall only (Install would be refused: one command per app). Another copy's
+/// (`other_app`): Replace, no Uninstall (it removes only this app's link). Nothing or something else there: Install.
+pub fn cli_items(bundled: bool, state: Option<crate::pipe::CliState>) -> CliItems {
+    use crate::pipe::CliState;
+    let (install, install_label, remove) = match (bundled, state) {
+        (false, _) => (false, CliLabel::Install, false),
+        (true, None) => (true, CliLabel::Install, true),
+        (true, Some(CliState::Absent | CliState::Foreign)) => (true, CliLabel::Install, false),
+        (true, Some(CliState::Ours)) => (false, CliLabel::Install, true),
+        (true, Some(CliState::OtherApp)) => (true, CliLabel::Replace, false),
+    };
+    CliItems { install, install_label, remove }
+}
+
+/// The server's word in one byte (the shell keeps the latest in an atomic: the newest wins): 0 = not told.
+pub fn cli_code(state: Option<crate::pipe::CliState>) -> u8 {
+    state.map_or(0, |s| crate::pipe::CliState::ALL.iter().position(|x| *x == s).map_or(0, |i| i as u8 + 1))
+}
+
+/// `cli_code`'s inverse; an unknown byte is "not told".
+pub fn cli_from_code(c: u8) -> Option<crate::pipe::CliState> {
+    c.checked_sub(1).and_then(|i| crate::pipe::CliState::ALL.get(usize::from(i)).copied())
+}
+
+/// The line that asks the server to read the command's link again (the window became key: a link removed in
+/// Terminal shows in Help at once).
+pub const CLI_REFRESH_LINE: &str = "{\"type\":\"cli_refresh\"}";
+/// At most one refresh line in this many ms.
+pub const CLI_REFRESH_EVERY_MS: u64 = 2000;
+
+/// Is a refresh due now (`last`: when the last one was sent)?
+pub fn refresh_due(last_ms: Option<u64>, now_ms: u64) -> bool {
+    last_ms.is_none_or(|l| now_ms < l || now_ms - l >= CLI_REFRESH_EVERY_MS)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,5 +278,39 @@ mod tests {
         assert_eq!(notifications_line(None), r#"{"type":"notifications","state":"unknown"}"#);
         assert_eq!(CLI_FOLDER_OPEN_LINE, r#"{"type":"cli_folder_open"}"#);
         assert_eq!(CLI_FOLDER_CANCELLED_LINE, r#"{"type":"cli_folder_cancelled"}"#);
+    }
+
+    #[test]
+    fn the_cli_items_by_bundle_and_link_state() {
+        use crate::pipe::CliState;
+        let i = |install, install_label, remove| CliItems { install, install_label, remove };
+        // A developer build: both greyed, whatever the server says.
+        for s in [None, Some(CliState::Ours), Some(CliState::Absent)] {
+            assert_eq!(cli_items(false, s), i(false, CliLabel::Install, false));
+        }
+        assert_eq!(cli_items(true, None), i(true, CliLabel::Install, true));
+        assert_eq!(cli_items(true, Some(CliState::Absent)), i(true, CliLabel::Install, false));
+        assert_eq!(cli_items(true, Some(CliState::Foreign)), i(true, CliLabel::Install, false));
+        assert_eq!(cli_items(true, Some(CliState::Ours)), i(false, CliLabel::Install, true));
+        assert_eq!(cli_items(true, Some(CliState::OtherApp)), i(true, CliLabel::Replace, false));
+        assert_eq!(CliLabel::Install.label(), "Install the retake Command…");
+        assert_eq!(CliLabel::Replace.label(), "Replace the retake Command…");
+        for s in [None, Some(CliState::Absent), Some(CliState::Ours), Some(CliState::OtherApp), Some(CliState::Foreign)] {
+            assert_eq!(cli_from_code(cli_code(s)), s);
+        }
+        assert_eq!(cli_code(None), 0);
+        assert_eq!(cli_from_code(99), None);
+    }
+
+    #[test]
+    fn the_cli_refresh_line_is_sent_at_most_every_two_seconds() {
+        assert_eq!(CLI_REFRESH_LINE, r#"{"type":"cli_refresh"}"#);
+        assert!(fits_shell_line(CLI_REFRESH_LINE));
+        assert!(refresh_due(None, 0));
+        assert!(!refresh_due(Some(1000), 1000));
+        assert!(!refresh_due(Some(1000), 1000 + CLI_REFRESH_EVERY_MS - 1));
+        assert!(refresh_due(Some(1000), 1000 + CLI_REFRESH_EVERY_MS));
+        // A clock that went back sends one (never stuck).
+        assert!(refresh_due(Some(5000), 10));
     }
 }

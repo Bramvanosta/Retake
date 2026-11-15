@@ -1689,6 +1689,31 @@ By hand (no test sees the Dock, Finder or a real tab's favicon): `pnpm desktop:b
    appearances (Safari may show a letter instead of an SVG favicon: note it — a favicon following the appearance there
    is BACKLOG BL-136).
 
+### 14h. The menus by hand (L8.3)
+
+`pnpm desktop:build`, the fixture workspace open (the gated black box covers the logic; these need your eyes and
+pointer).
+
+1. **WebKit's menu.** Right-click an empty area of Welcome and of Productions: nothing (no Reload, no Inspect
+   Element). In the search field and in the YAML editor: WebKit's menu (Cut / Copy / Paste, Spelling). Select a word
+   of a heading, right-click on it: Copy / Look Up; right-click beside it: nothing.
+2. **The scenario's context menu.** In Productions, right-click a poster (and ⌃-click another): it is selected and a
+   native menu opens at the pointer with Script, Shoot, Edit, Review, Review Report, Comments; Edit opens that
+   scenario's Edit, never the one you had open before. Escape closes the menu with nothing done. With VoiceOver on,
+   VO-Shift-M on a poster opens no menu (expected: its keys and the menu bar reach every item).
+3. **Help's command items.** In the installed app (15c's set-up): before any install, Install on, Uninstall greyed;
+   after Install, Install greyed, Uninstall on; `rm ~/.local/bin/retake` in Terminal, click the app's window: Install
+   on again; a link to another copy (`ln -s /Volumes/…/Retake.app/Contents/Resources/bin/retake ~/.local/bin/retake`):
+   Replace the retake Command…. In `pnpm desktop:dev`: both greyed.
+4. **The update item.** During a test-feed update (15d): Checking for Updates… greyed, then Update Available… (opens
+   the sheet), Downloading the Update… while the Dock shows the percent, Installing the Update… greyed before the
+   restart.
+5. **Keys.** Help › Keyboard Shortcuts lists the key of every menu item that has one, by menu (the app menu's Set Up,
+   Hide, Hide Others, Quit; File; Edit's Undo … Select All; View with Enter Full Screen; Go; Scenario; Window's Minimize
+   and Show Studio Window) and the page's own keys — compare it with the menu bar itself; ⌘, opens the Set-up sheet; File › Show Workspace in
+   Finder selects the workspace's folder in Finder; Window has no tab items (Show Tab Bar, Merge All Windows) whatever
+   System Settings › Desktop & Dock › "Prefer tabs" says.
+
 ## 15. The standalone app (L5.16)
 
 ### 15a. The DMG, the drag and the first launch (L5.16b)

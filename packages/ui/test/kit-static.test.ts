@@ -35,8 +35,13 @@ import {
   Kbd,
   LinkButton,
   MARK_STATES,
+  COMMANDS,
   MENU_COMMANDS,
   Menu,
+  PAGE_KEYS,
+  SHELL_KEYS,
+  commandKeys,
+  keyCaps,
   PosterCard,
   PosterGrid,
   Progress,
@@ -785,9 +790,60 @@ describe('the overlays', () => {
       'capture',
       'render',
       'stop',
+      'help-shortcuts',
     ]);
     for (const id of MENU_COMMANDS) expect(isMenuCommand(id)).toBe(true);
     for (const id of ['reload', 'record', 'pause', '', 'PALETTE', 'Rehearse', null, 1, { id: 'palette' }]) expect(isMenuCommand(id)).toBe(false);
+  });
+
+  it('keyCaps: Tauri accelerators as macOS key caps in ⌃⌥⇧⌘ order; every COMMANDS key renders', () => {
+    expect(keyCaps('Shift+CmdOrCtrl+R')).toEqual(['⇧', '⌘', 'R']);
+    expect(keyCaps('CmdOrCtrl+Shift+R')).toEqual(['⇧', '⌘', 'R']);
+    expect(keyCaps('Alt+CmdOrCtrl+I')).toEqual(['⌥', '⌘', 'I']);
+    expect(keyCaps('Ctrl+Alt+Shift+CmdOrCtrl+k')).toEqual(['⌃', '⌥', '⇧', '⌘', 'K']);
+    expect(keyCaps('CmdOrCtrl+.')).toEqual(['⌘', '.']);
+    expect(keyCaps('CmdOrCtrl+Enter')).toEqual(['⌘', '↩']);
+    expect(keyCaps('CmdOrCtrl+,')).toEqual(['⌘', ',']);
+    expect(commandKeys('render')).toEqual(['⌘', 'B']);
+    expect(commandKeys('mode-edit')).toEqual(['⌘', '3']);
+    expect(commandKeys('go-readme')).toBeUndefined();
+    // Every key of the registry (the page's, the shell's, the page's own) is a cap list ending with one key, and a Kbd
+    // renders it.
+    for (const c of [...COMMANDS, ...SHELL_KEYS, ...PAGE_KEYS]) {
+      if (!('key' in c) || !c.key) continue;
+      const caps = keyCaps(c.key);
+      expect(caps.length, c.id).toBeGreaterThanOrEqual(2);
+      expect(caps.at(-1), c.id).toMatch(/^(?:[A-Z0-9.,[\]↩])$/);
+      expect(html(createElement(Kbd, { keys: caps })), c.id).toContain('<kbd class="k-kbd">⌘</kbd>');
+    }
+  });
+
+  it('⚑ no literal key cap in the app outside the registry: every ⌘ / ⇧ / ⌥ / ⌃ the page shows for a command comes from ui-kit/commands.ts', async () => {
+    const { readdir } = await import('node:fs/promises');
+    const app = join(REPO, 'packages', 'ui', 'src', 'app');
+    const files = (await readdir(app, { recursive: true })).filter((f) => /\.tsx?$/.test(f));
+    // The UI gallery's samples (kit components shown with sample keys, never a command of the app); the kit's own doc.
+    const CAP_LITERAL = /['"`][⌘⇧⌥⌃][^'"`\n]*['"`]/g;
+    const samples = new Set(['project/gallery-controls.tsx', 'project/gallery-panes.tsx', 'ui-kit/Button.tsx', 'ui-kit/commands.ts']);
+    const found: string[] = [];
+    for (const f of files) {
+      if (samples.has(f)) continue;
+      const text = await readFile(join(app, f), 'utf8');
+      // Any string that starts with a modifier glyph: a cap alone ('⌘') or with its key ('⌘S', '⌘↩ posts…').
+      for (const m of text.matchAll(CAP_LITERAL)) found.push(`${f}: ${m[0]}`);
+    }
+    expect(found).toEqual([]);
+    // The scan sees a planted one (it is not vacuous).
+    for (const planted of ["kbd={['⌘', 'B']}", "keys={['⌘S', 'Ctrl+S']}", "'⌘↩ posts.'"]) expect([...planted.matchAll(CAP_LITERAL)], planted).toHaveLength(1);
+    // The page's own ⌘ bindings are the files PAGE_KEYS speaks for (a new ⌘ binding elsewhere is a key PAGE_KEYS does
+    // not list: add it there, and to the shortcuts sheet).
+    const binders: string[] = [];
+    for (const f of files) {
+      const text = await readFile(join(app, f), 'utf8');
+      if (/\(e\.metaKey \|\| e\.ctrlKey\)|e\.key === 'Enter' && \(e\.metaKey/.test(text)) binders.push(f);
+    }
+    expect(binders.sort()).toEqual(['edit/switch-loop.ts', 'project/ReadmeEditor.tsx', 'review/Composer.tsx', 'script/StepEditing.tsx', 'script/YamlTab.tsx']);
+    expect(PAGE_KEYS.map((k) => k.key)).toEqual(['CmdOrCtrl+S', 'CmdOrCtrl+Enter', 'CmdOrCtrl+Z', 'Shift+CmdOrCtrl+Z', 'CmdOrCtrl+Y']);
   });
 });
 

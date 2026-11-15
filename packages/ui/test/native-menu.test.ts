@@ -2,12 +2,14 @@
  * The desktop app's menu follows the page (shell/native-menu.ts `menuItems`): every page command of the menu, in
  * MENU_COMMANDS order, with what can run now — the scenario's pages and views only with a scenario in context, the
  * project's pages only with a project open, the mode and view shown checked, the inspector's toggle label, the Scenario
- * menu's runs as the status bar's buttons say (command-bus.ts).
+ * menu's runs as the status bar's buttons say (command-bus.ts), Help's Keyboard Shortcuts always. The shortcuts sheet
+ * (shell/ShortcutsSheet.tsx) lists every key of the registry by menu, the shell's own and the page's own.
  */
 import { describe, expect, it } from 'vitest';
 import { menuItems } from '../src/app/shell/native-menu.js';
 import type { MenuInput } from '../src/app/shell/native-menu.js';
-import { MENU_COMMANDS } from '../src/app/ui-kit/commands.js';
+import { shortcutGroups } from '../src/app/shell/ShortcutsSheet.js';
+import { COMMANDS, MENU_COMMANDS, PAGE_KEYS, SHELL_KEYS, STD_KEYS, keyCaps } from '../src/app/ui-kit/commands.js';
 
 const state = (i: Partial<MenuInput>) =>
   Object.fromEntries(menuItems({ route: { name: 'projects' }, slug: null, ctx: null, mode: null, hasInspector: false, inspectorShown: false, runnable: () => false, ...i }).map((x) => [x.id, x]));
@@ -37,7 +39,7 @@ describe('the native menu state', () => {
       'inspector',
     ] as const)
       expect(s[id]?.enabled, id).toBe(false);
-    for (const id of ['palette', 'go-back', 'go-forward'] as const) expect(s[id]?.enabled, id).toBe(true);
+    for (const id of ['palette', 'go-back', 'go-forward', 'help-shortcuts'] as const) expect(s[id]?.enabled, id).toBe(true);
     expect(s['go-welcome']?.enabled).toBe(false);
     expect(s['mode-script']?.checked).toBe(false);
   });
@@ -61,5 +63,36 @@ describe('the native menu state', () => {
     // Another screen than the scenario's: no view checked, the mode still.
     const edit = state({ route: { name: 'timeline', slug: 'p', scenario: 'quote' }, slug: 'p', ctx, mode: 'edit' });
     expect([edit['mode-edit']?.checked, edit['view-board']?.checked, edit['view-board']?.enabled]).toEqual([true, false, true]);
+  });
+
+  it('Help › Keyboard Shortcuts is always on (a scenario, a project, Welcome)', () => {
+    const ctx = { slug: 'p', scenario: 'quote' };
+    for (const i of [{}, { slug: 'p' }, { route: { name: 'scenario', slug: 'p', scenario: 'quote', tab: 'blocks' } as const, slug: 'p', ctx, mode: 'script' as const }])
+      expect(state(i)['help-shortcuts']).toEqual({ id: 'help-shortcuts', enabled: true });
+  });
+
+  it("the shortcuts sheet lists every COMMANDS key by menu, the shell's keys and the page's own", () => {
+    const groups = shortcutGroups();
+    expect(groups.map((g) => g.title)).toEqual(['Retake', 'File', 'Edit', 'View', 'Go', 'Scenario', 'Window', 'In text and on the board']);
+    const rows = groups.flatMap((g) => g.rows.map((r) => ({ ...r, menu: g.title })));
+    // Every key of the registry once, with its menu label (Title Case) and its caps; nothing without a key.
+    const keyed = [...COMMANDS.filter((c) => 'key' in c), ...SHELL_KEYS, ...STD_KEYS];
+    expect(
+      rows
+        .filter((r) => r.menu !== 'In text and on the board')
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual(keyed.map((c) => c.id).sort());
+    for (const c of keyed) {
+      const r = rows.find((x) => x.id === c.id)!;
+      expect(r.label, c.id).toBe(c.label.replace('{app}', 'Retake'));
+      expect(r.menu, c.id).toBe(c.menu.replace('App', 'Retake'));
+      expect(r.keys, c.id).toEqual(keyCaps(c.key!));
+    }
+    expect(rows.find((r) => r.id === 'render')).toMatchObject({ menu: 'Scenario', label: 'Render', keys: ['⌘', 'B'] });
+    expect(groups.find((g) => g.title === 'File')!.rows.map((r) => r.id)).toEqual(['new-scenario', 'open-workspace', 'close-window']);
+    expect(groups.find((g) => g.title === 'Retake')!.rows.map((r) => r.label)).toEqual(['Set Up Retake…', 'Hide Retake', 'Hide Others', 'Quit Retake']);
+    expect(groups.find((g) => g.title === 'Edit')!.rows.map((r) => r.keys.join(''))).toEqual(['⌘Z', '⇧⌘Z', '⌘X', '⌘C', '⌘V', '⌘A']);
+    expect(groups.at(-1)!.rows.map((r) => r.id)).toEqual(PAGE_KEYS.map((k) => k.id));
   });
 });

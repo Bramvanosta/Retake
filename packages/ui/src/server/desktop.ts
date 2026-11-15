@@ -18,6 +18,13 @@
  *   applies the ids its menu holds), enabled, checked (a check item: the mode or view shown), variant (0 / 1: which of a
  *   toggle's two fixed labels) — one `{"type":"menu","items":[…]}` line (desktop_core pipe.rs reads it strictly). No
  *   text of the page reaches the menu. At most MENU_PER_MIN lines a minute (the page sends a state when it changes).
+ *   Its second form, `{popup}`: the page asks for one of the shell's context menus by id (CONTEXT_MENU_IDS — the
+ *   shell's table holds the items and their labels) — one `{"type":"context","menu":…}` line, at most POPUP_PER_MIN a
+ *   minute (its own cap: a looping page starves neither the other). The shell shows it only right after a real
+ *   secondary click in its window (its gate), so a page asking without one gets nothing on screen.
+ * - `cli` lines (`DesktopPipe.cli`): the server's word on the `retake` command's link (setup-status.ts cliMenuState,
+ *   read from the disk — never a value of the page's), written when it changed since the last one; the shell's Help
+ *   items follow it. The page can only make the server read the disk again (setup_status, install, remove).
  * - Honest: once the supervisor has stopped (the server is closing) no line can be written — the op
  *   answers `unavailable` (503, reason `stopped`), never "answered"; the page's sheet says the answer did not arrive.
  */
@@ -43,6 +50,14 @@ export const MENU_ID_RE = /^[a-z](?:[a-z-]{0,30}[a-z])?$/;
 /** Items of one state at most (desktop_core MENU_ITEMS_MAX). */
 export const MENU_ITEMS_MAX = 64;
 
+/** Context-menu requests a minute at most. */
+export const POPUP_PER_MIN = 30;
+/** The shell's context menus (apps/desktop menu.rs CONTEXT_MENUS; a static test compares them). */
+export const CONTEXT_MENU_IDS = ['scenario'] as const;
+/** The `retake` command's link as the server reads it (desktop_core pipe.rs CliState). */
+export const CLI_STATES = ['absent', 'ours', 'other_app', 'foreign'] as const;
+export type CliState = (typeof CLI_STATES)[number];
+
 const menuItem = z.strictObject({
   id: z.string().regex(MENU_ID_RE, "a page command's id"),
   enabled: z.boolean(),
@@ -52,12 +67,15 @@ const menuItem = z.strictObject({
     .optional()
     .describe('A toggle: which of its two fixed labels (Show / Hide).'),
 });
-export const DesktopMenuInput = z.strictObject({
-  items: z
-    .array(menuItem)
-    .max(MENU_ITEMS_MAX)
-    .refine((xs) => new Set(xs.map((x) => x.id)).size === xs.length, 'each id once'),
-});
+export const DesktopMenuInput = z.union([
+  z.strictObject({
+    items: z
+      .array(menuItem)
+      .max(MENU_ITEMS_MAX)
+      .refine((xs) => new Set(xs.map((x) => x.id)).size === xs.length, 'each id once'),
+  }),
+  z.strictObject({ popup: z.enum(CONTEXT_MENU_IDS).describe("One of the shell's context menus (shown only right after a right-click in the app's window).") }),
+]);
 export type MenuItemState = z.infer<typeof menuItem>;
 
 /** What the server may ask the shell to do for the Set-up sheet (desktop_core pipe.rs SetupAction). */
@@ -69,6 +87,9 @@ export class DesktopPipe {
   private write: ((line: string) => boolean) | undefined;
   private window = { start: 0, count: 0 };
   private menuWindow = { start: 0, count: 0 };
+  private popupWindow = { start: 0, count: 0 };
+  /** The last cli state written (only a change is written again). */
+  private cliSent: CliState | undefined;
   /** Lines written: tests. */
   written = 0;
 
@@ -120,6 +141,26 @@ export class DesktopPipe {
     return true;
   }
 
+  /** The page asks for context menu `menu`; false when the minute's cap is reached (nothing written). */
+  context(menu: (typeof CONTEXT_MENU_IDS)[number]): boolean {
+    const w = this.need();
+    const t = this.now();
+    if (t - this.popupWindow.start >= 60_000) this.popupWindow = { start: t, count: 0 };
+    if (this.popupWindow.count >= POPUP_PER_MIN) return false;
+    this.send(w, JSON.stringify({ type: 'context', menu }));
+    this.popupWindow.count++;
+    return true;
+  }
+
+  /** The command's link as read now (setup-status.ts cliMenuState): written when it changed; true when written. */
+  cli(state: CliState): boolean {
+    const w = this.need();
+    if (state === this.cliSent) return false;
+    this.send(w, JSON.stringify({ type: 'cli', state }));
+    this.cliSent = state;
+    return true;
+  }
+
   /** The update sheet's click for the shell (update-ops.ts `desktop_update`): Install and Restart, or Later. */
   update(action: 'install' | 'later'): void {
     this.send(this.need(), JSON.stringify({ type: 'update', action }));
@@ -156,10 +197,15 @@ export function desktopOps(pipe: DesktopPipe) {
   const menu = defineTool({
     name: 'desktop_menu',
     title: "The desktop app's menu",
-    description: "The window page's state of the menu's page commands (enabled, checked, a toggle's label). The desktop app's own server only.",
+    description:
+      "The window page's state of the menu's page commands (enabled, checked, a toggle's label), or a request for one of the app's context menus (`popup`). The desktop app's own server only.",
     input: DesktopMenuInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     async run(a) {
+      if ('popup' in a) {
+        const sent = pipe.context(a.popup);
+        return { summary: sent ? 'context menu asked' : 'context menu not asked: too many this minute', data: { ok: true, sent } };
+      }
       const sent = pipe.menu(a.items);
       return { summary: sent ? 'menu state sent' : 'menu state not sent: too many this minute', data: { ok: true, sent } };
     },

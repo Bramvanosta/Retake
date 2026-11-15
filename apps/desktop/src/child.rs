@@ -170,7 +170,17 @@ fn read_pipe(mut reader: LineReader<std::process::ChildStdout>, pending: Arc<Mut
                 }
                 // The window page's state of its commands in the menu (through the server's desktop_menu op).
                 PipeMsg::Menu(items) => {
-                    crate::menu::apply(&items);
+                    crate::menu::apply(items);
+                    continue;
+                }
+                // The window page asks for a context menu (desktop_menu {popup}): the shell's gate decides.
+                PipeMsg::Context { menu } => {
+                    crate::menu::context(menu);
+                    continue;
+                }
+                // The server's word on the command's link (read from the disk): Help's Install / Uninstall.
+                PipeMsg::Cli(state) => {
+                    crate::menu::cli_state(Some(state));
                     continue;
                 }
                 // The server's framing newline: nothing to say, nothing changed.

@@ -85,6 +85,7 @@ export function PosterGrid({
   selected,
   onSelect,
   onOpen,
+  onContext,
   describedBy,
 }: {
   label: string;
@@ -92,6 +93,8 @@ export function PosterGrid({
   selected: string | null;
   onSelect: (id: string | null) => void;
   onOpen: (id: string) => void;
+  /** A right-click (or ⌃-click) on a poster: it is selected first, as Finder does; the event says whether it was prevented. */
+  onContext?: (id: string, e: { defaultPrevented: boolean }) => void;
   describedBy?: string;
 }) {
   const base = useId();
@@ -159,6 +162,14 @@ export function PosterGrid({
           className={`k-card k-card-poster k-poster${n === at ? ' is-selected' : ''}`}
           onClick={() => onSelect(i.id)}
           onDoubleClick={() => onOpen(i.id)}
+          onContextMenu={
+            onContext
+              ? (e) => {
+                  onSelect(i.id);
+                  onContext(i.id, e.nativeEvent);
+                }
+              : undefined
+          }
         >
           <span className="k-card-picture k-card-picture-poster">{shown(i.picture)}</span>
           <span className="k-card-title">{shown(i.title)}</span>

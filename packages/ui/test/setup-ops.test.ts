@@ -10,6 +10,8 @@
  * one), Claude Code's environment is the small one at the op too, one run at a time, a folder inside the app
  * refused when it arrives, Uninstall from a misplaced app, `ps` failing refuses Add and is read only when asked,
  * at most every 5 s, the folder panel's open / cancelled lines, the line cap in bytes.
+ * The shell's Help items: the command's link as an enum on the pipe (cliMenuState: the recorded link first),
+ * written by status, install and uninstall (done or refused) and on the shell's `cli_refresh` line — a change only.
  */
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -17,11 +19,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RETAKE_VERSION } from '@retake/core';
-import { readAppSettings } from '@retake/engine/integrations';
+import { readAppSettings, writeAppSettings } from '@retake/engine/integrations';
 import type { BundleInfo } from '@retake/core/io';
 import { TOOLS } from '@retake/mcp';
 import { OWN_OPS } from '../src/server/ops.js';
-import { PS_EVERY_MS, SETUP_OPS, SETUP_WRITES_PER_MIN } from '../src/server/setup-ops.js';
+import { PS_EVERY_MS, SETUP_OPS, SETUP_WRITES_PER_MIN, SetupState, cliMenuState, writeCliState } from '../src/server/setup-ops.js';
+import { DesktopPipe } from '../src/server/desktop.js';
 import { SHELL_LINE_MAX, parseShellLine } from '../src/server/shell-line.js';
 import { UI_OPS } from '../src/server/studio.js';
 import { applyShellLine, startStudioServer } from '../src/index.js';
@@ -145,6 +148,9 @@ describe('the setup ops without a server', () => {
     }
     expect(parseShellLine(`{"type":"cli_folder_cancelled"${' '.repeat(100)}}`)).toEqual({ type: 'cli_folder_cancelled' });
     expect(parseShellLine('{"type":"cli_folder_open"}')).toEqual({ type: 'cli_folder_open' });
+    // The shell's window became key: its exact shape only.
+    expect(parseShellLine('{"type":"cli_refresh"}')).toEqual({ type: 'cli_refresh' });
+    for (const bad of ['{"type":"cli_refresh","state":"ours"}', '{"type":"cli_refresh","path":"/x"}']) expect(parseShellLine(bad), bad).toBeNull();
     expect(parseShellLine(`{"type":"cli_folder","path":"/${'\u20ac'.repeat(2000)}"}`)).toEqual({ type: 'cli_folder', path: `/${'\u20ac'.repeat(2000)}` });
     // The CLI's reader at this cap — a line of exactly SHELL_LINE_MAX bytes reaches the parser, one byte more is
     // dropped whole (and the next line is read again), across chunks.
@@ -164,6 +170,93 @@ describe('the setup ops without a server', () => {
     expect([...cli.matchAll(/\bstdinClosed\([^;]*?,\s*(\d+)\)/g)].map((m) => Number(m[1]))).toEqual([SHELL_LINE_MAX]);
     // The update's state goes through the same reader (update-ops.test.ts): the line handler hands it on.
     expect(cli).toMatch(/\bshellLine = \(\w+\) => void applyShellLine\([^)]*, server\.update\);/);
+    // The supervised server says the command's link once at start (the shell's Help items).
+    expect(cli).toContain('writeCliState(server.setup.pipe, server.setup.context());');
+  });
+
+  it("cliMenuState: ours, absent, other_app, foreign — the recorded link first, else the default folder's", () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'setup-cli-state-')));
+    try {
+      const h = join(root, 'home');
+      const rh = join(root, 'retake-home');
+      mkdirSync(join(h, '.local', 'bin'), { recursive: true });
+      const mine = fakeApp(join(root, 'Applications'));
+      // Another copy of the app, since moved away (a dangling link into a .app: another app's).
+      const other = { root: join(root, 'Gone', 'Retake.app', 'Contents', 'Resources') };
+      const c = { ...machine(), bundle: mine, home: h, env: { PATH: '/usr/bin', RETAKE_HOME: rh } };
+      const def = join(h, '.local', 'bin', 'retake');
+      expect(cliMenuState(c, mine, rh)).toBe('absent');
+      symlinkSync(join(mine.root, 'bin', 'retake'), def);
+      expect(cliMenuState(c, mine, rh)).toBe('ours');
+      rmSync(def);
+      symlinkSync(join(other.root, 'bin', 'retake'), def);
+      expect(cliMenuState(c, mine, rh)).toBe('other_app');
+      rmSync(def);
+      writeFileSync(def, '#!/bin/sh\n');
+      expect(cliMenuState(c, mine, rh)).toBe('foreign');
+      // The recorded link first: this app's in a chosen folder is `ours` whatever the default folder holds…
+      mkdirSync(join(h, 'tools'));
+      const chosen = join(h, 'tools', 'retake');
+      symlinkSync(join(mine.root, 'bin', 'retake'), chosen);
+      writeAppSettings(rh, { cli: { path: chosen, at: new Date(0).toISOString() } });
+      expect(cliMenuState(c, mine, rh)).toBe('ours');
+      // …and once it is another copy's, its state (not the default folder's foreign file).
+      rmSync(chosen);
+      symlinkSync(join(other.root, 'bin', 'retake'), chosen);
+      expect(cliMenuState(c, mine, rh)).toBe('other_app');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the shell's Help items never fail anything", () => {
+  it('⚑ writeCliState is best effort: a read that throws writes nothing, throws nothing, says it once; the refresh line and the install answer survive it', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'setup-cli-throw-')));
+    const h = join(root, 'home');
+    mkdirSync(h);
+    const mine = fakeApp(join(root, 'Applications'));
+    // The bundle is read twice by the op's gate (appBundle); the next read (the Help items' state) throws, as a link changing
+    // under the read would.
+    let reads = 0;
+    const throwing = (): SetupContext => {
+      const c = { ...machine(), home: h, env: { PATH: '/usr/bin', RETAKE_HOME: join(root, 'rh') } };
+      return Object.defineProperty(c, 'bundle', {
+        get: () => {
+          if (++reads > 2) throw new Error('EACCES: the link changed under the read');
+          return mine;
+        },
+      });
+    };
+    try {
+      const pipe = new DesktopPipe();
+      const out: string[] = [];
+      pipe.attach((l) => (out.push(l), true));
+      const said: string[] = [];
+      reads = 2;
+      expect(() => writeCliState(pipe, throwing(), (m) => said.push(m))).not.toThrow();
+      reads = 2;
+      expect(() => writeCliState(pipe, throwing(), (m) => said.push(m))).not.toThrow();
+      expect(out).toEqual([]);
+      expect(said).toHaveLength(1);
+      // The shell's refresh line (its stdin listener: a throw there would end the server).
+      reads = 2;
+      const c = throwing();
+      expect(applyShellLine({ state: new SetupState(), context: () => c, pipe }, root, '{"type":"cli_refresh"}')).toBe(true);
+      // Install answers what it did, the Help items' read failing in its finally.
+      const server = await startStudioServer({ root: ws, startWorker: false, setup: () => ((reads = 0), throwing()) });
+      try {
+        server.desktop.attach((l) => (out.push(l), true));
+        const r = await raw(server.port, 'POST', '/v1/call/setup_cli_install', { authorization: `Bearer ${server.token}`, 'content-type': 'application/json' }, '{}');
+        expect(r.status).toBe(200);
+        expect(r.json<{ data: { result: string } }>().data.result).toBe('created');
+        expect(out).toEqual([]);
+      } finally {
+        await server.close();
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
@@ -264,6 +357,35 @@ describe('the setup ops on one server, case after case', { shuffle: false }, () 
       expect(readFileSync(join(home, '.local', 'bin', 'retake'), 'utf8')).toContain('pnpm retake');
       expect((await call('setup_status')).body.data.cli).toMatchObject({ state: 'foreign', what: 'file' });
       rmSync(join(home, '.local', 'bin', 'retake'));
+    });
+
+    it("⚑ the shell's Help items follow the disk: status, install and uninstall write the command's state on the pipe (a change only); a refused install writes the state the disk has; a cli_refresh line reads it again", async () => {
+      freshWindow();
+      const cli = () => lines.filter((l) => l.startsWith('{"type":"cli",'));
+      const def = join(home, '.local', 'bin', 'retake');
+      await call('setup_status');
+      expect(cli().at(-1)).toBe('{"type":"cli","state":"absent"}');
+      const n = cli().length;
+      await call('setup_status');
+      expect(cli()).toHaveLength(n);
+      expect((await call('setup_cli_install')).status).toBe(200);
+      expect(cli().slice(n)).toEqual(['{"type":"cli","state":"ours"}']);
+      expect((await call('setup_cli_remove')).status).toBe(200);
+      expect(cli().slice(n)).toEqual(['{"type":"cli","state":"ours"}', '{"type":"cli","state":"absent"}']);
+      // Another copy's link (since moved away), made by hand: the refused install says what the disk has (no status
+      // call in between).
+      const other = { root: join(base, 'Gone', 'Retake.app', 'Contents', 'Resources') };
+      symlinkSync(join(other.root, 'bin', 'retake'), def);
+      expect((await call('setup_cli_install')).status).toBe(409);
+      expect(cli().at(-1)).toBe('{"type":"cli","state":"other_app"}');
+      // Removed in Terminal: the shell's refresh line (its window became key) reads the disk again.
+      rmSync(def);
+      expect(applyShellLine(studio.setup, ws, '{"type":"cli_refresh"}')).toBe(true);
+      expect(cli().at(-1)).toBe('{"type":"cli","state":"absent"}');
+      const m = cli().length;
+      expect(applyShellLine(studio.setup, ws, '{"type":"cli_refresh"}')).toBe(true);
+      expect(cli()).toHaveLength(m);
+      expect(lines.filter((l) => l.startsWith('{"type":"cli"')).every((l) => /^\{"type":"cli","state":"(?:absent|ours|other_app|foreign)"\}$/.test(l))).toBe(true);
     });
 
     it("another folder: the shell's panel (a pipe line), its answer on stdin checked, then installed there; a bad one said", async () => {

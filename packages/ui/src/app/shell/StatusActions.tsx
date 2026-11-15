@@ -47,8 +47,9 @@ import {
 import type { LiveRun, SheetAsk } from '../shoot/shoot-data.js';
 import { PROPOSAL_RENDER } from '../words/render-words.js';
 import { SHOOT_STATES, blockerShort, modeWord, shootState } from '../words/shoot-words.js';
-import { Blocker, Button, LinkButton, Sheet, StatusMark } from '../ui-kit/index.js';
+import { Blocker, Button, LinkButton, Sheet, StatusMark, commandKeys } from '../ui-kit/index.js';
 import { PRIORITY, SHELL_COMMANDS, setAvailable, useShellCommand } from './command-bus.js';
+import type { ShellCommand } from './command-bus.js';
 import type { ScenarioContext } from './modes.js';
 import { runEnded } from '../run-ended.js';
 
@@ -322,6 +323,8 @@ function ScenarioButtons({
   const rWhy = renderWhy();
   const line = capWhy?.blocker ? { mode: 'capture' as const, b: capWhy.blocker } : dryWhy?.blocker ? { mode: 'dry' as const, b: dryWhy.blocker } : null;
   const ids = { dry: 'sh-why-dry', capture: 'sh-why-capture', render: 'sh-why-render', stop: 'sh-why-stop' };
+  // The menu's keys on the buttons, in the app only (the registry's caps).
+  const kbd = (id: ShellCommand) => (inApp ? commandKeys(id) : undefined);
   const paused = Boolean(runLive?.paused || runLive?.pausing);
   const terminal = running?.job === null;
   // The desktop app's menu follows these buttons (Scenario: Rehearse, Capture, Render, Stop).
@@ -353,18 +356,18 @@ function ScenarioButtons({
           >
             {paused ? 'Resume' : 'Pause'}
           </Button>
-          <Button size="sm" data-testid="run-stop" icon="stop" disabled={terminal || Boolean(runLive?.stopping)} aria-describedby={ids.stop} kbd={inApp ? ['⌘', '.'] : undefined} onClick={stop}>
+          <Button size="sm" data-testid="run-stop" icon="stop" disabled={terminal || Boolean(runLive?.stopping)} aria-describedby={ids.stop} kbd={kbd('stop')} onClick={stop}>
             {runLive?.stopping ? 'Stopping…' : 'Stop'}
           </Button>
         </>
       )}
-      <Button size="sm" data-testid="run-dry" disabled={dryWhy !== null} aria-describedby={ids.dry} kbd={inApp ? ['⌘', 'R'] : undefined} onClick={() => act('dry')}>
+      <Button size="sm" data-testid="run-dry" disabled={dryWhy !== null} aria-describedby={ids.dry} kbd={kbd('rehearse')} onClick={() => act('dry')}>
         {sending === 'dry' ? 'Starting…' : 'Rehearse'}
       </Button>
-      <Button size="sm" variant="record" data-testid="run-capture" disabled={capWhy !== null} aria-describedby={ids.capture} kbd={inApp ? ['⇧', '⌘', 'R'] : undefined} onClick={() => act('capture')}>
+      <Button size="sm" variant="record" data-testid="run-capture" disabled={capWhy !== null} aria-describedby={ids.capture} kbd={kbd('capture')} onClick={() => act('capture')}>
         {sending === 'capture' ? 'Starting…' : 'Capture'}
       </Button>
-      <Button size="sm" data-testid="run-render" disabled={rWhy !== null} aria-describedby={ids.render} kbd={inApp ? ['⌘', 'B'] : undefined} onClick={render}>
+      <Button size="sm" data-testid="run-render" disabled={rWhy !== null} aria-describedby={ids.render} kbd={kbd('render')} onClick={render}>
         {sending === 'render' ? 'Queueing…' : 'Render'}
       </Button>
       <span className="k-sr">

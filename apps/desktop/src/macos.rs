@@ -15,9 +15,10 @@
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Bool, NSObject};
 use objc2::{define_class, msg_send, sel, AllocAnyThread, MainThreadMarker};
-use objc2_app_kit::{NSAlert, NSAlertFirstButtonReturn, NSApplication, NSOpenPanel};
-use objc2_foundation::NSString;
-use std::cell::RefCell;
+use objc2_app_kit::{NSAlert, NSAlertFirstButtonReturn, NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSEventType, NSMenu, NSOpenPanel, NSWindow, NSWorkspace};
+use objc2_foundation::{NSNotification, NSNotificationCenter, NSString};
+use std::cell::{Cell, RefCell};
+use std::ptr::NonNull;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -51,7 +52,16 @@ static TEST_ABORTS: Mutex<Vec<u64>> = Mutex::new(Vec::new());
 thread_local! {
     /// The picker while it is up (main thread): ended by its own `cancel:`.
     static PICKER: RefCell<Option<Retained<NSOpenPanel>>> = const { RefCell::new(None) };
+    /// Our context menu while AppKit tracks it (main thread; NSMenuDidBeginTrackingNotification): ended by
+    /// `cancelTracking`.
+    static POPUP: RefCell<Option<Retained<NSMenu>>> = const { RefCell::new(None) };
+    /// A context menu of ours is being shown (the next menu that begins tracking is ours).
+    static POPUP_WANTED: Cell<bool> = const { Cell::new(false) };
+    /// The secondary-click monitor and the tracking observer, kept for the app's life.
+    static KEPT: RefCell<Vec<Retained<AnyObject>>> = const { RefCell::new(Vec::new()) };
 }
+/// RETAKE_DESKTOP_TEST_POPUP_MS: the item test mode picks in the context menu shown (-1: none).
+static TEST_POPUP_PICK: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(-1);
 
 /// A shell modal is up (an alert or the picker).
 pub fn modal_up() -> bool {
@@ -88,6 +98,30 @@ define_class!(
             end_current();
         }
 
+        /// A menu began tracking: ours, when a context menu of ours is being shown.
+        #[unsafe(method(menuBegan:))]
+        fn menu_began(&self, n: &NSNotification) {
+            if !POPUP_WANTED.with(Cell::get) {
+                // Another menu (WebKit's own in a text field, the menu bar's): the click it answered opens none of ours.
+                crate::menu::other_menu_began();
+                return;
+            }
+            if let Some(m) = n.object().and_then(|o| o.downcast::<NSMenu>().ok()) {
+                POPUP.with(|p| *p.borrow_mut() = Some(m));
+            }
+        }
+
+        /// Test mode's end of the context menu shown (RETAKE_DESKTOP_TEST_POPUP_MS): its pick, if any, then closed.
+        #[unsafe(method(endTestPopup:))]
+        fn end_test_popup(&self, _arg: *mut AnyObject) {
+            let Some(m) = POPUP.with(|p| p.borrow().clone()) else { return };
+            let pick = TEST_POPUP_PICK.swap(-1, Ordering::SeqCst);
+            if pick >= 0 && pick < m.numberOfItems() {
+                m.performActionForItemAtIndex(pick);
+            }
+            m.cancelTrackingWithoutAnimation();
+        }
+
         /// The test's abort: end the modal up now only if the test asked for that one.
         #[unsafe(method(endTestModal:))]
         fn end_test_modal(&self, _arg: *mut AnyObject) {
@@ -99,9 +133,14 @@ define_class!(
     }
 );
 
-/// On the main thread: end the modal loop that runs now (the picker by `cancel:`, an alert by `abortModal`).
+/// On the main thread: end the modal loop that runs now (our context menu by `cancelTracking`, the picker by
+/// `cancel:`, an alert by `abortModal`).
 fn end_current() {
     let Some(mtm) = MainThreadMarker::new() else { return };
+    if let Some(m) = POPUP.with(|p| p.borrow().clone()) {
+        m.cancelTrackingWithoutAnimation();
+        return;
+    }
     let app = NSApplication::sharedApplication(mtm);
     let Some(window) = app.modalWindow() else { return };
     let picker = PICKER.with(|p| p.borrow().clone());
@@ -287,4 +326,86 @@ pub fn dock_badge(mtm: MainThreadMarker, label: Option<&str>) {
     unsafe {
         let _: () = msg_send![tile, setBadgeLabel: ptr];
     }
+}
+
+// ---- The context menus (DESIGN §4j) ---------------------------------------------------------------------------
+
+/// On the main thread, once the window exists: a local monitor of the app's mouse-downs, which tells `on_click` each
+/// secondary click in the main window's content (desktop_core::menu::secondary_click) and its place (points from the
+/// content's top left) — it never consumes an event; and the observer that finds our context menu while it is tracked.
+pub fn install_context_monitor(window: &tauri::WebviewWindow, on_click: fn((f64, f64))) {
+    let Some(_mtm) = MainThreadMarker::new() else { return };
+    let Ok(ptr) = window.ns_window() else { return };
+    // The one window of the app (main.rs WINDOW), alive while the app runs.
+    let Some(win) = (unsafe { Retained::retain(ptr.cast::<NSWindow>()) }) else { return };
+    let main_no = win.windowNumber();
+    let block = block2::RcBlock::new(move |e: NonNull<NSEvent>| -> *mut NSEvent {
+        let ev = unsafe { e.as_ref() };
+        let kind = match ev.r#type() {
+            NSEventType::RightMouseDown => desktop_core::menu::MouseDown::Right,
+            NSEventType::LeftMouseDown => desktop_core::menu::MouseDown::Left,
+            _ => desktop_core::menu::MouseDown::Other,
+        };
+        let p = ev.locationInWindow();
+        let size = win.contentView().map(|v| v.frame().size);
+        let in_content = size.is_some_and(|s| p.x >= 0.0 && p.y >= 0.0 && p.x <= s.width && p.y <= s.height);
+        let control = ev.modifierFlags().contains(NSEventModifierFlags::Control);
+        if desktop_core::menu::secondary_click(kind, control, ev.windowNumber() == main_no, in_content) {
+            let h = size.map_or(0.0, |s| s.height);
+            on_click((p.x, h - p.y));
+        }
+        e.as_ptr()
+    });
+    let monitor = unsafe { NSEvent::addLocalMonitorForEventsMatchingMask_handler(NSEventMask::RightMouseDown | NSEventMask::LeftMouseDown, &block) };
+    let observer: Retained<Ender> = unsafe { msg_send![Ender::alloc(), init] };
+    unsafe {
+        NSNotificationCenter::defaultCenter().addObserver_selector_name_object(&observer, sel!(menuBegan:), Some(objc2_app_kit::NSMenuDidBeginTrackingNotification), None);
+    }
+    KEPT.with(|k| {
+        let mut k = k.borrow_mut();
+        k.push(Retained::into_super(Retained::into_super(observer)));
+        if let Some(m) = monitor {
+            k.push(m);
+        }
+    });
+}
+
+/// Show one of our context menus (`show` pops it: AppKit's tracking loop, on the main thread) as a shell modal:
+/// counted while it is up (`modal_up`: no question or panel opens behind it) and ended by a signal (`end_modals`
+/// cancels its tracking). False when it was not shown (the app quitting, not the main thread). Test mode closes it
+/// after RETAKE_DESKTOP_TEST_POPUP_MS (default 400), picking item `pick` first (an index of the menu, separators
+/// counted) — the native path of a person's click.
+pub fn popup(show: impl FnOnce(), test_pick: Option<isize>) -> bool {
+    if quitting() || MainThreadMarker::new().is_none() {
+        return false;
+    }
+    let modal = Modal::enter();
+    if headless() {
+        let ms = std::env::var("RETAKE_DESKTOP_TEST_POPUP_MS").ok().and_then(|v| v.parse::<u64>().ok()).filter(|ms| (50..=10_000).contains(ms)).unwrap_or(400);
+        TEST_POPUP_PICK.store(test_pick.unwrap_or(-1), Ordering::SeqCst);
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(ms));
+            post_to_main(sel!(endTestPopup:));
+        });
+    }
+    POPUP_WANTED.with(|w| w.set(true));
+    show();
+    POPUP_WANTED.with(|w| w.set(false));
+    POPUP.with(|p| *p.borrow_mut() = None);
+    drop(modal);
+    true
+}
+
+/// File › Show Workspace in Finder: a Finder window with the workspace selected (test mode logs it instead).
+pub fn reveal(path: &std::path::Path) {
+    if headless() {
+        crate::log(&format!("(test mode) reveal: {}", path.display()));
+        return;
+    }
+    if MainThreadMarker::new().is_none() {
+        return;
+    }
+    let ws = NSWorkspace::sharedWorkspace();
+    let p = NSString::from_str(&path.to_string_lossy());
+    let _ = ws.selectFile_inFileViewerRootedAtPath(Some(&p), &NSString::from_str(""));
 }

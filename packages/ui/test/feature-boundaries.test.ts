@@ -8,7 +8,7 @@
  * - `ui-kit/` — the design system: it imports nothing of the app but the kit and its two foundations (bits: Txt and
  *   the shown / visible-controls helpers; route: hrefTo); the rest of the app reaches it through ui-kit/index only.
  * - `shell/` — the window around the screens: the rest of the app reaches it through its public modules only (the
- *   shell itself, its slots, its command bus, its announcer, its modes).
+ *   shell itself, its slots, its command bus, its announcer, its modes, its context menus).
  * - the features — one folder each (FEATURES: record/, script/, shoot/, edit/, review/, library/, themes/,
  *   project/), its screens and their parts: anything outside a feature reaches it through its public modules only
  *   (its screens for the entry, the parts other features show or call, each listed).
@@ -36,8 +36,8 @@ const APP = fileURLToPath(new URL('../src/app/', import.meta.url));
 
 /** The kit's foundations: the root modules the kit may import. */
 const KIT_FOUNDATIONS = new Set(['bits', 'route']);
-/** The shell's public modules: what the rest of the app may import of it. */
-const SHELL_PUBLIC = new Set(['shell/AppShell', 'shell/slots', 'shell/command-bus', 'shell/say', 'shell/modes']);
+/** The shell's public modules: what the rest of the app may import of it (context-menu: a screen asks for the app's native context menu). */
+const SHELL_PUBLIC = new Set(['shell/AppShell', 'shell/slots', 'shell/command-bus', 'shell/say', 'shell/modes', 'shell/context-menu']);
 /** The API's functions only data/ may import (`request` is api.ts's own; a namespace or default import reaches them all). */
 const API_CALLS = new Set(['call', 'useCall', 'request']);
 

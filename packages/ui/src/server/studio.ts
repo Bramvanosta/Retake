@@ -122,7 +122,7 @@ export interface StudioServer {
   /** The window page's word to the desktop shell (`desktop_answer`; attached by startSupervisor). */
   desktop: DesktopPipe;
   /** The Set-up sheet's state (the folder the shell's panel gave, the notification state it said). */
-  setup: { state: SetupState; context(): SetupContext };
+  setup: { state: SetupState; context(): SetupContext; pipe: DesktopPipe };
   /** The desktop app's update state, as its shell said it (desktop_update_status). */
   update: UpdateState;
   /**
@@ -353,6 +353,6 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     throw e;
   }
   frameSrc = player.origin;
-  const rest = { bundles, previewAllow, live, runLive, unsaved, desktop, setup: { state: setupState, context: setupContext }, update: updateState, engine };
+  const rest = { bundles, previewAllow, live, runLive, unsaved, desktop, setup: { state: setupState, context: setupContext, pipe: desktop }, update: updateState, engine };
   return serverHandle({ server, url: `http://127.0.0.1:${counters.port}/`, codes, counters, token, started: player, writeListeners, rest });
 }

@@ -34,7 +34,7 @@ mod update;
 
 use desktop_core as dc;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::thread;
 use std::time::Duration;
@@ -68,6 +68,21 @@ fn pick_message() -> String {
 pub fn test_mode() -> bool {
     static MODE: OnceLock<bool> = OnceLock::new();
     *MODE.get_or_init(|| dc::test_mode_allowed(std::env::var("RETAKE_DESKTOP_TEST").ok().as_deref(), unsafe { libc::getppid() }))
+}
+
+/// A test-mode variable (RETAKE_DESKTOP_TEST_*): None outside test mode, whatever the environment says (a launchd
+/// launch never arms one).
+pub(crate) fn test_env(name: &str) -> Option<String> {
+    if !test_mode() {
+        return None;
+    }
+    std::env::var(name).ok().filter(|v| !v.is_empty())
+}
+
+/// The shell's clock for the menu's gates (monotonic milliseconds since the first call).
+pub(crate) fn now_ms() -> u64 {
+    static T0: OnceLock<std::time::Instant> = OnceLock::new();
+    T0.get_or_init(std::time::Instant::now).elapsed().as_millis() as u64
 }
 
 pub fn log(msg: &str) {
@@ -133,6 +148,8 @@ fn open(shell: &Shell, mut candidate: Option<(PathBuf, dc::Source)>, mut note: O
         };
         let ws = std::fs::canonicalize(&ws).unwrap_or(ws);
         log(&format!("workspace {} ({})", ws.display(), source.label()));
+        // A new session: Help's items forget the last server's word on the command (queued before this one can speak).
+        menu::cli_state(None);
         match child::start(&shell.cfg, &ws) {
             Ok(server) => {
                 let l = &server.line;
@@ -633,6 +650,68 @@ fn setup_menu(app: &AppHandle, id: &str) {
     }
 }
 
+/// A click of the menu bar or of a context menu (the native id); main thread. Shell commands, then a context menu's
+/// pick (a pair of menu::CONTEXT_MENUS only), then a page command (a Page id of MENUS only).
+fn menu_event(app: &AppHandle, id: &str) {
+    match id {
+        menu::OPEN_WORKSPACE => open_other(app),
+        menu::SHOW_IN_FINDER => show_in_finder(app),
+        menu::SHOW_WINDOW => show_window(app),
+        menu::SET_UP | menu::CLI_INSTALL | menu::CLI_REMOVE => setup_menu(app, id),
+        menu::CHECK_UPDATES => update::check_menu(app),
+        id if id.starts_with("ctx:") => {
+            if let Some(js) = menu::context_command_js(id) {
+                if test_mode() {
+                    log(&format!("(test mode) context pick: {id}"));
+                }
+                eval_in_window(app, js);
+            }
+        }
+        // A page command (File's New Scenario, View, Go, Scenario, Help's shortcuts) → a `studio:command` event in the page.
+        id => {
+            if let Some(js) = menu::page_command_js(id) {
+                menu::clicked(id);
+                eval_in_window(app, js);
+            }
+        }
+    }
+}
+
+/// Test mode: RETAKE_DESKTOP_TEST_MENU=<native id> is clicked once, when the page first says its menu state.
+pub(crate) fn test_menu_once() {
+    static DONE: AtomicBool = AtomicBool::new(false);
+    let Some(id) = test_env("RETAKE_DESKTOP_TEST_MENU") else { return };
+    if DONE.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let Some(app) = APP.get() else { return };
+    log(&format!("(test mode) menu click: {id}"));
+    menu_event(app, &id);
+}
+
+/// File › Show Workspace in Finder: the session's own workspace folder (nothing from the page).
+fn show_in_finder(app: &AppHandle) {
+    let Some(shell) = app.try_state::<Arc<Shell>>().map(|s| s.inner().clone()) else { return };
+    let ws = lock(&shell.session).as_ref().map(|s| s.workspace.clone());
+    if let Some(ws) = ws {
+        macos::reveal(&ws);
+    }
+}
+
+/// The window became key: the server reads the command's link again (a change made in Terminal shows in Help), at
+/// most every 2 s (desktop_core setup refresh_due).
+fn focused(_app: &AppHandle) {
+    static LAST: Mutex<Option<u64>> = Mutex::new(None);
+    let now = now_ms();
+    let mut last = lock(&LAST);
+    if !dc::setup::refresh_due(*last, now) {
+        return;
+    }
+    *last = Some(now);
+    drop(last);
+    send_to_server(dc::setup::CLI_REFRESH_LINE);
+}
+
 /// The first run (a bundled app, no workspace yet): Create ~/Retake (`retake init`), Choose a Folder… (a
 /// workspace, or an empty folder made one), Quit. None: quit.
 fn first_run(shell: &Shell) -> Option<(PathBuf, dc::Source)> {
@@ -694,24 +773,16 @@ fn main() {
     // The updater plugin, in a build that has it and a feed in its config only.
     let app = update::register(tauri::Builder::default(), &context)
         .menu(|app| menu::build(app, app_name()))
-        .on_menu_event(|app, event| match event.id().as_ref() {
-            menu::OPEN_WORKSPACE => open_other(app),
-            menu::SHOW_WINDOW => show_window(app),
-            id @ (menu::SET_UP | menu::CLI_INSTALL | menu::CLI_REMOVE) => setup_menu(app, id),
-            menu::CHECK_UPDATES => update::check_menu(app),
-            // A page command (File's New Scenario, View, Go, Scenario) → a `studio:command` event in the page; ids of MENUS only.
-            id => {
-                if let Some(js) = menu::page_command_js(id) {
-                    menu::clicked(id);
-                    eval_in_window(app, js);
-                }
-            }
-        })
+        .on_menu_event(|app, event| menu_event(app, event.id().as_ref()))
         .on_window_event(|window, event| {
             // Close / ⌘W hides: the page and its event stream stay; the Dock icon or ⌘0 shows it again.
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+            match event {
+                WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                WindowEvent::Focused(true) => focused(window.app_handle()),
+                _ => {}
             }
         })
         .setup(move |app| {
@@ -725,6 +796,8 @@ fn main() {
             notify::install(&h);
             let _ = APP.set(h.clone());
             let bundled = cfg.bundled;
+            // Help's command items: greyed in a developer build (its server is no app's).
+            menu::set_bundled(bundled);
             let shell = Arc::new(Shell { cfg, home, session: Mutex::new(None), allowed: Arc::new(Mutex::new(dc::Allowed::NONE)), route: Mutex::new(route) });
             app.manage(shell.clone());
             // Where the installed app runs from (the Set-up sheet and the command say it too).
@@ -747,7 +820,13 @@ fn main() {
                 other => other,
             };
             match open(&shell, first, None, true) {
-                Some(s) => show(&h, &shell, s),
+                Some(s) => {
+                    show(&h, &shell, s);
+                    // The context menus' gate: the secondary clicks in the window's content (macos.rs's monitor).
+                    if let Some(w) = h.get_webview_window(WINDOW) {
+                        macos::install_context_monitor(&w, menu::secondary_clicked);
+                    }
+                }
                 None => {
                     log("no workspace opened: quit");
                     h.exit(0);

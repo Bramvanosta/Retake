@@ -220,7 +220,7 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
   // worker it starts (with a clean environment: studioWorkerEnv) never run a program an agent wrote.
   process.env.PATH = clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
   // Loaded only now: a broken app source breaks `retake ui`, never the other commands.
-  const { applyShellLine, launchStudio, startSupervisor } = await import('@retake/ui');
+  const { applyShellLine, launchStudio, startSupervisor, writeCliState } = await import('@retake/ui');
   let launched: Awaited<ReturnType<typeof launchStudio>>;
   try {
     launched = await launchStudio({ root, port, log: (m) => ui.line(m) });
@@ -260,6 +260,8 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
     const server = launched.server;
     // And the update's state (the Studio's status bar and update sheet).
     shellLine = (l) => void applyShellLine(server.setup, root, l, server.update);
+    // The installed app's Help items: the command's link as this server finds it at start.
+    writeCliState(server.setup.pipe, server.setup.context());
   }
   const reason = await Promise.race([stopping, ...ended]);
   await launched.server.close();

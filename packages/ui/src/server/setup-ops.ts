@@ -22,6 +22,9 @@
  * - **The command's link the app made** is recorded in `<home>/app.json`: the status, Install and Uninstall read it
  *   beside the default folder (a link in a chosen folder survives a restart; a second one elsewhere is refused until it
  *   is uninstalled).
+ * - **The shell's Help items follow the command's link:** setup_status (read-only, but it re-reads the disk), Install
+ *   and Uninstall (done or refused: the disk may have changed) write the link's state on the pipe when it changed
+ *   (setup-context.ts writeCliState: an enum, never the page's).
  * - What other programs wrote (Claude Code's output, Claude Desktop's current entry) is under `untrusted`: the page
  *   shows it as text.
  */
@@ -59,12 +62,12 @@ import {
 import type { ClaudeStep, ClaudeRunResult, CliInstallResult, DesktopWriteResult } from '@retake/engine/integrations';
 import { defineTool } from '@retake/engine/contract';
 import type { ToolOutput } from '@retake/engine/contract';
-import { PS_EVERY_MS, READ_ANN, WRITE_ANN, appBundle, desktopEntry, gate, homeOf, installedLink, locationOf, readRunning, refused, registration, setupError } from './setup-context.js';
+import { PS_EVERY_MS, READ_ANN, WRITE_ANN, appBundle, desktopEntry, gate, homeOf, installedLink, locationOf, readRunning, refused, registration, setupError, writeCliState } from './setup-context.js';
 import type { SetupContext, SetupOpsOptions } from './setup-context.js';
 import { cliStatus, desktopPlan } from './setup-status.js';
 import type { SetupStatus } from './setup-status.js';
 
-export { PS_EVERY_MS, SETUP_WRITES_PER_MIN, SetupState, applyShellLine } from './setup-context.js';
+export { PS_EVERY_MS, SETUP_WRITES_PER_MIN, SetupState, applyShellLine, cliMenuState, writeCliState } from './setup-context.js';
 export type { SetupContext } from './setup-context.js';
 export type { CliStatus, SetupStatus } from './setup-status.js';
 
@@ -175,6 +178,8 @@ function statusOp(o: SetupOpsOptions) {
       if (!o.pipe.supervised) return { summary: "set-up: not the desktop app's server", data: { available: false, reason: 'not_supervised' } };
       const b = appBundle(ctx);
       if (!b) return { summary: 'set-up: not an installed app', data: { available: false, reason: 'not_bundled' } };
+      // The shell's Help items follow what this read finds (a line only when it changed).
+      writeCliState(o.pipe, ctx);
       return readStatus(o, ctx, b, a.processes);
     },
   });
@@ -191,28 +196,37 @@ function cliInstallOp(o: SetupOpsOptions) {
     async run(a: { folder: 'default' | 'chosen'; replace: boolean }) {
       const ctx = o.ctx();
       const b = gate(pipe, ctx, state, true);
-      let dir = defaultCliDir(ctx.home);
-      if (a.folder === 'chosen') {
-        const c = state.chosen;
-        if (!c || !('dir' in c)) throw refused('no_choice', 'no folder was chosen: Choose a Folder… first');
-        dir = c.dir;
-      }
-      const home = homeOf(ctx);
-      const launcher = join(b.root, LAUNCHER_REL);
-      // One command per app: a second link elsewhere would be forgotten by Uninstall.
-      const there = installedLink(ctx, home, launcher);
-      if (there && there !== join(dir, CLI_NAME))
-        throw refused('installed_elsewhere', `the command is installed already: ${there} — Uninstall it first, then install it in the other folder`, { installed: there });
-      let r: CliInstallResult;
+      // Done or refused, the shell's Help items follow the disk.
       try {
-        r = installCliLink(dir, launcher, { replace: a.replace, createDir: a.folder === 'default' });
-      } catch (e) {
-        setupError(e);
+        return installCli(o, ctx, b, a);
+      } finally {
+        writeCliState(pipe, ctx);
       }
-      writeAppSettings(home, { cli: { path: r.path, at: new Date().toISOString() } });
-      return { summary: `retake command ${r.result}: ${r.path}`, data: { ok: true, path: r.path, result: r.result } };
     },
   });
+}
+
+function installCli(o: SetupOpsOptions, ctx: SetupContext, b: BundleInfo, a: { folder: 'default' | 'chosen'; replace: boolean }) {
+  let dir = defaultCliDir(ctx.home);
+  if (a.folder === 'chosen') {
+    const c = o.state.chosen;
+    if (!c || !('dir' in c)) throw refused('no_choice', 'no folder was chosen: Choose a Folder… first');
+    dir = c.dir;
+  }
+  const home = homeOf(ctx);
+  const launcher = join(b.root, LAUNCHER_REL);
+  // One command per app: a second link elsewhere would be forgotten by Uninstall.
+  const there = installedLink(ctx, home, launcher);
+  if (there && there !== join(dir, CLI_NAME))
+    throw refused('installed_elsewhere', `the command is installed already: ${there} — Uninstall it first, then install it in the other folder`, { installed: there });
+  let r: CliInstallResult;
+  try {
+    r = installCliLink(dir, launcher, { replace: a.replace, createDir: a.folder === 'default' });
+  } catch (e) {
+    setupError(e);
+  }
+  writeAppSettings(home, { cli: { path: r.path, at: new Date().toISOString() } });
+  return { summary: `retake command ${r.result}: ${r.path}`, data: { ok: true, path: r.path, result: r.result } };
 }
 
 function cliChooseOp(o: SetupOpsOptions) {
@@ -252,9 +266,12 @@ function cliRemoveOp(o: SetupOpsOptions) {
       try {
         r = removeCliLink(link, launcher);
       } catch (e) {
+        // Refused: the shell's Help items follow the disk all the same.
+        writeCliState(pipe, ctx);
         setupError(e);
       }
       writeAppSettings(home, { cli: null });
+      writeCliState(pipe, ctx);
       return { summary: `retake command ${r}: ${link}`, data: { ok: true, path: link, result: r } };
     },
   });

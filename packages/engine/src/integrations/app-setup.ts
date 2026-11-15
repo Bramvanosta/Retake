@@ -172,8 +172,15 @@ export type CliLink =
   /** Anything else: a file, a folder, a link elsewhere — never replaced, never removed. */
   | { state: 'foreign'; what: 'file' | 'folder' | 'link'; target?: string };
 
-function linkTarget(link: string): string {
-  return resolve(dirname(link), readlinkSync(link));
+/** The link's target; null when it went away (or stopped being a link) between the lstat and the readlink. */
+function linkTarget(link: string): string | null {
+  try {
+    return resolve(dirname(link), readlinkSync(link));
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'EINVAL') return null;
+    throw e;
+  }
 }
 
 function samePath(a: string, b: string): boolean {
@@ -195,6 +202,8 @@ export function cliLinkState(link: string, launcher: string): CliLink {
   }
   if (!st.isSymbolicLink()) return { state: 'foreign', what: st.isDirectory() ? 'folder' : 'file' };
   const target = linkTarget(link);
+  // Removed (or replaced by a file) since the lstat: what is there now.
+  if (target === null) return existsSync(link) ? { state: 'foreign', what: 'file' } : { state: 'absent' };
   if (samePath(target, launcher)) return { state: 'ours', target };
   const other = otherAppLauncher(target);
   if (other) return { state: 'other_app', target, dangling: other.dangling };

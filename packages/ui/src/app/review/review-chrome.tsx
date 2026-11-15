@@ -17,7 +17,7 @@ import { PRIORITY, useShellCommand } from '../shell/command-bus.js';
 import { say } from '../shell/say.js';
 import { ShellSlot } from '../shell/slots.js';
 import { useScenarioActions } from '../shoot/shoot-data.js';
-import { Button, LinkButton, SegmentedLinks, StatusMark, studioShell } from '../ui-kit/index.js';
+import { Button, LinkButton, SegmentedLinks, StatusMark, commandKeys, studioShell } from '../ui-kit/index.js';
 
 /** A scenario's thread counts (Review's View and its status line), read again on its comments' events; null while read. */
 export function useThreadCounts(slug: string, name: string): { open: number; resolved: number } | null {
@@ -126,7 +126,7 @@ export function ReviewChrome({ slug, name, current, x, rr }: { slug: string; nam
           data-testid="render"
           disabled={rr.off !== null || rr.renders.sending}
           aria-describedby="rv-render-why"
-          kbd={inApp ? ['⌘', 'B'] : undefined}
+          kbd={inApp ? commandKeys('render') : undefined}
           onClick={rr.renderNow}
         >
           {rr.renders.sending ? 'Starting the render…' : d && d.renders.length > 0 ? 'Render again' : 'Render'}
