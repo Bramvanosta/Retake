@@ -27,7 +27,7 @@ afterAll(async () => {
   if (base) await rm(base, { recursive: true, force: true });
 });
 
-const ENGINE = fileURLToPath(new URL('../../engine/dist/index.js', import.meta.url));
+const ENGINE = fileURLToPath(new URL('../../engine/dist/shell-entry.js', import.meta.url));
 /** A process (the script `file`) that opens a filming marker of workspace `root`, says so, and waits. */
 async function markerOwner(file: string, root: string): Promise<ChildProcess> {
   await mkdir(join(file, '..'), { recursive: true });
