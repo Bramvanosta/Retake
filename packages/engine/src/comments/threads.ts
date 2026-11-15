@@ -405,7 +405,7 @@ export async function replyComment(
   id: string,
   rawText: string,
   author: CommentAuthor,
-  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; renders: RenderOutputs; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
+  o: { proposal?: ProposalInput; registry: () => Promise<ComponentRegistry>; scope: StoreScope; renders: RenderOutputs; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<CommentWritten> {
   const text = cleanText(rawText, 'the reply', 'text');
   const write = { scope: o.scope, renders: o.renders };
@@ -414,7 +414,7 @@ export async function replyComment(
   }
   // The target is the thread's own scenario (its folder, checked against the file by readThread): never an argument.
   const f = await locateThread(project.dir, id);
-  const built = await buildProposal(project, f.scenario, o.proposal, { files: o.files, reads: o.reads, stores: o.scope.stores, seen: o.seen, ...(o.registry ? { registry: o.registry } : {}) });
+  const built = await buildProposal(project, f.scenario, o.proposal, { files: o.files, reads: o.reads, stores: o.scope.stores, seen: o.seen, registry: o.registry });
   const w = await appendEntry(
     project,
     id,

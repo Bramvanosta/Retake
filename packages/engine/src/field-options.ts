@@ -8,7 +8,7 @@ import { fieldComponentKind, fieldKindOf } from '@retake/core/scenario';
 import type { ComponentKind } from '@retake/core/model';
 import type { FieldAt, FieldEdit, FieldValue } from '@retake/core/scenario';
 import type { ComponentFit, ComponentRegistry, ComponentUse } from '@retake/components/geometry';
-import { components } from './components.js';
+import { componentCalls } from './registries/component-calls.js';
 
 /** One value offered for a field: `value` null = the theme's default (the key removed). */
 export interface FieldOption {
@@ -144,7 +144,7 @@ export function fieldFitProblem(
  * kind. Each is usable or disabled with why. Fields of other kinds (speed, duration, the intro switch) have none.
  */
 export async function fieldOptions(registry: ComponentRegistry, root: unknown, at: FieldAt, field: string): Promise<FieldOption[]> {
-  const c = await components();
+  const c = await componentCalls();
   const kind = fieldKindOf(field);
   const opt = (value: string, label: string): FieldOption => {
     const why = fieldFitProblem(registry, c.componentFit, root, { at, field, to: value });

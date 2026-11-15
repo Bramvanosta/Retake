@@ -11,6 +11,7 @@ import { PERSON_POLICY } from '@retake/core';
 import type { BundleComponent, ComponentPreviewSpec, EditPlan } from '@retake/editor';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import { rendererContract } from './renderer-contract.js';
+import { emptyRegistry } from '../src/registries/memory-registries.js';
 
 let ws: string;
 beforeAll(async () => {
@@ -38,6 +39,7 @@ rendererContract(
       plan: PLAN,
       workPolicy: PERSON_POLICY,
       root: ws,
+      registry: emptyRegistry(),
       out,
       cancelDuring: (a) => {
         abort = a;
@@ -53,8 +55,8 @@ describe('the in-memory renderer', () => {
   it('keeps every request, in order', async () => {
     const r = new MemoryRenderer();
     const out = join(ws, 'calls');
-    await r.video({ workPolicy: PERSON_POLICY, root: ws, plan: PLAN, out: join(out, 'a.mp4') });
-    await r.stills({ workPolicy: PERSON_POLICY, root: ws, plan: PLAN, frames: [{ frame: 1, out: join(out, 'a.png') }] });
+    await r.video({ workPolicy: PERSON_POLICY, root: ws, registry: emptyRegistry(), plan: PLAN, out: join(out, 'a.mp4') });
+    await r.stills({ workPolicy: PERSON_POLICY, root: ws, registry: emptyRegistry(), plan: PLAN, frames: [{ frame: 1, out: join(out, 'a.png') }] });
     const b = await r.previews.bundle({ root: ws, components: [component('acme/one')] });
     await (await r.previews.open(b, { workPolicy: PERSON_POLICY, assets: 'http://127.0.0.1:1/' })).close();
     expect(r.calls.map((c) => c.op)).toEqual(['video', 'stills', 'previews.bundle', 'previews.open']);
@@ -69,7 +71,7 @@ describe('the in-memory renderer', () => {
       },
     });
     const out = join(ws, 'failed', 'a.mp4');
-    await expect(r.video({ workPolicy: PERSON_POLICY, root: ws, plan: PLAN, out })).rejects.toBe(failure);
+    await expect(r.video({ workPolicy: PERSON_POLICY, root: ws, registry: emptyRegistry(), plan: PLAN, out })).rejects.toBe(failure);
     expect(existsSync(out)).toBe(false);
   });
 });

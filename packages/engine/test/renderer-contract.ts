@@ -32,7 +32,7 @@ export interface ContractRenderer {
   workPolicy: WorkPolicy;
   /** Workspace root and registry of the plan's components. */
   root: string;
-  registry?: ComponentRegistry;
+  registry: ComponentRegistry;
   /** An empty folder for what the case writes. */
   out: string;
   /** Cancel a video while it renders: resolves once the render has started, having aborted `abort`. */
@@ -95,7 +95,7 @@ export function rendererContract(adapter: string, make: (name: string) => Promis
           plan: c.plan,
           out,
           root: c.root,
-          ...(c.registry ? { registry: c.registry } : {}),
+          registry: c.registry,
           onProgress: (p) => seen.push(p),
           onProcess: (p) => {
             processes.push(p);
@@ -144,7 +144,7 @@ export function rendererContract(adapter: string, make: (name: string) => Promis
           plan: c.plan,
           out: join(c.out, 'range.mp4'),
           root: c.root,
-          ...(c.registry ? { registry: c.registry } : {}),
+          registry: c.registry,
           frameRange: [1, 2],
           onProgress: (p) => seen.push(p),
         });
@@ -160,7 +160,7 @@ export function rendererContract(adapter: string, make: (name: string) => Promis
         const out = join(c.out, 'cancelled.mp4');
         const abort = new AbortController();
         abort.abort();
-        const e = await c.renderer.video({ workPolicy: c.workPolicy, plan: c.plan, out, root: c.root, ...(c.registry ? { registry: c.registry } : {}), signal: abort.signal }).catch((x: unknown) => x);
+        const e = await c.renderer.video({ workPolicy: c.workPolicy, plan: c.plan, out, root: c.root, registry: c.registry, signal: abort.signal }).catch((x: unknown) => x);
         expect(e).toBeInstanceOf(Error);
         expect(errorKindOf(e)).toBe('cancelled');
         expect(existsSync(out)).toBe(false);
@@ -176,7 +176,7 @@ export function rendererContract(adapter: string, make: (name: string) => Promis
         const abort = new AbortController();
         const hooks = c.cancelDuring(abort);
         const e = await c.renderer
-          .video({ workPolicy: c.workPolicy, plan: c.plan, out, root: c.root, ...(c.registry ? { registry: c.registry } : {}), signal: abort.signal, onProgress: hooks.onProgress })
+          .video({ workPolicy: c.workPolicy, plan: c.plan, out, root: c.root, registry: c.registry, signal: abort.signal, onProgress: hooks.onProgress })
           .catch((x: unknown) => x);
         expect(abort.signal.aborted).toBe(true);
         expect(e).toBeInstanceOf(Error);
@@ -194,7 +194,7 @@ export function rendererContract(adapter: string, make: (name: string) => Promis
         const blocker = join(c.out, 'a-file');
         await writeFile(blocker, 'in the way');
         const out = join(blocker, 'video.mp4');
-        const e = await c.renderer.video({ workPolicy: c.workPolicy, plan: c.plan, out, root: c.root, ...(c.registry ? { registry: c.registry } : {}) }).catch((x: unknown) => x);
+        const e = await c.renderer.video({ workPolicy: c.workPolicy, plan: c.plan, out, root: c.root, registry: c.registry }).catch((x: unknown) => x);
         expect(e).toBeInstanceOf(Error);
         expect(errorKindOf(e)).not.toBe('cancelled');
         const failure = e as RendererFailure;
@@ -226,7 +226,7 @@ export function rendererContract(adapter: string, make: (name: string) => Promis
           plan: c.plan,
           frames,
           root: c.root,
-          ...(c.registry ? { registry: c.registry } : {}),
+          registry: c.registry,
           onWarnings: (w) => {
             warnings = w;
           },
@@ -253,7 +253,7 @@ export function rendererContract(adapter: string, make: (name: string) => Promis
                 { frame, out },
               ],
               root: c.root,
-              ...(c.registry ? { registry: c.registry } : {}),
+              registry: c.registry,
             })
             .catch((x: unknown) => x);
           expect(errorKindOf(e)).toBe('invalid');

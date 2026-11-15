@@ -18,6 +18,7 @@ import { cleanWorkerEnv } from '../src/jobs/worker-env.js';
 import { capture, writeRun } from '@retake/test-support/runs';
 import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-ws-ffmpeg-')));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
@@ -34,13 +35,13 @@ describe("openWorkspace: retake.yaml's ffmpeg is the process's", () => {
     const a = workspace('a', 'ffmpeg: /x/bin/ffmpeg\n');
     const b = workspace('b', 'version: 1\n');
     // The opened workspace's policy carries it (core WorkPolicy): what every option-less site is given.
-    const wa = await openWorkspace({ root: a, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+    const wa = await openWorkspace({ root: a, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
     expect(ffmpegBin(wa.policy)).toBe('/x/bin/ffmpeg');
     expect(mediaTools(wa.policy).ffmpegSource).toBe('retake.yaml');
-    const wb = await openWorkspace({ root: b, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+    const wb = await openWorkspace({ root: b, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
     expect(ffmpegBin(wb.policy)).not.toBe('/x/bin/ffmpeg');
     expect(mediaTools(wb.policy).ffmpegSource).not.toBe('retake.yaml');
-    const again = await openWorkspace({ root: a, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+    const again = await openWorkspace({ root: a, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
     expect(ffmpegBin(again.policy)).toBe('/x/bin/ffmpeg');
   });
 
@@ -49,10 +50,10 @@ describe("openWorkspace: retake.yaml's ffmpeg is the process's", () => {
     const cwd = process.cwd();
     try {
       process.chdir(tmp);
-      const atServer = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+      const atServer = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
       const server = ffmpegBin(atServer.policy);
       process.chdir(root);
-      const atWorker = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+      const atWorker = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
       expect(ffmpegBin(atWorker.policy)).toBe(server);
       expect(server).toBe(join(root, 'tools', 'ffmpeg'));
     } finally {

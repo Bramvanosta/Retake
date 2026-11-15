@@ -18,6 +18,7 @@ import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import { nextVersion, reserveVersion, takenVersions, versionLockFile } from '../src/render/versions.js';
 import { renderWork } from '../src/render/work.js';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 /** The renders of the disk's outputs: what the versions are read and reserved through. */
 const R = diskOutputs.renders;
@@ -185,7 +186,7 @@ describe('a render id, a lock name and a video name are written only for a versi
         run: 'latest',
         reserved: { scenario: 'quote', version, variant: 'landscape' },
         renderer: new MemoryRenderer(),
-        ws: { outputs: diskOutputs, reads: diskWorkspaceReads },
+        ws: { outputs: diskOutputs, reads: diskWorkspaceReads, registries: packageRegistries() },
         clock: systemClock,
       });
       await expect(refused).rejects.toThrow(new RenderError(`the reserved render version of quote cannot be used: ${RANGE}${String(version)}`));

@@ -16,7 +16,7 @@ import { JOB_KINDS } from '@retake/engine/testing';
 import { diskWorkspaceReads, diskOutputs } from '@retake/engine/testing';
 import type { JobKind } from '@retake/engine';
 import { FileJobQueue } from '@retake/engine/testing';
-import { openWorkspace, selfIdentity } from '@retake/engine/shell';
+import { openWorkspace, selfIdentity, enginePorts } from '@retake/engine/shell';
 import type { JobQueueView, JobRecord } from '@retake/engine';
 import { JOB_END_PER_MIN, PIPE_LINE_MAX, Supervisor, jobOutcome, pendingLine, pipeKind } from '../src/server/supervise.js';
 import { Live } from '../src/server/live.js';
@@ -400,7 +400,12 @@ describe("each watcher reads the engine's queue with a memory of its own", () =>
     await job({ kind: 'render', input: { project: P, scenario: 'quote', render_id: 'quote-v8' }, state: 'queued' });
     const e = engineQueue();
     const logs: string[] = [];
-    const live = await Live.start({ ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs }), queue: e.queue, pollMs: 60_000, log: (m) => logs.push(m) });
+    const live = await Live.start({
+      ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: enginePorts().registries }),
+      queue: e.queue,
+      pollMs: 60_000,
+      log: (m) => logs.push(m),
+    });
     try {
       expect(logs.filter((m) => /failed|could not/.test(m))).toEqual([]);
       expect({ own: e.own, reads: e.reads }).toEqual({ own: [undefined, undefined], reads: [] });

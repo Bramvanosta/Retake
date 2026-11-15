@@ -8,8 +8,9 @@ import { libraryKeyContext } from '../../src/library.js';
 import { openWorkspace } from '../../src/workspace.js';
 import { diskWorkspaceReads } from '../../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../../src/outputs/disk-outputs.js';
+import { packageRegistries } from '../../src/registries/package-registries.js';
 
 const root = process.argv[2]!;
-const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
 const ctx = await libraryKeyContext(await loadTemplate('brandx', root, { files: fileFacts(ws.policy) }), await loadComponentRegistry({ root }), { policy: ws.policy });
 process.stdout.write(`${JSON.stringify({ browser: ctx.browser })}\n`);

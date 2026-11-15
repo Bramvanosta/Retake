@@ -35,6 +35,7 @@ import { REPO } from '@retake/test-support/repo';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { PERSON_POLICY } from '@retake/core';
 import { scratchHome } from '@retake/test-support/home';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 interface Fixture {
   urls: { console: string; shop: string };
@@ -77,7 +78,7 @@ async function execHooks(input: HooksJobInput, signal = new AbortController().si
   const events: JobEventBody[] = [];
   const result = await executeHooksJob({
     ...enginePorts(),
-    ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs }),
+    ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() }),
     cli: `retake -C ${ws}`,
     input,
     signal,
@@ -268,7 +269,7 @@ describe('hooks executed by the worker (trust mcp)', () => {
     const reset = await engine.env.reset({ project: 'northfield-fixture', dry: false }, { approver: accept() });
     const r = await executeEnvResetJob({
       ...enginePorts(),
-      ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs }),
+      ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() }),
       cli: 'retake',
       input: reset.job.input as EnvResetJobInput,
       signal: new AbortController().signal,

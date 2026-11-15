@@ -37,7 +37,6 @@ import {
   PREVIEW_SIZE,
   componentSourceFiles,
   componentSourceHash,
-  loadComponentRegistry,
   paramDefaults,
   mergePreviewReadme,
   previewReadmeBlock,
@@ -51,6 +50,7 @@ import { PREVIEW_COMPOSITION, previewProps } from '../remotion/contract.js';
 import { startAssetServer } from './asset-server.js';
 import { assertRenderBrowser, renderBrowser } from './browser.js';
 import { ensureBundle, registryBundleComponents, scaffoldComponents } from './bundle.js';
+import { handedRegistry } from './registry-source.js';
 import type { BundleComponent } from './bundle.js';
 import { GUARDED_NO_OTHER_BROWSER, armNetworkGuard, browserProcessInfo, guardedPageFailed, guardedPageFailure, pickFreePort } from './network-guard.js';
 import type { BrowserProcessInfo, NetworkGuard } from './network-guard.js';
@@ -135,8 +135,8 @@ interface PreviewSessionOptions {
   root: string;
   /** Theme of the previews (the committed built-in previews use the editorial theme). */
   template: LoadedTemplate;
-  /** Context components (the theme's layout, caption, card) come from it (default: the workspace's). */
-  registry?: ComponentRegistry;
+  /** Context components (the theme's layout, caption, card) come from it: required, a preview loads no registry by itself. */
+  registry: ComponentRegistry;
   cacheDir?: string;
   samples?: PreviewSamples;
   /** Checked between previews: an abort stops before the next one (RenderCancelledError). */
@@ -484,10 +484,11 @@ async function previewSession<J extends SessionJob, R>(
   // A renderer handed renders the previews, alone (with `backend` or `cacheDir` beside it the session is refused:
   // driver-guard.ts); standalone, the previews are this package's, on `backend` when a test hands one.
   const previews = handedDriver('preview', opts, 'previews')?.previews ?? previewDriver(opts.backend ?? REMOTION_PREVIEW_BACKEND, opts.cacheDir ? { cacheDir: opts.cacheDir } : {});
+  // The context components come from the registry its caller hands: a preview loads none by itself.
+  const registry = handedRegistry(opts.registry, 'preview');
   if (jobs.length === 0) return { results, failed, bundle: null, warnings: [] };
   cancelled(opts.signal);
   const root = resolve(opts.root);
-  const registry = opts.registry ?? (await loadComponentRegistry({ root }));
   const samples = opts.samples ?? loadPreviewSamples();
   const server = await startAssetServer();
   const tpl = opts.template;

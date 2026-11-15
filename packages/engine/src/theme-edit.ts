@@ -34,7 +34,8 @@ import type { Template } from '@retake/core/theme';
 import type { TemplateEntry, ThemeEdit, ThemeField } from '@retake/core/theme';
 import type { PaletteCheck } from '@retake/components/geometry';
 import { FONT_MAX_BYTES, IMAGE_MAX_BYTES, SVG_MAX_BYTES, checkImage, sniffFont } from './brand/files.js';
-import { components, workspaceRegistry } from './components.js';
+import { workspaceRegistry } from './components.js';
+import { componentCalls } from './registries/component-calls.js';
 import { callerOf, editsThemes } from './caller.js';
 import type { Caller, EngineClient } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
@@ -348,7 +349,7 @@ export async function themeEditView(ws: OpenedWorkspace, name: string, memos: Th
   const comps = isObj(root.components) ? root.components : {};
   const componentsView = {} as Record<ComponentKind, ThemeComponentView>;
   let resolved: Partial<Record<ComponentKind, { id: string; params: Record<string, unknown> } | null>> = {};
-  const lib = await components();
+  const lib = await componentCalls();
   if (parsed.template) {
     parsed.template.name ??= name;
     try {

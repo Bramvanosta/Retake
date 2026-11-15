@@ -12,7 +12,7 @@ import type { Scenario } from '@retake/core/scenario';
 import type { Timeline } from '@retake/core/run';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { LatestPick } from '@retake/core/run';
-import type { ComponentManifest, ComponentRegistry } from '@retake/components/geometry';
+import type { ComponentManifest, ComponentRegistry, RegistrySource } from '@retake/components/geometry';
 import type { EditOverrides, EditPlan, PlanVariant } from './plan-types.js';
 import type { PreviewRect } from './remotion/preview-types.js';
 
@@ -237,7 +237,11 @@ export interface PlanRunOptions {
   overrides?: EditOverrides;
   /** Workspace root (default: the project's). */
   root?: string;
-  registry?: ComponentRegistry;
+  /**
+   * The components the plan reads (slot types, durations, the theme's picks): the registry, or its loader, called with
+   * the root after the run is read. Required: the plan loads no registry by itself.
+   */
+  registry: RegistrySource;
   /** Default `author`: no trust gate. */
   trust?: PlanTrust;
   /** Measure the music bed with ffprobe so the plan loops or trims it (default true; a still does without). */

@@ -31,6 +31,7 @@ import { hasTool } from '@retake/test-support/repo';
 import { freePort } from '@retake/test-support/http';
 import type { RenderWorkspace } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
+import { loadComponentRegistry } from '@retake/components';
 
 type Renderer = typeof import('@remotion/renderer');
 interface Served {
@@ -364,11 +365,22 @@ describe.skipIf(!canRender)('a guarded render whose bundle port has ::1 taken fa
   let plan: EditPlan;
   beforeAll(async () => {
     ws = await renderWorkspace();
-    plan = (await planRun({ workPolicy: PERSON_POLICY, project: ws.project, run: 'latest', root: ws.root })).plan;
+    plan = (await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: ws.project, run: 'latest', root: ws.root })).plan;
   }, LONG);
   afterAll(() => ws?.cleanup());
 
-  const render = (out: string) => renderPlan({ workPolicy: PERSON_POLICY, plan, out: join(ws.root, out), root: ws.root, cacheDir: SHARED_CACHE, network: 'guard', frameRange: [0, 2], concurrency: 1 });
+  const render = async (out: string) =>
+    renderPlan({
+      registry: await loadComponentRegistry({ root: ws.root }),
+      workPolicy: PERSON_POLICY,
+      plan,
+      out: join(ws.root, out),
+      root: ws.root,
+      cacheDir: SHARED_CACHE,
+      network: 'guard',
+      frameRange: [0, 2],
+      concurrency: 1,
+    });
 
   it(
     'the same render passes without the other listener, fails with it (no file written)',

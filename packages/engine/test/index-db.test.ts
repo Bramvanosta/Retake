@@ -31,6 +31,7 @@ import { REPO } from '@retake/test-support/repo';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { PERSON_POLICY } from '@retake/core';
 import { scratchHome } from '@retake/test-support/home';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 let ws: string;
 let cfg: OpenedWorkspace;
@@ -66,7 +67,7 @@ beforeEach(async () => {
     line({ at: '2026-10-16T07:01:00.000Z', kind: 'run', project: P, run: { id: '20261016-090000-catalogue', scenario: 'catalogue', mode: 'capture', status: 'succeeded' } }) +
       line({ at: '2026-10-16T08:00:00.000Z', kind: 'render', project: P, job: newJobId(Date.now()), submitted_by: 'mcp', render: { id: 'quote-v1', scenario: 'quote' } }),
   );
-  cfg = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs };
+  cfg = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() };
 });
 
 afterEach(async () => {
@@ -314,7 +315,7 @@ describe('the workspace index', () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-index-link-'));
     try {
       await fixtureWorkspace(dir);
-      const c = { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs };
+      const c = { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() };
       const file = indexFile(dir);
       await mkdir(join(dir, '.retake'), { recursive: true });
       const target = join(dir, 'elsewhere', 'planted.sqlite');
@@ -383,7 +384,10 @@ describe('the workspace index', () => {
       expect(spawnSync('mkfifo', [join(proj, 'renders', 'pipe-v1.json')]).status).toBe(0);
       await mkdir(join(proj, 'runs', '20261018-090000-pipe'), { recursive: true });
       expect(spawnSync('mkfifo', [join(proj, 'runs', '20261018-090000-pipe', 'run.json')]).status).toBe(0);
-      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs }, { queue: new FileJobQueue(dir) });
+      const ix = await WorkspaceIndex.open(
+        { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
+        { queue: new FileJobQueue(dir) },
+      );
       try {
         const done = await Promise.race([ix!.reconcile().then(() => 'reconciled'), new Promise((r) => setTimeout(() => r('blocked on a FIFO'), 5000))]);
         expect(done).toBe('reconciled');
@@ -423,7 +427,10 @@ describe('the workspace index', () => {
       await writeFile(join(renders, 'quote-v4.json'), JSON.stringify(noStatus));
       // A record bigger than the index's old cap (1 MB) and within the reader's: a row (before: skipped).
       await writeFile(join(renders, 'quote-v5.json'), rec('quote-v5', { warnings: ['x'.repeat(1_100_000)] }));
-      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs }, { queue: new FileJobQueue(dir) });
+      const ix = await WorkspaceIndex.open(
+        { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
+        { queue: new FileJobQueue(dir) },
+      );
       try {
         await ix!.reconcile();
         expect(ix!.counts().renders).toBe(3);
@@ -455,7 +462,10 @@ describe('the workspace index', () => {
       await symlink(outside, renders);
       // (A folder renamed keeps its inode and mtime: a fresh index, so that renders/ is read again.)
       await rm(indexFile(dir), { force: true });
-      const ix2 = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs }, { queue: new FileJobQueue(dir) });
+      const ix2 = await WorkspaceIndex.open(
+        { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
+        { queue: new FileJobQueue(dir) },
+      );
       try {
         await ix2!.reconcile();
         expect(ix2!.counts().renders).toBe(0);
@@ -466,7 +476,10 @@ describe('the workspace index', () => {
       await rename(outside, join(proj, 'renders-real'));
       await symlink(join(proj, 'renders-real'), renders);
       await rm(indexFile(dir), { force: true });
-      const ix3 = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs }, { queue: new FileJobQueue(dir) });
+      const ix3 = await WorkspaceIndex.open(
+        { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
+        { queue: new FileJobQueue(dir) },
+      );
       try {
         await ix3!.reconcile();
         expect(ix3!.counts().renders).toBe(3);
@@ -483,7 +496,10 @@ describe('the workspace index', () => {
     const runs = join(dir, 'projects', P, 'runs');
     try {
       await fixtureWorkspace(dir);
-      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs }, { queue: new FileJobQueue(dir) });
+      const ix = await WorkspaceIndex.open(
+        { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
+        { queue: new FileJobQueue(dir) },
+      );
       if (!ix) throw new Error('node:sqlite is missing on this Node.js');
       try {
         await ix.reconcile();
@@ -514,7 +530,7 @@ describe('the workspace index', () => {
     try {
       await fixtureWorkspace(dir);
       const ix = await WorkspaceIndex.open(
-        { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs },
+        { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
         { queue: new FileJobQueue(dir), loader: async () => null },
       );
       expect(ix).toBeNull();
@@ -672,7 +688,10 @@ describe('the activity feed reads a finished job once (review B L1)', () => {
       };
       for (let i = 0; i < 40; i++) await write(i % 2 ? 'succeeded' : 'failed');
       const queued = await write('queued');
-      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs }, { queue: new FileJobQueue(dir) });
+      const ix = await WorkspaceIndex.open(
+        { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
+        { queue: new FileJobQueue(dir) },
+      );
       const spy = vi.spyOn(FileJobQueue.prototype, 'stored');
       try {
         expect((await ix!.activity({ limit: 5 }))[0]).toMatchObject({ source: 'queue', job: queued });

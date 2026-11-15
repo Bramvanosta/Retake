@@ -20,7 +20,7 @@ import { RENDER_VARIANT_SUFFIX } from '@retake/core/ids';
 import { isIsoUtcDate } from '@retake/core/comments';
 import type { RenderVariant } from '@retake/core/ids';
 import { pidExists } from '@retake/core/io';
-import { DEFAULT_RULES, NOT_HANDED_PROJECT, ReviewCancelledError, isHandedProject } from '@retake/review/checks';
+import { DEFAULT_RULES, NOT_HANDED_PROJECT, NOT_HANDED_REGISTRY, ReviewCancelledError, isHandedProject, isHandedRegistry } from '@retake/review/checks';
 import type { Finding, ReviewOptions, ReviewProgress, ReviewResult } from '@retake/review/checks';
 import { MEMORY_PNG } from '../render/memory-renderer.js';
 import type { OutputFolder, Outputs } from '../outputs/outputs.js';
@@ -162,6 +162,7 @@ export class MemoryReviewer implements Reviewer {
     stage('loading');
     const project: unknown = o.project;
     if (!isHandedProject(project)) throw new MemoryReviewError(NOT_HANDED_PROJECT);
+    if (!isHandedRegistry(o.registry)) throw new MemoryReviewError(NOT_HANDED_REGISTRY);
     const { renders, reviews: files } = this.#o.outputs;
     const found = await renders.named(renders.dirOf(project.dir), o.render, {
       verb: 'review',

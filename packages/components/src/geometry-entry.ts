@@ -29,7 +29,7 @@ export { fillSlots } from './slots.js';
 export type { SlotContext } from './slots.js';
 export { fontFileFace, themeTokens } from './theme.js';
 export { parseCsv } from './data.js';
-export { ARTEFACT_SLOT_TYPES } from './types.js';
+export { ARTEFACT_SLOT_TYPES, NO_REGISTRY_HANDED } from './types.js';
 export type {
   AnchorSpec,
   ArtefactSlotType,
@@ -46,7 +46,11 @@ export type {
   ThemeFontFace,
   ThemeTokens,
 } from './types.js';
-export type { ComponentRegistry } from './registry.js';
+export type { ComponentRegistry, RegistrySource } from './registry.js';
+// The catalogue's disk work as the engine's ComponentRegistries port names it (types only).
+export type { ComponentValidation } from './validate.js';
+export type { CreateComponentOptions, CreatedComponent } from './create.js';
+export type { PreviewStatus } from './preview.js';
 // The contract's vocabulary the engine names (types only: they load nothing at run time).
 export type { ComponentInfo, ComponentSource } from './types.js';
 export type { ComponentFit, ComponentUse } from './fit.js';

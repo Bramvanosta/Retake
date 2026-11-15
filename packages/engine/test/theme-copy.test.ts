@@ -23,6 +23,7 @@ import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 let root: string;
@@ -109,7 +110,7 @@ describe('copy a theme (L4.7)', () => {
     expect(e.code).toBe('refused');
     expect(e.message).toMatch(/holds a symbolic link \(notes.txt\)/);
     expect((await readdir(join(root, 'templates'))).some((n) => n.includes('linky-copy'))).toBe(false);
-    const repoWs = await openWorkspace({ root: REPO, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+    const repoWs = await openWorkspace({ root: REPO, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
     expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }, { scope: personScope(repoWs.root, enginePorts()) }))).message).toMatch(/lies inside the Retake folder/);
   });
 

@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
 import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, RenderMemos, ScenarioViews, VersionLedger, renderRecordReads, reportReads } from '@retake/engine/testing';
-import { openProjectBySlug, scanSources } from '@retake/engine/shell';
+import { openProjectBySlug, scanSources, enginePorts } from '@retake/engine/shell';
 import { diskWorkspaceReads, diskOutputs, diskProjectStores } from '@retake/engine/testing';
 import type { BoardScenario, OpenedWorkspace, ProjectBoardView } from '@retake/engine';
 import { OWN_OPS } from '../src/server/ops.js';
@@ -239,7 +239,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     return dir;
   }
   beforeAll(async () => {
-    wsc = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs };
+    wsc = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: enginePorts().registries };
     fresh();
   });
 

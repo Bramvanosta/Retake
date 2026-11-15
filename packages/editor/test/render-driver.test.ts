@@ -134,7 +134,7 @@ const kinded = (kind: string, message: string, more: object = {}): Error => Obje
 describe('renderStill on a driver handed to it', () => {
   it('asks the driver for that one frame and returns its file', async () => {
     const d = driver();
-    const { plan } = await planRun({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
+    const { plan } = await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
     const out = join(root, 'stills', 'f3.png');
     expect(await renderStill({ workPolicy: PERSON_POLICY, plan, frame: 3, out, root, registry, renderer: d })).toBe(out);
     expect(d.stillFrames).toEqual([3]);
@@ -154,7 +154,7 @@ describe("a renderer named in the options and not handed, or handed beside the o
   };
 
   it('renderStill, exportRender and the previews read the same rule, each for the part it renders with', async () => {
-    const { plan } = await planRun({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
+    const { plan } = await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
     const out = join(root, 'stills', 'refused.png');
     expect(await refusal(renderStill(loose({ workPolicy: PERSON_POLICY, plan, frame: 0, out, root, registry, renderer: { video: async () => undefined } })))).toBe(
       'still: a renderer was named but none was handed (nothing to render stills with)',
@@ -303,7 +303,7 @@ describe('the editor finds no workspace and loads no project by itself', () => {
   });
 
   it('a still and a video of a plan refuse a request with no workspace root, whatever the current folder holds', async () => {
-    const { plan } = await planRun({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
+    const { plan } = await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
     const here = process.cwd();
     // The current folder is a workspace: before, a request with no root used it.
     process.chdir(root);

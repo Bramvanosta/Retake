@@ -4,6 +4,8 @@ import { workPolicy } from '@retake/core/policy';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { Outputs } from './outputs/outputs.js';
+import { registryLoader } from './registries/registries.js';
+import type { ComponentRegistries } from './registries/registries.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /** Where a workspace is: `root` (the CLI's `--root`), else $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
@@ -26,6 +28,11 @@ export interface WorkspaceOptions {
    * `outputs`): the disk's for the product, a MemoryOutputs in tests. Said by every caller, never left to a default.
    */
   outputs: Outputs;
+  /**
+   * What its component registry is loaded by (ports.ts EnginePorts `registries`): the components package's for the
+   * product, a MemoryRegistries in tests. Said by every caller, never left to a default.
+   */
+  registries: ComponentRegistries;
 }
 
 /** A workspace as a command opened it: its retake.yaml, and the policy its work runs under (core WorkPolicy). */
@@ -40,6 +47,8 @@ export interface OpenedWorkspace extends WorkspaceConfig {
   readonly reads: WorkspaceReads;
   /** What the outputs of its projects are read and written through (WorkspaceOptions.outputs). */
   readonly outputs: Outputs;
+  /** What its component registry is loaded by (WorkspaceOptions.registries): every registry the engine hands its work. */
+  readonly registries: ComponentRegistries;
 }
 
 /**
@@ -47,9 +56,11 @@ export interface OpenedWorkspace extends WorkspaceConfig {
  * policy its work runs under (`agent`: the agent policy on for its folders).
  */
 export async function openWorkspace(opts: WorkspaceOptions): Promise<OpenedWorkspace> {
-  const { reads, outputs } = opts;
+  const { reads, outputs, registries } = opts;
+  // A caller outside the type checker that hands no registries is refused here, before anything is read.
+  registryLoader(registries);
   const ws = await reads.loadWorkspaceConfig(workspaceRootOf(reads, opts.root));
-  return { ...ws, policy: workPolicy(ws, { agent: !!opts.agent }), reads, outputs };
+  return { ...ws, policy: workPolicy(ws, { agent: !!opts.agent }), reads, outputs, registries };
 }
 
 /**

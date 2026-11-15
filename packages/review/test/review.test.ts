@@ -54,6 +54,27 @@ const cleanReviewed = once(async () => {
 
 describe.skipIf(!can)('reviewRender', () => {
   it(
+    "the registry is its caller's: a loader is asked with the project's root, one that fails leaves the text limits unchecked (a note), none is refused",
+    async () => {
+      await cleanCase();
+      const asked: string[] = [];
+      const loaded = await review('clean-v1', { thumbnails: false, registry: async (root) => (asked.push(root), ws.registry) });
+      expect(asked).toEqual([ws.project.root]);
+      expect(codes(loaded)).not.toContain('registry-unavailable');
+      const failed = await review('clean-v1', { thumbnails: false, registry: () => Promise.reject(new Error('components folder unreadable')) });
+      expect(of(failed, 'registry-unavailable')).toEqual([
+        { severity: 'info', code: 'registry-unavailable', message: 'component registry not loaded (components folder unreadable): text slot limits not checked' },
+      ]);
+      for (const registry of [undefined, null, {}]) {
+        await expect(review('clean-v1', { registry: registry as never }), String(registry)).rejects.toMatchObject({
+          name: 'ReviewError',
+          message: 'no component registry was handed (its caller hands the registry, or what loads it)',
+        });
+      }
+    },
+    LONG,
+  );
+  it(
     'a clean synthetic render: no error or warning, every artefact written',
     async () => {
       await cleanCase();

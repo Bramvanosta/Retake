@@ -102,7 +102,14 @@ function renderBrowsers(): number[] {
 const commandOf = (pid: number) => execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' });
 
 async function reachingPlan(): Promise<EditPlan> {
-  const planned = await planRun({ workPolicy: PERSON_POLICY, project: ws.project, run: 'latest', root: ws.root, overrides: { scale: 0.25, intro: true, components: { intro: 'acme/reaching' } } });
+  const planned = await planRun({
+    registry: (root: string) => loadComponentRegistry({ root }),
+    workPolicy: PERSON_POLICY,
+    project: ws.project,
+    run: 'latest',
+    root: ws.root,
+    overrides: { scale: 0.25, intro: true, components: { intro: 'acme/reaching' } },
+  });
   expect(planned.plan.segments[0]?.component.id).toBe('acme/reaching');
   return planned.plan;
 }
@@ -285,6 +292,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
       const browsers: BrowserProcessInfo[] = [];
       hits = [];
       const res = await renderPlan({
+        registry: await loadComponentRegistry({ root: ws.root }),
         workPolicy: PERSON_POLICY,
         plan,
         out: join(ws.root, 'nogpu.mp4'),
@@ -326,6 +334,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
       const browsers: BrowserProcessInfo[] = [];
       hits = [];
       const [file] = await renderStills({
+        registry: await loadComponentRegistry({ root: ws.root }),
         workPolicy: PERSON_POLICY,
         plan,
         frames: [{ frame: 2, out: join(ws.root, 'still.png') }],
@@ -354,6 +363,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
       const attempts: Array<{ n: number; gl: string; encoder: string }> = [];
       hits = [];
       const res = await renderPlan({
+        registry: await loadComponentRegistry({ root: ws.root }),
         workPolicy: PERSON_POLICY,
         plan,
         out: join(ws.root, 'fallback.mp4'),
@@ -443,6 +453,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
       let n = 0;
       await expect(
         renderPlan({
+          registry: await loadComponentRegistry({ root: ws.root }),
           workPolicy: PERSON_POLICY,
           plan,
           out: join(ws.root, 'twice.mp4'),
@@ -462,6 +473,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
       n = 0;
       await expect(
         renderPlan({
+          registry: await loadComponentRegistry({ root: ws.root }),
           workPolicy: PERSON_POLICY,
           plan,
           out: join(ws.root, 'timeout.mp4'),
@@ -481,6 +493,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
       const ac = new AbortController();
       await expect(
         renderPlan({
+          registry: await loadComponentRegistry({ root: ws.root }),
           workPolicy: PERSON_POLICY,
           plan,
           out: join(ws.root, 'cancel.mp4'),
@@ -549,7 +562,15 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
           },
         },
       })
-        .video({ workPolicy: PERSON_POLICY, plan: await reachingPlan(), out: join(ws.root, 'driver-failure.mp4'), root: ws.root, frameRange: [0, 5], settings: GPU })
+        .video({
+          registry: await loadComponentRegistry({ root: ws.root }),
+          workPolicy: PERSON_POLICY,
+          plan: await reachingPlan(),
+          out: join(ws.root, 'driver-failure.mp4'),
+          root: ws.root,
+          frameRange: [0, 5],
+          settings: GPU,
+        })
         .then(
           () => null,
           (e: unknown) => e as RenderError & { renderPath?: unknown },
@@ -565,12 +586,20 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
   it(
     'a page of a guarded GPU render fails: our one software retry, guarded and reported; Remotion never opens a browser of its own (B gets nothing, none outlives it)',
     async () => {
-      const planned = await planRun({ workPolicy: PERSON_POLICY, project: ws.project, run: 'latest', root: ws.root, overrides: { scale: 0.25, intro: true, components: { intro: 'acme/closing' } } });
+      const planned = await planRun({
+        registry: (root: string) => loadComponentRegistry({ root }),
+        workPolicy: PERSON_POLICY,
+        project: ws.project,
+        run: 'latest',
+        root: ws.root,
+        overrides: { scale: 0.25, intro: true, components: { intro: 'acme/closing' } },
+      });
       const before = renderBrowsers();
       const browsers: BrowserProcessInfo[] = [];
       const attempts: Array<{ n: number; gl: string }> = [];
       hits = [];
       const err = await renderPlan({
+        registry: await loadComponentRegistry({ root: ws.root }),
         workPolicy: PERSON_POLICY,
         plan: planned.plan,
         out: join(ws.root, 'closing.mp4'),

@@ -79,6 +79,7 @@ export const HEAVY_JOB_PORTS = {
   secrets: true,
   outputs: true,
   hosts: true,
+  registries: true,
   freeBytes: true,
   recordWindow: false,
   processes: false,

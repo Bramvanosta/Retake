@@ -20,6 +20,8 @@ import type { RenderVideoOptions } from './render/render-video.js';
 import type { ReviewResult } from '@retake/review/checks';
 import { summarizePlan } from '@retake/editor/plan';
 import { findRunOf, planWork } from './render/editor-calls.js';
+import { registryLoader } from './registries/registries.js';
+import type { ComponentRegistries } from './registries/registries.js';
 
 export type {
   EditOverrides,
@@ -67,7 +69,12 @@ export interface PlanOfRunOptions {
  * summarizePlan), so a shell prints it without the editor. The plan of plan_preview and of a render is the same
  * function with `purpose: 'render'`.
  */
-export async function planOfRun(ws: { root: string; policy: WorkPolicy }, project: LoadedProject, runArg: string, o: PlanOfRunOptions): Promise<PlannedRun & { summary: string[] }> {
+export async function planOfRun(
+  ws: { root: string; policy: WorkPolicy; registries: ComponentRegistries },
+  project: LoadedProject,
+  runArg: string,
+  o: PlanOfRunOptions,
+): Promise<PlannedRun & { summary: string[] }> {
   const run = await findRunOf(project, runArg, o.scenario);
   o.onRun?.(run);
   const planned = await planWork({
@@ -78,6 +85,7 @@ export async function planOfRun(ws: { root: string; policy: WorkPolicy }, projec
     ...(o.theme !== undefined ? { template: o.theme } : {}),
     overrides: o.overrides ?? {},
     root: ws.root,
+    registry: registryLoader(ws.registries),
     trust: o.trust,
     measureMusic: false,
     purpose: 'plan',

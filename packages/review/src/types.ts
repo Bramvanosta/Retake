@@ -5,7 +5,8 @@
 import type { ErrorKind } from '@retake/core/base';
 import type { LoadedProject } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { ComponentRegistry } from '@retake/components/geometry';
+import { NO_REGISTRY_HANDED } from '@retake/components/geometry';
+import type { ComponentRegistry, RegistrySource } from '@retake/components/geometry';
 import type { NamedRender, PlanSegment } from '@retake/editor/plan';
 
 export type Severity = 'error' | 'warning' | 'info';
@@ -207,8 +208,11 @@ export interface ReviewOptions {
   /** Write the review here instead of `<project>/review/<render-id>/`. */
   out?: string;
   rules?: Partial<ReviewRules>;
-  /** Component registry (read for slot limits); loaded from the workspace when absent. */
-  registry?: ComponentRegistry;
+  /**
+   * The components the review reads (text slot limits): the registry, or its loader, called with the project's root —
+   * a loader that fails leaves the limits unchecked (a `registry-unavailable` note). Required: the review loads none by itself.
+   */
+  registry: RegistrySource;
   /** Contact sheet grid (default 6 columns × 10 rows, 300 px tiles). */
   sheet?: Partial<SheetLayout>;
   onProgress?: (p: ReviewProgress) => void;
@@ -218,6 +222,9 @@ export interface ReviewOptions {
    */
   signal?: AbortSignal;
 }
+
+/** Why a review refuses its `registry`: its caller hands the registry or its loader, the reviewer loads none. */
+export const NOT_HANDED_REGISTRY = NO_REGISTRY_HANDED;
 
 /** Why a review refuses its `project`: the caller loads the project, the reviewer reads no slug and no folder. */
 export const NOT_HANDED_PROJECT = 'no loaded project was handed (the caller loads the project; a slug or a folder is not read here)';
@@ -229,6 +236,17 @@ export const NOT_HANDED_PROJECT = 'no loaded project was handed (the caller load
  */
 export function isHandedProject(project: unknown): project is LoadedProject {
   return typeof project === 'object' && project !== null && typeof (project as LoadedProject).dir === 'string';
+}
+
+/**
+ * Whether a review's `registry` is what its caller handed — a loaded registry, or its loader: the one guard of every
+ * reviewer (the package's load.ts handedRegistry, the engine's in-memory reviewer), which refuse anything else with
+ * NOT_HANDED_REGISTRY (no reviewer loads a registry by itself).
+ */
+export function isHandedRegistry(source: unknown): source is RegistrySource {
+  if (typeof source === 'function') return true;
+  const r = source as Partial<ComponentRegistry> | null;
+  return typeof r === 'object' && r !== null && typeof r.get === 'function' && typeof r.list === 'function';
 }
 
 /** A review stopped by its signal (nothing replaced the previous review). */

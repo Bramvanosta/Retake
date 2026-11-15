@@ -23,6 +23,7 @@ import { synthTimeline } from '@retake/test-support/timeline';
 import { TEMPLATES, hasTool } from '@retake/test-support/repo';
 import { makeColourCapture, syntheticRunRecord } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
+import { loadComponentRegistry } from '@retake/components';
 
 const canPlan = hasTool('ffmpeg');
 let root: string;
@@ -61,7 +62,8 @@ async function project(t: Timeline, template = 'editorial'): Promise<LoadedProje
   return loadProject(slug, root);
 }
 
-const mcp = (p: LoadedProject, o: Partial<PlanRunOptions> = {}) => planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root, trust: 'mcp', ...o });
+const mcp = (p: LoadedProject, o: Partial<PlanRunOptions> = {}) =>
+  planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: 'latest', root, trust: 'mcp', ...o });
 
 async function refusal(p: Promise<unknown>): Promise<PlanTrustError> {
   const e = await p.then(
@@ -93,7 +95,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
   it('a plan of project files plans as with trust author', async () => {
     const p = await project(timeline({ component: 'studio/card-testimonial', slots: { quote: 'Fast.', name: 'A. Buyer', logo: 'assets/logo.svg' } }));
     await writeFile(join(p.dir, 'assets', 'logo.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>');
-    const a = await planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root });
+    const a = await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: 'latest', root });
     const m = await mcp(p);
     expect(m.plan).toEqual(a.plan);
   });
@@ -105,7 +107,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
       const e = await refusal(mcp(p));
       expect(e.problems).toEqual([expect.stringMatching(/^scene quote, card slot logo: .*(absolute path|resolves outside the project folder)/)]);
       // The CLI's trust is unchanged: a human may name any file.
-      await expect(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root })).resolves.toBeTruthy();
+      await expect(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: 'latest', root })).resolves.toBeTruthy();
     }
   });
 
@@ -133,7 +135,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     expect((await refusal(mcp(p, { overrides: { music: '../../outside/music.mp3' } }))).problems[0]).toContain('the music of the overrides');
     // And trust author still says what is missing (a human's own machine).
     const q = await project(timeline({}, (t) => (t.video!.music = { file: join(outside, 'missing.mp3') })));
-    await expect(planRun({ workPolicy: PERSON_POLICY, project: q, run: 'latest', root })).rejects.toThrow(/music file not found/);
+    await expect(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: q, run: 'latest', root })).rejects.toThrow(/music file not found/);
   });
 
   it('gate 1: a Lottie file is code — never from a folder an agent writes (scenarios/), fine from assets/', () => {
@@ -196,7 +198,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
       expect.stringMatching(/^the plan serves image-.* from .*assets\/logo\.svg, a file with more than one name \(a hard link\): through MCP a render serves none$/),
     ]);
     // The CLI (trust author) is unchanged.
-    expect((await planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root })).plan.durationInFrames).toBeGreaterThan(0);
+    expect((await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: 'latest', root })).plan.durationInFrames).toBeGreaterThan(0);
   });
 
   it("gate 2: a theme's logo that leaves its folder (and the project) is refused", async () => {
@@ -218,7 +220,8 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     );
 
   it('a named run that cannot be planned: one sentence each, the same at a terminal and through MCP (L7.6a, F-4)', async () => {
-    const by = (p: LoadedProject, trust: 'author' | 'mcp', o: Partial<PlanRunOptions> = {}) => message(planRun({ workPolicy: PERSON_POLICY, project: p, run: RUN, root, trust, ...o }));
+    const by = (p: LoadedProject, trust: 'author' | 'mcp', o: Partial<PlanRunOptions> = {}) =>
+      message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: RUN, root, trust, ...o }));
     const both = async (p: LoadedProject, o: Partial<PlanRunOptions> = {}) => {
       const [a, m] = [await by(p, 'author', o), await by(p, 'mcp', o)];
       expect(m).toBe(a);
@@ -249,7 +252,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     await writeFile(join(dir, 'timeline.json'), JSON.stringify({ ...(JSON.parse(whole) as Timeline), capture: { ...(JSON.parse(whole) as Timeline).capture, file: 'film.mp4' } }));
     expect(await both(p)).toBe(`RenderError: run ${RUN} has no capture video (${join(dir, 'film.mp4')})`);
     await rename(join(dir, 'capture.mp4'), join(dir, 'film.mp4'));
-    expect((await planRun({ workPolicy: PERSON_POLICY, project: p, run: RUN, root })).captureFile).toBe(join(dir, 'film.mp4'));
+    expect((await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: RUN, root })).captureFile).toBe(join(dir, 'film.mp4'));
     await writeFile(join(dir, 'timeline.json'), JSON.stringify({ ...(JSON.parse(whole) as Timeline), capture: { ...(JSON.parse(whole) as Timeline).capture, file: '' } }));
     expect(await both(p)).toBe(`RenderError: run ${RUN} has no capture video (${join(dir, 'capture.mp4')})`);
   });
@@ -258,7 +261,9 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     const p = await project(timeline({ component: 'studio/card-testimonial', slots: { quote: 'Fast.', name: 'A. Buyer', logo: '../../outside/logo.svg' } }));
     await rm(join(p.dir, 'runs', RUN, 'capture.mp4'));
     expect((await refusal(mcp(p, { run: RUN }))).problems).toEqual([expect.stringMatching(/^scene quote, card slot logo: .*resolves outside the project folder/)]);
-    expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: RUN, root }))).toBe(`RenderError: run ${RUN} has no capture video (${join(p.dir, 'runs', RUN, 'capture.mp4')})`);
+    expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: RUN, root }))).toBe(
+      `RenderError: run ${RUN} has no capture video (${join(p.dir, 'runs', RUN, 'capture.mp4')})`,
+    );
   });
 
   it('the film of a named run is a file of its own folder through MCP: one path segment; at a terminal the name is taken as the timeline gives it (L7.6a)', async () => {
@@ -271,7 +276,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     await rename(join(dir, 'capture.mp4'), join(other, 'capture.mp4'));
     const named = async (file: string, trust: 'author' | 'mcp') => {
       await writeFile(join(dir, 'timeline.json'), JSON.stringify({ ...whole, capture: { ...whole.capture, file } }));
-      return message(planRun({ workPolicy: PERSON_POLICY, project: p, run: RUN, root, trust }));
+      return message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: RUN, root, trust }));
     };
     const NOT_IN_FOLDER = `PlanTrustError: refused through MCP:\n- run ${RUN}: the film its timeline names is not a file of the run folder: through MCP a render reads only the film inside it`;
     const none = (file: string) => `RenderError: run ${RUN} has no capture video (${dir}/${file})`;
@@ -290,7 +295,9 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     for (const [file, terminal, throughMcp] of rows) expect([file, await named(file, 'author'), await named(file, 'mcp')], file).toEqual([file, terminal, throughMcp]);
     // The refusal comes before the scenario is compared and before the trust gates read anything.
     await writeFile(join(dir, 'timeline.json'), JSON.stringify({ ...whole, capture: { ...whole.capture, file: '../20260101-110000-other/capture.mp4' } }));
-    expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: RUN, root, trust: 'mcp', scenario: 'other' }))).toBe(NOT_IN_FOLDER);
+    expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: RUN, root, trust: 'mcp', scenario: 'other' }))).toBe(
+      NOT_IN_FOLDER,
+    );
     // One path segment of the folder is the film, whatever its name; the refusal names no file (the name is the timeline's text).
     await rename(join(other, 'capture.mp4'), join(dir, 'the film.mp4'));
     expect([await named('the film.mp4', 'author'), await named('the film.mp4', 'mcp')]).toEqual(['planned', 'planned']);
@@ -304,9 +311,11 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     await symlink(real, join(p.dir, 'runs', RUN));
     const LINKED = `PlanTrustError: refused through MCP:\n- run ${RUN} is a link to a folder outside the project: through MCP a render reads only the runs inside it`;
     expect(await message(mcp(p, { run: RUN }))).toBe(LINKED);
-    expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: RUN, root }))).toBe('planned');
+    expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: RUN, root }))).toBe('planned');
     for (const trust of ['author', 'mcp'] as const) {
-      expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root, trust }))).toMatch(/^RenderError: no capture run in .*`retake run p\d+ <scenario>`$/);
+      expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: 'latest', root, trust }))).toMatch(
+        /^RenderError: no capture run in .*`retake run p\d+ <scenario>`$/,
+      );
     }
     // A link to a folder of the same project is a run of the project: planned through MCP too.
     const q = await project(timeline());
@@ -320,8 +329,8 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     const real = join(outside, `runs-${n}`);
     await rename(join(p.dir, 'runs'), real);
     await symlink(real, join(p.dir, 'runs'));
-    expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: RUN, root }))).toBe('planned');
-    expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root }))).toBe('planned');
+    expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: RUN, root }))).toBe('planned');
+    expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: 'latest', root }))).toBe('planned');
     // Through MCP `latest` takes no run that lies outside the project either (before L7.6a's close: 'planned', while
     // naming that very run was refused): it is passed over and counted, in the rule's fixed words.
     expect(await message(mcp(p))).toMatch(/^RenderError: no capture run in .*`retake run p\d+ <scenario>` — 1 capture of it cannot be edited: it lies outside the project \(1\)$/);
@@ -343,12 +352,14 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
       else delete whole.capture.file;
       await writeFile(join(dir, 'timeline.json'), JSON.stringify(whole));
       // By its name: planned, with the film a capture has always had.
-      const planned = await planRun({ workPolicy: PERSON_POLICY, project: p, run: RUN, root });
+      const planned = await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: RUN, root });
       expect([drop, planned.run.id, planned.captureFile]).toEqual([drop, RUN, join(dir, 'capture.mp4')]);
       expect(await message(mcp(p, { run: RUN })), drop).toBe('planned');
-      expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: dir, root })), drop).toBe('planned');
+      expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: dir, root })), drop).toBe('planned');
       // As `latest`: not a take (a head no runner wrote), and said.
-      expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root })), drop).toMatch(/ — 1 capture of it cannot be edited: its timeline does not read \(1\)$/);
+      expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: 'latest', root })), drop).toMatch(
+        / — 1 capture of it cannot be edited: its timeline does not read \(1\)$/,
+      );
     }
   });
 
@@ -361,11 +372,13 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
       await mkdir(join(p.dir, 'kept'), { recursive: true });
       await rename(join(dir, file), join(p.dir, 'kept', file));
       await symlink(join(p.dir, 'kept', file), join(dir, file));
-      expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: RUN, root })), file).toBe('planned');
+      expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: RUN, root })), file).toBe('planned');
       expect(await message(mcp(p, { run: RUN })), file).toBe(LINKS);
       // And such a run is never `latest`, for a person or an agent.
       for (const trust of ['author', 'mcp'] as const)
-        expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root, trust })), `${file} ${trust}`).toMatch(/^RenderError: no capture run in /);
+        expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: 'latest', root, trust })), `${file} ${trust}`).toMatch(
+          /^RenderError: no capture run in /,
+        );
     }
   });
 
@@ -375,13 +388,15 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     const dir = join(p.dir, 'runs', RUN);
     await writeFile(join(dir, 'run.json'), JSON.stringify({ ...syntheticRunRecord(dir, { id: RUN, scenario: 'synthetic', project: p.slug }), version: 2 }));
     const NEWER = 'this run.json is version 2: it was made for a newer Retake (this one reads version 1) — update Retake';
-    expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', scenario: 'synthetic', root }))).toBe(`RenderError: run ${RUN}: ${NEWER}`);
+    expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: 'latest', scenario: 'synthetic', root }))).toBe(
+      `RenderError: run ${RUN}: ${NEWER}`,
+    );
     const said = await message(mcp(p, { scenario: 'synthetic' }));
     expect(said).toBe(`RenderError: the newest capture of scenario "synthetic": ${NEWER}`);
     expect(said).not.toContain(RUN);
     // A folder without its run.json: how to name one, in the words of who asked.
     await rm(join(dir, 'run.json'));
-    expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root }))).toMatch(
+    expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: 'latest', root }))).toMatch(
       / — 1 run folder without a readable run\.json was not considered \(name one with `--run <id>`\)$/,
     );
     const through = await message(mcp(p));

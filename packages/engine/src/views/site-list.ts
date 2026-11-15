@@ -16,7 +16,7 @@ import { statePath } from '@retake/core/project';
 import { parseSiteUrl, unsafeTestResolve } from '@retake/core/theme';
 import { readPlainFile } from '@retake/core/io';
 import type { PaletteCheck } from '@retake/components/geometry';
-import { components } from '../components.js';
+import { componentCalls } from '../registries/component-calls.js';
 import { SITE_KEEP, siteRoot, siteView } from '../jobs/site-job.js';
 import type { OpenedWorkspace } from '../workspace.js';
 
@@ -70,7 +70,7 @@ export async function siteList(ws: OpenedWorkspace): Promise<SiteList> {
     .filter((n) => SITE_ID_RE.test(n))
     .sort()
     .reverse();
-  const lib = await components();
+  const lib = await componentCalls();
   const sites: SiteListEntry[] = [];
   for (const id of ids) {
     if (sites.length >= SITE_KEEP) break;

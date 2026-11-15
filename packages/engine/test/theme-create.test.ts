@@ -26,6 +26,7 @@ import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine, EngineError, ThemeCreated } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 const T = STARTER_TEMPLATES_DIR;
 let root: string;
@@ -220,7 +221,7 @@ describe('template_create_from_brand (engine)', () => {
       await cp(join(T, 'editorial', 'logo.svg'), join(ws, 'brand', 'logo.svg'));
       await writeFile(join(ws, 'retake.yaml'), `templates_dir: ${JSON.stringify(td)}\n`);
       const e = await refusal(
-        createThemeFromBrand({ ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs }, input(), {
+        createThemeFromBrand({ ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() }, input(), {
           trust: 'mcp',
           scope: personScope(ws, enginePorts()),
         }),
@@ -370,7 +371,7 @@ describe('template_create_from_brand (engine)', () => {
   });
 
   it('replace through MCP never takes a theme a human made with the CLI; the CLI may replace a tool-made one', async () => {
-    const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs };
+    const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() };
     await createThemeFromBrand(ws, input({ name: 'bob' }), { trust: 'author', cwd: root, scope: personScope(root, enginePorts()) });
     expect(await refusal(engine.templates.create(input({ name: 'bob', colors: { accent: '#00aa00' }, replace: true })))).toMatchObject({
       code: 'refused',

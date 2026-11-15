@@ -11,7 +11,7 @@ import type { LoadedTemplate } from '@retake/core/theme';
 import { isTemplateMediaRef } from '@retake/core/theme';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { ComponentPreviewSpec, PreviewSamples } from '@retake/editor/plan';
-import { components } from '../components.js';
+import { componentCalls } from '../registries/component-calls.js';
 import { EngineError } from '../errors.js';
 import { previewMaking } from '../render/editor-calls.js';
 import { firstErrorLine, openProjectBySlug } from '../projects.js';
@@ -140,7 +140,7 @@ export async function buildThemePreview(
   }
   const info = registry.get(id);
   const register = o.start();
-  const [making, comps] = [await previewMaking(), await components()];
+  const [making, comps] = [await previewMaking(), await componentCalls()];
   const samples = await o.samples.get(() => making.loadSamples());
   // Every file the spec names is served by the shell under the project's capability, from its own folder only.
   const serve =

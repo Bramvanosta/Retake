@@ -15,7 +15,6 @@ import type { LoadedProject } from '@retake/core/project';
 import type { RenderSettings } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { GpuInfo } from '@retake/core/render';
-import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { EditPlan } from '../plan-types.js';
 import { resolvePlanAssets } from '../summary.js';
@@ -45,6 +44,7 @@ import { VIDEO_COMPOSITIONS, videoProps } from '../remotion/contract.js';
 import { RENDER_ENCODING } from '../render-fields.js';
 import { RenderCancelledError, RenderError } from './types.js';
 import { probeMedia } from './probe.js';
+import { handedRegistry } from './registry-source.js';
 import type { RenderRecord } from '../render-record.js';
 import type { RenderProgress } from './types.js';
 import { errorMessage } from '@retake/core/base';
@@ -139,8 +139,8 @@ export interface RenderPlanOptions {
   out: string;
   /** Workspace root (bundle cache): the caller's, never looked for from the current folder. */
   root: string;
-  /** Registry to find the plan's component implementations (default: the workspace's). */
-  registry?: ComponentRegistry;
+  /** Registry to find the plan's component implementations (the planned run's): required, a render loads none by itself. */
+  registry: ComponentRegistry;
   /** Bundle cache folder (default <root>/.retake/cache). */
   cacheDir?: string;
   concurrency?: number;
@@ -217,7 +217,7 @@ async function openSession(opts: {
   plan: EditPlan;
   workPolicy: WorkPolicy;
   root: string;
-  registry?: ComponentRegistry;
+  registry: ComponentRegistry;
   cacheDir?: string;
   signal?: AbortSignal;
   onBundleProgress?: (p: number, cached: boolean) => void;
@@ -227,7 +227,7 @@ async function openSession(opts: {
   seams?: RenderSeams;
 }): Promise<Session> {
   const warnings: string[] = [];
-  const registry = opts.registry ?? (await loadComponentRegistry({ root: opts.root }));
+  const registry = handedRegistry(opts.registry, 'render');
   const components = await bundleComponentsFor(opts.plan, registry);
   const bundle = await ensureBundle({
     root: opts.root,
@@ -730,7 +730,8 @@ export interface RenderStillOptions {
   out: string;
   /** Workspace root (bundle cache). */
   root: string;
-  registry?: ComponentRegistry;
+  /** Registry to find the plan's component implementations: required, a still loads none by itself. */
+  registry: ComponentRegistry;
   cacheDir?: string;
   settings?: RenderSettings;
   /** What the work runs under (core WorkPolicy): which ffmpeg, ffprobe and render browser, its workspace's render settings. */
@@ -762,7 +763,8 @@ export interface RenderStillsOptions {
   frames: Array<{ frame: number; out: string }>;
   /** Workspace root (bundle cache). */
   root: string;
-  registry?: ComponentRegistry;
+  /** Registry to find the plan's component implementations: required, a still loads none by itself. */
+  registry: ComponentRegistry;
   cacheDir?: string;
   /** The stills' network (default `open`; previews of the jobs worker: `guard`). */
   network?: RenderNetwork;

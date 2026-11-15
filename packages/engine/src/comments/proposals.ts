@@ -110,7 +110,7 @@ export async function applyProposal(
   id: string,
   req: CommentApplyRequest,
   author: CommentAuthor,
-  o: { registry?: () => Promise<ComponentRegistry>; scope: StoreScope; renders: RenderOutputs; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
+  o: { registry: () => Promise<ComponentRegistry>; scope: StoreScope; renders: RenderOutputs; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<CommentApplied> {
   // The scenario is written as the caller's (the Studio's: a person applies there).
   const { scope } = o;
@@ -144,7 +144,7 @@ export async function applyProposal(
         project,
         r.thread.scenario,
         { hash: entry.proposal.base_sha256, edit: { kind: 'replace_text', text } },
-        { agent: true, via: 'studio', files: o.files, reads: o.reads, seen: o.seen, ...(o.registry ? { registry: o.registry } : {}), scope },
+        { agent: true, via: 'studio', files: o.files, reads: o.reads, seen: o.seen, registry: o.registry, scope },
       );
     } catch (e) {
       if (e instanceof EngineError && e.message.startsWith('not saved: '))
@@ -229,7 +229,7 @@ export async function getProposal(
   project: LoadedProject,
   id: string,
   entryId: string | undefined,
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
+  o: { registry: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
 ): Promise<CommentProposalView> {
   const f = await locateThread(project.dir, id);
   const r = await readThread(project.dir, f);
@@ -358,7 +358,7 @@ export async function proposalForPreview(
   project: LoadedProject,
   scenario: string,
   req: { comment_id: string; entry_id: string },
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
+  o: { registry: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
 ): Promise<ProposalPreview> {
   const f = await locateThread(project.dir, req.comment_id);
   const r = await readThread(project.dir, f);

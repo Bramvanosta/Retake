@@ -16,6 +16,7 @@ import { hasTool } from '@retake/test-support/repo';
 import { linkSharedCache, renderWorkspace } from '@retake/test-support/render';
 import type { RenderWorkspace } from '@retake/test-support/render';
 import { rendererContract } from './renderer-contract.js';
+import { loadComponentRegistry } from '@retake/components';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -27,7 +28,15 @@ beforeAll(async () => {
   if (!canRender) return;
   ws = await renderWorkspace();
   await linkSharedCache(ws.root);
-  planned = await planWork({ workPolicy: PERSON_POLICY, project: ws.project, root: ws.root, run: 'latest', scenario: 'synthetic', overrides: { scale: 0.5 } });
+  planned = await planWork({
+    registry: (root: string) => loadComponentRegistry({ root }),
+    workPolicy: PERSON_POLICY,
+    project: ws.project,
+    root: ws.root,
+    run: 'latest',
+    scenario: 'synthetic',
+    overrides: { scale: 0.5 },
+  });
 }, LONG);
 afterAll(async () => {
   await ws?.cleanup();

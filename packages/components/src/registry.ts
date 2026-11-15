@@ -69,6 +69,13 @@ export interface ComponentRegistry {
   resolveTheme(template: Template): Record<ComponentKind, ResolvedComponentRef | null>;
 }
 
+/**
+ * Where a piece of work gets its registry: the registry itself, or what loads it for a workspace root — called at the
+ * point the work reads it, so a broken components folder is said where it always was. Handed by the work's caller
+ * (the engine's ComponentRegistries port); work that is handed neither refuses, it never loads one by itself.
+ */
+export type RegistrySource = ComponentRegistry | ((root: string) => Promise<ComponentRegistry>);
+
 interface Found {
   info?: ComponentInfo;
   /** Set for an invalid component folder. */

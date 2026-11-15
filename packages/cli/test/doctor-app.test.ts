@@ -160,6 +160,7 @@ describe("doctor: the workspace's worker of another copy of Retake (critique M6)
     policy: PERSON_POLICY,
     reads: diskWorkspaceReads,
     outputs: diskOutputs,
+    registries: enginePorts().registries,
   };
   mkdirSync(ws.projectsDir, { recursive: true });
   const mcpLine = async (worker: Awaited<ReturnType<NonNullable<DoctorProbes['worker']>>>) => {

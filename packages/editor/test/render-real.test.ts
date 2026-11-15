@@ -230,13 +230,17 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
     async () => {
       const { record } = await firstRender();
       const out = join(ws.root, 'stills', 'frame-48.png');
-      expect(await renderStill({ workPolicy: PERSON_POLICY, plan: record.plan, frame: 48, out, root: ws.root, cacheDir: SHARED_CACHE })).toBe(out);
+      expect(await renderStill({ registry: await loadComponentRegistry({ root: ws.root }), workPolicy: PERSON_POLICY, plan: record.plan, frame: 48, out, root: ws.root, cacheDir: SHARED_CACHE })).toBe(
+        out,
+      );
       const size = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height,codec_name', '-of', 'csv=p=0', out], { encoding: 'utf8' }).trim();
       expect(size).toBe('png,960,540');
       const r = shownSourceFrame(out, record.plan, 48, 0);
       expect(r.shown).toBe(r.expected);
       expect(r.expected).toBe((record.plan.segments[1] as ClipSegment).srcFrames[48 - 30]);
-      await expect(renderStill({ workPolicy: PERSON_POLICY, plan: record.plan, frame: 57, out, root: ws.root })).rejects.toThrow(/outside the video/);
+      await expect(renderStill({ registry: await loadComponentRegistry({ root: ws.root }), workPolicy: PERSON_POLICY, plan: record.plan, frame: 57, out, root: ws.root })).rejects.toThrow(
+        /outside the video/,
+      );
     },
     LONG,
   );

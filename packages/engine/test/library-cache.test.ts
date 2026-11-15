@@ -40,6 +40,7 @@ import type { LibraryEntryMeta, LibraryKeyContext } from '../src/library.js';
 import { REPO } from '@retake/test-support/repo';
 import { cleanWorkerEnv } from '../src/jobs/worker-env.js';
 import { openWorkspace } from '../src/workspace.js';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;
@@ -179,7 +180,7 @@ describe('library preview keys', () => {
       await writeFile(join(root, 'retake.yaml'), `${yaml}render:\n  gl: gpu\n`);
       policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, undefined);
       expect((await context()).browser).toMatch(/ gl=software$/);
-      policy = (await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs })).policy;
+      policy = (await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() })).policy;
       expect((await context()).browser).toMatch(/ gl=angle$/);
       // A setting that cannot work keys as "invalid" (the preview then fails and says why), never throws here.
       policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, undefined);
@@ -212,7 +213,7 @@ describe('library preview keys', () => {
       expect(keyIn({ ...process.env })).toBe(studio);
       // retake.yaml render: is read alike by every process of the workspace: it wins over any process's variable.
       await writeFile(join(root, 'retake.yaml'), `${yaml}render:\n  gl: software\n`);
-      policy = (await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs })).policy;
+      policy = (await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() })).policy;
       const pinned = (await context()).browser;
       expect(pinned).toMatch(/ gl=software$/);
       expect(keyIn({ ...process.env, RETAKE_RENDER_GL: 'gpu' })).toBe(pinned);

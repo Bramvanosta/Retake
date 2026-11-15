@@ -27,6 +27,7 @@ import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { OpenedWorkspace } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 let root: string;
 let home: string;
@@ -55,7 +56,7 @@ beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-component-shell-'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
   await mkdir(join(root, 'projects'), { recursive: true });
-  ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+  ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
 }, 60_000);
 
 afterEach(async () => {
@@ -141,7 +142,7 @@ describe('the component use cases a shell calls (L7.24)', () => {
     await mkdir(join(outside, 'acme', 'far'), { recursive: true });
     await mkdir(other, { recursive: true });
     await writeFile(join(other, 'retake.yaml'), `version: 1\nprojects_dir: projects\ncomponents_dir: ${outside}\n`);
-    const ws2 = await openWorkspace({ root: other, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+    const ws2 = await openWorkspace({ root: other, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
     expect(ws2.componentsDir).toBe(outside);
     await componentReadmeWriter(ws2, personScope(other, enginePorts())).write(join(outside, 'acme', 'far', 'README.md'), '# Far\n', null);
     const far = JSON.parse((await readFile(join(other, '.retake', 'journal.jsonl'), 'utf8')).trim().split('\n').at(-1) ?? '{}');

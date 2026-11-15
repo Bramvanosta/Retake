@@ -41,6 +41,7 @@ import { captureRunnerContract } from './capture-runner-contract.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { CONFINEMENTS } from '../src/caller.js';
 import { scratchHome } from '@retake/test-support/home';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 const hasChromium = chromiumExecutable().path !== null;
 const root = await mkdtemp(join(tmpdir(), 'retake-capture-runner-'));
@@ -155,7 +156,7 @@ describe('what the engine hands the capture runner (in memory)', () => {
   });
 
   it("a run in process (the CLI's): the hook runner handed, the run id the engine reserved in runs/, trust author, then its history line as the cli's", async () => {
-    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     const prepared = await prepareRun(w, project, 'quote', { dry: true, until: 'discover.0' });
     const capture = new MemoryCaptureRunner();
@@ -186,7 +187,7 @@ describe('what the engine hands the capture runner (in memory)', () => {
   });
 
   it('a run in process that fails before it starts leaves no run folder: the one the engine reserved is removed again', async () => {
-    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     const prepared = await prepareRun(w, project, 'quote', { dry: true, until: 'discover.0' });
     const capture = new MemoryCaptureRunner();
@@ -210,7 +211,7 @@ describe('what the engine hands the capture runner (in memory)', () => {
   it('a run in process reserves its run folder only once the sandbox check is done: a check that fails reserves nothing', async () => {
     const reserved: string[] = [];
     const outputs = { ...diskOutputs, runs: { ...diskOutputs.runs, reserve: async (...a: Parameters<typeof diskOutputs.runs.reserve>) => (reserved.push(a[1]), diskOutputs.runs.reserve(...a)) } };
-    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs });
+    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs, registries: packageRegistries() });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     // A scenario of the sandbox environment, filmed without --sandbox: its sandbox is checked first (here: down).
     const prepared = await prepareRun(w, project, 'sandbox-quote', { dry: true });

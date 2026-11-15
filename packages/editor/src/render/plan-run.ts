@@ -33,13 +33,13 @@ import type { LoadedTemplate } from '@retake/core/theme';
 import type { Timeline } from '@retake/core/run';
 import type { WorkFileFacts } from '@retake/core/model';
 import type { NamedProblem, Read, RunFolderFacts } from '@retake/core/run';
-import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import { planFileUses, planInputFiles, remoteSlotUses } from '../inputs.js';
 import { planEdit } from '../plan.js';
 import { musicFile, musicSpecOf } from '../planner/music.js';
 import type { EditOverrides, EditPlan } from '../plan-types.js';
 import { probeMedia } from './probe.js';
+import { registryFrom } from './registry-source.js';
 import { locateRun, recordEnv, runScenario } from './runs.js';
 import type { RunRef } from './runs.js';
 import { RenderError } from './types.js';
@@ -172,7 +172,7 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   const { timeline, edit, warnings: editWarnings, text: editText } = editOfToday(project, run, captured, envName, o.edit ?? 'auto', o.editText, fileFacts(o.workPolicy));
   const video = timeline.video ?? (scenarioSnapshot ? timelineVideo(scenarioSnapshot, project.config) : undefined);
   // The registry first (the components' own files, not the run's): gate 1 reads slot types from the manifests.
-  const registry = o.registry ?? (await loadComponentRegistry({ root }));
+  const registry = await registryFrom(o.registry, root, 'plan');
   if (trust === 'mcp') {
     const problems = preReadProblems(project, timeline, video, { ...o, registry });
     if (problems.length) throw new PlanTrustError(problems);

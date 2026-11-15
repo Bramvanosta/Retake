@@ -58,7 +58,7 @@ export {
 export type { JsonSchemaNode, ParamType } from './json-schema.js';
 export { componentJsonSchema, writeComponentJsonSchema } from './schema-json.js';
 export { loadComponentRegistry, loadComponentDir, usableAs } from './registry.js';
-export type { ComponentRegistry, LoadComponentRegistryOptions, RegistryNotice } from './registry.js';
+export type { ComponentRegistry, LoadComponentRegistryOptions, RegistryNotice, RegistrySource } from './registry.js';
 export { componentFit } from './fit.js';
 export type { ComponentFit, ComponentUse } from './fit.js';
 export {

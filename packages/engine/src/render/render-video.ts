@@ -28,6 +28,8 @@ import { planWork, plannedConcurrency, renderErrors } from './editor-calls.js';
 import type { PlannedRun } from './editor-calls.js';
 import type { RenderProcess, Renderer } from './renderer.js';
 import { reserveVersion, versionLockFile } from './versions.js';
+import { registryLoader } from '../registries/registries.js';
+import type { ComponentRegistries } from '../registries/registries.js';
 
 export interface RenderVideoOptions {
   /** What the work runs under (core WorkPolicy): which ffmpeg, ffprobe and render browser, its workspace's render settings. */
@@ -48,6 +50,7 @@ export interface RenderVideoOptions {
   concurrency?: number;
   /** Workspace root (default: the project's). */
   root?: string;
+  /** The registry the plan reads (default: the one the workspace's ComponentRegistries port loads). */
   registry?: ComponentRegistry;
   /** `mcp`: the plan passes planRun's trust gates first (work submitted through the MCP server). Default `author`. */
   trust?: PlanTrust;
@@ -87,6 +90,8 @@ export interface RenderVideoOptions {
 export interface RenderPlace {
   outputs: { renders: RenderOutputs };
   reads: Pick<WorkspaceReads, 'templateFolderId'>;
+  /** What loads the plan's registry when the render is handed none (the workspace's port). */
+  registries: ComponentRegistries;
 }
 
 /** Options of the editor's own driver: they say how a driver is made, so they mean nothing beside one already made. */
@@ -197,7 +202,7 @@ export async function renderVideoWork(o: RenderVideoOptions): Promise<RenderReco
       ...(o.template !== undefined ? { template: o.template } : {}),
       ...(o.overrides ? { overrides: o.overrides } : {}),
       ...(o.root !== undefined ? { root: o.root } : {}),
-      ...(o.registry ? { registry: o.registry } : {}),
+      registry: o.registry ?? registryLoader(o.ws.registries),
       ...(o.trust ? { trust: o.trust } : {}),
       ...(o.edit ? { edit: o.edit } : {}),
       ...(o.editText !== undefined ? { editText: o.editText } : {}),

@@ -28,6 +28,7 @@ import type { Engine, RunBlocker } from '../src/index.js';
 import { blockerKind } from '../src/jobs/run-job.js';
 import { writeRun } from '@retake/test-support/runs';
 import { scratchHome } from '@retake/test-support/home';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 let ws: string;
 let ui: Engine;
@@ -179,7 +180,7 @@ describe('scenarios.actions: the status bar’s read', () => {
 
 describe('memo (critique H2)', () => {
   const views = async () => {
-    const wsc = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+    const wsc = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
     let blockers = 0;
     const v = new ScenarioViews({
       ws: wsc,

@@ -39,6 +39,7 @@ import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review
 import type { Workspace } from '@retake/test-support/review';
 import { linkSharedCache } from '@retake/test-support/render';
 import { scratchHome } from '@retake/test-support/home';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -333,7 +334,7 @@ describe('a review job on the in-memory reviewer: the engine around it (L7.11)',
     "a worker that died mid-review or mid inline review: the cleanups put the review folder back with the worker's reviewer",
     async () => {
       await reviewed();
-      const ows = await openWorkspace({ root: mws.root, agent: true, reads: diskWorkspaceReads, outputs: diskOutputs });
+      const ows = await openWorkspace({ root: mws.root, agent: true, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
       const dir = join(mws.project.dir, 'review', 'long-v1');
       const report = await readFile(join(dir, 'report.json'), 'utf8');
       // A review set aside by a dead process (the swap's first rename done, not the second): it comes back.
@@ -361,7 +362,7 @@ describe('a review job on the in-memory reviewer: the engine around it (L7.11)',
   it(
     "a worker that died mid-export or mid-render: the cleanups remove the partial files and a manifest's temporary file, files only (other files, what a link leads to and an exports/<id> linked out of the project stay)",
     async () => {
-      const ows = await openWorkspace({ root: mws.root, agent: true, reads: diskWorkspaceReads, outputs: diskOutputs });
+      const ows = await openWorkspace({ root: mws.root, agent: true, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
       const exp = join(mws.project.dir, 'exports', 'long-v1');
       const renders = join(mws.project.dir, 'renders');
       const outside = join(mws.root, 'outside.mp4');

@@ -189,13 +189,30 @@ async function addIntro(name: string, code: string): Promise<void> {
 }
 
 async function introPlan(component: string): Promise<EditPlan> {
-  const planned = await planRun({ workPolicy: PERSON_POLICY, project: ws.project, run: 'latest', root: ws.root, overrides: { intro: true, components: { intro: component } } });
+  const planned = await planRun({
+    registry: (root: string) => loadComponentRegistry({ root }),
+    workPolicy: PERSON_POLICY,
+    project: ws.project,
+    run: 'latest',
+    root: ws.root,
+    overrides: { intro: true, components: { intro: component } },
+  });
   expect(planned.plan.segments[0]?.component.id).toBe(component);
   return planned.plan;
 }
 
 async function renderIntro(plan: EditPlan, network: RenderNetwork, out: string) {
-  return renderPlan({ workPolicy: PERSON_POLICY, plan, out: join(ws.root, out), root: ws.root, cacheDir: SHARED_CACHE, network, frameRange: [0, 5], concurrency: 2 });
+  return renderPlan({
+    registry: await loadComponentRegistry({ root: ws.root }),
+    workPolicy: PERSON_POLICY,
+    plan,
+    out: join(ws.root, out),
+    root: ws.root,
+    cacheDir: SHARED_CACHE,
+    network,
+    frameRange: [0, 5],
+    concurrency: 2,
+  });
 }
 
 describe.skipIf(!canRender)('a guarded render loads only the files of its plan', () => {
@@ -263,6 +280,7 @@ describe.skipIf(!canRender)('a guarded render loads only the files of its plan',
       const browsers: BrowserProcessInfo[] = [];
       hits = [];
       const err = await renderPlan({
+        registry: await loadComponentRegistry({ root: ws.root }),
         workPolicy: PERSON_POLICY,
         plan,
         out: join(ws.root, 'closing.mp4'),

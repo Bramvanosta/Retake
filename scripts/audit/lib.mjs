@@ -299,6 +299,7 @@ export const PORT_ROOTS = {
   systemSecrets: ['packages/engine/src/secrets/system-secrets.ts', 'packages/engine/src/ports.ts'],
   systemHosts: ['packages/engine/src/host-lookup.ts', 'packages/engine/src/ports.ts'],
   diskOutputs: ['packages/engine/src/outputs/disk-outputs.ts', 'packages/engine/src/ports.ts'],
+  packageRegistries: ['packages/engine/src/registries/package-registries.ts', 'packages/engine/src/ports.ts'],
   MemoryOutputs: ['packages/engine/src/outputs/memory-outputs.ts', 'packages/engine/src/workspace-reads/memory-reads.ts'],
   FileJobQueue: ['packages/engine/src/jobs/queue.ts', 'packages/engine/src/ports.ts'],
 };
@@ -316,6 +317,7 @@ export const PORT_ROOT_RULE = {
   editorRenderer: 'loader-use',
   systemSecrets: 'loader-use',
   systemHosts: 'loader-use',
+  packageRegistries: 'loader-use',
   diskOutputs: 'output-read',
   MemoryOutputs: 'output-read',
   FileJobQueue: 'queue',
@@ -332,6 +334,7 @@ export const LOADER_HOMES = {
   thumbs: 'packages/engine/src/review/',
   runnerWeb: 'packages/engine/src/capture/',
   sandbox: 'packages/engine/src/sandboxes/',
+  components: 'packages/engine/src/registries/',
 };
 /**
  * The engine's adapter homes (the folders of LOADER_HOMES): where a port's package adapter lives, the only engine files
@@ -356,6 +359,7 @@ export const PORT_FILES = [
   'packages/engine/src/secrets/secrets.ts',
   'packages/engine/src/workspace-reads/reads.ts',
   'packages/engine/src/outputs/outputs.ts',
+  'packages/engine/src/registries/registries.ts',
 ];
 /**
  * The engine's own layers (engine-layer), lowest first: a file imports files of its own layer and of the layers below,
@@ -416,6 +420,7 @@ export const ENGINE_LAYERS = [
       'store/',
       'outputs/',
       'workspace-reads/',
+      'registries/',
       'http/',
       'jobs/queue.ts',
       'jobs/queue-core.ts',
@@ -672,7 +677,7 @@ export const RULES = [
   },
   {
     id: 'R11',
-    title: `the engine names an adapter package's root in its adapter homes only (ADAPTER_HOMES: the folders of LOADER_HOMES, where each port's package adapter lives), outside its loader (${ENGINE_LOADER}): elsewhere in packages/engine/src an import of runner-web, review, sandbox, hooks, components or the editor in any form — a type import, a type re-export, \`typeof import()\`, a value — is a hit, and inside a home a value one of the first five (the editor's values there are R9's); their domain entries (DOMAIN_ENTRIES) are free everywhere. Not seen: a value or a type reached through another engine file (the loader, a home that hands a name on)`,
+    title: `the engine names an adapter package's root in its adapter homes only (ADAPTER_HOMES: the folders of LOADER_HOMES, where each port's package adapter lives), outside its loader (${ENGINE_LOADER}): elsewhere in packages/engine/src an import of runner-web, review, sandbox, hooks, components or the editor in any form — a type import, a type re-export, \`typeof import()\`, a value — is a hit, and inside a home a value one of the first five (the editor's values there are R9's); their domain entries (DOMAIN_ENTRIES) are free everywhere. Not seen: a value or a type reached through another engine file (the loader, a home that hands a name on: the editor's calls in render/, and \`componentCalls()\` in registries/, which hands on the components package's pure members only — params' defaults and checks, a component's fit, the palette and theme-file makers, a font file's face, the theme tokens, the kit's major, the scaffold and samples paths, the library's constants — while what reads or writes a component's files or compiles its code is the ComponentRegistries port's)`,
     files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER,
     bad: (s, f) => ADAPTERS.includes(retake(s)) && !DOMAIN_ENTRIES.includes(s) && !(retake(s) === 'editor' && inAdapterHome(f)),
     typeOnlyCheck: (_s, f) => inAdapterHome(f),
@@ -761,7 +766,7 @@ export const CHECKS = [
   },
   {
     id: 'loader-use',
-    title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`editor\` in render/, \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, of the renderer, of the secrets and of the host resolver, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\`, \`packageSandboxes\`, \`editorRenderer\`, \`systemSecrets\` and \`systemHosts\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it`,
+    title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`editor\` in render/, \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/, \`components\` in registries/ — where its port's package adapter lives), never in a port's own file there (PORT_FILES: the port names no adapter), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, of the renderer, of the secrets, of the host resolver and of the component registries, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\`, \`packageSandboxes\`, \`editorRenderer\`, \`systemSecrets\`, \`systemHosts\` and \`packageRegistries\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose: \`previewMaking()\` / \`playerMaking()\` in render/, and \`componentCalls()\` in registries/ — the components package's pure members, no file read or written, no code compiled or run), a loader reached through another engine module that imported it`,
   },
   {
     id: 'port-types',
@@ -1584,7 +1589,8 @@ export function loaderHits(root, files) {
             if (e.isTypeOnly) continue;
             const orig = (e.propertyName ?? e.name).text;
             local.set(e.name.text, orig);
-            if (LOADERS.includes(orig) && !rel.startsWith(LOADER_HOMES[orig])) found.add(orig);
+            // A port's own file is no home: the port names no adapter, its loader included (the package adapter beside it loads).
+            if (LOADERS.includes(orig) && (!rel.startsWith(LOADER_HOMES[orig]) || PORT_FILES.includes(rel))) found.add(orig);
           }
         }
       }

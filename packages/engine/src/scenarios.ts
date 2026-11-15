@@ -32,7 +32,7 @@ import type { AgentTrustEnvironment, FieldEdit, PositionedTrustProblem, StepEdit
 import type { AgentChannel } from './caller.js';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import { recordScenarioWrite } from './agent-written.js';
-import { components } from './components.js';
+import { componentCalls } from './registries/component-calls.js';
 import { EngineError } from './errors.js';
 import { fieldFitProblem } from './field-options.js';
 import { checkScenarioName } from './refs.js';
@@ -359,7 +359,7 @@ export async function editScenario(
   project: LoadedProject,
   name: string,
   req: ScenarioEditRequest,
-  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
+  o: { agent: boolean; via: AgentChannel; registry: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<ScenarioEditResult> {
   const p = await prepareScenarioEdit(project, name, req, { ...o, stores: o.scope.stores });
   const res = await storeOf(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
@@ -397,7 +397,7 @@ export async function prepareScenarioEdit(
   project: LoadedProject,
   name: string,
   req: ScenarioEditRequest,
-  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
+  o: { agent: boolean; via: AgentChannel; registry: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
 ): Promise<PreparedScenarioEdit> {
   const base = await getScenario(project, name, o);
   if (base.hash !== req.hash) {
@@ -480,8 +480,8 @@ export async function prepareScenarioEdit(
       }
       const wrong = verifyEditText(applied.text, applied.intended);
       if (wrong) throw new EngineError('refused', `not saved: ${wrong}`);
-      const c = await components();
-      const registry = await (o.registry ? o.registry() : c.loadComponentRegistry({ root: project.root }));
+      const c = await componentCalls();
+      const registry = await o.registry();
       const misfit = fieldFitProblem(registry, c.componentFit, parseYaml(base.yaml).value, edit);
       if (misfit) throw new EngineError('invalid', `not saved: ${misfit}`, { details: { field: edit.field } });
       // L4.7 (critique B1): a scenario's theme is a theme the workspace lists (by name, never a path).

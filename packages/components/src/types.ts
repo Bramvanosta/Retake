@@ -535,3 +535,9 @@ export interface ResolvedComponentRef {
 export interface ComponentIssue extends ValidationIssue {
   file: string;
 }
+
+/**
+ * Why work handed no component registry is refused — a plan, a render, a still, a preview, a review (after the name of
+ * the work, or alone): its caller hands the registry, or what loads it; no work loads one by itself.
+ */
+export const NO_REGISTRY_HANDED = 'no component registry was handed (its caller hands the registry, or what loads it)';

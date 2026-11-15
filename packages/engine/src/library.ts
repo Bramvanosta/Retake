@@ -39,7 +39,7 @@ import type { LoadedTemplate } from '@retake/core/theme';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { ComponentRegistry, JsonSchemaNode } from '@retake/components/geometry';
 import type { PreviewSamples } from '@retake/editor/plan';
-import { components } from './components.js';
+import { componentCalls } from './registries/component-calls.js';
 import { EngineError } from './errors.js';
 import { previewMaking } from './render/editor-calls.js';
 import { NODE_THEME_HASHES } from './theme-files.js';
@@ -146,7 +146,7 @@ function fileSha(ctx: LibraryKeyContext, file: string): string {
 async function folderHashOf(ctx: LibraryKeyContext, id: string): Promise<string> {
   let h = ctx.folders.get(id);
   if (h === undefined) {
-    const [making, comps] = [await previewMaking(), await components()];
+    const [making, comps] = [await previewMaking(), await componentCalls()];
     const info = ctx.registry.get(id);
     h = await making.folderHash({ id, dir: info.dir, entry: info.entry, defaults: comps.paramDefaults(info.manifest.params as JsonSchemaNode | undefined) });
     ctx.folders.set(id, h);
@@ -156,7 +156,7 @@ async function folderHashOf(ctx: LibraryKeyContext, id: string): Promise<string>
 
 /** The key of a component's poster or loop in the context's theme (throws when the id is not in the registry). */
 export async function libraryPreviewKey(ctx: LibraryKeyContext, id: string, kind: LibraryPreviewKind): Promise<string> {
-  const [making, comps] = [await previewMaking(), await components()];
+  const [making, comps] = [await previewMaking(), await componentCalls()];
   const info = ctx.registry.get(id);
   const tpl = ctx.template;
   const url = (f: string) => `asset:${fileSha(ctx, f)}`;
@@ -304,7 +304,7 @@ function failureOk(m: unknown, key: string): m is LibraryFailure {
 
 /** The image cap of a kind (bytes). */
 async function imageCap(kind: LibraryPreviewKind): Promise<number> {
-  return kind === 'poster' ? (await components()).PREVIEW_MAX_BYTES : (await previewMaking()).loopFormat.max_bytes;
+  return kind === 'poster' ? (await componentCalls()).PREVIEW_MAX_BYTES : (await previewMaking()).loopFormat.max_bytes;
 }
 
 /** An entry's image bytes when it is a plain file of its kind (magic, cap), else null. */
@@ -535,8 +535,7 @@ export async function currentEntry(ctx: Pick<LibraryKeyContext, 'registryHash'>,
  * committed preview.png is the poster in the editorial starter while it is fresh (Q7, B15): a workspace component's own
  * preview.png is never used (who wrote it is unknown), nor a workspace override of a built-in id.
  */
-export async function libraryStates(ws: Pick<OpenedWorkspace, 'root'>, ctx: LibraryKeyContext, ids?: readonly string[]): Promise<LibraryStatesView> {
-  const comps = await components();
+export async function libraryStates(ws: Pick<OpenedWorkspace, 'root' | 'registries'>, ctx: LibraryKeyContext, ids?: readonly string[]): Promise<LibraryStatesView> {
   const dir = await plainLibraryCacheDir(ws);
   const editorial = isEditorialStarter(ctx.template);
   const list = ids ?? ctx.registry.list().map((i) => i.manifest.id);
@@ -548,7 +547,8 @@ export async function libraryStates(ws: Pick<OpenedWorkspace, 'root'>, ctx: Libr
     const pe = dir ? await currentEntry(ctx, dir, posterKey) : ({ state: 'missing' } as const);
     const le = dir ? await currentEntry(ctx, dir, loopKey) : ({ state: 'missing' } as const);
     let poster: LibraryItemState['poster'] = { key: posterKey, state: pe.state === 'too_large' ? 'missing' : pe.state, ...(pe.state === 'failed' ? { untrusted: { reason: pe.failure.reason } } : {}) };
-    if (poster.state !== 'cached' && editorial && info.source === 'builtin' && comps.previewStatus(info.dir, { theme: 'editorial' }).state === 'fresh') poster = { key: posterKey, state: 'committed' };
+    if (poster.state !== 'cached' && editorial && info.source === 'builtin' && (await ws.registries.catalogue.previewStatus(info.dir, { theme: 'editorial' })).state === 'fresh')
+      poster = { key: posterKey, state: 'committed' };
     items.push({ component: id, poster, loop: { key: loopKey, state: le.state, ...(le.state === 'failed' ? { untrusted: { reason: le.failure.reason } } : {}) } });
   }
   return { theme: { name: ctx.template.name, hash: ctx.themeHash, editorial_starter: editorial }, items };

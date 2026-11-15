@@ -285,7 +285,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
     let review;
     if (opts.review) {
       try {
-        review = await runReview(ui, global.ports.reviewer, { policy: ws.policy, project, render: record.record, quiet: opts.json });
+        review = await runReview(ui, global.ports.reviewer, { policy: ws.policy, registries: ws.registries, project, render: record.record, quiet: opts.json });
       } catch (e) {
         if (e instanceof Error && e.name === 'ReviewError') throw new CliError(`rendered ${record.id}, but the review failed: ${e.message}`);
         throw e;
@@ -330,6 +330,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
     ...(opts.theme ? { template: opts.theme } : {}),
     overrides,
     root: ws.root,
+    registry: (root) => ws.registries.load(root),
     measureMusic: false,
   });
   warnLatest(ui, run, { scenario, json: opts.json });

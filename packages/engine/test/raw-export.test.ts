@@ -29,6 +29,8 @@ import type { CaptureRaw } from '../src/capture/runner.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { openProjectBySlug } from '../src/projects.js';
 import { syntheticRunRecord } from '@retake/test-support/render';
+import { packageRegistries } from '../src/registries/package-registries.js';
+import { loadComponentRegistry } from '@retake/components';
 
 const REPO = fileURLToPath(new URL('../../..', import.meta.url));
 const FIXTURES = join(REPO, 'packages', 'editor', 'test', 'fixtures');
@@ -64,7 +66,7 @@ beforeAll(async () => {
   const dir = join(root, 'projects', 'film');
   await mkdir(join(dir, 'assets'), { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'name: Film\nenvironments:\n  local: {shop: "http://shop.example.test", console: "http://console.example.test"}\ntemplate: editorial\n');
-  ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+  ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
   project = await openProjectBySlug(ws, 'film');
   await runFolder(RUN, { timeline: (t) => t });
   await runFolder(DRY, { timeline: (t) => ({ ...t, mode: 'dry' }) });
@@ -188,7 +190,7 @@ describe('planOfRun', () => {
     await expect(planOfRun(ws, project, BARE, { trust: 'author' })).rejects.toThrow(`run ${BARE} has no timeline.json (${runDir(BARE)})`);
     const p = await planOfRun(ws, project, FILMLESS, { trust: 'author' });
     expect(p.plan.meta.run_id).toBe(FILMLESS);
-    await expect(planWork({ workPolicy: ws.policy, project, run: FILMLESS, root: ws.root, measureMusic: false })).rejects.toThrow(
+    await expect(planWork({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: ws.policy, project, run: FILMLESS, root: ws.root, measureMusic: false })).rejects.toThrow(
       `run ${FILMLESS} has no capture video (${runDir(FILMLESS)}/capture.mp4)`,
     );
   });

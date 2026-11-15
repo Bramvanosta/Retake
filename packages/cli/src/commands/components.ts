@@ -164,6 +164,8 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
         workPolicy: ws.policy,
         readmes: componentReadmes(ws, global.ports),
         root: ws.root,
+        // The registry as it is now, the new component in it (read here, where the preview loaded it before).
+        registry: await ws.registries.load(ws.root),
         template,
         targets: [{ id: created.manifest.id, dir: created.dir, entry: created.entry, manifest: created.manifest }],
       });

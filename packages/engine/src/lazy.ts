@@ -3,7 +3,8 @@
  * pays for them. Each adapter's loader is used in its home only (the import-rules ratchet's `loader-use`): `editor` in
  * render/ (the Renderer port's package adapter and the editor's other work: render/editor-calls.ts), `hooks` in
  * hook-run/ (the HookRunner port's package adapter), `review` and `thumbs` in review/ (the Reviewer's), `runnerWeb` in
- * capture/ (the CaptureRunner's), `sandbox` in sandboxes/ (the Sandboxes port's, L7.25).
+ * capture/ (the CaptureRunner's), `sandbox` in sandboxes/ (the Sandboxes port's, L7.25), `components` in registries/
+ * (the ComponentRegistries port's and the component calls beside it).
  */
 
 /** Lazy: @retake/editor pulls in Remotion's renderer and bundler (its planner and render records too). */
@@ -23,3 +24,6 @@ export const runnerWeb = () => import('@retake/runner-web');
 
 /** Lazy: @retake/sandbox pulls in the database driver (pg) and the process and docker-compose providers. */
 export const sandbox = () => import('@retake/sandbox');
+
+/** Lazy: @retake/components pulls in esbuild (a component's compile check) and the registry's readers. */
+export const components = () => import('@retake/components');

@@ -29,6 +29,7 @@ import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, ReviewJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
+import { registryLoader } from '../registries/registries.js';
 import { errorMessage } from '@retake/core/base';
 
 export interface ReviewRequest {
@@ -147,6 +148,7 @@ export async function executeReviewJob(ctx: ReviewJobContext): Promise<ReviewJob
     policy: ctx.ws.policy,
     project,
     render: record.id,
+    registry: registryLoader(ctx.ws.registries),
     fps: input.fps,
     previous,
     thumbnails: false,

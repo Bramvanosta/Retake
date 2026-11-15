@@ -26,6 +26,7 @@ import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 let root: string;
@@ -141,7 +142,7 @@ describe('theme view (L4.7)', () => {
   it("⚑ editable by real path (critique B15): starters, the repository's starters, links and hard links are read-only with why", async () => {
     expect((await engine.templates.view('motion')).editable).toEqual({ why: expect.stringMatching(/starter theme shipped with Retake: copy it to edit it/) });
     // The repository as a workspace lists its starters as `workspace` (templates_dir: templates): still not editable.
-    const repoWs = await openWorkspace({ root: REPO, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+    const repoWs = await openWorkspace({ root: REPO, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
     const rv = await themeEditView(repoWs, 'editorial', new ThemeEditMemos());
     expect(rv.source).toBe('workspace');
     expect(rv.editable).toEqual({ why: expect.stringMatching(/shipped with Retake \(its folder lies in the Retake package\)/) });

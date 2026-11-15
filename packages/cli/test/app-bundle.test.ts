@@ -137,7 +137,8 @@ describe('the render browser is checked before the asset server starts (review B
         registry: await loadComponentRegistry({ root: ws }),
         captureFile: '/captures/capture.mp4',
       });
-      const still = (workPolicy: WorkPolicy) => renderStills({ workPolicy, plan, frames: [{ frame: 0, out: join(ws, 'f.png') }], root: ws, cacheDir: join(ws, 'cache') });
+      const still = async (workPolicy: WorkPolicy) =>
+        renderStills({ registry: await loadComponentRegistry({ root: ws }), workPolicy, plan, frames: [{ frame: 0, out: join(ws, 'f.png') }], root: ws, cacheDir: join(ws, 'cache') });
       await expect(still(workPolicyFrom([ws]))).rejects.toThrow(/lies inside the workspace/);
       expect(servers.started).toBe(0);
       await expect(still(PERSON_POLICY)).rejects.toThrow();

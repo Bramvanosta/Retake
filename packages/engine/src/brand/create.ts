@@ -25,7 +25,8 @@ import { STARTER_TEMPLATES_DIR, nodeFileFacts } from '@retake/core/io';
 import type { NewThemeName } from '@retake/core/ids';
 import type { BrandFontRef, BrandInput, TemplateFile } from '@retake/core/theme';
 import type { Palette } from '@retake/components/geometry';
-import { components, workspaceRegistry } from '../components.js';
+import { workspaceRegistry } from '../components.js';
+import { componentCalls } from '../registries/component-calls.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
 import type { StoreScope } from '../store/store.js';
@@ -422,7 +423,7 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   const baseText = await readFile(join(base.dir, TEMPLATE_FILE), 'utf8');
   const baseFile = parseYaml(baseText).value as TemplateFile;
 
-  const lib = await components();
+  const lib = await componentCalls();
   const warnings: string[] = [];
   const budget = { left: BRAND_TOTAL_MAX_BYTES };
   const read = (ref: string, kind: 'logo' | 'wordmark' | 'font') => readBrandFile(ws, ref, kind, { trust: o.trust, ...(o.cwd ? { cwd: o.cwd } : {}), budget });

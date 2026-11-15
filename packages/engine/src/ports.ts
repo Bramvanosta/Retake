@@ -4,7 +4,7 @@
  * (`cli/src/workspace.ts` `cliEnginePorts`). `enginePorts` is the one place their defaults are written: nothing but
  * those roots calls it, nor names `systemClock`, `diskProjectStores`, `diskWorkspaceReads`, `packageHookRunner`,
  * `packageReviewer`, `runnerWebCapture`, `packageSandboxes`, `editorRenderer`, `systemSecrets`, `diskOutputs`,
- * `systemHosts` or `FileJobQueue` (the import-rules ratchet's `clock-read`, `store-new`, `workspace-read`,
+ * `systemHosts`, `packageRegistries` or `FileJobQueue` (the import-rules ratchet's `clock-read`, `store-new`, `workspace-read`,
  * `loader-use`, `output-read` and `queue` checks).
  */
 import { runnerWebCapture } from './capture/runner-web-capture.js';
@@ -26,6 +26,8 @@ import { systemSecrets } from './secrets/system-secrets.js';
 import type { Secrets } from './secrets/secrets.js';
 import { diskOutputs } from './outputs/disk-outputs.js';
 import type { Outputs } from './outputs/outputs.js';
+import { packageRegistries } from './registries/package-registries.js';
+import type { ComponentRegistries } from './registries/registries.js';
 import { diskProjectStores } from './store/project-store.js';
 import type { ProjectStores } from './store/store.js';
 import { systemHosts } from './host-lookup.js';
@@ -60,6 +62,8 @@ export interface EnginePorts {
   outputs: Outputs;
   /** What resolves a host name next to an IP literal when the workspace's protected hosts are checked (host-lookup.ts). */
   hosts: HostResolver;
+  /** What loads a workspace's component registry, the one the engine hands a plan, a render and a review (registries/registries.ts). */
+  registries: ComponentRegistries;
 }
 
 /** The product's queue: the file queue of the workspace's `.retake/jobs` (jobs/queue.ts). */
@@ -70,7 +74,8 @@ const fileJobQueues: JobQueues = (root, cli, clock, env) => {
 
 /**
  * The ports given, the product's adapters for the others: the system's clock, the disk's stores and reads, the hooks package and
- * the review package, the runner package, the file queue, the editor's renderer and the disk's outputs (none loaded before a member's
+ * the review package, the runner package, the file queue, the editor's renderer, the disk's outputs and the components package's
+ * registries (none loaded before a member's
  * first call or, for the runner, its `load()`).
  */
 export function enginePorts(given: Partial<EnginePorts> = {}): EnginePorts {
@@ -92,6 +97,7 @@ export function enginePorts(given: Partial<EnginePorts> = {}): EnginePorts {
     secrets,
     outputs: given.outputs ?? diskOutputs,
     hosts: given.hosts ?? systemHosts(),
+    registries: given.registries ?? packageRegistries(),
   };
 }
 
@@ -111,5 +117,6 @@ export function portsOf(from: EnginePorts): EnginePorts {
     secrets: from.secrets,
     outputs: from.outputs,
     hosts: from.hosts,
+    registries: from.registries,
   };
 }

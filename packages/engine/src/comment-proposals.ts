@@ -159,7 +159,7 @@ export async function checkProposedText(
   today: ScenarioText,
   text: string,
   stage: Stage,
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
+  o: { registry: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
 ): Promise<ValidationIssue[]> {
   let prepared: Awaited<ReturnType<typeof prepareScenarioEdit>>;
   try {
@@ -167,7 +167,7 @@ export async function checkProposedText(
       project,
       scenario,
       { hash: today.hash, edit: { kind: 'replace_text', text } },
-      { agent: true, via: 'studio', files: o.files, reads: o.reads, stores: o.stores, seen: o.seen, ...(o.registry ? { registry: o.registry } : {}) },
+      { agent: true, via: 'studio', files: o.files, reads: o.reads, stores: o.stores, seen: o.seen, registry: o.registry },
     );
   } catch (e) {
     throw restage(e, stage);
@@ -205,7 +205,7 @@ export async function buildProposal(
   project: LoadedProject,
   scenario: string,
   input: ProposalInput,
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
+  o: { registry: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
 ): Promise<BuiltProposal> {
   if (!input || typeof input !== 'object') throw invalid('a proposal is {scenario_yaml, scenario_hash}', 'proposal');
   const raw = input.scenario_yaml;

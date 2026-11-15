@@ -129,7 +129,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
   const agent = agentChecks(caller);
   const via = refusalChannel(caller);
   // Every caller but the CLI serves trust mcp in this process (the MCP server, the Studio server; tests: fail-safe).
-  const ws = await openWorkspace({ root: opts.root, agent: agentWorkspace(caller), reads: ports.reads, outputs: ports.outputs });
+  const ws = await openWorkspace({ root: opts.root, agent: agentWorkspace(caller), reads: ports.reads, outputs: ports.outputs, registries: ports.registries });
   // Every authored write of this engine goes through the project store, journaled as this caller's.
   const scope: StoreScope = { workspace: ws.root, caller, clock: ports.clock, stores: ports.stores };
   const project = (slug: string) => openProjectBySlug(ws, slug);

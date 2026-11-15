@@ -15,7 +15,8 @@ import type { StoredRunRecord, UnknownStatusRun } from '@retake/core/run';
 import type { NamedRenderFound } from '@retake/core/io';
 import { withPlan } from '@retake/editor/plan';
 import type { NamedRender, StoredRender } from '@retake/editor/plan';
-import { NOT_HANDED_PROJECT, isHandedProject } from './types.js';
+import type { RegistrySource } from '@retake/components/geometry';
+import { NOT_HANDED_PROJECT, NOT_HANDED_REGISTRY, isHandedProject, isHandedRegistry } from './types.js';
 
 /** A review that cannot start (message written for the user). */
 export class ReviewError extends Error {
@@ -38,6 +39,12 @@ export class ReviewError extends Error {
 export function handedProject(project: unknown): LoadedProject {
   if (!isHandedProject(project)) throw new ReviewError(NOT_HANDED_PROJECT);
   return project;
+}
+
+/** The registry source a review was handed (its caller's: a registry, or its loader); ReviewError NOT_HANDED_REGISTRY otherwise. */
+export function handedRegistry(source: unknown): RegistrySource {
+  if (!isHandedRegistry(source)) throw new ReviewError(NOT_HANDED_REGISTRY);
+  return source;
 }
 
 /** `<project>/renders`: where the project's renders and their records are. */

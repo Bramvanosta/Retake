@@ -30,8 +30,8 @@ export interface RenderRequestBase {
   workPolicy: WorkPolicy;
   /** Workspace root: where the bundle cache is (the caller's; a renderer never looks for one from the current folder). */
   root: string;
-  /** Where the plan's component implementations are found (default: the workspace's). */
-  registry?: ComponentRegistry;
+  /** Where the plan's component implementations are found (the planned run's): required, a renderer loads no registry by itself. */
+  registry: ComponentRegistry;
   /** Render settings over the process's. */
   settings?: RenderSettings;
   /** `guard`: the renderer loads only the request's own files (renders of the jobs worker); default `open`. */

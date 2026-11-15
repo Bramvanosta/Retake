@@ -41,6 +41,7 @@ import { synthTimeline } from '@retake/test-support/timeline';
 import { TEMPLATES } from '@retake/test-support/repo';
 import { syntheticRunRecord } from '@retake/test-support/render';
 import { scratchHome } from '@retake/test-support/home';
+import { loadComponentRegistry } from '@retake/components';
 
 const SCENARIO = 'steps';
 const RUN = '20260101-120000-steps';
@@ -219,7 +220,7 @@ describe('one renderer, and nothing beside it', () => {
   it("the options of the editor's own driver (a cache folder, a preview backend) are refused beside the renderer, which is asked nothing", async () => {
     const project = await openProject(engine.workspace, 'demo');
     const fake = new MemoryRenderer();
-    const planned = await planWork({ workPolicy: PERSON_POLICY, project, run: RUN, scenario: SCENARIO, root });
+    const planned = await planWork({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project, run: RUN, scenario: SCENARIO, root });
     const render = { renderer: fake, ws: engine.workspace, clock: systemClock, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, cacheDir: join(root, 'cache') };
     await expect(renderInProcess(render as never)).rejects.toThrow("render: cacheDir is an option of the editor's own renderer and cannot go with a renderer that is handed");
     const still = { renderer: fake, workPolicy: PERSON_POLICY, plan: planned.plan, frame: 0, out: join(root, 'stills', 'refused.png'), root, project, cacheDir: join(root, 'cache') };
@@ -234,9 +235,11 @@ describe('work in process on the renderer its caller hands', () => {
     const project = await openProject(engine.workspace, 'demo');
     const fake = new MemoryRenderer();
     const before = await historyLines();
-    const planned = await planWork({ workPolicy: PERSON_POLICY, project, run: RUN, scenario: SCENARIO, root });
+    const planned = await planWork({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project, run: RUN, scenario: SCENARIO, root });
     const out = join(root, 'stills', 'frame.png');
-    expect(await stillInProcess({ renderer: fake, workPolicy: PERSON_POLICY, plan: planned.plan, frame: 3, out, root, project, clock: systemClock })).toBe(out);
+    expect(
+      await stillInProcess({ registry: await loadComponentRegistry({ root }), renderer: fake, workPolicy: PERSON_POLICY, plan: planned.plan, frame: 3, out, root, project, clock: systemClock }),
+    ).toBe(out);
     expect(await readFile(out)).toEqual(MEMORY_PNG);
     const record = await renderInProcess({ renderer: fake, ws: engine.workspace, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, clock: systemClock });
     expect(record.status).toBe('succeeded');

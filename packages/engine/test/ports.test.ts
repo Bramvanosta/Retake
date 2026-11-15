@@ -24,6 +24,7 @@ import { systemClock } from '../src/clock.js';
 import type { Reviewer, Sandboxes } from '../src/index.js';
 import type { CaptureRunner, HookBrowser } from '../src/capture/runner.js';
 import type { HookRunner } from '../src/hook-run/runner.js';
+import type { ComponentRegistries } from '../src/registries/registries.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
 import * as lazy from '../src/lazy.js';
@@ -42,7 +43,7 @@ vi.mock('../src/lazy.js', async (actual) => {
       failing.next = undefined;
       return e ? Promise.reject(e) : (real[k] as (...x: unknown[]) => unknown)(...a);
     }) as (typeof real)[K];
-  return { editor: spy('editor'), review: spy('review'), thumbs: spy('thumbs'), hooks: spy('hooks'), runnerWeb: spy('runnerWeb'), sandbox: spy('sandbox') };
+  return { editor: spy('editor'), review: spy('review'), thumbs: spy('thumbs'), hooks: spy('hooks'), runnerWeb: spy('runnerWeb'), sandbox: spy('sandbox'), components: spy('components') };
 });
 
 const dir = await mkdtemp(join(tmpdir(), 'retake-ports-'));
@@ -52,11 +53,12 @@ beforeEach(() => void calls.splice(0));
 describe('the ports bag: the hook runner and the reviewer', () => {
   it('defaults to the package adapters and keeps the ones handed; making them loads nothing', () => {
     const p = enginePorts();
-    expect(Object.keys(p).sort()).toEqual(['capture', 'clock', 'env', 'hooks', 'hosts', 'outputs', 'queues', 'reads', 'renderer', 'reviewer', 'sandboxes', 'secrets', 'stores']);
+    expect(Object.keys(p).sort()).toEqual(['capture', 'clock', 'env', 'hooks', 'hosts', 'outputs', 'queues', 'reads', 'registries', 'renderer', 'reviewer', 'sandboxes', 'secrets', 'stores']);
     // The environment is this process's; the queue, the renderer and the secrets are the product's, made lazily.
     expect(p.env).toBe(process.env);
     expect([typeof p.queues, typeof p.renderer.video, typeof p.secrets.resolve]).toEqual(['function', 'function', 'function']);
     expect(typeof p.sandboxes.open).toBe('function');
+    expect(typeof p.registries.load).toBe('function');
     expect(typeof p.capture.run).toBe('function');
     expect(typeof p.hooks.run).toBe('function');
     expect(typeof p.reviewer.frames.thumb).toBe('function');
@@ -65,8 +67,10 @@ describe('the ports bag: the hook runner and the reviewer', () => {
     const reviewer = { marker: 'reviewer' } as unknown as Reviewer;
     const capture = { marker: 'capture' } as unknown as CaptureRunner;
     const sandboxes = { marker: 'sandboxes' } as unknown as Sandboxes;
-    const given = enginePorts({ hooks, reviewer, capture, sandboxes });
+    const registries = { marker: 'registries' } as unknown as ComponentRegistries;
+    const given = enginePorts({ hooks, reviewer, capture, sandboxes, registries });
     expect(given.sandboxes).toBe(sandboxes);
+    expect(given.registries).toBe(registries);
     expect(given.hooks).toBe(hooks);
     expect(given.reviewer).toBe(reviewer);
     expect(given.capture).toBe(capture);

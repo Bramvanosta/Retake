@@ -38,6 +38,7 @@ import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { oneButtonPress } from './recorded-events.js';
 import { scratchHome } from '@retake/test-support/home';
 import { FAST } from '@retake/test-support/capture';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 type Page = Parameters<NonNullable<RecordPorts['drive']>>[0];
 
@@ -76,7 +77,7 @@ beforeAll(async () => {
   await writeFile(join(projectDir, 'project.yaml'), `${yaml.trimEnd()}\npacing: ${JSON.stringify(FAST)}\n`);
   csv = join(root, 'prices.csv');
   await writeFile(csv, 'lot,price\nA,10\n');
-  ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+  ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
 }, 120_000);
 
 afterAll(async () => {

@@ -25,11 +25,13 @@ import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { RenderVideoRequest, RenderVideoResult, Renderer } from '../src/render/renderer.js';
 import { versionLockFile } from '../src/render/versions.js';
 import { exportWork, renderWork } from '../src/render/work.js';
+import { loadComponentRegistry } from '@retake/components';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 let root: string;
 let project: LoadedProject;
 /** Where the renders here go (the disk's outputs and reads) and what stamps their records. */
-const place = { ws: { outputs: diskOutputs, reads: diskWorkspaceReads }, clock: systemClock };
+const place = { ws: { outputs: diskOutputs, reads: diskWorkspaceReads, registries: packageRegistries() }, clock: systemClock };
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-render-use-case-'));
@@ -117,7 +119,7 @@ describe('renderVideo on a driver handed to it', () => {
   });
 
   it("keeps the driver's probe and warns when the file does not last what the plan says", async () => {
-    const { plan } = await planRun({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
+    const { plan } = await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
     const probe = { duration_s: plan.durationInFrames / plan.fps + 1, width: plan.width, height: plan.height, fps: plan.fps, audio_streams: 1 };
     const record = await renderWork({ ...place, workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ probe }) });
     expect(record.probe).toEqual(probe);
@@ -199,7 +201,7 @@ describe("a renderer named in the options and not handed, or handed beside the o
     for (const renderer of [undefined, null, {}, { video: 'not a function' }]) {
       expect(await refusal(renderWork(loose({ ...base, renderer })))).toBe('render: no renderer was handed to the engine');
     }
-    const { timeline, plan } = await planRun({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
+    const { timeline, plan } = await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
     const lock = versionLockFile(join(root, 'projects', 'demo', 'renders'), timeline.scenario, 41);
     await mkdir(dirname(lock), { recursive: true });
     await writeFile(lock, '');

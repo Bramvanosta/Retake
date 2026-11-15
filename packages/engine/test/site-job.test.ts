@@ -45,6 +45,7 @@ import { emptySiteReport, memorySite } from '../src/capture/memory-sessions.js';
 import { BRAND_SITE_COLORS, drawPng, hasOpenssl, startBrandSite } from '@retake/test-support/site';
 import type { BrandSite } from '@retake/test-support/site';
 import { scratchHome } from '@retake/test-support/home';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 const can = hasOpenssl();
 let site: BrandSite;
@@ -82,7 +83,7 @@ beforeAll(async () => {
   await mkdir(join(root, 'projects', 'demo', 'scenarios'), { recursive: true });
   // cdn.test is a page of an environment here: never extracted as a site.
   await writeFile(join(root, 'projects', 'demo', 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "https://cdn.test/app"}\n');
-  ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs };
+  ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() };
   engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
 }, 60_000);
 
@@ -188,7 +189,7 @@ describe('site jobs without any network', () => {
       await writeFile(join(ws2root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
       await mkdir(join(ws2root, '.retake'), { recursive: true });
       await symlink(other, join(ws2root, '.retake', 'site'));
-      const ws2 = { ...(await loadWorkspaceConfig(ws2root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs };
+      const ws2 = { ...(await loadWorkspaceConfig(ws2root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() };
       await expect(makeSiteDir(ws2, newSiteId())).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(/is not a folder \(a link or a file\)/) });
       expect(await readdir(other)).toEqual([]);
       // Pruning never goes through the link either.

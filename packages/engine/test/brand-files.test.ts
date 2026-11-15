@@ -18,6 +18,7 @@ import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import { fontFileFace } from '@retake/components';
 import { PERSON_POLICY } from '@retake/core';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 let root: string;
 let outside: string;
@@ -53,7 +54,7 @@ beforeAll(async () => {
   await symlink(join(root, 'projects', 'demo', 'runs', '20261019-1-quote', 'logo.svg'), join(root, 'brand', 'run-link.svg'));
   await symlink(join(root, '.retake', 'site', 's1', 'logo-1.png'), join(root, 'brand', 'site-link.png'));
   await mkdir(join(root, 'brand', 'folder.svg'));
-  ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs };
+  ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() };
 });
 
 afterAll(async () => {

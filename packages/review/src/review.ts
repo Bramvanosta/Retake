@@ -10,7 +10,6 @@ import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
-import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import { printableText, bestEffort, errorMessage } from '@retake/core/base';
 import type { EditPlan } from '@retake/editor/plan';
@@ -42,7 +41,7 @@ import type { CheckContext } from './checks.js';
 import { diffFindings, diffRecords, framePairs } from './diff.js';
 import { extractFrames, probeVideo } from './ffmpeg.js';
 import { fontFileMeasurer } from './fonts.js';
-import { ReviewError, findPrevious, handedProject, locateRender, renderRun, renderTimeline, reviewsDir } from './load.js';
+import { ReviewError, findPrevious, handedProject, handedRegistry, locateRender, renderRun, renderTimeline, reviewsDir } from './load.js';
 import { checkPixels, sourceFramesAtStarts, sourceKey, stillPair, stillSourceFrames } from './pixel-checks.js';
 import type { FrameAnalysis } from './pixel-checks.js';
 import type { RegionStats, RgbImage } from './pixels.js';
@@ -170,6 +169,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   check();
   progress({ stage: 'loading' });
   const project = handedProject(opts.project);
+  const source = handedRegistry(opts.registry);
   const found = await locateRender(project, opts.render, opts.scenario);
   const record = found.record;
   // The name of its folder of review/ (never an empty name or a path: an id written by hand is any text).
@@ -183,10 +183,10 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   const thumbPx = Math.max(64, Math.min(1280, Math.round(opts.thumbnail_px ?? 1280)));
   const notes: Finding[] = [];
 
-  let registry: ComponentRegistry | undefined = opts.registry;
-  if (!registry) {
+  let registry: ComponentRegistry | undefined = typeof source === 'function' ? undefined : source;
+  if (typeof source === 'function') {
     try {
-      registry = await loadComponentRegistry({ root: project.root });
+      registry = await source(project.root);
     } catch (e) {
       notes.push({ severity: 'info', code: 'registry-unavailable', message: `component registry not loaded (${errorMessage(e)}): text slot limits not checked` });
     }

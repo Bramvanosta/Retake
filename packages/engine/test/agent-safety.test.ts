@@ -26,6 +26,7 @@ import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine } from '../src/index.js';
 import type { HostResolver } from '../src/protected-hosts.js';
 import { scratchHome } from '@retake/test-support/home';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 /** The MCP engine's host resolver (its ports' `hosts`): the system's, or the one a test puts in with useHosts. */
 let resolver: HostResolver = systemHosts();
@@ -137,7 +138,7 @@ describe('secrets: a scenario written or run through MCP never names one', () =>
     await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), leak);
     try {
       const input = sub.job.input as HooksJobInput;
-      const wsc = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+      const wsc = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
       const exec = (i: HooksJobInput) => refusal(executeHooksJob({ ...enginePorts(), ws: wsc, cli: 'retake', input: i, signal: new AbortController().signal, event: () => undefined }));
       // Other bytes than submitted: a conflict before they are parsed.
       expect((await exec(input)).code).toBe('conflict');
@@ -224,7 +225,7 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
       const input = { ...(sub.job.input as RunJobInput), scenario_sha256: sha256Hex(swapped) };
       const out = await executeRunJob({
         ...enginePorts(),
-        ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs }),
+        ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() }),
         cli: 'retake',
         input,
         signal: new AbortController().signal,

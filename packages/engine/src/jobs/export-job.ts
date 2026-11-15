@@ -32,6 +32,7 @@ import type { SubmitContext } from './run-job.js';
 import type { ExportJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
+import { registryLoader } from '../registries/registries.js';
 import { errorMessage } from '@retake/core/base';
 
 /** Formats exported when none are named (derived from the master: no re-render): core's one list. */
@@ -103,6 +104,7 @@ export async function submitExportJob(
         template: await exporting.themeRef(project, record, { trust: ENGINE_TRUST }),
         overrides: record.overrides,
         root: ctx.ws.root,
+        registry: registryLoader(ctx.ws.registries),
         trust: ENGINE_TRUST,
         measureMusic: false,
         ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }),

@@ -6,7 +6,8 @@
  * Inputs are ids ("namespace/name"), never folders. Nothing here writes component code: `componentCreate` writes the
  * tool's own scaffold, refuses the built-in namespace and any built-in id (a workspace component of that id would
  * replace the built-in in every render), and renders no preview (component_preview does, into .retake/previews/).
- * The components package (esbuild) is imported lazily.
+ * The registry comes from the workspace's ComponentRegistries port; the components package's other work (esbuild)
+ * from its calls (registries/component-calls.ts), loaded on the first call.
  *
  * The shell forms (L7.24, the CLI's `retake components`): a person at a terminal names a component by id or by folder,
  * may scaffold over a built-in id (the CLI warns), renders previews into the component's own folder (preview.png +
@@ -27,12 +28,12 @@ import type { ComponentInfo, ComponentManifest, ComponentRegistry, ComponentSour
 import type { PreviewComponentTarget, PreviewReadmeWriter } from '@retake/editor/plan';
 import { EngineError, toEngineError } from './errors.js';
 import { previewThemeOf } from './render/editor-calls.js';
+import { componentCalls } from './registries/component-calls.js';
+import { registryLoader } from './registries/registries.js';
+import type { ComponentCatalogue } from './registries/registries.js';
 import { fileWriter } from './store/project-store.js';
 import type { StoreScope } from './store/store.js';
 import type { OpenedWorkspace } from './workspace.js';
-
-/** Lazy: @retake/components pulls in esbuild (compile checks). */
-export const components = () => import('@retake/components');
 
 /** Longest README text component_get returns. */
 const README_MAX = 8000;
@@ -49,10 +50,15 @@ export function checkComponentKind(kind: string): ComponentKind {
   return kind as ComponentKind;
 }
 
-/** The registry of a workspace (its components/ folder, then the built-in library). */
-export async function workspaceRegistry(ws: OpenedWorkspace): Promise<ComponentRegistry> {
-  const c = await components();
-  return c.loadComponentRegistry({ root: ws.root });
+/** The registry of a workspace (its components/ folder, then the built-in library), loaded by its ComponentRegistries port. */
+export async function workspaceRegistry(ws: Pick<OpenedWorkspace, 'root' | 'registries'>): Promise<ComponentRegistry> {
+  return registryLoader(ws.registries)(ws.root);
+}
+
+/** The catalogue's disk work of a workspace (its ComponentRegistries port): validate, scaffold, preview status, source files. */
+function catalogueOf(ws: Pick<OpenedWorkspace, 'registries'>): ComponentCatalogue {
+  registryLoader(ws.registries);
+  return ws.registries.catalogue;
 }
 
 export interface ComponentSummary {
@@ -80,8 +86,8 @@ export interface ComponentListView {
   notices: Array<{ severity: 'warning' | 'error'; message: string; id?: string; dir: string; issues: number }>;
 }
 
-async function summary(c: ComponentInfo): Promise<ComponentSummary> {
-  const lib = await components();
+async function summary(catalogue: ComponentCatalogue, c: ComponentInfo): Promise<ComponentSummary> {
+  const lib = await componentCalls();
   const m = c.manifest;
   const preview = join(c.dir, lib.PREVIEW_FILE);
   return {
@@ -95,7 +101,7 @@ async function summary(c: ComponentInfo): Promise<ComponentSummary> {
     dir: c.dir,
     slots: Object.keys(m.slots),
     ...(existsSync(preview) ? { preview } : {}),
-    preview_status: lib.previewStatus(c.dir).state,
+    preview_status: (await catalogue.previewStatus(c.dir)).state,
     ...(m.tags?.length ? { tags: m.tags } : {}),
   };
 }
@@ -152,7 +158,7 @@ export async function componentList(ws: OpenedWorkspace, kind?: string): Promise
   return {
     components_dir: reg.componentsDir,
     ...(reg.builtinDir ? { builtin_dir: reg.builtinDir } : {}),
-    components: await Promise.all(list.map(summary)),
+    components: await Promise.all(list.map((c) => summary(catalogueOf(ws), c))),
     notices: reg.notices.map((n) => ({ severity: n.severity, message: n.message, ...(n.id ? { id: n.id } : {}), dir: n.dir, issues: n.issues?.length ?? 0 })),
   };
 }
@@ -165,7 +171,7 @@ export async function componentListEntries(ws: OpenedWorkspace, kind?: Component
   const k = kind === undefined ? undefined : checkComponentKind(kind);
   const reg = await workspaceRegistry(ws);
   const list = reg.list(k);
-  const lib = await components();
+  const lib = await componentCalls();
   return {
     components_dir: reg.componentsDir,
     ...(reg.builtinDir ? { builtin_dir: reg.builtinDir } : {}),
@@ -208,7 +214,7 @@ export interface ComponentView extends ComponentSummary {
 /** One component: its manifest, files and README. */
 export async function componentGet(ws: OpenedWorkspace, id: string): Promise<ComponentView> {
   checkComponentId(id);
-  const lib = await components();
+  const lib = await componentCalls();
   const reg = await workspaceRegistry(ws);
   let info: ComponentInfo;
   try {
@@ -225,11 +231,11 @@ export async function componentGet(ws: OpenedWorkspace, id: string): Promise<Com
     readme = undefined;
   }
   return {
-    ...(await summary(info)),
+    ...(await summary(catalogueOf(ws), info)),
     entry: info.entry,
     manifest: m,
     param_defaults: lib.paramDefaults(m.params as Parameters<typeof lib.paramDefaults>[0]),
-    files: lib.componentSourceFiles(info.dir, m),
+    files: await catalogueOf(ws).sourceFiles(info.dir, m),
     ...(readme !== undefined ? { readme } : {}),
     ...(info.source === 'workspace' && reg.notices.some((n) => n.id === id && n.severity === 'warning' && /overrides/.test(n.message)) ? { overrides_builtin: true as const } : {}),
   };
@@ -296,12 +302,11 @@ function workspaceFolders(reg: ComponentRegistry): Array<{ id: string; dir: stri
  * workspace component (`workspace`); the registry's own refusals.
  */
 export async function componentValidateShell(ws: OpenedWorkspace, target: ComponentRef | { workspace: true }): Promise<ComponentValidationsView> {
-  const lib = await components();
   const reg = await workspaceRegistry(ws);
   const folders = 'workspace' in target ? workspaceFolders(reg) : [folderOf(reg, target)];
   const out: ComponentValidationsView['components'] = [];
   for (const t of folders) {
-    const v = await lib.validateComponentDir(t.dir);
+    const v = await catalogueOf(ws).validate(t.dir);
     out.push({ id: v.manifest?.id ?? t.id, dir: v.dir, ok: v.ok, issues: v.issues });
   }
   return { components_dir: reg.componentsDir, components: out };
@@ -310,7 +315,6 @@ export async function componentValidateShell(ws: OpenedWorkspace, target: Compon
 /** Validate one component of the registry — a valid one, or one the registry found invalid — by id. */
 export async function componentValidate(ws: OpenedWorkspace, id: string): Promise<ComponentValidationView> {
   checkComponentId(id);
-  const lib = await components();
   const reg = await workspaceRegistry(ws);
   let dir: string;
   if (reg.has(id)) dir = reg.get(id).dir;
@@ -326,7 +330,7 @@ export async function componentValidate(ws: OpenedWorkspace, id: string): Promis
     }
     dir = broken.dir;
   }
-  const v = await lib.validateComponentDir(dir);
+  const v = await catalogueOf(ws).validate(dir);
   return {
     id,
     dir: v.dir,
@@ -367,8 +371,7 @@ export interface ComponentCreatedByShell extends Omit<ComponentCreated, 'issues'
  * scaffold checks the id and kind itself, and its refusals are its own.
  */
 export async function componentCreateShell(ws: OpenedWorkspace, req: ComponentCreateRequest & { kind: ComponentKind }, scope: StoreScope): Promise<ComponentCreatedByShell> {
-  const lib = await components();
-  const created = await lib.createComponent(ws.root, {
+  const created = await catalogueOf(ws).create(ws.root, {
     id: req.id,
     kind: req.kind,
     description: req.description,
@@ -394,9 +397,8 @@ export async function componentCreateShell(ws: OpenedWorkspace, req: ComponentCr
 export async function componentCreate(ws: OpenedWorkspace, req: ComponentCreateRequest, scope: StoreScope): Promise<ComponentCreated> {
   checkComponentId(req.id);
   const kind = checkComponentKind(req.kind);
-  const lib = await components();
   try {
-    const created = await lib.createComponent(ws.root, {
+    const created = await catalogueOf(ws).create(ws.root, {
       id: req.id,
       kind,
       ...(req.description !== undefined ? { description: req.description } : {}),
@@ -439,8 +441,8 @@ export type PreviewSelection = { ref: ComponentRef } | { all: true; workspaceOnl
 export type PreviewTargetsView = { theme: string; registry: ComponentRegistry; targets: PreviewComponentTarget[] } | { invalid: { id: string; dir: string; issues: ComponentFileIssue[] } };
 
 /** A component folder validated, as a preview target when it has a manifest (`ok`: whether it validates). */
-async function targetOfDir(lib: Awaited<ReturnType<typeof components>>, dir: string): Promise<{ target?: PreviewComponentTarget; ok: boolean; issues: ComponentFileIssue[]; dir: string }> {
-  const v = await lib.validateComponentDir(dir);
+async function targetOfDir(catalogue: ComponentCatalogue, dir: string): Promise<{ target?: PreviewComponentTarget; ok: boolean; issues: ComponentFileIssue[]; dir: string }> {
+  const v = await catalogue.validate(dir);
   const target = v.manifest ? { id: v.manifest.id, dir: v.dir, entry: join(v.dir, v.manifest.entry ?? 'index.tsx'), manifest: v.manifest } : undefined;
   return { ...(target ? { target } : {}), ok: v.ok, issues: v.issues, dir: v.dir };
 }
@@ -452,13 +454,13 @@ async function targetOfDir(lib: Awaited<ReturnType<typeof components>>, dir: str
  * those whose preview is missing or out of date for the theme (`theme`, default the previews' own).
  */
 export async function componentPreviewTargets(ws: OpenedWorkspace, sel: PreviewSelection, opts: { theme?: string; stale?: boolean } = {}): Promise<PreviewTargetsView> {
-  const lib = await components();
+  const lib = await componentCalls();
   const reg = await workspaceRegistry(ws);
   let targets: PreviewComponentTarget[];
   if ('ref' in sel) {
     const scaffold = /^scaffolds\/([a-z]+)$/.exec(sel.ref.ref);
     const t = scaffold && (COMPONENT_KINDS as readonly string[]).includes(scaffold[1]) ? { id: sel.ref.ref, dir: lib.scaffoldDir(scaffold[1] as ComponentKind) } : folderOf(reg, sel.ref);
-    const v = await targetOfDir(lib, t.dir);
+    const v = await targetOfDir(catalogueOf(ws), t.dir);
     if (!v.ok || !v.target) return { invalid: { id: t.id, dir: v.dir, issues: v.issues } };
     targets = [v.target];
   } else {
@@ -469,18 +471,22 @@ export async function componentPreviewTargets(ws: OpenedWorkspace, sel: PreviewS
     if (!sel.workspaceOnly) {
       for (const kind of COMPONENT_KINDS) {
         // A scaffold is rendered when it has a manifest (as before L7.24: its own validation is the scaffolds' test).
-        const v = await targetOfDir(lib, lib.scaffoldDir(kind));
+        const v = await targetOfDir(catalogueOf(ws), lib.scaffoldDir(kind));
         if (v.target) targets.push(v.target);
       }
     }
   }
   const theme = opts.theme ?? lib.PREVIEW_THEME;
-  if (opts.stale) targets = targets.filter((t) => lib.previewStatus(t.dir, { theme }).state !== 'fresh');
+  if (opts.stale) {
+    const catalogue = catalogueOf(ws);
+    const states = await Promise.all(targets.map(async (t) => (await catalogue.previewStatus(t.dir, { theme })).state));
+    targets = targets.filter((_, i) => states[i] !== 'fresh');
+  }
   return { theme, registry: reg, targets };
 }
 
 /** The theme a shell's previews are rendered with (a name or a folder; default the previews' own), read with the workspace's file facts. */
 export async function componentPreviewTheme(ws: OpenedWorkspace, name?: string): Promise<{ theme: string; template: LoadedTemplate }> {
-  const theme = name ?? (await components()).PREVIEW_THEME;
+  const theme = name ?? (await componentCalls()).PREVIEW_THEME;
   return { theme, template: await previewThemeOf(theme, ws.root, ws.reads.fileFacts(ws.policy)) };
 }

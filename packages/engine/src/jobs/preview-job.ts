@@ -28,7 +28,8 @@ import type { PreviewJobInput } from './job-input.js';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { BrowserProcessInfo, LoopItem, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor/plan';
 import { stampOf } from '../clock.js';
-import { checkComponentId, components, workspaceRegistry } from '../components.js';
+import { checkComponentId, workspaceRegistry } from '../components.js';
+import { componentCalls } from '../registries/component-calls.js';
 import { EngineError, toEngineError } from '../errors.js';
 import {
   LIBRARY_FILES,
@@ -117,7 +118,7 @@ export async function libraryStatesOf(ws: OpenedWorkspace, req: { project: strin
 /** Check a preview's input and build its targets (submit, and again in the worker). EngineError invalid / refused / not_found. */
 async function preparePreview(ws: OpenedWorkspace, req: Pick<PreviewJobInput, 'project' | 'template' | 'target'>): Promise<PreparedPreview> {
   const { template, registry } = await previewTheme(ws, req);
-  const lib = await components();
+  const lib = await componentCalls();
   const targets: PreviewComponentTarget[] = [];
   const skipped: ComponentKind[] = [];
   const t = req.target;

@@ -554,6 +554,35 @@ describe('the import-rules ratchet', () => {
       expect(entries.filter((e) => e.startsWith('R11 ') && e.includes('@retake/sandbox'))).toEqual([]);
     });
 
+    it('the ComponentRegistries port: its loader in registries/ only, its adapter named at its roots only, its port file on the geometry entry; no registry load is left to an adapter', () => {
+      expect(lib.LOADER_HOMES.components).toBe('packages/engine/src/registries/');
+      expect(loaders('packages/engine/src/registries/package-registries.ts', "import { components } from '../lazy.js';\nawait components();")).toEqual([]);
+      expect(loaders('packages/engine/src/components.ts', "import { components } from './lazy.js';\nawait components();")).toEqual(['loader-use packages/engine/src/components.ts → components']);
+      expect(loaders('packages/engine/src/registries/x.ts', "export { components } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/registries/x.ts → components re-exported']);
+      // A port's own file is no home: it names no adapter, its loader included (every port's: the sandbox's too).
+      expect(loaders('packages/engine/src/registries/registries.ts', "import { components } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/registries/registries.ts → components']);
+      expect(loaders('packages/engine/src/sandboxes/sandboxes.ts', "import { sandbox } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/sandboxes/sandboxes.ts → sandbox']);
+      expect(lib.PORT_ROOTS.packageRegistries).toEqual(['packages/engine/src/registries/package-registries.ts', 'packages/engine/src/ports.ts']);
+      expect(lib.PORT_ROOT_RULE.packageRegistries).toBe('loader-use');
+      for (const root of lib.PORT_ROOTS.packageRegistries) expect(ports(root, 'f(packageRegistries());'), root).toEqual([]);
+      expect(ports('packages/engine/src/templates.ts', "import { packageRegistries } from './registries/package-registries.js';\nconst r = packageRegistries();")).toEqual([
+        'loader-use packages/engine/src/templates.ts → packageRegistries outside a root',
+      ]);
+      const port = 'packages/engine/src/registries/registries.ts';
+      expect(lib.PORT_FILES).toContain(port);
+      expect(lib.engineLayerOf(port)?.layer).toBe('ports');
+      expect(lib.engineLayerOf('packages/engine/src/registries/package-registries.ts')?.layer).toBe('adapters');
+      const at = (fileImports: Record<string, readonly string[]>): string[] => lib.portTypeHits(fileImports).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
+      expect(at({ [port]: ['@retake/components/geometry', '../errors.js'] })).toEqual([]);
+      expect(at({ [port]: ['@retake/components'] })).toEqual([`port-types ${port} → @retake/components`]);
+      // The engine names the components package in its loader and its registries home only (R11 holds no pair), and the
+      // editor's plan and render and the review load no registry by themselves (no R14 pair of theirs on the package).
+      const entries = ratchetOfRepo();
+      expect(entries.filter((e) => e.startsWith('R11 '))).toEqual([]);
+      const loads = ['packages/editor/src/render/plan-run.ts', 'packages/editor/src/render/render.ts', 'packages/review/src/review.ts'];
+      expect(entries.filter((e) => e.startsWith('R14 ') && loads.some((f) => e.startsWith(`R14 ${f} `)))).toEqual([]);
+    });
+
     it("holds today: the new ports name no adapter, and the loaders left outside their homes are the review loader's, pinned", () => {
       const entries = ratchetOfRepo();
       expect(entries.filter((e) => e.startsWith('port-types ')).filter((e) => !e.startsWith('port-types packages/engine/src/render/renderer.ts '))).toEqual([]);
@@ -1515,6 +1544,7 @@ describe('the import-rules ratchet', () => {
       'packages/engine/src/review/',
       'packages/engine/src/capture/',
       'packages/engine/src/sandboxes/',
+      'packages/engine/src/registries/',
     ]);
     // R11 is a rule of the list, with no loader check of its own (R9 owns the loaders of these files).
     const r11 = (lib.RULES as { id: string; typeOnlyCheck?: unknown; loaders?: boolean }[]).find((r) => r.id === 'R11')!;
@@ -1753,7 +1783,7 @@ describe('the import-rules ratchet', () => {
     // The file is exempt from R9 and R11 whole: a static `export * from '@retake/sandbox'` there would hand every engine
     // file the adapter's values through `./lazy.js`, unseen. What it loads, it loads inside a function.
     expect([...uses.statics]).toEqual([]);
-    expect([...uses.values].sort()).toEqual(['@retake/editor', '@retake/hooks', '@retake/review', '@retake/review/thumbs', '@retake/runner-web', '@retake/sandbox']);
+    expect([...uses.values].sort()).toEqual(['@retake/components', '@retake/editor', '@retake/hooks', '@retake/review', '@retake/review/thumbs', '@retake/runner-web', '@retake/sandbox']);
     // What `statics` reads, on the forms: a declaration is static, a call is not, a type loads nothing.
     const staticsOf = (text: string): string[] => [...(lib.moduleUses(ts, loader, text) as { statics: Set<string> }).statics];
     for (const text of [

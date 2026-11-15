@@ -224,7 +224,14 @@ export async function commentReplyCommand(ui: Ui, global: GlobalOptions, project
     ui,
     'replied to',
     await engineCall(() =>
-      replyComment(project, id, text, by, { scope: personScope(project.root, global.ports), renders: ws.outputs.renders, files: fileFacts(ws.policy), reads: ws.reads, seen: undefined }),
+      replyComment(project, id, text, by, {
+        scope: personScope(project.root, global.ports),
+        renders: ws.outputs.renders,
+        files: fileFacts(ws.policy),
+        reads: ws.reads,
+        registry: () => ws.registries.load(ws.root),
+        seen: undefined,
+      }),
     ),
     opts.json,
   );

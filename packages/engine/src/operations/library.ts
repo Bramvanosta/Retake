@@ -37,7 +37,7 @@ import { COMPONENT_ID_RE } from '@retake/core/model';
 import { zThemeName } from '@retake/core/ids';
 import { PROJECT_SLUG_RE } from '@retake/core/project';
 import { LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE } from '../jobs/job-input.js';
-import { components } from '../components.js';
+import { componentCalls } from '../registries/component-calls.js';
 import type { Engine } from '../engine.js';
 import { EngineError } from '../errors.js';
 import { libraryCacheDir, readBuiltinPreview, readLibraryImage, statSignature } from '../library.js';
@@ -342,7 +342,7 @@ export const libraryImages = defineOperation({
       out.images.push({ key: k, component: img.component, kind: img.kind, format: img.kind === 'poster' ? 'png' : 'gif', data });
     }
     if (a.committed?.length) {
-      const { PREVIEW_FILE, PREVIEW_MAX_BYTES } = await components();
+      const { PREVIEW_FILE, PREVIEW_MAX_BYTES } = await componentCalls();
       const reg = await engine.components.registry();
       for (const id of [...new Set(a.committed)]) {
         // A built-in only (B15): a workspace component of that id (an override) never shows the built-in's picture.
@@ -497,7 +497,7 @@ const DETAIL_ROWS_MAX = 64;
 
 /** engine components.get → the library's detail: no dir, entry or file list; every manifest word under untrusted, path-free. */
 export async function componentAnswer(c: Awaited<ReturnType<Engine['components']['get']>>, root: string): Promise<LibraryComponentAnswer> {
-  const { KIT_API_VERSION, kitMajorOf } = await components();
+  const { KIT_API_VERSION, kitMajorOf } = await componentCalls();
   const m = c.manifest;
   const free = (s: string) => pathFree(s, root);
   const needs = kitMajorOf(m);

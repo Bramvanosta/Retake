@@ -9,15 +9,16 @@ import { loadProject } from '@retake/core/io';
 import { planRun } from '@retake/editor';
 import { renderPlan } from '../../src/render/render.js';
 import type { RenderNetwork } from '../../src/render/render.js';
+import { loadComponentRegistry } from '@retake/components';
 
 process.on('unhandledRejection', (e) => {
   if ((e as NodeJS.ErrnoException)?.code !== 'EPIPE') throw e;
 });
 const [root, component, network, out, cacheDir] = process.argv.slice(2);
 const project = await loadProject('demo', root);
-const planned = await planRun({ workPolicy: PERSON_POLICY, project, run: 'latest', root, overrides: { intro: true, components: { intro: component } } });
+const planned = await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project, run: 'latest', root, overrides: { intro: true, components: { intro: component } } });
 try {
-  const res = await renderPlan({ workPolicy: PERSON_POLICY, plan: planned.plan, out, root, cacheDir, network: network as RenderNetwork, frameRange: [0, 5], concurrency: 2 });
+  const res = await renderPlan({ workPolicy: PERSON_POLICY, plan: planned.plan, registry: planned.registry, out, root, cacheDir, network: network as RenderNetwork, frameRange: [0, 5], concurrency: 2 });
   process.stdout.write(`${JSON.stringify({ ok: true, warnings: res.warnings })}\n`);
 } catch (e) {
   process.stdout.write(`${JSON.stringify({ ok: false, error: (e as Error).message, warnings: [] })}\n`);

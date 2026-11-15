@@ -1,6 +1,6 @@
 import type { Finding, ReviewProgress } from '@retake/review/checks';
 import { environmentLine, findRenderOf, findingLine, reviewWork, summaryLine } from '@retake/engine/shell';
-import type { ReviewResult, Reviewer } from '@retake/engine';
+import type { OpenedWorkspace, ReviewResult, Reviewer } from '@retake/engine';
 import { printableText, bestEffort, errorMessage } from '@retake/core/base';
 import type { WorkPolicy } from '@retake/core/policy';
 import { CliError, EXIT, UsageError } from '../errors.js';
@@ -65,13 +65,23 @@ export function printReview(ui: Ui, r: ReviewResult): void {
 export async function runReview(
   ui: Ui,
   reviewer: Reviewer,
-  opts: { policy: WorkPolicy; project: Parameters<typeof reviewWork>[1]['project']; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
+  opts: {
+    policy: WorkPolicy;
+    registries: OpenedWorkspace['registries'];
+    project: Parameters<typeof reviewWork>[1]['project'];
+    render: string;
+    scenario?: string;
+    fps?: 1 | 2;
+    previous?: string | false;
+    quiet?: boolean;
+  },
 ): Promise<ReviewResult> {
   try {
     return await reviewWork(reviewer, {
       policy: opts.policy,
       project: opts.project,
       render: opts.render,
+      registry: (root) => opts.registries.load(root),
       scenario: opts.scenario,
       fps: opts.fps,
       previous: opts.previous,
@@ -112,7 +122,16 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (gate.waited) ui.info(`reviewing render ${printableText(renderId)}`);
   let result: ReviewResult;
   try {
-    result = await runReview(ui, global.ports.reviewer, { policy: ws.policy, project, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
+    result = await runReview(ui, global.ports.reviewer, {
+      policy: ws.policy,
+      registries: ws.registries,
+      project,
+      render: renderId,
+      scenario: opts.scenario,
+      fps,
+      previous: opts.previous,
+      quiet: opts.json,
+    });
   } catch (e) {
     if (e instanceof Error && e.name === 'ReviewError') throw new CliError(e.message);
     throw e;

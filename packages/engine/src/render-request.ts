@@ -8,6 +8,7 @@ import { untilStep } from '@retake/core/run';
 import type { LoadedProject } from '@retake/core/project';
 import type { NotUsable } from '@retake/core/run';
 import type { ComponentRegistry } from '@retake/components/geometry';
+import { registryLoader } from './registries/registries.js';
 import type { EditOverrides } from '@retake/editor/plan';
 import { EditOverridesInputSchema } from './jobs/job-input.js';
 import type { EditOverridesInput } from './jobs/job-input.js';
@@ -154,7 +155,7 @@ export async function planRenderRequest(
       overrides: overrides as EditOverrides,
       root: ws.root,
       trust: ENGINE_TRUST,
-      ...(o.registry ? { registry: o.registry } : {}),
+      registry: o.registry ?? registryLoader(ws.registries),
       ...(o.musicLength ? { musicLength: o.musicLength } : {}),
       // L4.6 (critique B9): a proposal previewed in the timeline is planned from its text in memory, never written.
       ...(o.editText !== undefined ? { editText: o.editText } : {}),

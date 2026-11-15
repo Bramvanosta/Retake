@@ -42,7 +42,6 @@ import type { ComponentRegistry } from '@retake/components/geometry';
 import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor/plan';
 import { listComments, proposalForPreview } from '../comments.js';
 import type { ProposalPreview } from '../comments.js';
-import { components } from '../components.js';
 import { EngineError } from '../errors.js';
 import { entryOf, fieldOptions } from '../field-options.js';
 import type { FieldOption } from '../field-options.js';
@@ -62,6 +61,7 @@ import { sha256Hex } from '../storage.js';
 import { themeUnusable } from '../templates.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { AgentChannel } from '../caller.js';
+import { registryLoader } from '../registries/registries.js';
 
 export interface TimelineViewRequest {
   project: string;
@@ -164,8 +164,7 @@ export class RegistryMemo {
   async get(ws: OpenedWorkspace): Promise<{ sig: string; registry: ComponentRegistry }> {
     const sig = componentsSignature(ws.componentsDir);
     if (!this.#held || this.#held.sig !== sig) {
-      const c = await components();
-      const held = { sig, registry: c.loadComponentRegistry({ root: ws.root }) };
+      const held = { sig, registry: registryLoader(ws.registries)(ws.root) };
       this.#held = held;
       held.registry.catch(() => {
         if (this.#held === held) this.#held = undefined;

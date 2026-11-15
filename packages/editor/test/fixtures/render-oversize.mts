@@ -9,14 +9,16 @@ import { PERSON_POLICY } from '@retake/core';
 import { loadProject } from '@retake/core/io';
 import { planRun } from '@retake/editor';
 import { renderPlan } from '../../src/render/render.js';
+import { loadComponentRegistry } from '@retake/components';
 
 const [root, out, cacheDir, mode] = process.argv.slice(2);
 const project = await loadProject('demo', root);
-const planned = await planRun({ workPolicy: PERSON_POLICY, project, run: 'latest', root, overrides: { scale: 3 } });
+const planned = await planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project, run: 'latest', root, overrides: { scale: 3 } });
 try {
   const res = await renderPlan({
     workPolicy: PERSON_POLICY,
     plan: planned.plan,
+    registry: planned.registry,
     out,
     root,
     cacheDir,

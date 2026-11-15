@@ -20,6 +20,7 @@ import { ReviewCancelledError } from '@retake/review/checks';
 import type { ReviewProgress } from '@retake/review/checks';
 import type { Reviewer } from '../src/review/reviewer.js';
 import type { Outputs } from '../src/outputs/outputs.js';
+import { loadComponentRegistry } from '@retake/components';
 
 export interface ReviewerCase {
   reviewer: Reviewer;
@@ -55,8 +56,19 @@ export function reviewerContract(name: string, setup: () => Promise<ReviewerCase
       const c = await setup();
       // An object without its folder too (one guard for both adapters: review isHandedProject).
       for (const project of [c.project.slug, c.project.dir, undefined, null, { slug: c.project.slug }]) {
-        await expect(c.reviewer.review({ policy: PERSON_POLICY, project: project as never, render: c.render, thumbnails: false }), String(project)).rejects.toThrow(
-          'no loaded project was handed (the caller loads the project; a slug or a folder is not read here)',
+        await expect(
+          c.reviewer.review({ registry: (root: string) => loadComponentRegistry({ root }), policy: PERSON_POLICY, project: project as never, render: c.render, thumbnails: false }),
+          String(project),
+        ).rejects.toThrow('no loaded project was handed (the caller loads the project; a slug or a folder is not read here)');
+      }
+      expect(await c.outputs.reviews.kind(join(c.project.dir, 'review'))).toBeUndefined();
+    });
+
+    it('loads no registry by itself: a review handed none (or something else) is refused before any render is looked for, nothing written', async () => {
+      const c = await setup();
+      for (const registry of [undefined, null, 'components', { list: [] }]) {
+        await expect(c.reviewer.review({ registry: registry as never, policy: PERSON_POLICY, project: c.project, render: c.render, thumbnails: false }), String(registry)).rejects.toThrow(
+          'no component registry was handed (its caller hands the registry, or what loads it)',
         );
       }
       expect(await c.outputs.reviews.kind(join(c.project.dir, 'review'))).toBeUndefined();
@@ -66,7 +78,7 @@ export function reviewerContract(name: string, setup: () => Promise<ReviewerCase
       'writes review/<id>/ with every file result.files names; report.json is the result without its thumbnails',
       async () => {
         const c = await setup();
-        const r = await c.reviewer.review({ policy: PERSON_POLICY, project: c.project, render: c.render, thumbnails: false });
+        const r = await c.reviewer.review({ registry: (root: string) => loadComponentRegistry({ root }), policy: PERSON_POLICY, project: c.project, render: c.render, thumbnails: false });
         expect(r.render.id).toBe(c.render);
         expect(r.files.dir).toBe(dirOf(c));
         for (const f of [r.files.report_json, r.files.report_md, r.files.timeline, ...r.files.sheets, ...Object.values(r.files.scene_sheets).flat(), ...Object.values(r.files.keyframes)]) {
@@ -89,7 +101,14 @@ export function reviewerContract(name: string, setup: () => Promise<ReviewerCase
       async () => {
         const c = await setup();
         const seen: Array<ReviewProgress['stage']> = [];
-        await c.reviewer.review({ policy: PERSON_POLICY, project: c.project, render: c.render, thumbnails: false, onProgress: (p) => void seen.push(p.stage) });
+        await c.reviewer.review({
+          registry: (root: string) => loadComponentRegistry({ root }),
+          policy: PERSON_POLICY,
+          project: c.project,
+          render: c.render,
+          thumbnails: false,
+          onProgress: (p) => void seen.push(p.stage),
+        });
         expect(seen[0]).toBe('loading');
         expect(seen.at(-1)).toBe('done');
         expect(seen.filter((s) => s === 'done')).toHaveLength(1);
@@ -103,14 +122,16 @@ export function reviewerContract(name: string, setup: () => Promise<ReviewerCase
       'thumbnails: false gives none; by default the contact sheet comes back as a JPEG thumbnail',
       async () => {
         const c = await setup();
-        const r = await c.reviewer.review({ policy: PERSON_POLICY, project: c.project, render: c.render });
+        const r = await c.reviewer.review({ registry: (root: string) => loadComponentRegistry({ root }), policy: PERSON_POLICY, project: c.project, render: c.render });
         expect(r.thumbnails.length).toBeGreaterThan(0);
         for (const t of r.thumbnails) {
           expect(t.mime).toBe('image/jpeg');
           expect(JPEG(Buffer.from(t.base64, 'base64'))).toBe(true);
           expect(r.files.sheets.concat(Object.values(r.files.keyframes))).toContain(t.file);
         }
-        expect((await c.reviewer.review({ policy: PERSON_POLICY, project: c.project, render: c.render, thumbnails: false })).thumbnails).toEqual([]);
+        expect(
+          (await c.reviewer.review({ registry: (root: string) => loadComponentRegistry({ root }), policy: PERSON_POLICY, project: c.project, render: c.render, thumbnails: false })).thumbnails,
+        ).toEqual([]);
       },
       T,
     );
@@ -119,17 +140,20 @@ export function reviewerContract(name: string, setup: () => Promise<ReviewerCase
       'a cancel before it starts and one during it: ReviewCancelledError, the previous review kept, no temporary folder',
       async () => {
         const c = await setup();
-        const first = await c.reviewer.review({ policy: PERSON_POLICY, project: c.project, render: c.render, thumbnails: false });
+        const first = await c.reviewer.review({ registry: (root: string) => loadComponentRegistry({ root }), policy: PERSON_POLICY, project: c.project, render: c.render, thumbnails: false });
         const before = await textOf(c, first.files.report_json);
         expect(before).toBeDefined();
         const ac = new AbortController();
         ac.abort();
-        const early = await c.reviewer.review({ policy: PERSON_POLICY, project: c.project, render: c.render, signal: ac.signal }).catch((e: unknown) => e);
+        const early = await c.reviewer
+          .review({ registry: (root: string) => loadComponentRegistry({ root }), policy: PERSON_POLICY, project: c.project, render: c.render, signal: ac.signal })
+          .catch((e: unknown) => e);
         expect(early).toBeInstanceOf(ReviewCancelledError);
         const during = new AbortController();
         const stages: Array<ReviewProgress['stage']> = [];
         const late = await c.reviewer
           .review({
+            registry: (root: string) => loadComponentRegistry({ root }),
             policy: PERSON_POLICY,
             project: c.project,
             render: c.render,
@@ -185,7 +209,7 @@ export function reviewerContract(name: string, setup: () => Promise<ReviewerCase
         expect(JPEG(t.data)).toBe(true);
         expect(Math.max(t.width, t.height)).toBeLessThanOrEqual(16);
         await expect(c.reviewer.frames.thumb(Buffer.from('not an image'))).rejects.toThrow();
-        const r = await c.reviewer.review({ policy: PERSON_POLICY, project: c.project, render: c.render, thumbnails: false });
+        const r = await c.reviewer.review({ registry: (root: string) => loadComponentRegistry({ root }), policy: PERSON_POLICY, project: c.project, render: c.render, thumbnails: false });
         const n = await c.reviewer.frames.thumbnailOf(r.files.sheets[0], 64);
         expect(JPEG(Buffer.from(n.base64, 'base64'))).toBe(true);
         expect(Math.max(n.width, n.height)).toBeLessThanOrEqual(64);

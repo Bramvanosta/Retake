@@ -26,7 +26,8 @@ interface DriverRequestBase {
   workPolicy: WorkPolicy;
   /** Workspace root (bundle cache). */
   root: string;
-  registry?: ComponentRegistry;
+  /** Where the plan's component implementations are found: required, a driver loads no registry by itself. */
+  registry: ComponentRegistry;
   settings?: RenderSettings;
   network?: 'open' | 'guard';
   onProcess?: (p: DriverProcess) => void;

@@ -34,24 +34,14 @@
    ]
   },
   {
-   "rule": "R11",
-   "reason": "P1: the engine still builds these adapters itself; each port (U6) removes entries. 1 file → specifier pair on 2026-11-12 (L7.11: hooks and review/thumbs went through their ports; L7.12: the runner package through the capture runner's; L7.25: the sandbox package through the Sandboxes port, its OS utilities from core/io): components 1.",
-   "entries": [
-    "packages/engine/src/components.ts → @retake/components"
-   ]
-  },
-  {
    "rule": "R14",
-   "reason": "Real value dependencies, kept on purpose: the editor is the renderer of the component system — it bundles a workspace's component folders with the kit and the geometry entry (render/bundle.ts: the component files' layout, manifests, unhashed-file rules, kit and geometry entry paths), its compositions draw with the kit's Logo, Wordmark and backgroundCss (remotion/PlanVideo.tsx, Preview.tsx: bundled code, so a port cannot hand them), a component preview fills its slots and samples with the components' layout maths (preview.ts, render/preview.ts: source hashes, preview README blocks), and a render or a plan loads the registry when its caller hands none (render/render.ts, render/plan-run.ts, and the review's review.ts for its text-slot limits); the sandbox reads where a database URL connects with the hooks' one reader of it (`@retake/hooks/db-url`: pg's parser, it never connects; not a domain entry because it loads pg). The registry loads go when the engine's render and review use cases always hand the registry (the ComponentRegistry port, A-R11's entry).",
+   "reason": "Real value dependencies, kept on purpose: the editor is the renderer of the component system — it bundles a workspace's component folders with the kit and the geometry entry (render/bundle.ts: the component files' layout, manifests, unhashed-file rules, kit and geometry entry paths), its compositions draw with the kit's Logo, Wordmark and backgroundCss (remotion/PlanVideo.tsx, Preview.tsx: bundled code, so a port cannot hand them), a component preview fills its slots and samples with the components' layout maths (preview.ts, render/preview.ts: source hashes, preview README blocks); the sandbox reads where a database URL connects with the hooks' one reader of it (`@retake/hooks/db-url`: pg's parser, it never connects; not a domain entry because it loads pg). A plan, a render and a review load no registry: the engine hands it (its ComponentRegistries port).",
    "entries": [
     "packages/editor/src/preview.ts → @retake/components",
     "packages/editor/src/remotion/PlanVideo.tsx → @retake/components/kit",
     "packages/editor/src/remotion/Preview.tsx → @retake/components/kit",
     "packages/editor/src/render/bundle.ts → @retake/components",
-    "packages/editor/src/render/plan-run.ts → @retake/components",
     "packages/editor/src/render/preview.ts → @retake/components",
-    "packages/editor/src/render/render.ts → @retake/components",
-    "packages/review/src/review.ts → @retake/components",
     "packages/sandbox/src/seed.ts → @retake/hooks/db-url",
     "packages/sandbox/src/snapshot-postgres.ts → @retake/hooks/db-url"
    ]

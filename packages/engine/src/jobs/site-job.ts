@@ -45,7 +45,7 @@ import { stampOf } from '../clock.js';
 import type { Clock } from '../clock.js';
 import { takeSiteApproval } from '../approvals.js';
 import type { Approver } from '../approvals.js';
-import { components } from '../components.js';
+import { componentCalls } from '../registries/component-calls.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { protectedHostOf, workspaceProtectedHosts } from '../protected-hosts.js';
 import type { HostResolver } from '../protected-hosts.js';
@@ -308,7 +308,7 @@ export async function siteApproved(input: SiteJobInput, jobId: string, root: str
 export async function siteDraft(ws: OpenedWorkspace, view: Pick<SiteJobResult, 'host' | 'palette' | 'candidates' | 'status'>, clock: Clock): Promise<SiteJobResult['draft']> {
   if (view.status !== 'ok' || !view.palette) return null;
   const { roles, swatches } = view.palette;
-  const lib = await components();
+  const lib = await componentCalls();
   const accent = roles.accent ?? [...swatches].map((s) => s.hex).filter((h) => h !== roles.paper && h !== roles.text)[0] ?? roles.text;
   const tone = lib.paletteTone(roles.paper);
   const baseName = tone === 'dark' ? 'motion' : 'editorial';

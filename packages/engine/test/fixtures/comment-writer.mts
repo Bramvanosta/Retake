@@ -10,7 +10,9 @@ import { diskWorkspaceReads } from '../../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../../src/outputs/disk-outputs.js';
 import { PERSON_POLICY } from '@retake/core';
 import { fileFacts } from '@retake/core/io';
+import { packageRegistries } from '../../src/registries/package-registries.js';
+import { loadComponentRegistry } from '@retake/components';
 
 const [root, slug, id, name, count] = process.argv.slice(2);
-const project = await openProject(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs }), slug);
-for (let i = 0; i < Number(count); i++) await replyComment(project, id, `${name} reply ${i}`, { via: 'cli', name }, { renders: diskOutputs.renders, scope: personScope(project.root, enginePorts()), files: fileFacts(PERSON_POLICY), reads: diskWorkspaceReads, seen: undefined });
+const project = await openProject(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() }), slug);
+for (let i = 0; i < Number(count); i++) await replyComment(project, id, `${name} reply ${i}`, { via: 'cli', name }, { registry: () => loadComponentRegistry({ root: project.root }), renders: diskOutputs.renders, scope: personScope(project.root, enginePorts()), files: fileFacts(PERSON_POLICY), reads: diskWorkspaceReads, seen: undefined });

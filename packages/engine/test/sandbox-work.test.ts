@@ -28,6 +28,7 @@ import { enginePorts } from '../src/ports.js';
 import { openWorkspace } from '../src/workspace.js';
 import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { packageRegistries } from '../src/registries/package-registries.js';
 
 let root = '';
 let project: LoadedProject;
@@ -294,7 +295,7 @@ describe('sandboxWork (L7.28)', () => {
   it("the sandbox jobs run through it: up and reset under the job's interrupt port (its quit kill is the handle's), the result unchanged", async () => {
     const wsRoot = join(root, 'w');
     await writeProject(join(wsRoot, 'projects', 's'), ['sandbox']);
-    const ws = await openWorkspace({ root: wsRoot, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
+    const ws = await openWorkspace({ root: wsRoot, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
     const sandboxes = new MemorySandboxes();
     for (const input of [
       { version: 1, kind: 'sandbox_up', project: 's', submitted_by: 'test' },
