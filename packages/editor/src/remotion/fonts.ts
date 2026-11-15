@@ -5,16 +5,19 @@
  */
 import { useEffect, useState } from 'react';
 import { cancelRender, continueRender, delayRender } from './host.js';
+import { fontWeightDescriptor } from '@retake/components/geometry';
 import type { ThemeFontFace } from '@retake/components/geometry';
 import { usePreviewMode } from './preview-mode.js';
 
 const loaded = new Map<string, Promise<void>>();
 
-function loadFace(face: ThemeFontFace): Promise<void> {
-  const key = `${face.family}|${face.url}|${face.weight}|${face.style}`;
+/** Register one face (once per family, URL, weight and style); a variable font's range is the descriptor "200 800". */
+export function loadFace(face: ThemeFontFace): Promise<void> {
+  const weight = fontWeightDescriptor(face.weight);
+  const key = `${face.family}|${face.url}|${weight}|${face.style}`;
   let p = loaded.get(key);
   if (!p) {
-    const ff = new FontFace(face.family, `url("${face.url}")`, { weight: String(face.weight), style: face.style });
+    const ff = new FontFace(face.family, `url("${face.url}")`, { weight, style: face.style });
     p = ff.load().then((f) => {
       document.fonts.add(f);
     });

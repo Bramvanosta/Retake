@@ -81,6 +81,7 @@ const NEW: Record<ThemeField, ThemeFieldValue> = {
   'motion.max_zoom': 1.85,
   'motion.default_zoom': 1.25,
   logo: 'brand/logo-2.png',
+  logo_kind: 'wordmark',
   wordmark: 'wordmark-2.svg',
   'fonts.display': 'fonts/Display-2.otf',
   'fonts.body': ['fonts/Body-Regular.woff2', 'fonts/Body-Bold.woff2'],
@@ -116,6 +117,21 @@ describe('theme set_field on the three starters', () => {
     }
     // Each background has the colours of its own type: radial / linear two of three, solid one.
     expect(n).toBe(3 * THEME_FIELD_PATHS.length - 4);
+  });
+
+  it('logo_kind: mark or wordmark written, removed back to the shape rule (absent), any other value refused', () => {
+    const t = starter('editorial');
+    expect(readAt(t, 'logo_kind')).toBeUndefined();
+    const set = applied(t, { kind: 'set_field', field: 'logo_kind', to: 'wordmark' });
+    expect(readAt(set.text, 'logo_kind')).toBe('wordmark');
+    expect(parseTemplateYaml(set.text).template?.logo_kind).toBe('wordmark');
+    const mark = applied(set.text, { kind: 'set_field', field: 'logo_kind', from: 'wordmark', to: 'mark' });
+    expect(readAt(mark.text, 'logo_kind')).toBe('mark');
+    const removed = applied(mark.text, { kind: 'set_field', field: 'logo_kind', from: 'mark' });
+    expect(readAt(removed.text, 'logo_kind')).toBeUndefined();
+    expect(yamlValue(removed.text)).toEqual(yamlValue(t));
+    expect(THEME_REMOVABLE_FIELDS).toContain('logo_kind');
+    expect(refusal(t, { kind: 'set_field', field: 'logo_kind', to: 'auto' }).message).toMatch(/mark or wordmark/);
   });
 
   it('values are normalised: hex lower-case, rgba spaced; a label names the change', () => {
@@ -210,6 +226,8 @@ describe('theme set_field: the allow-list and value checks (⚑ nothing else is 
       ['cursor.ripple_color', 'rgba(1, 2, 3, 2)', /numbers only/],
       ['cursor.ripple_color', 'rgba(1, 2, 3, 0.5); background: url(x)', /numbers only/],
       ['cursor.style', 'debug', /arrow-dark or arrow-light/],
+      ['logo_kind', 'banner', /mark or wordmark/],
+      ['logo_kind', 'Wordmark', /mark or wordmark/],
       ['style_bias', 'wild', /real, balanced or motion/],
       ['motion.max_zoom', 3.05, /1 to 3 in steps of 0.01/],
       ['motion.max_zoom', 1.035, /steps of 0.01/],
@@ -238,9 +256,9 @@ describe('theme set_field: the allow-list and value checks (⚑ nothing else is 
       ['wordmark', 'a/b/c/d/e.svg', /file of the theme folder/],
       ['fonts.display', '../x.ttf', /file of the theme folder/],
       ['fonts.display', 'fonts/x.png', /\.ttf, \.otf/],
-      ['fonts.body', 'fonts/Inter-Regular.ttf', /1 to 4 font files/],
-      ['fonts.body', [], /1 to 4 font files/],
-      ['fonts.body', ['a.ttf', 'b.ttf', 'c.ttf', 'd.ttf', 'e.ttf'], /1 to 4 font files/],
+      ['fonts.body', 'fonts/Inter-Regular.ttf', /1 to 8 font files/],
+      ['fonts.body', [], /1 to 8 font files/],
+      ['fonts.body', ['a.ttf', 'b.ttf', 'c.ttf', 'd.ttf', 'e.ttf', 'f.ttf', 'g.ttf', 'h.ttf', 'i.ttf'], /1 to 8 font files/],
       ['fonts.body', ['a.ttf', 'a.ttf'], /twice/],
       ['fonts.body', ['a.ttf', '../b.ttf'], /file of the theme folder/],
     ];
@@ -459,6 +477,7 @@ const POOL: Partial<Record<ThemeField, ThemeFieldValue[]>> = {
   'motion.max_zoom': [1, 1.5, 2.25, 3],
   'motion.default_zoom': ['none', 1.1, 2],
   logo: ['logo.svg', 'brand/logo.png'],
+  logo_kind: ['mark', 'wordmark'],
   wordmark: ['wordmark.svg', 'w.webp'],
   'fonts.display': ['fonts/A.ttf', 'fonts/B.woff2'],
   'fonts.body': [['fonts/A.ttf'], ['fonts/B.ttf', 'fonts/C.ttf']],

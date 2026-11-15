@@ -39,7 +39,8 @@ export interface PlanBrand {
   /** CSS font-family names registered by the composition (e.g. "DS Display", "DS Body"). */
   fonts: {
     display: { family: string; url: string };
-    body: Array<{ family: string; url: string; weight: number }>;
+    /** `weight`: one, or a variable font's range (its file name's `wght<min>-<max>`). */
+    body: Array<{ family: string; url: string; weight: number | [number, number] }>;
   };
   logo: { url: string };
   wordmark?: { url: string };

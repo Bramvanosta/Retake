@@ -104,6 +104,7 @@ describe("the components package's pure members, handed on beside the port", () 
       'kitMajorOf',
       'paletteTone',
       'paramDefaults',
+      'resolveLogoKind',
       'scaffoldDir',
       'themeTokens',
       'validateParamValue',

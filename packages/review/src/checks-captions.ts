@@ -10,7 +10,7 @@ import type { Finding } from './types.js';
 import { isClip, segmentLabel, spanAt } from './spans.js';
 
 /** Faces of the plan's theme fonts: CSS family + weight → file (through plan.assets). */
-export function planFontFiles(plan: EditPlan): Array<{ family: string; weight: number; style: 'normal' | 'italic'; file: string }> {
+export function planFontFiles(plan: EditPlan): Array<{ family: string; weight: number | [number, number]; style: 'normal' | 'italic'; file: string }> {
   const faces = plan.brand.tokens.font_faces ?? [];
   return faces.map((f) => ({ family: f.family, weight: f.weight, style: f.style, file: plan.assets[f.url] ?? f.url })).filter((f) => !isPlanAssetUrl(f.file));
 }

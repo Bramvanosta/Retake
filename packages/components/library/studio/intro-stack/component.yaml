@@ -2,7 +2,8 @@
 # Reference look (docs/reference/look.md, "Intro"): logo mark 64 + wordmark on one row, uppercase kicker in the accent,
 # display title 96 px and an accent rule 120 × 2 drawn from the centre; the stack is centred (row y ≈ 417, kicker ≈ 529,
 # title ≈ 612, rule ≈ 694 at 1920×1080). Motion: row fades in 0–0.5 s, kicker + title fade in with a short rise
-# 0.6–1.2 s, the rule draws ≈ 1.0–1.5 s, hold. Every colour, font, the logo and the wordmark come from the theme.
+# 0.6–1.2 s, the rule draws ≈ 1.0–1.5 s, hold. Every colour, font, the logo and the wordmark come from the theme. A
+# wordmark logo (logo_kind, or 3:1 and wider) is drawn alone in the row, 520 px wide at most.
 id: studio/intro-stack
 version: 1.0.0
 kind: intro

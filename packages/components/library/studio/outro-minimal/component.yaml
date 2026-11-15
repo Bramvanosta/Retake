@@ -1,7 +1,8 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
 # The quiet outro, in the family of the reference outro (docs/reference/look.md "Outro"): the logo (110 px) and one
 # closing line in the display font, centred by their bands; the logo fades in while scaling 0.94 → 1, the line follows
-# 0.35 s later with a short rise — or, with `logo_only`, the logo and the wordmark on one row.
+# 0.35 s later with a short rise — or, with `logo_only`, the logo and the wordmark on one row. A wordmark logo
+# (logo_kind, or 3:1 and wider) is drawn alone, 640 px wide at most.
 id: studio/outro-minimal
 version: 1.0.0
 kind: outro

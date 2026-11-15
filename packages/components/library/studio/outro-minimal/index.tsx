@@ -1,9 +1,10 @@
-import { Background, CapText, Logo, Wordmark, backgroundSample, biasMotion, capTextLayout, darkLight, progress, readableOn, roundTo, formatMetrics, useCurrentFrame } from '@retake/components/kit';
+import { Background, CapText, Logo, Wordmark, backgroundSample, biasMotion, capTextLayout, darkLight, progress, readableOn, roundTo, formatMetrics, useCurrentFrame, withLogo } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { logo_only: boolean };
 
 /** Design px: logo 110, 56 px to the tagline caps (display 52); logo-only row: logo 110 + wordmark 64 (visual height). */
+const WORDMARK_LOGO_W = 640;
 const LOGO = 110;
 const GAP_LOGO_TAGLINE = 56;
 const WORDMARK = 64;
@@ -20,7 +21,9 @@ export default function OutroMinimal({ theme, slots, params, unit, width, height
   const bg = backgroundSample(theme);
   const { dark, light } = darkLight(theme);
   const ink = readableOn(bg, theme.colors.text, readableOn(bg, dark, light) === dark ? dark : light);
-  const brand = slots.logo ? { ...theme, logo: { url: slots.logo } } : theme;
+  const brand = withLogo(theme, slots.logo);
+  // A wordmark logo (the name itself) is drawn alone, as wide as fits WORDMARK_LOGO_W × LOGO; a mark, LOGO high.
+  const logoMaxWidth = Math.min(WORDMARK_LOGO_W, (width - 2 * inset(160)) / u);
   const logoP = progress(frame, fps, { delay: 0.1, duration: 0.6 * bias.pace, ease: 'easeInOut' });
   const logoScale = roundTo(0.94 + 0.06 * progress(frame, fps, { delay: 0.1, duration: 0.7 * bias.pace, ease: 'entrance' }), 4);
   const tagline = !params.logo_only && slots.tagline ? slots.tagline : undefined;
@@ -43,8 +46,8 @@ export default function OutroMinimal({ theme, slots, params, unit, width, height
             transform: `scale(${logoScale})`,
           }}
         >
-          <Logo theme={brand} size={LOGO} unit={u} />
-          <Wordmark theme={theme} height={WORDMARK} unit={u} color={ink} />
+          <Logo theme={brand} size={LOGO} maxWidth={logoMaxWidth} unit={u} />
+          <Wordmark theme={brand} height={WORDMARK} unit={u} color={ink} />
         </div>
       </Background>
     );
@@ -69,7 +72,7 @@ export default function OutroMinimal({ theme, slots, params, unit, width, height
           transform: `scale(${logoScale})`,
         }}
       >
-        <Logo theme={brand} size={LOGO} unit={u} />
+        <Logo theme={brand} size={LOGO} maxWidth={logoMaxWidth} unit={u} />
       </div>
       <div style={{ position: 'absolute', inset: 0, opacity: roundTo(lineP, 4), transform: `translateY(${roundTo((1 - lineP) * 10 * bias.travel * u, 2)}px)` }}>
         <CapText layout={line} x={width / 2} capTop={top + (LOGO + GAP_LOGO_TAGLINE) * u} align="center" color={ink} />

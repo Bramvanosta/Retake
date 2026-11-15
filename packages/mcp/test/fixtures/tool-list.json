@@ -2320,7 +2320,7 @@
  {
   "name": "template_list",
   "title": "List themes",
-  "description": "Themes (templates) a render can use, by name: the workspace's templates/ and the starter themes shipped with Retake (default, editorial, motion), each with the component it picks per kind (intro, layout, caption, card, interstitial, outro, transition). With project: which theme is the project's own. With template: that theme in detail — template.yaml, colours, fonts, brand, asset files and each kind's component with its params. A theme is switched per render (render {template}) or per scenario (video.template), always by name; existing themes are never edited here (a human edits them) — template_create_from_brand makes a new one (and may replace one it made through MCP that nobody changed).",
+  "description": "Themes (templates) a render can use, by name: the workspace's templates/ and the starter themes shipped with Retake (default, editorial, motion), each with the component it picks per kind (intro, layout, caption, card, interstitial, outro, transition). With project: which theme is the project's own. With template: that theme in detail — template.yaml, colours, fonts, brand, asset files and each kind's component with its params. A theme is switched per render (render {template}) or per scenario (video.template), always by name; a theme a person made or changed is never edited here (a human edits it) — template_create_from_brand makes a new one, and template_update changes one it made through MCP that nobody changed.",
   "inputSchema": {
    "type": "object",
    "properties": {
@@ -2421,7 +2421,7 @@
  {
   "name": "template_create_from_brand",
   "title": "Create a theme from brand files",
-  "description": "Create a NEW workspace theme, templates/<name>/, from the brand's logo, colours and fonts: template.yaml over a base theme (default editorial: its components, frame, captions, motion and durations), the logo / wordmark / fonts copied into the folder after checks, LICENSES.md and a provenance file. Files are paths relative to the workspace root that the user put there (recommended folder: brand/) — never in a hidden folder (.retake/), components/, or a project's scenarios/, runs/, renders/, review/ or exports/. Logos: .svg (plain: no script, links or external files), .png, .jpg, .webp; fonts: .ttf, .otf, .woff, .woff2 (copied as fonts/display-<Weight> and fonts/body-<Weight>; none given: the base's). Colours are hex: accent required, text / paper / muted / dark / background derived when omitted, contrast checked (text 7:1, muted 4.5:1, accent 3:1); failing derived or given colours are lifted and reported unless adjust: false, the accent is never changed (a suggestion is returned). The name is lower-case and never a starter's or an existing folder's; replace: true removes and replaces only a theme this tool made through MCP that nobody edited since (never one a human made). Returns the folder, template.yaml, the palette with every ratio and change, warnings; then call template_preview {project, template: name}.",
+  "description": "Create a NEW workspace theme, templates/<name>/, from the brand's logo, colours and fonts: template.yaml over a base theme (default editorial: its components, frame, captions, motion and durations), the logo / wordmark / fonts copied into the folder after checks, LICENSES.md and a provenance file. Files are paths relative to the workspace root that the user put there (recommended folder: brand/) — never in a hidden folder (.retake/), components/, or a project's scenarios/, runs/, renders/, review/ or exports/. Logos: .svg (plain: no script, links or external files), .png, .jpg, .webp; fonts: .ttf, .otf, .woff, .woff2 (copied as fonts/display-<Weight> and fonts/body-<Weight>; none given: the base's). Colours are hex: accent required, text / paper / muted / dark / background derived when omitted, contrast checked (text 7:1, muted 4.5:1, accent 3:1); failing derived or given colours are lifted and reported unless adjust: false, the accent is never changed (a suggestion is returned). A logo 3:1 or wider is a wordmark (drawn alone, sized by its width; logo_kind: mark keeps the brand name beside it). components {<kind>: {id?, params?}} go over the base's (e.g. {outro: {params: {logo_size: 72}}}, checked against each component), cursor {style, size} over its cursor — a palette of another tone than the base gets the cursor of its tone. Up to eight body font files, or a variable font {file, weight: \"200 800\"}. The name is lower-case and never a starter's or an existing folder's; replace: true removes and replaces only a theme this tool made through MCP that nobody edited since (never one a person made, with the CLI or in the Studio). Returns the folder, template.yaml, the palette with every ratio and change, notes, warnings; then call template_preview {project, template: name}, and template_update to adjust it.",
   "inputSchema": {
    "type": "object",
    "properties": {
@@ -2516,6 +2516,14 @@
      "maxLength": 300,
      "description": "Logo: .svg, .png, .jpg or .webp."
     },
+    "logo_kind": {
+     "description": "mark (a pictogram: the brand name is drawn beside it) or wordmark (the name itself: drawn alone, sized by its width). Default: wordmark when the logo is 3:1 or wider.",
+     "type": "string",
+     "enum": [
+      "mark",
+      "wordmark"
+     ]
+    },
     "wordmark": {
      "description": "Wordmark image of the outro (default none: the brand name is drawn as text).",
      "type": "string",
@@ -2544,10 +2552,18 @@
            "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
           },
           "weight": {
-           "description": "Weight of this file (default: read from the font, else its file name).",
-           "type": "integer",
-           "minimum": 100,
-           "maximum": 900
+           "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
+           "anyOf": [
+            {
+             "type": "integer",
+             "minimum": 100,
+             "maximum": 900
+            },
+            {
+             "type": "string",
+             "maxLength": 16
+            }
+           ]
           },
           "italic": {
            "description": "An italic face (default: read from the font, else its file name).",
@@ -2562,9 +2578,9 @@
        ]
       },
       "body": {
-       "description": "Body font files, one per weight / style (default the base theme's).",
+       "description": "Body font files (up to 8), one per weight / style — or one variable font for a range of weights (default the base theme's).",
        "minItems": 1,
-       "maxItems": 4,
+       "maxItems": 8,
        "type": "array",
        "items": {
         "anyOf": [
@@ -2584,10 +2600,18 @@
             "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
            },
            "weight": {
-            "description": "Weight of this file (default: read from the font, else its file name).",
-            "type": "integer",
-            "minimum": 100,
-            "maximum": 900
+            "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
+            "anyOf": [
+             {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 900
+             },
+             {
+              "type": "string",
+              "maxLength": 16
+             }
+            ]
            },
            "italic": {
             "description": "An italic face (default: read from the font, else its file name).",
@@ -2623,8 +2647,204 @@
      },
      "additionalProperties": false
     },
+    "components": {
+     "type": "object",
+     "properties": {
+      "intro": {
+       "type": "object",
+       "properties": {
+        "id": {
+         "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+         "type": "string",
+         "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+        },
+        "params": {
+         "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+         "type": "object",
+         "propertyNames": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+         },
+         "additionalProperties": {}
+        }
+       },
+       "additionalProperties": false
+      },
+      "outro": {
+       "type": "object",
+       "properties": {
+        "id": {
+         "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+         "type": "string",
+         "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+        },
+        "params": {
+         "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+         "type": "object",
+         "propertyNames": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+         },
+         "additionalProperties": {}
+        }
+       },
+       "additionalProperties": false
+      },
+      "card": {
+       "type": "object",
+       "properties": {
+        "id": {
+         "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+         "type": "string",
+         "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+        },
+        "params": {
+         "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+         "type": "object",
+         "propertyNames": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+         },
+         "additionalProperties": {}
+        }
+       },
+       "additionalProperties": false
+      },
+      "interstitial": {
+       "type": "object",
+       "properties": {
+        "id": {
+         "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+         "type": "string",
+         "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+        },
+        "params": {
+         "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+         "type": "object",
+         "propertyNames": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+         },
+         "additionalProperties": {}
+        }
+       },
+       "additionalProperties": false
+      },
+      "caption": {
+       "type": "object",
+       "properties": {
+        "id": {
+         "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+         "type": "string",
+         "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+        },
+        "params": {
+         "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+         "type": "object",
+         "propertyNames": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+         },
+         "additionalProperties": {}
+        }
+       },
+       "additionalProperties": false
+      },
+      "layout": {
+       "type": "object",
+       "properties": {
+        "id": {
+         "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+         "type": "string",
+         "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+        },
+        "params": {
+         "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+         "type": "object",
+         "propertyNames": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+         },
+         "additionalProperties": {}
+        }
+       },
+       "additionalProperties": false
+      },
+      "overlay": {
+       "type": "object",
+       "properties": {
+        "id": {
+         "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+         "type": "string",
+         "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+        },
+        "params": {
+         "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+         "type": "object",
+         "propertyNames": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+         },
+         "additionalProperties": {}
+        }
+       },
+       "additionalProperties": false
+      },
+      "transition": {
+       "type": "object",
+       "properties": {
+        "id": {
+         "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+         "type": "string",
+         "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+        },
+        "params": {
+         "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+         "type": "object",
+         "propertyNames": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+         },
+         "additionalProperties": {}
+        }
+       },
+       "additionalProperties": false
+      }
+     },
+     "additionalProperties": false,
+     "description": "Per kind (intro, outro, card, interstitial, caption, layout, overlay, transition): {id?, params?} — e.g. {outro: {params: {logo_size: 72}}}. Default the base theme's components."
+    },
+    "cursor": {
+     "description": "The filmed cursor (default the base theme's; arrow-light over a dark palette on a light base, arrow-dark the other way).",
+     "type": "object",
+     "properties": {
+      "style": {
+       "description": "arrow-dark (for a light app) or arrow-light (for a dark app). Filmed: the next capture.",
+       "type": "string",
+       "enum": [
+        "arrow-dark",
+        "arrow-light"
+       ]
+      },
+      "size": {
+       "description": "Cursor size in px (default the base theme's, else 26).",
+       "type": "number",
+       "minimum": 12,
+       "maximum": 64
+      }
+     },
+     "additionalProperties": false
+    },
     "replace": {
-     "description": "Replace a theme this tool made under that name, only when nobody changed its files since.",
+     "description": "Replace a theme this tool made under that name through MCP, only when nobody changed its files since.",
      "type": "boolean"
     }
    },
@@ -2632,6 +2852,651 @@
     "name",
     "colors",
     "logo"
+   ],
+   "additionalProperties": false
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "template_update",
+  "title": "Update a theme made from brand files",
+  "description": "Change a theme template_create_from_brand made through MCP, giving only what changes: {name, colors?: {paper: …}, components?: {outro: {params: {logo_size: 72}}}, logo_kind?, cursor?, fonts?, brand?, logo?, wordmark?, background?, base?} — null removes an optional input (back to the derived or the base's value), components merge per kind and params per key. The theme is re-made from its recorded inputs with the patch applied (the same checks as create); the files the patch does not name are the theme's own copies (never read again from where they came). Refused for a theme a person made (retake theme create, the Studio), one whose files or recorded inputs changed since, a starter, an unknown name; invalid when nothing changes. Returns what create returns and the keys that changed; then template_preview {project, template: name}.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "maxLength": 60,
+     "pattern": "^[a-z0-9][a-z0-9-]*$",
+     "description": "The theme to update: one this tool made through MCP that nobody edited since."
+    },
+    "base": {
+     "description": "Another base theme (its components, frame, captions, motion and durations).",
+     "type": "string",
+     "maxLength": 100,
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "colors": {
+     "description": "Only the colours that change (null: derived again).",
+     "type": "object",
+     "properties": {
+      "accent": {
+       "type": "string",
+       "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+      },
+      "text": {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "paper": {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "muted": {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "dark": {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     },
+     "additionalProperties": false
+    },
+    "background": {
+     "description": "A hex, {type, from, to}, or null (derived again).",
+     "anyOf": [
+      {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+        },
+        {
+         "type": "object",
+         "properties": {
+          "type": {
+           "type": "string",
+           "enum": [
+            "radial",
+            "linear"
+           ]
+          },
+          "from": {
+           "type": "string",
+           "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+          },
+          "to": {
+           "type": "string",
+           "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+          }
+         },
+         "required": [
+          "type",
+          "from",
+          "to"
+         ],
+         "additionalProperties": false
+        }
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "adjust": {
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "logo": {
+     "description": "Another logo file (else the theme keeps its own copy).",
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 300
+    },
+    "logo_kind": {
+     "description": "mark or wordmark; null: from the logo's shape (3:1 and wider: wordmark).",
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "mark",
+        "wordmark"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "wordmark": {
+     "description": "Another wordmark image, or null (none: the brand name as text).",
+     "anyOf": [
+      {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 300,
+       "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "fonts": {
+     "description": "Fonts that change (null: the base theme's); files not named are the theme's own copies.",
+     "anyOf": [
+      {
+       "type": "object",
+       "properties": {
+        "display": {
+         "anyOf": [
+          {
+           "anyOf": [
+            {
+             "type": "string",
+             "minLength": 1,
+             "maxLength": 300,
+             "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+            },
+            {
+             "type": "object",
+             "properties": {
+              "file": {
+               "type": "string",
+               "minLength": 1,
+               "maxLength": 300,
+               "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+              },
+              "weight": {
+               "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
+               "anyOf": [
+                {
+                 "type": "integer",
+                 "minimum": 100,
+                 "maximum": 900
+                },
+                {
+                 "type": "string",
+                 "maxLength": 16
+                }
+               ]
+              },
+              "italic": {
+               "description": "An italic face (default: read from the font, else its file name).",
+               "type": "boolean"
+              }
+             },
+             "required": [
+              "file"
+             ],
+             "additionalProperties": false
+            }
+           ]
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "body": {
+         "anyOf": [
+          {
+           "minItems": 1,
+           "maxItems": 8,
+           "type": "array",
+           "items": {
+            "anyOf": [
+             {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+             },
+             {
+              "type": "object",
+              "properties": {
+               "file": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+                "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+               },
+               "weight": {
+                "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
+                "anyOf": [
+                 {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 900
+                 },
+                 {
+                  "type": "string",
+                  "maxLength": 16
+                 }
+                ]
+               },
+               "italic": {
+                "description": "An italic face (default: read from the font, else its file name).",
+                "type": "boolean"
+               }
+              },
+              "required": [
+               "file"
+              ],
+              "additionalProperties": false
+             }
+            ]
+           }
+          },
+          {
+           "type": "null"
+          }
+         ]
+        }
+       },
+       "additionalProperties": false
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "brand": {
+     "description": "Brand name / URL (null: removed).",
+     "anyOf": [
+      {
+       "type": "object",
+       "properties": {
+        "name": {
+         "anyOf": [
+          {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 80
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "url": {
+         "anyOf": [
+          {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 120
+          },
+          {
+           "type": "null"
+          }
+         ]
+        }
+       },
+       "additionalProperties": false
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "components": {
+     "description": "Per kind {id?, params?}: params merged per key over the theme's (a null param removed), null: the base's component again.",
+     "anyOf": [
+      {
+       "type": "object",
+       "properties": {
+        "intro": {
+         "anyOf": [
+          {
+           "type": "object",
+           "properties": {
+            "id": {
+             "anyOf": [
+              {
+               "type": "string",
+               "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "params": {
+             "type": "object",
+             "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+             },
+             "additionalProperties": {}
+            }
+           },
+           "additionalProperties": false
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "outro": {
+         "anyOf": [
+          {
+           "type": "object",
+           "properties": {
+            "id": {
+             "anyOf": [
+              {
+               "type": "string",
+               "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "params": {
+             "type": "object",
+             "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+             },
+             "additionalProperties": {}
+            }
+           },
+           "additionalProperties": false
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "card": {
+         "anyOf": [
+          {
+           "type": "object",
+           "properties": {
+            "id": {
+             "anyOf": [
+              {
+               "type": "string",
+               "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "params": {
+             "type": "object",
+             "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+             },
+             "additionalProperties": {}
+            }
+           },
+           "additionalProperties": false
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "interstitial": {
+         "anyOf": [
+          {
+           "type": "object",
+           "properties": {
+            "id": {
+             "anyOf": [
+              {
+               "type": "string",
+               "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "params": {
+             "type": "object",
+             "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+             },
+             "additionalProperties": {}
+            }
+           },
+           "additionalProperties": false
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "caption": {
+         "anyOf": [
+          {
+           "type": "object",
+           "properties": {
+            "id": {
+             "anyOf": [
+              {
+               "type": "string",
+               "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "params": {
+             "type": "object",
+             "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+             },
+             "additionalProperties": {}
+            }
+           },
+           "additionalProperties": false
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "layout": {
+         "anyOf": [
+          {
+           "type": "object",
+           "properties": {
+            "id": {
+             "anyOf": [
+              {
+               "type": "string",
+               "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "params": {
+             "type": "object",
+             "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+             },
+             "additionalProperties": {}
+            }
+           },
+           "additionalProperties": false
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "overlay": {
+         "anyOf": [
+          {
+           "type": "object",
+           "properties": {
+            "id": {
+             "anyOf": [
+              {
+               "type": "string",
+               "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "params": {
+             "type": "object",
+             "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+             },
+             "additionalProperties": {}
+            }
+           },
+           "additionalProperties": false
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "transition": {
+         "anyOf": [
+          {
+           "type": "object",
+           "properties": {
+            "id": {
+             "anyOf": [
+              {
+               "type": "string",
+               "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "params": {
+             "type": "object",
+             "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+             },
+             "additionalProperties": {}
+            }
+           },
+           "additionalProperties": false
+          },
+          {
+           "type": "null"
+          }
+         ]
+        }
+       },
+       "additionalProperties": false
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "cursor": {
+     "description": "The filmed cursor's style / size (null: the base's, or the palette tone's).",
+     "anyOf": [
+      {
+       "type": "object",
+       "properties": {
+        "style": {
+         "anyOf": [
+          {
+           "type": "string",
+           "enum": [
+            "arrow-dark",
+            "arrow-light"
+           ]
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "size": {
+         "anyOf": [
+          {
+           "type": "number",
+           "minimum": 12,
+           "maximum": 64
+          },
+          {
+           "type": "null"
+          }
+         ]
+        }
+       },
+       "additionalProperties": false
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "name"
    ],
    "additionalProperties": false
   },

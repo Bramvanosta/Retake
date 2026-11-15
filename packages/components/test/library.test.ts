@@ -585,6 +585,57 @@ describe('built-in library renders with any theme', () => {
     }
   });
 
+  it('intro-stack, intro-minimal, outro-stack and outro-minimal draw a wordmark logo once: no brand-name text beside it', () => {
+    const WIDE: ThemeTokens = { ...LIGHT, logo: { url: 'http://assets.local/wide.png', kind: 'wordmark', aspect: 11.3149 } };
+    const MARK: ThemeTokens = { ...LIGHT, logo: { url: 'http://assets.local/mark.png' } };
+    // Each with its width cap (design px): sized by width, never 11 × the mark's height.
+    const cases: Array<[string, Record<string, unknown>, number]> = [
+      ['studio/intro-stack', {}, 520],
+      ['studio/intro-minimal', { logo_only: true }, 640],
+      ['studio/outro-stack', {}, 520],
+      ['studio/outro-minimal', { logo_only: true }, 640],
+      ['studio/outro-minimal', {}, 640],
+    ];
+    for (const [id, params, maxW] of cases) {
+      const wide = render(id, { theme: WIDE, at: 80, params });
+      expect(wide.match(/<img /g)?.length, id).toBe(1);
+      expect(wide, id).toMatch(/<img[^>]*src="http:\/\/assets\.local\/wide\.png"[^>]*alt="Atelier"/);
+      expect(/<img[^>]*style="[^"]*;width:([\d.]+)px/.exec(wide)?.[1], id).toBe(String(maxW));
+      expect(wide, id).not.toContain('>Atelier</span>');
+      // A mark logo keeps the brand name beside it (outro-minimal with a tagline draws the logo alone either way).
+      if (id !== 'studio/outro-minimal' || params.logo_only) expect(render(id, { theme: MARK, at: 80, params }), id).toContain('>Atelier</span>');
+    }
+  });
+
+  it('outro-stack sizes a wordmark logo by wordmark_width, capped by logo_size and the column; a mark logo still by logo_size', () => {
+    const WIDE: ThemeTokens = { ...LIGHT, logo: { url: 'http://assets.local/wide.png', kind: 'wordmark', aspect: 11.3149 } };
+    const imgStyle = (html: string) => /<img[^>]*style="([^"]*)"/.exec(html)?.[1] ?? '';
+    expect(imgStyle(render('studio/outro-stack', { theme: WIDE, at: 80 }))).toContain('width:520px');
+    expect(imgStyle(render('studio/outro-stack', { theme: WIDE, at: 80, params: { wordmark_width: 1000 } }))).toContain('width:1000px');
+    // The height caps it: at most 40 high → 452.6 wide.
+    const capped = imgStyle(render('studio/outro-stack', { theme: WIDE, at: 80, params: { wordmark_width: 1000, logo_size: 48 } }));
+    expect(capped).toContain('height:48px');
+    expect(capped).toContain(`width:${48 * 11.3149}px`);
+    // Vertical: the column (1080 − 2 × inset) caps a wide wordmark_width.
+    const vertical = imgStyle(render('studio/outro-stack', { theme: WIDE, at: 80, variant: 'vertical', params: { wordmark_width: 1300 } }));
+    const w = Number(/width:([\d.]+)px/.exec(vertical)?.[1]);
+    expect(w).toBeGreaterThan(500);
+    expect(w).toBeLessThan(1080);
+    // A mark: logo_size high, as before.
+    expect(imgStyle(render('studio/outro-stack', { theme: { ...LIGHT, logo: { url: 'http://assets.local/mark.png' } }, at: 80 }))).toContain('height:150px;width:auto');
+  });
+
+  it("a logo slot equal to the theme's keeps its wordmark kind; another image is a mark (the brand name beside it)", () => {
+    const WIDE: ThemeTokens = { ...LIGHT, logo: { url: 'http://assets.local/wide.png', kind: 'wordmark', aspect: 11.3149 } };
+    for (const id of ['studio/intro-stack', 'studio/outro-stack']) {
+      const own = render(id, { theme: WIDE, at: 80, extra: { slots: { ...manifests[id].preview?.slots, logo: 'http://assets.local/wide.png' } } });
+      expect(own, id).not.toContain('>Atelier</span>');
+      const other = render(id, { theme: WIDE, at: 80, extra: { slots: { ...manifests[id].preview?.slots, logo: 'http://assets.local/other.png' } } });
+      expect(other, id).toContain('src="http://assets.local/other.png"');
+      expect(other, id).toContain('>Atelier</span>');
+    }
+  });
+
   it('transitions: the crossfade fades the entering segment in; the dip is opaque at the cut', () => {
     const screen = createElement('i', null, 'segment');
     const opacity = (html: string) => Number(/opacity:([\d.]+)/.exec(html)?.[1]);

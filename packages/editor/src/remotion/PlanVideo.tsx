@@ -9,7 +9,7 @@
 import { useMemo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AbsoluteFill, Html5Audio, OffthreadVideo, Sequence, useCurrentFrame } from './host.js';
-import { Logo, Wordmark, backgroundCss } from '@retake/components/kit';
+import { BrandLockup, backgroundCss } from '@retake/components/kit';
 import type { ComponentProps, ThemeTokens } from '@retake/components/geometry';
 import type { CardSegment, ClipSegment, EditPlan, OverlayUse, ResolvedComponent } from '../plan-types.js';
 import { viewOf } from '../layout.js';
@@ -180,8 +180,7 @@ function Brandmark({ plan, clip }: { plan: EditPlan; clip: ClipSegment }) {
         opacity: theme.brandmark?.opacity ?? 1,
       }}
     >
-      <Logo theme={theme} size={size} unit={plan.unit} />
-      <Wordmark theme={theme} height={size * 0.8} unit={plan.unit} />
+      <BrandLockup theme={theme} size={size} maxWidth={rect.w / plan.unit} unit={plan.unit} />
     </div>
   );
 }

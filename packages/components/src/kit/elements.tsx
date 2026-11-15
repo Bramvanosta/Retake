@@ -19,14 +19,53 @@ export function Background(props: { theme: ThemeTokens; style?: CSSProperties; c
   return <div style={{ ...fill, background: backgroundCss(props.theme), ...props.style }}>{props.children}</div>;
 }
 
+/** What the theme's logo is: a `wordmark` (the brand name as an image: drawn alone, sized by its width) or a `mark`. */
+export function logoKind(theme: Pick<ThemeTokens, 'logo'>): 'mark' | 'wordmark' {
+  return theme.logo?.url && theme.logo.kind === 'wordmark' ? 'wordmark' : 'mark';
+}
+
 /**
- * The theme logo at `size` design px high. Without a logo image, a monogram (the brand initial on the accent colour)
- * stands in when the brand has a name; otherwise nothing is drawn.
+ * The box the theme logo is drawn in, design px: a mark `height` high (as wide as its aspect says, `undefined` when
+ * unknown: the image's own); a wordmark given a `maxWidth` as wide as fits both — at most `maxWidth` wide and `height`
+ * high — or, of an unknown aspect, the whole `maxWidth × height` box (the image contained in it).
  */
-export function Logo(props: { theme: ThemeTokens; size: number; unit?: number; style?: CSSProperties }): ReactNode {
+export function logoBox(theme: Pick<ThemeTokens, 'logo'>, height: number, maxWidth?: number): { width: number | undefined; height: number } {
+  const aspect = theme.logo?.aspect;
+  if (logoKind(theme) !== 'wordmark' || maxWidth === undefined) return { width: aspect !== undefined ? height * aspect : undefined, height };
+  if (aspect === undefined || !(aspect > 0)) return { width: maxWidth, height };
+  const width = Math.min(maxWidth, height * aspect);
+  return { width, height: width / aspect };
+}
+
+/**
+ * The theme for a component's `logo` slot: the theme itself when the slot is empty or holds the theme's own logo (its
+ * kind and aspect kept), else the slot's image as a mark of unknown aspect.
+ */
+export function withLogo(theme: ThemeTokens, url: string | undefined): ThemeTokens {
+  if (!url || url === theme.logo?.url) return theme;
+  return { ...theme, logo: { url, kind: 'mark' } };
+}
+
+/**
+ * The theme logo at `size` design px high — a wordmark logo (logoKind) given a `maxWidth`: within `maxWidth × size`,
+ * as wide as fits (logoBox). Without a logo image, a monogram (the brand initial on the accent colour) stands in when
+ * the brand has a name; otherwise nothing is drawn. `monogram` draws the initial even over a logo image (an app icon of
+ * a wordmark logo).
+ */
+export function Logo(props: { theme: ThemeTokens; size: number; maxWidth?: number; unit?: number; monogram?: boolean; style?: CSSProperties }): ReactNode {
   const { theme, size, unit = 1 } = props;
   const px = size * unit;
-  if (theme.logo?.url) {
+  if (theme.logo?.url && !props.monogram) {
+    if (logoKind(theme) === 'wordmark' && props.maxWidth !== undefined) {
+      const box = logoBox(theme, size, props.maxWidth);
+      return (
+        <Img
+          src={theme.logo.url}
+          alt={theme.brand.name ?? ''}
+          style={{ height: box.height * unit, width: (box.width ?? props.maxWidth) * unit, objectFit: 'contain', display: 'block', ...props.style }}
+        />
+      );
+    }
     return <Img src={theme.logo.url} alt={theme.brand.name ?? ''} style={{ height: px, width: 'auto', objectFit: 'contain', display: 'block', ...props.style }} />;
   }
   const initial = [...(theme.brand.name ?? '').trim()][0];
@@ -63,10 +102,12 @@ export const WORDMARK_TEXT_SCALE = 1.3;
 /**
  * The wordmark at `height` design px of VISUAL height: the wordmark image that tall, or the brand name set in the
  * display font at `height × WORDMARK_TEXT_SCALE`, its baseline on the bottom of the box (so it lines up with an
- * image wordmark and centres on a logo like one).
+ * image wordmark and centres on a logo like one). Nothing beside a wordmark logo (logoKind): the logo is the name
+ * already — `force` draws it all the same.
  */
-export function Wordmark(props: { theme: ThemeTokens; height: number; unit?: number; color?: string; style?: CSSProperties }): ReactNode {
+export function Wordmark(props: { theme: ThemeTokens; height: number; unit?: number; color?: string; force?: boolean; style?: CSSProperties }): ReactNode {
   const { theme, height, unit = 1 } = props;
+  if (logoKind(theme) === 'wordmark' && !props.force) return null;
   const px = height * unit;
   if (theme.wordmark?.url) {
     return <Img src={theme.wordmark.url} alt={theme.wordmark.text ?? theme.brand.name ?? ''} style={{ height: px, width: 'auto', objectFit: 'contain', display: 'block', ...props.style }} />;
@@ -93,6 +134,20 @@ export function Wordmark(props: { theme: ThemeTokens; height: number; unit?: num
     >
       {text}
     </span>
+  );
+}
+
+/**
+ * The brand mark on clips (the compositions place it): the logo `size` design px high and the wordmark at 0.8 × size
+ * beside it — a wordmark logo alone (Wordmark draws nothing beside it), at most `maxWidth` wide (the mark's rect).
+ */
+export function BrandLockup(props: { theme: ThemeTokens; size: number; maxWidth: number; unit?: number }): ReactNode {
+  const { theme, size, unit = 1 } = props;
+  return (
+    <>
+      <Logo theme={theme} size={size} maxWidth={props.maxWidth} unit={unit} />
+      <Wordmark theme={theme} height={size * 0.8} unit={unit} />
+    </>
   );
 }
 

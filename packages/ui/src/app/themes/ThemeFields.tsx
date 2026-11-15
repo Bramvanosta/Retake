@@ -20,6 +20,7 @@ import { Txt, shown, visibleControls } from '../bits.js';
 import { DefaultZoom, FileSelect, ThemeText, ZoomField } from './theme-controls.js';
 import type { Send } from './theme-controls.js';
 import {
+  BODY_FONTS_MAX,
   COLOR_FIELDS,
   EDITOR_KINDS,
   NONE_WORDS,
@@ -315,6 +316,18 @@ const BrandSection = memo(function BrandSection({ v, off, send }: { v: ThemeEdit
       <ThemeText label="Outro URL" field="outro.url" view={v} off={off} send={send} />
       <ThemeText label="Outro tagline" field="outro.tagline" view={v} off={off} send={send} />
       <FileSelect label="Logo" field="logo" view={v} files={images} off={off} send={send} />
+      <Chips
+        label="Logo kind"
+        name="logo_kind"
+        value={String(written(v, 'logo_kind') ?? 'auto')}
+        options={[
+          ['auto', 'From its shape (3:1 and wider: wordmark)'],
+          ['mark', 'Mark (the name beside it)'],
+          ['wordmark', 'Wordmark (drawn alone)'],
+        ]}
+        off={off}
+        onPick={(x) => send(fieldEdit(v, 'logo_kind', x === 'auto' ? undefined : x))}
+      />
       <FileSelect label="Wordmark" field="wordmark" view={v} files={images} off={off} send={send} none="None (the brand name as text)" />
     </Section>
   );
@@ -345,7 +358,7 @@ const TypeSection = memo(function TypeSection({ v, off, send }: { v: ThemeEditVi
       {/* biome-ignore lint/a11y/useSemanticElements: the body font fields under one visual label; <fieldset> would bring its own border, padding and min-width */}
       <div className="tm-group" data-testid="font-body" role="group" aria-labelledby="tm-body-fonts">
         <span id="tm-body-fonts" className="tm-label">
-          Body (one file per weight or style, 1 to 4)
+          <Txt text={`Body (one file per weight or style, 1 to ${BODY_FONTS_MAX})`} />
         </span>
         {fonts.map((f) => (
           <Switch

@@ -91,6 +91,50 @@ describe('retake theme create', () => {
     expect(existsSync(join(ws, 'templates', 'gamma'))).toBe(false);
   });
 
+  it('--logo-kind, --cursor, --cursor-size, --component and --param map to the brand input (params as JSON, else text)', async () => {
+    const r = await retake(
+      'theme',
+      'create',
+      'flags',
+      '--accent',
+      '#0e7c66',
+      '--logo',
+      join(files, 'logo.svg'),
+      '--logo-kind',
+      'wordmark',
+      '--cursor',
+      'arrow-light',
+      '--cursor-size',
+      '30',
+      '--component',
+      'intro=studio/intro-minimal',
+      '--param',
+      'intro.logo_only=true',
+      '--param',
+      'outro.logo_size=72',
+      '--param',
+      'intro.align=left',
+      '--json',
+    );
+    expect(r.code, r.err).toBe(EXIT.ok);
+    expect(JSON.parse(r.out).logo_kind).toBe('wordmark');
+    const t = (await loadTemplate('flags', ws, { files: fileFacts(PERSON_POLICY) })).template;
+    expect(t.logo_kind).toBe('wordmark');
+    expect(t.cursor).toMatchObject({ style: 'arrow-light', size: 30 });
+    expect(t.components?.intro).toEqual({ id: 'studio/intro-minimal', params: { logo_only: true, align: 'left' } });
+    expect(t.components?.outro).toEqual({ id: 'studio/outro-stack', params: { logo_size: 72 } });
+    expect((await retake('theme', 'create', 'x', '--accent', '#000', '--logo', join(files, 'logo.svg'), '--component', 'sidebar=studio/x')).code).toBe(EXIT.usage);
+    expect((await retake('theme', 'create', 'x', '--accent', '#000', '--logo', join(files, 'logo.svg'), '--param', 'logo_size=72')).code).toBe(EXIT.usage);
+    for (const size of ['abc', '8', '', '1e9']) {
+      const r = await retake('theme', 'create', 'x', '--accent', '#000', '--logo', join(files, 'logo.svg'), '--cursor-size', size);
+      expect(r.code, size).toBe(EXIT.usage);
+      expect(r.err, size).toMatch(/--cursor-size .*: a cursor size in px, a number from 12 to 64/);
+    }
+    const bad = await retake('theme', 'create', 'x', '--accent', '#000', '--logo', join(files, 'logo.svg'), '--param', 'outro.logo_size=9999');
+    expect(bad.code).toBe(EXIT.failure);
+    expect(bad.err).toMatch(/logo_size/);
+  });
+
   it('a missing --accent or --logo, or a malformed --background, is a usage error', async () => {
     expect((await retake('theme', 'create', 'x', '--logo', 'a.svg')).code).toBe(EXIT.usage);
     expect((await retake('theme', 'create', 'x', '--accent', '#000')).code).toBe(EXIT.usage);

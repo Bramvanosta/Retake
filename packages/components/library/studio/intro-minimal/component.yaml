@@ -2,7 +2,8 @@
 # The quiet intro, in the family of the reference intro (docs/reference/look.md "Intro") without its brand row and
 # rule: the uppercase kicker in the accent and the display title (96 px, tight), placed by their cap bands and centred
 # as a stack, fading in (kicker 0.15 s, title 0.35 s) — or, with `logo_only`, the logo and the wordmark alone.
-# style_bias balanced / motion: a rise, a tracking settle on the title and a scale settle on the logo row.
+# style_bias balanced / motion: a rise, a tracking settle on the title and a scale settle on the logo row. A wordmark
+# logo (logo_kind, or 3:1 and wider) is drawn alone in the row, 640 px wide at most.
 id: studio/intro-minimal
 version: 1.0.0
 kind: intro

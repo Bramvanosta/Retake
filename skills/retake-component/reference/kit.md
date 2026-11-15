@@ -41,7 +41,7 @@ preview:                          # samples: a preview renders with any theme, w
 ## index.tsx
 
 ```tsx
-import { Background, FitText, Logo, rise, stagger, useCurrentFrame } from '@retake/components/kit';
+import { Background, FitText, Logo, withLogo, rise, stagger, useCurrentFrame } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { align: 'center' | 'left'; stagger: number };
@@ -53,7 +53,8 @@ export default function SplitIntro({ theme, slots, params, unit, width, fps }: C
     <Background theme={theme}>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', gap: 64 * unit, padding: 160 * unit,
                     justifyContent: params.align === 'center' ? 'center' : 'flex-start' }}>
-        <div style={enter(0)}><Logo theme={theme} size={96} unit={unit} /></div>
+        {/* The slot's logo (the theme's by default) keeps its kind: a wordmark logo is drawn alone, at most 560 wide. */}
+        <div style={enter(0)}><Logo theme={withLogo(theme, slots.logo)} size={96} maxWidth={560} unit={unit} /></div>
         <div style={enter(1)}>
           <FitText text={slots.title ?? ''} width={width * 0.5} maxFontSize={96 * unit} maxLines={2}
                    fontFamily={theme.fonts.display} color={theme.colors.text} />
@@ -93,7 +94,7 @@ The rules `component_validate` checks (it compiles the code; nothing runs):
 | Renderer primitives | `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence`, `random` |
 | Motion | `progress`, `fadeIn`, `fadeOut`, `fade`, `rise`, `stagger`, `activeIndex`, `easing`, `EASINGS`, `cubicBezier`, `themeEasing`, `biasMotion` |
 | Text that fits | `FitText`, `fitText`, `wrapText`, `balanceLines`, `measureText`, `CapText`, `capTextLayout`, `fontMetrics`, `capOffset` |
-| Theme elements | `Background`, `Logo`, `Wordmark`, `SafeArea`, `Icon`, `ICON_NAMES`, `Picture` |
+| Theme elements | `Background`, `Logo` (its maxWidth prop caps a wordmark logo's width; monogram draws the brand initial), `Wordmark` (draws nothing beside a wordmark logo unless given force), `BrandLockup`, `logoKind`, `logoBox`, `withLogo` (a logo slot keeping the theme logo's kind), `SafeArea`, `Icon`, `ICON_NAMES`, `Picture` |
 | CSS and colours | `backgroundCss`, `cssFontFamily`, `textStyleCss`, `withAlpha`, `mixColors`, `darkLight`, `nightTone`, `contrastRatio`, `readableOn`, `inkOn` (the ink that reads on a fill), `buttonColors` (a filled button: the accent, its label chosen against it), `isDarkBackground` |
 | Layout helpers | `safeAreaRect`, `scaleRect`, `roundTo`, `placeBeside`, `cardShadow`, `deviceTones`, `addressParts`, `captionBandBox`, `formatMetrics`, `captionMaxLines` |
 | Figures, keys, codes | `parseFigure`, `formatFigure`, `figureAt`, `parseShortcut`, `shortcutText`, `qrEncode`, `qrPath` |

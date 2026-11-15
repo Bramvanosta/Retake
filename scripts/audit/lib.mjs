@@ -665,7 +665,7 @@ export const CORE_CONTEXTS = [
     ],
   },
   { name: 'render', files: ['render-record', 'schemas/render', 'ffprobe', 'gpu', 'export-formats'] },
-  { name: 'theme', files: ['types/theme', 'template', 'template-defaults', 'components', 'theme-edits', 'brand', 'site', 'schemas/template'] },
+  { name: 'theme', files: ['types/theme', 'template', 'template-defaults', 'components', 'theme-edits', 'brand', 'site', 'image-size', 'schemas/template'] },
   { name: 'schema', files: ['schemas/json', 'schemas/type-checks'] },
 ];
 /**

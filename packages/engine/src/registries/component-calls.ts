@@ -26,6 +26,7 @@ export type ComponentCalls = Pick<
   | 'kitMajorOf'
   | 'paletteTone'
   | 'paramDefaults'
+  | 'resolveLogoKind'
   | 'scaffoldDir'
   | 'themeTokens'
   | 'validateParamValue'
@@ -49,6 +50,7 @@ export async function componentCalls(): Promise<ComponentCalls> {
     kitMajorOf: c.kitMajorOf,
     paletteTone: c.paletteTone,
     paramDefaults: c.paramDefaults,
+    resolveLogoKind: c.resolveLogoKind,
     scaffoldDir: c.scaffoldDir,
     themeTokens: c.themeTokens,
     validateParamValue: c.validateParamValue,

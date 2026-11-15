@@ -63,7 +63,7 @@ its file name; no fonts given: the base's are copied), `LICENSES.md` (where each
 declares about its licence) and `.retake-theme.json` (inputs and the sha256 of every file written).
 
 - **Colours** are hex. Only the accent is required; text, muted, paper, a night tone (`dark`) and the background are
-  derived from it when omitted (a dark paper makes a dark theme; base `motion` suits it). Contrast is checked (WCAG:
+  derived from it when omitted (a dark paper makes a dark theme over any base). Contrast is checked (WCAG:
   text 7:1 on the paper and the background, muted 4.5:1, the paper 7:1 on the night tone, the accent 3:1 on the paper);
   a colour that misses its threshold — derived or given — is lifted towards black / white and every change is listed
   (`--no-adjust` keeps them, with warnings). The accent is never changed: when it reads poorly on the paper you get a
@@ -76,13 +76,34 @@ declares about its licence) and `.retake-theme.json` (inputs and the sha256 of e
   OpenType tables, WOFF / WOFF2 header); a font whose embedding bits say "restricted" or "preview & print" is copied
   with a warning — check that its licence allows videos. A WOFF / WOFF2 keeps its weight compressed: it is read from
   the style word after the file name's last `-` or `_` (`Brand-SemiBold.woff2` → 600; none → 400), with a warning —
-  give `{file, weight}` to set it. What a font says about itself (family, copyright, licence) is printed without
+  give `{file, weight}` to set it. Up to **eight** body files (one per weight or style). A **variable font** is one
+  file for a range of weights: `{file, weight: "200 800"}` (CSS `font-weight` syntax, each end a hundred from 100 to
+  900), or nothing for a TrueType / OpenType file whose `fvar` table has a `wght` axis (a WOFF2 needs the range given);
+  it is copied as `fonts/body-wght200-800.<ext>` — the renderer, the Studio and the review read a face's range from
+  that `wght<min>-<max>` token, so a hand-made theme opts in by naming its file that way. Two body faces that serve
+  one weight (a static weight inside a range of its style, two ranges that meet) are refused. What a font says about itself (family, copyright, licence) is printed without
   control or bidirectional characters and escaped in `LICENSES.md` (never a link or an image there).
+- **A wide logo** (3:1 or wider, by the size the file declares) is a **wordmark**: the brand name as an image. It is
+  written as `logo_kind: wordmark` and drawn **alone** by the intro, the outro and the brand mark — sized by its width
+  (the outro's `wordmark_width`, 520 design px by default, at most its column; `logo_size` is then its maximum height),
+  never followed by the brand name in text (the kit's `Wordmark` draws nothing beside it; an app icon shows the brand's
+  initial instead of a cropped strip). `brand.name` stays the logo's alt text and the name used elsewhere.
+  `--logo-kind mark` (MCP `logo_kind: mark`) keeps a wide pictogram a mark; `--logo-kind wordmark` makes a narrower
+  logo one. A theme without `logo_kind` follows the 3:1 rule on its logo file.
+- **Components and cursor**: `--component outro=studio/outro-minimal`, `--param outro.logo_size=72` (MCP
+  `components: {outro: {params: {logo_size: 72}}}`: per kind `{id?, params?}`) go over the base's — params merged over
+  the base entry's when the id is the same, only those given for another id — and are checked against each
+  component's params before anything is written; a legacy field the new entry contradicts (`intro.layout`…) is
+  removed. `--cursor arrow-light` / `--cursor-size 30` (MCP `cursor: {style, size}`) set the filmed cursor. When the
+  palette's tone differs from the base's (a dark paper over `editorial`, a light one over `motion`), the cursor of the
+  palette's tone is chosen and said in a note — the cursor is drawn over your app at capture, so set `cursor.style` if
+  your app's UI is light under a dark brand; a new cursor shows in the next capture.
 - **Names**: lower-case letters, digits and `-`, at most 60 characters (the same for a copy made in the Studio; a theme
   that exists under a longer name keeps working, and can be copied from); never a starter's name (`default`, `editorial`, `motion`, in any case)
   nor a folder that already exists in `templates/`. `--replace` (MCP `replace: true`) replaces a theme Retake made
   only while none of its files changed and none was added — once you edit it, it is yours; through MCP only a theme
-  made through MCP is replaced (never one you made with `retake theme create`). Refused when the
+  made through MCP is replaced (never one you made with `retake theme create` or in the Studio: the provenance file
+  records who made it, `made_via`; a theme made before Retake recorded it is no longer replaced through MCP). Refused when the
   workspace's templates folder lies inside the Retake folder (the repository is not a workspace for your brand:
   set `RETAKE_ROOT` or a `retake.yaml`).
 - Through MCP the files must be files of the workspace that no tool writes: never in a hidden folder (`.retake/`),
@@ -91,6 +112,12 @@ declares about its licence) and `.retake-theme.json` (inputs and the sha256 of e
   Retake's MCP tools write; an agent's own file tools (Claude Code's Write, under your permissions) can still put
   a file in `brand/` — the content checks above apply to it all the same.
 
+- **Adjusting a theme Claude made**: MCP `template_update {name, …only what changes}` (e.g. `{name: "acme",
+  components: {outro: {params: {logo_size: 72}}}}`, `colors: {paper: "#1c1c1c"}`, `wordmark: null`) re-makes it from
+  the inputs it was made from with those keys changed — `null` removes an optional input, components merge per kind
+  and params per key. The files it does not name are the theme's own copies (a moved brand file or a pruned site
+  candidate does not matter; their `LICENSES.md` sections stay). Under the same guard as `replace`, plus the inputs
+  recorded in `.retake-theme.json` as written (their sha256): never a theme you made or edited.
 
 ### Themes from a site
 
@@ -310,7 +337,8 @@ url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styl
 | `progress`, `fadeIn`, `fadeOut`, `fade`, `rise`, `stagger`, `activeIndex` | frame-driven animation (frame + fps, seconds, design px × unit) |
 | `fitText`, `wrapText`, `balanceLines`, `measureText`, `<FitText>` | the largest font size ≤ max that fits a width (and height / line count), balanced lines, cut with "…" below the minimum: text never overflows. Measured with a canvas in the browser, a deterministic estimate in Node |
 | `fontMetrics`, `capOffset`, `capTextLayout`, `<CapText>` | text placed by its **cap band** (reference positions are cap centres): the font's ascent / descent / cap height measured with a canvas in the browser (estimated in Node), `capTextLayout` fits the text (fitText) and says where its line box goes so the first cap top lands at the wanted y, whatever the font |
-| `<Background>`, `<Logo>`, `<Wordmark>`, `<SafeArea>` | theme background; logo image (monogram of the brand without one); wordmark at a VISUAL height: the image that tall, or the brand name in the display font at height × `WORDMARK_TEXT_SCALE` (1.3) with its baseline on the bottom edge; title-safe box |
+| `<Background>`, `<Logo>`, `<Wordmark>`, `<SafeArea>` | theme background; logo image (monogram of the brand without one, or with `monogram`), `size` high — a wordmark logo given `maxWidth` as wide as fits `maxWidth × size`; wordmark at a VISUAL height: the image that tall, or the brand name in the display font at height × `WORDMARK_TEXT_SCALE` (1.3) with its baseline on the bottom edge — nothing beside a wordmark logo (the logo is the name) unless `force`; title-safe box |
+| `logoKind`, `logoBox`, `withLogo`, `<BrandLockup>` | the theme logo's kind (`mark` / `wordmark`: `theme.logo.kind`); the box a logo is drawn in; the theme for a `logo` slot (the theme's own logo keeps its kind, another image is a mark); the brand mark's logo + wordmark |
 | `backgroundCss`, `backgroundSample`, `isDarkBackground`, `cssFontFamily`, `textStyleCss`, `withAlpha`, `mixColors`, `darkLight`, `nightTone`, `contrastRatio`, `readableOn`, `inkOn`, `buttonColors`, `safeAreaRect`, `scaleRect`, `roundTo` | CSS from tokens, colour helpers (a filled button's fill and its label, chosen against the fill — the review's `button-contrast` checks a `button` slot's; a representative background colour, mixes, the night tone `colors.dark` or the darker of text / paper), rects |
 | `biasMotion(style_bias)` | `{travel, settle, tracking, pace}`: how much livelier than the reference a component may move (`real` = 1, 0, 0, 1) |
 | `cardShadow`, `deviceTones`, `SYSTEM_COLORS`, `addressParts`, `captionBandBox` | frames around a capture: the reference soft shadow tinted with the theme; device metals and glass derived from the theme (`dark` / `light` finish); the classic window-control colours (system UI, not brand) and pure white / black for masks and QR codes; a URL split for an address bar; where an overlay caption band goes (shared with the review) |

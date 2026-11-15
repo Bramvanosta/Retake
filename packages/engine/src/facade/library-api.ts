@@ -8,6 +8,7 @@ import { copyTheme } from '../brand/copy.js';
 import { brandFileList } from '../brand/file-list.js';
 import { siteList } from '../views/site-list.js';
 import { createThemeFromBrand } from '../brand/create.js';
+import { updateThemeFromBrand } from '../brand/update.js';
 import { readSite, siteHostConflicts, submitSiteJob } from '../jobs/site-job.js';
 import { ENGINE_TRUST } from '../caller.js';
 import type { EngineContext } from './context.js';
@@ -15,11 +16,13 @@ import type { Engine } from './types.js';
 
 /** engine.templates. */
 export function templatesApi(ctx: EngineContext): Engine['templates'] {
-  const { opts, ws, scope, submitCtx, startWorker, ports, caches } = ctx;
+  const { opts, ws, scope, submitCtx, startWorker, ports, caches, caller } = ctx;
   return {
     list: (o = {}) => templateList(ws, o.project),
     get: (o) => templateGet(ws, o),
-    create: (input) => createThemeFromBrand(ws, input, { trust: ENGINE_TRUST, scope }),
+    // Who makes it is recorded (made_via): through MCP only a theme made through MCP is replaced or updated.
+    create: (input) => createThemeFromBrand(ws, input, { trust: ENGINE_TRUST, via: caller.channel, scope }),
+    update: (input) => updateThemeFromBrand(ws, input, { via: caller.channel, scope }),
     fromSite: async (req, o = {}) => {
       const r = await submitSiteJob(submitCtx, req, o.approver);
       const worker = await startWorker();

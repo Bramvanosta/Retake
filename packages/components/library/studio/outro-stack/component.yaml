@@ -2,7 +2,8 @@
 # Reference look (docs/reference/look.md, "Outro"): logo mark 150, wordmark (the brand name in the display font when
 # the theme has no wordmark image), accent rule 120 × 2, tagline (body 30, muted) and url (body SemiBold 18 uppercase,
 # muted 70 %), centred (logo y 333–483, wordmark ≈ 571, rule ≈ 647, tagline ≈ 690, url ≈ 737 at 1920×1080). Motion:
-# logo fades + scales in (0.92 → 1), wordmark 0.2 s later, then rule / tagline / url staggered.
+# logo fades + scales in (0.92 → 1), wordmark 0.2 s later, then rule / tagline / url staggered. A wordmark logo (the
+# theme's logo_kind, or a logo 3:1 and wider) is drawn alone, wordmark_width wide at most, with no wordmark band.
 id: studio/outro-stack
 version: 1.0.0
 kind: outro
@@ -16,7 +17,8 @@ slots:
 params:
   type: object
   properties:
-    logo_size: {type: number, minimum: 48, maximum: 240, default: 150, description: Logo height in design px.}
+    logo_size: {type: number, minimum: 48, maximum: 240, default: 150, description: "Logo height in design px (a wordmark logo: its maximum height)."}
+    wordmark_width: {type: number, minimum: 160, maximum: 1300, default: 520, description: "Width of a wordmark logo in design px (at most the column; the logo is then drawn alone)."}
     stagger: {type: number, minimum: 0, maximum: 0.5, default: 0.15, description: "Seconds between the rule, the tagline and the url entrances."}
 tokens: [colors.accent, colors.text, colors.muted, background, fonts.display, fonts.body, logo, wordmark, brand.url, style_bias]
 duration: {default: 3, min: 1.5, max: 8}

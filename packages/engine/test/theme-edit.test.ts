@@ -121,6 +121,18 @@ describe('theme view', () => {
     for (const bad of [root, themeDir(), '/Users/', tmpdir()]) expect(json, bad).not.toContain(bad);
   });
 
+  it("theme_view shows a variable font's range from its wght<min>-<max> name (what a render registers), not its OS/2 default weight", async () => {
+    const vf = join(themeDir(), 'fonts', 'body-wght200-800.ttf');
+    await cp(join(themeDir(), 'fonts', 'Inter-Regular.ttf'), vf);
+    try {
+      const v = await engine.templates.view('brand');
+      expect(v.fonts.find((f) => f.file === 'fonts/body-wght200-800.ttf')).toMatchObject({ weight: [200, 800], italic: false });
+      expect(v.fonts.find((f) => f.file === 'fonts/Inter-Regular.ttf')?.weight).toBe(400);
+    } finally {
+      await rm(vf, { force: true });
+    }
+  });
+
   it("used_by is memoised on the projects' file-level signature (no re-parse while nothing moved)", async () => {
     await engine.templates.view('brand');
     const n = THEME_USES_STATS.computed;

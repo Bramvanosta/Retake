@@ -7,6 +7,8 @@ import {
   EASINGS,
   EASING_CURVES,
   FitText,
+  AppIcon,
+  BrandLockup,
   Logo,
   SafeArea,
   Wordmark,
@@ -43,8 +45,11 @@ import {
   toSeconds,
   withAlpha,
   wrapText,
+  logoBox,
+  logoKind,
+  withLogo,
 } from '@retake/components/kit';
-import type { TextMeasurer } from '@retake/components/kit';
+import type { TextMeasurer, ThemeTokens } from '@retake/components/kit';
 import { addressParts, captionBandBox, cardShadow, contrastRatio as contrast, deviceTones, liftToContrast } from '@retake/components/kit';
 import { DARK, LIGHT } from './helpers.js';
 
@@ -315,6 +320,83 @@ describe('kit React elements (render-tested)', () => {
     expect(text).toContain('height:15px');
     expect(text).toMatch(/transform:translateY\(-?[\d.]+px\)/);
     expect(html(createElement(Wordmark, { theme: { ...LIGHT, wordmark: undefined, brand: {} }, height: 30 }))).toBe('');
+  });
+
+  /** DARK with an 11.3:1 wordmark logo (a 2048×181 image), as themeTokens makes it. */
+  const WIDE: ThemeTokens = { ...DARK, logo: { url: 'http://assets.local/wide.png', kind: 'wordmark', aspect: 11.3149 } };
+
+  it('logo kind: a wordmark only with a logo image that says so; a token without kind is a mark', () => {
+    expect(logoKind(WIDE)).toBe('wordmark');
+    expect(logoKind(DARK)).toBe('mark');
+    expect(logoKind(LIGHT)).toBe('mark');
+    expect(logoKind({ logo: { url: '', kind: 'wordmark' } })).toBe('mark');
+  });
+
+  it('logoBox: a wordmark is width-led and capped by the height; a mark is height-led; no aspect: the bounding box', () => {
+    // 520 wide at most: 11.3:1 → 46 high, under the 150 cap.
+    const w = logoBox(WIDE, 150, 520);
+    expect(w.width).toBe(520);
+    expect(w.height).toBeCloseTo(520 / 11.3149, 6);
+    // The height caps it: a 4:1 wordmark at most 72 high is 288 wide, not 520.
+    expect(logoBox({ logo: { url: 'x', kind: 'wordmark', aspect: 4 } }, 72, 520)).toEqual({ width: 288, height: 72 });
+    // A mark: the height asked, as wide as its aspect (unknown: the image's own).
+    expect(logoBox({ logo: { url: 'x', aspect: 2 } }, 64, 520)).toEqual({ width: 128, height: 64 });
+    expect(logoBox(DARK, 64, 520)).toEqual({ width: undefined, height: 64 });
+    // A wordmark without a max width is drawn as a mark; of an unknown aspect, the whole box (the image contained).
+    expect(logoBox(WIDE, 64)).toEqual({ width: 64 * 11.3149, height: 64 });
+    expect(logoBox({ logo: { url: 'x', kind: 'wordmark' } }, 60, 400)).toEqual({ width: 400, height: 60 });
+  });
+
+  it('Logo draws a wordmark logo in its box (width-led); a mark stays height-led, whatever maxWidth says', () => {
+    const wide = html(createElement(Logo, { theme: WIDE, size: 150, maxWidth: 520, unit: 0.5 }));
+    expect(wide).toMatch(/<img[^>]*src="http:\/\/assets\.local\/wide\.png"[^>]*alt="Pulse"/);
+    expect(wide).toContain('width:260px');
+    expect(wide).toContain(`height:${(520 / 11.3149) * 0.5}px`);
+    const mark = html(createElement(Logo, { theme: DARK, size: 40, maxWidth: 520 }));
+    expect(mark).toContain('height:40px;width:auto');
+    expect(mark).not.toContain('520');
+  });
+
+  it('Wordmark draws nothing beside a wordmark logo (force draws it); a mark logo keeps its wordmark', () => {
+    expect(html(createElement(Wordmark, { theme: WIDE, height: 30 }))).toBe('');
+    expect(html(createElement(Wordmark, { theme: { ...WIDE, wordmark: { text: 'Pulse' } }, height: 30 }))).toBe('');
+    expect(html(createElement(Wordmark, { theme: WIDE, height: 30, force: true }))).toContain('src="http://assets.local/wordmark.svg"');
+    expect(html(createElement(Wordmark, { theme: DARK, height: 30 }))).toContain('src="http://assets.local/wordmark.svg"');
+  });
+
+  it("the brand mark draws a wordmark logo alone, within the mark's width; a mark logo with its wordmark", () => {
+    const wide = html(createElement(BrandLockup, { theme: WIDE, size: 30, maxWidth: 320, unit: 0.5 }));
+    expect(wide.match(/<img /g)?.length).toBe(1);
+    expect(wide).toContain('src="http://assets.local/wide.png"');
+    // 320 × 30 at most: 30 high wins (30 × 11.3 = 339 > 320) → 320 wide.
+    expect(wide).toContain('width:160px');
+    expect(wide).not.toContain('wordmark.svg');
+    const mark = html(createElement(BrandLockup, { theme: DARK, size: 30, maxWidth: 320 }));
+    expect(mark).toContain('src="http://assets.local/logo.svg"');
+    expect(mark).toContain('src="http://assets.local/wordmark.svg"');
+    expect(mark).toContain('height:24px');
+  });
+
+  it("withLogo: the slot holding the theme's own logo keeps its kind; another image is a mark of unknown aspect", () => {
+    expect(withLogo(WIDE, undefined)).toBe(WIDE);
+    expect(withLogo(WIDE, 'http://assets.local/wide.png')).toBe(WIDE);
+    expect(withLogo(WIDE, 'http://assets.local/other.png').logo).toEqual({ url: 'http://assets.local/other.png', kind: 'mark' });
+  });
+
+  it("an app icon over a wordmark logo is the brand's initial, never a cropped strip; without a name, the logo contained", () => {
+    const icon = html(createElement(AppIcon, { theme: WIDE, size: 80 }));
+    expect(icon).toContain('>P</div>');
+    expect(icon).not.toContain('wide.png');
+    // The slot defaulting to the theme's own wordmark logo (notifications, lock screen) is the initial too.
+    expect(html(createElement(AppIcon, { theme: WIDE, size: 80, url: 'http://assets.local/wide.png' }))).toContain('>P</div>');
+    // Another image is the app's own icon: drawn as given (cover).
+    expect(html(createElement(AppIcon, { theme: WIDE, size: 80, url: 'http://assets.local/app.png' }))).toMatch(/src="http:\/\/assets\.local\/app\.png"[^>]*object-fit:cover/);
+    const nameless = html(createElement(AppIcon, { theme: { ...WIDE, brand: {} }, size: 100 }));
+    expect(nameless).toContain('src="http://assets.local/wide.png"');
+    expect(nameless).toContain('width:84px');
+    // A mark logo: on the paper, as before.
+    expect(html(createElement(AppIcon, { theme: DARK, size: 80 }))).toContain('src="http://assets.local/logo.svg"');
+    expect(html(createElement(AppIcon, { theme: DARK, size: 80, url: 'http://assets.local/logo.svg' }))).toMatch(/src="http:\/\/assets\.local\/logo\.svg"[^>]*object-fit:cover/);
   });
 
   it('SafeArea insets its children; FitText draws the fitted lines', () => {

@@ -173,4 +173,47 @@ describe('generateThemeFile', () => {
     expect(t.brand).toBeUndefined();
     expect(t.wordmark).toBe('wordmark.svg');
   });
+
+  const editorialBase = () => parseYaml(readFileSync(join(STARTER_TEMPLATES_DIR, 'editorial', 'template.yaml'), 'utf8')).value as TemplateFile;
+  const gen = (o: Partial<Parameters<typeof generateThemeFile>[0]>, base: TemplateFile = editorialBase()) =>
+    generateThemeFile({
+      base,
+      baseName: 'editorial',
+      name: 'acme',
+      palette: derivePalette({ accent: '#0e7c66' }),
+      logo: 'logo.png',
+      fonts: { display: 'a.ttf', body: ['b.ttf'] },
+      date: '2026-11-15',
+      ...o,
+    });
+
+  it("components: params merged over the base's entry (a shorthand id expanded), another id with only its own, a base without the kind's entry from its legacy fields", () => {
+    const g = gen({ components: { outro: { params: { logo_size: 72 } }, layout: { params: { radius: 4 } }, transition: { id: 'studio/transition-fade-black' } } });
+    const t = parseTemplateYaml(g.yaml).template!;
+    expect(t.components?.outro).toEqual({ id: 'studio/outro-stack', params: { logo_size: 72 } });
+    expect(t.components?.layout).toEqual({ id: 'studio/layout-card', params: { width: 1560, radius: 4, shadow: 'soft' } });
+    expect(t.components?.transition).toBe('studio/transition-fade-black');
+    // Each entry now differs from what its legacy fields map to: those fields go (as the Studio's set_component does).
+    expect(g.removed_legacy).toEqual(['frame.style', 'frame.width', 'frame.radius', 'frame.shadow', 'outro.layout', 'transitions.between_scenes', 'transitions.duration']);
+    expect(parseTemplateYaml(g.yaml).issues).toEqual([]);
+    // No components entry for the kind in the base: its legacy field's component (here: outro.layout → outro-stack).
+    const bare = editorialBase();
+    delete (bare.components as Record<string, unknown>).outro;
+    expect(parseTemplateYaml(gen({ components: { outro: { params: { stagger: 0.2 } } } }, bare).yaml).template?.components?.outro).toEqual({ id: 'studio/outro-stack', params: { stagger: 0.2 } });
+    // A kind the base fills with a file (or none) needs an id.
+    const file = editorialBase();
+    (file.components as Record<string, unknown>).outro = { image: 'end.png' };
+    expect(() => gen({ components: { outro: { params: { logo_size: 72 } } } }, file)).toThrow(/components\.outro: the base theme has no component for outro \(a file of its own\): give an id/);
+    expect(parseTemplateYaml(gen({ components: { outro: { id: 'studio/outro-minimal' } } }, file).yaml).template?.components?.outro).toBe('studio/outro-minimal');
+  });
+
+  it('logo_kind is written right after logo; the cursor style and size go over the base cursor, the ripple follows the palette', () => {
+    const g = gen({ logo_kind: 'wordmark', cursor: { style: 'arrow-light', size: 30 } });
+    expect(g.yaml).toMatch(/^logo: logo\.png\nlogo_kind: wordmark\n/m);
+    const t = parseTemplateYaml(g.yaml).template!;
+    expect(t.logo_kind).toBe('wordmark');
+    expect(t.cursor).toEqual({ style: 'arrow-light', size: 30, ripple_color: derivePalette({ accent: '#0e7c66' }).ripple_color });
+    expect(gen({}).yaml).not.toContain('logo_kind');
+    expect(parseTemplateYaml(gen({}).yaml).template?.cursor.style).toBe('arrow-dark');
+  });
 });
