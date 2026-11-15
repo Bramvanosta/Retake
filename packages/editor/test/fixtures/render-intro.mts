@@ -6,8 +6,9 @@
  */
 import { PERSON_POLICY } from '@retake/core';
 import { loadProject } from '@retake/core/io';
-import { planRun, renderPlan } from '@retake/editor';
-import type { RenderNetwork } from '@retake/editor';
+import { planRun } from '@retake/editor';
+import { renderPlan } from '../../src/render/render.js';
+import type { RenderNetwork } from '../../src/render/render.js';
 
 process.on('unhandledRejection', (e) => {
   if ((e as NodeJS.ErrnoException)?.code !== 'EPIPE') throw e;

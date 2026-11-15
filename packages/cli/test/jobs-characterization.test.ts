@@ -8,7 +8,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, liveWorker, selfIdentity } from '@retake/engine';
+import { FileJobQueue } from '@retake/engine/testing';
+import { liveWorker, selfIdentity } from '@retake/engine/shell';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { main, memoryIo } from '../src/index.js';
 

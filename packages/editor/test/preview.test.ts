@@ -15,7 +15,7 @@ import type { LoadedTemplate } from '@retake/core';
 import { PREVIEW_MAX_BYTES, PREVIEW_SIZE, README_BEGIN, createComponent, loadComponentRegistry, pngSize, previewStatus, themeTokens } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { buildComponentPreview, loadPreviewSamples, loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
-import type { PreviewSamples } from '@retake/editor';
+import type { PreviewSamples } from '../src/preview.js';
 import { REPO, hasTool } from '@retake/test-support/repo';
 import { SHARED_CACHE } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';

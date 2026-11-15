@@ -3,23 +3,14 @@ import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DEFAULT_CAPTURE, DEFAULT_PACING, TimelineSchema, isoDay, parseDay, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
-import {
-  arcPath,
-  computeIdle,
-  cfrSchedule,
-  motionCapture,
-  motionWarnings,
-  frameRateArgs,
-  encodeFrames,
-  kitConfigFor,
-  kitSource,
-  mergeCapture,
-  mergePacing,
-  moveDuration,
-  isNudge,
-  projectBrowser,
-  resolveAuth,
-} from '../src/index.js';
+import { arcPath, moveDuration, isNudge } from '../src/motion.js';
+import { computeIdle, motionCapture } from '../src/timeline.js';
+import { cfrSchedule } from '../src/encode.js';
+import { motionWarnings } from '../src/run.js';
+import { frameRateArgs } from '../src/session.js';
+import { encodeFrames, kitConfigFor, projectBrowser } from '../src/index.js';
+import { kitSource } from '../src/kit/source.js';
+import { mergeCapture, mergePacing, resolveAuth } from '../src/config.js';
 import { imageSize } from '../src/recorder.js';
 import { LONG_TEXT_MAX_CPS, SEARCH_MAX_CPS, typingRate } from '../src/actions/keyboard.js';
 import { matchDay, monthDirection } from '../src/actions/calendar.js';

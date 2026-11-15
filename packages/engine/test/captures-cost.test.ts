@@ -12,7 +12,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ulid } from '@retake/core';
-import { FileJobQueue, JOB_RECORD_VERSION, JobsWatch, TakeBeside, heldFile } from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { JOB_RECORD_VERSION } from '../src/jobs/types.js';
+import { JobsWatch } from '../src/index-db/jobs-watch.js';
+import { TakeBeside, heldFile } from '../src/jobs/captures.js';
 
 let root: string;
 let jobs: string;

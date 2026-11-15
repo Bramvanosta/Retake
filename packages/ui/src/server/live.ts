@@ -33,7 +33,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import {
   ENGINE_HTTP_API,
-  EngineError,
   JobsWatch,
   RUNS_INDEX_MAX,
   WorkspaceIndex,
@@ -47,7 +46,8 @@ import {
   securityHeaders,
   sourceKey,
   workspaceChanges,
-} from '@retake/engine';
+} from '@retake/engine/shell';
+import { EngineError } from '@retake/engine';
 import type { JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader, OpenedWorkspace } from '@retake/engine';
 
 import { recordsChanges, recordsWatchScan } from './record-watch.js';

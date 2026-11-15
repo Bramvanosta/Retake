@@ -14,7 +14,7 @@ import { recordCommand } from '../src/commands/record.js';
 import type { RecordTestHooks } from '../src/commands/record.js';
 import { Ui } from '../src/ui.js';
 import { scratchHome } from '@retake/test-support/home';
-import { enginePorts } from '@retake/engine';
+import { enginePorts } from '@retake/engine/shell';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 

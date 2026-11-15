@@ -13,7 +13,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
 import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { DocumentArtefact, EmailArtefact, NotificationArtefact, Timeline } from '@retake/core';
-import { imageSize, mailMatches, parseAddress, runScenario, sandboxedEmail, sniffMime } from '../src/index.js';
+import { imageSize, sniffMime } from '../src/artefacts/store.js';
+import { mailMatches, parseAddress } from '../src/artefacts/mailbox.js';
+import { runScenario } from '../src/index.js';
+import { sandboxedEmail } from '../src/artefacts/render.js';
 import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 

@@ -12,22 +12,10 @@ import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry, VideoMedia } from '@retake/components';
 import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, Timeline, TimelineEvent } from '@retake/core';
-import {
-  MARK_WINDOW_S,
-  OVERLAY_BOX_MARGIN,
-  WAIT_KEEP_S,
-  duckSpans,
-  mapSourceRect,
-  musicVolumeAt,
-  overlayBoxAt,
-  planEdit,
-  planFileRefs,
-  protectedSpans,
-  stepBoxes,
-  themeFileRefs,
-  waitingSpans,
-} from '@retake/editor';
-import type { ClipSegment, EditOverrides, EditPlan, PlanInputFile } from '@retake/editor';
+import { MARK_WINDOW_S, OVERLAY_BOX_MARGIN, WAIT_KEEP_S, duckSpans, mapSourceRect, musicVolumeAt, overlayBoxAt, protectedSpans, stepBoxes, waitingSpans } from '../src/plan-entry.js';
+import { planEdit, planFileRefs, themeFileRefs } from '@retake/editor';
+import type { ClipSegment, EditOverrides, PlanInputFile } from '../src/plan-entry.js';
+import type { EditPlan } from '@retake/editor';
 import { REPO } from '@retake/test-support/repo';
 import { fixtureProject, synthTimeline } from '@retake/test-support/timeline';
 import { seg } from './helpers.js';

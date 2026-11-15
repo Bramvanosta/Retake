@@ -13,31 +13,22 @@ import { JOB_ID_RE, RunRecordSchema } from '@retake/core';
 import { reserveRunId } from '@retake/core/io';
 import type { Scene } from '@retake/core';
 import type { RunJobInput } from '@retake/engine';
-import {
-  EngineError,
-  FileJobQueue,
-  RunOptionError,
-  SandboxTakeError,
-  WorkerLock,
-  createEngine,
-  executeRunJob,
-  memoryJobQueues,
-  liveWorker,
-  newJobId,
-  openProjectBySlug,
-  openWorkspace,
-  prepareInspect,
-  prepareRun,
-  readWorkerLock,
-  runCommandLine,
-  sha256Hex,
-  signalInterrupts,
-  toEngineError,
-  systemClock,
-  enginePorts,
-  diskWorkspaceReads,
-  diskOutputs,
-} from '../src/index.js';
+import { EngineError, createEngine, toEngineError } from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { RunOptionError, SandboxTakeError, prepareRun } from '../src/execute-run.js';
+import { WorkerLock, liveWorker, readWorkerLock } from '../src/jobs/lock.js';
+import { executeRunJob, runCommandLine } from '../src/jobs/run-job.js';
+import { memoryJobQueues } from '../src/jobs/memory-queue.js';
+import { newJobId } from '../src/jobs/ids.js';
+import { openProjectBySlug } from '../src/projects.js';
+import { openWorkspace } from '../src/workspace.js';
+import { prepareInspect } from '../src/jobs/inspect-job.js';
+import { sha256Hex } from '../src/storage.js';
+import { signalInterrupts } from '../src/interrupts.js';
+import { systemClock } from '../src/clock.js';
+import { enginePorts } from '../src/ports.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { scratchHome } from '@retake/test-support/home';
@@ -127,7 +118,8 @@ describe('FileJobQueue', () => {
   });
 
   it('L5.14a fixes (review B M4): position per lane (captures before heavy jobs); a heavy job a take holds says held_by "take", never "next"', async () => {
-    const { FilmingMarker, selfIdentity } = await import('../src/index.js');
+    const { FilmingMarker } = await import('../src/jobs/captures.js');
+    const { selfIdentity } = await import('../src/jobs/proc.js');
     const root = join(ws, 'q-lanes');
     const q = new FileJobQueue(root);
     const review = (n: number) => q.enqueue({ version: 1, kind: 'review', project: 'northfield-fixture', render_id: `quote-v${n}`, fps: 1, submitted_by: 'test' } as never);
@@ -187,7 +179,7 @@ describe('FileJobQueue', () => {
     await q.write({ ...running, worker: { pid: process.ppid, started_at: '2001-01-01T00:00:00.000Z', host: 'h' } });
     expect((await q.get(job.id))?.state).toBe('interrupted');
     // A live worker: running.
-    const { selfIdentity } = await import('../src/index.js');
+    const { selfIdentity } = await import('../src/jobs/proc.js');
     await q.write({ ...running, worker: { ...(await selfIdentity()), host: 'h' } });
     expect((await q.get(job.id))?.state).toBe('running');
     // Claimed while queued by a worker that died before starting it.
@@ -292,7 +284,7 @@ describe('engine.runs.submit (no worker started)', () => {
     const record = RunRecordSchema.parse(JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')));
     expect(record).toMatchObject({ status: 'queued', mode: 'dry', env: 'local', steps_total: 2, options: { hooks: 'skip', until: 'discover.1' } });
     const text = await readFile(join(ws, 'projects', 'northfield-fixture', 'scenarios', 'quote.yaml'));
-    const { sha256Hex } = await import('../src/index.js');
+    const { sha256Hex } = await import('../src/storage.js');
     expect(sub.job.input).toEqual({
       version: 1,
       kind: 'run',
@@ -440,7 +432,10 @@ describe('a job runs the scenario bytes it was submitted with', () => {
 
 describe('captures first in the job views (L5.14b)', () => {
   it('a heavy job held by a take reads `yield`: waiting (queued), background or past the cap (running, from yield.json); words fixed; never written back', async () => {
-    const { FilmingMarker, JobsWatch, heldWork, heldWorkWords, selfIdentity, yieldWords } = await import('../src/index.js');
+    const { FilmingMarker } = await import('../src/jobs/captures.js');
+    const { JobsWatch } = await import('../src/index-db/jobs-watch.js');
+    const { heldWork, heldWorkWords, yieldWords } = await import('../src/jobs/held.js');
+    const { selfIdentity } = await import('../src/jobs/proc.js');
     const { hostname } = await import('node:os');
     const root = join(ws, 'q-yield');
     const q = new FileJobQueue(root);

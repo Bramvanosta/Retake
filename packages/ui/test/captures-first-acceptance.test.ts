@@ -32,7 +32,7 @@ import { cp, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { cpus, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, readWorkerLock } from '@retake/engine';
+import { FileJobQueue, readWorkerLock } from '@retake/engine/testing';
 import type { JobRecord } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';

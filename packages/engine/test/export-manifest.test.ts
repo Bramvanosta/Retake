@@ -10,7 +10,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { ExportMade, ExportOutput } from '@retake/editor/plan';
-import { ManualClock, MemoryOutputs, diskOutputs } from '../src/index.js';
+import { ManualClock } from '../src/clock.js';
+import { MemoryOutputs } from '../src/outputs/memory-outputs.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Outputs } from '../src/index.js';
 import { exportPlace, writeExportManifest } from '../src/render/export-manifest.js';
 

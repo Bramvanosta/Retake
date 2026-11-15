@@ -16,7 +16,8 @@ import { exportCapture } from '@retake/runner-web';
 import { openWorkspace } from '../src/workspace.js';
 import { cleanWorkerEnv } from '../src/jobs/worker-env.js';
 import { capture, writeRun } from '@retake/test-support/runs';
-import { diskWorkspaceReads, diskOutputs } from '../src/index.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-ws-ffmpeg-')));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));

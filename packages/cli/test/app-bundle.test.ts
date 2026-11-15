@@ -24,7 +24,7 @@ import { main, memoryIo } from '../src/index.js';
 import { componentsPreviewCommand } from '../src/commands/components.js';
 import { initWorkspace } from '../src/commands/init.js';
 import { Ui } from '../src/ui.js';
-import { enginePorts } from '@retake/engine';
+import { enginePorts } from '@retake/engine/shell';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 

@@ -3,7 +3,7 @@
  * `epipe`: a write to the encoder's closed pipe rejects unhandled — the process lives on and prints "alive". `other`:
  * any other unhandled rejection still ends the process (Node's default is kept).
  */
-import { guardEncoderPipe } from '@retake/editor';
+import { guardEncoderPipe } from '../../src/render/render.js';
 
 guardEncoderPipe();
 guardEncoderPipe(); // once per process, however many renders

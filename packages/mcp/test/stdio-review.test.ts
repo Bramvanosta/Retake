@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { readWorkerLock } from '@retake/engine';
+import { readWorkerLock } from '@retake/engine/testing';
 import { imageResult } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { hasTool } from '@retake/test-support/repo';

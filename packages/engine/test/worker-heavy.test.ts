@@ -27,22 +27,15 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import {
-  APPROVALS_USED_DIR,
-  FileJobQueue,
-  MARKER_NAME_RE,
-  buildDirs,
-  buildStamp,
-  capturesDir,
-  createEngine,
-  heldFile,
-  historyFile,
-  processStart,
-  readWorkerLock,
-  runWorker,
-  signApprovals,
-  workspaceCaptureId,
-} from '../src/index.js';
+import { APPROVALS_USED_DIR, signApprovals } from '../src/jobs/signing.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { MARKER_NAME_RE, capturesDir, heldFile, workspaceCaptureId } from '../src/jobs/captures.js';
+import { buildDirs, buildStamp } from '../src/jobs/build.js';
+import { createEngine } from '../src/index.js';
+import { historyFile } from '../src/history.js';
+import { processStart } from '../src/jobs/proc.js';
+import { readWorkerLock } from '../src/jobs/lock.js';
+import { runWorker } from '../src/jobs/worker.js';
 import type { JobRecord } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
@@ -301,7 +294,9 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
   }, 60_000);
 
   it('the cap reached is said on the running job (yield `past_cap`, its words), not only logged; gone once the take ends', async () => {
-    const { FilmingMarker, selfIdentity, yieldWords } = await import('../src/index.js');
+    const { FilmingMarker } = await import('../src/jobs/captures.js');
+    const { selfIdentity } = await import('../src/jobs/proc.js');
+    const { yieldWords } = await import('../src/jobs/held.js');
     const saved = process.env.RETAKE_CAPTURE_HOLD_MAX_MIN;
     process.env.RETAKE_CAPTURE_HOLD_MAX_MIN = '0.02';
     const { root, queue } = await workspace('cap');
@@ -394,7 +389,8 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
   }, 30_000);
 
   it('review A L4: the first signal SIGTERMs the job process at once, even while a walk of its tree is slow (QoS released after)', async () => {
-    const { FilmingMarker, selfIdentity } = await import('../src/index.js');
+    const { FilmingMarker } = await import('../src/jobs/captures.js');
+    const { selfIdentity } = await import('../src/jobs/proc.js');
     const { root, queue } = await workspace('slow-walk');
     const job = await review(queue);
     const before = process.listeners('SIGTERM');
@@ -650,7 +646,8 @@ describe("the order of the worker's side effects (characterization of runWorker,
   }, 30_000);
 
   it('a worker stopped while it holds heavy work: held.json written during the hold, gone once it returned', async () => {
-    const { FilmingMarker, selfIdentity } = await import('../src/index.js');
+    const { FilmingMarker } = await import('../src/jobs/captures.js');
+    const { selfIdentity } = await import('../src/jobs/proc.js');
     const { root, queue } = await workspace('held-stop');
     const job = await review(queue);
     const before = process.listeners('SIGTERM');

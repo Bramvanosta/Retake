@@ -53,7 +53,7 @@ vi.mock('node:fs', async (importOriginal) => {
 
 const { NODE_RECORD_FS } = await import('../src/io/record-file.js');
 const { readRendersFolder } = await import('../src/io/render-folder.js');
-const { renderRecordText } = await import('./fixtures/records/build-renders.js');
+const { renderRecordText } = await import('@retake/test-support/records/build-renders');
 
 let root: string;
 beforeAll(() => {

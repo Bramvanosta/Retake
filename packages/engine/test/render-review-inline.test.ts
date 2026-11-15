@@ -14,7 +14,10 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { REVIEW_IMAGE_BASE64_MAX, createEngine, diskOutputs, runWorker } from '../src/index.js';
+import { REVIEW_IMAGE_BASE64_MAX } from '../src/reviews.js';
+import { createEngine } from '../src/index.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { runWorker } from '../src/jobs/worker.js';
 import type { Engine, RenderJobResult } from '../src/index.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import { MemoryReviewer } from '../src/review/memory-reviewer.js';

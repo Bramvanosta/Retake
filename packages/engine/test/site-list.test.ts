@@ -9,7 +9,8 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { SITE_KEEP, createEngine } from '../src/index.js';
+import { SITE_KEEP } from '../src/jobs/site-job.js';
+import { createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 

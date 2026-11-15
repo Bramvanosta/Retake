@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TOOLS, protocolTool } from '@retake/mcp';
-import { admission } from '@retake/engine';
+import { admission } from '@retake/engine/testing';
 import type { JobRecord, PreparedTake } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { helpTexts } from '../src/main.js';

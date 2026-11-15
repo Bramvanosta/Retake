@@ -16,36 +16,15 @@ import { libraryVersions } from '../src/render/library.js';
 import { COMPOSITIONS, PREVIEW_COMPOSITION, VIDEO_COMPOSITIONS } from '../src/remotion/contract.js';
 import { createRoot } from '../src/remotion/Root.js';
 import type { ReactElement } from 'react';
-import {
-  COMPOSITION_DEPS,
-  COMPOSITION_IDS,
-  EDITOR_DIR,
-  HEADLESS_SHELL_ENV,
-  HEADLESS_SHELL_INSTALL,
-  assertRenderBrowser,
-  brandmarkRect,
-  bundleComponentsFor,
-  bundleHash,
-  compositionFiles,
-  defaultConcurrency,
-  entrySource,
-  findRun,
-  geometryFiles,
-  listRenders,
-  musicVolumeAt,
-  parseRange,
-  planComponentIds,
-  planEdit,
-  registryModuleSource,
-  renderBrowser,
-  runEnv,
-  srcFrameAt,
-  standInTransition,
-  startAssetServer,
-  transitionWindows,
-  urlAt,
-} from '@retake/editor';
-import type { BundleComponent, ClipSegment, EditPlan } from '@retake/editor';
+import { COMPOSITION_DEPS, EDITOR_DIR, bundleComponentsFor, entrySource, geometryFiles, planComponentIds, registryModuleSource } from '../src/render/bundle.js';
+import { COMPOSITION_IDS } from '../src/render/render.js';
+import { HEADLESS_SHELL_ENV, assertRenderBrowser, bundleHash, compositionFiles, defaultConcurrency, findRun, parseRange, planEdit, renderBrowser } from '@retake/editor';
+import { HEADLESS_SHELL_INSTALL } from '../src/render/browser.js';
+import { brandmarkRect, musicVolumeAt, srcFrameAt, standInTransition, transitionWindows, urlAt } from '../src/plan-entry.js';
+import { listRenders, runEnv } from '../src/render/runs.js';
+import { startAssetServer } from '../src/render/asset-server.js';
+import type { BundleComponent, EditPlan } from '@retake/editor';
+import type { ClipSegment } from '../src/plan-entry.js';
 import { fixtureProject, realTimeline, template } from '@retake/test-support/timeline';
 import { syntheticRunRecord } from '@retake/test-support/render';
 import { PERSON_POLICY, workPolicyFrom } from '@retake/core';

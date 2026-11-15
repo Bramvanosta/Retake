@@ -24,11 +24,12 @@ import {
   mapPaneRect,
   paneIndexOf,
   paneSource,
-  planEdit,
   planInsetTrack,
   stepBoxes,
-} from '@retake/editor';
-import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
+} from '../src/plan-entry.js';
+import { planEdit } from '@retake/editor';
+import type { ClipSegment, EditOverrides } from '../src/plan-entry.js';
+import type { EditPlan } from '@retake/editor';
 import type { Timeline, TimelineEvent } from '@retake/core';
 import { FIXTURES, fixtureProject, template } from '@retake/test-support/timeline';
 import { REPO } from '@retake/test-support/repo';

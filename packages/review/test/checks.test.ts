@@ -15,9 +15,9 @@ import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planEdit } from '@retake/editor/plan';
 import type { CardSegment, ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@retake/editor/plan';
+import { DEFAULT_RULES } from '../src/types.js';
+import { buildOutputTimeline, outputClicks } from '../src/timeline.js';
 import {
-  DEFAULT_RULES,
-  buildOutputTimeline,
   captionRegion,
   checkArtefactOrder,
   checkCamera,
@@ -35,26 +35,18 @@ import {
   checkOverlaysKept,
   checkButtonContrast,
   checkTransitionsOnClicks,
-  diffRecords,
   environmentLine,
   fitCaption,
-  fontFileMeasurer,
-  keyframePlan,
-  loadFontFace,
-  outputClicks,
-  outputFrameOf,
   planFontFiles,
   reviewEnvironment,
-  reviewRules,
-  safeName,
-  sampleFrames,
   segmentDurations,
-  segmentSpans,
-  isClip,
-  timecode,
-  transitionSpans,
-} from '../src/index.js';
-import type { CheckContext } from '../src/index.js';
+} from '../src/checks.js';
+import { diffRecords } from '../src/diff.js';
+import { fontFileMeasurer, loadFontFace } from '../src/fonts.js';
+import { keyframePlan, reviewRules, sampleFrames } from '../src/review.js';
+import { outputFrameOf, segmentSpans, isClip, timecode, transitionSpans } from '../src/spans.js';
+import { safeName } from '../src/images.js';
+import type { CheckContext } from '../src/checks.js';
 import { FIXTURES, realTimeline, synthTimeline } from '@retake/test-support/timeline';
 import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';

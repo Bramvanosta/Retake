@@ -15,7 +15,8 @@ import { SANDBOX_SCHEMA_FILE } from '@retake/core';
 import { loadProject, overrideBundleInfo } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 import { createComponent } from '@retake/components';
-import { initSandbox, schemaRef } from '../src/index.js';
+import { initSandbox } from '../src/index.js';
+import { schemaRef } from '../src/init.js';
 
 /** The scaffold's writer in these tests: plain files (the engine's project store in the CLI). */
 const plainWrite = async (file: string, text: string): Promise<void> => {

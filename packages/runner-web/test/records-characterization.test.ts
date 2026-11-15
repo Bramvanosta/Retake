@@ -1,6 +1,6 @@
 /**
  * Run records as the runner writes them and as the raw export's gate reads them (L7.6a). The gate: state by state
- * (core/test/fixtures/records/states.json; OLD: a good capture of `quote`; NEW: the state named), the refusal of
+ * (test-support/src/records/states.json; OLD: a good capture of `quote`; NEW: the state named), the refusal of
  * `exportCapture` or "passes the gate" (the export stops at its first progress event: nothing is encoded). The
  * writer: the members of the record a real dry run ends with, per outcome.
  *
@@ -17,8 +17,8 @@ import type { RunRecord, Scenario } from '@retake/core';
 import { loadProject } from '@retake/core/io';
 import { exportCapture, rawExportRun, runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
-import { buildState, stateIds, writeWorkspace } from '../../core/test/fixtures/records/build.js';
-import type { BuiltState } from '../../core/test/fixtures/records/build.js';
+import { buildState, stateIds, writeWorkspace } from '@retake/test-support/records/build';
+import type { BuiltState } from '@retake/test-support/records/build';
 import { DRY_PAGE } from './pages.js';
 import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject } from './helpers.js';

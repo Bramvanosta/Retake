@@ -14,21 +14,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { personaPaths, resolvePersonas } from '@retake/core';
-import { JOB_INPUT_VERSION } from '@retake/engine';
+import { JOB_INPUT_VERSION } from '../src/jobs/job-input.js';
 import { writeStatus } from '@retake/runner-web';
-import {
-  AUTH_HEADED_MAX_MS,
-  FileJobQueue,
-  createEngine,
-  executeAuthLoginJob,
-  headedSignInMaxMs,
-  openProject,
-  personaState,
-  signInStoppedText,
-  signalInterrupts,
-  withTimeLimit,
-  enginePorts,
-} from '../src/index.js';
+import { AUTH_HEADED_MAX_MS, executeAuthLoginJob, headedSignInMaxMs, signInStoppedText, withTimeLimit } from '../src/jobs/auth-job.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { createEngine } from '../src/index.js';
+import { openProject } from '../src/workspace.js';
+import { personaState } from '../src/auth.js';
+import { signalInterrupts } from '../src/interrupts.js';
+import { enginePorts } from '../src/ports.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemorySessions } from '../src/capture/memory-sessions.js';

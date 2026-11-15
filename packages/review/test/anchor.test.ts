@@ -14,7 +14,9 @@ import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { brandmarkRect, planEdit } from '@retake/editor/plan';
 import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor/plan';
-import { captionRegion, frameAnchor, segmentSpans, transitionSpans } from '../src/index.js';
+import { captionRegion } from '../src/checks.js';
+import { frameAnchor } from '../src/anchor.js';
+import { segmentSpans, transitionSpans } from '../src/spans.js';
 import { REPO } from '@retake/test-support/repo';
 import { synthTimeline } from '@retake/test-support/timeline';
 

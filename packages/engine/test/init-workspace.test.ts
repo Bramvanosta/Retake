@@ -8,7 +8,10 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { INIT_WORKSPACE_YAML, ManualClock, MemoryWorkspace, enginePorts, initWorkspace } from '../src/index.js';
+import { INIT_WORKSPACE_YAML, initWorkspace } from '../src/init-workspace.js';
+import { ManualClock } from '../src/clock.js';
+import { MemoryWorkspace } from '../src/workspace-reads/memory-reads.js';
+import { enginePorts } from '../src/ports.js';
 
 describe('initWorkspace on its ports', () => {
   it('on the disk: retake.yaml, .gitignore and an empty projects/ folder; a workspace already there is left as it is', async () => {

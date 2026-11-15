@@ -2,7 +2,12 @@
  * A separate process appending replies to one thread (comments.test.ts: concurrent writers lose no entry).
  * Usage: comment-writer.mts <workspace> <project> <thread id> <writer name> <count>
  */
-import { enginePorts, openProject, openWorkspace, personScope, replyComment, diskWorkspaceReads, diskOutputs } from '../../src/index.js';
+import { enginePorts } from '../../src/ports.js';
+import { openProject, openWorkspace } from '../../src/workspace.js';
+import { personScope } from '../../src/store/project-store.js';
+import { replyComment } from '../../src/comments.js';
+import { diskWorkspaceReads } from '../../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../../src/outputs/disk-outputs.js';
 import { PERSON_POLICY } from '@retake/core';
 import { fileFacts } from '@retake/core/io';
 

@@ -9,8 +9,9 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RUN_THUMBS_MAX_KEYS } from '@retake/engine';
-import { UI_OPS, startStudioServer } from '../src/index.js';
+import { RUN_THUMBS_MAX_KEYS } from '@retake/engine/testing';
+import { UI_OPS } from '../src/server/studio.js';
+import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { BLOCKS_YAML, GREEN, RED, capture, centre, near, writeRun } from '@retake/test-support/runs';

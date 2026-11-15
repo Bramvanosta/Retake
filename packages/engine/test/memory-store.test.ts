@@ -9,7 +9,13 @@ import { readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ManualClock, MemoryProjectStores, MemoryWorkspace, README_MAX_CHARS, callerOf, createEngine, sha256Hex } from '../src/index.js';
+import { ManualClock } from '../src/clock.js';
+import { MemoryProjectStores } from '../src/store/memory-store.js';
+import { MemoryWorkspace } from '../src/workspace-reads/memory-reads.js';
+import { README_MAX_CHARS } from '../src/projects.js';
+import { callerOf } from '../src/caller.js';
+import { createEngine } from '../src/index.js';
+import { sha256Hex } from '../src/storage.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { projectStoreContract } from './project-store-contract.js';
 

@@ -5,7 +5,8 @@
  * maintenance connection is a stand-in that answers each statement.
  */
 import { describe, expect, it } from 'vitest';
-import { PostgresSnapshot, SandboxError } from '../src/index.js';
+import { PostgresSnapshot } from '../src/snapshot-postgres.js';
+import { SandboxError } from '../src/index.js';
 
 const TARGET = { key: 'app', url: 'postgres://u@db.test/shop', host: 'db.test', port: 5432, user: 'u', database: 'shop', template: 'shop__ds_snapshot' };
 

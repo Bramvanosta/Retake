@@ -11,7 +11,8 @@ import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { EngineError, LocalStorage, createEngine, sha256Hex } from '../src/index.js';
+import { EngineError, createEngine } from '../src/index.js';
+import { LocalStorage, sha256Hex } from '../src/storage.js';
 import type { Engine } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 

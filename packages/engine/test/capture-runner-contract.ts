@@ -12,7 +12,9 @@
  * Not here, because it is not an adapter's: what the engine builds the request from (execute-run.ts, inspect-job.ts:
  * capture-runner.test.ts), and everything a real browser does on a page (runner-web's own tests).
  */
-import { MemorySecrets, diskOutputs, runsDirOf } from '../src/index.js';
+import { MemorySecrets } from '../src/secrets/memory-secrets.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { runsDirOf } from '../src/outputs/outputs.js';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';

@@ -10,7 +10,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { mp4TranscodeArgs, transcodeMp4 } from '@retake/editor';
-import { encodeFrames, resolveEncoder } from '../src/index.js';
+import { encodeFrames } from '../src/index.js';
+import { resolveEncoder } from '../src/stream.js';
 import { RAW_ENCODING, clipArgs, encodeClip, rawCodecLabel } from '../src/raw/encode.js';
 import { PERSON_POLICY } from '@retake/core';
 

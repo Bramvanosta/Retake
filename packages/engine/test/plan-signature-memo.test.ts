@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StoredRenderRecord } from '@retake/core/render';
 import { RenderMemos, memoPlanSignature } from '../src/renders.js';
-import { planSignature } from '../src/index.js';
+import { planSignature } from '../src/renders.js';
 
 const record = (project: string, plan: object): StoredRenderRecord =>
   ({

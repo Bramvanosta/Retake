@@ -3,7 +3,7 @@
  * worker; a write that fails is logged with the job and the reason, and the job's priority still follows the take.
  */
 import { describe, expect, it } from 'vitest';
-import { ManualClock } from '../src/index.js';
+import { ManualClock } from '../src/clock.js';
 import { recordYield, steerHeavy } from '../src/jobs/worker-heavy.js';
 import type { HeavyChild, Worker } from '../src/jobs/worker-record.js';
 

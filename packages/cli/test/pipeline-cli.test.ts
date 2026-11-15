@@ -70,7 +70,8 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
 });
 
 import { ExportError, RenderCancelledError, RenderError } from '@retake/editor';
-import { INSPECT_KEEP, enginePorts } from '@retake/engine';
+import { INSPECT_KEEP } from '@retake/engine/testing';
+import { enginePorts } from '@retake/engine/shell';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { recordGolden } from '@retake/test-support/golden';
 

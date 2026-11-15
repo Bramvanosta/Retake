@@ -7,7 +7,7 @@
  * gives through these paths stays with the real runner: inspect-jobs.test.ts, worker-process.test.ts,
  * run-live-pause.test.ts and the CLI's run tests.
  */
-import { MemorySecrets } from '../src/index.js';
+import { MemorySecrets } from '../src/secrets/memory-secrets.js';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -16,20 +16,18 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_CAPTURE, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, RunRecord } from '@retake/core';
 import { chromiumExecutable } from '@retake/runner-web';
-import {
-  createEngine,
-  historyFile,
-  openWorkspace,
-  prepareRun,
-  runInProcess,
-  runWorker,
-  runnerWebCapture,
-  signalInterrupts,
-  systemClock,
-  diskWorkspaceReads,
-  diskOutputs,
-  runsDirOf,
-} from '../src/index.js';
+import { createEngine } from '../src/index.js';
+import { historyFile } from '../src/history.js';
+import { openWorkspace } from '../src/workspace.js';
+import { prepareRun } from '../src/execute-run.js';
+import { runInProcess } from '../src/in-process.js';
+import { runWorker } from '../src/jobs/worker.js';
+import { runnerWebCapture } from '../src/capture/runner-web-capture.js';
+import { signalInterrupts } from '../src/interrupts.js';
+import { systemClock } from '../src/clock.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { runsDirOf } from '../src/outputs/outputs.js';
 import type { InspectJobResult, RunPorts } from '../src/index.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import type { CaptureRequest } from '../src/capture/runner.js';

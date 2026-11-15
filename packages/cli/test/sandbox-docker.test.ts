@@ -22,7 +22,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProject } from '@retake/core/io';
 import { MailboxClient, inlineCids } from '@retake/runner-web';
 import { dockerEnv, findDocker, openSandbox, probePort } from '@retake/sandbox';
-import { packageHookRunner } from '@retake/engine';
+import { packageHookRunner } from '@retake/engine/testing';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { PERSON_POLICY } from '@retake/core';
 import type { WorkPolicy } from '@retake/core';

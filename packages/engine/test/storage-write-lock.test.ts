@@ -14,7 +14,8 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { Interface } from 'node:readline';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { EngineError, LocalStorage, sha256Hex } from '../src/index.js';
+import { EngineError } from '../src/index.js';
+import { LocalStorage, sha256Hex } from '../src/storage.js';
 import { REPO } from '@retake/test-support/repo';
 
 const LONG = 60_000;

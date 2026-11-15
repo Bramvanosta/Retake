@@ -1,6 +1,6 @@
 /**
  * The one reader of a run folder (L7.6a, core/io run-folder.ts) and, through it, the two rules of core take.ts over the
- * whole table of states (test/fixtures/records/states.json; OLD: a good capture of `quote`; NEW: the state named):
+ * whole table of states (test-support/src/records/states.json; OLD: a good capture of `quote`; NEW: the state named):
  * the run `latest` names with what it passes over, and a run named by its folder at a terminal and through MCP.
  * These are the answers every site gives once it uses the rules.
  */
@@ -13,8 +13,8 @@ import { latestTake, namedRunProblem, orderRuns, relativeInside, takeNeedsTimeli
 import type { LatestPick, RunFolderFacts } from '../src/index.js';
 import { RUN_RECORD_MAX, TIMELINE_MAX, readNamedRun, readNamedRunFolder, readRunFolder, readRunRecord, readTimeline, readTimelineHead } from '../src/io/index.js';
 import type { RunFolderFs } from '../src/io/index.js';
-import { STATES, buildState, stateIds, writeRunFolder } from './fixtures/records/build.js';
-import type { BuiltState } from './fixtures/records/build.js';
+import { STATES, buildState, stateIds, writeRunFolder } from '@retake/test-support/records/build';
+import type { BuiltState } from '@retake/test-support/records/build';
 
 let root: string;
 beforeAll(() => {

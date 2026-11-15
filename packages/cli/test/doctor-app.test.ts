@@ -18,7 +18,8 @@ import type { BundleInfo } from '@retake/core/io';
 import { appChecks as appChecksAt, launchUpdates, updateCheck } from '@retake/engine/doctor';
 import { doctorChecks } from '../src/commands/doctor.js';
 import type { DoctorProbes } from '../src/commands/doctor.js';
-import { diskOutputs, diskWorkspaceReads, enginePorts } from '@retake/engine';
+import { enginePorts } from '@retake/engine/shell';
+import { diskOutputs, diskWorkspaceReads } from '@retake/engine/testing';
 
 /** The app's lines seen now. */
 const appChecks = (p: DoctorProbes) => appChecksAt(p, Date.now());

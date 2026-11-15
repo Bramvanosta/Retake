@@ -13,24 +13,20 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY, WorkspaceFileSchema, renderSettingsFromEnv, workPolicyFrom } from '@retake/core';
 import {
   GPU_CONCURRENCY,
-  RenderCancelledError,
-  RenderDiskFullError,
-  RenderError,
   VIDEOTOOLBOX_MAX_SIDE,
   chooseEncoder,
-  defaultConcurrency,
   encodingRecord,
-  exportRenderWarnings,
   gopFrames,
   gpuPathFailure,
   openRenderBrowser,
   renderSandboxOff,
   remotionEncoding,
-  resolveRenderPolicy,
   videotoolboxFits,
   videotoolboxMbps,
   withGl,
-} from '@retake/editor';
+} from '../src/render/policy.js';
+import { RenderCancelledError, RenderDiskFullError, RenderError, defaultConcurrency, resolveRenderPolicy } from '@retake/editor';
+import { exportRenderWarnings } from '../src/render/export.js';
 
 import { nodeFileFacts } from '@retake/core/io';
 import { EncodeToolsError, noteOwnEncodeFailed, resetOwnFfmpeg } from '../src/render/encode-tools.js';

@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { readWorkerLock } from '@retake/engine';
+import { readWorkerLock } from '@retake/engine/testing';
 import { REPO } from '@retake/test-support/repo';
 import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '@retake/test-support/site';
 import type { BrandSite } from '@retake/test-support/site';

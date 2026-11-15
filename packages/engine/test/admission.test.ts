@@ -20,9 +20,11 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_INPUT_VERSION } from '@retake/engine';
+import { JOB_INPUT_VERSION } from '../src/jobs/job-input.js';
 import * as engineIndex from '../src/index.js';
-import { EXPORTS_OPEN_MAX, EngineError, FileJobQueue, confirmWhy, createEngine, sessionsToConfirm } from '../src/index.js';
+import { EXPORTS_OPEN_MAX, confirmWhy, sessionsToConfirm } from '../src/admission.js';
+import { EngineError, createEngine } from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
 import type { ApprovalOutcome, Engine, EngineClient, JobRecord } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { scratchHome } from '@retake/test-support/home';

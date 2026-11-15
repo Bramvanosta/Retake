@@ -13,7 +13,7 @@ import { NODE_RECORD_FS, RENDER_RECORD_MAX, findNamedRender, latestRenderLines, 
 import type { RecordFs } from '../src/io/index.js';
 import { renderOutputName } from '../src/index.js';
 import type { RenderEntry } from '../src/index.js';
-import { renderRecordText } from './fixtures/records/build-renders.js';
+import { renderRecordText } from '@retake/test-support/records/build-renders';
 
 let root: string;
 let dir: string;

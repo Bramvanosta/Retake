@@ -13,9 +13,12 @@ import { chromium } from 'playwright-core';
 import { PERSON_POLICY, resolvePersonas } from '@retake/core';
 import { retakeHome } from '@retake/core/io';
 import type { LoadedProject, PersonaConfig } from '@retake/core';
-import { checkSavedSession, launchTarget, readSnapshot, signIn } from '../src/index.js';
+import { checkSavedSession, signIn } from '../src/index.js';
+import { launchTarget } from '../src/session.js';
+import { readSnapshot } from '../src/auth.js';
 import { applyStorageState } from '../src/session.js';
-import type { SignInOptions, StorageStateFile } from '../src/index.js';
+import type { SignInOptions } from '../src/login.js';
+import type { StorageStateFile } from '../src/session.js';
 import { makeProject, tempDir } from './helpers.js';
 
 const PASSWORD = 'idb-pass-5521';

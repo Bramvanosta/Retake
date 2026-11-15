@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { printableText, bestEffort } from '@retake/core/base';
 import { EXPORT_FORMAT_NAMES } from '@retake/core/render';
-import { DEFAULT_JOB_EXPORT_FORMATS, exportInProcess, findRenderOf } from '@retake/engine';
+import { DEFAULT_JOB_EXPORT_FORMATS, exportInProcess, findRenderOf } from '@retake/engine/shell';
 import type { ExportFormat, ExportProgress } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';

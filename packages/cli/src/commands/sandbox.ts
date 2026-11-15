@@ -12,7 +12,7 @@ import type { LoadedProject } from '@retake/core/model';
 import type { RunRecord } from '@retake/core/run';
 import { describeLock } from '@retake/core/io';
 import type { ProviderCapabilities, ResetResult, SandboxLog, ServiceStatus } from '@retake/sandbox/types';
-import { callerOf, fileWriter, personScope, sandboxUpText, sandboxWork, storeOf } from '@retake/engine';
+import { callerOf, fileWriter, personScope, sandboxUpText, sandboxWork, storeOf } from '@retake/engine/shell';
 import type { EnginePorts, InterruptPort, SandboxHandle } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';

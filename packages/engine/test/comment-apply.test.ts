@@ -19,7 +19,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { diffLines, textLines } from '@retake/core';
 import type { CommentThread } from '@retake/core';
-import { EngineError, commentLockFile, createEngine } from '../src/index.js';
+import { EngineError, createEngine } from '../src/index.js';
+import { commentLockFile } from '../src/comments.js';
 import type { Engine } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 

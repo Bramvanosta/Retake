@@ -1,5 +1,5 @@
 /**
- * `retake prune` on the layouts of what prune keeps (L7.7, R-FLD-28; core/test/fixtures/records prune-layouts.ts):
+ * `retake prune` on the layouts of what prune keeps (L7.7, R-FLD-28; test-support/src/records prune-layouts.ts):
  * the whole text of the command, layout by layout, with the run folders under their labels and the sizes left out.
  * The marks over the rows are those of the engine's table (engine/test/prune-keeps.test.ts).
  */
@@ -8,9 +8,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { writeWorkspace } from '../../core/test/fixtures/records/build.js';
-import { LAYOUTS, buildLayout } from '../../core/test/fixtures/records/prune-layouts.js';
-import type { BuiltLayout, LayoutRun } from '../../core/test/fixtures/records/prune-layouts.js';
+import { writeWorkspace } from '@retake/test-support/records/build';
+import { LAYOUTS, buildLayout } from '@retake/test-support/records/prune-layouts';
+import type { BuiltLayout, LayoutRun } from '@retake/test-support/records/prune-layouts';
 import { scratchHome } from '@retake/test-support/home';
 
 let root: string;

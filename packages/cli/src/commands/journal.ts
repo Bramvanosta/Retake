@@ -5,7 +5,7 @@
  * outcome. Read only: nothing here writes, rewrites or removes the journal. Not the job history (`history.jsonl`).
  */
 import { printableText } from '@retake/core/base';
-import { readJournal } from '@retake/engine';
+import { readJournal } from '@retake/engine/shell';
 import type { JournalEntry } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';

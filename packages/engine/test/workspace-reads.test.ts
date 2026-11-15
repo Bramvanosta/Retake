@@ -12,7 +12,11 @@ import { describe, expect, it } from 'vitest';
 import { plainFileVerdict } from '@retake/core/model';
 import { STARTER_TEMPLATES_DIR, fsError, memoryDisk, nodeWorkspaceDisk } from '@retake/core/io';
 import { memoryCopy } from '@retake/test-support/workspace';
-import { ManualClock, MemoryWorkspace, createEngine, diskWorkspaceReads, enginePorts } from '../src/index.js';
+import { ManualClock } from '../src/clock.js';
+import { MemoryWorkspace } from '../src/workspace-reads/memory-reads.js';
+import { createEngine } from '../src/index.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { enginePorts } from '../src/ports.js';
 import { workspaceReadsContract } from './workspace-reads-contract.js';
 
 workspaceReadsContract('disk', async () => {

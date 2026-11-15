@@ -14,7 +14,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { ANY_THEME_NAME_RE, COMPONENT_ID_RE as CORE_ID_RE, COMPONENT_KINDS, NEW_THEME_NAME_RE, PROJECT_SLUG_RE } from '@retake/core';
-import type { LibraryImagesAnswer, LibraryItem } from '../src/index.js';
+import type { LibraryImagesAnswer, LibraryItem } from '../src/server/library-ops.js';
 import { ANY_THEME_NAME, PROJECT_SLUG } from '../src/app/id-words.js';
 import { IMAGES_KEYS_MAX, LibraryImages, RENDER_CHUNK_MAX, RENDER_DEBOUNCE_MS, RenderPump, nextChunk } from '../src/app/library/library-load.js';
 import type { RenderRequest } from '../src/app/library/library-load.js';

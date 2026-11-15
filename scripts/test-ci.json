@@ -179,6 +179,7 @@
     "packages/engine/test/component-shell-forms.test.ts",
     "packages/engine/test/editor-renderer.test.ts",
     "packages/engine/test/engine-caches.test.ts",
+    "packages/engine/test/engine-entries.test.ts",
     "packages/engine/test/engine-facade.test.ts",
     "packages/engine/test/engine.test.ts",
     "packages/engine/test/error-kinds.test.ts",

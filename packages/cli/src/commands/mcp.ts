@@ -10,7 +10,8 @@
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clientPath } from '@retake/core/io';
-import { EngineError, servedWorkspaceRoot } from '@retake/engine';
+import { EngineError } from '@retake/engine';
+import { servedWorkspaceRoot } from '@retake/engine/shell';
 import type { EnginePorts } from '@retake/engine';
 import {
   MCP_HTTP_TOKEN_ENV,
@@ -40,7 +41,7 @@ export interface McpCommandOptions {
 /** `--print-config --http` and `--http`: the registration, or the server until Ctrl-C / SIGTERM. */
 async function mcpHttp(ui: Ui, ports: EnginePorts, root: string, opts: McpCommandOptions): Promise<ExitCode> {
   const mcp = await import('@retake/mcp');
-  const { mcpHttpTokenFile, stableToken } = await import('@retake/engine');
+  const { mcpHttpTokenFile, stableToken } = await import('@retake/engine/shell');
   let port = mcp.DEFAULT_MCP_HTTP_PORT;
   if (opts.port !== undefined) {
     port = Number(opts.port);

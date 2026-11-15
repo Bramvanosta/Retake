@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolArgs, ToolData } from '@retake/engine/contract';
 import type { CommentAnchorView, CommentCountsView, RenderFrameView, RenderOutlineView } from '@retake/engine';
-import type { ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadsListAnswer } from '../src/index.js';
+import type { ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadsListAnswer } from '../src/server/comment-ops.js';
 import type { StudioTools } from '../src/server/studio.js';
 
 /** A and B are each other's (mutually assignable) and have the same keys (an extra optional member counts). */

@@ -8,7 +8,7 @@
  * the trust rule that hands the persona's own origins (engine hooks.ts, hooks-pages.test.ts); the preflight of a
  * recording (record.ts, record.test.ts); a run (capture-runner-contract.ts).
  */
-import { enginePorts } from '../src/index.js';
+import { enginePorts } from '../src/ports.js';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

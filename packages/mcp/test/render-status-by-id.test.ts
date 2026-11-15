@@ -2,20 +2,21 @@
  * `render_status` of a render named by its id (L7.8, decision ii of L7.6b): the trusted summary and the trusted data
  * hold only closed words and checked values; every text a record file holds is under "untrusted" (`untrusted.record`:
  * the record as the file holds it, without its plan, its warnings and its error). A status Retake never writes is
- * `unknown` by its id as through `latest`. The project is the lot's control state (core/test/fixtures/records), in a
+ * `unknown` by its id as through `latest`. The project is the lot's control state (test-support/src/records), in a
  * temp workspace; no job runs.
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_RECORD_VERSION, createEngine } from '@retake/engine';
+import { JOB_RECORD_VERSION } from '@retake/engine/testing';
+import { createEngine } from '@retake/engine';
 import type { Engine } from '@retake/engine';
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
 import { render } from '../src/tools/render.js';
-import { writeWorkspace } from '../../core/test/fixtures/records/build.js';
-import { buildRenderState } from '../../core/test/fixtures/records/build-renders.js';
-import type { BuiltRenders } from '../../core/test/fixtures/records/build-renders.js';
+import { writeWorkspace } from '@retake/test-support/records/build';
+import { buildRenderState } from '@retake/test-support/records/build-renders';
+import type { BuiltRenders } from '@retake/test-support/records/build-renders';
 import { scratchHome } from '@retake/test-support/home';
 
 const { render_status: renderStatus } = OPERATIONS_BY_NAME;

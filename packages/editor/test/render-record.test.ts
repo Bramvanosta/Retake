@@ -7,7 +7,7 @@ import { parseRenderRecord } from '@retake/core';
 import type { StoredRenderRecord } from '@retake/core';
 import { withPlan } from '@retake/editor/plan';
 import type { FinishedRender, RenderAttempt, RenderRecord, StoredRender } from '@retake/editor/plan';
-import { renderRecordText } from '../../core/test/fixtures/records/build-renders.js';
+import { renderRecordText } from '@retake/test-support/records/build-renders';
 
 const VARS = { dir: '/w/projects/p', project: 'p', old: 'OLD', new: 'NEW' };
 const stored = (more: object = {}): StoredRenderRecord => {

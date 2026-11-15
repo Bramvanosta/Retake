@@ -4,7 +4,7 @@
  * show them. The table pins every kind's words.
  */
 import { describe, expect, it } from 'vitest';
-import { jobOutcome, jobProgress, jobWhat } from '../src/index.js';
+import { jobOutcome, jobProgress, jobWhat } from '../src/operations/job-words.js';
 import { jobLine } from '../src/contract.js';
 import type { JobInput, JobProgress, JobRecord, JobResult } from '../src/index.js';
 

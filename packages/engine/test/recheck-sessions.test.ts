@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { PERSON_POLICY, resolvePersonas } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
-import { recheckSessions } from '../src/index.js';
+import { recheckSessions } from '../src/auth.js';
 import type { PersonaState, SessionRecheck } from '../src/index.js';
 import { MemorySessions } from '../src/capture/memory-sessions.js';
 

@@ -7,7 +7,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { createEngine, workerLockFile, workersDir } from '@retake/engine';
+import { createEngine } from '@retake/engine';
+import { workerLockFile, workersDir } from '@retake/engine/testing';
 import { TOOLS } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 

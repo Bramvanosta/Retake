@@ -10,7 +10,11 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeF
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { FileJobQueue, createEngine, historyFile, jobsDir, runWorker } from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { createEngine } from '../src/index.js';
+import { historyFile } from '../src/history.js';
+import { jobsDir } from '../src/workspace-state.js';
+import { runWorker } from '../src/jobs/worker.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { synthTimeline } from '@retake/test-support/timeline';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';

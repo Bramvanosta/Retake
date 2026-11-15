@@ -12,22 +12,22 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PERSON_POLICY, parseScenario } from '@retake/core';
 import { fileFacts, loadProject } from '@retake/core/io';
 import type { Scenario } from '@retake/core';
+import { callerOf } from '../src/caller.js';
+import { createEngine } from '../src/index.js';
+import { enginePorts } from '../src/ports.js';
 import {
-  callerOf,
-  createEngine,
-  enginePorts,
   hooksTrustView,
   hooksWrittenBy,
   trustScenarioHooks,
-  ManualClock,
-  journalFile,
   renderForListing,
   scenarioHookFiles,
   scenarioHooksCheck,
   scenarioHookSurface,
   scenarioShellHooks,
   scenarioWritesFile,
-} from '../src/index.js';
+} from '../src/agent-written.js';
+import { ManualClock } from '../src/clock.js';
+import { journalFile } from '../src/store/journal.js';
 import type { Engine } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 

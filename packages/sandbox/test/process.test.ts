@@ -22,7 +22,9 @@ import { loadProject } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import { Journal } from '@retake/hooks';
 import type { NewJournalEntry } from '@retake/hooks';
-import { SandboxError, groupTree, openSandbox, probePort, processStart, processTable, readState, sandboxPaths, signalState, writeState } from '@retake/sandbox';
+import { SandboxError, openSandbox, probePort, sandboxPaths } from '@retake/sandbox';
+import { groupTree, processStart, processTable, signalState } from '../src/proc.js';
+import { readState, writeState } from '../src/state.js';
 import type { Sandbox } from '@retake/sandbox';
 import { PERSON_POLICY } from '@retake/core';
 

@@ -13,8 +13,12 @@ import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { insetRectAt, mapPaneRect, planEdit } from '@retake/editor/plan';
 import type { ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@retake/editor/plan';
-import { DEFAULT_RULES, checkCursor, checkOverlayCover, checkTutorial, fontFileMeasurer, outputClicks, planFontFiles, segmentSpans, transitionSpans } from '../src/index.js';
-import type { CheckContext } from '../src/index.js';
+import { DEFAULT_RULES } from '../src/types.js';
+import { checkCursor, checkOverlayCover, checkTutorial, planFontFiles } from '../src/checks.js';
+import { fontFileMeasurer } from '../src/fonts.js';
+import { outputClicks } from '../src/timeline.js';
+import { segmentSpans, transitionSpans } from '../src/spans.js';
+import type { CheckContext } from '../src/checks.js';
 import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 

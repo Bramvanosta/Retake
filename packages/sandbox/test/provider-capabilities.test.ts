@@ -12,8 +12,12 @@ import { packageHooks } from './hook-runner.js';
 import { describe, expect, it } from 'vitest';
 import { PERSON_POLICY, SandboxError, sandboxPaths } from '@retake/core';
 import type { LoadedProject, LoadedSandbox } from '@retake/core';
-import { COMPOSE_CAPABILITIES, ComposeProvider, PROCESS_CAPABILITIES, ProcessProvider, emptyState, providerFor } from '@retake/sandbox';
-import type { Provider, ProviderCapabilities, ProviderContext } from '@retake/sandbox';
+import { COMPOSE_CAPABILITIES, PROCESS_CAPABILITIES } from '../src/provider.js';
+import { ComposeProvider } from '../src/compose.js';
+import { ProcessProvider } from '../src/process.js';
+import { emptyState } from '../src/state.js';
+import { providerFor } from '../src/sandbox.js';
+import type { Provider, ProviderCapabilities, ProviderContext } from '../src/provider.js';
 
 const NAMES: Array<keyof ProviderCapabilities> = ['exec', 'logs', 'followLogs', 'snapshots', 'address', 'hashInputs', 'build', 'volumes'];
 /** The methods that were optional before L7.25, by the capability that says they work. */

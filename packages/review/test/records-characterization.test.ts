@@ -1,6 +1,6 @@
 /**
  * The run of a render as the review reads it (L7.6a): `renderRun` (the take's record: what it cost) and
- * `renderTimeline`, state by state (core/test/fixtures/records/states.json; NEW: the state named). A review reads the
+ * `renderTimeline`, state by state (test-support/src/records/states.json; NEW: the state named). A review reads the
  * run its render names, whatever the record says: these rows do not move in this lot but where marked (the reads go
  * through the core's one reader: a file that is no record, or one a newer Retake wrote, is not handed over).
  */
@@ -10,10 +10,11 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProject } from '@retake/core/io';
 import type { RenderRecord } from '@retake/editor/plan';
-import { findPrevious, findRender, renderRun, renderTimeline } from '../src/index.js';
-import { buildState, stateIds, writeWorkspace } from '../../core/test/fixtures/records/build.js';
-import { buildRenderState, renderStateIds, writeRenderFile } from '../../core/test/fixtures/records/build-renders.js';
-import type { RenderFileSpec } from '../../core/test/fixtures/records/build-renders.js';
+import { findPrevious, findRender } from '../src/index.js';
+import { renderRun, renderTimeline } from '../src/load.js';
+import { buildState, stateIds, writeWorkspace } from '@retake/test-support/records/build';
+import { buildRenderState, renderStateIds, writeRenderFile } from '@retake/test-support/records/build-renders';
+import type { RenderFileSpec } from '@retake/test-support/records/build-renders';
 
 let root: string;
 beforeAll(() => {
@@ -105,7 +106,7 @@ describe('the run of a render, state by state', () => {
 
 // ── The render records (L7.6b): the render a review works on, state by state ─
 //
-// The states are those of core/test/fixtures/records/render-states.json. The cells were written before the lot (its
+// The states are those of test-support/src/records/render-states.json. The cells were written before the lot (its
 // P0) and flipped by its editor part on purpose: a cell that changed is marked `moved: <row>` (the lead's plan §4 and
 // §1b) and says what it held before. Since the lot `latest` takes the newest succeeded complete record whatever its
 // file is called and works on THAT FILE (ruling 2); the render compared with is one of the complete records of their

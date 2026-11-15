@@ -14,19 +14,9 @@ import { chromium } from 'playwright-core';
 import { personaPaths, PERSON_POLICY } from '@retake/core';
 import { reserveRunId } from '@retake/core/io';
 import type { AuthConfig, LoadedProject, RunProgress, RunRecord, Scenario } from '@retake/core';
-import {
-  copyProfile,
-  kitConfigFor,
-  launchTarget,
-  openSession,
-  profileLock,
-  readStatus,
-  registerSessionCopy,
-  removeSessionCopiesSync,
-  runScenario,
-  skippedInCopy,
-  sweepStaleSessionCopies,
-} from '../src/index.js';
+import { copyProfile, skippedInCopy, sweepStaleSessionCopies } from '../src/auth.js';
+import { kitConfigFor, openSession, profileLock, readStatus, registerSessionCopy, removeSessionCopiesSync, runScenario } from '../src/index.js';
+import { launchTarget } from '../src/session.js';
 import type { RunOptions } from '../src/index.js';
 import { ACCOUNTS, startAuthServer } from '@retake/test-support/auth';
 import { signInMaster } from './auth-server.js';

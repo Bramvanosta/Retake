@@ -1,7 +1,7 @@
 /**
  * Run records as the core reads them today (L7.6a): the schema of what this version writes over the records older
  * builds left, the performance line of a take, and the folder a new run reserves. The fixtures are those of
- * test/fixtures/records (README.md says where each comes from).
+ * test-support/src/records (README.md says where each comes from).
  *
  * A row marked `D-<n>` is an outcome a decision of the lot changes; `F-<n>` one a fix made on the way changes.
  */
@@ -12,7 +12,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { RUN_ID_MAX, RunRecordSchema, TimelineSchema, isRunId, newRunId, perfSummary } from '../src/index.js';
 import type { RunPerf } from '../src/index.js';
 import { reserveRunId } from '../src/io/index.js';
-import { STATES, recordFixture, recordText, stateIds } from './fixtures/records/build.js';
+import { STATES, recordFixture, recordText, stateIds } from '@retake/test-support/records/build';
 
 const tmp = mkdtempSync(join(tmpdir(), 'retake-records-core-'));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));

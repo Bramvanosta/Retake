@@ -1,6 +1,7 @@
 /** A sign-in of the auth app's accounts through a headless browser, as `retake login` leaves it (the app: @retake/test-support/auth). */
 import { chromium } from 'playwright-core';
-import { launchTarget, writeSnapshot } from '../src/index.js';
+import { launchTarget } from '../src/session.js';
+import { writeSnapshot } from '../src/auth.js';
 import { PERSON_POLICY } from '@retake/core';
 import { ACCOUNTS } from '@retake/test-support/auth';
 

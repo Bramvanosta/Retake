@@ -17,7 +17,6 @@ import { realPathOf, workspaceFolders } from '@retake/core/policy';
 import { retakeHome, nodeFileFacts } from '@retake/core/io';
 import {
   DISCOVERY_VERSION,
-  EngineError,
   claimDiscovery,
   discoveryFile,
   holderAlive,
@@ -30,7 +29,8 @@ import {
   studioTokenFile,
   tokenHolderAlive,
   writeStudioToken,
-} from '@retake/engine';
+} from '@retake/engine/shell';
+import { EngineError } from '@retake/engine';
 import type { DiscoveryRecord, StudioTokenRecord } from '@retake/engine';
 import { studioPorts } from './ports.js';
 import { startStudioServer } from './studio.js';

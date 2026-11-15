@@ -27,11 +27,14 @@ import { link, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue } from '@retake/engine';
+import { FileJobQueue } from '@retake/engine/testing';
 import type { JobRecord, ScenarioRendersView } from '@retake/engine';
-import { RENDER_OPS, UI_OPS, startStudioServer } from '../src/index.js';
+import { RENDER_OPS } from '../src/server/ops.js';
+import { UI_OPS } from '../src/server/studio.js';
+import { startStudioServer } from '../src/index.js';
 import { TOOLS } from '@retake/mcp';
-import type { RenderReviewAnswer, ScenarioRenderAnswer, StudioServer } from '../src/index.js';
+import type { RenderReviewAnswer, ScenarioRenderAnswer } from '../src/server/ops.js';
+import type { StudioServer } from '../src/index.js';
 import { synthTimeline } from '@retake/test-support/timeline';
 import { hasTool } from '@retake/test-support/repo';
 import { raw } from '@retake/test-support/http';

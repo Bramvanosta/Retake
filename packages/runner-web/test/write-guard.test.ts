@@ -15,8 +15,10 @@ import { rm } from 'node:fs/promises';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { WriteRefusedError, compileWritePolicy, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, ResolvedEnvironment, RunProgress, Scenario, WriteMockSpec } from '@retake/core';
-import { closePage, evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
-import type { BrowserSession, GuardedWrite } from '../src/index.js';
+import { closePage } from '../src/write-guard.js';
+import { evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
+import type { BrowserSession } from '../src/index.js';
+import type { GuardedWrite } from '../src/write-guard.js';
 import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir, testHookRunner } from './helpers.js';
 

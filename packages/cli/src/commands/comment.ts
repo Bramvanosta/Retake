@@ -6,7 +6,8 @@
 import { printableText } from '@retake/core/base';
 import { commentAuthorName, regionProblem } from '@retake/core/comments';
 import type { CommentAuthor, CommentRegion } from '@retake/core/comments';
-import { EngineError, addComment, defaultAuthorName, listComments, personScope, reopenComment, replyComment, resolveComment } from '@retake/engine';
+import { EngineError } from '@retake/engine';
+import { addComment, defaultAuthorName, listComments, personScope, reopenComment, replyComment, resolveComment } from '@retake/engine/shell';
 import type { CommentListView, CommentView, CommentWritten, EnginePorts } from '@retake/engine';
 import { fileFacts } from '@retake/core/io';
 import { CliError, EXIT, UsageError } from '../errors.js';

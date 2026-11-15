@@ -1,5 +1,6 @@
 /** Test helpers of the engine's own tests (the fixture workspace is shared: @retake/test-support/workspace). */
-import { callerOf, enginePorts } from '../src/index.js';
+import { callerOf } from '../src/caller.js';
+import { enginePorts } from '../src/ports.js';
 import type { StoreScope } from '../src/index.js';
 
 /**

@@ -122,7 +122,7 @@ describe('@retake/review/checks (the pure entry)', () => {
     for (const n of names) expect((root as Record<string, unknown>)[n], n).toBe((entry as Record<string, unknown>)[n]);
     for (const n of ['checkCaptions', 'checkPixels', 'regionStats', 'compareSignatures', 'bbox', 'frameAnchor', 'diffRecords', 'buildOutputTimeline', 'segmentSpans', 'fitCaption'])
       expect(n in entry, n).toBe(true);
-    for (const n of ['readImage', 'reviewRender', 'extractFrames', 'fontFileMeasurer', 'reportMarkdown', 'extractStill']) {
+    for (const n of ['reviewRender', 'extractStill', 'thumbnailOf', 'drawMarks']) {
       expect(n in root, n).toBe(true);
       expect(n in entry, n).toBe(false);
     }

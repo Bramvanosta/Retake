@@ -14,8 +14,9 @@ import { randomBytes } from 'node:crypto';
 import type { Page } from 'playwright-core';
 import { RecordedEventSchema, resolveEnvironment, PERSON_POLICY } from '@retake/core';
 import type { RecordedEvent } from '@retake/core';
-import { kitConfigFor, kitSource, recordSession } from '../src/index.js';
-import type { RecordSessionOptions, RecordSessionResult } from '../src/index.js';
+import { kitConfigFor, recordSession } from '../src/index.js';
+import { kitSource } from '../src/kit/source.js';
+import type { RecordSessionOptions, RecordSessionResult } from '../src/record-session.js';
 import { makeProject, tempDir } from './helpers.js';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));

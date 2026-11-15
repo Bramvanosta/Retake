@@ -17,7 +17,7 @@ import {
   rollbackActionLines,
   rollbackWork,
   trustScenarioHooks,
-} from '@retake/engine';
+} from '@retake/engine/shell';
 import type { HookJournal, HookJournalRollback, HookWorkOptions, HooksRunOutcome, PendingHookJournal } from '@retake/engine';
 import { fileFacts } from '@retake/core/io';
 import { agentHooksListing, askAgentHooks, hooksNoun } from '../agent-hooks.js';

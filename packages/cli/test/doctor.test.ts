@@ -13,7 +13,7 @@ import { agentJobsCheck } from '@retake/engine/doctor';
 import { doctorCommand, systemProbes } from '../src/commands/doctor.js';
 import type { DoctorCheck, DoctorProbes, ExecResult } from '../src/commands/doctor.js';
 import { Ui } from '../src/ui.js';
-import { enginePorts } from '@retake/engine';
+import { enginePorts } from '@retake/engine/shell';
 
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
 

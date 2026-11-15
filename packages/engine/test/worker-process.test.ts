@@ -17,7 +17,9 @@ import { loadProject, loadScenario, reserveRunId, fileFacts } from '@retake/core
 import { hookFingerprint } from '@retake/hooks';
 import type { RunRecord } from '@retake/core';
 import type { RunJobInput } from '@retake/engine';
-import { FileJobQueue, createEngine, sha256Hex } from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { createEngine } from '../src/index.js';
+import { sha256Hex } from '../src/storage.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';

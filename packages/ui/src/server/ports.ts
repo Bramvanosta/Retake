@@ -4,7 +4,7 @@
  * folders the Studio's token must lie outside. The Studio server's one composition root of them (the import-rules
  * ratchet's `workspace-read` check reads packages/ui/src/server): a module names `studioPorts`, never the adapters.
  */
-import { enginePorts } from '@retake/engine';
+import { enginePorts } from '@retake/engine/shell';
 import type { EnginePorts } from '@retake/engine';
 
 export const studioPorts: EnginePorts = enginePorts();

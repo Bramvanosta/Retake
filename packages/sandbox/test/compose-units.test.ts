@@ -24,42 +24,30 @@ import { loadProject } from '@retake/core/io';
 import type { LoadedProject, WorkPolicy } from '@retake/core';
 import {
   ComposeProvider,
-  SandboxError,
   composeArgs,
   composeProject,
   composeProjectName,
   KILL_EXEC_SCRIPT,
-  dockerEnv,
-  dockerReady,
-  checkOnce,
-  clearMailbox,
   connectAddress,
-  emptyState,
-  findDocker,
   foreignListeners,
-  initSandbox,
-  openSandbox,
   parseComposeConfig,
   parseLabels,
-  parsePostgresUrl,
   parseDockerPs,
   parsePs,
-  pinHealth,
-  pinnedAddress,
-  pgEndpoint,
-  parseVersion,
-  quoteIdent,
-  quoteLiteral,
-  runSeed,
-  sandboxPaths,
-  schemaRef,
   serviceProblems,
-  snapshotComment,
-  snapshotTarget,
-  versionAtLeast,
   waitTimeoutS,
-} from '@retake/sandbox';
-import type { DockerExec, DockerResult, Listener, ProviderContext, PsEntry } from '@retake/sandbox';
+} from '../src/compose.js';
+import { SandboxError, dockerEnv, findDocker, initSandbox, openSandbox, sandboxPaths } from '@retake/sandbox';
+import { dockerReady, parseVersion, versionAtLeast } from '../src/docker.js';
+import { checkOnce, pinHealth, pinnedAddress } from '../src/health.js';
+import { clearMailbox, runSeed } from '../src/seed.js';
+import { emptyState } from '../src/state.js';
+import { parsePostgresUrl, pgEndpoint, quoteIdent, quoteLiteral, snapshotComment, snapshotTarget } from '../src/snapshot-postgres.js';
+import { schemaRef } from '../src/init.js';
+import type { DockerExec, DockerResult } from '../src/docker.js';
+import type { Listener } from '../src/ports.js';
+import type { ProviderContext } from '../src/provider.js';
+import type { PsEntry } from '../src/compose.js';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;

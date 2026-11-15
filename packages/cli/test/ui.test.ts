@@ -30,7 +30,7 @@ import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readStudioToken, selfIdentity, studioTokenFile } from '@retake/engine';
+import { readStudioToken, selfIdentity, studioTokenFile } from '@retake/engine/shell';
 import { openBrowser, openLocationScript, shellLineReader, weblocText } from '../src/commands/ui.js';
 import type { Spawner } from '../src/commands/ui.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';

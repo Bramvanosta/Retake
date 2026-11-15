@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS } from '@retake/core/model';
 import { scenarioChangedMessage } from '@retake/core/scenario';
 import { writeJson } from '@retake/core/io';
-import { planOfRun } from '@retake/engine';
+import { planOfRun } from '@retake/engine/shell';
 import type { EditOverrides } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import { variantOption, warnLatest } from './render.js';

@@ -9,7 +9,12 @@ import { link, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { MemoryOutputs, createEngine, diskOutputs, pruneInspections, runWorker, runsDirOf } from '../src/index.js';
+import { MemoryOutputs } from '../src/outputs/memory-outputs.js';
+import { createEngine } from '../src/index.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { pruneInspections } from '../src/jobs/inspect-job.js';
+import { runWorker } from '../src/jobs/worker.js';
+import { runsDirOf } from '../src/outputs/outputs.js';
 import type { LoadedProject } from '@retake/core/model';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';

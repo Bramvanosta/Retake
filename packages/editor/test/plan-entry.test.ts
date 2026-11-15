@@ -105,7 +105,7 @@ describe('@retake/editor/plan (the planner entry)', () => {
     const names = Object.keys(entry);
     expect(names.length).toBeGreaterThan(100);
     for (const n of names) expect((root as Record<string, unknown>)[n], n).toBe((entry as Record<string, unknown>)[n]);
-    for (const n of ['renderPlan', 'listRenders', 'probeMedia', 'ensureBundle', 'planInputFiles']) {
+    for (const n of ['createRenderer', 'renderStill', 'probeMedia', 'ensureBundle']) {
       expect(n in root).toBe(true);
       expect(n in entry).toBe(false);
     }

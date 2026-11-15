@@ -6,7 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import { TemplateError, interpolate } from '@retake/core';
 import { prefetchSecrets } from '@retake/core/io';
-import { MemorySecrets, enginePorts } from '../src/index.js';
+import { MemorySecrets } from '../src/secrets/memory-secrets.js';
+import { enginePorts } from '../src/ports.js';
 import { systemSecrets } from '../src/secrets/system-secrets.js';
 import { secretsContract } from './secrets-contract.js';
 

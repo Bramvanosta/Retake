@@ -10,7 +10,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { TextArtefact, Timeline } from '@retake/core';
-import { captureValue, runScenario } from '../src/index.js';
+import { captureValue } from '../src/actions/artefacts.js';
+import { runScenario } from '../src/index.js';
 import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 

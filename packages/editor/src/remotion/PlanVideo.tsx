@@ -10,7 +10,7 @@ import { useMemo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AbsoluteFill, Html5Audio, OffthreadVideo, Sequence, useCurrentFrame } from './host.js';
 import { Logo, Wordmark, backgroundCss } from '@retake/components/kit';
-import type { ComponentProps, ThemeTokens } from '@retake/components';
+import type { ComponentProps, ThemeTokens } from '@retake/components/geometry';
 import type { CardSegment, ClipSegment, EditPlan, OverlayUse, ResolvedComponent } from '../plan-types.js';
 import { viewOf } from '../layout.js';
 import type { SourceView } from '../layout.js';

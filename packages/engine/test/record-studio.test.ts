@@ -31,25 +31,19 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { firstHiddenChar, PERSON_POLICY } from '@retake/core';
 import { TakeLock } from '@retake/sandbox';
-import {
-  FileJobQueue,
-  RECORD_KEEP,
-  createEngine,
-  historyFile,
-  jobsDir,
-  newRecordId,
-  openProject,
-  openWorkspace,
-  pruneRecords,
-  recordLockFile,
-  recordsRoot,
-  runWorker,
-  personScope,
-  saveRecordedDraft,
-  enginePorts,
-  diskWorkspaceReads,
-  diskOutputs,
-} from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { RECORD_KEEP, newRecordId, pruneRecords, recordsRoot } from '../src/record.js';
+import { createEngine } from '../src/index.js';
+import { historyFile } from '../src/history.js';
+import { jobsDir } from '../src/workspace-state.js';
+import { openProject, openWorkspace } from '../src/workspace.js';
+import { recordLockFile } from '../src/record-files.js';
+import { runWorker } from '../src/jobs/worker.js';
+import { personScope } from '../src/store/project-store.js';
+import { saveRecordedDraft } from '../src/record-studio.js';
+import { enginePorts } from '../src/ports.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine, EngineError, RecordJobResult, RecordWindow, RecordView } from '../src/index.js';
 import { ManualClock } from '../src/clock.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';

@@ -1,6 +1,6 @@
 /**
  * The take the Studio's timeline plans and its Render edits (L7.6a): `timelineRun` over the runs the engine lists, state
- * by state (core/test/fixtures/records/states.json; OLD: a good capture of `quote`; NEW: the state named).
+ * by state (test-support/src/records/states.json; OLD: a good capture of `quote`; NEW: the state named).
  *
  * The front end holds no rule: it takes the first run the engine marks as a take (`take`: the one rule of the domain).
  *
@@ -18,9 +18,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { RunRows } from '../src/app/project/ProductionsScreen.js';
 import { LastRun } from '../src/app/project/WelcomeScreen.js';
 import { timelineRun } from '../src/app/words/scenario-words.js';
-import { STATES, buildState, stateIds, writeRunFolder, writeWorkspace } from '../../core/test/fixtures/records/build.js';
-import type { BuiltState } from '../../core/test/fixtures/records/build.js';
-import { buildRenderState, renderStateIds } from '../../core/test/fixtures/records/build-renders.js';
+import { STATES, buildState, stateIds, writeRunFolder, writeWorkspace } from '@retake/test-support/records/build';
+import type { BuiltState } from '@retake/test-support/records/build';
+import { buildRenderState, renderStateIds } from '@retake/test-support/records/build-renders';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { raw } from '@retake/test-support/http';
@@ -113,7 +113,7 @@ describe('the take the timeline plans and Render edits, state by state', () => {
 
 // ── The render records (L7.6b): the Studio's `scenario_renders` op, state by state ─
 //
-// The states are those of core/test/fixtures/records/render-states.json. Every row was first pinned on the code before
+// The states are those of test-support/src/records/render-states.json. Every row was first pinned on the code before
 // the lot (its P0): the op's status, its summary, the renders it lists and the members of its answer; the thirteen rows
 // the lot's engine part changed are marked `moved: <row>` (the lead's plan §4) — each flipped on purpose, no other moved.
 

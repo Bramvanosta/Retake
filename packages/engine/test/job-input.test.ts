@@ -18,7 +18,7 @@ import {
   RecordJobInputSchema,
   RenderJobInputSchema,
   ReviewJobInputSchema,
-} from '@retake/engine';
+} from '../src/jobs/job-input.js';
 
 const SHA = 'a'.repeat(64);
 const input = (extra: Record<string, unknown> = {}) => ({

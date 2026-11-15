@@ -42,8 +42,10 @@ import {
 import type { ToolDef } from '@retake/engine/contract';
 import * as mcp from '@retake/mcp';
 import { TOOLS } from '@retake/mcp';
-import { stubTools } from '../../ui/test/studio-tools.js';
-import { EngineError, ManualClock, callerOf, createEngine, toEngineError } from '../src/index.js';
+import { stubTools } from '@retake/test-support/studio-tools';
+import { EngineError, createEngine, toEngineError } from '../src/index.js';
+import { ManualClock } from '../src/clock.js';
+import { callerOf } from '../src/caller.js';
 import type { Approver, Engine } from '../src/index.js';
 
 const signal = new AbortController().signal;

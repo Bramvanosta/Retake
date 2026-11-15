@@ -10,14 +10,12 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { AGENT_CONFINEMENT } from '@retake/core';
 import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
-import { JOB_CLIENTS } from '@retake/engine';
+import { JOB_CLIENTS } from '../src/jobs/job-input.js';
 import {
   CONFINEMENTS,
   ENGINE_TRUST,
   admits,
-  agentChannel,
   agentChecks,
-  agentTrust,
   agentWorkspace,
   anchorsOnShownRender,
   callerOf,
@@ -33,7 +31,9 @@ import {
   speaksAsPerson,
   submittedInStudio,
   submitterChannel,
-} from '../src/index.js';
+} from '../src/caller.js';
+import { agentChannel } from '../src/approvals.js';
+import { agentTrust } from '../src/index.js';
 import type { Caller, EngineClient } from '../src/index.js';
 
 type Row = {

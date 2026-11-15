@@ -38,7 +38,7 @@ import { testChildEnv } from '@retake/test-support/child-env';
 import { startStudioServer } from '../../ui/src/index.js';
 import type { StudioServer } from '../../ui/src/index.js';
 import { raw } from '@retake/test-support/http';
-import { stubTools } from '../../ui/test/studio-tools.js';
+import { stubTools } from '@retake/test-support/studio-tools';
 import { scratchHome } from '@retake/test-support/home';
 import { recordGolden } from '@retake/test-support/golden';
 

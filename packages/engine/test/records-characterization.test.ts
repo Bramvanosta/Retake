@@ -1,7 +1,7 @@
 /**
  * The run records and takes as the engine answers them (L7.6a), state by state and site by site: the list of runs, a
  * run's status, the capture the Studio's Render edits, the board's capture, the timeline view's default take and its
- * picker, and what prune lists. The states are those of core/test/fixtures/records/states.json (OLD: a good capture of
+ * picker, and what prune lists. The states are those of test-support/src/records/states.json (OLD: a good capture of
  * `quote`; NEW: the state named), one project per state in a temp workspace; nothing is rendered, no job runs.
  *
  * A row marked `D-<n>` is an outcome a decision of the lot changes; `F-<n>` one a fix made on the way changes; `U-1`
@@ -15,7 +15,10 @@ import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { EngineError, RunDataCache, createEngine, diskOutputs, planSignature, renderForWork } from '../src/index.js';
+import { EngineError, createEngine } from '../src/index.js';
+import { RunDataCache } from '../src/run-data.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { planSignature, renderForWork } from '../src/renders.js';
 import { readRenders } from '../src/index-db/index-db.js';
 import { versionMatches } from '../src/views/timeline-view.js';
 import { renderIndex } from '../src/comments/views.js';
@@ -24,10 +27,10 @@ import { finaliseReservedRun } from '../src/jobs/run-job.js';
 import { ManualClock } from '../src/clock.js';
 import { runInputs } from '../src/comments/threads.js';
 import type { Engine } from '../src/index.js';
-import { STATES, buildState, recordFixture, stateIds, writeRunFolder, writeWorkspace } from '../../core/test/fixtures/records/build.js';
-import type { BuiltState } from '../../core/test/fixtures/records/build.js';
-import { RENDER_STATES, buildRenderState, renderStateIds } from '../../core/test/fixtures/records/build-renders.js';
-import type { BuiltRenders } from '../../core/test/fixtures/records/build-renders.js';
+import { STATES, buildState, recordFixture, stateIds, writeRunFolder, writeWorkspace } from '@retake/test-support/records/build';
+import type { BuiltState } from '@retake/test-support/records/build';
+import { RENDER_STATES, buildRenderState, renderStateIds } from '@retake/test-support/records/build-renders';
+import type { BuiltRenders } from '@retake/test-support/records/build-renders';
 import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
@@ -942,7 +945,7 @@ describe('the records the engine writes', () => {
 
 // ── The render records (L7.6b), state by state and site by site ─────────────
 //
-// The states are those of core/test/fixtures/records/render-states.json: two good captures (OLD, NEW), a good render
+// The states are those of test-support/src/records/render-states.json: two good captures (OLD, NEW), a good render
 // `quote-v1` and the file(s) the state names. Every cell was first pinned on the code before the lot (its P0); the
 // cells its engine and prune parts changed are marked `// moved: <row>` with the row of the lot's table of visible
 // changes (the lead's plan §4, and the rulings added to it: rows 21–29) — each flipped on purpose, none other moved —,

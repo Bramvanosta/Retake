@@ -8,7 +8,7 @@ import type { Browser } from 'playwright-core';
 import { chromium } from 'playwright-core';
 import { LoadingSpans, LoadingWatch } from '../src/loading-watch.js';
 import { PERSON_POLICY } from '@retake/core';
-import { launchTarget } from '../src/index.js';
+import { launchTarget } from '../src/session.js';
 
 let browser: Browser;
 beforeAll(async () => {

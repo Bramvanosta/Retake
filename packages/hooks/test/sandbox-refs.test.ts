@@ -12,7 +12,7 @@ import { PERSON_POLICY, resolveEnvironment } from '@retake/core';
 import { loadProject } from '@retake/core/io';
 import type { HookStep, LoadedProject } from '@retake/core';
 import { Journal, runHooks } from '@retake/hooks';
-import type { HookContext } from '@retake/hooks';
+import type { HookContext } from '../src/types.js';
 import { startApi, tempProject } from './helpers.js';
 
 let api: Awaited<ReturnType<typeof startApi>>;

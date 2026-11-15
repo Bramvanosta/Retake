@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { SITE_ID_RE, parseSiteUrl, siteApprovalFingerprint, siteThemeName, siteUrlProblem, unsafeTestResolve } from '../src/index.js';
-import { JOB_INPUT_VERSION, JOB_KINDS, SiteJobInputSchema } from '@retake/engine';
+import { JOB_INPUT_VERSION, JOB_KINDS, SiteJobInputSchema } from '@retake/engine/testing';
 
 const none = new Map<string, unknown>();
 

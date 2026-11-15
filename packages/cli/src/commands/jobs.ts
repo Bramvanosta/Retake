@@ -5,9 +5,10 @@
  */
 import { resolve } from 'node:path';
 import { isJobId } from '@retake/core/ids';
-import { JOB_STATES } from '@retake/engine';
+import { JOB_STATES } from '@retake/engine/shell';
 import type { JobState } from '@retake/engine';
-import { EngineError, FINISHED_JOB_STATES, createEngine, jobOutcome, jobProgress, jobProject, jobWhat, yieldWords } from '@retake/engine';
+import { EngineError, createEngine } from '@retake/engine';
+import { FINISHED_JOB_STATES, jobOutcome, jobProgress, jobProject, jobWhat, yieldWords } from '@retake/engine/shell';
 import type { Engine } from '@retake/engine';
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
 import { CliError, EXIT, UsageError } from '../errors.js';

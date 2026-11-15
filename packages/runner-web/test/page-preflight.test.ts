@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import type { RequestListener, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { preflightRefusal, probePages } from '@retake/runner-web';
+import { preflightRefusal, probePages } from '../src/page-preflight.js';
 
 const servers: Server[] = [];
 let ok = '';

@@ -7,9 +7,10 @@
 import { describe, expect, it } from 'vitest';
 import { annotationProblem, catalogueOperation, hintsOf, servedBy, servedNames, studioPins } from '@retake/engine/catalogue';
 import { TOOLS } from '@retake/mcp';
-import { OWN_OPS, UI_OPS } from '../src/index.js';
+import { OWN_OPS } from '../src/server/ops.js';
+import { UI_OPS } from '../src/server/studio.js';
 import { OP_STATUS } from '../src/server/studio.js';
-import { stubTools } from './studio-tools.js';
+import { stubTools } from '@retake/test-support/studio-tools';
 
 const sorted = (xs: Iterable<string>) => [...xs].sort();
 

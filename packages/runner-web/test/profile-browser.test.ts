@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { PROFILE_BROWSER_FILE, checkProfileBrowser, launchMajor, profileMajor, recordProfileBrowser } from '../src/index.js';
+import { PROFILE_BROWSER_FILE, checkProfileBrowser, launchMajor, profileMajor, recordProfileBrowser } from '../src/profile-browser.js';
 import { BrowserSession } from '../src/session.js';
 import { PERSON_POLICY } from '@retake/core';
 

@@ -1,6 +1,6 @@
 import { isAccessError } from '@retake/core/environment';
 import { scenarioRef } from '@retake/core/project';
-import { checkAllowWrites, recordScenario } from '@retake/engine';
+import { checkAllowWrites, recordScenario } from '@retake/engine/shell';
 import type { RecordOutcome, RecordPorts } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';

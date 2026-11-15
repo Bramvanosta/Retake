@@ -930,12 +930,7 @@ describe('the import-rules ratchet', () => {
       // One kept by hand on purpose: the helper's own test (core retake-home.test.ts) keeps the run's home without it.
       expect(entries.filter((e) => e.startsWith('home-restore '))).toEqual(['home-restore packages/core/test/retake-home.test.ts → 1 hand-written RETAKE_HOME save or restore']);
       const left = entries.filter((e) => e.startsWith('test-reach ')).map((e) => e.split(' → ')[1]);
-      expect([...new Set(left)].sort()).toEqual([
-        'packages/core/test/fixtures/records/build',
-        'packages/core/test/fixtures/records/build-renders',
-        'packages/core/test/fixtures/records/prune-layouts',
-        'packages/ui/test/studio-tools',
-      ]);
+      expect([...new Set(left)].sort()).toEqual([]);
       // The helper saves and restores every variable it was given, deleting one that was unset.
       expect(readFileSync(join(ROOT, lib.HOME_HELPER), 'utf8')).toContain('delete process.env[name]');
     });
@@ -1316,15 +1311,16 @@ describe('the import-rules ratchet', () => {
       if (!ts.isExportDeclaration(st) || st.isTypeOnly || !st.exportClause || !ts.isNamedExports(st.exportClause)) continue;
       for (const e of st.exportClause.elements) if (!e.isTypeOnly) values.push(e.name.text);
     }
-    expect(values).toContain('renderPlan');
+    expect(values).toContain('createRenderer');
     // Names that say "this renders" or "this is (a part of) a renderer".
     const entryLike = values.filter((n) => /^render[A-Z]|^exportRender$|Renderer$|Driver$|_BACKEND$/.test(n)).sort();
     // The editor's values with such a name that draw nothing: the policy and its words, the render browser's identity
     // (doctor, the Studio's settings), a restriction's text.
-    const NOT_ENTRIES = ['renderBrowser', 'renderBrowserIdentity', 'renderBundleRestriction', 'renderGpuInfo', 'renderPolicy', 'renderSandboxOff', 'renderSandboxRefusal'];
+    const NOT_ENTRIES = ['renderBrowser', 'renderBrowserIdentity', 'renderBundleRestriction', 'renderPolicy'];
     expect(entryLike.filter((n) => !lib.RENDER_CALLS.includes(n))).toEqual(NOT_ENTRIES);
-    // Every listed entry the index exports is exported as a value (planDriver is the driver's part, not exported).
-    expect(lib.RENDER_CALLS.filter((n: string) => !values.includes(n))).toEqual(['planDriver']);
+    // Every listed entry the index exports is exported as a value (planDriver, renderPlan and the previews' backend are the driver's parts,
+    // reached through createRenderer: the root names only what another package imports).
+    expect(lib.RENDER_CALLS.filter((n: string) => !values.includes(n))).toEqual(['renderPlan', 'planDriver', 'REMOTION_PREVIEW_BACKEND']);
   });
 
   it("the render home hands on the editor root's types it names, and no more: the rest come from the planner entry", () => {

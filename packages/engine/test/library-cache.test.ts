@@ -33,12 +33,13 @@ import {
   readLibraryEntry,
   readLibraryImage,
   stageLibraryEntry,
-  diskWorkspaceReads,
-  diskOutputs,
-} from '../src/index.js';
+} from '../src/library.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { LibraryEntryMeta, LibraryKeyContext } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
-import { cleanWorkerEnv, openWorkspace } from '../src/index.js';
+import { cleanWorkerEnv } from '../src/jobs/worker-env.js';
+import { openWorkspace } from '../src/workspace.js';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;

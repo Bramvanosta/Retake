@@ -21,21 +21,11 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { REPO } from '@retake/test-support/repo';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
-import {
-  EngineError,
-  RUN_THUMBS_MAX_KEYS,
-  RUN_THUMBS_RESPONSE_MAX,
-  RunFolder,
-  RunThumbs,
-  SCREENSHOT_MAX,
-  THUMB_BASE64_MAX,
-  createEngine,
-  frameAt,
-  gridFrame,
-  parseFrameIndex,
-  seekTime,
-  packageReviewer,
-} from '../src/index.js';
+import { EngineError, createEngine } from '../src/index.js';
+import { RUN_THUMBS_MAX_KEYS, RUN_THUMBS_RESPONSE_MAX, RunThumbs, SCREENSHOT_MAX, THUMB_BASE64_MAX } from '../src/run-thumbs.js';
+import { RunFolder } from '../src/outputs/run-files.js';
+import { frameAt, gridFrame, parseFrameIndex, seekTime } from '../src/run-data.js';
+import { packageReviewer } from '../src/review/review-package.js';
 import type { Engine, RunThumbsView } from '../src/index.js';
 import { BLOCKS_YAML, BLUE, CYAN, GREEN, MAGENTA, ORANGE, RED, YELLOW, capture, centre, colourName, near, noisePng, png, pngBits, writeRun } from '@retake/test-support/runs';
 import type { Rgb, SynthRun } from '@retake/test-support/runs';

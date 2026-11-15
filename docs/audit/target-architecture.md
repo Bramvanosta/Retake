@@ -43,7 +43,7 @@ The steps to get there are in [action-plan.md](action-plan.md); the words for th
 ```text
 shells        cli · mcp · ui/server · ui/app · apps/desktop          protocol only: parse, call invoke() (the CLI: the engine's functions), render the answer
                  │
-application   @retake/engine  (. façade + invoke, ./contract, catalogue, pipeline, policy, ports)
+application   @retake/engine  (. façade + types, ./shell in-process values, ./contract, catalogue, ./testing; pipeline, policy, ports)
                  │  ports: JobQueue ProjectStore WorkspaceReads Outputs CaptureRunner Renderer Reviewer
                  │         SandboxProvider HookRunner Secrets Clock HostResolver Approver FileFacts
                  ▼
@@ -54,6 +54,12 @@ domain        @retake/core (pure; an entry per context) · @retake/components/ge
                                          no I/O, no environment read (core's three listed defaults aside),
                                          no adapter, no shell; the clock and ids allowed
 ```
+
+A package entry holds what another package imports from it: the engine's main entry is its façade (`createEngine`, its
+errors, the types), the values a shell still calls in process are `@retake/engine/shell`, the values only other packages'
+tests use are `@retake/engine/testing` (no product source imports it, no memory adapter is in a production entry), and
+an adapter's root holds the names another package uses and its domain entry whole
+(packages/engine/test/engine-entries.test.ts).
 
 Rules (each a line of the ratchet test): the domain imports nothing above it and no I/O module; adapters
 import the domain and the engine's ports only; shells import the engine's façade and contract only, and never another

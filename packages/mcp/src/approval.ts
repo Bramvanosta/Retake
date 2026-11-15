@@ -5,7 +5,7 @@
  * form, no answer in time or a failed question refuse the submit; a client without form elicitation cannot ask anyone
  * (the engine then refuses with the `retake` command a human runs in a terminal).
  */
-import { approvalFormText, pruneApprovalFormText } from '@retake/engine';
+import { approvalFormText, pruneApprovalFormText } from '@retake/engine/shell';
 import type { ApprovalOutcome, ApprovalRequest, Approver, PruneApprovalRequest, SiteApprovalRequest } from '@retake/engine';
 import { isTimeoutError } from './server.js';
 import type { CallContext, ElicitForm } from './server.js';

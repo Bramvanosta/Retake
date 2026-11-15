@@ -23,7 +23,7 @@ import { join } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CommentThread } from '@retake/core';
-import { runWorker } from '@retake/engine';
+import { runWorker } from '@retake/engine/shell';
 import type { RecordWindow } from '@retake/engine';
 import { hasTool } from '@retake/test-support/repo';
 import { dialogCheck } from './a11y.js';

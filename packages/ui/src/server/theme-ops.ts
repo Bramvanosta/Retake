@@ -18,7 +18,8 @@
  */
 import { homedir } from 'node:os';
 import { z } from 'zod';
-import { EngineError, firstErrorLine, pathFree } from '@retake/engine';
+import { EngineError } from '@retake/engine';
+import { firstErrorLine, pathFree } from '@retake/engine/shell';
 import type { Engine } from '@retake/engine';
 import { THEME_ARGS, defineTool } from '@retake/engine/contract';
 import type { PreviewLeases, PreviewHeld } from './preview-leases.js';

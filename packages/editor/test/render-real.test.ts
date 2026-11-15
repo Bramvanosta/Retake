@@ -13,9 +13,12 @@ import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vites
 import { loadProjectTemplate, readJson, fileFacts } from '@retake/core/io';
 import type { Timeline } from '@retake/core';
 import { loadComponentRegistry, scaffoldDir } from '@retake/components';
-import { RenderCancelledError, bundleComponentsFor, ensureBundle, listRenders, planEdit, renderStill } from '@retake/editor';
+import { RenderCancelledError, ensureBundle, planEdit, renderStill } from '@retake/editor';
+import { bundleComponentsFor } from '../src/render/bundle.js';
+import { listRenders } from '../src/render/runs.js';
 import { renderRun } from '@retake/test-support/render-use-case';
-import type { BundleComponent, ClipSegment, EditPlan, RenderRecord } from '@retake/editor';
+import type { BundleComponent, EditPlan, RenderRecord } from '@retake/editor';
+import type { ClipSegment } from '../src/plan-entry.js';
 import { SHARED_CACHE, frameColour, frameOfColour, pixelAt, renderWorkspace } from '@retake/test-support/render';
 import { hasTool } from '@retake/test-support/repo';
 import type { RenderWorkspace } from '@retake/test-support/render';

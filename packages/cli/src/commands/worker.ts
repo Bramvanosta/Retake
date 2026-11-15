@@ -19,7 +19,7 @@ export async function workerCommand(_ui: Ui, global: GlobalOptions, opts: Worker
     idleExitMs = Number(opts.idleExit);
     if (!Number.isInteger(idleExitMs) || idleExitMs < 0) throw new UsageError(`--idle-exit must be a whole number of milliseconds, got "${opts.idleExit}"`);
   }
-  const { runWorker, workspaceRootOf } = await import('@retake/engine');
+  const { runWorker, workspaceRootOf } = await import('@retake/engine/shell');
   const root = workspaceRootOf(global.ports.reads, global.root);
   const code = await runWorker({ root, ...(idleExitMs !== undefined ? { idleExitMs } : {}), once: opts.once === true });
   return code === 0 ? EXIT.ok : EXIT.failure;

@@ -19,12 +19,12 @@ import {
   componentReadmeWriter,
   componentValidate,
   componentValidateShell,
-  enginePorts,
-  openWorkspace,
-  personScope,
-  diskWorkspaceReads,
-  diskOutputs,
-} from '../src/index.js';
+} from '../src/components.js';
+import { enginePorts } from '../src/ports.js';
+import { openWorkspace } from '../src/workspace.js';
+import { personScope } from '../src/store/project-store.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { OpenedWorkspace } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 

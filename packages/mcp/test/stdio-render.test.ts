@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { editReplannedMessage, scenarioChangedMessage } from '@retake/core';
-import { readWorkerLock } from '@retake/engine';
+import { readWorkerLock } from '@retake/engine/testing';
 import { REPO } from '@retake/test-support/repo';
 import { synthTimeline } from '@retake/test-support/timeline';
 import { TEMPLATES, hasTool } from '@retake/test-support/repo';

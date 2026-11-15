@@ -11,26 +11,18 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
 import type { HooksJobInput, RunJobInput } from '@retake/engine';
-import {
-  APPROVALS_USED_DIR,
-  EngineError,
-  buildDirs,
-  consumeApprovals,
-  createEngine,
-  executeHooksJob,
-  executeRunJob,
-  openWorkspace,
-  pruneUsedApprovals,
-  restoreApprovals,
-  systemHosts,
-  sha256Hex,
-  signApprovals,
-  signalInterrupts,
-  verifiedApprovals,
-  enginePorts,
-  diskWorkspaceReads,
-  diskOutputs,
-} from '../src/index.js';
+import { APPROVALS_USED_DIR, consumeApprovals, pruneUsedApprovals, restoreApprovals, signApprovals, verifiedApprovals } from '../src/jobs/signing.js';
+import { EngineError, createEngine } from '../src/index.js';
+import { buildDirs } from '../src/jobs/build.js';
+import { executeHooksJob } from '../src/jobs/hooks-job.js';
+import { executeRunJob } from '../src/jobs/run-job.js';
+import { openWorkspace } from '../src/workspace.js';
+import { systemHosts } from '../src/protected-hosts.js';
+import { sha256Hex } from '../src/storage.js';
+import { signalInterrupts } from '../src/interrupts.js';
+import { enginePorts } from '../src/ports.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine, HostResolver } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 

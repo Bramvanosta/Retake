@@ -16,10 +16,12 @@ import { cp, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { FileJobQueue, indexFile, newJobId } from '@retake/engine';
+import { FileJobQueue, indexFile, newJobId } from '@retake/engine/testing';
 import { scaffoldDir } from '@retake/components';
-import { EVENT_POLL_MS, EVENT_STREAMS_MAX, Live, startStudioServer } from '../src/index.js';
-import type { LibraryViewAnswer, StudioServer } from '../src/index.js';
+import { EVENT_POLL_MS, EVENT_STREAMS_MAX, Live } from '../src/server/live.js';
+import { startStudioServer } from '../src/index.js';
+import type { LibraryViewAnswer } from '../src/server/library-ops.js';
+import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { raw } from '@retake/test-support/http';
 import { commentsEventAction } from '../src/app/events.js';

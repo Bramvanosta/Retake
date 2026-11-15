@@ -6,8 +6,10 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Timeline } from '@retake/core';
-import { REFRAME, corridorSmooth, dampedSmooth, leadingPart, planEdit, reframeTargets, reframeTrack, viewOf } from '@retake/editor';
-import type { CameraFrame, ClipSegment, EditPlan, ReframeTarget } from '@retake/editor';
+import { REFRAME, corridorSmooth, dampedSmooth, leadingPart, reframeTargets, reframeTrack, viewOf } from '../src/plan-entry.js';
+import { planEdit } from '@retake/editor';
+import type { CameraFrame, ClipSegment, ReframeTarget } from '../src/plan-entry.js';
+import type { EditPlan } from '@retake/editor';
 import { clips, studioWorkspace } from './helpers.js';
 import { fixtureProject, realTimeline, template } from '@retake/test-support/timeline';
 import type { Workspace } from './helpers.js';

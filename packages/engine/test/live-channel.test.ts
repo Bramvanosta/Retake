@@ -17,7 +17,10 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, LIVE_IDLE_MS, LIVE_PATH, LIVE_SOCKETS_MAX, LIVE_STREAMS_MAX, newJobId, openLiveChannel, openLiveFeed, readLiveChannel, selfIdentity } from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { LIVE_IDLE_MS, LIVE_PATH, LIVE_SOCKETS_MAX, LIVE_STREAMS_MAX, openLiveChannel, openLiveFeed, readLiveChannel } from '../src/jobs/live-channel.js';
+import { newJobId } from '../src/jobs/ids.js';
+import { selfIdentity } from '../src/jobs/proc.js';
 import type { LiveChannel, LiveFeedFrame } from '../src/index.js';
 
 let root: string;

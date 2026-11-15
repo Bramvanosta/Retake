@@ -65,6 +65,8 @@ describe('the runner-web types entry', () => {
     const root = exportedNames(join(PKG, 'src', 'index.ts'));
     expect(entry.names.length).toBeGreaterThan(10);
     expect(entry.typeOnly.every(Boolean)).toBe(true);
-    expect(entry.names.filter((n) => !root.names.includes(n))).toEqual([]);
+    // The root re-exports the entry whole (`export type * from './types-entry.js'`), or names each of its names.
+    const whole = /export\s+type\s+\*\s+from\s+'\.\/types-entry\.js'/.test(readFileSync(join(PKG, 'src', 'index.ts'), 'utf8'));
+    expect(entry.names.filter((n) => !whole && !root.names.includes(n))).toEqual([]);
   });
 });

@@ -13,7 +13,9 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { HISTORY_VERSION, ManualClock, appendHistory, appendJournal, historyFile, journalFile, journalLine, readJournal, stampOf, usageCounts } from '../src/index.js';
+import { HISTORY_VERSION, appendHistory, historyFile, usageCounts } from '../src/history.js';
+import { ManualClock, stampOf } from '../src/clock.js';
+import { appendJournal, journalFile, journalLine, readJournal } from '../src/store/journal.js';
 import { scratchHome } from '@retake/test-support/home';
 
 const REPO = resolve(import.meta.dirname, '../../..');

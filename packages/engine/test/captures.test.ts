@@ -13,7 +13,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
-import { CAP_CARRY_MS, FilmingMarker, FilmingWatch, MARKER_MAX_BYTES, capturesDir, capturesLocation, selfIdentity, workspaceCaptureId } from '../src/index.js';
+import { CAP_CARRY_MS, FilmingMarker, FilmingWatch, MARKER_MAX_BYTES, capturesDir, capturesLocation, workspaceCaptureId } from '../src/jobs/captures.js';
+import { selfIdentity } from '../src/jobs/proc.js';
 import type { ProcessIdentity } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 
@@ -316,7 +317,7 @@ describe('the owner of a marker (L5.14)', () => {
 
 describe('what a take saw beside it (L5.14b)', () => {
   it('the most other unpaused takes at once (its own marker not counted), told once with where; a heavy job of its workspace slowed', async () => {
-    const { TakeBeside } = await import('../src/index.js');
+    const { TakeBeside } = await import('../src/jobs/captures.js');
     clear();
     const mine = FilmingMarker.open({ root: wsA, source: 'job', owner: me, env })!;
     const told: string[] = [];
@@ -335,7 +336,7 @@ describe('what a take saw beside it (L5.14b)', () => {
     expect(told).toEqual(['elsewhere']);
     // Heavy work of its workspace at background priority: what its worker's held file says (review A H1: never a job
     // folder — a job's yield.json alone says nothing to it).
-    const { heldFile } = await import('../src/index.js');
+    const { heldFile } = await import('../src/jobs/captures.js');
     const job = join(wsA, '.retake', 'jobs', `j_${ulid()}`);
     await mkdir(job, { recursive: true });
     writeFileSync(join(job, 'yield.json'), JSON.stringify({ v: 1, state: 'background', cause: 'here' }));

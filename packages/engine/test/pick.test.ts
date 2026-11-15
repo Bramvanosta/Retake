@@ -2,7 +2,7 @@
  * L5.14 (captures first): which queued job a worker's slot takes next — the pure `pick` over the stored records.
  */
 import { describe, expect, it } from 'vitest';
-import { pick, takeWaiting } from '../src/index.js';
+import { pick, takeWaiting } from '../src/jobs/pick.js';
 import type { PickRecord } from '../src/index.js';
 
 let n = 0;

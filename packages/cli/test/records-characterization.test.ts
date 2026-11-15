@@ -2,11 +2,11 @@
  * The run `latest` names at a terminal (L7.6a) — `retake plan`, as render, still and export-capture: one rule, the
  * editor's findRun — state by state, with what the command says of it on stderr (the newer captures passed over, a
  * capture stopped by `--until`), and the plan command's own refusals. The states are those of
- * core/test/fixtures/records/states.json (OLD: a good capture of `quote`; NEW: the state named), one project per state
+ * test-support/src/records/states.json (OLD: a good capture of `quote`; NEW: the state named), one project per state
  * in a temp workspace.
  *
  * A row marked `D-<n>` is an outcome a decision of the lot changed; `F-<n>` one a fix made on the way changed; `U-1`
- * the row of a capture stopped by `--until` (the marks: core/test/fixtures/records/README.md). The comment says what the
+ * the row of a capture stopped by `--until` (the marks: test-support/src/records/README.md). The comment says what the
  * row answered before.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -16,12 +16,12 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProject } from '@retake/core/io';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { findRunOf } from '@retake/engine';
+import { findRunOf } from '@retake/engine/shell';
 import { latestNotice } from '../src/commands/render.js';
-import { STATES, buildState, stateIds, writeRunFolder, writeWorkspace } from '../../core/test/fixtures/records/build.js';
-import type { BuiltState } from '../../core/test/fixtures/records/build.js';
-import { buildRenderState, renderStateIds } from '../../core/test/fixtures/records/build-renders.js';
-import type { BuiltRenders } from '../../core/test/fixtures/records/build-renders.js';
+import { STATES, buildState, stateIds, writeRunFolder, writeWorkspace } from '@retake/test-support/records/build';
+import type { BuiltState } from '@retake/test-support/records/build';
+import { buildRenderState, renderStateIds } from '@retake/test-support/records/build-renders';
+import type { BuiltRenders } from '@retake/test-support/records/build-renders';
 import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
 
 let root: string;
@@ -295,7 +295,7 @@ describe('the run `latest` names at a terminal, state by state', () => {
 // ── The render records at a terminal (L7.6b), state by state ────────────────
 //
 // `retake review` and `retake export` with `latest` and with the file's name, and `retake prune`, on the states of
-// core/test/fixtures/records/render-states.json. Each cell holds the exit code, the notes the command says first
+// test-support/src/records/render-states.json. Each cell holds the exit code, the notes the command says first
 // (`! …`: what `latest` passed over, a record renamed by hand) and its first other line of stderr (a stack is cut;
 // sizes and times are not compared). The cells were written before the lot (its P0) and flipped by its parts on
 // purpose: a cell that changed is marked `moved: <row>` (the lead's plan §4 and §1b) and says what it held before.

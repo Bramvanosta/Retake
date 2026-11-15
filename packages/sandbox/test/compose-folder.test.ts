@@ -16,8 +16,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ConfigError, PERSON_POLICY, envFileValues, workPolicyFrom } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import { loadProject } from '@retake/core/io';
-import { ComposeProvider, SandboxError, composeArgs, composeProject, composeProjectName, emptyState, runDocker, sandboxPaths } from '@retake/sandbox';
-import type { DockerExec, ProviderContext } from '@retake/sandbox';
+import { ComposeProvider, composeArgs, composeProject, composeProjectName } from '../src/compose.js';
+import { SandboxError, sandboxPaths } from '@retake/sandbox';
+import { emptyState } from '../src/state.js';
+import { runDocker } from '../src/docker.js';
+import type { DockerExec } from '../src/docker.js';
+import type { ProviderContext } from '../src/provider.js';
 import { startedProgram } from '../src/compose.js';
 
 let tmp = '';

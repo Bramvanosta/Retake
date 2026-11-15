@@ -18,34 +18,13 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import type { LoadedProject, LoadedSandbox, SandboxManifest, WorkPolicy } from '@retake/core';
-import {
-  BREAKER_STALE_MS,
-  SandboxError,
-  TakeLock,
-  bootTime,
-  busyPorts,
-  groupMembers,
-  groupTree,
-  identify,
-  listeners,
-  parseBootTime,
-  parseLsof,
-  parseLstart,
-  parseProcessTable,
-  probePort,
-  processStart,
-  processTable,
-  readLock,
-  readState,
-  resolveCommand,
-  sandboxPorts,
-  serviceEnv,
-  serviceHealth,
-  signalState,
-  stopGroup,
-  waitHealthy,
-  writeState,
-} from '@retake/sandbox';
+import { BREAKER_STALE_MS, readLock } from '../src/lock.js';
+import { SandboxError, TakeLock, probePort } from '@retake/sandbox';
+import { bootTime, groupMembers, groupTree, identify, parseBootTime, parseLstart, parseProcessTable, processStart, processTable, signalState, stopGroup } from '../src/proc.js';
+import { busyPorts, listeners, parseLsof, sandboxPorts } from '../src/ports.js';
+import { readState, writeState } from '../src/state.js';
+import { resolveCommand, serviceEnv } from '../src/process.js';
+import { serviceHealth, waitHealthy } from '../src/health.js';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;

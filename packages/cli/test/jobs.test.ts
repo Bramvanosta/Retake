@@ -9,7 +9,9 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { FileJobQueue, createEngine, liveWorker, workersDir } from '@retake/engine';
+import { FileJobQueue, workersDir } from '@retake/engine/testing';
+import { createEngine } from '@retake/engine';
+import { liveWorker } from '@retake/engine/shell';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 
@@ -99,7 +101,7 @@ describe('retake jobs', () => {
   });
 
   it('L5.14b: the list says what a take does to a heavy job — waiting (where), slowed while it runs (status: since when)', async () => {
-    const { FilmingMarker, selfIdentity } = await import('@retake/engine');
+    const { FilmingMarker, selfIdentity } = await import('@retake/engine/shell');
     const { hostname } = await import('node:os');
     const q = new FileJobQueue(ws);
     const review = await q.enqueue({ version: 1, kind: 'review', project: 'northfield-fixture', render_id: 'quote-v2', fps: 1, submitted_by: 'test' } as never);

@@ -16,8 +16,8 @@
 import { describe, expect, it } from 'vitest';
 import { HEX_COLOR_RE, THEME_REMOVABLE_FIELDS, themeValueProblem } from '@retake/core';
 import type { ThemeEditView } from '@retake/engine';
-import { UI_OPS } from '../src/index.js';
-import type { SiteListAnswer } from '../src/index.js';
+import { UI_OPS } from '../src/server/studio.js';
+import type { SiteListAnswer } from '../src/server/theme-ops.js';
 import { hrefTo, parseRoute } from '../src/app/route.js';
 import {
   DRAFT_INTERVAL_MS,

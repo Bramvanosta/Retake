@@ -3,7 +3,7 @@ import { AUTH_KEYS, PERSONA_NONE, loginPatternForm, resolveEnvironment, resolveP
 import { retakeHome } from '@retake/core/io';
 import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
-import { personScope, writeNewProject } from '@retake/engine';
+import { personScope, writeNewProject } from '@retake/engine/shell';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';

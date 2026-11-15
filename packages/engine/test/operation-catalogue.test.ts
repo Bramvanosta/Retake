@@ -36,7 +36,8 @@ import {
   useCaseProblem,
 } from '@retake/engine/contract';
 import type { Facets, NotServed, Operation, StudioServe } from '@retake/engine/contract';
-import { ENGINE_ERROR_CODES, EngineError, SUBMIT_RULES } from '../src/index.js';
+import { ENGINE_ERROR_CODES, EngineError } from '../src/index.js';
+import { SUBMIT_RULES } from '../src/admission.js';
 
 const R0 = { effect: 'read', job: false, code: 'none' } as const;
 const why = (v: unknown): string | undefined => (v && typeof v === 'object' && 'why' in v ? (v as NotServed).why : undefined);

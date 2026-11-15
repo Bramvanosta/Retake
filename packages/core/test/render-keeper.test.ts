@@ -6,8 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import { parseRenderRecord, pruneKeptWords, renderKeeper, renderSaidOf } from '../src/index.js';
 import type { RenderEntry, RenderSaid } from '../src/index.js';
-import { renderRecordText } from './fixtures/records/build-renders.js';
-import type { RenderFileSpec } from './fixtures/records/build-renders.js';
+import { renderRecordText } from '@retake/test-support/records/build-renders';
+import type { RenderFileSpec } from '@retake/test-support/records/build-renders';
 
 const OLD = '20261001-100000-quote';
 const NEW = '20261002-100000-quote';

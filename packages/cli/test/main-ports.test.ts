@@ -6,7 +6,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { enginePorts, memoryJobQueues } from '@retake/engine';
+import { enginePorts } from '@retake/engine/shell';
+import { memoryJobQueues } from '@retake/engine/testing';
 import type { JobQueues } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
 

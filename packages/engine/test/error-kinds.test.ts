@@ -33,7 +33,9 @@ import { HookError, HookSecurityError, JournalError } from '@retake/hooks';
 import { ReviewCancelledError, ReviewError } from '@retake/review';
 import { CancelledError, EncodeError, LoginPageError, PreflightError, RunnerError, StepError } from '@retake/runner-web';
 import { SandboxError } from '@retake/sandbox';
-import { ENGINE_ERROR_CODES, EngineError, HooksSourceError, RunOptionError, SandboxTakeError, toEngineError } from '../src/index.js';
+import { ENGINE_ERROR_CODES, EngineError, toEngineError } from '../src/index.js';
+import { HooksSourceError } from '../src/hooks.js';
+import { RunOptionError, SandboxTakeError } from '../src/execute-run.js';
 import { scenarioChangedConflict } from '../src/errors.js';
 
 const ISSUE: ValidationIssue = { severity: 'error', path: ['scenes', 0], message: 'm', line: 1, col: 1 } as ValidationIssue;

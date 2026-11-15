@@ -23,7 +23,8 @@
 import { createServer } from 'node:http';
 import type { Server, ServerResponse } from 'node:http';
 import { RETAKE_VERSION } from '@retake/core/base';
-import { BodyTooLargeError, EngineError, LOOPBACK, checkRequest, createEngine, drainBody, listenLoopback, readBody, securityHeaders } from '@retake/engine';
+import { BodyTooLargeError, LOOPBACK, checkRequest, drainBody, listenLoopback, readBody, securityHeaders } from '@retake/engine/shell';
+import { EngineError, createEngine } from '@retake/engine';
 import type { Engine, RouteSpec } from '@retake/engine';
 import { INSTRUCTIONS, TOOLS, protocolTool } from './tool-set.js';
 import { portHolder } from './port-holder.js';

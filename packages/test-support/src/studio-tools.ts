@@ -1,6 +1,6 @@
 /** The Studio's ops built with stand-ins, for tests that read their definitions (names, schemas, annotations). */
-import { studioTools } from '../src/server/studio.js';
-import type { StudioToolDeps } from '../src/server/studio.js';
+import { studioTools } from '@retake/ui/testing';
+import type { StudioToolDeps } from '@retake/ui/testing';
 
 /** Building the ops reads nothing: each closes over its dependencies until it is called (never, here). */
 export function stubTools(): ReturnType<typeof studioTools> {

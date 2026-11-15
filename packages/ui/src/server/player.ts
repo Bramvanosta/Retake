@@ -40,7 +40,7 @@ import { closeSync, constants as fsConstants, createReadStream, fstatSync, lstat
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { basename, extname, resolve } from 'node:path';
-import { checkRequest, listenLoopback, newSecret, secretEquals } from '@retake/engine';
+import { checkRequest, listenLoopback, newSecret, secretEquals } from '@retake/engine/shell';
 import type { RouteSpec } from '@retake/engine';
 import type { ComponentPreviewSpec, EditPlan } from '@retake/editor';
 import type { PlayerBundle } from '../player/bundle-player.js';

@@ -26,20 +26,8 @@ import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { workspaceFolders } from '@retake/core/policy';
-import {
-  BodyTooLargeError,
-  BootstrapCodes,
-  ENGINE_ERROR_CODES,
-  ENGINE_HTTP_API,
-  ERROR_STATUS,
-  checkRequest,
-  createEngine,
-  drainBody,
-  listenLoopback,
-  newSecret,
-  readBody,
-  securityHeaders,
-} from '@retake/engine';
+import { BodyTooLargeError, BootstrapCodes, ENGINE_HTTP_API, ERROR_STATUS, checkRequest, drainBody, listenLoopback, newSecret, readBody, securityHeaders } from '@retake/engine/shell';
+import { ENGINE_ERROR_CODES, createEngine } from '@retake/engine';
 import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@retake/engine';
 import { catalogueOperation, servedBy, servedNames, studioPins, studioStatus } from '@retake/engine/catalogue';
 import type { OperationName, StudioOpName, StudioPinsOf } from '@retake/engine/catalogue';

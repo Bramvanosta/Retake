@@ -12,8 +12,10 @@ import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedTemplate } from '@retake/core';
 import { loadComponentRegistry, themeTokens } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
-import { LOOP_FORMAT, PREVIEW_MOTION, buildComponentPreview, loadPreviewSamples, loopFrames } from '@retake/editor';
-import type { PreviewSamples } from '@retake/editor';
+import { LOOP_FORMAT, buildComponentPreview, loadPreviewSamples } from '@retake/editor';
+import { PREVIEW_MOTION } from '../src/preview.js';
+import { loopFrames } from '../src/render/preview.js';
+import type { PreviewSamples } from '../src/preview.js';
 import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 

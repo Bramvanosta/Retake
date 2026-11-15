@@ -2,7 +2,7 @@
  * What the engine's `latest` of renders passed over, as the MCP tools say it (L7.6b): a count in the text, the file
  * names under "untrusted" only — render_status, review, export, comments_list and comment_resolve's lines come from one
  * helper. The project is the lot's state "a record renamed by hand, newer than the newest render of its own file"
- * (core/test/fixtures/records/render-states.json), in a temp workspace; no job runs.
+ * (test-support/src/records/render-states.json), in a temp workspace; no job runs.
  */
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -14,9 +14,9 @@ import { commentsList } from '../src/tools/comments.js';
 import { exportTool } from '../src/tools/export.js';
 import { OPERATIONS_BY_NAME, renderLatestLines } from '@retake/engine/contract';
 import { reviewTool } from '../src/tools/review.js';
-import { writeWorkspace } from '../../core/test/fixtures/records/build.js';
-import { buildRenderState } from '../../core/test/fixtures/records/build-renders.js';
-import type { BuiltRenders } from '../../core/test/fixtures/records/build-renders.js';
+import { writeWorkspace } from '@retake/test-support/records/build';
+import { buildRenderState } from '@retake/test-support/records/build-renders';
+import type { BuiltRenders } from '@retake/test-support/records/build-renders';
 import { scratchHome } from '@retake/test-support/home';
 
 const { render_status: renderStatus } = OPERATIONS_BY_NAME;

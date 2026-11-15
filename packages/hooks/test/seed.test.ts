@@ -11,7 +11,9 @@ import { createServer as createNetServer } from 'node:net';
 import type { AddressInfo, Server as NetServer } from 'node:net';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Journal, SEED_NO_JS, findPendingJournals, rollbackPendingJournals, runHooks, standaloneJournalFile, supersedePendingJournals } from '@retake/hooks';
+import { Journal, rollbackPendingJournals, runHooks, standaloneJournalFile, supersedePendingJournals } from '@retake/hooks';
+import { SEED_NO_JS } from '../src/run.js';
+import { findPendingJournals } from '../src/journal.js';
 import type { HookStep, LoadedProject } from '@retake/core';
 import { closedPort, makeContext, makeProject, startApi, tempProject, writeFiles } from './helpers.js';
 

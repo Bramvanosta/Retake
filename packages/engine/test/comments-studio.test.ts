@@ -9,14 +9,17 @@
  * Counts from the thread files alone (critique B8: memoised per file, a broken file counted as a problem). The
  * `comments:` event sources (plan D9).
  */
-import { diskOutputs } from '../src/index.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, open, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import type { CommentThread, LoadedProject } from '@retake/core';
-import { CommentIndex, EngineError, addComment, anchorAt, createEngine, diffSources, scanSources, workspaceChanges, packageReviewer } from '../src/index.js';
+import { CommentIndex, addComment, anchorAt } from '../src/comments.js';
+import { EngineError, createEngine } from '../src/index.js';
+import { diffSources, scanSources, workspaceChanges } from '../src/index-db/sources.js';
+import { packageReviewer } from '../src/review/review-package.js';
 import type { Engine } from '../src/index.js';
 import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
 import type { Case, Workspace } from '@retake/test-support/review';

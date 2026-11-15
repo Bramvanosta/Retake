@@ -11,23 +11,13 @@ import { appendFile, mkdir, mkdtemp, open, readFile, readdir, rm, stat, symlink,
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  JOURNAL_VERSION,
-  appendJournal,
-  callerOf,
-  createEngine,
-  fileWriter,
-  hookEntry,
-  hookRunRecorder,
-  journalFile,
-  journalPath,
-  personScope,
-  readJournal,
-  sha256Hex,
-  enginePorts,
-  diskProjectStores,
-  systemClock,
-} from '../src/index.js';
+import { JOURNAL_VERSION, appendJournal, hookEntry, hookRunRecorder, journalFile, journalPath, readJournal } from '../src/store/journal.js';
+import { callerOf } from '../src/caller.js';
+import { createEngine } from '../src/index.js';
+import { fileWriter, personScope, diskProjectStores } from '../src/store/project-store.js';
+import { sha256Hex } from '../src/storage.js';
+import { enginePorts } from '../src/ports.js';
+import { systemClock } from '../src/clock.js';
 import * as journalModule from '../src/store/journal.js';
 import type { Engine, EngineError, JournalEntry } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';

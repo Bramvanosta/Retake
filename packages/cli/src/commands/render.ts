@@ -4,7 +4,7 @@ import { editReplannedMessage, scenarioChangedMessage } from '@retake/core/scena
 import { takeWords, untilStep } from '@retake/core/run';
 import { scenarioSinceRun } from '@retake/core/io';
 import type { FileFacts, LoadedProject } from '@retake/core/model';
-import { defaultStillFile, editorErrorOf, findRunOf, planWork, renderInProcess, stillInProcess } from '@retake/engine';
+import { defaultStillFile, editorErrorOf, findRunOf, planWork, renderInProcess, stillInProcess } from '@retake/engine/shell';
 import type { EditOverrides, RenderProgress, RenderRecord, RunRef } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';

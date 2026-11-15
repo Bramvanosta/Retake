@@ -10,7 +10,8 @@ import type { z } from 'zod';
 import type { BrandInputSchema, ComponentKind, THEME_FIELD_PATHS } from '@retake/core';
 import type { ToolArgs, ToolData } from '@retake/engine/contract';
 import type { BrandFileList, ThemeCopied, ThemeCreated, ThemeEditResult, ThemeEditView } from '@retake/engine';
-import type { LibraryComponentAnswer, LibraryImagesAnswer, LibraryRenderAnswer, LibraryViewAnswer, SiteListAnswer, ThemeListAnswer, ThemePreviewAnswer } from '../src/index.js';
+import type { LibraryComponentAnswer, LibraryImagesAnswer, LibraryRenderAnswer, LibraryViewAnswer } from '../src/server/library-ops.js';
+import type { SiteListAnswer, ThemeListAnswer, ThemePreviewAnswer } from '../src/server/theme-ops.js';
 import type { StudioTools } from '../src/server/studio.js';
 
 /** A and B are each other's (mutually assignable) and have the same keys (an extra optional member counts). */

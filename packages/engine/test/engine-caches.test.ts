@@ -9,7 +9,11 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { EngineError, RenderMemos, ThemeEditMemos, TimelineMemos, RegistryMemo, VersionLedger, createEngine } from '../src/index.js';
+import { EngineError, createEngine } from '../src/index.js';
+import { RenderMemos } from '../src/renders.js';
+import { ThemeEditMemos } from '../src/theme-edit.js';
+import { TimelineMemos, RegistryMemo } from '../src/views/timeline-view.js';
+import { VersionLedger } from '../src/version-ledger.js';
 import type { Engine } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 

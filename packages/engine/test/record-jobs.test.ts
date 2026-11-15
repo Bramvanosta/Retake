@@ -16,21 +16,15 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  FileJobQueue,
-  RECORD_KEEP,
-  createEngine,
-  historyFile,
-  jobsDir,
-  newRecordId,
-  openProject,
-  openWorkspace,
-  pruneRecords,
-  recordsRoot,
-  runWorker,
-  diskWorkspaceReads,
-  diskOutputs,
-} from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { RECORD_KEEP, newRecordId, pruneRecords, recordsRoot } from '../src/record.js';
+import { createEngine } from '../src/index.js';
+import { historyFile } from '../src/history.js';
+import { jobsDir } from '../src/workspace-state.js';
+import { openProject, openWorkspace } from '../src/workspace.js';
+import { runWorker } from '../src/jobs/worker.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine, EngineError, JobRecord, RecordJobResult, RecordWindow } from '../src/index.js';
 import { systemClock } from '../src/clock.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';

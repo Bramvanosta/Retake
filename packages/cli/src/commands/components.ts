@@ -2,7 +2,16 @@ import { join, resolve } from 'node:path';
 import { errorMessage, errorsOf, warningsOf } from '@retake/core/base';
 import { bundleInfo } from '@retake/core/io';
 import type { ComponentKind } from '@retake/core/model';
-import { componentCreateShell, componentListEntries, componentPreviewTargets, componentPreviewTheme, componentReadmeWriter, componentValidateShell, personScope, previewsWork } from '@retake/engine';
+import {
+  componentCreateShell,
+  componentListEntries,
+  componentPreviewTargets,
+  componentPreviewTheme,
+  componentReadmeWriter,
+  componentValidateShell,
+  personScope,
+  previewsWork,
+} from '@retake/engine/shell';
 import type { ComponentEntry, ComponentRef, EnginePorts, OpenedWorkspace, RegistryNoticeView } from '@retake/engine';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';

@@ -18,7 +18,7 @@ import type { RunJobInput } from '@retake/engine';
 import { synthTimeline } from '@retake/test-support/timeline';
 import { hasTool } from '@retake/test-support/repo';
 import { writeTake } from '@retake/test-support/take';
-import { FileJobQueue } from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { scratchHome } from '@retake/test-support/home';
 

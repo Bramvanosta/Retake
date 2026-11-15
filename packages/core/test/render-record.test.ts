@@ -26,9 +26,9 @@ import {
   sameRender,
 } from '../src/index.js';
 import type { RenderEntry, RenderFields, RenderNot, RenderPolicy, RenderRead, StoredRenderRecord } from '../src/index.js';
-import { recordFixture } from './fixtures/records/build.js';
-import { RENDER_STATES, renderRecordText } from './fixtures/records/build-renders.js';
-import type { RenderFileSpec } from './fixtures/records/build-renders.js';
+import { recordFixture } from '@retake/test-support/records/build';
+import { RENDER_STATES, renderRecordText } from '@retake/test-support/records/build-renders';
+import type { RenderFileSpec } from '@retake/test-support/records/build-renders';
 
 const VARS = { dir: '/w/projects/p', project: 'p', old: '20261001-100000-quote', new: '20261002-100000-quote' };
 /** The value a file of the fixtures' kind holds (`raw`: parsed when it is JSON). */

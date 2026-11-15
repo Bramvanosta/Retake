@@ -4,7 +4,7 @@ import { formatPath, relativeInside } from '@retake/core/base';
 import type { ValidationIssue } from '@retake/core/model';
 import type { Colors, Io } from './io.js';
 
-export { formatMs } from '@retake/engine';
+export { formatMs } from '@retake/engine/shell';
 
 /** Output helpers shared by every command: colours, paths, durations, issue lists, a live status line. */
 export class Ui {

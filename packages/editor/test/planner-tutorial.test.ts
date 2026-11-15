@@ -19,15 +19,14 @@ import {
   shortcutSlot,
   loupeRegion,
   mapSourceRect,
-  planComponentIds,
-  planEdit,
-  planFileRefs,
-  planInputFiles,
   stepNavigates,
   trackBoxAt,
-  imageFileSize,
-} from '@retake/editor';
-import type { CardSegment, ClipSegment, EditOverrides, EditPlan, OverlayUse, PlanInputFile } from '@retake/editor';
+} from '../src/plan-entry.js';
+import { planComponentIds } from '../src/render/bundle.js';
+import { planEdit, planFileRefs } from '@retake/editor';
+import { planInputFiles, imageFileSize } from '../src/inputs.js';
+import type { CardSegment, ClipSegment, EditOverrides, OverlayUse, PlanInputFile } from '../src/plan-entry.js';
+import type { EditPlan } from '@retake/editor';
 import type { Timeline } from '@retake/core';
 import { FIXTURES, fixtureProject, template } from '@retake/test-support/timeline';
 import { REPO } from '@retake/test-support/repo';

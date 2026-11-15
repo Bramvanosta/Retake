@@ -12,7 +12,10 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { JOURNAL_FILES_MAX, ManualClock, callerOf, sha256Hex } from '../src/index.js';
+import { JOURNAL_FILES_MAX } from '../src/store/journal.js';
+import { ManualClock } from '../src/clock.js';
+import { callerOf } from '../src/caller.js';
+import { sha256Hex } from '../src/storage.js';
 import type { EngineError, FolderStage, ProjectStores, StoreScope } from '../src/index.js';
 
 export interface StoreHarness {

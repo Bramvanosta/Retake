@@ -11,7 +11,7 @@
  * age, a planted one quoted only by pid and date, a lock folder that is a link refused. Without ffmpeg the renders are
  * empty files and every test but the still's runs.
  */
-import { diskOutputs } from '../src/index.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -21,22 +21,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CommentThreadSchema, newCommentEntryId, newCommentId, stepFingerprint, PERSON_POLICY } from '@retake/core';
 import type { CommentAuthor, CommentThread, LoadedProject } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
-import {
-  COMMENT_FILE_MAX_BYTES,
-  EngineError,
-  addComment,
-  commentLockFile,
-  commentStillFile,
-  createEngine,
-  getComment,
-  listComments,
-  reopenComment,
-  replyComment,
-  readJournal,
-  resolveComment,
-  packageReviewer,
-  diskWorkspaceReads,
-} from '../src/index.js';
+import { COMMENT_FILE_MAX_BYTES, addComment, commentLockFile, commentStillFile, getComment, listComments, reopenComment, replyComment, resolveComment } from '../src/comments.js';
+import { EngineError, createEngine } from '../src/index.js';
+import { readJournal } from '../src/store/journal.js';
+import { packageReviewer } from '../src/review/review-package.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import type { Engine } from '../src/index.js';
 import { hasTool } from '@retake/test-support/repo';
 import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';

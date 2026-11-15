@@ -14,7 +14,9 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createEngine, packageReviewer, runWorker } from '../src/index.js';
+import { createEngine } from '../src/index.js';
+import { packageReviewer } from '../src/review/review-package.js';
+import { runWorker } from '../src/jobs/worker.js';
 import type { Engine, RenderJobResult, Renderer, Reviewer } from '../src/index.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import { synthTimeline } from '@retake/test-support/timeline';

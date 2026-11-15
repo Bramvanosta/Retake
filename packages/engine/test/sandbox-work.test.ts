@@ -26,7 +26,8 @@ import { executeSandboxJob } from '../src/jobs/sandbox-job.js';
 import { EngineError } from '../src/errors.js';
 import { enginePorts } from '../src/ports.js';
 import { openWorkspace } from '../src/workspace.js';
-import { diskWorkspaceReads, diskOutputs } from '../src/index.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 
 let root = '';
 let project: LoadedProject;

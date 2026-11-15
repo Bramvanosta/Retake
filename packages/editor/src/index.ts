@@ -4,147 +4,29 @@
  * (`renderPlan` / `renderStill` / `listRenders`: Remotion bundle cache, local asset server; the render use case — the
  * version, the record, where the files go — is the engine's) — docs/DESIGN-phase2.md
  * §2. The compositions themselves (src/remotion, React) are only loaded by the render bundle. The planner alone, without
- * the renderer, is the `@retake/editor/plan` entry (./plan-entry.ts): everything it exports is exported here too.
+ * the renderer, is the `@retake/editor/plan` entry (./plan-entry.ts): everything it exports is exported here too. The
+ * rest of this entry is what another package names (packages/engine/test/engine-entries.test.ts).
  */
 export * from './plan-entry.js';
-export { imageFileSize, planFileRefs, planFileUses, planInputFiles, remoteSlotUses, themeFileRefs } from './inputs.js';
-export type { PlanFileUse } from './inputs.js';
+export { planFileRefs, themeFileRefs } from './inputs.js';
 export { PreviewPlanError, previewPlan } from './preview-plan.js';
-export { PreviewContext, usePreviewMode, usedComponentIds } from './remotion/preview-mode.js';
-export type { PreviewMode } from './remotion/preview-mode.js';
-export type { PreviewPlan, PreviewPlanOptions } from './preview-plan.js';
+export { usedComponentIds } from './remotion/preview-mode.js';
 export { RenderCancelledError, RenderDiskFullError, RenderError, isDiskFullError } from './render/types.js';
-export type { RenderProgress, RenderStage } from './render/types.js';
-export {
-  COMPOSITION_IDS,
-  FRAME_JPEG_QUALITY,
-  defaultConcurrency,
-  guardEncoderPipe,
-  probeMedia,
-  renderPlan,
-  renderStill,
-  renderStills,
-} from './render/render.js';
-export type { RenderNetwork, RenderPathRecord, RenderPlanOptions, RenderPlanResult, RenderSeams, RenderStillOptions, RenderStillsOptions } from './render/render.js';
-export {
-  GPU_CONCURRENCY,
-  RENDER_CRF,
-  VIDEOTOOLBOX_BITS_PER_PIXEL,
-  VIDEOTOOLBOX_MAX_SIDE,
-  chooseEncoder,
-  encodingRecord,
-  gopFrames,
-  gpuPathFailure,
-  openRenderBrowser,
-  previewGlKey,
-  probeRenderPath,
-  remotionEncoding,
-  renderGpuInfo,
-  renderPolicy,
-  renderSandboxOff,
-  renderSandboxRefusal,
-  rendererWords,
-  resetVideotoolboxProbes,
-  resolveRenderPolicy,
-  sourceWords,
-  videotoolboxFits,
-  videotoolboxMbps,
-  videotoolboxRenderWorks,
-  withGl,
-} from './render/policy.js';
-export type { EncoderChoice, EncoderProbe, FrameSize, PolicyBrowser, RenderPathProbe, RenderEncoder, RenderGl, RenderPolicy, RenderSettingSource, VideotoolboxProbe } from './render/policy.js';
-export { PlanTrustError, editOfToday, noteEdit, planRun, preReadProblems, servedFileProblems } from './render/plan-run.js';
-export type { PlanRunOptions, PlanTrust, PlannedEdit, PlannedRun } from './render/plan-run.js';
-export {
-  GUARDED_NO_OTHER_BROWSER,
-  allowedDownload,
-  allowedRequest,
-  armNetworkGuard,
-  browserProcessInfo,
-  guardedPageFailed,
-  guardedPageFailure,
-  originOf,
-  pickFreePort,
-} from './render/network-guard.js';
-export type { BrowserProcessInfo, NetworkAllowList, NetworkGuard } from './render/network-guard.js';
-export { NoCaptureRunError, findRun, listRenders, recordEnv, rendersDir, runEnv, runScenario } from './render/runs.js';
-export type { RunRef } from './render/runs.js';
-export { CONTENT_TYPES, parseRange, startAssetServer } from './render/asset-server.js';
-export type { AssetServer } from './render/asset-server.js';
-export {
-  BUNDLE_CACHE_KEEP,
-  scaffoldComponents,
-  BUNDLE_CSP,
-  BUNDLE_FORMAT,
-  COMPOSITION_DEPS,
-  EDITOR_DIR,
-  bundleCacheDir,
-  bundleComponentsFor,
-  bundleHash,
-  bundledFileProblem,
-  componentFilesGuard,
-  componentFolderHash,
-  componentHashedFiles,
-  compositionFiles,
-  compositionHash,
-  ensureBundle,
-  entrySource,
-  geometryFiles,
-  planComponentIds,
-  registryBundleComponents,
-  registryModuleSource,
-  renderBundleRestriction,
-  withCspMeta,
-} from './render/bundle.js';
-export type { BundleComponent, EnsureBundleOptions, RenderBundle } from './render/bundle.js';
-export { HEADLESS_SHELL_ENV, HEADLESS_SHELL_INSTALL, assertRenderBrowser, playwrightHeadlessShell, renderBrowser, renderBrowserIdentity } from './render/browser.js';
-export type { RenderBrowser } from './render/browser.js';
-export { PREVIEW_MOTION, buildComponentPreview, loadPreviewSamples } from './preview.js';
-export type { BuildPreviewOptions, BuiltPreview, ComponentPreviewSpec, PreviewSample, PreviewSamples, PreviewScene, PreviewScreenName, PreviewTarget, PreviewUse } from './preview.js';
-export {
-  LOOP_FORMAT,
-  PREVIEW_COMPOSITION,
-  REMOTION_PREVIEW_BACKEND,
-  STARTER_TEMPLATES_DIR,
-  loadPreviewTheme,
-  loopFrames,
-  previewDriver,
-  renderComponentLoops,
-  renderComponentPreviews,
-} from './render/preview.js';
+export type { RenderProgress } from './render/types.js';
+export { defaultConcurrency, probeMedia, renderStill, renderStills } from './render/render.js';
+export type { RenderStillOptions } from './render/render.js';
+export { previewGlKey, probeRenderPath, renderPolicy, resolveRenderPolicy } from './render/policy.js';
+export { PlanTrustError, planRun } from './render/plan-run.js';
+export { findRun } from './render/runs.js';
+export { CONTENT_TYPES, parseRange } from './render/asset-server.js';
+export { scaffoldComponents, bundleHash, componentFolderHash, compositionFiles, compositionHash, ensureBundle, registryBundleComponents, renderBundleRestriction } from './render/bundle.js';
+export type { BundleComponent } from './render/bundle.js';
+export { HEADLESS_SHELL_ENV, assertRenderBrowser, renderBrowser, renderBrowserIdentity } from './render/browser.js';
+export { buildComponentPreview, loadPreviewSamples } from './preview.js';
+export type { ComponentPreviewSpec } from './preview.js';
+export { LOOP_FORMAT, loadPreviewTheme, previewDriver, renderComponentLoops, renderComponentPreviews } from './render/preview.js';
 export { createRenderer } from './render/driver.js';
 export type { RenderDriverOptions } from './render/driver.js';
-export type { DriverPreviewBundle, DriverPreviewSession, DriverPreviews, DriverProcess, DriverStillsRequest, DriverVideoRequest, DriverVideoResult, RenderDriver } from './render/driver-types.js';
-export type {
-  LoopItem,
-  PreviewBackend,
-  PreviewBundleMode,
-  PreviewComponentTarget,
-  PreviewFailure,
-  PreviewRenderer,
-  RenderLoopsOptions,
-  RenderLoopsResult,
-  RenderPreviewsOptions,
-  PreviewReadmeWriter,
-  RenderedLoop,
-  RenderedLoopItem,
-  RenderedPoster,
-  RenderedPreview,
-} from './render/preview.js';
-export { generateTestTrack, testTrackExpression } from './render/audio.js';
-export {
-  DEFAULT_EXPORT_FORMATS,
-  EXPORT_FORMATS,
-  ExportError,
-  GIF_PREVIEW,
-  exportMethod,
-  exportRender,
-  exportRenderWarnings,
-  exportThemeRef,
-  findRenderRecord,
-  gifWindow,
-  locateRenderRecord,
-  mp4TranscodeArgs,
-  transcodeMp4,
-} from './render/export.js';
-export type { ExportFormat, ExportOutput, ExportProgress, ExportRenderOptions, ExportResult, FoundRender } from './render/export.js';
+export type { PreviewBackend, RenderLoopsOptions, RenderLoopsResult, RenderPreviewsOptions, RenderedPreview } from './render/preview.js';
+export { ExportError, exportMethod, exportRender, exportThemeRef, mp4TranscodeArgs, transcodeMp4 } from './render/export.js';
+export type { ExportRenderOptions, ExportResult, FoundRender } from './render/export.js';

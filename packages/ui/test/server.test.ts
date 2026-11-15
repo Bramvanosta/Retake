@@ -12,9 +12,13 @@ import { readFile, readdir, rm, stat, mkdtemp, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DISCOVERY_VERSION, discoveryFile, newSecret, readDiscovery, readStudioToken, selfIdentity, sha256Hex, studioCsp, studioTokenFile } from '@retake/engine';
+import { DISCOVERY_VERSION, discoveryFile, newSecret, readDiscovery, readStudioToken, selfIdentity, studioTokenFile } from '@retake/engine/shell';
+import { sha256Hex, studioCsp } from '@retake/engine/testing';
 import { TOOLS } from '@retake/mcp';
-import { CALL_BODY_MAX, INDEX_HTML, INDEX_OPS, OWN_OPS, UI_OPS, buildUi, launchStudio, startStudioServer, uiTools } from '../src/index.js';
+import { CALL_BODY_MAX, UI_OPS, uiTools } from '../src/server/studio.js';
+import { INDEX_HTML, buildUi } from '../src/bundle.js';
+import { INDEX_OPS, OWN_OPS } from '../src/server/ops.js';
+import { launchStudio, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { fixtureWorkspace } from '@retake/test-support/workspace';

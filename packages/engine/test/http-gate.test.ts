@@ -8,24 +8,11 @@ import { request } from 'node:http';
 import type { IncomingHttpHeaders, OutgoingHttpHeaders, Server } from 'node:http';
 import { createServer } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  BOOTSTRAP_CODES_MAX,
-  BodyTooLargeError,
-  BootstrapCodes,
-  ERROR_STATUS,
-  ENGINE_ERROR_CODES,
-  STUDIO_CSP,
-  bearerToken,
-  checkRequest,
-  drainBody,
-  fromBrowser,
-  listenLoopback,
-  newSecret,
-  readBody,
-  secretEquals,
-  securityHeaders,
-  studioCsp,
-} from '../src/index.js';
+import { BOOTSTRAP_CODES_MAX, BootstrapCodes, bearerToken, newSecret, secretEquals } from '../src/http/token.js';
+import { BodyTooLargeError, STUDIO_CSP, checkRequest, drainBody, fromBrowser, readBody, securityHeaders, studioCsp } from '../src/http/gate.js';
+import { ERROR_STATUS } from '../src/http/status.js';
+import { ENGINE_ERROR_CODES } from '../src/index.js';
+import { listenLoopback } from '../src/http/listen.js';
 import type { RouteSpec } from '../src/index.js';
 
 const MAX = 64 * 1024;

@@ -15,20 +15,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { resolveEnvironment, resolvePersonas, sandboxOffArgProblem, PERSON_POLICY, workPolicyFrom } from '@retake/core';
-import {
-  ArtefactRenderer,
-  RunnerError,
-  extractSite,
-  kitConfigFor,
-  launchOptions,
-  launchTarget,
-  openSession,
-  playwrightExecutable,
-  probeChromium,
-  recordSession,
-  renderCursorAtlas,
-  signIn,
-} from '../src/index.js';
+import { ArtefactRenderer } from '../src/artefacts/render.js';
+import { RunnerError, extractSite, kitConfigFor, openSession, probeChromium, recordSession, signIn } from '../src/index.js';
+import { launchOptions, playwrightExecutable } from '../src/launch.js';
+import { launchTarget } from '../src/session.js';
+import { renderCursorAtlas } from '../src/raw/index.js';
 import { startAuthServer } from '@retake/test-support/auth';
 import type { AuthServer } from '@retake/test-support/auth';
 import { makeProject, tempDir } from './helpers.js';

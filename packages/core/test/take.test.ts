@@ -23,8 +23,8 @@ import {
   untilStep,
 } from '../src/index.js';
 import type { NotUsable, PruneNewer, PruneSaid, RunFolderFacts, RunId, TakeVerdict } from '../src/index.js';
-import { recordFixture } from './fixtures/records/build.js';
-import { STATES, recordText } from './fixtures/records/build.js';
+import { recordFixture } from '@retake/test-support/records/build';
+import { STATES, recordText } from '@retake/test-support/records/build';
 
 const NAME = '20261002-100000-quote';
 const record = (o: Record<string, unknown> = {}, drop: string[] = []) => {

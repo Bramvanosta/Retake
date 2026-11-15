@@ -31,7 +31,8 @@
 import { z } from 'zod';
 import { COMPONENT_ID_RE } from '@retake/core/model';
 import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE } from '@retake/core/ids';
-import { EngineError, firstErrorLine } from '@retake/engine';
+import { EngineError } from '@retake/engine';
+import { firstErrorLine } from '@retake/engine/shell';
 import type { TimelineView } from '@retake/engine';
 import { READ, defineTool, plural, studioProject as project, studioRun as run, studioScenario as scenario } from '@retake/engine/contract';
 import { PreviewLeases } from './preview-leases.js';
@@ -91,7 +92,7 @@ export function indexOps(live: Live) {
 }
 
 /** The personas a capture's `sessions_ack` must name, and what the capture does with them: the engine's rule. */
-export { confirmWhy, sessionsToConfirm } from '@retake/engine';
+export { confirmWhy, sessionsToConfirm } from '@retake/engine/shell';
 export type { SessionToConfirm } from '@retake/engine';
 /** The read-only queries' answers the app and the tests name (the engine's operations since L7.14). */
 export { REVIEW_IMAGES_MAX, reviewAnswer } from '@retake/engine/contract';

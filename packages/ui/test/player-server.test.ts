@@ -19,7 +19,7 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { studioCsp } from '@retake/engine';
+import { studioCsp } from '@retake/engine/testing';
 import type { EditPlan } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import { frameCsp, startPlayerServer } from '../src/server/player.js';

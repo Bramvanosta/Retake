@@ -21,7 +21,7 @@ import {
   runInProcess,
   selfIdentity,
   writesSummary,
-} from '@retake/engine';
+} from '@retake/engine/shell';
 import type { FilmingEvent, FilmingReport, PreparedRun } from '@retake/engine';
 import { askAgentHooks } from '../agent-hooks.js';
 import { heavyGate } from '../heavy-gate.js';

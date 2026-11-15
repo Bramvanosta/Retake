@@ -63,7 +63,7 @@ import { NewTheme, RowCopy } from '../src/app/themes/ThemesScreen.js';
 import { ComponentInspector } from '../src/app/library/LibraryInspector.js';
 import { LibraryContext } from '../src/app/library/LibraryCards.js';
 import type { LibraryCtx } from '../src/app/library/LibraryCards.js';
-import type { LibraryItem, LibraryViewAnswer } from '../src/index.js';
+import type { LibraryItem, LibraryViewAnswer } from '../src/server/library-ops.js';
 
 const a = (n: number, ch = 'a') => ch.repeat(n);
 /** The words of a piece of markup (tags dropped, entities read). */

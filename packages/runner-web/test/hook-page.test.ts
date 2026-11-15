@@ -11,7 +11,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { HostRefusedError, PERSON_POLICY } from '@retake/core';
 import type { NotificationArtefact } from '@retake/core';
 import { evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
-import type { BrowserSession, HookPageOptions } from '../src/index.js';
+import type { BrowserSession } from '../src/index.js';
+import type { HookPageOptions } from '../src/hook-page.js';
 import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir, testHookRunner } from './helpers.js';
 

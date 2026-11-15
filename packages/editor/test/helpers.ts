@@ -14,7 +14,8 @@ import type { ComponentKind, LoadedProject, LoadedTemplate, Timeline } from '@re
 import { createComponent, loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planEdit } from '@retake/editor';
-import type { ClipSegment, EditOverrides, EditPlan, PlanSegment } from '@retake/editor';
+import type { ClipSegment, EditOverrides, PlanSegment } from '../src/plan-entry.js';
+import type { EditPlan } from '@retake/editor';
 
 /** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
 const plainWrite = async (file: string, text: string): Promise<void> => {

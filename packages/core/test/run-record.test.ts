@@ -2,7 +2,7 @@
  * The run record (L7.6a, core run-record.ts): the transitions — the only way a status changes —, and the parse boundary
  * of run.json and of a timeline's head: a value or a typed problem, never a throw.
  *
- * How the records read here were made (fixtures/records/README.md has the table): `past/run-0.1.0` and
+ * How the records read here were made (test-support/src/records/README.md has the table): `past/run-0.1.0` and
  * `past/real/run-real-{1,2,3}` are shapes of files a build wrote (one version, one day; every value that could
  * identify anything replaced, the keys this repository no longer names left out); the other files of `past/` were
  * written BY HAND from the code of the writer each names — they hold the author's reading of that writer, not a file a
@@ -26,7 +26,7 @@ import {
   startedRun,
 } from '../src/index.js';
 import type { RunRead, RunRecord, RunningRun, StoredRunRecord, UnknownStatusRun } from '../src/index.js';
-import { STATES, recordFixture, recordText, stateIds } from './fixtures/records/build.js';
+import { STATES, recordFixture, recordText, stateIds } from '@retake/test-support/records/build';
 
 const ID = parseRunId('20261020-090000-quote')!;
 const FIELDS = {

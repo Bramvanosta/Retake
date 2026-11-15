@@ -7,7 +7,8 @@
  */
 import { PERSON_POLICY } from '@retake/core';
 import { loadProject } from '@retake/core/io';
-import { planRun, renderPlan } from '@retake/editor';
+import { planRun } from '@retake/editor';
+import { renderPlan } from '../../src/render/render.js';
 
 const [root, out, cacheDir, mode] = process.argv.slice(2);
 const project = await loadProject('demo', root);

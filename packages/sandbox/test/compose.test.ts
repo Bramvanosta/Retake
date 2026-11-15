@@ -32,7 +32,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProject } from '@retake/core/io';
 import type { LoadedProject, WorkPolicy } from '@retake/core';
 import { SandboxError, dockerEnv, findDocker, initSandbox, openSandbox, probePort } from '@retake/sandbox';
-import type { SandboxLog } from '@retake/sandbox';
+import type { SandboxLog } from '../src/provider.js';
 import { PERSON_POLICY } from '@retake/core';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */

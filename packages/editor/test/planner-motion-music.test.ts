@@ -5,8 +5,10 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LoadedTemplate } from '@retake/core';
-import { DEFAULT_ZOOM, MUSIC_DEFAULTS, musicPlayGain, musicPlays, musicVolumeAt, planEdit } from '@retake/editor';
-import type { EditOverrides, EditPlan } from '@retake/editor';
+import { DEFAULT_ZOOM, MUSIC_DEFAULTS, musicPlayGain, musicPlays, musicVolumeAt } from '../src/plan-entry.js';
+import { planEdit } from '@retake/editor';
+import type { EditOverrides } from '../src/plan-entry.js';
+import type { EditPlan } from '@retake/editor';
 import { clip, clips, studioWorkspace } from './helpers.js';
 import { fixtureProject, realTimeline, synthTimeline, template } from '@retake/test-support/timeline';
 import type { EntrySpec } from '@retake/test-support/timeline';

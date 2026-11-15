@@ -2,7 +2,8 @@ import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { JOURNAL_FILE, JOURNALS_DIR, Journal, JournalError, findJournal, findPendingJournals, journalId, rollbackPendingJournals, runHooks, standaloneJournalFile } from '@retake/hooks';
+import { JOURNAL_FILE, Journal, JournalError, findJournal, rollbackPendingJournals, runHooks, standaloneJournalFile } from '@retake/hooks';
+import { JOURNALS_DIR, findPendingJournals, journalId } from '../src/journal.js';
 import type { HookStep } from '@retake/core';
 import { makeContext, makeProject, tempProject, writeFiles } from './helpers.js';
 

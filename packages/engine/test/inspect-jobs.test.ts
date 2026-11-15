@@ -15,7 +15,12 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, INSPECT_KEEP, createEngine, diskOutputs, historyFile, markBoxes, newInspectId, pruneInspections, runWorker } from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { INSPECT_KEEP, markBoxes, newInspectId, pruneInspections } from '../src/jobs/inspect-job.js';
+import { createEngine } from '../src/index.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { historyFile } from '../src/history.js';
+import { runWorker } from '../src/jobs/worker.js';
 import type { Engine, EngineError, InspectJobResult, JobRecord } from '../src/index.js';
 import type { LoadedProject } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';

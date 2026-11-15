@@ -16,23 +16,11 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, readlink, realpath, rm, stat, s
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  DISCOVERY_VERSION,
-  EngineError,
-  LOOPBACK,
-  claimDiscovery,
-  discoveryFile,
-  isLoopbackAddress,
-  listenLoopback,
-  newSecret,
-  readDiscovery,
-  readStudioToken,
-  releaseDiscovery,
-  releaseStudioToken,
-  selfIdentity,
-  studioTokenFile,
-  writeStudioToken,
-} from '../src/index.js';
+import { DISCOVERY_VERSION, claimDiscovery, discoveryFile, readDiscovery, readStudioToken, releaseDiscovery, releaseStudioToken, studioTokenFile, writeStudioToken } from '../src/http/discovery.js';
+import { EngineError } from '../src/index.js';
+import { LOOPBACK, isLoopbackAddress, listenLoopback } from '../src/http/listen.js';
+import { newSecret } from '../src/http/token.js';
+import { selfIdentity } from '../src/jobs/proc.js';
 import type { DiscoveryRecord } from '../src/index.js';
 
 let ws: string;

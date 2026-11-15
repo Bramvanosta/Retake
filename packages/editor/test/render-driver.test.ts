@@ -26,11 +26,13 @@ import {
   previewDriver,
   renderComponentLoops,
   renderComponentPreviews,
-  renderPlan,
   renderStill,
   renderStills,
 } from '@retake/editor';
-import type { DriverVideoRequest, DriverVideoResult, LoopItem, PreviewBackend, RenderDriver } from '@retake/editor';
+import { renderPlan } from '../src/render/render.js';
+import type { DriverVideoRequest, DriverVideoResult, RenderDriver } from '../src/render/driver-types.js';
+import type { LoopItem } from '../src/render/preview.js';
+import type { PreviewBackend } from '@retake/editor';
 import { RUN_ID, syntheticTimeline } from '@retake/test-support/render';
 import { TEMPLATES } from '@retake/test-support/repo';
 

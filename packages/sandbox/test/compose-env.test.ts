@@ -16,8 +16,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ConfigError, envFileKeys, PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import { composeEnvFile, loadProject } from '@retake/core/io';
 import type { LoadedProject, WorkPolicy } from '@retake/core';
-import { ComposeProvider, SandboxError, composeArgs, composeProject, dockerEnv, emptyState, sandboxPaths } from '@retake/sandbox';
-import type { DockerExec, DockerRunOptions, ProviderContext } from '@retake/sandbox';
+import { ComposeProvider, composeArgs, composeProject } from '../src/compose.js';
+import { SandboxError, dockerEnv, sandboxPaths } from '@retake/sandbox';
+import { emptyState } from '../src/state.js';
+import type { DockerExec, DockerRunOptions } from '../src/docker.js';
+import type { ProviderContext } from '../src/provider.js';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;
@@ -223,7 +226,7 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
     try {
       const calls: string[] = [];
       const real: DockerExec = async (a, o) => {
-        const { runDocker, findDocker } = await import('@retake/sandbox');
+        const { runDocker, findDocker } = await import('../src/docker.js');
         // As the provider's own exec runs it: under the provider's policy (a DockerExec is never given one).
         const r = await runDocker(findDocker()!, a, { ...o, policy });
         if (a.includes('config')) calls.push(r.stdout);

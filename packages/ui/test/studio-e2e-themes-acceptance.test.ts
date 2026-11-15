@@ -17,7 +17,7 @@ import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseYaml } from '@retake/core';
-import { readWorkerLock } from '@retake/engine';
+import { readWorkerLock } from '@retake/engine/testing';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';

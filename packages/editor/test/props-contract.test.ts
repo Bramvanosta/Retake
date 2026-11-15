@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
-import { EDITOR_DIR } from '@retake/editor';
+import { EDITOR_DIR } from '../src/render/bundle.js';
 import type { EditPlan } from '@retake/editor';
 import { COMPOSITIONS, PROPS_VERSION, previewProps, readPreviewProps, readVideoProps, videoProps } from '../src/remotion/contract.js';
 import { createRoot } from '../src/remotion/Root.js';

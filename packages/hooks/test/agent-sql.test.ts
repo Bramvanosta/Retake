@@ -11,7 +11,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { AGENT_SQL_REASON, hookApprovalReason, scenarioBlocks } from '@retake/core';
 import type { HookStep } from '@retake/core';
 import { Journal, hookFiles, hookFingerprint, runHooks } from '@retake/hooks';
-import type { HookApprovalRequest } from '@retake/hooks';
+import type { HookApprovalRequest } from '../src/types.js';
 import { makeContext, makeProject, tempProject, writeFiles } from './helpers.js';
 import { postgresForTests, startPostgres } from '@retake/test-support/postgres';
 import type { TestPostgres } from '@retake/test-support/postgres';

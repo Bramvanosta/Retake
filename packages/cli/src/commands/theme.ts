@@ -1,5 +1,6 @@
 import { printableText } from '@retake/core/base';
-import { EngineError, createThemeFromBrand, extractSiteForAuthor, personScope } from '@retake/engine';
+import { EngineError } from '@retake/engine';
+import { createThemeFromBrand, extractSiteForAuthor, personScope } from '@retake/engine/shell';
 import type { SiteJobResult, ThemeCreated } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';

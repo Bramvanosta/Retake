@@ -1,7 +1,7 @@
 /**
  * The run records and takes as the editor answers them (L7.6a), state by state: which run `latest` names, what a named
  * run answers at a terminal and under trust `mcp`, and what the plan of each says. The states are those of
- * core/test/fixtures/records/states.json (OLD: a good capture of `quote`; NEW: the state named), one project per state
+ * test-support/src/records/states.json (OLD: a good capture of `quote`; NEW: the state named), one project per state
  * in a temp workspace; nothing is rendered.
  *
  * A row marked `D-<n>` is an outcome a decision of the lot changed; `F-<n>` one a fix made on the way changed; `U-1`
@@ -17,13 +17,15 @@ import { loadProject } from '@retake/core/io';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { exportsPlace, noRerender } from '@retake/test-support/render';
-import { PlanTrustError, RenderError, exportRender, findRenderRecord, findRun, listRenders, planRun, runEnv } from '@retake/editor';
+import { PlanTrustError, RenderError, exportRender, findRun, planRun } from '@retake/editor';
+import { findRenderRecord } from '../src/render/export.js';
+import { listRenders, runEnv } from '../src/render/runs.js';
 import { NoCaptureRunError } from '../src/render/runs.js';
-import type { RunRef } from '@retake/editor';
-import { STATES, buildState, recordFixture, stateIds, writeRunFolder, writeWorkspace } from '../../core/test/fixtures/records/build.js';
-import type { BuiltState } from '../../core/test/fixtures/records/build.js';
-import { buildRenderState, renderStateIds } from '../../core/test/fixtures/records/build-renders.js';
-import type { BuiltRenders } from '../../core/test/fixtures/records/build-renders.js';
+import type { RunRef } from '../src/render/runs.js';
+import { STATES, buildState, recordFixture, stateIds, writeRunFolder, writeWorkspace } from '@retake/test-support/records/build';
+import type { BuiltState } from '@retake/test-support/records/build';
+import { buildRenderState, renderStateIds } from '@retake/test-support/records/build-renders';
+import type { BuiltRenders } from '@retake/test-support/records/build-renders';
 
 let root: string;
 let registry: ComponentRegistry;
@@ -240,7 +242,7 @@ describe('the editor, state by state: the run `latest` names and a run named by 
 
 // ── The render records (L7.6b), state by state ──────────────────────────────
 //
-// The states are those of core/test/fixtures/records/render-states.json: two good captures (OLD, NEW), a good render
+// The states are those of test-support/src/records/render-states.json: two good captures (OLD, NEW), a good render
 // `quote-v1` and the file(s) the state names. The cells were written before the lot (its P0) and flipped by its editor
 // part on purpose: a cell that changed is marked `moved: <row>` with the row of the lot's table of visible changes (the
 // lead's plan §4, and §1b's rows 21–29) and says what it held before. A state without a mark did not move: a thing a

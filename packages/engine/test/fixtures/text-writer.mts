@@ -5,7 +5,7 @@
  * Usage: text-writer.mts <project folder>
  */
 import { createInterface } from 'node:readline';
-import { LocalStorage } from '../../src/index.js';
+import { LocalStorage } from '../../src/storage.js';
 
 const storage = new LocalStorage(process.argv[2]);
 process.stdout.write('ready\n');

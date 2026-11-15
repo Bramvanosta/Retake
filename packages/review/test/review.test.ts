@@ -10,8 +10,9 @@ import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promise
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ReviewCancelledError, recoverReviewDir, reviewImages, reviewRender } from '../src/index.js';
-import type { Finding, ReviewResult } from '../src/index.js';
+import { ReviewCancelledError, recoverReviewDir, reviewRender } from '../src/index.js';
+import { reviewImages } from '../src/images.js';
+import type { Finding, ReviewResult } from '../src/types.js';
 import type { OutputTimeline } from '../src/timeline.js';
 import type { ClipSegment, EditPlan } from '@retake/editor/plan';
 import { hasTool } from '@retake/test-support/repo';

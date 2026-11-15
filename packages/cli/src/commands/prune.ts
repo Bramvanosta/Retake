@@ -14,7 +14,8 @@
  */
 import { resolve } from 'node:path';
 import { printableText } from '@retake/core/base';
-import { DEFAULT_KEEP_RENDERS, createEngine, formatBytes } from '@retake/engine';
+import { DEFAULT_KEEP_RENDERS, formatBytes } from '@retake/engine/shell';
+import { createEngine } from '@retake/engine';
 import type { PruneResult } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';

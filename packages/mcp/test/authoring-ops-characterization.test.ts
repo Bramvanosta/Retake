@@ -4,7 +4,7 @@
  * project_prune and job_status through `retake mcp` over stdio (from the sources, the SDK's client; three clients: one
  * that cannot be asked, one that declines, one that accepts), and the Studio's scenario_edit and its seven record_* ops
  * through its `POST /v1/call/<op>` — each shell on its own copy of one workspace: the fixture project (with a scenario
- * to edit) and three projects of prune's layouts (core/test/fixtures/records: a render to prune, an older capture to
+ * to edit) and three projects of prune's layouts (test-support/src/records: a render to prune, an older capture to
  * prune, nothing to prune). The test process holds each workspace's worker lock, so a submit finds a live worker and
  * none is started (asserted: no worker.log): every recording stays queued and no window opens.
  *
@@ -41,17 +41,20 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { RETAKE_REPOSITORY, RETAKE_VERSION } from '@retake/core';
-import { FileJobQueue, WorkerLock, createEngine, newRecordId, selfIdentity, systemClock, workersDir } from '@retake/engine';
+import { FileJobQueue, WorkerLock, newRecordId, workersDir } from '@retake/engine/testing';
+import { createEngine } from '@retake/engine';
+import { selfIdentity } from '@retake/engine/shell';
+import { systemClock } from '@retake/engine/testing';
 import type { EngineClient, JobRecord } from '@retake/engine';
 import { invoke } from '@retake/engine/contract';
 import { REPO } from '@retake/test-support/repo';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { testChildEnv } from '@retake/test-support/child-env';
-import { buildLayout } from '../../core/test/fixtures/records/prune-layouts.js';
+import { buildLayout } from '@retake/test-support/records/prune-layouts';
 import { startStudioServer } from '../../ui/src/index.js';
 import type { StudioServer } from '../../ui/src/index.js';
 import { raw } from '@retake/test-support/http';
-import { stubTools } from '../../ui/test/studio-tools.js';
+import { stubTools } from '@retake/test-support/studio-tools';
 import { scratchHome } from '@retake/test-support/home';
 import { recordGolden } from '@retake/test-support/golden';
 

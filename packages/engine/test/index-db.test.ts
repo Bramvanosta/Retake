@@ -17,22 +17,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
 import type { OpenedWorkspace } from '../src/index.js';
 import { readRenders } from '../src/index-db/index-db.js';
-import {
-  FileJobQueue,
-  JobsWatch,
-  WorkspaceIndex,
-  ftsQuery,
-  historyFile,
-  indexFile,
-  isCorruptionError,
-  newJobId,
-  processStart,
-  scanSources,
-  diffSources,
-  workspaceChanges,
-  diskWorkspaceReads,
-  diskOutputs,
-} from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { JobsWatch } from '../src/index-db/jobs-watch.js';
+import { WorkspaceIndex, ftsQuery, indexFile } from '../src/index-db/index-db.js';
+import { historyFile } from '../src/history.js';
+import { isCorruptionError } from '../src/index-db/sqlite.js';
+import { newJobId } from '../src/jobs/ids.js';
+import { processStart } from '../src/jobs/proc.js';
+import { scanSources, diffSources, workspaceChanges } from '../src/index-db/sources.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import { REPO } from '@retake/test-support/repo';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { PERSON_POLICY } from '@retake/core';

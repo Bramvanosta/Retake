@@ -29,14 +29,14 @@ import {
   planRawExport,
   pressScaleAt,
   rawMarkers,
-  rawSettings,
   scaleStep,
   shownTargets,
   timecode,
   writeEdl,
   writeFcpxml,
   writeOtio,
-} from '../src/index.js';
+} from '../src/raw/index.js';
+import { rawSettings } from '../src/index.js';
 import { kitSource } from '../src/kit/source.js';
 import { cfrSchedule } from '../src/encode.js';
 

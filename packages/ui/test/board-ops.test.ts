@@ -16,22 +16,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
-import {
-  FILE_FACTS_TTL_MS,
-  FileJobQueue,
-  ProjectBoards,
-  RenderMemos,
-  ScenarioViews,
-  VersionLedger,
-  openProjectBySlug,
-  renderRecordReads,
-  reportReads,
-  scanSources,
-  diskWorkspaceReads,
-  diskOutputs,
-} from '@retake/engine';
+import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, RenderMemos, ScenarioViews, VersionLedger, renderRecordReads, reportReads } from '@retake/engine/testing';
+import { openProjectBySlug, scanSources } from '@retake/engine/shell';
+import { diskWorkspaceReads, diskOutputs } from '@retake/engine/testing';
 import type { BoardScenario, OpenedWorkspace, ProjectBoardView } from '@retake/engine';
-import { OWN_OPS, UI_OPS, startStudioServer } from '../src/index.js';
+import { OWN_OPS } from '../src/server/ops.js';
+import { UI_OPS } from '../src/server/studio.js';
+import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { productionState } from '../src/app/words/board-words.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';

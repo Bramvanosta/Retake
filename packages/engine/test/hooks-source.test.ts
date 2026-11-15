@@ -7,7 +7,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { HooksSourceError, selectHooks, diskWorkspaceReads } from '../src/index.js';
+import { HooksSourceError, selectHooks } from '../src/hooks.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { PERSON_POLICY } from '@retake/core';
 import { fileFacts } from '@retake/core/io';
 

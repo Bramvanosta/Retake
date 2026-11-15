@@ -10,20 +10,12 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ulid } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
-import {
-  FileJobQueue,
-  INSPECT_KEEP,
-  MemoryJobQueue,
-  diskOutputs,
-  RECORD_KEEP,
-  inspectRoot,
-  newInspectId,
-  newRecordId,
-  pruneInspections,
-  pruneRecords,
-  recordsRoot,
-  selfIdentity,
-} from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { INSPECT_KEEP, inspectRoot, newInspectId, pruneInspections } from '../src/jobs/inspect-job.js';
+import { MemoryJobQueue } from '../src/jobs/memory-queue.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { RECORD_KEEP, newRecordId, pruneRecords, recordsRoot } from '../src/record.js';
+import { selfIdentity } from '../src/jobs/proc.js';
 import type { JobQueueView, TakeHold } from '../src/index.js';
 import { systemClock } from '../src/clock.js';
 import { RUN_INPUT, jobQueueContract } from './job-queue-contract.js';

@@ -31,22 +31,13 @@ import { scaffoldDir } from '@retake/components';
 import { loadTemplate, fileFacts } from '@retake/core/io';
 import { loadComponentRegistry } from '@retake/components';
 import { PERSON_POLICY } from '@retake/core';
-import {
-  REMOTION_PREVIEW_BACKEND,
-  RenderCancelledError,
-  RenderError,
-  createRenderer,
-  defaultConcurrency,
-  planRun,
-  probeRenderPath,
-  renderComponentLoops,
-  renderPlan,
-  renderStills,
-  resetVideotoolboxProbes,
-  videotoolboxRenderWorks,
-} from '@retake/editor';
+import { REMOTION_PREVIEW_BACKEND } from '../src/render/preview.js';
+import { RenderCancelledError, RenderError, createRenderer, defaultConcurrency, planRun, probeRenderPath, renderComponentLoops, renderStills } from '@retake/editor';
+import { renderPlan } from '../src/render/render.js';
+import { resetVideotoolboxProbes, videotoolboxRenderWorks } from '../src/render/policy.js';
 import { renderRun } from '@retake/test-support/render-use-case';
-import type { BrowserProcessInfo, EditPlan, PreviewBackend, RenderProgress } from '@retake/editor';
+import type { BrowserProcessInfo } from '../src/render/network-guard.js';
+import type { EditPlan, PreviewBackend, RenderProgress } from '@retake/editor';
 import { SHARED_CACHE, renderWorkspace } from '@retake/test-support/render';
 import { hasTool } from '@retake/test-support/repo';
 import type { RenderWorkspace } from '@retake/test-support/render';

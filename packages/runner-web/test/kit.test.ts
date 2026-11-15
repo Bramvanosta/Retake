@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Locator, Page } from 'playwright-core';
 import type { BBox, TargetObject } from '@retake/core';
-import { ERROR_DOM_MAX, openSession, kitConfigFor } from '../src/index.js';
-import type { BrowserSession, CursorEffectPayload, CursorState, KitClient, ResolveFound, ResolveMissing } from '../src/index.js';
+import { ERROR_DOM_MAX } from '../src/scenes.js';
+import { openSession, kitConfigFor } from '../src/index.js';
+import type { BrowserSession } from '../src/index.js';
+import type { CursorEffectPayload, CursorState, ResolveFound, ResolveMissing } from '../src/kit/types.js';
+import type { KitClient } from '../src/session.js';
 import { CURSOR_DIALOG_PAGE, CURSOR_FORM_PAGE, CURSOR_PAGE, FRAME_PAGE, NO_CONTENT_PAGE, OVERLAY_A, OVERLAY_B, RESOLVER_PAGE, RIPPLE_PAGE, deepPage, latePaintPage } from './pages.js';
 import { startServer } from '@retake/test-support/capture';
 import type { TestServer } from '@retake/test-support/capture';

@@ -17,24 +17,17 @@ import type { HookStep } from '@retake/core';
 import type { HooksJobInput, EnvResetJobInput, RunJobInput } from '@retake/engine';
 import { hookFiles, hookFingerprint, standaloneJournalFile } from '@retake/hooks';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
-import {
-  APPROVAL_FORM_MAX_CHARS,
-  APPROVAL_HOOK_MAX_CHARS,
-  EngineError,
-  approvalFormText,
-  FileJobQueue,
-  createEngine,
-  executeEnvResetJob,
-  executeHooksJob,
-  openProjectBySlug,
-  openWorkspace,
-  sha256Hex,
-  takeApprovals,
-  enginePorts,
-  ManualClock,
-  diskWorkspaceReads,
-  diskOutputs,
-} from '../src/index.js';
+import { APPROVAL_FORM_MAX_CHARS, APPROVAL_HOOK_MAX_CHARS, approvalFormText, takeApprovals } from '../src/approvals.js';
+import { EngineError, createEngine } from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { executeEnvResetJob, executeHooksJob } from '../src/jobs/hooks-job.js';
+import { openProjectBySlug } from '../src/projects.js';
+import { openWorkspace } from '../src/workspace.js';
+import { sha256Hex } from '../src/storage.js';
+import { enginePorts } from '../src/ports.js';
+import { ManualClock } from '../src/clock.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { ApprovalOutcome, ApprovalRequest, Approver, Engine, JobEventBody } from '../src/index.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
 import { REPO } from '@retake/test-support/repo';

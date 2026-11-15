@@ -6,7 +6,7 @@
  * tests) asks the person first and deletes the items in the approval that can still go then, each with the files it had
  * when listed; no form or a decline deletes nothing.
  */
-import { diskOutputs } from '../src/index.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readdir, rm, symlink, truncate, writeFile } from 'node:fs/promises';
@@ -14,7 +14,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { LoadedProject } from '@retake/core';
 import { ulid } from '@retake/core';
-import { APPROVAL_FORM_MAX_CHARS, EngineError, JOB_RECORD_VERSION, PRUNE_FORM_MAX_LINES, createEngine, formatBytes, pruneApprovalFormText, pruneApprovalRequest, pruneProject } from '../src/index.js';
+import { APPROVAL_FORM_MAX_CHARS, PRUNE_FORM_MAX_LINES, pruneApprovalFormText, pruneApprovalRequest } from '../src/approvals.js';
+import { EngineError, createEngine } from '../src/index.js';
+import { JOB_RECORD_VERSION } from '../src/jobs/types.js';
+import { formatBytes, pruneProject } from '../src/prune.js';
 import type { ApprovalOutcome, Approver, EngineClient, PruneApprovalRequest } from '../src/index.js';
 
 let dir: string;

@@ -12,7 +12,7 @@ import { BIDI_CONTROL_CHARS, EMOJI_CHARS, HIDDEN_CHARS, PICTOGRAPH_CHARS, SPACE_
 import { textProblem as recordTextProblem } from '../src/app/words/record-words.js';
 import { textProblem as themeTextProblem } from '../src/app/words/theme-words.js';
 import { visibleControls } from '../src/app/bits.js';
-import { parseUpdateLine } from '../src/index.js';
+import { parseUpdateLine } from '../src/server/update-ops.js';
 import { linePieces } from '../src/app/words/comment-words.js';
 import { cleanWords } from '../src/app/words/library-words.js';
 import { hiddenLines } from '../src/app/script/YamlTab.js';

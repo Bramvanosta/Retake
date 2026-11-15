@@ -29,7 +29,7 @@
  */
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JobsWatch, liveWorker, submittedInStudio } from '@retake/engine';
+import { JobsWatch, liveWorker, submittedInStudio } from '@retake/engine/shell';
 import type { JobQueueView, JobRecord } from '@retake/engine';
 import type { UnsavedBoard, UnsavedItem } from './unsaved.js';
 import type { DesktopPipe } from './desktop.js';

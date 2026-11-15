@@ -70,7 +70,14 @@ vi.mock('@retake/review', async (importOriginal) => {
   };
 });
 
-import { createEngine, executeExportJob, executeRenderJob, executeReviewJob, exportInProcess, historyFile, openProject, renderInProcess, enginePorts } from '../src/index.js';
+import { createEngine } from '../src/index.js';
+import { executeExportJob } from '../src/jobs/export-job.js';
+import { executeRenderJob } from '../src/jobs/render-job.js';
+import { executeReviewJob } from '../src/jobs/review-job.js';
+import { exportInProcess, renderInProcess } from '../src/in-process.js';
+import { historyFile } from '../src/history.js';
+import { openProject } from '../src/workspace.js';
+import { enginePorts } from '../src/ports.js';
 import { exportWork, renderWork } from '../src/pipeline.js';
 import { diskFullWork, loopsWork, previewsWork, stillWork } from '../src/render/work.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';

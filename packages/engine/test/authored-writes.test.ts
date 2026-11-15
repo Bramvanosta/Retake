@@ -13,21 +13,17 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { initSandbox } from '@retake/sandbox';
-import {
-  componentCreate,
-  copyTheme,
-  createEngine,
-  createThemeFromBrand,
-  fileWriter,
-  openProjectBySlug,
-  openWorkspace,
-  personScope,
-  enginePorts,
-  diskProjectStores,
-  ManualClock,
-  diskWorkspaceReads,
-  diskOutputs,
-} from '../src/index.js';
+import { componentCreate } from '../src/components.js';
+import { copyTheme } from '../src/brand/copy.js';
+import { createEngine } from '../src/index.js';
+import { createThemeFromBrand } from '../src/brand/create.js';
+import { fileWriter, personScope, diskProjectStores } from '../src/store/project-store.js';
+import { openProjectBySlug } from '../src/projects.js';
+import { openWorkspace } from '../src/workspace.js';
+import { enginePorts } from '../src/ports.js';
+import { ManualClock } from '../src/clock.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 

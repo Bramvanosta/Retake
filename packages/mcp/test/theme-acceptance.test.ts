@@ -20,7 +20,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { parseYaml } from '@retake/core';
-import { readWorkerLock } from '@retake/engine';
+import { readWorkerLock } from '@retake/engine/testing';
 import { REPO } from '@retake/test-support/repo';
 import { TEMPLATES } from '@retake/test-support/repo';
 import { linkSharedCache } from '@retake/test-support/render';

@@ -9,7 +9,7 @@ import {
   recheckSessions,
   signInPersona as signInCore,
   tildePath,
-} from '@retake/engine';
+} from '@retake/engine/shell';
 import type { LoginCommandOf, PersonaState } from '@retake/engine';
 import type { LoadedProject } from '@retake/core/model';
 import type { ResolvedPersona } from '@retake/core/environment';
@@ -22,7 +22,7 @@ import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 // Moved into @retake/engine (L3.1); re-exported for the commands that import them from here.
-export { personaState, projectPersonaStates, tildePath } from '@retake/engine';
+export { personaState, projectPersonaStates, tildePath } from '@retake/engine/shell';
 export type { PersonaState } from '@retake/engine';
 
 function shellQuote(s: string): string {

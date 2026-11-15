@@ -6,9 +6,9 @@
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { REPO } from '../repo.js';
 
 export const RECORDS_DIR = dirname(fileURLToPath(import.meta.url));
-const REPO = join(RECORDS_DIR, '..', '..', '..', '..', '..');
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
 type Obj = { [k: string]: Json };
@@ -132,7 +132,13 @@ export function buildState(root: string, state: string, o: { old?: 'good' | 'no-
   writeFileSync(join(dir, 'scenarios', 'other.yaml'), SCENARIO_YAML.replace('video: quote', 'video: other'));
   if (o.old !== 'none') {
     const oldDir = join(runs, STATES.old);
-    writeRunFolder(oldDir, STATES.old, slug, { about: 'OLD', film: o.old === 'no-film' ? 'none' : 'file', record: { set: { started_at: '2026-10-01T08:00:00.000Z', finished_at: '2026-10-01T08:01:00.000Z' } } }, o.film);
+    writeRunFolder(
+      oldDir,
+      STATES.old,
+      slug,
+      { about: 'OLD', film: o.old === 'no-film' ? 'none' : 'file', record: { set: { started_at: '2026-10-01T08:00:00.000Z', finished_at: '2026-10-01T08:01:00.000Z' } } },
+      o.film,
+    );
   }
   const name = spec.name ?? STATES.new;
   const newDir = join(runs, name);

@@ -7,7 +7,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { afterAll, describe, expect, it } from 'vitest';
-import { QosYield, parseQosTable, qosTable, treeOf } from '../src/index.js';
+import { QosYield, parseQosTable, qosTable, treeOf } from '../src/jobs/yield.js';
 import type { QosProc } from '../src/index.js';
 
 const children: ChildProcess[] = [];

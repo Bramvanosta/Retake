@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { scenarioChangedMessage } from '@retake/core';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { encodingWords, glWords, musicOverride } from '../src/commands/render.js';
-import { diskWorkspaceReads } from '@retake/engine';
+import { diskWorkspaceReads } from '@retake/engine/testing';
 import { memoryDisk } from '@retake/core/io';
 import { hasTool } from '@retake/test-support/repo';
 import { renderWorkspace } from '@retake/test-support/render';

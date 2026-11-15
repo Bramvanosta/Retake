@@ -8,7 +8,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { AbsoluteFill, Img, Sequence, useCurrentFrame } from './host.js';
 import { Logo, Wordmark, backgroundCss } from '@retake/components/kit';
-import type { ComponentProps } from '@retake/components';
+import type { ComponentProps } from '@retake/components/geometry';
 import type { PreviewProps } from './contract.js';
 import { useThemeFonts } from './fonts.js';
 import { useModules } from './modules.js';

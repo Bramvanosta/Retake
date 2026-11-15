@@ -5,7 +5,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FINDING_CODES } from '../src/index.js';
+import { FINDING_CODES } from '../src/types.js';
 
 const SRC = join(import.meta.dirname, '..', 'src');
 

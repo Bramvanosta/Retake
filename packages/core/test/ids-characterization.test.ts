@@ -45,7 +45,7 @@ import {
   RunJobInputSchema,
   renderIdSchema,
   templateNameSchema,
-} from '@retake/engine';
+} from '@retake/engine/testing';
 
 const STAMP = '20261017-142233-';
 const a = (n: number, ch = 'a') => ch.repeat(n);

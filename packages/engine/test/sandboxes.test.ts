@@ -25,7 +25,8 @@ import { checkSandboxEnv } from '../src/execute-run.js';
 import { sandboxStatus } from '../src/sandbox.js';
 import type { ProjectFolder } from '../src/store/store.js';
 import { EngineError } from '../src/errors.js';
-import { createEngine, enginePorts } from '../src/index.js';
+import { createEngine } from '../src/index.js';
+import { enginePorts } from '../src/ports.js';
 import { sandboxContract } from './sandbox-contract.js';
 import type { SandboxSubject } from './sandbox-contract.js';
 

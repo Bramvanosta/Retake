@@ -6,7 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { ProcInfo } from '@retake/sandbox';
-import { QosYield, killTree, ownProcessGroup, signalTree, signalablePid } from '../src/index.js';
+import { QosYield } from '../src/jobs/yield.js';
+import { killTree, ownProcessGroup, signalTree, signalablePid } from '../src/jobs/signal.js';
 
 const BAD = [-1, 0, 1, Number.NaN, 1.5, -4242];
 

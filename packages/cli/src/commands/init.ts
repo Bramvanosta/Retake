@@ -1,5 +1,5 @@
 import { WORKSPACE_FILE } from '@retake/core/project';
-import { initWorkspace as initWorkspaceWith } from '@retake/engine';
+import { initWorkspace as initWorkspaceWith } from '@retake/engine/shell';
 import type { EnginePorts, InitResult } from '@retake/engine';
 import type { GlobalOptions } from '../workspace.js';
 import { EXIT } from '../errors.js';

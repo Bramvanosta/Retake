@@ -9,7 +9,7 @@ import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Journal, hookFiles, hookFingerprint, runHooks } from '@retake/hooks';
-import type { HookApprovalRequest } from '@retake/hooks';
+import type { HookApprovalRequest } from '../src/types.js';
 import { writingHooks } from '@retake/core';
 import type { HookAccess, HookStep } from '@retake/core';
 import { makeContext, makeProject, startApi, tempProject } from './helpers.js';

@@ -9,35 +9,15 @@ import { existsSync } from 'node:fs';
 import { readFile, rm, statfs } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CursorSample, SceneEntry, TimelineEvent } from '@retake/core';
-import {
-  ActivityRecorder,
-  CaptureClock,
-  KICK_GAP_MS,
-  ScreencastRecorder,
-  STREAM_LAG_S,
-  CELLS_X,
-  CfrStream,
-  DISK_FREE_MIN_GB,
-  DISK_FREE_MIN_SHARE,
-  PerfSampler,
-  StreamEncoder,
-  THUMB_H,
-  THUMB_W,
-  analyzeActivity,
-  cellMask,
-  cfrSchedule,
-  choppyCause,
-  chromiumGroup,
-  diskCheck,
-  encoderLabel,
-  gpuInfoOf,
-  localPorts,
-  parseCpuTime,
-  prewarmTargets,
-  resolveEncoder,
-  slowTransitions,
-  streamArgs,
-} from '../src/index.js';
+import { ActivityRecorder, CELLS_X, analyzeActivity, cellMask, slowTransitions } from '../src/activity.js';
+import { CaptureClock } from '../src/timeline.js';
+import { KICK_GAP_MS, ScreencastRecorder } from '../src/recorder.js';
+import { STREAM_LAG_S, CfrStream, StreamEncoder, THUMB_H, THUMB_W, encoderLabel, resolveEncoder, streamArgs } from '../src/stream.js';
+import { DISK_FREE_MIN_GB, DISK_FREE_MIN_SHARE, choppyCause, diskCheck } from '../src/run.js';
+import { PerfSampler, chromiumGroup, localPorts, parseCpuTime } from '../src/perf.js';
+import { cfrSchedule } from '../src/encode.js';
+import { gpuInfoOf } from '../src/session.js';
+import { prewarmTargets } from '../src/prewarm.js';
 import { execFileP } from '@retake/test-support/capture';
 import { tempDir } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';

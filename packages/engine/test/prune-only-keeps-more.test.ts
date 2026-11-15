@@ -5,7 +5,7 @@
  *
  * The frozen copy below is not to follow the product: it is what the property is measured against.
  */
-import { diskOutputs } from '../src/index.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -13,12 +13,12 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { isMadeRunId, parseRenderId, renderIdOf } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
-import { pruneProject } from '../src/index.js';
-import { writeWorkspace } from '../../core/test/fixtures/records/build.js';
-import type { StateSpec } from '../../core/test/fixtures/records/build.js';
-import { BARE, buildLayout } from '../../core/test/fixtures/records/prune-layouts.js';
-import type { Layout, LayoutRenderFile, LayoutRun } from '../../core/test/fixtures/records/prune-layouts.js';
-import type { RenderFileSpec } from '../../core/test/fixtures/records/build-renders.js';
+import { pruneProject } from '../src/prune.js';
+import { writeWorkspace } from '@retake/test-support/records/build';
+import type { StateSpec } from '@retake/test-support/records/build';
+import { BARE, buildLayout } from '@retake/test-support/records/prune-layouts';
+import type { Layout, LayoutRenderFile, LayoutRun } from '@retake/test-support/records/prune-layouts';
+import type { RenderFileSpec } from '@retake/test-support/records/build-renders';
 
 let root: string;
 beforeAll(() => {

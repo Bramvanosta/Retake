@@ -15,7 +15,15 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, FilmingMarker, JOB_EXIT, createEngine, recordDigest, runJobChild, runWorker, selfIdentity, treeOf, workersDir } from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { FilmingMarker } from '../src/jobs/captures.js';
+import { JOB_EXIT, runJobChild } from '../src/jobs/job-child.js';
+import { createEngine } from '../src/index.js';
+import { recordDigest } from '../src/jobs/signing.js';
+import { runWorker } from '../src/jobs/worker.js';
+import { selfIdentity } from '../src/jobs/proc.js';
+import { treeOf } from '../src/jobs/yield.js';
+import { workersDir } from '../src/jobs/lock.js';
 import type { Engine, JobRecord, ProcessIdentity, RecordedBrowser } from '../src/index.js';
 import { synthTimeline } from '@retake/test-support/timeline';
 import { TEMPLATES, hasTool } from '@retake/test-support/repo';
@@ -261,7 +269,7 @@ describe('a job process (L5.14a)', () => {
   });
 
   it('refuses anything but the queued heavy job of that kind its worker claimed (exit 4): never a take', async () => {
-    const { buildStamp } = await import('../src/index.js');
+    const { buildStamp } = await import('../src/jobs/build.js');
     const build = buildStamp();
     const q = new FileJobQueue(ws);
     const take = await q.enqueue({

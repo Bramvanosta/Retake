@@ -439,7 +439,7 @@ export const ENGINE_LAYERS = [
   { layer: 'views', paths: ['views/'] },
   { layer: 'facade', paths: ['engine.ts', 'facade/'] },
   { layer: 'operations', paths: ['operations/'] },
-  { layer: 'entries', paths: ['index.ts', 'contract.ts', 'doctor-entry.ts', 'integrations.ts', 'worker-main.ts'] },
+  { layer: 'entries', paths: ['index.ts', 'shell-entry.ts', 'testing.ts', 'contract.ts', 'doctor-entry.ts', 'integrations.ts', 'worker-main.ts'] },
 ];
 /** The layer of an engine source (`rel` from the repository root): its index in ENGINE_LAYERS and name, or undefined. */
 export function engineLayerOf(rel) {

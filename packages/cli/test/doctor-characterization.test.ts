@@ -13,7 +13,7 @@ import { EXIT, memoryIo } from '../src/index.js';
 import { doctorCommand } from '../src/commands/doctor.js';
 import type { DoctorProbes, ExecResult } from '../src/commands/doctor.js';
 import { Ui } from '../src/ui.js';
-import { enginePorts } from '@retake/engine';
+import { enginePorts } from '@retake/engine/shell';
 
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
 const PINNED = fileURLToPath(new URL('./fixtures/doctor', import.meta.url));

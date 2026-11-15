@@ -9,7 +9,9 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, createEngine, runWorker } from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { createEngine } from '../src/index.js';
+import { runWorker } from '../src/jobs/worker.js';
 import { REPO } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
 

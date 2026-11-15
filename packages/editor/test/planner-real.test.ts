@@ -5,8 +5,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cubicBezier } from '@retake/components';
 import type { Timeline, TimelineEvent } from '@retake/core';
-import { WAIT_KEEP_S, WAIT_SPEED, mapSourceRect, markDoneAt, resolvePlanAssets, summarizePlan, PLAN_ASSET_SCHEME } from '@retake/editor';
-import type { CardSegment, EditPlan } from '@retake/editor';
+import { WAIT_KEEP_S, WAIT_SPEED, mapSourceRect, markDoneAt, resolvePlanAssets, summarizePlan, PLAN_ASSET_SCHEME } from '../src/plan-entry.js';
+import type { CardSegment } from '../src/plan-entry.js';
+import type { EditPlan } from '@retake/editor';
 import { clip, clips, plan, seg, studioWorkspace } from './helpers.js';
 import { fixtureProject, realTimeline, template } from '@retake/test-support/timeline';
 import type { PlanContext } from './helpers.js';

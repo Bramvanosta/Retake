@@ -7,7 +7,7 @@
  * `--no-wait` skips both. A take's own hooks never wait for it (markers owned by an ancestor of this process do not
  * hold). Nothing filming: one read of an empty folder, no line, no delay.
  */
-import { FilmingWatch, QosYield, ancestorPids, capMinutes } from '@retake/engine';
+import { FilmingWatch, QosYield, ancestorPids, capMinutes } from '@retake/engine/shell';
 import type { FilmingState } from '@retake/engine';
 import { CliError, EXIT } from './errors.js';
 import type { Ui } from './ui.js';

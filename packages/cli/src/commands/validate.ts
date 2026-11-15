@@ -1,5 +1,5 @@
 import { errorsOf, warningsOf } from '@retake/core/base';
-import { projectLoadReport, validateProjectFiles } from '@retake/engine';
+import { projectLoadReport, validateProjectFiles } from '@retake/engine/shell';
 import type { FileValidation, OpenedWorkspace } from '@retake/engine';
 import type { ValidationIssue } from '@retake/core/model';
 import { EXIT } from '../errors.js';

@@ -9,7 +9,11 @@ import { spawnSync } from 'node:child_process';
 import { hostname } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import type { RunJobInput } from '@retake/engine';
-import { EngineError, ManualClock, newJobId, selfIdentity, stampOf, verifiedApprovals } from '../src/index.js';
+import { EngineError } from '../src/index.js';
+import { ManualClock, stampOf } from '../src/clock.js';
+import { newJobId } from '../src/jobs/ids.js';
+import { selfIdentity } from '../src/jobs/proc.js';
+import { verifiedApprovals } from '../src/jobs/signing.js';
 import type { Clock, JobQueue, JobRecord, YieldMark } from '../src/index.js';
 
 export const RUN_INPUT: RunJobInput = {

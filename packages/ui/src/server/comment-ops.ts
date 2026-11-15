@@ -7,7 +7,7 @@
  */
 
 /** A text of the tool (a warning, a problem) without any absolute path: the engine's (L7.17), named here for the Studio's ops. */
-export { pathFree } from '@retake/engine';
+export { pathFree } from '@retake/engine/shell';
 export { THREADS_LIST_MAX, THREAD_ENTRIES_SHOWN, THREAD_ITEM_TEXT_MAX, proposalOffer, threadAnswer, threadItem } from '@retake/engine/contract';
 export type { OfferFacts, ProposalAnswer, ProposalOffer, ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadItem, ThreadsListAnswer } from '@retake/engine/contract';
 

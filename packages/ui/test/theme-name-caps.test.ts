@@ -17,10 +17,11 @@ import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { LIBRARY_DIR } from '@retake/components';
 import type { ThemeEditView } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
-import type { StudioServer, ThemePreviewAnswer } from '../src/index.js';
+import type { StudioServer } from '../src/index.js';
+import type { ThemePreviewAnswer } from '../src/server/theme-ops.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { raw } from '@retake/test-support/http';
-import { stubTools } from './studio-tools.js';
+import { stubTools } from '@retake/test-support/studio-tools';
 import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';

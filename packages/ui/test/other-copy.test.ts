@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { workerLockFile, workersDir } from '@retake/engine';
+import { workerLockFile, workersDir } from '@retake/engine/testing';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { otherCopyOf, otherCopyWords, submitNotice } from '../src/app/other-copy.js';

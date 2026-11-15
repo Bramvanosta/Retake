@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '@retake/core/model';
 import type { LoadedProject, RawCursorMode, RawFormat, RawFps, RawLayerFormat } from '@retake/core/model';
-import { findRunOf, rawExportWork } from '@retake/engine';
+import { findRunOf, rawExportWork } from '@retake/engine/shell';
 import type { EnginePorts, OpenedWorkspace, RawExportProgress, RawExportResult } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';

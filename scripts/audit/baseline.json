@@ -3,7 +3,7 @@
  "groups": [
   {
    "rule": "R4",
-   "reason": "The Studio's player bundles the compositions with the components and the editor's render entry.",
+   "reason": "The Studio's player bundles the compositions with the components and the editor's bundle code (componentFolderHash, the kit and the geometry entry) for the in-browser preview: a second render seam, which moves behind a Renderer member or an engine player-bundle use case (security-sensitive: the player serves by capability URL).",
    "entries": [
     "packages/ui/src/player/bundle-player.ts → @retake/components",
     "packages/ui/src/player/bundle-player.ts → @retake/editor"
@@ -11,7 +11,7 @@
   },
   {
    "rule": "R4",
-   "reason": "The Studio server reads the component library, themes and edit plans through the adapters until the engine exposes them.",
+   "reason": "The Studio server reads the preview plan (previewPlan, PreviewPlanError), the components a plan uses (usedComponentIds: the preview's allow-list) and the asset server's range and content-type helpers (parseRange, CONTENT_TYPES) from the editor, until engine.timeline.view answers the held components and the preview plan and the helpers move to the engine's http module (security-sensitive: the player serves by capability URL).",
    "entries": [
     "packages/ui/src/server/ops.ts → @retake/editor",
     "packages/ui/src/server/player.ts → @retake/editor"
@@ -41,7 +41,7 @@
   },
   {
    "rule": "R6",
-   "reason": "Shell sources outside the commands, tools and the Studio server (seen since the rule reads every shell source): the MCP HTTP port holder (a lock file and the process that holds a port), the Studio's esbuild bundler of its app and the player's bundle of the compositions (component files read to bundle them) — until the engine serves those reads.",
+   "reason": "Shell sources outside the commands, tools and the Studio server, real machine work of the shell itself: the MCP HTTP port holder (its lock file, and `ps` for the process that holds the port: the shell's own listener), the Studio's esbuild bundler of its app (reads its own app sources) and the player's bundle of the compositions (reads the allowed component files it bundles) — until the engine serves the player bundle (the Studio's player seam, see the R4 entries).",
    "entries": [
     "packages/mcp/src/port-holder.ts → node:child_process",
     "packages/mcp/src/port-holder.ts → node:fs",
@@ -58,12 +58,10 @@
   },
   {
    "rule": "R14",
-   "reason": "The editor renders with the components (their registry, the kit its compositions draw with, a preview's samples), the review loads the component registry itself (the review use case still in the adapter), and the sandbox reads where a database URL connects with the hooks' one reader of it (`@retake/hooks/db-url`: pg's parser, it never connects; not a domain entry because it loads pg).",
+   "reason": "Real value dependencies, kept on purpose: the editor is the renderer of the component system — it bundles a workspace's component folders with the kit and the geometry entry (render/bundle.ts: the component files' layout, manifests, unhashed-file rules, kit and geometry entry paths), its compositions draw with the kit's Logo, Wordmark and backgroundCss (remotion/PlanVideo.tsx, Preview.tsx: bundled code, so a port cannot hand them), a component preview fills its slots and samples with the components' layout maths (preview.ts, render/preview.ts: source hashes, preview README blocks), and a render or a plan loads the registry when its caller hands none (render/render.ts, render/plan-run.ts, and the review's review.ts for its text-slot limits); the sandbox reads where a database URL connects with the hooks' one reader of it (`@retake/hooks/db-url`: pg's parser, it never connects; not a domain entry because it loads pg). The registry loads go when the engine's render and review use cases always hand the registry (the ComponentRegistry port, A-R11's entry).",
    "entries": [
     "packages/editor/src/preview.ts → @retake/components",
-    "packages/editor/src/remotion/PlanVideo.tsx → @retake/components",
     "packages/editor/src/remotion/PlanVideo.tsx → @retake/components/kit",
-    "packages/editor/src/remotion/Preview.tsx → @retake/components",
     "packages/editor/src/remotion/Preview.tsx → @retake/components/kit",
     "packages/editor/src/render/bundle.ts → @retake/components",
     "packages/editor/src/render/plan-run.ts → @retake/components",
@@ -197,48 +195,6 @@
    "reason": "The new-theme grammar without its cap, on purpose: the names inside stale work folders of earlier theme creations, which must be cleaned whatever their length.",
    "entries": [
     "packages/engine/src/brand/create.ts → 1 hand-written id pattern"
-   ]
-  },
-  {
-   "rule": "test-reach",
-   "reason": "The record corpus (core/test/fixtures/records: run and render records as data, their README, and the three builders that write them into a workspace) stays one folder of core's test data: the builders read their data beside them, and the characterization tests of every package build their states from it unchanged; moving the builders to the shared helpers would split the corpus from its data, moving the corpus would move the fixtures.",
-   "entries": [
-    "packages/cli/test/prune-keeps.test.ts → packages/core/test/fixtures/records/build",
-    "packages/cli/test/prune-keeps.test.ts → packages/core/test/fixtures/records/prune-layouts",
-    "packages/cli/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
-    "packages/cli/test/records-characterization.test.ts → packages/core/test/fixtures/records/build-renders",
-    "packages/editor/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
-    "packages/editor/test/records-characterization.test.ts → packages/core/test/fixtures/records/build-renders",
-    "packages/editor/test/render-record.test.ts → packages/core/test/fixtures/records/build-renders",
-    "packages/engine/test/prune-keeps.test.ts → packages/core/test/fixtures/records/build",
-    "packages/engine/test/prune-keeps.test.ts → packages/core/test/fixtures/records/prune-layouts",
-    "packages/engine/test/prune-only-keeps-more.test.ts → packages/core/test/fixtures/records/build",
-    "packages/engine/test/prune-only-keeps-more.test.ts → packages/core/test/fixtures/records/build-renders",
-    "packages/engine/test/prune-only-keeps-more.test.ts → packages/core/test/fixtures/records/prune-layouts",
-    "packages/engine/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
-    "packages/engine/test/records-characterization.test.ts → packages/core/test/fixtures/records/build-renders",
-    "packages/mcp/test/authoring-ops-characterization.test.ts → packages/core/test/fixtures/records/prune-layouts",
-    "packages/mcp/test/prune-keeps.test.ts → packages/core/test/fixtures/records/build",
-    "packages/mcp/test/prune-keeps.test.ts → packages/core/test/fixtures/records/prune-layouts",
-    "packages/mcp/test/render-latest-said.test.ts → packages/core/test/fixtures/records/build",
-    "packages/mcp/test/render-latest-said.test.ts → packages/core/test/fixtures/records/build-renders",
-    "packages/mcp/test/render-status-by-id.test.ts → packages/core/test/fixtures/records/build",
-    "packages/mcp/test/render-status-by-id.test.ts → packages/core/test/fixtures/records/build-renders",
-    "packages/review/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
-    "packages/review/test/records-characterization.test.ts → packages/core/test/fixtures/records/build-renders",
-    "packages/runner-web/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
-    "packages/ui/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
-    "packages/ui/test/records-characterization.test.ts → packages/core/test/fixtures/records/build-renders"
-   ]
-  },
-  {
-   "rule": "test-reach",
-   "reason": "The Studio's operations built with stand-ins (ui/test/studio-tools.ts) call the Studio server's own studioTools, which @retake/ui does not export: the shared helpers would reach into ui's sources instead; the engine's and MCP's tests read the op definitions through it.",
-   "entries": [
-    "packages/engine/test/operations.test.ts → packages/ui/test/studio-tools",
-    "packages/mcp/test/authoring-ops-characterization.test.ts → packages/ui/test/studio-tools",
-    "packages/mcp/test/comment-ops-characterization.test.ts → packages/ui/test/studio-tools",
-    "packages/mcp/test/theme-ops-characterization.test.ts → packages/ui/test/studio-tools"
    ]
   },
   {

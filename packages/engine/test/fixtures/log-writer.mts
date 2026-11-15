@@ -12,7 +12,9 @@
 import { createInterface } from 'node:readline';
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
-import { appendHistory, appendJournal, systemClock } from '../../src/index.js';
+import { appendHistory } from '../../src/history.js';
+import { appendJournal } from '../../src/store/journal.js';
+import { systemClock } from '../../src/clock.js';
 import { EngineError } from '../../src/errors.js';
 import { takeProjectLock } from '../../src/project-lock.js';
 

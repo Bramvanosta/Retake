@@ -13,24 +13,13 @@ import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planEdit } from '@retake/editor/plan';
 import type { ClipSegment, EditOverrides, EditPlan, PlanInputFile, RenderRecord } from '@retake/editor/plan';
-import {
-  DEFAULT_RULES,
-  captionOverDuring,
-  checkOverlayCover,
-  checkTutorial,
-  fontFileMeasurer,
-  outputClicks,
-  overlayDuring,
-  planFontFiles,
-  segmentSpans,
-  stillFromSource,
-  stillGlideEnd,
-  stillPair,
-  stillSourceFrames,
-  transitionSpans,
-  viewMoves,
-} from '../src/index.js';
-import type { CheckContext } from '../src/index.js';
+import { DEFAULT_RULES } from '../src/types.js';
+import { captionOverDuring, overlayDuring, stillFromSource, stillGlideEnd, stillPair, stillSourceFrames, viewMoves } from '../src/pixel-checks.js';
+import { checkOverlayCover, checkTutorial, planFontFiles } from '../src/checks.js';
+import { fontFileMeasurer } from '../src/fonts.js';
+import { outputClicks } from '../src/timeline.js';
+import { segmentSpans, transitionSpans } from '../src/spans.js';
+import type { CheckContext } from '../src/checks.js';
 import { REPO } from '@retake/test-support/repo';
 import { synthTimeline } from '@retake/test-support/timeline';
 import { PERSON_POLICY } from '@retake/core';

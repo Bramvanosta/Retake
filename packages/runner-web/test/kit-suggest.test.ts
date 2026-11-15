@@ -7,8 +7,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
-import { kitConfigFor, kitSource, openSession } from '../src/index.js';
-import type { BrowserSession, InventoryElement, KitInventory } from '../src/index.js';
+import { kitConfigFor, openSession } from '../src/index.js';
+import { kitSource } from '../src/kit/source.js';
+import type { BrowserSession } from '../src/index.js';
+import type { InventoryElement, KitInventory } from '../src/kit/types.js';
 import { startServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 import type { TestServer } from '@retake/test-support/capture';

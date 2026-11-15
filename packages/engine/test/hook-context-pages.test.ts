@@ -6,14 +6,14 @@
  * hook's `auth: {persona}` reaches that persona's own pages only; a person's own command (trust `author`) any URL. The
  * real browser's side is the capture sessions contract (capture-sessions.test.ts) and the CLI's auth.test.ts.
  */
-import { MemorySecrets } from '../src/index.js';
+import { MemorySecrets } from '../src/secrets/memory-secrets.js';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { DEFAULT_CAPTURE, PERSON_POLICY } from '@retake/core';
 import type { HookTrust, LoadedProject } from '@retake/core';
-import { createHookContext } from '../src/index.js';
+import { createHookContext } from '../src/hooks.js';
 import { MemoryHookPages } from '../src/capture/memory-sessions.js';
 
 const root = await mkdtemp(join(tmpdir(), 'retake-hook-pages-'));

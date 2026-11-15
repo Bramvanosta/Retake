@@ -1,5 +1,5 @@
 import type { Finding, ReviewProgress } from '@retake/review/checks';
-import { environmentLine, findRenderOf, findingLine, reviewWork, summaryLine } from '@retake/engine';
+import { environmentLine, findRenderOf, findingLine, reviewWork, summaryLine } from '@retake/engine/shell';
 import type { ReviewResult, Reviewer } from '@retake/engine';
 import { printableText, bestEffort, errorMessage } from '@retake/core/base';
 import type { WorkPolicy } from '@retake/core/policy';

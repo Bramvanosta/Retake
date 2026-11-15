@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LoadedProject } from '@retake/core';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { findRunOf } from '@retake/engine';
+import { findRunOf } from '@retake/engine/shell';
 import { syntheticRunRecord } from '@retake/test-support/render';
 
 let tmp: string;

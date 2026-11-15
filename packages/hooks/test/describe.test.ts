@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeHook, hookKindOf } from '@retake/hooks';
+import { describeHook, hookKindOf } from '../src/describe.js';
 import type { HookStep } from '@retake/core';
 
 describe('describeHook', () => {

@@ -16,7 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { LIBRARY_DIR } from '@retake/components';
-import { readWorkerLock } from '@retake/engine';
+import { readWorkerLock } from '@retake/engine/testing';
 import { REPO } from '@retake/test-support/repo';
 import { TEMPLATES, hasTool } from '@retake/test-support/repo';
 import { linkSharedCache } from '@retake/test-support/render';

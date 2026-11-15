@@ -18,7 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadTemplate, fileFacts } from '@retake/core/io';
 import { PREVIEW_SIZE, createComponent, loadComponentRegistry, pngSize } from '@retake/components';
 import { ensureBundle, renderComponentLoops, scaffoldComponents } from '@retake/editor';
-import type { LoopItem, PreviewComponentTarget } from '@retake/editor';
+import type { LoopItem, PreviewComponentTarget } from '../src/render/preview.js';
 import { REPO, hasTool } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 

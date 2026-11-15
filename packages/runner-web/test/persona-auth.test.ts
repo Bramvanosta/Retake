@@ -13,7 +13,8 @@ import type { BrowserContext } from 'playwright-core';
 import { chromium } from 'playwright-core';
 import { PERSON_POLICY, resolvePersonas } from '@retake/core';
 import { retakeHome } from '@retake/core/io';
-import { launchTarget, personaAuthReader } from '../src/index.js';
+import { launchTarget } from '../src/session.js';
+import { personaAuthReader } from '../src/index.js';
 import { makeProject, tempDir } from './helpers.js';
 
 const APP = `<!doctype html><html><head><title>App</title></head><body><h1 id="h">…</h1><script>

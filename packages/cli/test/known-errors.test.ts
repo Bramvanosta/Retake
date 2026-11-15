@@ -20,7 +20,8 @@ import {
 import { BundleError, H264EncoderError } from '@retake/core/io';
 import { ComponentError } from '@retake/components';
 import { ExportError, PlanError, PlanTrustError, RenderCancelledError, RenderDiskFullError, RenderError } from '@retake/editor';
-import { EngineError, HooksSourceError, RunOptionError, SandboxTakeError } from '@retake/engine';
+import { EngineError } from '@retake/engine';
+import { HooksSourceError, RunOptionError, SandboxTakeError } from '@retake/engine/shell';
 import { HookError, HookSecurityError, JournalError } from '@retake/hooks';
 import { ReviewCancelledError, ReviewError } from '@retake/review';
 import { CancelledError, EncodeError, LoginPageError, PreflightError, RunnerError, StepError } from '@retake/runner-web';

@@ -18,7 +18,8 @@ import type { LoadedTemplate } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { RenderCancelledError, RenderDiskFullError, bundleHash, isDiskFullError, renderComponentLoops, renderComponentPreviews } from '@retake/editor';
-import type { BundleComponent, ComponentPreviewSpec, LoopItem, PreviewBackend, PreviewComponentTarget } from '@retake/editor';
+import type { BundleComponent, ComponentPreviewSpec, PreviewBackend } from '@retake/editor';
+import type { LoopItem, PreviewComponentTarget } from '../src/render/preview.js';
 import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 

@@ -1,12 +1,12 @@
 /**
- * What prune keeps of a scenario's captures (L7.7, R-FLD-28), layout by layout (core/test/fixtures/records
+ * What prune keeps of a scenario's captures (L7.7, R-FLD-28), layout by layout (test-support/src/records
  * prune-layouts.ts): what a dry prune lists through the engine, how many takes it keeps and what it says it kept.
  * A row marked `P-1` or `U-1` is one the decisions of the lot change (the newest take that can be edited stays; a
  * linked folder and a take of a newer Retake are left alone; the newest complete capture stays beside one stopped by
  * `--until`); `C` a row of the renders renamed by hand, which this lot must leave exactly as it is. A row without a
  * mark holds what prune answered before the lot.
  */
-import { diskOutputs } from '../src/index.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import { execFileSync } from 'node:child_process';
 import { closeSync, constants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -14,11 +14,13 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { LoadedProject } from '@retake/core';
 import { RUN_RECORD_MAX } from '@retake/core/io';
-import { createEngine, pruneApprovalFormText, pruneKey, pruneProject } from '../src/index.js';
+import { createEngine } from '../src/index.js';
+import { pruneApprovalFormText } from '../src/approvals.js';
+import { pruneKey, pruneProject } from '../src/prune.js';
 import type { Engine } from '../src/index.js';
-import { writeWorkspace } from '../../core/test/fixtures/records/build.js';
-import { LAYOUTS, buildLayout } from '../../core/test/fixtures/records/prune-layouts.js';
-import type { BuiltLayout, Layout } from '../../core/test/fixtures/records/prune-layouts.js';
+import { writeWorkspace } from '@retake/test-support/records/build';
+import { LAYOUTS, buildLayout } from '@retake/test-support/records/prune-layouts';
+import type { BuiltLayout, Layout } from '@retake/test-support/records/prune-layouts';
 import { scratchHome } from '@retake/test-support/home';
 
 // Every file read whole (node:fs/promises readFile) is noted, and read as ever: what a prune opens can be counted.

@@ -15,7 +15,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { COMPONENT_KINDS } from '@retake/core';
 import { checkComponentEntry, loadComponentRegistry, paramDefaults, scaffoldDir } from '@retake/components';
 import type { JsonSchemaNode } from '@retake/components';
-import { bundledFileProblem, componentFilesGuard, componentFolderHash, componentHashedFiles, scaffoldComponents } from '@retake/editor';
+import { bundledFileProblem, componentFilesGuard, componentHashedFiles } from '../src/render/bundle.js';
+import { componentFolderHash, scaffoldComponents } from '@retake/editor';
 import type { BundleComponent } from '@retake/editor';
 
 let root: string;

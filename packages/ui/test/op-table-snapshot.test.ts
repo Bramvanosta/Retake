@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { OP_STATUS, UI_OPS } from '../src/server/studio.js';
-import { stubTools } from './studio-tools.js';
+import { stubTools } from '@retake/test-support/studio-tools';
 import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/op-table.json', import.meta.url));

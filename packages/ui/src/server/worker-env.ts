@@ -4,7 +4,7 @@
  * environment. See engine jobs/worker-env.ts for what is dropped and what stays.
  */
 import { existsSync } from 'node:fs';
-import { cleanWorkerEnv } from '@retake/engine';
+import { cleanWorkerEnv } from '@retake/engine/shell';
 
 /** `folders`: all the folders of the workspace (core workspaceFolders), default its root alone. */
 export function studioWorkerEnv(env: NodeJS.ProcessEnv, root: string, node: string = process.execPath, exists: (p: string) => boolean = existsSync, folders?: readonly string[]): NodeJS.ProcessEnv {

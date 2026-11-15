@@ -22,32 +22,22 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { siteApprovalFingerprint, PERSON_POLICY } from '@retake/core';
-import { JOB_INPUT_VERSION } from '@retake/engine';
+import { JOB_INPUT_VERSION } from '../src/jobs/job-input.js';
 import { loadWorkspaceConfig } from '@retake/core/io';
 import type { SiteJobInput } from '@retake/engine';
-import {
-  FileJobQueue,
-  MemoryJobQueue,
-  SITE_KEEP,
-  THEME_PROVENANCE_FILE,
-  createEngine,
-  createThemeFromBrand,
-  executeSiteJob,
-  historyFile,
-  isSiteWarning,
-  makeSiteDir,
-  newSiteId,
-  pruneSites,
-  readBrandFile,
-  readSite,
-  runWorker,
-  signApprovals,
-  siteDir,
-  personScope,
-  enginePorts,
-  diskWorkspaceReads,
-  diskOutputs,
-} from '../src/index.js';
+import { FileJobQueue } from '../src/jobs/queue.js';
+import { MemoryJobQueue } from '../src/jobs/memory-queue.js';
+import { SITE_KEEP, executeSiteJob, isSiteWarning, makeSiteDir, newSiteId, pruneSites, readSite, siteDir } from '../src/jobs/site-job.js';
+import { THEME_PROVENANCE_FILE, createThemeFromBrand } from '../src/brand/create.js';
+import { createEngine } from '../src/index.js';
+import { historyFile } from '../src/history.js';
+import { readBrandFile } from '../src/brand/files.js';
+import { runWorker } from '../src/jobs/worker.js';
+import { signApprovals } from '../src/jobs/signing.js';
+import { personScope } from '../src/store/project-store.js';
+import { enginePorts } from '../src/ports.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { ApprovalOutcome, Approver, Engine, EngineError, JobRecord, OpenedWorkspace, SiteApprovalRequest, SiteJobResult } from '../src/index.js';
 import { ManualClock, systemClock } from '../src/clock.js';
 import { MemoryCancelledError, MemoryCaptureRunner } from '../src/capture/memory-capture.js';

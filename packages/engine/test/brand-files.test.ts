@@ -13,7 +13,9 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR, loadWorkspaceConfig } from '@retake/core/io';
 import type { OpenedWorkspace } from '../src/index.js';
-import { FONT_MAX_BYTES, checkImage, fontCopyName, rasterInfo, readBrandFile, scanSvg, sniffFont, diskWorkspaceReads, diskOutputs } from '../src/index.js';
+import { FONT_MAX_BYTES, checkImage, fontCopyName, rasterInfo, readBrandFile, scanSvg, sniffFont } from '../src/brand/files.js';
+import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import { fontFileFace } from '@retake/components';
 import { PERSON_POLICY } from '@retake/core';
 

@@ -16,29 +16,20 @@ import type { LoadedProject, StoredRenderRecord } from '@retake/core';
 import { PERSON_POLICY, projectRenderOf, ulid } from '@retake/core';
 import { STARTER_TEMPLATES_DIR, loadProject } from '@retake/core/io';
 import type { RenderRecord } from '@retake/editor';
-import {
-  APPROVALS_USED_DIR,
-  EngineError,
-  JOB_RECORD_VERSION,
-  LIVE_FILE_VERSION,
-  RunFolder,
-  addComment,
-  checkRunId,
-  checkTemplateName,
-  consumeApprovals,
-  createEngine,
-  listComments,
-  diskOutputs,
-  listRuns,
-  openLiveChannel,
-  pruneProject,
-  readLiveChannel,
-  renderForWork,
-  restoreApprovals,
-  selfIdentity,
-  toEngineError,
-  packageReviewer,
-} from '../src/index.js';
+import { APPROVALS_USED_DIR, consumeApprovals, restoreApprovals } from '../src/jobs/signing.js';
+import { EngineError, createEngine, toEngineError } from '../src/index.js';
+import { JOB_RECORD_VERSION } from '../src/jobs/types.js';
+import { LIVE_FILE_VERSION, openLiveChannel, readLiveChannel } from '../src/jobs/live-channel.js';
+import { RunFolder } from '../src/outputs/run-files.js';
+import { addComment, listComments } from '../src/comments.js';
+import { checkRunId } from '../src/refs.js';
+import { checkTemplateName } from '../src/templates.js';
+import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { listRuns } from '../src/runs.js';
+import { pruneProject } from '../src/prune.js';
+import { renderForWork } from '../src/renders.js';
+import { selfIdentity } from '../src/jobs/proc.js';
+import { packageReviewer } from '../src/review/review-package.js';
 import type { Engine } from '../src/index.js';
 import { recordShapeOk } from '../src/comments/views.js';
 import { checkJobId } from '../src/jobs/queue-core.js';
