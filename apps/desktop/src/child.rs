@@ -168,6 +168,11 @@ fn read_pipe(mut reader: LineReader<std::process::ChildStdout>, pending: Arc<Mut
                     crate::update_request(a);
                     continue;
                 }
+                // The window page's state of its commands in the menu (through the server's desktop_menu op).
+                PipeMsg::Menu(items) => {
+                    crate::menu::apply(&items);
+                    continue;
+                }
                 // The server's framing newline: nothing to say, nothing changed.
                 PipeMsg::Blank => continue,
                 PipeMsg::Ignored(why) => {

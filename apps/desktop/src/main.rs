@@ -699,9 +699,10 @@ fn main() {
             menu::SHOW_WINDOW => show_window(app),
             id @ (menu::SET_UP | menu::CLI_INSTALL | menu::CLI_REMOVE) => setup_menu(app, id),
             menu::CHECK_UPDATES => update::check_menu(app),
-            // A page command (View: ⌘K, ⌘1 – ⌘4, ⌥⌘I) → a `studio:command` event in the page; ids of MENUS only.
+            // A page command (File's New Scenario, View, Go, Scenario) → a `studio:command` event in the page; ids of MENUS only.
             id => {
                 if let Some(js) = menu::page_command_js(id) {
+                    menu::clicked(id);
                     eval_in_window(app, js);
                 }
             }

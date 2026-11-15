@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TOOLS } from '@retake/mcp';
 import { FileJobQueue } from '@retake/engine/testing';
-import { DesktopPipe, SHOWN_PER_MIN } from '../src/server/desktop.js';
+import { DesktopPipe, MENU_ITEMS_MAX, MENU_PER_MIN, SHOWN_PER_MIN } from '../src/server/desktop.js';
 import { OWN_OPS } from '../src/server/ops.js';
 import { UI_OPS } from '../src/server/studio.js';
 import { UnsavedBoard } from '../src/server/unsaved.js';
@@ -156,6 +156,113 @@ describe('the op desktop_answer through the Studio server', () => {
       const r = await call(body);
       expect(r.status, JSON.stringify(body)).toBe(503);
       expect(r.json<{ error: { code: string; details: { reason: string } } }>().error).toMatchObject({ code: 'unavailable', details: { reason: 'stopped' } });
+    }
+  });
+});
+
+const menuCall = (args: unknown, server = studio) =>
+  raw(server.port, 'POST', '/v1/call/desktop_menu', { authorization: `Bearer ${server.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
+
+describe('the op desktop_menu through the Studio server (the menu follows the page)', () => {
+  it('Studio only: an own op of the ui allow-list, never an MCP tool', () => {
+    expect(OWN_OPS).toContain('desktop_menu');
+    expect(UI_OPS).toContain('desktop_menu');
+    expect(TOOLS.map((t) => t.name)).not.toContain('desktop_menu');
+  });
+
+  it('DesktopPipe.menu: one strict line (ids, bools, a 0 / 1 variant: no text), capped at MENU_PER_MIN a minute', () => {
+    let t = 0;
+    const pipe = new DesktopPipe(() => t);
+    expect(() => pipe.menu([])).toThrow(/not supervised/);
+    const lines: string[] = [];
+    pipe.attach((l) => (lines.push(l), true));
+    expect(
+      pipe.menu([
+        { id: 'capture', enabled: false },
+        { id: 'mode-script', enabled: true, checked: true },
+        { id: 'inspector', enabled: true, variant: 1 },
+      ]),
+    ).toBe(true);
+    expect(lines).toEqual([
+      JSON.stringify({
+        type: 'menu',
+        items: [
+          { id: 'capture', enabled: false },
+          { id: 'mode-script', enabled: true, checked: true },
+          { id: 'inspector', enabled: true, variant: 1 },
+        ],
+      }),
+    ]);
+    for (let i = 1; i < MENU_PER_MIN; i++) expect(pipe.menu([])).toBe(true);
+    expect(pipe.menu([])).toBe(false);
+    expect(lines).toHaveLength(MENU_PER_MIN);
+    t += 60_000;
+    expect(pipe.menu([])).toBe(true);
+  });
+
+  it('strict input (an unknown field, a label, a bad id, a repeated id, too many items are 400); supervised, one line; never a job-watch nudge; not supervised, 409', async () => {
+    const own = await mkdtemp(join(tmpdir(), 'studio-desktop-menu-own-'));
+    await fixtureWorkspace(own);
+    const server = await startStudioServer({ root: own, startWorker: false });
+    try {
+      const r = await menuCall({ items: [{ id: 'capture', enabled: true }] }, server);
+      expect(r.status).toBe(409);
+      expect(server.desktop.written).toBe(0);
+      const lines: string[] = [];
+      server.desktop.attach((l) => (lines.push(l), true));
+      let writes = 0;
+      const off = server.onWrite(() => writes++);
+      for (const bad of [
+        {},
+        { items: [{ id: 'capture' }] },
+        { items: [{ id: 'capture', enabled: true, label: 'Delete everything' }] },
+        { items: [{ id: 'Capture', enabled: true }] },
+        { items: [{ id: 'cap ture', enabled: true }] },
+        { items: [{ id: 'capture', enabled: true, variant: 2 }] },
+        { items: [{ id: 'capture', enabled: 'yes' }] },
+        {
+          items: [
+            { id: 'capture', enabled: true },
+            { id: 'capture', enabled: false },
+          ],
+        },
+        {
+          items: Array.from({ length: MENU_ITEMS_MAX + 1 }, (_, i) => ({
+            id: `go-${'x'.repeat((i % 20) + 1)}${'abcdefghijklmnopqrstuvwxyz'[i % 26]}${'abcdefghijklmnopqrstuvwxyz'[Math.floor(i / 26) % 26]}`,
+            enabled: true,
+          })),
+        },
+        { items: [], extra: 1 },
+      ]) {
+        const res = await menuCall(bad, server);
+        expect(res.status, JSON.stringify(bad).slice(0, 80)).toBe(400);
+      }
+      expect(lines).toEqual([]);
+      const ok = await menuCall(
+        {
+          items: [
+            { id: 'render', enabled: false },
+            { id: 'view-hooks', enabled: true, checked: false },
+          ],
+        },
+        server,
+      );
+      expect(ok.status).toBe(200);
+      expect(ok.json<{ data: unknown }>().data).toEqual({ ok: true, sent: true });
+      expect(lines).toEqual([
+        JSON.stringify({
+          type: 'menu',
+          items: [
+            { id: 'render', enabled: false },
+            { id: 'view-hooks', enabled: true, checked: false },
+          ],
+        }),
+      ]);
+      expect(writes).toBe(0);
+      off();
+    } finally {
+      await server.close();
+      await rm(own, { recursive: true, force: true });
     }
   });
 });

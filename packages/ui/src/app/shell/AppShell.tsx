@@ -129,7 +129,7 @@ const PROJECT_ROUTES = new Set<Route['name']>([
   'record',
 ]);
 
-interface PaletteInput extends CommandInput {
+interface PaletteInput extends Omit<CommandInput, 'slug'> {
   project: ProjectSummary | undefined;
   projects: ProjectSummary[];
   inspectorOff: boolean;
@@ -357,7 +357,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   useScreenTop(main, key);
   const { claims, slotRefs, collapsed, hasInspector, inspectorOff, inspectorShown, host, inspector, toggleInspector } = useSlots(main);
   const { said, say } = useSaid(keyNow, saidKey);
-  const { palette, setPalette } = useMenuCommands({ ctx, hasInspector, say, toggleInspector, inApp });
+  const { palette, setPalette } = useMenuCommands({ ctx, slug: openSlug, hasInspector, say, toggleInspector, inApp }, { route, mode, inspectorShown });
   const commands = usePaletteCommands({ ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, view: open.view, say });
   // The scenario in context's state and actions (the buttons hide while a screen claims the slot).
   const shoot = useStatusActions({ route, ctx, say, claimed: claims.actions > 0, inApp });

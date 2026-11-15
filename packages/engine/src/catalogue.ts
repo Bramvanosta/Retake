@@ -436,6 +436,7 @@ const ENTRIES = [
   { name: 'record_save', ...W, cli: RECORD_CLI, mcp: RECORD_PANEL, studio: STUDIO },
   { name: 'unsaved_report', ...W, cli: DESKTOP_ONLY, mcp: DESKTOP_ONLY, studio: STUDIO },
   { name: 'desktop_answer', ...W, cli: DESKTOP_ONLY, mcp: DESKTOP_ONLY, studio: STUDIO },
+  { name: 'desktop_menu', ...W, cli: DESKTOP_ONLY, mcp: DESKTOP_ONLY, studio: STUDIO },
   { name: 'setup_status', ...R, cli: no('`retake doctor` checks this machine'), mcp: SETUP_ONLY, studio: STUDIO },
   { name: 'setup_cli_install', ...W, cli: SETUP_ONLY, mcp: SETUP_ONLY, studio: STUDIO },
   { name: 'setup_cli_choose', ...W, cli: SETUP_ONLY, mcp: SETUP_ONLY, studio: STUDIO },

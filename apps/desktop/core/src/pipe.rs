@@ -8,7 +8,11 @@
 // answer: proceed | cancel} and `shown` {id, shown: true} — the window page's word on the quit ! question (guard_flow),
 // the id checked here (22 base64url characters) and against the question up in the shell. ! ! `setup` {action:
 // notifications | cli_folder} — the Set-up sheet's request (ui setup-ops.ts), strict fields. ! `update` {action:
-// install | later} — the update sheet's click (ui desktop.ts `desktop_update`), strict fields. ! ! What is ignored
+// install | later} — the update sheet's click (ui desktop.ts `desktop_update`), strict fields. ! ! `menu` {items:
+// [{id, enabled, checked?, variant?}]} — the window page's state of the menu's page commands (ui desktop.ts
+// `desktop_menu`): each id a command id's shape (the shell applies the ids its menu holds and ignores the rest),
+// `checked` a bool, `variant` 0 or 1 (which of a toggle's two fixed labels) — no text of the page reaches the menu. ! !
+// What is ignored
 // (forward compatible): a line that is no JSON object, a `type` this shell does not know, ! a `job_end` of an unknown
 // kind or outcome. Only a `pending` that fails its checks is `BadPending` — the shell then ! asks with generic words
 // until the next valid one. The server frames each line with a newline before it (a ! stray partial write on its stdout
@@ -21,6 +25,8 @@ use std::io::{BufRead, BufReader, ErrorKind, Read};
 pub const PIPE_LINE_MAX: usize = 16 * 1024;
 /// Items kept per list.
 pub const LIST_MAX: usize = 8;
+/// Items of a `menu` line at most (the menu's page commands, with room).
+pub const MENU_ITEMS_MAX: usize = 64;
 const TOTAL_MAX: u64 = 1_000_000;
 
 /// One line of a capped reader.
@@ -189,6 +195,53 @@ pub struct JobEnd {
     pub scenario: Option<String>,
 }
 
+/// One page command's state in the menu: enabled, checked (a check item), which of its labels (a toggle).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MenuItemState {
+    pub id: String,
+    pub enabled: bool,
+    pub checked: Option<bool>,
+    pub variant: u8,
+}
+
+/// A page command id's shape: lowercase words joined by `-`, at most 32 characters.
+pub fn menu_id_ok(s: &str) -> bool {
+    !s.is_empty() && s.len() <= 32 && s.starts_with(|c: char| c.is_ascii_lowercase()) && s.chars().all(|c| c.is_ascii_lowercase() || c == '-') && !s.ends_with('-')
+}
+
+fn menu_items(v: &Json) -> Option<Vec<MenuItemState>> {
+    let Json::Obj(fields) = v else { return None };
+    if fields.len() != 2 || !fields.iter().all(|(k, _)| k == "type" || k == "items") {
+        return None;
+    }
+    let Some(Json::Arr(items)) = v.get("items") else { return None };
+    if items.len() > MENU_ITEMS_MAX {
+        return None;
+    }
+    let mut out: Vec<MenuItemState> = Vec::with_capacity(items.len());
+    for it in items {
+        let Json::Obj(f) = it else { return None };
+        if !f.iter().all(|(k, _)| matches!(k.as_str(), "id" | "enabled" | "checked" | "variant")) {
+            return None;
+        }
+        let id = it.get("id")?.as_str().filter(|s| menu_id_ok(s))?.to_string();
+        let enabled = it.get("enabled")?.as_bool()?;
+        let checked = match it.get("checked") {
+            None => None,
+            Some(c) => Some(c.as_bool()?),
+        };
+        let variant = match it.get("variant") {
+            None => 0,
+            Some(n) => n.as_uint(1)? as u8,
+        };
+        if out.iter().any(|o| o.id == id) {
+            return None;
+        }
+        out.push(MenuItemState { id, enabled, checked, variant });
+    }
+    Some(out)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PipeMsg {
     Pending(Pending),
@@ -203,6 +256,8 @@ pub enum PipeMsg {
     Setup(SetupAction),
     /// The update sheet's click (through the server's `desktop_update` op: the person's).
     Update(UpdateAction),
+    /// The window page's state of the menu's page commands (through the server's `desktop_menu` op).
+    Menu(Vec<MenuItemState>),
     /// Not for this shell (why): no JSON object, an unknown type, a job_end it cannot word.
     Ignored(&'static str),
     /// An empty line (the server's framing newline) — nothing to say.
@@ -300,6 +355,10 @@ pub fn parse_pipe_line(line: &str) -> PipeMsg {
                 None => PipeMsg::Ignored("an update action this app does not know"),
             }
         }
+        Some("menu") => match menu_items(&v) {
+            Some(items) => PipeMsg::Menu(items),
+            None => PipeMsg::Ignored("a menu line this app cannot read"),
+        },
         Some(_) => PipeMsg::Ignored("a line type this app does not know"),
         None => PipeMsg::Ignored("no line type"),
     }
@@ -482,5 +541,36 @@ mod tests {
         assert_eq!(got[2], PipeMsg::Blank);
         assert!(matches!(&got[3], PipeMsg::Pending(p) if p.unsaved_total == 1));
         assert_eq!(parse_pipe_line(" \r"), PipeMsg::Blank);
+    }
+
+    #[test]
+    fn menu_lines_strict() {
+        let ok = r#"{"type":"menu","items":[{"id":"capture","enabled":false},{"id":"mode-script","enabled":true,"checked":true},{"id":"inspector","enabled":true,"variant":1}]}"#;
+        assert_eq!(
+            parse_pipe_line(ok),
+            PipeMsg::Menu(vec![
+                MenuItemState { id: "capture".into(), enabled: false, checked: None, variant: 0 },
+                MenuItemState { id: "mode-script".into(), enabled: true, checked: Some(true), variant: 0 },
+                MenuItemState { id: "inspector".into(), enabled: true, checked: None, variant: 1 },
+            ])
+        );
+        assert_eq!(parse_pipe_line(r#"{"type":"menu","items":[]}"#), PipeMsg::Menu(vec![]));
+        let many = vec![r#"{"id":"a","enabled":true}"#; MENU_ITEMS_MAX + 1].join(",");
+        for bad in [
+            r#"{"type":"menu","items":[{"id":"capture","enabled":false,"label":"Delete everything"}]}"#.to_string(),
+            r#"{"type":"menu","items":[{"id":"Capture","enabled":false}]}"#.to_string(),
+            r#"{"type":"menu","items":[{"id":"cap ture","enabled":false}]}"#.to_string(),
+            r#"{"type":"menu","items":[{"id":"capture"}]}"#.to_string(),
+            r#"{"type":"menu","items":[{"id":"capture","enabled":"yes"}]}"#.to_string(),
+            r#"{"type":"menu","items":[{"id":"capture","enabled":true,"variant":2}]}"#.to_string(),
+            r#"{"type":"menu","items":[{"id":"capture","enabled":true,"checked":1}]}"#.to_string(),
+            r#"{"type":"menu","items":[{"id":"capture","enabled":true},{"id":"capture","enabled":false}]}"#.to_string(),
+            r#"{"type":"menu","items":{},"extra":1}"#.to_string(),
+            r#"{"type":"menu"}"#.to_string(),
+            format!(r#"{{"type":"menu","items":[{many}]}}"#),
+        ] {
+            assert!(matches!(parse_pipe_line(&bad), PipeMsg::Ignored(_)), "{bad}");
+        }
+        assert!(menu_id_ok("go-back") && !menu_id_ok("-x") && !menu_id_ok("x-") && !menu_id_ok(&"a".repeat(33)));
     }
 }

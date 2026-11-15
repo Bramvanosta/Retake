@@ -1232,9 +1232,10 @@ describe('the import-rules ratchet', () => {
       // sandbox_status, sandbox_up, sandbox_reset).
       // MCP −3 (comments_list, comment_reply, comment_resolve), Studio −12 (comment-ops.ts: the twelve).
       // −6 / −8 (MCP's scenario_save, scenario_from_script, scenario_record, project_create, project_prune,
-      // job_status; the Studio's scenario_edit and its seven record_* ops).
+      // job_status; the Studio's scenario_edit and its seven record_* ops). Studio +1 (desktop.ts's desktop_menu: the
+      // desktop pipe's own op, like desktop_answer).
       expect(total('packages/mcp/src/')).toBe(9 - 3 - 6);
-      expect(total('packages/ui/src/')).toBe(38 - 12 - 8);
+      expect(total('packages/ui/src/')).toBe(38 - 12 - 8 + 1);
       expect(entries.some((e) => e.includes('packages/engine/'))).toBe(false);
     });
   });
