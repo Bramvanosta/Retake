@@ -3,7 +3,9 @@
  * in a temporary workspace: template_create_from_brand with the user's files in brand/ → template_list shows the new
  * theme (`workspace`) → template_preview renders its stills through the existing preview job (images inline) → a
  * second call with replace: true changes it while nobody edited it. Refusals over stdio: a starter name, an
- * agent-writable source, a script SVG, a path outside the workspace. The starter themes and the built-in component
+ * agent-writable source, a script SVG, a path outside the workspace. font_fetch against a loopback registry (the test
+ * hatch; the suite's guard refuses any other), the user approving in the form, then a theme from the stored fonts;
+ * template_from_tokens returning the proposal and writing nothing. The starter themes and the built-in component
  * folders are byte for byte the same afterwards. Only the preview needs ffmpeg (and a headless shell): everything else
  * runs without it.
  */
@@ -14,6 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { LIBRARY_DIR } from '@retake/components';
 import { readWorkerLock } from '@retake/engine/testing';
@@ -21,6 +24,7 @@ import { REPO } from '@retake/test-support/repo';
 import { TEMPLATES, hasTool } from '@retake/test-support/repo';
 import { linkSharedCache } from '@retake/test-support/render';
 import { testChildEnv } from '@retake/test-support/child-env';
+import { fakePackage, loopbackRegistry } from '@retake/test-support/fontsource';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -209,8 +213,72 @@ describe('retake mcp: a theme from brand files', () => {
     expect(existsSync(join(root, 'templates', (over as { name: string }).name, 'template.yaml'))).toBe(false);
   });
 
+  it('template_from_tokens over stdio returns the proposal and writes nothing (read-only, names under untrusted)', async () => {
+    await writeFile(join(root, 'brand', 'tokens.json'), JSON.stringify({ color: { $type: 'color', background: { $value: '#fafaf7' }, brand: { primary: { $value: '#3352b8' } } } }));
+    const { tools } = await client.listTools();
+    expect(tools.find((x) => x.name === 'template_from_tokens')?.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, openWorldHint: false });
+    const before = await readdir(join(root, 'templates'));
+    const r = await call('template_from_tokens', { tokens: 'brand/tokens.json', name: 'harbor-tokens' });
+    expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
+    expect(r.content[0].text).toMatch(/proposed roles: accent #3352b8 \(token #1, by name/);
+    const data = JSON.parse(r.content[1].text!) as { draft: { brand_input: Record<string, unknown> }; untrusted: { colours: Array<{ name: string }> } };
+    expect(data.draft.brand_input).toMatchObject({ name: 'harbor-tokens', colors: { accent: '#3352b8', paper: '#fafaf7' } });
+    expect(data.untrusted.colours.map((c) => c.name)).toEqual(['color.background', 'color.brand.primary']);
+    expect(await readdir(join(root, 'templates'))).toEqual(before);
+  });
+
+  it("font_fetch is listed open world; without the test hatch the suite's guard refuses it before any question", async () => {
+    const { tools } = await client.listTools();
+    expect(tools.find((x) => x.name === 'font_fetch')?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: true });
+    const r = await call('font_fetch', { refs: ['fontsource:test-sans@5.2.1:400'] });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/RETAKE_TEST_NO_FONT_FETCH/);
+  });
+
   it('the starter themes and the built-in components are unchanged', async () => {
     expect(await folderHash(TEMPLATES)).toBe(startersBefore);
     expect(await folderHash(LIBRARY_DIR)).toBe(libraryBefore);
+  });
+});
+
+describe('retake mcp: open-licence fonts by reference (a loopback registry)', () => {
+  it('font_fetch over stdio: the user approves the form (the test registry named), the store holds the faces, a theme takes them offline', async () => {
+    const registry = await loopbackRegistry([fakePackage({ faces: ['400', '700'] })]);
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],
+      cwd: REPO,
+      env: testChildEnv({ RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '1500', RETAKE_UNSAFE_TEST_NPM_REGISTRY: registry.base }),
+      stderr: 'pipe',
+    });
+    const asking = new Client({ name: 'retake-test', version: '0' }, { capabilities: { elicitation: { form: {} } } });
+    const asked: string[] = [];
+    asking.setRequestHandler(ElicitRequestSchema, async (req) => {
+      // Asked before any request reached the registry.
+      asked.push(`${(req.params as { message: string }).message}\n[requests so far: ${registry.requests.length}]`);
+      return { action: 'accept', content: { approve: true } };
+    });
+    await asking.connect(transport);
+    try {
+      const at = (name: string, args: Record<string, unknown>) => asking.callTool({ name, arguments: args }, undefined, { timeout: 120_000 }) as Promise<Result>;
+      const f = await at('font_fetch', { refs: ['fontsource:test-sans:400', 'fontsource:test-sans:700'] });
+      expect(f.isError, JSON.stringify(f.content)).toBeFalsy();
+      expect(asked).toHaveLength(1);
+      expect(asked[0]).toContain(`From: ${registry.base} — a TEST registry`);
+      expect(asked[0]).toContain('- @fontsource/test-sans latest (resolved now, and recorded): 400, 700');
+      expect(asked[0]).toContain('[requests so far: 0]');
+      expect(registry.requests).toEqual(['/@fontsource%2ftest-sans/latest', '/@fontsource/test-sans/-/test-sans-5.2.1.tgz']);
+      expect(f.content[0].text).toMatch(/@fontsource\/test-sans 5\.2\.1 \(latest, resolved now: pin it next time\), OFL-1\.1/);
+      const c = await at('template_create_from_brand', { name: 'harbor-fonts', colors: { accent: '#3352b8' }, logo: 'brand/mark.svg', fonts: { display: 'fontsource:test-sans@5.2.1:700', body: ['fontsource:test-sans@5.2.1:400'] } });
+      expect(c.isError, JSON.stringify(c.content)).toBeFalsy();
+      // The create read the store only: no new request reached the registry.
+      expect(registry.requests).toHaveLength(2);
+      expect(c.content[0].text).toMatch(/warning: display font fontsource:test-sans@5\.2\.1:700 was fetched from a TEST registry/);
+      expect(await readFile(join(root, 'templates', 'harbor-fonts', 'LICENSES.md'), 'utf8')).toContain('### `@fontsource/test-sans` 5.2.1');
+    } finally {
+      await asking.close().catch(() => undefined);
+      await registry.close();
+      await rm(join(root, 'templates', 'harbor-fonts'), { recursive: true, force: true });
+    }
   });
 });

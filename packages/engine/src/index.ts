@@ -58,7 +58,7 @@ export type { ProcessIdentity } from './jobs/proc.js';
 export type { LiveChannel, LiveFeedFrame } from './jobs/live-channel.js';
 export type { HookWorkOptions, HooksRunOutcome } from './hooks-work.js';
 export type { AgentWrittenShellHooks, RenderedText, ScenarioShellHook } from './agent-written.js';
-export type { ApprovalOutcome, ApprovalRequest, Approver, PruneApprovalRequest, SiteApprovalRequest } from './approvals.js';
+export type { ApprovalOutcome, ApprovalRequest, Approver, FontsApprovalRequest, PruneApprovalRequest, SiteApprovalRequest } from './approvals.js';
 export type { RunBlocker } from './jobs/run-job.js';
 export type { WorkerSpawnFn } from './jobs/spawn.js';
 export type { FilmingState } from './jobs/captures.js';
@@ -86,4 +86,6 @@ export type { ActivityItem, SearchHit } from './index-db/index-db.js';
 export type { SqliteLoader } from './index-db/sqlite.js';
 export type { RunChange, RunRow, SourceMap } from './index-db/sources.js';
 export type { ThemeCreateOptions, ThemeCreated } from './brand/create.js';
+export type { FontFetched } from './brand/fontsource-fetch.js';
+export type { TokensDraft } from './brand/tokens.js';
 // theme_preview's spec (built by the engine; the Studio serves it on its player origin).

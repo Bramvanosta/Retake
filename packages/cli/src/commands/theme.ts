@@ -1,7 +1,7 @@
 import { printableText } from '@retake/core/base';
 import { EngineError } from '@retake/engine';
-import { createThemeFromBrand, extractSiteForAuthor, personScope } from '@retake/engine/shell';
-import type { SiteJobResult, ThemeCreated } from '@retake/engine';
+import { createThemeFromBrand, extractSiteForAuthor, fetchFonts, personScope, tokensDraft } from '@retake/engine/shell';
+import type { FontFetched, SiteJobResult, ThemeCreated, TokensDraft } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -199,4 +199,95 @@ export async function themeFromSiteCommand(ui: Ui, global: GlobalOptions, url: s
   }
   printSite(ui, r);
   return r.status === 'ok' ? EXIT.ok : EXIT.failure;
+}
+
+/** An engine error as the CLI's own (its fix on the next line). */
+function cliError(e: unknown): unknown {
+  return e instanceof EngineError ? new CliError(`${e.message}${e.fix ? `\n  fix: ${e.fix}` : ''}`) : e;
+}
+
+/**
+ * `retake theme fetch-font <ref>…`: open-licence fonts (fontsource packages) from the npm registry into the workspace's
+ * font store — the person's own act (no form), under the same checks as font_fetch (engine brand/fontsource-fetch.ts).
+ */
+export async function themeFetchFontCommand(ui: Ui, global: GlobalOptions, refs: string[], opts: { json?: boolean }): Promise<ExitCode> {
+  const ws = await openWorkspace(global);
+  let f: FontFetched;
+  try {
+    f = await fetchFonts(ws, { refs }, { registry: global.ports.fontRegistry, clock: global.ports.clock, ask: false });
+  } catch (e) {
+    throw cliError(e);
+  }
+  if (opts.json) {
+    ui.result(JSON.stringify(f, null, 2));
+    return EXIT.ok;
+  }
+  const k = ui.c;
+  for (const p of f.packages) {
+    ui.ok(`${p.downloaded ? 'fetched' : 'stored already:'} ${k.bold(`${p.package} ${p.version}`)} (${p.licence}, as its publisher declares it) from ${p.registry}${p.test_registry ? ' (a TEST registry)' : ''} into ${p.dir}`);
+    ui.line(k.dim(`  integrity ${p.integrity}`));
+    for (const x of p.faces) ui.line(`  ${x.ref} (${x.state})`);
+  }
+  for (const w of f.warnings) ui.warn(w);
+  ui.line(`next: ${k.bold(`retake theme create <name> --accent <hex> --logo <file> --display-font ${f.refs[0]}`)} (or --body-font, once per face)`);
+  return EXIT.ok;
+}
+
+function printTokens(ui: Ui, t: TokensDraft): void {
+  const k = ui.c;
+  ui.ok(`read ${t.file} (${t.format === 'dtcg' ? 'DTCG' : 'list'} format): ${t.counts.tokens} tokens, ${t.counts.colours} colours, ${t.counts.families} font families — nothing written`);
+  // Token names are the file's text: printable only, dimmed (no control or bidirectional character reaches the terminal).
+  const name = (i: number) => printableText(t.untrusted.colours[i]?.name ?? '?');
+  for (const [role, v] of Object.entries(t.roles)) {
+    ui.line(`  ${role}: ${v.hex} — ${k.dim(name(v.index))} (by ${v.why}${v.contrast_on_paper !== undefined ? `, ${v.contrast_on_paper}:1 on the paper` : ''})`);
+  }
+  if (t.palette) ui.line(`  contrast: ${t.palette.checks.map((x) => `${x.check} ${x.ratio}${x.ok ? '' : ` (< ${x.min})`}`).join(', ')}`);
+  for (const f of t.untrusted.families) ui.line(k.dim(`  font family: ${printableText(f.family)} (${printableText(f.name)})`));
+  for (const n of t.notes) ui.line(`  note: ${n}`);
+  const d = t.draft?.brand_input as { name: string; base: string; colors: Record<string, string> } | undefined;
+  if (d) {
+    const flags = Object.entries(d.colors)
+      .map(([r, v]) => `--${r} '${v}'`)
+      .join(' ');
+    ui.line(`next: ${k.bold(`retake theme create ${d.name} --base ${d.base} ${flags} --logo <file>`)} (change any value; --map <role>=<token> picks another token)`);
+  }
+}
+
+/** `--map <role>=<token>` (repeatable) → the input's map. */
+export function mapOption(values: readonly string[] = []): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  for (const v of values) {
+    const m = /^(accent|paper|text|muted|dark)=(.+)$/s.exec(v);
+    if (!m) throw new UsageError(`--map ${v}: <role>=<token name>, the role one of accent, paper, text, muted, dark (e.g. accent=color.brand.primary)`);
+    out[m[1]] = m[2];
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** `retake theme from-tokens <file>`: a design-token file read into proposed roles and a draft (trust author; nothing written). */
+export async function themeFromTokensCommand(ui: Ui, global: GlobalOptions, file: string, opts: { map?: string[]; base?: string; name?: string; json?: boolean }): Promise<ExitCode> {
+  const ws = await openWorkspace(global);
+  const map = mapOption(opts.map);
+  let t: TokensDraft;
+  try {
+    t = await tokensDraft(ws, { tokens: file, ...(map ? { map } : {}), ...(opts.base ? { base: opts.base } : {}), ...(opts.name ? { name: opts.name } : {}) }, { trust: 'author', clock: global.ports.clock, cwd: process.cwd() });
+  } catch (e) {
+    // A --map name the file lacks: its nearest token names (the file's text: printable only, said to be the file's).
+    const near = e instanceof EngineError ? (e.details?.untrusted as { near?: unknown } | undefined)?.near : undefined;
+    if (e instanceof EngineError && Array.isArray(near)) {
+      const names = near.filter((n): n is string => typeof n === 'string').map((n) => printableText(n));
+      if (opts.json) {
+        ui.result(JSON.stringify({ error: { code: e.code, message: e.message, untrusted: { near: names } } }, null, 2));
+        return EXIT.failure;
+      }
+      throw new CliError(`${e.message}\n  nearest token names (from the file): ${names.join(', ') || 'none'}`);
+    }
+    throw cliError(e);
+  }
+  if (opts.json) {
+    ui.result(JSON.stringify(t, null, 2));
+    return EXIT.ok;
+  }
+  printTokens(ui, t);
+  return EXIT.ok;
 }

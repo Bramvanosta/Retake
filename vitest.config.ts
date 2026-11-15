@@ -99,6 +99,7 @@ export default defineConfig({
       '@retake/test-support/capture': fileURLToPath(new URL('./packages/test-support/src/capture.ts', import.meta.url)),
       '@retake/test-support/child-env': fileURLToPath(new URL('./packages/test-support/src/child-env.ts', import.meta.url)),
       '@retake/test-support/confinement': fileURLToPath(new URL('./packages/test-support/src/confinement.ts', import.meta.url)),
+      '@retake/test-support/fontsource': fileURLToPath(new URL('./packages/test-support/src/fontsource.ts', import.meta.url)),
       '@retake/test-support/golden': fileURLToPath(new URL('./packages/test-support/src/golden.ts', import.meta.url)),
       '@retake/test-support/home': fileURLToPath(new URL('./packages/test-support/src/home.ts', import.meta.url)),
       '@retake/test-support/http': fileURLToPath(new URL('./packages/test-support/src/http.ts', import.meta.url)),
@@ -124,7 +125,9 @@ export default defineConfig({
     testTimeout: 120_000,
     hookTimeout: 120_000,
     // A nearly full disk is the machine's state, not a regression: captures keep measuring it but do not warn.
-    env: { RETAKE_DISK_WARN: 'off', RETAKE_HOME: testHome, CFFIXED_USER_HOME: cfHome, RETAKE_TEST_CAPTURES: capturesRoot },
+    // RETAKE_TEST_NO_FONT_FETCH: no font fetch reaches the npm registry from a test (engine fonts/npm-registry.ts); a test
+    // that fetches serves a registry of its own on loopback (RETAKE_UNSAFE_TEST_NPM_REGISTRY) or hands a fake port.
+    env: { RETAKE_DISK_WARN: 'off', RETAKE_HOME: testHome, CFFIXED_USER_HOME: cfHome, RETAKE_TEST_CAPTURES: capturesRoot, RETAKE_TEST_NO_FONT_FETCH: '1' },
     // `node scripts/coverage.mjs` sets RETAKE_COVERAGE_RAW: every worker then writes its V8 coverage there.
     setupFiles: ['./vitest.setup.ts', ...(process.env.RETAKE_COVERAGE_RAW?.trim() ? ['./scripts/coverage-setup.mjs'] : [])],
     // Removes the temp home this config made (review A L5 / B L4: one per run, in a tight TMPDIR); warns when the run

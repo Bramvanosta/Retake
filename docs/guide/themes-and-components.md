@@ -112,12 +112,70 @@ declares about its licence) and `.retake-theme.json` (inputs and the sha256 of e
   Retake's MCP tools write; an agent's own file tools (Claude Code's Write, under your permissions) can still put
   a file in `brand/` — the content checks above apply to it all the same.
 
+- **Open-licence fonts by reference** (a fontsource id instead of a file): fetch the family's faces once into the
+  workspace's **font store**, then name them in `--display-font` / `--body-font` (MCP `fonts.display` / `fonts.body`):
+
+  ```sh
+  retake theme fetch-font fontsource:inter:400 fontsource:inter:600 fontsource:instrument-serif:400italic
+  retake theme create acme --accent '#0e7c66' --logo brand/logo.svg \
+    --display-font 'fontsource:instrument-serif@<the version printed>:400italic' \
+    --body-font 'fontsource:inter@<the version printed>:400' --body-font 'fontsource:inter@<the version printed>:600'
+  ```
+
+  A reference is `fontsource:<id>[@<version>][:<weight>[italic]]` — the id is the family's slug ("Instrument Serif" →
+  `instrument-serif`), the weight 100–900 in hundreds (default 400), one reference per face; the copy's weight and style
+  come from it (`fonts/body-SemiBold.woff2`); the fetch prints each reference with its version pinned — copy those. The fetch (or Claude's `font_fetch {refs}`, **which you approve in a form
+  first**) downloads the package `@fontsource/<id>` from `https://registry.npmjs.org` — nothing else, no redirect —
+  pins the version (no version given: the registry's latest, resolved and printed: pin it next time), keeps only the
+  **latin** WOFF2 files of the faces asked and the package's `LICENSE`, and only when the package's publisher declares
+  `OFL-1.1` or `Apache-2.0` and its archive matches the integrity the registry lists. They go to
+  `.retake/fonts/fontsource/<id>@<version>/` with a record of where they came from. Creating, updating and the Studio's
+  New theme read that store only, **offline**: a reference not in it is refused with the exact `retake theme fetch-font`
+  command (or `font_fetch` call) to make; the references of one family without a version take the newest version
+  stored that holds every face asked of it — one version per family (said in a note, recorded pinned). A theme made
+  this way no longer needs the store for the fonts it keeps: `template_update` takes their licence from the theme's own
+  `LICENSES.md`. `LICENSES.md` cites each package — its version, licence, registry, tarball,
+  integrity and its LICENSE text. The Studio's font picker lists the stored faces next to the workspace's font files.
+  Static weights only (no `@fontsource-variable` packages) and the latin subset only. The trust rules are in the
+  [security guide](security.md#open-licence-fonts-by-reference).
 - **Adjusting a theme Claude made**: MCP `template_update {name, …only what changes}` (e.g. `{name: "acme",
   components: {outro: {params: {logo_size: 72}}}}`, `colors: {paper: "#1c1c1c"}`, `wordmark: null`) re-makes it from
   the inputs it was made from with those keys changed — `null` removes an optional input, components merge per kind
   and params per key. The files it does not name are the theme's own copies (a moved brand file or a pruned site
   candidate does not matter; their `LICENSES.md` sections stay). Under the same guard as `replace`, plus the inputs
   recorded in `.retake-theme.json` as written (their sha256): never a theme you made or edited.
+
+### Themes from design tokens
+
+A design system that exports **design tokens** (a JSON file): read it for a draft instead of typing the colours.
+
+```sh
+retake theme from-tokens brand/tokens.json
+retake theme from-tokens brand/tokens.json --map accent=color.brand.primary --map paper=color.surface.default
+```
+
+or ask Claude (MCP `template_from_tokens {tokens: "brand/tokens.json", map?}`). Two formats are read: a **list**
+(`{"<group>": {"tokens": [{"name": …, "value": …}]}}`, or a top-level `tokens` list) and **DTCG** / W3C design tokens
+(nested groups, a token being an object with `$value`, its `$type` its own or its group's, `{group.token}` aliases
+resolved — at most 16 hops; a cycle refuses the file). Colours are `#rgb`, `#rrggbb`, `#rrggbbaa` (a translucent one is
+skipped) or DTCG's `{colorSpace: "srgb", components: [r, g, b]}`; other notations (`rgb()`, `hsl()`, `oklch()`…) are
+counted and skipped. The file is `.json` or `.tokens`, at most 1 MB, 64 levels and 5 000 tokens.
+
+It proposes a token for each of the theme's colours — **by name first** (`primary`, `accent`, `brand` → accent;
+`background`, `bg`, `surface`, `paper`, `canvas` → paper; `text`, `foreground`, `ink` → text; `muted`, `secondary`,
+`subtle` — or `text` followed by one of them — → muted; `dark`, `night`, `inverse` → dark: the first such word of the
+name, a `primary` / `default` token first; `on-background` / `on-surface` are text, `on-primary` no role; in a ramp
+such as `primary.50 … 900`, the first step that reaches its contrast on the paper — 3:1 for the accent, 4.5:1 for the
+text; a named accent below 3:1 gives way to one picked by colour, said in a note), **then by colour** for the roles
+still empty (the paper the lightest neutral, unless every neutral is dark; the accent the most saturated colour with
+3:1 on the paper; the text the colour of highest contrast with it; the night tone the darkest neutral of a light
+paper) — with each role's contrast on the paper and the checks a create would make. It is a heuristic over names
+and colours: check the roles. `--map role=token` (MCP `map: {role: "<token name>"}`, the name exactly as
+the file writes it) picks a token instead. The answer ends with a draft for `retake theme create` /
+`template_create_from_brand` and the template.yaml it would make; **nothing is written**. Add the logo, check the roles
+— Claude shows them to you and lets you confirm — then create the theme. Font family names in the file are listed
+(as data: font files come from `brand/` or the font store). Through MCP, the file follows the brand-file rules above,
+and every token name and family name comes back under `untrusted`, the colours named by index.
 
 ### Themes from a site
 

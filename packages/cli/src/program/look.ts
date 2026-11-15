@@ -2,7 +2,7 @@ import { Option } from 'commander';
 import { COMPONENT_KINDS } from '@retake/core/model';
 import { componentsCreateCommand, componentsListCommand, componentsPreviewCommand, componentsValidateCommand } from '../commands/components.js';
 import type { ComponentsCreateOptions, ComponentsListOptions, ComponentsPreviewOptions, ComponentsValidateOptions } from '../commands/components.js';
-import { themeCreateCommand, themeFromSiteCommand } from '../commands/theme.js';
+import { themeCreateCommand, themeFetchFontCommand, themeFromSiteCommand, themeFromTokensCommand } from '../commands/theme.js';
 import type { ThemeCreateOptions } from '../commands/theme.js';
 import { collect } from './context.js';
 import type { ProgramContext } from './context.js';
@@ -62,8 +62,8 @@ export function registerLookCommands({ program, action }: ProgramContext): void 
     .option('--background <spec>', 'a hex (solid) or radial:<from>:<to> / linear:<from>:<to> (default derived)')
     .option('--base <theme>', 'theme whose components, frame, captions and motion are kept (default editorial)')
     .option('--wordmark <file>', 'wordmark image of the outro (default: the brand name as text)')
-    .option('--display-font <file>', "display font: .ttf, .otf, .woff or .woff2 (default the base theme's)")
-    .option('--body-font <file>', "body font file, one per weight (repeatable; default the base theme's)", collect)
+    .option('--display-font <file>', "display font: .ttf, .otf, .woff or .woff2, or fontsource:<id>[@<version>][:<weight>[italic]] fetched with `retake theme fetch-font` (default the base theme's)")
+    .option('--body-font <file>', "body font file or fontsource: ref, one per weight (repeatable; default the base theme's)", collect)
     .option('--brand-name <name>', 'brand name (drawn when there is no wordmark)')
     .option('--brand-url <url>', 'brand URL shown in the outro, e.g. example.com')
     .option('--logo-kind <kind>', 'mark (the brand name drawn beside it) or wordmark (the name itself: drawn alone); default wordmark for a logo 3:1 and wider')
@@ -83,4 +83,23 @@ export function registerLookCommands({ program, action }: ProgramContext): void 
     .argument('<url>', 'https://<site>/<path>: default port, no query or fragment')
     .option('--json', 'machine-readable output')
     .action(action((u, g, url: string, o: { json?: boolean }) => themeFromSiteCommand(u, g, url, o)));
+  theme
+    .command('from-tokens')
+    .description(
+      "read a design-token file (a list format or DTCG JSON) and propose the theme's colour roles (accent, paper, text, muted, dark) by token name, then by colour, with a draft for `retake theme create` — nothing is written",
+    )
+    .argument('<file>', 'the token file: .json or .tokens, at most 1 MB')
+    .option('--map <role>=<token>', 'pick a token for a role, e.g. accent=color.brand.primary (repeatable)', collect)
+    .option('--base <theme>', 'base theme of the draft (default motion for a dark paper, else editorial)')
+    .option('--name <name>', "the draft's theme name (default from the file's name)")
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, file: string, o: { map?: string[]; base?: string; name?: string; json?: boolean }) => themeFromTokensCommand(u, g, file, o)));
+  theme
+    .command('fetch-font')
+    .description(
+      "download open-licence fonts — fontsource packages, from https://registry.npmjs.org only — into the workspace's font store (.retake/fonts/): the licence must be OFL-1.1 or Apache-2.0 as the publisher declares it, the archive must match the registry's integrity, and only the latin WOFF2 files of the faces asked and the LICENSE are kept; a theme then names them as fontsource:<id>@<version>:<weight>",
+    )
+    .argument('<refs...>', 'fontsource:<id>[@<version>][:<weight>[italic]], one per face (default weight 400; no version: the latest, resolved and recorded)')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, refs: string[], o: { json?: boolean }) => themeFetchFontCommand(u, g, refs, o)));
 }

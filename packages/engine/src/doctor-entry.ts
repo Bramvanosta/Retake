@@ -19,6 +19,7 @@ export {
   gpuCheck,
   rendersCheck,
   unsafeTestResolveCheck,
+  npmTestRegistryCheck,
 } from './doctor/machine-checks.js';
 export { capturesCheck } from './doctor/workspace-checks.js';
 export type { CapturesProbe, CheckStatus, DockerNeed, DoctorCheck, DoctorProbes, ExecResult, RendersProbe, SandboxProbe, WorkerProbe } from './doctor/types.js';

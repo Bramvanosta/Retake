@@ -255,6 +255,7 @@ const ENTRIES = [
     studio: no("the theme editor's live preview is theme_preview, in the sandboxed frame"),
   },
   { name: 'template_from_site', ...JOB, cli: ['theme from-site'], mcp: true, studio: no("a site extraction needs a person's approval of the URL: the Studio shows the command (site_list)") },
+  { name: 'template_from_tokens', ...R, cli: ['theme from-tokens'], mcp: true, studio: no('a person runs `retake theme from-tokens`; the theme editor sets colours one by one') },
   {
     name: 'template_create_from_brand',
     useCase: 'themes.create',
@@ -269,6 +270,13 @@ const ENTRIES = [
     cli: no('a person edits templates/<name>/template.yaml, or runs retake theme create --replace'),
     mcp: true,
     studio: no('the theme editor edits a theme field by field (theme_edit)'),
+  },
+  {
+    name: 'font_fetch',
+    ...W,
+    cli: ['theme fetch-font'],
+    mcp: true,
+    studio: no("a font download needs a person's approval of the registry and the packages: `retake theme fetch-font` in a terminal (the New-theme sheet picks fonts already stored)"),
   },
   { name: 'component_list', useCase: 'components.list', ...R, cli: ['components list'], mcp: true, studio: no('the library screen lists components through library_view') },
   {

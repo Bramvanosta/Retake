@@ -252,15 +252,15 @@ describe('the operation catalogue', () => {
     ]);
   });
 
-  it('counts 126 operations: 46 MCP tools, 78 Studio ops, 56 served by 46 CLI commands; 56 read, 58 write, 12 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
-    expect(CATALOGUE).toHaveLength(126);
-    expect(servedNames('mcp')).toHaveLength(46);
+  it('counts 128 operations: 48 MCP tools, 78 Studio ops, 58 served by 48 CLI commands; 57 read, 59 write, 12 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
+    expect(CATALOGUE).toHaveLength(128);
+    expect(servedNames('mcp')).toHaveLength(48);
     expect(servedNames('studio')).toHaveLength(78);
-    expect(servedNames('cli')).toHaveLength(56);
-    expect(cliCommandsOf()).toHaveLength(46);
+    expect(servedNames('cli')).toHaveLength(58);
+    expect(cliCommandsOf()).toHaveLength(48);
     const count = (f: (o: Operation) => boolean) => CATALOGUE.filter(f).length;
-    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 56, write: 58, destructive: 12 });
-    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 109, project: 9, workspace: 8 });
+    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 57, write: 59, destructive: 12 });
+    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 111, project: 9, workspace: 8 });
     expect(CATALOGUE.filter((o) => o.job).map((o) => o.name)).toEqual([
       'page_inspect',
       'scenario_record',
@@ -311,7 +311,7 @@ describe('the operation catalogue', () => {
     expect(CATALOGUE.filter((o) => o.serves).map((o) => o.name)).toEqual(['mcp_serve', 'studio_serve', 'worker_run']);
     // Served by all three, by two, by one.
     const by = (n: number) => CATALOGUE.filter((o) => SHELLS.filter((s) => servedBy(o, s)).length === n).length;
-    expect([by(3), by(2), by(1)]).toEqual([6, 42, 78]);
+    expect([by(3), by(2), by(1)]).toEqual([6, 44, 78]);
   });
 
   it('links 18 use cases served under two names (nothing renamed), one name per shell, and names each', () => {

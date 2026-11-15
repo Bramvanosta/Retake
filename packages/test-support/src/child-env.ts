@@ -7,6 +7,7 @@
  * - RETAKE_RENDER_GL / RETAKE_RENDER_ENCODER / RETAKE_RENDER_FFMPEG: the render pin of vitest.setup.ts (`software`
  * / `libx264` / `library`), so the renders of the server's worker and job processes take the software
  *   path and the rendering library's ffmpeg as the test process does.
+ * - RETAKE_TEST_NO_FONT_FETCH: the suite's guard (vitest.config.ts), so no child's font fetch reaches the npm registry.
  * PATH and HOME are the test process's; `extra` comes last (RETAKE_HOME, the test's own variables, another PATH).
  */
 export function testChildEnv(extra: Record<string, string> = {}): Record<string, string> {
@@ -19,6 +20,7 @@ export function testChildEnv(extra: Record<string, string> = {}): Record<string,
     ...pass('RETAKE_RENDER_GL'),
     ...pass('RETAKE_RENDER_ENCODER'),
     ...pass('RETAKE_RENDER_FFMPEG'),
+    ...pass('RETAKE_TEST_NO_FONT_FETCH'),
     ...extra,
   };
 }

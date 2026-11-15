@@ -2419,6 +2419,81 @@
   }
  },
  {
+  "name": "template_from_tokens",
+  "title": "Draft a theme from a design-token file",
+  "description": "Read a design-token file of the workspace (e.g. brand/tokens.json — a list format {<group>: {tokens: [{name, value}]}} or DTCG / W3C JSON with $value, $type and {alias} references; .json or .tokens, at most 1 MB; never in a hidden folder, components/ or a project's agent-writable folders) and propose the theme's colour roles — accent, paper, text, muted, dark — by token name first (primary / brand → accent, background / surface → paper, text / foreground → text, secondary / muted → muted, dark / inverse → dark), then by colour (an extreme neutral paper, the highest-contrast text, a saturated accent with 3:1 on the paper), with each role's contrast. map {role: \"<token name>\"} picks a token for a role instead. Returns the roles, the draft brand input for template_create_from_brand and the template.yaml it would make — nothing is written: show the roles to the user, let them confirm, then call template_create_from_brand. Token names and font family names come back under \"untrusted\" (the file's text); colours are named by index.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "tokens": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 300,
+     "description": "The design-token file, relative to the workspace root (e.g. brand/tokens.json): a list format or DTCG (W3C) JSON, .json or .tokens, at most 1 MB."
+    },
+    "map": {
+     "description": "Role → token name, exactly as the file names it (e.g. {accent: \"color.brand.primary\"}): overrides the proposal for that role.",
+     "type": "object",
+     "properties": {
+      "accent": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 200,
+       "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      },
+      "paper": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 200,
+       "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      },
+      "text": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 200,
+       "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      },
+      "muted": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 200,
+       "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      },
+      "dark": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 200,
+       "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      }
+     },
+     "additionalProperties": false
+    },
+    "base": {
+     "description": "Base theme of the draft (default: motion for a dark paper, else editorial).",
+     "type": "string",
+     "maxLength": 100,
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "name": {
+     "description": "The draft's theme name (default from the file's name).",
+     "type": "string",
+     "maxLength": 60,
+     "pattern": "^[a-z0-9][a-z0-9-]*$"
+    }
+   },
+   "required": [
+    "tokens"
+   ],
+   "additionalProperties": false
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
   "name": "template_create_from_brand",
   "title": "Create a theme from brand files",
   "description": "Create a NEW workspace theme, templates/<name>/, from the brand's logo, colours and fonts: template.yaml over a base theme (default editorial: its components, frame, captions, motion and durations), the logo / wordmark / fonts copied into the folder after checks, LICENSES.md and a provenance file. Files are paths relative to the workspace root that the user put there (recommended folder: brand/) — never in a hidden folder (.retake/), components/, or a project's scenarios/, runs/, renders/, review/ or exports/. Logos: .svg (plain: no script, links or external files), .png, .jpg, .webp; fonts: .ttf, .otf, .woff, .woff2 (copied as fonts/display-<Weight> and fonts/body-<Weight>; none given: the base's). Colours are hex: accent required, text / paper / muted / dark / background derived when omitted, contrast checked (text 7:1, muted 4.5:1, accent 3:1); failing derived or given colours are lifted and reported unless adjust: false, the accent is never changed (a suggestion is returned). A logo 3:1 or wider is a wordmark (drawn alone, sized by its width; logo_kind: mark keeps the brand name beside it). components {<kind>: {id?, params?}} go over the base's (e.g. {outro: {params: {logo_size: 72}}}, checked against each component), cursor {style, size} over its cursor — a palette of another tone than the base gets the cursor of its tone. Up to eight body font files, or a variable font {file, weight: \"200 800\"}. The name is lower-case and never a starter's or an existing folder's; replace: true removes and replaces only a theme this tool made through MCP that nobody edited since (never one a person made, with the CLI or in the Studio). Returns the folder, template.yaml, the palette with every ratio and change, notes, warnings; then call template_preview {project, template: name}, and template_update to adjust it.",
@@ -2534,13 +2609,13 @@
      "type": "object",
      "properties": {
       "display": {
-       "description": "Display font (titles): .ttf, .otf, .woff or .woff2 (default the base theme's).",
+       "description": "Display font (titles): .ttf, .otf, .woff or .woff2, or a fontsource:<id>[@<version>][:<weight>[italic]] font_fetch stored (default the base theme's).",
        "anyOf": [
         {
          "type": "string",
          "minLength": 1,
          "maxLength": 300,
-         "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+         "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
         },
         {
          "type": "object",
@@ -2549,7 +2624,7 @@
            "type": "string",
            "minLength": 1,
            "maxLength": 300,
-           "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+           "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
           },
           "weight": {
            "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
@@ -2588,7 +2663,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 300,
-          "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+          "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
          },
          {
           "type": "object",
@@ -2597,7 +2672,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 300,
-            "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+            "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
            },
            "weight": {
             "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
@@ -3012,7 +3087,7 @@
        "type": "string",
        "minLength": 1,
        "maxLength": 300,
-       "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+       "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
       },
       {
        "type": "null"
@@ -3033,7 +3108,7 @@
              "type": "string",
              "minLength": 1,
              "maxLength": 300,
-             "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+             "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
             },
             {
              "type": "object",
@@ -3042,7 +3117,7 @@
                "type": "string",
                "minLength": 1,
                "maxLength": 300,
-               "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+               "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
               },
               "weight": {
                "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
@@ -3087,7 +3162,7 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 300,
-              "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+              "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
              },
              {
               "type": "object",
@@ -3096,7 +3171,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 300,
-                "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+                "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
                },
                "weight": {
                 "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
@@ -3505,6 +3580,36 @@
    "destructiveHint": true,
    "idempotentHint": false,
    "openWorldHint": false
+  }
+ },
+ {
+  "name": "font_fetch",
+  "title": "Fetch open-licence fonts",
+  "description": "Download open-licence fonts (fontsource packages on the npm registry) into the workspace's font store, .retake/fonts/, for a theme: the USER is asked to approve the registry, each package and its version first, before any download (a client that cannot ask its user gets the `retake theme fetch-font` command to give them). refs: fontsource:<id>[@<version>][:<weight>[italic]] — the id is the family's slug (\"Instrument Serif\" → instrument-serif), one ref per face (default 400), at most 3 packages per call; a version not given is the registry's latest, resolved and recorded. Only https://registry.npmjs.org, no redirect; a package is kept only if its publisher declares OFL-1.1 or Apache-2.0, its archive matches the integrity the registry lists (and the one stored for that version before), and only its latin WOFF2 files of the faces asked and its LICENSE are kept. A pinned version stored with every face asked is answered from the store (no download, no question). No theme is written: give the refs returned (version pinned) to template_create_from_brand or template_update in fonts.display / fonts.body, which read the store offline.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "refs": {
+     "minItems": 1,
+     "maxItems": 32,
+     "type": "array",
+     "items": {
+      "type": "string",
+      "maxLength": 120
+     },
+     "description": "fontsource:<id>[@<version>][:<weight>[italic]] — one per face (default weight 400), e.g. [\"fontsource:inter@5.2.1:400\", \"fontsource:inter@5.2.1:600\"]."
+    }
+   },
+   "required": [
+    "refs"
+   ],
+   "additionalProperties": false
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": true
   }
  },
  {

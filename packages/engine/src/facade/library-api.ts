@@ -10,13 +10,15 @@ import { siteList } from '../views/site-list.js';
 import { createThemeFromBrand } from '../brand/create.js';
 import { updateThemeFromBrand } from '../brand/update.js';
 import { readSite, siteHostConflicts, submitSiteJob } from '../jobs/site-job.js';
+import { fetchFonts } from '../brand/fontsource-fetch.js';
+import { tokensDraft } from '../brand/tokens.js';
 import { ENGINE_TRUST } from '../caller.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
 
 /** engine.templates. */
 export function templatesApi(ctx: EngineContext): Engine['templates'] {
-  const { opts, ws, scope, submitCtx, startWorker, ports, caches, caller } = ctx;
+  const { opts, ws, scope, submitCtx, startWorker, ports, caches, caller, agent } = ctx;
   return {
     list: (o = {}) => templateList(ws, o.project),
     get: (o) => templateGet(ws, o),
@@ -29,6 +31,9 @@ export function templatesApi(ctx: EngineContext): Engine['templates'] {
       return { ...r, ...(worker ? { worker } : {}) };
     },
     site: (siteId, url) => readSite(ws, siteId, url, scope.clock),
+    fromTokens: (req) => tokensDraft(ws, req, { trust: ENGINE_TRUST, clock: scope.clock }),
+    // An agent's fetch is asked of a person first (fontsource-approval.ts), before any network contact.
+    fetchFonts: (req, o = {}) => fetchFonts(ws, req, { registry: ports.fontRegistry, clock: scope.clock, ask: agent, ...(o.approver ? { approver: o.approver } : {}), client: opts.client }),
     view: (name) => themeEditView(ws, name, caches.themeEdit),
     editList: (project) => themeEditList(ws, project, caches.themeEdit),
     edit: (name, req) => editTheme(ws, name, req, { client: opts.client, scope, memos: caches.themeEdit }),

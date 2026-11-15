@@ -167,6 +167,18 @@ export interface PruneApprovalRequest {
   renders_alone?: number;
 }
 
+/**
+ * What a person is asked before an agent's font fetch (brand/fontsource-approval.ts): the registry, each package and
+ * the version asked (null: the registry's latest), its faces, and the `retake theme fetch-font` command they run instead.
+ */
+export interface FontsApprovalRequest {
+  what: 'fonts';
+  registry: string;
+  test_registry: boolean;
+  packages: Array<{ package: string; version: string | null; faces: string[] }>;
+  fix: string;
+}
+
 /** How a client asks its human (MCP: elicitation). Absent: the client cannot ask anyone. */
 export interface Approver {
   approve(req: ApprovalRequest): Promise<ApprovalOutcome>;
@@ -174,6 +186,8 @@ export interface Approver {
   approveSite?(req: SiteApprovalRequest): Promise<ApprovalOutcome>;
   /** An agent's prune (absent: this client cannot ask about one — refused like no approver). */
   approvePrune?(req: PruneApprovalRequest): Promise<ApprovalOutcome>;
+  /** An agent's font fetch (absent: this client cannot ask about one — refused like no approver). */
+  approveFonts?(req: FontsApprovalRequest): Promise<ApprovalOutcome>;
 }
 
 export interface Preflight {
@@ -371,7 +385,7 @@ export async function takeApprovals(req: ApprovalRequest, approver: Approver | u
   return req.items.map((i) => ({ fingerprint: i.fingerprint, by: 'human-elicitation' as const, at }));
 }
 
-function outcomeText(outcome: Exclude<ApprovalOutcome, { approved: true }>): string {
+export function outcomeText(outcome: Exclude<ApprovalOutcome, { approved: true }>): string {
   return outcome.reason === 'declined'
     ? 'the user declined'
     : outcome.reason === 'cancelled'

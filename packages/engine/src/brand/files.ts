@@ -31,7 +31,7 @@ import { expandHome, printableText } from '@retake/core/base';
 import { agentWritable, realPathOf } from '@retake/core/policy';
 import { STATE_DIR, STATE_DIRS } from '@retake/core/project';
 import { insideFolder } from '@retake/core/scenario';
-import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, brandRefSyntaxProblem, rasterSize, siteRef, svgSize } from '@retake/core/theme';
+import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, brandRefSyntaxProblem, isFontsourceRef, rasterSize, siteRef, svgSize } from '@retake/core/theme';
 import { nodeFileFacts } from '@retake/core/io';
 import type { CallerTrust } from '../caller.js';
 import { EngineError } from '../errors.js';
@@ -51,7 +51,11 @@ export const IMAGE_MAX_SIDE = 8192;
 export const LOGO_EXTENSIONS = ['.svg', '.png', '.jpg', '.jpeg', '.webp'] as const;
 export const FONT_EXTENSIONS = ['.ttf', '.otf', '.woff', '.woff2'] as const;
 
-export type BrandFileKind = 'logo' | 'wordmark' | 'font';
+/** A design-token file (template_from_tokens): JSON, at most this many bytes (core TOKENS_MAX_CHARS). */
+export const TOKENS_EXTENSIONS = ['.json', '.tokens'] as const;
+export const TOKENS_MAX_BYTES = 1024 * 1024;
+
+export type BrandFileKind = 'logo' | 'wordmark' | 'font' | 'tokens';
 
 export interface ResolvedBrandFile {
   /** As given. */
@@ -89,7 +93,9 @@ export function brandSourceProblem(ws: OpenedWorkspace, ref: string, real: strin
 
 /** A brand file reference resolved and read, after the source rules of its trust; the content is checked by the caller. */
 export async function readBrandFile(ws: OpenedWorkspace, ref: string, kind: BrandFileKind, o: { trust: BrandTrust; cwd?: string; budget?: { left: number } }): Promise<ResolvedBrandFile> {
-  const what = kind === 'font' ? 'font' : kind;
+  const what = kind === 'tokens' ? 'token file' : kind;
+  // A font of the font store is read by its own reader (fontsource-store.ts), never as a path of any trust.
+  if (isFontsourceRef(ref)) throw refused(`${what}: ${ref} is a fontsource reference: ${kind === 'font' ? 'it is read from the font store' : `a ${what} is a file of the workspace (e.g. brand/${kind === 'tokens' ? 'tokens.json' : 'logo.svg'})`}`);
   // A logo candidate of a site extraction (any trust): the only way into .retake/, and only to its PNGs.
   if (siteRef(ref) || (o.trust === 'author' && ref.startsWith('site:'))) return readSiteCandidate(ws, ref, kind, what, o.budget);
   let abs: string;
@@ -111,11 +117,12 @@ export async function readBrandFile(ws: OpenedWorkspace, ref: string, kind: Bran
     if (p) throw refused(`${what}: ${p}`);
   }
   const ext = extname(real).toLowerCase() || extname(abs).toLowerCase();
-  const allowed: readonly string[] = kind === 'font' ? FONT_EXTENSIONS : LOGO_EXTENSIONS;
-  if (!allowed.includes(ext)) throw new EngineError('invalid', `${what}: ${ref} is not ${kind === 'font' ? 'a font file (.ttf, .otf, .woff, .woff2)' : 'an image file (.svg, .png, .jpg, .webp)'}`);
+  const allowed: readonly string[] = kind === 'font' ? FONT_EXTENSIONS : kind === 'tokens' ? TOKENS_EXTENSIONS : LOGO_EXTENSIONS;
+  const want = kind === 'font' ? 'a font file (.ttf, .otf, .woff, .woff2)' : kind === 'tokens' ? 'a design-token file (.json, .tokens)' : 'an image file (.svg, .png, .jpg, .webp)';
+  if (!allowed.includes(ext)) throw new EngineError('invalid', `${what}: ${ref} is not ${want}`);
   const st = await stat(real);
   if (!st.isFile()) throw new EngineError('invalid', `${what}: ${ref} is not a file`);
-  const max = kind === 'font' ? FONT_MAX_BYTES : ext === '.svg' ? SVG_MAX_BYTES : IMAGE_MAX_BYTES;
+  const max = kind === 'font' ? FONT_MAX_BYTES : kind === 'tokens' ? TOKENS_MAX_BYTES : ext === '.svg' ? SVG_MAX_BYTES : IMAGE_MAX_BYTES;
   if (st.size > max) throw new EngineError('invalid', `${what}: ${ref} is ${st.size} bytes, more than the ${max} a ${ext.slice(1).toUpperCase()} ${what} may have`);
   if (o.budget) {
     if (st.size > o.budget.left) throw new EngineError('invalid', `the brand files are more than ${BRAND_TOTAL_MAX_BYTES} bytes together`);
@@ -135,7 +142,7 @@ async function readSiteCandidate(ws: OpenedWorkspace, ref: string, kind: BrandFi
   const syntax = brandRefSyntaxProblem(ref);
   const site = siteRef(ref);
   if (syntax || !site) throw refused(`${what}: ${syntax ?? `${ref}: a site reference is site:<site id>/logo-<n>`}`);
-  if (kind === 'font') throw refused(`${what}: ${ref} is a logo candidate of a site extraction: fonts come from font files (brand/), never from a site`);
+  if (kind === 'font' || kind === 'tokens') throw refused(`${what}: ${ref} is a logo candidate of a site extraction: ${kind === 'font' ? 'fonts come from font files (brand/)' : 'tokens come from a token file (brand/)'}, never from a site`);
   // No link on the way either: .retake/, site/ and the extraction's folder are real folders.
   let folder = ws.root;
   for (const seg of [STATE_DIR, STATE_DIRS.site, site.site_id]) {

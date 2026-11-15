@@ -14,7 +14,8 @@
  * performs a flow, never driven by Claude; the draft comes back through job_status), and new themes
  * (template_create_from_brand
  * from the user's files, template_update of one it made that nobody changed; template_from_site — a draft read off a public page whose URL the user
- * approves, as a job), and frame comments (comments_list with each thread's anchor and still, comment_reply,
+ * approves, as a job; template_from_tokens — a draft read off a design-token file; font_fetch — open-licence fonts the user
+ * approves downloaded into the font store), and frame comments (comments_list with each thread's anchor and still, comment_reply,
  * comment_resolve with if_match — people create and reopen threads with `retake comment` or in the Studio, never
  * through this
  * server; comment_reply {proposal} for an edit-only change on a Studio thread, applied by the person there).

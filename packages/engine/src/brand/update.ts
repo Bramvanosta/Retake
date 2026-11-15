@@ -21,6 +21,8 @@ import type { OpenedWorkspace } from '../workspace.js';
 import { checkedProvenance, createThemeFromBrand, readThemeFile } from './create.js';
 import type { ThemeCreateOptions, ThemeCreated, ThemeReuse } from './create.js';
 import type { ResolvedBrandFile } from './files.js';
+import type { FontsourceLicence } from './fontsource-store.js';
+import { citedFontsourceLicences } from './licences.js';
 
 function parsePatch(raw: unknown): BrandPatch {
   const parsed = BrandPatchSchema.safeParse(raw);
@@ -96,7 +98,12 @@ export async function updateThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   }
   let baseLicences: string | undefined;
   const own = await readThemeFile(join(dir, 'LICENSES.md'));
-  if (own && sha256Hex(own) === prov.files['LICENSES.md']) baseLicences = citedBaseLicences(own.toString('utf8'), prov.base);
+  let fontsource: Map<string, FontsourceLicence> | undefined;
+  if (own && sha256Hex(own) === prov.files['LICENSES.md']) {
+    baseLicences = citedBaseLicences(own.toString('utf8'), prov.base);
+    // A reused fontsource font's licence: the theme's own citation (no font store needed for a font the patch keeps).
+    fontsource = citedFontsourceLicences(own.toString('utf8'));
+  }
   const reuse: ThemeReuse = {
     file(ref, kind): ResolvedBrandFile | undefined {
       const c = copies.get(`${kind}:${ref}`);
@@ -104,6 +111,7 @@ export async function updateThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
     },
     base: (source) => copies.get(source)?.bytes,
     ...(baseLicences !== undefined ? { baseLicences } : {}),
+    ...(fontsource?.size ? { fontsource } : {}),
     created_at: prov.created_at,
     changed,
   };

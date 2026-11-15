@@ -388,6 +388,7 @@ export const PORT_FILES = [
   'packages/engine/src/workspace-reads/reads.ts',
   'packages/engine/src/outputs/outputs.ts',
   'packages/engine/src/registries/registries.ts',
+  'packages/engine/src/fonts/font-registry.ts',
 ];
 /**
  * The engine's own layers (engine-layer), lowest first: a file imports files of its own layer and of the layers below,
@@ -448,6 +449,7 @@ export const ENGINE_LAYERS = [
       'outputs/',
       'workspace-reads/',
       'registries/',
+      'fonts/',
       'http/',
       'jobs/queue.ts',
       'jobs/queue-core.ts',
@@ -665,7 +667,7 @@ export const CORE_CONTEXTS = [
     ],
   },
   { name: 'render', files: ['render-record', 'schemas/render', 'ffprobe', 'gpu', 'export-formats'] },
-  { name: 'theme', files: ['types/theme', 'template', 'template-defaults', 'components', 'theme-edits', 'brand', 'site', 'image-size', 'schemas/template'] },
+  { name: 'theme', files: ['types/theme', 'template', 'template-defaults', 'components', 'theme-edits', 'brand', 'site', 'image-size', 'fontsource-ref', 'brand-tokens', 'schemas/template'] },
   { name: 'schema', files: ['schemas/json', 'schemas/type-checks'] },
 ];
 /**

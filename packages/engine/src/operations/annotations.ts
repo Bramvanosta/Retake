@@ -23,6 +23,11 @@ export const PREVIEW_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHi
  * only) and its colours, font names and logo PNGs go to <workspace>/.retake/site/ (no theme written).
  */
 export const SITE_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
+/**
+ * Downloads open-licence font packages a person approved from the npm registry into the workspace's font store
+ * (.retake/fonts/; no theme written): the network, hence open world. Asking again for stored fonts changes nothing.
+ */
+export const FONT_FETCH: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true };
 /** Starts a job that drives a browser (and hooks) against an environment of the user's product. */
 export const RUN_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
 /** A job's cancel, which discards a recording whose window is open (the catalogue: job_cancel is destructive). */

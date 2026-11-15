@@ -15,6 +15,14 @@ release — for the person about to click Install and Restart.
   `--cursor-size`, `--logo-kind`); the Studio's theme editor has a Logo kind choice.
 - Variable fonts: `{file, weight: "200 800"}` (or a TrueType / OpenType font's own `wght` axis) is one face for the
   whole range, copied as `fonts/body-wght200-800.<ext>`.
+- Open-licence fonts by name: `retake theme fetch-font fontsource:inter:400 …` (or Claude's `font_fetch`, which you
+  approve in a form first) downloads fontsource packages from the npm registry into the workspace's font store
+  (`.retake/fonts/`) — OFL-1.1 or Apache-2.0 only, the archive checked against the registry's integrity, the latin WOFF2
+  files and the LICENSE kept —, and a theme names them (`--display-font fontsource:inter@5.2.1:600`, `fonts.body`),
+  read offline; `LICENSES.md` cites each package. The Studio's New theme lists the stored faces.
+- Themes from design tokens: `retake theme from-tokens <file>` (Claude: `template_from_tokens`) reads a list-format or
+  DTCG token file and proposes the theme's colour roles — by token name, then by colour — with a draft to create it
+  (`--map role=token` picks another token). Nothing is written.
 - The workspace journal, `.retake/journal.jsonl`: every file Retake writes for you (a scenario, the README, a comment
   thread, a theme, a component, a new project, a sandbox scaffold) and every hook it runs, with who did it (you in a
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.

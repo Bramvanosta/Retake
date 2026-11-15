@@ -10,6 +10,8 @@ export { hooksTrustView, trustScenarioHooks, listedAuthor, listingContext, reser
 export { approvalFormText, pruneApprovalFormText } from './approvals.js';
 export { ago, checkedText, loginCommandAt, recheckSessions, personaState, projectPersonaStates, tildePath } from './auth.js';
 export { createThemeFromBrand } from './brand/create.js';
+export { fetchFonts } from './brand/fontsource-fetch.js';
+export { tokensDraft } from './brand/tokens.js';
 export { callerOf, submittedInStudio } from './caller.js';
 export { addComment, defaultAuthorName, listComments, reopenComment, replyComment, resolveComment } from './comments.js';
 export { componentCreateShell, componentListEntries, componentPreviewTargets, componentPreviewTheme, componentReadmeWriter, componentValidateShell } from './components.js';
