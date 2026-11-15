@@ -128,6 +128,11 @@ class MemoryProjectStore extends MemoryFolder implements ProjectStore {
     return this.writeText(this.refOf(path), text, opts);
   }
 
+  /** The Map holds files only: a folder is the files under it, so an empty one is checked (its ref) and kept nowhere. */
+  async makeFolder(ref: string): Promise<void> {
+    this.resolve(ref);
+  }
+
   async createFolder<T>(
     parent: string,
     name: string,

@@ -9,8 +9,10 @@ import { JOB_STATES } from '@retake/engine';
 import type { JobState } from '@retake/engine';
 import { EngineError, FINISHED_JOB_STATES, createEngine, jobOutcome, jobProgress, jobProject, jobWhat, yieldWords } from '@retake/engine';
 import type { Engine } from '@retake/engine';
+import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
+import { invokeOperation } from '../invoke.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
 import type { GlobalOptions } from '../workspace.js';
@@ -135,7 +137,11 @@ export async function jobsStatusCommand(ui: Ui, global: GlobalOptions, id: strin
   return EXIT.ok;
 }
 
-/** `retake jobs cancel <id>`: a queued job never starts; a running one stops (its teardown and rollbacks still run). */
+/**
+ * `retake jobs cancel <id>`: a queued job never starts; a running one stops (its teardown and rollbacks still run). The
+ * cancel is the job_cancel operation; the job is read first, so that a job finished before it is said so (a queued job
+ * just cancelled and one cancelled before both answer `cancelled`).
+ */
 export async function jobsCancelCommand(ui: Ui, global: GlobalOptions, id: string): Promise<ExitCode> {
   checkId(id);
   const engine = await engineOf(global);
@@ -144,7 +150,7 @@ export async function jobsCancelCommand(ui: Ui, global: GlobalOptions, id: strin
     ui.line(`${id} is already ${before.state}: nothing to cancel`);
     return EXIT.ok;
   }
-  const job = await engineCall(() => engine.jobs.cancel(id));
+  const { data: job } = await engineCall(() => invokeOperation(OPERATIONS_BY_NAME.job_cancel, engine, { job_id: id }));
   if (job.state === 'cancelled') ui.ok(`${id} cancelled (${jobWhat(job.input)})`);
   else ui.ok(`${id}: cancel requested (${jobWhat(job.input)}) — its teardown and rollbacks run first; retake jobs status ${id} follows it`);
   return EXIT.ok;

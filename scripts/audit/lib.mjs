@@ -227,8 +227,8 @@ export const CLOCK_HOME = 'packages/engine/src/clock.ts';
 export const STORE_HOME = 'packages/engine/src/store/';
 /** The WorkspaceReads port's folder (workspace-read, L7.38): the one engine folder that names a workspace loader of core io. */
 export const WORKSPACE_READS_HOME = 'packages/engine/src/workspace-reads/';
-/** The shell sources the workspace-read check reads beside the engine: the CLI's (its commands, its composition root). */
-export const WORKSPACE_READ_SHELLS = ['packages/cli/src/'];
+/** The shell sources the workspace-read check reads beside the engine: the CLI's and the Studio server's (their commands and routes, their composition roots). */
+export const WORKSPACE_READ_SHELLS = ['packages/cli/src/', 'packages/ui/src/server/'];
 /** The product's Secrets adapter: the one engine file that calls core io's secret resolvers (secret-resolve). */
 export const SECRETS_HOME = 'packages/engine/src/secrets/system-secrets.ts';
 /** The Outputs port's folder (output-read): the one engine folder that names core io's readers of a run folder and of renders/. */
@@ -278,7 +278,14 @@ export const STORAGE_FILE = 'packages/engine/src/storage.ts';
  */
 export const PORT_ROOTS = {
   systemClock: [CLOCK_HOME, 'packages/engine/src/ports.ts', 'packages/engine/src/jobs/queue.ts', 'packages/engine/src/jobs/memory-queue.ts'],
-  enginePorts: ['packages/engine/src/ports.ts', 'packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/cli/src/workspace.ts'],
+  enginePorts: [
+    'packages/engine/src/ports.ts',
+    'packages/engine/src/engine.ts',
+    'packages/engine/src/jobs/worker.ts',
+    'packages/engine/src/jobs/job-child.ts',
+    'packages/cli/src/workspace.ts',
+    'packages/ui/src/server/ports.ts',
+  ],
   diskProjectStores: ['packages/engine/src/store/project-store.ts', 'packages/engine/src/ports.ts'],
   diskWorkspaceReads: ['packages/engine/src/workspace-reads/disk-reads.ts', 'packages/engine/src/ports.ts'],
   MemoryWorkspace: ['packages/engine/src/workspace-reads/memory-reads.ts'],
@@ -368,6 +375,8 @@ export const RENDER_CALLS = [
  * composition roots hand on) and the job process's and worker's entry (worker-main.ts: their command line's settings).
  */
 export const ENV_HOMES = ['packages/engine/src/ports.ts', 'packages/engine/src/worker-main.ts'];
+/** The doctor's probes adapter (doctor-exec): the one file of the engine's doctor that starts programs. */
+export const DOCTOR_PROBES_HOME = 'packages/engine/src/doctor/machine-probes.ts';
 /** The one module that names playwright-core's private browser registry (browser-registry, L7.25). */
 export const BROWSER_REGISTRY_HOME = 'packages/core/src/io/browsers.ts';
 /** The one module that starts the media tools, ffmpeg and ffprobe (media-call, L7.31). */
@@ -573,7 +582,7 @@ export const CHECKS = [
   },
   {
     id: 'workspace-read',
-    title: `the engine reads a workspace through its WorkspaceReads port (${WORKSPACE_READS_HOME}, L7.38), and so does the CLI: in packages/engine/src outside it and in ${WORKSPACE_READ_SHELLS.join(', ')} (WORKSPACE_READ_SHELLS), a value import of a workspace loader of \`@retake/core/io\` (WORKSPACE_LOADERS: the loaders of io workspace.ts, project.ts, scenario.ts, template.ts and sandbox.ts, their \`…On\` forms, \`workspaceReader\`, \`nodeWorkspaceReader\`, \`nodeWorkspaceDisk\`) under its name or an alias, a loader read off a namespace import of it (\`io.loadProject\`, \`io['loadProject']\`), a loader re-exported from it (\`export { loadProject } from\`, \`export * from\`), an \`import()\` or \`require()\` of it (\`import() of @retake/core/io\`, whatever it takes out); and the product's adapter \`diskWorkspaceReads\` named as a value outside PORT_ROOTS (\`<name> outside a root\`). Read through parentheses, \`as\`, \`satisfies\` and \`!\` around the namespace. Not seen: a loader reached through another module that re-exports it under its own name, a namespace member taken by destructuring (\`const { loadProject } = io\`), a namespace aliased (\`const m = io\` then \`m.loadProject\`) or passed on whole, a key computed at run time (\`io[name]\`); and the in-memory adapter \`MemoryWorkspace\` named as a value in packages/*/src outside its own file (a test's fake, \`<name> outside a root\`)`,
+    title: `the engine reads a workspace through its WorkspaceReads port (${WORKSPACE_READS_HOME}, L7.38), and so do the CLI and the Studio server: in packages/engine/src outside it and in ${WORKSPACE_READ_SHELLS.join(', ')} (WORKSPACE_READ_SHELLS), a value import of a workspace loader of \`@retake/core/io\` (WORKSPACE_LOADERS: the loaders of io workspace.ts, project.ts, scenario.ts, template.ts and sandbox.ts, their \`…On\` forms, \`workspaceReader\`, \`nodeWorkspaceReader\`, \`nodeWorkspaceDisk\`) under its name or an alias, a loader read off a namespace import of it (\`io.loadProject\`, \`io['loadProject']\`), a loader re-exported from it (\`export { loadProject } from\`, \`export * from\`), an \`import()\` or \`require()\` of it (\`import() of @retake/core/io\`, whatever it takes out); and the product's adapter \`diskWorkspaceReads\` named as a value outside PORT_ROOTS (\`<name> outside a root\`). Read through parentheses, \`as\`, \`satisfies\` and \`!\` around the namespace. Not seen: a loader reached through another module that re-exports it under its own name, a namespace member taken by destructuring (\`const { loadProject } = io\`), a namespace aliased (\`const m = io\` then \`m.loadProject\`) or passed on whole, a key computed at run time (\`io[name]\`); and the in-memory adapter \`MemoryWorkspace\` named as a value in packages/*/src outside its own file (a test's fake, \`<name> outside a root\`)`,
   },
   {
     id: 'loader-use',
@@ -604,6 +613,10 @@ export const CHECKS = [
   {
     id: 'env-read',
     title: `the engine reads its environment from the value its composition root hands it (EnginePorts \`env\`, packages/engine/src/env.ts), never \`process.env\` where it is used: in packages/engine/src outside ENV_HOMES (${ENV_HOMES.join(', ')}), every \`process.env\` read is counted per file — \`process.env\` as a value, a member (\`process.env.X\`, \`process.env['X']\`), spread or handed on whole, a default parameter included — and so are \`process['env']\`, \`process\` through parentheses and casts (\`(process).env\`) and \`env\` taken out of it by a pattern (\`const { env } = process\`) (entries: each file and its count). Not seen: \`process\` under another name (\`const p = process\`, \`globalThis.process\`), a key computed at run time, \`process.env\` reached through another module, and everything outside packages/engine/src`,
+  },
+  {
+    id: 'doctor-exec',
+    title: `the doctor's checks run programs through the probes they are handed (machineProbes: \`exec\`, \`which\`…), never by themselves: in packages/engine/src/doctor/ outside ${DOCTOR_PROBES_HOME} (the probes adapter), a module specifier of \`node:child_process\` or \`child_process\` — an import, a type import, a re-export, \`import()\`, \`require()\` — is a hit (entries: the file and the specifier). Not seen: a starter reached through another module (an engine file that starts programs and is imported by a check), and everything outside the doctor's folder`,
   },
   {
     id: 'browser-registry',
@@ -1232,8 +1245,8 @@ const CORE_IO = '@retake/core/io';
 
 /**
  * The workspace reads' wiring (workspace-read), read from the syntax tree: in packages/engine/src outside
- * WORKSPACE_READS_HOME and in the CLI's sources (WORKSPACE_READ_SHELLS: a command reads its workspace through the
- * WorkspaceReads its ports hold, as the engine does), a loader of WORKSPACE_LOADERS imported from `@retake/core/io` as a value (its name, an alias),
+ * WORKSPACE_READS_HOME and in the CLI's and the Studio server's sources (WORKSPACE_READ_SHELLS: a command or a route
+ * reads its workspace through the WorkspaceReads its ports hold, as the engine does), a loader of WORKSPACE_LOADERS imported from `@retake/core/io` as a value (its name, an alias),
  * read off a namespace import of it, re-exported from it, and `import()` / `require()` of it. Type-only imports load
  * nothing. `[{ rule, file, spec }]`, one per name and file.
  */
@@ -1542,6 +1555,20 @@ export function envReadHits(root, files) {
       if (!ts.isTypeNode(n)) n.forEachChild(visit);
     })(sf);
     if (count) hits.push({ rule: 'env-read', file: rel, count });
+  }
+  return hits;
+}
+
+/**
+ * The doctor's own starts of programs (doctor-exec): in packages/engine/src/doctor/ outside DOCTOR_PROBES_HOME, every
+ * module specifier of node:child_process (specifiersOf: static, type, re-export, import(), require()). `[{ rule, file, spec }]`.
+ */
+export function doctorExecHits(root, files) {
+  const ts = loadTs(root);
+  const hits = [];
+  for (const { rel, text } of files) {
+    if (!rel.startsWith('packages/engine/src/doctor/') || rel === DOCTOR_PROBES_HOME || !text.includes('child_process')) continue;
+    for (const spec of new Set(specifiersOf(ts, rel, text))) if (spec === 'node:child_process' || spec === 'child_process') hits.push({ rule: 'doctor-exec', file: rel, spec });
   }
   return hits;
 }
@@ -2326,6 +2353,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
     ...portTypeHits(scanned.fileImports),
     ...coreContextHits(root, scanned.files),
     ...coreRootHits(root, scanned.files),
+    ...doctorExecHits(root, scanned.files),
   ])
     set.add(`${h.rule} ${h.file} → ${h.spec}`);
   const ports = portHits(root, scanned.files);

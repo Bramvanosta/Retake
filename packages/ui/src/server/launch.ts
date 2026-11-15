@@ -14,7 +14,7 @@
 import { resolve } from 'node:path';
 import { isUnder, bestEffort } from '@retake/core/base';
 import { realPathOf, workspaceFolders } from '@retake/core/policy';
-import { loadWorkspaceConfig, retakeHome, nodeFileFacts } from '@retake/core/io';
+import { retakeHome, nodeFileFacts } from '@retake/core/io';
 import {
   DISCOVERY_VERSION,
   EngineError,
@@ -32,6 +32,7 @@ import {
   writeStudioToken,
 } from '@retake/engine';
 import type { DiscoveryRecord, StudioTokenRecord } from '@retake/engine';
+import { studioPorts } from './ports.js';
 import { startStudioServer } from './studio.js';
 import type { StudioServer, StudioServerOptions } from './studio.js';
 
@@ -102,7 +103,7 @@ async function running(root: string, file: string, tokenFile: string, holder?: D
  */
 async function assertTokenOutside(root: string): Promise<void> {
   const dir = studioTokenDir(process.env);
-  const folders = await loadWorkspaceConfig(root).then(workspaceFolders, () => [resolve(root)]);
+  const folders = await studioPorts.reads.loadWorkspaceConfig(root).then(workspaceFolders, () => [resolve(root)]);
   const inside = folders.find((f) => isUnder(dir, f, nodeFileFacts) || isUnder(realPathOf(dir, nodeFileFacts), f, nodeFileFacts));
   if (inside) {
     throw new EngineError('refused', `the Retake home (${retakeHome()}) lies inside the workspace (${inside}): the Studio keeps its token there, where an agent can read files`, {

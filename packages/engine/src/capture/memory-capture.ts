@@ -56,7 +56,9 @@ export interface MemoryCaptureRunnerOptions {
 }
 
 /** The capture browser of a runner with no browser: none is known, none launched. */
-const NO_BROWSER: CaptureRunner['probe'] = async () => ({ path: null, source: 'playwright', exists: false, launched: false });
+/** No browser: none known (Playwright's registry, as the runner says it), or the project's own executable, never there. */
+const NO_BROWSER: CaptureRunner['probe'] = async (browser) =>
+  browser?.executable ? { path: browser.executable, source: 'browser.executable', exists: false, launched: false } : { path: null, source: 'playwright', exists: false, launched: false };
 
 export class MemoryCaptureRunner implements CaptureRunner {
   readonly calls: MemoryCaptureCall[] = [];
@@ -73,14 +75,15 @@ export class MemoryCaptureRunner implements CaptureRunner {
   #loaded = false;
 
   constructor(o: MemoryCaptureRunnerOptions = {}) {
+    this.#clock = o.clock ?? new ManualClock('2026-11-11T12:00:00.000Z');
     this.record = o.record ?? memoryRecord();
-    this.sessions = o.sessions ?? memorySessions();
+    // Its sessions stamp what they save with the runner's clock.
+    this.sessions = o.sessions ?? memorySessions({ clock: this.#clock });
     this.hookPages = o.hookPages ?? memoryHookPages();
     this.site = o.site ?? memorySite();
     this.raw = o.raw ?? memoryRaw(this.calls);
     this.probe = o.probe ?? NO_BROWSER;
     this.#fail = o.fail;
-    this.#clock = o.clock ?? new ManualClock('2026-11-11T12:00:00.000Z');
   }
 
   async load(): Promise<void> {

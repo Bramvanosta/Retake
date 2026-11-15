@@ -58,6 +58,7 @@ const SOFTWARE_MACHINE: RenderMachine = {
     policy: {
       gl: { asked: 'auto', resolved: 'software', source: 'default' },
       encoder: { asked: 'auto', source: 'default' },
+      ffmpeg: { asked: 'auto', source: 'default' },
       concurrency: 1,
       concurrencySource: 'default',
       platform: 'memory',
@@ -65,6 +66,7 @@ const SOFTWARE_MACHINE: RenderMachine = {
     gl: 'software',
     encoder: 'libx264',
     concurrency: 1,
+    ffmpeg: { used: 'library', byRule: true },
   }),
   browser: async () => ({ path: null, source: 'none' }),
 };

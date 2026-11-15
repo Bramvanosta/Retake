@@ -26,7 +26,6 @@ import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { workspaceFolders } from '@retake/core/policy';
-import { loadWorkspaceConfig } from '@retake/core/io';
 import {
   BodyTooLargeError,
   BootstrapCodes,
@@ -65,6 +64,7 @@ import { UnsavedBoard, unsavedOps } from './unsaved.js';
 import { DesktopPipe, desktopOps } from './desktop.js';
 import { SetupState, setupOps, systemSetupContext } from './setup-ops.js';
 import { UpdateState, updateOps } from './update-ops.js';
+import { studioPorts } from './ports.js';
 import type { SetupContext } from './setup-ops.js';
 
 /**
@@ -293,7 +293,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   const assets = await buildUi();
   // The Studio starts the worker when a run is submitted, with a clean environment — cleaned of every folder of the workspace (its projects, templates and components folders may lie outside the root).
   const root = resolve(o.root);
-  const folders = await loadWorkspaceConfig(root).then(workspaceFolders, () => [root]);
+  const folders = await studioPorts.reads.loadWorkspaceConfig(root).then(workspaceFolders, () => [root]);
   const engine = await createEngine({
     root: o.root,
     client: 'ui',

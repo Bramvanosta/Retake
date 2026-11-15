@@ -20,7 +20,7 @@ import { randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
 import { copyFile, mkdir, open, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { errorKindOf, bestEffort } from '@retake/core/base';
+import { errorKindOf, bestEffort, pathInside } from '@retake/core/base';
 import type { TakeLock } from '@retake/core/io';
 import { callerOf } from '../caller.js';
 import type { Clock } from '../clock.js';
@@ -93,6 +93,28 @@ class DiskProjectStore implements ProjectStore {
   /** writeText of a file given by its absolute path inside the store's folder (the writer an adapter is handed); a path outside it rejects. */
   async writeFileAt(path: string, text: string, opts: StoreWriteOptions): Promise<WriteResult> {
     return this.writeText(this.#storage.refOf(path), text, opts);
+  }
+
+  async makeFolder(ref: string): Promise<void> {
+    const path = this.#storage.resolve(ref);
+    // The store's own folder is made as it is named (a new workspace's); what lies under it is checked.
+    await mkdir(this.#storage.root, { recursive: true });
+    const realRoot = await realpath(this.#storage.root);
+    const inside = async (p: string) => pathInside(await realpath(p), realRoot, { dotDotPrefix: true });
+    // The nearest folder already there must lie in the store (no link out of it), before anything is made; the folder
+    // made is checked again (a link swapped in meanwhile).
+    let there = dirname(path);
+    while (
+      !(await realpath(there).then(
+        () => true,
+        () => false,
+      )) &&
+      dirname(there) !== there
+    )
+      there = dirname(there);
+    if (!(await inside(there))) throw new EngineError('refused', `${path} leads out of ${this.#storage.root} (a symbolic link): not made`);
+    await mkdir(path, { recursive: true });
+    if (!(await inside(path))) throw new EngineError('refused', `${path} leads out of ${this.#storage.root} (a symbolic link): not made`);
   }
 
   /**

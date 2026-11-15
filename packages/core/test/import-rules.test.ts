@@ -572,11 +572,11 @@ describe('the import-rules ratchet', () => {
         'workspace-read packages/engine/src/a.ts → workspaceReader',
         'workspace-read packages/engine/src/a.ts → nodeWorkspaceDisk',
       ]);
-      // The port's folder, a type-only import, another name of core io, another module and a file outside the engine and the CLI are free.
+      // The port's folder, a type-only import, another name of core io, another module and a file outside the engine and the shells read are free.
       expect(reads('packages/engine/src/workspace-reads/disk-reads.ts', "import { nodeWorkspaceReader } from '@retake/core/io';")).toEqual([]);
       expect(reads('packages/engine/src/a.ts', "import type { loadProject } from '@retake/core/io';\nimport { type listProjects, retakeHome } from '@retake/core/io';")).toEqual([]);
       expect(reads('packages/engine/src/a.ts', "import { loadProject } from './projects.js';\nimport { loadTemplate } from '@retake/core/template';")).toEqual([]);
-      expect(reads('packages/ui/src/server/a.ts', "import { loadProject } from '@retake/core/io';")).toEqual([]);
+      expect(reads('packages/ui/src/app/a.ts', "import { loadProject } from '@retake/core/io';")).toEqual([]);
     });
 
     it('flags a loader read off a namespace import, re-exported, or core io loaded by import() or require()', () => {
@@ -606,19 +606,31 @@ describe('the import-rules ratchet', () => {
       expect(reads('packages/engine/src/a.ts', "import * as io from '@retake/core/io';\nconst m = io;\nm.loadProject('x');")).toEqual([]);
       expect(reads('packages/engine/src/a.ts', "import * as io from '@retake/core/io';\nconst k = 'loadProject';\nio[k]('x');")).toEqual([]);
       const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'workspace-read')!.title;
-      for (const words of ['const { loadProject } = io', 'const m = io', 'io[name]', '`satisfies`', 'outside a root', 'WORKSPACE_LOADERS', 'MemoryWorkspace', 'packages/cli/src/'])
+      for (const words of [
+        'const { loadProject } = io',
+        'const m = io',
+        'io[name]',
+        '`satisfies`',
+        'outside a root',
+        'WORKSPACE_LOADERS',
+        'MemoryWorkspace',
+        'packages/cli/src/',
+        'packages/ui/src/server/',
+      ])
         expect(title, words).toContain(words);
     });
 
-    it("reads the CLI's sources too (a command reads its workspace through its ports' WorkspaceReads); the other shells and adapters are not read", () => {
-      expect(lib.WORKSPACE_READ_SHELLS).toEqual(['packages/cli/src/']);
+    it("reads the CLI's and the Studio server's sources too (a command or a route reads its workspace through its ports' WorkspaceReads); MCP, the Studio front end and the adapters are not read", () => {
+      expect(lib.WORKSPACE_READ_SHELLS).toEqual(['packages/cli/src/', 'packages/ui/src/server/']);
       expect(reads('packages/cli/src/commands/a.ts', "import { listProjects, retakeHome } from '@retake/core/io';")).toEqual(['workspace-read packages/cli/src/commands/a.ts → listProjects']);
       expect(reads('packages/cli/src/a.ts', "import * as io from '@retake/core/io';\nio.findWorkspaceRoot();")).toEqual(['workspace-read packages/cli/src/a.ts → findWorkspaceRoot']);
       expect(reads('packages/cli/src/commands/a.ts', "import type { LoadedProject } from '@retake/core/io';\nimport { clientPath } from '@retake/core/io';")).toEqual([]);
+      expect(reads('packages/ui/src/server/a.ts', "import { loadWorkspaceConfig } from '@retake/core/io';")).toEqual(['workspace-read packages/ui/src/server/a.ts → loadWorkspaceConfig']);
+      expect(reads('packages/ui/src/server/a.ts', "import { nodeFileFacts, retakeHome } from '@retake/core/io';")).toEqual([]);
       expect(reads('packages/mcp/src/a.ts', "import { loadProject } from '@retake/core/io';")).toEqual([]);
       expect(reads('packages/runner-web/src/a.ts', "import { loadProject } from '@retake/core/io';")).toEqual([]);
-      // Holds today: no CLI source names a loader.
-      expect(ratchetOfRepo().filter((e) => e.startsWith('workspace-read packages/cli/'))).toEqual([]);
+      // Holds today: no CLI or Studio server source names a loader.
+      expect(ratchetOfRepo().filter((e) => e.startsWith('workspace-read packages/cli/') || e.startsWith('workspace-read packages/ui/'))).toEqual([]);
     });
 
     it('flags the disk adapter of the port, and its in-memory one, named as a value outside their roots', () => {
@@ -757,6 +769,30 @@ describe('the import-rules ratchet', () => {
         'env-read packages/engine/src/jobs/worker-recovery.ts → 1 read of process.env',
         'env-read packages/engine/src/jobs/yield.ts → 1 read of process.env',
       ]);
+    });
+  });
+
+  describe("doctor-exec: the doctor's checks start programs through their probes only", () => {
+    const at = (rel: string, text: string): string[] => (lib.doctorExecHits(ROOT, [{ rel, text }]) as Hit[]).map((h) => `${h.file} → ${h.spec}`);
+
+    it("flags node:child_process named in the doctor's folder outside its probes adapter, in any form", () => {
+      expect(lib.DOCTOR_PROBES_HOME).toBe('packages/engine/src/doctor/machine-probes.ts');
+      const check = 'packages/engine/src/doctor/machine-checks.ts';
+      expect(at(check, "import { execFile } from 'node:child_process';")).toEqual([`${check} → node:child_process`]);
+      expect(at(check, "import type { ChildProcess } from 'child_process';")).toEqual([`${check} → child_process`]);
+      expect(at(check, "const cp = await import('node:child_process');")).toEqual([`${check} → node:child_process`]);
+      expect(at(check, "export { spawn } from 'node:child_process';")).toEqual([`${check} → node:child_process`]);
+      // The probes adapter, another module and a file outside the doctor's folder are free.
+      expect(at(lib.DOCTOR_PROBES_HOME, "import { execFile } from 'node:child_process';")).toEqual([]);
+      expect(at(check, "import { machineProbes } from './machine-probes.js';\n// node:child_process runs in the probes")).toEqual([]);
+      expect(at('packages/engine/src/jobs/spawn.ts', "import { spawn } from 'node:child_process';")).toEqual([]);
+      const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'doctor-exec')!.title;
+      for (const words of ['through another module', 'machineProbes']) expect(title, words).toContain(words);
+    });
+
+    it('holds today: only the probes adapter starts programs', () => {
+      expect(ratchetOfRepo().filter((e) => e.startsWith('doctor-exec '))).toEqual([]);
+      expect(readFileSync(join(ROOT, lib.DOCTOR_PROBES_HOME), 'utf8')).toContain("from 'node:child_process'");
     });
   });
 

@@ -6,7 +6,7 @@
  * - sessions: a persona without a `check` is `unchecked` (the runner's words); else its scripted check (`valid` by
  *   default). A sign-in answers the scripted result (by default: signed in, its check `valid`, nothing written) and makes
  *   it the persona's check. Locks and status records are scripted by profile folder and by status file; a saved status is kept
- *   in the map, stamped with `checkedAt`. A signal
+ *   in the map, stamped with its clock's time. A signal
  *   already aborted is a cancel (`CancelledError`, as the runner's).
  * - hook pages: a browser per `open`, closed by `close`; `evalIn` answers the scripted evaluator in the tab of
  *   `pageKey` (the environment's first page by default), refusing a page the environment lacks and a tab that lands on
@@ -37,6 +37,8 @@ import type {
   SiteExtractOptions,
   SiteReport,
 } from '@retake/runner-web/types';
+import { ManualClock, stampOf } from '../clock.js';
+import type { Clock } from '../clock.js';
 import { EngineError } from '../errors.js';
 import type { CaptureRunner, CaptureSessions, HookAuthOptions, HookBrowser, HookBrowserOptions, HookPages, SessionCheckOptions } from './runner.js';
 
@@ -76,8 +78,11 @@ export interface MemorySessionsOptions {
   locks?: Record<string, ProfileLock>;
   /** The last status records, by status file. Default null. */
   statuses?: Record<string, PersonaStatusRecord>;
-  /** The time a saved status is stamped with (default 2026-11-11T12:00:00.000Z: the stamps stand still). */
-  checkedAt?: string;
+  /**
+   * The clock a saved status is stamped with, as the disk adapter stamps it with now (default a ManualClock at
+   * 2026-11-11T12:00:00.000Z: the stamps stand still until a test moves it). The capture runner hands its own.
+   */
+  clock?: Clock;
 }
 
 /** A persona's session in memory (the calls kept in `calls`; its scripted state in the maps, changed by a sign-in). */
@@ -87,14 +92,14 @@ export class MemorySessions implements CaptureSessions {
   readonly locks: Map<string, ProfileLock>;
   readonly statuses: Map<string, PersonaStatusRecord>;
   private readonly signInOf: MemorySessionsOptions['signIn'];
-  private readonly checkedAt: string;
+  readonly #clock: Clock;
 
   constructor(o: MemorySessionsOptions = {}) {
     this.checks = new Map(Object.entries(o.checks ?? {}));
     this.locks = new Map(Object.entries(o.locks ?? {}));
     this.statuses = new Map(Object.entries(o.statuses ?? {}));
     this.signInOf = o.signIn;
-    this.checkedAt = o.checkedAt ?? '2026-11-11T12:00:00.000Z';
+    this.#clock = o.clock ?? new ManualClock('2026-11-11T12:00:00.000Z');
   }
 
   async check(o: SessionCheckOptions): Promise<PersonaCheckResult> {
@@ -140,7 +145,7 @@ export class MemorySessions implements CaptureSessions {
 
   async save(file: string, status: Omit<PersonaStatusRecord, 'version' | 'checked_at'>): Promise<void> {
     this.calls.push({ member: 'save', file });
-    this.statuses.set(file, { version: 1, ...status, checked_at: this.checkedAt });
+    this.statuses.set(file, { version: 1, ...status, checked_at: stampOf(this.#clock) });
   }
 }
 

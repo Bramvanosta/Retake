@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_CAPTURE, PERSON_POLICY, resolveEnvironment, resolvePersonas } from '@retake/core';
 import type { LoadedProject, RecordedEvent } from '@retake/core';
 import { chromiumExecutable } from '@retake/runner-web';
-import { runnerWebCapture } from '../src/index.js';
+import { ManualClock, runnerWebCapture } from '../src/index.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryHookPages, MemorySessions, memoryRecord, memorySite } from '../src/capture/memory-sessions.js';
 import { ACCOUNTS, startAuthServer } from '@retake/test-support/auth';
@@ -142,6 +142,7 @@ captureSessionsContract('runner package', async (name): Promise<ContractSessions
     },
     ...(site ? { site: { url: BRAND_SITE_URL, host: 'brand.test', testResolve: site.testResolve } } : {}),
     browser: hasChromium,
+    now: () => Date.now(),
   };
 });
 
@@ -154,7 +155,9 @@ const pressGo = (): RecordedEvent[] => [
 
 captureSessionsContract('memory', async (name): Promise<ContractSessions> => {
   const project = await projectOf(name);
-  const sessions = new MemorySessions();
+  // A clock away from the adapter's default time: a stamp that stood still would not be this one.
+  const clock = new ManualClock('2026-12-01T08:00:00.000Z');
+  const sessions = new MemorySessions({ clock });
   return {
     runner: new MemoryCaptureRunner({
       sessions,
@@ -187,6 +190,7 @@ captureSessionsContract('memory', async (name): Promise<ContractSessions> => {
     record: { url: `${rec.url}/rec.html` },
     site: { url: BRAND_SITE_URL, host: 'brand.test', testResolve: new Map() },
     browser: true,
+    now: () => clock.now(),
   };
 });
 

@@ -57,6 +57,32 @@ export function rendererContract(adapter: string, make: (name: string) => Promis
   const t = o.timeout ?? 20_000;
   describe.skipIf(o.skip === true)(`the renderer contract (${adapter})`, () => {
     it(
+      "the machine (retake doctor): the render path's settings, GL, encoder and ffmpeg in the port's words, agreeing; the render browser a path or none, and where it comes from",
+      async () => {
+        const c = await make('machine');
+        const p = await c.renderer.machine.path(c.workPolicy);
+        // Settings that read: each said with where it comes from; a GL and a concurrency always follow.
+        expect(p.policy, p.error).toBeDefined();
+        const policy = p.policy!;
+        expect(['angle', 'software']).toContain(policy.gl.resolved);
+        for (const x of [policy.gl.asked, policy.gl.source, policy.encoder.asked, policy.encoder.source, policy.ffmpeg?.asked, policy.ffmpeg?.source, policy.concurrencySource, policy.platform])
+          expect(typeof x).toBe('string');
+        expect(Number.isInteger(policy.concurrency) && policy.concurrency >= 1).toBe(true);
+        expect(['angle', 'software']).toContain(p.gl);
+        expect(Number.isInteger(p.concurrency) && p.concurrency! >= 1).toBe(true);
+        // The encoder chosen and the ffmpeg that would encode, unless the choice failed (then said in `error`).
+        if (p.error === undefined) {
+          expect(['h264_videotoolbox', 'libx264']).toContain(p.encoder);
+          expect(['own', 'library']).toContain(p.ffmpeg?.used);
+        }
+        const b = await c.renderer.machine.browser();
+        expect(typeof b.source).toBe('string');
+        expect(b.path === null || (typeof b.path === 'string' && b.path.startsWith('/'))).toBe(true);
+      },
+      t,
+    );
+
+    it(
       'a video is written whole at `out`, with what the record needs and its progress in order',
       async () => {
         const c = await make('video');

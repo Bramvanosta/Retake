@@ -54,6 +54,22 @@ export function captureRunnerContract(adapter: string, make: (name: string) => P
     });
     const onDisk = async (rec: RunRecord) => JSON.parse(await readFile(join(rec.dir, 'run.json'), 'utf8')) as RunRecord;
 
+    it("the capture browser's probe: where the browser comes from and whether it started, said in the port's shape, never thrown", async () => {
+      const c = await make('probe');
+      const sources = ['browser.executable', 'RETAKE_CHROMIUM', 'bundled', 'playwright'];
+      const p = await c.runner.probe(undefined, PERSON_POLICY);
+      expect(sources).toContain(p.source);
+      expect(p.path === null || typeof p.path === 'string').toBe(true);
+      expect([typeof p.exists, typeof p.launched]).toEqual(['boolean', 'boolean']);
+      // A browser that started is one that is there, and says its version.
+      if (p.launched) expect([p.path !== null, p.exists, typeof p.version]).toEqual([true, true, 'string']);
+      if (p.path === null) expect([p.exists, p.launched]).toEqual([false, false]);
+      // The project's own executable is the one probed, and one that is not there is said so.
+      const missing = '/nonexistent/retake-contract/chrome';
+      const q = await c.runner.probe({ executable: missing }, PERSON_POLICY);
+      expect({ path: q.path, source: q.source, exists: q.exists, launched: q.launched }).toEqual({ path: missing, source: 'browser.executable', exists: false, launched: false });
+    });
+
     it('a dry run: a succeeded record (run.json too), a timeline, run_start first, each step started then ended, run_end last', async () => {
       const c = await make('dry');
       const events: RunProgress[] = [];

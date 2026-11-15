@@ -122,6 +122,22 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
       });
     });
 
+    it("makeFolder: a folder inside the store, its parents too, again without harm; a bad ref refused in checkRef's words; never journaled", async () => {
+      await withStore(async (h, scope) => {
+        const store = h.stores.at(join(h.root, 'fresh'), scope());
+        await store.makeFolder('a/b');
+        await store.makeFolder('a/b');
+        expect(await h.lines()).toEqual([]);
+        for (const bad of ['../x', '/etc', '', 'a/../b']) {
+          const e = await failure(store.makeFolder(bad));
+          expect([e.code, e.message]).toEqual(['invalid', `invalid file reference "${bad}": use a path relative to the project folder, without ".." (e.g. scenarios/quote.yaml)`]);
+        }
+        await store.writeText('a/b/c.md', 'x', { ifMatch: null, what: 'readme' });
+        expect(await h.list(join(h.root, 'fresh', 'a'))).toEqual(['b']);
+        expect(await h.lines()).toHaveLength(1);
+      });
+    });
+
     it("refusals: a ref that is not folder-relative in checkRef's words, a path outside the folder or the folder itself named by its label; none is journaled", async () => {
       await withStore(async (h, scope) => {
         const dir = join(h.root, 'projects', 'acme');

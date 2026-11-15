@@ -132,6 +132,24 @@ describe('the project store', () => {
     expect(last()).toMatchObject({ path: 'projects/acme/sandbox/new.yaml', if_match: null, outcome: 'ok' });
   });
 
+  it("makeFolder makes an empty folder on the disk (a new workspace's projects/), its parents too", async () => {
+    const at = join(root, 'made', 'here');
+    await diskProjectStores.at(at, { workspace: root, caller: callerOf('cli'), ...enginePorts() }).makeFolder('projects/inner');
+    expect((await stat(join(at, 'projects', 'inner'))).isDirectory()).toBe(true);
+    expect(await readdir(join(at, 'projects', 'inner'))).toEqual([]);
+  });
+
+  it('makeFolder makes nothing through a link that leads out of the store: refused, and no folder made elsewhere', async () => {
+    const at = join(root, 'made', 'linked');
+    const elsewhere = join(root, 'elsewhere-folder');
+    await mkdir(at, { recursive: true });
+    await mkdir(elsewhere, { recursive: true });
+    await symlink(elsewhere, join(at, 'a'));
+    const store = diskProjectStores.at(at, { workspace: root, caller: callerOf('cli'), ...enginePorts() });
+    await expect(store.makeFolder('a/b')).rejects.toMatchObject({ code: 'refused' });
+    expect(await readdir(elsewhere)).toEqual([]);
+  });
+
   it('a writer told there was no file (`previous` null) creates it, and never writes over one made in between', async () => {
     const store = diskProjectStores.of({ dir: join(root, 'projects', 'acme'), slug: 'acme' }, personScope(root, enginePorts()));
     const write = fileWriter(store, 'component');

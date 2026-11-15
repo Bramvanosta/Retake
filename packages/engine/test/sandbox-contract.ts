@@ -69,6 +69,14 @@ export function sandboxContract(subject: () => SandboxSubject, timeout = 120_000
       sb = await s.sandboxes.open(s.project, undefined, PERSON_POLICY);
     });
 
+    it_('dockerPlaces: where a docker binary is looked for after PATH — absolute, each a docker, none twice; only the home given varies, nothing run', async () => {
+      const a = await s.sandboxes.dockerPlaces('/retake-contract/home-a');
+      const b = await s.sandboxes.dockerPlaces('/retake-contract/home-b');
+      for (const p of a) expect([p.startsWith('/'), p.endsWith('/docker')], p).toEqual([true, true]);
+      expect(new Set(a).size).toBe(a.length);
+      expect(a.map((p) => p.replace('/retake-contract/home-a', '/retake-contract/home-b'))).toEqual(b);
+    });
+
     it_('a handle says its environment, kind, strategy, paths and the capabilities of its kind', async () => {
       expect({ env: sb.env, kind: sb.kind, strategy: sb.strategy }).toEqual({ env: 'sandbox', kind: s.kind, strategy: 'reseed' });
       expect(sb.paths).toEqual(sandboxPaths(s.project.dir, 'sandbox'));

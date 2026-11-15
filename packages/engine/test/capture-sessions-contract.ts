@@ -38,6 +38,8 @@ export interface ContractSessions {
   site?: Pick<SiteExtractOptions, 'url' | 'host' | 'testResolve'>;
   /** The browser cases run (a real Chromium is there, or no browser is needed). */
   browser: boolean;
+  /** The time the adapter stamps with (the system's for the package, the memory runner's clock for the memory one), in ms. */
+  now(): number;
 }
 
 const named = async (p: Promise<unknown>): Promise<{ name: string; message: string } | null> =>
@@ -90,6 +92,12 @@ export function captureSessionsContract(adapter: string, make: (name: string) =>
       const read = await c.runner.sessions.status(file);
       expect(read).toEqual({ version: 1, status: 'valid', by: 'auth-status', at: 'http://127.0.0.1/app', detail: 'app shows "Ada"', checked_at: expect.any(String) });
       expect(Number.isNaN(Date.parse(read!.checked_at))).toBe(false);
+      // Stamped at the adapter's time of the save, never a fixed one.
+      const before = c.now();
+      await c.runner.sessions.save(file, { status: 'expired', by: 'auth-status', at: 'http://127.0.0.1/app', detail: 'signed out' });
+      const stamp = Date.parse((await c.runner.sessions.status(file))!.checked_at);
+      expect(stamp).toBeGreaterThanOrEqual(before);
+      expect(stamp).toBeLessThanOrEqual(c.now());
     });
 
     it('a js-hook browser of another runner is refused, never used', async () => {

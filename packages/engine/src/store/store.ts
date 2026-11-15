@@ -67,6 +67,11 @@ export interface ProjectStore extends ProjectFolder {
   writeText(ref: string, text: string, opts: StoreWriteOptions): Promise<WriteResult>;
   /** writeText of a file given by its absolute path inside the store's folder. */
   writeFileAt(path: string, text: string, opts: StoreWriteOptions): Promise<WriteResult>;
+  /**
+   * Make the folder `ref` inside the store's folder, its parents too, when it is not there (a new workspace's
+   * `projects/`): refused as a write's ref is; not journaled (an empty folder holds no one's work).
+   */
+  makeFolder(ref: string): Promise<void>;
   /** Create the folder `<parent>/<name>` whole: staged, checked, renamed into place, journaled with its files. */
   createFolder<T>(
     parent: string,
