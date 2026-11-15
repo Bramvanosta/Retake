@@ -15,6 +15,7 @@ import { ERROR_STATUS } from '../src/http/status.js';
 import { EngineError, toEngineError } from '../src/index.js';
 import { checkHeadedDisplay } from '../src/execute-run.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { diskProjectStores } from '../src/outputs/../store/project-store.js';
 import { openLiveChannel } from '../src/jobs/live-channel.js';
 import { pruneProject } from '../src/prune.js';
 import type { Engine, JobRecord } from '../src/index.js';
@@ -54,7 +55,7 @@ describe('client mistakes are refusals of their kind, not internal', () => {
   it('keep_renders below one: invalid (400), before anything is read', async () => {
     const project = { slug: 'p', dir: join(root, 'nowhere'), config: { name: 'P', environments: {} } } as unknown as LoadedProject;
     for (const keep of [0, 1.5, -1])
-      expect(await refusal(() => pruneProject(diskOutputs, project, { keep_renders: keep }))).toEqual({
+      expect(await refusal(() => pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, project, { keep_renders: keep }))).toEqual({
         code: 'invalid',
         status: 400,
         known: true,

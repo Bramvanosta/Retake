@@ -3,6 +3,7 @@
  * time and the ffprobe that read it — at most PROBE_CACHE_MAX answers, the least recently used dropped first.
  */
 import { statSync } from 'node:fs';
+import type { Stats } from 'node:fs';
 import type { WorkPolicy } from '../agent-policy.js';
 import { ffprobeBin } from './media-tools.js';
 import { readFfprobeJson, videoFileArgs, videoProbeFromJson } from '../ffprobe.js';
@@ -34,7 +35,7 @@ export function ffprobeCommand(policy: WorkPolicy): string {
  * use); the ffprobe is the work's (`policy`: ffprobeBin — its refusal, a BundleError, is thrown as it is).
  */
 export function probeVideoFile(file: string, policy: WorkPolicy): VideoProbe {
-  let st;
+  let st: Stats;
   try {
     st = statSync(file);
   } catch {

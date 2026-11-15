@@ -141,7 +141,7 @@ export function formChanges(
  * the longest field key it starts with. Undefined: not about a field of this step.
  */
 export function issueField(path: ReadonlyArray<string | number> | undefined, entry: number, index: number, fields: readonly FormField[]): string | undefined {
-  if (!path || path[0] !== 'scenes' || path[1] !== entry || path[2] !== 'steps' || path[3] !== index) return undefined;
+  if (path?.[0] !== 'scenes' || path[1] !== entry || path[2] !== 'steps' || path[3] !== index) return undefined;
   const rest = path.slice(4).map(String);
   let best: string | undefined;
   for (const f of fields) {

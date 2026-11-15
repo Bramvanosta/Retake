@@ -148,7 +148,7 @@ describe('scenario_edit', () => {
         let buf = '';
         res.on('data', (d: Buffer) => {
           buf += d.toString();
-          let i;
+          let i: number;
           while ((i = buf.indexOf('\n\n')) !== -1) {
             const chunk = buf.slice(0, i);
             buf = buf.slice(i + 2);

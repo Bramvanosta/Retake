@@ -210,7 +210,7 @@ export interface ExecuteRunOptions {
   /** Pauses between steps (the worker's `pause` marker): a dry run waits; a capture says it does not pause. */
   pause?: PauseGate;
   /** Captures first: when a capture films (runner onFilming) — the caller writes the filming marker. */
-  onFilming?: (state: FilmingEvent) => void | FilmingReport;
+  onFilming?: (state: FilmingEvent) => FilmingReport | undefined;
 }
 
 /** `sandbox: true`: lock, up if needed, health, reset — under the interrupt port (what it started is stopped). */

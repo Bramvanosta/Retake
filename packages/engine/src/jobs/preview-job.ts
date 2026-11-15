@@ -25,7 +25,7 @@ import { JOB_INPUT_VERSION, PreviewJobInputSchema } from './job-input.js';
 import type { ComponentKind } from '@retake/core/model';
 import type { LoadedTemplate } from '@retake/core/theme';
 import type { PreviewJobInput } from './job-input.js';
-import type { ComponentRegistry } from '@retake/components/geometry';
+import type { ComponentRegistry, ComponentInfo, ResolvedComponentRef } from '@retake/components/geometry';
 import type { BrowserProcessInfo, LoopItem, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor/plan';
 import { stampOf } from '../clock.js';
 import { checkComponentId, workspaceRegistry } from '../components.js';
@@ -124,7 +124,7 @@ async function preparePreview(ws: OpenedWorkspace, req: Pick<PreviewJobInput, 'p
   const t = req.target;
   if (t.kind === 'component') {
     checkComponentId(t.component);
-    let info;
+    let info: ComponentInfo;
     try {
       info = registry.get(t.component);
     } catch (e) {
@@ -155,7 +155,7 @@ async function preparePreview(ws: OpenedWorkspace, req: Pick<PreviewJobInput, 'p
       file: `${m.id.replace('/', '__')}.png`,
     });
   } else if (t.kind === 'theme') {
-    let theme;
+    let theme: Record<ComponentKind, ResolvedComponentRef | null>;
     try {
       theme = registry.resolveTheme(template.template);
     } catch (e) {
@@ -174,7 +174,7 @@ async function preparePreview(ws: OpenedWorkspace, req: Pick<PreviewJobInput, 'p
     // A library target: every component one of the registry (a scaffold or a folder never is).
     for (const item of t.items) {
       checkComponentId(item.component);
-      let info;
+      let info: ComponentInfo;
       try {
         info = registry.get(item.component);
       } catch (e) {

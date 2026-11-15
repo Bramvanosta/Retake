@@ -28,6 +28,7 @@ import { addComment, listComments } from '../src/comments.js';
 import { checkRunId } from '../src/refs.js';
 import { checkTemplateName } from '../src/templates.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { diskProjectStores } from '../src/outputs/../store/project-store.js';
 import { listRuns } from '../src/runs.js';
 import { pruneProject } from '../src/prune.js';
 import { renderForWork } from '../src/renders.js';
@@ -392,7 +393,7 @@ describe('run folders', () => {
   });
 
   it('pruning considers only the folders whose name is a run id the tool makes', async () => {
-    const r = await pruneProject(diskOutputs, p);
+    const r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p);
     expect(r.items.filter((i) => i.kind === 'run').map((i) => [short(i.id), i.reason])).toEqual([
       // Every one a dry run: each folder considered goes.
       [`${STAMP}quote`, 'dry run'],
@@ -673,7 +674,7 @@ describe("a render's review, comments and frames", () => {
   });
 
   it('comments are listed for a render named by its id', async () => {
-    const list = (render: string) => outcome(listComments(diskOutputs.renders, ws.project, { render }));
+    const list = (render: string) => outcome(listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, ws.project, { render }));
     expect(await list('quote-v1')).toBe('ok');
     expect((await Promise.all(['final', `${a(198)}-v1`].map(list))).map(short)).toEqual([
       'invalid: invalid render id "final": <scenario>-v<N>, or "latest"',
@@ -701,7 +702,7 @@ describe("a render's review, comments and frames", () => {
     const listed = async (scenario: string) => {
       await writeFile(join(dir, `c_${BODY}.json`), JSON.stringify(thread(scenario)));
       try {
-        const r = await listComments(diskOutputs.renders, ws.project, { status: 'all' });
+        const r = await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, ws.project, { status: 'all' });
         return `${r.threads.length} listed, ${r.problems?.length ?? 0} reported`;
       } catch (e) {
         return `throws ${(e as Error).name}`;
@@ -801,7 +802,8 @@ describe("a render's review, comments and frames", () => {
 
 describe('pruning: the files of a render that goes', () => {
   const names = (paths: string[]) => paths.map((x) => x.slice(x.lastIndexOf('/') + 1)).sort();
-  const renderItems = async (p: LoadedProject) => (await pruneProject(diskOutputs, p)).items.filter((i) => i.kind === 'render').map((i) => [i.id, names(i.paths)]);
+  const renderItems = async (p: LoadedProject) =>
+    (await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p)).items.filter((i) => i.kind === 'render').map((i) => [i.id, names(i.paths)]);
   const failed = { status: 'failed', plan: { fps: 30 } } as unknown as Partial<RenderRecord>;
 
   it('a render that goes takes its record, its video and its other files', async () => {

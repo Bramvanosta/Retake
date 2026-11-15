@@ -26,6 +26,9 @@ import { initWorkspace } from '../src/commands/init.js';
 import { Ui } from '../src/ui.js';
 import { enginePorts } from '@retake/engine/shell';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 // The bundler stood in for one case (ensureBundle's restriction): the library's own otherwise.
@@ -680,7 +683,7 @@ describe('the render bundle takes no module from above the app (the render half)
     put('ws/node_modules/local/index.js', '');
     put('ws/components/card/index.tsx', '');
     const webpack = createRequire(join(REPO, 'packages', 'editor', 'package.json')).resolve('webpack/package.json');
-    const { ResolverFactory, CachedInputFileSystem } = createRequire(webpack)('enhanced-resolve') as any;
+    const { ResolverFactory, CachedInputFileSystem } = createRequire(webpack)('enhanced-resolve') as Untyped;
     const fs = new CachedInputFileSystem(createRequire(import.meta.url)('node:fs'), 0);
     const resolver = (restrictions?: RegExp[]) => {
       const r = ResolverFactory.createResolver({ fileSystem: fs, extensions: ['.js'], modules: ['node_modules', join(res, 'engine', 'node_modules')], ...(restrictions ? { restrictions } : {}) });

@@ -206,6 +206,7 @@ describe('the clock in a session (R-ENV-05)', () => {
       const out = await page.evaluate(async () => {
         const before = Date.now();
         const fired = await new Promise<boolean>((r) => setTimeout(() => r(true), 200));
+        // biome-ignore lint/complexity/useDateNow: the point is the constructor's own reading of the installed clock
         return { before, after: Date.now(), made: new Date().getTime(), fired };
       });
       expect(out).toEqual({ before: T, after: T, made: T, fired: true });

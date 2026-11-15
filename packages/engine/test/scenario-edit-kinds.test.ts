@@ -32,7 +32,7 @@ function unionKinds(file: string, name: string): string[] {
   return members.map((m) => {
     const kind = checker.getPropertyOfType(m, 'kind');
     const t = kind && checker.getTypeOfSymbolAtLocation(kind, alias);
-    if (!t || !t.isStringLiteral()) throw new Error(`a member of ${name} has no string literal kind: ${checker.typeToString(m)}`);
+    if (!t?.isStringLiteral()) throw new Error(`a member of ${name} has no string literal kind: ${checker.typeToString(m)}`);
     return t.value;
   });
 }

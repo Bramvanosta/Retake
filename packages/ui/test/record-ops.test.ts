@@ -40,6 +40,9 @@ import { raw } from '@retake/test-support/http';
 import { recordsWatchScan } from '../src/server/record-watch.js';
 import { scratchHome } from '@retake/test-support/home';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 type Page = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
 interface Fixture {
@@ -141,7 +144,7 @@ function events(): Promise<EventLog> {
         res.setEncoding('utf8');
         res.on('data', (c: string) => {
           buf += c;
-          let i;
+          let i: number;
           while ((i = buf.indexOf('\n\n')) >= 0) {
             const block = buf.slice(0, i);
             buf = buf.slice(i + 2);
@@ -364,7 +367,7 @@ describe('the start form, one window at a time, path-free answers', () => {
         untrusted: { yaml_lines: ['    open: /orders/new/42', `  - type: {text: "${root}/notes"}`], check: { error: 'no element; screenshot /private/var/folders/x/y/shot.png' } },
       },
       root,
-    ) as Record<string, any>;
+    ) as Record<string, Untyped>;
     expect(out.path).toBe('/orders/new/42');
     expect(out.view.path).toBe('/orders/new/43');
     expect(out.recent[0].path).toBe('/orders/new/44');

@@ -86,6 +86,7 @@ export const ThreadList = memo(function ThreadList(p: {
   const args = { project: p.slug, name: p.name, status: p.filter, ...(p.onlyRender && p.render !== null ? { render: p.render } : {}) };
   const [loaded, reload] = useThreadsList(args, `${p.slug}\0${p.name}\0${p.filter}\0${only ? p.render : ''}`);
   const first = useRef(true);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `tick` (a comments event) is the trigger to read the list again
   useEffect(() => {
     if (first.current) {
       first.current = false;

@@ -28,14 +28,14 @@ export function projectsApi(ctx: EngineContext): Engine['projects'] {
         return (id) => named.includes(`"${id}"`);
       };
       const base = { ...(req.keep_renders !== undefined ? { keep_renders: req.keep_renders } : {}) };
-      if (req.dry_run !== false || !agent) return pruneProject(ws.outputs, p, { ...base, dry_run: req.dry_run !== false, busy: await busy() });
+      if (req.dry_run !== false || !agent) return pruneProject({ outputs: ws.outputs, stores: scope.stores }, p, { ...base, dry_run: req.dry_run !== false, busy: await busy() });
       // An agent's deletion: the person is asked about what would go; the items in the approval that can still go then
       // go, each with the files it had when listed.
-      const listed = await pruneProject(ws.outputs, p, { ...base, dry_run: true, busy: await busy() });
+      const listed = await pruneProject({ outputs: ws.outputs, stores: scope.stores }, p, { ...base, dry_run: true, busy: await busy() });
       if (!listed.items.length) return { ...listed, dry_run: false, skipped: [], not_asked: 0 };
       const keep = listed.keep_renders !== DEFAULT_KEEP_RENDERS ? ` --keep-renders ${listed.keep_renders}` : '';
       await takePruneApproval(pruneApprovalRequest(listed, `${studio} prune ${p.slug}${keep} --yes`), o.approver, opts.client);
-      return pruneProject(ws.outputs, p, { ...base, dry_run: false, busy: await busy(), only: new Map(listed.items.map((i) => [pruneKey(i), i.paths])) });
+      return pruneProject({ outputs: ws.outputs, stores: scope.stores }, p, { ...base, dry_run: false, busy: await busy(), only: new Map(listed.items.map((i) => [pruneKey(i), i.paths])) });
     },
     board: (slug) => boards.board(slug),
   };

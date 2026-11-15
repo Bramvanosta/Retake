@@ -2021,7 +2021,7 @@ describe('⚑ the legacy layer is gone', () => {
     // A plain link's focus ring keeps the kit ring's radius (the legacy layer gave it one).
     expect(cssRules(await baseCss()).find((r) => r.selector === 'a:focus-visible')?.decls).toContainEqual(['border-radius', 'var(--ui-radius-control)']);
     const bits = files.find(([f]) => f === 'bits.tsx')![1];
-    expect([...bits.matchAll(/^export (?:function|const|type) (\w+)/gm)].map((m) => m[1]).sort()).toEqual(['Txt', 'When', 'plural', 'shown', 'visibleControls']);
+    expect([...bits.matchAll(/^export (?:function|const|type) (\w+)/gm)].map((m) => m[1]).sort()).toEqual(['Txt', 'When', 'contentKeys', 'plural', 'shown', 'visibleControls']);
     expect(
       files
         .filter(
@@ -2219,6 +2219,7 @@ describe('⚑ the kit shows text it did not write through Txt', () => {
     const go = () => undefined;
     const els = [
       createElement(CommandPalette, { open: true, onClose: go, commands: [{ id: 'a', label: K('plabel'), hint: K('phint'), group: K('pgroup'), run: go }] }),
+      // biome-ignore lint/correctness/useJsxKeyInIterable: each element is rendered on its own (renderToStaticMarkup per item), never as a list
       createElement(Menu, { label: 'More', text: K('mtext'), items: [{ id: 'x', label: K('mitem') }], onSelect: go }),
       createElement(Select, { label: K('slabel'), hint: K('shint'), value: 'v', options: [{ value: 'v', label: K('opt') }], onChange: go }),
       createElement(Sheet, { open: false, title: K('stitle'), actions: [{ id: 'c', label: K('saction'), isCancel: true }], onAction: go, children: K('sbody') }),

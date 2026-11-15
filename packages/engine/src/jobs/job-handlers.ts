@@ -54,7 +54,7 @@ export interface JobRun {
   /** A run's pause marker, as the poll reads it. */
   pause: { requested: boolean; maxMs?: number };
   /** A capture take's filming marker. */
-  filming: () => { on: (state: FilmingEvent) => void | FilmingReport; close: () => void };
+  filming: () => { on: (state: FilmingEvent) => FilmingReport | undefined; close: () => void };
   /** A `record` job's stop marker (the Studio's Stop), as the poll reads it. */
   stopAsked: AbortController;
   /** The process's slot: a `record` job's worker stop is held there while it runs. */

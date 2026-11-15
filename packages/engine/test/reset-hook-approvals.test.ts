@@ -247,7 +247,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
         '    shell: {run: "echo seeded >> seed-marker.txt"}\n',
         `    shell: {run: "echo seeded >> seed-marker.txt"}\n  - name: pad\n    http: {url: "{{app}}/health"}\n  - name: clean\n    shell: {run: "${RESET}"}\n`,
       )
-      .replace(/reset:\n  hooks:\n(?:    .*\n|      .*\n)*/, '');
+      .replace(/reset:\n {2}hooks:\n(?: {4}.*\n| {6}.*\n)*/, '');
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), grown);
     try {
       const p = await project();

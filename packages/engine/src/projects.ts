@@ -12,7 +12,7 @@ import { checkProjectSlug } from './refs.js';
 import { READ_TEXT_MAX_BYTES } from './storage.js';
 import { openProject } from './workspace.js';
 import { storeOf } from './store/store.js';
-import type { ProjectFolder } from './store/store.js';
+import type { ProjectFolder, StoredText } from './store/store.js';
 import type { StoreScope } from './store/store.js';
 import { checkNewProjectHosts } from './protected-hosts.js';
 import type { HostResolver } from './protected-hosts.js';
@@ -151,7 +151,7 @@ export function maskUrlCredentials<T>(value: T): T {
 
 /** README.md as project_get shows it: the text, or why it cannot be edited. */
 async function readmeOf(folder: ProjectFolder): Promise<{ text: string; sha256: string; error?: string } | { text: null; sha256: null; error: string } | undefined> {
-  let r;
+  let r: StoredText | undefined;
   try {
     r = await folder.readText(README_FILE);
   } catch (e) {

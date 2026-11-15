@@ -62,6 +62,7 @@ export function checkNamedHooks(map: unknown, base: IssuePath, ctx: CheckContext
 /** Semantic checks of one hook entry at path `p` (schema-valid entries only). */
 function checkHook(raw: unknown, p: IssuePath, ctx: CheckContext, opts: HookCheckOptions): void {
   if (!isObj(raw) || ctx.broken(p)) return;
+  // Kept: an entry at a path the schema did not flag (ctx.broken) is a HookStep; a second parse would apply defaults.
   const hook = raw as unknown as HookStep;
   const kind = hookKind(hook);
   const kp = [...p, kind];

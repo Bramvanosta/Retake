@@ -21,7 +21,7 @@ import { snapshotMailbox } from '../actions/artefacts.js';
 import { settleEffectChecks } from '../actions/effects.js';
 import { projectBrowser } from '../config.js';
 import { ActivityRecorder, analyzeActivity, clicksOf, slowTransitions } from '../activity.js';
-import { LoginGuard, preflight, prepareSessions, removeSessionCopiesSync, writeStatus } from '../auth.js';
+import { type LoginGuard, preflight, prepareSessions, removeSessionCopiesSync, writeStatus } from '../auth.js';
 import type { PreparedSession } from '../auth.js';
 import { runEngine } from '../engine.js';
 import { EncodeError, LoginPageError, PreflightError, RunnerError, errorMessage, isCancelled } from '../errors.js';

@@ -7,6 +7,7 @@
  * mark holds what prune answered before the lot.
  */
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { diskProjectStores } from '../src/outputs/../store/project-store.js';
 import { execFileSync } from 'node:child_process';
 import { closeSync, constants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -201,11 +202,11 @@ describe('what the result says, and what a deletion leaves', () => {
   it('an approved take that became the last one that can be edited since the list stays (skipped), and the result says why', async () => {
     const b = fresh('ctl', 'only');
     const project = { slug: b.slug, dir: b.dir, root, config: { name: 'P', environments: {} }, readme: null, scenarios: [], file: join(b.dir, 'project.yaml') } as unknown as LoadedProject;
-    const listed = await pruneProject(diskOutputs, project, { dry_run: true });
+    const listed = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, project, { dry_run: true });
     expect(listed.items.map((i) => label(b, i.id))).toEqual(['OLD']);
     // The newer capture loses its film between the list and the approval.
     rmSync(join(b.runs, b.ids.NEW, 'capture.mp4'));
-    const r = await pruneProject(diskOutputs, project, { dry_run: false, only: new Map(listed.items.map((i) => [pruneKey(i), i.paths])) });
+    const r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, project, { dry_run: false, only: new Map(listed.items.map((i) => [pruneKey(i), i.paths])) });
     expect([r.items, r.skipped, r.kept_takes?.map((k) => `${label(b, k.id)} ${k.why}`), left(b)]).toEqual([[], [{ kind: 'run', id: b.ids.OLD }], ['OLD editable'], ['OLD', 'NEW']]);
   });
 

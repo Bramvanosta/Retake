@@ -6,6 +6,7 @@
  * here too: the filming markers of this user (captures.ts).
  */
 import { spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -44,7 +45,7 @@ export async function startHeavy(w: Worker, stored: JobRecord): Promise<void> {
   const job = { id: stored.id, kind: stored.kind, build: w.build, supervisor: process.pid, digest: recordDigest(stored) };
   const { command, args } = w.processes.command({ ...job, root: w.root });
   const out = openSync(join(workersDir(w.root), 'worker.log'), 'a');
-  let child;
+  let child: ChildProcess;
   try {
     child = spawn(command, args, { cwd: w.root, detached: true, stdio: ['ignore', out, out], env: { ...w.ports.env, RETAKE_JOB_BUILD_DIRS: JSON.stringify(w.dirs) } });
   } finally {

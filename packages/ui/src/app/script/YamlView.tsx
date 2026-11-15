@@ -33,9 +33,11 @@ export function YamlView({ v, focus, issues }: { v: View; focus: { line: number;
           const on = focus !== null && i + 1 >= focus.line && i + 1 <= focus.end_line;
           const here = byLine.get(i + 1);
           return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the file's lines in order: the index is the line number
             <li key={i} className={on ? 'yv-line is-focus' : 'yv-line'} data-focus={on ? 'true' : undefined}>
               <code className="yv-code">{l === '' ? ' ' : <Txt text={l} />}</code>
               {here?.map((x, n) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: one line's issues, replaced whole on each read, text only: the index is the identity
                 <span key={n} className="yv-issue">
                   <StatusMark state={x.severity === 'error' ? 'fail' : 'warn'} word={x.severity === 'error' ? 'error' : 'warning'} />
                   {x.col !== undefined && <span className="sc-quiet">{shown(`col ${x.col}`)}</span>}

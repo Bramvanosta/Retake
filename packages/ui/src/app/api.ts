@@ -137,6 +137,7 @@ export interface CallOptions {
 export type OpArgs<K extends StudioOp> = StudioOps[K]['args'];
 export type OpResult<K extends StudioOp> = StudioOps[K]['result'];
 /** A call's parameters after the op: its arguments — optional when the op needs none — and the options. */
+// biome-ignore lint/complexity/noBannedTypes: `{} extends Args` is the test that every argument of the op is optional
 export type OpParams<K extends StudioOp> = {} extends OpArgs<K> ? [args?: OpArgs<K>, o?: CallOptions] : [args: OpArgs<K>, o?: CallOptions];
 
 function callOp(op: string, args: object, o: CallOptions): Promise<unknown> {
@@ -260,6 +261,7 @@ export function useCall<K extends StudioOp>(op: K, args: OpArgs<K>, key: string)
   );
   const load = useCallback(() => read(false), [read]);
   const reload = useCallback(() => read(true), [read]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `key` is the caller's reload trigger (read through keyRef): a new key loads again
   useEffect(() => {
     setV({ state: 'loading' });
     load();

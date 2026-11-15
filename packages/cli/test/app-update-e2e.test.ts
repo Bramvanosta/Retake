@@ -30,6 +30,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const ENABLED = process.env.RETAKE_TEST_UPDATE === '1' && process.platform === 'darwin' && process.arch === 'arm64';
 const PORT = Number(process.env.RETAKE_TEST_UPDATE_PORT ?? 4990);
@@ -43,7 +46,7 @@ let storage: Server | undefined;
 const hits: string[] = [];
 let served: { manifest: string; archive: string } = { manifest: '{}', archive: '' };
 let copy: string;
-let built: { v1: Record<string, any>; v2: Record<string, any> };
+let built: { v1: Record<string, Untyped>; v2: Record<string, Untyped> };
 let runEnv: Record<string, string>;
 const report: Record<string, unknown> = {};
 const kids: ChildProcess[] = [];
@@ -86,7 +89,7 @@ function launch(): { proc: ChildProcess; lines: string[]; wait: (re: RegExp, ms:
   let buf = '';
   const take = (b: Buffer) => {
     buf += b.toString('utf8');
-    let i;
+    let i: number;
     while ((i = buf.indexOf('\n')) >= 0) {
       const l = buf.slice(0, i);
       buf = buf.slice(i + 1);
@@ -122,7 +125,7 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
   beforeAll(async () => {
     base = reuse ? realpathSync(reuse) : realpathSync(mkdtempSync(join(tmpdir(), 'retake-update-e2e-')));
     const t0 = Date.now();
-    const bundle = (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs')).href)) as any;
+    const bundle = (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs')).href)) as Untyped;
     if (reuse) {
       // An earlier run's builds (RETAKE_TEST_KEEP=1): a fresh copy and a fresh scratch world below.
       built = { v1: JSON.parse(readFileSync(join(base, 'v1', 'bundle-report.json'), 'utf8')), v2: JSON.parse(readFileSync(join(base, 'v2', 'bundle-report.json'), 'utf8')) };
@@ -233,7 +236,7 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
   it(
     'a signature for other bytes: the download is refused, nothing installed, the app keeps running at 0.2.0',
     async () => {
-      const pub = (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as any;
+      const pub = (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as Untyped;
       const a = built.v2.updater.archive;
       // A real signature of this key, for version 0.2.1 — but of another file.
       const other = join(base, 'other.tar.gz');
@@ -277,7 +280,7 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
   it(
     'the real update: the server stops gracefully, the bundle is swapped, the app restarts at 0.2.1 by itself — signed, whole, and Chromium launches from it',
     async () => {
-      const pub = (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as any;
+      const pub = (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as Untyped;
       const a = built.v2.updater.archive;
       served = {
         archive: a.archive,

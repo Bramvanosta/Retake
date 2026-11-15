@@ -403,6 +403,7 @@ describe("each watcher reads the engine's queue with a memory of its own", () =>
     const live = await Live.start({
       ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: enginePorts().registries }),
       queue: e.queue,
+      folder: enginePorts().stores.folder,
       pollMs: 60_000,
       log: (m) => logs.push(m),
     });

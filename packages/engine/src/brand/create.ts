@@ -23,7 +23,7 @@ import { insideFolder } from '@retake/core/scenario';
 import { AuthorBrandInputSchema, BrandInputSchema, TEMPLATE_FILE, fontRefFile, parseTemplateYaml, siteRef } from '@retake/core/theme';
 import { STARTER_TEMPLATES_DIR, nodeFileFacts } from '@retake/core/io';
 import type { NewThemeName } from '@retake/core/ids';
-import type { BrandFontRef, BrandInput, TemplateFile } from '@retake/core/theme';
+import type { BrandFontRef, BrandInput, TemplateFile, LoadedTemplate } from '@retake/core/theme';
 import type { Palette } from '@retake/components/geometry';
 import { workspaceRegistry } from '../components.js';
 import { componentCalls } from '../registries/component-calls.js';
@@ -412,7 +412,7 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   if (baseName.toLowerCase() === name.toLowerCase()) throw new EngineError('invalid', `the base theme cannot be the theme being created (${name})`);
 
   // The base: its components, frame, captions, motion and durations; its fonts when none are given.
-  let base;
+  let base: LoadedTemplate;
   try {
     base = await ws.reads.loadTemplate(baseName, ws.root, { files: ws.reads.fileFacts(ws.policy) });
   } catch (e) {

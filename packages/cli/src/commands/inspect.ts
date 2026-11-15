@@ -71,7 +71,7 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
   const id = newInspectId();
   if (!opts.json)
     ui.setStatus(`inspecting ${source.kind === 'page' ? `page ${source.page} ${source.path}` : `scenario ${source.scenario}${source.until ? ` until ${source.until}` : ''}`} on ${prepared.env}…`);
-  let run;
+  let run: Awaited<ReturnType<typeof inspectInProcess>>;
   try {
     // The inspection, the older ones of the project pruned (not with --out), then its line of the workspace's history.
     run = await inspectInProcess({

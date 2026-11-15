@@ -362,6 +362,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
         <Callout state="fail" role="note" title="This theme has problems">
           <ul className="tm-issues">
             {v.issues.slice(0, 6).map((x, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: the theme's first issues, replaced whole on each read, text only: the index is the identity
               <li key={i}>
                 <Txt text={x} />
               </li>
@@ -542,7 +543,7 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
   };
   return (
     <div className="tm-frame-wrap">
-      <div className="tm-frame" role="region" aria-label="Live preview" aria-busy={state === 'loading'} data-testid="theme-preview" data-state={urls ? state : 'none'} data-settles={settles}>
+      <section className="tm-frame" aria-label="Live preview" aria-busy={state === 'loading'} data-testid="theme-preview" data-state={urls ? state : 'none'} data-settles={settles}>
         {urls && state !== 'stopped' && (
           <PreviewFrame key={`${urls.frame}#${restart}`} url={urls.frame} planUrl={urls.plan} frameRef={frameRef} onMessage={onMessage} onHello={onHello} onStop={onStop} onConnection={onConnection} />
         )}
@@ -562,7 +563,7 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
             <Txt text={v.preview_error} />
           </p>
         )}
-      </div>
+      </section>
       <div className="tm-frame-bar">
         <Button
           size="sm"
@@ -584,6 +585,7 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
       {notes.length > 0 && (
         <ul className="tm-notes">
           {notes.map((n, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the preview's notes, replaced whole on each read, text only: the index is the identity
             <li key={i}>
               <Txt text={n} />
             </li>

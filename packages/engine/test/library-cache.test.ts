@@ -63,7 +63,7 @@ beforeAll(async () => {
   await mkdir(join(root, 'templates'), { recursive: true });
   await cp(join(REPO, 'templates', 'editorial'), join(root, 'templates', 'brandx'), { recursive: true });
   const yaml = await readFile(join(root, 'templates', 'brandx', 'template.yaml'), 'utf8');
-  await writeFile(join(root, 'templates', 'brandx', 'template.yaml'), yaml.replace(/^name: .*$/m, 'name: brandx').replace(/^  layout: .*$/m, '  layout: acme/frame'));
+  await writeFile(join(root, 'templates', 'brandx', 'template.yaml'), yaml.replace(/^name: .*$/m, 'name: brandx').replace(/^ {2}layout: .*$/m, '  layout: acme/frame'));
   await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   ws = { root } as WorkspaceConfig;
   await createComponent(root, { write: plainWrite, id: 'acme/frame', kind: 'layout', description: 'A frame.' });

@@ -939,7 +939,7 @@ describe('layouts and output size', () => {
 
   it('uses a default geometry (with a warning) when the layout has none for the variant', async () => {
     const ws = await studioWorkspace({
-      'studio/layout-card': (y) => y.replace(/geometry_vertical:\n(  .*\n)+/, '').replace(/variants: \[ ?landscape, vertical, square ?\]/, 'variants: [landscape, square]'),
+      'studio/layout-card': (y) => y.replace(/geometry_vertical:\n( {2}.*\n)+/, '').replace(/variants: \[ ?landscape, vertical, square ?\]/, 'variants: [landscape, square]'),
     });
     try {
       const p = withWs(ws, synthTimeline({ entries, duration: 9 }), { variant: 'vertical' });

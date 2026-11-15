@@ -51,7 +51,7 @@ function stream(port: number, headers: Record<string, string>): Promise<Stream> 
       res.on('data', (c: string) => {
         all += c;
         buf += c;
-        let i;
+        let i: number;
         while ((i = buf.indexOf('\n\n')) >= 0) {
           const block = buf.slice(0, i);
           buf = buf.slice(i + 2);

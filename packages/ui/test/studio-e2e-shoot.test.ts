@@ -615,7 +615,7 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
           const cells = [...row.children].filter(vis);
           cells.forEach((c, i) => {
             const w = c.getBoundingClientRect().width;
-            const min = stacked ? 80 : heads[i] && heads[i].textContent && !heads[i].querySelector('.k-sr') ? textWidth(heads[i]) : 0;
+            const min = stacked ? 80 : heads[i]?.textContent && !heads[i].querySelector('.k-sr') ? textWidth(heads[i]) : 0;
             if (w + 0.5 < min) out.push(`${row.getAttribute('data-persona')} cell ${i} ${Math.round(w)} px < ${Math.round(min)} px`);
             // A state word on one line (never a letter per line).
             for (const m of c.querySelectorAll('.k-mark-word'))

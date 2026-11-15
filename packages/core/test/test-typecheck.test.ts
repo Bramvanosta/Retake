@@ -95,7 +95,7 @@ function vitestAliases(): Record<string, string> {
       if (ts.isArrowFunction(n.initializer) && n.name.text === 'pkg' && n.initializer.parameters.length === 1 && !ts.isBlock(n.initializer.body)) {
         const t = urlText(n.initializer.body);
         const param = n.initializer.parameters[0]!.name.getText(sf);
-        if (t !== null && t.includes(`\${${param}}`)) pkgTemplate = t.replace(`\${${param}}`, '<name>');
+        if (t?.includes(`\${${param}}`)) pkgTemplate = t.replace(`\${${param}}`, '<name>');
       } else {
         const t = urlText(n.initializer);
         if (t !== null) consts.set(n.name.text, t);

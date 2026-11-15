@@ -581,7 +581,7 @@ export function hookSummary(hook: unknown): { kind?: HookKind; summary: string; 
   let kind: HookKind;
   try {
     if (!['http', 'sql', 'shell', 'js'].some((k) => hook[k] !== undefined)) return { summary: 'unknown hook' };
-    kind = hookKind(hook as unknown as HookStep);
+    kind = hookKind(hook);
   } catch {
     return { summary: 'unknown hook' };
   }

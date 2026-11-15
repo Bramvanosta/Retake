@@ -39,6 +39,9 @@ import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { hasTool } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const P = 'northfield-fixture';
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -70,7 +73,7 @@ async function shot(name: string, width: number, fullPage = false): Promise<void
 }
 
 const themeFile = (name = COPY) => join(ws, 'templates', name, 'template.yaml');
-const themeYaml = async (name = COPY) => parseYaml(await readFile(themeFile(name), 'utf8')).value as Record<string, any>;
+const themeYaml = async (name = COPY) => parseYaml(await readFile(themeFile(name), 'utf8')).value as Record<string, Untyped>;
 const status = () => page.getByTestId('theme-status').innerText();
 const settles = async () => Number(await page.getByTestId('theme-preview').getAttribute('data-settles'));
 const opsOf = (op: string) => ops.filter((o) => o.op === op);

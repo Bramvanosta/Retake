@@ -15,12 +15,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { afterAll, describe, expect, it } from 'vitest';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const APP = join(REPO, 'apps', 'desktop');
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-app-update-')));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 const MAC = process.platform === 'darwin';
-const bundle = async () => (await import(pathToFileURL(join(APP, 'scripts', 'bundle.mjs')).href)) as any;
+const bundle = async () => (await import(pathToFileURL(join(APP, 'scripts', 'bundle.mjs')).href)) as Untyped;
 
 /** A test key in Tauri's format and a signer (the same format `tauri signer` writes; publish-update.test.ts checks one of the CLI's own). */
 function testKey() {

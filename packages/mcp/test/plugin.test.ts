@@ -92,7 +92,7 @@ describe('retake mcp: the plugin registration and the serving PATH', () => {
     const io = memoryIo();
     expect(await main(['node', 'retake', '--root', ws, 'mcp', '--print-config'], io)).toBe(EXIT.ok);
     const err = io.stderr();
-    const node = (JSON.parse(io.stdout()) as { mcpServers: Record<string, { command: string }> }).mcpServers['retake'].command;
+    const node = (JSON.parse(io.stdout()) as { mcpServers: Record<string, { command: string }> }).mcpServers.retake.command;
     expect(err).toMatch(/Either .*\n {2}claude mcp add retake --scope user /);
     expect(err).toContain('not both');
     expect(err).toContain(`\n  claude plugin marketplace add ${REPO}\n`);

@@ -134,6 +134,7 @@ export function FrameGrid({
   return (
     <ul
       ref={listRef}
+      // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: a listbox of step frames (a native <select> cannot hold them); the list keeps its list layout and drop targets
       role="listbox"
       aria-label={visibleControls(label)}
       aria-orientation="horizontal"
@@ -190,8 +191,11 @@ export function FrameOption({
 }) {
   const cls = ['k-frame', selected ? 'is-selected' : '', draggable ? 'is-draggable' : '', drop ? `is-drop-${drop}` : '', dragging ? 'is-dragging' : ''].filter(Boolean).join(' ');
   return (
+    // biome-ignore lint/a11y/useFocusableInteractive: an option of the frames listbox: the list holds the focus and the keys (aria-activedescendant); a click picks it
+    // biome-ignore lint/a11y/useKeyWithClickEvents: an option of the frames listbox: the list holds the focus and the keys (aria-activedescendant); a click picks it
     <li
       id={id}
+      // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: an option of the frames listbox: the list holds the focus and the keys (aria-activedescendant); a click picks it
       role="option"
       aria-selected={selected}
       aria-label={visibleControls(label)}
@@ -274,6 +278,8 @@ export function RowCard({
   }
   if (option) {
     return (
+      // biome-ignore lint/a11y/useFocusableInteractive: an option of a listbox: the list holds the focus and the keys (aria-activedescendant); a click picks it
+      // biome-ignore lint/a11y/useKeyWithClickEvents: an option of a listbox: the list holds the focus and the keys (aria-activedescendant); a click picks it
       <div id={option.id} role="option" aria-selected={selected} className={cls} onClick={onSelect} data-testid={testId}>
         {shown(body)}
       </div>
@@ -319,6 +325,7 @@ export function RowList({
     <InListbox.Provider value={true}>
       <ol
         className={cls}
+        // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: a listbox of rich options (a native <select> cannot hold them); the list keeps its list layout
         role="listbox"
         aria-labelledby={labelledBy}
         aria-activedescendant={listbox.activeId}

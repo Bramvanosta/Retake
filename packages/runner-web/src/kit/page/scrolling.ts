@@ -145,7 +145,7 @@ export function scrollInfo(id: string, of?: string | null): ScrollInfo {
   return info;
 }
 function easeInOutCubic(u: number): number {
-  return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+  return u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
 }
 /** rAF raced with setTimeout: rAF alone can stall (background/occluded rendering). */
 function nextTick(fn: () => void): void {

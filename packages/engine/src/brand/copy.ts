@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { RETAKE_VERSION, parseYaml } from '@retake/core/base';
 import { insideFolder, setMapPath, StepEditError } from '@retake/core/scenario';
 import { TEMPLATE_FILE, parseTemplateYaml } from '@retake/core/theme';
+import type { LoadedTemplate } from '@retake/core/theme';
 import { nodeFileFacts } from '@retake/core/io';
 import { workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
@@ -86,7 +87,7 @@ export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: 
       fix: 'work in a workspace of your own: set RETAKE_ROOT, or a retake.yaml whose templates_dir is outside the Retake folder',
     });
   }
-  let source;
+  let source: LoadedTemplate;
   try {
     source = await ws.reads.loadTemplate(from, ws.root, { files: ws.reads.fileFacts(ws.policy) });
   } catch (e) {

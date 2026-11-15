@@ -346,7 +346,7 @@ export const libraryImages = defineOperation({
       for (const id of [...new Set(a.committed)]) {
         // A built-in only: a workspace component of that id (an override) never shows the built-in's picture.
         const info = reg.has(id) ? reg.get(id) : undefined;
-        if (!info || info.source !== 'builtin') {
+        if (info?.source !== 'builtin') {
           out.missing.push({ component: id, reason: 'not_builtin' });
           continue;
         }

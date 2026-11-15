@@ -68,13 +68,14 @@ export function Track({ name, testId, count, children }: { name: string; testId:
   const lane = useRef<HTMLUListElement>(null);
   useLayoutEffect(() => {
     const ul = lane.current;
-    if (!ul || !ul.querySelector(':scope > .k-trackitem.is-tick')) return;
+    if (!ul?.querySelector(':scope > .k-trackitem.is-tick')) return;
     spaceLane(ul);
     const ro = new ResizeObserver(() => spaceLane(ul));
     ro.observe(ul);
     return () => ro.disconnect();
   });
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a timeline track: a named group of items; <fieldset> would bring its own border, padding and min-width
     <div className="k-track" role="group" aria-label={visibleControls(`${name}: ${plural(count, 'item')}`)} data-testid={testId}>
       <span className="k-track-label" aria-hidden="true">
         {shown(name)}

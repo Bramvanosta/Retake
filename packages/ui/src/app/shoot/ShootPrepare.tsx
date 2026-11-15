@@ -61,6 +61,7 @@ function BlockerList({ list, testId, slug, name }: { list: RunBlocker[]; testId:
         // A state word beside the mark (the colour-only rule): "Blocked: 1 hook to approve".
         const s = { ...s0, words: `Blocked: ${s0.words}` };
         return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the blockers, replaced whole on each read and holding no state: the index is the identity
           <div key={i} className="sp-blocker">
             {s.action === 'copy' && b.fix ? (
               <Blocker word={s.words} fix={{ copy: b.fix }}>
@@ -384,6 +385,7 @@ export function ShootPrepare({ slug, name }: { slug: string; name: string }) {
                 </>
               )}
               {sessions.data.issues.map((i, n) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: the sessions read's issues, replaced whole on each read, text only: the index is the identity
                 <Callout key={n} state="warn" role="note" title="A page has no persona a run could use">
                   <p className="sb-pre">
                     <Txt text={i} />
@@ -453,6 +455,7 @@ export function ShootPrepare({ slug, name }: { slug: string; name: string }) {
       )}
       <p className="sc-quiet">{shown(`${REHEARSE_MAPPING} A run can be paused and stopped from the status bar or its screen; stopping still runs its teardown and rollbacks.`)}</p>
       {/* Sticky at the foot of the centre pane (reachable at 900 px without scrolling past the checks). */}
+      {/* biome-ignore lint/a11y/useSemanticElements: the sticky row of start buttons; <fieldset> would bring its own border, padding and min-width */}
       <div className="sp-starts" role="group" aria-label="Start a take">
         <div className="sp-start">
           <div className="sp-start-text">

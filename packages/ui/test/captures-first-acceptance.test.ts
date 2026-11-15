@@ -228,7 +228,7 @@ describe.skipIf(!ENABLED)('captures first, measured from the Studio (RETAKE_TEST
     const quote = await readFile(join(project, 'scenarios', 'quote.yaml'), 'utf8');
     text = quote
       .replace(/^video: quote$/m, 'video: quote-studio')
-      .replace(/\n      rollback: \{method: DELETE, url: "\{\{shop\}\}\/api\/quotes\/auto-proposal"\}/, '')
+      .replace(/\n {6}rollback: \{method: DELETE, url: "\{\{shop\}\}\/api\/quotes\/auto-proposal"\}/, '')
       .replace(/\n {2}- name: open-console\n {4}js: \{page: console, code: "return location\.href"\}/, '');
     expect(text).not.toMatch(/- name: open-console/);
     expect(text).not.toMatch(/rollback: \{method: DELETE/);

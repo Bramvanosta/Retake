@@ -19,6 +19,9 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const WORKFLOW_FILE = join(REPO, '.github', 'workflows', 'release.yml');
 const KEYCHAIN_SCRIPT = join(REPO, 'apps', 'desktop', 'scripts', 'ci-keychain.sh');
@@ -33,11 +36,11 @@ const dir = (name: string) => {
 };
 
 // The repository's YAML parser (a dependency of @retake/core), as the core package resolves it.
-const YAML = createRequire(join(REPO, 'packages', 'core', 'package.json'))('yaml') as { parse: (t: string) => any };
-const releaseModule = async () => (await import(pathToFileURL(join(REPO, 'scripts', 'release.mjs')).href)) as any;
-const publishModule = async () => (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as any;
-const signModule = async () => (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'sign.mjs')).href)) as any;
-const bundleModule = async () => (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs')).href)) as any;
+const YAML = createRequire(join(REPO, 'packages', 'core', 'package.json'))('yaml') as { parse: (t: string) => Untyped };
+const releaseModule = async () => (await import(pathToFileURL(join(REPO, 'scripts', 'release.mjs')).href)) as Untyped;
+const publishModule = async () => (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as Untyped;
+const signModule = async () => (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'sign.mjs')).href)) as Untyped;
+const bundleModule = async () => (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs')).href)) as Untyped;
 
 const raw = readFileSync(WORKFLOW_FILE, 'utf8');
 const wf = YAML.parse(raw);
@@ -208,7 +211,7 @@ describe('release.yml: triggers, permissions, environments, pinned actions', () 
   it('every checkout keeps no credential (persist-credentials: false); no `${{ }}` inside a script (values come through env); no failure hidden (|| true)', () => {
     const checkouts = allSteps.filter((s) => s.uses?.startsWith('actions/checkout@'));
     expect(checkouts.map((s) => s.job).sort()).toEqual(['attach', 'build', 'publish', 'release', 'sign']);
-    for (const s of checkouts) expect((s.with as any)?.['persist-credentials'], label(s)).toBe(false);
+    for (const s of checkouts) expect((s.with as Untyped)?.['persist-credentials'], label(s)).toBe(false);
     for (const s of allSteps) if (s.run) expect(s.run, label(s)).not.toContain('${{');
     expect(raw).not.toMatch(/\|\|\s*true\b|continue-on-error/);
   });
@@ -465,8 +468,8 @@ describe('release.yml: the keys never share a runner with dependency code', () =
     expect(pack).toMatch(/echo "sha256=\$\(shasum -a 256 "\$A\/retake-app\.tar\.gz" \| cut -d' ' -f1\)" >> "\$GITHUB_OUTPUT"/);
     const up = allSteps.filter((s) => s.uses?.startsWith('actions/upload-artifact@'));
     const down = allSteps.filter((s) => s.uses?.startsWith('actions/download-artifact@'));
-    expect(up.map((s) => `${s.job}:${(s.with as any).name}`)).toEqual(['build:retake-app-adhoc', 'sign:retake-release']);
-    expect(down.map((s) => `${s.job}:${(s.with as any).name}`)).toEqual(['sign:retake-app-adhoc', 'attach:retake-release']);
+    expect(up.map((s) => `${s.job}:${(s.with as Untyped).name}`)).toEqual(['build:retake-app-adhoc', 'sign:retake-release']);
+    expect(down.map((s) => `${s.job}:${(s.with as Untyped).name}`)).toEqual(['sign:retake-app-adhoc', 'attach:retake-release']);
     expect(step('sign', "The build job's app").env).toEqual({ SHA256: '${{ needs.build.outputs.sha256 }}' });
   });
 
@@ -530,7 +533,7 @@ describe('release.yml: the keys never share a runner with dependency code', () =
 describe('release.yml: secrets and the job token go only where they are used', () => {
   it("secrets appear in steps' env only (never in the workflow's or a job's env, a `with`, an `if` or a script)", () => {
     expect(JSON.stringify(wf.env ?? {})).not.toMatch(/secrets\./);
-    for (const j of Object.values(jobs)) expect(JSON.stringify((j as any).env ?? {})).not.toMatch(/secrets\./);
+    for (const j of Object.values(jobs)) expect(JSON.stringify((j as Untyped).env ?? {})).not.toMatch(/secrets\./);
     for (const s of allSteps) {
       expect(JSON.stringify({ with: s.with ?? {}, if: s.if ?? '', run: s.run ?? '' }), label(s)).not.toMatch(/secrets\./);
       for (const [k, v] of Object.entries(s.env ?? {})) if (/secrets\./.test(String(v))) expect(Object.keys(secretsOf(s)).includes(k) || PRESENCE.test(String(v)), `${label(s)} ${k}`).toBe(true);
@@ -577,7 +580,7 @@ describe('release.yml: secrets and the job token go only where they are used', (
     ).toEqual(['RETAKE_UPDATE_FEED=$(node scripts/release.mjs', 'node scripts/publish-update.mjs']);
     expect(raw).not.toMatch(/UPDATES_|update host/);
     // One publication at a time across tags: two runs never rewrite the feed together.
-    expect((jobs.publish as any).concurrency).toEqual({ group: 'release-publish', 'cancel-in-progress': false });
+    expect((jobs.publish as Untyped).concurrency).toEqual({ group: 'release-publish', 'cancel-in-progress': false });
   });
 
   it('every secret a step binds, its script (or the script it runs) uses; the sign step unsets the empty ones (an unset secret arrives as "")', () => {
@@ -679,7 +682,7 @@ describe('release.yml: what it runs', () => {
       ...Object.fromEntries(config.map((k) => [k, `\${{ steps.config.outputs.${k} }}`])),
     });
     expect(step('release', 'The tagged commit is on main').run).toMatch(/git merge-base --is-ancestor "\$GITHUB_SHA" origin\/main/);
-    expect((jobs.release!.steps[0]!.with as any)['fetch-depth']).toBe(0);
+    expect((jobs.release!.steps[0]!.with as Untyped)['fetch-depth']).toBe(0);
     const names = jobs.release!.steps.map((s) => s.name);
     expect(names.indexOf('What is configured')).toBeLessThan(names.indexOf('Create the release (draft)'));
     expect(step('release', 'Create the release (draft)').run).toMatch(/gh release create "\$GITHUB_REF_NAME" --verify-tag --draft .*--prerelease="\$PRERELEASE"/s);
@@ -806,7 +809,7 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
     const on = runStep(s, { ...files, UPDATES: 'on', RUNNER_TEMP: make([files.DMG, files.ARCHIVE, files.SIGNATURE]) });
     expect(readdirSync(join(on.temp, 'release')).sort()).toEqual(['Retake.app.tar.gz', 'Retake.app.tar.gz.sig', 'Retake_0.2.0_aarch64.dmg', 'SHA256SUMS-macos.txt']);
     expect(readFileSync(join(on.temp, 'release', 'SHA256SUMS-macos.txt'), 'utf8')).toMatch(
-      /^[0-9a-f]{64}  Retake\.app\.tar\.gz\n[0-9a-f]{64}  Retake\.app\.tar\.gz\.sig\n[0-9a-f]{64}  Retake_0\.2\.0_aarch64\.dmg\n$/,
+      /^[0-9a-f]{64} {2}Retake\.app\.tar\.gz\n[0-9a-f]{64} {2}Retake\.app\.tar\.gz\.sig\n[0-9a-f]{64} {2}Retake_0\.2\.0_aarch64\.dmg\n$/,
     );
     const unsigned = runStep(s, { ...files, UPDATES: 'on', RUNNER_TEMP: make([files.DMG, files.ARCHIVE]) });
     expect(unsigned.status).toBe(1);

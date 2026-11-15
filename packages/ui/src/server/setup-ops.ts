@@ -68,7 +68,7 @@ import {
   writeDesktopEntry,
   zshPathLine,
 } from '@retake/engine/integrations';
-import type { ClaudeStep, InstallLocation } from '@retake/engine/integrations';
+import type { ClaudeStep, InstallLocation, ClaudeRunResult, CliInstallResult, DesktopWriteResult } from '@retake/engine/integrations';
 import { defineTool } from '@retake/engine/contract';
 import type { ToolOutput } from '@retake/engine/contract';
 import { parseShellLine } from './shell-line.js';
@@ -184,7 +184,7 @@ export function applyShellLine(setup: { state: SetupState; context(): SetupConte
 
 /** The bundle of an installed app (a `.app` around it), else null: a staged tree or a checkout has no set-up. */
 function appBundle(ctx: SetupContext): BundleInfo | null {
-  return ctx.bundle && ctx.bundle.sealed.endsWith('.app') ? ctx.bundle : null;
+  return ctx.bundle?.sealed.endsWith('.app') ? ctx.bundle : null;
 }
 
 function locationOf(b: BundleInfo, ctx: SetupContext): InstallLocation {
@@ -429,7 +429,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       const there = installedLink(ctx, home, launcher);
       if (there && there !== join(dir, CLI_NAME))
         throw refused('installed_elsewhere', `the command is installed already: ${there} — Uninstall it first, then install it in the other folder`, { installed: there });
-      let r;
+      let r: CliInstallResult;
       try {
         r = installCliLink(dir, launcher, { replace: a.replace, createDir: a.folder === 'default' });
       } catch (e) {
@@ -495,7 +495,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       // One run at a time: two would write the same Claude Code settings.
       if (state.claudeRunning) throw refused('busy', 'a Claude Code run is in flight: wait for its answer');
       state.claudeRunning = true;
-      let r;
+      let r: ClaudeRunResult;
       try {
         r = await runClaudeSteps(claude, steps.steps, { env: claudeEnv(claude, ctx.env, join(b.paths.node, '..')), ...(ctx.claudeTimeoutMs ? { timeoutMs: ctx.claudeTimeoutMs } : {}) });
       } finally {
@@ -522,7 +522,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       const running = await readRunning(ctx, state);
       if (running === null) throw refused('claude_unknown', 'Retake could not check whether Claude Desktop is running: quit it (⌘Q in Claude), then Add again — or copy the entry');
       if (running) throw refused('claude_running', 'Claude Desktop is running and may write its config over the change: quit it (⌘Q in Claude), then Add again');
-      let r;
+      let r: DesktopWriteResult;
       try {
         r = writeDesktopEntry(ctx.desktopConfig, desktopEntry(b, ctx, workspace), { replace: a.replace, backupDir: desktopBackupDir(homeOf(ctx)) });
       } catch (e) {

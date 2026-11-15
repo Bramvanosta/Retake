@@ -109,6 +109,7 @@ function NoteCallout({ note }: { note: NonNullable<RecordingUi['note']> }) {
       {note.issues && note.issues.length > 0 && (
         <ul className="rc-list">
           {note.issues.map((i, n) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: one note's issues, fixed once said, text only: the index is the identity
             <li key={n}>
               {i.scene !== undefined && <Txt text={`${i.step !== undefined ? stepWords(i.scene, i.step) : `scene ${i.scene}`}: `} />}
               <Txt text={i.message} />
@@ -227,6 +228,7 @@ export function RecordingBody({
             <Disclosure summary="The draft as YAML">
               <pre className="rc-yaml" data-testid="record-yaml">
                 {u.yaml_lines.map((l, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: the draft's YAML lines in file order, text only: the index is the line number
                   <span key={i}>
                     <Txt text={l} />
                     {'\n'}

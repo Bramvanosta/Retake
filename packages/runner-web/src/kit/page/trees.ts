@@ -19,7 +19,7 @@ export function frameDoc(el: Element): Document | null {
   if (el.localName !== 'iframe' && el.localName !== 'frame') return null;
   try {
     const d = (el as HTMLIFrameElement).contentDocument;
-    return d && d.documentElement ? d : null;
+    return d?.documentElement ? d : null;
   } catch {
     return null;
   }

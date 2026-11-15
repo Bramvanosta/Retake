@@ -520,6 +520,7 @@ export function useRunLive(slug: string, runId: string, frames: boolean | null, 
   handleRef.current = handle;
 
   // A new run on the same screen: everything from the start.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another project or run id is the trigger to reset the state
   useEffect(() => {
     stateRef.current = EMPTY;
     cursor.current = null;

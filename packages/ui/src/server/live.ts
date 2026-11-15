@@ -47,7 +47,7 @@ import {
   workspaceChanges,
 } from '@retake/engine/shell';
 import { EngineError } from '@retake/engine';
-import type { JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader, OpenedWorkspace } from '@retake/engine';
+import type { Engine, JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader, OpenedWorkspace } from '@retake/engine';
 
 import { recordsChanges, recordsWatchScan } from './record-watch.js';
 import { errorMessage } from '@retake/core/base';
@@ -76,6 +76,8 @@ export interface LiveOptions {
    * (withOwnMemory: the jobs each saw finished, the takes each counts), and the default `retake` in derived fix texts.
    */
   queue: JobQueueView;
+  /** The engine's folders to read (Engine.folder): what the index reads a project's README through. */
+  folder: Engine['folder'];
   /** node:sqlite (tests inject a Node.js without it). */
   sqlite?: SqliteLoader;
   pollMs?: number;
@@ -116,7 +118,7 @@ export class Live {
   static async start(o: LiveOptions): Promise<Live> {
     let index: WorkspaceIndex | null = null;
     try {
-      index = await WorkspaceIndex.open(o.ws, { queue: o.queue.withOwnMemory(), ...(o.sqlite ? { loader: o.sqlite } : {}) });
+      index = await WorkspaceIndex.open(o.ws, { queue: o.queue.withOwnMemory(), folder: o.folder, ...(o.sqlite ? { loader: o.sqlite } : {}) });
     } catch (e) {
       o.log?.(`retake ui: the workspace index could not be opened (${errorMessage(e)}): activity and search are off`);
     }

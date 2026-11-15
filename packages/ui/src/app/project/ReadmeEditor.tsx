@@ -102,6 +102,7 @@ function Editor({ view }: { view: ProjectView }) {
     }
   }, [slug, seeDisk]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the view of the first load only (later re-reads come from events and focus); a new slug starts again
   useEffect(() => {
     mounted.current = true;
     seeDisk(diskOf(view));

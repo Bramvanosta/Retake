@@ -10,6 +10,7 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import type { Dirent } from 'node:fs';
 import { createRequire } from 'node:module';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -112,7 +113,7 @@ const finished = (id: string) => async () => {
 /** Every regular file under `dir` (links not followed). */
 async function files(dir: string): Promise<string[]> {
   const out: string[] = [];
-  let entries;
+  let entries: Dirent[];
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch {

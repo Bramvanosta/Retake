@@ -174,6 +174,7 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
             </LinkButton>
           )}
           {st.result.warnings.map((w, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: one answer's warnings, fixed once said, text only: the index is the identity
             <span key={i} className="lb-quiet">
               <Txt text={w} />
             </span>
@@ -270,6 +271,7 @@ export function ComponentInspector({
   const data = d.state === 'ready' ? d.data : null;
   const length = data?.duration ? `${data.duration.default} s` : null;
   return (
+    // biome-ignore lint/a11y/useSemanticElements: the inspector is a focus target named by its heading; <fieldset> would bring its own border, padding and min-width
     <div className="lb-insp" tabIndex={-1} data-lib-focus="" role="group" aria-labelledby={nameId}>
       <InspectorSection
         title={

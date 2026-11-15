@@ -1830,7 +1830,7 @@ export function browserRegistryHits(root, files) {
     let count = 0;
     (function visit(n) {
       const t = ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) ? n.text : undefined;
-      if (t !== undefined && t.includes('playwright-core/lib/')) count++;
+      if (t?.includes('playwright-core/lib/')) count++;
       n.forEachChild(visit);
     })(sf);
     if (count) hits.push({ rule: 'browser-registry', file: rel, count });

@@ -10,7 +10,7 @@ const frameFor = new WeakMap<object, Element>();
 function sourceFrame(src: MessageEventSource | null): Element | null {
   if (!src) return null;
   const known = frameFor.get(src);
-  if (known && known.isConnected && (known as HTMLIFrameElement).contentWindow === src) return known;
+  if (known?.isConnected && (known as HTMLIFrameElement).contentWindow === src) return known;
   const isSrc = (f: Element) => (f as HTMLIFrameElement).contentWindow === src;
   const f = Array.from(document.querySelectorAll('iframe,frame')).find(isSrc) ?? deepQsa(document, 'iframe,frame').find(isSrc) ?? null;
   if (f) frameFor.set(src, f);
@@ -22,7 +22,7 @@ export function relayFramePointer(): void {
     on(window, 'message', (ev: Event) => {
       const e = ev as MessageEvent;
       const d = e.data as { __retakePtr?: number; type?: string; x?: number; y?: number } | null;
-      if (!d || d.__retakePtr !== 1 || typeof d.x !== 'number' || typeof d.y !== 'number') return;
+      if (d?.__retakePtr !== 1 || typeof d.x !== 'number' || typeof d.y !== 'number') return;
       const frame = sourceFrame(e.source);
       if (!frame) return;
       const o = contentOffset(frame);

@@ -66,6 +66,7 @@ export function FrameViewer(p: {
   const { slug, shown, frame, setFrame } = p;
   const [outline, reloadOutline] = useRenderOutline({ project: slug, render_id: shown.render_id, created_at: shown.created_at }, `${slug}\0${shown.render_id}\0${shown.created_at}`);
   const first = useRef(true);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `tick` (a comments event) is the trigger to read the outline again
   useEffect(() => {
     if (first.current) {
       first.current = false;
@@ -178,6 +179,7 @@ export function FrameViewer(p: {
               const words = `Marker ${d.untrusted.markers[i] ?? ''} at ${frameTime(k.frame, d.fps)}`;
               return (
                 <TrackItem
+                  // biome-ignore lint/suspicious/noArrayIndexKey: markers in render order, the index also reads their names (untrusted.markers[i]): the index is the marker
                   key={`m${i}`}
                   variant="marker"
                   place={{ at: k.frame }}
@@ -214,6 +216,7 @@ export function FrameViewer(p: {
           </Track>
         )}
       </div>
+      {/* biome-ignore lint/a11y/useSemanticElements: a toolbar-like row of frame buttons; <fieldset> would bring its own border, padding and min-width */}
       <div className="cm-controls" role="group" aria-label="Frame controls">
         <Button size="sm" aria-label="Back one second" onClick={() => go(frame - Math.round(d.fps))}>
           −1 s
@@ -331,6 +334,7 @@ function FramePicture(p: { o: Outline; image: FrameAnswer | null; frame: number;
   // The one status line: a frame slow to come is said after a pause (never once per arrow press); the first picture too.
   const stale = p.image !== null && p.image.frame !== p.frame;
   const [slow, setSlow] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each new frame asked restarts the pause before "loading" is said
   useEffect(() => {
     setSlow(false);
     if (!stale) return;

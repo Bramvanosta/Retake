@@ -118,6 +118,10 @@ export interface SandboxLogs extends ServiceLogFile {
   text: string;
 }
 
+/**
+ * A take's hold on its sandbox. The engine's in-memory Sandboxes port (engine sandboxes/memory-sandboxes.ts) answers the
+ * same take on purpose, without a process; the port's contract suite (engine test/sandbox-contract.ts) runs both.
+ */
 export interface Take {
   /** What run.json / timeline.json record (`environment.sandbox`). */
   info: RunSandbox;

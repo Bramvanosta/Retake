@@ -133,7 +133,7 @@ export function importsOf(file: string, text: string): Import[] {
   // The app is src/app/: one `../` out of it is src/ (a module of the package), more is outside the package.
   const outside = (spec: string): string | null => {
     const p = path(spec);
-    return p !== null && p.startsWith('../') && !p.startsWith('../../') ? p.slice(3) : null;
+    return p?.startsWith('../') && !p.startsWith('../../') ? p.slice(3) : null;
   };
   const at = (spec: string) => ({ module: resolve(spec), outside: outside(spec), spec });
   const out: Import[] = [];

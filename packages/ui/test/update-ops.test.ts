@@ -20,6 +20,9 @@ import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { raw } from '@retake/test-support/http';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'update-ops-')));
 const ws = join(base, 'ws');
 let studio: StudioServer;
@@ -41,7 +44,7 @@ beforeEach(() => {
 
 const call = async (op: string, args: Record<string, unknown> = {}, server = studio) => {
   const r = await raw(server.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${server.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
-  return { status: r.status, body: r.json<{ data: Record<string, any>; error: { code: string; details?: { reason?: string } } }>() };
+  return { status: r.status, body: r.json<{ data: Record<string, Untyped>; error: { code: string; details?: { reason?: string } } }>() };
 };
 const shell = (o: Record<string, unknown>) => applyShellLine(studio.setup, ws, JSON.stringify(o), studio.update);
 const L = {

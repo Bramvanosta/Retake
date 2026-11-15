@@ -193,6 +193,7 @@ function ThemeRow({ slug, t, onCopy }: { slug: string; t: ListTheme; onCopy: () 
         </p>
       )}
       {t.issues.slice(0, 2).map((x, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a theme's first issues, replaced whole on each read, text only: the index is the identity
         <p key={i} className="tm-failure">
           <Txt text={x} />
         </p>
@@ -344,6 +345,7 @@ export function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { sl
             </LinkButton>
           </p>
           {state.made.palette.adjusted.map((a, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: one answer's adjustments, fixed once said, text only: the index is the identity
             <p key={i} className="tm-line">
               <Txt text={`Adjusted ${a.key}: ${a.from} → ${a.to} (for ${a.check.replace(/_/g, ' ')}).`} />
             </p>
@@ -354,6 +356,7 @@ export function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { sl
             </p>
           )}
           {state.made.warnings.map((w, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: one answer's warnings, fixed once said, text only: the index is the identity
             <p key={i} className="tm-quiet">
               <Txt text={w} />
             </p>

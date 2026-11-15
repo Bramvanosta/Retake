@@ -264,7 +264,7 @@ function overrideChecked(key: string, value: unknown): boolean {
   if (OVERRIDE_FLAGS.has(key)) return typeof value === 'boolean';
   if (key === 'music') return value === false;
   const words = Object.hasOwn(OVERRIDE_WORDS, key) ? OVERRIDE_WORDS[key] : undefined;
-  return words !== undefined && words.includes(value as string);
+  return words?.includes(value as string) ?? false;
 }
 /** `o` without its members whose value is undefined. */
 const defined = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;

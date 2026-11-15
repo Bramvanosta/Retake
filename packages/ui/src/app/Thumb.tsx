@@ -33,6 +33,7 @@ const Ctx = createContext<ThumbsCtx | null>(null);
 
 /** One loader and one observer for a screen; everything stops when it unmounts. */
 export function ThumbsProvider({ fetch, children }: { fetch: ThumbFetch; children: ReactNode }) {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: one loader for the screen's life; the fetch only closes over the project, and the screen is keyed by it
   const value = useMemo<ThumbsCtx>(() => {
     const loader = new ThumbLoader({ fetch });
     const callbacks = new Map<Element, (visible: boolean) => void>();

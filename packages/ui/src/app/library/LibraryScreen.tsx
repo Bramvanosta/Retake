@@ -92,7 +92,7 @@ function useObserver() {
     return {
       observe(el: Element, on: (v: boolean) => void) {
         const main = document.getElementById('main');
-        const io = get(main && main.contains(el) ? main : null);
+        const io = get(main?.contains(el) ? main : null);
         callbacks.set(el, on);
         io.observe(el);
         return () => {
@@ -132,6 +132,7 @@ function Notices({ notices }: { notices: LibraryViewAnswer['notices'] }) {
     <Disclosure testId="lib-notices" summary={`${plural(notices.length, 'registry notice')}${errors ? ` — ${plural(errors, 'component')} cannot be loaded` : ''}`}>
       <ul className="lb-notices">
         {notices.map((n, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the registry's notices, replaced whole on each read, text only: the index is the identity
           <li key={i}>
             <StatusMark state={n.severity === 'error' ? 'fail' : 'warn'} word={n.severity === 'error' ? 'Not loadable' : 'Warning'} /> {n.id && <Txt className="k-mono" text={n.id} />}{' '}
             <Txt text={n.untrusted.message} />
@@ -272,6 +273,7 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
     themeRef.current = view.data.theme.name;
     last.current = view.data;
   }
+  // biome-ignore lint/correctness/useExhaustiveDependencies: one pump per screen (keyed by project); `reload` is useCall's, stable for the screen's life
   const pump = useMemo(
     () =>
       new RenderPump({
@@ -478,6 +480,7 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
             <Notices notices={v.notices} />
             {groups.length === 0 && <p className="lb-quiet">No component matches.</p>}
             {/* The grid: one tab stop; its keys move the selection (gridKeys). */}
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: the keys bubble from the focused card (the grid's one tab stop); the wrapper itself is not a control */}
             <div className="lb-cards" onKeyDown={gridKeys}>
               {groups.map((g) => (
                 <section key={g.kind} className="lb-section" data-testid="lib-section" data-kind={g.kind} aria-labelledby={`lb-h-${g.kind}`}>

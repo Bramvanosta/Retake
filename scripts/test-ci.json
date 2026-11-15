@@ -342,6 +342,7 @@
     "packages/ui/test/board-words.test.ts",
     "packages/ui/test/comment-app.test.ts",
     "packages/ui/test/comment-types.test.ts",
+    "packages/ui/test/content-keys.test.ts",
     "packages/ui/test/desktop-answer.test.ts",
     "packages/ui/test/events.test.ts",
     "packages/ui/test/feature-boundaries.test.ts",

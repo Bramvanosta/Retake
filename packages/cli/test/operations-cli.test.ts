@@ -324,7 +324,7 @@ const ids = new Map<string, string>();
 
 /** A time as formatMs prints it ("850 ms", "1.7 s", "2 m 05 s"). */
 const SPAN = String.raw`(?:\d+ ms|\d+\.\d s|\d+ m \d\d s)`;
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function byOrder(kind: string, id: string): string {
   const k = `${kind}:${id}`;
@@ -336,7 +336,7 @@ function byOrder(kind: string, id: string): string {
 function normalise(text: string): string {
   let t = text;
   for (const [from, to] of paths) t = t.split(from).join(to);
-  t = t.replace(new RegExp(`(?<![\\w.-])${escape(hostname())}(?![\\w-])`, 'g'), '<host>');
+  t = t.replace(new RegExp(`(?<![\\w.-])${escapeRe(hostname())}(?![\\w-])`, 'g'), '<host>');
   t = t.split(RETAKE_VERSION).join('<version>').split(process.versions.node).join('<node>');
   // ISO stamps: the fixture's own (2026-01-01) are kept, a clock's are not.
   t = t.replace(/\b(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\b/g, (m, day: string) => (day === '2026-01-01' ? m : '<at>'));
@@ -344,7 +344,7 @@ function normalise(text: string): string {
   t = t.replace(/\b(\d{8})-(\d{6})(?=-[a-z])/g, (m, day: string, time: string) => (day === '20260101' || day === '20260102' ? m : byOrder('stamp', `${day}-${time}`)));
   t = t.replace(/\bj_[0-9A-HJKMNP-TV-Z]{26}\b/g, (m) => byOrder('job', m));
   // The step lines' local time (StepDisplay: "  12:34:56  services"), not a timecode (00:00:03:00).
-  t = t.replace(/^( +)\d{2}:\d{2}:\d{2}(?=  )/gm, '$1<clock>');
+  t = t.replace(/^( +)\d{2}:\d{2}:\d{2}(?= {2})/gm, '$1<clock>');
   // Hashes of what was written (a journal's sha256 / if_match, a preview's source hash): some files name the
   // repository by a relative path, so their bytes are this checkout's. Numbered by order (equal hashes stay equal).
   t = t.replace(/\b[0-9a-f]{16,64}\b/g, (m) => byOrder('hash', m));

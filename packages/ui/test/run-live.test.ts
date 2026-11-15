@@ -102,7 +102,7 @@ function live(body: unknown, headers: Record<string, string> = auth()): Promise<
         res.on('data', (c: string) => {
           all += c;
           buf += c;
-          let i;
+          let i: number;
           while ((i = buf.indexOf('\n\n')) >= 0) {
             const block = buf.slice(0, i);
             buf = buf.slice(i + 2);
@@ -503,7 +503,7 @@ describe('POST /v1/live: the live picture', () => {
       frame(ch, 7);
       const quiet = await live({ project: P, run_id: j.run });
       expect(await quiet.next('picture')).toMatchObject({ state: 'off' });
-      expect(String((quiet.events.find((e) => e.event === 'picture')?.data as { why: string }).why)).toContain('only when asked');
+      expect(String((quiet.events.find((e) => e.event === 'picture')!.data as { why: string }).why)).toContain('only when asked');
       await new Promise((r) => setTimeout(r, 300));
       expect(ch.streams).toBe(0);
       expect(quiet.events.some((e) => e.event === 'frame')).toBe(false);

@@ -532,10 +532,9 @@ describe("the order of the worker's side effects (characterization of runWorker,
     const job = await review(queue);
     const before = listening();
     const logs: string[] = [];
-    let during: ReturnType<typeof listening> | undefined;
     const p = work(root, { [job.id]: 'succeed' }, {}, logs);
     await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
-    during = listening();
+    const during = listening();
     expect(await p).toBe(0);
     expect(during).toEqual({ int: before.int + 1, term: before.term + 1, rejection: before.rejection + 1 });
     expect(logs[0]).toMatch(new RegExp(`^serving ${root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(build [^)]+\\)$`));

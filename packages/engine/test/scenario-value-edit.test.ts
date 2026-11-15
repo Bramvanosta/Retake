@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ScenarioError, parseYaml, stepGuard } from '@retake/core';
 import type { StepBlock } from '@retake/core';
-import { EngineError, createEngine } from '../src/index.js';
+import { type EngineError, createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { scratchHome } from '@retake/test-support/home';

@@ -108,7 +108,7 @@ function entryPoint(side: NonNullable<DropFileArgs['from']>, zone: PointSpec, w:
 
 async function elementHandle(ctx: StepContext, ref: string): Promise<ElementHandle<Element>> {
   const h = await ctx.rt.page.evaluateHandle((r) => {
-    const k = (window as unknown as { __retake?: { el(r: string): Element | null } }).__retake;
+    const k = window.__retake;
     return k ? k.el(r) : null;
   }, ref);
   const el = h.asElement();

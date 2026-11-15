@@ -257,6 +257,7 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   // Prepare's buttons are on screen (its status bar is its own); a live run's screen claims the bar until the run ends.
   const showButtons = !claimed && !onPrepare && !inReview && ctx !== null && slug !== null && name !== null;
   const actions: ReactNode = showButtons ? (
+    // biome-ignore lint/a11y/useSemanticElements: the status bar's row of actions; <fieldset> would bring its own border, padding and min-width
     <div className="sh-actions" role="group" aria-label={`Actions for ${name}`} data-testid="status-actions">
       {line && <ShortBlocker b={line.b} slug={slug} name={name} mode={line.mode} testId={line.mode === 'capture' ? 'blockers-capture' : 'blockers-dry-run'} />}
       {running && (

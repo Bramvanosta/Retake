@@ -333,7 +333,7 @@ async function viaStudio(): Promise<{ studio: Answers; callers: Answers }> {
     const r = await raw(studio.port, 'POST', `/v1/call/${c.op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
     const body = r.json<{ ok: boolean; data?: Record<string, unknown> }>();
     if ((c.op === 'theme_view' || c.op === 'theme_edit') && body.ok && typeof body.data?.sha256 === 'string' && (args as { theme?: string }).theme === 'mine') state.sha = body.data.sha256;
-    if (c.op === 'theme_view' && body.ok && (args as { theme?: string }).theme === 'mine') state.accent = (body.data?.fields as Record<string, string>)['colors.accent'];
+    if (c.op === 'theme_view' && body.ok && (args as { theme?: string }).theme === 'mine') state.accent = (body.data!.fields as Record<string, string>)['colors.accent'];
     if (c.op === 'library_view' && body.ok && state.key === undefined) {
       const items = body.data?.items as Array<{ component: string; poster: { key: string }; loop: { key: string } }>;
       const card = items.find((i) => i.component === 'studio/card-title')!;

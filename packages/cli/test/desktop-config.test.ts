@@ -47,6 +47,9 @@ import { UPDATE_EVENT } from '../../ui/src/app/shell/update.js';
 import { UPDATE_ACTIONS, UPDATE_FAILURES, UPDATE_OFF_REASONS, UPDATE_STATES } from '../../ui/src/server/update-ops.js';
 import { UPDATES_FILE, UPDATE_DISABLE_ENV } from '../../engine/src/integrations/app-setup.js';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const APP = join(REPO, 'apps', 'desktop');
 const read = (p: string) => readFileSync(join(APP, p), 'utf8');
@@ -82,7 +85,7 @@ function section(toml: string, name: string): Map<string, string> {
 
 describe('desktop shell configuration (static)', () => {
   it('tauri.conf.json: no window, no dev URL or frontend folder, no inline capability, no asset protocol, no plugin config; generic id', () => {
-    const conf = JSON.parse(read('tauri.conf.json')) as Record<string, any>;
+    const conf = JSON.parse(read('tauri.conf.json')) as Record<string, Untyped>;
     expect(conf.identifier).toBe('local.retake.desktop');
     expect(conf.productName).toBe('Retake');
     expect(conf.app.windows).toEqual([]);
@@ -614,7 +617,7 @@ describe('the updater, shell side (static)', () => {
     const off = /impl Off \{[\s\S]*?\n\}/.exec(flow)?.[0] ?? '';
     expect([...off.matchAll(/=> "([a-z_]+)"/g)].map((m) => m[1])).toEqual([...UPDATE_OFF_REASONS]);
     const failure = /impl Failure \{[\s\S]*?\n\}/.exec(flow)?.[0] ?? '';
-    expect([...(/pub fn wire\(self\)[\s\S]*?\n    \}/.exec(failure)?.[0] ?? '').matchAll(/=> "([a-z_]+)"/g)].map((m) => m[1])).toEqual([...UPDATE_FAILURES]);
+    expect([...(/pub fn wire\(self\)[\s\S]*?\n {4}\}/.exec(failure)?.[0] ?? '').matchAll(/=> "([a-z_]+)"/g)].map((m) => m[1])).toEqual([...UPDATE_FAILURES]);
     const states = [...flow.matchAll(/head\("([a-z]+)"\)/g)].map((m) => m[1]);
     expect([...states].sort()).toEqual([...UPDATE_STATES].sort());
     const pipe = read('core/src/pipe.rs');

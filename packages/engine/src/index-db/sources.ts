@@ -16,6 +16,7 @@
  * read for it either: the Studio re-reads its own scenario's threads.
  */
 import { readdir, stat } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
 import { join } from 'node:path';
 import { historyFile } from '../history.js';
 import { SLUG_RE } from '@retake/core/model';
@@ -50,7 +51,7 @@ const FOLLOW = { follow: true } as const;
 
 /** Project folders of the workspace (a folder of projects_dir holding a project.yaml), by slug. */
 async function projectSlugs(ws: OpenedWorkspace): Promise<string[]> {
-  let entries;
+  let entries: Dirent[];
   try {
     entries = await readdir(ws.projectsDir, { withFileTypes: true });
   } catch {

@@ -124,7 +124,7 @@ describe.skipIf(!canRun)('timeline_view', () => {
     expect(FRAME_URL_RE.test(d.frame_url)).toBe(true);
     expect(previewUrls(d.frame_url, d.plan_url)).toEqual({ frame: d.frame_url, plan: d.plan_url });
     // ⚑ No plan, no folders, no path, no asset map, no product URL.
-    for (const k of ['plan', 'folders', 'memo', 'assets']) expect(Object.prototype.hasOwnProperty.call(d, k), k).toBe(false);
+    for (const k of ['plan', 'folders', 'memo', 'assets']) expect(Object.hasOwn(d, k), k).toBe(false);
     for (const needle of [ws, homedir(), dir, 'retake-asset:', 'http://app.test', 'capture.mp4', '"file"']) expect(r.body.includes(needle), needle).toBe(false);
     // The plan is served on the player origin, with its capture under the same capability.
     const cap = /\/s\/([A-Za-z0-9_-]{43})\/frame$/.exec(d.frame_url)![1];

@@ -156,14 +156,14 @@ export async function startBrandSite(): Promise<BrandSite> {
   const cert = readFileSync(join(dir, 'c.pem'));
   rmSync(dir, { recursive: true, force: true });
 
-  const escape = { tcp: 0, udp: 0, upgrades: 0 };
+  const escapes = { tcp: 0, udp: 0, upgrades: 0 };
   const esc = createTcpServer((s) => {
-    escape.tcp++;
+    escapes.tcp++;
     s.destroy();
   });
   await new Promise<void>((r) => esc.listen(0, '127.0.0.1', () => r()));
   const udp = createSocket('udp4');
-  udp.on('message', () => escape.udp++);
+  udp.on('message', () => escapes.udp++);
   await new Promise<void>((r) => udp.bind(0, '127.0.0.1', () => r()));
   const escPort = (esc.address() as { port: number }).port;
   const udpPort = udp.address().port;
@@ -225,7 +225,7 @@ export async function startBrandSite(): Promise<BrandSite> {
     s.writeHead(404).end();
   });
   site.on('upgrade', (_q, sock) => {
-    escape.upgrades++;
+    escapes.upgrades++;
     sock.destroy();
   });
   await new Promise<void>((r) => site.listen(0, '127.0.0.1', () => r()));
@@ -248,7 +248,7 @@ export async function startBrandSite(): Promise<BrandSite> {
     hits,
     writes,
     cookies,
-    escape,
+    escape: escapes,
     async close() {
       site.closeAllConnections();
       await new Promise<void>((r) => site.close(() => r()));

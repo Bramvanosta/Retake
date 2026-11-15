@@ -23,6 +23,9 @@ import type { StudioServer } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const ENABLED = process.env.RETAKE_TEST_SLOW === '1';
 const SHOTS = process.env.RETAKE_UI_SHOTS;
 const P = 'northfield-fixture';
@@ -77,7 +80,7 @@ function rgbAt(input: { png: Buffer } | { video: string; t: number }, fx: number
 /** Close to BG (a light blue: blue well above red), whatever the encoder did to it. */
 const isBg = ([r, g, b]: [number, number, number]) => b - r > 30 && b > 200 && g > 180;
 
-const themeYaml = async () => parseYaml(await readFile(join(root, 'templates', COPY, 'template.yaml'), 'utf8')).value as Record<string, any>;
+const themeYaml = async () => parseYaml(await readFile(join(root, 'templates', COPY, 'template.yaml'), 'utf8')).value as Record<string, Untyped>;
 const settles = async () => Number(await page.getByTestId('theme-preview').getAttribute('data-settles'));
 async function settledAfter(n: number): Promise<void> {
   await expect.poll(async () => (await page.getByTestId('theme-preview').getAttribute('data-state')) === 'settled' && (await settles()) > n, POLL).toBe(true);

@@ -237,7 +237,7 @@ describe("the quit sheet (the desktop app's question in its page)", () => {
 
   it('⚑ an answer keeps the sheet open and busy until it settles; a failed one (a held 409) is said in the sheet, which stays answerable', async () => {
     bodies.length = 0;
-    let release = () => undefined as void;
+    let release: () => void = () => undefined;
     held = { status: 409, gate: new Promise<void>((r) => (release = r)) };
     await dispatch(page, UNSAVED);
     const d = sheet(page);

@@ -15,6 +15,9 @@ import type { BundleInfo } from '@retake/core/io';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { startMcpServer, staleWords } from '../src/index.js';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 let ws: string;
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'retake-stale-'));
@@ -56,7 +59,7 @@ describe('an MCP server on a stale engine', () => {
     const answer = async (id: number) => {
       for (let i = 0; i < 400; i++) {
         const line = out.split('\n').find((l) => l.includes(`"id":${id}`));
-        if (line) return JSON.parse(line) as { result: { isError?: boolean; content: Array<{ text: string }>; structuredContent?: Record<string, any> } };
+        if (line) return JSON.parse(line) as { result: { isError?: boolean; content: Array<{ text: string }>; structuredContent?: Record<string, Untyped> } };
         await new Promise((r) => setTimeout(r, 25));
       }
       throw new Error(`no answer to ${id}: ${out}`);

@@ -50,6 +50,9 @@ import { synthTimeline } from '@retake/test-support/timeline';
 import { REPO, hasTool } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
 
+// biome-ignore lint/suspicious/noExplicitAny: the page globals these tests read have no declared type
+type Untyped = any;
+
 const canRun = hasTool('ffmpeg');
 const PROJECT = 'demo';
 let ws: string;
@@ -325,7 +328,7 @@ async function studioPage(): Promise<Page> {
 async function openPreview(page: Page, frameUrl: string, planUrl: string, frame: number, record: boolean): Promise<void> {
   await page.evaluate(
     ({ frameUrl, planUrl, frame, record }) => {
-      const w = window as unknown as Record<string, any>;
+      const w = window as unknown as Record<string, Untyped>;
       w.__msgs = [];
       w.__r = [];
       w.__stopped = null;
@@ -546,7 +549,7 @@ describe.skipIf(!canRun)('the preview sandbox in Chromium', () => {
     await page.context().route(otherUrl, (route) => route.continue({ url: frame_url }));
     await page.evaluate(
       ({ frameUrl, otherUrl, planUrl }) => {
-        const w = window as unknown as Record<string, any>;
+        const w = window as unknown as Record<string, Untyped>;
         w.__got = [];
         const make = (doc: Document, src: string) => {
           const f = doc.createElement('iframe');
@@ -563,7 +566,7 @@ describe.skipIf(!canRun)('the preview sandbox in Chromium', () => {
             w.__got.push(`${tag} ${e.data.type}`);
             const port = e.ports[0];
             if (e.data.type !== 'hello' || !port) return;
-            port.onmessage = (m) => w.__got.push(`${tag} ${m.data && m.data.type}`);
+            port.onmessage = (m) => w.__got.push(`${tag} ${m.data?.type}`);
             port.postMessage({ v: 1, type: 'load', plan_url: planUrl, frame: 0 });
           });
         // (a) the frame document one level deeper: Studio page → about:blank child (the page's origin and CSP) → frame.

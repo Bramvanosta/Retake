@@ -60,6 +60,7 @@ function rowParts(r: DraftRow, can: boolean): { title: ReactNode; meta: ReactNod
   if (role === 'insert') notes.push(<span key="by">added by you</span>);
   if (r.step.summary) notes.push(<Txt key="sum" text={r.step.summary} />);
   for (const [i, c] of r.step.chips.entries()) notes.push(<Txt key={`c${i}`} text={c.label} />);
+  // biome-ignore lint/suspicious/noArrayIndexKey: the separators between a row's notes: a separator's place is its identity
   const meta = notes.length ? notes.flatMap((n, i) => (i ? [<span key={`s${i}`}>{' · '}</span>, n] : [n])) : null;
   let aside: ReactNode = null;
   if (can && r.alt && r.alt.options.length > 1) {
@@ -259,9 +260,10 @@ export function DraftList({
     if (first) setActiveId(first.id);
   };
   const block = (row: DraftRow | null, n: number, scene: string) => (
+    // biome-ignore lint/a11y/useSemanticElements: the insert cursor is a named group of buttons inside a list row; <fieldset> would bring its own border, padding and min-width
     <div className="rc-here" role="group" aria-label={row ? `Inserts go after step ${n}` : 'Inserts go here: at the end'} data-testid="record-cursor">
       {row && <RowRemoves r={row} where={stepWords(scene, row.step.index)} onRemove={remove} />}
-      {row && row.alt && row.alt.options.length > 1 && <Alternatives row={row} n={n} onChoose={choose} pending={busy} />}
+      {row?.alt && row.alt.options.length > 1 && <Alternatives row={row} n={n} onChoose={choose} pending={busy} />}
       <Inserts where={where} zoom={v.zoom} setCursor={setCursor} act={act} live={live} form={form} setForm={setForm} />
     </div>
   );
@@ -281,6 +283,7 @@ export function DraftList({
       )}
       {scenes.map((s, si) =>
         s.rows.length === 0 ? null : (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the heading id uses the same scene index (rec-scene-N): the key follows it; the section holds no state
           <section key={`${s.scene}-${si}`} className="rc-scene" aria-labelledby={`rec-scene-${si}`}>
             <h3 id={`rec-scene-${si}`} className="rc-scene-title">
               {shown(`Scene ${si + 1}: `)}

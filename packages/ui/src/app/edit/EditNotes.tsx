@@ -136,6 +136,7 @@ export function EditNotes({ v, slug, name, missing, notes }: { v: Ready; slug: s
               <p className="ed-quiet">From the preview — text a component may have written:</p>
               <ul className="ed-note-list" data-testid="preview-notes">
                 {notes.map((n, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: append-only notes (trimmed from the front), text only with no per-row state: the index is enough
                   <li key={i}>
                     <StatusMark state={n.type === 'error' ? 'fail' : 'warn'} word={n.type === 'error' ? 'Error' : 'Warning'} /> <Txt text={n.message} />
                   </li>
@@ -150,6 +151,7 @@ export function EditNotes({ v, slug, name, missing, notes }: { v: Ready; slug: s
               </p>
               <ul className="ed-note-list" data-testid="plan-notes">
                 {plan.map((n, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: the plan's notes, replaced whole on each read, text only: the index is the identity
                   <li key={i}>
                     <Tag>
                       <Txt text={n.type} />

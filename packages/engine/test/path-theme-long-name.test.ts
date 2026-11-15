@@ -9,6 +9,7 @@
  * A temp workspace; hand-made take and records; nothing is rendered, no browser is opened, no job runs.
  */
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { diskProjectStores } from '../src/outputs/../store/project-store.js';
 import { createHash } from 'node:crypto';
 import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -181,11 +182,11 @@ describe("a theme named by a path whose folder name is longer than a theme's nam
   });
 
   it("prune counts its renders as any other's: the older one beyond what is kept can go, with its files only", async () => {
-    const r = await pruneProject(diskOutputs, project, { keep_renders: 1 });
+    const r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, project, { keep_renders: 1 });
     expect(r.items.map((i) => [i.kind, i.id, i.reason, i.paths.map((p) => p.slice(project.dir.length + 1)).sort()])).toEqual([
       ['render', 'quote-v1', 'older render', ['renders/quote-v1.json', 'renders/quote-v1.mp4']],
     ]);
-    expect((await pruneProject(diskOutputs, project)).items).toEqual([]);
+    expect((await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, project)).items).toEqual([]);
     expect(r.threads_unread).toBeUndefined();
   });
 
@@ -203,9 +204,9 @@ describe("a theme named by a path whose folder name is longer than a theme's nam
         ),
       ),
     ).toBe('ok');
-    const list = await listComments(diskOutputs.renders, project, { status: 'all' });
+    const list = await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { status: 'all' });
     expect([list.threads.map((t) => [t.render_id, t.render_present]), list.problems]).toEqual([[['quote-v1', true]], []]);
-    expect((await pruneProject(diskOutputs, project, { keep_renders: 1 })).items).toEqual([]);
+    expect((await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, project, { keep_renders: 1 })).items).toEqual([]);
     await rm(join(project.dir, 'comments'), { recursive: true, force: true });
   });
 

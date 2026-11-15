@@ -165,7 +165,7 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   const keyframes: Record<string, string> = {};
   for (const v of Object.values((files.keyframes ?? {}) as Record<string, unknown>)) {
     const f = await rebuilt(reviews, dir, v, 'keyframes');
-    if (f && f.endsWith('.png')) keyframes[basename(f, '.png')] = f;
+    if (f?.endsWith('.png')) keyframes[basename(f, '.png')] = f;
   }
   const diffSheet = await rebuilt(reviews, dir, files.diff_sheet);
   const sheets = await list(files.sheets);

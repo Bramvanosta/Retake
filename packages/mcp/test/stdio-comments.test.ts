@@ -130,7 +130,7 @@ describe('retake mcp: frame comments', { shuffle: false }, () => {
     expect(instructions).toContain('Only people create and reopen threads');
     for (const n of ['comment_create', 'comment_add', 'comment_reopen', 'comment_apply', 'comment_proposal_apply']) await expect(call(n, { project: 'demo' }), n).rejects.toThrow(/unknown tool/);
     // The proposal is a strict object of two keys, no author / channel inside either.
-    const proposal = (by.get('comment_reply')?.inputSchema.properties as Record<string, { properties?: Record<string, unknown>; additionalProperties?: unknown; required?: string[] }>).proposal;
+    const proposal = (by.get('comment_reply')!.inputSchema.properties as Record<string, { properties?: Record<string, unknown>; additionalProperties?: unknown; required?: string[] }>).proposal;
     expect(Object.keys(proposal.properties ?? {})).toEqual(['scenario_yaml', 'scenario_hash']);
     expect(proposal.additionalProperties).toBe(false);
     expect(proposal.required).toEqual(['scenario_yaml', 'scenario_hash']);

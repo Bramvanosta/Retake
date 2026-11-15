@@ -5,6 +5,7 @@
  */
 import { createHash } from 'node:crypto';
 import { readdirSync } from 'node:fs';
+import type { Dirent } from 'node:fs';
 import { homedir, platform, release, arch } from 'node:os';
 import { join } from 'node:path';
 import { RETAKE_VERSION } from '@retake/core/base';
@@ -48,7 +49,7 @@ export function installedFonts(): RunEngine['fonts'] {
   if (cachedFonts) return cachedFonts;
   const names: string[] = [];
   const walk = (dir: string, rel: string, depth: number): void => {
-    let entries;
+    let entries: Dirent[];
     try {
       entries = readdirSync(dir, { withFileTypes: true });
     } catch {

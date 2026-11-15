@@ -64,6 +64,7 @@ export function EditPreview(p: EditPreviewProps) {
   return (
     <section className="ed-stage-wrap" aria-label="Preview and transport">
       <div className="ed-stage">
+        {/* biome-ignore lint/a11y/useSemanticElements: the preview box stays a div so its markup is unchanged; role=region already gives it the landmark a <section> would */}
         <div
           className="ed-preview"
           role="region"

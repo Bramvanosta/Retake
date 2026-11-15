@@ -2,12 +2,12 @@
  * The kit's lifecycle: one instance per document (an unhealthy one replaced), its listeners and cleanups, the health
  * ping.
  */
-import type { CursorState, KitApi } from '../types.js';
+import type { CursorState } from '../types.js';
 import { config } from './config.js';
 import { host } from './host.js';
 
 export const VERSION = '1.6.0';
-const w = window as unknown as Window & { __retake?: KitApi };
+const w = window;
 
 export let carried: CursorState | null = null;
 /**

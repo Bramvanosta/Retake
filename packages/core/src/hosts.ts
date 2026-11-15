@@ -19,7 +19,7 @@ export function isLoopbackHost(host: string): boolean {
   const h = normalizeHost(host);
   if (h === 'localhost' || h.endsWith('.localhost') || h === '::1' || h === '0:0:0:0:0:0:0:1') return true;
   const m = /^127\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
-  return m !== null && m.slice(1).every((n) => Number(n) <= 255);
+  return m?.slice(1).every((n) => Number(n) <= 255) ?? false;
 }
 
 /** Lower-case, without IPv6 brackets or a trailing dot. */

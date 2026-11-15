@@ -136,7 +136,7 @@ describe('rollback journal entries are signed', () => {
     const again = await engine.env.reset({ project: 'w', dry: false }, accept);
     const there = await engine.env.reset({ project: 'w2', dry: false }, accept);
     expect(await work()).toBe(0);
-    const statuses = async (id: string) => ((await queue.stored(id))?.result as EnvResetJobResult).rollbacks.flatMap((r) => r.results.map((x) => [x.status, x.untrusted.error ?? '']));
+    const statuses = async (id: string) => ((await queue.stored(id))!.result as EnvResetJobResult).rollbacks.flatMap((r) => r.results.map((x) => [x.status, x.untrusted.error ?? '']));
     // runs/ first (same id), then .retake/journals/.
     expect(await statuses(again.job.id)).toEqual([
       ['refused', expect.stringMatching(/is not signed by this Retake home for this journal/)],

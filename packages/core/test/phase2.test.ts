@@ -31,6 +31,7 @@ import { COMMENTS_DIR, CommentThreadSchema, TEMPLATE_MEDIA_KINDS, deriveStatus }
 import type { CommentThread, Scenario, Scene, Template, Timeline, ValidationIssue } from '@retake/core';
 import { colOf, errors, lineOf, warnings } from './helpers.js';
 
+// biome-ignore lint/suspicious/noExplicitAny: the schemas' JSON is walked freely by these tests
 type Json = Record<string, any>;
 
 /** "line:col path: message" of the error-level issues. */

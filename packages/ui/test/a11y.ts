@@ -231,7 +231,7 @@ function install(): void {
       if (role && ROLE_CONTROL.has(role) && e.getAttribute('aria-disabled') === 'true') return true;
       if (e.tagName === 'LABEL') {
         const c = (e as HTMLLabelElement).control;
-        if (c && c.matches(':disabled')) return true;
+        if (c?.matches(':disabled')) return true;
       }
     }
     return false;
@@ -301,8 +301,8 @@ function install(): void {
     }
     if (media) {
       // Over media, only the layers painted above it count (an ancestor's background is under the picture).
-      for (const l of layers) if (l.e && l.e.contains(media)) l.alts = null;
-      if (!layers.some((l) => l.alts && l.alts.some((a) => a[3] > 0)) && !(extra?.alts ?? []).some((a) => a[3] > 0)) return { unmeasured: `text straight on media (${desc(el)})` };
+      for (const l of layers) if (l.e?.contains(media)) l.alts = null;
+      if (!layers.some((l) => l.alts?.some((a) => a[3] > 0)) && !(extra?.alts ?? []).some((a) => a[3] > 0)) return { unmeasured: `text straight on media (${desc(el)})` };
     }
     if (extra) layers.unshift(extra);
     return { layers: layers.reverse(), bases: media ? [BLACK, WHITE] : [WHITE], overMedia: media !== null };
@@ -312,7 +312,7 @@ function install(): void {
   const paint = (c: Chain, fg: RGBA | null): Array<{ bg: RGBA; fg: RGBA | null }> => {
     let combos: Array<Array<RGBA | null>> = [[]];
     for (const l of c.layers) {
-      const alts: Array<RGBA | null> = l.alts && l.alts.some((a) => a[3] > 0) ? l.alts : [null];
+      const alts: Array<RGBA | null> = l.alts?.some((a) => a[3] > 0) ? l.alts : [null];
       combos = combos.flatMap((k) => alts.map((a) => [...k, a])).slice(0, 64);
     }
     const out: Array<{ bg: RGBA; fg: RGBA | null }> = [];
@@ -897,10 +897,10 @@ function install(): void {
       // Drawn outside the box (offset ≥ 0): on what is around it; inside (offset ≤ −width): on the box; between: both.
       const on = f.outline.offset >= 0 ? around : f.outline.offset <= -ow ? bg : [...around, ...bg];
       const r = markRatio(f.outline.c!, on);
-      const same = was && was.c && ratio(over(was.c, around[0]), over(f.outline.c!, around[0])) < 3 && was.w >= ow && was.offset === f.outline.offset;
+      const same = was?.c && ratio(over(was.c, around[0]), over(f.outline.c!, around[0])) < 3 && was.w >= ow && was.offset === f.outline.offset;
       if (!same) {
         parts.push(`outline ${ow} px at ${round(r)}:1`);
-        if (r >= 3) thick += ow - (was && was.c && markRatio(was.c, on) >= 3 && was.offset === f.outline.offset ? Math.min(was.w, ow) : 0);
+        if (r >= 3) thick += ow - (was?.c && markRatio(was.c, on) >= 3 && was.offset === f.outline.offset ? Math.min(was.w, ow) : 0);
       }
     }
     for (const s of f.shadows) {

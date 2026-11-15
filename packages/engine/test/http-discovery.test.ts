@@ -21,7 +21,7 @@ import { EngineError } from '../src/index.js';
 import { LOOPBACK, isLoopbackAddress, listenLoopback } from '../src/http/listen.js';
 import { newSecret } from '../src/http/token.js';
 import { selfIdentity } from '../src/jobs/proc.js';
-import type { DiscoveryRecord } from '../src/index.js';
+import type { DiscoveryRecord, StudioTokenRecord } from '../src/index.js';
 
 let ws: string;
 
@@ -257,7 +257,7 @@ describe('the Studio token in the Retake home', () => {
     const file = await studioTokenFile(ws, env());
     const token = newSecret();
     const old = process.umask(0);
-    let rec;
+    let rec: StudioTokenRecord;
     try {
       rec = await writeStudioToken(file, ws, { pid: process.pid, port: 4120 }, token);
     } finally {

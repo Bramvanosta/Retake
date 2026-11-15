@@ -291,7 +291,7 @@ describe.skipIf(!canRun)('the Studio render ops', () => {
       { image: 'keyframes/first.png', label: 'key frame first' },
       { image: 'sheet_scene_a.jpg', label: 'scene sheet a' },
     ]);
-    for (const k of ['dir', 'files']) expect(Object.prototype.hasOwnProperty.call(v, k), k).toBe(false);
+    for (const k of ['dir', 'files']) expect(Object.hasOwn(v, k), k).toBe(false);
     expect(v.untrusted).not.toHaveProperty('environment');
     for (const needle of [ws, homedir(), 'outside', 'report.json', '/elsewhere']) expect(r.body.includes(needle), needle).toBe(false);
     for (const bad of [

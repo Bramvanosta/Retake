@@ -55,6 +55,7 @@ export function WindowBar({ theme, w, h, url, unit }: { theme: ThemeTokens; w: n
     <div style={{ position: 'absolute', left: 0, top: 0, width: w, height: h, background: t.bar, borderBottom: `${Math.max(1, u)}px solid ${t.hairline}`, boxSizing: 'border-box' }}>
       <div style={{ position: 'absolute', left: h * 0.42, top: (h - dot) / 2, display: 'flex', gap: dot * 0.62 }}>
         {[SYSTEM_COLORS.close, SYSTEM_COLORS.minimize, SYSTEM_COLORS.zoom].map((c, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the three window buttons, a fixed list that never reorders: the index is the identity
           <span key={i} style={{ width: dot, height: dot, borderRadius: dot / 2, background: c, display: 'block', boxShadow: `inset 0 0 0 ${Math.max(0.5, dot / 24)}px ${withAlpha(t.ink, 0.12)}` }} />
         ))}
       </div>

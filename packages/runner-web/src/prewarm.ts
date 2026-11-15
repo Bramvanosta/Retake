@@ -7,10 +7,11 @@
  * loads (marks something read) does it here too.
  */
 import { resolvePageUrl } from '@retake/core/base';
+import type { Page } from 'playwright-core';
 import { isCaptureScene } from '@retake/core/language';
 import { resolveScenePages } from '@retake/core/language';
 import type { Scenario } from '@retake/core/scenario';
-import type { SceneEntry } from '@retake/core/language';
+import type { SceneEntry, ResolvedScenePage } from '@retake/core/language';
 import { errorMessage, isCancelled } from './errors.js';
 import type { Runtime } from './runtime.js';
 import { wallNow } from './util.js';
@@ -71,7 +72,7 @@ export function prewarmTargets(
     const scene = opts.template(raw, si);
     if (!scene || !isCaptureScene(scene)) return;
     if (scene.pages !== undefined) {
-      let pages;
+      let pages: ResolvedScenePage[];
       try {
         pages = resolveScenePages(scene, { capture: opts.capture, envPages: envKeys, known: (id) => (declared.has(id) ? { page: declared.get(id) } : undefined) });
       } catch {
@@ -103,7 +104,7 @@ export async function prewarmPages(rt: Runtime, targets: readonly PrewarmTarget[
   let visited = 0;
   for (const t of targets) {
     if (rt.signal.aborted) break;
-    let page;
+    let page: Page | undefined;
     try {
       page = await rt.session.scratchPage(t.page);
       await page.goto(t.url, { waitUntil: 'load', timeout: PREWARM_LOAD_MS });

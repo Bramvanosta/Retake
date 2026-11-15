@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
-import { EngineError, createEngine } from '../src/index.js';
+import { type EngineError, createEngine } from '../src/index.js';
 import { RunDataCache } from '../src/run-data.js';
 import { ScenarioViews, VIEW_STEPS_MAX } from '../src/views/scenario-view.js';
 import { VersionLedger } from '../src/version-ledger.js';
@@ -508,7 +508,7 @@ describe('events: scenario files and runs named', () => {
   });
 
   it('the index: an in-place save is its own key; a run that starts, progresses and finishes is named with its scenario', async () => {
-    const ix = await WorkspaceIndex.open(engine.workspace, { queue: engine.queue.withOwnMemory() });
+    const ix = await WorkspaceIndex.open(engine.workspace, { queue: engine.queue.withOwnMemory(), folder: engine.folder });
     if (!ix) throw new Error('node:sqlite did not load: no index to watch');
     try {
       // The second pass also watches the run.json of the runs the first found unfinished.

@@ -101,7 +101,8 @@ function Scene({ spec, scene, caption }: { spec: ComponentPreviewSpec; scene: Pr
         spec={spec}
         extra={
           scene.screens
-            ? { screens: scene.screens.map((sc, i) => <Img key={i} src={sc.url} style={{ ...fill, width: '100%', height: '100%', display: 'block' }} />), rects: scene.rects }
+            ? // biome-ignore lint/suspicious/noArrayIndexKey: one sample screen per page of the scene, in page order: the index is the page
+              { screens: scene.screens.map((sc, i) => <Img key={i} src={sc.url} style={{ ...fill, width: '100%', height: '100%', display: 'block' }} />), rects: scene.rects }
             : { screen: <SampleScreen scene={scene} />, rects: scene.rects, ...(scene.url ? { url: scene.url } : {}) }
         }
       />

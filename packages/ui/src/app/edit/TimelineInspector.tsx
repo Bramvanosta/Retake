@@ -367,6 +367,7 @@ export function TimelineInspector({ v, segment, ed, fps, stepsOf }: { v: SwitchV
   // The selected segment, said once in the inspector's own polite region (BL-122: the selection is announced).
   const [selectedWords, setSelectedWords] = useState('');
   const segKey = segment ? `${segment.id}\0${segment.from}\0${segment.to}` : '';
+  // biome-ignore lint/correctness/useExhaustiveDependencies: said once per segment place (segKey), not on every new segment object, fps or stepsOf identity
   useEffect(() => {
     setSelectedWords(segment ? `Selected ${segmentWords(segment)}: ${segmentFacts(segment, fps, stepsOf(segment.id))}.` : '');
   }, [segKey]);

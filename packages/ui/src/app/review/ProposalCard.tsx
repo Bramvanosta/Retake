@@ -237,6 +237,7 @@ export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; 
         boxTestId="proposal-diff-box"
       />
       {buttons.length > 0 && (
+        // biome-ignore lint/a11y/useSemanticElements: a row of the proposal's buttons; <fieldset> would bring its own border, padding and min-width
         <div className="cm-actions" role="group" aria-label="The proposal">
           {buttons.map((b) =>
             b === 'preview' ? (

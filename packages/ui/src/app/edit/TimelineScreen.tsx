@@ -83,7 +83,8 @@ const NOTES_MAX = 20;
 
 /** What the browser can say about a codec (no element made: MediaSource, else Media Capabilities). */
 function codecProbe(): CodecProbe {
-  const w = window as unknown as { MediaSource?: { isTypeSupported?(t: string): boolean }; ManagedMediaSource?: { isTypeSupported?(t: string): boolean } };
+  // Typed by what is read: either constructor may be missing (ManagedMediaSource is Safari's only).
+  const w: { MediaSource?: { isTypeSupported?(t: string): boolean }; ManagedMediaSource?: { isTypeSupported?(t: string): boolean } } = window;
   const ms = w.MediaSource ?? w.ManagedMediaSource;
   const mc = navigator.mediaCapabilities;
   return {
@@ -197,6 +198,7 @@ export function TimelineScreen({ slug, name, run, step, proposal }: { slug: stri
         <EmptyState title="The Studio does not preview this take">
           <div data-testid="timeline-blocked">
             {d.blocked.problems.map((p, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: the take's problems, replaced whole on each read, text only: the index is the identity
               <p key={i} className="ed-pre">
                 <Txt text={p} />
               </p>
@@ -298,14 +300,15 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   useShellCommand('render', renderNow, PRIORITY.screen);
   const inApp = useMemo(() => studioShell() !== null, []);
 
-  const wait = (w: number | 'any' | null) => {
+  // Stable (refs and setters only): the callbacks below keep their identity.
+  const wait = useCallback((w: number | 'any' | null) => {
     waitingRef.current = w;
     setWaiting(w);
-  };
-  const show = (f: number) => {
+  }, []);
+  const show = useCallback((f: number) => {
     frameRef.current = f;
     setFrame(f);
-  };
+  }, []);
 
   // The capture's codec: a browser that cannot play it gets the message, no frame.
   useEffect(() => {
@@ -320,7 +323,7 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   // A shorter plan (a switch, a file changed): the playhead stays inside it.
   useEffect(() => {
     if (frameRef.current > last) show(last);
-  }, [last]);
+  }, [last, show]);
 
   const flush = useCallback(() => {
     cancelAnimationFrame(raf.current);
@@ -339,7 +342,7 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
       pending.current = f;
       if (!raf.current) raf.current = requestAnimationFrame(flush);
     },
-    [last, flush],
+    [last, flush, show, wait],
   );
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
@@ -354,61 +357,67 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
     }
     wait(null);
     c.send({ type: 'play' });
-  }, [last, flush]);
+  }, [last, flush, show, wait]);
   const pause = useCallback(() => {
     const c = conn.current;
     if (!c?.connected) return;
     flush();
     wait('any');
     c.send({ type: 'pause' });
-  }, [flush]);
+  }, [flush, wait]);
   const toggle = useCallback(() => (playingRef.current ? pause() : play()), [play, pause]);
 
-  const onMessage = useCallback((msg: FrameMessage) => {
-    switch (msg.type) {
-      case 'loaded':
-        if (wantSound.current) conn.current?.send({ type: 'mute', muted: false });
-        setMissing(msg.missing);
-        if (msg.warnings.length) setNotes((n) => [...n, ...msg.warnings.map((message) => ({ type: 'warning' as const, message }))].slice(-NOTES_MAX));
-        return;
-      case 'frame':
-        if (playingRef.current || waitingRef.current === 'any') show(msg.frame);
-        return;
-      case 'settled': {
-        const w = waitingRef.current;
-        if (w === 'any') show(msg.frame);
-        if (w === 'any' || w === msg.frame) wait(null);
-        return;
+  const onMessage = useCallback(
+    (msg: FrameMessage) => {
+      switch (msg.type) {
+        case 'loaded':
+          if (wantSound.current) conn.current?.send({ type: 'mute', muted: false });
+          setMissing(msg.missing);
+          if (msg.warnings.length) setNotes((n) => [...n, ...msg.warnings.map((message) => ({ type: 'warning' as const, message }))].slice(-NOTES_MAX));
+          return;
+        case 'frame':
+          if (playingRef.current || waitingRef.current === 'any') show(msg.frame);
+          return;
+        case 'settled': {
+          const w = waitingRef.current;
+          if (w === 'any') show(msg.frame);
+          if (w === 'any' || w === msg.frame) wait(null);
+          return;
+        }
+        case 'state':
+          playingRef.current = msg.playing;
+          setPlaying(msg.playing);
+          setBuffering(msg.buffering);
+          setMuted(msg.muted);
+          return;
+        case 'ended':
+          playingRef.current = false;
+          setPlaying(false);
+          return;
+        case 'warning':
+        case 'error':
+          setNotes((n) => [...n, { type: msg.type, message: msg.message }].slice(-NOTES_MAX));
+          return;
       }
-      case 'state':
-        playingRef.current = msg.playing;
-        setPlaying(msg.playing);
-        setBuffering(msg.buffering);
-        setMuted(msg.muted);
-        return;
-      case 'ended':
-        playingRef.current = false;
-        setPlaying(false);
-        return;
-      case 'warning':
-      case 'error':
-        setNotes((n) => [...n, { type: msg.type, message: msg.message }].slice(-NOTES_MAX));
-        return;
-    }
-  }, []);
+    },
+    [show, wait],
+  );
   const onHello = useCallback(() => {
     // A load is on its way (PreviewFrame sent it): loading until the frame asked is settled.
     setMissing([]);
     playingRef.current = false;
     setPlaying(false);
     wait(frameRef.current);
-  }, []);
-  const onStop = useCallback((reason: string) => {
-    playingRef.current = false;
-    setPlaying(false);
-    wait(null);
-    setStopped(reason);
-  }, []);
+  }, [wait]);
+  const onStop = useCallback(
+    (reason: string) => {
+      playingRef.current = false;
+      setPlaying(false);
+      wait(null);
+      setStopped(reason);
+    },
+    [wait],
+  );
   const onConnection = useCallback((c: PreviewConnection | null) => {
     conn.current = c;
   }, []);
@@ -423,7 +432,7 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
     playingRef.current = false;
     setPlaying(false);
     wait(frameRef.current);
-  }, [urls?.plan]);
+  }, [urls?.plan, wait]);
 
   // Show in timeline (a step of the scenario screen): its first frame, once.
   const shown = useRef<string | null>(null);

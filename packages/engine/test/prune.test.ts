@@ -7,6 +7,7 @@
  * when listed; no form or a decline deletes nothing.
  */
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { diskProjectStores } from '../src/outputs/../store/project-store.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readdir, rm, symlink, truncate, writeFile } from 'node:fs/promises';
@@ -109,7 +110,7 @@ describe('retake prune / project_prune (engine pruneProject)', () => {
 
   it('a dry run lists what goes and why, how much it frees, and deletes nothing', async () => {
     const busy = (id: string) => id === '20261020-150000-catalogue';
-    const r = await pruneProject(diskOutputs, project, { keep_renders: 2, busy });
+    const r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, project, { keep_renders: 2, busy });
     expect(r.dry_run).toBe(true);
     expect(r.items.map((i) => [i.kind, i.id, i.reason])).toEqual([
       ['run', '20261020-100000-quote', 'older capture nothing uses'],
@@ -132,15 +133,15 @@ describe('retake prune / project_prune (engine pruneProject)', () => {
     expect(existsSync(join(dir, 'runs', '20261020-110000-quote'))).toBe(true);
     expect(existsSync(join(dir, 'renders', 'quote-v1.mp4'))).toBe(true);
     // The default keeps 3 renders per scenario and variant: quote-v1 stays then.
-    expect((await pruneProject(diskOutputs, project, { busy })).items.map((i) => i.id)).not.toContain('quote-v1');
-    await expect(pruneProject(diskOutputs, project, { keep_renders: 0 })).rejects.toThrow(/keep_renders 0/);
+    expect((await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, project, { busy })).items.map((i) => i.id)).not.toContain('quote-v1');
+    await expect(pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, project, { keep_renders: 0 })).rejects.toThrow(/keep_renders 0/);
     expect(formatBytes(1_234_000_000)).toBe('1.2 GB');
     expect(formatBytes(20_300_000)).toBe('20 MB');
   });
 
   it('dry_run: false deletes exactly those, and a second pass finds nothing', async () => {
     const busy = (id: string) => id === '20261020-150000-catalogue';
-    const r = await pruneProject(diskOutputs, project, { keep_renders: 2, dry_run: false, busy });
+    const r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, project, { keep_renders: 2, dry_run: false, busy });
     expect(r.problems).toEqual([]);
     expect((await readdir(join(dir, 'runs'))).sort()).toEqual([
       '20261020-090000-catalogue',
@@ -160,7 +161,7 @@ describe('retake prune / project_prune (engine pruneProject)', () => {
       'quote-v3.json',
     ]);
     expect((await readdir(join(dir, 'review'))).sort()).toEqual(['catalogue-v1', 'quote-v3']);
-    expect((await pruneProject(diskOutputs, project, { keep_renders: 2, busy })).items).toEqual([]);
+    expect((await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, project, { keep_renders: 2, busy })).items).toEqual([]);
   });
 });
 
@@ -478,17 +479,17 @@ describe('comment threads that cannot be listed', () => {
       const all = ['run 20261020-100000-quote', 'run 20261020-110000-quote', 'render quote-v1', 'render quote-v3', 'review gone-v1', 'review quote-v1'];
 
       // The threads are listed (there is none): the older render, the failed one, their takes and reviews can go.
-      const listed = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const listed = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect(ids(listed)).toEqual(all);
       expect(listed.threads_unread).toBeUndefined();
 
       // comments/ cannot be read: a thread may name any render and any take.
       await chmod(comments, 0o000);
-      const unread = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const unread = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect(ids(unread)).toEqual(['review gone-v1']);
       expect(unread.threads_unread).toBe('the comment threads of p cannot be listed (EACCES): every render and take is kept (make comments/ of the project readable, then prune again)');
       expect(unread.kept).toEqual({ runs: 3, renders: 3, reviews: 1 });
-      const deleted = await pruneProject(diskOutputs, p, { keep_renders: 1, dry_run: false });
+      const deleted = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1, dry_run: false });
       expect(ids(deleted)).toEqual(['review gone-v1']);
       expect(deleted.threads_unread).toBe(unread.threads_unread);
       expect((await readdir(join(d, 'runs'))).sort()).toEqual(['20261020-100000-quote', '20261020-110000-quote', '20261020-120000-quote']);
@@ -496,13 +497,13 @@ describe('comment threads that cannot be listed', () => {
       expect((await readdir(join(d, 'review'))).sort()).toEqual(['quote-v1']);
       // An approved list made before does not delete them either.
       const only = new Map(listed.items.map((i) => [`${i.kind}:${i.id}`, i.paths]));
-      const approved = await pruneProject(diskOutputs, p, { keep_renders: 1, dry_run: false, only });
+      const approved = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1, dry_run: false, only });
       expect(ids(approved)).toEqual([]);
       expect((await readdir(join(d, 'renders'))).sort()).toEqual(['quote-v1.json', 'quote-v2.json', 'quote-v3.json']);
 
       // Readable again: what could go goes.
       await chmod(comments, 0o755);
-      const again = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const again = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect(ids(again)).toEqual(all.filter((x) => x !== 'review gone-v1'));
       expect(again.threads_unread).toBeUndefined();
     } finally {
@@ -577,18 +578,21 @@ describe('comment threads that do not read as threads', () => {
         ['another id', () => writeFile(join(folder, `${ID}.json`), thread('quote', OTHER))],
       ];
       // Nothing unread yet: everything that can go is listed.
-      expect([ids(await pruneProject(diskOutputs, p, { keep_renders: 1 })), (await pruneProject(diskOutputs, p, { keep_renders: 1 })).threads_unread]).toEqual([all, undefined]);
+      expect([
+        ids(await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 })),
+        (await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 })).threads_unread,
+      ]).toEqual([all, undefined]);
       for (const [what, write] of cases) {
         await write();
-        const r = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+        const r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
         expect([what, ids(r), r.threads_unread]).toEqual([what, ofCatalogue, `${SOME}of quote is kept`]);
         expect(r.kept, what).toEqual({ runs: 4, renders: 4, reviews: 0 });
         await rm(join(folder, `${ID}.json`));
       }
       // A deletion keeps them too, and an approval made before the file broke does not delete them.
-      const only = new Map((await pruneProject(diskOutputs, p, { keep_renders: 1 })).items.map((i) => [`${i.kind}:${i.id}`, i.paths]));
+      const only = new Map((await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 })).items.map((i) => [`${i.kind}:${i.id}`, i.paths]));
       await cases[0][1]();
-      const approved = await pruneProject(diskOutputs, p, { keep_renders: 1, dry_run: false, only });
+      const approved = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1, dry_run: false, only });
       expect([ids(approved), approved.threads_unread]).toEqual([ofCatalogue, `${SOME}of quote is kept`]);
       expect((await readdir(join(d, 'renders'))).sort()).toEqual(['catalogue-v2.json', 'quote-v1.json', 'quote-v2.json', 'quote-v3.json']);
       expect((await readdir(join(d, 'runs'))).sort()).toEqual(['20261020-100000-quote', '20261020-110000-quote', '20261020-120000-catalogue', '20261020-120000-quote']);
@@ -602,14 +606,14 @@ describe('comment threads that do not read as threads', () => {
     try {
       await mkdir(join(d, 'comments', 'quote'), { recursive: true });
       await writeFile(join(d, 'comments', 'quote', `${ID}.json`), thread('catalogue'));
-      const misplaced = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const misplaced = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect([ids(misplaced), misplaced.threads_unread]).toEqual([[], `${SOME}of catalogue, quote is kept`]);
       await rm(join(d, 'comments'), { recursive: true });
       // comments/catalogue is a link to a folder elsewhere (which may hold threads): not followed, not "no thread".
       await mkdir(join(d, 'comments'), { recursive: true });
       await mkdir(join(d, 'elsewhere'));
       await symlink(join(d, 'elsewhere'), join(d, 'comments', 'catalogue'));
-      const linked = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const linked = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect([ids(linked), linked.threads_unread]).toEqual([all.filter((x) => x.includes('quote')), `${SOME}of catalogue is kept`]);
     } finally {
       await rm(d, { recursive: true, force: true });
@@ -624,10 +628,10 @@ describe('comment threads that do not read as threads', () => {
       const id = (n: number) => `c_01K8AB1CDE2FGH3JKM4NPQ${digits[Math.floor(n / 1024) % 32]}${digits[Math.floor(n / 32) % 32]}${digits[n % 32]}0`;
       for (let n = 0; n < 2000; n++) await writeFile(join(d, 'comments', 'quote', `${id(n)}.json`), thread('quote', id(n)));
       // Exactly as many as a listing reads: all read, and they name no render or take that is there.
-      const read = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const read = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect([ids(read), read.threads_unread]).toEqual([all, undefined]);
       await writeFile(join(d, 'comments', 'quote', `${id(2000)}.json`), thread('quote', id(2000)));
-      const over = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const over = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect([ids(over), over.threads_unread]).toEqual([[], `${SOME}is kept`]);
     } finally {
       await rm(d, { recursive: true, force: true });
@@ -644,13 +648,13 @@ describe('comment threads that do not read as threads', () => {
       await writeFile(join(d, 'comments', 'not a scenario', `${ID}.json`), '{');
       await writeFile(join(d, 'comments', 'quote', `.${ID}.json.tmp`), '{');
       await writeFile(join(d, 'comments', 'quote', 'notes.txt'), 'x');
-      const stray = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const stray = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect([ids(stray), stray.threads_unread]).toEqual([all, undefined]);
       // comments/ is a link: nothing of it is read, so nothing is known.
       await rm(join(d, 'comments'), { recursive: true });
       await mkdir(join(d, 'elsewhere'));
       await symlink(join(d, 'elsewhere'), join(d, 'comments'));
-      const linked = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const linked = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect([ids(linked), linked.threads_unread, linked.kept]).toEqual([[], `${SOME}is kept`, { runs: 6, renders: 6, reviews: 0 }]);
     } finally {
       await rm(d, { recursive: true, force: true });
@@ -680,11 +684,11 @@ describe('comment threads that do not read as threads', () => {
       const mixed = ['render other-v9', 'render quote-v9', 'run 20261020-130000-quote', 'run 20261020-131500-other'];
       const neither = ['render other-v8', 'run 20261020-133000-other'];
       // Every thread read: all six can go.
-      expect(ids(await pruneProject(diskOutputs, p, { keep_renders: 1 }))).toEqual([...all, ...mixed, ...neither].sort());
+      expect(ids(await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 }))).toEqual([...all, ...mixed, ...neither].sort());
       // A thread of quote that does not read: the four stay, with everything of quote.
       await mkdir(join(d, 'comments', 'quote'), { recursive: true });
       await writeFile(join(d, 'comments', 'quote', `${ID}.json`), '{');
-      const r = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect([ids(r), r.threads_unread]).toEqual([[...all.filter((x) => x.includes('catalogue')), ...neither].sort(), `${SOME}of quote is kept`]);
     } finally {
       await rm(d, { recursive: true, force: true });
@@ -697,14 +701,14 @@ describe('comment threads that do not read as threads', () => {
       // comments/Quote/ (what a disk that ignores case may hold for quote), with a file that does not read.
       await mkdir(join(d, 'comments', 'Quote'), { recursive: true });
       await writeFile(join(d, 'comments', 'Quote', `${ID}.json`), '{');
-      const r = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect([ids(r), r.threads_unread, r.kept]).toEqual([all.filter((x) => x.includes('catalogue')), `${SOME}of Quote is kept`, { runs: 4, renders: 4, reviews: 0 }]);
       // A scenario with unread threads and no render or take here: nothing stays for it, so it is not named.
       await mkdir(join(d, 'comments', 'ghost'), { recursive: true });
       await writeFile(join(d, 'comments', 'ghost', `${ID}.json`), '{');
-      expect((await pruneProject(diskOutputs, p, { keep_renders: 1 })).threads_unread).toBe(`${SOME}of Quote is kept`);
+      expect((await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 })).threads_unread).toBe(`${SOME}of Quote is kept`);
       await rm(join(d, 'comments', 'Quote'), { recursive: true });
-      const ghost = await pruneProject(diskOutputs, p, { keep_renders: 1 });
+      const ghost = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 });
       expect([ids(ghost), ghost.threads_unread]).toEqual([all, undefined]);
     } finally {
       await rm(d, { recursive: true, force: true });
@@ -747,7 +751,7 @@ describe('the last renders of a scenario are counted among its renders only', ()
       await take('20261020-120000-quote'); // the last good take
       for (const n of [1, 2, 3, 4]) await made(`quote-v${n}`, { at: `2026-10-20T1${n}:00:00.000Z` });
       // Without anything else: the last three stay, the first goes.
-      const before = await pruneProject(diskOutputs, p);
+      const before = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p);
       expect([ids(before), before.kept.renders]).toEqual([['render quote-v1 — older render', 'run 20261020-080000-quote — older capture nothing uses'], 3]);
 
       // Newer records that are renders of quote nowhere: a version past the highest, a name past 200 characters,
@@ -757,20 +761,28 @@ describe('the last renders of a scenario are counted among its renders only', ()
       await made('other-v1', { at: '2026-10-21T21:00:00.000Z' });
       await made('final', { at: '2026-10-21T22:00:00.000Z', run: '20261020-080000-quote' });
       await mkdir(join(d, 'review', 'final'), { recursive: true });
-      const r = await pruneProject(diskOutputs, p);
+      const r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p);
       // The same three renders stay and the same one goes; the eight others stay beside them, with the take and
       // the review of one of them.
       expect(ids(r)).toEqual(['render quote-v1 — older render']);
       expect(r.kept).toEqual({ runs: 2, renders: 11, reviews: 1 });
       expect(r.threads_unread).toBeUndefined();
       // The same with one render kept: no other record is "the last one".
-      expect(ids(await pruneProject(diskOutputs, p, { keep_renders: 1 }))).toEqual(['render quote-v1 — older render', 'render quote-v2 — older render', 'render quote-v3 — older render']);
+      expect(ids(await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { keep_renders: 1 }))).toEqual([
+        'render quote-v1 — older render',
+        'render quote-v2 — older render',
+        'render quote-v3 — older render',
+      ]);
 
       // Such a record that failed or was cancelled goes, as a render that failed does.
       await made('quote-v1000009', { at: '2026-10-22T10:00:00.000Z', status: 'failed' });
       await made('draft', { at: '2026-10-22T11:00:00.000Z', status: 'cancelled' });
-      expect(ids(await pruneProject(diskOutputs, p))).toEqual(['render draft — cancelled render', 'render quote-v1 — older render', 'render quote-v1000009 — failed render']);
-      const done = await pruneProject(diskOutputs, p, { dry_run: false });
+      expect(ids(await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p))).toEqual([
+        'render draft — cancelled render',
+        'render quote-v1 — older render',
+        'render quote-v1000009 — failed render',
+      ]);
+      const done = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, p, { dry_run: false });
       expect(done.problems).toEqual([]);
       expect((await readdir(join(d, 'renders'))).sort()).toEqual([
         'final.json',
@@ -833,20 +845,20 @@ describe('the files of renders/ that are no render of their own name (R-1)', () 
   it('a record file that is a link is left alone and still keeps the render and the take it names; a link to nothing keeps nothing and stops nothing', async () => {
     const w = await projectOf();
     try {
-      expect(w.list(await pruneProject(diskOutputs, w.p))).toEqual(['run OLD', 'render quote-v1', 'render quote-v5']);
+      expect(w.list(await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p))).toEqual(['run OLD', 'render quote-v1', 'render quote-v5']);
       // A link to nothing, a link to a folder, a link to a file that is no JSON: each said, none keeps anything.
       await symlink(join(w.d, 'gone.json'), join(w.d, 'renders', 'quote-v7.json'));
       await symlink(join(w.d, 'runs'), join(w.d, 'renders', 'quote-v8.json'));
       await writeFile(join(w.d, 'notes.txt'), 'not json');
       await symlink(join(w.d, 'notes.txt'), join(w.d, 'renders', 'quote-v9.json'));
-      let r = await pruneProject(diskOutputs, w.p);
+      let r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p);
       expect(w.list(r)).toEqual(['run OLD', 'render quote-v1', 'render quote-v5']);
       expect([r.renders_alone, r.renders_unread, r.kept.renders]).toEqual([{ count: 3, reasons: [{ why: 'linked', count: 3, reason: 'its record is a link' }] }, undefined, 6]);
       // A link to a record made on OLD that says quote-v1 (kept on another disk): the take and the render it names stay.
       await mkdir(join(w.d, 'elsewhere'), { recursive: true });
       await writeFile(join(w.d, 'elsewhere', 'kept.json'), record('quote-v1', w.old, '2026-10-01T09:00:00.000Z'));
       await symlink(join(w.d, 'elsewhere', 'kept.json'), join(w.d, 'renders', 'quote-kept.json'));
-      r = await pruneProject(diskOutputs, w.p);
+      r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p);
       expect(w.list(r)).toEqual(['render quote-v5']);
       expect((r.kept_takes ?? []).map((k) => `${k.id === w.old ? 'OLD' : k.id} ${k.why}: ${k.reason}`)).toEqual(['OLD render-file: a file of renders/ that is no render names it']);
       expect(r.untrusted?.renders_alone.map((a) => `${a.file} ${a.why}`)).toEqual(expect.arrayContaining(['quote-kept.json linked', 'quote-v7.json linked']));
@@ -858,7 +870,7 @@ describe('the files of renders/ that are no render of their own name (R-1)', () 
         false,
       ]);
       // A deletion removes the failed render only: the links and what they point at are as they were.
-      const done = await pruneProject(diskOutputs, w.p, { dry_run: false });
+      const done = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p, { dry_run: false });
       expect(w.list(done)).toEqual(['render quote-v5']);
       expect((await readdir(join(w.d, 'renders'))).sort()).toEqual([
         'quote-kept.json',
@@ -881,13 +893,13 @@ describe('the files of renders/ that are no render of their own name (R-1)', () 
       const w = await projectOf();
       try {
         await mkdir(join(w.d, 'review', 'quote-v99'), { recursive: true });
-        expect(w.list(await pruneProject(diskOutputs, w.p))).toEqual(['run OLD', 'render quote-v1', 'render quote-v5', 'review quote-v99']);
+        expect(w.list(await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p))).toEqual(['run OLD', 'render quote-v1', 'render quote-v5', 'review quote-v99']);
         // Over the reader's cap (16 MB): the text of a record, then zeros (a sparse file).
         const target = how === 'file' ? join(w.d, 'renders', 'stray.json') : join(w.d, 'big.json');
         await writeFile(target, record('quote-v1', w.old, '2026-10-01T09:00:00.000Z'));
         await truncate(target, 16 * 1024 * 1024 + 1);
         if (how === 'link') await symlink(target, join(w.d, 'renders', 'stray.json'));
-        const r = await pruneProject(diskOutputs, w.p);
+        const r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p);
         expect([how, r.items, r.renders_unread, r.kept]).toEqual([how, [], '1 file of renders/ is too big to read: every render, review and take is kept', { runs: 2, renders: 6, reviews: 1 }]);
         expect(r.renders_alone?.reasons.map((x) => `${x.why} ${x.count}`)).toEqual([how === 'file' ? 'too-big 1' : 'linked 1']);
       } finally {
@@ -901,7 +913,7 @@ describe('the files of renders/ that are no render of their own name (R-1)', () 
     try {
       const { plan: _plan, ...noPlan } = JSON.parse(record('quote-v6', w.old, '2026-10-01T09:06:00.000Z')) as Record<string, unknown>;
       await writeFile(join(w.d, 'renders', 'quote-v6.json'), JSON.stringify(noPlan));
-      let r = await pruneProject(diskOutputs, w.p);
+      let r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p);
       // The record without its plan is kept (never an item, never counted among the last renders) and protects OLD.
       expect([w.list(r), r.renders_alone?.reasons, r.kept_takes]).toEqual([
         ['render quote-v1', 'render quote-v5'],
@@ -910,13 +922,13 @@ describe('the files of renders/ that are no render of their own name (R-1)', () 
       ]);
       await writeFile(join(w.d, 'renders', 'quote-v6.json'), record('quote-v6', w.old, '2026-10-01T09:06:00.000Z', { status: 'paused' }));
       await writeFile(join(w.d, 'renders', 'quote-v6.mp4'), 'mp4');
-      r = await pruneProject(diskOutputs, w.p);
+      r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p);
       expect([w.list(r), r.renders_alone?.reasons.map((x) => x.why), (r.kept_takes ?? []).map((k) => k.why)]).toEqual([['render quote-v1', 'render quote-v5'], ['unknown-status'], ['render-file']]);
       await writeFile(join(w.d, 'renders', 'quote-v6.json'), record('quote-v6', w.old, '2026-10-01T09:06:00.000Z', { version: 2 }));
-      r = await pruneProject(diskOutputs, w.p);
+      r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p);
       expect([w.list(r), r.renders_alone?.reasons.map((x) => x.why), (r.kept_takes ?? []).map((k) => k.why)]).toEqual([['render quote-v1', 'render quote-v5'], ['newer-format'], ['render-file']]);
       // Deleted for real: the file left alone and its video are still there.
-      await pruneProject(diskOutputs, w.p, { dry_run: false });
+      await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p, { dry_run: false });
       expect((await readdir(join(w.d, 'renders'))).sort()).toEqual(['quote-v2.json', 'quote-v3.json', 'quote-v4.json', 'quote-v6.json', 'quote-v6.mp4']);
     } finally {
       await rm(w.d, { recursive: true, force: true });

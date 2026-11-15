@@ -44,6 +44,7 @@ import {
   unlinkSync,
   writeSync,
 } from 'node:fs';
+import type { Stats } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { errorMessage } from '@retake/core/base';
@@ -186,7 +187,7 @@ function samePath(a: string, b: string): boolean {
 
 /** What lies at `link` (the command's place), compared with `launcher` (this app's). */
 export function cliLinkState(link: string, launcher: string): CliLink {
-  let st;
+  let st: Stats;
   try {
     st = lstatSync(link);
   } catch {

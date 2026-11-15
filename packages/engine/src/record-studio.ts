@@ -307,7 +307,7 @@ async function jobOf(queue: JobQueueView, slug: string, id: string, meta: Record
   const jid = meta ? meta.job_id : (hint ?? null);
   if (!jid || !JOB_ID_RE.test(jid)) return null;
   const job = await queue.get(jid);
-  if (!job || job.input.kind !== 'record' || job.input.rec_id !== id || job.input.project !== slug) return null;
+  if (job?.input.kind !== 'record' || job.input.rec_id !== id || job.input.project !== slug) return null;
   return job;
 }
 

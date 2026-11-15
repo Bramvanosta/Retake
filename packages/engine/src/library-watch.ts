@@ -16,6 +16,7 @@
  */
 import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync } from 'node:fs';
+import type { Stats } from 'node:fs';
 import { join } from 'node:path';
 import { statePath } from '@retake/core/project';
 import { NODE_THEME_HASHES } from './theme-files.js';
@@ -78,7 +79,7 @@ export function treeSignature(dir: string, budget?: WatchBudget): string {
       }
       const p = join(d, n);
       const r = rel ? `${rel}/${n}` : n;
-      let st;
+      let st: Stats;
       try {
         st = lstatSync(p);
       } catch {

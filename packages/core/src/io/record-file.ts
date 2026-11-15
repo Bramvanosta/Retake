@@ -5,6 +5,7 @@
  */
 import { constants as fsConstants } from 'node:fs';
 import { lstat, open, readdir, stat } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
 import { readPlainFile } from './plain-file.js';
 
 export type RecordFileText = { ok: true; text: string; link: boolean } | { ok: false; problem: 'missing' | 'unreadable' | 'too-big' | 'not-a-file'; link: boolean };
@@ -53,7 +54,7 @@ export const NODE_RECORD_FS: RecordFs = {
     } catch (e) {
       return { ok: false, problem: gone(e) ? 'missing' : 'unreadable', link };
     }
-    let handle;
+    let handle: FileHandle;
     try {
       // O_NONBLOCK: a FIFO with no writer, a device, never hold the reader (it is then no file).
       handle = await open(file, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK);

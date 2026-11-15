@@ -1,6 +1,6 @@
 /** The façade's `comments` (createEngine): threads on renders — read, add and reopen (a person's), reply (a proposal: Claude's), resolve, anchor, apply a proposal, counts. */
 import type { CommentAuthor } from '@retake/core/comments';
-import { EngineError } from '../errors.js';
+import type { EngineError } from '../errors.js';
 import { MCP_AUTHOR_NAME, addComment, anchorAt, applyProposal, defaultAuthorName, getComment, getProposal, listComments, reopenComment, replyComment, resolveComment } from '../comments.js';
 import { commentReplyRefused, commentResolveRefused, proposalApplyRefused, threadAddRefused, threadReopenRefused } from '../comments/rules.js';
 import type { EngineContext } from './context.js';
@@ -16,12 +16,14 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
   const { caller, ws, scope, project, commentIndex, caches } = ctx;
   const registry = async () => (await caches.registry.get(ws)).registry;
   const seen = caches.scenarioVersions;
+  // What the views read through: the renders port, and the stores port's folders (a thread's scenario text today).
+  const reads = { renders: ws.outputs.renders, stores: scope.stores };
   // Who an entry is written by: the channel, never a person; anything but the CLI and the Studio counts as the MCP
   // (fail-safe). The name of a person channel is this process's (the page never names an author).
   const commentAuthor = (): CommentAuthor => (caller.channel === 'mcp' ? { via: 'mcp', name: MCP_AUTHOR_NAME } : { via: caller.channel, name: defaultAuthorName(ctx.ports.env) });
   return {
-    list: async (slug, req) => listComments(ws.outputs.renders, await project(slug), req),
-    get: async (slug, id) => getComment(ws.outputs.renders, await project(slug), id),
+    list: async (slug, req) => listComments(reads, await project(slug), req),
+    get: async (slug, id) => getComment(reads, await project(slug), id),
     add: async (slug, req) => {
       refuse(threadAddRefused(caller, req.render_created_at));
       return addComment(await project(slug), req, commentAuthor(), scope, ws.outputs.renders, ws.policy, ctx.ports.reviewer.frames);
@@ -52,7 +54,7 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
       refuse(threadReopenRefused(caller, o.if_match));
       return reopenComment(await project(slug), id, note, commentAuthor(), { ...(o.if_match !== undefined && o.if_match !== null ? { ifMatch: o.if_match } : {}), scope, renders: ws.outputs.renders });
     },
-    anchorAt: async (slug, req) => anchorAt(ws.outputs.renders, await project(slug), req),
+    anchorAt: async (slug, req) => anchorAt(reads, await project(slug), req),
     apply: async (slug, id, req) => {
       refuse(proposalApplyRefused(caller, req.if_match));
       return applyProposal(await project(slug), id, { entry_id: req.entry_id, ...(req.if_match !== undefined && req.if_match !== null ? { ifMatch: req.if_match } : {}) }, commentAuthor(), {

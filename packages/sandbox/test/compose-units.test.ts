@@ -50,7 +50,7 @@ import type { ProviderContext } from '../src/provider.js';
 import type { PsEntry } from '../src/compose.js';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
-let policy: WorkPolicy = PERSON_POLICY;
+const policy: WorkPolicy = PERSON_POLICY;
 
 /** The scaffold's writer in these tests: plain files (the engine's project store in the CLI). */
 const plainWrite = async (file: string, text: string): Promise<void> => {

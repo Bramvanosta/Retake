@@ -86,7 +86,7 @@ function plain(d: unknown): Rec | undefined {
 /** Exactly these keys (no more, no fewer). */
 function keysAre(d: Rec, keys: readonly string[]): boolean {
   const own = Object.keys(d);
-  return own.length === keys.length && keys.every((k) => Object.prototype.hasOwnProperty.call(d, k));
+  return own.length === keys.length && keys.every((k) => Object.hasOwn(d, k));
 }
 
 const isFrame = (n: unknown, max = FRAMES_MAX): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= max;

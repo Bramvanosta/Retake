@@ -48,7 +48,7 @@ export function privateFileProblem(st: Stats): string | undefined {
  * link, not a regular file, another user's, or readable or writable by group or others — never followed.
  */
 export async function readPrivateText(file: string, fix: string): Promise<string | null> {
-  let st;
+  let st: Stats;
   try {
     st = await lstat(file);
   } catch (e) {

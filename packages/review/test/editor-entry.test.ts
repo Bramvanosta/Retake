@@ -15,8 +15,11 @@ import type { LoadedProject } from '@retake/core';
 import { probeVideo } from '../src/ffmpeg.js';
 import { findPrevious, findRender } from '../src/load.js';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
-const lib = (await import(new URL('../../../scripts/audit/lib.mjs', import.meta.url).href)) as any;
+const lib = (await import(new URL('../../../scripts/audit/lib.mjs', import.meta.url).href)) as Untyped;
 const rule = (id: string) => lib.RULES.filter((r: { id: string }) => r.id === id);
 const hits = (id: string, fileImports: Record<string, string[]>) =>
   lib.ruleHits(ROOT, fileImports, rule(id)).map((h: { rule: string; file: string; spec: string }) => `${h.rule} ${h.file} → ${h.spec}`);

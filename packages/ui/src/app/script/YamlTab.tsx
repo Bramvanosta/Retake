@@ -388,6 +388,7 @@ function Blocked({ why, problems, draft }: { why: string; problems: Array<{ line
         {problems.length > 0 && (
           <ul data-testid="yaml-readonly-problems">
             {problems.map((p, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: the file's problems, replaced whole on each read, text only: the index is the identity
               <li key={i}>
                 {p.line !== undefined && <span className="k-mono">{shown(`line ${p.line} `)}</span>}
                 <Txt text={p.message} />

@@ -127,6 +127,7 @@ export function Composer(p: {
       <h2 className="cm-h2">
         <Txt text={`Comment frame ${frame.toLocaleString('en')} of ${renderWords(shown.render_id)}`} />
       </h2>
+      {/* biome-ignore lint/a11y/useSemanticElements: the region fields are a named group with a visual label; <fieldset> would bring its own border, padding and min-width */}
       <div className="cm-region" role="group" aria-label="Region (optional) — drag on the frame, or type it in % of the frame">
         <p className="cm-label" aria-hidden="true">
           Region (optional) — drag on the frame, or type it in % of the frame
@@ -172,6 +173,7 @@ export function Composer(p: {
         {anchor.state === 'ok' && anchor.a.warnings.length > 0 && (
           <ul className="cm-warnings">
             {anchor.a.warnings.map((w, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: one anchor's warnings, replaced whole on each read, text only: the index is the identity
               <li key={i}>
                 <Txt text={w} />
               </li>

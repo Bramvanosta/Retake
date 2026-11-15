@@ -29,7 +29,7 @@ import type { WorkPolicy } from '@retake/core';
 import { scratchHome } from '@retake/test-support/home';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
-let policy: WorkPolicy = PERSON_POLICY;
+const policy: WorkPolicy = PERSON_POLICY;
 
 const ENABLED = process.env.RETAKE_TEST_DOCKER === '1';
 const DOCKER = findDocker() ?? 'docker';

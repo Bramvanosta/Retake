@@ -12,22 +12,22 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { FIELD_PATHS, StepEditError, applyFieldEdit, filmedChanges, parseScenario, parseYaml, sceneId, stepGuard, timelineVideo, verifyEditText } from '../src/index.js';
-import type { FieldAt, FieldEdit, FieldValue, Scenario } from '../src/index.js';
+import type { FieldAt, FieldEdit, FieldValue, Scenario, FieldEditApplied } from '../src/index.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SCENARIOS = join(ROOT, 'projects', 'northfield-fixture', 'scenarios');
 type Obj = Record<string, unknown>;
 
-const valueOf = (t: string) => parseYaml(t).value as { scenes: Obj[] } & Obj;
+const yamlValue = (t: string) => parseYaml(t).value as { scenes: Obj[] } & Obj;
 /** The FieldAt of entry `id` of type `entry` in text `t`. */
 function atOf(t: string, entry: 'scene' | 'card' | 'interstitial', id: string): Extract<FieldAt, { id: string }> {
-  const v = valueOf(t);
+  const v = yamlValue(t);
   const k = v.scenes.findIndex((e, i) => sceneId(e as unknown as Scenario['scenes'][number], i) === id);
   return { entry, id, guard: stepGuard(v.scenes[k]) };
 }
 /** What the file says at a field (scalar; `true` for an intro / outro map). */
 function readAt(t: string, at: FieldAt, field: string): FieldValue | undefined {
-  const v = valueOf(t);
+  const v = yamlValue(t);
   let cur: unknown = at.entry === 'top' ? v : v.scenes.find((e, i) => sceneId(e as unknown as Scenario['scenes'][number], i) === (at as { id: string }).id);
   for (const k of field.split('.')) cur = cur && typeof cur === 'object' && !Array.isArray(cur) ? (cur as Obj)[k] : undefined;
   if (cur && typeof cur === 'object') return true;
@@ -311,7 +311,7 @@ describe('set_field: placement and forms', () => {
 
 /** Every (at, field) of a text the allow-list reaches. */
 function targets(t: string): Array<{ at: FieldAt; field: string }> {
-  const v = valueOf(t);
+  const v = yamlValue(t);
   const out: Array<{ at: FieldAt; field: string }> = FIELD_PATHS.top.map((field) => ({ at: { entry: 'top' } as FieldAt, field }));
   v.scenes.forEach((e, i) => {
     const type = e.card !== undefined ? 'card' : e.interstitial !== undefined ? 'interstitial' : 'scene';
@@ -355,7 +355,7 @@ describe('set_field on the fixture scenarios (goldens)', () => {
         const parent = field.includes('.') ? readAt(text, at, field.split('.')[0]) : undefined;
         if (parent !== undefined && parent !== true) continue;
         const to = poolOf(field).find((x) => x !== from)!;
-        let r;
+        let r: FieldEditApplied;
         try {
           r = applied(text, { kind: 'set_field', at, field, ...(from !== undefined ? { from } : {}), to });
         } catch (e) {
@@ -368,7 +368,7 @@ describe('set_field on the fixture scenarios (goldens)', () => {
         const d = changedLines(text, r.text);
         expect(d.added.length, `${name} ${field}`).toBe(1);
         expect(d.removed.length, `${name} ${field}`).toBeLessThanOrEqual(1);
-        const at2 = at.entry === 'top' ? at : ({ ...at, guard: stepGuard(valueOf(r.text).scenes.find((e, i) => sceneId(e as unknown as Scenario['scenes'][number], i) === at.id)) } as FieldAt);
+        const at2 = at.entry === 'top' ? at : ({ ...at, guard: stepGuard(yamlValue(r.text).scenes.find((e, i) => sceneId(e as unknown as Scenario['scenes'][number], i) === at.id)) } as FieldAt);
         const back = applied(r.text, { kind: 'set_field', at: at2, field, from: to, ...(from !== undefined ? { to: from } : {}) });
         expect(back.text, `${name} ${field}`).toBe(text);
         edits++;

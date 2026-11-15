@@ -779,7 +779,7 @@ function commandAt(cmd: Tok[], s: Scan): { name: string; args: Tok[]; scoped: Ma
 
 /** A computed word in a connection position (a database name, a repository…): refused when it runs. */
 function computed(t: Tok | undefined): boolean {
-  return t !== undefined && t.text.startsWith(DYN);
+  return t?.text.startsWith(DYN) ?? false;
 }
 
 function scanCommand(cmd: Cmd, s: Scan): Ran | null {

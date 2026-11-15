@@ -87,6 +87,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     inspect: inspectApi(ctx),
     record: recordApi(ctx),
     thumbnail: (file, maxPx) => thumbnail(ws, ctx.ports.reviewer.frames, file, maxPx),
+    folder: (root) => ports.stores.folder(root),
     comments: commentsApi(ctx),
     sandbox: sandboxApi(ctx),
   };

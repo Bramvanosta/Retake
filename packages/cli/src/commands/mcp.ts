@@ -13,6 +13,7 @@ import { clientPath } from '@retake/core/io';
 import { EngineError } from '@retake/engine';
 import { servedWorkspaceRoot } from '@retake/engine/shell';
 import type { EnginePorts } from '@retake/engine';
+import type { McpHttpServer } from '@retake/mcp';
 import {
   MCP_HTTP_TOKEN_ENV,
   SERVER_NAME,
@@ -48,7 +49,7 @@ async function mcpHttp(ui: Ui, ports: EnginePorts, root: string, opts: McpComman
     if (!/^\d+$/.test(opts.port) || port > 65535) throw new UsageError(`--port must be a port number from 0 to 65535, got "${opts.port}"`);
   }
   const file = mcpHttpTokenFile(ports.env);
-  let token;
+  let token: Awaited<ReturnType<typeof stableToken>>;
   try {
     token = await stableToken(file, { rotate: opts.rotateToken === true });
   } catch (e) {
@@ -83,7 +84,7 @@ async function mcpHttp(ui: Ui, ports: EnginePorts, root: string, opts: McpComman
     return EXIT.ok;
   }
   process.env.PATH = clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
-  let server;
+  let server: McpHttpServer;
   try {
     server = await mcp.startMcpHttpServer({ root, port, token: token.token, log: (m) => ui.line(m) });
   } catch (e) {

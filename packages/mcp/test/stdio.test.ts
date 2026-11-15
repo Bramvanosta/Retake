@@ -170,7 +170,7 @@ describe('retake mcp over stdio', () => {
     expect(runList?.inputSchema.required).toEqual(['project']);
     expect(tools.find((t) => t.name === 'run_dry')?.inputSchema.required).toEqual(['project', 'scenario']);
     expect(tools.find((t) => t.name === 'hooks_run')?.inputSchema.required).toEqual(['project', 'source']);
-    expect((tools.find((t) => t.name === 'run_status')?.inputSchema.properties as Record<string, { maximum?: number }>).wait_s.maximum).toBe(25);
+    expect((tools.find((t) => t.name === 'run_status')!.inputSchema.properties as Record<string, { maximum?: number }>).wait_s.maximum).toBe(25);
   });
 
   it('engine_info, project_list and project_get on the fixture', async () => {
@@ -216,7 +216,7 @@ describe('retake mcp over stdio', () => {
     const refused = errorOf(await call('scenario_save', { project: 'northfield-fixture', name: 'mcp-good', yaml: BAD }));
     expect(refused.code).toBe('invalid');
     expect(refused.message).toContain('not saved');
-    expect((refused.details?.issues as unknown[]).length).toBeGreaterThan(0);
+    expect((refused.details!.issues as unknown[]).length).toBeGreaterThan(0);
 
     const created = await call('scenario_save', { project: 'northfield-fixture', name: 'mcp-good', yaml: GOOD, if_match: null });
     expect(created.isError).toBeFalsy();
@@ -413,7 +413,7 @@ describe('retake mcp: lifecycle and registration', () => {
     const io = memoryIo();
     expect(await main(['node', 'retake', '--root', ws, 'mcp', '--print-config'], io)).toBe(EXIT.ok);
     const cfg = JSON.parse(io.stdout()) as { mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }> };
-    const entry = cfg.mcpServers['retake'];
+    const entry = cfg.mcpServers.retake;
     expect(entry.command).toMatch(/^\/.*\/node$/);
     expect(entry.args).toEqual([join(REPO, 'packages', 'cli', 'dist', 'bin.js'), '--root', ws, 'mcp']);
     expect(entry.env.PATH.split(':')[0]).toBe(dirname(entry.command));

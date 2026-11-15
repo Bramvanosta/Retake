@@ -9,7 +9,7 @@
 import type { ComponentKind } from '@retake/core/model';
 import type { LoadedTemplate } from '@retake/core/theme';
 import { isTemplateMediaRef } from '@retake/core/theme';
-import type { ComponentRegistry } from '@retake/components/geometry';
+import type { ComponentRegistry, ResolvedComponentRef } from '@retake/components/geometry';
 import type { ComponentPreviewSpec, PreviewSamples } from '@retake/editor/plan';
 import { componentCalls } from '../registries/component-calls.js';
 import { EngineError } from '../errors.js';
@@ -114,7 +114,7 @@ export async function buildThemePreview(
   // The component shown and its params: the theme's pick for the kind (with its params), or the one asked.
   let id: string;
   let params: Record<string, unknown> | undefined;
-  let resolved;
+  let resolved: Record<ComponentKind, ResolvedComponentRef | null>;
   try {
     resolved = registry.resolveTheme(tpl.template);
   } catch (e) {
@@ -151,7 +151,7 @@ export async function buildThemePreview(
       return url;
     };
   const themeUrl = serve(loaded.dir);
-  let built;
+  let built: ReturnType<typeof making.build>;
   try {
     const tokens = comps.themeTokens(tpl, {
       logo: themeUrl(tpl.assets.logo),

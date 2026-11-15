@@ -222,7 +222,7 @@ async function load(m: Extract<ParentMessage, { type: 'load' }>): Promise<void> 
   const missing: string[] = [];
   await Promise.all(
     ids.map(async (id) => {
-      const loader = Object.prototype.hasOwnProperty.call(loaders, id) ? loaders[id] : undefined;
+      const loader = Object.hasOwn(loaders, id) ? loaders[id] : undefined;
       try {
         const mod = loader ? await loader() : undefined;
         if (!mod?.default) throw new Error('missing');

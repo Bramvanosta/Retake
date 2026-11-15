@@ -12,16 +12,16 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { StepEditError, THEME_FIELD_PATHS, THEME_REMOVABLE_FIELDS, applyThemeEdit, newHiddenCharProblem, parseTemplateYaml, parseYaml, verifyEditText } from '../src/index.js';
 import { STARTER_TEMPLATES_DIR } from '../src/io/index.js';
-import type { ComponentKind, ThemeEdit, ThemeField, ThemeFieldValue } from '../src/index.js';
+import type { ComponentKind, ThemeEdit, ThemeField, ThemeFieldValue, ThemeEditApplied } from '../src/index.js';
 
 type Obj = Record<string, unknown>;
 type Edit = Exclude<ThemeEdit, { kind: 'restore' }>;
 const STARTERS = ['default', 'editorial', 'motion'] as const;
 const starter = (n: (typeof STARTERS)[number]) => readFileSync(join(STARTER_TEMPLATES_DIR, n, 'template.yaml'), 'utf8');
 
-const valueOf = (t: string) => parseYaml(t).value as Obj;
+const yamlValue = (t: string) => parseYaml(t).value as Obj;
 function readAt(t: string, field: string): unknown {
-  let cur: unknown = valueOf(t);
+  let cur: unknown = yamlValue(t);
   for (const k of field.split('.')) cur = cur && typeof cur === 'object' && !Array.isArray(cur) ? (cur as Obj)[k] : undefined;
   return cur;
 }
@@ -91,7 +91,7 @@ describe('theme set_field on the three starters', () => {
     let n = 0;
     for (const s of STARTERS) {
       const text = starter(s);
-      const bgType = (valueOf(text).background as Obj).type;
+      const bgType = (yamlValue(text).background as Obj).type;
       for (const field of THEME_FIELD_PATHS) {
         if (field.startsWith('background.') && (bgType === 'solid') !== (field === 'background.color')) continue;
         const from = readAt(text, field) as ThemeFieldValue | undefined;
@@ -99,18 +99,18 @@ describe('theme set_field on the three starters', () => {
         const r = applied(text, { kind: 'set_field', field, ...(from !== undefined ? { from } : {}), to });
         expect(readAt(r.text, field), `${s} ${field}`).toEqual(to);
         // Only that value changed in the parsed file.
-        const want = structuredClone(valueOf(text));
+        const want = structuredClone(yamlValue(text));
         const segs = field.split('.');
         if (segs.length === 1) want[segs[0]] = to;
         else want[segs[0]] = { ...((want[segs[0]] as Obj) ?? {}), [segs[1]]: to };
-        expect(valueOf(r.text), `${s} ${field}`).toEqual(want);
+        expect(yamlValue(r.text), `${s} ${field}`).toEqual(want);
         const d = changedLines(text, r.text);
         expect(d.added.length, `${s} ${field}`).toBe(1);
         expect(d.removed.length, `${s} ${field}`).toBeLessThanOrEqual(1);
         expect(commentsOf(r.text), `${s} ${field}`).toEqual(commentsOf(text));
         const back = applied(r.text, { kind: 'set_field', field, from: to, ...(from !== undefined ? { to: from } : {}) });
         if (from !== undefined && !Array.isArray(from)) expect(back.text, `${s} ${field}`).toBe(text);
-        else expect(valueOf(back.text), `${s} ${field}`).toEqual(valueOf(text));
+        else expect(yamlValue(back.text), `${s} ${field}`).toEqual(yamlValue(text));
         n++;
       }
     }
@@ -419,7 +419,7 @@ describe('theme edits: text rules', () => {
     const bare = 'version: 1\ncolors: {accent: "#111111"}';
     const b = applied(bare, { kind: 'set_field', field: 'style_bias', to: 'motion' });
     expect(b.text.endsWith('\n')).toBe(false);
-    expect(valueOf(b.text)).toEqual({ version: 1, colors: { accent: '#111111' }, style_bias: 'motion' });
+    expect(yamlValue(b.text)).toEqual({ version: 1, colors: { accent: '#111111' }, style_bias: 'motion' });
   });
 
   it('hidden characters: a file keeps its own on unchanged lines; an edit adds none', () => {
@@ -516,7 +516,7 @@ describe('theme edits: fuzz', () => {
           const ids = IDS[kind].filter((x) => x !== from);
           edit = { kind: 'set_component', component: kind, ...(from !== undefined ? { from } : {}), id: ids[rnd(ids.length)], params: rnd(2) ? 'keep' : 'drop' };
         }
-        let r;
+        let r: ThemeEditApplied;
         try {
           r = applyThemeEdit(text, edit);
         } catch (e) {

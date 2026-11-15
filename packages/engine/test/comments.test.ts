@@ -12,6 +12,7 @@
  * empty files and every test but the still's runs.
  */
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { diskProjectStores } from '../src/outputs/../store/project-store.js';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -371,38 +372,40 @@ describe('frame comment store', () => {
       // A resolved thread of its own beside the open ones.
       await resolveComment(project, (await add()).thread.id, { note: 'Done.' }, HUMAN, { renders: diskOutputs.renders, scope: authorScope(project, HUMAN) });
       const onV2 = await add({ render: 'quote-v2' });
-      const open = await listComments(diskOutputs.renders, project);
+      const open = await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project);
       expect(open.threads.every((t) => t.status === 'open')).toBe(true);
       expect(open.total).toBe(open.threads.length);
       // Newest commented render first, then by frame.
       const order = open.threads.map((t) => t.render_created_at);
       expect([...order].sort().reverse()).toEqual(order);
-      const all = await listComments(diskOutputs.renders, project, { status: 'all' });
+      const all = await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { status: 'all' });
       expect(all.threads.some((t) => t.status === 'resolved')).toBe(true);
       expect(all.threads.findIndex((t) => t.status === 'resolved')).toBeGreaterThan(all.threads.findLastIndex((t) => t.status === 'open'));
-      expect((await listComments(diskOutputs.renders, project, { status: 'resolved' })).threads.every((t) => t.status === 'resolved')).toBe(true);
-      expect((await listComments(diskOutputs.renders, project, { scenario: 'tour' })).threads.map((t) => t.id)).toEqual([tour.thread.id]);
-      const v2Threads = (await listComments(diskOutputs.renders, project, { render: 'quote-v2' })).threads;
+      expect((await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { status: 'resolved' })).threads.every((t) => t.status === 'resolved')).toBe(true);
+      expect((await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { scenario: 'tour' })).threads.map((t) => t.id)).toEqual([tour.thread.id]);
+      const v2Threads = (await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { render: 'quote-v2' })).threads;
       expect(v2Threads.map((t) => t.id)).toContain(onV2.thread.id);
       expect(v2Threads.every((t) => t.render_id === 'quote-v2')).toBe(true);
-      expect((await listComments(diskOutputs.renders, project, { render: 'latest', scenario: 'quote' })).threads.map((t) => t.id)).toEqual(v2Threads.map((t) => t.id));
-      expect((await listComments(diskOutputs.renders, project, { limit: 1 })).threads).toHaveLength(1);
-      expect((await engineError(listComments(diskOutputs.renders, project, { render: 'tour-v1', scenario: 'quote' }))).details?.argument).toBe('render');
-      expect((await engineError(listComments(diskOutputs.renders, project, { render: 'quote-v9' }))).code).toBe('not_found');
+      expect((await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { render: 'latest', scenario: 'quote' })).threads.map((t) => t.id)).toEqual(
+        v2Threads.map((t) => t.id),
+      );
+      expect((await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { limit: 1 })).threads).toHaveLength(1);
+      expect((await engineError(listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { render: 'tour-v1', scenario: 'quote' }))).details?.argument).toBe('render');
+      expect((await engineError(listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { render: 'quote-v9' }))).code).toBe('not_found');
       // renders/ cleaned and quote-v1 rendered again: the same id, another render.
       const recordFile = join(project.dir, 'renders', 'quote-v1.json');
       const saved = await readFile(recordFile);
       try {
         const rec = JSON.parse(saved.toString('utf8')) as RenderRecord;
         await writeFile(recordFile, JSON.stringify({ ...rec, created_at: '2026-06-01T00:00:00.000Z' }));
-        const onV1 = (await listComments(diskOutputs.renders, project, { scenario: 'quote', status: 'all' })).threads.filter((t) => t.render_id === 'quote-v1');
+        const onV1 = (await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { scenario: 'quote', status: 'all' })).threads.filter((t) => t.render_id === 'quote-v1');
         expect(onV1.length).toBeGreaterThan(0);
         expect(onV1.every((t) => !t.render_present)).toBe(true);
-        expect((await listComments(diskOutputs.renders, project, { render: 'quote-v1', status: 'all' })).threads).toEqual([]);
+        expect((await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { render: 'quote-v1', status: 'all' })).threads).toEqual([]);
       } finally {
         await writeFile(recordFile, saved);
       }
-      expect((await listComments(diskOutputs.renders, project, { render: 'quote-v1', status: 'all' })).threads.length).toBeGreaterThan(0);
+      expect((await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { render: 'quote-v1', status: 'all' })).threads.length).toBeGreaterThan(0);
     },
     LONG,
   );
@@ -434,7 +437,7 @@ describe('frame comment store', () => {
       await writeFile(join(dir, `${thread.id}.json.0a1b2c3d.tmp`), 'partial');
       await writeFile(join(dir, 'notes.txt'), INJECTION);
 
-      const list = await listComments(diskOutputs.renders, project, { status: 'all' });
+      const list = await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { status: 'all' });
       const ids = list.threads.map((t) => t.id);
       expect(ids).toContain(thread.id);
       for (const id of [broken, renamed, moved, withStatus, linked]) expect(ids).not.toContain(id);
@@ -504,7 +507,7 @@ describe('frame comment store', () => {
       const lower = newCommentId();
       const lowerName = `c_${lower.slice(2).toLowerCase()}.json`;
       await writeFile(join(dir, lowerName), JSON.stringify({ ...JSON.parse(good.toString('utf8')), id: lower }));
-      expect((await listComments(diskOutputs.renders, project, { status: 'all' })).threads.map((t) => t.id)).not.toContain(lower);
+      expect((await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { status: 'all' })).threads.map((t) => t.id)).not.toContain(lower);
       const hiddenBefore = await readFile(join(dir, lowerName));
       expect(
         (
@@ -527,7 +530,7 @@ describe('frame comment store', () => {
       const edited = JSON.parse(good.toString('utf8')) as CommentThread;
       edited.anchor = { ...edited.anchor, scene: INJECTION, component: 'studio/caption-below; rm -rf' };
       await writeFile(threadFile('quote', thread.id), JSON.stringify(edited));
-      const view = (await listComments(diskOutputs.renders, project, { status: 'all' })).threads.find((t) => t.id === thread.id)!;
+      const view = (await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { status: 'all' })).threads.find((t) => t.id === thread.id)!;
       expect(view.anchor).toMatchObject({ scene: 'unknown', component: 'unknown', segment: thread.anchor.segment });
       expect(view.untrusted.anchor).toEqual({ scene: INJECTION, component: 'studio/caption-below; rm -rf' });
       const { untrusted: _u, ...trusted } = view;
@@ -557,11 +560,11 @@ describe('frame comment store', () => {
           );
           expect(e.code, JSON.stringify(edit)).toBe('refused');
           expect(e.message).toBe('renders/quote-v2.json has a scenario, created_at or variant the tool never writes: not used');
-          const listed = await engineError(listComments(diskOutputs.renders, project, { scenario: 'quote', render: 'quote-v2' }));
+          const listed = await engineError(listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { scenario: 'quote', render: 'quote-v2' }));
           // A file that is there is never "not found" — refused, in fixed words.
           expect(listed.code).toBe('refused');
           expect(`${listed.message} ${JSON.stringify(listed.details ?? {})}`).not.toContain('IGNORE');
-          expect((await getComment(diskOutputs.renders, project, thread.id)).newer_renders).toEqual([]);
+          expect((await getComment({ renders: diskOutputs.renders, stores: diskProjectStores }, project, thread.id)).newer_renders).toEqual([]);
         }
       } finally {
         await writeFile(recordFile, saved);
@@ -580,7 +583,7 @@ describe('frame comment store', () => {
       await mkdir(outside, { recursive: true });
       await mkdir(join(project.dir, '.retake', 'comments'), { recursive: true });
       const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200)]);
-      const shown = async () => (await getComment(diskOutputs.renders, project, thread.id)).still;
+      const shown = async () => (await getComment({ renders: diskOutputs.renders, stores: diskProjectStores }, project, thread.id)).still;
       await rm(still, { force: true });
       await writeFile(still, jpeg);
       expect(await shown()).toBe(still);
@@ -614,7 +617,7 @@ describe('frame comment store', () => {
         expect(e.message).toBe('comments/Lettercase/ differs from lettercase only by case: a case-insensitive disk would write the thread there');
         expect(e.fix).toBe('rename comments/Lettercase/ to comments/lettercase/ (or remove it), then comment again');
         expect(await readdir(variant)).toEqual([]);
-        const v = await listComments(diskOutputs.renders, project, { scenario: 'lettercase', status: 'all' });
+        const v = await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { scenario: 'lettercase', status: 'all' });
         expect(v.problems).toEqual(['comments/Lettercase/ differs from lettercase only by case: skipped (rename it lettercase/ or remove it)']);
       } finally {
         await rm(variant, { recursive: true, force: true });
@@ -650,7 +653,7 @@ describe('frame comment store', () => {
       expect(refused?.code).toBe('refused');
       expect(refused?.message).toBe(`comment ${thread.id} would grow past 2 MB with this entry: start a new thread`);
       expect((await stat(threadFile('quote', thread.id))).size).toBeLessThanOrEqual(COMMENT_FILE_MAX_BYTES);
-      const listed = await listComments(diskOutputs.renders, project, { status: 'all', scenario: 'quote' });
+      const listed = await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { status: 'all', scenario: 'quote' });
       expect(listed.threads.map((t) => t.id)).toContain(thread.id);
       expect(listed.problems).toEqual([]);
       await rm(threadFile('quote', thread.id));
@@ -681,7 +684,7 @@ describe('frame comment store', () => {
       const stored = await readThreadFile('quote', thread.id);
       expect(stored.entries.at(-1)?.text).toBe('Looks good.');
       await writeFile(threadFile('quote', thread.id), JSON.stringify({ ...stored, text: `Fine.${hidden}` }));
-      const v = await listComments(diskOutputs.renders, project, { status: 'all', scenario: 'quote' });
+      const v = await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { status: 'all', scenario: 'quote' });
       expect(v.threads.map((t) => t.id)).not.toContain(thread.id);
       expect(v.problems).toEqual([`comments/quote/${thread.id}.json is not a valid thread: text (custom)`]);
       await rm(threadFile('quote', thread.id));
@@ -881,7 +884,7 @@ describe("step_now: the anchored step in today's scenario file", () => {
       expect(thread.anchor).toMatchObject({ scene: 's2', step: 1, step_ref: 's2.1' });
       const today = join(project.dir, 'scenarios', 'quote.yaml');
       const had = existsSync(today) ? await readFile(today, 'utf8') : null;
-      const now = async () => (await listComments(diskOutputs.renders, project, { scenario: 'quote' })).threads.find((t) => t.id === thread.id)!.step_now;
+      const now = async () => (await listComments({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { scenario: 'quote' })).threads.find((t) => t.id === thread.id)!.step_now;
       try {
         await rm(today, { force: true });
         expect(await now()).toBeNull();
@@ -894,7 +897,7 @@ describe("step_now: the anchored step in today's scenario file", () => {
           `${SCENARIO.replace('      - wait_for: Proposal ready\n        mark: proposal\n      - hold: 2.4', '      - hold: 2.4\n      - wait_for: Proposal ready\n        mark: proposal')}\n`,
         );
         expect(await now()).toBe('s2.2');
-        expect((await getComment(diskOutputs.renders, project, thread.id)).step_now).toBe('s2.2');
+        expect((await getComment({ renders: diskOutputs.renders, stores: diskProjectStores }, project, thread.id)).step_now).toBe('s2.2');
         await writeFile(today, `${SCENARIO.replace('      - wait_for: Proposal ready\n        mark: proposal\n', '')}\n`);
         expect(await now()).toBeNull();
         expect((await add({ frame: v1.record.frames - 1 })).thread).not.toHaveProperty('step_now');

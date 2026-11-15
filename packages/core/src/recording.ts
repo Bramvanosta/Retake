@@ -1126,7 +1126,7 @@ class EventWalk implements Walked {
 
   /** A click (a right click keeps its button); a press the recorder could not name is dropped and said. */
   private press(e: EvOf<'pointer'>, el: El): void {
-    let step: Step = {};
+    const step: Step = {};
     const t = this.pressTarget(el, () => step);
     if (t === null) {
       this.stats.noise++;

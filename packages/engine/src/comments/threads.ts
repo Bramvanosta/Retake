@@ -47,7 +47,7 @@ import { frameAnchor } from '@retake/review/checks';
 import type { FrameTools } from '../review/reviewer.js';
 import type { ThreadFile } from './store.js';
 import { recordShapeOk, renderIndex, threadView, timecodeOf, todayText } from './views.js';
-import type { CommentView } from './views.js';
+import type { CommentReads, CommentView } from './views.js';
 import type { WorkFileFacts } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import { parseTimeline } from '@retake/core/run';
@@ -253,14 +253,14 @@ export interface CommentAnchorView {
 }
 
 /** The anchor a comment on that frame would store (prepareComment: the same code as addComment), and where its step is today. */
-export async function anchorAt(renders: RenderOutputs, project: LoadedProject, req: CommentAnchorRequest): Promise<CommentAnchorView> {
+export async function anchorAt(reads: CommentReads, project: LoadedProject, req: CommentAnchorRequest): Promise<CommentAnchorView> {
   if (req.render_created_at === undefined || req.render_created_at === null) throw argError('render_created_at', 'render_created_at is required: the created_at of the render shown');
   if (typeof req.frame !== 'number') throw argError('frame', 'frame is an output frame number of the render');
-  const p = await prepareComment(renders, project, { render: req.render, render_created_at: req.render_created_at, frame: req.frame, ...(req.region ? { region: req.region } : {}) });
+  const p = await prepareComment(reads.renders, project, { render: req.render, render_created_at: req.render_created_at, frame: req.frame, ...(req.region ? { region: req.region } : {}) });
   const { anchor, untrusted: badAnchor } = trustedAnchor(p.anchor);
   let stepNow: string | null | undefined;
   if (anchor.scene !== undefined && anchor.step !== undefined) {
-    const today = await todayText(project.dir, p.record.scenario, new Map());
+    const today = await todayText(reads.stores, project.dir, p.record.scenario, new Map());
     stepNow = today === null ? null : (locateAnchorStep(today.text, anchor) ?? null);
   }
   const time_s = Math.round((p.frame / p.record.fps) * 1000) / 1000;
@@ -335,7 +335,7 @@ export async function addComment(
   }
   const written = await storeOf(project, scope).writeText(commentRef(record.scenario, id), `${JSON.stringify(parsed.data, null, 2)}\n`, { ifMatch: null, what: 'thread' });
   await writeStill(project.dir, id, record.file, frame, req.region, warnings, policy, frames);
-  return { thread: await threadView(project.dir, parsed.data, written.sha256, await renderIndex(renders, project.dir)), warnings };
+  return { thread: await threadView(scope.stores, project.dir, parsed.data, written.sha256, await renderIndex(renders, project.dir)), warnings };
 }
 
 export interface CommentWritten {
@@ -368,7 +368,7 @@ export async function writeAppended(
   const next = appendedThread(f.id, r, entry);
   // The thread's lock already serialises every write of its file: no second (write) lock inside it.
   const written = await storeOf(project, scope).writeText(f.ref, next.text, { ifMatch: r.hash, locked: true, what: 'thread' });
-  return { thread: await threadView(project.dir, next.thread, written.sha256, await renderIndex(o.renders, project.dir)), entry: entry.id, hash: written.sha256 };
+  return { thread: await threadView(scope.stores, project.dir, next.thread, written.sha256, await renderIndex(o.renders, project.dir)), entry: entry.id, hash: written.sha256 };
 }
 
 /**

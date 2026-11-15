@@ -151,7 +151,7 @@ function watch(port: number, token: string) {
     res.setEncoding('utf8');
     res.on('data', (c: string) => {
       buf += c;
-      let i;
+      let i: number;
       while ((i = buf.indexOf('\n\n')) >= 0) {
         const block = buf.slice(0, i);
         buf = buf.slice(i + 2);

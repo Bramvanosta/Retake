@@ -31,8 +31,8 @@ const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SCENARIOS = join(ROOT, 'projects', 'northfield-fixture', 'scenarios');
 
 type Doc = { scenes: Array<{ id?: string; steps?: unknown[] }> };
-const valueOf = (t: string) => parseYaml(t).value as Doc;
-const stepsOf = (t: string, scene: string) => valueOf(t).scenes.find((s) => s.id === scene && Array.isArray(s.steps))!.steps!;
+const yamlValue = (t: string) => parseYaml(t).value as Doc;
+const stepsOf = (t: string, scene: string) => yamlValue(t).scenes.find((s) => s.id === scene && Array.isArray(s.steps))!.steps!;
 const at = (t: string, scene: string, index: number) => ({ scene, index, guard: stepGuard(stepsOf(t, scene)[index]) });
 const move = (t: string, a: string, i: number, b: string, j: number) => applyStepEdit(t, { kind: 'move_step', from: at(t, a, i), to: { scene: b, index: j } });
 const del = (t: string, a: string, i: number) => applyStepEdit(t, { kind: 'delete_step', at: at(t, a, i) });
@@ -54,7 +54,7 @@ function oneRun(longer: string, shorter: string): string | null {
 
 /** The value of `t` with an edit applied to its parsed value (the independent expectation). */
 function expected(t: string, f: (d: Doc) => void): Doc {
-  const d = valueOf(t);
+  const d = yamlValue(t);
   f(d);
   return d;
 }
@@ -69,7 +69,7 @@ describe('step edits on every step of the fixture scenarios (goldens)', () => {
     '%s: every move (in its scene, to the start / end of every other scene) re-parses to the moved value, keeps every line and comment, and moves back to the same bytes; every delete and duplicate re-parses to its value and touches one run of lines',
     (name) => {
       const text = readFileSync(join(SCENARIOS, name), 'utf8');
-      const v = valueOf(text);
+      const v = yamlValue(text);
       const scenes = v.scenes.filter((s) => typeof s.id === 'string' && Array.isArray(s.steps)) as Array<{ id: string; steps: unknown[] }>;
       const w0 = warnings(text);
       let n = 0;

@@ -68,6 +68,7 @@ export function ColorField({
   const [own, setText] = useState(value);
   const text = onText ? value : own;
   // A new written value or version (a write, a refusal, another writer): the field shows what is written.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new file version (a refusal re-read with the same value) is a trigger to show what is written
   useEffect(() => setText(value), [value, version]);
   const commitRef = useRef(onCommit);
   commitRef.current = onCommit;

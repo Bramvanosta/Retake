@@ -57,6 +57,7 @@ export function productClock(cfg: ProductClockConfig | null): void {
     if (state.off) return realNow();
     return c.freeze ? c.epoch : c.epoch + (realNow() - c.since);
   };
+  // biome-ignore lint/suspicious/noShadowRestrictedNames: the page's own Date must still be named Date (Date.name, stack frames)
   const ClockDate = function Date(this: unknown, ...args: unknown[]): unknown {
     if (!new.target) return new RealDate(now()).toString();
     return Reflect.construct(RealDate, args.length === 0 ? [now()] : args, new.target);

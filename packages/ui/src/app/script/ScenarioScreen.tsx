@@ -179,6 +179,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   const droppedEnv = loc.dropped ?? null;
   const [view, reload] = useScenarioBlocks({ project: slug, name, ...(pick ? { run: pick } : {}), ...(sentEnv ? { env: sentEnv } : {}) }, key);
   const first = useRef(true);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another run picked or another location sent is the trigger to read the view again
   useEffect(() => {
     if (first.current) {
       first.current = false;

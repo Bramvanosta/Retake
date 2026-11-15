@@ -15,9 +15,9 @@ import { isPopoverOpen } from './scopes.js';
  */
 export function reportCursorEffect(type: 'icon' | 'press' | 'release' | 'ripple', extra: { icon?: CursorKind; x?: number; y?: number } = {}): void {
   try {
-    const b = (window as unknown as Record<string, unknown>).__retakeCursor;
+    const b = window.__retakeCursor;
     if (typeof b !== 'function') return;
-    const r = (b as (p: unknown) => unknown)({ type, time: RT.Date.now(), ...extra }) as { catch?: (f: () => void) => void } | undefined;
+    const r = b({ type, time: RT.Date.now(), ...extra }) as { catch?: (f: () => void) => void } | undefined;
     if (r && typeof r.catch === 'function') r.catch(() => undefined);
   } catch {
     /* the runner is gone */

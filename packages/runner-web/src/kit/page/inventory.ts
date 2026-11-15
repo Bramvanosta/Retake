@@ -54,7 +54,7 @@ function leafTexts(root: Element, max: number, skip?: Element): string[] {
   const all = root.querySelectorAll('*');
   for (let i = 0; i < all.length && out.length < max; i++) {
     const c = all[i];
-    if (c.children.length > 0 || SKIP_TAGS.has(c.tagName) || (skip && skip.contains(c))) continue;
+    if (c.children.length > 0 || SKIP_TAGS.has(c.tagName) || skip?.contains(c)) continue;
     const t = norm(c.textContent);
     if (t && t.length <= SUGGEST_MAX && !out.includes(t)) out.push(t);
   }

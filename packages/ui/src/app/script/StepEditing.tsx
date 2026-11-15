@@ -118,7 +118,7 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
 
   /** Send one edit on the version shown; `after` runs with the answer (the history's bookkeeping). */
   const run = useCallback(
-    (edit: ScenarioEdit, after: (r: ScenarioEditAnswer, shown: View) => string) => {
+    (edit: StepEditOp | Extract<ScenarioEdit, { kind: 'restore' }>, after: (r: ScenarioEditAnswer, shown: View) => string) => {
       const shown = vRef.current;
       if (busyRef.current || !shown) return;
       busyRef.current = true;
@@ -142,7 +142,7 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
           // A version that landed while the edit was on its way is judged now (another's: the history is cleared).
           if (vRef.current) reconcile(vRef.current.hash);
           if (e instanceof SessionEnded) return;
-          const op = 'kind' in edit && edit.kind !== 'restore' ? (edit as unknown as StepEditOp) : undefined;
+          const op = edit.kind !== 'restore' ? edit : undefined;
           if (e instanceof CallError && e.error.code === 'conflict' && e.error.details?.stale !== true && op) {
             // Where a form's step is, to find it again in the new version (Apply it to the new version).
             const anchor = op.kind === 'set_step' ? anchorOf(shown, op.at.scene, op.at.index) : null;
@@ -344,6 +344,7 @@ export function IssueLines({ issues, testId }: { issues: ValidationIssue[]; test
   return (
     <ul className="sb-issues" data-testid={testId}>
       {issues.map((i, n) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a file's issues, replaced whole on each validation, text only: the index is the identity
         <li key={n} className="sb-issue">
           <StatusMark state={i.severity === 'error' ? 'fail' : 'warn'} word={i.severity === 'error' ? 'error' : 'warning'} />
           {i.line !== undefined && <span className="k-mono sc-quiet">{shown(`line ${i.line}${i.col !== undefined ? `:${i.col}` : ''}`)}</span>}

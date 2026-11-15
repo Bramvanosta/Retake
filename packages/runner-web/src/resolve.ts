@@ -96,7 +96,7 @@ async function finish(ctx: StepContext, found: Exclude<ResolveResult, ResolveMis
       ctx,
       async () => {
         const p = await kit.point(found.ref, opts.offset ?? null);
-        return p && p.hit ? p : null;
+        return p?.hit ? p : null;
       },
       clamp(deadline - wallNow(), 0, 1500),
     );

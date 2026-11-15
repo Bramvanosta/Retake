@@ -89,6 +89,7 @@ function ThemeText({ label, field, view, off, send, hint }: { label: string; fie
   const shown = typeof w === 'string' ? w : w === undefined ? '' : String(w);
   const [text, setText] = useState(shown);
   // A new version read (a write, a refusal, another writer): the field shows what is written.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new file version (a refusal re-read with the same value) is a trigger to show what is written
   useEffect(() => setText(shown), [shown, view.sha256]);
   const problem = text !== shown && text !== '' && field in TEXT_MAX ? textProblem(field, text) : null;
   const commit = () => {
@@ -123,6 +124,7 @@ function ZoomField({ label, field, view, off, send }: { label: string; field: st
   const w = written(view, field);
   const shown = typeof w === 'number' ? String(w) : '';
   const [text, setText] = useState(shown);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new file version (a refusal re-read with the same value) is a trigger to show what is written
   useEffect(() => setText(shown), [shown, view.sha256]);
   const commit = () => {
     if (text === shown || text === '') return setText(shown);
@@ -150,6 +152,7 @@ function ZoomField({ label, field, view, off, send }: { label: string; field: st
 function DefaultZoom({ view, off, send }: { view: ThemeEditView; off: boolean; send: Send }) {
   const w = written(view, 'motion.default_zoom');
   const [text, setText] = useState(typeof w === 'number' ? String(w) : '');
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new file version (a refusal re-read with the same value) is a trigger to show what is written
   useEffect(() => setText(typeof w === 'number' ? String(w) : ''), [w, view.sha256]);
   const mode = w === undefined ? 'default' : w === 'none' ? 'none' : 'number';
   const commit = () => text !== '' && Number(text) !== w && send(fieldEdit(view, 'motion.default_zoom', Number(text)));
@@ -235,11 +238,11 @@ function BackgroundField({
   }
   const type = cur?.type ?? 'radial';
   const grad = cur && cur.type !== 'solid' ? cur : null;
-  const valueOf = (b: Background | null | undefined, name: 'color' | 'from' | 'to') =>
+  const partOf = (b: Background | null | undefined, name: 'color' | 'from' | 'to') =>
     b ? (b.type === 'solid' ? (name === 'color' ? b.color : undefined) : name === 'from' ? b.from : name === 'to' ? b.to : undefined) : undefined;
   const part = (name: 'color' | 'from' | 'to', label: string) => {
-    const value = valueOf(cur, name);
-    const writtenValue = valueOf(bg.value, name);
+    const value = partOf(cur, name);
+    const writtenValue = partOf(bg.value, name);
     const dragged = draft && value !== writtenValue && value !== undefined ? value : undefined;
     return (
       <ColorField
@@ -303,6 +306,7 @@ const Palette = memo(function Palette({ view }: { view: ThemeEditView }) {
         ))}
       </ul>
       {view.palette?.warnings.map((w, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the palette's warnings, replaced whole on each read, text only: the index is the identity
         <p key={i} className="tm-quiet">
           <Txt text={w} />
         </p>
@@ -452,6 +456,7 @@ const TypeSection = memo(function TypeSection({ v, off, send }: { v: ThemeEditVi
           ...fonts.map((f) => ({ value: f.file, label: `${f.file} (${f.words})${familyOf(f.file)}` })),
         ]}
       />
+      {/* biome-ignore lint/a11y/useSemanticElements: the body font fields under one visual label; <fieldset> would bring its own border, padding and min-width */}
       <div className="tm-group" data-testid="font-body" role="group" aria-labelledby="tm-body-fonts">
         <span id="tm-body-fonts" className="tm-label">
           Body (one file per weight or style, 1 to 4)

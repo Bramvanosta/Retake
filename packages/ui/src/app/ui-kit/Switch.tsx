@@ -46,6 +46,7 @@ export function Switch({
         <span className="k-switch">
           <input
             type="checkbox"
+            // biome-ignore lint/a11y/useAriaPropsForRole: a native checkbox: its checked state is what assistive technology reads as the switch's aria-checked
             role="switch"
             className="k-switch-input"
             checked={checked}
@@ -76,6 +77,7 @@ export function Switch({
       <span className="k-switch">
         <input
           type="checkbox"
+          // biome-ignore lint/a11y/useAriaPropsForRole: a native checkbox: its checked state is what assistive technology reads as the switch's aria-checked
           role="switch"
           className="k-switch-input"
           checked={checked}

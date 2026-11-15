@@ -47,7 +47,7 @@ async function firebaseUsersInPage(): Promise<Array<{ token: string; expires?: n
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith('firebase:authUser:')) {
+      if (k?.startsWith('firebase:authUser:')) {
         try {
           take(JSON.parse(localStorage.getItem(k) ?? 'null'));
         } catch {

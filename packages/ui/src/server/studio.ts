@@ -291,7 +291,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     ...(o.workerIdleExitMs !== undefined ? { workerIdleExitMs: o.workerIdleExitMs } : {}),
   });
   const getEngine = async () => engine;
-  const live = await Live.start({ ws: engine.workspace, queue: engine.queue, ...(o.sqlite ? { sqlite: o.sqlite } : {}), ...(o.pollMs ? { pollMs: o.pollMs } : {}), log });
+  const live = await Live.start({ ws: engine.workspace, queue: engine.queue, folder: engine.folder, ...(o.sqlite ? { sqlite: o.sqlite } : {}), ...(o.pollMs ? { pollMs: o.pollMs } : {}), log });
   // The player origin starts after the Studio's listener (it must know the Studio's port): the timeline op reads it
   // when called, which is only ever after startStudioServer returned.
   let player: PlayerServer | undefined;

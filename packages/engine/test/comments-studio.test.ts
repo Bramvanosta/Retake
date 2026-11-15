@@ -10,6 +10,7 @@
  * `comments:` event sources.
  */
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { diskProjectStores } from '../src/store/project-store.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, open, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises';
@@ -234,9 +235,16 @@ describe('the Studio channel', () => {
         else expect(chips[i]).not.toHaveProperty('step_now');
       }
       expect(chips[2]).toMatchObject({ anchor: { marker: 'proposal', step_ref: 's2.1' }, step_now: 's2.1' });
-      expect((await engineError(anchorAt(diskOutputs.renders, project, { render: 'quote-v1', render_created_at: undefined as never, frame: 1 }))).details?.argument).toBe('render_created_at');
-      expect((await engineError(anchorAt(diskOutputs.renders, project, { render: 'quote-v1', render_created_at: '2020-01-01T00:00:00.000Z', frame: 1 }))).code).toBe('conflict');
-      expect((await engineError(anchorAt(diskOutputs.renders, project, { render: 'quote-v1', render_created_at: v1.record.created_at, frame: v1.record.frames }))).details?.argument).toBe('frame');
+      expect(
+        (await engineError(anchorAt({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { render: 'quote-v1', render_created_at: undefined as never, frame: 1 }))).details?.argument,
+      ).toBe('render_created_at');
+      expect(
+        (await engineError(anchorAt({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { render: 'quote-v1', render_created_at: '2020-01-01T00:00:00.000Z', frame: 1 }))).code,
+      ).toBe('conflict');
+      expect(
+        (await engineError(anchorAt({ renders: diskOutputs.renders, stores: diskProjectStores }, project, { render: 'quote-v1', render_created_at: v1.record.created_at, frame: v1.record.frames })))
+          .details?.argument,
+      ).toBe('frame');
     },
     LONG,
   );

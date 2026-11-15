@@ -7,6 +7,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { isUtf8 } from 'node:buffer';
 import { createReadStream } from 'node:fs';
+import type { Stats } from 'node:fs';
 import { chmod, link, lstat, mkdir, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { pathInside } from '@retake/core/base';
@@ -149,7 +150,7 @@ export class LocalStorage implements Storage {
 
   async describe(ref: string, kind: StoredKind, opts: { hash?: boolean } = {}): Promise<StoredRef | undefined> {
     const path = this.resolve(ref);
-    let st;
+    let st: Stats;
     try {
       st = await stat(path);
     } catch {
@@ -218,7 +219,7 @@ export class LocalStorage implements Storage {
    * Refused when the link leads out of the project or to nothing.
    */
   private async writeTarget(path: string): Promise<string> {
-    let st;
+    let st: Stats;
     try {
       st = await lstat(path);
     } catch (e) {

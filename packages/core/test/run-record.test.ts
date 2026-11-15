@@ -179,7 +179,7 @@ describe('parseRunRecord', () => {
       const r = parseRunRecord(value);
       expect(said(r), key).toBe('ok');
       if (!r.ok) continue;
-      expect([(r.value.engine as Record<string, unknown>)[key], (r.value.perf?.cpu as Record<string, unknown>)[key], r.value.engine?.retake, r.value.perf?.cpu?.retake], key).toEqual([
+      expect([(r.value.engine as Record<string, unknown>)[key], (r.value.perf!.cpu as Record<string, unknown>)[key], r.value.engine?.retake, r.value.perf?.cpu?.retake], key).toEqual([
         '0.1.0',
         1.5,
         undefined,

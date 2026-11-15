@@ -7,6 +7,7 @@
  * sizes only: the bytes are checked when a create reads them (readBrandFile).
  */
 import { lstat, readdir } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { realPathOf } from '@retake/core/policy';
 import { nodeFileFacts } from '@retake/core/io';
@@ -37,7 +38,7 @@ export async function brandFileList(ws: OpenedWorkspace, kind: 'image' | 'font')
   const out: BrandFileList = { kind, files: [], truncated: false, links: 0 };
   let seen = 0;
   const walk = async (dir: string, depth: number): Promise<void> => {
-    let entries;
+    let entries: Dirent[];
     try {
       entries = await readdir(dir, { withFileTypes: true });
     } catch {

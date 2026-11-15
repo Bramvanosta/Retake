@@ -26,6 +26,7 @@
 import type { EngineEnv } from '../env.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { chmod, link, lstat, mkdir, readFile, realpath, unlink, writeFile } from 'node:fs/promises';
+import type { Stats } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { retakeHome } from '@retake/core/io';
 import { EngineError } from '../errors.js';
@@ -105,7 +106,7 @@ function parseRecord(text: string): DiscoveryRecord | null {
  * writable by group or others.
  */
 export async function readDiscovery(file: string): Promise<DiscoveryRecord | null> {
-  let st;
+  let st: Stats;
   try {
     st = await lstat(file);
   } catch (e) {

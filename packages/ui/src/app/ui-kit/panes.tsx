@@ -120,6 +120,7 @@ export function Toolbar({
 
 export function StatusBar({ state, info, actions, label = 'Status' }: { state: ReactNode; info?: ReactNode; actions?: ReactNode; label?: string }) {
   return (
+    // biome-ignore lint/a11y/useSemanticElements: the status bar's markup is pinned as a div (kit-static); role=region names it as a landmark
     <div className="k-statusbar" role="region" aria-label={label}>
       <div className="k-statusbar-state">{shown(state)}</div>
       {info && <div className="k-statusbar-info">{shown(info)}</div>}
@@ -273,6 +274,7 @@ export function Facts({ rows, label }: { rows: Array<{ key: string; label: React
   );
   // A name goes on a group around the list (a `dl` has no role that takes one).
   return label ? (
+    // biome-ignore lint/a11y/useSemanticElements: a named group of facts; <fieldset> would bring its own border, padding and min-width
     <div role="group" aria-label={label} className="k-facts-group">
       {shown(list)}
     </div>

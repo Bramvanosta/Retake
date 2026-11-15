@@ -121,11 +121,11 @@ describe('the update in the status bar and its sheet', () => {
     expect(await sheet(p).innerText()).toContain(
       "You have v0.2.0. Install and Restart downloads the update and checks its signature, waits for this workspace's jobs to end, asks about unsaved text, then restarts Retake.",
     );
-    // A named region the keyboard reaches and scrolls.
+    // A named region (a <section> with a name) the keyboard reaches and scrolls.
     expect(await notes.evaluate((e) => [e.tagName, e.getAttribute('tabindex'), e.getAttribute('role'), e.getAttribute('aria-label')])).toEqual([
-      'DIV',
+      'SECTION',
       '0',
-      'region',
+      null,
       'Release notes, from the update feed',
     ]);
     expect(await sheet(p).locator('.k-sheet-actions button').allInnerTexts()).toEqual(['Later', 'Install and Restart']);

@@ -2605,7 +2605,7 @@ describe('the import-rules ratchet', () => {
         const re = /JSON\.parse\(/g;
         for (let m = re.exec(text); m; m = re.exec(text)) {
           const before = text.slice(0, m.index);
-          const fns = [...before.matchAll(/\n(?:export )?(?:async )?function (\w+)\(|\n  (?:private |static )*(?:async )?(\w+)\([^)]*\)[^\n]*\{\n/g)];
+          const fns = [...before.matchAll(/\n(?:export )?(?:async )?function (\w+)\(|\n {2}(?:private |static )*(?:async )?(\w+)\([^)]*\)[^\n]*\{\n/g)];
           const last = fns[fns.length - 1];
           out.push(last ? (last[1] ?? last[2]) : '(top)');
         }
@@ -2701,7 +2701,7 @@ describe('the import-rules ratchet', () => {
         'outside packages/*/src',
         'render record',
         'parseRenderRecord',
-        "a member\'s type",
+        "a member's type",
       ])
         expect(title, word).toContain(word);
     });

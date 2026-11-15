@@ -25,6 +25,7 @@
  * intact.
  */
 import { lstat, readFile, stat } from 'node:fs/promises';
+import type { Stats } from 'node:fs';
 import { extname, join, relative, resolve, sep } from 'node:path';
 import { expandHome, printableText } from '@retake/core/base';
 import { agentWritable, realPathOf } from '@retake/core/policy';
@@ -143,7 +144,7 @@ async function readSiteCandidate(ws: OpenedWorkspace, ref: string, kind: BrandFi
     if (f && !f.isDirectory()) throw refused(`${what}: ${ref}: ${folder} is not a plain folder (a link or a file): it is never followed`);
   }
   const file = join(folder, `${site.candidate}.png`);
-  let st;
+  let st: Stats;
   try {
     st = await lstat(file);
   } catch {

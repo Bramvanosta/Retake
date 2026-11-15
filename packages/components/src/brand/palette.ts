@@ -168,10 +168,8 @@ export function derivePalette(input: PaletteInput): Palette {
       warnings.push(
         `the accent ${accent} reads at ${c.ratio}:1 on the paper ${paper} (kicker, rules need ${c.min}:1): it is kept as given${suggestions.accent ? `; ${suggestions.accent} would pass (pass it as colors.accent to use it)` : ''}`,
       );
-    } else if (c.check === 'accent_on_dark') {
-      // Reported, not warned: the reference look itself draws a deep accent hand on the ink (a 4.5 px stroke).
-      continue;
-    } else {
+    } else if (c.check !== 'accent_on_dark') {
+      // (accent_on_dark is reported, not warned: the reference look itself draws a deep accent hand on the ink, a 4.5 px stroke.)
       const what = {
         text_on_paper: `the text ${text} on the paper ${paper}`,
         text_on_background: `the text ${text} on the background (${bgSample})`,

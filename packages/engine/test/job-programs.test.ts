@@ -94,7 +94,7 @@ describe('a program inside the workspace: refused for a job of the worker, run b
     // The job ran; the run failed at its browser's launch, with the refusal.
     expect(job?.state, logs.join('\n')).toBe('succeeded');
     expect(job?.result).toMatchObject({ kind: 'run', status: 'failed', steps_done: 0 });
-    expect((job?.result as { untrusted?: { error_message?: string } }).untrusted?.error_message).toMatch(
+    expect((job!.result as { untrusted?: { error_message?: string } }).untrusted?.error_message).toMatch(
       /browser\.executable \(.*\/bin\/chrome\) lies inside the workspace .*move the program out of the workspace and point browser\.executable at its new place/,
     );
     expect(existsSync(marker)).toBe(false);

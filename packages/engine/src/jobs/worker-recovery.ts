@@ -50,7 +50,7 @@ async function provenJobProcess(id: string, root: string, w: JobWorkerInfo | und
 async function recoverOrphans(w: Worker): Promise<void> {
   for (const id of await w.queue.ids()) {
     const stored = await bestEffort(w.queue.stored(id), 'a job removed meanwhile reads as gone');
-    if (!stored || stored.state !== 'running' || !stored.supervisor || !stored.worker) continue;
+    if (stored?.state !== 'running' || !stored.supervisor || !stored.worker) continue;
     if (stored.worker.pid === process.pid || (await isAlive(stored.supervisor))) continue;
     if (!(await isAlive(stored.worker))) continue; // dead too: persisted as interrupted by the first scan
     if (!(await provenJobProcess(id, w.root, stored.worker))) {

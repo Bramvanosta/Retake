@@ -20,6 +20,9 @@ import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { scratchHome } from '@retake/test-support/home';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const P = 'northfield-fixture';
 const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 30_000 };
@@ -94,7 +97,7 @@ beforeAll(async () => {
   // 240 cards: the real answer's items cloned as workspace components, their previews queued (no render, no image).
   await page.route('**/v1/call/library_view', async (route) => {
     const res = await route.fetch();
-    const body = (await res.json()) as { ok: boolean; data: { items: Array<Record<string, any>>; queued: number } };
+    const body = (await res.json()) as { ok: boolean; data: { items: Array<Record<string, Untyped>>; queued: number } };
     const base = body.data.items;
     body.data.items = Array.from({ length: CARDS }, (_x, i) => {
       const b = base[i % base.length];

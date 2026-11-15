@@ -93,6 +93,7 @@ function useEngineInfo(): EngineInfoAnswer | null {
       if (fresh.length > 0) setTick((t) => t + 1);
     }
   });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `tick` (a resync or a new job) is the trigger to read the engine info again
   useEffect(() => {
     let live = true;
     const load = () =>
@@ -274,6 +275,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   const keyNow = useRef(saidKey);
   keyNow.current = saidKey;
   const firstScreen = useRef(true);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the screen key is the trigger: the pane scrolls to the top when the screen changes
   useEffect(() => {
     main.current?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
     if (firstScreen.current) {
@@ -400,6 +402,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
 
   useSyncExternalStore(paletteGroup.subscribe, paletteGroup.version);
   const slotVersion = paletteGroup.version();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the palette group's version is the trigger to rebuild the list when a screen adds or removes commands
   const commands = useMemo<Command[]>(() => {
     const go = (r: Route) => () => {
       location.hash = hrefTo(r);

@@ -46,7 +46,7 @@ for (const f of files) {
     }
     if (s.startsWith('//') || s.startsWith('*')) return;
     s = s.replace(/\s+/g, ' ');
-    if (!s || /^[{}()\[\];,]+$/.test(s) || s.startsWith('import ') || s.startsWith('export {') || s.startsWith('} from')) return;
+    if (!s || /^[{}()[\];,]+$/.test(s) || s.startsWith('import ') || s.startsWith('export {') || s.startsWith('} from')) return;
     if (s.length < 4) return;
     kept.push({ s, line: i + 1 });
   });

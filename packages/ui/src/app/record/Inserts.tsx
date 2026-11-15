@@ -59,6 +59,7 @@ export function Inserts({
     set({ open: null, problem: null, focus: false });
     if (was) opener(was)?.focus();
   };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `set` is a new closure each render; the focus is placed once per open form asking for it
   useEffect(() => {
     if (!open || !form.focus) return;
     formRef.current?.querySelector<HTMLElement>('input:checked, input[type="text"], input, textarea')?.focus();

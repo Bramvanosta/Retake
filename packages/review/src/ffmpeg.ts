@@ -33,7 +33,7 @@ async function ffprobeVideo(file: string, policy: WorkPolicy): Promise<VideoInfo
 
 export async function probeVideo(file: string, policy: WorkPolicy): Promise<VideoInfo> {
   const p = await ffprobeVideo(file, policy);
-  if (!p || !p.width || !p.height) throw new ReviewError(`cannot read the video ${file} (ffprobe failed: is ffmpeg installed and the file a video?)`);
+  if (!p?.width || !p.height) throw new ReviewError(`cannot read the video ${file} (ffprobe failed: is ffmpeg installed and the file a video?)`);
   return { width: p.width, height: p.height, fps: p.fps, duration_s: p.duration_s, frames: p.frames };
 }
 

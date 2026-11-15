@@ -114,19 +114,19 @@ export function parseRoute(hash: string): Route {
   }
   const pr = /^\/p\/([^/]+)\/s\/([^/]+)\/proposal\/([^/]+)\/([^/]+)\/?$/.exec(path);
   const prParts = pr ? [pr[1], pr[2], pr[3], pr[4]].map(decode) : null;
-  if (prParts && prParts.every((x) => x !== null)) {
+  if (prParts?.every((x) => x !== null)) {
     const [pSlug, pScenario, pThread, pEntry] = prParts as string[];
     return { name: 'proposal', slug: pSlug, scenario: pScenario, thread: pThread, entry: pEntry };
   }
   const rv = /^\/p\/([^/]+)\/s\/([^/]+)\/review(?:\/([^/]+))?\/?$/.exec(path);
   const rvParts = rv ? [rv[1], rv[2]].map(decode) : null;
   const rvRender = rv?.[3] !== undefined ? decode(rv[3]) : undefined;
-  if (rv && rvParts && rvParts.every((x) => x !== null) && rvRender !== null && (rvRender === undefined || okRenderIdShape(rvRender))) {
+  if (rv && rvParts?.every((x) => x !== null) && rvRender !== null && (rvRender === undefined || okRenderIdShape(rvRender))) {
     return { name: 'review', slug: rvParts[0]!, scenario: rvParts[1]!, ...(rvRender !== undefined ? { render: rvRender } : {}) };
   }
   const lb = /^\/p\/([^/]+)\/library(?:\/([^/]+)(?:\/([^/]+)\/([^/]+))?)?\/?$/.exec(path);
   const lbParts = lb ? [lb[1], lb[2], lb[3], lb[4]].map((x) => (x === undefined ? undefined : decode(x))) : null;
-  if (lbParts && lbParts.every((x) => x !== null)) {
+  if (lbParts?.every((x) => x !== null)) {
     const [lSlug, lTheme, lNs, lName] = lbParts as Array<string | undefined>;
     // A component id is two segments, neither holding a "/" once decoded (the server checks the id itself).
     if (lNs === undefined || (!lNs.includes('/') && !lName!.includes('/'))) {

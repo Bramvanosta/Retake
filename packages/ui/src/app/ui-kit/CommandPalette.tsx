@@ -12,7 +12,7 @@
  * false while no option is listed; an input method's composition-ending Enter is ignored by `isComposing` or its
  * keyCode 229 (WebKit — the desktop app's view — can end a composition with `isComposing` false).
  */
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { Kbd } from './Button.js';
 import { Icon } from './Icon.js';
@@ -77,12 +77,13 @@ export function CommandPalette({
   const optId = (c: Command) => `${base}-o-${c.id}`;
   // The `close` events still to come of closings the palette made itself (the focus went back when it closed).
   const ownCloses = useRef(0);
-  const giveBack = () => {
+  // Stable (reads the opener ref only): the effect below runs on `open` alone.
+  const giveBack = useCallback(() => {
     const back = opener.current;
     opener.current = null;
     // A "Go to" command often unmounts the opener: the focus goes to the centre pane then.
-    (back && back.isConnected ? back : document.getElementById('main'))?.focus();
-  };
+    (back?.isConnected ? back : document.getElementById('main'))?.focus();
+  }, []);
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -97,7 +98,7 @@ export function CommandPalette({
       d.close();
       giveBack();
     }
-  }, [open]);
+  }, [open, giveBack]);
   useEffect(() => {
     if (active >= hits.length) setActive(Math.max(0, hits.length - 1));
   }, [active, hits.length]);
@@ -177,6 +178,7 @@ export function CommandPalette({
       {/* Never a tab stop of its own (a long list scrolls: Chromium would make the scroller focusable) — the combobox drives it. */}
       <div id={`${base}-list`} role="listbox" aria-label="Commands" className="k-palette-list" tabIndex={-1}>
         {groups.map((g, gi) => (
+          // biome-ignore lint/a11y/useSemanticElements: a listbox's option group (role=group is what a listbox allows); <fieldset> would bring its own border, padding and min-width
           <div key={g} role="group" aria-labelledby={`${base}-g${gi}`} className="k-palette-group">
             <div id={`${base}-g${gi}`} role="presentation" className="k-palette-heading">
               {shown(g)}
@@ -184,6 +186,8 @@ export function CommandPalette({
             {hits
               .filter((c) => c.group === g)
               .map((c) => (
+                // biome-ignore lint/a11y/useFocusableInteractive: the focus stays in the search input, which points at the active option (aria-activedescendant) and takes the keys
+                // biome-ignore lint/a11y/useKeyWithClickEvents: the focus stays in the search input, which points at the active option (aria-activedescendant) and takes the keys
                 <div
                   key={c.id}
                   id={optId(c)}

@@ -99,7 +99,9 @@ export function PictureBox({ item, playing, large = false }: { item: LibraryItem
   const posterAsked = useAsked(lib.pump, item.poster.key);
   const loopAsked = useAsked(lib.pump, item.loop.key);
   // One want object per (component, state, key): the loader's subscriptions and the observer stay put across re-renders.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the want's identity fields, so a new but equal item object keeps the same want
   const pw = useMemo(() => posterWant(item), [item.component, item.poster.state, item.poster.key]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the want's identity fields, so a new but equal item object keeps the same want
   const lw = useMemo(() => (playing ? loopWant(item) : null), [playing, item.component, item.loop.state, item.loop.key]);
   const poster = useImage(lib.images, pw);
   const loop = useImage(lib.images, lw);

@@ -115,7 +115,7 @@ async function readStream(token: string, first: boolean): Promise<StreamEnd> {
       const { value, done } = await reader.read();
       if (done) return 'closed';
       buf += value;
-      let i;
+      let i: number;
       while ((i = buf.indexOf('\n\n')) >= 0) {
         const block = buf.slice(0, i);
         buf = buf.slice(i + 2);

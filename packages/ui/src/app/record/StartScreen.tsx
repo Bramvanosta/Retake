@@ -40,7 +40,7 @@ export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: 
   const signInFirst = personaProblem(p);
   const pathProblem = !path.startsWith('/') ? 'A path under the page, starting with "/".' : /\s/.test(path) || path.includes('{{') ? 'No space and no "{{" in a path.' : null;
   const problem = nameProblem(name);
-  const blocked = !env || !env.default || !o.display || o.open !== null || signInFirst !== null;
+  const blocked = !env?.default || !o.display || o.open !== null || signInFirst !== null;
   // A refusal takes the focus (the Start button stays where it was: a disabled one would drop the focus while sending) —
   // said once, by the focus: its callout is a note, not an alert as well.
   useEffect(() => {
@@ -79,6 +79,7 @@ export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: 
         {o.notes.length > 0 && (
           <ul className="rc-list">
             {o.notes.map((n, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: the recording options' notes, replaced whole on each read, text only: the index is the identity
               <li key={i}>
                 <Txt text={n} />
               </li>
@@ -171,6 +172,7 @@ export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: 
       {env && env.warnings.length > 0 && (
         <ul className="rc-list rc-quiet" data-testid="record-env-warnings">
           {env.warnings.map((w, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the environment's warnings, replaced whole on each read, text only: the index is the identity
             <li key={i}>
               <Txt text={w} />
             </li>

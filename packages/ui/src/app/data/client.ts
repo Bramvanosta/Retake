@@ -17,6 +17,7 @@ export type OpCall<K extends StudioOp> = (...a: OpParams<K>) => Promise<OpResult
  * A read's parameters: its arguments and the key that reloads it — the arguments left out when the op needs none, as
  * for a call (OpParams): `useEngineInfo('info')` is `useEngineInfo({}, 'info')`.
  */
+// biome-ignore lint/complexity/noBannedTypes: `{} extends Args` is the test that every argument of the op is optional
 export type ReadParams<K extends StudioOp> = {} extends OpArgs<K> ? [key: string] | [args: OpArgs<K>, key: string] : [args: OpArgs<K>, key: string];
 /** One op as a `useCall` read: its arguments (optional when the op needs none) and the key that reloads it. */
 export type OpRead<K extends StudioOp> = (...a: ReadParams<K>) => [Loaded<OpResult<K>>, () => void];

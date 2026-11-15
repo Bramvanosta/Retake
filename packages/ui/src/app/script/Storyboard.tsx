@@ -97,6 +97,7 @@ const StepFrame = memo(function StepFrame({ step, scene, optId, binding, source,
             </span>
           )}
           {step.chips.map((c, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: a step's chips in the view's order, replaced whole with the step, no state: the index is the identity
             <span key={i} className="sb-chip" data-chip={c.kind}>
               <Txt text={c.label} />
             </span>
@@ -206,7 +207,8 @@ export function Storyboard({
     [index, go],
   );
   /** The scene a frames list belongs to. */
-  const sceneOfList = (el: HTMLElement): string | undefined => [...lists.current].find(([, l]) => l === el)?.[0];
+  // Stable (reads the lists ref only): the callbacks below keep their identity.
+  const sceneOfList = useCallback((el: HTMLElement): string | undefined => [...lists.current].find(([, l]) => l === el)?.[0], []);
   /** The list's first step, when the selection is not in it (entering the frames). */
   const firstOfList = useCallback(
     (scene: string | undefined): number | undefined => {
@@ -226,7 +228,7 @@ export function Storyboard({
       const i = firstOfList(sceneOfList(ev.currentTarget));
       if (i !== undefined) go(i, false);
     },
-    [firstOfList, go],
+    [firstOfList, go, sceneOfList],
   );
   const edRef = useRef(ed);
   edRef.current = ed;
@@ -268,7 +270,7 @@ export function Storyboard({
       const target = scenes[to.scene]?.steps[to.index];
       if (target) go(index.get(target.key) ?? 0, true);
     },
-    [order, index, counts, scenes, go, firstOfList],
+    [order, index, counts, scenes, go, firstOfList, sceneOfList],
   );
   // After an edit, its view selects the moved step / the copy / the neighbour, and the focus stays in the frames — once:
   // the same version read again (a file event, a run ending) never takes the selection back from a step picked since.

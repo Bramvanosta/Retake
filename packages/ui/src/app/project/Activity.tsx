@@ -73,6 +73,7 @@ export function Lately({ project, scenario, limit = 8, label = 'Lately' }: { pro
   });
   const items = v.state === 'ready' ? (scenario ? v.data.items.filter((i) => i.run?.scenario === scenario || i.render?.scenario === scenario).slice(0, limit) : v.data.items) : [];
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a named group of activity rows; <fieldset> would bring its own border, padding and min-width
     <div className="sc-lately" data-testid="activity" role="group" aria-label={label}>
       {v.state === 'loading' && <p className="sc-quiet">Loading the activity…</p>}
       {v.state === 'error' && <Txt className="sc-quiet" text={v.error} />}
@@ -100,6 +101,7 @@ export function SearchBox() {
   useEvents((e) => {
     if (e.type === 'index' || e.type === 'resync') setTick((t) => t + 1);
   });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `tick` (an index or resync event) is the trigger to search again
   useEffect(() => {
     const query = q.trim();
     if (!query) {
@@ -119,6 +121,7 @@ export function SearchBox() {
     };
   }, [q, tick]);
   return (
+    // biome-ignore lint/a11y/useSemanticElements: the <search> element is unknown to older engines (an inline box there); role=search on a section keeps the layout
     <section className="sc-search" role="search" aria-label="Search the workspace">
       <TextField
         label="Search"

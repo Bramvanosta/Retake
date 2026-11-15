@@ -3,6 +3,7 @@ import { StepError } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { Resolved } from '../resolve.js';
 import type { StepContext } from '../runtime.js';
+import type { ScrollInfo } from '../kit/types.js';
 import { clamp } from '../util.js';
 import type { ActionResult } from './types.js';
 
@@ -20,7 +21,7 @@ export async function scroll(ctx: StepContext, args: ScrollArgs): Promise<Action
   const to = args.to;
   let target: Resolved | null = null;
   let top: number;
-  let info;
+  let info: ScrollInfo;
   if (to !== undefined && typeof to !== 'number' && to !== 'top' && to !== 'bottom') {
     target = await resolveTarget(ctx, to, { scroll: false, promote: false });
     container ??= await kit.scrollContainerFor(target.ref, true);

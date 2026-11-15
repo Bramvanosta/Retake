@@ -3,6 +3,7 @@
  * return. engine.ts re-exports each of them (createEngine builds the façade from src/facade/*-api.ts).
  */
 import type { EngineEnv } from '../env.js';
+import type { ProjectFolder } from '../store/store.js';
 import type { ComponentKind } from '@retake/core/model';
 import type { RunMode } from '@retake/core/run';
 import type { RecordAnnotationChange, RunViewStatus, UnknownRunStatus } from '@retake/core/run';
@@ -554,6 +555,13 @@ export interface Engine {
   };
   /** A JPEG thumbnail (base64) of an image of the workspace, made on read: never stored. */
   thumbnail(file: string, maxPx?: number): Promise<{ base64: string; width: number; height: number; bytes: number }>;
+  /**
+   * The folder `root` to read, through the engine's stores port (ProjectStores.folder): a read is confined to that
+   * `root` (a ref leading out of it is refused, as a store refuses it), not to the workspace — any folder can be
+   * given, so a caller hands a folder it chose itself (a project's), never one a client named. What the Studio's
+   * workspace index reads a project's README by. No writes.
+   */
+  folder(root: string): ProjectFolder;
   /**
    * Frame comments: threads on frames of renders. Entries are written as the channel `cli` for client
    * `cli`, `studio` for client `ui` (the Studio web app; its name the Studio process's $RETAKE_AUTHOR, else the OS

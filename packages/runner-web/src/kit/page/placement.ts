@@ -124,7 +124,7 @@ export function outsidePlan(near: PointSpec, avoidIds: number[]): OutsidePlan | 
 
 /** The drawn cursor at (x, y) overlaps one of `boxes` (with a `clear` margin). */
 function coversAny(x: number, y: number, boxes: BBox[] | undefined, clear = 14): boolean {
-  if (!boxes || !boxes.length) return false;
+  if (!boxes?.length) return false;
   const c = cursorBox(x, y);
   return boxes.some((b) => c.r > b.x - clear && c.l < b.x + b.w + clear && c.b > b.y - clear && c.t < b.y + b.h + clear);
 }

@@ -60,6 +60,7 @@ export function ChoiceChips({
       {chips.map((c) => {
         const disabled = off || c.disabled;
         return (
+          // biome-ignore lint/a11y/useSemanticElements: a chip is a styled button acting as a radio (the group moves the focus); a native radio cannot take the chip's look or its unusable state
           <button
             key={c.key}
             type="button"

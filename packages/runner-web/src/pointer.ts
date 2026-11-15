@@ -3,7 +3,7 @@ import type { Pacing } from '@retake/core/project';
 import type { PointSpec } from '@retake/core/model';
 import type { KitClient } from './session.js';
 import type { TimelineBuilder } from './timeline.js';
-import { Jitter, arcPath, distance, easeInOutCubic, moveDuration, snap } from './motion.js';
+import { type Jitter, arcPath, distance, easeInOutCubic, moveDuration, snap } from './motion.js';
 import { sleep, throwIfAborted, wallNow } from './util.js';
 
 export interface PointerHost {

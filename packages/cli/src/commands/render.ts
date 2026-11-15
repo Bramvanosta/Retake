@@ -7,7 +7,7 @@ import { scenarioSinceRun } from '@retake/core/io';
 import type { FileFacts } from '@retake/core/model';
 import type { LoadedProject } from '@retake/core/project';
 import { defaultStillFile, editorErrorOf, findRunOf, planWork, renderInProcess, stillInProcess } from '@retake/engine/shell';
-import type { EditOverrides, RenderProgress, RenderRecord, RunRef } from '@retake/engine';
+import type { EditOverrides, RenderProgress, RenderRecord, RunRef, ReviewResult } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -282,7 +282,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
     });
     printer?.done();
     if (!opts.json) summary(ui, record);
-    let review;
+    let review: ReviewResult | undefined;
     if (opts.review) {
       try {
         review = await runReview(ui, global.ports.reviewer, { policy: ws.policy, registries: ws.registries, project, render: record.record, quiet: opts.json });

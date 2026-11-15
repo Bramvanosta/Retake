@@ -2,6 +2,7 @@
  * A small built-in icon set for cards (studio/card-features): line icons on a 24 × 24 grid, drawn with the
  * stroke colour the component picks from the theme. Generic shapes only (no brand marks).
  */
+import { Fragment } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 
 type Shape = { d?: string; circle?: [number, number, number]; rect?: [number, number, number, number, number] };
@@ -49,16 +50,30 @@ export function Icon(props: { name: string; size: number; color: string; strokeW
   if (!shapes) return null;
   const sw = props.strokeWidth ?? 1.8;
   return (
-    <svg width={props.size} height={props.size} viewBox="0 0 24 24" fill="none" stroke={props.color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={props.style}>
-      {shapes.map((s, i) =>
-        s.d ? (
-          <path key={i} d={s.d} />
-        ) : s.circle ? (
-          <circle key={i} cx={s.circle[0]} cy={s.circle[1]} r={s.circle[2]} />
-        ) : s.rect ? (
-          <rect key={i} x={s.rect[0]} y={s.rect[1]} width={s.rect[2]} height={s.rect[3]} rx={s.rect[4]} />
-        ) : null,
-      )}
+    <svg
+      aria-hidden="true"
+      width={props.size}
+      height={props.size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={props.color}
+      strokeWidth={sw}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={props.style}
+    >
+      {shapes.map((s, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: an icon's shapes are a fixed table drawn in order: the index is the identity
+        <Fragment key={i}>
+          {s.d ? (
+            <path d={s.d} />
+          ) : s.circle ? (
+            <circle cx={s.circle[0]} cy={s.circle[1]} r={s.circle[2]} />
+          ) : s.rect ? (
+            <rect x={s.rect[0]} y={s.rect[1]} width={s.rect[2]} height={s.rect[3]} rx={s.rect[4]} />
+          ) : null}
+        </Fragment>
+      ))}
     </svg>
   );
 }

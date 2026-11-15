@@ -76,7 +76,7 @@ function installSignalHandlers(onSignal: (sig: NodeJS.Signals) => void, groups: 
 }
 
 /** A caller's onFilming never breaks a take; its report (to `stop`) is kept only when well formed. */
-function tell(f: (state: FilmingEvent) => void | FilmingReport, state: FilmingEvent): FilmingReport | undefined {
+function tell(f: (state: FilmingEvent) => FilmingReport | undefined, state: FilmingEvent): FilmingReport | undefined {
   try {
     const r = f(state);
     return r && Number.isInteger(r.takes_beside) && r.takes_beside >= 0 && typeof r.heavy_slowed === 'boolean' ? { takes_beside: r.takes_beside, heavy_slowed: r.heavy_slowed } : undefined;

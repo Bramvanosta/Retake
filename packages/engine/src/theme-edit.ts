@@ -20,18 +20,20 @@
  *   wrote is under `untrusted`.
  */
 import { readdirSync, statSync } from 'node:fs';
+import type { Dirent, Stats } from 'node:fs';
 import { lstat, readdir } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseYaml, pathInside } from '@retake/core/base';
 import { COMPONENT_KINDS } from '@retake/core/model';
 import { realPathOf } from '@retake/core/policy';
 import { projectPath } from '@retake/core/project';
+import type { LoadedProject } from '@retake/core/project';
 import { StepEditError, insideFolder, isTemplatePath, newHiddenCharProblem, verifyEditText } from '@retake/core/scenario';
 import { TEMPLATE_FILE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, applyThemeEdit, isTemplateMediaRef, parseTemplateYaml } from '@retake/core/theme';
 import { STARTER_TEMPLATES_DIR, readPlainFile, nodeFileFacts } from '@retake/core/io';
 import type { ComponentKind } from '@retake/core/model';
 import type { Template } from '@retake/core/theme';
-import type { TemplateEntry, ThemeEdit, ThemeField } from '@retake/core/theme';
+import type { TemplateEntry, ThemeEdit, ThemeField, ThemeEditApplied } from '@retake/core/theme';
 import type { PaletteCheck } from '@retake/components/geometry';
 import { FONT_MAX_BYTES, IMAGE_MAX_BYTES, SVG_MAX_BYTES, checkImage, sniffFont } from './brand/files.js';
 import { workspaceRegistry } from './components.js';
@@ -149,7 +151,7 @@ export async function themeFileProblem(realDir: string, rel: string, role: 'logo
   let p = realDir;
   for (let i = 0; i < segs.length; i++) {
     p = join(p, segs[i]);
-    let st;
+    let st: Stats;
     try {
       st = await lstat(p);
     } catch {
@@ -231,7 +233,7 @@ const isObj = (v: unknown): v is Obj => v !== null && typeof v === 'object' && !
 async function themeFiles(realDir: string): Promise<{ files: string[]; links: string[] }> {
   const out = { files: [] as string[], links: [] as string[] };
   const walk = async (rel: string, depth: number) => {
-    let entries;
+    let entries: Dirent[];
     try {
       entries = await readdir(join(realDir, rel), { withFileTypes: true });
     } catch {
@@ -302,7 +304,7 @@ async function themeUsesNow(ws: OpenedWorkspace): Promise<Map<string, ThemeEditV
   };
   for (const p of await listProjectSummaries(ws)) {
     if (p.error) continue;
-    let project;
+    let project: LoadedProject;
     try {
       project = await openProjectBySlug(ws, p.slug);
     } catch {
@@ -518,7 +520,7 @@ export async function editTheme(ws: OpenedWorkspace, name: string, req: ThemeEdi
     text = edit.text;
     label = 'Restored an earlier version';
   } else {
-    let applied;
+    let applied: ThemeEditApplied;
     try {
       applied = applyThemeEdit(base.text, edit);
     } catch (e) {

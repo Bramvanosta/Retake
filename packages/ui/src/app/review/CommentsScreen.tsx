@@ -113,10 +113,12 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
     if (thread === undefined) setOpened(null);
   }, [thread]);
   // "Comment posted" belongs to the thread just posted: gone once the page shows another place.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another render or frame is the trigger to drop the posted note
   useEffect(() => {
     setPosted((p) => (p && p.id === thread ? p : null));
   }, [thread, at?.render, at?.frame]);
   // A new place for the viewer: no region carried over.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another render shown is the trigger to drop the region
   useEffect(() => setRegion(null), [shown?.render_id, shown?.created_at]);
 
   const composing = thread === undefined;
@@ -168,6 +170,7 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
       {posted && (
         <Callout state={posted.warnings.length ? 'warn' : 'ok'} role="status" title={posted.warnings.length ? 'Comment posted, with a warning' : 'Comment posted'}>
           {posted.warnings.map((w, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: one post's warnings, fixed once said, text only: the index is the identity
             <p key={i} className="cm-pre" data-testid="posted-warning">
               <Txt text={w} />
             </p>

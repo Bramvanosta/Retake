@@ -65,7 +65,7 @@ export interface NotificationLayout {
 }
 
 function text(t: string | undefined, width: number, size: number, weight: number, maxLines: number, family: string, unit: number): NotificationText | undefined {
-  if (!t || !t.trim()) return undefined;
+  if (!t?.trim()) return undefined;
   const lineHeight = 1.3;
   const r = fitText({ text: t.trim(), width, maxFontSize: size * unit, minFontSize: size * unit * 0.86, maxLines, lineHeight, fontFamily: family, fontWeight: weight });
   return { lines: r.lines, fontSize: r.fontSize, lineHeight, weight };
@@ -197,7 +197,7 @@ export function AppIcon(props: { theme: ThemeTokens; size: number; url?: string;
     const top = mixColors(a, '#ffffff', 0.28);
     return (
       <div style={{ ...base, background: `linear-gradient(180deg, ${top} 0%, ${a} 100%)` }}>
-        <svg viewBox="0 0 24 24" width={size} height={size} style={{ position: 'absolute', inset: 0 }}>
+        <svg aria-hidden="true" viewBox="0 0 24 24" width={size} height={size} style={{ position: 'absolute', inset: 0 }}>
           <rect x="4.2" y="6.6" width="15.6" height="10.8" rx="1.6" fill="#ffffff" />
           <path d="M4.6 7.4 L12 12.9 L19.4 7.4" fill="none" stroke={a} strokeWidth="1.25" strokeLinejoin="round" />
         </svg>
@@ -217,6 +217,7 @@ function Lines({ t, color, style }: { t?: NotificationText; color: string; style
   return (
     <div style={{ fontSize: t.fontSize, lineHeight: `${roundTo(t.fontSize * t.lineHeight, 2)}px`, fontWeight: t.weight, color, whiteSpace: 'pre', ...style }}>
       {t.lines.map((l, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the text's wrapped lines, in order, laid out once per frame: the index is the line number
         <div key={i}>{l || ' '}</div>
       ))}
     </div>
@@ -252,7 +253,7 @@ export function NotificationCard(props: { theme: ThemeTokens; layout: Notificati
           <AppIcon theme={theme} size={small} url={c.icon} glyph={c.glyph} radius={3 * u} />
           <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>{c.app ?? theme.brand.name ?? ''}</span>
           <span style={{ letterSpacing: '0.1em' }}>···</span>
-          <svg width={12 * u} height={12 * u} viewBox="0 0 12 12" style={{ marginLeft: 10 * u }}>
+          <svg aria-hidden="true" width={12 * u} height={12 * u} viewBox="0 0 12 12" style={{ marginLeft: 10 * u }}>
             <path d="M2 2 L10 10 M10 2 L2 10" stroke={tone.muted} strokeWidth="1.2" />
           </svg>
         </div>
@@ -272,7 +273,7 @@ export function NotificationCard(props: { theme: ThemeTokens; layout: Notificati
         <div style={{ position: 'absolute', left: l.pad, right: l.pad, top: l.pad, height: header, display: 'flex', alignItems: 'center', gap: 8 * u, fontSize: 13 * u, color: tone.muted }}>
           <div style={{ width: small, height: small, borderRadius: small / 2, background: tone.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             {c.glyph === 'mail' ? (
-              <svg viewBox="0 0 24 24" width={small * 0.8} height={small * 0.8}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width={small * 0.8} height={small * 0.8}>
                 <rect x="4" y="6.5" width="16" height="11" rx="1.6" fill="#ffffff" />
               </svg>
             ) : (

@@ -141,9 +141,10 @@ export function UpdateControl() {
         content={
           <>
             {notes && (
-              <div className="sh-update-notes" tabIndex={0} role="region" aria-label="Release notes, from the update feed" data-testid="update-notes">
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: the release notes scroll inside the sheet: a named region with its own tab stop to scroll by keyboard
+              <section className="sh-update-notes" tabIndex={0} aria-label="Release notes, from the update feed" data-testid="update-notes">
                 <Txt text={notes} />
-              </div>
+              </section>
             )}
             {progress &&
               (progress.state === 'fail' ? (

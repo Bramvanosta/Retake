@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { errorText } from '../api.js';
 import { runCancel, runPause } from '../data/shoot.js';
-import { Txt, plural, shown } from '../bits.js';
+import { Txt, contentKeys, plural, shown } from '../bits.js';
 import { envFlagWords } from '../words/board-words.js';
 import { LiveView } from './LiveView.js';
 import type { LiveViewHandle } from './LiveView.js';
@@ -297,9 +297,15 @@ function StepList({ s, fb, finished, mode }: { s: RunLiveState; fb: RunStatusLit
   const before = s.hooks.filter((h) => h.phase === 'setup');
   // A `hook:` step's entries (phase `step`) are on its step row (s.stepHooks), not "after the scenes".
   const after = s.hooks.filter((h) => h.phase !== 'setup' && h.phase !== 'step');
+  // A hook row is its phase, name and outcome (a phase's marker row is replaced by the hook's own result); a group is its scene.
+  const hookKey = (h: HookRow) => `${h.phase}:${h.name}:${h.marker ? 'marker' : h.status}`;
+  const beforeKeys = contentKeys(before, hookKey);
+  const afterKeys = contentKeys(after, hookKey);
+  const sceneKeys = contentKeys(scenes, (g) => g.scene);
   return (
     <InspectorSection title="Steps" testId="steps-section">
       <Switch label="Follow current step" checked={follow} onChange={setFollow} testId="steps-follow" />
+      {/* biome-ignore lint/a11y/noNoninteractiveTabindex: the steps list scrolls on its own: its tab stop lets a keyboard scroll it */}
       <ol className="sp-steps" ref={box} data-testid="run-steps" tabIndex={0} aria-label="Steps of the run">
         {(s.sessions.length > 0 || before.length > 0) && (
           <li className="sp-group">
@@ -328,7 +334,7 @@ function StepList({ s, fb, finished, mode }: { s: RunLiveState; fb: RunStatusLit
                 );
               })}
               {before.map((h, i) => (
-                <HookItem key={`s${i}`} h={h} />
+                <HookItem key={beforeKeys[i]} h={h} />
               ))}
             </ol>
           </li>
@@ -336,7 +342,7 @@ function StepList({ s, fb, finished, mode }: { s: RunLiveState; fb: RunStatusLit
         {scenes.map((g, gi) => {
           const ms = g.steps.reduce((t, r) => t + (s.steps[stepKey(r.scene, r.step)]?.ms ?? 0), 0);
           return (
-            <li key={`${g.scene}-${gi}`} className="sp-group">
+            <li key={sceneKeys[gi]} className="sp-group">
               <p className="sp-group-head">
                 <Txt text={g.scene} />
                 {g.steps.some((r) => r.offscreen) && <span className="sc-quiet"> · off camera</span>}
@@ -351,6 +357,7 @@ function StepList({ s, fb, finished, mode }: { s: RunLiveState; fb: RunStatusLit
                   const stopped = status === 'stopped';
                   const [word, mark] = stepWordsOf(status, mode);
                   const hooks = s.stepHooks[k] ?? [];
+                  const hookKeys = contentKeys(hooks, hookKey);
                   const pausedHere = s.paused !== null && s.paused.scene === r.scene && s.paused.step === r.step;
                   const current = k === curKey;
                   return (
@@ -374,7 +381,7 @@ function StepList({ s, fb, finished, mode }: { s: RunLiveState; fb: RunStatusLit
                       {hooks.length > 0 && (
                         <ol className="sp-group-rows sp-row-more" data-testid="run-step-hooks">
                           {hooks.map((h, i) => (
-                            <HookItem key={i} h={h} />
+                            <HookItem key={hookKeys[i]} h={h} />
                           ))}
                         </ol>
                       )}
@@ -407,7 +414,7 @@ function StepList({ s, fb, finished, mode }: { s: RunLiveState; fb: RunStatusLit
             <p className="sp-group-head">After the scenes</p>
             <ol className="sp-group-rows">
               {after.map((h, i) => (
-                <HookItem key={`a${i}`} h={h} />
+                <HookItem key={afterKeys[i]} h={h} />
               ))}
               {s.encode && (
                 <li className="sp-row" data-testid="run-encode">
@@ -432,6 +439,7 @@ function LogPanel({ log, dropped, truncated }: { log: LogLine[]; dropped: number
   const [follow, setFollow] = useState(true);
   const box = useRef<HTMLOListElement>(null);
   const lines = filter === 'all' ? log : log.filter((l) => l.level === 'warn' || l.level === 'error');
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new line shown is the trigger to follow the log's end
   useEffect(() => {
     if (follow && box.current) box.current.scrollTop = box.current.scrollHeight;
   }, [follow, lines.length]);
@@ -456,6 +464,7 @@ function LogPanel({ log, dropped, truncated }: { log: LogLine[]; dropped: number
           {shown(dropped > 0 ? `${plural(dropped, 'earlier line')} not shown (the screen keeps the last ${LOG_KEEP}).` : '')}
         </p>
       )}
+      {/* biome-ignore lint/a11y/noNoninteractiveTabindex: the log scrolls on its own: its tab stop lets a keyboard scroll it */}
       <ol className="sp-log" ref={box} data-testid="run-log" tabIndex={0} aria-label="Log lines">
         {lines.map((l) => (
           <li key={l.key} data-level={l.level} data-testid="log-line" className="sp-log-line">
@@ -541,6 +550,7 @@ function Outcome({ slug, name, runId, s, mode, pauseLate }: { slug: string; name
           <Disclosure summary="Warnings">
             <ul>
               {e.untrusted.warnings.map((w, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: the run's final warnings, fixed once it ended, text only: the index is the identity
                 <li key={i}>
                   <Txt text={w} />
                 </li>

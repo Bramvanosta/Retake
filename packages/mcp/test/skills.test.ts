@@ -214,7 +214,7 @@ describe('the Claude skills in skills/', () => {
 
   it('frame comments: a Studio thread with an edit-only change gets a proposal, every other thread the direct loop; an older MCP server is restarted', () => {
     const flat = (t: string) => t.replace(/\s+/g, ' ');
-    const section = flat(new RegExp('^## Frame comments on a render\\n([\\s\\S]*?)(?=^## )', 'm').exec(shipped.find((f) => f.path === S)!.text)?.[1] ?? '');
+    const section = flat(/^## Frame comments on a render\n([\s\S]*?)(?=^## )/m.exec(shipped.find((f) => f.path === S)!.text)?.[1] ?? '');
     expect(section).toContain('only people create or reopen a thread, and only people apply a proposal');
     expect(section).toContain('(`studio`: written at the Studio page; `cli`: a terminal — how it was written, never proof of who typed it)');
     expect(section).toContain(

@@ -241,7 +241,7 @@ export function checkFailedAt(
  */
 export function preflightSignIn(v: { job: { error?: { code: string; message: string } } | null; persona: string | null; env: string | null }): { persona: string; env: string } | null {
   const e = v.job?.error;
-  if (!e || e.code !== 'refused') return null;
+  if (e?.code !== 'refused') return null;
   const m = /^persona ([A-Za-z0-9][A-Za-z0-9_-]*) (?:is not signed in on ([A-Za-z0-9][A-Za-z0-9_-]*) |could not be signed in)/.exec(e.message);
   if (!m) return null;
   const persona = v.persona ?? m[1];

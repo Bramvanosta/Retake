@@ -387,7 +387,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
     }
     return null;
   }
-  const valueOf = (el: Element): string => (el.localName === 'input' || el.localName === 'textarea' ? (el as HTMLInputElement).value : ((el as HTMLElement).innerText ?? el.textContent ?? ''));
+  const fieldText = (el: Element): string => (el.localName === 'input' || el.localName === 'textarea' ? (el as HTMLInputElement).value : ((el as HTMLElement).innerText ?? el.textContent ?? ''));
 
   // ── Typing ────────────────────────────────────────────────────────────────
   interface Field {
@@ -404,9 +404,9 @@ export function pageRecorder(cfg: RecorderConfig): void {
   function begin(el: Element, fromInput = false): Field {
     if (field && field.el === el) return field;
     commit(false);
-    const v0 = focusValue.get(el) ?? (fromInput ? '' : valueOf(el));
+    const v0 = focusValue.get(el) ?? (fromInput ? '' : fieldText(el));
     if (secretOf(el)) remember(v0);
-    field = { el, v0, last: valueOf(el), info: info(el, true), keyed: fromInput ? -1e9 : now(), pasted: false, autofill: false };
+    field = { el, v0, last: fieldText(el), info: info(el, true), keyed: fromInput ? -1e9 : now(), pasted: false, autofill: false };
     return field;
   }
   /** Commit the field being typed in; false when nothing changed (nothing sent). */
@@ -414,7 +414,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
     const f = field;
     if (!f) return false;
     field = null;
-    const v = f.el.isConnected ? valueOf(f.el) : f.last;
+    const v = f.el.isConnected ? fieldText(f.el) : f.last;
     focusValue.set(f.el, v);
     partials.delete(f.el);
     if (v === f.v0) return false;
@@ -446,7 +446,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
   on('focusin', (e) => {
     const el = editable(deepTarget(e));
     if (!el || (field && field.el === el)) return;
-    const v = valueOf(el);
+    const v = fieldText(el);
     focusValue.set(el, v);
     if (secretOf(el)) remember(v);
   });
@@ -496,7 +496,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
     const f = begin(el, true);
     // A value that changed with no key, paste or drop before it: the browser's autofill (kept as a secret).
     if (now() - f.keyed > 1000) f.autofill = true;
-    f.last = valueOf(el);
+    f.last = fieldText(el);
     if (secretOf(el)) partial(el, f.last);
   });
 
@@ -516,7 +516,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
     return !t.matches('a[href],area[href],button,input,select,textarea,iframe,summary,[tabindex],[contenteditable]:not([contenteditable="false"])');
   };
   const modsOf = (e: KeyboardEvent): string[] => [e.ctrlKey && 'Control', e.metaKey && 'Meta', e.altKey && 'Alt', e.shiftKey && 'Shift'].filter(Boolean) as string[];
-  let pendingKey: { key: string; mods: string[]; el: Element; info: Record<string, unknown> | null; timer: number } | null = null;
+  let pendingKey: { key: string; mods: string[]; el: Element; info: Record<string, unknown> | null; timer: ReturnType<typeof setTimeout> } | null = null;
   function flushKey(): void {
     const p = pendingKey;
     if (!p) return;
@@ -558,7 +558,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
     const what = focusEl ? info(focusEl, activation) : null;
     if (activation && focusEl) {
       // A keyboard activation: its click (detail 0) makes it a press; else it stays a key.
-      pendingKey = { key: k, mods, el: focusEl, info: what, timer: setTimeout(flushKey, 1000) as unknown as number };
+      pendingKey = { key: k, mods, el: focusEl, info: what, timer: setTimeout(flushKey, 1000) };
       return;
     }
     emit({ kind: 'key', key: shortcut ? k.toLowerCase() : k, modifiers: mods, el: what });
@@ -567,7 +567,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
     const e = ev as KeyboardEvent;
     if (pendingKey && e.key === pendingKey.key) {
       clearTimeout(pendingKey.timer);
-      pendingKey.timer = setTimeout(flushKey, 50) as unknown as number;
+      pendingKey.timer = setTimeout(flushKey, 50);
     }
   });
 
@@ -619,7 +619,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
   let userScrollAt = -1e9;
   /** Baselines: a container's position before the person's scroll (dropped 1.2 s after, when it did not move). */
   const starts = new Map<EventTarget, { x: number; y: number; el: Element | null; at: number }>();
-  let scrollTimer = 0;
+  let scrollTimer: ReturnType<typeof setTimeout> | undefined;
   const docEl = (): Element => document.scrollingElement ?? document.documentElement;
   const posOf = (c: Element): { x: number; y: number } => ({ x: c.scrollLeft, y: c.scrollTop });
   /** Before a scroll the person starts: the positions of the document and of the target's scrolling ancestors. */
@@ -644,7 +644,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
     clearTimeout(scrollTimer);
     for (const [key, s] of [...starts]) {
       const c = key === document ? docEl() : (s.el as Element);
-      if (!c || !c.isConnected) {
+      if (!c?.isConnected) {
         starts.delete(key);
         continue;
       }
@@ -663,7 +663,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
     if (now() - userScrollAt > 1000) return;
     userScrollAt = now();
     clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(flushScroll, 400) as unknown as number;
+    scrollTimer = setTimeout(flushScroll, 400);
   });
 
   const flushAll = (): void => {

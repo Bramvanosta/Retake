@@ -21,6 +21,7 @@ import {
 import type { RunRecord, Timeline } from '@retake/core';
 import { SPEC_EXAMPLE } from './helpers.js';
 
+// biome-ignore lint/suspicious/noExplicitAny: the schemas' JSON is walked freely by these tests
 type Json = Record<string, any>;
 
 describe('JSON Schemas', () => {

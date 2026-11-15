@@ -135,6 +135,7 @@ export function PosterGrid({
     <ul
       ref={list}
       className="k-posters"
+      // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: a listbox of rich poster cards (a native <select> cannot hold them); the list keeps its list layout and styles
       role="listbox"
       aria-label={label}
       aria-describedby={describedBy}
@@ -145,11 +146,14 @@ export function PosterGrid({
       onClick={(e) => e.target === e.currentTarget && onSelect(null)}
     >
       {items.map((i, n) => (
+        // biome-ignore lint/a11y/useFocusableInteractive: an option of the listbox above: the list holds the focus and the keys (aria-activedescendant); a click picks it
+        // biome-ignore lint/a11y/useKeyWithClickEvents: an option of the listbox above: the list holds the focus and the keys (aria-activedescendant); a click picks it
         <li
           key={i.id}
           id={`${base}-${n}`}
           data-index={n}
           data-id={i.id}
+          // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: an option of the listbox above: the list holds the focus and the keys (aria-activedescendant); a click picks it
           role="option"
           aria-selected={n === at}
           className={`k-card k-card-poster k-poster${n === at ? ' is-selected' : ''}`}

@@ -151,7 +151,7 @@ async function prepareSubmit(ctx: SubmitContext, req: RunSubmitRequest): Promise
  * workspace's protected hosts, the hooks a safety rule refuses, then the approvals of the hooks that need a human (the
  * last returns the approvals to write with the job). runBlockers runs the same gates without stopping at the first.
  */
-function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, approver: Approver | undefined): Array<() => Promise<JobApproval[] | void>> {
+function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, approver: Approver | undefined): Array<() => Promise<JobApproval[] | undefined>> {
   const { project, prepared } = s;
   const sc = prepared.scenario.scenario;
   const env = resolveEnvironment(project, prepared.sandboxEnv ?? req.env ?? sc.env);
@@ -190,11 +190,19 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
         })
       : Promise.resolve(undefined));
   return [
-    async () => checkAgentTrust(project, sc, fix, ctx.client, env),
-    async () => checkWorkspaceProtection(ctx.ws, ctx.hosts, project, env.name, fix, agentChannel(ctx.client)),
+    // A gate that only refuses gives no approvals (undefined); the last gives the approvals to write.
+    async () => {
+      checkAgentTrust(project, sc, fix, ctx.client, env);
+      return undefined;
+    },
+    async () => {
+      await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, env.name, fix, agentChannel(ctx.client));
+      return undefined;
+    },
     async () => {
       const p = await preflight();
       if (p?.refused.length) throw refusedError(p, fix);
+      return undefined;
     },
     async () => {
       // `sandbox`: the reset before the take may run the seed — its shell steps need a human too.
@@ -400,7 +408,7 @@ export interface RunJobContext extends EnginePorts {
   /** The job's pause marker, as the worker polls it. */
   pause?: PauseGate;
   /** When the take films (the worker writes its filming marker). */
-  onFilming?: (state: FilmingEvent) => void | FilmingReport;
+  onFilming?: (state: FilmingEvent) => FilmingReport | undefined;
 }
 
 /** The environment variable that changes the longest pause of a run (minutes). */

@@ -241,6 +241,7 @@ function Overlays({ plan, clip, layer }: { plan: EditPlan; clip: ClipSegment; la
     <>
       {clip.overlays.map((o, i) =>
         (o.layer === 'screen') === (layer === 'screen') ? (
+          // biome-ignore lint/suspicious/noArrayIndexKey: a render's plan never changes while it plays; the index tells apart two overlays on the same step
           <Sequence key={`${o.scene}-${o.step}-${i}`} from={o.from} durationInFrames={o.durationInFrames} name={`overlay ${o.component.id}`}>
             <OverlayView plan={plan} clip={clip} use={o} />
           </Sequence>
@@ -262,6 +263,7 @@ function ClipView({ plan, clip, stillAt }: { plan: EditPlan; clip: ClipSegment; 
   // per page and each page's rects of this frame (an inset glides between corners and grows while its page acts).
   const layoutExtra: Partial<ComponentProps> = clip.panes
     ? {
+        // biome-ignore lint/suspicious/noArrayIndexKey: one screen per page of the clip, in the plan's page order: the index is the page
         screens: clip.panes.map((_, i) => <CaptureScreen key={i} plan={plan} clip={clip} frame={stillAt} pane={i} />),
         rects: { ...layoutRects(clip.layout), panes: layoutPaneRectsAt(plan, clip, f) },
       }
@@ -376,6 +378,7 @@ function MusicBed({ plan }: { plan: EditPlan }) {
   return (
     <>
       {m.plays.map((p, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the music's plays in plan order, fixed for the render: the index is the play
         <Sequence key={`music-${i}`} from={p.from} durationInFrames={p.frames} layout="none" name={`music ${i + 1}`}>
           <Html5Audio src={m.url} volume={(f: number) => Math.round(musicVolumeAt(plan, p.from + f) * musicPlayGain(p, f) * 1e4) / 1e4} />
         </Sequence>
@@ -394,6 +397,7 @@ export function PlanVideo({ plan }: PlanVideoProps) {
     <AbsoluteFill style={{ background: backgroundCss(plan.brand.tokens) }}>
       {ready
         ? plan.segments.map((seg, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the plan's segments in order, fixed for the render; the index tells apart a repeated segment id
             <Sequence key={`${seg.id}-${i}`} from={seg.from} durationInFrames={seg.durationInFrames} name={`${seg.kind} ${seg.id}`}>
               <SegmentView plan={plan} index={i} />
             </Sequence>

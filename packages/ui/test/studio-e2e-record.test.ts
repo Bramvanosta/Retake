@@ -459,7 +459,7 @@ describe('recording the lab from the Studio', () => {
     const s1 = await holdAt(before + 1);
     const s2 = await holdAt(before + 2);
     r = await rows();
-    const at = r.findIndex((x) => x === `helper:scroll:${scroll}`);
+    const at = r.indexOf(`helper:scroll:${scroll}`);
     expect(r.slice(at, at + 5)).toEqual([`helper:scroll:${scroll}`, s1, s2, 'CURSOR', expect.stringMatching(/^action::a\d+$/)]);
     // The press after them is the "Far away" click (its target picked earlier: the test id, the pick shown in the row).
     expect(
@@ -473,7 +473,7 @@ describe('recording the lab from the Studio', () => {
     const wait = await after('[data-testid=record-step][data-helper=wait]');
     const w1 = await holdAt(before + 3);
     r = await rows();
-    const wi = r.findIndex((x) => x === `helper:wait:${wait}`);
+    const wi = r.indexOf(`helper:wait:${wait}`);
     expect(r.slice(wi, wi + 4)).toEqual([`helper:wait:${wait}`, w1, 'CURSOR', expect.stringMatching(/^action::a\d+$/)]);
     expect(
       await page

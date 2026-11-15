@@ -89,7 +89,7 @@ function guardMethod(proto: object | undefined, key: string, check: (args: unkno
 /** Replace a setter by one that first checks (and converts) the value. */
 function guardSetter(proto: object | undefined, key: string, check: (self: unknown, v: unknown) => unknown): void {
   const d = proto ? getOwnPropertyDescriptor(proto, key) : undefined;
-  if (!proto || !d || !d.set || !d.configurable) return;
+  if (!proto || !d?.set || !d.configurable) return;
   const set = d.set;
   defineProperty(proto, key, {
     get: d.get,

@@ -13,6 +13,7 @@ import { applyParamDefaults, validateParamValue } from './json-schema.js';
 import type { JsonSchemaNode } from './json-schema.js';
 import { usableAs } from './registry.js';
 import type { ComponentRegistry } from './registry.js';
+import type { ComponentManifest } from './types.js';
 import { errorMessage } from '@retake/core/base';
 
 /** A use as the scenario writes it. */
@@ -36,7 +37,7 @@ const no = (why: string): ComponentFit => ({ ok: false, why });
 /** Whether component `id` fits `use` (see the module comment), with why not in one short sentence. */
 export function componentFit(registry: ComponentRegistry, id: string, use: ComponentUse): ComponentFit {
   if (use.file) return no('a video, image or Lottie file replaces the component here');
-  let manifest;
+  let manifest: ComponentManifest;
   try {
     manifest = registry.get(id).manifest;
   } catch (e) {

@@ -39,7 +39,7 @@ import type { WorkPolicy } from '@retake/core/policy';
 import type { FieldAt, FieldValue } from '@retake/core/scenario';
 import type { RenderEntry } from '@retake/core/render';
 import type { ComponentRegistry } from '@retake/components/geometry';
-import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor/plan';
+import type { EditPlan, PlacedPin, TimelineModel, PlannedRun } from '@retake/editor/plan';
 import { listComments, proposalForPreview } from '../comments.js';
 import type { ProposalPreview } from '../comments.js';
 import { EngineError } from '../errors.js';
@@ -464,6 +464,8 @@ function stepLabels(text: string | undefined): Record<string, string> {
 async function buildView(
   memos: TimelineMemos,
   ws: OpenedWorkspace,
+  /** The stores port (its folders): the comment pins' scenario text. */
+  stores: Pick<ProjectStores, 'folder'>,
   cli: string,
   project: LoadedProject,
   req: TimelineViewRequest,
@@ -475,7 +477,7 @@ async function buildView(
   defaulted = false,
 ): Promise<TimelineViewResult> {
   const { registry } = await memos.registry.get(ws);
-  let planned;
+  let planned: PlannedRun;
   let source: RenderEditSource;
   try {
     ({ planned, source } = await planRenderRequest(
@@ -500,7 +502,7 @@ async function buildView(
   const labelText = fromScenario ? planned.editText : snap.ok ? snap.bytes.toString('utf8') : undefined;
   const model = timelineOf(plan, { labels: stepLabels(labelText), timeline: planned.timeline });
   // Comment pins (read-only, threads): the scenario's last 50.
-  const threads = await listComments(ws.outputs.renders, project, { scenario: req.scenario, status: 'all', limit: 50 }).catch(() => undefined);
+  const threads = await listComments({ renders: ws.outputs.renders, stores }, project, { scenario: req.scenario, status: 'all', limit: 50 }).catch(() => undefined);
   // (A plan this version made always has a signature; '' would match no record.)
   const planSha = planSignature(plan) ?? '';
   const themeSha = themeHash(memos.themeHashes, hashes, planned.template.dir);
@@ -682,7 +684,7 @@ export async function timelineView(
   }
   const hit = p !== undefined;
   if (!p) {
-    const built = buildView(memos, ws, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, themes, proposal, asked === undefined);
+    const built = buildView(memos, ws, o.stores, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, themes, proposal, asked === undefined);
     p = built;
     memos.views.set(key, built);
     if (memos.views.size > VIEW_MEMO_MAX) {

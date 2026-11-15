@@ -721,7 +721,7 @@ export function checkCamera(ctx: CheckContext): Finding[] {
     for (let f = 0; f < n; f++) {
       const t = (clip.srcFrames[f] ?? 0) / plan.source.fps;
       const cur = cursorAt(ctx.timeline, t, r.page);
-      if (!cur || !cur.visible) continue;
+      if (!cur?.visible) continue;
       // A page's resting cursor may leave its reframe (the other page acts): only the acting page's counts.
       if (r.page !== undefined && clip.acting && clip.panes) {
         let acting = clip.acting[0].pane;

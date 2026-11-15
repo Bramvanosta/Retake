@@ -36,7 +36,7 @@ import { listProjectSummaries } from '../projects.js';
 import type { ProjectSummary } from '../projects.js';
 import { listRuns } from '../runs.js';
 import type { RunSummary } from '../runs.js';
-import { LocalStorage } from '../storage.js';
+import type { ProjectFolder } from '../store/store.js';
 import { isCorruptionError, loadSqlite } from './sqlite.js';
 import type { SqliteLoader } from './sqlite.js';
 import { diffSources, runChanges, scanSources, sourceKey } from './sources.js';
@@ -122,6 +122,8 @@ export interface IndexOptions {
   queue: JobQueueView;
   /** node:sqlite (default: loaded with the scoped warning filter). */
   loader?: SqliteLoader;
+  /** The folders a project's files are read through (Engine.folder: its stores port), refused outside them: the README. */
+  folder: (root: string) => ProjectFolder;
 }
 
 /**
@@ -132,7 +134,7 @@ export function ftsQuery(q: string): string | null {
   const words = q
     .normalize('NFKC')
     .replace(/\p{Cc}/gu, ' ')
-    .split(/[\s"*^:()+\-]+/u)
+    .split(/[\s"*^:()+-]+/u)
     .map((w) => w.trim())
     .filter(Boolean)
     .slice(0, 12);
@@ -151,13 +153,13 @@ export interface RenderRow {
 /**
  * The text of a project file for the index: undefined unless it is a regular file (a link to another file of the project
  * is followed; a FIFO or a device never opened) of at most `max` bytes, inside the project once links are followed
- * (LocalStorage refuses a link leading out).
+ * (the folder refuses a link leading out).
  */
-async function readSmall(dir: string, ref: string, max: number): Promise<string | undefined> {
+async function readSmall(folder: ProjectFolder, ref: string, max: number): Promise<string | undefined> {
   try {
-    const st = await stat(join(dir, ...ref.split('/')));
+    const st = await stat(folder.resolve(ref));
     if (!st.isFile() || st.size > max) return undefined;
-    return (await new LocalStorage(dir).readText(ref))?.text;
+    return (await folder.readText(ref))?.text;
   } catch {
     return undefined;
   }
@@ -190,9 +192,9 @@ export async function readRenders(renders: RenderOutputs, dir: string): Promise<
   return out;
 }
 
-async function readmeText(dir: string): Promise<string> {
+async function readmeText(folder: ProjectFolder): Promise<string> {
   // A README leading out of the project is never read (storage.ts), nor one that is not a regular file.
-  return (await readSmall(dir, 'README.md', README_BYTES_MAX))?.slice(0, README_INDEX_MAX) ?? '';
+  return (await readSmall(folder, 'README.md', README_BYTES_MAX))?.slice(0, README_INDEX_MAX) ?? '';
 }
 
 /** What a reconcile read from files for one project, before the transaction writes it. */
@@ -215,6 +217,7 @@ export class WorkspaceIndex {
     private readonly db: DatabaseSync,
     private readonly ws: OpenedWorkspace,
     private readonly queue: JobQueueView,
+    private readonly folder: (root: string) => ProjectFolder,
     readonly file: string,
     /** Why the file was built at open; undefined when an existing index was reused. */
     readonly rebuilt: IndexRebuild | undefined,
@@ -253,9 +256,9 @@ export class WorkspaceIndex {
     const queue = o.queue;
     if (kinds.includes('other')) {
       await remove();
-      return new WorkspaceIndex(create(), ws, queue, file, 'not_a_file');
+      return new WorkspaceIndex(create(), ws, queue, o.folder, file, 'not_a_file');
     }
-    if (!existed) return new WorkspaceIndex(create(), ws, queue, file, 'missing');
+    if (!existed) return new WorkspaceIndex(create(), ws, queue, o.folder, file, 'missing');
     let db: DatabaseSync | undefined;
     let why: IndexRebuild | undefined;
     try {
@@ -276,7 +279,7 @@ export class WorkspaceIndex {
     }
     if (why === undefined && db) {
       db.exec('PRAGMA journal_mode = WAL');
-      return new WorkspaceIndex(db, ws, queue, file, undefined);
+      return new WorkspaceIndex(db, ws, queue, o.folder, file, undefined);
     }
     try {
       db?.close();
@@ -284,7 +287,7 @@ export class WorkspaceIndex {
       // a corrupt file may not even close cleanly
     }
     await remove();
-    return new WorkspaceIndex(create(), ws, queue, file, why);
+    return new WorkspaceIndex(create(), ws, queue, o.folder, file, why);
   }
 
   /** Bumped by every reconcile that changed something. */
@@ -335,7 +338,7 @@ export class WorkspaceIndex {
       if (kind === 'project') {
         summaries ??= new Map((await listProjectSummaries(this.ws)).map((s) => [s.slug, s]));
         r.summary = summaries.get(project);
-      } else if (kind === 'readme') r.readme = await readmeText(dir);
+      } else if (kind === 'readme') r.readme = await readmeText(this.folder(dir));
       else if (kind === 'runs') {
         try {
           r.runs = await listRuns(this.ws.outputs.runs, { dir }, { limit: RUNS_INDEX_MAX });
@@ -427,7 +430,7 @@ export class WorkspaceIndex {
    */
   private async readHistory(): Promise<{ reset: boolean; ino: string; head: string; offset: number; entries: HistoryEntry[] }> {
     const file = historyFile(this.ws.root);
-    let fh;
+    let fh: FileHandle;
     try {
       fh = await openFile(file, 'r');
     } catch {

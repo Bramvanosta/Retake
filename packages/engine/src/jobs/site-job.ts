@@ -37,7 +37,7 @@ import { BRAND_IMAGE_MAX_BYTES, TEMPLATE_FILE, parseSiteUrl, siteApprovalFingerp
 import { JOB_INPUT_VERSION } from './job-input.js';
 import { nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core/project';
-import type { SiteUrl, TemplateFile } from '@retake/core/theme';
+import type { SiteUrl, TemplateFile, LoadedTemplate } from '@retake/core/theme';
 import type { JobApproval, SiteJobInput } from './job-input.js';
 import type { SiteReport } from '@retake/runner-web/types';
 import type { CaptureRunner } from '../capture/runner.js';
@@ -312,7 +312,7 @@ export async function siteDraft(ws: OpenedWorkspace, view: Pick<SiteJobResult, '
   const accent = roles.accent ?? [...swatches].map((s) => s.hex).filter((h) => h !== roles.paper && h !== roles.text)[0] ?? roles.text;
   const tone = lib.paletteTone(roles.paper);
   const baseName = tone === 'dark' ? 'motion' : 'editorial';
-  let base;
+  let base: LoadedTemplate;
   try {
     base = await ws.reads.loadTemplate(baseName, ws.root, { files: ws.reads.fileFacts(ws.policy) });
   } catch {

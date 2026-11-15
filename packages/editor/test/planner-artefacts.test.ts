@@ -44,7 +44,7 @@ describe('artefact slots → media', () => {
     expect(p.assets[e.image!.url]).toBe(`${RUN}/artefacts/emails/welcome.png`);
     const overlay = clipOf(p, 'signup').overlays[0];
     expect(overlay.component.id).toBe('studio/mail-notification');
-    expect((overlay.component.media?.email as EmailMedia).name).toBe('welcome');
+    expect((overlay.component.media!.email as EmailMedia).name).toBe('welcome');
     expect(card(p, 'lockscreen').component.media?.email?.kind).toBe('email');
     expect(p.warnings).toEqual([]);
   });
@@ -54,7 +54,7 @@ describe('artefact slots → media', () => {
     for (const a of tl.artefacts ?? []) if (a.kind === 'email') a.persona = 'buyer';
     const e = card(await plan(tl), 'inbox').component.media?.email as EmailMedia;
     expect(e.persona).toBe('buyer');
-    expect((card(await plan(load('signup')), 'inbox').component.media?.email as EmailMedia).persona).toBeUndefined();
+    expect((card(await plan(load('signup')), 'inbox').component.media!.email as EmailMedia).persona).toBeUndefined();
   });
 
   it('a downloaded PDF feeds the document card page by page', async () => {

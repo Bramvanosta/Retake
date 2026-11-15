@@ -116,6 +116,7 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
   const [opts, reloadOpts] = useRecordOptions({ project: slug }, slug);
   const savedName = v?.saved?.name;
   const first = useRef(true);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a save (a new saved name) is a trigger to read the recordings again
   useEffect(() => {
     if (first.current) {
       first.current = false;

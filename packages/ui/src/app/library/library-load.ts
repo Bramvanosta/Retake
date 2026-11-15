@@ -354,7 +354,7 @@ export class RenderPump {
   /** An explicit Retry of a failed poster or loop: sent now with `retry: true`. */
   retry(component: string, kind: 'poster' | 'loop'): Promise<void> {
     const i = this.items.find((x) => x.component === component);
-    if (!i || i[kind].state !== 'failed') return Promise.resolve();
+    if (i?.[kind].state !== 'failed') return Promise.resolve();
     const key = i[kind].key;
     return this.call({ items: [{ component, [kind]: key }], retry: true });
   }

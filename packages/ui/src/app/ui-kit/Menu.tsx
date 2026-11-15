@@ -116,6 +116,8 @@ export function Menu({ label, icon, text, items, onSelect }: { label: string; ic
       </button>
       <div ref={pop} id={id} popover="auto" role="menu" aria-label={label} className="k-menu">
         {items.map((item, k) => {
+          // biome-ignore lint/suspicious/noArrayIndexKey: a separator has no identity but its place in the caller's fixed item list
+          // biome-ignore lint/a11y/useSemanticElements: a menu's separator: <hr> brings its own margins and border, and role=separator is what a menu allows
           if (item === 'separator') return <div key={`sep-${k}`} role="separator" className="k-menu-sep" />;
           const i = ++n;
           return (

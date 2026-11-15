@@ -571,6 +571,7 @@ function Checks({
       >
         {groups.map((g) => (
           <RowListItem key={g.family.id} className="rv-family" testId="review-family" data={{ key: g.family.id }}>
+            {/* biome-ignore lint/a11y/useSemanticElements: a family row named by its heading inside a list item; <fieldset> would bring its own border, padding and min-width */}
             <div role="group" aria-labelledby={`rv-fam-${g.family.id}`} className="rv-family-group">
               <span id={`rv-fam-${g.family.id}`} className="rv-family-name">
                 <Txt text={`${g.family.label} · ${g.items.length}`} />

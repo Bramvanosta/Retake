@@ -12,9 +12,9 @@
  * it), and the marks stay visual — edge spaces and tabs are read as words ("2 leading spaces", "a tab"), never as "middle
  * dot" × n.
  */
-import { useId } from 'react';
+import { Fragment, useId } from 'react';
 import type { ReactNode } from 'react';
-import { shown, visibleControls } from '../bits.js';
+import { contentKeys, shown, visibleControls } from '../bits.js';
 
 /** A piece of a line: text, a run of edge spaces, a tab, an unseen character's code (`U+200B`). */
 export type DiffPiece = { kind: 'text'; text: string } | { kind: 'space'; count: number } | { kind: 'tab' } | { kind: 'char'; code: string };
@@ -42,31 +42,34 @@ export function spacesWords(count: number, at: 'leading' | 'trailing' | 'only'):
 function Line({ pieces }: { pieces: DiffPiece[] }) {
   return (
     <>
-      {pieces.map((p, i) =>
-        p.kind === 'text' ? (
-          <span key={i}>{visibleControls(p.text)}</span>
-        ) : p.kind === 'space' ? (
-          <span key={i}>
-            <span className="k-diff-mark" aria-hidden="true" title={p.count === 1 ? 'a space' : `${p.count} spaces`}>
-              {visibleControls('·'.repeat(p.count))}
+      {pieces.map((p, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a line's pieces are split from its text in order and never reorder: the index is the identity
+        <Fragment key={i}>
+          {p.kind === 'text' ? (
+            <span>{visibleControls(p.text)}</span>
+          ) : p.kind === 'space' ? (
+            <span>
+              <span className="k-diff-mark" aria-hidden="true" title={p.count === 1 ? 'a space' : `${p.count} spaces`}>
+                {visibleControls('·'.repeat(p.count))}
+              </span>
+              <span className="k-sr">
+                {visibleControls(pieces.length === 1 ? spacesWords(p.count, 'only') : i === 0 ? `${spacesWords(p.count, 'leading')}, ` : `, ${spacesWords(p.count, 'trailing')}`)}
+              </span>
             </span>
-            <span className="k-sr">
-              {visibleControls(pieces.length === 1 ? spacesWords(p.count, 'only') : i === 0 ? `${spacesWords(p.count, 'leading')}, ` : `, ${spacesWords(p.count, 'trailing')}`)}
+          ) : p.kind === 'tab' ? (
+            <span>
+              <span className="k-diff-mark" aria-hidden="true" title="a tab">
+                →
+              </span>
+              <span className="k-sr"> a tab </span>
             </span>
-          </span>
-        ) : p.kind === 'tab' ? (
-          <span key={i}>
-            <span className="k-diff-mark" aria-hidden="true" title="a tab">
-              →
+          ) : (
+            <span className="k-diff-mark k-diff-char" title="a character you cannot see">
+              {visibleControls(`[${p.code}]`)}
             </span>
-            <span className="k-sr"> a tab </span>
-          </span>
-        ) : (
-          <span key={i} className="k-diff-mark k-diff-char" title="a character you cannot see">
-            {visibleControls(`[${p.code}]`)}
-          </span>
-        ),
-      )}
+          )}
+        </Fragment>
+      ))}
     </>
   );
 }
@@ -87,6 +90,8 @@ export function DiffTable({
   boxTestId?: string;
 }) {
   const titleId = useId();
+  // A row is its kind and its line numbers (a gap: its words); the table is redrawn as the change is edited.
+  const keys = contentKeys(rows, (r) => (r.kind === 'gap' ? `gap:${r.word}` : `${r.kind}:${r.base ?? ''}:${r.line ?? ''}`));
   return (
     <div className="k-diff" data-testid={boxTestId}>
       {title !== undefined && (
@@ -113,14 +118,14 @@ export function DiffTable({
         <tbody>
           {rows.map((r, i) =>
             r.kind === 'gap' ? (
-              <tr key={i} className="k-diff-row is-gap" data-testid="diff-row" data-kind="gap">
+              <tr key={keys[i]} className="k-diff-row is-gap" data-testid="diff-row" data-kind="gap">
                 <td colSpan={4} className="k-diff-gap">
                   <span aria-hidden="true">⋯ </span>
                   {shown(r.word)}
                 </td>
               </tr>
             ) : (
-              <tr key={i} className={`k-diff-row is-${r.kind}`} data-testid="diff-row" data-kind={r.kind}>
+              <tr key={keys[i]} className={`k-diff-row is-${r.kind}`} data-testid="diff-row" data-kind={r.kind}>
                 <td className="k-diff-sign">
                   <span aria-hidden="true">{shown(r.sign)}</span>
                   <span className="k-sr">{shown(r.word)}</span>

@@ -11,7 +11,7 @@ import { SandboxError, sandboxNames } from '@retake/core/sandbox';
 import type { LoadedProject } from '@retake/core/project';
 import type { RunRecord } from '@retake/core/run';
 import { describeLock } from '@retake/core/io';
-import type { ProviderCapabilities, ResetResult, SandboxLog, ServiceStatus } from '@retake/sandbox/types';
+import type { ProviderCapabilities, ResetResult, SandboxLog, ServiceStatus, SandboxLogs } from '@retake/sandbox/types';
 import { callerOf, fileWriter, personScope, sandboxUpText, sandboxWork, storeOf } from '@retake/engine/shell';
 import type { EnginePorts, InterruptPort, SandboxHandle } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
@@ -237,7 +237,7 @@ export async function sandboxLogsCommand(ui: Ui, global: GlobalOptions, projectA
     }
     return EXIT.ok;
   }
-  let logs;
+  let logs: SandboxLogs[];
   try {
     logs = await sandboxWork.logs(sb, { service, lines });
   } catch (e) {
@@ -256,7 +256,7 @@ export async function sandboxLogsCommand(ui: Ui, global: GlobalOptions, projectA
 /** `retake sandbox init`: a docker-compose sandbox scaffold in the project, declared in project.yaml. */
 export async function sandboxInitCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const project = await openProject(await openWorkspace(global), projectArg);
-  let view;
+  let view: Awaited<ReturnType<typeof sandboxWork.init>>;
   try {
     // The result must load as written: the engine reads the project back with its new sandbox (its warnings).
     view = await sandboxWork.init(global.ports, project, { env: opts.env, force: opts.force, write: fileWriter(storeOf(project, personScope(project.root, global.ports)), 'sandbox') });

@@ -113,7 +113,7 @@ export interface RunOptions {
    * teardown). Setup and teardown hooks, prewarm and the encode's end are not filming. Never called for a dry run.
    * Its answer to `stop` is what the take saw beside it (run.json `perf.machine`).
    */
-  onFilming?: (state: FilmingEvent) => void | FilmingReport;
+  onFilming?: (state: FilmingEvent) => FilmingReport | undefined;
 }
 
 /** What onFilming says. */

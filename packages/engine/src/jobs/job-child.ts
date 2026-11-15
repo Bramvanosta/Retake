@@ -83,8 +83,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
   const stored = await bestEffort(queue.stored(o.id), 'a job removed meanwhile reads as gone (refused below)');
   const claim = await bestEffort(queue.claimOf(o.id), 'a claim that cannot be read is no claim of this worker (refused below)');
   if (
-    !stored ||
-    stored.state !== 'queued' ||
+    stored?.state !== 'queued' ||
     stored.kind !== o.kind ||
     stored.input?.kind !== stored.kind ||
     jobClass(stored.kind) !== 'heavy' ||

@@ -3,6 +3,7 @@
  * competitions have invented names, and the fixture scenarios still find what they rely on in the seed.
  */
 import { readFile, readdir } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -47,14 +48,14 @@ const FORMER_NAMES = [
   'raliugA',
 ].map((r) => [...r].reverse().join(''));
 
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const FORMER_RE = new RegExp(`(?<![\\p{L}])(${FORMER_NAMES.map(escape).join('|')})(?![\\p{L}])`, 'iu');
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const FORMER_RE = new RegExp(`(?<![\\p{L}])(${FORMER_NAMES.map(escapeRe).join('|')})(?![\\p{L}])`, 'iu');
 
 const TEXT = /\.(mjs|js|jsx|ts|tsx|json|ya?ml|md|css|html|sql|rs|toml|svg)$/i;
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'runs', '.git', '.retake', 'target', 'gen']);
 
 async function walk(dir: string, out: string[] = []): Promise<string[]> {
-  let entries;
+  let entries: Dirent[];
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch {

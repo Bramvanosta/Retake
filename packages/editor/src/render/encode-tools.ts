@@ -79,7 +79,7 @@ export function rewritePreStitcher(info: { type: 'pre-stitcher' | 'stitcher'; ar
   if (info.type !== 'pre-stitcher') return info.args;
   const args = info.args;
   if (!readsImagePipe(args)) throw new EncodeToolsError('the frame encode does not read the image pipe (-f image2pipe): not a command this version knows');
-  const at = args.reduce<number[]>((all, a, i) => (a === '-vf' || a === '-filter:v' || a === '-filter_complex' || a === '-lavfi' ? [...all, i] : all), []);
+  const at = args.flatMap((a, i) => (a === '-vf' || a === '-filter:v' || a === '-filter_complex' || a === '-lavfi' ? [i] : []));
   if (at.length !== 1 || args[at[0]] !== '-vf')
     throw new EncodeToolsError(`the frame encode has ${at.length === 0 ? 'no filter' : 'filters this version does not know'}: not a command this version knows`);
   const value = args[at[0] + 1];

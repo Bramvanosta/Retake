@@ -69,7 +69,7 @@ function headBytes(base64: string, n: number): number[] | null {
  * starting with the format's magic bytes.
  */
 export function imageDataUrl(format: ImageFormat, base64: unknown, max?: ImageCap): string | null {
-  const f = Object.prototype.hasOwnProperty.call(FORMATS, format) ? FORMATS[format] : null;
+  const f = Object.hasOwn(FORMATS, format) ? FORMATS[format] : null;
   if (!f) return null;
   const cap = max !== undefined && f.caps.includes(max) ? max : f.caps[0];
   if (typeof base64 !== 'string' || base64.length === 0 || base64.length > cap || base64.length % 4 !== 0) return null;

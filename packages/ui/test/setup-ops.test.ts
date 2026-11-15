@@ -32,6 +32,9 @@ import { raw } from '@retake/test-support/http';
 import { shellLineReader } from '../../cli/src/commands/ui.js';
 import { scratchHome } from '@retake/test-support/home';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'setup-ops-')));
 const ws = join(base, 'ws');
 const retakeHome = scratchHome();
@@ -95,7 +98,7 @@ afterAll(async () => {
 
 const call = async (op: string, args: Record<string, unknown> = {}) => {
   const r = await raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
-  return { status: r.status, body: r.json<{ data: Record<string, any>; error: { code: string; message: string; details?: { reason?: string } } }>() };
+  return { status: r.status, body: r.json<{ data: Record<string, Untyped>; error: { code: string; message: string; details?: { reason?: string } } }>() };
 };
 const reason = (r: Awaited<ReturnType<typeof call>>) => r.body.error?.details?.reason;
 /** Writes are capped a minute: a fresh window for each test. */

@@ -105,8 +105,9 @@ export function Sheet({
   const giveBack = () => {
     const back = opener.current;
     opener.current = null;
-    (back && back.isConnected ? back : document.getElementById('main'))?.focus();
+    (back?.isConnected ? back : document.getElementById('main'))?.focus();
   };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on open/close and on `resync` (the platform closed it) only; focusTitle is read at opening, giveBack only touches refs
   useEffect(() => {
     const d = ref.current;
     if (!d) return;

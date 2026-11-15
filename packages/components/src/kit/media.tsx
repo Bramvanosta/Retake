@@ -285,6 +285,7 @@ export function LottieFile(props: { media: LottieMedia; fit?: MediaFitMode; loop
   const { fps } = useVideoConfig();
   const raw = useLottieData(props.media.url);
   const colorsKey = JSON.stringify(props.colors ?? {});
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the colours' JSON, so a new but equal `colors` object each render does not recolour again
   const data = useMemo(() => (raw ? recolorLottie(raw, props.colors ?? {}) : null), [raw, colorsKey]);
   if (!data) return null;
   const rate = props.media.fps / fps;

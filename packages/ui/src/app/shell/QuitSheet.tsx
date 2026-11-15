@@ -34,7 +34,7 @@ export function QuitSheet() {
       setSent((cur) => (cur && cur.id === p.id ? cur : null));
     };
     const onClose = (e: Event) => {
-      const id = ((e as CustomEvent<{ id?: unknown } | null>).detail ?? {}).id;
+      const id = (e as CustomEvent<{ id?: unknown } | null>).detail?.id;
       setQ((cur) => (cur && cur.id === id ? null : cur));
     };
     window.addEventListener(QUIT_EVENT, onQuit);

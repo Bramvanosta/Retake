@@ -18,6 +18,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { afterAll, describe, expect, it } from 'vitest';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const APP = join(REPO, 'apps', 'desktop');
 const RELEASE = join(APP, 'scripts', 'release.mjs');
@@ -25,8 +28,8 @@ const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-app-release-sign-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 const MAC = process.platform === 'darwin';
 
-const bundleModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'bundle.mjs')).href)) as any;
-const releaseModule = async () => (await import(pathToFileURL(RELEASE).href)) as any;
+const bundleModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'bundle.mjs')).href)) as Untyped;
+const releaseModule = async () => (await import(pathToFileURL(RELEASE).href)) as Untyped;
 
 const THIN = Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0, 0, 1, 0, 0, 0, 0]);
 let n = 0;
@@ -200,7 +203,7 @@ describe('the pins: the Node.js binary and the browsers the stage copies', () =>
     // The committed pins cover exactly the revisions the repository's playwright-core pins; the stage checks each
     // folder before it copies it.
     const pw = JSON.parse(readFileSync(join(REPO, 'packages', 'runner-web', 'node_modules', 'playwright-core', 'browsers.json'), 'utf8')).browsers;
-    const rev = (name: string) => pw.find((b: any) => b.name === name).revision;
+    const rev = (name: string) => pw.find((b: Untyped) => b.name === name).revision;
     expect(Object.keys(BROWSER_PINS.digests).sort()).toEqual([`chromium-${rev('chromium')}`, `chromium_headless_shell-${rev('chromium-headless-shell')}`].sort());
     for (const v of Object.values(BROWSER_PINS.digests)) expect(v).toMatch(/^[0-9a-f]{64}$/);
     const src = readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8');
@@ -224,7 +227,7 @@ describe('the pins: the Node.js binary and the browsers the stage copies', () =>
 
 /** Pins (tauri-cli.json's shape) for these packages' files. */
 const pinsFor = (files: Record<string, Record<string, string>>) => {
-  const packages: any = {};
+  const packages: Untyped = {};
   for (const [pkg, fs] of Object.entries(files)) packages[pkg] = Object.fromEntries(Object.entries(fs).map(([f, data]) => [f, `sha512-${createHash('sha512').update(data).digest('base64')}`]));
   return { v: 1, version: '2.12.4', packages };
 };
@@ -364,10 +367,10 @@ describe("tarMembers: the build job's archive read strictly, as tar walks it", (
     expect(spawnSync('/usr/bin/tar', ['--no-mac-metadata', '--no-xattrs', '-cf', f, '-C', src, 'app', 'tauri-cli']).status).toBe(0);
     const members = tarMembers(readFileSync(f));
     const listed = spawnSync('/usr/bin/tar', ['-tf', f], { encoding: 'utf8' }).stdout.trim().split('\n');
-    expect(members.map((m: any) => m.name)).toEqual(listed);
-    expect(members.find((m: any) => m.name === deep)).toEqual({ name: deep, type: 'file', link: null, size: 4 });
-    expect(members.find((m: any) => m.name.endsWith('Versions/Current'))).toMatchObject({ type: 'link', link: 'A', size: 0 });
-    expect(members.filter((m: any) => m.type === 'dir').length).toBeGreaterThan(5);
+    expect(members.map((m: Untyped) => m.name)).toEqual(listed);
+    expect(members.find((m: Untyped) => m.name === deep)).toEqual({ name: deep, type: 'file', link: null, size: 4 });
+    expect(members.find((m: Untyped) => m.name.endsWith('Versions/Current'))).toMatchObject({ type: 'link', link: 'A', size: 0 });
+    expect(members.filter((m: Untyped) => m.type === 'dir').length).toBeGreaterThan(5);
   });
 
   it('anything tar would read otherwise, or that is not a file, folder or link, is refused: a damaged header, data after the end, a GNU long name, a sparse pax record, a folder with data, an archive cut short', async () => {
@@ -417,7 +420,7 @@ describe("tarMembers: the build job's archive read strictly, as tar walks it", (
           { name: 'c', type: 'char' },
           { name: 'd', type: 'fifo' },
         ]),
-      ).map((m: any) => m.type),
+      ).map((m: Untyped) => m.type),
     ).toEqual(['hardlink', 'device', 'fifo']);
   });
 });

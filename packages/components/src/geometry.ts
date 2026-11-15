@@ -94,7 +94,7 @@ export function parseGeometryExpression(src: string): Node {
   };
   const expect = (v: string) => {
     const t = peek();
-    if (!t || t.k !== 'op' || t.v !== v) fail(`expected "${v}"`);
+    if (t?.k !== 'op' || t.v !== v) fail(`expected "${v}"`);
     p++;
   };
   function primary(): Node {

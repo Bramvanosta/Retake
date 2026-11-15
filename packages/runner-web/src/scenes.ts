@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { TemplateError, resolvePageUrl } from '@retake/core/base';
 import { isCaptureScene, isCard, isInterstitial, overlayUseOf } from '@retake/core/language';
 import { describeTarget, isPoint, normalizeStep, normalizeTarget, resolveScenePages, sceneId, templateSceneEntry } from '@retake/core/language';
-import type { CameraHint, CaptionSpec, MenuArgs, NormalizedStep, OverlaySpec, Scene, SceneEntry, TargetSpec } from '@retake/core/language';
+import type { CameraHint, CaptionSpec, MenuArgs, NormalizedStep, OverlaySpec, Scene, SceneEntry, TargetSpec, ResolvedScenePage } from '@retake/core/language';
 import type { MissingTarget, TimelineEvent, TimelineScene } from '@retake/core/run';
 import type { Scenario } from '@retake/core/scenario';
 import type { RunProgress, RunningRun } from '@retake/core/run';
@@ -622,7 +622,7 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
  * still, visible. Returns true when the run stops here (--until).
  */
 async function runPagesScene(rt: Runtime, opts: SceneLoopOptions, scene: Scene, si: number, id: string): Promise<boolean> {
-  let pages;
+  let pages: ResolvedScenePage[];
   try {
     pages = resolveScenePages(scene, { capture: rt.capture, envPages: Object.keys(rt.env.pages), known: (pid) => rt.declaredPages.get(pid) });
   } catch (e) {

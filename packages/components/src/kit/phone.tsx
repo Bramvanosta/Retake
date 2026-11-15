@@ -81,15 +81,16 @@ export function wallpaperCss(theme: ThemeTokens, mood: 'accent' | 'night' | 'pap
 /** Status bar glyphs (signal, wifi, battery) in `ink`, `h` px tall. */
 export function StatusGlyphs({ ink, h }: { ink: string; h: number }): ReactNode {
   return (
-    <svg width={h * 5.3} height={h} viewBox="0 0 5.3 1" style={{ display: 'block', overflow: 'visible' }}>
+    <svg aria-hidden="true" width={h * 5.3} height={h} viewBox="0 0 5.3 1" style={{ display: 'block', overflow: 'visible' }}>
       <g fill={ink}>
         {[0.35, 0.55, 0.78, 1].map((hgt, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the four signal bars, a fixed list that never reorders: the index is the identity
           <rect key={i} x={i * 0.3} y={1 - hgt} width={0.2} height={hgt} rx={0.06} />
         ))}
         {[0.85, 0.55].map((rad) => (
           <path
             key={rad}
-            d={`M${roundTo(2.05 - 0.707 * rad, 3)} ${roundTo(1 - 0.707 * rad, 3)} A${rad} ${rad} 0 0 1 ${roundTo(2.05 + 0.707 * rad, 3)} ${roundTo(1 - 0.707 * rad, 3)}`}
+            d={`M${roundTo(2.05 - Math.SQRT1_2 * rad, 3)} ${roundTo(1 - Math.SQRT1_2 * rad, 3)} A${rad} ${rad} 0 0 1 ${roundTo(2.05 + Math.SQRT1_2 * rad, 3)} ${roundTo(1 - Math.SQRT1_2 * rad, 3)}`}
             stroke={ink}
             strokeWidth={0.15}
             strokeLinecap="round"

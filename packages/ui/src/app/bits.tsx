@@ -45,6 +45,20 @@ export function shown(node: ReactNode): ReactNode {
   return typeof node === 'string' ? <Txt text={node} /> : node;
 }
 
+/**
+ * React keys for a list that can grow, shrink or reorder: each item's own identity (`keyOf`), a repeat suffixed `#2`,
+ * `#3`… Unique for every input: a `#` of the identity itself is doubled, so only a suffix has a single one.
+ */
+export function contentKeys<T>(items: readonly T[], keyOf: (item: T) => string): string[] {
+  const seen = new Map<string, number>();
+  return items.map((item) => {
+    const k = keyOf(item).replaceAll('#', '##');
+    const n = (seen.get(k) ?? 0) + 1;
+    seen.set(k, n);
+    return n === 1 ? k : `${k}#${n}`;
+  });
+}
+
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n.toLocaleString('en')} ${n === 1 ? one : many}`;
 }

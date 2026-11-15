@@ -130,7 +130,7 @@ export async function launchStudio(o: StudioServerOptions): Promise<Launched> {
     url: server.url,
     since: new Date().toISOString(),
   };
-  let claim;
+  let claim: Awaited<ReturnType<typeof claimDiscovery>>;
   try {
     claim = await claimDiscovery(file, record);
   } catch (e) {

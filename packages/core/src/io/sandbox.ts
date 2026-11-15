@@ -4,6 +4,7 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import type { Dirent } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { canonicalJson } from '../canonical-json.js';
@@ -79,7 +80,7 @@ export async function seedFileRefs(sandbox: Pick<LoadedSandbox, 'dir' | 'manifes
     if (file) files.add(resolve(sandbox.dir, file));
   }
   const walk = async (dir: string): Promise<void> => {
-    let entries;
+    let entries: Dirent[];
     try {
       entries = await readdir(dir, { withFileTypes: true });
     } catch {

@@ -34,7 +34,7 @@ import type { LoadedProject } from '@retake/core/project';
 import type { TimelineEvent, TimelineScene } from '@retake/core/run';
 import type { ValidationIssue } from '@retake/core/base';
 import type { WorkFileFacts } from '@retake/core/model';
-import type { ScenarioBlocks, ScenarioIdentity, SceneBlock } from '@retake/core/scenario';
+import type { ScenarioBlocks, ScenarioIdentity, SceneBlock, Scenario } from '@retake/core/scenario';
 import type { StoredRunRecord, RunViewStatus, UnknownRunStatus } from '@retake/core/run';
 import type { AgentChannel } from '../caller.js';
 import { EngineError } from '../errors.js';
@@ -357,7 +357,7 @@ export class ScenarioViews {
     let picked: ScenarioRunChoice | undefined;
     if (o.run !== undefined) {
       data = await this.ctx.runs.get(p.dir, o.run);
-      if (!data || !data.record) throw new EngineError('not_found', `run "${o.run}" not found in ${slug} (scenario_blocks lists the runs of a scenario)`);
+      if (!data?.record) throw new EngineError('not_found', `run "${o.run}" not found in ${slug} (scenario_blocks lists the runs of a scenario)`);
       if (data.record.scenario !== name) throw new EngineError('invalid', `run ${o.run} is a run of scenario ${data.record.scenario}, not ${name}`);
       picked = runs.find((r) => r.id === o.run) ?? (await this.choiceOf(p.dir, o.run, data.record));
       if (!isFinishedRunStatus(picked.status)) throw new EngineError('invalid', `run ${o.run} has not finished: its pictures come once it has`);
@@ -936,7 +936,7 @@ async function editAbility(
   o: { agent: boolean; via: AgentChannel; files: WorkFileFacts; reads: WorkspaceReads },
   facts: { parsed: boolean; ok: boolean; truncated: boolean },
 ): Promise<ScenarioView['edit']> {
-  let scenario;
+  let scenario: Scenario | undefined;
   if (o.agent && file.utf8) {
     const template = await o.reads.loadProjectTemplate(p, undefined, { files: o.files }).then(
       (t) => t.template,

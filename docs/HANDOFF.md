@@ -75,6 +75,80 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.56)
+- **L7.56 done (2026-11-15; branch `claude/arch-l7`)** — CC-S8b, CC-N2 (named casts), CC-N3, the last two store-new
+  entries. `scripts/lint-baseline.json` 456 → 0 diagnostics (`rules: {}`); no rule turned off, biome.json unchanged.
+  - Code:
+    - Safe autofixes: regex spaces `{n}`, `Object.hasOwn`, `import type`, `**`, `const`, useless escapes.
+    - Unsafe `useOptionalChain` autofixes, each one reviewed. The three that would have returned `undefined` for
+      `false` now end in `?? false` (`hosts.ts`, `shell-hosts.ts`, `renders.ts`).
+    - 60 `let x;` now have their exact inferred type.
+    - `void | X` unions became `X | undefined`. The `runGates` gates now return `undefined`; the code says why.
+    - React keys:
+      - Stable content keys where a list can reorder: DiffTable, TimelineTracks, ShootLive, RecordingInspector.
+        The new `contentKeys` helper in `ui/app/bits.tsx` keeps repeated keys unique.
+      - An explained `biome-ignore` on fixed, whole-replaced or index-tied lists, and on the Remotion Sequences
+        (a new key would remount them).
+    - Effect dependencies:
+      - Stable `useCallback` helpers (TimelineScreen `wait`/`show`, Sessions `setJob`, Storyboard `sceneOfList`,
+        CommandPalette `giveBack`), then added to the deps. Effect timing is unchanged.
+      - The deliberate key-based or one-shot deps keep an explained `biome-ignore`.
+    - a11y:
+      - `aria-hidden` on decorative kit svgs; `role="img"` on the labelled brand-initial div.
+      - The semantic-element swaps that would change the look (fieldset, hr, search, select) are kept, with a reason.
+        `kit-static.test.ts` pins the statusbar's `div`.
+    - Tests: `any` became one `type Untyped = any` per file, with its reason: it reads JSON, page globals or the
+      repository's untyped `.mjs` scripts. The `noUnsafeOptionalChaining` `?.` before a cast became `!.` (the test
+      still fails the same way).
+    - The kit `0.707` became `Math.SQRT1_2`; the 3-decimal path strings are byte-identical.
+    - Boy scout: the safe autofix had deleted the "reported, not warned" comment on `accent_on_dark` in
+      `components/brand/palette.ts`. It is restored, as an `else if`.
+  - Casts (CC-N2):
+    - `declare global { interface Window { __retake?: KitApi; __retakeCursor?: … } }` in `runner-web/kit/types.ts`
+      removes the page-global casts in kit `lifecycle.ts`, `overlay.ts`, `actions/drag.ts`, `raw/layer.ts`,
+      `runtime.ts`. `layer.ts` now throws a plain error if the kit is not there; before, a TypeError did the same job.
+    - `hookKind` accepts a plain record, so the `blocks.ts` cast is gone.
+    - `ScenarioChecker.validScenario()` keeps the two `this.s as unknown as Scenario` as one guarded cast, with its
+      reason.
+    - `as unknown as` in src 73 → 60 (after the review fixes); non-null `!` in src 429 → 429.
+  - CC-N3: the header of `engine/render/renderer.ts` and the `Take` doc in `sandbox/src/sandbox.ts` now say the mirror
+    is on purpose and what holds the two together.
+  - Ports:
+    - `Engine.folder(root)` is a new read-only member (the stores port's `folder`).
+    - `WorkspaceIndex.open` / `LiveOptions` take `folder`; `readSmall` reads through it.
+    - The comment views take `CommentReads { renders, stores }`: `listComments`, `listCommentsAndUnread`,
+      `getComment`, `anchorAt`, `threadView`, `todayText`.
+    - `pruneProject` takes `PrunePorts { outputs, stores }`.
+    - Ratchet 64 → 62 entries; the store-new group is gone.
+  - Tests:
+    - `engine-facade.test.ts` pins `folder`; `app-source.test.ts` pins the `contentKeys` export.
+    - The index-db, comments, prune, scenario-view and supervise tests hand the disk stores.
+    - 40 files run alone (fresh `RETAKE_HOME`, `RETAKE_DISK_WARN=off`), all green. Among them: index-db, comments,
+      comments-studio, engine-facade, prune ×3, scenario-view, ids-characterization, worker-heavy, approvals,
+      agent-safety, supervise, app-source, kit-static, stdio, stdio-comments, blocks, scenario, the core edits
+      tests, run-record, kit-page, record-session, clock, raw-real, encode-tools, brand-palette, import-rules,
+      studio-e2e-timeline, studio-e2e-kit.
+  - Mutations, each red and then restored:
+    - A `let x;` in `core/src/hosts.ts`: lint fails, `useConst` and `noImplicitAnyLet` 0 → 1.
+    - `new LocalStorage` back in `comments/views.ts`: `rules.mjs --check` fails with a new store-new violation.
+  - Gates, all exit 0:
+    - Clean build: no `packages/*/dist`, no `*.tsbuildinfo`, then `npx tsc -b`.
+    - `pnpm typecheck`, `pnpm lint` (0 allowed), `pnpm format:check`, `rules.mjs --check` (62).
+    - `comment-refs.mjs`, `test-guard` (no decrease), `requirements.mjs --check-cites`.
+  - Not done:
+    - The 429 non-null `!` in src: N2 only counts them.
+    - The casts left in place:
+      - `session.ts` (a dotted kit path called by name).
+      - Kit `notifications.ts`, `clock.ts`, `record-script.ts`, `product-clock.ts`: they patch built-ins on
+        `globalThis`.
+      - `artefacts/render.ts`: the globals of the PDF page.
+      - `ui/app/data/projects.ts:27`: already explained.
+      - `core/checks/hooks.ts`: a schema-checked entry.
+      - `ui/app/script/StepEditing.tsx:145`: see Questions.
+      - About 10 zod bridges in `core/schemas`.
+    - Component `preview.png` files were not regenerated. The kit markup changed (`aria-hidden`, `role="img"`), the
+      picture did not; run `retake components preview --all --stale` if the lead wants them fresh.
+
 ## State (after L7.55b)
 - **L7.55b done (2026-11-15; branch `claude/arch-l7`)** — test titles, `why:` strings, assertion messages and
   template literals of the tests name no lot or phase id, no private-note reference (review / critique / finding /

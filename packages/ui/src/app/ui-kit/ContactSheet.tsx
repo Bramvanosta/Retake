@@ -43,6 +43,7 @@ function SheetFigure({ item }: { item: ContactSheetItem }) {
 
 export function ContactSheet({ labelledBy, items, testId }: { labelledBy?: string; items: ContactSheetItem[]; testId?: string }) {
   return (
+    // biome-ignore lint/a11y/useSemanticElements: the contact sheet's grid of frames; <fieldset> would bring its own border, padding and min-width
     <div className="k-contact" role="group" aria-labelledby={labelledBy} data-testid={testId}>
       {items.map((i) => (
         <SheetFigure key={i.key} item={i} />

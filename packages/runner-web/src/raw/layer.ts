@@ -104,7 +104,8 @@ export async function renderCursorAtlas(opts: { kit: KitConfig; scale: number; b
     await page.addScriptTag({ content: kitSource({ ...opts.kit, cursor: { ...opts.kit.cursor, hidden: false } }) });
     await page.evaluate(
       ({ specs, cell, hot, columns }) => {
-        const api = (window as unknown as { __retake: { cursorLook: { css: string; html: string }; cursor: { hide(): void } } }).__retake;
+        const api = window.__retake;
+        if (!api) throw new Error('the kit did not install on the cursor sheet');
         api.cursor.hide();
         const { css, html } = api.cursorLook;
         specs.forEach((s, i) => {

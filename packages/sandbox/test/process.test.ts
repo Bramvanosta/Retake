@@ -28,6 +28,9 @@ import { readState, writeState } from '../src/state.js';
 import type { Sandbox } from '@retake/sandbox';
 import { PERSON_POLICY } from '@retake/core';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const SERVER = join(REPO, 'fixtures/wholesale/server.mjs');
 const posix = process.platform !== 'win32';
@@ -100,7 +103,7 @@ let sb: Sandbox;
 const logs: string[] = [];
 const log = (level: string, msg: string) => logs.push(`${level} ${msg}`);
 const api = (path: string) => `http://localhost:${ports[0]}${path}`;
-const json = async (url: string, init?: RequestInit) => (await fetch(url, init)).json() as Promise<any>;
+const json = async (url: string, init?: RequestInit) => (await fetch(url, init)).json() as Promise<Untyped>;
 
 // The cases run in order on purpose: one fixture sandbox goes up, is reset, taken, refused a twin, then brought down.
 describe.skipIf(!posix)('process provider: the fixture as a sandbox', { shuffle: false }, () => {

@@ -18,5 +18,5 @@ export function deref(id: string | null | undefined): Element | null {
   if (!id) return null;
   const el = refs.get(id)?.deref() ?? null;
   // A frame that navigated or was removed keeps its old elements connected to a document without a window: gone.
-  return el && el.isConnected && el.ownerDocument.defaultView ? el : null;
+  return el?.isConnected && el.ownerDocument.defaultView ? el : null;
 }

@@ -18,7 +18,7 @@ import { checkScenarioName } from '../refs.js';
 import { latestRenderMembers, readById, renderEntries, renderFileProblem } from '../render-records.js';
 import type { RenderOutputs } from '../outputs/outputs.js';
 import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
-import { LocalStorage } from '../storage.js';
+import type { ProjectStores } from '../store/store.js';
 import { COMMENT_LIST_MAX_FILES, COMMENT_STILL_MAX_BYTES, THREAD_FILE_RE, argError, commentRef, commentStillFile, locateThread, readThread } from './store.js';
 import { lstatOrNull, realFolderState } from '@retake/core/io';
 import type { ThreadFile } from './store.js';
@@ -139,7 +139,7 @@ export async function stillOf(projectDir: string, id: string): Promise<string | 
   }
   const file = commentStillFile(projectDir, id);
   const st = await lstatOrNull(file);
-  if (!st || !st.isFile() || st.nlink !== 1 || st.size > COMMENT_STILL_MAX_BYTES) return null;
+  if (!st?.isFile() || st.nlink !== 1 || st.size > COMMENT_STILL_MAX_BYTES) return null;
   const head = Buffer.alloc(3);
   try {
     const fh = await open(file, 'r');
@@ -155,10 +155,15 @@ export async function stillOf(projectDir: string, id: string): Promise<string | 
 }
 
 /** Today's text of a scenario (.yaml, else an existing .yml) and its bytes' sha256, null when it cannot be read; one read per scenario and call. */
-export async function todayText(projectDir: string, scenario: string, cache: Map<string, Promise<{ text: string; sha256: string } | null>>): Promise<{ text: string; sha256: string } | null> {
+export async function todayText(
+  stores: Pick<ProjectStores, 'folder'>,
+  projectDir: string,
+  scenario: string,
+  cache: Map<string, Promise<{ text: string; sha256: string } | null>>,
+): Promise<{ text: string; sha256: string } | null> {
   let p = cache.get(scenario);
   if (!p) {
-    const storage = new LocalStorage(projectDir);
+    const storage = stores.folder(projectDir);
     p = (async () => {
       for (const ref of [scenarioRef(scenario), scenarioRef(scenario, '.yml')]) {
         try {
@@ -182,17 +187,33 @@ export function proposalSummary(p: CommentProposal, state: ProposalState, action
   return { state, actionable, delta: p.delta, added: st.added, removed: st.removed, hunks: p.hunks.length, base_sha256: p.base_sha256, result_sha256: p.result_sha256 };
 }
 
-export async function threadView(projectDir: string, thread: CommentThread, hash: string, renders: readonly StoredRenderRecord[], texts: TextCache = new Map()): Promise<CommentView> {
+/**
+ * What the comment views read through: the renders port (the records a thread is shown against) and the stores port's
+ * folders (today's scenario text, for a thread's step now and its proposals' state).
+ */
+export interface CommentReads {
+  renders: RenderOutputs;
+  stores: Pick<ProjectStores, 'folder'>;
+}
+
+export async function threadView(
+  stores: Pick<ProjectStores, 'folder'>,
+  projectDir: string,
+  thread: CommentThread,
+  hash: string,
+  renders: readonly StoredRenderRecord[],
+  texts: TextCache = new Map(),
+): Promise<CommentView> {
   const { status, resolution } = deriveStatus(thread.entries);
   const { anchor, untrusted: badAnchor } = trustedAnchor(thread.anchor);
   let stepNow: string | null | undefined;
   if (anchor.scene !== undefined && anchor.step !== undefined) {
-    const today = await todayText(projectDir, thread.scenario, texts);
+    const today = await todayText(stores, projectDir, thread.scenario, texts);
     stepNow = today === null ? null : (locateAnchorStep(today.text, anchor) ?? null);
   }
   // Proposals: their state against today's file, read only when the thread holds one.
   const states = thread.entries.some((e) => e.proposal)
-    ? new Map(proposalStates(thread.entries, (await todayText(projectDir, thread.scenario, texts))?.sha256 ?? null).map((x) => [x.entry, x]))
+    ? new Map(proposalStates(thread.entries, (await todayText(stores, projectDir, thread.scenario, texts))?.sha256 ?? null).map((x) => [x.entry, x]))
     : undefined;
   const current = renders.find((r) => r.id === thread.render.id);
   const newer = renders
@@ -298,12 +319,13 @@ export interface CommentsUnread {
 }
 
 /** The threads of a project (see CommentListRequest). */
-export async function listComments(renders: RenderOutputs, project: LoadedProject, req: CommentListRequest = {}): Promise<CommentListView> {
-  return (await listCommentsAndUnread(renders, project, req)).list;
+export async function listComments(reads: CommentReads, project: LoadedProject, req: CommentListRequest = {}): Promise<CommentListView> {
+  return (await listCommentsAndUnread(reads, project, req)).list;
 }
 
 /** `listComments`, with what the listing could not read as threads (CommentsUnread). */
-export async function listCommentsAndUnread(renderFiles: RenderOutputs, project: LoadedProject, req: CommentListRequest = {}): Promise<{ list: CommentListView; unread: CommentsUnread }> {
+export async function listCommentsAndUnread(reads: CommentReads, project: LoadedProject, req: CommentListRequest = {}): Promise<{ list: CommentListView; unread: CommentsUnread }> {
+  const renderFiles = reads.renders;
   const status = req.status ?? 'open';
   if (!['open', 'resolved', 'all'].includes(status)) throw argError('status', `status "${String(status)}": open, resolved or all`);
   if (req.scenario !== undefined) checkScenarioName(req.scenario);
@@ -399,7 +421,7 @@ export async function listCommentsAndUnread(renderFiles: RenderOutputs, project:
       continue;
     }
     if (onRender && (r.thread.render.id !== onRender.id || r.thread.render.created_at !== onRender.created_at)) continue;
-    const view = await threadView(project.dir, r.thread, r.hash, renders, texts);
+    const view = await threadView(reads.stores, project.dir, r.thread, r.hash, renders, texts);
     if (status !== 'all' && view.status !== status) continue;
     views.push(view);
   }
@@ -428,11 +450,11 @@ function notQuoted(entry: RenderEntry, id: string): EngineError {
 }
 
 /** One thread's view. */
-export async function getComment(renders: RenderOutputs, project: LoadedProject, id: string): Promise<CommentView> {
+export async function getComment(reads: CommentReads, project: LoadedProject, id: string): Promise<CommentView> {
   const f = await locateThread(project.dir, id);
   const r = await readThread(project.dir, f);
   if (!r.ok) throw new EngineError('invalid', r.problem);
-  return threadView(project.dir, r.thread, r.hash, await renderIndex(renders, project.dir));
+  return threadView(reads.stores, project.dir, r.thread, r.hash, await renderIndex(reads.renders, project.dir));
 }
 
 // ── Counts and pins from the thread files alone ─────────

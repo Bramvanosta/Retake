@@ -76,7 +76,7 @@ export function planEntries(s: PlanScope): Entry[] {
     }
     if (!(speed > 0)) speed = 1;
     if (open) notes.add(`"${scene.id}": page load ${secs(open.t_start)}–${secs(s0)} of the capture is not shown`);
-    entries.push({ type: 'clip', scene, events, s0, s1, A, B, joined, speed, ...(pages && pages.every((pg) => trackSources[pg.track]) ? { pages } : {}) });
+    entries.push({ type: 'clip', scene, events, s0, s1, A, B, joined, speed, ...(pages?.every((pg) => trackSources[pg.track]) ? { pages } : {}) });
   }
   for (const id of Object.keys(ov.speeds ?? {})) {
     if (!timeline.scenes.some((s) => s.id === id && s.kind === 'scene')) warnings.add(`overrides.speeds["${id}"]: no captured scene "${id}" in this run`);

@@ -33,6 +33,7 @@ export function Logo(props: { theme: ThemeTokens; size: number; unit?: number; s
   if (!initial) return null;
   return (
     <div
+      role="img"
       aria-label={theme.brand.name}
       style={{
         width: px,
@@ -129,6 +130,7 @@ export function FitText(props: FitTextProps): ReactNode {
       }}
     >
       {r.lines.map((line, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the text's wrapped lines, in order, laid out once per frame: the index is the line number
         <div key={i} style={{ whiteSpace: 'pre' }}>
           {line || ' '}
         </div>
@@ -180,6 +182,7 @@ export function CapText(props: CapTextProps): ReactNode {
       }}
     >
       {l.lines.map((line, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the text's wrapped lines, in order, laid out once per frame: the index is the line number
         <div key={i}>{line || ' '}</div>
       ))}
     </div>

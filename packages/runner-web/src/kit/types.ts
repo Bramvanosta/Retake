@@ -494,3 +494,15 @@ export interface KitApi {
   /** Recorder: the kind of secret a field holds (null: not a secret-class field). Never reads a value. */
   secretField(target: Element | string): SecretFieldKind | null;
 }
+
+declare global {
+  interface Window {
+    /**
+     * The in-page kit, once installed (absent before, and after a page erased it). A page could put anything there,
+     * so the kit's own code still checks what it finds (lifecycle.ts replacePrevious).
+     */
+    __retake?: KitApi;
+    /** The runner's binding for cursor effects (session.ts CURSOR_BINDING), when the runner installed it. */
+    __retakeCursor?: (payload: CursorEffectPayload) => unknown;
+  }
+}

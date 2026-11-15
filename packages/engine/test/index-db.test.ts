@@ -27,6 +27,7 @@ import { processStart } from '../src/jobs/proc.js';
 import { scanSources, diffSources, workspaceChanges } from '../src/index-db/sources.js';
 import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
+import { diskProjectStores } from '../src/store/project-store.js';
 import { REPO } from '@retake/test-support/repo';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { PERSON_POLICY } from '@retake/core';
@@ -90,7 +91,7 @@ async function ix0Pages(file: string): Promise<void> {
 }
 
 async function fresh(): Promise<WorkspaceIndex> {
-  const ix = await WorkspaceIndex.open(cfg, { queue: new FileJobQueue(cfg.root) });
+  const ix = await WorkspaceIndex.open(cfg, { folder: diskProjectStores.folder, queue: new FileJobQueue(cfg.root) });
   if (!ix) throw new Error('node:sqlite is missing on this Node.js');
   return ix;
 }
@@ -320,7 +321,7 @@ describe('the workspace index', () => {
       await mkdir(join(dir, '.retake'), { recursive: true });
       const target = join(dir, 'elsewhere', 'planted.sqlite');
       await symlink(target, file);
-      let ix = await WorkspaceIndex.open(c, { queue: new FileJobQueue(c.root) });
+      let ix = await WorkspaceIndex.open(c, { folder: diskProjectStores.folder, queue: new FileJobQueue(c.root) });
       expect(ix?.rebuilt).toBe('not_a_file');
       await ix!.reconcile();
       expect(ix!.counts().projects).toBe(1);
@@ -330,12 +331,12 @@ describe('the workspace index', () => {
       // A planted -wal link next to a sound db: the same.
       await rm(`${file}-wal`, { force: true });
       await symlink(`${target}-wal`, `${file}-wal`);
-      ix = await WorkspaceIndex.open(c, { queue: new FileJobQueue(c.root) });
+      ix = await WorkspaceIndex.open(c, { folder: diskProjectStores.folder, queue: new FileJobQueue(c.root) });
       expect(ix?.rebuilt).toBe('not_a_file');
       ix!.close();
       expect((await lstat(`${file}-wal`).catch(() => null))?.isSymbolicLink() ?? false).toBe(false);
       await expect(lstat(`${target}-wal`)).rejects.toThrow(/ENOENT/);
-      ix = await WorkspaceIndex.open(c, { queue: new FileJobQueue(c.root) });
+      ix = await WorkspaceIndex.open(c, { folder: diskProjectStores.folder, queue: new FileJobQueue(c.root) });
       expect(ix?.rebuilt).toBeUndefined();
       ix!.close();
     } finally {
@@ -386,7 +387,7 @@ describe('the workspace index', () => {
       expect(spawnSync('mkfifo', [join(proj, 'runs', '20261018-090000-pipe', 'run.json')]).status).toBe(0);
       const ix = await WorkspaceIndex.open(
         { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
-        { queue: new FileJobQueue(dir) },
+        { folder: diskProjectStores.folder, queue: new FileJobQueue(dir) },
       );
       try {
         const done = await Promise.race([ix!.reconcile().then(() => 'reconciled'), new Promise((r) => setTimeout(() => r('blocked on a FIFO'), 5000))]);
@@ -429,7 +430,7 @@ describe('the workspace index', () => {
       await writeFile(join(renders, 'quote-v5.json'), rec('quote-v5', { warnings: ['x'.repeat(1_100_000)] }));
       const ix = await WorkspaceIndex.open(
         { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
-        { queue: new FileJobQueue(dir) },
+        { folder: diskProjectStores.folder, queue: new FileJobQueue(dir) },
       );
       try {
         await ix!.reconcile();
@@ -464,7 +465,7 @@ describe('the workspace index', () => {
       await rm(indexFile(dir), { force: true });
       const ix2 = await WorkspaceIndex.open(
         { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
-        { queue: new FileJobQueue(dir) },
+        { folder: diskProjectStores.folder, queue: new FileJobQueue(dir) },
       );
       try {
         await ix2!.reconcile();
@@ -478,7 +479,7 @@ describe('the workspace index', () => {
       await rm(indexFile(dir), { force: true });
       const ix3 = await WorkspaceIndex.open(
         { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
-        { queue: new FileJobQueue(dir) },
+        { folder: diskProjectStores.folder, queue: new FileJobQueue(dir) },
       );
       try {
         await ix3!.reconcile();
@@ -498,7 +499,7 @@ describe('the workspace index', () => {
       await fixtureWorkspace(dir);
       const ix = await WorkspaceIndex.open(
         { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
-        { queue: new FileJobQueue(dir) },
+        { folder: diskProjectStores.folder, queue: new FileJobQueue(dir) },
       );
       if (!ix) throw new Error('node:sqlite is missing on this Node.js');
       try {
@@ -531,7 +532,7 @@ describe('the workspace index', () => {
       await fixtureWorkspace(dir);
       const ix = await WorkspaceIndex.open(
         { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
-        { queue: new FileJobQueue(dir), loader: async () => null },
+        { folder: diskProjectStores.folder, queue: new FileJobQueue(dir), loader: async () => null },
       );
       expect(ix).toBeNull();
       await expect(stat(indexFile(dir))).rejects.toThrow();
@@ -690,7 +691,7 @@ describe('the activity feed reads a finished job once', () => {
       const queued = await write('queued');
       const ix = await WorkspaceIndex.open(
         { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() },
-        { queue: new FileJobQueue(dir) },
+        { folder: diskProjectStores.folder, queue: new FileJobQueue(dir) },
       );
       const spy = vi.spyOn(FileJobQueue.prototype, 'stored');
       try {

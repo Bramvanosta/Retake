@@ -85,11 +85,11 @@ describe('filmedChanges (R-FLD-01): only what drives the browser counts', () => 
     expect(changes(BASE.replace('        hold: 0.5\n', '        hold: 2\n'))).toEqual(['scene send: step send.0 changed']); // a hold modifier
     expect(changes(BASE.replace('        hold: 0.5\n', '        park: true\n'))).toEqual(['scene send: step send.0 changed']);
     expect(changes(`${BASE}  - id: extra\n    steps: [{hold: 1}]\n`)).toEqual(['scene extra added']);
-    const swapped = BASE.replace(/  - id: open[\s\S]*?(?=  - card:)/, '').replace('  - id: send\n      ', 'x');
+    const swapped = BASE.replace(/ {2}- id: open[\s\S]*?(?= {2}- card:)/, '').replace('  - id: send\n      ', 'x');
     expect(changes(swapped)).toContain('scene open removed');
     const reordered = `video: Quote\nenv: staging\nscenes:\n  - id: b\n    steps: [{hold: 1}]\n  - id: a\n    page: admin\n    steps: [{hold: 1}]\n`;
     expect(
-      changes(reordered, reordered.replace(/  - id: b\n    steps: \[\{hold: 1\}\]\n(  - id: a\n    page: admin\n    steps: \[\{hold: 1\}\]\n)/, '$1  - id: b\n    steps: [{hold: 1}]\n')),
+      changes(reordered, reordered.replace(/ {2}- id: b\n {4}steps: \[\{hold: 1\}\]\n( {2}- id: a\n {4}page: admin\n {4}steps: \[\{hold: 1\}\]\n)/, '$1  - id: b\n    steps: [{hold: 1}]\n')),
     ).toContain('capture scenes reordered');
   });
 

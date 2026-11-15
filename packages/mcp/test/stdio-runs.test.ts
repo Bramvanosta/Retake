@@ -145,7 +145,7 @@ describe.skipIf(!AVAILABLE)('retake mcp: dry runs and captures as jobs', () => {
     const r = await call(client, 'run_capture', { project: 'northfield-fixture', scenario: 'short' });
     expect(r.isError, JSON.stringify(r)).toBeFalsy();
     const runId = r.structuredContent?.id as string;
-    const jobId = (r.structuredContent?.job as { id: string }).id;
+    const jobId = (r.structuredContent!.job as { id: string }).id;
     expect(['queued', 'running']).toContain(r.structuredContent?.status);
     await client.close();
 

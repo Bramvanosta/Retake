@@ -36,7 +36,7 @@ export function findWorkspaceRoot(start: string = process.cwd()): string {
 /** findWorkspaceRoot on a disk. */
 export function findWorkspaceRootOn(disk: WorkspaceDisk, start: string = process.cwd()): string {
   const env = process.env.RETAKE_ROOT;
-  if (env && env.trim()) return resolve(expandHome(env.trim()));
+  if (env?.trim()) return resolve(expandHome(env.trim()));
   return findWorkspaceUpwardOn(disk, start) ?? resolve(start);
 }
 

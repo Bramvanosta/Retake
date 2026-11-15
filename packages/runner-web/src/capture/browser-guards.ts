@@ -12,7 +12,7 @@ import type { PersonaPlan, ResolvedPersona, WritePolicy } from '@retake/core/env
 import type { HookContext } from '@retake/core/hooks';
 import { LoginGuard, checkPersona, signInMatchers } from '../auth.js';
 import type { PreparedSession } from '../auth.js';
-import { LoginPageError, RunnerError } from '../errors.js';
+import { type LoginPageError, RunnerError } from '../errors.js';
 import { personaAuthReader } from '../persona-auth.js';
 import type { PersonaRequestAuth } from '../persona-auth.js';
 import type { Runtime } from '../runtime.js';
@@ -306,7 +306,7 @@ export async function diagnoseSession(
     'a check that fails reads as no answer: the persona is checked again at sign-in',
     null,
   );
-  if (!r || r.status !== 'expired') return failure;
+  if (r?.status !== 'expired') return failure;
   expire(p.persona.name, r.at ?? '', `${r.detail} (checked after step ${failure.scene}.${failure.step} failed)`);
   const message = `${failure.message} — the session of persona ${p.persona.name} is no longer valid (${secrets.redactText(r.detail)}): sign in again: ${command(p.persona.name)}`;
   return new StepFailure(message, failure.scene, failure.step, failure.action, failure.screenshot, failure.dom, failure.missing);

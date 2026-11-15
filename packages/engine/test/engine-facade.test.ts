@@ -52,6 +52,7 @@ const SHAPE: Array<string | [string, string[]]> = [
   ['inspect', ['submit', 'get']],
   ['record', ['submit', 'get', 'view', 'annotate', 'save', 'discard', 'stop', 'list']],
   'thumbnail',
+  'folder',
   ['comments', ['list', 'get', 'add', 'reply', 'resolve', 'reopen', 'anchorAt', 'apply', 'proposal', 'counts']],
   ['sandbox', ['status', 'up', 'reset']],
   // Read-only members, set last: the frozen caller and the Clock port of its composition root (the system clock

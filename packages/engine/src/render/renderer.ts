@@ -1,7 +1,9 @@
 /**
  * The renderer port: what turns an edit plan into pictures — a video file, still frames, and the posters and loops of
  * component previews. The engine owns these types; the product's adapter is the editor's driver (editor-renderer.ts,
- * checked against this file with `satisfies`), the tests' is the in-memory renderer (memory-renderer.ts).
+ * checked against this file with `satisfies`), the tests' is the in-memory renderer (memory-renderer.ts). The editor
+ * spells the same shape in its own driver-types.ts on purpose: the layering forbids either package importing the
+ * other's, and that `satisfies` holds the two together.
  *
  * What is around the port: the engine's render use case (render-video.ts: the plan, the version reserved, the render
  * record and where files go, on the Outputs port) and the editor's (renderStill, exportRender's transcodes, the

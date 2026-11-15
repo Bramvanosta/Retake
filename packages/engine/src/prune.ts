@@ -60,6 +60,7 @@ import { isFinishedRunStatus, orderRuns, pruneKeeper, pruneKeptWords } from '@re
 import { completeRender, renderKeeper, renderNotWords, renderOfFile, renderSaidOf } from '@retake/core/render';
 import { EngineError } from './errors.js';
 import type { Outputs } from './outputs/outputs.js';
+import type { ProjectStores } from './store/store.js';
 import { runsDirOf } from './outputs/outputs.js';
 
 /** Renders kept per scenario and variant (and their reviews). */
@@ -197,8 +198,15 @@ async function renderSaid(outputs: Outputs, file: string): Promise<RenderSaid | 
   }
 }
 
+/** What prune reads and deletes through: the outputs port, and the stores port's folders (the threads' scenario text). */
+export interface PrunePorts {
+  outputs: Outputs;
+  stores: Pick<ProjectStores, 'folder'>;
+}
+
 /** See the module comment. */
-export async function pruneProject(outputs: Outputs, project: LoadedProject, req: PruneRequest = {}): Promise<PruneResult> {
+export async function pruneProject(ports: PrunePorts, project: LoadedProject, req: PruneRequest = {}): Promise<PruneResult> {
+  const { outputs } = ports;
   const keepRenders = req.keep_renders ?? DEFAULT_KEEP_RENDERS;
   if (!Number.isInteger(keepRenders) || keepRenders < 1) throw new EngineError('invalid', `keep_renders ${String(req.keep_renders)}: a whole number from 1`);
   const dry = req.dry_run !== false;
@@ -215,7 +223,7 @@ export async function pruneProject(outputs: Outputs, project: LoadedProject, req
   let notListed: string | undefined;
   const keepOf: string[] = [];
   try {
-    const { list, unread } = await listCommentsAndUnread(outputs.renders, project, { status: 'all' });
+    const { list, unread } = await listCommentsAndUnread({ renders: outputs.renders, stores: ports.stores }, project, { status: 'all' });
     for (const t of list.threads) {
       threadRenders.add(t.render_id);
       threadRuns.add(t.run_id);

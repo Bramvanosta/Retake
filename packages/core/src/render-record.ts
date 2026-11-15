@@ -677,7 +677,7 @@ export function latestNamedRender(entries: readonly RenderEntry[], o: { scenario
   const candidates: Array<Candidate<NamedRenderPick> & { own: number }> = [];
   for (const entry of entries) {
     const record = completeRender(entry);
-    if (!record || record.status !== 'succeeded' || (o.scenario !== undefined && record.scenario !== o.scenario)) continue;
+    if (record?.status !== 'succeeded' || (o.scenario !== undefined && record.scenario !== o.scenario)) continue;
     const renamed = record.id !== entry.name;
     candidates.push({ entry, pick: { entry, record, renamed }, created_at: record.created_at, id: record.id, own: renamed ? 0 : 1 });
   }

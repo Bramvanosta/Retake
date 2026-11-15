@@ -105,6 +105,7 @@ function computeKind(): CursorKind {
   }
   return 'arrow';
 }
+// biome-ignore lint/correctness/noUnusedVariables: read by its own `??=`: at most one pending re-evaluation while throttled
 let kindTimer: ReturnType<typeof setTimeout> | null = null;
 /** Last icon reported to the runner (a new document reports its first one). */
 let reportedKind: CursorKind | null = null;

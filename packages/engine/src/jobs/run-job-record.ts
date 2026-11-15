@@ -128,7 +128,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
   const { root, ws, queue, files, cli, build, worker, self, log, interrupts, slot, done, writeOrExit, clock, capture } = c;
 
   /** The filming marker of a capture take: written at capture time 0, paused with the take, removed at its end. */
-  const filmingOf = (id: string, event: (e: JobEventBody) => void): { on: (state: FilmingEvent) => void | FilmingReport; close: () => void } => {
+  const filmingOf = (id: string, event: (e: JobEventBody) => void): { on: (state: FilmingEvent) => FilmingReport | undefined; close: () => void } => {
     let marker: FilmingMarker | null = null;
     let beside: TakeBeside | undefined;
     const close = () => {

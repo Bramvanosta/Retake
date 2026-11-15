@@ -338,7 +338,7 @@ export function reframeTrack(opts: {
   };
   const boxAt = (t: number): Box | null => {
     const c = cursorAt(cursor, t);
-    if (!c || !c.visible) return null;
+    if (!c?.visible) return null;
     const b = R.cursor_box;
     return { x: c.x - b.left, y: c.y - b.top, w: b.left + b.right, h: b.top + b.bottom };
   };
@@ -393,8 +393,8 @@ export function reframeTrack(opts: {
   // the view does not travel during the scene's opening still; without a target soon, on the cursor. The view holds as
   // far toward the page's leading edge (left, top: its heading, where text starts) as that region allows.
   const c0 = cursorAt(cursor, times[0]);
-  let ax = c0 && c0.visible ? c0.x : css.w / 2;
-  let ay = c0 && c0.visible ? c0.y : css.h / 2;
+  let ax = c0?.visible ? c0.x : css.w / 2;
+  let ay = c0?.visible ? c0.y : css.h / 2;
   let start: Box | null = cursorBox(0);
   const kFirst = times.findIndex((t, k) => t - times[0] <= R.calm_start_s && activeAt(k).length > 0);
   if (kFirst >= 0) {

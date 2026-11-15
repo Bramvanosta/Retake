@@ -6,6 +6,7 @@ import type { HookAccess } from '@retake/core/environment';
 /** The pure allow-list helpers live in @retake/core (project validation uses them too). */
 export { LOCAL_HOSTS, allowedHosts, isHostAllowed, normalizeAllowEntry, normalizeHost };
 import { databaseTarget, isDatabaseUrl } from './db-url.js';
+import type { DatabaseTarget } from './db-url.js';
 import { HookSecurityError } from './errors.js';
 
 function refuse(host: string, project: Pick<LoadedProject, 'config'> & { slug?: string }, via?: string): HookSecurityError {
@@ -19,7 +20,7 @@ function refuse(host: string, project: Pick<LoadedProject, 'config'> & { slug?: 
  */
 export function checkHostAllowed(url: string, project: Pick<LoadedProject, 'config'> & { slug?: string }): void {
   if (isDatabaseUrl(url)) {
-    let target;
+    let target: DatabaseTarget;
     try {
       target = databaseTarget(url);
     } catch {

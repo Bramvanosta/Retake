@@ -71,7 +71,7 @@ export async function studioWorkspace(patch: Record<string, (yaml: string) => st
     const file = join(created.dir, 'component.yaml');
     let yaml = await readFile(file, 'utf8');
     const extra = EXTRA_PARAMS[id];
-    if (extra) yaml = yaml.replace(/^  properties:\n/m, `  properties:\n${extra.join('\n')}\n`);
+    if (extra) yaml = yaml.replace(/^ {2}properties:\n/m, `  properties:\n${extra.join('\n')}\n`);
     if (kind === 'transition') {
       // A transition is a crossfade unless it dips through a colour (the fade-black one dips through the text colour).
       yaml = yaml.replace(

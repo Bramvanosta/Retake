@@ -221,7 +221,7 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
   process.env.PATH = clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
   // Loaded only now: a broken app source breaks `retake ui`, never the other commands.
   const { applyShellLine, launchStudio, startSupervisor } = await import('@retake/ui');
-  let launched;
+  let launched: Awaited<ReturnType<typeof launchStudio>>;
   try {
     launched = await launchStudio({ root, port, log: (m) => ui.line(m) });
   } catch (e) {

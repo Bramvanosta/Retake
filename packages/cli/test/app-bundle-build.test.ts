@@ -17,14 +17,17 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const APP = join(REPO, 'apps', 'desktop');
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-app-bundle-build-')));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 const MAC = process.platform === 'darwin';
 
-const bundleModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'bundle.mjs')).href)) as any;
-const signModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'sign.mjs')).href)) as any;
+const bundleModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'bundle.mjs')).href)) as Untyped;
+const signModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'sign.mjs')).href)) as Untyped;
 
 const THIN = Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0, 0, 1, 0, 0, 0, 0]);
 const FAT = Buffer.from([0xca, 0xfe, 0xba, 0xbe, 0, 0, 0, 2, 0, 0, 0, 0]);
@@ -173,9 +176,9 @@ function fakeTools(tools: Record<string, string>): { bin: string; dumps: () => A
 }
 
 /** A fake pnpm store holding a fake Tauri CLI (`tauri.js`: `script`), and the pins that match it. */
-function fakeTauriStore(version: string, script: string): { store: string; pins: any } {
+function fakeTauriStore(version: string, script: string): { store: string; pins: Untyped } {
   const store = dir('store');
-  const pins: any = { v: 1, version, packages: { '@tauri-apps/cli': {}, '@tauri-apps/cli-darwin-arm64': {} } };
+  const pins: Untyped = { v: 1, version, packages: { '@tauri-apps/cli': {}, '@tauri-apps/cli-darwin-arm64': {} } };
   const blob = (pkg: string, file: string, data: string, exec = false) => {
     const hex = createHash('sha512').update(data).digest('hex');
     put(store, `files/${hex.slice(0, 2)}/${hex.slice(2)}${exec ? '-exec' : ''}`, data);
@@ -183,7 +186,7 @@ function fakeTauriStore(version: string, script: string): { store: string; pins:
     pins.packages[pkg][file] = integrity;
     return { integrity, mode: exec ? 0o755 : 0o644, size: data.length };
   };
-  const index = (name: string, files: Record<string, any>) => put(store, `index/7f/abc-${name.replace('/', '+')}@${version}.json`, JSON.stringify({ name, version, files }));
+  const index = (name: string, files: Record<string, Untyped>) => put(store, `index/7f/abc-${name.replace('/', '+')}@${version}.json`, JSON.stringify({ name, version, files }));
   index('@tauri-apps/cli', { 'tauri.js': blob('@tauri-apps/cli', 'tauri.js', script, true), 'package.json': blob('@tauri-apps/cli', 'package.json', '{"name":"@tauri-apps/cli"}') });
   index('@tauri-apps/cli-darwin-arm64', { 'cli.darwin-arm64.node': blob('@tauri-apps/cli-darwin-arm64', 'cli.darwin-arm64.node', 'native') });
   return { store, pins };
@@ -364,11 +367,11 @@ describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
   it('release entitlements: the least the probe proved — allow-jit for Node.js, the Renderer / GPU helpers and the headless shell; DLV only for Node and the Plugin helper; no library carries any; no get-task-allow', async () => {
     const { readTable, entitlementsFor, entitlementKeys, DLV, ENTITLEMENTS_DIR } = await signModule();
     const entries = readTable();
-    const release = Object.fromEntries(entries.map((e: any) => [e.id, entitlementsFor(e, 'release')]));
+    const release = Object.fromEntries(entries.map((e: Untyped) => [e.id, entitlementsFor(e, 'release')]));
     expect(
       entries
-        .filter((e: any) => release[e.id].includes(DLV))
-        .map((e: any) => e.id)
+        .filter((e: Untyped) => release[e.id].includes(DLV))
+        .map((e: Untyped) => e.id)
         .sort(),
     ).toEqual(['chromium-helper-plugin', 'node']);
     const JIT = 'com.apple.security.cs.allow-jit';
@@ -377,11 +380,11 @@ describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
     // The browser process and the plain (utility, network) helper JIT nothing: no entitlement.
     for (const id of ['chromium', 'chromium-helper']) expect(release[id], id).toEqual([]);
     // allow-unsigned-executable-memory: the Plugin helper only (Chromium's own set; Retake never starts it).
-    expect(entries.filter((e: any) => release[e.id].includes('com.apple.security.cs.allow-unsigned-executable-memory')).map((e: any) => e.id)).toEqual(['chromium-helper-plugin']);
+    expect(entries.filter((e: Untyped) => release[e.id].includes('com.apple.security.cs.allow-unsigned-executable-memory')).map((e: Untyped) => e.id)).toEqual(['chromium-helper-plugin']);
     expect(release['chromium-helper-plugin']).toEqual(['com.apple.security.cs.allow-unsigned-executable-memory', DLV]);
     expect(release['chromium-helper-alerts']).toEqual([]);
     for (const id of ['ffmpeg', 'ffprobe', 'esbuild', 'compositor-remotion']) expect(release[id], id).toEqual([]);
-    const library = (e: any) => /\.(dylib|node)$/.test(e.path) || e.path.endsWith('.framework');
+    const library = (e: Untyped) => /\.(dylib|node)$/.test(e.path) || e.path.endsWith('.framework');
     for (const e of entries.filter(library)) {
       expect(e.entitlements, e.id).toBeNull();
       expect(e.dryDLV, e.id).toBe(false);
@@ -393,7 +396,7 @@ describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
       expect(readFileSync(join(ENTITLEMENTS_DIR, f), 'utf8')).not.toMatch(/get-task-allow|allow-dyld-environment|disable-executable-page-protection/);
     }
     // Every plist the table names exists, and every plist is used.
-    expect([...new Set(entries.map((e: any) => e.entitlements).filter(Boolean))].sort()).toEqual(
+    expect([...new Set(entries.map((e: Untyped) => e.entitlements).filter(Boolean))].sort()).toEqual(
       readdirSync(ENTITLEMENTS_DIR)
         .map((f) => f.replace(/\.plist$/, ''))
         .sort(),
@@ -420,18 +423,18 @@ describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
     const plan = signPlan(root);
     expect(plan.problems).toEqual([]);
     expect(plan.machO).toHaveLength(28);
-    expect(plan.machO.find((m: any) => m.path === 'node/bin/node').kind).toBe('fat');
+    expect(plan.machO.find((m: Untyped) => m.path === 'node/bin/node').kind).toBe('fat');
     expect(insideOut(plan.items)).toBe(true);
-    const at = (p: string) => plan.items.findIndex((i: any) => i.path === p);
+    const at = (p: string) => plan.items.findIndex((i: Untyped) => i.path === p);
     expect(at(`${V}/Libraries/libEGL.dylib`)).toBeLessThan(at(FW));
     expect(at(`${V}/Helpers/Chromium Helper (Renderer).app`)).toBeLessThan(at(FW));
     expect(at(FW)).toBeLessThan(at(CHR));
-    expect(plan.items.find((i: any) => i.path === CHR).entry.id).toBe('chromium');
+    expect(plan.items.find((i: Untyped) => i.path === CHR).entry.id).toBe('chromium');
     // The links of the framework are not followed (each file once).
-    expect(new Set(plan.machO.map((m: any) => m.path)).size).toBe(plan.machO.length);
+    expect(new Set(plan.machO.map((m: Untyped) => m.path)).size).toBe(plan.machO.length);
     // A helper's main executable is its bundle's; the framework's binary is the framework's.
-    expect(plan.machO.find((m: any) => m.path.endsWith('MacOS/Chromium Helper (GPU)')).entry.id).toBe('chromium-helper-gpu');
-    expect(plan.machO.find((m: any) => m.path === `${V}/Chromium Framework`).entry.id).toBe('chromium-framework');
+    expect(plan.machO.find((m: Untyped) => m.path.endsWith('MacOS/Chromium Helper (GPU)')).entry.id).toBe('chromium-helper-gpu');
+    expect(plan.machO.find((m: Untyped) => m.path === `${V}/Chromium Framework`).entry.id).toBe('chromium-framework');
 
     const stray = fakePayload();
     put(stray, 'engine/node_modules/some-native/build/Release/addon.node', FAT, 0o644);
@@ -489,7 +492,7 @@ describe.runIf(MAC)('ad hoc signing and the app check, on a mini app (real codes
     const s = signer('dry', process.env);
     expect(codesignArgs(s, '/x')).toEqual(['--force', '--options', 'runtime', '--timestamp=none', '-s', '-', '/x']);
     const plan = signPayload(res, s, { entries, work: join(dirname(app), 'ent') });
-    expect(plan.items.map((i: any) => i.entry.id).sort()).toEqual(['lib', 'node', 'tool']);
+    expect(plan.items.map((i: Untyped) => i.entry.id).sort()).toEqual(['lib', 'node', 'tool']);
     signApp(app, s);
     expect(signedEntitlements(join(res, 'node/bin/node'))).toEqual(['com.apple.security.cs.allow-jit', DLV]);
     expect(signedEntitlements(join(res, 'tools/tool'))).toEqual([DLV]);
@@ -705,7 +708,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
       message = (e as Error).message;
     }
     expect(message).toMatch(
-      /^notarisation of Retake-notarize\.zip: Invalid — Processing complete \(submission b2\):\n  Retake\.zip\/Retake\.app\/Contents\/Resources\/node\/bin\/node: The binary is not signed with a valid Developer ID certificate\.$/,
+      /^notarisation of Retake-notarize\.zip: Invalid — Processing complete \(submission b2\):\n {2}Retake\.zip\/Retake\.app\/Contents\/Resources\/node\/bin\/node: The binary is not signed with a valid Developer ID certificate\.$/,
     );
     expect(readFileSync(log, 'utf8').trim().split('\n').pop()).toBe('notarytool log b2 --key /keys/canary.p8 --key-id key-id-canary --issuer issuer-canary');
     expect(message).not.toMatch(/canary/);
@@ -1051,7 +1054,7 @@ describe('the DMG commands, the hygiene of attributes', () => {
 
 /** A mini app laid out like the bundled one: Info.plist with our keys, a payload with a link, a shell binary. */
 async function miniApp(name = 'Retake'): Promise<string> {
-  const { LOCAL_NETWORK_USAGE } = (await import(pathToFileURL(join(APP, 'scripts', 'desktop.mjs')).href)) as any;
+  const { LOCAL_NETWORK_USAGE } = (await import(pathToFileURL(join(APP, 'scripts', 'desktop.mjs')).href)) as Untyped;
   const app = join(dir('mini-app'), `${name}.app`);
   put(app, 'Contents/MacOS/mini', readFileSync('/usr/bin/true'), 0o755);
   put(
@@ -1163,14 +1166,14 @@ describe('the Tauri CLI from the pnpm store: every file pinned', () => {
     writeFileSync(idxFile, JSON.stringify({ ...idx, version: '9.9.9' }));
     expect(() => tauriCli(dest, named.store, named.pins)).toThrow(/it names @tauri-apps\/cli@9\.9\.9/);
     // A file path out of its package, even pinned: refused, nothing written outside it.
-    const escape = fakeTauriStore(TAURI_CLI_VERSION, 'x');
-    const escIdx = join(escape.store, 'index', '7f', `abc-@tauri-apps+cli@${TAURI_CLI_VERSION}.json`);
+    const outside = fakeTauriStore(TAURI_CLI_VERSION, 'x');
+    const escIdx = join(outside.store, 'index', '7f', `abc-@tauri-apps+cli@${TAURI_CLI_VERSION}.json`);
     const e = JSON.parse(readFileSync(escIdx, 'utf8'));
-    e.files['../../../outside.js'] = blobOf(escape.store, 'outside');
+    e.files['../../../outside.js'] = blobOf(outside.store, 'outside');
     writeFileSync(escIdx, JSON.stringify(e));
-    escape.pins.packages['@tauri-apps/cli']['../../../outside.js'] = e.files['../../../outside.js'].integrity;
+    outside.pins.packages['@tauri-apps/cli']['../../../outside.js'] = e.files['../../../outside.js'].integrity;
     const escDest = join(dir('cli-escape'), 'tauri-cli');
-    expect(() => tauriCli(escDest, escape.store, escape.pins)).toThrow(/a file outside its package \(\.\.\/\.\.\/\.\.\/outside\.js\)/);
+    expect(() => tauriCli(escDest, outside.store, outside.pins)).toThrow(/a file outside its package \(\.\.\/\.\.\/\.\.\/outside\.js\)/);
     expect(existsSync(join(dirname(escDest), 'outside.js'))).toBe(false);
     // Absent: the message says how to get it (once, with a network).
     expect(() => tauriCli(dest, dir('empty-store'), pins)).toThrow(/not in the pnpm store/);

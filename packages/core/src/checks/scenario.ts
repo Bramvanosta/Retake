@@ -124,6 +124,12 @@ class ScenarioChecker {
     this.maxZoom = opts.template?.motion.max_zoom ?? DEFAULT_TEMPLATE.motion.max_zoom;
   }
 
+  /** The document as a Scenario: only once it is structurally valid (ctx.structurallyValid: the schema took it whole). */
+  private validScenario(): Scenario | undefined {
+    // Kept: the schema's verdict is the guard; a second parse would apply its defaults to what is checked.
+    return this.ctx.structurallyValid ? (this.s as unknown as Scenario) : undefined;
+  }
+
   run(): LocatedIssue[] {
     this.environment();
     this.scenes();
@@ -494,7 +500,8 @@ class ScenarioChecker {
    */
   private personas(): void {
     const project = this.opts.project;
-    if (!project || !this.ctx.structurallyValid) return;
+    const scenario = this.validScenario();
+    if (!project || !scenario) return;
     const seen = new Set<string>();
     // An http hook's `auth: {persona}` (hotfix v0.2.3): a persona of the scenario's environment (the runner checks the
     // one a run chooses again).
@@ -504,7 +511,7 @@ class ScenarioChecker {
       // conflict names, so any folder does (no Retake home is read for a validation).
       const personas = resolvePersonas(project, env, { home: '/' });
       if (personas.length === 0) continue;
-      const plan = planPersonas(this.s as unknown as Scenario, {
+      const plan = planPersonas(scenario, {
         env,
         envPages: project.config.environments[env],
         personas,
@@ -878,8 +885,9 @@ class ScenarioChecker {
     if (isObj(this.s.music) && typeof this.s.music.file === 'string' && !this.ctx.broken(['music'])) {
       this.ctx.file(this.s.music.file, ['music', 'file'], 'music file', 'error');
     }
-    if (this.opts.until !== undefined && this.ctx.structurallyValid) {
-      if (!resolveStepRef(this.s as unknown as Scenario, this.opts.until)) {
+    const scenario = this.validScenario();
+    if (this.opts.until !== undefined && scenario) {
+      if (!resolveStepRef(scenario, this.opts.until)) {
         this.ctx.error([], `--until "${this.opts.until}" does not match any step (use "<scene>.<step id|index>", a unique step id or a scene id)`);
       }
     }

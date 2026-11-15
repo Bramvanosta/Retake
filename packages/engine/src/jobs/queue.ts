@@ -30,6 +30,7 @@
 import type { EngineEnv } from '../env.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JOB_ID_RE } from '@retake/core/ids';
 import type { JobId } from '@retake/core/ids';
@@ -154,7 +155,7 @@ class FileEntries implements JobEntries {
   }
 
   async create(id: string, name: string, text: string): Promise<boolean> {
-    let fh;
+    let fh: FileHandle;
     try {
       fh = await open(this.file(id, name), 'wx');
     } catch (e) {

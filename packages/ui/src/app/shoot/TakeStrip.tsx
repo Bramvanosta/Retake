@@ -65,6 +65,7 @@ export function runLabel(r: ScenarioRunChoice): string {
  */
 function SubmittedOutcome({ choice, mode, slug, isSource }: { choice: ScenarioRunChoice; mode: 'dry' | 'capture'; slug: string; isSource: boolean }) {
   const [out, setOut] = useState<RunOutcome | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the run's new status is the trigger to read its outcome again
   useEffect(() => {
     let live = true;
     runStatus({ project: slug, run_id: choice.id }).then(

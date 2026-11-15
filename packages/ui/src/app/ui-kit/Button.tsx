@@ -135,6 +135,7 @@ export function Kbd({ keys }: { keys: string[] }) {
   return (
     <span className="k-kbd-group">
       {keys.map((k, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a shortcut's key caps in order (a key may repeat): the place is part of the identity
         <kbd key={`${k}-${i}`} className="k-kbd">
           {visibleControls(k)}
         </kbd>

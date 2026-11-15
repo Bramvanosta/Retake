@@ -168,6 +168,7 @@ export function SetupSheet({ route }: { route: Route }) {
   }, [open, st?.available, load]);
   // Where the focus goes once the sheet shows what changed (a section opened, a confirmation opened or closed, an
   // action answered): see placeFocus.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a confirmation opened or closed, or an answer said, is a trigger to place the focus asked in focusNext
   useEffect(() => {
     if (!open || !st?.available || busy || !focusNext.current) return;
     const next = focusNext.current;
@@ -230,6 +231,7 @@ export function SetupSheet({ route }: { route: Route }) {
         {said.output?.length ? (
           <div className="sh-setup-output">
             {said.output.map((s, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: one step's output lines in order, text only: the index is the line number
               <div key={i}>
                 <code className="k-mono">
                   <Txt text={`${s.line} → ${s.code === null ? 'stopped' : `exit ${s.code}`}`} />
@@ -312,6 +314,7 @@ export function SetupSheet({ route }: { route: Route }) {
             {!cli.on_path && <Blocker fix={{ copy: cli.path_line, label: 'Copy line' }} testId="setup-cli-path" />}
             <p>Check it: open a new Terminal window and run retake doctor.</p>
             {confirm === 'cli-remove' && (
+              // biome-ignore lint/a11y/useSemanticElements: an inline confirmation (text and two buttons); <fieldset> would bring its own border, padding and min-width
               <div className="sh-setup-confirm" role="group" aria-label="Uninstall the command">
                 <p>
                   <Txt text={cli.installed ? `Remove ${cli.installed}? Only this app's link is removed: nothing else is touched.` : 'The command is not installed by this app.'} />
@@ -422,6 +425,7 @@ export function SetupSheet({ route }: { route: Route }) {
             {st.untrusted?.desktop_problem && <Callout state="fail" role="alert" title={<Txt text={st.untrusted.desktop_problem} />} />}
             {runningSentence(cd.running) && <Callout state="attention" role="status" title={runningSentence(cd.running)!} testId="setup-claude-desktop-running" />}
             {(confirm === 'desktop' || confirm === 'desktop-replace') && (
+              // biome-ignore lint/a11y/useSemanticElements: an inline confirmation (text and two buttons); <fieldset> would bring its own border, padding and min-width
               <div className="sh-setup-confirm" role="group" aria-label="Add to Claude Desktop">
                 <p>
                   <Txt

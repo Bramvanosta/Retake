@@ -307,6 +307,7 @@ export function StepForm({ slug, name, forms, scene, step, ed }: { slug: string;
           <p>The form now shows its new values; your changes were not saved:</p>
           <ul data-testid="form-dropped">
             {changedOnDisk.map((t, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: the dropped changes, fixed once said, text only: the index is the identity
               <li key={i}>
                 <Txt text={t} />
               </li>
@@ -423,6 +424,7 @@ export function Palette({
           Close
         </Button>
       </div>
+      {/* biome-ignore lint/a11y/useSemanticElements: a row of palette buttons; <fieldset> would bring its own border, padding and min-width */}
       <div className="sb-palette-actions" role="group" aria-label="Actions">
         {forms.palette.map((a) => (
           <Button key={a} size="sm" variant={action === a ? 'primary' : 'secondary'} aria-pressed={action === a} onClick={() => pick(a)} data-palette={a}>

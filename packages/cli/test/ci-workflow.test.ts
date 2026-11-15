@@ -12,9 +12,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const read = (p: string) => readFileSync(join(REPO, p), 'utf8');
-const YAML = createRequire(join(REPO, 'packages', 'core', 'package.json'))('yaml') as { parse: (t: string) => any };
+const YAML = createRequire(join(REPO, 'packages', 'core', 'package.json'))('yaml') as { parse: (t: string) => Untyped };
 type Step = { name?: string; uses?: string; run?: string; env?: Record<string, string>; with?: Record<string, unknown> };
 type Job = { steps: Step[]; env?: Record<string, string>; permissions?: Record<string, string>; environment?: string; 'runs-on'?: string };
 

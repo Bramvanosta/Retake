@@ -1,6 +1,6 @@
 /** One recording's inspector: Started with, the selected step, Stop / Save / Discard, the check, issues, placeholders, writes. */
 import type { RecordViewAnswer } from '../../server/record-ops.js';
-import { Txt, When, plural, shown } from '../bits.js';
+import { Txt, When, contentKeys, plural, shown } from '../bits.js';
 import { stepWords } from '../words/scenario-words.js';
 import { say } from '../shell/say.js';
 import { Button, Callout, Facts, InspectorSection, TextField } from '../ui-kit/index.js';
@@ -59,6 +59,11 @@ export function RecordingInspector({
   const failedAt = checkFailedAt(c);
   const writes = writesWords(v.writes, v.access);
   const labels = u?.writes ?? [];
+  // The draft changes as the person records (steps added, moved, removed): each row keyed by what it says.
+  const issueKeys = contentKeys(u?.issues ?? [], (i) => `${i.code}:${i.scene ?? ''}:${i.step ?? ''}:${i.message}`);
+  const placeholderKeys = contentKeys(u?.placeholders ?? [], (p) => `${p.name}:${p.scene}:${p.step}`);
+  const labelKeys = contentKeys(labels.slice(0, 20), (wr) => `${wr.label}:${wr.outcome}`);
+  const warningKeys = contentKeys(v.warnings, (wa) => wa);
   const facts = [
     ...(v.env ? [{ key: 'env', label: 'Location', value: <Txt text={`${v.env}${v.access === 'read-only' ? ' · read-only' : ''}`} /> }] : []),
     ...(v.page ? [{ key: 'page', label: 'Page', value: <Txt text={v.page} /> }] : []),
@@ -188,7 +193,7 @@ export function RecordingInspector({
         <InspectorSection title={`To look at (${u.issues.length})`} testId="record-issues-section">
           <ul className="rc-list rc-issues" data-testid="record-issues">
             {u.issues.map((i, n) => (
-              <li key={n} data-code={i.code}>
+              <li key={issueKeys[n]} data-code={i.code}>
                 <span className="rc-sev">{shown(SEVERITY_WORDS[i.severity][0])}</span>{' '}
                 {i.scene !== undefined && (
                   <span className="rc-quiet">
@@ -207,7 +212,7 @@ export function RecordingInspector({
           <p>What was typed there is never kept or shown: the draft types a placeholder instead.</p>
           <ul className="rc-list">
             {u.placeholders.map((p, i) => (
-              <li key={`${p.name}-${i}`}>
+              <li key={placeholderKeys[i]}>
                 <Txt className="k-mono" text={`{{vars.${p.name}}}`} /> {shown(PLACEHOLDER_WORDS[p.kind] ?? 'a secret')}
                 {', '}
                 <Txt text={stepWords(p.scene, p.step)} />
@@ -229,7 +234,7 @@ export function RecordingInspector({
               <p className="rc-quiet">From the page:</p>
               <ul className="rc-list">
                 {labels.slice(0, 20).map((wr, i) => (
-                  <li key={i}>
+                  <li key={labelKeys[i]}>
                     <Txt className="k-mono" text={wr.label} />
                     <span className="rc-quiet">{shown(` — ${wr.outcome}`)}</span>
                   </li>
@@ -244,7 +249,7 @@ export function RecordingInspector({
         <InspectorSection title="Warnings">
           <ul className="rc-list">
             {v.warnings.map((wa, i) => (
-              <li key={i}>
+              <li key={warningKeys[i]}>
                 <Txt text={wa} />
               </li>
             ))}

@@ -690,8 +690,8 @@ export class Runtime {
   async painted(page: Page = this.page): Promise<void> {
     await page
       .evaluate(() => {
-        const g = globalThis as unknown as { __retake?: { afterPaint?: () => Promise<void> } };
-        if (typeof g.__retake?.afterPaint === 'function') return g.__retake.afterPaint();
+        const kit = window.__retake;
+        if (typeof kit?.afterPaint === 'function') return kit.afterPaint();
         return new Promise<void>((resolve) => {
           setTimeout(() => resolve(), 150);
           requestAnimationFrame(() => requestAnimationFrame(() => resolve()));

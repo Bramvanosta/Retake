@@ -77,7 +77,7 @@ export function shellDestructiveCommand(cmd: string, depth = 0): string | null {
   return run.commands.some(({ args }) => computedWord(args[commandWordAt(args)])) ? COMPUTED_COMMAND : null;
 }
 
-export function hookKind(hook: HookStep): HookKind {
+export function hookKind(hook: HookStep | Record<string, unknown>): HookKind {
   if ('http' in hook) return 'http';
   if ('sql' in hook) return 'sql';
   if ('shell' in hook) return 'shell';

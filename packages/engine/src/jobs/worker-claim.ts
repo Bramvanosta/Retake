@@ -59,7 +59,7 @@ export async function hasQueued(w: Worker): Promise<boolean> {
  */
 export async function claimJob(w: Worker, id: string): Promise<JobRecord | undefined> {
   const stored = await w.queue.stored(id);
-  if (!stored || stored.state !== 'queued') return undefined;
+  if (stored?.state !== 'queued') return undefined;
   // A job of a newer client (its input version or kind): left for a worker of the new build when the code changed.
   if (unknownInput(stored.input) && buildStamp(w.dirs) !== w.build) {
     w.newerJob = true;

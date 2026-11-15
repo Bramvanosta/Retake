@@ -22,7 +22,7 @@ export function parseSseBlock(block: string): { type: string; data: string } | n
 }
 
 /** Read `res` until it ends, calling `on(type, data)` for each event; `false` from `on` stops reading. */
-export async function readSse(res: Response, on: (type: string, data: unknown) => boolean | void): Promise<SseEnd> {
+export async function readSse(res: Response, on: (type: string, data: unknown) => unknown): Promise<SseEnd> {
   if (!res.body) return 'failed';
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buf = '';
@@ -31,7 +31,7 @@ export async function readSse(res: Response, on: (type: string, data: unknown) =
       const { value, done } = await reader.read();
       if (done) return 'closed';
       buf += value;
-      let i;
+      let i: number;
       while ((i = buf.indexOf('\n\n')) >= 0) {
         const block = buf.slice(0, i);
         buf = buf.slice(i + 2);

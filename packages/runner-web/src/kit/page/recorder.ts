@@ -19,7 +19,7 @@ import { isVisible } from './visibility.js';
  */
 export function suggestFor(target: Element | string, opts: { budget_ms?: number; alternatives?: number; alternatives_budget_ms?: number } = {}): InventoryElement | null {
   const el = typeof target === 'string' ? deref(target) : target;
-  if (!el || !el.isConnected) return null;
+  if (!el?.isConnected) return null;
   const tries: Element[] = [];
   const add = (e: Element | null) => {
     if (e && !tries.includes(e)) tries.push(e);

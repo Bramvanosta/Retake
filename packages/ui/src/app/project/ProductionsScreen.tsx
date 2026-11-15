@@ -55,6 +55,7 @@ function useRunning(slug: string, board: ProjectBoardView | null): Map<string, P
     if (e.type === 'jobs') for (const [run, job] of running) if (job && e.changed.includes(job)) ask(run);
   });
   // A board read replaces what run_status said.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new board read is the trigger to drop what run_status said
   useEffect(() => setLive(new Map()), [board]);
   return live;
 }
@@ -139,6 +140,8 @@ function ProjectInspector({ p }: { p: ProjectView }) {
         ) : (
           <>
             {/* A scroller with a tab stop of its own (older engines do not focus scrollers). */}
+            {/* biome-ignore lint/a11y/useSemanticElements: a scrolling <pre> (whitespace kept) needs its own tab stop to scroll by keyboard, and role=region names it */}
+            {/* biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling <pre> (whitespace kept) needs its own tab stop to scroll by keyboard, and role=region names it */}
             <pre className="pr-readme k-mono" data-testid="readme-preview" tabIndex={0} role="region" aria-label="README.md, the first lines">
               {shown(lines.slice(0, README_PREVIEW_LINES).join('\n'))}
             </pre>
@@ -406,8 +409,9 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
       <div className="sc-screen pr">
         <header className="pr-head">
           <h1 className="sc-h1">{shown(title)}</h1>
-          <span className="pr-count k-mono" aria-label={plural(shownList.length, 'production')}>
+          <span className="pr-count k-mono">
             {shown(shownList.length)}
+            <span className="k-sr"> {shownList.length === 1 ? 'production' : 'productions'}</span>
           </span>
           <div className="pr-tools">
             <Toolbar label="Productions">
@@ -437,6 +441,7 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
             <Disclosure summary={p.warnings.length === 1 ? 'Show the warning' : `Show the ${plural(p.warnings.length, 'warning')}`}>
               <ul className="pr-warning-list">
                 {p.warnings.map((w, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: project.yaml's warnings, replaced whole on each read, text only: the index is the identity
                   <li key={i}>
                     <Txt text={w.message} />
                   </li>

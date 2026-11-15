@@ -11,7 +11,7 @@
  */
 import { memo } from 'react';
 import type { TimelineView } from '@retake/engine';
-import { Txt } from '../bits.js';
+import { Txt, contentKeys } from '../bits.js';
 import { hrefTo } from '../route.js';
 import { cutWords, landingOf, segmentWords, timecode } from '../words/timeline-words.js';
 import { Track, TrackItem } from '../ui-kit/index.js';
@@ -39,6 +39,12 @@ function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps
   const u = view.untrusted;
   const fps = m.fps;
   const n = m.frames;
+  // Each item is its identity, never its frames: its step, else its scene and its rank there, so a retime (a speed
+  // change, a trim) keeps the items mounted and a focused one keeps its focus.
+  const stepKeys = contentKeys(m.steps, (s) => s.key);
+  const cameraKeys = contentKeys(m.camera, (z) => z.key);
+  const speedKeys = contentKeys(m.speed, (s) => s.scene);
+  const cutKeys = contentKeys(m.cuts, (c) => c.scene);
   const span = (from: number, to: number) => `${timecode(from, fps)} to ${timecode(to, fps)}`;
   const stepLabel = (key: string, action: string) => u.steps[key] ?? action;
   return (
@@ -97,7 +103,7 @@ function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps
           const label = s.step < 0 ? 'the page before its steps' : `step ${s.step + 1} ${stepLabel(s.key, s.action)}`;
           return (
             <TrackItem
-              key={`${s.key}:${i}`}
+              key={stepKeys[i]}
               variant="step"
               place={{ from: s.from, to: s.to }}
               frames={n}
@@ -118,7 +124,7 @@ function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps
           const words = `Zoom ${SPEED(z.zoom)} on step ${z.step + 1} of ${z.scene}${z.requested_zoom !== undefined && z.requested_zoom !== z.zoom ? ` (asked ${SPEED(z.requested_zoom)})` : ''}${z.source === 'theme' ? ', the theme’s' : ''}, ${span(z.from, z.to)}`;
           return (
             <TrackItem
-              key={`${z.key}:${i}`}
+              key={cameraKeys[i]}
               variant="camera"
               place={{ from: z.from, to: z.to }}
               frames={n}
@@ -142,7 +148,7 @@ function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps
             : `Speed ${SPEED(s.speed)}${s.to_speed !== s.speed ? ` to ${SPEED(s.to_speed)}` : ''} in scene ${s.scene}${s.protected ? ' (kept at its pace: a step that must read)' : ''}, ${span(s.from, s.to)}`;
           return (
             <TrackItem
-              key={`s${i}`}
+              key={speedKeys[i]}
               variant="speed"
               place={{ from: s.from, to: s.to }}
               frames={n}
@@ -160,7 +166,18 @@ function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps
         {m.cuts.map((c, i) => {
           const words = cutWords(c, fps);
           return (
-            <TrackItem key={`c${i}`} variant="cut" place={{ at: c.at }} frames={n} label={words} title={words} states={[c.reason]} testId="tl-cut" data={{ at: c.at }} onActivate={() => onSeek(c.at)}>
+            <TrackItem
+              key={cutKeys[i]}
+              variant="cut"
+              place={{ at: c.at }}
+              frames={n}
+              label={words}
+              title={words}
+              states={[c.reason]}
+              testId="tl-cut"
+              data={{ at: c.at }}
+              onActivate={() => onSeek(c.at)}
+            >
               <span aria-hidden="true">✂</span>
             </TrackItem>
           );

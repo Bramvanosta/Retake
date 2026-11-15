@@ -69,6 +69,7 @@ export const ThreadPanel = memo(function ThreadPanel({
 }) {
   const [loaded, reload] = useThreadGet({ project: slug, comment_id: id }, `${slug}\0${id}`);
   const first = useRef(true);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `tick` (a comments event) is the trigger to read the thread again
   useEffect(() => {
     if (first.current) {
       first.current = false;

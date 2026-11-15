@@ -371,6 +371,7 @@ export function Select({
 export function FieldRow({ label, hint, children }: { label: ReactNode; hint?: ReactNode; children: ReactNode }) {
   const id = useId();
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a row field (label and controls) named by its label; <fieldset> would bring its own border, padding and min-width
     <div className="k-field k-field-row" role="group" aria-labelledby={`${id}-label`}>
       <span id={`${id}-label`} className="k-field-label">
         {shown(label)}

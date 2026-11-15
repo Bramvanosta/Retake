@@ -45,6 +45,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+// biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
+type Untyped = any;
+
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const WANTED = process.env.RETAKE_TEST_BUNDLE === '1' && process.platform === 'darwin' && process.arch === 'arm64';
 const ENABLED = WANTED && existsSync(join(REPO, 'packages', 'cli', 'dist', 'bin.js'));
@@ -205,7 +208,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (gated: RE
       const ffmpeg = process.env.RETAKE_TEST_BUNDLE_FFMPEG;
       if (!ffmpeg) throw new Error('RETAKE_TEST_BUNDLE_FFMPEG=<folder with ffmpeg + ffprobe> (or RETAKE_TEST_BUNDLE_APP=<Retake.app>)');
       builtOut = process.env.RETAKE_TEST_BUNDLE_OUT ? join(process.env.RETAKE_TEST_BUNDLE_OUT) : join(base, 'out');
-      const { build } = (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs')).href)) as { build: (o: object) => Record<string, any> };
+      const { build } = (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs')).href)) as { build: (o: object) => Record<string, Untyped> };
       const r = build({ out: builtOut, ffmpeg, env: process.env, offline: true });
       app = r.app;
       report.build = { timings_ms: r.timings_ms, sizes: r.sizes, signatures: r.signatures, mach_o: r.mach_o, links: r.links, dmg: r.dmg };
@@ -442,7 +445,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (gated: RE
           headers: { authorization: `Bearer ${rec.token}`, 'content-type': 'application/json' },
           body: JSON.stringify(args),
         });
-        return { status: r.status, body: (await r.json()) as { data: Record<string, any>; error?: { details?: { reason?: string } } } };
+        return { status: r.status, body: (await r.json()) as { data: Record<string, Untyped>; error?: { details?: { reason?: string } } } };
       };
       const st = (await call('setup_status')).body.data;
       expect(st).toMatchObject({ available: true, location: 'ok', seen: false, app, workspace: made });

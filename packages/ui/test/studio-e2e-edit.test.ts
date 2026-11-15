@@ -121,7 +121,7 @@ async function settled(name: string): Promise<string> {
 async function centreColour(key: string): Promise<Rgb | null> {
   return row(key).evaluate((li) => {
     const img = li.querySelector('img');
-    if (!img || !img.complete || img.naturalWidth === 0) return null;
+    if (!img?.complete || img.naturalWidth === 0) return null;
     const c = document.createElement('canvas');
     c.width = img.naturalWidth;
     c.height = img.naturalHeight;

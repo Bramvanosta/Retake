@@ -42,10 +42,10 @@ const JOB_POLL_MS = 3000;
 export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: string; env: string; onDone: () => void }) {
   const [job, setJobState] = useState<JobLite | null>(null);
   const jobRef = useRef<JobLite | null>(null);
-  const setJob = (j: JobLite | null) => {
+  const setJob = useCallback((j: JobLite | null) => {
     jobRef.current = j;
     setJobState(j);
-  };
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const doneRef = useRef(onDone);
@@ -64,12 +64,13 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
         () => undefined,
       );
     },
-    [slug],
+    [slug, setJob],
   );
   const open = job !== null && UNFINISHED.has(job.state);
   useEvents((e) => {
     if (job && open && ((e.type === 'jobs' && e.changed.includes(job.id)) || e.type === 'resync')) refresh(job.id);
   });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the poll restarts for another job id only, not for each new job state object
   useEffect(() => {
     if (!job || !open) return;
     const t = setInterval(() => refresh(job.id), JOB_POLL_MS);

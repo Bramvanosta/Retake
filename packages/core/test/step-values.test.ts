@@ -34,8 +34,8 @@ const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SCENARIOS = join(ROOT, 'projects', 'northfield-fixture', 'scenarios');
 
 type Doc = { scenes: Array<{ id?: string; steps?: unknown[] }> };
-const valueOf = (t: string) => parseYaml(t).value as Doc;
-const stepsOf = (t: string, scene: string) => valueOf(t).scenes.find((s) => s.id === scene && Array.isArray(s.steps))!.steps!;
+const yamlValue = (t: string) => parseYaml(t).value as Doc;
+const stepsOf = (t: string, scene: string) => yamlValue(t).scenes.find((s) => s.id === scene && Array.isArray(s.steps))!.steps!;
 const at = (t: string, scene: string, index: number) => ({ scene, index, guard: stepGuard(stepsOf(t, scene)[index]) });
 const set = (t: string, scene: string, index: number, changes: FieldChange[]) => applyStepEdit(t, { kind: 'set_step', at: at(t, scene, index), changes });
 const change = (key: string, from: FormValue | undefined, to: FormValue | undefined): FieldChange => ({
@@ -68,7 +68,7 @@ function nodeLine(t: string, entry: number, index: number, path: string[]): { li
   let node: { range?: [number, number, number] } | undefined;
   while (k >= 0) {
     node = p.source.doc.getIn([...base, ...path.slice(0, k)], true) as typeof node;
-    if (node && node.range) break;
+    if (node?.range) break;
     k--;
   }
   const lineOf = (off: number) => t.slice(0, off).split('\n').length - 1;
@@ -151,7 +151,7 @@ describe('value edits on every step of the fixture scenarios (goldens)', () => {
     '%s: every field holding a value takes a new one (exactly its own line changes); on each step an optional value is removed and an absent modifier added (one line, or the same line); each re-parses to the intended value',
     (name) => {
       const text = readFileSync(join(SCENARIOS, name), 'utf8');
-      const v = valueOf(text);
+      const v = yamlValue(text);
       let n = 0;
       let k = 0;
       v.scenes.forEach((sc, entry) => {
@@ -212,7 +212,7 @@ describe('value edits on every step of the fixture scenarios (goldens)', () => {
 
   it.each(names)('%s: a new step from the palette at the start, the middle and the end of every scene adds exactly one line there and re-parses to the intended value', (name) => {
     const text = readFileSync(join(SCENARIOS, name), 'utf8');
-    const v = valueOf(text);
+    const v = yamlValue(text);
     const samples: Array<[string, Record<string, FormValue>]> = [
       ['click', { 'click.text': 'Save', 'click.in': 'dialog' }],
       ['type', { 'type.into.label': 'Message', 'type.text': 'Hello, world: "hi"', 'type.cps': 12 }],
@@ -239,7 +239,7 @@ describe('value edits on every step of the fixture scenarios (goldens)', () => {
   it('every fixture step of a palette action reads as form values that write back as the same step (raw → fields → raw: the same arguments; a one-value target as its shorthand)', () => {
     let total = 0;
     for (const name of readdirSync(SCENARIOS).filter((f) => f.endsWith('.yaml'))) {
-      for (const sc of valueOf(readFileSync(join(SCENARIOS, name), 'utf8')).scenes) {
+      for (const sc of yamlValue(readFileSync(join(SCENARIOS, name), 'utf8')).scenes) {
         for (const raw of sc.steps ?? []) {
           const form = stepFormValues(raw);
           if (!form || !(PALETTE_ACTIONS as readonly ActionName[]).includes(form.action) || form.yaml_only.length || Object.keys(form.locked).length) continue;

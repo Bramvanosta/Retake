@@ -4,7 +4,7 @@ import type { PointSpec } from '@retake/core/model';
 import { clamp } from './util.js';
 
 export function easeInOutCubic(u: number): number {
-  return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+  return u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
 }
 
 export function distance(a: PointSpec, b: PointSpec): number {

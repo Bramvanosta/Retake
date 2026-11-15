@@ -53,7 +53,7 @@ export function exportCommandLine(cli: string, r: { project: string; render_id: 
 }
 
 function checkFormats(formats: readonly string[] | undefined): ExportFormatName[] {
-  const list = formats && formats.length ? [...formats] : [...DEFAULT_JOB_EXPORT_FORMATS];
+  const list = formats?.length ? [...formats] : [...DEFAULT_JOB_EXPORT_FORMATS];
   for (const f of list) {
     if (!(EXPORT_FORMAT_NAMES as readonly string[]).includes(f)) throw new EngineError('invalid', `unknown export format "${String(f)}": use ${EXPORT_FORMAT_NAMES.join(', ')}`);
   }

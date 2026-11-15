@@ -534,7 +534,7 @@ describe('markers and interchange files (R-RAW-03)', () => {
     const lines = e.split('\n');
     expect(lines[0]).toBe('TITLE: catalogue raw');
     expect(lines[1]).toBe('FCM: NON-DROP FRAME');
-    const events = lines.filter((l) => /^\d{3}  /.test(l));
+    const events = lines.filter((l) => /^\d{3} {2}/.test(l));
     expect(events.length).toBe(plan.sequence.length);
     events.forEach((l, i) => {
       const s = plan.sequence[i];
@@ -598,7 +598,7 @@ describe('markers and interchange files (R-RAW-03)', () => {
     expect(
       writeEdl(lq, lm, f, meta)
         .split('\n')
-        .filter((l) => /^\d{3}  /.test(l)).length,
+        .filter((l) => /^\d{3} {2}/.test(l)).length,
     ).toBe(lq.sequence.length);
     // ProRes layers carry their clip's timecode: media time from the clip's sequence start.
     const later = lq.sequence[1];

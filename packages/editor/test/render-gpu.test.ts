@@ -577,7 +577,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
         );
       expect(failed).toBeInstanceOf(RenderError);
       expect(failed!.renderPath).toMatchObject({ gl: { asked: 'auto' }, encoder: { asked: 'auto' } });
-      expect(Object.prototype.hasOwnProperty.call(failed, 'path')).toBe(false);
+      expect(Object.hasOwn(failed ?? {}, 'path')).toBe(false);
       expect(existsSync(join(ws.root, 'driver-failure.mp4'))).toBe(false);
     },
     LONG,

@@ -75,7 +75,7 @@ let stub: Stub;
 let recCount = 0;
 
 function gate(): { promise: Promise<void>; open: () => void } {
-  let open = () => undefined as void;
+  let open: () => void = () => undefined;
   const promise = new Promise<void>((r) => {
     open = r;
   });

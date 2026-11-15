@@ -276,7 +276,7 @@ export function prepareBundle(
     problems.add(`the app's module lookup guard does not load (${errorMessage(e).split('\n')[0]}): reinstall Retake`);
   }
   const KEY = 'PLAYWRIGHT_BROWSERS_PATH';
-  const had = Object.prototype.hasOwnProperty.call(env, KEY);
+  const had = Object.hasOwn(env, KEY);
   const before = env[KEY];
   env[KEY] = b.paths.browsers;
   try {

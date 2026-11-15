@@ -21,10 +21,17 @@ export interface StudioShellFlag {
   titleBar: 'overlay' | 'standard';
 }
 
+declare global {
+  interface Window {
+    /** The desktop shell's flag (menu.rs SHELL_FLAG_JS); unknown until checked: a page script could set anything. */
+    __studioShell?: unknown;
+  }
+}
+
 export function studioShell(): StudioShellFlag | null {
-  const v = (window as unknown as { __studioShell?: unknown }).__studioShell;
+  const v = window.__studioShell;
   if (!v || typeof v !== 'object') return null;
-  const t = (v as { titleBar?: unknown }).titleBar;
+  const t = 'titleBar' in v ? v.titleBar : undefined;
   return { titleBar: t === 'overlay' ? 'overlay' : 'standard' };
 }
 

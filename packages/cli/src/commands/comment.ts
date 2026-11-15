@@ -187,7 +187,7 @@ export async function commentListCommand(ui: Ui, global: GlobalOptions, projectA
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   const list: CommentListView = await engineCall(() =>
-    listComments(ws.outputs.renders, project, {
+    listComments({ renders: ws.outputs.renders, stores: global.ports.stores }, project, {
       ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}),
       ...(opts.render !== undefined ? { render: opts.render } : {}),
       ...(opts.status !== undefined ? { status: opts.status } : {}),

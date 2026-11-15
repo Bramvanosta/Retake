@@ -535,7 +535,7 @@ export async function lintSkills(files: readonly SkillFile[], ctx: LintContext, 
     // Before you start, Rules, coverage.
     if (isSkill) {
       const before = section(text, 'Before you start');
-      if (!before || !before.includes('Call `engine_info`')) add(file, text, 0, 'rules', 'a "## Before you start" section that calls `engine_info` (a missing server is silent otherwise)');
+      if (!before?.includes('Call `engine_info`')) add(file, text, 0, 'rules', 'a "## Before you start" section that calls `engine_info` (a missing server is silent otherwise)');
       else {
         const flat = before.replace(/\s+/g, ' ');
         for (const r of [...BEFORE_RULES, ...(SKILL_BEFORE[dir] ?? [])]) if (!flat.includes(r)) add(file, text, text.indexOf('## Before you start'), 'rules', `"## Before you start" lacks "${r}"`);
