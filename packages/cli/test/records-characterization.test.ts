@@ -1,5 +1,5 @@
 /**
- * The run `latest` names at a terminal (L7.6a) — `retake plan`, as render, still and export-capture: one rule, the
+ * The run `latest` names at a terminal — `retake plan`, as render, still and export-capture: one rule, the
  * editor's findRun — state by state, with what the command says of it on stderr (the newer captures passed over, a
  * capture stopped by `--until`), and the plan command's own refusals. The states are those of
  * test-support/src/records/states.json (OLD: a good capture of `quote`; NEW: the state named), one project per state
@@ -95,7 +95,7 @@ const LATEST: Record<string, string> = {
   t5: 'NEW',
   t6: 'NEW | run NEW stops at step catalog.1 (`--until`): the capture holds the scenario up to there', // U-1: NEW, and now said
   t7: PASSED(UNFINISHED), // D-1: was NEW (its record still says running: its process is gone, and naming it works)
-  t9: PASSED('its files are links'), // D-7 (small point 3.1): was NEW
+  t9: PASSED('its files are links'), // D-7: was NEW
   hr: PASSED('its timeline does not read'), // a timeline made by hand (no run id): was NEW; named, it plans as before (below)
   hf: PASSED('its timeline does not read'), // the same, its capture block naming no film
   v: 'NEW', // D-8: a record of a later version of the same format
@@ -159,7 +159,7 @@ describe('the run `latest` names at a terminal, state by state', () => {
     writeRunFolder(join(b.runs, failed), failed, b.slug, STATES.states.c);
     expect(await latest(b)).toBe(`OLD | run OLD is used: 2 newer captures of "quote" passed over — ${failed} (failed); NEW (not finished, or interrupted) (name one with --run <id>)`);
     expect(await latest(state('a'))).toBe('OLD | run OLD is used: 1 newer capture of "quote" passed over — NEW (not finished, or interrupted) (name one with --run <id>)');
-    // T-7: the record says running, the process died at the very end — naming the run works, as the line says.
+    // The record says running, the process died at the very end — naming the run works, as the line says.
     expect(await latest(state('t7'))).toBe(PASSED(UNFINISHED));
     const named = await retake('plan', 's-t7', STATES.new, '--json');
     expect([named.code, named.err]).toEqual([EXIT.ok, '']);
@@ -292,20 +292,20 @@ describe('the run `latest` names at a terminal, state by state', () => {
   }, 120_000);
 });
 
-// ── The render records at a terminal (L7.6b), state by state ────────────────
+// ── The render records at a terminal, state by state ────────────────
 //
 // `retake review` and `retake export` with `latest` and with the file's name, and `retake prune`, on the states of
 // test-support/src/records/render-states.json. Each cell holds the exit code, the notes the command says first
 // (`! …`: what `latest` passed over, a record renamed by hand) and its first other line of stderr (a stack is cut;
-// sizes and times are not compared). The cells were written before the lot (its P0) and flipped by its parts on
-// purpose: a cell that changed is marked `moved: <row>` (the lead's plan §4 and §1b) and says what it held before.
+// sizes and times are not compared). The cells were written first and flipped since on purpose: a cell that changed
+// is marked `moved: <row>` and says what it held before.
 //
-// The `prune` column is done: the lot's prune part flipped its cells (rows 1 to 5, 10, 12 to 15, 19, 20 and 28 — a
+// The `prune` column is done: its cells were flipped (rows 1 to 5, 10, 12 to 15, 19, 20 and 28 — a
 // file of renders/ that is no render of its own name, or a record that lacks a member, is left alone with a line
 // `kept render <file> <reason>`, and the take it names with a line `kept run`; where prune stopped on a raw TypeError
-// it answers its first list) — each on purpose, none other moved. The `review` and `export` columns were flipped by
-// the editor part: a terminal's `latest` takes the newest succeeded complete record whatever its file is called and
-// the command then works on THAT FILE (ruling 2: never a second lookup by the id it says); what it passed over is one
+// it answers its first list) — each on purpose, none other moved. The `review` and `export` columns were flipped
+// too: a terminal's `latest` takes the newest succeeded complete record whatever its file is called and
+// the command then works on THAT FILE (never a second lookup by the id it says); what it passed over is one
 // line; a record renamed by hand is said in one line, and refused only when its video is now another render's.
 //
 // The fixture's plan is too thin for a whole review: one that found its render and the render it compares with stops
@@ -375,10 +375,10 @@ describe('the render records at a terminal, state by state', () => {
     prune: (b: BuiltRenders) => said(b, 'prune', b.slug),
   };
   type RRow = Record<keyof typeof rsites, string>;
-  // Fix pass of L7.6b — moved, in 25 cells, each on purpose: (H2) a record whose id is another file's of renders/ (a
+  // Moved, in 25 cells, each on purpose: a record whose id is another file's of renders/ (a
   // copy, quote-v1-backup, keep.json saying quote-v1) is exported and reviewed under its own file's name — before:
   // into exports/quote-v1, the real render's — and the line about it says so (`— its exports and review are named
-  // …`, also for an empty id); (review B L-8) prune's `kept:` counts the files of renders/ that are no render apart
+  // …`, also for an empty id); prune's `kept:` counts the files of renders/ that are no render apart
   // (`1 render and 1 other file of renders/`; before: `2 renders`).
   const RTABLE: Record<string, RRow> = {
     ctl: {
@@ -694,12 +694,12 @@ describe('the render records at a terminal, state by state', () => {
   }, 240_000);
 });
 
-// ── A review at a terminal run to its end (L7.6b fix pass, review B M-6) ───────────────────────────────────────
+// ── A review at a terminal run to its end ───────────────────────────────────────
 // The table above stops every review in its checks: the fixture's plan holds one card and no `source`, `layout` or
 // `frame` (a planned plan's), and the checks read `plan.source.fps` — the cell `review starts` says it got past the
 // render's lookup and the render compared with. Here real synthetic renders (the review's own test helpers: a capture
 // drawn by ffmpeg, a plan made by the planner, a render drawn from it) are reviewed and exported through the CLI to
-// their end: by `latest` and by name, and — the fix pass's H2 — a renamed newest record whose id is a live render's.
+// their end: by `latest` and by name, and a renamed newest record whose id is a live render's.
 describe('a review and an export at a terminal, run to their end on real synthetic renders', () => {
   const can = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0 && spawnSync('ffprobe', ['-version'], { stdio: 'ignore' }).status === 0;
   it.skipIf(!can)(
@@ -740,7 +740,7 @@ describe('a review and an export at a terminal, run to their end on real synthet
         expect(exported('clean-v1')).toBe('clean-v1-1080p.mp4');
         const keptReview = readFileSync(dir('review', 'clean-v1', 'report.json'));
         const keptExport = readFileSync(dir('exports', 'clean-v1', 'manifest.json'));
-        // H2: clean-v2 renamed by hand to clean-final, its video too, its `file` corrected — and its id made clean-v1's.
+        // clean-v2 renamed by hand to clean-final, its video too, its `file` corrected — and its id made clean-v1's.
         const v2 = JSON.parse(readFileSync(dir('renders', 'clean-v2.json'), 'utf8')) as Record<string, unknown>;
         renameSync(dir('renders', 'clean-v2.mp4'), dir('renders', 'clean-final.mp4'));
         rmSync(dir('renders', 'clean-v2.json'));

@@ -1,4 +1,4 @@
-//! The installed app's first run and Set-up sheet (L5.16c, DESIGN §4p (c)): where the app runs from (critique H1),
+//! The installed app's first run and Set-up sheet (DESIGN §4p (c)): where the app runs from,
 //! the first-run alert (no workspace yet), the `studio:setup` page event of the Help menu, and the lines the shell
 //! writes on the server's stdin for the sheet (the folder picked in the native panel for the `retake` command, the
 //! notification permission's state). Words and shapes only — main.rs shows the alert and the panel, child.rs writes
@@ -108,8 +108,8 @@ pub fn setup_page_js(section: Option<&str>) -> Option<String> {
 pub const SHELL_PATH_MAX: usize = 4096;
 
 /// The longest line the shell writes on the server's stdin, in BYTES (UTF-8, its newline not counted): ui shell-line.ts
-/// SHELL_LINE_MAX and the CLI's stdin reader drop anything longer (L5.16d review B-L4: a cap in characters is not one in
-/// bytes — a JSON escape is 6 bytes, a character up to 4).
+/// SHELL_LINE_MAX and the CLI's stdin reader drop anything longer (a cap in characters is not one in bytes — a JSON
+/// escape is 6 bytes, a character up to 4).
 pub const SHELL_LINE_MAX: usize = 8192;
 
 /// A line the server will take: at most SHELL_LINE_MAX bytes, no newline inside.
@@ -129,7 +129,7 @@ pub fn cli_folder_line(path: &Path) -> Option<String> {
 
 pub const CLI_FOLDER_CANCELLED_LINE: &str = "{\"type\":\"cli_folder_cancelled\"}";
 
-/// Sent just before the folder panel shows (review c A-L7): the sheet says "choose in the panel" only after it.
+/// Sent just before the folder panel shows: the sheet says "choose in the panel" only after it.
 pub const CLI_FOLDER_OPEN_LINE: &str = "{\"type\":\"cli_folder_open\"}";
 
 /// The notification permission as the server shows it: on, off, or not known.
@@ -146,7 +146,7 @@ pub fn notifications_line(granted: Option<bool>) -> String {
 mod tests {
     use super::*;
 
-    /// Critique H1: the paths of a translocated copy, the mounted disk image and an external disk are each caught; an
+    /// The paths of a translocated copy, the mounted disk image and an external disk are each caught; an
     /// app in /Applications or ~/Applications is Ok — the same cases as the engine's integrations/app-setup.ts
     /// `installLocation`.
     #[test]
@@ -208,7 +208,7 @@ mod tests {
         assert_eq!(cli_folder_line(Path::new("/a\nb")), None);
         assert_eq!(cli_folder_line(&PathBuf::from(format!("/{}", "a".repeat(SHELL_PATH_MAX)))), None);
         assert!(cli_folder_line(&PathBuf::from(format!("/{}", "a".repeat(SHELL_PATH_MAX - 1)))).is_some());
-        // L5.16d review B-L4: the line's cap counts bytes — 4095 four-byte characters fit the path's 4096 characters, not
+        // The line's cap counts bytes — 4095 four-byte characters fit the path's 4096 characters, not
         // the server's 8192 bytes.
         assert_eq!(cli_folder_line(&PathBuf::from(format!("/{}", "\u{1f600}".repeat(SHELL_PATH_MAX - 1)))), None);
         assert!(fits_shell_line(&"a".repeat(SHELL_LINE_MAX)) && !fits_shell_line(&"a".repeat(SHELL_LINE_MAX + 1)) && !fits_shell_line("a\nb"));

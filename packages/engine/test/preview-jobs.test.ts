@@ -1,11 +1,11 @@
 /**
- * L3.2 themes, components and `preview` jobs (engine templates.ts, components.ts, jobs/preview-job.ts), in a temporary
+ * Themes, components and `preview` jobs (engine templates.ts, components.ts, jobs/preview-job.ts), in a temporary
  * workspace (the repository root is itself a workspace: a component created there would land in <repo>/components/):
  * template list / detail, component list / get / validate / create (and its refusals: the built-in namespace, a
  * built-in id); a component preview with slot values and params and a theme preview rendered by the worker (in this
  * process, `once`) into .retake/previews/<id>/ — the built-in component's folder is left byte for byte; a guarded
  * preview of a workspace component that reaches for a second local server (B gets nothing, the origin is a warning);
- * refusals at submit; a cancel before start (on the in-memory renderer, L7.37); previews count nothing in the history.
+ * refusals at submit; a cancel before start (on the in-memory renderer); previews count nothing in the history.
  * Needs ffmpeg and a headless shell.
  */
 import { createHash } from 'node:crypto';
@@ -260,7 +260,7 @@ describe.skipIf(!canRender)('preview jobs', () => {
 });
 
 /**
- * L7.37: a cancel before start is the engine's (the worker closes the job before any render): its worker runs on the
+ * A cancel before start is the engine's (the worker closes the job before any render): its worker runs on the
  * in-memory renderer, which shows nothing reached it. renderComponentPreviews' own stop on an aborted signal is the
  * editor's, called directly. The real renders (pixels, a theme's images, the guard) are the cases above.
  */

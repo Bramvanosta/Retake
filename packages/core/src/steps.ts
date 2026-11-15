@@ -235,7 +235,7 @@ export function resolveStepRef(s: Scenario, ref: string): { sceneIndex: number; 
   return null;
 }
 
-// ── Step fingerprints (comments.ts's until L7.35: a step's identity, read by the comments, the filmed part and the step match) ──
+// ── Step fingerprints (a step's identity, read by the comments, the filmed part and the step match) ──
 
 /**
  * The fingerprint of a raw scenario step: the first 12 hex characters of the sha256 of its action and normalised

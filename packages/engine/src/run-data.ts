@@ -1,10 +1,10 @@
 /**
- * What the scenario screen needs of a run (L4.2): run.json, timeline.json, the scenario snapshot, the dry-run
- * screenshots' names, frame indexes — read through RunFolder (critique B6) and held in memory, keyed by the run folder
- * and the signatures of its files (critique B4: by run id + the run's own keys, never today's scenario). Nothing here
+ * What the scenario screen needs of a run: run.json, timeline.json, the scenario snapshot, the dry-run
+ * screenshots' names, frame indexes — read through RunFolder and held in memory, keyed by the run folder
+ * and the signatures of its files (by run id + the run's own keys, never today's scenario). Nothing here
  * writes a file.
  *
- * The frame of a step (critique B3): the picture on screen at the end of the step, after its hold — capture time
+ * The frame of a step: the picture on screen at the end of the step, after its hold — capture time
  * T = `hold.t_end ?? t_end` — on the capture's CFR grid, as the runner's encoder made the video (runner-web
  * cfrSchedule): output frame n = min(floor(T·fps), frames − 1) with frames = round(duration·fps); kept frames give the
  * latest frame stamped at or before n/fps (+ 0.5 ms), the video the frame at n (seek to (n − ¼)/fps: an input seek
@@ -48,7 +48,7 @@ export function errorScreenshotName(scene: string, step: number): string {
   return `error-${fileSlug(scene)}-${step}.png`;
 }
 
-/** Output frame of capture time `t` on a CFR grid of `count` frames (critique B3: floor, clamped to the last frame). */
+/** Output frame of capture time `t` on a CFR grid of `count` frames (floor, clamped to the last frame). */
 export function gridFrame(t: number, fps: number, count: number): number {
   if (!(fps > 0) || !Number.isFinite(t)) return 0;
   return Math.max(0, Math.min(Math.max(1, count) - 1, Math.floor(t * fps + 1e-6)));
@@ -135,7 +135,7 @@ export class RunData {
   ) {
     for (const s of timeline?.scenes ?? []) if (isObj(s) && typeof s.id === 'string' && !this.scenes.has(s.id)) this.scenes.set(s.id, s);
     for (const e of timeline?.events ?? []) {
-      // scene_open, scene_still and notifications have step −1: they belong to no step (critique B12).
+      // scene_open, scene_still and notifications have step −1: they belong to no step.
       if (!isObj(e) || typeof e.scene !== 'string' || !Number.isInteger(e.step) || e.step < 0 || !ACTIONS.has(e.action)) continue;
       const key = `${e.scene}.${e.step}`;
       if (!this.events.has(key)) this.events.set(key, e);
@@ -219,7 +219,7 @@ export class RunDataCache {
   async get(projectDir: string, runId: string): Promise<RunData | null> {
     const folder = await RunFolder.open(projectDir, runId);
     if (!folder) return null;
-    // A multi-page run's pictures are in its tracks' files: their signatures count too (review A #8).
+    // A multi-page run's pictures are in its tracks' files: their signatures count too.
     const sig = (await Promise.all([...SIGNED, ...(await trackFiles(folder))].map(async (n) => `${n}=${await folder.sig(n)}`))).join('|');
     const key = folder.dir;
     const cached = this.entries.get(key);

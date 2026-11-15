@@ -222,7 +222,7 @@ export const ghost = {
  */
 export function installCursor(): void {
   if (config.passive) {
-    // The recorder's copy (L3.4): in an isolated world, it draws nothing, patches nothing and listens to nothing.
+    // The recorder's copy: in an isolated world, it draws nothing, patches nothing and listens to nothing.
   } else if (isTop) {
     buildOverlay();
     awaitFirstPaint();

@@ -12,7 +12,7 @@ export interface ProgramContext {
   readonly action: Action;
 }
 
-/** L5.14: heavy commands wait for a take filming on this Mac, then yield to later ones; `--no-wait` skips both. */
+/** Heavy commands wait for a take filming on this Mac, then yield to later ones; `--no-wait` skips both. */
 export const NO_WAIT = 'start at once even while a take films on this Mac (default: wait for it, then go on at background priority during later takes)';
 
 /** A repeatable option's parser: each value appended. */

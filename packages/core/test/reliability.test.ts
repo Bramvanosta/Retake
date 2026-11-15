@@ -1,5 +1,5 @@
 /**
- * L5.6 — capture reliability, the scenario language side: `defaults: {timeout_s}` in project.yaml and a scenario
+ * Capture reliability, the scenario language side: `defaults: {timeout_s}` in project.yaml and a scenario
  * (R-FLD-14), a persona's `email` and `wait_for_email {to: persona:<name>}` (R-FLD-15), `retry_click` (R-FLD-12),
  * `capture.step_shots` and the run record's `optional_failures` / `error.missing_targets` (R-FLD-10, R-FLD-16).
  */
@@ -12,7 +12,7 @@ import type { LoadedProject, SandboxManifest, ValidationIssue } from '@retake/co
 import { errors, warnings } from './helpers.js';
 import { memoryFileFacts } from '@retake/core';
 
-/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+/** No disk: these checks are handed a project but look at no file (a FileFacts is required beside a project). */
 const NO_DISK = memoryFileFacts({});
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);

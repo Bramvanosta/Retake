@@ -1,5 +1,5 @@
 /**
- * The page's session (L4.1, critique B9): the URL `retake ui` opens carries a one-time bootstrap code in its fragment
+ * The page's session: the URL `retake ui` opens carries a one-time bootstrap code in its fragment
  * (`#c=…`, never sent to a server, a referrer or a log). The page removes it from the address bar and history at once,
  * exchanges it over a same-origin `POST /v1/session` for the session token, and keeps the token in sessionStorage (this
  * tab only; it survives a reload). A tab without a token — or whose token the server no longer knows — shows that the

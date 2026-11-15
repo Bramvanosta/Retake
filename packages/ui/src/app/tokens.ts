@@ -1,14 +1,13 @@
 /**
- * L5.9: the Studio's tokens, the ONE file for both appearances (docs/reference/studio-ui.md, DESIGN §4k). Pure data;
- * `tokensCss()` writes `tokens.css` from it (`pnpm -F @retake/ui gen:tokens`; a test fails when the committed file
+ * The Studio's tokens, the ONE file for both appearances (docs/reference/studio-ui.md, DESIGN §4k). Pure data;
+ * `tokensCss` writes `tokens.css` from it (`pnpm -F @retake/ui gen:tokens`; a test fails when the committed file
  * differs). Dark is the default and follows the system: no preference or `dark` → dark, `prefers-color-scheme: light` →
  * light; a `data-appearance` scope (the gallery's columns) forces one inside the page.
  * - `UI_COLOURS` — the design system's semantic set (`--ui-*`), read by the kit (`ui-kit/`), the shell, the screens and
  *   the page's base (base.css).
  * - `UI_STATIC` — appearance-free tokens: type, spacing, radii, sizes, the font stacks.
  * - `MARK_INK` — the app mark's fixed palette (the desktop icon, the favicon); the in-app mark reads `--ui-mark-*`.
- * L5.12d: the L4.1 – L4.9 palette (`--bg`, `--fg` …) and its appearance-free tokens went with the legacy layer (app.css):
- * every token is a `--ui-*` one.
+ * Every token is a `--ui-*` one.
  * No token is built from another (every value is a literal); the font files are the bundled Geist pair (BL-120),
  * served by the Studio's own origin (`/fonts/…`, bundle.ts).
  */
@@ -26,7 +25,7 @@ export const UI_COLOURS: Record<string, Pair> = {
   pane: { dark: '#18191c', light: '#ececee' },
   raised: { dark: '#25272b', light: '#dfe0e4' },
   'raised-hi': { dark: '#2b2d32', light: '#ffffff' },
-  // Fields and the segmented well are sunken, as the canvas draws them (review B-L2).
+  // Fields and the segmented well are sunken, as the canvas draws them.
   field: { dark: '#111214', light: '#ffffff' },
   well: { dark: '#111214', light: '#e2e3e6' },
   overlay: { dark: '#222428', light: '#ffffff' },
@@ -48,13 +47,13 @@ export const UI_COLOURS: Record<string, Pair> = {
   'danger-text': { dark: '#ff7b72', light: '#b42318' },
   // Marks (non-text, ≥ 3:1 where they stand)
   ring: { dark: '#4c8dff', light: '#2f6fe0' },
-  // L5.12c fixes (review A-L6): a pressed toggle's bar (Play) — its own colour, not the focus ring's.
+  // A pressed toggle's bar (Play) — its own colour, not the focus ring's.
   pressed: { dark: '#a3c4ff', light: '#1b45ad' },
   ok: { dark: '#4cd27a', light: '#1a8d4c' },
   warn: { dark: '#f2b84b', light: '#a86d14' },
   fail: { dark: '#ff7b72', light: '#d93a30' },
   record: { dark: '#ff453a', light: '#d93a30' },
-  // (Never a text or track colour's value: the checker reads a colour back to its status family — review A-L7.)
+  // (Never a text or track colour's value: the checker reads a colour back to its status family.)
   idle: { dark: '#9fa4ae', light: '#6b7079' },
   waiting: { dark: '#7d828c', light: '#7a7f89' },
   track: { dark: '#6b7079', light: '#7d828c' },
@@ -64,7 +63,7 @@ export const UI_COLOURS: Record<string, Pair> = {
   'field-line': { dark: '#43464d', light: '#d3d5da' },
   backdrop: { dark: 'rgba(6, 7, 8, 0.55)', light: 'rgba(22, 24, 29, 0.35)' },
   shadow: { dark: 'rgba(0, 0, 0, 0.55)', light: 'rgba(0, 0, 0, 0.18)' },
-  // L5.13b: the "two takes" mark (mark.ts, ui-kit AppMark) — its plate a quiet lift on dark surfaces (≈ 1.3:1 on the
+  // The "two takes" mark (mark.ts, ui-kit AppMark) — its plate a quiet lift on dark surfaces (≈ 1.3:1 on the
   // title bar: the blue take carries the mark; an ink plate would vanish), the ink plate in light (the canvas's light
   // plate cannot carry a plate-coloured triangle); the takes the same in both. Contrast pairs: app-source.test.ts.
   'mark-plate': { dark: '#2a2e37', light: '#141823' },
@@ -73,7 +72,7 @@ export const UI_COLOURS: Record<string, Pair> = {
 };
 
 /**
- * L5.13b: the mark's fixed ink palette (mark.ts `MarkPalette`) — the desktop icon (gen:mark) and the favicon, which
+ * The mark's fixed ink palette (mark.ts `MarkPalette`) — the desktop icon (gen:mark) and the favicon, which
  * cannot follow the page's appearance (BL-124: "on an ink plate").
  */
 export const MARK_INK = { plate: '#141823', back: '#3d7bff', front: '#f4f5f7' } as const;
@@ -124,7 +123,7 @@ export const UI_STATIC: Record<string, string> = {
   mark: '7px',
   'card-w': '248px',
   'overlay-w': '560px',
-  /** L5.12b: the command palette's width (R4-Palette). */
+  /** The command palette's width (R4-Palette). */
   'palette-w': '640px',
   /** The window buttons' room at the title bar's left (0 on the web; 80px under the desktop's overlay title bar). */
   'titlebar-inset': '0px',
@@ -152,7 +151,7 @@ export function tokenMap(a: Appearance): Map<string, string> {
 const block = (selector: string, scheme: Appearance, decls: Map<string, string>, indent = '') =>
   `${indent}${selector} {\n${indent}  color-scheme: ${scheme};\n${[...decls].map(([k, v]) => `${indent}  ${k}: ${v};`).join('\n')}\n${indent}}\n`;
 
-/** The dialogs' veil for one appearance, declared on `selector` (review A-L9). */
+/** The dialogs' veil for one appearance, declared on `selector`. */
 const veils = (selector: string, a: Appearance, indent = '') =>
   `${indent}${selector} {\n${[...colourTokens(a)]
     .filter(([k]) => k === '--ui-backdrop')

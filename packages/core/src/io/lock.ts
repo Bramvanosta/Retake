@@ -9,7 +9,7 @@
  * same file: two commands finding the same stale lock never both take it. Released when the command ends, and
  * synchronously if the process exits first.
  *
- * A file lock of core's io side (L7.25: from @retake/sandbox, which re-exports it): the sandbox's take lock, and the
+ * A file lock of core's io side (from @retake/sandbox, which re-exports it): the sandbox's take lock, and the
  * engine's project locks (project-lock.ts) and worker lock (jobs/lock.ts: createExclusive, breakStale) are made with it.
  */
 import { randomBytes } from 'node:crypto';

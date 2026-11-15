@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The desktop shell's commands (L5.2; docs/guide/desktop-app.md "Desktop app (macOS)") — `pnpm desktop:<command>`:
+ * The desktop shell's commands (docs/guide/desktop-app.md "Desktop app (macOS)") — `pnpm desktop:<command>`:
  *
  * - `dev [--root <workspace>] [--route '#/p/…']` — a debug build, run with this Node.js and the repository's built CLI
  *   (RETAKE_NODE / RETAKE_CLI: a debug build honours them).
@@ -81,7 +81,7 @@ function version() {
 
 /**
  * macOS asks before a process of the app reaches the local network (a capture of a product on another machine of the
- * network: the worker and its browser are the app's children — critique M8). Also the bundled app's (bundle.mjs).
+ * network: the worker and its browser are the app's children). Also the bundled app's (bundle.mjs).
  */
 export const LOCAL_NETWORK_USAGE = `${PRODUCT} captures web apps you point it at, which may run on your local network.`;
 export const APP_CATEGORY = 'public.app-category.developer-tools';
@@ -125,7 +125,7 @@ function run(cmd, args, env = process.env) {
 }
 
 /**
- * L5.13b: the icns slots drawn for their size — the mark's tiny (16 pt) and small (32 pt) drawings, file → pixel size
+ * The icns slots drawn for their size — the mark's tiny (16 pt) and small (32 pt) drawings, file → pixel size
  * (`pnpm -F @retake/ui gen:mark` writes them to icons/iconset/; mark.ts MARK_ICONSET, a test compares the two lists).
  */
 export const DRAWN_ICONS = Object.freeze({ 'icon_16x16.png': 16, 'icon_16x16@2x.png': 32, 'icon_32x32.png': 32, 'icon_32x32@2x.png': 64 });
@@ -154,9 +154,9 @@ export function drawnIconProblems(dir = join(APP_DIR, 'icons', 'iconset')) {
 }
 
 /**
- * icon.png (1024²) → icon.icns through an iconset (sips + iconutil, both part of macOS). L5.13b: the 16 and 32 pt slots
+ * icon.png (1024²) → icon.icns through an iconset (sips + iconutil, both part of macOS). The 16 and 32 pt slots
  * are the drawn icons of icons/iconset/ (required, sizes checked), the larger ones are downscaled from icon.png. Also
- * the bundled app's icon (bundle.mjs, L5.16: `env`, the build's allow-listed environment).
+ * the bundled app's icon (bundle.mjs: `env`, the build's allow-listed environment).
  */
 export function icns(out, env = process.env) {
   const problems = drawnIconProblems();

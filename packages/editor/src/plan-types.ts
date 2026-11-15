@@ -95,7 +95,7 @@ export interface ResolvedComponent {
   source: 'theme' | 'scenario' | 'override' | 'builtin-default';
   /**
    * The run artefacts its `email` / `document` / `notification` slots name (key = slot name), with `retake-asset:` image
-   * URLs (L2.9). Handed to the component as `props.media`.
+   * URLs. Handed to the component as `props.media`.
    */
   media?: Record<string, MediaValue>;
   /**
@@ -152,7 +152,7 @@ export interface OverlayUse {
    * the runner recorded no anchor.
    */
   anchor?: { bbox?: BBox; point?: PointSpec };
-  /** L2.10: the tutorial overlay this use is (absent: a step `overlay`). */
+  /** The tutorial overlay this use is (absent: a step `overlay`). */
   tutorial?: Exclude<TutorialFeatureName, 'progress'>;
   /** `screen`: drawn right over the capture, under the caption, the brand mark and the other overlays (a spotlight's dim). */
   layer?: 'screen';
@@ -166,12 +166,12 @@ export interface OverlayUse {
   /** A capture region (source CSS px) the composition renders as the component's `screen` (the typing loupe). */
   region?: BBox;
   /**
-   * Multi-page clips (L2.11): the pane of the page the step acted on — anchor, track, region and `rects.screen` are that
+   * Multi-page clips: the pane of the page the step acted on — anchor, track, region and `rects.screen` are that
    * page's (source CSS px of its track; the spotlight dims only that page).
    */
   pane?: number;
   /**
-   * What the overlay must not cover while it shows (L2.11 polish): the targets of the step it belongs to and of the next
+   * What the overlay must not cover while it shows: the targets of the step it belongs to and of the next
    * click step(s), in SOURCE CSS px of its page, over frames [from, to) relative to the overlay. The composition maps
    * them per frame and adds them to `avoid` (kind `target`): key caps take another slot, a lens or a badge another side.
    * `pane`: a box of another page than the overlay's (an inset page's key caps or lens are drawn over the main page,
@@ -179,7 +179,7 @@ export interface OverlayUse {
    */
   clear?: Array<{ from: number; to: number; bbox: BBox; pane?: number }>;
   /**
-   * A box-filling overlay (L2.12: a user video, image or Lottie file — or any overlay given `anchor` / `rect` / `scale`):
+   * A box-filling overlay (a user video, image or Lottie file — or any overlay given `anchor` / `rect` / `scale`):
    * the box the component fills (`ComponentProps.anchor`), evaluated per frame by the composition (`overlayBoxAt`).
    * `rect` (target, cursor, rect anchors): a box of its page in SOURCE CSS px, mapped through the layout, the camera and
    * the reframe like any anchor; a position of the screen (`center`, `top-right`…): `size` (source CSS px, scaled like
@@ -188,7 +188,7 @@ export interface OverlayUse {
   box?: { anchor: OverlayAnchor | 'rect'; rect?: BBox; size?: { w: number; h: number } };
 }
 
-/** The video-wide chapter progress bar (L2.10): drawn over every segment between the intro and the outro. */
+/** The video-wide chapter progress bar: drawn over every segment between the intro and the outro. */
 export interface PlanProgress {
   component: ResolvedComponent;
   /** Output frames [from, from + durationInFrames). */
@@ -200,7 +200,7 @@ export interface PlanProgress {
   chapters: ProgressChapter[];
 }
 
-/** Tutorial overlays of a plan (L2.10). */
+/** Tutorial overlays of a plan. */
 export interface PlanTutorial {
   /** Uses per overlay (shortcuts, spotlight, steps, loupe; progress = 1 when the bar is shown). */
   uses: Partial<Record<TutorialFeatureName, number>>;
@@ -231,7 +231,7 @@ export interface TrimSpan {
   src_to_s: number;
   /**
    * Why the planner cut it (timing.ts RunCut): a shortened idle gap, a held page load, a frozen screen, a wait after a
-   * click, an off-camera hook step. Absent in plans made before L4.5's fixes.
+   * click, an off-camera hook step. Absent in older plans.
    */
   reason?: 'idle' | 'loading' | 'frozen' | 'busy' | 'hook';
 }
@@ -296,7 +296,7 @@ export interface CardSegment extends SegmentBase {
   kind: 'card' | 'interstitial';
   /**
    * The words of its text slots and the seconds they need (R-FLD-03: 250 words a minute + 1.5 s); the review warns when
-   * the card is shorter. Absent without text (a file, a mail image) and in plans made before L5.5.
+   * the card is shorter. Absent without text (a file, a mail image) and in older plans.
    */
   reading?: { words: number; seconds: number };
   /** Interstitials are drawn over the dimmed last frame of the previous clip (source frame index), if any. */
@@ -320,7 +320,7 @@ export interface ClipSegment extends SegmentBase {
   /** Per-output-frame camera, or null when the camera is static (zoom 1) for the whole segment. */
   camera: CameraFrame[] | null;
   /**
-   * URL shown by the browser-chrome frame, from relative frame `frame` onwards: the display URL (L1.7, `plan.display`);
+   * URL shown by the browser-chrome frame, from relative frame `frame` onwards: the display URL (`plan.display`);
    * `hidden` — a local URL without a display one (its real URL): the bar shows no address there (urlAt), the entry
    * still marks the navigation (review).
    */
@@ -350,7 +350,7 @@ export interface ClipSegment extends SegmentBase {
   /** Number of trailing frames that repeat the last source frame (outgoing side of a crossfade / fade). */
   heldFrames: number;
   /**
-   * Multi-page scene (L2.11): its pages in the layout's order, each from its own track. Every track is CFR on the
+   * Multi-page scene: its pages in the layout's order, each from its own track. Every track is CFR on the
    * capture clock, so `srcFrames` indexes all of them: the panes play from the same source time.
    */
   panes?: PlanPane[];
@@ -360,7 +360,7 @@ export interface ClipSegment extends SegmentBase {
   inset?: PlanInset;
 }
 
-// ── Multi-page clips (L2.11) ─────────────────────────────────────────────────
+// ── Multi-page clips ─────────────────────────────────────────────────
 
 /** A recorded video the plan shows: the main capture (`plan.source`) or a page's own track (`plan.tracks`). */
 export interface PlanSource {
@@ -494,31 +494,31 @@ export interface EditPlan {
     fps: number;
     frames: number;
   };
-  /** Per-page tracks of multi-page scenes (L2.11), by key (`PlanPane.track`); every one on the capture's frame grid. */
+  /** Per-page tracks of multi-page scenes, by key (`PlanPane.track`); every one on the capture's frame grid. */
   tracks?: Record<string, PlanSource>;
   segments: PlanSegment[];
   captions: CaptionCue[];
   /**
    * Timeline markers (`mark:` steps) in output frames: `frame` = the marked step's start (the timeline marker),
    * `done` = the screen once that step is done (a marked wait's awaited state; `markDoneAt`), clamped to the clip.
-   * `step` / `step_id` / `action`: the marked step (L3.6 — a satisfied wait owns no frame of `ClipSegment.steps`; a
-   * frame comment inside the marker window names this step). Absent in plans made before L3.6.
+   * `step` / `step_id` / `action`: the marked step (a satisfied wait owns no frame of `ClipSegment.steps`; a frame
+   * comment inside the marker window names this step). Absent in older plans.
    */
   markers: Array<{ name: string; frame: number; scene: string; done?: number; step?: number; step_id?: string; action?: string }>;
   timemap: TimeMapEntry[];
   music?: PlanMusic;
-  /** Tutorial overlays (L2.10): what was planned, what could not be shown, the progress bar. Absent when none is on. */
+  /** Tutorial overlays: what was planned, what could not be shown, the progress bar. Absent when none is on. */
   tutorial?: PlanTutorial;
   /** Every asset URL of the plan → absolute file (capture, logo, wordmark, fonts, music). */
   assets: Record<string, string>;
   /**
-   * The display table the edit used (L1.7, core editDisplayTable): project.yaml's current pages of the run's
+   * The display table the edit used (core editDisplayTable): project.yaml's current pages of the run's
    * environment, then the rows the run recorded. The review names URLs through it. Absent when empty.
    */
   display?: DisplayEntry[];
   /** Run, scenario, project and theme the plan was made from. */
   meta: { run_id: string; project: string; scenario: string; theme: string };
-  /** The scenario's `target_length` (R-FLD-05, L5.5): the review's video-length rule uses it. */
+  /** The scenario's `target_length` (R-FLD-05): the review's video-length rule uses it. */
   target_length?: { min_s: number; max_s: number };
   /** Planner decisions worth surfacing (trimmed idle gaps, clamped zooms…). */
   notes: string[];
@@ -556,7 +556,7 @@ export interface EditOverrides {
   theme?: string;
   music?: string | false;
   /**
-   * Tutorial overlays at render time (L2.10): `false` = none; `true` or switches = applied over the scenario's switches
+   * Tutorial overlays at render time: `false` = none; `true` or switches = applied over the scenario's switches
    * (the scenes' and steps' own switches still apply under them).
    */
   tutorial?: TutorialSwitch;

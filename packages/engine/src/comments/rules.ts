@@ -1,5 +1,5 @@
 /**
- * The caller rules of the comments, one refusal each (L7.16): the comments façade (facade/comments-api.ts) throws what
+ * The caller rules of the comments, one refusal each: the comments façade (facade/comments-api.ts) throws what
  * they return, in this order and before the project is read; the engine's comment operations return the same as their
  * `callers` (operations/comments.ts, comment-screen.ts), so a refusal reads the same through invoke and through the
  * façade (the CLI's way).

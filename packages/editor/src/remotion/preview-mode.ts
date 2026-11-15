@@ -1,9 +1,9 @@
 /**
- * Preview mode (L4.5, DESIGN §4g): the Studio's live preview plays PlanVideo in a Remotion Player inside a sandboxed
+ * Preview mode (DESIGN §4g): the Studio's live preview plays PlanVideo in a Remotion Player inside a sandboxed
  * frame. Only that frame (packages/ui `frame-main.tsx`) provides a `PreviewMode`; renders never do, so a render is
  * unchanged by it. In preview mode a theme font that does not load falls back to the system font with a warning (a
  * render stops instead: cancelRender), because the Player holds nothing for delayRender and a thrown cancelRender would
- * leave the preview blank with no message (critique B8).
+ * leave the preview blank with no message.
  */
 import { createContext, useContext } from 'react';
 import type { EditPlan, ResolvedComponent } from '../plan-types.js';

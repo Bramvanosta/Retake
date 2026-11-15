@@ -1,5 +1,5 @@
 /**
- * A line diff for scenario proposals (L4.6, R-UI-28; critique B1): what a person reads in a thread is the canonical
+ * A line diff for scenario proposals (R-UI-28): what a person reads in a thread is the canonical
  * diff of the exact bytes Apply writes. Pure, no dependency.
  *
  * - Lines are a text split at its line breaks (LF or CR LF), without them; a final line break ends the last line (no

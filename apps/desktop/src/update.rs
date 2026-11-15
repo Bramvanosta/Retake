@@ -1,4 +1,4 @@
-//! The updater (L5.16d, DESIGN §4p (d)): tauri-plugin-updater from Rust only (no capability: the page has no IPC), the
+//! The updater (DESIGN §4p (d)): tauri-plugin-updater from Rust only (no capability: the page has no IPC), the
 //! rules in desktop_core::update_flow.
 //!
 //! - Built in only by the cargo `updater` feature, and registered only when the build's config has a feed and a key
@@ -87,7 +87,7 @@ fn now_ms() -> u64 {
 }
 
 /// Register the plugin: a build with the `updater` feature whose config has `plugins.updater` with a key and an
-/// endpoint (bundle.mjs's overlay); otherwise nothing (critique H2: the plugin refuses to start without its key).
+/// endpoint (bundle.mjs's overlay); otherwise nothing (the plugin refuses to start without its key).
 pub fn register(builder: tauri::Builder<Wry>, context: &Context<Wry>) -> tauri::Builder<Wry> {
     let conf = context.config().plugins.0.get("updater");
     let configured = conf.is_some_and(|c| c.get("pubkey").and_then(|k| k.as_str()).is_some_and(|k| !k.trim().is_empty()) && c.get("endpoints").and_then(|e| e.as_array()).is_some_and(|e| !e.is_empty()));
@@ -525,7 +525,7 @@ fn download(app: &AppHandle, gen: u64) {
     });
 }
 
-/// Wait while jobs of this workspace run or wait (critique M6), then arm and quit through the guard (from this thread:
+/// Wait while jobs of this workspace run or wait, then arm and quit through the guard (from this thread:
 /// never `terminate:` from a Tauri callback — guard.rs H1) — not while another question is up (the shell's, or a quit
 /// question in the page: its answer would install). A posting that never reaches the guard lapses (back to Available).
 fn wait_then_quit(app: AppHandle, gen: u64) {
@@ -664,7 +664,7 @@ pub fn finish(app: &AppHandle) {
 /// (desktop_core::relaunch), so the app comes back under the Dock icon it had — Tauri's restart (`open -n` while this
 /// process still runs) gave it a second icon beside the pinned one; this process then ends as any quit does
 /// (RunEvent::Exit flushes the log). Tauri's restart stays the fallback when the shell cannot be started (the log
-/// filter flushed first: it exits the process, RunEvent::Exit's own flush never runs — review d A-L6).
+/// filter flushed first: it exits the process, RunEvent::Exit's own flush never runs).
 fn restart(app: &AppHandle) {
     if test_mode() {
         let exe = std::env::current_exe().unwrap_or_default();
@@ -716,7 +716,7 @@ async fn ask_feed(_: &AppHandle) -> Result<Option<(Found, String, String)>, Stri
     Err("this build has no updater".into())
 }
 
-/// The archive: https only (the e2e test's 127.0.0.1 feed aside — review d A-M2: the plugin only warns) — its address
+/// The archive: https only (the e2e test's 127.0.0.1 feed aside: the plugin only warns) — its address
 /// here, and every redirect on the way to GitHub's download host in the client (`ask_feed`) —, every chunk reported to
 /// `watch`, verified by the plugin before it is returned.
 #[cfg(feature = "updater")]

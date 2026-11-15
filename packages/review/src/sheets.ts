@@ -119,10 +119,10 @@ export interface MarkBox {
 const MARK_STROKE = '#ff2d78';
 
 /**
- * A page inspection's marked screenshot (L3.3): each box outlined, its number on a filled badge at its top-left corner
+ * A page inspection's marked screenshot: each box outlined, its number on a filled badge at its top-left corner
  * (inside the image), written as a JPEG. `scale` is the image's device pixels per CSS px: badges and strokes keep their
  * CSS size (labels ≥ 20 CSS px, readable once the image is thumbnailed to 1280 px). Returns the size written. `png`: an
- * image file, or an encoded image in memory (a frame comment's still, L3.6). `badge: false`: the outlines only (a frame
+ * image file, or an encoded image in memory (a frame comment's still). `badge: false`: the outlines only (a frame
  * comment's single region — a numbered badge would read as one of the video's own step badges and hide its pixels).
  */
 export async function drawMarks(

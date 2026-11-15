@@ -1,11 +1,11 @@
 /**
- * L5.12a: the timeline's pieces (R4-Edit) — `Track` (a labelled row: a group named "Name: N items", its label column and
+ * The timeline's pieces (R4-Edit) — `Track` (a labelled row: a group named "Name: N items", its label column and
  * a lane of items placed by frame as percentages of the video, so the fit and the zoomed level are one layout at two
  * widths), `TrackItem` (an item of a lane: a span of frames or a tick at one frame — a button that carries its words;
  * pressed: the selection fill and a 2 px ring; a band at its start for a transition or a camera ramp; a tip beside a tick
  * that its focus shows too), `Scrubber` (the playhead's range input on the lane, with time labels under it) and
  * `Playhead` (the line over the lanes: drawn apart from them, so a playing preview re-renders no item).
- * L5.12a fixes (review A-L3): every item is a 24 px target — 24 px tall, a span narrower than 24 px has a 24 px hit area
+ * Every item is a 24 px target — 24 px tall, a span narrower than 24 px has a 24 px hit area
  * centred on it, a tick is 24 px wide — and the ticks of a lane keep 24 px between them where the lane has room (nudged
  * apart by `spaceTicks` as the lane's width changes: the fit and the zoomed level); a lane too crowded keeps them on their
  * frames (Zoom in spreads them, ← → reach each).
@@ -107,7 +107,7 @@ export interface TrackItemProps {
   testId: string;
   /** Data attributes kept for tests and styles (`id`, `from`, `key`, `at`, `frame`, `status`). */
   data?: Partial<Record<'id' | 'from' | 'key' | 'at' | 'frame' | 'status', string | number>>;
-  /** Its action — or, L5.12b, `to`: a tick that opens another screen is a link (a comment's pin opens its thread). */
+  /** Its action — or `to`: a tick that opens another screen is a link (a comment's pin opens its thread). */
   onActivate?: () => void;
   to?: Route;
   children: ReactNode;
@@ -181,7 +181,7 @@ export function Scrubber({
   onChange: (frame: number) => void;
   marks?: Array<{ at: number; label: string }>;
   testId?: string;
-  /** L5.12b: its name (the comments viewer's "Frame"). */
+  /** Its name (the comments viewer's "Frame"). */
   label?: string;
 }) {
   return (

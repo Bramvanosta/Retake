@@ -1,11 +1,11 @@
 /**
- * L4.1 part 3: the workspace index (node:sqlite, .retake/index.sqlite) — built from a scratch copy of the fixture
+ * The workspace index (node:sqlite, .retake/index.sqlite) — built from a scratch copy of the fixture
  * project, reconciled incrementally from a stat poll, history.jsonl read from its last whole line (appended, torn,
  * truncated, replaced), rebuilt when missing / garbage / truncated / of another schema (with its -wal and -shm), absent
  * on a Node.js without node:sqlite, FTS queries that cannot carry FTS syntax, and the activity feed: unfinished jobs
  * live from the queue (a SIGKILLed worker's job reads interrupted with no file changed; a finished job's file is read
  * once), finished ones from history. Files linked out of the project are never indexed and a FIFO never opened; an
- * index file that is a symbolic link is removed and rebuilt, never followed (review A L3, L4; review B L1).
+ * index file that is a symbolic link is removed and rebuilt, never followed.
  */
 import { execFile, spawn, spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -139,7 +139,7 @@ describe('the workspace index', () => {
       // A run being written: its run.json is re-read while it is unfinished.
       const run = join(project(), 'runs', '20261018-100000-quote');
       await mkdir(run, { recursive: true });
-      // A record as the runner writes it (a run.json that is no run record is not a run of the lists: L7.6a).
+      // A record as the runner writes it (a run.json that is no run record is not a run of the lists).
       const rec = (status: 'running' | 'succeeded') =>
         JSON.stringify({
           version: 1,
@@ -412,11 +412,11 @@ describe('the workspace index', () => {
       const rec = (id: string, o: Record<string, unknown> = {}) =>
         JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261016-090000-catalogue', status: 'succeeded', template: 'editorial', created_at: '2026-10-16T08:00:00.000Z', plan: {}, ...o });
       await writeFile(join(renders, 'quote-v1.json'), rec('quote-v1'));
-      // A copy beside its original (before L7.6c: two rows of one id — the transaction failed, the whole index stayed behind).
+      // A copy beside its original (two rows of one id would fail the transaction and leave the whole index behind).
       await writeFile(join(renders, 'quote-v1 copy.json'), rec('quote-v1'));
-      // A record renamed by hand (before: a row under the id it says).
+      // A record renamed by hand (no row under the id it says).
       await writeFile(join(renders, 'quote-final.json'), rec('quote-v7', { template: 'renamedtheme' }));
-      // A link to another file of the project (before: followed and listed under the id the target says).
+      // A link to another file of the project (never followed, nor listed under the id the target says).
       await writeFile(join(proj, 'kept.json'), rec('quote-v8', { template: 'linkedtheme' }));
       await symlink(join(proj, 'kept.json'), join(renders, 'quote-v8.json'));
       await writeFile(join(renders, 'quote-v2.json'), rec('quote-v2', { status: 'paused' }));

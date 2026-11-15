@@ -1,6 +1,6 @@
 import { relativeInside } from '@retake/core/base';
 
-// L7.25: a sandbox's files are part of core's folder layout (core/src/layout.ts), re-exported here.
+// A sandbox's files are part of core's folder layout (core/src/layout.ts), re-exported here.
 export { SANDBOX_STATE_DIR, sandboxPaths, serviceLog } from '@retake/core/project';
 export type { SandboxPaths } from '@retake/core/project';
 

@@ -1,6 +1,6 @@
 /**
- * A sandbox of a project (L1.8): `openSandbox(project, env?)` → `up`, `down`, `reset`, `status`, `logs`,
- * `prepareTake` — the API the CLI's `retake sandbox …` / `retake run --sandbox` and L3.1's MCP tools call.
+ * A sandbox of a project: `openSandbox(project, env?)` → `up`, `down`, `reset`, `status`, `logs`,
+ * `prepareTake` — the API the CLI's `retake sandbox …` / `retake run --sandbox` and the MCP tools call.
  *
  * - up: start what is not running (health checked, ports owned), then seed when it was never seeded, when the seed
  *   changed (core seedHash) or when it started a service (a restarted process lost its in-memory data); `seed: 'never'`
@@ -61,7 +61,7 @@ export interface SandboxCallOptions {
   log?: SandboxLog;
   /** The steps of the call as they start, and what each is doing (SandboxProgress). */
   progress?: SandboxProgress;
-  /** Trust `mcp` for the seed steps this call may run (L3.1: a shell step then needs an approval). */
+  /** Trust `mcp` for the seed steps this call may run (a shell step then needs an approval). */
   seedTrust?: SeedTrust;
   /** Each seed step run (hooks HookContext.recordRun): the engine journals it as its caller's. */
   recordSeedRun?: SeedRecorder;

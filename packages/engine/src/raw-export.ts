@@ -1,5 +1,5 @@
 /**
- * A run's raw package for another editing tool (L7.22, U8e) — what `retake export-capture` and `retake run --raw` do,
+ * A run's raw package for another editing tool — what `retake export-capture` and `retake run --raw` do,
  * in this process: the run's timeline through the export's own gate (the capture port's `raw.timeline`), the theme the
  * run was captured with (its cursor look; the project's when the run names none; the default look, with a note, when it
  * does not load), the files its edit uses (the editor's planFileRefs / themeFileRefs: listed in the package for

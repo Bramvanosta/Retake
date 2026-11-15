@@ -1,5 +1,5 @@
 /**
- * The docker-compose provider without Docker (L1.8 part C): project names, compose argv, `ps` / `config` parsing in both
+ * The docker-compose provider without Docker: project names, compose argv, `ps` / `config` parsing in both
  * output forms, the post-`--wait` verification (never the exit code), the port checks (busy before, foreign listeners
  * after), exec / down / status / logs / hash inputs / snapshot ownership on a fake docker, the own-folder check of every
  * command, a renamed compose.project, other projects' containers publishing a sandbox port (docker ps) and the
@@ -402,7 +402,7 @@ describe('the compose provider on a fake docker', () => {
     const downs = calls.filter((c) => c.includes('down')).map((c) => c.slice(c.indexOf('down')).join(' '));
     expect(downs).toContain('down --remove-orphans');
     expect(downs).toContain('down --remove-orphans --volumes');
-    // The project name an earlier up recorded ("x") is taken down too, from its own folder (K2).
+    // The project name an earlier up recorded ("x") is taken down too, from its own folder.
     const dir = composeProject(project, project.sandboxes!.sandbox).dir;
     expect(calls.some((c) => c.join(' ') === `compose --ansi never -p x --project-directory ${dir} down --remove-orphans --volumes`)).toBe(true);
     expect(calls.some((c) => c.includes('--rmi'))).toBe(false);

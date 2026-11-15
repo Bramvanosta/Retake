@@ -1,5 +1,5 @@
 /**
- * System-style notifications (L2.9): one drawing per style — macOS, Windows, iOS banner, Android heads-up and an in-app
+ * System-style notifications: one drawing per style — macOS, Windows, iOS banner, Android heads-up and an in-app
  * toast in the theme's own look — plus where each style sits (`notificationBox`) and how it enters and leaves
  * (`notificationMotion`). Shared by studio/notification, studio/mail-notification and studio/phone-lockscreen.
  *

@@ -1,6 +1,6 @@
 /**
- * Where playwright-core keeps its browsers (L7.25, U14 — finding X9: its private registry was read from two packages,
- * each with its own copy of the registry's shape): the one module that names playwright-core's browser registry. Its
+ * Where playwright-core keeps its browsers (its private registry was read from two packages, each with its own
+ * copy of the registry's shape): the one module that names playwright-core's browser registry. Its
  * path is private to playwright-core (`lib/server/registry`), so the registry's path and shape are written here once;
  * the import-rules ratchet's `browser-registry` check counts the path named anywhere else in packages/*\/src.
  *

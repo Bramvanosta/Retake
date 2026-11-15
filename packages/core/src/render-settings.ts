@@ -1,7 +1,7 @@
 /**
- * The render settings of a machine (L5.15, DESIGN §4r): how Remotion's browser draws (`gl`), which encoder writes the
- * video (`encoder`), how many frames render at a time (`concurrency`) and which ffmpeg encodes the frames (`ffmpeg`,
- * L7.3). From retake.yaml `render:` (the work's WorkPolicy `render`, core agent-policy.ts, as `ffmpeg`), else
+ * The render settings of a machine (DESIGN §4r): how Remotion's browser draws (`gl`), which encoder writes the
+ * video (`encoder`), how many frames render at a time (`concurrency`) and which ffmpeg encodes the frames (`ffmpeg`).
+ * From retake.yaml `render:` (the work's WorkPolicy `render`, core agent-policy.ts, as `ffmpeg`), else
  * `RETAKE_RENDER_GL` / `RETAKE_RENDER_ENCODER` / `RETAKE_RENDER_CONCURRENCY` / `RETAKE_RENDER_FFMPEG`, else `auto`. A GPU
  * is a property of the machine, not of the product: not in project.yaml.
  * The policy itself (what `auto` means here, the probes, the fallback) is the editor's (render/policy.ts).
@@ -10,7 +10,7 @@
 export const RENDER_GL_SETTINGS = ['auto', 'gpu', 'software'] as const;
 export const RENDER_ENCODER_SETTINGS = ['auto', 'videotoolbox', 'libx264'] as const;
 /**
- * Which ffmpeg encodes a render's frames (L7.3): `own` — this machine's (retake.yaml `ffmpeg:` → `$RETAKE_FFMPEG` → the
+ * Which ffmpeg encodes a render's frames: `own` — this machine's (retake.yaml `ffmpeg:` → `$RETAKE_FFMPEG` → the
  * app's → PATH) when it qualifies, `library` — the rendering library's own, `auto` — the editor's choice (render/policy.ts:
  * ours for a render drawn on the GPU, the library's on the software path and inside the app bundle).
  */

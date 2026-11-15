@@ -1,7 +1,7 @@
 /**
- * Cursor of a raw export (L2.13, R-RAW-02): what the in-page cursor showed on every frame of a clip — position,
+ * Cursor of a raw export (R-RAW-02): what the in-page cursor showed on every frame of a clip — position,
  * visibility, icon, press scale and click ripples — from the run's cursor track and its cursor effects (the icon,
- * presses and ripples the kit reported as it drew them; runs captured before L2.13 have none: approximated from the
+ * presses and ripples the kit reported as it drew them; older runs have none: approximated from the
  * steps, see `approximateEffects`). Clicks with their step and target. Pure.
  */
 import type { BBox } from '@retake/core/model';
@@ -30,7 +30,7 @@ const TEXT_ROLES = /^(textbox|searchbox|spinbutton|textarea|input)\b/i;
 const inBox = (b: BBox | undefined, x: number, y: number) => !!b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
 
 /**
- * Effects of a run captured before L2.13 (no `cursor_effects`): presses and ripples at the track's button-down
+ * Effects of an older run (no `cursor_effects`): presses and ripples at the track's button-down
  * samples, a press flash and a ripple at each synthetic click (dom / pointer strategy) and, for the icon, the hand
  * over a step's clickable target (link, button, option…) and the text beam over a field while that step runs —
  * an approximation of what the kit computed from the page.

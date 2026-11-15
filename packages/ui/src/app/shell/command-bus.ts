@@ -1,8 +1,8 @@
 /**
- * L5.11a: the shell's command bus for the Scenario menu's commands (Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘.; the
+ * The shell's command bus for the Scenario menu's commands (Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘.; the
  * palette's Scenario group) — whoever owns a command acts on it. Ownership is by explicit priority, never by the order
- * React ran effects in (critique H1: on a fresh load a screen's effect runs before the status bar's, so "the newest
- * wins" handed ⌘. to the defaults after a reload of a terminal's live run or of a live recording): the status bar's
+ * React ran effects in (on a fresh load a screen's effect runs before the status bar's, so "the newest wins" handed
+ * ⌘. to the defaults after a reload of a terminal's live run or of a live recording): the status bar's
  * defaults 0, a screen 10 (Prepare, the live screen), a live recording 20; a tie goes to the latest registration. The
  * handler is held in a ref: a new function at each render neither re-registers nor reorders anything. One owner acts —
  * there is one Stop at a time.
@@ -70,10 +70,10 @@ export function useShellCommand(id: ShellCommand, handler: () => void, priority:
 }
 
 /**
- * L5.11b fixes (review A-M2 / A-L1): a screen whose commands are not the scenario's — a live recording — gives the ⌘K
+ * A screen whose commands are not the scenario's — a live recording — gives the ⌘K
  * palette's commands its own entries while it owns them ("Stop recording · <recording>", "Discard…"), in place of
  * Rehearse / Capture / Render / Stop of the scenario remembered in context (never named there).
- * L5.12b (R4-Palette): generalised to the palette's screen groups (`paletteGroup`) — a screen registers entries under a
+ * Generalised to the palette's screen groups (`paletteGroup`) — a screen registers entries under a
  * slot while it is mounted: `scenario` (the recording's commands, above), `scenes` (the Scenario screen's and Edit's
  * scenes: a pick, a seek), `review` (Review › Comments' "Comment at this frame"), `report` (the Review report entry with
  * the last render's words, from a screen that holds the renders), `themes` (the theme set for the scenario shown). One

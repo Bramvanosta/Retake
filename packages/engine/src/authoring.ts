@@ -1,5 +1,5 @@
 /**
- * Authoring aids (L3.3): a timecoded script table turned into an outline and a draft scenario (core
+ * Authoring aids: a timecoded script table turned into an outline and a draft scenario (core
  * draftScenarioFromScript), the draft then validated against the project like any scenario text. Deterministic, no
  * model call, nothing written: saving stays scenario_save (if_match). The main path is Claude writing the scenario from
  * page inspections; this is a skeleton for when the user hands a table.

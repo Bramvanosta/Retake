@@ -1,5 +1,5 @@
 /**
- * Tutorial overlays (L2.10, R-TUT-01…05): the planner part. Pure. From the timeline's events and the switches the
+ * Tutorial overlays (R-TUT-01…05): the planner part. Pure. From the timeline's events and the switches the
  * runner recorded (scenario → scene → step, `resolveTutorial`), each clip gets its key-cap overlays (press steps,
  * timed on the real key press), its spotlight (the step targets, one overlay per run of steps gliding from target to
  * target), its numbered badges (clicked targets) and its typing loupe (the field of a type step, a live capture

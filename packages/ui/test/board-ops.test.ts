@@ -1,15 +1,15 @@
 /**
- * L5.10a part A: `project_board` — the Project screen's read over HTTP (allow-list, READ, Studio-only, path-free, the
+ * `project_board` — the Project screen's read over HTTP (allow-list, READ, Studio-only, path-free, the
  * titles under `untrusted`) and its facts on a fixture copy: a capture (current, poster, length), a render and its
  * review (sameVersion: "Rendered"), a newer capture ("Render outdated"), a failed take ("Failed at step 2 of one"), a
  * filmed change ("Script changed since the shoot"), a never-run scenario ("Not shot yet"). Its memos are its own: a
- * board read leaves the open scenario screen's view memo untouched (critique H1). Budgets on the fixture (15
+ * board read leaves the open scenario screen's view memo untouched. Budgets on the fixture (15
  * scenarios) and on a 40-scenario copy with 30 runs: cold ≤ 1.5 s, warm ≤ 150 ms measured (pinned loosely here).
- * L5.10a fixes (reviews A and B), on the board itself (ProjectBoards with its counters): a removed asset shows at once
- * and anything else within the TTL (A-M1); an environment the project lacks only under `untrusted`, capped (A-M2); one
- * pass over a 3000-job queue, warm ≤ 20 ms measured, no second pass for a take from a terminal (A-M3); older runs
- * summed up once (A-L2); report.json read once (A-L3); review/ watched (A-L4); the render that shows today's file wins
- * over a newer override, today's theme counts (B-L2); a failed take's poster is its error screenshot (B-L5).
+ * On the board itself (ProjectBoards with its counters): a removed asset shows at once
+ * and anything else within the TTL; an environment the project lacks only under `untrusted`, capped; one
+ * pass over a 3000-job queue, warm ≤ 20 ms measured, no second pass for a take from a terminal; older runs
+ * summed up once; report.json read once; review/ watched; the render that shows today's file wins
+ * over a newer override, today's theme counts; a failed take's poster is its error screenshot.
  */
 import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -124,8 +124,8 @@ describe('project_board: the op', () => {
     expect(productionState(s)).toEqual({ state: 'waiting', word: 'Shot · ready to render', group: 'ready' });
     // A render of this capture on this file (sameVersion), then its review.
     await mkdir(join(project(), 'renders'), { recursive: true });
-    // The fixture's theme is editorial (project.yaml `template:`): a render with it (L5.10a fixes: the theme counts).
-    // (L7.6b: a render is a complete record of its own file — it says its scenario and holds its plan.)
+    // The fixture's theme is editorial (project.yaml `template:`): a render with it (the theme counts).
+    // (a render is a complete record of its own file — it says its scenario and holds its plan.)
     const render = {
       version: 1,
       id: 'blocks-v1',
@@ -250,7 +250,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     const n = boards.stats.files;
     expect((await own()).file.ok).toBe(true);
     expect(boards.stats.files).toBe(n);
-    // The intro video goes away: the next read says so (review A-M1 saw "ok" until the scenario file was touched).
+    // The intro video goes away: the next read says so (not "ok" until the scenario file is touched).
     await rename(join(dir, 'assets', 'intro.mp4'), join(dir, 'assets', 'intro.mp4.gone'));
     const gone = await own();
     expect(gone.file.ok).toBe(false);
@@ -342,7 +342,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     await writeFile(join(dir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
     const write = async (id: string, scenario: string) => {
       await mkdir(join(dir, 'runs', id), { recursive: true });
-      // A record as the runner writes it (a run.json that is no run record is not a run of the lists: L7.6a).
+      // A record as the runner writes it (a run.json that is no run record is not a run of the lists).
       await writeFile(
         join(dir, 'runs', id, 'run.json'),
         JSON.stringify({
@@ -435,7 +435,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     await boards.board('renders');
     await boards.board('renders');
     expect(reportReads.n).toBe(n);
-    // L7.6b: the same for the records of renders/ (the one reader) — each read once while its stat holds, and a file
+    // The same for the records of renders/ (the one reader) — each read once while its stat holds, and a file
     // whose name is no render id of a scenario of the project is never read.
     const m = renderRecordReads.n;
     await writeFile(join(dir, 'renders', 'blocks-final.json'), '{}');

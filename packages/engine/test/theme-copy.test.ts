@@ -1,9 +1,9 @@
 /**
- * L4.7 part A2: "Copy to edit" (engine brand/copy.ts): a listed theme copied into a new workspace theme — its regular
+ * "Copy to edit" (engine brand/copy.ts): a listed theme copied into a new workspace theme — its regular
  * files verbatim, `name:` spliced, this tool's provenance file, validated, renamed into place — then editable from the
  * Studio. ⚑ Refused: a starter's or an existing folder's name (without case), a name that is not a slug, a source holding
- * a symbolic or (review A M1) a hard link, a templates_dir inside the Retake package; nothing left behind by a
- * refusal. A copy is the person's (trust `author`, review A N4): MCP's replace never takes it.
+ * a symbolic or a hard link, a templates_dir inside the Retake package; nothing left behind by a
+ * refusal. A copy is the person's (trust `author`): MCP's replace never takes it.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -73,7 +73,7 @@ describe('copy a theme (L4.7)', () => {
     expect(text).toBe(src.replace('name: editorial', 'name: mine'));
     for (const f of ['logo.svg', 'fonts/Inter-Bold.ttf', 'LICENSES.md']) expect(sha(await readFile(join(dir, f)))).toBe(sha(readFileSync(join(STARTER_TEMPLATES_DIR, 'editorial', f))));
     const prov = JSON.parse(await readFile(join(dir, THEME_PROVENANCE_FILE), 'utf8'));
-    // The person made it in the Studio (L4.7 review A N4): theirs, never replaced through MCP; the CLI's replace may.
+    // The person made it in the Studio: theirs, never replaced through MCP; the CLI's replace may.
     expect(prov).toMatchObject({ made_by: 'retake', copy_of: 'editorial', trust: 'author', name: 'mine', files: { 'template.yaml': sha(text) } });
     expect(await replaceProblem(dir, 'mcp')).toMatch(/made by a human/);
     expect(await replaceProblem(dir, 'author')).toBeNull();

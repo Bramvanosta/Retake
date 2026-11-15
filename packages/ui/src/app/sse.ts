@@ -1,14 +1,15 @@
 /**
- * Server-sent events read from a fetch response (L4.4: the Run screen's stream; the event stream of events.ts has its
- * own loop and shares parseSseBlock). Blocks are split on a blank line; `event:` names the event, `data:` holds one JSON line;
- * comment lines (keepalives) are skipped. A block that is not JSON is dropped: the page never evaluates what it reads.
+ * Server-sent events read from a fetch response (the Run screen's stream; the event stream of events.ts has its own
+ * loop and shares parseSseBlock). Blocks are split on a blank line; `event:` names the event, `data:` holds one JSON
+ * line; comment lines (keepalives) are skipped. A block that is not JSON is dropped: the page never evaluates what it
+ * reads.
  */
 
 export type SseEnd = 'closed' | 'failed';
 
 /**
- * One event block: its `event:` and `data:` lines, split on `\n` only (review A M1: a `/^…$/m` match also ends a line
- * at U+2028 / U+2029, which JSON leaves raw in a page's text — the event was lost). Null for a comment-only block.
+ * One event block: its `event:` and `data:` lines, split on `\n` only (a `/^…$/m` match also ends a line at U+2028 /
+ * U+2029, which JSON leaves raw in a page's text — the event was lost). Null for a comment-only block.
  */
 export function parseSseBlock(block: string): { type: string; data: string } | null {
   let type: string | undefined;

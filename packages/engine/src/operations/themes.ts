@@ -1,14 +1,14 @@
 /**
- * The theme operations (L7.17).
+ * The theme operations.
  *
- * MCP's (moved from its tools/theme.ts): template_list (the themes, or one in detail), template_preview (a preview
+ * MCP's: template_list (the themes, or one in detail), template_preview (a preview
  * job), template_from_site (a site extraction a person approves) and template_create_from_brand (a new theme from the
  * brand's files, under trust `mcp`), with `siteOutput` (a site job as a tool shows it: also job_status's).
  *
- * The Studio's (moved from its server's theme-ops.ts, L4.7, R-UI-07 / R-DEC-04; critique B1, B7, B9–B11, B14, B15).
+ * The Studio's (R-UI-07 / R-DEC-04).
  * Not MCP tools: MCP never edits a theme (template_list's wording stays true); Claude makes new ones with
  * template_create_from_brand.
- * - `theme_list {project}` (L4.7 part D2): every theme of the workspace — the listed ones and the project's own folder —
+ * - `theme_list {project}`: every theme of the workspace — the listed ones and the project's own folder —
  *   editable or read-only with why (by real path), its hex colours, what uses it; the components a theme picks from, by
  *   id and kind; the project's scenarios (Use in this scenario). Path-free.
  * - `theme_view {theme}`: engine templates.view — editable or read-only with why (by real path), template.yaml's text
@@ -19,12 +19,12 @@
  *   channel, not person presence: BL-106). The caller rule (`callers`: themeEditRefused — MCP is refused) is checked
  *   after the parse, before the theme is read. Writes of one theme run one at a time (`serialize`: `theme:<name>`, the
  *   engine's operation chain): a double click finds the new sha256 and gets its 409.
- * - `theme_copy {from, name}`: "Copy to edit" (engine templates.copy); `theme_create`: New theme — L3.5's brand form
+ * - `theme_copy {from, name}`: "Copy to edit" (engine templates.copy); `theme_create`: New theme — the brand form
  *   through engine templates.create under trust `mcp` exactly as MCP, `replace` never offered (pinned out). Both on
  *   the same key as theme_edit.
  * - `brand_files {kind}`: the workspace's image / font files a new theme may take (names and sizes).
  * - `site_list {url?}`: the newest site extractions (hex roles, checks, candidates by `site:<id>/logo-<n>`; URL, host and
- *   page text under `untrusted`: a CLI extraction has no signed job, B11). With `url`: the URL checked (public, not an
+ *   page text under `untrusted`: a CLI extraction has no signed job). With `url`: the URL checked (public, not an
  *   environment of a project) and the `retake theme from-site` command to copy — no Studio op queues a site job (the
  *   extraction needs a person's approval of the URL, BL-106).
  * The theme editor's live preview (theme_preview) stays the Studio's (its player origin and leases); what it renders is

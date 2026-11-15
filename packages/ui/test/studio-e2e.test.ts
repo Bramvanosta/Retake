@@ -1,5 +1,5 @@
 /**
- * L4.1 parts 2 and 3: the Studio app end to end in headless Chromium (the installed build of playwright-core 1.56.1; nothing
+ * The Studio app end to end in headless Chromium (the installed build of playwright-core 1.56.1; nothing
  * downloaded), against a Studio server on a scratch workspace — a copy of the fixture project plus hostile ones:
  * bootstrap code → projects list → a project → edit and save its README (bytes and hash on disk, atomic) → reload keeps
  * the session → search and recent activity (the index) → the file changed on disk, told by the event stream (clean:
@@ -77,7 +77,7 @@ async function watch(ctx: BrowserContext): Promise<void> {
 const pwned = (p: Page) => p.evaluate(() => (window as unknown as { __pwned?: unknown }).__pwned ?? null);
 const csp = (p: Page) => p.evaluate(() => (window as unknown as { __csp: number }).__csp);
 const textarea = () => page.locator('#readme-text');
-/** L5.10a: back to Welcome through the title bar's project menu (or the address when no project is open). */
+/** Back to Welcome through the title bar's project menu (or the address when no project is open). */
 async function toWelcome(p: Page): Promise<void> {
   const menu = p
     .getByRole('banner')
@@ -115,7 +115,7 @@ beforeAll(async () => {
     ].join('\n'),
   );
   await writeFile(join(hostile, 'README.md'), HOSTILE_README);
-  // L5.10a: a production whose title is markup and a right-to-left override (the poster, the inspector).
+  // A production whose title is markup and a right-to-left override (the poster, the inspector).
   await mkdir(join(hostile, 'scenarios'), { recursive: true });
   await writeFile(
     join(hostile, 'scenarios', 'evil.yaml'),
@@ -175,7 +175,7 @@ describe('the Studio in Chromium', () => {
       .waitFor();
     const text = await fixture.innerText();
     expect(text).toMatch(/\d+ scenarios/);
-    // Each flagged environment with its flag words exactly (review B-M3: its name alone must not satisfy the check).
+    // Each flagged environment with its flag words exactly (its name alone must not satisfy the check).
     expect(text).toContain('production: production · read-only');
     expect(text).toContain('sandbox: sandbox');
     expect(text).toMatch(/Last rehearsal failed\s*·\s*quote/);
@@ -196,7 +196,7 @@ describe('the Studio in Chromium', () => {
     await page.getByRole('heading', { name: 'Recent runs' }).waitFor();
     await page.getByText('20261017').or(page.getByText('rehearsal ·').first()).first().waitFor();
     await shot('02-project');
-    // L5.10a: a location's pages, display URLs and flags are in the inspector (the browser's Locations row).
+    // A location's pages, display URLs and flags are in the inspector (the browser's Locations row).
     await page
       .getByRole('navigation', { name: 'Studio' })
       .getByRole('link', { name: /^local/ })
@@ -345,7 +345,7 @@ describe('the Studio in Chromium', () => {
     // The hostile project: name, page URL, display URL and README.
     await page.goto(`${studio.url}#/p/hostile`);
     await page.getByRole('banner').getByRole('button').filter({ hasText: 'gnp.exe' }).waitFor();
-    // The production's title on its poster and in the inspector: text, the override a visible mark (L5.10a).
+    // The production's title on its poster and in the inspector: text, the override a visible mark.
     const poster = page.locator('[role="option"][data-id="evil"]');
     await poster.waitFor();
     expect(await poster.locator('.k-card-title').innerText()).toBe('<img src=x onerror="window.__pwned=\'name\'"> [U+202E]gnp.exe');
@@ -353,12 +353,12 @@ describe('the Studio in Chromium', () => {
     expect(await page.locator('.sh-inspector .pr-title h3').innerText()).toBe('<img src=x onerror="window.__pwned=\'name\'"> [U+202E]gnp.exe');
     await poster.click();
     await page.keyboard.press('Escape');
-    // The README preview is text; its right-to-left override a visible mark (L5.10a: through Txt, like every text from
-    // data — a raw override in the preview could reorder what it shows; the editor below keeps the exact bytes).
+    // The README preview is text; its right-to-left override a visible mark (through Txt, like every text from data —
+    // a raw override in the preview could reorder what it shows; the editor below keeps the exact bytes).
     expect(await page.getByTestId('readme-preview').textContent()).toBe(HOSTILE_README.replace('\u202E', '[U+202E]'));
     await shot('07-hostile-project');
-    // The location's page URL and display URL: text in the inspector (L5.10a) — reached with a production selected,
-    // no Escape first (review B-M1: the location route shows the location).
+    // The location's page URL and display URL: text in the inspector — reached with a production selected,
+    // no Escape first (the location route shows the location).
     await poster.click();
     await page.locator('.sh-inspector .pr-title h3').waitFor();
     await page.goto(`${studio.url}#/p/hostile/loc/staging`);

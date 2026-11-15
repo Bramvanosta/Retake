@@ -1,5 +1,5 @@
 /**
- * The recorder's capture (L3.4 part 1, R-MCP-24): `recordSession` on the fixture's recording lab (fixtures/wholesale
+ * The recorder's capture (R-MCP-24): `recordSession` on the fixture's recording lab (fixtures/wholesale
  * /record-lab), the window played by Playwright input — trusted events through CDP Input, so it stands in for the
  * person (headless here; the real window is MACOS-CHECKLIST 12f). Covers the event per control with verified targets,
  * a page that tries to forge the recorder's input (refused, and the recorder invisible to it), sentinel secrets typed

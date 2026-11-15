@@ -1,8 +1,8 @@
 /**
- * L4.5 part E: a render with its inline review (critique B12), through the worker — the Studio's Render: submitted
+ * A render with its inline review, through the worker — the Studio's Render: submitted
  * like `scenario_render` (the scenario file's edit, `review: {fps: 1}`, `expect_edit_sha256`), rendered and reviewed
  * in the same job; then the engine's reads the Studio shows: renders.ofScenario (path-free: the render, its review's
- * verdict) and reviews.image (a contact sheet as a JPEG). L7.11: on the ports — the in-memory renderer and reviewer
+ * verdict) and reviews.image (a contact sheet as a JPEG). On the ports — the in-memory renderer and reviewer
  * (WorkerOptions.ports; the engine's `ports.reviewer` for the image), no bundle, no browser and no ffmpeg / ffprobe
  * (both pointed at a path that does not exist): what runs around them is the product's (the submit, the plan, the
  * render record, the review job's own execution inside the render job, the job's result, the views). The real review

@@ -12,13 +12,13 @@ import { pathInside } from '../path-inside.js';
 export class CheckContext {
   readonly out: LocatedIssue[] = [];
   /**
-   * Work an agent submits, with the words of its confinement (review A L4; L7.35: a value, core Confinement): a file
+   * Work an agent submits, with the words of its confinement (a value, core Confinement): a file
    * reference outside the directory is reported as such without looking at it, and one that leads out through a link as
    * not found — whether a file exists outside the project is never told.
    */
   confined: Confinement | undefined = undefined;
   /**
-   * L5.10a fixes (review A-M1): when set, every file a check looks for is added (absolute path) — a caller memoising the
+   * When set, every file a check looks for is added (absolute path) — a caller memoising the
    * result (the Studio's project board) re-checks them before it trusts its memo.
    */
   filesRead: Set<string> | undefined = undefined;

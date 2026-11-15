@@ -1,5 +1,5 @@
 /**
- * L5.15 render policy (editor render/policy.ts), pure parts: the settings order (option → retake.yaml → env → auto),
+ * The render policy (editor render/policy.ts), pure parts: the settings order (option → retake.yaml → env → auto),
  * what `auto` resolves to per platform (ANGLE on macOS, software elsewhere — never swangle), the defaults (3 frames at
  * a time on the GPU path, ¾ of the CPUs in software), the variables' errors, VideoToolbox's bitrate / GOP / size gate,
  * Remotion's encoding fields (`required`, never `crf` with it), the encoder choice and the fallback's classifier.
@@ -304,7 +304,7 @@ describe("the fallback's classifier", () => {
     expect(gpuPathFailure(new Error(`${banner}[h264_videotoolbox @ 0x1] Error: cannot create compression session: -12903\n[vost#0:0] Error while opening encoder`), gpu)).toBe(
       '[h264_videotoolbox @ 0x1] Error: cannot create compression session: -12903',
     );
-    // Review B L2: the encoder's pipe by its code, whatever the message says.
+    // The encoder's pipe by its code, whatever the message says.
     expect(gpuPathFailure(Object.assign(new Error('the encoder stopped reading frames'), { code: 'EPIPE' }), gpu)).toBe('the encoder stopped reading frames');
   });
 
@@ -326,7 +326,7 @@ describe("the fallback's classifier", () => {
     expect(gpuPathFailure(new Error('Cannot read properties of undefined (reading "x")'), gpu)).toBeNull();
     // Only the banner names videotoolbox: another ffmpeg failure, not the encoder's.
     expect(gpuPathFailure(new Error('ffmpeg version n7.1\n  configuration: --enable-videotoolbox\n[aac @ 0x1] Too many channels'), gpu)).toBeNull();
-    // Review B M2: a stitch or audio failure that merely names the encoder — the input's `encoder` metadata of a video
+    // A stitch or audio failure that merely names the encoder — the input's `encoder` metadata of a video
     // VideoToolbox wrote, an audio encoder that does not open — is not a GPU failure (no second render).
     const stitch = [
       'FFmpeg quit with code 1 (null) The FFmpeg output was',
@@ -585,7 +585,7 @@ describe('the encode ffmpeg (L7.3)', () => {
     expect(ownEncodeFailure(new Error('Page crashed!'), own)).toBeNull();
     expect(ownEncodeFailure(new RenderError('files of the plan are missing: x.mp4'), own)).toBeNull();
     expect(ownEncodeFailure(new Error('Cannot read properties of undefined (reading "x")'), own)).toBeNull();
-    // A bare "FFmpeg quit with code" (not the frame encode's sentence) is no longer taken for ours.
+    // A bare "FFmpeg quit with code" (not the frame encode's sentence) is not taken for ours.
     expect(ownEncodeFailure(new Error('FFmpeg quit with code 1'), own)).toBeNull();
   });
 

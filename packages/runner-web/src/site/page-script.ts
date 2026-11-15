@@ -1,5 +1,5 @@
 /**
- * What a site extraction reads of the page (L3.5), run in a CDP isolated world (the page's own scripts cannot replace
+ * What a site extraction reads of the page, run in a CDP isolated world (the page's own scripts cannot replace
  * `getComputedStyle`, `elementFromPoint` or the canvas used to normalise colours there). The functions are serialised
  * with `Function.prototype.toString`: self-contained, no import, no closure.
  */

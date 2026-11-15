@@ -46,7 +46,7 @@ export async function stepShots(
 }
 
 /**
- * capture.step_shots without kept frames (L5.7): for every step that ran, the frame of its video (capture.mp4, or its
+ * capture.step_shots without kept frames: for every step that ran, the frame of its video (capture.mp4, or its
  * page's track) shown at its end — output frame floor(t_end · fps), the CFR schedule's latest captured frame at or before
  * it — read in one ffmpeg pass per video, saved as screenshots/<scene>-<nn>-<action>.jpg.
  */

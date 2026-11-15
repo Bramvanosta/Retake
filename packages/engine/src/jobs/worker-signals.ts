@@ -28,8 +28,8 @@ export function handleSignals(w: Worker): () => void {
         log(`${sig}: stopping${w.slot.current ? ' (cancelling the running job: its teardown still runs)' : ''}`);
         w.slot.current?.abort(captureRunner.cancelled(`run cancelled (${sig})`));
       }
-      // The job process cancels its job on its first signal (teardown runs) — the SIGTERM first (review A L4: never behind
-      // a pending walk of its tree), then normal priority again.
+      // The job process cancels its job on its first signal (teardown runs) — the SIGTERM first (never behind a pending
+      // walk of its tree), then normal priority again.
       const h = w.heavy;
       if (h && !h.exited) {
         log(`${sig}: cancelling job ${h.id} in its job process`);

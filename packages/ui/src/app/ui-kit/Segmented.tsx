@@ -1,5 +1,5 @@
 /**
- * L5.9: the segmented control — `Segmented` picks one value (a `fieldset` of native radios: one tab stop, the arrows
+ * The segmented control — `Segmented` picks one value (a `fieldset` of native radios: one tab stop, the arrows
  * move, Space checks), `SegmentedLinks` goes to one of a few places (a `nav` of links, the current one
  * `aria-current="page"`; a link without a place is a disabled button with the reason beside it). Each radio covers its
  * segment (appearance none, nothing painted) so the click, the focus ring and the label are one box; the current
@@ -15,7 +15,7 @@ export interface SegmentOption<V extends string> {
   value: V;
   label: ReactNode;
   disabled?: boolean;
-  /** L5.12b: a test id on the option's radio (the comments filters keep theirs). */
+  /** A test id on the option's radio (the comments filters keep theirs). */
   testId?: string;
 }
 
@@ -52,13 +52,13 @@ export interface SegmentLink {
   /** The place; none: the segment is shown disabled. */
   to: Route | null;
   current: boolean;
-  /** L5.12a: a test id kept from an older screen (Review's Comments: `comments-tab`). */
+  /** A test id kept from an older screen (Review's Comments: `comments-tab`). */
   testId?: string;
 }
 
 export function SegmentedLinks({ label, items, hint }: { label: string; items: SegmentLink[]; hint?: ReactNode }) {
   const hintId = useId();
-  // The reason is there whenever a segment is off (review A-L4: a disabled segment never points at a missing id).
+  // The reason is there whenever a segment is off (a disabled segment never points at a missing id).
   const off = items.some((i) => !i.to);
   return (
     <nav className="k-seg k-seg-md k-seg-links" aria-label={label}>

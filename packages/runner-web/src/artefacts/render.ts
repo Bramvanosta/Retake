@@ -1,7 +1,7 @@
 /**
  * Artefact rendering in a clean headless Chromium (no profile, no kit), after the capture so it never competes with
  * the screencast: email HTML → PNG (600 px layout width, full height, sandboxed: JavaScript off, offline, a CSP that
- * blocks scripts and remote loads), PDF → one PNG per page with pdf.js (2× A4: ≈ 1587 × 2245 px), icons → PNG.
+ * blocks scripts and remote loads), PDF → one PNG per page with pdf.js (twice A4 size: ≈ 1587 × 2245 px), icons → PNG.
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';

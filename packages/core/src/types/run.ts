@@ -44,16 +44,16 @@ export interface TimelineScene {
   /** Scene-level tutorial switches as written (the scenario's are in `Timeline.video.tutorial`). */
   tutorial?: TutorialSwitch;
   /**
-   * Multi-page scene (L2.11): the pages filmed at the same time, in the scenario's order; each one is recorded on its
+   * Multi-page scene: the pages filmed at the same time, in the scenario's order; each one is recorded on its
    * own track (`Timeline.tracks`). Absent for a single-page scene (recorded in `capture`).
    */
   pages?: TimelineScenePage[];
-  /** Played during the take but left out of the video (scene `offscreen: true`, L5.8): the edit shows nothing of it. */
+  /** Played during the take but left out of the video (scene `offscreen: true`): the edit shows nothing of it. */
   offscreen?: true;
   status: 'ok' | 'failed' | 'skipped' | 'partial';
 }
 
-/** A page of a multi-page scene as the run filmed it (L2.11). */
+/** A page of a multi-page scene as the run filmed it. */
 export interface TimelineScenePage {
   /** Page id (the key of the scene's `pages`). */
   id: string;
@@ -69,7 +69,7 @@ export interface TimelineScenePage {
 }
 
 /**
- * A page recorded on its own (L2.11): every page of a multi-page scene gets one, on the same clock as `capture`
+ * A page recorded on its own: every page of a multi-page scene gets one, on the same clock as `capture`
  * (frame n of every track is capture time n / fps: one frame grid). Outside the scenes that film it, a track holds its
  * last frame.
  */
@@ -96,14 +96,14 @@ export interface TimelineTrack {
   pages: TimelinePageSegment[];
   /** This page's in-page cursor (each page has its own; only the acting page's moves). */
   cursor: CursorSample[];
-  /** Icon changes, presses and click ripples of this page's cursor (L2.13). */
+  /** Icon changes, presses and click ripples of this page's cursor. */
   cursor_effects?: CursorEffect[];
   /** Page loads this track did not show (R-ISS-08; absent when none). */
   loading?: TimelineLoading[];
 }
 
 /**
- * A full-page load the capture did not show (R-ISS-08, L1.2): from a new document's commit — or the recorder attaching
+ * A full-page load the capture did not show (R-ISS-08): from a new document's commit — or the recorder attaching
  * to a page that had painted nothing yet (a fresh tab, a page still loading) — the recorder kept the previous frame on
  * screen until the new document's first contentful paint. `t_end` is the first frame written after it (the moment
  * the hold ended when no frame came then): no frame of the capture (frames.jsonl) lies in [t_start, t_end).
@@ -124,7 +124,7 @@ export interface TimelineLoading {
   held_frames: number;
 }
 
-/** A freeze of the capture (L5.7): no new frame from `t_start` (the last frame before the gap) to `t_end`. */
+/** A freeze of the capture: no new frame from `t_start` (the last frame before the gap) to `t_end`. */
 export interface TimelineStall {
   t_start: number;
   t_end: number;
@@ -151,7 +151,7 @@ export interface TimelineBusy {
 }
 
 /**
- * A pause of the take (L4.4, R-UI-19): the run waited before step `step` of `scene` for `ms` wall ms, which capture time
+ * A pause of the take (R-UI-19): the run waited before step `step` of `scene` for `ms` wall ms, which capture time
  * left out — the video goes on at `t` (capture seconds) from where it paused; what the page did meanwhile (timers,
  * animations, a running product clock) shows as a jump there.
  */
@@ -164,7 +164,7 @@ export interface TimelinePause {
 
 /**
  * Held page loads (`TimelineLoading`) at least this long are cut by the edit and the raw export; a shorter freeze of
- * the previous frame is invisible (the same bound as the L1.3 capture stalls). The cut sits on the page change itself.
+ * the previous frame is invisible (the same bound as the capture's stalls). The cut sits on the page change itself.
  */
 export const LOADING_CUT_MIN_S = 0.15;
 
@@ -181,9 +181,9 @@ export interface TimelineOverlay {
   bbox?: BBox;
   /** Anchor point when there is no target bbox (cursor position at the end of the step). */
   point?: PointSpec;
-  /** L2.12: when it starts, as written (default: the end of the step). */
+  /** When it starts, as written (default: the end of the step). */
   at?: OverlayAt;
-  /** L2.12: a box-filling overlay (a user video, image or Lottie file): where its box goes. */
+  /** A box-filling overlay (a user video, image or Lottie file): where its box goes. */
   box?: { anchor?: OverlayAnchor; rect?: BBox; scale?: number };
 }
 
@@ -211,7 +211,7 @@ export interface TimelineEvent {
   /** Cursor position at the click/end of the action. */
   point?: PointSpec;
   /**
-   * Cursor position at the end of the step, before any park or hold (L5.5): what an overlay or a camera hint added to
+   * Cursor position at the end of the step, before any park or hold: what an overlay or a camera hint added to
    * the scenario after the capture anchors to when the step has no target box.
    */
   end_point?: PointSpec;
@@ -221,7 +221,7 @@ export interface TimelineEvent {
   /** Camera hint; `bbox` (target) / `point` measured at the end of the step, after any scroll. */
   camera?: CameraHint & { bbox?: BBox; point?: PointSpec };
   overlay?: TimelineOverlay;
-  /** Step-level tutorial switches as written (L2.10). */
+  /** Step-level tutorial switches as written. */
   tutorial?: TutorialSwitch;
   page?: string;
   url?: string;
@@ -265,7 +265,7 @@ export const CURSOR_ICONS = ['arrow', 'hand', 'ibeam'] as const;
 export type CursorIcon = (typeof CURSOR_ICONS)[number];
 
 /**
- * What the in-page cursor showed besides its position (L2.13), reported by the kit as it drew it: `icon` (the icon
+ * What the in-page cursor showed besides its position, reported by the kit as it drew it: `icon` (the icon
  * changed), `press` / `release` (the press scale), `ripple` (a click ripple centred at x, y, CSS px).
  */
 export interface CursorEffect {
@@ -315,7 +315,7 @@ export interface EmailArtefact extends ArtefactBase {
   preview: string;
   /** The HTML rendered at 600 px width, full height (absent when the message has no HTML part or rendering failed). */
   image?: ArtefactImage;
-  /** The persona whose mailbox it was waited for in (`to: persona:<name>`, L5.6): mail cards label the mailbox after it. */
+  /** The persona whose mailbox it was waited for in (`to: persona:<name>`): mail cards label the mailbox after it. */
   persona?: string;
 }
 
@@ -362,7 +362,7 @@ export interface NotificationArtefact extends ArtefactBase {
   time: string;
 }
 
-/** A text read from the page by `capture_text` (L2.10): a figure for a card (`capture: <name>`). */
+/** A text read from the page by `capture_text`: a figure for a card (`capture: <name>`). */
 export interface TextArtefact extends ArtefactBase {
   kind: 'text';
   /** artefacts/texts/<name>.json: {value, text, target, pattern?}. */
@@ -395,19 +395,19 @@ export interface Timeline {
     /** Seconds. */
     duration: number;
     /**
-     * Wall-clock epoch ms of capture time 0. A take paused from the Studio (L4.4, `pauses`) does not film its pauses:
+     * Wall-clock epoch ms of capture time 0. A take paused from the Studio (`pauses`) does not film its pauses:
      * a later wall time converts with them applied — (wall − t0_wall) / 1000, less the `ms` / 1000 of every pause
      * before it (one that falls inside a pause is that pause's `t`).
      */
     t0_wall: number;
     frames: number;
     /**
-     * `hidden`: captured without the in-page cursor (`retake run --raw --cursor none|layer`, L2.13) — real input,
+     * `hidden`: captured without the in-page cursor (`retake run --raw --cursor none|layer`) — real input,
      * cursor track and effects recorded as usual, nothing drawn. Absent: the cursor is in the pictures.
      */
     cursor?: 'hidden';
   };
-  /** Title, intro, outro, frame, template and music of the scenario (written by runners since L2.1). */
+  /** Title, intro, outro, frame, template and music of the scenario (written by runners; older runs have none). */
   video?: TimelineVideo;
   scenes: TimelineScene[];
   events: TimelineEvent[];
@@ -417,7 +417,7 @@ export interface Timeline {
   /** The cursor of `capture` (per-page tracks keep their own: `tracks[].cursor`). */
   cursor: CursorSample[];
   /**
-   * What the in-page cursor of `capture` showed besides its position (L2.13; absent in older runs): icon changes,
+   * What the in-page cursor of `capture` showed besides its position (absent in older runs): icon changes,
    * presses and click ripples, as the kit drew them (per-page tracks keep their own).
    */
   cursor_effects?: CursorEffect[];
@@ -426,39 +426,39 @@ export interface Timeline {
    * tracks, a frame of any of them counts.
    */
   idle: Array<{ t_start: number; t_end: number }>;
-  /** Page loads `capture` did not show (R-ISS-08, L1.2; absent when none — and in older runs). */
+  /** Page loads `capture` did not show (R-ISS-08; absent when none — and in older runs). */
   loading?: TimelineLoading[];
   /**
-   * Where `capture` froze while the cursor moved or a click ripple played (L5.7; absent when it never did): the frame
+   * Where `capture` froze while the cursor moved or a click ripple played (absent when it never did): the frame
    * before the gap held from `t_start` to `t_end`. The edit cuts the frozen part (R-ISS-12, R-FLD-20).
    */
   stalls?: TimelineStall[];
   /**
-   * Waits the screen showed after a click (L5.7, R-FLD-26; absent when none): near-identical frames — a skeleton, a
+   * Waits the screen showed after a click (R-FLD-26; absent when none): near-identical frames — a skeleton, a
    * spinner, a blank panel — before the content the click asked for appeared. The edit shortens them.
    */
   busy?: TimelineBusy[];
   /** Hotfix v0.2.6: loading indicators in the filmed page's viewport (absent when none: the review's `loading-filmed`). */
   loading_ui?: TimelineLoadingUi[];
-  /** Where the take was paused between steps (L4.4; absent when it never was): capture time did not run meanwhile. */
+  /** Where the take was paused between steps (absent when it never was): capture time did not run meanwhile. */
   pauses?: TimelinePause[];
   /**
-   * Emails, documents and web notifications (L2.9) and texts (`capture_text`, L2.10) captured by the run; files are
+   * Emails, documents and web notifications and texts (`capture_text`) captured by the run; files are
    * relative to the run directory.
    */
   artefacts?: TimelineArtefact[];
   /**
-   * Multi-page scenes (L2.11): one track per page they film, recorded at the same time as each other on the capture
+   * Multi-page scenes: one track per page they film, recorded at the same time as each other on the capture
    * clock. Absent when every scene films one page (`capture` holds everything).
    */
   tracks?: TimelineTrack[];
-  /** The environment the run filmed (L1.7; absent in older runs): access, display URLs, clock, writes stopped. */
+  /** The environment the run filmed (absent in older runs): access, display URLs, clock, writes stopped. */
   environment?: TimelineEnvironment;
   warnings: string[];
 }
 
 /**
- * The environment of a run (L1.7). URLs elsewhere in the timeline stay the real ones; `display` maps them to what the
+ * The environment of a run. URLs elsewhere in the timeline stay the real ones; `display` maps them to what the
  * video shows.
  */
 export interface TimelineEnvironment {
@@ -474,7 +474,7 @@ export interface TimelineEnvironment {
   clock?: ResolvedClock;
   /** Writes the read-only guard stopped, answered or let through, and writes that went to hosts it does not guard. */
   writes?: TimelineWrite[];
-  /** A sandbox environment (L1.8): its provider and the reset made before the take. */
+  /** A sandbox environment: its provider and the reset made before the take. */
   sandbox?: RunSandbox;
 }
 
@@ -490,7 +490,7 @@ export interface RunError {
   screenshot?: string;
   dom?: string;
   /**
-   * A target was not found (L5.6): the targets of the scene's later steps that do not resolve on the page either,
+   * A target was not found: the targets of the scene's later steps that do not resolve on the page either,
    * looked up without acting, with the visible elements closest to each — every renamed label of a scene in one take.
    */
   missing_targets?: MissingTarget[];
@@ -513,7 +513,7 @@ export interface MissingTarget {
   near: NearElement[];
 }
 
-/** An `optional` step that failed (run.json `optional_failures`, L5.6): the run went on. */
+/** An `optional` step that failed (run.json `optional_failures`): the run went on. */
 export interface OptionalFailure {
   scene: string;
   step: number;
@@ -538,16 +538,16 @@ export interface RunEngine {
 
 // runs/<id>/run.json — the run record, its states and its reader: run-record.ts (RunRecord, StoredRunRecord).
 
-/** run.json `perf` (L5.7, R-FLD-23): what a take cost and how smoothly it was filmed. */
+/** run.json `perf` (R-FLD-23): what a take cost and how smoothly it was filmed. */
 export interface RunPerf {
-  /** Seconds of the take (capture time 0 to its end; the pauses of a take paused from the Studio left out, L4.4). */
+  /** Seconds of the take (capture time 0 to its end; the pauses of a take paused from the Studio left out). */
   seconds: number;
   /** CPU seconds per process group over the take, sampled from the system's process table (absent when it failed). */
   cpu?: RunPerfCpu;
   /**
-   * The machine during the take: logical CPUs and the 1-minute load average (mean and highest). L5.14 (captures first):
-   * `takes_beside` — the most other takes filming at once on this Mac while it filmed (absent: not sampled, a run before
-   * L5.14); `heavy_slowed` — heavy work (a render, a review, an export, a preview, a site extraction) of its workspace's
+   * The machine during the take: logical CPUs and the 1-minute load average (mean and highest). Captures first:
+   * `takes_beside` — the most other takes filming at once on this Mac while it filmed (absent: not sampled, an older
+   * run); `heavy_slowed` — heavy work (a render, a review, an export, a preview, a site extraction) of its workspace's
    * jobs worker ran slowed at background priority during it. Not counted: a terminal `retake render` that waited or
    * slowed itself (it has no job), heavy work of another workspace.
    */
@@ -566,7 +566,7 @@ export interface RunPerf {
   /** Click → stable content: the clicks measured and the slow ones (over 800 ms), slowest first. */
   transitions?: { measured: number; slow: PerfTransition[] };
   /**
-   * L4.4: the Studio's live picture was watched during the take — the seconds its screencast ran and the frames it sent
+   * The Studio's live picture was watched during the take — the seconds its screencast ran and the frames it sent
    * (Chromium's browser process encoded them on top of the capture). Absent when nobody watched.
    */
   live_preview?: { seconds: number; frames_sent: number };
@@ -610,7 +610,7 @@ export interface PerfTransition {
   target?: string;
 }
 
-/** One pause of a run (L4.4): before step `step` of `scene`, from `at` (ISO), `ms` long. */
+/** One pause of a run: before step `step` of `scene`, from `at` (ISO), `ms` long. */
 export interface RunPause {
   scene: string;
   step: number;
@@ -618,19 +618,19 @@ export interface RunPause {
   ms: number;
 }
 
-/** One step a run executes, as its `outline` event lists it (L4.4): the step's own description, redacted. */
+/** One step a run executes, as its `outline` event lists it: the step's own description, redacted. */
 export interface RunOutlineStep {
   scene: string;
   /** 0-based step index in the scene. */
   step: number;
   action: string;
   desc: string;
-  /** A step of an `offscreen: true` scene (L5.8): played, live and pausable like any other, left out of the video. */
+  /** A step of an `offscreen: true` scene: played, live and pausable like any other, left out of the video. */
   offscreen?: true;
 }
 
 /**
- * A persona's result in a run's preflight (L4.4): signed in, saved but not checked, no session (the single-account
+ * A persona's result in a run's preflight: signed in, saved but not checked, no session (the single-account
  * form starts signed out), signed in automatically off camera, or failing (the run stops before anything is filmed).
  */
 export type RunSessionStatus = 'valid' | 'unchecked' | 'none' | 'signed_in_auto' | 'failed';

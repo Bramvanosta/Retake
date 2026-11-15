@@ -1,5 +1,5 @@
 /**
- * `exportCapture` (L2.13, R-RAW-01…04): the raw package of a run for editing in another tool — one clean clip per
+ * `exportCapture` (R-RAW-01…04): the raw package of a run for editing in another tool — one clean clip per
  * scene (per page of a multi-page scene) with the page loads and the loading cut, MP4 (H.264 high, CRF 14) or ProRes
  * 422 HQ at 30 or 60 fps; the cursor baked, absent (data only) or as a transparent layer per clip; cursor and click
  * data (JSON, CSV); markers (FCPXML 1.10, CMX 3600 EDL, OpenTimelineIO, CSV, JSON); an optional selects file; a
@@ -118,7 +118,7 @@ export interface RawManifestClip {
   scene_number: number;
   page?: string;
   label?: string;
-  /** On the sequence (FCPXML spine, EDL, OTIO V1, selects); the other pages of a scene ride along, disabled. */
+  /** On the sequence (FCPXML spine, EDL, the OTIO track V1, selects); the other pages of a scene ride along, disabled. */
   primary: boolean;
   caption?: string;
   width: number;
@@ -241,7 +241,7 @@ function recordOf(facts: RunFolderFacts): { status?: string; env?: string } | un
 export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExportResult> {
   const runDir = resolve(opts.runDir);
   const { recorded, record } = await rawExportRun(runDir);
-  // What the package names (step markers, click targets) as the video shows it (L1.7): URLs through the display table
+  // What the package names (step markers, click targets) as the video shows it: URLs through the display table
   // an edit would use, a local one reduced to its path — the real URLs stay in the run's timeline.json.
   const timeline = shownTargets(recorded, exportDisplayTable(opts.project, recorded, record?.env));
   const s = rawSettings(opts.project, timeline, opts);

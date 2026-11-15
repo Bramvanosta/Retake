@@ -1,13 +1,13 @@
 /**
- * L5.10b: the take strip above the board (plan §1.4, critique H2: kept minimal) — where the pictures come from
- * ("Pictures from": the scenario's runs; the source run as a shape, words and when), the open comments, the location
- * the runs use, what the last start came to (queued, its outcome with the first line of its error, or the server's
- * refusal with its command) and what the pictures may not show (the scenario changed since the run, only the edit
- * changed, cannot tell, newer runs stopped early, the run's error from the page). A run of this scenario queued or
- * running (`Running`: its progress from `run_status`, Watch live) is the screen's, above both views (review B M1).
- * L5.11a: Rehearse, Capture and Render moved to the status bar (StatusActions.tsx: the buttons, their blockers, Stop ⌘.,
+ * The take strip above the board (kept minimal) — where the pictures come from ("Pictures from": the scenario's runs;
+ * the source run as a shape, words and when), the open comments, the location the runs use, what the last start came to
+ * (queued, its outcome with the first line of its error, or the server's refusal with its command) and what the
+ * pictures may not show (the scenario changed since the run, only the edit changed, cannot tell, newer runs stopped
+ * early, the run's error from the page). A run of this scenario queued or running (`Running`: its progress from
+ * `run_status`, Watch live) is the screen's, above both views.
+ * Rehearse, Capture and Render moved to the status bar (StatusActions.tsx: the buttons, their blockers, Stop ⌘.,
  * the sessions sheet); the last start shown here is the store's (shoot-data.ts `useLastStart`), whoever started it — the
- * status bar, ⌘R, Prepare (review B H1 of L5.10b: its outcome still lands here). Open timeline went with them (the Edit
+ * status bar, ⌘R, Prepare (its outcome still lands here). Open timeline went with them (the Edit
  * mode opens the same capture).
  */
 import { useEffect, useState } from 'react';
@@ -50,7 +50,7 @@ function firstLine(s: string): string {
   return l.length > 300 ? `${l.slice(0, 300)}…` : l;
 }
 
-/** An option's text (no element can isolate it): run.json's words only through known statuses, controls made visible (review A #4). */
+/** An option's text (no element can isolate it): run.json's words only through known statuses, controls made visible. */
 export function runLabel(r: ScenarioRunChoice): string {
   const what = `${modeWord(r.mode)} ${r.id}`;
   const status = RUN_STATUS_WORDS[r.status] ?? 'unknown';
@@ -59,7 +59,7 @@ export function runLabel(r: ScenarioRunChoice): string {
 }
 
 /**
- * The outcome of the run this screen started, once it ends (review B H1): its status and, from run_status, the first
+ * The outcome of the run this screen started, once it ends: its status and, from run_status, the first
  * line of its error — a run that failed before its first step (the site down) leaves no picture and would otherwise
  * vanish without a word.
  */
@@ -119,7 +119,7 @@ export function Running({ run, live, slug, name }: { run: ScenarioRunChoice | nu
   );
 }
 
-/** The scenario's open comments (Review mode's threads), as a link (critique M4: the count kept a home). */
+/** The scenario's open comments (Review mode's threads), as a link (the count kept a home). */
 export function CommentsCount({ slug, name }: { slug: string; name: string }) {
   const [counts, reload] = useThreadsCounts({ project: slug, name }, `${slug}\0${name}`);
   useEvents((e) => {

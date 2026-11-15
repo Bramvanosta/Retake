@@ -1,5 +1,5 @@
 /**
- * Multi-page scenes (L2.11): the `pages:` of a scene normalised (ids, environment pages, `open`, viewports). Pure;
+ * Multi-page scenes: the `pages:` of a scene normalised (ids, environment pages, `open`, viewports). Pure;
  * shared by the validation, the runner and the editor.
  */
 import { VIEWPORT_PRESETS, VIEWPORT_PRESET_NAMES } from './types/language.js';
@@ -28,7 +28,7 @@ export interface ResolvedScenePage {
   viewport: ResolvedViewport;
   label?: string;
   cursor?: SceneCursor;
-  /** The persona written on the page (L1.6; the runner binds every page from its static plan, core auth.ts). */
+  /** The persona written on the page (the runner binds every page from its static plan, core auth.ts). */
   persona?: string;
 }
 

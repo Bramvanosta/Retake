@@ -1,6 +1,6 @@
 /**
- * L1.7 data side: the two forms of an environment (display URLs, production, access, read_only), the access of a run,
- * display URL mapping, request patterns and the write classifier, the clock, and which hooks write.
+ * The data side of environments: the two forms of an environment (display URLs, production, access, read_only), the
+ * access of a run, display URL mapping, request patterns and the write classifier, the clock, and which hooks write.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -343,7 +343,7 @@ describe('display URLs (R-ENV-01)', () => {
     expect(displayError('ftp://x.example.com')).toMatch(/http\(s\) URL or a host/);
     expect(displayError('user@shop.example.com')).toMatch(/credentials/);
     expect(displayError('/just/a/path')).toMatch(/does not start with a host/);
-    // A local display would put the local host in the video; a port out of range is no URL (V6).
+    // A local display would put the local host in the video; a port out of range is no URL.
     for (const local of ['localhost:4402', 'http://127.0.0.1', 'shop.localhost', 'devbox', 'app.test', 'nas.lan', '[::1]:3000', '100.64.1.2']) {
       expect(displayError(local), local).toMatch(/is a local host/);
     }
@@ -462,7 +462,7 @@ describe('display URLs (R-ENV-01)', () => {
     ['8.8.8.8', false],
     ['example.com', false],
     ['2001:db8::1', false],
-    // V6: names without a dot, home / office network suffixes, shared addresses, IPv4-mapped IPv6, written forms.
+    // Names without a dot, home / office network suffixes, shared addresses, IPv4-mapped IPv6, written forms.
     ['devbox', true],
     ['web', true],
     ['nas.lan', true],
@@ -493,7 +493,7 @@ describe('display URLs (R-ENV-01)', () => {
       '127.0.0.1:8080/x',
       'localhost:3000',
     ]);
-    // V6: bare local hosts with a port or a path; a full URL to a name without a dot; never a ratio or a time.
+    // Bare local hosts with a port or a path; a full URL to a name without a dot; never a ratio or a time.
     expect(findLocalUrls('See shop.localhost:4402, app.test:3000/x, 192.168.1.5:3000, [::1]:4402, localhost/admin and http://devbox:3000/y.')).toEqual([
       'http://devbox:3000/y',
       'shop.localhost:4402',
@@ -830,7 +830,7 @@ describe('clock (R-ENV-05)', () => {
   it('refuses an unusable clock or time zone', () => {
     expect(() => resolveClock('2026-11-02', undefined)).toThrow(ClockError);
     expect(() => resolveClock('2026-11-02T10:24:00', undefined, { timezone: 'Mars/Olympus' })).toThrow(/browser.timezone "Mars\/Olympus" is not a time zone/);
-    // T3: minutes of an offset past 59, a year before 1970.
+    // Minutes of an offset past 59, a year before 1970.
     expect(clockError('2026-11-02T10:24:00+05:99')).toMatch(/the offset is out of range/);
     expect(clockError('2026-11-02T10:24:00+0560')).toMatch(/the offset is out of range/);
     expect(clockError('2026-11-02T10:24:00+05:45')).toBeNull();

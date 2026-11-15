@@ -1,5 +1,5 @@
 /**
- * Run records as the core reads them today (L7.6a): the schema of what this version writes over the records older
+ * Run records as the core reads them today: the schema of what this version writes over the records older
  * builds left, the performance line of a take, and the folder a new run reserves. The fixtures are those of
  * test-support/src/records (README.md says where each comes from).
  *
@@ -121,7 +121,7 @@ describe('the folder a new run reserves', () => {
   });
 
   it('a longer scenario name: refused before any folder is made (a folder that is no run id is a run no list shows)', async () => {
-    // F-8 (small point 3.6). Before the lot: the folder was made, 206 characters long, and no list showed the run.
+    // F-8. Before the lot: the folder was made, 206 characters long, and no list showed the run.
     const at = new Date(2026, 9, 17, 14, 22, 33);
     const name = 'a'.repeat(190);
     expect([newRunId(name, at).length, isRunId(newRunId(name, at))]).toEqual([206, false]);

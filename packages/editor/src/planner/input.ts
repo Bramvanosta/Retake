@@ -22,7 +22,7 @@ export interface PlanEditInput {
   scenario?: Scenario;
   /**
    * The environment the run filmed (run.json `env`): its display URLs in project.yaml apply to runs whose timeline has
-   * no `environment` block (captured before L1.7). A timeline's own `environment.name` wins.
+   * no `environment` block (older captures). A timeline's own `environment.name` wins.
    */
   env?: string;
   overrides?: EditOverrides;
@@ -46,9 +46,9 @@ export interface PlanInputFile {
   /** Images, videos and Lottie files: pixel size. */
   width?: number;
   height?: number;
-  /** A video file (L2.12): what ffprobe says. */
+  /** A video file: what ffprobe says. */
   video?: VideoProbe;
-  /** A Lottie file (L2.12): its metadata. */
+  /** A Lottie file: its metadata. */
   lottie?: LottieMeta;
   /** The file exists but could not be used (not a video ffprobe reads, not a Lottie JSON…). */
   error?: string;

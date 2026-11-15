@@ -1,7 +1,7 @@
 //! What the window may load, what the child's line must say, and what the shell may print.
 //!
-//! - `parse_ui_line`: the one line `retake ui --supervised` prints — `type: "ui"`, `v: 2` (L5.2b: the pipe lines of
-//!   pipe.rs follow it; `retake ui --json` keeps `v: 1`, which this shell refuses), `url` exactly
+//! - `parse_ui_line`: the one line `retake ui --supervised` prints — `type: "ui"`, `v: 2` (the pipe lines of ! 
+// pipe.rs follow it; `retake ui --json` keeps `v: 1`, which this shell refuses), `url` exactly
 //!   `http://127.0.0.1:<port>/#c=<code>`, `player` exactly `http://127.0.0.1:<other port>`; anything else is refused.
 //!   `{"type":"error","code":"no_workspace"}` (the CLI's answer for a folder that is no workspace) is told apart.
 //! - `navigation_allowed`: every frame's navigation (wry asks for all frames): only the Studio's and the player's exact
@@ -15,7 +15,7 @@
 use crate::json::{self, Json};
 use std::time::{Duration, Instant};
 
-/// The supervised line's version this shell reads (`retake ui` SUPERVISED_LINE_VERSION; 2 since L5.2b).
+/// The supervised line's version this shell reads (`retake ui` SUPERVISED_LINE_VERSION).
 pub const UI_LINE_VERSION: u64 = 2;
 const LOOPBACK: &str = "http://127.0.0.1:";
 
@@ -71,7 +71,7 @@ pub enum LineError {
 
 impl LineError {
     /// Its words; `bundled` (the app's own engine, launch.json version 2): no repository command — a version gap there
-    /// is a Studio server of another copy of Retake serving the workspace, or a damaged app (L5.16).
+    /// is a Studio server of another copy of Retake serving the workspace, or a damaged app.
     pub fn text(&self, bundled: bool) -> String {
         match (self, bundled) {
             (LineError::WrongVersion(Some(v)), true) if *v > UI_LINE_VERSION => format!(
@@ -165,8 +165,8 @@ pub struct Allowed {
 }
 
 impl Allowed {
-    /// No origin: no server, or the server stopped (review A L3: a port freed by a stopped server may be bound by
-    /// another local process, whose page the window must not load on a reload).
+    /// No origin: no server, or the server stopped (a port freed by a stopped server may be bound by another
+    /// local process, whose page the window must not load on a reload).
     pub const NONE: Allowed = Allowed { studio: 0, player: 0, attached: None };
 }
 
@@ -395,13 +395,13 @@ mod tests {
         for bad in ["http://localhost:4101", "http://127.0.0.1:4101/", "http://127.0.0.1:4100", "https://127.0.0.1:4101", "http://127.0.0.1:4101/s/x"] {
             assert_eq!(parse_ui_line(&line(&url, 4100, Some(bad))), Err(LineError::BadPlayer), "{bad}");
         }
-        // L5.2b: `retake ui --json`'s v 1 (a CLI older than the app) and a newer line are refused, each saying what to build.
+        // `retake ui --json`'s v 1 (a CLI older than the app) and a newer line are refused, each saying what to build.
         let v1 = parse_ui_line(&line(&url, 4100, p).replace("\"v\":2", "\"v\":1"));
         assert_eq!(v1, Err(LineError::WrongVersion(Some(1))));
         assert!(v1.unwrap_err().to_string().contains("run pnpm build in the repository, then pnpm desktop:build"));
         let v3 = parse_ui_line(&line(&url, 4100, p).replace("\"v\":2", "\"v\":3"));
         assert!(v3.unwrap_err().to_string().contains("rebuild the app — pnpm desktop:build"));
-        // L5.16: the bundled app's words name no repository command.
+        // The bundled app's words name no repository command.
         for (e, says) in [(LineError::WrongVersion(Some(1)), "an older Retake serves this workspace"), (LineError::WrongVersion(None), "an older Retake"), (LineError::WrongVersion(Some(3)), "a newer Retake serves this workspace")] {
             let t = e.text(true);
             assert!(t.contains(says) && t.contains("disk image") && !t.contains("pnpm"), "{t}");

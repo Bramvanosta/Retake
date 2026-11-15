@@ -62,7 +62,7 @@ export interface PlanOfRunOptions {
 }
 
 /**
- * A run's edit plan, on its own (`retake plan`, L7.22): the run found by the rule every reader of runs shares (findRunOf:
+ * A run's edit plan, on its own (`retake plan`): the run found by the rule every reader of runs shares (findRunOf:
  * an id, a directory or `latest`), then the planning of a render (planWork: the edit of today's scenario file when
  * its filmed part is unchanged, the theme, the registry, the planner) — for a plan alone (`purpose: 'plan'`: its
  * refusals say plan, a run without its film plans, no music measured). With the summary's lines (the editor's

@@ -1,5 +1,5 @@
 /**
- * The scenario's YAML, read-only (L4.2; L5.10b: R4-Source on the kit): the file's text as text nodes, one list item per
+ * The scenario's YAML, read-only (R4-Source on the kit): the file's text as text nodes, one list item per
  * line (the numbers are the list's markers: not copied with the text) with its direction controls shown as marks
  * (`Txt`: a U+202E in a value cannot reorder the line), each issue under its line (its severity as a shape and a word),
  * the issues without a line above, and the lines "Show in the file" asked for outlined and scrolled to. Syntax colours

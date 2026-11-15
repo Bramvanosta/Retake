@@ -1,14 +1,13 @@
 /**
- * The themes of a project's workspace (L4.7 part D2, R-UI-07 / R-DEC-04; L5.12c « Épure » 4c, R4-Theme, R-UI-49 —
- * `#/p/<slug>/themes[/<theme>]`): the list — each theme's colours, where it comes from (Workspace / Starter / Project
- * folder), whether the Studio edits it (by its real path, critique B15: a starter, a theme shipped in the package or the
- * project's own folder theme is read-only, with why) and what uses it; "Copy to edit…" on a read-only listed theme (a
- * kit Sheet asks for the copy's name: theme_copy); New theme (L3.5's brand form: theme_create, never replacing one; a
- * changed form is unsaved for the desktop app's quit question: `new_theme`); and the site panel — the site extractions
- * of the workspace (host, page title: untrusted text, shown as text; hex roles; logo candidates by name, B11 / C5), the
- * `retake theme from-site` command to copy for a URL (no Studio op queues a site job: the extraction needs a person's
- * approval of the URL in a terminal or in Claude Code), and "New theme from this". With a theme: its editor
- * (ThemeEditor.tsx).
+ * The themes of a project's workspace (R-UI-07 / R-DEC-04, R-UI-49 — `#/p/<slug>/themes[/<theme>]`): the list — each
+ * theme's colours, where it comes from (Workspace / Starter / Project folder), whether the Studio edits it (by its real
+ * path: a starter, a theme shipped in the package or the project's own folder theme is read-only, with why) and what
+ * uses it; "Copy to edit…" on a read-only listed theme (a kit Sheet asks for the copy's name: theme_copy); New theme
+ * (the brand form: theme_create, never replacing one; a changed form is unsaved for the desktop app's quit question:
+ * `new_theme`); and the site panel — the site extractions of the workspace (host, page title: untrusted text, shown as
+ * text; hex roles; logo candidates by name), the `retake theme from-site` command to copy for a URL (no Studio op
+ * queues a site job: the extraction needs a person's approval of the URL in a terminal or in Claude Code), and "New
+ * theme from this". With a theme: its editor (ThemeEditor.tsx).
  * In the shell: the browser is the Library's (LibraryBrowser.tsx: each theme opens its editor); the status bar says how
  * many themes and which one the project uses.
  */
@@ -260,7 +259,7 @@ export function RowCopy({ slug, from, taken, onCancel }: { slug: string; from: s
 
 /**
  * One colour of the form: the kit's ColorField — a move or each keystroke sets the form's value (the form owns the text:
- * a value that is not a hex stays as typed and the form's line says why, review B-M2); nothing is written.
+ * a value that is not a hex stays as typed and the form's line says why); nothing is written.
  */
 function FormColor({ label, value, set, optional, testId }: { label: string; value: string; set: (v: string) => void; optional?: boolean; testId: string }) {
   return (
@@ -282,7 +281,7 @@ function FormColor({ label, value, set, optional, testId }: { label: string; val
 }
 
 /**
- * New theme (theme_create = L3.5's create under trust `mcp`, exactly as Claude's template_create_from_brand; never
+ * New theme (theme_create = the create under trust `mcp`, exactly as Claude's template_create_from_brand; never
  * replacing a theme): name, base, colours, logo / wordmark among the workspace's image files or a site's candidates,
  * fonts among its font files, brand name and URL. Its palette adjustments and warnings are shown after.
  */
@@ -293,7 +292,7 @@ export function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { sl
   const [fontFiles, setFontFiles] = useState<Pick<BrandFiles, 'files' | 'truncated'> | null>(null);
   const [state, setState] = useState<{ busy?: boolean; error?: string; made?: ThemeCreated }>({});
   const headId = useId();
-  // L5.2b (review B L7): a form changed and not made yet is unsaved text the desktop app's quit question names.
+  // A form changed and not made yet is unsaved text the desktop app's quit question names.
   useUnsavedMark(!state.made && JSON.stringify(f) !== JSON.stringify(initial) ? { kind: 'new_theme', project: slug } : null);
   const set = (k: keyof NewThemeForm) => (v: string) => setF((x) => ({ ...x, [k]: v }));
   useEffect(() => {

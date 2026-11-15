@@ -1,11 +1,11 @@
 /**
- * L4.7 looping previews rendered for real (Remotion, guarded, one whole-registry bundle in a temporary cache) —
+ * Looping previews rendered for real (Remotion, guarded, one whole-registry bundle in a temporary cache) —
  * gated slow (RETAKE_TEST_SLOW=1): GIF89a 640×360 looping forever (NETSCAPE2.0, count 0) at 15 fps over the
  * spec's length, a poster beside it; a transition's loop opens on the outgoing scene (the theme layout's own first
  * frame) and ends on the settled card (the card's still); a workspace component that throws while rendering fails
  * alone. Review fixes: a component that throws at module load, then one that does not compile, in the registry bundle —
- * the others are rendered again with their own components, each fails alone (A M3 / B H1); a hidden import (a dot
- * folder) fails webpack's bundle (A H1). Needs ffmpeg and a headless shell; bundles in temporary caches, removed after.
+ * the others are rendered again with their own components, each fails alone; a hidden import (a dot
+ * folder) fails webpack's bundle. Needs ffmpeg and a headless shell; bundles in temporary caches, removed after.
  */
 import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';

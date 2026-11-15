@@ -1,5 +1,5 @@
 /**
- * The hooks use cases orchestrated once (L7.23, U8b; engine hooks-work.ts), shared by the CLI's `hooks run` / `hooks
+ * The hooks use cases orchestrated once (engine hooks-work.ts), shared by the CLI's `hooks run` / `hooks
  * rollback` / `env reset` and the `hooks` / `env_reset` jobs — on the in-memory hook runner and pages. What the two
  * callers differ in stays with the caller: the jobs' protection (project files only, the approved bytes, their checks)
  * is an option the CLI does not pass, so the CLI gains none of it; `agentWritten` goes to the runner under trust `mcp`

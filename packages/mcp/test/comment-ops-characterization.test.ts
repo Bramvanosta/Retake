@@ -2,7 +2,7 @@
  * The comment operations (MCP: comments_list, comment_reply, comment_resolve; the Studio: threads_list,
  * threads_counts, thread_get, thread_still, render_outline, render_frame, frame_anchor, thread_add, thread_reply,
  * thread_resolve, thread_reopen, thread_apply), characterized through their shells before they became the engine's
- * operations (L7.16): each call's answer through `retake mcp` over stdio (from the sources, the SDK's client) and
+ * operations: each call's answer through `retake mcp` over stdio (from the sources, the SDK's client) and
  * through the Studio's `POST /v1/call/<op>` (no worker), each shell on its own workspace of two synthetic renders of
  * different sizes (the review tests' helpers: a drawn capture and two renders, quote-v1 at 480×270 and quote-v2 at
  * 576×324) and three threads written by a Studio engine (one resolved), plus a proposal written by an MCP engine on

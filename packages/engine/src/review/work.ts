@@ -1,5 +1,5 @@
 /**
- * The pipeline's review (L7.11): a render reviewed into review/<render-id>/ on the reviewer its caller hands — the
+ * The pipeline's review: a render reviewed into review/<render-id>/ on the reviewer its caller hands — the
  * CLI's `retake review` and `render --review` (cliEnginePorts), a review job and a render job's inline review (their
  * composition root's). The reviewer's result and errors come back unchanged (the review package's ReviewError and
  * ReviewCancelledError on the product's).

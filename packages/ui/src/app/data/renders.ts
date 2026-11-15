@@ -1,5 +1,5 @@
 /**
- * L6.13: Renders and the Review report: a render, the render list, Cancel, the review, its contact sheets, the export,
+ * Renders and the Review report: a render, the render list, Cancel, the review, its contact sheets, the export,
  * and a render's frames and outline (the review's frame and the comments' viewer).
  * Each op once, typed by StudioOps (data/ops.ts).
  */

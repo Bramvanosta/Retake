@@ -1,5 +1,6 @@
 /**
- * `retake login`'s engine (L1.6, R-AUTH-06): signIn in a real Chromium against the cookie sign-in app of test-support auth.ts.
+ * `retake login`'s engine (R-AUTH-06): signIn in a real Chromium against the cookie sign-in app of test-support
+ * auth.ts.
  * The headed window is played by `drive` (a headless window here; a visible one with RETAKE_TEST_HEADED=1 — the
  * only proof of the real window without a person), the automated login with an injected secret reader. Every test has
  * its own Retake home (RETAKE_HOME): nothing touches ~/.retake, nothing reads the real Keychain.

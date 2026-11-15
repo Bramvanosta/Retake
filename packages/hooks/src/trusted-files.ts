@@ -1,5 +1,5 @@
 /**
- * The files a person's trust in an agent's hooks binds (L7.39), and the check of a run against them. Not an approval's
+ * The files a person's trust in an agent's hooks binds, and the check of a run against them. Not an approval's
  * fingerprint (approval.ts hookFiles, unchanged): a fingerprint binds what work submitted through MCP may run; this
  * binds what a hook reads at a person's terminal, so it follows the shell further and sorts what it finds.
  *

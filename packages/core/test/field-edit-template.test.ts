@@ -1,7 +1,7 @@
 /**
- * L4.7 part A1 (critique B1): a scenario's `template` — its theme by name — is a field of the timeline's `set_field`
+ * A scenario's `template` — its theme by name — is a field of the timeline's `set_field`
  * (core FIELD_PATHS.top): set, changed and removed (the project's theme) as a splice before `scenes:`; never a path; an
- * edit value (L5.5: a render of every existing take re-plans it, no new capture). The engine checks the name is a theme
+ * edit value (a render of every existing take re-plans it, no new capture). The engine checks the name is a theme
  * the workspace lists (engine theme-edit tests).
  */
 import { describe, expect, it } from 'vitest';

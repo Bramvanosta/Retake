@@ -1,15 +1,15 @@
 /**
- * L4.6 part A2 (T3): Claude's proposal on a frame comment, checked when it is written (engine comment-proposals.ts
+ * Claude's proposal on a frame comment, checked when it is written (engine comment-proposals.ts
  * buildProposal through comments.reply with `proposal`). A proposal is the whole new text of the thread's own
  * scenario file and the hash Claude read; it is stored as the canonical line diff of the exact bytes Apply would write
  * (the file's own line break, a final one included) — only when the Studio would accept it at Apply (prepareScenarioEdit
  * as replace_text with agent trust from the Studio: hooks and mocks unchanged, vars / env unchanged while there are
- * some, no secret reference, no outside file, valid YAML…), it is an edit-only change (critique B2), within the caps
- * (critique B13), on an open thread, from the MCP (critique B10). A refusal writes nothing: thread and scenario bytes
- * unchanged. ⚑ marks the rules a mutation check reverted. The view of a proposal (critique B1 / B15): its state and the
+ * some, no secret reference, no outside file, valid YAML…), it is an edit-only change, within the caps
+ *, on an open thread, from the MCP. A refusal writes nothing: thread and scenario bytes
+ * unchanged. ⚑ marks the rules a mutation check reverted. The view of a proposal: its state and the
  * rows a person reads, computed by the engine from the file. Fixes after the reviews: ⚑ a diff of more than 600 rows,
- * ⚑ a theme change and ⚑ a lone surrogate are refused (review A M1 / L3 / L6); ⚑ a base without a final line break
- * reads verified once applied (review B L1).
+ * ⚑ a theme change and ⚑ a lone surrogate are refused; ⚑ a base without a final line break
+ * reads verified once applied.
  */
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -273,7 +273,7 @@ describe('⚑ write-time refusals: nothing written (T3)', () => {
     const e = await refused('stale', TEXT, SHORTER, (x) => expect(x).toMatchObject({ code: 'conflict', details: { current: sha(TEXT) } }), { hash: sha('an older text') });
     expect(e.message).toMatch(/changed since you read it — scenario_get again/);
     await refused('same', TEXT, TEXT, (x) => expect(x).toMatchObject({ code: 'invalid', message: expect.stringMatching(/nothing to propose/) }));
-    // A file without its final line break: adding it alone changes no line (critique B10: a zero-hunk proposal).
+    // A file without its final line break: adding it alone changes no line (a zero-hunk proposal).
     await refused('eolonly', TEXT.trimEnd(), TEXT, (x) => expect(x).toMatchObject({ code: 'invalid', message: expect.stringMatching(/only by its line breaks/) }));
     await refused('resolved', TEXT, SHORTER, (x) => expect(x).toMatchObject({ code: 'conflict', message: expect.stringMatching(/is resolved — a proposal answers an open thread/) }), {
       resolved: true,

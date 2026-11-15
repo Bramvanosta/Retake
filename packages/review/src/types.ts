@@ -116,7 +116,7 @@ export interface ReviewRules {
   video_tolerance: number;
   /**
    * Where the target length comes from: the reference look (default) or the scenario's `target_length` (R-FLD-05,
-   * L5.5: the plan carries it; rules passed by the caller win).
+   * The plan carries it; rules passed by the caller win).
    */
   video_target?: 'reference' | 'scenario';
   /** Target scene length, seconds (look.md: 4–25 s); outside: info. */
@@ -352,7 +352,7 @@ export interface ReviewFiles {
   diff_sheet?: string;
 }
 
-/** The run's environment as a review shows it (L1.7; from timeline.json `environment`). */
+/** The run's environment as a review shows it (from timeline.json `environment`). */
 export interface ReviewEnvironment {
   name: string;
   production?: true;
@@ -389,7 +389,7 @@ export interface ReviewResult {
   counts: Record<Severity, number>;
   findings: Finding[];
   durations: { total_s: number; segments: SegmentDuration[] };
-  /** The environment the run filmed (L1.7: access, production, clock, writes); absent for runs before it. */
+  /** The environment the run filmed (access, production, clock, writes); absent for runs before it. */
   environment?: ReviewEnvironment;
   diff?: ReviewDiff;
   files: ReviewFiles;

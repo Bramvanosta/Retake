@@ -21,7 +21,7 @@ import { MANIFEST_FILE, kitMajorOf, parseManifest } from './manifest.js';
 import { KIT_API_VERSION, LIBRARY_DIR } from './paths.js';
 import type { ComponentInfo, ComponentIssue, ComponentManifest, ComponentSource, ResolvedComponentRef } from './types.js';
 
-/** Can a component be used as `kind`? Its own kind, or one of its `kinds` (L2.12). */
+/** Can a component be used as `kind`? Its own kind, or one of its `kinds`. */
 export function usableAs(m: Pick<ComponentManifest, 'kind' | 'kinds'>, kind: ComponentKind): boolean {
   return m.kind === kind || (m.kinds ?? []).includes(kind);
 }
@@ -127,7 +127,7 @@ export async function loadComponentDir(dir: string, source: ComponentSource, fol
       broken: { severity: 'error', message: `invalid component ${folderId}: entry file ${manifest.entry} not found`, source, dir, id: folderId, issues: [issue] },
     };
   }
-  // L4.5 (the guard-rail): a component written for another kit API is not loaded — its uses fall back (a warning), or
+  // The guard-rail: a component written for another kit API is not loaded — its uses fall back (a warning), or
   // render as `missing` when nothing else resolves.
   const kit = kitMajorOf(manifest);
   if (kit !== KIT_API_VERSION) {

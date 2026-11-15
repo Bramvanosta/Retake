@@ -1,9 +1,9 @@
 /**
- * A thread in the inspector (L4.6 part D1; L5.12b « Épure » 4b, R4-Comments' right pane: was CommentsScreen.tsx's): the
- * comment (status, channel, author as text, when), its text, where it points (the anchor's chips as tags), its region and
- * frame, the newer renders, its still when its render is gone, its entries (the channel in words, an author and a text as
- * untrusted text — an MCP entry shows its channel alone: its author is always the server's agent), the newest proposal
- * (ProposalCard.tsx), then Reply, Resolve (a note, optionally the newer render that answers it) or Reopen.
+ * A thread in the inspector (R4-Comments' right pane): the comment (status, channel, author as text, when), its text,
+ * where it points (the anchor's chips as tags), its region and frame, the newer renders, its still when its render is
+ * gone, its entries (the channel in words, an author and a text as untrusted text — an MCP entry shows its channel
+ * alone: its author is always the server's agent), the newest proposal (ProposalCard.tsx), then Reply, Resolve (a note,
+ * optionally the newer render that answers it) or Reopen.
  * Every write of the thread goes through ONE helper (`send`: the op name and its arguments; a lint pins its call), on the
  * thread's hash the panel showed (`if_match`; Reply needs none): a 409 reads the thread again and says so — the text
  * typed stays, nothing is re-sent. One write at a time: the buttons wait while one is sent.
@@ -49,7 +49,7 @@ export function ChipList({ chips, label }: { chips: Chip[]; label: string }) {
   );
 }
 
-/** Memoised (review A-L2): a frame step of the viewer re-renders the screen, never the thread (its props are stable). */
+/** Memoised: a frame step of the viewer re-renders the screen, never the thread (its props are stable). */
 export const ThreadPanel = memo(function ThreadPanel({
   slug,
   name,

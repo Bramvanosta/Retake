@@ -1,10 +1,10 @@
 /**
- * What the Studio's theme editor previews (L4.7 theme_preview; L7.17: built here, the Studio keeps its player origin,
+ * What the Studio's theme editor previews (theme_preview; built here, the Studio keeps its player origin,
  * leases and allow-list): the editor's ComponentPreviewSpec (motion mode) of a theme's intro, its layout with its
  * caption over the sample screen (`clip`), its outro, or one component in the theme — the draft's colours applied in
  * memory, never written; every file the spec names registered by the shell (`start` hands the registrar, called where
  * the shell's player and leases are first needed: after the theme, the registry and the target are settled). A theme
- * whose intro / outro is its own video, image or Lottie (B10) is not previewed — said.
+ * whose intro / outro is its own video, image or Lottie is not previewed — said.
  */
 import type { ComponentKind } from '@retake/core/model';
 import type { LoadedTemplate } from '@retake/core/theme';
@@ -122,7 +122,7 @@ export async function buildThemePreview(
   }
   if (typeof a.target === 'string') {
     const k: ComponentKind = a.target === 'clip' ? 'layout' : a.target;
-    // B10: the theme's own video / image / Lottie: its file is not previewed here (the sample would stand for it).
+    // The theme's own video / image / Lottie: its file is not previewed here (the sample would stand for it).
     if (isTemplateMediaRef(tpl.template.components?.[k] as Parameters<typeof isTemplateMediaRef>[0])) {
       return { answer: { ...base, not_previewed: `the theme's ${k} is its own video, image or Lottie file: not previewed here (a render shows it)` } };
     }

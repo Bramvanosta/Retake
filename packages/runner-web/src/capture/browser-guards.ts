@@ -1,5 +1,5 @@
 /**
- * The browser driver's guards and persona rules (L1.6, L1.7): the read-only write guard, the sign-in guard, the
+ * The browser driver's guards and persona rules: the read-only write guard, the sign-in guard, the
  * persona a page is filmed as, an http hook's persona session, a js hook tab's landing, and the session check after a
  * step failed.
  */
@@ -25,7 +25,7 @@ import type { WriteGuardOptions } from '../write-guard.js';
 import { bestEffort } from '@retake/core/base';
 
 /**
- * The write guard of a run (L1.7): each write it sees goes to `timeline.environment.writes` (capture time from capture
+ * The write guard of a run: each write it sees goes to `timeline.environment.writes` (capture time from capture
  * time 0 on); a stopped write warns once per request (`POST shop:/api/x`), a write to a host it does not watch once per
  * host, a WebSocket to a guarded host once per host; mocked / allowed writes and the sign-in's exempt ones are logged.
  * A read-write run's guard only stops writes to the hosts of the project's read-only environments.
@@ -173,7 +173,7 @@ export function foreignSignIn(
 }
 
 /**
- * The sign-in guard of a run (L1.6): a page filmed as a persona is guarded with that persona's sign-in patterns; a page
+ * The sign-in guard of a run: a page filmed as a persona is guarded with that persona's sign-in patterns; a page
  * without one with the environment's (auth.login_url) unless written `persona: none` — or opened (new_tab) from such a
  * page. Null when there is nothing to watch.
  */

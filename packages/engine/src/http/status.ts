@@ -1,5 +1,5 @@
 /**
- * HTTP status of each engine error code (L4.1, critique B12): the engine's HTTP API answers a tool error with this
+ * HTTP status of each engine error code: the engine's HTTP API answers a tool error with this
  * status and `{ok: false, error: {code, message, fix?, details?}}` — the same error the MCP server returns.
  */
 import type { EngineErrorCode } from '../errors.js';

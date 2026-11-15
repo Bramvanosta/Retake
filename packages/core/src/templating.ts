@@ -138,7 +138,7 @@ export function interpolateDeep<T>(value: T, ctx: TemplateContext): T {
 /**
  * interpolateDeep that knows where it is: a node for which `skip(path, value)` is true stays as written, and a
  * TemplateError names the string that raised it ("scenes[2].steps[3].type.text: unknown template key …").
- * `ctxAt(path)`, when given, picks the context of each string (L1.7: edit text sees the display URLs, steps the real
+ * `ctxAt(path)`, when given, picks the context of each string (edit text sees the display URLs, steps the real
  * ones); `ctx` otherwise.
  */
 export function interpolateAt<T>(value: T, ctx: TemplateContext, path: IssuePath, skip?: (path: IssuePath, value: unknown) => boolean, ctxAt?: (path: IssuePath) => TemplateContext): T {

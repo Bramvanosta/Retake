@@ -1,9 +1,9 @@
 /**
- * L4.4: the live picture (live-preview.ts) — its own screencast of the page the run acts on, handed to a sink in memory:
+ * The live picture (live-preview.ts) — its own screencast of the page the run acts on, handed to a sink in memory:
  * only while someone watches, only while the run is on camera (capture time 0 to the start of `finally`: never during
  * the teardown), at most 10 frames a second with the newest frame of a burst always handed on (a page that changes once
- * and goes still shows its final state), following the page the run acts on. Review A L4: what watching cost is
- * counted (`watched()`), and a capture filmed while someone watched says so (run.json `perf.live_preview`, a warning).
+ * and goes still shows its final state), following the page the run acts on. What watching cost is
+ * counted (`watched`), and a capture filmed while someone watched says so (run.json `perf.live_preview`, a warning).
  */
 import { spawn } from 'node:child_process';
 import { rm } from 'node:fs/promises';

@@ -1,5 +1,5 @@
 /**
- * L6.13: The Library: its view, a component's detail, the posters and loops, their renders. Each op once, typed by
+ * The Library: its view, a component's detail, the posters and loops, their renders. Each op once, typed by
  * StudioOps (data/ops.ts).
  */
 import { op, readHook } from './client.js';

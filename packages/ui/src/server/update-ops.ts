@@ -1,5 +1,5 @@
 /**
- * L5.16d: the desktop app's updates in the Studio (DESIGN §4p (d)). The shell checks its feed (tauri-plugin-updater,
+ * The desktop app's updates in the Studio (DESIGN §4p (d)). The shell checks its feed (tauri-plugin-updater,
  * the rules in desktop_core update_flow) and tells the supervised server each state as one line on stdin — parsed here
  * strictly (`parseUpdateLine`: fixed keys per state, enums, a version, a count, the feed's notes) and kept
  * (`UpdateState`); the page reads it through `desktop_update_status` ("Update available · vX" in the status bar, the
@@ -14,7 +14,7 @@
  *   NOTES_MAX characters) and so does this parser; the status gives them under `untrusted` — the page shows them as
  *   text (Txt), never as markup.
  * - `desktop_update` {install} only while an update is known (available, or a failure the shell says may be tried
- *   again: `retry`, review d M2 — never a dead Install and Restart); `later` any time (it also acknowledges a failure).
+ *   again: `retry` — never a dead Install and Restart); `later` any time (it also acknowledges a failure).
  *   At most UPDATE_CLICKS_PER_MIN clicks a minute. Never nudges the job watch (NO_NUDGE).
  */
 import { z } from 'zod';

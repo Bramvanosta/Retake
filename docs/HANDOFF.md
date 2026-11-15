@@ -75,6 +75,34 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.55)
+- **L7.55 done (2026-11-15; branch `claude/arch-l7`)** — comments under packages/*/src, packages/*/test, apps/ and
+  scripts/ name no lot id and no private-note reference any more, and the history they told is gone; reasons kept in
+  plain words, requirement ids kept. Counts (comment ranges only, 1,646 files): private-note refs 1,373 → 0, lot ids
+  3,667 → 0 (the four `@ts-expect-error` reasons in core test/file-facts.test.ts included),
+  files opening on a lot id 5 → 0 (plus ~400 headers whose first sentence carried one); history-shaped phrases
+  442 → 223, every one left read and kept as a statement of today's behaviour ("renamed into place", "no longer
+  listed", "a run that was named", "deprecated" of a third-party API, the characterization tables' `(was …)` cells).
+  - Code: no behaviour change — 1,160 files touched, each one's text with comments blanked equal to HEAD's
+    (checked by a script), no directive or licence comment changed, no string / test title / runtime text touched,
+    `old-name:` comments untouched. New `scripts/audit/comment-refs.mjs` (comment ranges from TypeScript's syntax tree
+    trivia, small lexers for Rust, CSS, shell, TOML, Python) wired into the import-rules ratchet as check
+    `comment-ref` (lib.mjs CHECKS, ratchetEntries; no baseline group: the tree holds 0).
+    scripts/requirements.mjs usage line says `--lot <lot id>` instead of a sample id.
+  - Tests: import-rules.test.ts +2 (`comment-ref: comments a reader can follow`: hits and non-hits on fixtures in
+    TS, TSX/JSX, Rust, shell; the tree holds today). Run alone: import-rules, old-name, test-typecheck, test-guard,
+    lint-ratchet, app-source, kit-static, feature-boundaries, desktop-config, desktop-core, release-workflow,
+    app-bundle — green.
+  - Mutations: 6 — lot pattern broken, the old-name skip removed, a whole TS file read as a comment, Rust strings
+    not skipped, a new lot-id comment in core src (test and `rules.mjs --check` red); each restored, green.
+  - Gates: clean build (every packages/*/dist and *.tsbuildinfo outside node_modules removed) `npx tsc -b` 0,
+    `pnpm typecheck` 0, `pnpm lint` 0 (lint baseline unchanged), `pnpm format:check` 0, `rules.mjs --check` 0
+    (64 entries after the review fixes), test-guard no decrease, `requirements.mjs --check-cites` 0.
+  - Not done: note ids that sit in test titles, `why:` strings and template literals (skills.test, stdio-comments,
+    heavy-gate, app-source, studio-e2e-*) — strings are out of scope; mockup ids `R4-*` (they resolve in the docs)
+    and backlog ids `BL-*` kept; table-local labels of the characterization tests (`D-<n>`, `R-1`, `moved:` /
+    `before:` marks) kept; the docs keep their lot ids.
+
 ## State (after L7.51c)
 - **L7.51c done (2026-11-15; branch `claude/arch-l7`)** — the engine loads every component registry through one port, `ComponentRegistries` (`EnginePorts.registries`, carried by the opened workspace as `ws.registries`), and hands it, or its loader, to the editor's plan and render and to the review: none of them loads a registry by itself any more, and work handed none is refused in plain words instead of loading one silently. The components package reaches the engine only through its loader (`lazy.ts` `components`) in the port's home `registries/`. Closes the L7.51b Question 1 (A-R11's components entry; the 3 R14 registry loads).
   - Code: `packages/engine/src/registries/` — `registries.ts` (the port: `load(root)`; `registryLoader(registries)`, which refuses a missing port with EngineError `internal`), `package-registries.ts` (`packageRegistries()`, the components package's `loadComponentRegistry`, lazy), `memory-registries.ts` (`MemoryRegistries` by root, `loads`; `emptyRegistry()` for fakes), `component-calls.ts` (`componentCalls()`: the 21 other components functions and constants the engine's catalogue, previews, themes and brands call, handed on by name, the `previewMaking` pattern). `EnginePorts.registries` (default `packageRegistries()`, `portsOf`, `HEAVY_JOB_PORTS` true); `WorkspaceOptions` / `OpenedWorkspace.registries` (required; the façade, the worker, the job process and the CLI's `openWorkspace` pass their ports'); `workspaceRegistry(ws)`, `RegistryMemo`, `scenarios.ts` edits, the render (`RenderPlace.registries`), plan, export re-plan and review jobs, `planOfRun`, `planRenderRequest` all go through it. Components: type `RegistrySource` (a registry or `(root) => Promise<registry>`) on the root and the geometry entry. Editor: `PlanRunOptions.registry: RegistrySource` required; `RenderPlanOptions` / `RenderStill(s)Options` / driver requests `registry` required; `render/registry-source.ts` (`registryFrom`, `handedRegistry`, `NO_REGISTRY`: RenderError "plan: / render: no component registry was handed …"). Engine `RenderRequestBase.registry` required. Review: `ReviewOptions.registry: RegistrySource` required; `isHandedRegistry` / `NOT_HANDED_REGISTRY` on `@retake/review/checks`, checked by both reviewers right after the project guard; a loader that fails still gives the `registry-unavailable` note, same words. The comment proposals' and `editScenario`'s `registry` loader required (the CLI's reply passes the workspace's). CLI: `retake still`, `review`, `render --review`, `comment reply` hand `ws.registries`. `lib.mjs`: `LOADER_HOMES.components`, `PORT_FILES` + registries.ts, `PORT_ROOTS` / `PORT_ROOT_RULE` `packageRegistries` (loader-use), `ENGINE_LAYERS` adapters `registries/`, the loader-use title. `docs/audit/target-architecture.md`: the port in the list and the diagram, R14's paragraph.

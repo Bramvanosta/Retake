@@ -1,5 +1,5 @@
 /**
- * Captures first in the terminal (L5.14): `retake render` / `still` / `export` / `review` / `export-capture` and the raw
+ * Captures first in the terminal: `retake render` / `still` / `export` / `review` / `export-capture` and the raw
  * export of `run --raw` are heavy work. While a filming take of this user holds (a Studio or agent take in any workspace,
  * another terminal's `retake run`: engine captures.ts), such a command waits to start with one line on stderr (stdout
  * stays what it was); once running, it yields during a later take — background QoS on its own process tree, reversed

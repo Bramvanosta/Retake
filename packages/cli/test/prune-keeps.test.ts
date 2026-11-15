@@ -1,5 +1,5 @@
 /**
- * `retake prune` on the layouts of what prune keeps (L7.7, R-FLD-28; test-support/src/records prune-layouts.ts):
+ * `retake prune` on the layouts of what prune keeps (R-FLD-28; test-support/src/records prune-layouts.ts):
  * the whole text of the command, layout by layout, with the run folders under their labels and the sizes left out.
  * The marks over the rows are those of the engine's table (engine/test/prune-keeps.test.ts).
  */
@@ -59,19 +59,19 @@ const TABLE: Record<string, string[]> = {
   B2: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run NEW written by a newer Retake (left alone)'],
   // P-1
   B2f: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run NEW written by a newer Retake (left alone)'],
-  // C — L7.6b R-1: the renamed record is left alone and keeps its take; a line says each
+  // C — R-1: the renamed record is left alone and keeps its take; a line says each
   C1: [
     'nothing to prune in <p> (kept: 2 takes, 0 renders and 1 other file of renders/, 0 reviews)',
     'kept run OLD a file of renders/ that is no render names it',
     'kept render quote-final.json its record says another id',
   ],
-  // C — L7.6b R-1 (was: OLD and a `render quote-v1` without a file offered)
+  // C — R-1
   C2: [
     'nothing to prune in <p> (kept: 2 takes, 3 renders and 1 other file of renders/, 0 reviews)',
     'kept run OLD a file of renders/ that is no render names it',
     'kept render quote-final.json its record says another id',
   ],
-  // C — L7.6b R-1 (was: OLD offered, `render quote-v1` twice)
+  // C — R-1
   C3: [
     'nothing to prune in <p> (kept: 2 takes, 4 renders and 1 other file of renders/, 0 reviews)',
     'kept run OLD a file of renders/ that is no render names it',

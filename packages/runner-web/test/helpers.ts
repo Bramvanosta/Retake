@@ -9,7 +9,7 @@ import { Journal, runHooks } from '@retake/hooks';
 import type { CaptureHookRunner, HookJournal } from '@retake/core';
 
 /**
- * The hook runner a test's run hands the runner (RunOptions.hookRunner, L7.12): the hooks package's runHooks and Journal,
+ * The hook runner a test's run hands the runner (RunOptions.hookRunner): the hooks package's runHooks and Journal,
  * as the engine's package hook runner calls them (the runner never loads the hooks package itself).
  */
 export function testHookRunner(): CaptureHookRunner {

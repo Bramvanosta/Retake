@@ -1,5 +1,5 @@
 /**
- * L7.33: the jobs that run a scenario's hooks (a capture, `hooks <scenario>:setup|teardown`) ask a person about every
+ * The jobs that run a scenario's hooks (a capture, `hooks <scenario>:setup|teardown`) ask a person about every
  * sql hook of the scenario — setup, teardown, the named hooks its `hook:` steps run — as about its shell hooks, each
  * bound to its fingerprint (its sql file's bytes included). A person's hooks (hooks/<name>.yaml, project.yaml's reset)
  * keep the destructive rule only. On the hooks package (`engine`) and on the in-memory hook runner (`fake`).

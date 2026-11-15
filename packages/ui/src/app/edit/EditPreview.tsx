@@ -1,5 +1,5 @@
 /**
- * L5.12a: Edit's stage (R4-Edit; R-UI-45) — the preview region and the transport, under it the take's facts. The
+ * Edit's stage (R4-Edit; R-UI-45) — the preview region and the transport, under it the take's facts. The
  * preview's frame itself is the screen's child (TimelineScreen.tsx owns the one PreviewFrame and its checked URL: the
  * source lint pins them there); this file draws what is around it:
  *
@@ -7,9 +7,9 @@
  *   `data-loading`), the video's aspect ratio, as large as the stage allows; over it "Loading the preview…", Buffering,
  *   a browser that cannot play the codec (the tracks still work), the preview's error, a stopped preview with Restart;
  * - the transport (a kit Toolbar: one tab stop, the arrows rove — after a Tab; a control focused by a click leaves them
- *   to the playhead: review B-L5): Previous frame, Play / Pause, Next frame, the timecode
- *   with the frame, Unmute / Mute (the preview starts muted: kept although R4 draws none), Speed (0.5×, 1×, 2×), Comment
- *   (C: the newest render of the version shown, at the playhead — off with why without one), the zoom (Fit, Zoom in);
+ *   to the playhead): Previous frame, Play / Pause, Next frame, the timecode with the frame, Unmute / Mute (the preview
+ *   starts muted: kept although R4 draws none), Speed (0.5×, 1×, 2×), Comment (C: the newest render of the version
+ *   shown, at the playhead — off with why without one), the zoom (Fit, Zoom in);
  * - the take's facts (capture, theme, length, frames, size, codec and keyframes).
  * Targets are at least 24 px (the kit's small controls are 26).
  */

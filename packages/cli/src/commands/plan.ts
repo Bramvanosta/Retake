@@ -40,8 +40,8 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
   if (opts.frame) overrides.frame = opts.frame;
   const variant = variantOption(opts);
   if (variant) overrides.variant = variant;
-  // The engine's plan of a run (L7.22, U8a: planOfRun — the run by the rule every reader of runs shares, then the
-  // planning of a render for a plan alone: its refusals say plan, a run without its film plans). What `latest` passed
+  // The engine's plan of a run (planOfRun — the run by the rule every reader of runs shares, then the planning of
+  // a render for a plan alone: its refusals say plan, a run without its film plans). What `latest` passed
   // over is said once the run is found, before any refusal (stderr); its errors state their kind: main prints their
   // sentence alone, exit 1. At a terminal (trust `author`) a theme may be a ./path.
   const { plan, edit, timeline, registry, run, summary } = await planOfRun(ws, project, runArg, {
@@ -56,7 +56,7 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
     await writeJson(out, plan);
     if (!opts.json) ui.ok(`plan written to ${ui.path(out)}`);
   }
-  // L5.5: the filmed part changed since the run (stderr, so --json stays parseable).
+  // The filmed part changed since the run (stderr, so --json stays parseable).
   if (edit.scenario_changed) ui.warn(scenarioChangedMessage(timeline.scenario, run.id, `\`retake run ${project.slug} ${timeline.scenario}\``, edit.filmed_changes));
   if (opts.json) {
     ui.result(JSON.stringify(plan, null, 2));

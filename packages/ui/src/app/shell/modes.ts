@@ -1,10 +1,10 @@
 /**
- * L5.9: the shell's mode switch over today's routes (DESIGN §4k). Script = the scenario (blocks; YAML is the screen's own
+ * The shell's mode switch over today's routes (DESIGN §4k). Script = the scenario (blocks; YAML is the screen's own
  * view), Shoot = its Run screen (and Record), Edit = its timeline (and a proposal's preview), Review = its frame
  * comments. "A scenario in context": the route's own, or — on a route of its project (overview, README, components,
  * themes, Record) — the last scenario this tab opened in that project, while the project still has it. With none, the
  * four are shown disabled.
- * L5.12a: Review has two views — the Review report (`#/…/review[/<render>]`, first) and the frame comments — and the mode
+ * Review has two views — the Review report (`#/…/review[/<render>]`, first) and the frame comments — and the mode
  * opens the one this tab used last (module memory, like the last scenario: `reviewView`).
  */
 import type { Route } from '../route.js';
@@ -24,7 +24,7 @@ export interface ScenarioContext {
 
 /** The last scenario opened per project in this tab. */
 const lastScenario = new Map<string, string>();
-/** L5.10a: a production selected on the Project screen becomes the scenario in context (the modes act on it). */
+/** A production selected on the Project screen becomes the scenario in context (the modes act on it). */
 let version = 0;
 const watchers = new Set<() => void>();
 export function rememberScenario(slug: string, scenario: string): void {
@@ -42,7 +42,7 @@ export const contextWatch = {
   version: () => version,
 };
 
-/** L5.12a: Review's two views, and the one this tab used last (the Review mode opens it; the report first). */
+/** Review's two views, and the one this tab used last (the Review mode opens it; the report first). */
 export type ReviewView = 'report' | 'comments';
 let lastReview: ReviewView = 'report';
 /** Note the Review view a route shows (the Review mode opens it next); any other route leaves the memory alone. */
@@ -68,7 +68,7 @@ export function ownScenario(route: Route): ScenarioContext | null {
 /**
  * Remember the route's scenario; answer the scenario in context (the route's own or its project's last one). `known`:
  * the project's scenarios as the workspace lists them now — a remembered one no longer there (deleted, renamed) is
- * forgotten, never offered to the modes (review B-L8).
+ * forgotten, never offered to the modes.
  */
 export function scenarioInContext(route: Route, memory = lastScenario, known?: readonly string[]): ScenarioContext | null {
   const own = ownScenario(route);
@@ -120,7 +120,7 @@ export function modeTarget(mode: Mode, ctx: ScenarioContext): Route {
   }
 }
 
-/** The screen's identity: the centre pane scrolls back to the top only when it changes (critique M2) — never on a
+/** The screen's identity: the centre pane scrolls back to the top only when it changes — never on a
  * thread, a frame address, a run or a theme picked inside the same screen. */
 export function screenKey(route: Route): string {
   return `${route.name}|${slugOf(route) ?? ''}|${'scenario' in route ? route.scenario : ''}`;

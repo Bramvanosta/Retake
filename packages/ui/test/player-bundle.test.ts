@@ -1,14 +1,14 @@
 /**
- * L4.5 part B: the preview bundle (src/player/bundle-player.ts) — esbuild in memory, every component of the workspace,
- * each loaded lazily (critique B3), under an import allow-list that checks real paths (critique B11):
- * - every built-in component and scaffold bundles; one lazy `import()` per component; no path of this Mac inside;
+ * The preview bundle (src/player/bundle-player.ts) — esbuild in memory, every component of the workspace,
+ * each loaded lazily, under an import allow-list that checks real paths:
+ * - every built-in component and scaffold bundles; one lazy `import` per component; no path of this Mac inside;
  * - ⚑ a workspace component that imports a file out of its folder, or a link out of it (`./data.json` → an outside
  *   file), is excluded and the outside bytes are absent from the bundle; ⚑ a planted `node_modules/react` inside a
  *   component's folder is not what `react` resolves to; a component that does not compile is excluded with why;
  * - the memo: the same components → one build; an edited component file → a new hash and a new build;
- * - ⚑ review A H1 c: a workspace component the Studio session did not allow (by id and folder content hash) is held —
+ * - ⚑ A workspace component the Studio session did not allow (by id and folder content hash) is held —
  *   absent from the bundle, its bytes too; allowed, it is bundled; changed since, held again;
- * - ⚑ L4.7 review A H1: an import reaching a dot folder, node_modules, previews or dist inside the folder (by its words,
+ * - ⚑ An import reaching a dot folder, node_modules, previews or dist inside the folder (by its words,
  *   or through a folder's package.json) is excluded even when the component is allowed — the content hash skips them;
  * - ⚑ lint: no sandbox token that loosens the frame (`allow-same-origin`, `allow-top-navigation`, …) in src/app or
  *   src/player.
@@ -202,7 +202,7 @@ export default function C() { return <AbsoluteFill>{useCurrentFrame() === kitFra
   it('⚑ lint: nothing in src/app or src/player loosens the frame sandbox', async () => {
     const SRC = join(import.meta.dirname, '..', 'src');
     const files: string[] = [];
-    // Recursive: the kit and the shell live in sub-folders of src/app (L5.9).
+    // Recursive: the kit and the shell live in sub-folders of src/app.
     for (const d of ['app', 'player']) {
       for (const e of await readdir(join(SRC, d), { recursive: true, withFileTypes: true })) if (e.isFile()) files.push(join(e.parentPath, e.name));
     }

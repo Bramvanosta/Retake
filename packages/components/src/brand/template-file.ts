@@ -1,5 +1,5 @@
 /**
- * template.yaml of a theme made from brand inputs (L3.5): the base theme's file as written (its components, frame,
+ * template.yaml of a theme made from brand inputs: the base theme's file as written (its components, frame,
  * captions, durations, motion and style bias), with the brand's colours, background, cursor ripple, fonts, logo,
  * wordmark, brand and outro url put in, its name replaced and a header comment saying where it comes from. Pure: the
  * caller validates the text against the template schema (core parseTemplateYaml) before writing it.

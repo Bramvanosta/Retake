@@ -1,7 +1,6 @@
 /**
- * Claude's proposed scenario change on a frame comment (L4.6, R-UI-28; critique B1 / B2 / B9 / B10 / B13): the checks a
- * proposal passes before it is stored in a reply, previewed in the timeline or applied, all on the thread's own
- * scenario file (the target is never an argument).
+ * Claude's proposed scenario change on a frame comment (R-UI-28): the checks a proposal passes before it is stored in a
+ * reply, previewed in the timeline or applied, all on the thread's own scenario file (the target is never an argument).
  *
  * - Built from the whole new text Claude writes and the hash `scenario_get` gave it: the text is split into lines and
  *   joined with the file's own line break (a final one included: what `replace_text` writes); the stored hunks are the
@@ -13,9 +12,9 @@
  *   unchanged while there are some, no secret reference, no outside file, no agent-writable code, the scenario valid)
  *   — at write time, at every preview and again by editScenario itself at Apply. A proposal the Studio would refuse is
  *   refused when Claude writes it, with the same words ("not proposed: …").
- * - Edit-only (critique B2): a change of what a capture films (steps, pages, hooks, capture settings, the vars the take
+ * - Edit-only: a change of what a capture films (steps, pages, hooks, capture settings, the vars the take
  *   uses) is never a proposal — it is saved and captured, the direct loop.
- * - Rebuilt strictly (critique B1): the file must be the proposal's base, the hunks must apply line for line, the bytes
+ * - Rebuilt strictly: the file must be the proposal's base, the hunks must apply line for line, the bytes
  *   must have the stored result hash, and the hunks must be the canonical diff of those bytes — else nothing is shown as
  *   exact, previewed or applied.
  */
@@ -38,7 +37,7 @@ import type { WorkspaceReads } from './workspace-reads/reads.js';
 /** Context lines shown around each change of a proposal (the only lines the diff leaves out are unchanged ones). */
 export const PROPOSAL_CONTEXT_LINES = 3;
 /**
- * Rows of the diff a person reads, at most (changed lines and their context together; review A M1): the Studio shows
+ * Rows of the diff a person reads, at most (changed lines and their context together): the Studio shows
  * every row before its Apply — never a cut —, so a longer diff is refused when Claude writes it.
  */
 export const PROPOSAL_ROWS_MAX = 600;
@@ -149,8 +148,8 @@ function templateOf(doc: unknown): unknown {
 }
 
 /**
- * The checks every stage runs on the proposed text against today's file (critique B9 a): prepareScenarioEdit as
- * `replace_text` with agent trust from the Studio (nothing written, no version remembered), then edit-only (B2) and no
+ * The checks every stage runs on the proposed text against today's file: prepareScenarioEdit as
+ * `replace_text` with agent trust from the Studio (nothing written, no version remembered), then edit-only and no
  * theme change (`template:` as it is).
  */
 export async function checkProposedText(
@@ -176,7 +175,7 @@ export async function checkProposedText(
   if (prepared.text !== text) throw new EngineError('internal', `not ${stage}: the proposed text would not be written as it is (a final line break): nothing stored`);
   const next = parseYaml(text).value;
   const before = parseYaml(today.yaml).value;
-  // A theme change takes the direct loop (critique B2 as amended; review A L3): a render with another theme is another
+  // A theme change takes the direct loop: a render with another theme is another
   // look, and the Studio's "Apply and re-render" / "Resolve with vN" would answer the frame with it.
   if (canonicalJson(templateOf(next) ?? null) !== canonicalJson(templateOf(before) ?? null)) {
     throw new EngineError(
@@ -244,7 +243,7 @@ export async function buildProposal(
     );
   }
   if (hunks.length === 0) throw invalid(`not proposed: the text differs from ${today.file} only by its line breaks — nothing to propose`, 'proposal.scenario_yaml');
-  // Critique B10: a line the person cannot read whole is never removed or changed by a proposal.
+  // A line the person cannot read whole is never removed or changed by a proposal.
   for (const h of hunks) {
     for (const [j, l] of h.del.entries()) {
       const p = proposalLineProblem(l);
@@ -270,7 +269,7 @@ export async function buildProposal(
 }
 
 /**
- * The exact bytes a stored proposal writes, rebuilt from today's file (critique B1): the file must be its base (else
+ * The exact bytes a stored proposal writes, rebuilt from today's file: the file must be its base (else
  * `conflict`: ask Claude to propose again), the hunks must apply line for line, the result must have the stored hash
  * and the hunks must be the canonical diff of it (else `refused`: a thread file edited by hand).
  */

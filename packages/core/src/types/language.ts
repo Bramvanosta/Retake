@@ -268,7 +268,7 @@ export interface EmitArgs {
 }
 
 /**
- * `hook: <name>` (L5.8, R-FLD-31): run a named hook of the scenario's `hooks:` (else project.yaml's) during the take —
+ * `hook: <name>` (R-FLD-31): run a named hook of the scenario's `hooks:` (else project.yaml's) during the take —
  * an action on the product that must happen at that moment without being filmed (mark a payment through its API, move a
  * period into the past in SQL, push a queue job). Approved like setup / teardown hooks; the edit cuts its span.
  */
@@ -285,7 +285,7 @@ export interface HookArgs {
 export interface WaitForEmailArgs {
   /**
    * Recipient: a substring of the address or the name, or `persona:<name>` — that persona's `email` on the run's
-   * environment, matched as the whole address (L5.6).
+   * environment, matched as the whole address.
    */
   to?: string;
   from?: string;
@@ -311,7 +311,7 @@ export interface DownloadArgs {
 }
 
 /**
- * `capture_text` (L2.10): read the visible text of an element (whitespace collapsed) and keep it as the run artefact
+ * `capture_text`: read the visible text of an element (whitespace collapsed) and keep it as the run artefact
  * `as` (artefacts/texts/<as>.json) — a figure a card shows later (`capture: <as>`), e.g. a total or a count. `pattern`
  * keeps only a part of it: a regular expression (`/…/flags` or plain source) whose first group (else the whole match)
  * is kept; no match fails the step.
@@ -359,7 +359,7 @@ export interface StepCommon {
   /** A failure is logged (and listed in run.json `optional_failures`) but does not abort the run. */
   optional?: boolean;
   /**
-   * `click` / `double_click` (L5.6): a click that produced nothing within about a second (no request, DOM change,
+   * `click` / `double_click`: a click that produced nothing within about a second (no request, DOM change,
    * navigation, dialog, new tab or download) is made once more; when the second one does nothing either, the step fails.
    * Without it such a click is only reported (a warning with a screenshot).
    */
@@ -369,12 +369,12 @@ export interface StepCommon {
   /** Edit-time overlay (callout, lower third, badge…) shown over this step; the runner records its target bbox. */
   overlay?: OverlaySpec;
   /**
-   * Tutorial overlays of this step (L2.10): overrides the scene's and the scenario's switches, e.g.
+   * Tutorial overlays of this step: overrides the scene's and the scenario's switches, e.g.
    * `tutorial: {spotlight: false}`; `false` = none on this step. `progress` is a video-wide switch (scenario only).
    */
   tutorial?: TutorialSwitch;
   /**
-   * Multi-page scenes (L2.11): the page this step acts on — a key of the scene's `pages` (default: the scene's first
+   * Multi-page scenes: the page this step acts on — a key of the scene's `pages` (default: the scene's first
    * page). Only that page's cursor moves; the others rest where they are.
    */
   on?: string;
@@ -402,7 +402,7 @@ export type SpotlightMode = 'steps' | 'clicks';
 export type ChapterMode = 'scenes' | 'cards';
 
 /**
- * Automatic tutorial overlays fed by the timeline (L2.10). Each switch can be set on the scenario, a scene or a step;
+ * Automatic tutorial overlays fed by the timeline. Each switch can be set on the scenario, a scene or a step;
  * the most specific one wins. `true` on a level turns every overlay on, `false` turns them all off.
  */
 export interface TutorialSpec {
@@ -450,7 +450,7 @@ export type OverlayAt = 'start' | 'end' | 'step' | 'click' | `mark:${string}` | 
  * Step modifier `overlay`: a component drawn over the clip from the end of the step's action for `duration` seconds.
  * The runner measures the target at the END of the step (after any scroll) and records it on the event.
  *
- * L2.12: instead of a component, a user file — `video` (an alpha video: ProRes 4444 .mov or VP9 .webm with alpha),
+ * Instead of a component, a user file — `video` (an alpha video: ProRes 4444 .mov or VP9 .webm with alpha),
  * `image` or `lottie` — composited over the capture in a box placed by `anchor` (target, cursor, screen or a position of
  * the screen) or `rect` (page CSS px), at its own size × `scale`; mapped through the layout, the camera and the reframe.
  */
@@ -591,7 +591,7 @@ export type NormalizedArgs = NormalizedArgsMap;
 export type FrameStyle = 'raw' | 'card' | 'browser' | 'laptop' | 'phone' | 'tablet';
 
 /**
- * Layouts of a multi-page scene (L2.11): `split` ⇒ studio/layout-split (the pages side by side, stacked in vertical),
+ * Layouts of a multi-page scene: `split` ⇒ studio/layout-split (the pages side by side, stacked in vertical),
  * `pip` ⇒ studio/layout-pip (one page over the other, picture in picture).
  */
 export type MultiPageFrame = 'split' | 'pip';
@@ -602,7 +602,7 @@ export type MultiPageFrame = 'split' | 'pip';
  */
 export type FrameSpec = FrameStyle | MultiPageFrame | ComponentId;
 
-/** The built-in layout component of each multi-page frame (L2.11). */
+/** The built-in layout component of each multi-page frame. */
 export const MULTI_PAGE_LAYOUTS: Readonly<Record<MultiPageFrame, ComponentId>> = {
   split: 'studio/layout-split',
   pip: 'studio/layout-pip',
@@ -652,7 +652,7 @@ export interface ScenePageSpec {
   label?: string;
   /** Where this page's cursor rests at the scene start (default 'auto'). */
   cursor?: SceneCursor;
-  /** The persona this page is signed in as (L1.6; `none`: no persona). Default: the persona whose `pages` list its environment page. */
+  /** The persona this page is signed in as (`none`: no persona). Default: the persona whose `pages` list its environment page. */
   persona?: string;
 }
 
@@ -701,12 +701,12 @@ export interface Scene {
   /** Path or URL opened at scene start. Omit to continue from the previous scene's state. */
   open?: string;
   /**
-   * Multi-page scene (L2.11): the pages filmed at the same time on one clock (instead of `page` / `open`), e.g. a buyer
+   * Multi-page scene: the pages filmed at the same time on one clock (instead of `page` / `open`), e.g. a buyer
    * and a supplier, or one site on desktop and mobile. Steps act on the first page unless they say `on: <page>`.
    */
   pages?: ScenePages;
   /**
-   * The persona this scene's page is signed in as (L1.6; `none`: no persona). Default: the persona whose `pages` list the
+   * The persona this scene's page is signed in as (`none`: no persona). Default: the persona whose `pages` list the
    * environment page. A page keeps one persona for the whole run. Multi-page scenes bind each page: `pages.<id>.persona`.
    */
   persona?: string;
@@ -727,7 +727,7 @@ export interface Scene {
   /** Skip this scene entirely. */
   skip?: boolean;
   /**
-   * Played during the take but left out of the video (L5.8, R-FLD-31): a scene that prepares what the next ones film
+   * Played during the take but left out of the video (R-FLD-31): a scene that prepares what the next ones film
    * (a page reached, a form filled off camera). An edit value: a render on an existing take can toggle it.
    */
   offscreen?: boolean;
@@ -788,7 +788,7 @@ export function isCaptureScene(s: SceneEntry): s is Scene {
   return !isInterstitial(s) && !isCard(s);
 }
 
-/** Scenario `intro` (or `false`): overrides of the theme's intro card — or the user's own file (L2.12). */
+/** Scenario `intro` (or `false`): overrides of the theme's intro card — or the user's own file. */
 export interface IntroSpec extends MediaFileFields {
   /** Intro component id (default: the theme's). */
   component?: ComponentId;
@@ -797,7 +797,7 @@ export interface IntroSpec extends MediaFileFields {
   duration?: number;
 }
 
-/** Scenario `outro` (or `false`): overrides of the theme's outro card — or the user's own file (L2.12). */
+/** Scenario `outro` (or `false`): overrides of the theme's outro card — or the user's own file. */
 export interface OutroSpec extends MediaFileFields {
   /** Outro component id (default: the theme's). */
   component?: ComponentId;
@@ -831,15 +831,15 @@ export interface TimelineVideo {
   /** Template the run used (name or path). */
   template?: string;
   music?: MusicSpec;
-  /** Scenario-level tutorial switches as written (L2.10). */
+  /** Scenario-level tutorial switches as written. */
   tutorial?: TutorialSwitch;
-  /** The scenario's `target_length` (L5.5). */
+  /** The scenario's `target_length`. */
   target_length?: TargetLength;
-  /** The scenario's `caption_component` (L4.5). */
+  /** The scenario's `caption_component`. */
   caption_component?: ComponentId;
 }
 
-/** The length a video aims at, seconds (scenario `target_length`, L5.5). */
+/** The length a video aims at, seconds (scenario `target_length`). */
 export interface TargetLength {
   min_s: number;
   max_s: number;

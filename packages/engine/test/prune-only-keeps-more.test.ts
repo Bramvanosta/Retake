@@ -1,5 +1,5 @@
 /**
- * "Prune only keeps more" (L7.7, R-FLD-28), held by the suite: a seeded generator of run-folder layouts, each pruned
+ * "Prune only keeps more" (R-FLD-28), held by the suite: a seeded generator of run-folder layouts, each pruned
  * (dry) by the product and by a FROZEN copy of the rule for takes as it was before the lot. The product never lists a
  * take the frozen rule kept, and what both list is listed for the same reason.
  *
@@ -27,7 +27,7 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-// ── FROZEN: the takes prune listed before L7.7 (engine prune.ts at ab3e8f5: pruneReadRun, pruneLastCapture and the
+// ── FROZEN: the takes prune listed at ab3e8f5 (engine prune.ts: pruneReadRun, pruneLastCapture and the
 // loop over runs/), without the keeps a thread, a render or a job gives — the layouts here hold none. ──
 interface OldRun {
   id: string;
@@ -137,15 +137,14 @@ describe('prune only keeps more than it did before L7.7', () => {
   }, 120_000);
 });
 
-// ════════════════════════════════════════════════════════════════════════════
-// The renders (L7.6b). The property is "a subset": every render and review item of the product is an item of the
-// frozen rule with the same reason and the same paths or fewer (and no id is listed twice), every take the frozen rule
-// protected through a render is not listed, and where the frozen rule throws the product answers a list none of whose
-// items is a file that made it throw. (Before the lot's prune part the product WAS the frozen rule, and this test held
-// the two lists equal, layout by layout.)
+// ════════════════════════════════════════════════════════════════════════════ The renders. The property is "a subset":
+// every render and review item of the product is an item of the frozen rule with the same reason and the same paths or
+// fewer (and no id is listed twice), every take the frozen rule protected through a render is not listed, and where the
+// frozen rule throws the product answers a list none of whose items is a file that made it throw. (Before the lot's
+// prune part the product WAS the frozen rule, and this test held the two lists equal, layout by layout.)
 // ════════════════════════════════════════════════════════════════════════════
 
-// ── FROZEN: what prune listed of renders/ and review/ before L7.6b (editor render-record.ts readRenderRecords and
+// ── FROZEN: what prune listed of renders/ and review/ (editor render-record.ts readRenderRecords and
 // isRenderRecord, engine prune.ts lines 202-203 (`sameName`, `unreadRender`), 208-247 and 264-265, all at 126f8c2), its
 // throw included — line for line but for the inputs: `unreadBy` is HEAD's over the scenarios whose threads do not all
 // read (`unread`; the generated layouts hold none, so it says no), `parseRenderId` and `renderIdOf` are core's id
@@ -457,8 +456,8 @@ const TWIST: Record<string, (s: RenderFileSpec) => void> = {
   'scenario-7': (s) => void (s.set = { ...s.set, scenario: 7 }),
   'no-variant': (s) => void (s.unset = [...(s.unset ?? []), 'variant']),
   'variant-cube': (s) => void (s.set = { ...s.set, variant: 'cube' }),
-  // A member prune groups or orders by whose value is no text (the fix pass of L7.6b: a non-text variant read as
-  // absent merged two groups). The text "undefined" groups with an absent variant before and after the lot.
+  // A member prune groups or orders by whose value is no text (a non-text variant read as absent merged two
+  // groups). The text "undefined" groups with an absent variant before and after the lot.
   'variant-5': (s) => void (s.set = { ...s.set, variant: 5 }),
   'variant-null': (s) => void (s.set = { ...s.set, variant: null }),
   'variant-array': (s) => void (s.set = { ...s.set, variant: [] }),

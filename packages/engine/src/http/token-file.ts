@@ -1,5 +1,5 @@
 /**
- * The stable token of MCP over HTTP (L4.1, R-MCP-02): `<Retake home>/mcp-http.token`, so Claude Code registers the
+ * The stable token of MCP over HTTP (R-MCP-02): `<Retake home>/mcp-http.token`, so Claude Code registers the
  * server once (`retake mcp --print-config --http`) and the registration survives restarts — unlike the Studio's
  * per-launch token. One per Retake home (a person), whatever the workspace or port.
  *

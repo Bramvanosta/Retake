@@ -15,7 +15,7 @@ export interface RunFolderMaker {
 
 /**
  * Reserve a new run folder of `scenario` under `runsDir` (created): `newRunId`, and when that folder exists (two runs of
- * one scenario started in the same second — concurrent runs, L1.6 — or a run reserved ahead by a job) the next free
+ * one scenario started in the same second — concurrent runs — or a run reserved ahead by a job) the next free
  * second. Run ids keep their format and their order. The runner calls it for a run without a pre-assigned id; the
  * engine calls it when a job is submitted, so the run id is known before the run starts. A scenario whose name leaves
  * no room for a run id is refused before any folder is made: a folder that is no run id is a run no list shows.

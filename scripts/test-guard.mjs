@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Test-migration guard (L5.10): when a screen is rebuilt and its e2e tests are migrated, a test must not get weaker
+// Test-migration guard: when a screen is rebuilt and its e2e tests are migrated, a test must not get weaker
 // without a reason. For every changed test file it compares a git ref (default HEAD) with the working tree, per test
 // title: a title that disappeared, fewer `expect(` / `expect.poll(` / `expect.soft(` calls, a `getByTestId(...)` /
-// `data-testid="…"` no longer used, a matcher traded for a weaker one (`toEqual(x)` → `toBeDefined()` or
-// `toBeGreaterThan(0)`, `toThrow(/x/)` → `toThrow()`, `toHaveBeenCalledWith(x)` → `toHaveBeenCalled()`: the count of
+// `data-testid="…"` no longer used, a matcher traded for a weaker one (`toEqual(x)` → `toBeDefined` or
+// `toBeGreaterThan(0)`, `toThrow(/x/)` → `toThrow`, `toHaveBeenCalledWith(x)` → `toHaveBeenCalled`: the count of
 // expects stays, what they hold does not; exact > partial > weak, WEAK_MATCHERS and PARTIAL_MATCHERS). Titles are read from `it(…)`, `it.skipIf(…)(…)`, `it.runIf(…)(…)`,
 // `it.only` / `it.skip`, and `it.each(…)(…)` / `it.for(…)(…)` (the title template). Renames and dropped checks are
 // then explained in the lot's notes, or the test is fixed.

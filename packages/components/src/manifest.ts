@@ -32,7 +32,7 @@ export const VARIANTS = ['landscape', 'vertical', 'square'] as const;
 export const SEMVER_RE =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 
-/** `engines.kit` (L4.5): a kit API major, optionally with a caret ("1", "^1"). */
+/** `engines.kit`: a kit API major, optionally with a caret ("1", "^1"). */
 export const KIT_RANGE_RE = /^\^?[1-9]\d{0,2}$/;
 
 /** The kit API major an `engines.kit` value names ("^2" → 2); absent → 1. */
@@ -80,7 +80,7 @@ export const THEME_TOKENS = [
   'motion.zoom_ease',
 ] as const;
 
-/** Kinds a component may declare in `kinds` besides its own (L2.12): the full-frame kinds and the overlay. */
+/** Kinds a component may declare in `kinds` besides its own: the full-frame kinds and the overlay. */
 export const MULTI_USE_KINDS = ['intro', 'outro', 'card', 'interstitial', 'overlay'] as const satisfies readonly ComponentKind[];
 
 /** Kinds whose duration comes from the clip they decorate (a manifest `duration` is ignored). */
@@ -429,7 +429,7 @@ export function checkManifest(value: unknown, structural: readonly LocatedIssue[
     }
   }
 
-  // Other kinds (L2.12).
+  // Other kinds.
   if (Array.isArray(m.kinds) && ok(['kinds'])) {
     m.kinds.forEach((k, i) => {
       if (k === kind) out.push(locatedIssue('warning', ['kinds', i], `"${k}" is the component's own kind: no need to list it in kinds`));

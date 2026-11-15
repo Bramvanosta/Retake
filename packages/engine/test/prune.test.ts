@@ -1,5 +1,5 @@
 /**
- * Pruning a project's runs/, renders/ and review/ (L5.7, R-FLD-28): what goes (failed takes, dry runs, older captures
+ * Pruning a project's runs/, renders/ and review/ (R-FLD-28): what goes (failed takes, dry runs, older captures
  * nothing uses, renders beyond the last N of a scenario and variant, failed renders, reviews of renders that go) and
  * what stays (the last good take of each scenario, takes kept renders and comment threads use, renders a thread names,
  * whatever a job names) — a dry run by default, the bytes it frees. An agent's deletion (every client but the CLI and
@@ -392,7 +392,7 @@ describe("an agent's prune asks the person first (projects.prune under agent tru
     try {
       await mkdir(join(w.proj, 'renders'), { recursive: true });
       for (let i = 0; i < 20; i++) {
-        // L7.6b: a render is the record of its own file, so a long line comes from a name a file can have — 155
+        // A render is the record of its own file, so a long line comes from a name a file can have — 155
         // DEL characters, each written out in the form as `\u{7f}` (935 visible characters, as before).
         const id = `r${String(i).padStart(2, '0')}-x${'\x7f'.repeat(155)}`;
         await writeFile(
@@ -420,7 +420,7 @@ describe("an agent's prune asks the person first (projects.prune under agent tru
     try {
       await mkdir(join(w.proj, 'renders'), { recursive: true });
       for (let i = 0; i < 20; i++) {
-        // (L7.6b: named as its file — 200 DEL characters, 1,200 visible ones in the form.)
+        // (named as its file — 200 DEL characters, 1,200 visible ones in the form.)
         const id = `r${i}-${'\x7f'.repeat(200)}`;
         await writeFile(
           join(w.proj, 'renders', `${id}.json`),

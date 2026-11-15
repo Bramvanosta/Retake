@@ -1,5 +1,5 @@
 /**
- * The still of a frame comment (L3.6, review extractStill), on videos whose every frame differs: frame n is a flat grey
+ * The still of a frame comment (review extractStill), on videos whose every frame differs: frame n is a flat grey
  * of video level 16 + (7·n) mod 220, so a still one frame off reads 8 RGB levels away. A 4K master is scaled to 1920 px; a region
  * is outlined (drawMarks' stroke colour on its edge, the inside untouched, no numbered badge), on the scaled still, its
  * stroke sized from the long side.

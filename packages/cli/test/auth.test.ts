@@ -1,5 +1,5 @@
 /**
- * Sessions & personas from the command line (L1.6): `retake login --auto`, `retake auth status [--check]`, runs on the
+ * Sessions & personas from the command line: `retake login --auto`, `retake auth status [--check]`, runs on the
  * saved sessions, the preflight message as printed, js hooks signed in as their page's persona, and the onboarding of
  * `retake new` on a (scripted) terminal — against the bundled fixture's signed-in side on free ports. The Retake home is
  * a temp folder (RETAKE_HOME): nothing touches ~/.retake; passwords come from env variables set here.

@@ -1,5 +1,5 @@
 /**
- * The frame comment store (L3.6, R-CMT-02..05, ADR-1 #4): thread files `<project>/comments/<scenario>/<id>.json` (core
+ * The frame comment store (R-CMT-02..05): thread files `<project>/comments/<scenario>/<id>.json` (core
  * CommentThreadSchema), their stills `<project>/.retake/comments/<id>.jpg` (machine-local: product frames never
  * enter git), and the views clients read.
  *
@@ -19,7 +19,7 @@
  * create and reopen threads (Engine.comments refuses both for any other client); the Studio acts on the version of a
  * thread it showed (`if_match`) and on the render it showed (`render_created_at`).
  *
- * Costs (L4.6, critique B8 / B12): the thread is written before its still (the still is an exact select from frame 0:
+ * Costs: the thread is written before its still (the still is an exact select from frame 0:
  * its time grows with the frame's position, a failure is a warning); `CommentIndex` counts and places threads from the
  * thread files alone (no render records, no views), memoised per file signature.
  */

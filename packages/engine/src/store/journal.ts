@@ -6,7 +6,7 @@
  *
  * A file of its own beside the job history (`history.jsonl`): the history counts what was produced (its lines carry
  * `counted`, read by the usage counters and the index's `history` table), the journal records who changed what — mixing
- * them would change both readers. Both are written and read with one discipline (store/append-log.ts, L7.26): each line
+ * them would change both readers. Both are written and read with one discipline (store/append-log.ts): each line
  * appended whole under the log's lock (O_APPEND, never through a symbolic link) and synced to disk before the operation
  * that wrote it replies; nothing in Retake truncates, rewrites or removes the file (`retake prune` leaves it alone). A
  * last line left torn (no line break: a crash mid-write) is closed before the next one, so only the torn line is lost.

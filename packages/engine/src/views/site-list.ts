@@ -1,5 +1,5 @@
 /**
- * The site extractions of a workspace as the Studio's theme panel lists them (L4.7, plan D8 + critique B11 / C5): the
+ * The site extractions of a workspace as the Studio's theme panel lists them: the
  * newest SITE_KEEP folders of `.retake/site/`, each read back from its site.json. An extraction made by
  * `retake theme from-site` has no signed job, and `.retake/` is a folder any file tool writes: every string of
  * site.json is data — the URL and the host included (re-parsed with parseSiteUrl, dropped otherwise) go under

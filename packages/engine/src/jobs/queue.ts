@@ -1,19 +1,19 @@
 /**
- * The file job queue (L3.1, R-ARC-02), the JobQueue port's product adapter: files under <workspace>/.retake/jobs/<id>/,
+ * The file job queue (R-ARC-02), the JobQueue port's product adapter: files under <workspace>/.retake/jobs/<id>/,
  * one writer per file (the behaviour is queue-core.ts's, over these files).
  *
  * - job.json: written once by the submitter (`queued`, atomically), then only by the worker that claimed the job;
  * - claim: created exclusively (O_EXCL) by the worker that takes the job — the atomic claim;
  * - cancel: created exclusively by whoever asks for a cancel (a client); the worker polls it;
- * - pause (L4.4, a running `run` job): created by whoever asks for a pause and removed by whoever asks to resume (a
+ * - pause (a running `run` job): created by whoever asks for a pause and removed by whoever asks to resume (a
  *   client); the worker polls it with the cancel marker and never writes it (a marker left by a finished job is inert);
- * - stop (L4.8, a running `record` job): created exclusively by whoever asks to stop and keep (the Studio's Stop); the
+ * - stop (a running `record` job): created exclusively by whoever asks to stop and keep (the Studio's Stop); the
  *   worker polls it with the cancel marker and ends the recording as if its window were closed (the check replay runs);
- * - live.json (L4.4, a running `run` job): the live channel's port and token, 0600, written and removed by the claiming
+ * - live.json (a running `run` job): the live channel's port and token, 0600, written and removed by the claiming
  *   worker (jobs/live-channel.ts);
  * - browser.json: the render browser a job's worker started (pid + start time), to kill it after a crash;
  * - events.jsonl: appended by the claiming worker only;
- * - yield.json (L5.14, a running heavy job): written and removed by the worker that claimed it while the job yields to a
+ * - yield.json (a running heavy job): written and removed by the worker that claimed it while the job yields to a
  *   filming take (background priority); readers derive the job's `yield` from it, and `waiting` for a queued heavy job
  *   while a take holds heavy work.
  *
@@ -77,7 +77,7 @@ export class JobFiles implements JobFilePaths {
     return join(this.job(id), 'live.json');
   }
 
-  /** <job>/yield.json (L5.14): the port writes and reads it (setYield, yieldOf); tests look at the file itself. */
+  /** <job>/yield.json: the port writes and reads it (setYield, yieldOf); tests look at the file itself. */
   yield(id: string): string {
     return join(this.job(id), 'yield.json');
   }

@@ -9,8 +9,8 @@ import type { PlanSource } from '../plan-types.js';
 import type { PlanAddresses, PlanContext, PlanSources } from './scope.js';
 
 /**
- * Display URLs (L1.7, R-ENV-01): what the browser bars and notification overlays show instead of the real URLs. They
- * are edit-time data: project.yaml's current pages of the run's environment (runs captured before L1.7 included: the
+ * Display URLs (R-ENV-01): what the browser bars and notification overlays show instead of the real URLs. They
+ * are edit-time data: project.yaml's current pages of the run's environment (older runs included: the
  * environment of run.json) win over the table the run recorded, so a display URL added since applies on this render.
  */
 export function planAddresses(c: PlanContext): PlanAddresses {
@@ -45,7 +45,7 @@ export function planAddresses(c: PlanContext): PlanAddresses {
     } catch {
       /* keep the URL */
     }
-    // A sandbox's pages are declared in its sandbox.yaml (L1.8: services.<service>.pages), not in project.yaml.
+    // A sandbox's pages are declared in its sandbox.yaml (services.<service>.pages), not in project.yaml.
     const sandbox = envName !== undefined ? project.sandboxes?.[envName] : undefined;
     const manifest = sandbox ? relative(project.dir, sandbox.file) : 'project.yaml';
     const service = sandbox && page !== undefined ? Object.entries(sandbox.manifest.services).find(([, svc]) => Object.hasOwn(svc.pages ?? {}, page))?.[0] : undefined;
@@ -60,7 +60,7 @@ export function planAddresses(c: PlanContext): PlanAddresses {
 }
 
 /**
- * A URL as the video's browser bars show it (L1.7, R-ENV-01): mapped through the run's display table; a URL still
+ * A URL as the video's browser bars show it (R-ENV-01): mapped through the run's display table; a URL still
  * local afterwards (localhost, a private address…) is kept `hidden` — urlAt / paneUrlAt never return it, the bar shows
  * no address — so a local URL is never drawn, and the navigation it marks stays visible to the review.
  */
@@ -79,7 +79,7 @@ export function planSources(c: PlanContext): PlanSources {
     return url;
   };
   const captureUrl = asset('capture', input.captureFile);
-  // Per-page tracks of multi-page scenes (L2.11): every one CFR on the capture's frame grid.
+  // Per-page tracks of multi-page scenes: every one CFR on the capture's frame grid.
   const trackDir = input.runDir ?? dirname(input.captureFile);
   const trackSources: Record<string, PlanSource> = {};
   const timelineTracks = new Map<string, TimelineTrack>((timeline.tracks ?? []).map((tr) => [tr.id, tr]));

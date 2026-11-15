@@ -23,15 +23,15 @@ export interface KindEnv {
 }
 
 export type RollbackEnv = Pick<KindEnv, 'ctx' | 'log'> & {
-  /** The replay runs on a read-only environment (the entry's own, L1.7): SQL runs in a read-only transaction. */
+  /** The replay runs on a read-only environment (the entry's own): SQL runs in a read-only transaction. */
   readOnly?: boolean;
   /**
    * The environment the hook ran in (the journal entry's): a sql rollback reaches that environment's databases (a
-   * sandbox's own, L1.8), not the command's. Undefined: the context's.
+   * sandbox's own), not the command's. Undefined: the context's.
    */
   env?: string;
   /**
-   * L5.14: the entry was not signed by this Retake home (a person said yes to it in a terminal): a shell rollback runs
+   * The entry was not signed by this Retake home (a person said yes to it in a terminal): a shell rollback runs
    * with a bare environment (PATH, HOME, the locale and Retake's own variables), not the rest of the terminal's.
    */
   unsigned?: boolean;
@@ -55,7 +55,7 @@ export interface PreparedHook {
    * agent wrote (HookContext.agentVars): the hook then counts as the agent's, as one whose own templates do.
    */
   agentVars?: true;
-  /** Why it writes (refused on a read-only run, L1.7), or null: its templated request / SQL, its rollback included. */
+  /** Why it writes (refused on a read-only run), or null: its templated request / SQL, its rollback included. */
   writes: string | null;
   /**
    * The hosts it contacts (its URL, its database, the hosts its shell command names; a js hook: none — its tab
@@ -108,7 +108,7 @@ export async function readHookFile(ctx: HookContext, baseDir: string, rel: strin
 }
 
 /**
- * L7.39: a hook file read under a person's check (HookContext.trustedFiles): its bytes, read once, must be the ones
+ * A hook file read under a person's check (HookContext.trustedFiles): its bytes, read once, must be the ones
  * bound as code — other bytes, or a file that was not bound, are refused before any of it runs.
  */
 async function readTrustedFile(ctx: HookContext, baseDir: string, rel: string, what: string): Promise<string> {

@@ -1,7 +1,7 @@
 /**
  * old-name: this whole file (it names the old spellings it looks for).
  *
- * L5.13 — the old name is gone: no file of the repository says "Demo Studio" (any spelling: demo-studio, DEMO_STUDIO_,
+ * The old name is gone: no file of the repository says "Demo Studio" (any spelling: demo-studio, DEMO_STUDIO_,
  * demoStudio, wrapped across a line), runs the old command (`studio <sub>`, `pnpm studio`, `Usage: studio`…), or names
  * the old workspace file or home, nor its short forms in code (the `Demo…` compositions, the `demo…` recorder, the
  * `ds…rec` page globals, the two-letter prefix of generated names: the player's virtual modules, the plan's asset
@@ -10,8 +10,9 @@
  * seen) but where a stored name is read in its earlier spelling (a render record's plan, a sandbox's snapshot). What
  * is left:
  * - this test, whole;
- * - those readings and the history lines of the records: in the files listed in TAGGED only, a line carrying `old-name:` or a region between `old-name:begin` and
- *   `old-name:end` (critique L6: a tag elsewhere is itself a failure, so a count cannot hide a new leftover).
+ * - those readings and the history lines of the records: in the files listed in TAGGED only, a line carrying
+ *   `old-name:` or a region between `old-name:begin` and `old-name:end` (a tag elsewhere is itself a failure, so a
+ *   count cannot hide a new leftover).
  * Scanned: every tracked file, and the untracked files git does not ignore under the source folders (a new file is
  * checked before it is committed; a person's own notes elsewhere are not) — their contents and their paths (a file or
  * folder of the old name, e.g. a skill folder brought back by a rebase). Kept, not old names: the built-in `studio/`

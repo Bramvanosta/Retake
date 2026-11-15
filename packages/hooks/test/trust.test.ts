@@ -1,5 +1,5 @@
 /**
- * L3.1 (R-MCP-35, safety S1): hooks run with trust `mcp` — work submitted through the MCP server, whose agent can write
+ * R-MCP-35: hooks run with trust `mcp` — work submitted through the MCP server, whose agent can write
  * the hook files — ignore `confirm: true`, need a human approval for every destructive or shell hook (bound to the
  * raw hook's fingerprint), and count every shell hook as writing; a dry run asks nobody. Trust `author` (the CLI) is
  * unchanged.

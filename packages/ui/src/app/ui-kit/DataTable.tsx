@@ -1,5 +1,5 @@
 /**
- * L5.12c: `DataTable` (R4-Library's detail: a component's slots and params) — a native table: its caption (visible, or
+ * `DataTable` (R4-Library's detail: a component's slots and params) — a native table: its caption (visible, or
  * hidden and still the table's name), column headers `th scope="col"`, each row's first cell its header `th scope="row"`;
  * a cell without a value says so with a quiet dash (never an empty cell a screen reader skips silently). No inner scroll:
  * a long cell wraps. `ColorField` lives in ColorField.tsx.

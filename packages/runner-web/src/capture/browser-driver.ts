@@ -81,12 +81,12 @@ class BrowserDriver implements CaptureDriver {
   private rt: Runtime | null = null;
   private notifications: { settled: () => Promise<void> } | null = null;
   private recorder: ScreencastRecorder | null = null;
-  /** The live picture (L4.4): on camera only, from capture time 0 to the start of `stop`. */
+  /** The live picture: on camera only, from capture time 0 to the start of `stop`. */
   private live: LivePreview | null = null;
   /** What watching the live picture cost (perf.live_preview). */
   private livePreview: { seconds: number; frames_sent: number } | null = null;
   private frames: FrameIndexEntry[] = [];
-  // L5.7: capture.mp4 encoded during the take, what it showed after each click, what the take cost.
+  // capture.mp4 encoded during the take, what it showed after each click, what the take cost.
   private encoderKind: StreamEncoderOptions['encoder'] | null = null;
   private perfMotion: MotionCapture | null = null;
   private mainEncoder: StreamEncoder | null = null;
@@ -157,14 +157,14 @@ class BrowserDriver implements CaptureDriver {
     // like a secret wherever the run writes (resolveEnvironment already took them out of the URLs).
     const httpCredentials = (this.httpCredentials = launchCredentials(project, env.name));
     if (httpCredentials?.password) secrets.addValue(httpCredentials.password);
-    // L5.8 (R-FLD-33): every page of the environment answers before anything opens (a port that moved, a stopped server).
+    // R-FLD-33: every page of the environment answers before anything opens (a port that moved, a stopped server).
     const probes = await probePages(env.pages, { signal });
     const down = probes.filter((p) => !p.ok);
     if (down.length) {
       throw new RunnerError(preflightRefusal(env.name, down, env.sandbox ? { sandbox: `retake sandbox up ${project.slug} --env ${env.name}, or run with --sandbox` } : {}));
     }
     log('debug', `pages answer: ${probes.map((p) => `${p.keys.join('/')} HTTP ${p.status} (${p.ms} ms)`).join(', ')}`);
-    // A read-only run stops the browser's writes (L1.7, write-guard.ts): armed in every browser at launch. Any run
+    // A read-only run stops the browser's writes (write-guard.ts): armed in every browser at launch. Any run
     // stops writes to the hosts of the project's other read-only environments (none: a read-write run arms nothing).
     const policy = compileWritePolicy(env, { scenarioMocks: sc.mocks, access });
     if (guardsWrites(policy)) {
@@ -187,10 +187,10 @@ class BrowserDriver implements CaptureDriver {
 
   identify(): void {
     const { project, env, secrets } = this.run;
-    // Sessions & personas (L1.6): which persona films each page, each one's browser on a copy of its session, checked
+    // Sessions & personas: which persona films each page, each one's browser on a copy of its session, checked
     // off camera before anything runs — no setup hook, no recorder yet.
     this.personas = resolvePersonas(project, env.name, { home: retakeHome() });
-    // A sandbox account's plain password (L1.8) is a secret as written: registered now, before anything this run writes
+    // A sandbox account's plain password is a secret as written: registered now, before anything this run writes
     // can hold it (the outline; autoLogin registers it again when its login runs).
     for (const p of this.personas) for (const v of p.secrets ?? []) secrets.addValue(v);
   }
@@ -234,7 +234,7 @@ class BrowserDriver implements CaptureDriver {
       void r.files.saveRecord();
     }
     if (mode === 'capture') {
-      // L5.7: the encoder fed during the take, the GPU the capture renders with, a limiter turned off.
+      // The encoder fed during the take, the GPU the capture renders with, a limiter turned off.
       this.encoderKind = await resolveEncoder(capture.encoder, opts.ffmpeg, opts.policy);
       const gpu = (this.gpu = await session.gpuInfo());
       if (gpu && !gpu.accelerated) {
@@ -267,7 +267,7 @@ class BrowserDriver implements CaptureDriver {
         onPersona: (persona, status, detail) => emit({ type: 'session', persona, status, ...(detail !== undefined ? { detail } : {}) }),
       });
     }
-    // The product's clock (L1.7, R-ENV-05): after the preflight (a sign-in under a far clock may fail its token checks),
+    // The product's clock (R-ENV-05): after the preflight (a sign-in under a far clock may fail its token checks),
     // before the setup hooks; set back to its time at capture time 0 (anchorClock).
     const runClock = r.runClock;
     if (runClock) {
@@ -302,7 +302,7 @@ class BrowserDriver implements CaptureDriver {
       // What its navigations open (opens.ts): http(s) or about:blank; work an agent wrote, the environment's origins only.
       navigation: opts.hookTrust === 'mcp' ? { origins: pageOrigins(env.pages), envName: env.name, via: opts.hookVia ?? AGENT_CONFINEMENT } : {},
       ...(opts.inspect ? { inspecting: true } : {}),
-      // Step defaults (L5.6): the scenario's win over the project's.
+      // Step defaults: the scenario's win over the project's.
       ...((sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s) !== undefined ? { defaultTimeoutS: sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s } : {}),
       log,
       guard,
@@ -342,7 +342,7 @@ class BrowserDriver implements CaptureDriver {
     const firstScene = captured[0];
     const firstPage = firstScene?.pages !== undefined ? undefined : (firstScene?.page ?? Object.keys(env.pages)[0]);
     if (firstScene?.pages === undefined && !firstPage) throw new RunnerError(`environment "${env.name}" declares no pages`);
-    // L5.7 (R-FLD-27): every page the scenario opens, visited once off camera, so the take does not film it cold.
+    // R-FLD-27: every page the scenario opens, visited once off camera, so the take does not film it cold.
     if (mode === 'capture' && capture.prewarm) {
       const targets = prewarmTargets(sc, {
         envPages: env.pages,
@@ -363,7 +363,7 @@ class BrowserDriver implements CaptureDriver {
       for (const f of done.failed) log('warn', `prewarm: ${f}`);
     }
     // Capture time 0: right before the first page is shown and the screencast starts. The product's clock reads its
-    // time now (L1.7), in every browser.
+    // time now, in every browser.
     await session.anchorClock();
     r.startCapture();
     if (opts.live) {
@@ -430,7 +430,7 @@ class BrowserDriver implements CaptureDriver {
           save: () => void files.saveRecord(),
           log,
           ...(r.filmingPause ? { filming: r.filmingPause } : {}),
-          // A capture does not film the pause (L4.4): its recorders, clock and CPU sampler stop meanwhile (pause.ts).
+          // A capture does not film the pause: its recorders, clock and CPU sampler stop meanwhile (pause.ts).
           take: {
             clock,
             filming: () => {
@@ -469,7 +469,7 @@ class BrowserDriver implements CaptureDriver {
 
   async failed(e: unknown): Promise<unknown> {
     const { opts, log } = this.run;
-    // A step that failed because its page landed on a sign-in page reports the landing (L1.6).
+    // A step that failed because its page landed on a sign-in page reports the landing.
     let failure = this.guard?.error ?? e;
     // The step that failed is where an author needs to see the page (never a sign-in landing: nothing of it is kept).
     if (opts.inspect && this.rt && failure === e && e instanceof StepFailure) {
@@ -487,9 +487,9 @@ class BrowserDriver implements CaptureDriver {
     const r = this.run;
     const { opts, mode, capture, timeline, clock, log, env, secrets, signal } = r;
     const { rt, recorder, guard, session } = this;
-    // Off camera from here (L4.4): the live picture stops before anything else (teardown, diagnosis, artefacts).
+    // Off camera from here: the live picture stops before anything else (teardown, diagnosis, artefacts).
     await this.live?.stop().catch(() => undefined);
-    // A capture filmed while someone watched its live picture says so (review A L4): the screencast's JPEG encoding ran
+    // A capture filmed while someone watched its live picture says so: the screencast's JPEG encoding ran
     // in Chromium's browser process during the take.
     const livePreview = (this.livePreview = this.live ? this.live.watched() : null);
     if (mode === 'capture' && livePreview && livePreview.seconds > 0) {
@@ -537,7 +537,7 @@ class BrowserDriver implements CaptureDriver {
         log('error', `stopping the recorder failed: ${errorMessage(e)}`);
       }
     }
-    // Off camera (L5.14): heavy work held for this take may go on (teardown, diagnosis and artefacts are not filming).
+    // Off camera: heavy work held for this take may go on (teardown, diagnosis and artefacts are not filming).
     const beside: FilmingReport | undefined = r.stopFilming();
     if (this.loadingWatch) {
       const spans = this.loadingWatch.stop();
@@ -578,7 +578,7 @@ class BrowserDriver implements CaptureDriver {
     }
     // A landing seen while the run was ending (after a step failed, or a cancel): nothing of the capture is kept either.
     if (guard?.error) r.failure = guard.error;
-    // A step failure on a persona's page: was it the session? One check, off camera, now that nothing is filmed (L1.6).
+    // A step failure on a persona's page: was it the session? One check, off camera, now that nothing is filmed.
     if (r.failure instanceof StepFailure && session && this.prepared.length)
       r.failure = await diagnoseSession(r.failure, session, rt, this.prepared, env.pages, secrets, this.commandOf, signal, this.expire);
   }
@@ -605,7 +605,7 @@ class BrowserDriver implements CaptureDriver {
     const { opts, mode, capture, timeline, env, secrets, log, emit, dir, screenshotsDir, framesDir, record, runId, project } = r;
     const { rt, guard, recorder, personas, prepared, planned, frameRateLimit } = this;
     const endT = r.endT;
-    // The session of a persona whose page landed on its own sign-in page expired during the run (L1.6).
+    // The session of a persona whose page landed on its own sign-in page expired during the run.
     const landing = guard?.landing;
     if (landing?.persona && r.failure instanceof LoginPageError && !foreignSignIn(landing.url, landing.persona, env.pages, personas, planned)) {
       this.expire(landing.persona, landing.url, `page ${landing.pageId} landed on the sign-in page during run ${runId}`);
@@ -618,7 +618,7 @@ class BrowserDriver implements CaptureDriver {
       );
     }
     const cancelled = r.failure !== null && isCancelled(r.failure);
-    // Nothing of a run that landed on a sign-in page is kept (L1.6): no frames, no video, no screenshot, no timeline (so
+    // Nothing of a run that landed on a sign-in page is kept: no frames, no video, no screenshot, no timeline (so
     // `render latest` never picks it); a preflight failure recorded nothing either.
     const discard = r.failure instanceof LoginPageError || r.failure instanceof PreflightError;
     if (discard) {
@@ -626,13 +626,13 @@ class BrowserDriver implements CaptureDriver {
       await discardCapture(dir, screenshotsDir);
       record.screenshots = [];
     }
-    // The encoders fed during the take (L5.7): nothing of a cancelled or discarded take is kept.
+    // The encoders fed during the take: nothing of a cancelled or discarded take is kept.
     const trackEncoders = [...(rt?.tracks.values() ?? [])].map((t) => t.encoder).filter((e): e is StreamEncoder => e !== null);
     if (cancelled || discard) {
       await Promise.all([this.mainEncoder, ...trackEncoders].map((e) => e?.abort()));
       this.mainEncoder = null;
     }
-    // Per-page tracks of multi-page scenes (L2.11): their frames, encoded on the same CFR grid as capture.mp4.
+    // Per-page tracks of multi-page scenes: their frames, encoded on the same CFR grid as capture.mp4.
     const trackFrames = new Map<string, FrameIndexEntry[]>();
     if (rt && mode === 'capture' && !discard) {
       for (const [id, t] of rt.tracks) {
@@ -715,7 +715,7 @@ class BrowserDriver implements CaptureDriver {
     }
     const frames = this.frames;
     // One picture per step of a capture (R-FLD-16, capture.step_shots): its frame at the end of the step — copied from the
-    // kept frames, else read from the video (L5.7: no frame written during the take). Nothing is taken during the take.
+    // kept frames, else read from the video (no frame written during the take). Nothing is taken during the take.
     if (rt && mode === 'capture' && capture.step_shots && !cancelled && !discard) {
       const multi = new Set(timeline.scenes.filter((x) => x.pages !== undefined).map((x) => x.id));
       const trackOf = (ev: TimelineEvent) => {
@@ -753,7 +753,7 @@ class BrowserDriver implements CaptureDriver {
     if (record.capture && !mainFromTrack && activity.masks.length) {
       const multi = new Set(timeline.scenes.filter((x) => x.pages !== undefined).map((x) => x.id));
       const events = timeline.events.filter((e) => !multi.has(e.scene));
-      if (process.env.DS_DEBUG_ACTIVITY) await writeFile(join(dir, 'activity.bin'), Buffer.concat(activity.masks)); // TEMP L5.7
+      if (process.env.DS_DEBUG_ACTIVITY) await writeFile(join(dir, 'activity.bin'), Buffer.concat(activity.masks)); // TEMP
       const act = analyzeActivity({
         masks: activity.masks,
         fps: capture.fps,

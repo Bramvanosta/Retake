@@ -1,5 +1,5 @@
 /**
- * L5.10b: the storyboard (B32-Scenario) — the scenario's entries in file order: a "Before filming" row card (the setup
+ * The storyboard (B32-Scenario) — the scenario's entries in file order: a "Before filming" row card (the setup
  * hooks), the filmed scenes (numbered 1, 2, 3 among the filmed scenes), the cards and interstitials as row cards between
  * them, an "After filming" row card (the teardown hooks). A scene: its title (the caption's kicker, else its id) and
  * caption, its flags in words, "Scene 1 · shop, / · 9.3 s" (selects the scene into the inspector) and Add step; then its
@@ -7,18 +7,18 @@
  * none, its number, its verb and target, its length, its state in that run as a shape and words, its modifiers in words,
  * what it types or scrolls (`summary`) and its issues.
  *
- * Keyboard (plan §4.2, critique L3): each scene's frames are a `listbox` (one tab stop for all the scenes: the list
+ * Keyboard (plan §4.2): each scene's frames are a `listbox` (one tab stop for all the scenes: the list
  * holding the selection, `aria-activedescendant`); ← / → the step before / after, ↑ / ↓ the frame above / below (across
  * scenes), Home / End, Page Up / Page Down three rows; Alt+↑ / Alt+← move the selected step one place earlier, Alt+↓ /
  * Alt+→ later; Delete / Backspace delete it (undoable); a held key repeats no edit. The inspector follows.
  *
- * Drag & drop (critique B11, M7): the drag state lives in this document — a drop is acted on only for a drag that
+ * Drag & drop: the drag state lives in this document — a drop is acted on only for a drag that
  * started here (never from dataTransfer contents); the slot comes from the pointer over a scene's whole list (its gaps
  * included); anything else dragged over the board (a file from the Finder) is refused, so the page never navigates away.
  * Every move goes through `dropMove` / `keyboardMove` → `scenario_edit` (StepEditing.tsx): the verified write path.
  *
  * Huge scenarios (the 1,200-step budget): no virtualization — each scene is `content-visibility: auto` with its own
- * intrinsic height (rows × the row height: critique L1), frames are memoised, pictures load only on screen.
+ * intrinsic height (rows × the row height), frames are memoised, pictures load only on screen.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent, KeyboardEvent, MutableRefObject } from 'react';
@@ -51,7 +51,7 @@ interface FrameProps {
   cannotTell: boolean;
   selected: boolean;
   onPick: (key: string) => void;
-  /** A mouse-down on the frame (a click or the start of a drag): it becomes the active option at once (review A M2). */
+  /** A mouse-down on the frame (a click or the start of a drag): it becomes the active option at once. */
   onPress: (key: string) => void;
   canDrag: boolean;
   drop: 'before' | 'after' | null;
@@ -151,7 +151,7 @@ export function Storyboard({
   editFrom,
 }: {
   v: View;
-  /** The screen's resolved selection (review B M2: the inspector shows the same; never a step it does not show). */
+  /** The screen's resolved selection (the inspector shows the same; never a step it does not show). */
   subject: Subject | null;
   onSelect: (s: Subject) => void;
   ed: StepEditor;
@@ -159,7 +159,7 @@ export function Storyboard({
   /** The palette is there (forms read, edits on): each scene shows Add step. */
   canAdd: boolean;
   onAddStep: (scene: string) => void;
-  /** The inspector's button an edit came from (`data-step-action`), or null: it keeps the focus after the edit (review A L1). */
+  /** The inspector's button an edit came from (`data-step-action`), or null: it keeps the focus after the edit. */
   editFrom: MutableRefObject<string | null>;
 }) {
   const scenes = useMemo(() => v.blocks.entries.filter((e): e is SceneBlock => e.type === 'scene'), [v.blocks]);
@@ -207,7 +207,7 @@ export function Storyboard({
   );
   /** The scene a frames list belongs to. */
   const sceneOfList = (el: HTMLElement): string | undefined => [...lists.current].find(([, l]) => l === el)?.[0];
-  /** The list's first step, when the selection is not in it (entering the frames: review A M2). */
+  /** The list's first step, when the selection is not in it (entering the frames). */
   const firstOfList = useCallback(
     (scene: string | undefined): number | undefined => {
       const key = selRef.current;
@@ -253,7 +253,7 @@ export function Storyboard({
         return;
       }
       if (ev.metaKey || ev.ctrlKey) return;
-      // No selection in this list (review A M2): a grid key lands on its first step (End: the last step of all).
+      // No selection in this list: a grid key lands on its first step (End: the last step of all).
       const first = firstOfList(sceneOfList(ev.currentTarget));
       if (first !== undefined && (GRID_KEYS as readonly string[]).includes(ev.key)) {
         ev.preventDefault();
@@ -284,7 +284,7 @@ export function Storyboard({
     const fromButton = editFrom.current !== null;
     go(i, !fromButton && (active === null || active === document.body || !!active.closest?.('.k-frames, [data-testid="inspector"], [data-testid="edit-bar"]')));
   }, [selectFor, v.hash, index, go, editFrom]);
-  // Review A L1: after an edit from the inspector's Move up / Move down / Duplicate / Delete, the focus stays on that button
+  // After an edit from the inspector's Move up / Move down / Duplicate / Delete, the focus stays on that button
   // while it is there and enabled (a second Enter moves the step again); else it goes to the frames.
   const wasBusy = useRef(false);
   useEffect(() => {
@@ -357,7 +357,7 @@ export function Storyboard({
   useEffect(() => {
     const over = (e: globalThis.DragEvent) => {
       if (dragState.current) {
-        // Over anything but a scene's frames (they stop the event), the insertion bar goes away (review B L5).
+        // Over anything but a scene's frames (they stop the event), the insertion bar goes away.
         if (dropRef.current) setDropAt(null);
         return;
       }
@@ -375,11 +375,11 @@ export function Storyboard({
     };
   }, []);
 
-  // One object per source run (review A L3): a prop of every memoised frame, so a selection re-renders two frames, not all.
+  // One object per source run: a prop of every memoised frame, so a selection re-renders two frames, not all.
   const sourceRun = v.source?.run;
   const sourceMode = v.source?.mode;
   const source = useMemo(() => (sourceRun !== undefined && sourceMode !== undefined ? { run: sourceRun, mode: sourceMode } : null), [sourceRun, sourceMode]);
-  // Review A L4: a skipped scene's height from the board's own columns and row height, measured on a rendered scene.
+  // A skipped scene's height from the board's own columns and row height, measured on a rendered scene.
   const boardRef = useRef<HTMLDivElement>(null);
   const [grid, setGrid] = useState<{ cols: number; rowPx: number }>({ cols: 3, rowPx: FRAME_ROW_PX });
   useEffect(() => {
@@ -404,12 +404,12 @@ export function Storyboard({
   const { setup, teardown, named } = v.blocks.hooks;
   const firstScene = scenes.find((s) => s.steps.length > 0)?.id ?? null;
   const selScene = selected !== null ? order[index.get(selected)!]?.scene : null;
-  // The one tab stop (review A M2): the list holding the selection, else the selected scene's, else the first scene's.
+  // The one tab stop: the list holding the selection, else the selected scene's, else the first scene's.
   const tabScene = selScene ?? (subject?.kind === 'scene' && scenes.some((s) => s.id === subject.id && s.steps.length > 0) ? subject.id : firstScene);
   const names = (hs: typeof setup) => hs.map((h) => h.name ?? h.kind ?? 'hook');
   return (
     <div className="sb-board" data-testid="blocks" aria-busy={ed.busy} ref={boardRef}>
-      {/* Review B L8: the step count and the file, on the board. */}
+      {/* The step count and the file, on the board. */}
       <p className="sc-quiet sb-count" data-testid="board-count">
         {shown(`${plural(v.blocks.step_count, 'step')} in ${plural(scenes.length, 'scene')} · `)}
         <Txt className="k-mono" text={v.file} />
@@ -463,7 +463,7 @@ export function Storyboard({
             aria-labelledby={headId}
             data-testid="scene"
             data-scene={e.id}
-            // Off screen, a scene is laid out at its own height and not painted (critique L1); its width is the board's.
+            // Off screen, a scene is laid out at its own height and not painted; its width is the board's.
             style={{ contentVisibility: 'auto', containIntrinsicBlockSize: `auto ${sceneIntrinsicPx(e.steps.length, grid.cols, grid.rowPx)}px` }}
           >
             <div className="sb-scene-head">

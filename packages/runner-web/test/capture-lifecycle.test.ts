@@ -1,5 +1,5 @@
 /**
- * The capture lifecycle without a browser (L7.31, finding X2: runner-web capture/lifecycle.ts over the driver seam,
+ * The capture lifecycle without a browser (runner-web capture/lifecycle.ts over the driver seam,
  * capture/driver.ts): a driver of the test's own runs the phases the browser driver runs, so another driver could be
  * added — the run folder, record and log, the hook phases around the driver's, the filming notices, the timeline built
  * from the driver's take, a failure, a discard and a cancel.

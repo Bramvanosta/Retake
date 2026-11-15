@@ -1,5 +1,5 @@
 /**
- * Which step of a run a step of today's scenario is (L4.2, critique B4): the Studio shows each step with the frame a run
+ * Which step of a run a step of today's scenario is: the Studio shows each step with the frame a run
  * captured of it, and a scenario edited since that run must not keep a picture that is no longer true.
  *
  * A step's picture identity is its fingerprint (core `stepFingerprint`: action + normalised arguments, modifiers left
@@ -141,7 +141,7 @@ export function matchRunSteps(current: ScenarioIdentity, run: ScenarioIdentity):
           out.set(key(g), { missing: 'unreadable' });
           continue;
         }
-        // A run step of the same action first (review B L1: a changed click is not the wait before it), else in order.
+        // A run step of the same action first (a changed click is not the wait before it), else in order.
         const same = candidates.findIndex((f) => now.steps[g].action !== undefined && then.steps[f].action === now.steps[g].action);
         const c = same >= 0 ? candidates.splice(same, 1)[0] : candidates.shift();
         if (c !== undefined) {
@@ -158,7 +158,7 @@ export function matchRunSteps(current: ScenarioIdentity, run: ScenarioIdentity):
 }
 
 /**
- * The steps of today's file that kept their run picture but moved since the run (L4.3, plan §3.9): in each scene, the
+ * The steps of today's file that kept their run picture but moved since the run (plan §3.9): in each scene, the
  * bound steps (a `run_index` without `missing`) whose run index is not in the longest increasing run of the scene's
  * run indexes in today's order — the fewest steps that explain the new order. Their picture shows them at their old
  * place (what the page looked like then), so the screen says so. Keys "<scene>.<index>" of today's file.

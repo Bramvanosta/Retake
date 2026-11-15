@@ -1,9 +1,9 @@
 /**
- * L5.11a: the location a scenario's runs use — ONE choice per scenario in this tab, shared by the Scenario screen's
+ * The location a scenario's runs use — ONE choice per scenario in this tab, shared by the Scenario screen's
  * Location (Script), Prepare's (Shoot) and the status bar's actions; never stored (a reload goes back to the file's
- * own: BL-129). A choice equal to the file's own is no choice (`env` is sent only when it differs: critique M1 of
- * L5.10b). A remembered location project.yaml no longer has is dropped once the project is read (review A M1 of L5.10b)
- * and its notice kept until a screen shows it (critique M2: the status bar says it on a route whose screen does not).
+ * own: BL-129). A choice equal to the file's own is no choice (`env` is sent only when it
+ * differs). A remembered location project.yaml no longer has is dropped once the project is read
+ * and its notice kept until a screen shows it (the status bar says it on a route whose screen does not).
  */
 import { useEffect, useSyncExternalStore } from 'react';
 
@@ -53,7 +53,7 @@ export function takeDropped(slug: string, name: string): string | undefined {
 /**
  * The location to send for a scenario: the tab's choice when the project has it (undefined: the file's own). `envs`:
  * the project's environments, null while project_get is not read — then `ready` is false and no action may start
- * (critique M2: a start before the read would send a location that may be gone).
+ * (a start before the read would send a location that may be gone).
  */
 export function useRunLocation(slug: string | null, name: string | null, envs: readonly { name: string }[] | null): { sent: string | undefined; ready: boolean; dropped: string | undefined } {
   useSyncExternalStore(subscribe, snapshot);

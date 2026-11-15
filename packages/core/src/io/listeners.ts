@@ -1,6 +1,6 @@
 /**
- * Who listens on a TCP port of this machine (an OS utility of core's io side; L7.25: from @retake/sandbox's ports.ts,
- * which re-exports it): a connection probe on 127.0.0.1 and ::1, and lsof's listeners (program and pid).
+ * Who listens on a TCP port of this machine (an OS utility of core's io side; @retake/sandbox's ports.ts
+ * re-exports it): a connection probe on 127.0.0.1 and ::1, and lsof's listeners (program and pid).
  */
 import { execFile } from 'node:child_process';
 import { connect } from 'node:net';

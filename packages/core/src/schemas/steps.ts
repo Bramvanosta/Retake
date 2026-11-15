@@ -11,7 +11,7 @@ export const speedSchema = () => z.number().gt(0).lte(8);
 /** Longest overlay (seconds): an overlay is a short callout over a clip, not a card. */
 export const OVERLAY_MAX_SECONDS = 30;
 
-/** Overlay anchors (L2.12): where a box-filling overlay (a user file) goes. */
+/** Overlay anchors: where a box-filling overlay (a user file) goes. */
 export const OverlayAnchorSchema = z.enum(OVERLAY_ANCHORS as unknown as [OverlayAnchor, ...OverlayAnchor[]]);
 
 /** When an overlay starts: start | end | step | click | mark:<name> | seconds after the step starts. */

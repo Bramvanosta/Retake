@@ -1,5 +1,5 @@
 /**
- * The recorder's event model (L3.4, `retake record` / `scenario_record`): what a recording session streams to
+ * The recorder's event model (`retake record` / `scenario_record`): what a recording session streams to
  * `events.jsonl` while a person performs a flow in a headed window — intent, never coordinates and never a secret.
  *
  * Every event is checked against this schema before it is kept. Guarantees the schema itself enforces:
@@ -78,7 +78,7 @@ export const RecordedElementSchema = z.strictObject({
   /** The kit's description when no target was verified (`button "Save"`). */
   desc: short.optional(),
   /**
-   * Up to three other targets verified at the time of the action (L4.8): each resolved once, to this element. Never
+   * Up to three other targets verified at the time of the action: each resolved once, to this element. Never
    * position-dependent (no `nth`, no `last_visible`); none for a secret field. The person may pick one in the Studio.
    */
   alternatives: z
@@ -243,7 +243,7 @@ export const RecordedEventSchema = z.union([
 export type RecordedEvent = z.infer<typeof RecordedEventSchema>;
 
 // ---------------------------------------------------------------------------------------------------------------------
-// The draft generator (L3.4 part 2): a recording's events → a draft scenario. Pure (no I/O, no clock): the CLI, the
+// The draft generator: a recording's events → a draft scenario. Pure (no I/O, no clock): the CLI, the
 // `record` job and any later source of events (BL-25) share it.
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -304,7 +304,7 @@ export interface DraftIssue {
     | 'not_saved'
     | 'invalid'
     | 'hidden_text'
-    // Studio annotations (L4.8)
+    // Studio annotations
     | 'insert_replaced'
     | 'insert_moved'
     | 'insert_unplaced'
@@ -361,7 +361,7 @@ export interface RecordingDraft {
 }
 
 /**
- * The events a draft step came from (L4.8). `action`: a recorded action (with the events folded into it); `helper`: a
+ * The events a draft step came from. `action`: a recorded action (with the events folded into it); `helper`: a
  * `wait_for` or `scroll` the generator put before that action; `insert`: a hold or wait_for the person inserted.
  */
 export interface DraftSource {
@@ -374,7 +374,7 @@ export interface DraftSource {
   /** A helper row's kind: the recorder's `wait_for` before its action, or its `scroll` to it. */
   helper?: 'wait' | 'scroll';
   /**
-   * The row's identity, stable while the draft regenerates (L4.8 review): `a<first seq>` an action, `w<seq>` the
+   * The row's identity, stable while the draft regenerates: `a<first seq>` an action, `w<seq>` the
    * recorder's wait before the action at that event, `s<first seq>` its scroll, `i:<id>` an insert. The Record screen
    * keys its cursor by it, never by the row's index.
    */
@@ -455,7 +455,7 @@ const hasMask = (v: unknown): boolean => JSON.stringify(v ?? null).includes(MASK
 const hasTemplate = (v: unknown): boolean => JSON.stringify(v ?? null).includes(TEMPLATE);
 /**
  * A recorded string holding a hidden character — a control, a zero-width or direction character, a line or paragraph
- * separator: the set no Studio write ever adds (core scenario-edit.ts, L4.3 B9). In a draft it would read as another
+ * separator: the set no Studio write ever adds (core scenario-edit.ts). In a draft it would read as another
  * text or target than the one it holds (an editor or a diff shows it reordered or invisible).
  */
 const hidden = (s: string): boolean => firstHiddenChar(s) !== undefined;
@@ -481,7 +481,7 @@ function targetOf(el: El | null): TargetSpec | null {
 }
 
 /**
- * The alternatives of an element the person may pick (L4.8), with their 1-based index in `el.alternatives`: none when
+ * The alternatives of an element the person may pick, with their 1-based index in `el.alternatives`: none when
  * the element's own target is not usable or it is a secret field; never one that is masked, templated, holding a
  * hidden character or the same as the suggested target.
  */
@@ -548,11 +548,11 @@ const HIDDEN_MESSAGE =
  * next target when it appeared after a pause; scenes split where the page changed (`open:` only when the address bar
  * or nothing the person did changed it); presses on nothing dropped; captions empty; no holds; secret fields typed as
  * `{{vars.<kind>_N}}`. A recorded string holding `{{` (typed text, a name, an option) never reaches the draft: its step
- * is left out (`template_text`); nor one holding a hidden character (`hidden_text`, L4.8: the set no Studio write adds).
+ * is left out (`template_text`); nor one holding a hidden character (`hidden_text`: the set no Studio write adds).
  * Every event's page text is untrusted; issue messages never quote it. Issues come in the order they were raised, each
  * with its scene and step.
  *
- * Studio annotations (L4.8, record-annotations.ts), optional — without them (or empty) the draft is exactly the
+ * Studio annotations (record-annotations.ts), optional — without them (or empty) the draft is exactly the
  * recorder's:
  * - target choices: every fold and merge decision compares the recorded targets; a pick replaces the step's main target
  *   only when the draft is emitted (the latest of the step's target events that has a choice wins), and the
@@ -581,7 +581,7 @@ export function draftFromRecording(events: readonly RecordedEvent[], ctx: DraftC
   if (walk.scene !== null) walk.flushScroll(stream.at(-1) ?? evs[0], null);
   const d: Walked = walk;
   const elAt = elementsBySeq(evs);
-  // 2. The Studio annotations (L4.8): target picks, then inserts.
+  // 2. The Studio annotations: target picks, then inserts.
   applyChoices(d, choices, elAt);
   const { pending, late } = applyInserts(d, inserts, final);
   // 3. The scenes kept, their ids, where each step is.
@@ -1360,7 +1360,7 @@ function elementsBySeq(evs: readonly Ev[]): (seq: number) => El | null {
 const sameSpec = (a: TargetSpec, b: TargetSpec) => sameTarget(normalizeTarget(a), normalizeTarget(b));
 
 /**
- * Picks (L4.8), substituted now that every fold and merge decision compared the recorded targets: the latest of a
+ * Picks, substituted now that every fold and merge decision compared the recorded targets: the latest of a
  * step's target events that has a choice wins; the generator's own wait_for / scroll before that action follow it.
  */
 function applyChoices(d: Walked, choices: Record<string, number>, elAt: (seq: number) => El | null): void {
@@ -1728,7 +1728,7 @@ function sourcesOf(d: Walked, kept: KeptScenes, elAt: (seq: number) => El | null
   return sources;
 }
 
-/** The field a select or pick step names, as a target (a wait for the next target before it, L4.8 review). */
+/** The field a select or pick step names, as a target (a wait for the next target before it). */
 function fieldTarget(step: Step): TargetSpec | undefined {
   const of = (v: unknown) => (v !== null && typeof v === 'object' ? (v as { field?: unknown }).field : undefined);
   const f = of(step.select) ?? of(step.pick);

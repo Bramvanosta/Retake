@@ -42,7 +42,7 @@ export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: 
   const problem = nameProblem(name);
   const blocked = !env || !env.default || !o.display || o.open !== null || signInFirst !== null;
   // A refusal takes the focus (the Start button stays where it was: a disabled one would drop the focus while sending) —
-  // said once, by the focus: its callout is a note, not an alert as well (L5.11b fixes, review A-L5).
+  // said once, by the focus: its callout is a note, not an alert as well.
   useEffect(() => {
     if (refusal?.kind === 'error') refusedBox.current?.focus();
   }, [refusal]);

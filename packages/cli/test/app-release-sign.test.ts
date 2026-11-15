@@ -1,5 +1,5 @@
 /**
- * L5.16e fixes — the release's last half and what the build pins (fast, no network, never a real identity, keychain
+ * The release's last half and what the build pins (fast, no network, never a real identity, keychain
  * or notarisation): apps/desktop/scripts/release.mjs (`finishApp` from an ad hoc app: refusals first, the version the
  * app must carry, the update archive with no stale file, the DMG's folder, the Developer ID re-signature inside-out
  * through recording stand-ins; the `--out` folder; the command line), bundle.mjs's pins (the Node.js binary, the

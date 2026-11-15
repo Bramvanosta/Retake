@@ -1,5 +1,5 @@
 /**
- * The preview frame's one piece of shared state (L5.2): what the Player shows — set by the protocol handlers
+ * The preview frame's one piece of shared state: what the Player shows — set by the protocol handlers
  * (frame-main.tsx `load`, `rate`, `clear`), read by the React tree with `useSyncExternalStore`. Browser-safe, no
  * dependency.
  *

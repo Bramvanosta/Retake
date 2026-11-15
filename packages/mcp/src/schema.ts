@@ -8,7 +8,7 @@ import { z } from 'zod';
 /** Problems named per argument: the operation contract's (invoke reports them). */
 export { argumentProblems } from '@retake/engine/contract';
 
-/** The schema pieces of the inputs: the engine's operations' (L7.13), the same zod objects. */
+/** The schema pieces of the inputs: the engine's operations', the same zod objects. */
 export { componentId, editOverrides, envName, ifMatch, projectSlug, renderId, runId, scenarioName, templateName } from '@retake/engine/contract';
 
 /** JSON Schema of a tool's input (draft 2020-12, without $schema / $id): what tools/list publishes. */

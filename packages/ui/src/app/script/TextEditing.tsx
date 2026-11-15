@@ -1,5 +1,5 @@
 /**
- * The pieces the app's text editors share (L4.1's README editor, L4.3's scenario YAML; L5.10b: on the kit): the
+ * The pieces the app's text editors share (the README editor, the scenario YAML; on the kit): the
  * "changed on disk" callout shown while the person has unsaved text, the conflict panel of a save answered 409 (both
  * versions side by side: "Save mine over it" re-sends with the hash of the version shown, "Load the version on disk"
  * keeps the person's text read-only to copy, "Back to editing"), and that kept text. Every string is a text node or a

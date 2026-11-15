@@ -1,14 +1,13 @@
 /**
- * "Copy to edit" (L4.7, R-UI-07; plan D8): a new workspace theme that is a copy of a listed one (a starter, a workspace
- * theme), so a starter — read-only — can be edited from the Studio. The source's regular files are copied verbatim
- * (dot entries left out: a source's own provenance file is not the copy's); only `name:` changes (a splice). Like
- * brand/create.ts: the name checks (lower-case, never a starter's, never an existing folder's — without case), refused
- * when templates_dir lies inside the Retake package, the folder built hidden with this tool's provenance file
- * written first (`copy_of`, trust `author`: the person made it in the Studio — never replaced through MCP, L4.7 review
- * A N4), validated (schema, loader, files inside the folder,
- * the registry resolving its components), then renamed into place; a failure removes it. A source holding a symbolic
- * link, a hard link or a special file is refused whole (a copy would serve a file from elsewhere); at most THEME_COPY_MAX_FILES files
- * and THEME_COPY_MAX_BYTES bytes.
+ * "Copy to edit" (R-UI-07): a new workspace theme that is a copy of a listed one (a starter, a workspace theme), so a
+ * starter — read-only — can be edited from the Studio. The source's regular files are copied verbatim (dot entries left
+ * out: a source's own provenance file is not the copy's); only `name:` changes (a splice). Like brand/create.ts: the
+ * name checks (lower-case, never a starter's, never an existing folder's — without case), refused when templates_dir
+ * lies inside the Retake package, the folder built hidden with this tool's provenance file written first (`copy_of`,
+ * trust `author`: the person made it in the Studio — never replaced through MCP), validated (schema, loader, files
+ * inside the folder, the registry resolving its components), then renamed into place; a failure removes it. A source
+ * holding a symbolic link, a hard link or a special file is refused whole (a copy would serve a file from elsewhere);
+ * at most THEME_COPY_MAX_FILES files and THEME_COPY_MAX_BYTES bytes.
  */
 import { lstat, mkdir, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';

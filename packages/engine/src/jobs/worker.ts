@@ -1,5 +1,5 @@
 /**
- * The jobs worker of a workspace (L3.1, L5.14): one process per workspace (the worker lock) with two slots — captures
+ * The jobs worker of a workspace: one process per workspace (the worker lock) with two slots — captures
  * first. The capture slot runs one capture-class job at a time (job-input.ts JOB_CLASS: takes, what prepares them, sign-ins,
  * recordings, inspections) in this process; the heavy slot runs one heavy job at a time (renders, reviews, exports,
  * previews, site extractions) in a job process of its own (job-child.ts). Each slot claims the oldest queued job of its
@@ -13,7 +13,7 @@
  * then the worker exits. Any later signal quits at once: session copies and what a sandbox take started are removed
  * synchronously, the job process's tree is killed; the quit is deferred to the next tick so that the runner's own
  * second-signal handler (registered after this one) still kills the shell hooks it runs. Every signal to a job process or
- * its tree goes through signal.ts (review B L1: never a pid of -1, 0, 1, the worker itself or its own group).
+ * its tree goes through signal.ts (never a pid of -1, 0, 1, the worker itself or its own group).
  *
  * A job whose final state cannot be written makes the worker exit non-zero: readers then see its pid gone and derive
  * `interrupted`, never a `running` job with a live pid that will never finish (a job process whose worker is gone ends

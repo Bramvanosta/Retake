@@ -1,7 +1,7 @@
 /**
- * A scenario read as blocks (L4.2, R-UI-08..10, R-UI-14): the video header, the setup / teardown hooks, the scenes
+ * A scenario read as blocks (R-UI-08..10, R-UI-14): the video header, the setup / teardown hooks, the scenes
  * with their steps, the cards and the interstitials, in file order — what the Studio's scenario screen shows, and what
- * L4.3's two-way editor will edit (each block keeps its source range and the comment above it).
+ * the Studio's two-way editor edits (each block keeps its source range and the comment above it).
  *
  * Pure and tolerant: `scenarioBlocks` never throws. A YAML syntax error gives no blocks (the issues and the text still
  * show); an entry or a step it cannot read becomes an `unknown` block carrying the issues whose path points into it.
@@ -9,7 +9,7 @@
  * no secret value can reach a block —, except that a URL's `user:password@` is left out of what is shown. Values come
  * from core parseYaml (aliases bounded by `maxAliasCount`, a recursive alias refused); the walker never resolves an
  * alias itself: a block written as an alias (`- *step`) is `aliased`, carries the alias's range and no comment, and is
- * never edited through (L4.3).
+ * never edited through.
  */
 import { isAlias, isMap, isScalar, isSeq } from 'yaml';
 import type { Node } from 'yaml';
@@ -100,21 +100,21 @@ export interface StepBlock {
   range?: SourceRange;
   /** The comment lines just above it, without `#`. */
   comment?: string;
-  /** Written as a YAML alias (`- *x`): its range is the alias's, and L4.3 never edits through it. */
+  /** Written as a YAML alias (`- *x`): its range is the alias's, and the editor never edits through it. */
   aliased?: true;
-  /** core stepGuard of the step as written (modifiers included): what a block edit names it by (L4.3, critique B2). */
+  /** core stepGuard of the step as written (modifiers included): what a block edit names it by. */
   guard?: string;
   /** Why the Blocks tab cannot move, delete or duplicate it (an alias, a flow list of steps): edited in the YAML view. */
   locked?: string;
   /**
-   * Its values for the inspector's form (L4.3 part 3, step-forms.ts): object form, a URL with a password never shown;
+   * Its values for the inspector's form (step-forms.ts): object form, a URL with a password never shown;
    * absent for a step a form does not edit (not one action, `eval` / `emit` / `cursor`).
    */
   form?: StepFormValues;
   issues: ValidationIssue[];
 }
 
-/** A user file shown instead of a component (L2.12). */
+/** A user file shown instead of a component. */
 export interface MediaFileRef {
   kind: 'video' | 'image' | 'lottie';
   path: string;
@@ -137,7 +137,7 @@ export interface SceneBlock {
   /** The environment page: its own `page`, else the previous scene's (`page_inherited`); absent: the environment's first. */
   page?: string;
   page_inherited?: true;
-  /** Multi-page scenes (L2.11): the pages filmed at the same time. */
+  /** Multi-page scenes: the pages filmed at the same time. */
   pages?: ScenePageBlock[];
   /** Path or URL opened at the start. */
   open?: string;
@@ -153,13 +153,13 @@ export interface SceneBlock {
   tutorial?: string;
   irreversible?: true;
   skip?: true;
-  /** Played during the take, left out of the video (L5.8). */
+  /** Played during the take, left out of the video. */
   offscreen?: true;
   note?: string;
   /** Hash of the scene's page, open, pages and persona (core step-match). */
   context: string;
   steps: StepBlock[];
-  /** Why no step can be moved into or out of it (its steps written as an alias or a flow list), L4.3. */
+  /** Why no step can be moved into or out of it (its steps written as an alias or a flow list). */
   steps_locked?: string;
   comment?: string;
   range?: SourceRange;
@@ -219,7 +219,7 @@ export interface HookFlag {
 }
 
 export interface HookBlock {
-  /** `step`: an entry of the named hooks (`hooks:`) a `hook: <name>` step runs during the take (L5.8). */
+  /** `step`: an entry of the named hooks (`hooks:`) a `hook: <name>` step runs during the take. */
   phase: 'setup' | 'teardown' | 'step';
   index: number;
   /** A named hook's name (phase `step`). */
@@ -265,7 +265,7 @@ export interface VideoBlock {
   mocks?: number;
   /** The comment at the top of the file, as a person reads it (topCommentWords: no editor directive, paragraphs). */
   comment?: string;
-  /** The lines of that comment in the file, as written (what L4.3's editor edits). */
+  /** The lines of that comment in the file, as written (what the editor edits). */
   comment_lines?: { line: number; end_line: number };
 }
 
@@ -355,7 +355,7 @@ export function actionLabel(action: ActionName): string {
 
 /**
  * A URL's `user:password@` (or `user@`) left out, wherever URLs appear in a text — up to the authority's LAST `@` (a
- * password may hold one: `https://u:p@ss@host/` → `https://host/`, review A #5).
+ * password may hold one: `https://u:p@ss@host/` → `https://host/`).
  */
 export function stripUrlUserinfo(s: string): string {
   return s.replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#]*@/gi, '$1');
@@ -676,7 +676,7 @@ function commentOf(seq: At, item: At, i: number): string | undefined {
 const EDITOR_DIRECTIVE = /^\s*(?:yaml-language-server:|.*-\*-.*-\*-|(?:vim?|ex):)/;
 
 /**
- * The file's top comment as a person reads it (review B M5): the editor directives that lead it left out (and one blank
+ * The file's top comment as a person reads it: the editor directives that lead it left out (and one blank
  * line after them), URLs without their `user:password@`, the comment's hard wraps joined into paragraphs (a blank line
  * starts a new one; a line opening a list item keeps its own line). The comment as written stays in the file, at
  * `comment_lines`.
@@ -769,7 +769,7 @@ function videoBlock(sc: Record<string, unknown>, src: Src): VideoBlock {
   if (typeof top === 'string' && top !== '') {
     const words = topCommentWords(top);
     if (words !== undefined) v.comment = words;
-    // Its lines in the file (L4.3 edits the comment as written): from line 1 to the line before the first key.
+    // Its lines in the file (the editor edits the comment as written): from line 1 to the line before the first key.
     const firstStart = first && typeof first === 'object' ? (first as Node).range?.[0] : undefined;
     const lc = src.yaml.lineCounter;
     const end = firstStart !== undefined ? lc.linePos(firstStart).line - 1 : top.split('\n').length;
@@ -778,7 +778,7 @@ function videoBlock(sc: Record<string, unknown>, src: Src): VideoBlock {
   return v;
 }
 
-/** The named hooks (`hooks:`, L5.8): each entry of each name, in the file's order, as a block of phase `step`. */
+/** The named hooks (`hooks:`): each entry of each name, in the file's order, as a block of phase `step`. */
 function namedHookBlocks(map: unknown, at: At, src: Src, o: ScenarioBlocksOptions): HookBlock[] {
   if (!isObj(map)) return [];
   return Object.entries(map).flatMap(([name, v]) => {

@@ -1,5 +1,5 @@
 /**
- * The two slots of a jobs worker (worker.ts, L5.14) and the claims of one turn of its loop: the capture slot first — it
+ * The two slots of a jobs worker (worker.ts) and the claims of one turn of its loop: the capture slot first — it
  * runs one capture-class job at a time in this process (createJobRunner, run-job-record.ts) — then the heavy slot
  * (worker-heavy.ts: a job process of its own). With heavyInProcess (WorkerOptions, worker-ports.ts), the capture slot
  * runs heavy jobs too, one at a time.
@@ -65,8 +65,8 @@ function startCapture(w: Worker, stored: JobRecord): void {
 
 /**
  * The claims of one turn of the loop: the capture slot first (heavy jobs too when they run in this process), then the heavy slot.
- * Not while a take of this worker films and the heavy slot has nothing to take (critique M6: the take's event loop is
- * this process's), nor after a build change (critique L4: captures included), nor past `once`. True when one started.
+ * Not while a take of this worker films and the heavy slot has nothing to take (the take's event loop is this
+ * process's), nor after a build change (captures included), nor past `once`. True when one started.
  */
 export async function claimNext(w: Worker): Promise<boolean> {
   let claimed = false;

@@ -1,14 +1,13 @@
 /**
- * The Studio's comment operations (moved verbatim from the Studio server's comment-ops.ts in L7.16; it serves these very
- * objects). L4.6 part C, R-UI-27 / R-UI-28 / R-UI-29, plan D8 as amended by the critique: frame
+ * The Studio's comment operations (the Studio server serves these very objects). R-UI-27 / R-UI-28 / R-UI-29: frame
  * comments on a render's own frames, threads, and Claude's proposals — the engine's comments and renders facades under
  * the `ui` client (entries written as the channel `studio`, named by the Studio process: never by the page).
  *
  * Reads: `threads_list` (a scenario's threads, path-free items, the first 300 characters of each comment under
- * `untrusted`), `threads_counts` (open / resolved per scenario from the thread files alone, critique B8: the scenario
+ * `untrusted`), `threads_counts` (open / resolved per scenario from the thread files alone: the scenario
  * screen's "Comments (N open)"), `thread_get` (one thread, path-free, its last THREAD_ENTRIES_SHOWN entries, and the
  * newest — or the named — proposal as the engine computes it: the canonical diff of the exact bytes Apply writes, its
- * lines under `untrusted.rows`, and `offer`: what the screen may offer for it, computed here — critique B3),
+ * lines under `untrusted.rows`, and `offer`: what the screen may offer for it, computed here),
  * `thread_still` (a thread's still as a JPEG, for a render that is gone), `render_outline` (the viewer's slider:
  * frames, fps, markers, the pins on that render), `render_frame` (one output frame as a JPEG, the video's own fps — the
  * page's session id makes the newest request of a render win, the request's abort signal kills a superseded ffmpeg;
@@ -20,8 +19,8 @@
  * `thread_reopen` and `thread_apply` (each on the thread's hash the page showed: `if_match`). Writes of one thread run
  * one at a time on this engine (the engine's operation chain, on threadKey: thread_reply / thread_resolve /
  * thread_reopen declare it as their `serialize`); `thread_apply` also runs on the scenario's key of that chain, shared
- * with scenario_edit, scenario_render and record_save (critique B5: an apply, an edit and a render submit of one
- * scenario never interleave) — first the scenario's key, then the thread's, in its handler: its key is the thread's
+ * with scenario_edit, scenario_render and record_save (an apply, an edit and a render submit of one scenario
+ * never interleave) — first the scenario's key, then the thread's, in its handler: its key is the thread's
  * scenario, read from the engine, not an argument, so it declares no `serialize`. Undo apply is scenario_edit
  * `restore` of the answer's `previous` (the base was read by the engine: a version it accepts).
  * The caller rules (`callers`, checked by invoke after the parse and before anything is read): only a person channel
@@ -188,14 +187,14 @@ export function threadAnswer(v: CommentView): ThreadAnswer {
 }
 
 /**
- * What the thread screen offers for a proposal (critique B2 / B3 / B4), computed by the server:
+ * What the thread screen offers for a proposal, computed by the server:
  * - `apply`: the newest proposal, pending or undone (Undo apply makes it actionable again), on an open thread;
  * - `preview` (Preview change): apply, and the proposed text renders on the commented take (verified, same take);
  * - `apply_render` (Apply and re-render): preview, and the Studio's render can answer the thread — it renders
  *   landscape with the files' theme and no option (scenario_render's pinned arguments), so only a landscape thread
  *   whose render used the files' theme and no override;
- * - none of them when Apply's own checks before its write would refuse it now (the engine's `blocked`: the Studio's write
- *   checks, edit-only, no theme change, the apply entry fitting the thread — review A L4);
+ * - none of them when Apply's own checks before its write would refuse it now (the engine's `blocked`: the Studio's
+ *   write checks, edit-only, no theme change, the apply entry fitting the thread);
  * - `why`: what is not offered and why, in the tool's own words (Apply's refusal quoted on its first line, path-free).
  */
 export interface ProposalOffer {
@@ -228,7 +227,7 @@ function notActionableWhy(p: CommentProposalView): string {
   }
 }
 
-/** The facts the Apply-and-re-render rule reads (critique B3): the commented render as it is now and the files' theme. */
+/** The facts the Apply-and-re-render rule reads: the commented render as it is now and the files' theme. */
 export interface OfferFacts {
   variant: CommentView['variant'];
   /** The commented render's record (by id and created_at), or why it cannot be read. */
@@ -243,7 +242,7 @@ const UNREAD: OfferFacts = { variant: 'landscape', render: { missing: 'not read'
 /** The offer of a proposal from its view and the facts (pure: the rule). */
 export function proposalOffer(p: CommentProposalView, f: OfferFacts): ProposalOffer {
   if (!p.actionable) return { apply: false, preview: false, apply_render: false, why: notActionableWhy(p) };
-  // Apply's own checks before its write said no (review A L4): nothing is offered that the server would refuse.
+  // Apply's own checks before its write said no: nothing is offered that the server would refuse.
   if (typeof p.blocked === 'string') return { apply: false, preview: false, apply_render: false, why: `Apply would refuse it now (${blockedWords(p.blocked)}): ask Claude to propose again` };
   if (!p.verified || p.same_take !== true) {
     return {
@@ -386,12 +385,12 @@ export const threadGet = defineOperation({
     if (proposed) {
       const view = await engine.comments.proposal(a.project, a.comment_id, proposed);
       const p = view.blocked !== undefined ? { ...view, blocked: pathFree(view.blocked, root(engine)) } : view;
-      // The render record and the files' theme are read only when they decide (critique B3).
+      // The render record and the files' theme are read only when they decide.
       const decides = p.actionable && p.blocked === undefined && p.verified && p.same_take === true;
       data.proposal = { ...p, offer: proposalOffer(p, decides ? await offerFacts(engine, a.project, v) : UNREAD) };
     }
     const pr = data.proposal ? `, proposal ${data.proposal.state}` : '';
-    // "1 entry", "2 entries" (L7.16: it said "entrys").
+    // "1 entry", "2 entries" (it said "entrys").
     const entries = `${v.entries.length} ${v.entries.length === 1 ? 'entry' : 'entries'}`;
     return { summary: `${v.id} on ${v.render_id} at ${v.timecode}: ${v.status}, ${entries}${pr}`, data: data };
   },

@@ -1,6 +1,6 @@
 /**
- * How a preview job is shown (moved from the MCP server's tools/preview.ts in L7.17, with template_preview and
- * component_preview, its only users): its summary, and the wait on it with its stills as images once it succeeded.
+ * How a preview job is shown (template_preview and component_preview are its only users): its summary, and the wait on
+ * it with its stills as images once it succeeded.
  */
 import type { Engine, PreviewSubmitted } from '../engine.js';
 import type { JobRecord } from '../jobs/types.js';

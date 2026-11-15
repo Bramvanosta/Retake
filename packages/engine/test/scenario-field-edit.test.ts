@@ -1,9 +1,9 @@
 /**
- * L4.5 part A: the timeline's one-click switches through the Studio's write path (engine scenarios.edit, kind
- * `set_field`, the `ui` client) — one line written, `change: 'edit'` (a render of the same take re-plans it), undo
- * (`restore`) byte-exact; the L4.3 rules untouched (the hash as if_match, hooks and vars frozen — a switch in a file with
- * setup hooks is fine, they do not change); a component or frame that does not fit the use refused with the reason
- * the inspector shows (⚑ critique B7: kind, slots, pages, a component written for another kit API).
+ * The timeline's one-click switches through the Studio's write path (engine scenarios.edit, kind `set_field`, the `ui`
+ * client) — one line written, `change: 'edit'` (a render of the same take re-plans it), undo (`restore`) byte-exact;
+ * the write path's rules untouched (the hash as if_match, hooks and vars frozen — a switch in a file with setup hooks
+ * is fine, they do not change); a component or frame that does not fit the use refused with the reason the inspector
+ * shows (⚑ kind, slots, pages, a component written for another kit API).
  */
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';

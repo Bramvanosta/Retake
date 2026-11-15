@@ -1,16 +1,16 @@
 /**
- * L4.5 part B: the player origin (src/server/player.ts) over raw HTTP — the second loopback listener that serves the
+ * The player origin (src/server/player.ts) over raw HTTP — the second loopback listener that serves the
  * sandboxed preview frame, its scripts, preview plans and media under one session capability:
  * - ⚑ the gate: Host exactly 127.0.0.1 / localhost:<Q> (421), GET / HEAD only, Origin absent / null / own (403);
  * - ⚑ the frame document's exact CSP (sandbox, no connect beyond the capability's /m/, frame-ancestors = the Studio),
  *   its companions, no inline script; CORS only on /m/;
  * - ⚑ registration only of files inside the given folders, never through a link; ⚑ a registered file swapped for a
  *   link, a FIFO or other bytes since → 404; Range, HEAD, ETag, immutable caching;
- * - stable file URLs across plans (critique B6), the plan served from memory without a path (B4); unknown capability,
+ * - stable file URLs across plans, the plan served from memory without a path; unknown capability,
  *   file, hash or name → 404, traversal included; rotate / close revoke every URL;
- * - ⚑ the error log names the route family only (never the capability or a path: critique B16);
- * - L4.5 fixes: ⚑ Trusted Types in the frame CSP (review A H1 b); ⚑ CORS for the opaque frame only (`null`), a
- *   capability per scope (project) that `release` revokes (review A L3); ⚑ no hard link registered or served (A N4);
+ * - ⚑ the error log names the route family only (never the capability or a path);
+ * - ⚑ Trusted Types in the frame CSP; ⚑ CORS for the opaque frame only (`null`), a
+ *   capability per scope (project) that `release` revokes; ⚑ no hard link registered or served;
  * - the Studio frames the player origin and only it (frame-src), and never sends an Access-Control-* header.
  */
 import { execFileSync } from 'node:child_process';
@@ -138,7 +138,7 @@ describe('the player origin', () => {
     execFileSync('mkfifo', [join(dirs.run, 'pipe.mp4')]);
     expect(player.register(join(dirs.run, 'pipe.mp4'), within)).toBeUndefined();
     await unlink(join(dirs.run, 'pipe.mp4'));
-    // ⚑ Review A N4: a hard link inside the folders to a file outside them (two names, one file) is refused.
+    // ⚑ A hard link inside the folders to a file outside them (two names, one file) is refused.
     await link(join(dirs.outside, 'secret.txt'), join(dirs.run, 'hard.mp4'));
     expect(player.register(join(dirs.run, 'hard.mp4'), within)).toBeUndefined();
     await unlink(join(dirs.run, 'hard.mp4'));
@@ -172,7 +172,7 @@ describe('the player origin', () => {
     expect([head.status, head.body]).toEqual([200, '']);
     expect((await get(path, { range: 'bytes=0-9' }, 'HEAD')).status).toBe(206);
     expect((await get(path, { 'if-none-match': String(full.headers.etag) })).status).toBe(304);
-    // L5.2 (critique H3, review B L9): the bytes read for GET answers and the GET 206 answers are counted (HEAD — even
+    // The bytes read for GET answers and the GET 206 answers are counted (HEAD — even
     // with a Range —, 304 and 416 read no media).
     expect([player.mediaBytesRead - bytes0, player.rangeRequests - ranges0]).toEqual([10000 + 100 + 10, 2]);
     const cap = capOf(url);
@@ -231,7 +231,7 @@ describe('the player origin', () => {
     expect(b.plan_url).not.toBe(a.plan_url);
     const ra = await get(pathOf(a.plan_url), { origin: 'null', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'cors' });
     expect(ra.status).toBe(200);
-    // Review A L3: readable by the frame's opaque origin only (`null`), never by a page of a real origin (`*`).
+    // Readable by the frame's opaque origin only (`null`), never by a page of a real origin (`*`).
     expect(ra.headers['access-control-allow-origin']).toBe('null');
     const pa = ra.json<{ source: { url: string; file?: string }; brand: { tokens: { font_faces: Array<{ url: string }> } }; segments: Array<{ urls: Array<{ url: string }> }> }>();
     const pb = (await get(pathOf(b.plan_url))).json<typeof pa>();

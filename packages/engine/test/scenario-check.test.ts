@@ -1,8 +1,8 @@
 /**
- * L4.2 part 1: what the Studio's scenario screen reads before any click (engine.scenarios.check) and the reads behind
+ * What the Studio's scenario screen reads before any click (engine.scenarios.check) and the reads behind
  * it.
  *
- * - critique #6 / B2: a scenario's own issues are validated WITHOUT agent trust (a person's `{{env:…}}` is valid in
+ * - A scenario's own issues are validated WITHOUT agent trust (a person's `{{env:…}}` is valid in
  *   their file), and apart from them `run_blockers` say what would refuse a dry run and a capture submitted from this
  *   client — the submit's own gates run without stopping at the first, nothing queued: the blockers ARE the submit's
  *   refusals. Worded for the client: never "MCP" for the Studio (`ui`), unchanged for MCP.
@@ -75,7 +75,7 @@ describe('scenarios.check: own issues and run blockers (B2)', () => {
         expect(b.fix, name).toMatch(new RegExp(`^retake -C .* run ${P} ${name}$`));
       }
     }
-    // off-camera (L5.8): its named hook's shell entry needs a person, like a setup hook's.
+    // off-camera: its named hook's shell entry needs a person, like a setup hook's.
     expect(blocked).toEqual({ catalogue: ['needs_approval'], 'off-camera': ['needs_approval'], quote: ['needs_approval'] });
     const quote = await ui.scenarios.check(P, 'quote');
     expect(quote.run_blockers.capture[0].message).toBe(

@@ -1,5 +1,5 @@
 /**
- * L6.13: The project side's reads (Welcome, the Project screen, Lately, the search, the README editor) and the
+ * The project side's reads (Welcome, the Project screen, Lately, the search, the README editor) and the
  * README's write. Each op once, typed by StudioOps (data/ops.ts).
  */
 import { op, readHook } from './client.js';

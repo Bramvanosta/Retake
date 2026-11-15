@@ -194,7 +194,7 @@ export function lockThread(projectDir: string, id: string, op: string): Promise<
 /**
  * Thread `r` with `entry` appended, as it would be written: refused past COMMENT_ENTRIES_MAX entries or
  * COMMENT_FILE_MAX_BYTES (never a file that reads refuse), checked whole (CommentThreadSchema). Nothing written: Apply
- * runs it before its scenario write (review A L5 / B M3), so a full thread refuses before anything changes.
+ * runs it before its scenario write, so a full thread refuses before anything changes.
  */
 export function appendedThread(id: string, r: { thread: CommentThread }, entry: CommentEntry): { thread: CommentThread; text: string } {
   if (r.thread.entries.length >= COMMENT_ENTRIES_MAX) throw new EngineError('refused', `comment ${id} has ${COMMENT_ENTRIES_MAX} entries: start a new thread`);
@@ -206,7 +206,7 @@ export function appendedThread(id: string, r: { thread: CommentThread }, entry: 
   return { thread: next.data, text };
 }
 
-/** The apply entry of a proposal (L4.6): the reply it applies and the sha256 of the file written, made at `at`. */
+/** The apply entry of a proposal: the reply it applies and the sha256 of the file written, made at `at`. */
 export function applyEntryOf(author: CommentAuthor, applies: string, scenarioSha256: string, at: string): CommentEntry {
   return { id: newCommentEntryId(), kind: 'apply', author, text: '', created_at: at, applies, scenario_sha256: scenarioSha256 };
 }

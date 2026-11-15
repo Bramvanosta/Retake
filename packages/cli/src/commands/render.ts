@@ -18,7 +18,7 @@ import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface RenderCommandOptions {
-  /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */
+  /** `--no-wait` (wait: false): start even while a take films, at normal priority. */
   wait?: boolean;
   /** Run id, run directory or "latest" (default latest of the scenario). */
   run?: string;
@@ -33,7 +33,7 @@ export interface RenderCommandOptions {
   /** commander: --no-intro / --no-outro set these to false. */
   intro?: boolean;
   outro?: boolean;
-  /** commander: --tutorial (true) / --no-tutorial (false): every tutorial overlay on, or none (L2.10). */
+  /** commander: --tutorial (true) / --no-tutorial (false): every tutorial overlay on, or none. */
   tutorial?: boolean;
   out?: string;
   concurrency?: string;
@@ -43,7 +43,7 @@ export interface RenderCommandOptions {
 }
 
 export interface StillCommandOptions {
-  /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */
+  /** `--no-wait` (wait: false): start even while a take films, at normal priority. */
   wait?: boolean;
   run?: string;
   /** Output frame number (required). */
@@ -130,15 +130,15 @@ function abortOnSigint(ui: Ui): { signal: AbortSignal; dispose: () => void } {
   return { signal: controller.signal, dispose: () => process.removeListener('SIGINT', onSigint) };
 }
 
-/** "h264 VideoToolbox 8M", "h264 crf 16" (L5.15: the encoder of the record). */
+/** "h264 VideoToolbox 8M", "h264 crf 16" (the encoder of the record). */
 export function encodingWords(r: Pick<RenderRecord, 'encoding'>): string {
   const e = r.encoding;
   return e.encoder === 'h264_videotoolbox' ? `h264 VideoToolbox ${e.bitrate ?? ''}`.trimEnd() : `h264 crf ${e.crf ?? 16}`;
 }
 
 /**
- * "on the GPU", "in software", "in software after a GPU failure" (L5.15: what drew the render), "in software after
- * this machine's ffmpeg failed at the encode" (L7.3) — never the failure's own words.
+ * "on the GPU", "in software", "in software after a GPU failure" (what drew the render), "in software after
+ * this machine's ffmpeg failed at the encode" — never the failure's own words.
  */
 export function glWords(r: Pick<RenderRecord, 'policy'>): string {
   const p = r.policy;
@@ -204,7 +204,7 @@ export function warnLatest(ui: Ui, run: RunRef, o: { scenario?: string; name?: s
 }
 
 /**
- * L5.5: before a render, say whether the scenario file changed since the run was captured — its filmed part (the render
+ * Before a render, say whether the scenario file changed since the run was captured — its filmed part (the render
  * shows the take as captured: re-capture to film it), or its edit alone (re-planned on this take). A run that cannot be
  * found says nothing here: the render reports it.
  */
@@ -252,7 +252,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (opts.outro === false) overrides.outro = false;
   if (opts.tutorial !== undefined) overrides.tutorial = opts.tutorial;
   await warnScenarioChanged(ui, project, opts.run ?? 'latest', scenario);
-  // Captures first (L5.14): the run is the one named now ("latest" resolved before any wait, critique M10).
+  // Captures first: the run is the one named now ("latest" resolved before any wait).
   // The editor's errors state their kind (core error-kind.ts): main prints their message alone, exit 1.
   const run = await findRunOf(project, opts.run ?? 'latest', scenario);
   const runId = run.id;
@@ -336,7 +336,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   warnLatest(ui, run, { scenario, json: opts.json });
   if (frame >= plan.durationInFrames) throw new CliError(`--frame ${frame} is past the end of the video (${plan.durationInFrames} frames, 0–${plan.durationInFrames - 1})`);
   const out = opts.out ? resolve(opts.out) : await defaultStillFile(project, scenario, plan.variant, frame);
-  // Captures first (L5.14): the run was planned (resolved) before any wait.
+  // Captures first: the run was planned (resolved) before any wait.
   const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'rendering', noWait: opts.wait === false });
   if (gate.waited) ui.info(`rendering frame ${frame} of run ${run.id}`);
   const t0 = performance.now();

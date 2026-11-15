@@ -1,5 +1,5 @@
 /**
- * The recorder's event model (L3.4, core recording.ts): what the schema itself refuses — a secret typing event with
+ * The recorder's event model (core recording.ts): what the schema itself refuses — a secret typing event with
  * its text, a path with a query, a printable key without a modifier, an unknown field — and the record id.
  */
 import { readFileSync, readdirSync } from 'node:fs';
@@ -134,7 +134,7 @@ const stop = (t: number) => ({ kind: 'stop', t, reason: 'closed' });
 
 const CTX: DraftContext = { name: 'recorded', env: 'local', envIsDefault: true, pages: { shop: 'http://127.0.0.1:4402', console: 'http://127.0.0.1:4401/admin' }, persona: null, access: 'read-write' };
 
-/** The same recording with three alternatives on every element: one usable, one masked, one templated (L4.8). */
+/** The same recording with three alternatives on every element: one usable, one masked, one templated. */
 function withAlternatives(events: RecordedEvent[]): RecordedEvent[] {
   return events.map((e) => {
     if (!('el' in e) || e.el === null) return e;
@@ -170,7 +170,7 @@ function draft(events: RecordedEvent[], ctx: Partial<DraftContext> = {}, annotat
   expect(scenario).toBeDefined();
   expect(d.issues.filter((i) => i.severity === 'error')).toEqual([]);
   if (annotations === undefined) {
-    // Three ways, one draft (L4.8): alternatives on every element (masked and templated ones included) and empty
+    // Three ways, one draft: alternatives on every element (masked and templated ones included) and empty
     // annotations change nothing in the recorder's draft — its YAML, issues (codes included), writes and stats.
     expect(outputOf(draftFromRecording(withAlternatives(events), { ...CTX, ...ctx }))).toEqual(outputOf(d));
     expect(outputOf(draftFromRecording(events, { ...CTX, ...ctx }, emptyRecordAnnotations()))).toEqual(outputOf(d));
@@ -588,7 +588,7 @@ describe('draftFromRecording: recorded templates, issue positions', () => {
   });
 });
 
-// ── Studio annotations (L4.8): target picks and quick inserts, applied by the generator ─────────────────────────────
+// ── Studio annotations: target picks and quick inserts, applied by the generator ─────────────────────────────
 
 /** Annotations from choices and inserts (ids i1, i2… in order). */
 function ann(choices: Record<number, number>, ...inserts: Array<Record<string, unknown> & { after_seq: number; kind: string }>): RecordAnnotations {
@@ -860,7 +860,8 @@ describe('draftFromRecording: placeholders (L4.8)', () => {
   });
 });
 
-// ── After the reviews of L4.8 ──────────────────────────────────────────────────────────────────────────────────────────
+// ── More rules of the generator
+// ────────────────────────────────────────────────────────────────────────────────────────
 
 /** Hidden characters, made at run time (never typed raw into this file). */
 const RLO = String.fromCharCode(0x202e);
@@ -1000,7 +1001,7 @@ describe('draftFromRecording: a Studio draft has no YAML alias (review B-M2)', (
       typing(3400, late, { text: 'Acme' }),
       stop(4000),
     );
-    // The recorder's own draft (CLI / MCP) is unchanged: L3.4 wrote the shared target once, with an alias.
+    // The recorder's own draft (CLI / MCP) is unchanged: it writes the shared target once, with an alias.
     expect(draft(ev).yaml).toMatch(/&a1/);
     const studioDraft = draftFromRecording(ev, CTX, null, { aliases: false });
     expect(studioDraft.yaml).not.toMatch(/[&*]a\d/);
@@ -1068,9 +1069,9 @@ describe("shownStep: the check's failing step on screen (review B-M4)", () => {
 });
 
 describe("L3.4's drafts, byte for byte (review B-N1)", () => {
-  // Real recordings of the fixture product (headless, trusted input; alternatives on) and the drafts L3.4's generator
-  // made of them (core at the L4.7 commit, compiled apart): the L4.8 generator, without annotations or with empty ones,
-  // gives the same YAML, issues, writes, check bound and stats.
+  // Real recordings of the fixture product (headless, trusted input; alternatives on) and the drafts an earlier
+  // generator made of them (core at an earlier commit, compiled apart): today's generator, without annotations or with
+  // empty ones, gives the same YAML, issues, writes, check bound and stats.
   const dir = new URL('./fixtures/recordings/', import.meta.url);
   const names = readdirSync(dir)
     .filter((f) => f.endsWith('.events.jsonl'))

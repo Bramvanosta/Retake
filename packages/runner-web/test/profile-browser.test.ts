@@ -1,5 +1,5 @@
 /**
- * L5.16c (critique M6) — a signed-in profile is never opened by an older Chromium than the one that opened it last (the
+ * A signed-in profile is never opened by an older Chromium than the one that opened it last (the
  * installed app and a repository checkout share the Retake home): the major a launch would run (a macOS app's
  * Info.plist, the version playwright-core pins), the one a profile records (ours, and Chromium's own `Last Version`),
  * the refusal before any browser starts, and the record a launch leaves. No browser is started here.
@@ -91,7 +91,7 @@ describe("the launch of a persona's profile", () => {
   it('the sign-in window and the recording window check the profile before their launch (static)', () => {
     const src = (f: string) => readFileSync(join(__dirname, '..', 'src', f), 'utf8');
     const login = src('login.ts');
-    // L7.34 (finding C4): kept as an order check of the two headed launches (a behaviour test would sign a persona in
+    // Kept as an order check of the two headed launches (a behaviour test would sign a persona in
     // through a visible window), loosened to the calls' names and the profile they are handed — not their statements.
     // The headless launch's refusal is the behaviour case above.
     const headed = login.slice(login.indexOf('async function headedSession'));

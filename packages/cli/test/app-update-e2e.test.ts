@@ -1,19 +1,19 @@
 /**
- * L5.16d — the updater end to end (gated: RETAKE_TEST_UPDATE=1, macOS on Apple silicon; slow: two app builds, ≈ 3 GB
+ * The updater end to end (gated: RETAKE_TEST_UPDATE=1, macOS on Apple silicon; slow: two app builds, ≈ 3 GB
  * in a temp folder, removed after). Offline, on this Mac only:
  * - a TEST key made here by the pinned Tauri CLI (`signer generate`, never committed);
  * - the app built twice by bundle.mjs with the e2e overlay (testUpdaterOverlay: the feed on http://127.0.0.1:<port>,
  *   the one place the plugin's insecure-transport flag is set) — 0.2.0, then 0.2.1 from the same stage and cargo
  *   target; the second build makes the update archive (Retake.app.tar.gz, our tar) and signs it with the test key;
  * - a local feed server: latest.json (publish-update.mjs `buildManifest`) and the archive, each answered as GitHub
- *   answers a release's file (L5.16f): a redirect to another host — here a second server on the next port — which
+ *   answers a release's file: a redirect to another host — here a second server on the next port — which
  *   serves it (the client follows it, https-only aside: update_flow `https_only` is off for the e2e build alone);
  * - a scratch copy of the 0.2.0 app, run directly (test mode, never through LaunchServices) on a scratch workspace with
  *   a scratch HOME / Retake home / TMPDIR / CFFIXED_USER_HOME; RETAKE_DESKTOP_TEST_UPDATE=install clicks Install and
  *   Restart once the launch check finds the update.
  * First a feed whose signature is for other bytes: the download is refused, nothing is installed, the app keeps
  * running at 0.2.0. Then the real one: the owned server stops gracefully, the bundle is swapped, the app restarts at
- * 0.2.1 by itself (critique H3) — its signature verifies (`codesign --verify --deep --strict`), every link of the build
+ * 0.2.1 by itself — its signature verifies (`codesign --verify --deep --strict`), every link of the build
  * is there, no AppleDouble file, Chromium and the headless shell launch from it.
  * RETAKE_TEST_UPDATE_PORT=<port> (default 4990; the storage stand-in takes the next one).
  * RETAKE_TEST_BUNDLE_FFMPEG=<dir> (optional) bundles that ffmpeg; RETAKE_TEST_UPDATE_REPORT=<file> writes the numbers;
@@ -265,7 +265,7 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
       expect(alive(run.proc.pid!)).toBe(true);
       expect(run.lines.some((l) => /quitting to install|installing 0\.2\.1/.test(l))).toBe(false);
       expect(plist(copy).CFBundleShortVersionString).toBe('0.2.0');
-      // Review d A-M4: nothing was kept (only a verified archive is written to the cache folder).
+      // Nothing was kept (only a verified archive is written to the cache folder).
       expect(kept()).toEqual([]);
       run.proc.kill('SIGTERM');
       await new Promise((r) => run.proc.once('exit', r));
@@ -296,7 +296,7 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
       const t0 = Date.now();
       const run = launch();
       await run.wait(/version 0\.2\.0 \(updates on\)/, 60_000);
-      // Review d A-M4: the verified archive is kept in a 0600 file of the app's cache folder (not in memory)…
+      // The verified archive is kept in a 0600 file of the app's cache folder (not in memory)…
       await run.wait(/updates: 0\.2\.1 downloaded and verified \(\d+ MB\), kept in the cache folder/, 300_000);
       await run.wait(/updates: quitting to install 0\.2\.1/, 300_000);
       await run.wait(/updates: 0\.2\.1 installed — restarting/, 300_000);
@@ -305,7 +305,7 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
       // Hotfix v0.2.6 (BL-167): the restarted app knows it is the update just installed ("Updated to v0.2.1", said once).
       await run.wait(/updates: Retake 0\.2\.1 is the update just installed/, 30_000);
       report.update_ms = Date.now() - t0;
-      // L5.16f: the check and the download each followed the redirect to the other host, as with GitHub's releases.
+      // The check and the download each followed the redirect to the other host, as with GitHub's releases.
       expect(hits).toEqual(
         expect.arrayContaining([
           'feed /retake/latest.json',

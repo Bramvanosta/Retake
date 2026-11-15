@@ -1,5 +1,5 @@
 /**
- * What the preview pages share (timeline_view, L4.5, and theme_preview, L4.7): the leases that keep a project's scope
+ * What the preview pages share (timeline_view, and theme_preview): the leases that keep a project's scope
  * on the player origin alive (PreviewLeases), and the workspace components a preview holds back until the person allows
  * them (PreviewHeld).
  */
@@ -9,7 +9,7 @@ export const TIMELINE_LEASE_TTL_MS = 2 * 60 * 60 * 1000;
 
 /**
  * The preview pages' leases by project (lease → last seen): a project's scope on the player origin lives while one is
- * held — timeline pages (L4.5) and, L4.7, theme preview pages (theme_preview) share the set; `timeline_leave` ends a
+ * held — timeline pages and theme preview pages (theme_preview) share the set; `timeline_leave` ends a
  * lease of either; a lease unseen for TIMELINE_LEASE_TTL_MS is forgotten. The last one gone releases the scope.
  */
 export class PreviewLeases {
@@ -53,7 +53,7 @@ export class PreviewLeases {
 
 /**
  * The workspace components this take uses that the preview does not run until the person allows them in this Studio
- * session (review A H1 c): id, kind and folder content hash — what the Allow button names and sends (preview_allow).
+ * session: id, kind and folder content hash — what the Allow button names and sends (preview_allow).
  */
 export interface PreviewHeld {
   preview_held?: Array<{ id: string; kind: string; hash: string }>;

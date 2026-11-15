@@ -1,5 +1,5 @@
 /**
- * User media (L2.12, R-OWN-01/02/03): the scenario's and the theme's own files — normalisation into component uses,
+ * User media (R-OWN-01/02/03): the scenario's and the theme's own files — normalisation into component uses,
  * ffprobe interpretation, Lottie metadata, and the positioned validation of every field (media generated locally with
  * ffmpeg; the tests that need it are skipped without ffmpeg).
  */

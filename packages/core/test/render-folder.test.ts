@@ -1,5 +1,5 @@
 /**
- * The one reader of renders/ (L7.6b): a listing reads regular files within its cap and follows no link (decision i);
+ * The one reader of renders/: a listing reads regular files within its cap and follows no link (decision i);
  * a file a person named is read through links, whatever its size; a file is asked for only after its name passed
  * the caller's filter; nothing throws.
  */
@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { NODE_RECORD_FS, RENDER_RECORD_MAX, findNamedRender, latestRenderLines, readListedRender, readNamedRender, readRenderById, readRendersFolder, renamedRenderLine } from '../src/io/index.js';
-// The seam is exported from @retake/core/io (U6 hands its own file system).
+// The seam is exported from @retake/core/io (the engine hands its own file system).
 import type { RecordFs } from '../src/io/index.js';
 import { renderOutputName } from '../src/index.js';
 import type { RenderEntry } from '../src/index.js';
@@ -70,8 +70,8 @@ describe('a listing of renders/', () => {
     if (spawnSync('mkfifo', [join(dir, 'pipe.json')]).status !== 0) return;
     try {
       expect(said(await readListedRender(dir, 'pipe'))).toBe('pipe: not-a-file');
-      // Named at a terminal (read through links) and by its id: the same, at once (L7.6b fix pass: before, a named
-      // pipe held `retake export` for ever).
+      // Named at a terminal (read through links) and by its id: the same, at once (before, a named pipe held
+      // `retake export` for ever).
       expect(said(await readNamedRender(join(dir, 'pipe.json')))).toBe('pipe: not-a-file');
       expect(said(await readRenderById(dir, 'pipe'))).toBe('pipe: not-a-file');
     } finally {
@@ -94,7 +94,7 @@ describe('a listing of renders/', () => {
     await readRendersFolder(dir, { fs, links: 'follow' });
     await readListedRender(dir, 'a', { fs });
     await readNamedRender(join(dir, 'a.json'), { fs });
-    // By its id: no link, no cap (L7.6b fix pass: through the same seam, the not-followed read on the descriptor).
+    // By its id: no link, no cap (through the same seam, the not-followed read on the descriptor).
     await readRenderById(dir, 'a', { fs });
     expect(asked).toEqual([`${RENDER_RECORD_MAX} false`, `${RENDER_RECORD_MAX} true`, `${RENDER_RECORD_MAX} false`, 'Infinity true', 'Infinity false']);
   });
@@ -166,7 +166,7 @@ describe('a record a person named at a terminal', () => {
   });
 });
 
-// ── A render someone names (findNamedRender) and what a terminal says of it (L7.6b, the editor's part) ──────────
+// ── A render someone names (findNamedRender) and what a terminal says of it (the editor's part) ──────────
 
 describe('a render named at a terminal or by its id (findNamedRender)', () => {
   let named: string;
@@ -216,7 +216,7 @@ describe('a render named at a terminal or by its id (findNamedRender)', () => {
       'render "quote-v5": renders/quote-v5.json does not read as a render record (status)',
       'render "quote-v6" not found in <root>/named/renders (renders: quote-v1); use a render id, a .json/.mp4 path or "latest"',
     ]);
-    // At a terminal the same link and the same renamed record are read (N1, N7), and the renamed one is said.
+    // At a terminal the same link and the same renamed record are read, and the renamed one is said.
     expect([await out('quote-v4'), await out('quote-v2')]).toEqual(['quote-v4', 'quote-v9 (renamed)']);
     for (const f of ['quote-v2.json', 'quote-v4.json', 'quote-v5.json']) rmSync(join(named, f));
   });

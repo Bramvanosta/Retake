@@ -1,5 +1,5 @@
 /**
- * Transparent cursor layer of a raw export (L2.13, R-RAW-02 `--cursor layer`): the in-page cursor and its click
+ * Transparent cursor layer of a raw export (R-RAW-02 `--cursor layer`): the in-page cursor and its click
  * ripples drawn alone, frame-aligned with a clip, as ProRes 4444 (.mov) or VP9 with alpha (.webm).
  *
  * The look is the kit's own: Chromium draws the kit's cursor overlay (its stylesheet and markup, `api.cursorLook`)

@@ -114,7 +114,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
     return words > 0 ? { words, seconds: readingSeconds(words) } : undefined;
   };
 
-  /** The scenario's own file for a segment (`intro: {video: …}`), as a candidate of its chain (L2.12). */
+  /** The scenario's own file for a segment (`intro: {video: …}`), as a candidate of its chain. */
   const fileCandidate = (spec: (MediaFileFields & { params?: Record<string, unknown> }) | undefined, label: string): Candidate[] => {
     const use = spec ? mediaSegmentUse(spec) : undefined;
     if (!use) return [];
@@ -172,7 +172,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
   // Scenes, cards, interstitials
   const captionsOn = ov.captions !== false;
   if (!captionsOn) notes.add('captions disabled (overrides.captions = false)');
-  // L4.5: the scenario's caption component, between a render override and the theme (per video: captions resolve by kind).
+  // The scenario's caption component, between a render override and the theme (per video: captions resolve by kind).
   const scenarioCaption: Candidate[] = video.caption_component ? [{ ref: video.caption_component, source: 'scenario', label: 'the scenario (caption_component)' }] : [];
   for (const e of entries) {
     const id = e.scene.id;
@@ -225,7 +225,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
     const where = `scene "${id}"`;
     const frameSpec: FrameSpec = ov.frame ?? e.scene.frame ?? videoFrame;
     let layoutRc = e.scene.frame === undefined && ov.components?.[id] === undefined ? mainLayoutComponent : resolver.resolve('layout', layoutChain(e.scene.frame, id), where);
-    // L2.11: a multi-page scene needs a layout that shows several pages, a single-page scene one that shows one.
+    // A multi-page scene needs a layout that shows several pages, a single-page scene one that shows one.
     const multiPane = (rc: ResolvedComponent | null | undefined) => {
       const m = resolver.manifest(rc);
       return isMultiPaneGeometry(m?.[GEOMETRY_KEYS[variant]] ?? m?.geometry);

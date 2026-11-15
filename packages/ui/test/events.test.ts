@@ -1,14 +1,13 @@
 /**
- * L4.1 part 3: the Studio's event stream and its index ops — `GET /v1/events` behind the gate (token required, other
- * pages refused, GET only), hello, an outside README edit → `workspace` within 2 s, a job written to the queue →
- * `jobs`, at most 4 streams (a 5th 503, a closed one frees its slot), a stream never counts as an op; `activity_list`
- * and `search` through /v1/call; a Node.js without node:sqlite → those two `unavailable`, events still flow.
- * L4.6 (T12): ⚑ a thread written or an entry appended (a temp file renamed into its scenario's comments folder, as the
- * store writes) → `workspace {comments: ['<slug>/<scenario>']}` naming that scenario only; the comments screen's filter
- * (app events.ts commentsEventAction) re-reads for its own scenario only.
- * L4.7 part C (critique B5): ⚑ a workspace component's file rewritten in place (its folders' mtimes unchanged) →
- * `workspace {projects: [], readme: [], components: ['<namespace>']}` and library_view's key for it changes; a site
- * extraction written → `{site: true}`.
+ * The Studio's event stream and its index ops — `GET /v1/events` behind the gate (token required, other pages refused,
+ * GET only), hello, an outside README edit → `workspace` within 2 s, a job written to the queue → `jobs`, at most 4
+ * streams (a 5th 503, a closed one frees its slot), a stream never counts as an op; `activity_list` and `search`
+ * through /v1/call; a Node.js without node:sqlite → those two `unavailable`, events still flow. ⚑ A thread written or
+ * an entry appended (a temp file renamed into its scenario's comments folder, as the store writes) → `workspace
+ * {comments: ['<slug>/<scenario>']}` naming that scenario only; the comments screen's filter (app events.ts
+ * commentsEventAction) re-reads for its own scenario only. ⚑ A workspace component's file rewritten in place (its
+ * folders' mtimes unchanged) → `workspace {projects: [], readme: [], components: ['<namespace>']}` and library_view's
+ * key for it changes; a site extraction written → `{site: true}`.
  */
 import { request } from 'node:http';
 import type { ClientRequest } from 'node:http';
@@ -174,7 +173,7 @@ describe('/v1/events', () => {
       expect(polls.mock.calls.length).toBeGreaterThan(0);
       const jobs = s.next('jobs');
       const id = await queueDryRun();
-      // L5.10a fixes (review A-L7): the event names the changed jobs' projects. L5.14b: and what a take holds (nothing).
+      // The event names the changed jobs' projects, and what a take holds (nothing).
       expect(await jobs).toEqual({ changed: [id], projects: [P], held: null });
       expect(studio.calls).toBe(calls);
     } finally {
@@ -191,7 +190,7 @@ describe('/v1/events', () => {
       for (let i = 0; i < EVENT_STREAMS_MAX; i++) open.push(await stream(studio.port, auth()));
       expect(open.map((s) => s.status)).toEqual(Array(EVENT_STREAMS_MAX).fill(200));
       expect(studio.streams).toBe(EVENT_STREAMS_MAX);
-      // Read as a stream (review B L9): a server that wrongly accepted a 5th would hold the request open, and a plain
+      // Read as a stream: a server that wrongly accepted a 5th would hold the request open, and a plain
       // request would wait for the test's timeout instead of failing here.
       const over = await stream(studio.port, auth());
       open.push(over);
@@ -280,7 +279,7 @@ describe('library events (L4.7, critique B5)', () => {
       await new Promise((r) => setTimeout(r, 400));
       const before = await posterKey('acme/evented');
       expect(before).toMatch(/^[0-9a-f]{32}$/);
-      // Rewritten in place: neither components/ nor acme/ nor the component folder change their mtime (probe E1).
+      // Rewritten in place: neither components/ nor acme/ nor the component folder change their mtime.
       const folders = await Promise.all([join(ws, 'components'), join(ws, 'components', 'acme'), comp].map(async (d) => (await stat(d)).mtimeMs));
       changed = s.next('workspace');
       await writeFile(join(comp, 'index.tsx'), code(2));
@@ -327,7 +326,7 @@ describe('the index ops', () => {
     const items = a.json<{ data: { items: Array<{ source: string; state: string; kind: string }> } }>().data.items;
     expect(items[0]).toMatchObject({ source: 'queue', state: 'queued', kind: 'run' });
     expect(items.at(-1)).toMatchObject({ source: 'history', kind: 'run', state: 'succeeded' });
-    // Its summary counts entries, in English (L7.18 fix pass: it said "entrys").
+    // Its summary counts entries, in English (it said "entrys").
     const open = items.filter((i) => i.source === 'queue').length;
     expect(a.json<{ summary: string }>().summary).toBe(`${items.length} ${items.length === 1 ? 'entry' : 'entries'} (${open} unfinished)`);
     expect(a.json<{ summary: string }>().summary).not.toMatch(/entrys/);

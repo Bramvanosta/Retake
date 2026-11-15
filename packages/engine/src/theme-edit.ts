@@ -1,10 +1,10 @@
 /**
- * The Studio's theme write path (L4.7, R-UI-07; critique B7, B14, B15 and D A2): one theme as its editor sees it
- * (`templates.view`) and one verified write of its template.yaml (`templates.edit`). MCP never edits a theme (refused
- * here too, whatever the transport); the CLI does not need to (a person edits the file).
+ * The Studio's theme write path (R-UI-07): one theme as its editor sees it (`templates.view`) and one verified write of
+ * its template.yaml (`templates.edit`). MCP never edits a theme (refused here too, whatever the transport); the CLI
+ * does not need to (a person edits the file).
  *
- * - Editable by real path, never by `source` (critique B15: a workspace whose templates_dir is the starters folder lists
- *   them as `workspace`): the theme folder must be a real folder (no link) directly in templates_dir, which lies inside
+ * - Editable by real path, never by `source` (a workspace whose templates_dir is the starters folder lists them as
+ * `workspace`): the theme folder must be a real folder (no link) directly in templates_dir, which lies inside
  *   the workspace, outside the Retake package; its template.yaml a regular file with one name (no symbolic or hard
  *   link). Starters, a project's own folder theme and anything else are read-only with why ("Copy to edit").
  * - A write: the hash the page read (`if_match`, a conflict otherwise naming the current one); the edit built by core
@@ -13,7 +13,7 @@
  *   folder with no link on the way (logo / wordmark checked as images — SVGs scanned —, fonts sniffed), the registry
  *   resolving every kind (kept params validated against the new component); then written atomically under the storage
  *   write lock keyed on the file's real path (workspace `.retake/locks/`), its mode kept.
- * - Undo / redo (critique B14): `restore` sends the bytes and their sha256, accepted only for a version this engine
+ * - Undo / redo: `restore` sends the bytes and their sha256, accepted only for a version this engine
  *   showed (view) or wrote — never text a page made up; a restored version skips only the hidden-character check (it
  *   was on disk once) and passes every other check again.
  * - The view is path-free (files relative to the theme folder); a font's name table and anything else a file's maker
@@ -57,7 +57,7 @@ const FONT_RE = /\.(ttf|otf|woff2?)$/i;
 
 export type ThemeEditable = true | { why: string };
 
-/** Where a theme is and whether the Studio may write it (critique B15: by real path). */
+/** Where a theme is and whether the Studio may write it (by real path). */
 interface ThemeLocation {
   entry: TemplateEntry;
   editable: ThemeEditable;
@@ -69,8 +69,7 @@ interface ThemeLocation {
 /** The theme editor's memos of one engine (its context's caches). */
 export class ThemeEditMemos {
   /**
-   * The versions of each template.yaml this engine showed (view) or wrote: undo / redo restore only these (critique
-   * B14).
+   * The versions of each template.yaml this engine showed (view) or wrote: undo / redo restore only these.
    */
   readonly versions = new VersionLedger();
 
@@ -88,7 +87,7 @@ async function locateTheme(ws: OpenedWorkspace, name: string): Promise<ThemeLoca
   return { entry, realDir, realFile, editable: await editability(ws, entry, realDir) };
 }
 
-/** Why the Studio may not write this theme (critique B15), or true. */
+/** Why the Studio may not write this theme, or true. */
 async function editability(ws: OpenedWorkspace, entry: TemplateEntry, realDir: string): Promise<ThemeEditable> {
   if (entry.source === 'starter') return { why: `${entry.name} is a starter theme shipped with Retake: copy it to edit it` };
   if (pathInside(realDir, realPathOf(PACKAGE_DIR, nodeFileFacts), { dotDotPrefix: true }))
@@ -256,7 +255,7 @@ async function themeFiles(realDir: string): Promise<{ files: string[]; links: st
 export const THEME_USES_STATS = { computed: 0 };
 
 /**
- * The file-level signature of what themeUses reads (review B L6): the projects folder, each project's project.yaml and
+ * The file-level signature of what themeUses reads: the projects folder, each project's project.yaml and
  * scenarios folder, each scenario file — by size, date and inode. Bounded (1,000 projects × 2,000 files).
  */
 function usesSignature(ws: OpenedWorkspace): string {
@@ -566,7 +565,7 @@ export async function editTheme(ws: OpenedWorkspace, name: string, req: ThemeEdi
   return { name, sha256: res.sha256, label, removed, ...extra, warnings };
 }
 
-/** One theme of the Studio's theme list (editable or read-only by real path, critique B15). */
+/** One theme of the Studio's theme list (editable or read-only by real path). */
 export interface ThemeListItem {
   name: string;
   /** `project`: the project's own theme folder (project.yaml names a path) — never edited nor copied from the Studio. */
@@ -589,7 +588,7 @@ export interface ThemeEditList {
 
 /**
  * Every theme of the workspace as the Studio's theme list shows it: the listed ones (workspace, starters), each
- * editable or read-only with why — decided by real path (critique B15), the starters and anything in the package
+ * editable or read-only with why — decided by real path, the starters and anything in the package
  * read-only ("Copy to edit") —, and with a project its own theme folder (read-only: edit it by hand). Path-free.
  */
 export async function themeEditList(ws: OpenedWorkspace, projectSlug: string | undefined, memos: ThemeEditMemos): Promise<ThemeEditList> {

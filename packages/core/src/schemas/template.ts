@@ -90,7 +90,7 @@ const KIND_HINTS: Record<ComponentKind, string> = {
   transition: 'Transition between scenes, e.g. studio/transition-crossfade; null = cut.',
 };
 
-/** A theme's own file for an intro, an outro or an interstitial (L2.12): paths relative to the template folder. */
+/** A theme's own file for an intro, an outro or an interstitial: paths relative to the template folder. */
 const TemplateMediaSchema = z
   .strictObject({
     ...mediaFileShape,

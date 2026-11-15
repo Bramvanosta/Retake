@@ -1,5 +1,5 @@
 /**
- * L3.2 render job inputs (engine jobs/job-input.ts; core's jobs.ts until L7.35): the render id is built from SLUG_RE
+ * Render job inputs (engine jobs/job-input.ts): the render id is built from SLUG_RE
  * (a scenario name may hold upper-case letters and "_"), a theme is a name, the overrides are strict and bounded, a
  * music file is a relative project file, and `project` is required (as for every kind).
  */

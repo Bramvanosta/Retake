@@ -25,7 +25,7 @@ function own(rw: RunnerWeb, browser: HookBrowser): Session {
 
 /**
  * The hook runner a run takes (runner-web's RunOptions.hookRunner) is core's CaptureHookRunner, the type the engine's
- * HookRunner port extends (L7.25: the runner's hand-written mirror of the hooks package is gone): one type, checked
+ * HookRunner port extends (the runner's hand-written mirror of the hooks package is gone): one type, checked
  * both ways here, where the engine hands its port to the runner.
  */
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
@@ -96,7 +96,7 @@ export function runnerWebCapture(): CaptureRunner {
     site: {
       extract: async (o) => (await load()).extractSite(o),
     },
-    // The package's raw export (L7.22): its own refusals (RawExportError, which states no kind) become EngineErrors in
+    // The package's raw export: its own refusals (RawExportError, which states no kind) become EngineErrors in
     // the same sentence; anything else is thrown as the package threw it.
     raw: {
       timeline: async (runDir) => {

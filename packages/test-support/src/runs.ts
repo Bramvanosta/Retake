@@ -1,5 +1,5 @@
 /**
- * Synthetic runs for the scenario view and the thumbnails (L4.2): run folders written by hand — run.json, the scenario
+ * Synthetic runs for the scenario view and the thumbnails: run folders written by hand — run.json, the scenario
  * snapshot, timeline.json, dry-run screenshots, kept frames (solid-colour PNGs, one colour per step) and capture.mp4
  * encoded from those frames by the runner's own encoder (runner-web encodeFrames: the same CFR schedule as a capture).
  * Pixel colours are read back with ffmpeg (sharp is not a dependency of the engine).

@@ -1,11 +1,11 @@
 /**
- * The preview frame's first script (L4.5, DESIGN §4g; critique B15): a classic script that runs before the bundle, so
+ * The preview frame's first script (DESIGN §4g): a classic script that runs before the bundle, so
  * whatever the bundle's module order, nothing in the frame ever sees the APIs removed or pinned here. Every pin is a
  * non-configurable, non-writable property: a later script cannot put the original back.
  *
  * - WebRTC is a network channel the frame's CSP does not cover (probe: 4 STUN packets left an opaque, CSP-locked frame):
  *   its constructors are deleted and pinned to `undefined`, as are WebTransport and `navigator.sendBeacon`.
- * - `<link rel="prerender">` is another (review A H1): Chrome's prerender of a link ignores the frame's CSP and sandbox
+ * - `<link rel="prerender">` is another: Chrome's prerender of a link ignores the frame's CSP and sandbox
  *   (a third port got the frame's own path, an arbitrary host name was resolved). Every way to give an element a `rel`
  *   holding the token is refused (a TypeError): the `rel` property, its DOMTokenList (add, toggle, replace, value),
  *   setAttribute(NS), setAttributeNode(NS), NamedNodeMap.setNamedItem(NS), and an Attr's value / nodeValue /
@@ -13,7 +13,7 @@
  *   Trusted Types (no policy: innerHTML, insertAdjacentHTML, document.write, DOMParser, srcdoc… throw); the parsers it
  *   does not cover are removed here: XSLTProcessor, an XMLHttpRequest answering a document, execCommand('insertHTML'),
  *   setHTML / parseHTML.
- * - No child browsing context (review A L2): a child frame (an `about:blank` or `srcdoc` iframe) is a fresh realm with
+ * - No child browsing context: a child frame (an `about:blank` or `srcdoc` iframe) is a fresh realm with
  *   none of these pins and WebRTC back. Elements that make one (iframe, frame, object, embed, fencedframe, portal) are
  *   refused at creation, and custom elements cannot be defined (a customised built-in would make one without
  *   createElement). The bundle itself refuses to start outside the frame document (frame-main.tsx).

@@ -1,5 +1,5 @@
 /**
- * L5.14b: doctor's "Captures first" line — the takes filming now on this Mac for this user (counted, never named: in
+ * doctor's "Captures first" line — the takes filming now on this Mac for this user (counted, never named: in
  * this workspace or elsewhere), the markers' folder, whether a running render can be slowed (background priority), the
  * cap; WARN when the folder cannot be used or a marker's owner is not a Retake process. The system probe makes nothing.
  */

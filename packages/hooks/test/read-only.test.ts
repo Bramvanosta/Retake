@@ -1,5 +1,5 @@
 /**
- * L1.7 (R-ENV-04): a read-only run refuses hooks that write — http by method (a GraphQL query sent as POST reads),
+ * R-ENV-04: a read-only run refuses hooks that write — http by method (a GraphQL query sent as POST reads),
  * sql by its statements, shell unless `writes: false`, a rollback with its hook — and a journal replay judges each
  * entry by the environment it ran in.
  */

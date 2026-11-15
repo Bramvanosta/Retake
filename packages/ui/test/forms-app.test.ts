@@ -1,8 +1,8 @@
 /**
- * L4.3 part 3, the app's pure form logic (forms.ts) against the real forms (core stepForms, what scenario_forms
+ * The app's pure form logic (forms.ts) against the real forms (core stepForms, what scenario_forms
  * answers): an input read with its field's schema rules (numbers and their bounds, whole numbers, patterns, one line,
  * options, required — a group's fields only once the group has a value), the changes a form sends (field patches with
- * the value shown, critique B2), a refused save's issue placed at its field, and an edit found again on a newer version
+ * the value shown), a refused save's issue placed at its field, and an edit found again on a newer version
  * ("Apply it to the new version": a form's step by its fingerprint, a new step after the same step by its guard).
  */
 import { describe, expect, it } from 'vitest';

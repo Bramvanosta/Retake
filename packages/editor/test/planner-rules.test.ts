@@ -489,7 +489,7 @@ describe('held page loads (R-ISS-08)', () => {
     // The waiting after the click (page change at 2.9, painted at 4.1) is played faster from 4.1 + WAIT_KEEP_S, not
     // from inside the cut.
     expect(p.notes.find((n) => n.includes('waiting'))).toMatch(/waiting 4\.60 s–8\.00 s/);
-    // The page change comes from the page's own event, the load from the recorder's: 1 ms apart either way (H4).
+    // The page change comes from the page's own event, the load from the recorder's: 1 ms apart either way.
     const early = structuredClone(tl);
     early.pages[1].t_start = 2.899;
     early.pages[0].t_end = 2.899;

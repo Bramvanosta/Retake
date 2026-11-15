@@ -1,12 +1,12 @@
 /**
- * L4.9 part A: the Studio's accessibility checker (a test helper, no dependency): rules over the page's computed styles
+ * The Studio's accessibility checker (a test helper, no dependency): rules over the page's computed styles
  * and Chromium's accessibility tree, each with a stable id, each finding naming the element (`tag#id[data-testid].class`)
  * and its numbers.
  * - `contrast` — every visible text (each control's value, a submit button's value, a `::before` / `::after` quoted
  *   `content`) against what is painted under it: every ancestor's background composited from the page up, each
  *   ancestor's opacity applied as a group (the text and what is under it faded together over what is below that
  *   ancestor); a gradient → its worst colour stop; an image background → unmeasured (counted, budgeted per station); a
- *   colour the checker cannot parse (`oklch()`, `color-mix()` …) → a finding, never a transparent pass; media (img /
+ *   colour the checker cannot parse (`oklch`, `color-mix` …) → a finding, never a transparent pass; media (img /
  *   video / canvas / iframe) painted under the text inside its nearest opaque box (`elementsFromPoint` when on screen) →
  *   the translucent layers composited over both black and white, the worse ratio kept (no translucent layer at all →
  *   unmeasured). 4.5:1, 3:1 for ≥ 24 px or ≥ 18.66 px bold; the text of a disabled control itself (WCAG: inactive) is
@@ -17,7 +17,8 @@
  *   `alt`.
  * - `reachable` — an element with an interactive role the keyboard cannot reach, native or not (tabIndex < 0) and not
  *   the item of a composite whose tab stop is one of its own items, or the composite itself with an active descendant
- *   inside it, or a listbox that a focusable combobox controls with `aria-activedescendant` (L5.9: the palette). Composites of one family sharing one tab stop (the scenes' step lists) are listed in `stats.families`:
+ *   inside it, or a listbox that a focusable combobox controls with `aria-activedescendant` (the palette). Composites
+ *   of one family sharing one tab stop (the scenes' step lists) are listed in `stats.families`:
  *   `familyWalk` proves with the arrow keys that the stop reaches each of them.
  * - `focus-ring` (tabWalk) — each Tab stop must show a real indicator on the element, its active option or one of its
  *   two nearest visible ancestors, focused vs blurred: an outline, shadow or border part of ≥ 3:1 against what it is
@@ -26,13 +27,13 @@
  *   centre and four inner corners under another element); text that shows only while focused (a pin's tooltip) is
  *   contrast-checked then. A walk that never comes back to its first stop before its cap is a finding (`walk`).
  * - `colour-only` — the status families (every token of `--danger*`, `--warning*`, `--info*`, `--success*`,
- *   `--online*` and the kit's `--ui-ok*`, `--ui-warn*`, `--ui-fail*`, `--ui-record*`, `--ui-danger*`, declared by any rule
- *   of `:root` or of a `[data-appearance]` scope — inside `@media` or a cascade layer too — and resolved on the element's
- *   own scope: L5.9, critique H1) on a background, border, outline, shadow, a glyph-only text's colour or a `::before` / `::after`: a mark
- *   with no letters (a dot, a bar, a ●) needs a state word in its own or its row's visible text — never any word, never a
- *   label only a screen reader hears; a glyph other than a dot (◆ ✂ · ✓) says it by its shape; rows (of a table, a list,
- *   a listbox) that differ from their siblings by a status colour (diff rows) must start with a sign (+ − ✓ ✗ …) or say a
- *   state word.
+ * `--online*` and the kit's `--ui-ok*`, `--ui-warn*`, `--ui-fail*`, `--ui-record*`, `--ui-danger*`, declared by any
+ * rule of `:root` or of a `[data-appearance]` scope — inside `@media` or a cascade layer too — and resolved on the
+ * element's own scope) on a background, border, outline, shadow, a glyph-only text's colour or a `::before` /
+ * `::after`: a mark with no letters (a dot, a bar, a ●) needs a state word in its own or its row's visible text — never
+ * any word, never a label only a screen reader hears; a glyph other than a dot (◆ ✂ · ✓) says it by its shape; rows (of
+ * a table, a list, a listbox) that differ from their siblings by a status colour (diff rows) must start with a sign (+
+ * − ✓ ✗ …) or say a state word.
  * - `selected` — every selected / current / pressed / checked state (aria-selected, aria-pressed, aria-checked off
  *   native inputs, aria-current, the classes `selected`, `is-selected`, `current`, `is-current`, `is-checked`) must
  *   differ from an unselected peer (same tag, role and first class, up to four levels up, not holding the focus; aria-current
@@ -76,7 +77,7 @@ export interface AuditStats {
   selectedAlone: number;
   /** Composite families sharing one tab stop (a CSS selector each): `familyWalk` must reach every group of each. */
   families: string[];
-  /** L5.9: status colours the colour-only rule resolved on the document's root (0 means it watched nothing). */
+  /** Status colours the colour-only rule resolved on the document's root (0 means it watched nothing). */
   statusTokens: number;
 }
 
@@ -236,7 +237,7 @@ function install(): void {
     return false;
   };
   /**
-   * L5.12b fixes (review B-L6): behind an open modal dialog (`showModal()`: the page is inert) — no keyboard reaches it by
+   * Behind an open modal dialog (`showModal`: the page is inert) — no keyboard reaches it by
    * design, so the reachable rule and the shared-tab-stop families skip it.
    */
   const behindModal = (el: Element) => {
@@ -405,8 +406,8 @@ function install(): void {
       if (!text) continue;
       const el = n.parentElement;
       if (!el || seen.has(el)) continue;
-      // A visually hidden text (`.k-sr`, the kit's; `.sr-only`, the legacy's) is not painted: no contrast to measure (L5.10b
-      // fixes: the inspector's hidden heading overflows its 1 px box onto the step's picture, now the pane's first child).
+      // A visually hidden text (`.k-sr`, the kit's; `.sr-only`, the legacy's) is not painted: no contrast to measure
+      // (the inspector's hidden heading overflows its 1 px box onto the step's picture, now the pane's first child).
       if (el.closest('svg, script, style, noscript, template, option, optgroup, select, .sr-only, .k-sr')) continue;
       if (!shown(el)) continue;
       const range = document.createRange();
@@ -456,8 +457,8 @@ function install(): void {
   const SIGN = /^[+−\-✓✔✗✘✕×!⚠∅]$/;
   /** The status dot glyphs: a dot says nothing but its colour (a marker's ◆, a cut's ✂, a space's · say it by their shape). */
   const DOT = /[\u25cf\u2022\u2b24\u25c9]/;
-  /** The state words a status colour may stand beside (the badges' and notices' vocabulary; L5.11b: a recording's
-   * "recorded" and "discarded"; L5.12a fixes, review B-L1: a render's "rendered", beside the report's neutral mark). */
+  /** The state words a status colour may stand beside (the badges' and notices' vocabulary; a recording's
+   * "recorded" and "discarded", a render's "rendered", beside the report's neutral mark). */
   const STATE_WORDS = new Set(
     'failed failure fails error errors warning warnings note notes ok okay succeeded success done passed clean online offline connected connecting ended live running queued waiting pending cancelled canceled stopped paused interrupted blocked stale missing changed conflict added removed deleted new applied resolved open outdated invalid required unsaved saved broken ready expired recording idle busy disconnected unreachable skipped superseded rejected accepted draft locked readonly read-only valid recorded discarded rendered playing'.split(
       ' ',
@@ -649,7 +650,7 @@ function install(): void {
         // … or the group itself, its active descendant one of its items.
         const ad = group.getAttribute('aria-activedescendant');
         if (group.tabIndex >= 0 && group.hasAttribute('aria-activedescendant') && (!ad || group.contains(document.getElementById(ad)))) continue;
-        // … or, L5.10a fixes (review A-L6: never an empty reference), a focusable listbox with nothing selected yet: no
+        // … or (never an empty reference) a focusable listbox with nothing selected yet: no
         // aria-activedescendant at all, the listbox itself the tab stop (its arrows select the first option).
         if (group.tabIndex >= 0 && group.getAttribute('role') === 'listbox' && !group.hasAttribute('aria-activedescendant') && !group.querySelector('[aria-selected="true"]')) continue;
         // … or a focusable combobox controlling the listbox with an active descendant (the focus stays in its input).
@@ -739,7 +740,7 @@ function install(): void {
         .map((n) => n.nodeValue ?? '')
         .join('')
         .trim();
-      // An <svg> mark draws in its colour (currentColor paths: review A-L7) — a glyph, like a sign in text; inside a
+      // An <svg> mark draws in its colour (currentColor paths) — a glyph, like a sign in text; inside a
       // control it is the control's icon (its words say what it does, as a badge's or a button's own words do).
       const svgMark = el.tagName.toLowerCase() === 'svg' && !el.closest('button, a[href], [role="button"], [role="link"], [role="menuitem"], [role="option"], [role="tab"]');
       look(getComputedStyle(el), svgMark || (text !== '' && !/[\p{L}\p{N}]/u.test(text)));
@@ -794,7 +795,7 @@ function install(): void {
           out.push({ rule: 'colour-only', el: desc(el), text: text.slice(0, 40), detail: `${hits.all}: differs from its siblings by colour only (no sign, no state word)` });
       }
     }
-    // The status colours watched, in every appearance scope the page holds (review A-L7: not the root's alone).
+    // The status colours watched, in every appearance scope the page holds (not the root's alone).
     tokensFor(document.documentElement);
     for (const scope of document.querySelectorAll('[data-appearance]')) tokensFor(scope);
     stats.statusTokens = new Set([...scopeMaps.values()].flatMap((m) => [...m.keys()])).size;
@@ -1101,7 +1102,7 @@ export async function tabWalk(page: Page, o: { max?: number } = {}): Promise<Tab
   await page.evaluate(() => {
     window.__a11y.resetStops();
     (document.activeElement as HTMLElement | null)?.blur();
-    // (L5.9: the centre pane scrolls, not the window.)
+    // (the centre pane scrolls, not the window.)
     document.getElementById('main')?.scrollTo(0, 0);
     window.scrollTo(0, 0);
   });
@@ -1153,7 +1154,7 @@ export async function tabWalk(page: Page, o: { max?: number } = {}): Promise<Tab
  * own job); leaves nothing focused.
  */
 export async function familyWalk(page: Page, family: string): Promise<Finding[]> {
-  // L5.12b fixes (review B-L6): a family behind an open modal dialog is inert (nothing to walk: no keyboard reaches it).
+  // A family behind an open modal dialog is inert (nothing to walk: no keyboard reaches it).
   if (
     await page.evaluate((f) => {
       const m = document.querySelector('dialog:modal');
@@ -1217,7 +1218,7 @@ function stillLoading(toured: string | null): string[] {
 /**
  * Nothing busy or loading on the page, then a frame painted. Waits up to `timeout` ms; returns what was still loading
  * then (the caller makes it a finding: an audit of a half-loaded screen is not an audit). `toured`: the selector of a
- * busy element the tour holds on purpose (L5.9, review A-L2: the steps while a write is in flight) — not waited for.
+ * busy element the tour holds on purpose (the steps while a write is in flight) — not waited for.
  */
 export async function settle(page: Page, timeout = 30_000, toured: string | null = null): Promise<string[]> {
   const until = Date.now() + timeout;
@@ -1226,7 +1227,7 @@ export async function settle(page: Page, timeout = 30_000, toured: string | null
     await page.waitForTimeout(100);
     left = await page.evaluate(stillLoading, toured);
   }
-  // L5.9 (critique M3): the bundled fonts swap in once loaded — measure the page in them, not in the fallback.
+  // The bundled fonts swap in once loaded — measure the page in them, not in the fallback.
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   return left;

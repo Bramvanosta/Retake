@@ -1,5 +1,5 @@
 /**
- * User files (L2.12, R-OWN-*): a video, an image or a Lottie animation of the project or the theme, drawn instead of a
+ * User files (R-OWN-*): a video, an image or a Lottie animation of the project or the theme, drawn instead of a
  * provided component — full frame (intro, outro, card, interstitial) or in a box over the capture (overlay). Used by
  * studio/media and studio/lottie; workspace components may use them too (e.g. a file inside a custom frame).
  *

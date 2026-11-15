@@ -58,7 +58,7 @@ export interface TemplateBrand {
 }
 
 /**
- * A theme's own file for a full-frame kind (L2.12): `components: {intro: {video: assets/intro.mp4}}` — paths relative to
+ * A theme's own file for a full-frame kind: `components: {intro: {video: assets/intro.mp4}}` — paths relative to
  * the template folder; `duration`, `params` (of studio/media or studio/lottie) as for a scenario entry.
  */
 export interface TemplateMediaRef extends MediaFileFields {

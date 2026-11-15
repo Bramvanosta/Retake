@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Regenerates the user media of the fixture (L2.12, "bring your own motion") — committed, each file < 1 MB:
+ * Regenerates the user media of the fixture ("bring your own motion") — committed, each file < 1 MB:
  *   projects/northfield-fixture/assets/intro.mp4         intro video (Remotion render + a chime made with ffmpeg)
  *   projects/northfield-fixture/assets/end-card.png      outro image (Remotion still)
  *   projects/northfield-fixture/assets/sparkle-burst.webm alpha overlay (Remotion, transparent → VP9 + alpha)

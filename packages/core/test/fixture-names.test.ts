@@ -130,8 +130,8 @@ describe('fixture names are invented (R-ISS-10, R-PRIN-01)', () => {
       else await walk(abs, files);
     }
     expect(files.length).toBeGreaterThan(50);
-    // the Claude skills and the plugin manifests are text Claude reads: scanned too (review L5)
-    // L5.2: the desktop shell's sources (Rust, Cargo manifests, the icon's SVG) — not its build folders.
+    // the Claude skills and the plugin manifests are text Claude reads: scanned too
+    // The desktop shell's sources (Rust, Cargo manifests, the icon's SVG) — not its build folders.
     for (const f of ['apps/desktop/src/main.rs', 'apps/desktop/core/src/rules.rs', 'apps/desktop/Cargo.toml', 'apps/desktop/icons/icon.svg']) expect(files).toContain(join(ROOT, f));
     for (const f of ['skills/retake-scenario/SKILL.md', 'skills/retake-theme/SKILL.md', 'skills/.claude-plugin/plugin.json', 'skills/.mcp.json', '.claude-plugin/marketplace.json']) {
       expect(files).toContain(join(ROOT, f));

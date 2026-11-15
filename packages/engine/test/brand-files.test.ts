@@ -1,5 +1,5 @@
 /**
- * L3.5 brand files (engine src/brand/files.ts): where a logo, wordmark or font may come from under trust `mcp`, and
+ * Brand files (engine src/brand/files.ts): where a logo, wordmark or font may come from under trust `mcp`, and
  * what its bytes must be — every refused source (absolute, `..`, links out of the workspace or into agent-writable
  * folders, scenarios / runs / renders / review / exports of any project in any case, `.retake/`, the components
  * folder, hidden folders, malformed `site:` references — the others in site-job.test.ts), raster headers (PNG, JPEG, WebP; sizes), the

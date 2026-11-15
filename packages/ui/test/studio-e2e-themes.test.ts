@@ -1,5 +1,5 @@
 /**
- * L4.7 part D2: the theme screens end to end in headless Chromium, against a real Studio server and its player origin
+ * The theme screens end to end in headless Chromium, against a real Studio server and its player origin
  * (no worker), on a scratch workspace whose templates_dir is its own folder (the starters stay starters) with the
  * fixture project (theme: editorial), a workspace intro component, brand files and a seeded site extraction:
  * - the list: ⚑ starters read-only by real path with why and Copy to edit; the project's theme; the site panel's page
@@ -17,7 +17,7 @@
  *   extraction (its hex roles, its logo candidate) → made → its editor;
  * - ⚑ only theme_edit / theme_copy / theme_create write themes, never on a starter (the starters' files unchanged);
  *   ⚑ no model call: every request of the page goes to the Studio origin or its player origin.
- * L5.12c « Épure » 4c (R4-Theme): the editor in the shell — the browser's sections (anchors into the inspector's fields)
+ * R4-Theme: the editor in the shell — the browser's sections (anchors into the inspector's fields)
  * and components, ONE live preview whatever the target, the status bar (Undo, Redo, Extract from a website…, Use in a
  * scenario…); Copy to edit asks the copy's name in a kit Sheet (the list's and the editor's).
  * `RETAKE_UI_SHOTS=<folder>` saves screenshots there (1280 and 1600 wide, light).
@@ -222,10 +222,10 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(await page.getByTestId('theme-readonly-why').innerText()).toMatch(/copy it to edit it/);
     for (const id of ['color-accent-picker', 'color-accent-hex', 'background-type', 'font-display', 'text-brand.name']) expect(await page.getByTestId(id).isDisabled(), id).toBe(true);
     expect(await page.locator('[data-testid="theme-fields"] select:not([disabled]), [data-testid="theme-fields"] input:not([disabled])').count()).toBe(0);
-    // (L5.12c: the fields' chips stay focusable, each aria-disabled with the group's.)
+    // (the fields' chips stay focusable, each aria-disabled with the group's.)
     expect(await page.locator('[data-testid="theme-fields"] [role="radio"]:not([aria-disabled="true"])').count()).toBe(0);
     expect(opsOf('theme_edit')).toHaveLength(0);
-    // Review B L2: every control of the editor has a name (the Default zoom select was the one without).
+    // Every control of the editor has a name (the Default zoom select was the one without).
     expect(await page.getByRole('combobox', { name: 'Default zoom', exact: true }).count()).toBe(1);
     const unnamed = await page
       .locator('[data-testid="theme-editor"] :is(select, input, button), [data-testid="theme-fields"] :is(select, input, button)')
@@ -243,7 +243,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
           .map((e) => e.outerHTML.slice(0, 80)),
       );
     expect(unnamed).toEqual([]);
-    // L5.12c: Copy to edit… asks the copy's name in a kit Sheet.
+    // Copy to edit… asks the copy's name in a kit Sheet.
     await page.getByTestId('theme-copy-open').click();
     await page.locator('[data-testid="theme-copy-sheet"][open]').waitFor();
     expect(await page.getByTestId('theme-copy-name').inputValue()).toBe(COPY);
@@ -463,7 +463,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
   });
 
   it('⚑ a workspace component the preview renders is held (the Allow card) until allowed', async () => {
-    // (L5.12c: the target is the kit's segmented control: its radio covers its label.)
+    // (the target is the kit's segmented control: its radio covers its label.)
     await page.getByTestId('chips-target').getByRole('radio', { name: 'Intro', exact: true }).check();
     await expect.poll(() => page.locator('[data-testid="component-intro"] select').isDisabled(), POLL).toBe(false);
     await page.locator('[data-testid="component-intro"] select').selectOption('acme/intro');
@@ -505,7 +505,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(section.y).toBeLessThan(inspector.y + inspector.height);
     // The theme's components: each a link to its page in the library, in this theme.
     expect(await pane.locator(`a[href="#/p/${P}/library/${COPY}/studio/layout-browser"]`).count()).toBe(1);
-    // One preview (critique M5: no grid of three): each target loads into the one frame.
+    // One preview (no grid of three): each target loads into the one frame.
     for (const t of ['Clip with caption', 'Outro', 'Intro']) {
       const n = await settles();
       await page.getByTestId('chips-target').getByRole('radio', { name: t, exact: true }).check();
@@ -589,7 +589,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     const form = page.getByTestId('theme-new');
     await form.waitFor();
     expect(await page.getByTestId('new-name').inputValue()).toBe('site-theme');
-    // (L5.12c: the kit's ColorField — the field `new-accent`, its hex `new-accent-hex`.)
+    // (the kit's ColorField — the field `new-accent`, its hex `new-accent-hex`.)
     expect(await page.getByTestId('new-accent').count()).toBe(1);
     expect(await page.getByTestId('new-accent-hex').inputValue()).toBe('#0f6e5a');
     expect(await page.getByTestId('new-logo').inputValue()).toBe(`site:${SITE}/logo-1`);
@@ -629,7 +629,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
       'brand_files',
       'scenario_blocks',
     ]);
-    // L5.2b review B L7: a colour draft or a changed new-theme form reports unsaved text (kinds only; it writes no file).
+    // A colour draft or a changed new-theme form reports unsaved text (kinds only; it writes no file).
     reads.add('unsaved_report');
     const writes = [...new Set(ops.map((o) => o.op))].filter((op) => !reads.has(op));
     expect(writes.sort()).toEqual(['preview_allow', 'scenario_edit', 'theme_copy', 'theme_create', 'theme_edit']);

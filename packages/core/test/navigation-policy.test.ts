@@ -23,7 +23,7 @@ import type { LoadedProject, Scenario } from '@retake/core';
 import { memoryFileFacts } from '@retake/core';
 import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
 
-/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+/** No disk: these checks are handed a project but look at no file (a FileFacts is required beside a project). */
 const NO_DISK = memoryFileFacts({});
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));

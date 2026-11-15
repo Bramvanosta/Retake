@@ -46,7 +46,7 @@ export interface CheckContext {
   clicks: OutputClick[];
   registry?: ComponentRegistry;
   measure: TextMeasurer;
-  /** The run's run.json (L5.7: its `perf`), when it can be read. */
+  /** The run's run.json (its `perf`), when it can be read. */
   run?: StoredRunRecord | UnknownStatusRun;
 }
 
@@ -85,7 +85,7 @@ export function checkRender(ctx: CheckContext, probed?: { duration_s: number; fr
       out.push(finding('warning', 'size-mismatch', `the video is ${probed.width}×${probed.height}, the plan ${plan.width}×${plan.height}`));
     }
   }
-  // A plan warning may name a local URL (a page without a display URL): a report never names a local host (L1.7).
+  // A plan warning may name a local URL (a page without a display URL): a report never names a local host.
   for (const w of plan.warnings) out.push(finding('info', 'plan-warning', maskLocalUrls(w)));
   const missing = (c: ResolvedComponent | null | undefined, where: string, frame: number) => {
     if (c?.missing) out.push(finding('warning', 'component-missing', `${where}: component ${c.id} could not be resolved, a stand-in was rendered`, locate(ctx, frame)));
@@ -366,7 +366,7 @@ export function checkCaptions(ctx: CheckContext): Finding[] {
       if (!clip.caption) continue;
       const scene = ctx.timeline.scenes.find((s) => s.id === clip.scene);
       const expected = new Set<string>();
-      // An edit re-planned from today's scenario (L5.5) shows the captions it planned, not the take's.
+      // An edit re-planned from today's scenario shows the captions it planned, not the take's.
       const planned = ctx.record.edit?.from === 'scenario' ? ctx.record.edit.captions : undefined;
       if (planned) for (const t of planned[clip.scene] ?? []) expected.add(t);
       else {
@@ -528,7 +528,7 @@ export function checkCursor(ctx: CheckContext): Finding[] {
   for (const c of ctx.clicks) {
     const clip = plan.segments.find((s): s is ClipSegment => s.id === c.segment && isClip(s));
     if (!clip || !c.point) continue;
-    // Multi-page clips (L2.11): the page's own size, view and reframe.
+    // Multi-page clips: the page's own size, view and reframe.
     const pane = c.pane !== undefined && clip.panes?.[c.pane] ? c.pane : undefined;
     const src = pane !== undefined ? paneSource(plan, clip.panes![pane]) : plan.source;
     const W = src.cssWidth;
@@ -772,7 +772,7 @@ export function checkTransitionsOnClicks(ctx: CheckContext): Finding[] {
   return out;
 }
 
-// ── Overlays over click targets (L2.11 polish) ────────────────────────────────
+// ── Overlays over click targets ──────────────────────────────────────────────
 
 /** Overlays the review measures (their drawn box comes from the components' own kit functions). */
 const COVER_OVERLAYS: Record<string, string> = {
@@ -865,15 +865,15 @@ export function checkOverlayCover(ctx: CheckContext): Finding[] {
 }
 
 /**
- * Your own file placed at a position of the screen (L2.12: a corner, a side, the centre — not one on its target, a
- * `rect` of the page or the whole screen, which are where they were asked to be).
+ * Your own file placed at a position of the screen (a corner, a side, the centre — not one on its target, a `rect`
+ * of the page or the whole screen, which are where they were asked to be).
  */
 function screenFileOverlay(o: ClipSegment['overlays'][number]): boolean {
   return (o.component.id === 'studio/media' || o.component.id === 'studio/lottie') && !!o.box && !o.box.rect && o.box.anchor !== 'screen' && o.box.anchor !== 'rect';
 }
 
 /**
- * `overlay-covers-target` for your own files placed on the screen (L2.12): the box the file fills (`overlayBoxAt`, in
+ * `overlay-covers-target` for your own files placed on the screen: the box the file fills (`overlayBoxAt`, in
  * the framing of this render) over more than COVER_SHARE of what the viewer looks at — the target of a step that is on
  * while it shows (its own step — a hover too — and the next ones from CLEAR_LOOKAHEAD_S before they start: `stepBoxes`,
  * around the cursor) or a click target in the window the other overlays are checked over.
@@ -930,7 +930,7 @@ function checkFileOverlayCover(ctx: CheckContext, clip: ClipSegment, clicks: Out
   return out;
 }
 
-// ── Tutorial overlays and story-card media (L2.10) ─────────────────────────────
+// ── Tutorial overlays and story-card media ─────────────────────────────
 
 /** How long a spotlight or a step badge may stay on its target's box after its page changed URL (seconds). */
 export const STALE_TARGET_S = 0.6;
@@ -944,8 +944,8 @@ export const STALE_TARGET_S = 0.6;
  *  - `tutorial-target-cut` (warning): the target of a spotlight, a badge or a loupe lies outside the visible capture
  *    (zoom, reframe) while the overlay shows;
  *  - `media-missing` (warning): a card / overlay names data (a captured text, a frame, a CSV, an email…) that the plan
- *    could not resolve — the component shows a fallback; an error for a user file (L2.12: a video, image or Lottie file
- *    of a segment or an overlay) that could not be read — nothing is shown.
+ *    could not resolve — the component shows a fallback; an error for a user file (a video, image or Lottie file of a
+ * segment or an overlay) that could not be read — nothing is shown.
  */
 export function checkTutorial(ctx: CheckContext): Finding[] {
   const out: Finding[] = [];
@@ -1013,7 +1013,7 @@ export function checkTutorial(ctx: CheckContext): Finding[] {
       if (!['email', 'document', 'notification', 'capture', 'frame', 'data', 'media', 'lottie'].includes(spec.type)) continue;
       const v = c.slots[name];
       if (v === undefined || v.trim() === '' || c.media?.[name]) continue;
-      // A user file (L2.12) that could not be read shows nothing at all: an error.
+      // A user file that could not be read shows nothing at all: an error.
       const file = spec.type === 'media' || spec.type === 'lottie';
       out.push(
         finding(
@@ -1034,7 +1034,7 @@ export function checkTutorial(ctx: CheckContext): Finding[] {
   return out;
 }
 
-// ── Environment (L1.7) ─────────────────────────────────────────────────────────
+// ── Environment ─────────────────────────────────────────────────────────
 
 /** The path (and query) of a local URL, also written without a scheme (`localhost:3000/x`); a file: URL's file name. */
 function pathOf(url: string): string {
@@ -1065,7 +1065,7 @@ function shownUrl(url: string, table: readonly DisplayEntry[]): string {
 
 /** The first output frame showing capture time `t` or the moment after it (a trimmed moment: the next one shown). */
 /**
- * The take's slow transitions (L5.7, R-FLD-23: run.json `perf.transitions`, a click whose result took over 0.8 s to
+ * The take's slow transitions (R-FLD-23: run.json `perf.transitions`, a click whose result took over 0.8 s to
  * settle on screen), slowest first: `slow-transition` (info) at the click's output frame when the video shows it. The
  * product was slow there: the edit shortened what showed a wait (a skeleton, a spinner), prewarming the page
  * (`capture.prewarm`) helps a first visit.
@@ -1108,7 +1108,7 @@ function outputFrameAtCapture(ctx: Pick<CheckContext, 'plan'>, t: number): numbe
 
 /**
  * The environment line of a review (report.md, the CLI): from the run's timeline (the display URLs: those the edit
- * used, `plan.display`); undefined for runs before L1.7.
+ * used, `plan.display`); undefined for an older run, which recorded none.
  */
 export function reviewEnvironment(timeline: Timeline | undefined, plan?: Pick<EditPlan, 'display'>): ReviewEnvironment | undefined {
   const env = timeline?.environment;
@@ -1145,14 +1145,13 @@ export function environmentLine(e: ReviewEnvironment): string {
 }
 
 /**
- * The environment of the run (L1.7, R-ENV-01/04):
- *  - `write-blocked` (warning): a write the read-only guard stopped (the app saw a network error: an error state may be
- *    on screen) — one per method and path, at the output frame of its first one when the video shows that moment;
- *  - `url-hidden` (warning): a clip whose layout draws the page URL (browser bar, window bars, tab strip) while its page
- *    is at a local URL without a display URL — the bar shows no address there;
- *  - `local-url-text` (warning): a caption, card, overlay, page label, intro or outro text naming a local URL (it is
- *    burnt into the video): `{{page}}` with a display URL in project.yaml writes the public one. Named by its path
- *    only: a report never names a local host.
+ * The environment of the run (R-ENV-01/04): - `write-blocked` (warning): a write the read-only guard stopped (the app
+ * saw a network error: an error state may be on screen) — one per method and path, at the output frame of its first one
+ * when the video shows that moment; - `url-hidden` (warning): a clip whose layout draws the page URL (browser bar,
+ * window bars, tab strip) while its page is at a local URL without a display URL — the bar shows no address there; -
+ * `local-url-text` (warning): a caption, card, overlay, page label, intro or outro text naming a local URL (it is burnt
+ * into the video): `{{page}}` with a display URL in project.yaml writes the public one. Named by its path only: a
+ * report never names a local host.
  * URLs are named through the display table the edit used (`plan.display`), else the one the run recorded.
  */
 export function checkEnvironment(ctx: CheckContext): Finding[] {

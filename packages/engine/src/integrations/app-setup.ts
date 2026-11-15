@@ -1,10 +1,10 @@
 /**
- * The installed app's first run and integrations (L5.16c, DESIGN §4p (c)): where the app runs from, the `retake`
+ * The installed app's first run and integrations (DESIGN §4p (c)): where the app runs from, the `retake`
  * command's link, the Claude Code plugin run and the Claude Desktop entry. Pure rules and small file operations, each
  * with its paths injected — the Studio's setup ops (ui setup-ops.ts: Studio-only, supervised + bundled only, never MCP
  * tools) and doctor call them, through @retake/engine/integrations; tests run them on scratch folders only.
  *
- * - **Where the app runs from** (critique H1): a quarantined app opened from Downloads or a disk image runs from a
+ * - **Where the app runs from**: a quarantined app opened from Downloads or a disk image runs from a
  *   random read-only copy (`…/AppTranslocation/<uuid>/d/Retake.app`, gone after a restart) or from the mounted image
  *   under /Volumes. Anything recorded with such a path (the command's link, the Claude registrations) would break, so
  *   every integration waits until the app was moved to Applications.
@@ -142,7 +142,7 @@ export function isRetakeBundleId(id: string | null): boolean {
 }
 
 /**
- * Whether a link's target is another copy of Retake's launcher (review c B-M3 / A-L7): the exact layout
+ * Whether a link's target is another copy of Retake's launcher: the exact layout
  * `<X>.app/Contents/Resources/bin/retake` AND an app there whose Info.plist names Retake's identifier — or no app there
  * any more (a dangling link in that exact layout runs nothing, and its app cannot be asked). Anything else (a formula's
  * `…/bin/retake`, a checkout's wrapper, another app's `bin/retake`) is the person's file: never replaced, never removed.
@@ -287,7 +287,7 @@ export function zshQuote(s: string): string {
 /**
  * The zsh line that puts `dir` first on the PATH of new Terminal windows (to copy into ZSH_PROFILE). A folder under the
  * home is written `$HOME/…`; a name with anything zsh would expand or end on (`$`, a backtick, a quote, a backslash, a
- * space…) is single-quoted (review c A-L1 / B-L6: a folder named `$(cmd)` never runs cmd at each login).
+ * space…) is single-quoted (a folder named `$(cmd)` never runs cmd at each login).
  */
 export function zshPathLine(dir: string, home: string): string {
   const abs = resolve(dir);
@@ -353,10 +353,10 @@ export function readAppSettings(home: string): AppSettings {
 }
 
 /**
- * L5.16d: what the desktop app remembers of its update checks — `<home>/desktop-updates.json`, written by the shell
+ * What the desktop app remembers of its update checks — `<home>/desktop-updates.json`, written by the shell
  * (desktop_core update_flow `write_remembered`; a static test compares the file name): the last successful check
  * (seconds since 1970) and an install that failed (said by the app's next launch, and kept until a newer check, an
- * install or the person's Later: review d B-L2). Doctor shows both (critique L7: a feed that stopped moving is
+ * install or the person's Later). Doctor shows both (a feed that stopped moving is
  * visible). Unreadable or foreign: nothing.
  */
 export const UPDATES_FILE = 'desktop-updates.json';
@@ -446,7 +446,7 @@ export const DESKTOP_BACKUPS_MAX = 5;
 const BACKUP_INFIX = '.retake-backup-';
 
 /**
- * Where the config's backups go (review c A-L2): a folder of Retake's own, `<Retake home>/backups/claude-desktop` (0700,
+ * Where the config's backups go: a folder of Retake's own, `<Retake home>/backups/claude-desktop` (0700,
  * each backup 0600) — never beside the file nor beside a symlinked config's target (a dotfiles repository would get
  * copies of every MCP server's `env`, tokens included, that a later `git add -A` commits).
  */
@@ -665,8 +665,8 @@ export const CLAUDE_KILL_MS = 2000;
 /**
  * Run the steps one after the other with `claude` (argv, no shell; stdin closed), stopping at the first that fails.
  * A step ends when its process exits — judged by its exit code — plus CLAUDE_DRAIN_MS for the last output, then its
- * pipes are destroyed (review c A-M1: a helper `claude` starts in a session of its own may hold them open for ever; the
- * answer never waits for it). The whole run has `timeoutMs`: then the step's process group gets SIGTERM, SIGKILL
+ * pipes are destroyed (a helper `claude` starts in a session of its own may hold them open for ever; the answer never
+ * waits for it). The whole run has `timeoutMs`: then the step's process group gets SIGTERM, SIGKILL
  * CLAUDE_KILL_MS later, and the step answers at once with `timedOut` set.
  */
 export async function runClaudeSteps(

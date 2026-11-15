@@ -34,7 +34,7 @@ export interface OutputClick {
   bbox?: { x: number; y: number; w: number; h: number };
   /** Index of the click within its step (widgets click more than once: trigger, option…). */
   click?: number;
-  /** Multi-page clips (L2.11): the page the step acted on and its pane in the clip (the point is in that page's px). */
+  /** Multi-page clips: the page the step acted on and its pane in the clip (the point is in that page's px). */
   page?: string;
   pane?: number;
 }
@@ -87,7 +87,7 @@ function component(c: ResolvedComponent): OutputComponent {
 
 /**
  * Cursor position at capture time `t` (linear between samples less than 0.15 s apart, else the last sample) — of the
- * main capture, or of page `page`'s own track (multi-page scenes, L2.11).
+ * main capture, or of page `page`'s own track (multi-page scenes).
  */
 export function cursorAt(timeline: Pick<Timeline, 'cursor' | 'tracks'>, t: number, page?: string): { x: number; y: number; visible: boolean } | undefined {
   const c = page !== undefined ? (timeline.tracks?.find((tr) => tr.id === page)?.cursor ?? timeline.cursor) : timeline.cursor;

@@ -1,9 +1,9 @@
 /**
- * L5.14 (captures first): the filming markers of this user — one file per take in a 0700 folder of the user's own,
+ * Captures first: the filming markers of this user — one file per take in a 0700 folder of the user's own,
  * written whole, naming no workspace; held while their owner beats and runs with its recorded start time; capped from
- * each reader's first sight; never holding while paused. L5.14a fixes: a test run never uses the per-user folder (review
- * B M2); markers read without following a link, blocking on a FIFO or reading a large file (A L1); a time in the future is
- * stale (A L2); the cap counts per owner (pid + start time), not per file name (A L2, B L4).
+ * each reader's first sight; never holding while paused. A test run never uses the per-user folder; markers read
+ * without following a link, blocking on a FIFO or reading a large file; a time in the future is stale; the cap counts
+ * per owner (pid + start time), not per file name.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
@@ -334,8 +334,8 @@ describe('what a take saw beside it (L5.14b)', () => {
     b1.closeSync();
     await beside.sample();
     expect(told).toEqual(['elsewhere']);
-    // Heavy work of its workspace at background priority: what its worker's held file says (review A H1: never a job
-    // folder — a job's yield.json alone says nothing to it).
+    // Heavy work of its workspace at background priority: what its worker's held file says (never a job folder — a
+    // job's yield.json alone says nothing to it).
     const { heldFile } = await import('../src/jobs/captures.js');
     const job = join(wsA, '.retake', 'jobs', `j_${ulid()}`);
     await mkdir(job, { recursive: true });

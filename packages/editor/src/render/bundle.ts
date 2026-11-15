@@ -39,7 +39,7 @@ export type { BundleComponent } from '../work-types.js';
 export const BUNDLE_FORMAT = 2;
 
 /**
- * The Content-Security-Policy of every render page (L3.2, network-guard.ts): fetch / XHR / EventSource may use http(s)
+ * The Content-Security-Policy of every render page (network-guard.ts): fetch / XHR / EventSource may use http(s)
  * (a guarded render's CDP allow-list decides which), but no WebSocket leaves the page — CDP Fetch does not see
  * WebSockets. Only `connect-src`: images, fonts and media load as before.
  */
@@ -176,9 +176,9 @@ export async function bundleHash(components: readonly BundleComponent[]): Promis
 let compositionMemo: { stamp: string; hash: string } | undefined;
 
 /**
- * What every bundle shares, by content (16 hex): the bundle format, the Remotion versions, the composition sources,
- * the kit and the geometry entry — the part of bundleHash that is not the components. A library preview's cache key (L4.7) covers it: a
- * change of the composition or the kit is a new preview. Memoised on the files' sizes and mtimes.
+ * What every bundle shares, by content (16 hex): the bundle format, the Remotion versions, the composition sources, the
+ * kit and the geometry entry — the part of bundleHash that is not the components. A library preview's cache key covers
+ * it: a change of the composition or the kit is a new preview. Memoised on the files' sizes and mtimes.
  */
 export async function compositionHash(): Promise<string> {
   const comp = compositionFiles();
@@ -210,7 +210,7 @@ export async function compositionHash(): Promise<string> {
 
 /**
  * One component folder's content hash (16 hex): its entry, its defaults and every code file, manifest and own asset —
- * what bundleHash covers of it. The Studio's preview allow-list (L4.5 fixes) is keyed by it: an edited component is a
+ * what bundleHash covers of it. The Studio's preview allow-list is keyed by it: an edited component is a
  * new hash, never run in the preview until it is allowed again.
  */
 export async function componentFolderHash(c: Pick<BundleComponent, 'id' | 'dir' | 'entry' | 'defaults'>): Promise<string> {
@@ -301,7 +301,7 @@ export async function bundleComponentsFor(plan: EditPlan, registry: ComponentReg
 
 /**
  * Every usable component of the registry (built-in and workspace; folders that do not load are not listed) and the
- * per-kind scaffolds, as bundle components: the bundle of library previews (L4.7) — one per registry state, whatever
+ * per-kind scaffolds, as bundle components: the bundle of library previews — one per registry state, whatever
  * components a job shows.
  */
 export async function registryBundleComponents(registry: ComponentRegistry): Promise<BundleComponent[]> {
@@ -407,7 +407,7 @@ function within(dir: string, file: string): string | undefined {
  * bundled component's folder must be one componentHashedFiles reads; a file in the folders holding workspace / built-in
  * components (a namespace folder, `components/`) must belong to a component. Webpack follows imports with no rules of
  * its own (a planted node_modules there would win): this guard fails the bundle closed instead of caching code the hash
- * never saw (L4.7 review fix; the compile check and the Studio's player loader refuse the same imports).
+ * never saw (the compile check and the Studio's player loader refuse the same imports).
  */
 export function bundledFileProblem(file: string, components: readonly Pick<BundleComponent, 'id' | 'dir' | 'scaffold'>[]): string | undefined {
   const real = realTarget(file.split('?')[0]);
@@ -454,7 +454,7 @@ export function componentFilesGuard(components: readonly Pick<BundleComponent, '
 }
 
 /**
- * The places a render bundle may take a module from when Retake runs from an app bundle (L5.16 review A H1, the render
+ * The places a render bundle may take a module from when Retake runs from an app bundle (the render
  * half): the app's Resources, the workspace and the bundle cache — never a `node_modules` folder above them. The
  * bundler walks every `node_modules` folder up to `/` like Node.js; a planted `/Applications/node_modules/<optional
  * peer>` (@remotion/studio names `@remotion/video-matting`, which the app does not hold) would otherwise be bundled into

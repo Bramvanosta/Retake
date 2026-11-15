@@ -1,10 +1,10 @@
 /**
- * L4.5 part B: the preview sandbox end to end in headless Chromium (playwright-core's build; VP9 captures — that build
+ * The preview sandbox end to end in headless Chromium (playwright-core's build; VP9 captures — that build
  * plays no H.264). A real Studio server and its player origin; a page of the Studio (its CSP: `frame-src` = the player
  * origin) embeds the preview frame the way the timeline screen will (parent.ts, PREVIEW_FRAME_ATTRS); the plans come
  * from engine.timeline.view through `player.publish`, the bundle is the real one (Player, PlanVideo, every component).
  *
- * - POSITIVE CONTROL first (critique B1): the hostile workspace component is used by the plan; its module posts `ran`
+ * - POSITIVE CONTROL first: the hostile workspace component is used by the plan; its module posts `ran`
  *   when the frame loads it, and once drawn it loads one allowed capability URL (the theme font) and reports its size.
  *   Only then do its attack results count: fetch / XHR / no-cors fetch / beacon / WebSocket / EventSource / img /
  *   audio / CSS background and @import / FontFace / prefetch / preload / stylesheet / script / child frame / object /
@@ -13,14 +13,14 @@
  *   last, meta refresh, self and data: navigations. Asserted: each result, a third loopback port's hits = 0, a UDP
  *   STUN sink's packets = 0, the Studio's cross-site requests and ops unchanged, the page ignored the spoofs.
  * - A component that throws at module scope is `missing` (its kind's stand-in, a warning); the rest of the preview
- *   plays (critique B3). `settled` arrives for the frame asked (B8); the preview starts muted, `mute` unmutes it (B17).
- * - A theme font that fails: a warning, text still drawn, still settled (B8); a component the plan does not use never
- *   runs (B3); a Lottie card draws (its JSON a CORS fetch of the plan's capability URL).
+ *   plays. `settled` arrives for the frame asked; the preview starts muted, `mute` unmutes it.
+ * - A theme font that fails: a warning, text still drawn, still settled; a component the plan does not use never
+ *   runs; a Lottie card draws (its JSON a CORS fetch of the plan's capability URL).
  * - ⚑ A component flooding `window` (100,000 messages: no listener of the page left, the preview goes on) and then the
- *   port it stole (the budget stops the preview): the page's 20 ms timer never stalls 200 ms (B2).
- * - L4.5 fixes (review A H1 c): ⚑ a workspace component the session has not allowed is never evaluated (not in the
+ *   port it stole (the budget stops the preview): the page's 20 ms timer never stalls 200 ms.
+ * - ⚑ A workspace component the session has not allowed is never evaluated (not in the
  *   bundle, its stand-in draws); the positive control is the same component once allowed.
- * - Review A H1 a / b, L2 (Chrome follows `<link rel="prerender">` despite the frame's CSP and sandbox; Playwright's
+ * - Chrome follows `<link rel="prerender">` despite the frame's CSP and sandbox; Playwright's
  *   'chromium' channel prerenders, its headless shell does not): the hostile component also tries a prerender link in
  *   the head, in the body, to an invented `.leak.test` name, via insertAdjacentHTML, setAttribute('rel'), relList.add
  *   and an Attr's value setter; a custom element; an iframe with srcdoc and a srcdoc child loading the frame's bundle.
@@ -469,7 +469,7 @@ describe.skipIf(!canRun)('the preview sandbox in Chromium', () => {
     const loaded = await until('loaded', async () => (await msgs(page)).find((m) => m.type === 'loaded'));
     expect(loaded).toMatchObject({ frames: view.plan.durationInFrames, missing: ['acme/thrower'] });
     expect((loaded.warnings as string[])[0]).toMatch(/component acme\/thrower is not in the preview/);
-    // B8: settled at the frame asked.
+    // Settled at the frame asked.
     await until('settled', async () => (await msgs(page)).some((m) => m.type === 'settled' && m.frame === at));
 
     // B1: the positive control — the hostile component ran, was drawn, and loaded an allowed capability URL.
@@ -487,7 +487,7 @@ describe.skipIf(!canRun)('the preview sandbox in Chromium', () => {
 
     for (const k of ['fetch', 'fetchNoCors', 'fontFace', 'studioInfo', 'studioCall']) expect(got[k], k).toMatch(/^throws (TypeError|NetworkError)/);
     for (const k of ['xhr', 'ws', 'es', 'img', 'stylesheet', 'studioImg']) expect(got[k], k).toBe('error');
-    // Review A H1 b: a script URL needs Trusted Types (no policy) — refused before any request.
+    // A script URL needs Trusted Types (no policy) — refused before any request.
     expect(got.script).toBe('throws TypeError');
     expect(got.beacon).toBe('removed');
     expect(got.windowOpen).toBe('null');
@@ -499,7 +499,7 @@ describe.skipIf(!canRun)('the preview sandbox in Chromium', () => {
     expect(got.origin).toBe('null');
     expect(got.referrer).toBe('""');
     expect(got.spoof).toBe('posted');
-    // Review A H1 a / b, L2: no prerender link, custom element or child frame can be made (boot.ts, Trusted Types).
+    // No prerender link, custom element or child frame can be made (boot.ts, Trusted Types).
     for (const k of ['prerenderHead', 'prerenderBody', 'prerenderName', 'prerenderHtml', 'prerenderSetAttribute', 'prerenderRelList', 'prerenderAttrValue', 'customElement'])
       expect(got[k], k).toBe('throws TypeError');
     for (const k of ['childFrame', 'object', 'rtcChild', 'srcdoc', 'srcdocBundle']) expect(got[k], k).toBe('throws TypeError');
@@ -602,7 +602,7 @@ describe.skipIf(!canRun)('the preview sandbox in Chromium', () => {
     await writeFile(join(ws, 'templates', 'editorial', 'fonts', 'InstrumentSerif-Regular.ttf'), 'not a font any more');
     const page = await studioPage();
     const at = segFrame(view, 'c1');
-    // Recording the hostile component's reports: this plan does not use it, so its module must never run (B3).
+    // Recording the hostile component's reports: this plan does not use it, so its module must never run.
     await openPreview(page, frame_url, plan_url, at, true);
     await until('settled', async () => (await msgs(page)).some((m) => m.type === 'settled' && m.frame === at));
     expect(await reports(page)).toEqual([]);

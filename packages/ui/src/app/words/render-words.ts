@@ -1,5 +1,5 @@
 /**
- * The render queue's words and rules (L4.5 part E), pure — no React, no call: what a render job is doing, a review's
+ * The render queue's words and rules, pure — no React, no call: what a render job is doing, a review's
  * verdict in words, whether a render shows the version on screen, and which events make the render list read again.
  * Every value here is a trusted word (ids, phases, numbers); untrusted text (a failure's message, a finding's message)
  * stays with the caller, shown through Txt.
@@ -52,7 +52,7 @@ export function etaWords(s: number | undefined): string {
 const WHERE: Record<JobYield['cause'], string> = { here: 'in this workspace', elsewhere: 'elsewhere on this Mac' };
 
 /**
- * L5.14 (captures first): what a take does to a heavy job, in words — as engine yieldWords says it to MCP and the
+ * What a take does to a heavy job, in words — as engine yieldWords says it to MCP and the
  * terminal ("waiting for a take to finish (in this workspace)", "slowed during a take (elsewhere on this Mac)").
  */
 export function yieldWords(y: JobYield): string {
@@ -70,7 +70,7 @@ export function heldWords(h: HeldWork): string {
 }
 
 /**
- * heldWords' short form for a narrow status bar (review B L6: shown at 1000 px and less, where the long one is dropped):
+ * heldWords' short form for a narrow status bar (shown at 1000 px and less, where the long one is dropped):
  * "a render waits for a take", "2 jobs slowed by a take", "a render past a take's cap".
  */
 export function heldShortWords(h: HeldWork): string {
@@ -87,7 +87,7 @@ export function jobWords(j: ScenarioRenderJobView): string {
   if (j.state === 'queued') {
     const ahead = j.queue?.ahead ?? 0;
     const r = j.queue?.running;
-    // L5.14: a render a take holds does not start before the take ends, whatever its place.
+    // A render a take holds does not start before the take ends, whatever its place.
     const first =
       j.yield?.state === 'waiting'
         ? yieldWords(j.yield)
@@ -149,7 +149,7 @@ export interface ShownVersion {
 type RenderVersion = Pick<ScenarioRenderView, 'run_id' | 'edit' | 'theme'> & Partial<Pick<ScenarioRenderView, 'variant' | 'overrides' | 'plan_sha256' | 'theme_sha256'>>;
 
 /**
- * Whether a render shows the version on screen (review B H1: its findings then seek the preview at their frames):
+ * Whether a render shows the version on screen (its findings then seek the preview at their frames):
  * - the timeline (it knows its plan): the render's plan is this plan (the same signature: the same capture, edit,
  *   options, fps, variant and theme settings) and its theme files are these (the same content hash);
  * - a screen without a plan (the scenario screen): the same capture, the edit planned from the same file bytes, the same
@@ -186,7 +186,7 @@ export function jobVersionNote(j: Pick<ScenarioRenderJobView, 'run_id' | 'edit_s
 }
 
 /**
- * Which events make a render list read again (critique: re-read only what is shown): a reconnection; a `workspace` event
+ * Which events make a render list read again (only what is shown is read again): a reconnection; a `workspace` event
  * naming the project's renders/ folder; a `jobs` event naming a job the list shows, or a job this tab never saw (a new
  * render or review may have been queued — Claude, another tab). Never another project's renders, never a README.
  * `seen` collects the job ids met in events (the caller keeps it).
@@ -221,7 +221,7 @@ export const RENDER_NOT_WORDS: Record<RenderNot, string> = {
 
 /**
  * The lines under the render list for the files of renders/ named as a render of the scenario that are not shown as
- * one (L7.6b): one per reason, counts and fixed words only — never a file name ("1 file of renders/ is not shown as a
+ * one: one per reason, counts and fixed words only — never a file name ("1 file of renders/ is not shown as a
  * render: its status is not one <the product> writes").
  */
 export function notShownWords(n: ScenarioRendersView['not_shown']): string[] {

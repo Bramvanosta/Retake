@@ -1,10 +1,10 @@
 /**
- * L5.16c — doctor's App group (DESIGN §4p (c)): where the installed app runs from (critique H1: a translocated copy,
- * its disk image, /Volumes → "Move Retake to Applications"), the `retake` command's link (dangling, another copy, a file
+ * doctor's App group (DESIGN §4p (c)): where the installed app runs from (a translocated copy, its disk
+ * image, /Volumes → "Move Retake to Applications"), the `retake` command's link (dangling, another copy, a file
  * that is not Retake's, another retake first on this shell's PATH) — a fake app and a scratch HOME only — and the
- * workspace's worker running another copy of Retake (critique M6). L5.16c fixes: another copy is told by its app's
- * identifier (review c B-M3), the rm hint quotes the path (A-L7), a same copy of another version is said (B-L1), the
- * lock's text has no hidden characters in this terminal (A-L4). L5.16d: the app's update checks (critique L7) — the
+ * workspace's worker running another copy of Retake: another copy is told by its app's
+ * identifier, the rm hint quotes the path, a same copy of another version is said, the
+ * lock's text has no hidden characters in this terminal. The app's update checks — the
  * date of the last successful check (desktop-updates.json, written by the shell), an install that failed, a stale feed,
  * RETAKE_DISABLE_UPDATE_CHECK.
  */
@@ -119,7 +119,7 @@ describe('doctor: App location and the retake command', () => {
     rmSync(join(bin, 'retake'));
     writeFileSync(join(bin, 'retake'), '#!/bin/sh\n');
     expect(appChecks(probes({ bundle: null, env }))).toEqual([]);
-    // Review c A-L7: a folder with a space — the rm hint quotes it (safe to paste).
+    // A folder with a space — the rm hint quotes it (safe to paste).
     rmSync(join(bin, 'retake'));
     const spaced = join(home, 'my tools');
     mkdirSync(spaced);
@@ -187,7 +187,7 @@ describe("doctor: the workspace's worker of another copy of Retake (critique M6)
     // An older lock without `engine`: its version alone.
     const older = await mcpLine({ pid: 42, since: '2026-11-03T00:00:00Z', version: RETAKE_VERSION });
     expect(older.detail).not.toContain('another copy');
-    // Review c B-L1: the same copy (same folder) of another version is said too.
+    // The same copy (same folder) of another version is said too.
     const version = await mcpLine({ pid: 42, since: '2026-11-03T00:00:00Z', version: '0.1.0', engine: '/Applications/Retake.app' });
     expect(version.detail).toContain("this workspace's worker runs another copy of Retake (0.1.0, /Applications/Retake.app)");
   });
@@ -235,7 +235,7 @@ describe('doctor: App updates (L5.16d, critique L7)', () => {
     const off = { status: 'ok', name: 'App updates', detail: 'updates are off in this build (made without an update feed): a newer version comes from its disk image' };
     expect(updateCheck(env, home, now, 'off')).toEqual(off);
     const line = () => appChecks(probes({ bundle: app.bundle, env })).find((c) => c.name === 'App updates');
-    // No launch.json (or one from before L5.16d): the remembered checks.
+    // No launch.json (or an older one without `updates`): the remembered checks.
     expect(line()?.detail).toMatch(/^not checked yet/);
     writeFileSync(join(app.bundle.root, 'launch.json'), JSON.stringify({ version: 2, bundled: true, updates: 'off' }));
     write(rh, JSON.stringify({ version: 1, checked: Math.floor(now / 1000) - 3600, failed: null }));

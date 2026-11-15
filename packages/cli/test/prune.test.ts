@@ -1,5 +1,5 @@
 /**
- * `retake prune` (L5.7, R-FLD-28): lists what the project's runs/, renders/ and review/ hold that nothing needs, with
+ * `retake prune` (R-FLD-28): lists what the project's runs/, renders/ and review/ hold that nothing needs, with
  * how much it frees, and deletes it with --yes; a run a queued job names stays.
  */
 import { existsSync } from 'node:fs';

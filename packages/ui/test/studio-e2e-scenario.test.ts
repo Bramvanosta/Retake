@@ -1,5 +1,5 @@
 /**
- * L4.2 part 3: the scenario screen end to end in headless Chromium (the installed build of playwright-core; nothing
+ * The scenario screen end to end in headless Chromium (the installed build of playwright-core; nothing
  * downloaded), against a Studio server on a scratch workspace — the fixture project plus synthetic runs (solid-colour
  * frames and screenshots, one colour per step): the project page links a scenario → its blocks (scenes with page, URL,
  * caption, speed, layout, duration; steps with an action badge, a plain-words target, chips; the hooks strip; what
@@ -232,7 +232,7 @@ describe('the scenario screen in Chromium', () => {
   it('the project page links each scenario; quote as blocks: scenes, URLs, captions, steps, chips, hooks, what stops a run', async () => {
     await page.goto(`${studio.url}#/p/${P}`);
     await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor();
-    // L5.10a: a poster selects (the inspector shows it), its Open opens it.
+    // A poster selects (the inspector shows it), its Open opens it.
     await page.locator('[role="option"][data-id="quote"]').click();
     await page.getByTestId('scenario-link').click();
     await page.getByRole('heading', { level: 1, name: 'quote' }).waitFor();
@@ -240,7 +240,7 @@ describe('the scenario screen in Chromium', () => {
     expect(await page.title()).toBe('quote · Scenario · Retake');
     const scenes = page.getByTestId('scene');
     await expect.poll(() => scenes.count(), POLL).toBe(4);
-    // L5.10b: a scene's facts are its inspector's (its "Scene 1 · …" button selects it).
+    // A scene's facts are its inspector's (its "Scene 1 · …" button selects it).
     await page.locator('[data-scene="discover"]').getByTestId('scene-meta').click();
     const d = await page.getByTestId('scene-facts').innerText();
     expect(d).toContain('http://localhost:4402/');
@@ -256,18 +256,18 @@ describe('the scenario screen in Chromium', () => {
     const first = row('discover.0');
     expect(await first.getByTestId('action-badge').innerText()).toMatch(/hover/i);
     expect(await page.locator('[data-chip]').count()).toBeGreaterThan(0);
-    // The hooks (L5.10b: Before filming's inspector) and what would stop a run from the Studio.
+    // The hooks (Before filming's inspector) and what would stop a run from the Studio.
     await page.getByTestId('before-filming').click();
     expect(await page.getByTestId('hook').count()).toBeGreaterThan(1);
     expect(await page.getByTestId('hooks').innerText()).toMatch(/destructive|rollback/i);
-    // L5.11a: what would stop a run is the status bar's — Rehearse free, Capture's one blocker line in the gate's words
-    // (critique H3), the full message in the button's description, the command in the blocker's popover.
+    // What would stop a run is the status bar's — Rehearse free, Capture's one blocker line in the gate's words
+    //, the full message in the button's description, the command in the blocker's popover.
     expect(await page.locator('#sh-why-dry').textContent()).toContain('no hooks, a screenshot per step');
     const cap = await page.getByTestId('blockers-capture').innerText();
     expect(cap).toContain('1 hook to approve');
     expect(await page.locator('#sh-why-capture').textContent()).toContain('The Studio cannot approve hooks yet');
     expect(cap).not.toMatch(/MCP/);
-    // The command: shown in full in the blocker's popover (review A-M3 of L5.11a).
+    // The command: shown in full in the blocker's popover.
     await page.getByTestId('blockers-capture-action').click();
     await page.getByTestId('blockers-capture-popover').waitFor(POLL);
     expect(await page.getByTestId('blockers-capture-popover').locator('.k-blocker-code').innerText()).toMatch(new RegExp(`^retake -C .* run ${P} quote$`));
@@ -341,7 +341,7 @@ describe('the scenario screen in Chromium', () => {
     const selected = () => page.locator('[role="option"][aria-selected="true"]').getAttribute('data-key');
     expect(await active()).toMatchObject({ role: 'listbox', label: 'Steps of scene one' });
     expect(await selected()).toBe('one.0');
-    // L5.10b: the frames are a grid — ↓ / ↑ by column (into the next scene), ← / → step by step.
+    // The frames are a grid — ↓ / ↑ by column (into the next scene), ← / → step by step.
     await page.keyboard.press('ArrowDown');
     expect(await selected()).toBe('two.0');
     await page.keyboard.press('ArrowUp');
@@ -357,7 +357,7 @@ describe('the scenario screen in Chromium', () => {
     expect(await page.locator(`#${desc}`).getAttribute('data-key')).toBe('two.0');
     await page.keyboard.press('End');
     expect(await selected()).toBe('two.1');
-    // "As written" folds while the form shows the values (L5.10b): opened, the arguments as written.
+    // "As written" folds while the form shows the values: opened, the arguments as written.
     await page.getByTestId('inspector').locator('summary', { hasText: 'As written' }).click();
     expect(await page.getByTestId('inspector-args').innerText()).toContain('Fourth');
     expect(await page.getByTestId('inspector-hint').innerText()).toMatch(/Click an element/);
@@ -436,7 +436,7 @@ describe('the scenario screen in Chromium', () => {
     const t3 = Date.now();
     await writeFile(join(project(), 'scenarios', 'blocks.yaml'), BLOCKS_YAML.replace('    steps:\n      - click: First', '    steps:\n      - click: Zero\n      - click: First'));
     await expect.poll(() => page.getByText('What the browser does changed since this run').count(), POLL).toBe(1);
-    // L5.5: the notice names the filmed part that changed.
+    // The notice names the filmed part that changed.
     expect(await page.getByTestId('notice-changed').innerText()).toContain('Changed: scene one: step one.0 added.');
     await sleep(500);
     expect(ops('scenario_blocks', t3)).toHaveLength(1);
@@ -453,7 +453,7 @@ describe('the scenario screen in Chromium', () => {
     expect(scene).toContain('javascript:window.__pwned=2');
     expect(scene).toContain('[U+202E]gnp.exe <svg/onload=window.__pwned=4>');
     expect(await row('evil.0').innerText()).toContain('[U+202E]txt.exe');
-    // Attributes cannot be isolated: the row's name and the picture's alt show the control as a mark (review A #8).
+    // Attributes cannot be isolated: the row's name and the picture's alt show the control as a mark.
     expect(await row('evil.0').getAttribute('aria-label')).toContain('[U+202E]txt.exe');
     expect(await row('evil.0').locator('img').getAttribute('alt')).toContain('[U+202E]txt.exe');
     expect(await row('evil.0').getAttribute('aria-label')).not.toContain('\u202E');
@@ -465,7 +465,7 @@ describe('the scenario screen in Chromium', () => {
     expect(from).not.toContain('secret');
     await row('evil.1').click();
     expect(await page.getByTestId('from-page').innerText()).toContain('<iframe srcdoc=');
-    // L5.10b: the video's facts are its inspector's (the browser's Video row); the scenes browser names each entry as text.
+    // The video's facts are its inspector's (the browser's Video row); the scenes browser names each entry as text.
     await page.getByTestId('scenes-video').click();
     expect(await page.getByTestId('video-block').innerText()).toContain('<img src=x onerror=window.__pwned=1>');
     const browser = await page.getByRole('navigation', { name: 'Scenes' }).innerText();
@@ -524,7 +524,7 @@ describe('the scenario screen in Chromium', () => {
     expect(ops('scenario_blocks', t0)).toHaveLength(1);
     await shot('19-scenario-long-end');
     // A fast scroll through the middle: calls whose rows left the screen are aborted, never more than 2 at a time
-    // (review B L4: counted in the browser — each answer held 400 ms so calls overlap).
+    // (counted in the browser — each answer held 400 ms so calls overlap).
     const flight = { now: 0, max: 0, aborted: 0, done: 0 };
     const isThumbs = (r: Request) => /\/v1\/call\/run_thumbs$/.test(r.url());
     const onReq = (r: Request) => {
@@ -574,11 +574,11 @@ describe('the scenario screen in Chromium', () => {
     const capture = page.getByTestId('run-capture');
     await capture.waitFor();
     expect(await capture.isDisabled()).toBe(true);
-    // L5.11a: the status bar's Capture — its words, its full reason as its description.
+    // The status bar's Capture — its words, its full reason as its description.
     expect(await capture.innerText()).toBe('Capture');
     const described = await capture.getAttribute('aria-describedby');
     expect(await page.locator(`#${described}`).textContent()).toContain('has hooks a human must approve before they run');
-    // Said once (review B L6), with the command copied — and its node form for a person without `retake` on their PATH
+    // Said once, with the command copied — and its node form for a person without `retake` on their PATH
     // on Prepare, where every refusal is said in full.
     expect((await page.getByTestId('blockers-capture').innerText()).match(/hook to approve/g)).toHaveLength(1);
     await page.getByTestId('blockers-capture-action').click();
@@ -610,7 +610,7 @@ describe('the scenario screen in Chromium', () => {
     await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
     await page.getByTestId('run-dry').click();
     await expect.poll(() => ops('scenario_run', t0).length, POLL).toBe(1);
-    // Pinned arguments, and the file as the screen showed it (review A #6).
+    // Pinned arguments, and the file as the screen showed it.
     const shown = createHash('sha256')
       .update(await readFile(join(project(), 'scenarios', 'blocks.yaml')))
       .digest('hex');
@@ -627,14 +627,14 @@ describe('the scenario screen in Chromium', () => {
     await page.evaluate(() => document.getElementById('main')?.scrollTo(0, 0));
     await shot('21-scenario-run-queued');
     const t1 = Date.now();
-    // L5.11a: Stop is the status bar's (one Stop: the Running callout has none).
+    // Stop is the status bar's (one Stop: the Running callout has none).
     await page.getByTestId('run-stop').click();
     await expect.poll(() => ops('run_cancel', t1).length, POLL).toBe(1);
     expect(ops('run_cancel', t1)[0].body).toEqual({ project: P, run_id: runId });
     await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
     expect(await page.getByTestId('run-dry').isDisabled()).toBe(false);
     expect(await page.getByTestId('run-submitted').count(), 'the queued note goes once its run is over').toBe(0);
-    // Its outcome instead (review B H1).
+    // Its outcome instead.
     await expect.poll(() => page.getByTestId('run-outcome').count(), POLL).toBe(1);
     expect(await page.locator('.k-callout', { has: page.getByTestId('run-outcome') }).innerText()).toMatch(new RegExp(`The rehearsal ${runId} stopped[\\s\\S]*It left no picture\\.`));
     // The cancelled run is one of the picker's runs (it has no pictures: the source stays the capture).
@@ -676,16 +676,16 @@ describe('the scenario screen in Chromium', () => {
     expect(await select.inputValue()).toBe('local');
     const options = await select.locator('option').allInnerTexts();
     expect(options).toContain('local · default');
-    // Review A L7: a flag word that repeats the name is left out.
+    // A flag word that repeats the name is left out.
     expect(options).toContain('production · read-only');
     expect(await page.getByTestId('run-location').innerText()).toContain('Rehearse and Capture use the location local.');
-    // Another location: the view is read there, the take strip and the status bar say so (L5.11a: Shoot uses it too).
+    // Another location: the view is read there, the take strip and the status bar say so (Shoot uses it too).
     const t0 = Date.now();
     await select.selectOption('signed-in');
     await expect.poll(() => ops('scenario_blocks', t0).map((r) => r.body.env), POLL).toEqual(['signed-in']);
     await expect.poll(() => page.getByTestId('run-location').innerText(), POLL).toContain('Rehearse and Capture use the location signed-in, chosen in this tab.');
     await expect.poll(() => page.getByTestId('status-scenario').innerText(), POLL).toContain('on signed-in');
-    // Review A L6: the Video inspector's Location is the file's own, the tab's choice beside it.
+    // The Video inspector's Location is the file's own, the tab's choice beside it.
     await page.getByTestId('scenes-video').click();
     await expect.poll(() => page.getByTestId('video-block').innerText(), POLL).toContain("local (the project's default) (Rehearse and Capture: signed-in)");
     // A dry run there carries `env` (a run of the file's own location never does: the run-actions test pins its body).
@@ -697,7 +697,7 @@ describe('the scenario screen in Chromium', () => {
     expect(ops('scenario_run', t1)[0].body).toMatchObject({ project: P, name: 'blocks', mode: 'dry', env: 'signed-in' });
     await page.getByTestId('run-stop').click();
     await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
-    // Critique M2: no project board read behind a scenario screen (its browser shows the scenes), runs and all.
+    // No project board read behind a scenario screen (its browser shows the scenes), runs and all.
     expect(ops('project_board', t0)).toEqual([]);
     // Back to the file's own: no env in the next read; a reload forgets any choice.
     const t2 = Date.now();
@@ -707,7 +707,7 @@ describe('the scenario screen in Chromium', () => {
     const tSel = Date.now();
     await select.selectOption('signed-in');
     await expect.poll(() => select.inputValue(), POLL).toBe('signed-in');
-    // Its read sent before the reload (else it could land after t3: a flake seen in L5.11a fixes).
+    // Its read sent before the reload (else it could land after t3: a flake).
     await expect.poll(() => ops('scenario_blocks', tSel).some((r) => r.body.env === 'signed-in'), POLL).toBe(true);
     const t3 = Date.now();
     await page.reload();
@@ -738,7 +738,7 @@ describe('the scenario screen in Chromium', () => {
     const notice = await page.locator('.k-callout', { has: page.getByTestId('run-outcome') }).innerText();
     expect(notice).toContain(`The rehearsal ${runId} failed at step 1 of one`);
     expect(notice).toContain('It left no picture.');
-    // The runner's 0-based prefix in the screen's words (review B M2), its first line only.
+    // The runner's 0-based prefix in the screen's words, its first line only.
     expect(await page.getByTestId('run-outcome-error').innerText()).toContain('step 1 of one (click “First”): page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:4401/');
     expect(await page.getByTestId('run-outcome-error').innerText()).not.toContain('Call log');
     // The source stays the capture; the failed run is named above the pictures.
@@ -791,7 +791,7 @@ describe('the scenario screen in Chromium', () => {
     await page.goto(`${studio.url}#/p/${P}/s/phone-and-desktop`);
     await page.getByRole('heading', { level: 1, name: 'phone-and-desktop' }).waitFor();
     const phone = page.locator('[data-testid="scene"][data-scene="phone"]');
-    // L5.10b: a scene's pages and layout are its inspector's.
+    // A scene's pages and layout are its inspector's.
     await phone.getByTestId('scene-meta').click();
     const facts = page.getByTestId('scene-facts');
     await expect.poll(() => facts.getAttribute('data-scene'), POLL).toBe('phone');
@@ -857,7 +857,7 @@ describe('the scenario screen in Chromium', () => {
       await page.getByTestId('location-dropped').waitFor(POLL);
       expect(await page.getByTestId('location-dropped').innerText()).toContain("The location signed-in chosen earlier is no longer in project.yaml: Rehearse and Capture use the file's own, local.");
       await expect.poll(() => select.inputValue(), POLL).toBe('local');
-      // Review B-M4 of L5.11a: from the drop on, no read sends the stale location — one more read forced (the file
+      // From the drop on, no read sends the stale location — one more read forced (the file
       // touched), every read since the drop without `env`.
       const t1 = Date.now();
       const blocksPath = join(project(), 'scenarios', 'blocks.yaml');
@@ -876,7 +876,7 @@ describe('the scenario screen in Chromium', () => {
       // Said once: picking a location clears it.
       await select.selectOption('production');
       await expect.poll(() => page.getByTestId('location-dropped').count(), POLL).toBe(0);
-      // L5.11a (critique M2): dropped on a route whose screen does not say it (the Project screen) — the status bar says it.
+      // Dropped on a route whose screen does not say it (the Project screen) — the status bar says it.
       await writeFile(yamlPath, before);
       await page.goto(`${studio.url}#/p/${P}`);
       await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor();
@@ -888,7 +888,7 @@ describe('the scenario screen in Chromium', () => {
       await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor();
       await writeFile(yamlPath, before.replace(/\n {2}signed-in:/g, '\n  signed-in-renamed:'));
       await expect.poll(() => page.locator('.sh-said').innerText(), POLL).toContain('The location signed-in chosen earlier for blocks is gone from project.yaml');
-      // The scenario opened again in the same tab (the reopen path, review B-M4): every read sends no `env`, the select
+      // The scenario opened again in the same tab (the reopen path): every read sends no `env`, the select
       // and the strip say the file's own location.
       const t2 = Date.now();
       await page.goto(`${studio.url}#/p/${P}/s/blocks`);

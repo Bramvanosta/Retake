@@ -1,5 +1,5 @@
 /**
- * L6.13: The Record screen: the recording's options, start, view, annotations, stop, discard and save. Each op once,
+ * The Record screen: the recording's options, start, view, annotations, stop, discard and save. Each op once,
  * typed by StudioOps (data/ops.ts).
  */
 import { op, readHook } from './client.js';

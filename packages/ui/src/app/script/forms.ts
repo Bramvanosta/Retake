@@ -1,7 +1,7 @@
 /**
- * Step forms on the Blocks tab (L4.3 part 3, R-UI-12): the pure parts of the inspector's form and the palette — a
+ * Step forms on the Blocks tab (R-UI-12): the pure parts of the inspector's form and the palette — a
  * field's input read and checked against its schema-derived rules (scenario_forms), the changes a form makes (field
- * patches `{path, from, to}`, critique B2), the issue of a refused save placed at its field, and where an edit goes
+ * patches `{path, from, to}`), the issue of a refused save placed at its field, and where an edit goes
  * again after the file changed ("Apply it to the new version"). Nothing here builds YAML: the server writes the file.
  */
 import type { ActionName } from '@retake/core/language';
@@ -48,7 +48,7 @@ export function groupLabel(group: string, action: ActionName): string {
  * An input read as its field's value: `{value}` (undefined: not set) or `{error}` — the schema's rules (a number, a
  * whole number, its bounds, a pattern, at least one character, one of the options, one line). `required`: the field
  * must be set (a top-level required field, or one of a group that has a value). `held`: the value the file holds — an
- * empty input of a text field that holds "" (and allows it) reads as "" (review B M2: `type: {text: "", clear: true}`).
+ * empty input of a text field that holds "" (and allows it) reads as "" (`type: {text: "", clear: true}`).
  */
 export function readInput(f: FormField, input: string, required: boolean, held?: FormValue): { value: FormValue | undefined } | { error: string } {
   if (input === '' && held === '' && f.kind === 'text' && f.min_length === undefined) return { value: '' };
@@ -114,8 +114,8 @@ export function readInputs(
 
 /**
  * The changes from the values a form showed to the values it holds now (fields in form order; locked ones left out).
- * `typed`: the inputs and what they showed — a field whose input is as shown is no change (review B M2: an untouched
- * "" read as not set was sent as a removal).
+ * `typed`: the inputs and what they showed — a field whose input is as shown is no change (an untouched "" read as
+ * not set was sent as a removal).
  */
 export function formChanges(
   fields: readonly FormField[],
@@ -179,7 +179,7 @@ export function anchorOf(v: View, scene: string, index: number): StepAnchor | nu
 
 /**
  * The anchored step in a newer version, or undefined. A fingerprint leaves modifiers out, so when the scene now has
- * more or fewer steps with it (one deleted or changed, one added) the nth may be another step: none (review A L5).
+ * more or fewer steps with it (one deleted or changed, one added) the nth may be another step: none.
  */
 function findAnchor(v: View, a: StepAnchor): StepBlock | undefined {
   const same = (scenesOf(v).find((s) => s.id === a.scene)?.steps ?? []).filter((x) => x.fingerprint === a.fingerprint);
@@ -189,7 +189,7 @@ function findAnchor(v: View, a: StepAnchor): StepBlock | undefined {
 /**
  * The edit to send again on a newer version ("Apply it to the new version"), or why it cannot be: a form's changes go
  * to the same step found again by its fingerprint (a caption changed meanwhile keeps that step; the server applies each
- * change only while the step still holds what the form showed — critique B2); a new step goes after the same step as
+ * change only while the step still holds what the form showed); a new step goes after the same step as
  * before (by its guard). Moves, deletes and duplicates go as they were: their guard refuses a step that moved.
  */
 export function editAgain(op: StepEditOp, anchor: StepAnchor | null, v: View): { op: StepEditOp } | { why: string } {
@@ -210,7 +210,7 @@ export function editAgain(op: StepEditOp, anchor: StepAnchor | null, v: View): {
 }
 
 /** "type text", "caption kicker". */
-/** A field's words in a form's label (review B L4: words, not the schema's keys): its name, written out where a key is terse. */
+/** A field's words in a form's label (words, not the schema's keys): its name, written out where a key is terse. */
 const FIELD_LABELS: Record<string, string> = {
   ms: 'Milliseconds',
   'hover ms': 'Hover (ms)',

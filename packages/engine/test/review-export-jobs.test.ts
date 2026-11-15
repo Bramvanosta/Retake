@@ -1,15 +1,15 @@
 /**
- * L3.2 `review` and `export` jobs (engine jobs/review-job.ts, jobs/export-job.ts, reviews.ts), on synthetic renders
+ * `review` and `export` jobs (engine jobs/review-job.ts, jobs/export-job.ts, reviews.ts), on synthetic renders
  * drawn with ffmpeg (the review tests' helpers: no fixture product). The worker runs in this process (`once`). A review
  * job writes review/<id>/ and job.json carries no image data; review_get rebuilds every path from the review folder
  * (a tampered report.json points nowhere else) and keeps finding messages under untrusted; a cancel keeps the previous
  * review. An export transcodes and re-renders (trust `mcp`, guarded) and the history counts its re-renders; a cancel
  * mid re-render leaves no partial file. A render record whose files lie outside the project is refused at submit and
  * again by the worker. Needs ffmpeg and a headless shell.
- * L7.11: what is the engine's own around a review — the job's cancel, the cleanups after a worker died — runs on the
+ * What is the engine's own around a review — the job's cancel, the cleanups after a worker died — runs on the
  * in-memory reviewer (WorkerOptions.ports, the renders' files left empty: no tool runs); the review package's own
  * cancel and recovery are its contract's (reviewer.test.ts).
- * L7.37: the cancel mid re-render and the refusals of a render outside the project run the worker on the in-memory
+ * The cancel mid re-render and the refusals of a render outside the project run the worker on the in-memory
  * renderer and reviewer, and review_get's reading of a tampered report.json a report of the in-memory reviewer; the
  * real review, transcode and re-render stay above.
  */
@@ -183,7 +183,7 @@ describe.skipIf(!can)('export jobs', () => {
 });
 
 /**
- * L7.37: the engine's own around an export — the job's cancel mid re-render, the refusals of a render whose files lie
+ * The engine's own around an export — the job's cancel mid re-render, the refusals of a render whose files lie
  * outside the project — on the in-memory renderer and reviewer (WorkerOptions.ports), over the real render of the case
  * above (its master transcoded by ffmpeg only where a format asks it). The real transcode and re-render are the case above.
  */
@@ -398,7 +398,7 @@ describe('a review job on the in-memory reviewer: the engine around it (L7.11)',
     LONG,
   );
 
-  // L7.37: review_get reads a report.json the engine did not write — here the in-memory reviewer's, with the scene
+  // review_get reads a report.json the engine did not write — here the in-memory reviewer's, with the scene
   // sheet, the key frame and the segments it leaves empty filled in as the review package writes them.
   it(
     'review_get: keys, ids and codes of a tampered report.json never leave `untrusted` (only known codes, safe ids, names of files)',
@@ -447,7 +447,7 @@ describe('a review job on the in-memory reviewer: the engine around it (L7.11)',
       expect(v.diff!.previous).toBe('unknown');
       expect(untrusted.diff_previous).toBe(`${INJECTION} (previous)`);
       for (const img of v.images) expect(img.label).not.toContain('IGNORE');
-      // The MCP summary (review_get's, the engine's operation since L7.14) only prints what passed.
+      // The MCP summary (review_get's, the engine's operation) only prints what passed.
       const { reviewSummary } = await import('../src/operations/reviews.js');
       expect(reviewSummary(v)).not.toContain('IGNORE');
       await mengine.reviews.submit({ project: 'demo', render_id: 'long-v1' });

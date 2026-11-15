@@ -1,7 +1,7 @@
 /**
- * Run artefacts (L2.9): captured emails, documents and web notifications, written under runs/<id>/artefacts/ and
+ * Run artefacts: captured emails, documents and web notifications, written under runs/<id>/artefacts/ and
  * listed in timeline.json (`artefacts`). Actions record what they capture during the run (the raw message, the file,
- * the notification); `finalize()` renders the images after the capture, in a clean browser (emails → PNG, PDFs → one
+ * the notification); `finalize` renders the images after the capture, in a clean browser (emails → PNG, PDFs → one
  * PNG per page, icons → PNG), and adds the project documents the scenario's slots name (`document: assets/x.pdf`).
  */
 import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';

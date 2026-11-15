@@ -100,7 +100,7 @@ export interface Narrowing {
 export interface Operation extends Facets {
   readonly name: string;
   /**
-   * The use case it serves when another operation serves the same one under another shell's name (S2: no rename, the
+   * The use case it serves when another operation serves the same one under another shell's name (no rename, the
    * names are published): every operation with this key is one named view of it, one name per shell — at most one
    * served by MCP, one by the Studio, and those the CLI serves name the same commands (useCaseProblem).
    */

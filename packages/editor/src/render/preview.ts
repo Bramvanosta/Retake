@@ -10,7 +10,7 @@
  * slot / param overrides per target, `network: 'guard'` (the render's network guard: only the asset server and the
  * bundle server) and a cancel signal checked between targets.
  *
- * `renderComponentLoops` (L4.7, the Studio library) renders a poster (the still above) and / or a looping GIF (640×360,
+ * `renderComponentLoops` (the Studio library) renders a poster (the still above) and / or a looping GIF (640×360,
  * 15 fps, at most 6 s, motion mode for transitions; re-rendered at 480×270 when over 1.5 MB, else "too large") per item
  * into the files the caller names. Its items are isolated: one component that fails to build or render is reported in
  * `failed` and the others go on; a full disk stops the session (RenderDiskFullError, no further item). Both functions
@@ -227,7 +227,7 @@ function bundleComponentOf(t: Pick<PreviewComponentTarget, 'id' | 'dir' | 'entry
  * that IS a package scaffold (same id, same folder) is bundled once, as the scaffold (flagged: the bundle guard's
  * "belongs to no component" holder check does not apply to the package's own kit imports); any other target — a
  * workspace component reusing a scaffold's id from another folder — stays unflagged, under the holder check. Exported
- * for its test (editor preview-scaffold.test.ts, L5.13a review B M3).
+ * for its test (editor preview-scaffold.test.ts).
  */
 export async function previewBundleComponents(targets: readonly PreviewComponentTarget[], ids: readonly string[], registry: ComponentRegistry): Promise<BundleComponent[]> {
   const out = new Map<string, BundleComponent>();
@@ -237,8 +237,8 @@ export async function previewBundleComponents(targets: readonly PreviewComponent
     const info = registry.get(id);
     out.set(id, bundleComponentOf({ id, dir: info.dir, entry: info.entry, manifest: info.manifest }));
   }
-  // A scaffold shown as a target is the scaffold itself: once, flagged (its kit imports are the package's own — L5.13a,
-  // the first run that previewed every scaffold at once met the bundle guard's "belongs to no component").
+  // A scaffold shown as a target is the scaffold itself: once, flagged (its kit imports are the package's own, the
+  // first run that previewed every scaffold at once met the bundle guard's "belongs to no component").
   const scaffolds = await scaffoldComponents();
   for (const s of scaffolds) if (out.has(s.id) && resolve(out.get(s.id)!.dir) === resolve(s.dir)) out.delete(s.id);
   return [...out.values(), ...scaffolds];
@@ -469,7 +469,7 @@ interface SessionFailure<J> extends PreviewFailure {
  * One preview session: specs built with the asset server's URLs, one bundle, one renderer; `each` per item. `isolate`:
  * an item that fails to build or render becomes a failure and the next goes on (else the first failure throws) — and
  * the renderer is opened afresh before the next item (a failed composition select can leave its pinned port taken:
- * every later item would fail for that alone, review B M1); `o.bundleFailure: 'items'`: a bundle that does not build
+ * every later item would fail for that alone); `o.bundleFailure: 'items'`: a bundle that does not build
  * fails every item instead of the session. A full disk and a cancel always stop the session.
  */
 async function previewSession<J extends SessionJob, R>(
@@ -709,7 +709,7 @@ export async function renderComponentPreviews(opts: RenderPreviewsOptions): Prom
  * stops (RenderDiskFullError), a cancel stops (RenderCancelledError). An item's files are written only once both are
  * rendered; on its failure the files it named are removed. Progress counts every finished item, failed ones too.
  *
- * `bundle: 'registry'` (L4.7 review fixes A M3 / B H1): the whole registry shares one page, so one workspace component
+ * `bundle: 'registry'`: the whole registry shares one page, so one workspace component
  * that does not compile, or throws while its module loads, would fail every item. An item that fails to bundle or to
  * render there is rendered again with a bundle of only its own components (`used`) — a group at a time, a group whose
  * items all fail split in halves — until it fails alone: then the failure is its own.

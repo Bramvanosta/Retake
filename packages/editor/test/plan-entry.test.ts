@@ -4,8 +4,8 @@
  * file-system module; the packages it reaches are the ones listed here (a new one is a decision, not a drift). The
  * package root re-exports all of it. At run time (the built entry imported by a Node process tracing every module it
  * resolves), it loads none of the renderer's packages and reaches the components only through their geometry entry.
- * The render records of a folder (L7.6b: core's one reader of renders/ and its rules; the editor's own listing and test
- * of a record are gone) read through the file system they are given.
+ * The render records of a folder (core's one reader of renders/ and its rules; the editor's own listing and test of a
+ * record are gone) read through the file system they are given.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -28,7 +28,7 @@ const ts = createRequire(import.meta.url)('typescript') as typeof import('typesc
 const FORBIDDEN =
   /^(node:)?(fs|fs\/promises|child_process|net|tls|http|https|http2|os|worker_threads|module|stream|zlib)$|^(react|react-dom|remotion|@remotion\/|playwright|playwright-core|esbuild|sharp)(\/|$)/;
 /**
- * The packages the planner's modules import (each is the planner's own decision; core by its entries since L7.35): core's
+ * The packages the planner's modules import (each is the planner's own decision; core by its entries): core's
  * scenario entry for a render's paths checked against its project, node:crypto for the theme hashes (on the file layer
  * they are handed), the types of core's policy and run entries (the options and the answer of planning a run), and the
  * loaded project a plan is made for (core's project entry, its types).

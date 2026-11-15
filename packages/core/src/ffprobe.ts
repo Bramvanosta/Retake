@@ -1,6 +1,6 @@
 /**
- * The one reader of ffprobe's answers (L7.31, finding X3; the summary since L6.8 / L6.10). Pure: the arguments of the
- * probes and what each answer says; the probes are run through `@retake/core/io` media-run.ts.
+ * The one reader of ffprobe's answers. Pure: the arguments of the probes and what each answer says; the probes are run
+ * through `@retake/core/io` media-run.ts.
  *
  * - the summary of a media file (`ffprobeSummaryArgs` / `parseFfprobeSummary`): its first video stream's size, frame
  *   rate and frame count, its audio streams, the codecs and the file's length — the render's record and the review;

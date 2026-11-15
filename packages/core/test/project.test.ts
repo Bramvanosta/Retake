@@ -181,7 +181,7 @@ describe('parseProjectYaml semantic checks', () => {
       '8 auth key "stagin" is not an environment (did you mean "staging"?) (available: staging)',
       '10 connection URL contains a clear-text password: use {{env:VAR}} or {{keychain:service/account}}',
       '13 destructive hook (SQL TRUNCATE) requires "confirm: true"',
-      // vars values are inserted as written (L1.2 review: D5).
+      // vars values are inserted as written.
       '15 {{env:AGENT_EMAIL}}: a vars value is not templated (it would be inserted as written): write the value, or put the token where the variable is used',
     ]);
   });

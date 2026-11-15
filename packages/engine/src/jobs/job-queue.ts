@@ -167,7 +167,7 @@ export interface JobQueue extends JobQueueView {
    */
   enqueue(input: JobInput, opts?: { files?: Record<string, string> }): Promise<JobRecord>;
   /**
-   * Run `fn` while holding the queue's lock of `key` (L7.26): one holder at a time per key — across processes for the
+   * Run `fn` while holding the queue's lock of `key`: one holder at a time per key — across processes for the
    * file queue (the Studio, an MCP server, a terminal on one workspace), within its process for the in-memory one; other
    * keys are not held. The engine's admission rules (admission.ts) check and submit under it, so two processes cannot
    * both pass a rule and both enqueue. Released when `fn` settles (a throw too); a holder that died releases it.

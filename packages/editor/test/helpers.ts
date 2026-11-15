@@ -1,9 +1,8 @@
 /**
  * Test helpers of the planner: a temp workspace whose components/studio/* are created from the scaffolds
  * (createComponent) with the params the starter themes pass — the planner tests do not depend on the built-in library
- * (placeholders since L2.4, replaced in L2.5/L2.7: builtinDir null) — and a plan's segments by id. The real templates,
- * fixture project and timelines and the synthetic timelines are shared by the tests of every package
- * (@retake/test-support/timeline).
+ * (builtinDir null) — and a plan's segments by id. The real templates, fixture project and timelines and the synthetic
+ * timelines are shared by the tests of every package (@retake/test-support/timeline).
  */
 import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';

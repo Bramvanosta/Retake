@@ -1,5 +1,5 @@
 /**
- * The job input contract (L3.1, ADR-1 amendment; in core until L7.35 — audit 2026-11-10 D7: application vocabulary):
+ * The job input contract (ADR-1 amendment; application vocabulary, hence the engine's):
  * what a client hands the jobs worker. Serialisable and validated here: a project is a slug, a scenario a name with the
  * sha256 of its bytes at submit (what was checked is what runs), a run a pre-reserved id. Never a secret value, a session or an absolute path: the worker resolves `{{env:…}}` /
  * `{{keychain:…}}` references and persona sessions itself, from its own environment and ~/.retake.
@@ -19,12 +19,12 @@ export const JOB_INPUT_VERSION = 1;
 export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const;
 export type JobState = (typeof JOB_STATES)[number];
 
-/** Kinds of L3.1, `render`, `review`, `export`, `preview` (L3.2), `inspect` (L3.3), `record` (L3.4) and `site` (L3.5). */
+/** The first kinds, then `render`, `review`, `export`, `preview`, `inspect`, `record` and `site`. */
 export const JOB_KINDS = ['run', 'hooks', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'render', 'review', 'export', 'preview', 'inspect', 'record', 'site'] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /**
- * Captures first (L5.14, BL-116): which of a worker's two slots runs a kind. A `capture` job (a take, what prepares one,
+ * Captures first (BL-116): which of a worker's two slots runs a kind. A `capture` job (a take, what prepares one,
  * a sign-in, a recording, an inspection) is claimed before any `heavy` one whatever their age, and runs in the worker
  * itself; a `heavy` job (renders and what re-renders, reviews, previews, site extractions) runs in a job process of its
  * own, starts only while no filming take runs or waits (`isFilming`), and yields during a take that starts after it. A
@@ -53,7 +53,7 @@ export function jobClass(kind: unknown): JobClass {
 }
 
 /**
- * A filming take (L5.14): a `run` job of mode `capture` (a dry run, a recording, a sign-in, an inspection, hooks and
+ * A filming take: a `run` job of mode `capture` (a dry run, a recording, a sign-in, an inspection, hooks and
  * sandboxes go first but film nothing, so they hold no heavy work).
  */
 export function isFilming(input: unknown): boolean {
@@ -62,7 +62,7 @@ export function isFilming(input: unknown): boolean {
 }
 
 /**
- * Who submitted a job (recorded; shapes the safety rules applied at submit). `ui` (L4.1): the Studio web app, under the
+ * Who submitted a job (recorded; shapes the safety rules applied at submit). `ui`: the Studio web app, under the
  * agent's trust (the worker runs every job under trust `mcp` whoever submitted it).
  */
 export const JOB_CLIENTS = ['mcp', 'cli', 'test', 'ui'] as const;
@@ -84,7 +84,7 @@ export const INSPECT_JOB_LIMIT_MAX = 300;
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/, 'a sha256 (64 lower-case hex characters)');
 
 /**
- * A human approval of one hook (L3.1, R-MCP-35), taken at submit (MCP elicitation) and written once with the job: the
+ * A human approval of one hook (R-MCP-35), taken at submit (MCP elicitation) and written once with the job: the
  * fingerprint of the raw hook as its file declares it, with its phase, position and environment (@retake/hooks
  * hookFingerprint). The worker runs a hook that needs approval only when its fingerprint is listed: a hook changed
  * between submit and run is refused.
@@ -253,10 +253,10 @@ export const templateNameSchema = zThemeName('a theme (template) name, never a p
 export const renderIdSchema = zRenderId('a render id such as quote-v3 (renders/<id>.json), never a path');
 
 /**
- * A render (L3.2): plan the run's capture with the theme and overrides, then render it with Remotion in the worker
+ * A render: plan the run's capture with the theme and overrides, then render it with Remotion in the worker
  * (renders/<render_id>.mp4 + .json). The render id is reserved at submit (a `.<scenario>-v<N>.lock` of renders/); the
  * worker re-plans and refuses a timeline or a variant that changed since. An edit planned from the scenario file is
- * snapshotted at submit in the job folder (edit.yaml, sha256 = `edit_sha256`, L4.5): the worker plans from it.
+ * snapshotted at submit in the job folder (edit.yaml, sha256 = `edit_sha256`): the worker plans from it.
  */
 export const RenderJobInputSchema = z.strictObject({
   version: z.literal(JOB_INPUT_VERSION),
@@ -267,14 +267,14 @@ export const RenderJobInputSchema = z.strictObject({
   run_id: zRunId('a run folder name, never a path'),
   /** sha256 of the run's timeline.json at submit. */
   timeline_sha256: sha256,
-  /** L5.5: sha256 of the scenario file the edit was planned from at submit (absent: the run as captured). */
+  /** sha256 of the scenario file the edit was planned from at submit (absent: the run as captured). */
   edit_sha256: sha256.optional(),
   render_id: renderIdSchema,
   /** Theme for this render instead of the run's (a name, never a path). */
   template: templateNameSchema.optional(),
   overrides: EditOverridesInputSchema,
   /**
-   * L4.5 (critique B12): review the render in the same job once it is written (contact sheets at `fps`): a review that
+   * Review the render in the same job once it is written (contact sheets at `fps`): a review that
    * fails leaves the render succeeded with a warning; a cancel stops the review, the render written stays the result.
    */
   review: z.strictObject({ fps: z.union([z.literal(1), z.literal(2)]) }).optional(),
@@ -282,7 +282,7 @@ export const RenderJobInputSchema = z.strictObject({
 });
 
 /**
- * A review (L3.2): contact sheets, key frames, checks and report of a render, written to review/<render_id>/ by the
+ * A review: contact sheets, key frames, checks and report of a render, written to review/<render_id>/ by the
  * worker. The render is named by its id (resolved at submit: never `latest`, never a path).
  */
 export const ReviewJobInputSchema = z.strictObject({
@@ -298,7 +298,7 @@ export const ReviewJobInputSchema = z.strictObject({
 });
 
 /**
- * An export (L3.2): delivery files of a render in exports/<render_id>/ (+ manifest.json), transcoded from the master or
+ * An export: delivery files of a render in exports/<render_id>/ (+ manifest.json), transcoded from the master or
  * re-rendered (vertical, square, 4K) by the worker under the trust rules of a render job. No output location: the
  * folder is fixed.
  */
@@ -340,14 +340,14 @@ const PreviewThemeTargetSchema = z.strictObject({ kind: z.literal('theme') });
 
 /** A library preview's cache key (engine library.ts: 32 hex, never a path). */
 export const LIBRARY_PREVIEW_KEY_RE = /^[0-9a-f]{32}$/;
-/** Components of one library job (L4.7 B8: a capture submitted meanwhile runs before the next chunk). */
+/** Components of one library job (a capture submitted meanwhile runs before the next chunk). */
 export const LIBRARY_JOB_MAX = 12;
 
 const libraryKey = z.string().regex(LIBRARY_PREVIEW_KEY_RE, 'a library preview key (32 hex characters), never a path');
 
 /**
- * L4.7, the Studio library: posters and / or loops of up to 12 registry components in the job's theme, written into the
- * workspace's preview cache (.retake/cache/previews/<key>/). Each item names the keys the client computed (B18): the
+ * The Studio library: posters and / or loops of up to 12 registry components in the job's theme, written into the
+ * workspace's preview cache (.retake/cache/previews/<key>/). Each item names the keys the client computed: the
  * worker computes its own, writes under them and reports a difference — never a path, never a slot value or a param.
  */
 const PreviewLibraryTargetSchema = z.strictObject({
@@ -372,7 +372,7 @@ const PreviewLibraryTargetSchema = z.strictObject({
 });
 
 /**
- * A preview (L3.2): stills of a component or of a theme, rendered by the worker (guarded, like a render) into
+ * A preview: stills of a component or of a theme, rendered by the worker (guarded, like a render) into
  * <workspace>/.retake/previews/<preview_id>/ — never into a component folder (preview.png of the library and of
  * workspace components stay a `retake components preview` matter). No output location: the folder is fixed.
  */
@@ -407,7 +407,7 @@ const inspectPath = z
   });
 
 /**
- * An inspection (L3.3, R-MCP-23): a dry replay — of a one-scene scenario opening `path` on the environment page `page`,
+ * An inspection (R-MCP-23): a dry replay — of a one-scene scenario opening `path` on the environment page `page`,
  * or of a saved scenario (its bytes' sha256 at submit) up to `until` — then the page it shows inventoried for an author
  * into <project>/.retake/inspect/<inspect_id>/ (inspect.json, screenshot.png, marked.jpg). Run_dry semantics: the
  * environment's own access, hooks never run, production read-only. No URL: a URL given to the client is resolved at
@@ -451,13 +451,13 @@ export const InspectJobInputSchema = z.strictObject({
 });
 
 /**
- * A recording (L3.4, R-MCP-24): a HEADED browser window opens on the machine the worker runs on, at `path` of the
+ * A recording (R-MCP-24): a HEADED browser window opens on the machine the worker runs on, at `path` of the
  * environment page `page`, for a HUMAN to perform a flow and close the window — the job waits for it (it holds the
- * worker's capture slot like a headed sign-in, not its heavy work: L5.14; at most RETAKE_RECORD_MAX_MIN, default 30 min). Nobody drives the window through the job:
- * no field carries a step, a URL or typed text. A draft scenario is made from what the person did, saved as
- * scenarios/<scenario>.yaml when the name is free (under agent trust), and checked by a headless dry replay. The
- * recording's folder <project>/.retake/records/<rec_id>/ is reserved by its id at submit. The environment's own
- * access (production read-only: writes stopped or mocked), never --allow-writes; hooks never run.
+ * worker's capture slot like a headed sign-in, not its heavy work; at most RETAKE_RECORD_MAX_MIN, default 30 min).
+ * Nobody drives the window through the job: no field carries a step, a URL or typed text. A draft scenario is made from
+ * what the person did, saved as scenarios/<scenario>.yaml when the name is free (under agent trust), and checked by a
+ * headless dry replay. The recording's folder <project>/.retake/records/<rec_id>/ is reserved by its id at submit. The
+ * environment's own access (production read-only: writes stopped or mocked), never --allow-writes; hooks never run.
  */
 export const RecordJobInputSchema = z.strictObject({
   version: z.literal(JOB_INPUT_VERSION),
@@ -483,7 +483,7 @@ export const RecordJobInputSchema = z.strictObject({
 });
 
 /**
- * A site extraction (L3.5, R-MCP-12): a clean ephemeral browser opens `url` through the worker's CONNECT proxy (public
+ * A site extraction (R-MCP-12): a clean ephemeral browser opens `url` through the worker's CONNECT proxy (public
  * addresses only, GET / HEAD only, caps) and the page's colours, font family names, logo candidates (made PNG by the
  * worker) and a screenshot are written to <workspace>/.retake/site/<site_id>/. Workspace-level: no project.
  * A job of this kind runs ONLY with a human's approval of exactly this URL, signed at submit (engine signing.ts):

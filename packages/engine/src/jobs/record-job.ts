@@ -1,5 +1,5 @@
 /**
- * `record` jobs (L3.4, R-MCP-24): `retake record` submitted by a client outside the CLI (the MCP server's
+ * `record` jobs (R-MCP-24): `retake record` submitted by a client outside the CLI (the MCP server's
  * scenario_record) and run by the jobs worker with the same engine code (record.ts). A HEADED window opens on the
  * machine the worker runs on, for a HUMAN to perform the flow and close the window — the job waits for it, holding the
  * queue like a headed sign-in. Nothing in the job drives the window: its input names a page, a path, a persona and a
@@ -9,7 +9,7 @@
  * protected hosts, the draft saved under agent trust, its check replay with trust `mcp`. Stop and cancel: a worker
  * signal stops the recording and KEEPS it (draft made and saved, the check replay skipped: a human's twenty minutes are
  * not lost to a worker restart); job_cancel while the window is open DISCARDS it (the folder removed); after the
- * recording a cancel only stops the check replay. L4.8: the job's `stop` marker (the Studio's Stop) stops and keeps as
+ * recording a cancel only stops the check replay. The job's `stop` marker (the Studio's Stop) stops and keeps as
  * closing the window does (the check replay runs) — before the window opened it is a clean cancel (nothing opens, no
  * cancel races the window into a discard); a job the Studio submitted (`submitted_by: 'ui'`) is never saved by the job
  * — the person saves it from the Record screen (engine record-studio.ts) — and a Discard asked during its draft or
@@ -146,7 +146,7 @@ export interface RecordJobContext extends EnginePorts {
   signal: AbortSignal;
   /** A worker signal: stop and keep, no check replay. */
   stop: AbortSignal;
-  /** The job's stop marker (L4.8, the Studio's Stop): stop and keep, as closing the window — the check replay runs. */
+  /** The job's stop marker (the Studio's Stop): stop and keep, as closing the window — the check replay runs. */
   finish?: AbortSignal;
   /** The job's id (written to the recording's meta.json). */
   jobId?: string;
@@ -208,7 +208,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
   };
   let actions = 0;
   const loginCommand = (p: { project: string; env: string; persona?: string }) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`;
-  // The Studio's Stop before the window opened (B-L8): a clean cancel. Once the window is open, it stops and keeps.
+  // The Studio's Stop before the window opened: a clean cancel. Once the window is open, it stops and keeps.
   const early = new AbortController();
   let opened = false;
   const onFinish = () => {
@@ -268,7 +268,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
         ...(ctx.window ?? {}),
       },
     );
-    // A Discard asked during the draft or the check: the folder goes now (B9 / B-L2), even with no Record screen open.
+    // A Discard asked during the draft or the check: the folder goes now, even with no Record screen open.
     if (submittedInStudio(input) && outcome.dir && (await bestEffort(settleDiscardAtJobEnd(project, input.rec_id), 'a discard that cannot settle now is settled on the next listing', false))) {
       return recordResult({ ...outcome, dir: null, draft: null });
     }

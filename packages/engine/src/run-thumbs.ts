@@ -1,17 +1,18 @@
 /**
- * Thumbnails of a run's steps for the Studio's scenario screen (L4.2): `engine.runs.thumbs(project, run, keys)` →
+ * Thumbnails of a run's steps for the Studio's scenario screen: `engine.runs.thumbs(project, run, keys)` →
  * base64 JPEGs (≤ 480 px) of a batch of the run's own step keys ("<scene>.<index>" of the run — the screen maps today's
- * steps to them, critique B4).
+ * steps to them).
  *
  * Which picture: a dry run's step screenshot; a failed step's error screenshot (either mode); for a capture the frame
- * on screen at the end of the step after its hold (run-data.ts: the CFR grid rule, critique B3) — from the kept frames,
+ * on screen at the end of the step after its hold (run-data.ts: the CFR grid rule) — from the kept frames,
  * else from the video, on the track of the page the step acted on in a multi-page scene.
  *
- * Cost and safety (critique B6, B7): every file through RunFolder (no link followed, names validated, sizes capped,
- * checked once open); a video only as a regular file inside the run, handed to ffmpeg as open descriptors; one ffmpeg
- * process per batch and video (≤ 1 per run, ≤ 2 at once); sharp work ≤ 2 at once, each source read inside its slot
- * (≤ 2 sources of ≤ 16 MiB in memory, review A #2); the reviewer's frames (the product's: the review package's `./thumbs` entry only, no editor / Remotion import). Thumbnails live in memory
- * only (a byte-bounded LRU keyed by the run folder, the run's file signatures and the run's step key): never written.
+ * Cost and safety: every file through RunFolder (no link followed, names validated, sizes capped, checked once open); a
+ * video only as a regular file inside the run, handed to ffmpeg as open descriptors; one ffmpeg process per batch and
+ * video (≤ 1 per run, ≤ 2 at once); sharp work ≤ 2 at once, each source read inside its slot (≤ 2 sources of ≤ 16 MiB
+ * in memory); the reviewer's frames (the product's: the review package's `./thumbs` entry only, no editor / Remotion
+ * import). Thumbnails live in memory only (a byte-bounded LRU keyed by the run folder, the run's file signatures and
+ * the run's step key): never written.
  */
 import { closeSync } from 'node:fs';
 import type { TimelineEvent } from '@retake/core/run';
@@ -34,7 +35,7 @@ export const RUN_THUMBS_RESPONSE_MAX = 2 * 1024 * 1024;
 export const THUMB_CACHE_BYTES = 32 * 1024 * 1024;
 /**
  * Source images read for a thumbnail, at most: a screenshot (PNG; a full-page 1440 px one is a few MB) and a kept frame.
- * A source is read inside its sharp slot (review A #2): at most SHARP_SLOTS sources are held at once.
+ * A source is read inside its sharp slot: at most SHARP_SLOTS sources are held at once.
  */
 export const SCREENSHOT_MAX = 16 * 1024 * 1024;
 const FRAME_MAX = 16 * 1024 * 1024;
@@ -177,7 +178,7 @@ export class RunThumbs {
     return this.cache.size;
   }
 
-  /** The engine's ffmpeg slots (L4.6: the render frames of the comment viewer wait for the same slots). */
+  /** The engine's ffmpeg slots (the render frames of the comment viewer wait for the same slots). */
   get ffmpegSlots(): Semaphore {
     return this.ffmpeg;
   }

@@ -8,7 +8,7 @@ import type { SandboxManifest } from '@retake/core/sandbox';
 import { listeners, probePort } from '@retake/core/io';
 import type { Listener } from '@retake/core/io';
 
-// L7.25: who listens on a port is core's io side (io/listeners.ts); re-exported for this package's modules and users.
+// Who listens on a port is core's io side (io/listeners.ts); re-exported for this package's modules and users.
 export { describeListeners, listeners, parseLsof, probePort } from '@retake/core/io';
 export type { Listener } from '@retake/core/io';
 

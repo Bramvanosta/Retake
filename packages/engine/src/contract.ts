@@ -2,7 +2,7 @@
  * @retake/engine/contract — the operation contract the shells share (no protocol, no SDK): an operation's definition
  * (`ToolDef`: one zod input schema, annotations and a handler over the engine; operations/define.ts), one SDK-free call
  * (`invoke`: served by the shell, the zod parse with problems named per argument, the caller rules, then the handler;
- * every failure an EngineError; operations/invoke.ts), the engine's operations (`OPERATIONS`, L7.13), the cap on text under
+ * every failure an EngineError; operations/invoke.ts), the engine's operations (`OPERATIONS`), the cap on text under
  * `untrusted` keys (`capUntrusted`), the Studio's pinned arguments (`pinArguments`), and the operation catalogue
  * re-exported (catalogue.ts: every operation once, its facets and the shells that serve it; @retake/engine/catalogue is
  * the same without the rest, for a page). The MCP server serves these definitions as MCP tools; the Studio's server
@@ -35,7 +35,7 @@ export type { AdmissionRule, ArgumentPin, CodeRun, Effect, Facets, FacetHints, N
 
 // An operation's definition and one call of it (operations/: define.ts, invoke.ts), and the engine's operations
 // (operations/index.ts), with the pieces the shells' own operations still share with them (schema pieces, annotations,
-// waits, compacts, words, job lines, the run and sign-in summaries: L7.13).
+// waits, compacts, words, job lines, the run and sign-in summaries).
 export { argumentProblems, defineOperation, defineTool } from './operations/define.js';
 export type { OperationDef, Progress, ToolAnnotations, ToolArgs, ToolCallOutcome, ToolContext, ToolData, ToolDef, ToolImage, ToolOutput, ToolsByName } from './operations/define.js';
 export { invoke } from './operations/invoke.js';
@@ -52,7 +52,7 @@ export { jobData, jobErrorLine, jobLine, previewImages, untrustedError } from '.
 export type { JobData } from './operations/job-lines.js';
 export { runOutput, runStatusSummary } from './operations/runs.js';
 export { environmentJobSummary, jobOutput } from './operations/auth.js';
-// L7.14: what the MCP server's render and review still share with plan_preview, render_status and review_get, and the
+// What the MCP server's render and review still share with plan_preview, render_status and review_get, and the
 // Studio's input pieces and review answer its own ops still use.
 export { compactReview } from './operations/compact.js';
 export { editLines, latestLines, renderInput, renderLatestData, renderLatestLines, renderStatusOutput, renderStatusSummary } from './operations/renders.js';
@@ -61,7 +61,7 @@ export { studioEnv, studioProject, studioRenderId, studioRun, studioScenario } f
 export { REVIEW_IMAGES_MAX, reviewAnswer } from './operations/render-screen.js';
 export type { RenderReviewAnswer } from './operations/render-screen.js';
 export type { ProjectOverview } from './operations/board.js';
-// L7.17: the theme, component and library operations' pieces the shells still name (MCP's job_status reads a site
+// The theme, component and library operations' pieces the shells still name (MCP's job_status reads a site
 // job as template_from_site does; the Studio's theme_preview shares the theme schemas; the app reads the answer types).
 export { PREVIEW_JOB, SITE_JOB, THEME_WRITE } from './operations/annotations.js';
 export { operationChain } from './operations/invoke.js';
@@ -70,7 +70,7 @@ export { THEME_ARGS, siteOutput } from './operations/themes.js';
 export type { SiteListAnswer, ThemeListAnswer } from './operations/themes.js';
 export { LIBRARY_IMAGES_ANSWER_MAX, LIBRARY_VIEW_MEMO_MAX, LOOP_DATA_MAX, POSTER_DATA_MAX, componentAnswer } from './operations/library.js';
 export type { LibraryComponentAnswer, LibraryImage, LibraryImagesAnswer, LibraryItem, LibraryParam, LibraryRenderAnswer, LibrarySlot, LibraryViewAnswer } from './operations/library.js';
-// L7.15: the submit and job-control operations' pieces the shells still name (MCP's job_status answers an inspection as
+// The submit and job-control operations' pieces the shells still name (MCP's job_status answers an inspection as
 // page_inspect does and takes job_cancel's job id; its scenario_record keeps RUN_JOB; the Studio's scenario chain key
 // and the answer types the app reads).
 export { JOB_CANCEL, RENDER_JOB, RUN_JOB } from './operations/annotations.js';
@@ -80,14 +80,14 @@ export { INSPECT_RESULT_MAX, inspectImages, inspectOutput } from './operations/i
 export { jobId } from './operations/jobs.js';
 export { REVIEW_EXPORTS_OPEN, REVIEW_EXPORT_FORMATS, scenarioKey } from './operations/studio-jobs.js';
 export type { ReviewExportAnswer, ScenarioRenderAnswer, ScenarioRunAnswer } from './operations/studio-jobs.js';
-// L7.19: the annotations of MCP's hooks, environment-reset and sandbox operations (operations/hooks.ts, sandbox.ts).
+// The annotations of MCP's hooks, environment-reset and sandbox operations (operations/hooks.ts, sandbox.ts).
 export { HOOK_JOB, SANDBOX_JOB } from './operations/annotations.js';
-// L7.16: the comment operations' pieces the shells still name (MCP's caps, read by its tests; the Studio's mappers,
+// The comment operations' pieces the shells still name (MCP's caps, read by its tests; the Studio's mappers,
 // caps, thread key and the answer types the app reads).
 export { COMMENTS_LIST_UNTRUSTED_MAX, COMMENT_ENTRIES_SHOWN, PROPOSAL_ROWS_UNTRUSTED_MAX } from './operations/comments.js';
 export { THREADS_LIST_MAX, THREAD_ENTRIES_SHOWN, THREAD_ITEM_TEXT_MAX, proposalOffer, threadAnswer, threadItem, threadKey } from './operations/comment-screen.js';
 export type { OfferFacts, ProposalAnswer, ProposalOffer, ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadItem, ThreadsListAnswer } from './operations/comment-screen.js';
-// L7.18: the authoring, recording and project-write operations' pieces the shells still name (the Record screen's
+// The authoring, recording and project-write operations' pieces the shells still name (the Record screen's
 // answers and helpers the app and the Studio's tests read).
 export { recordPathFree, recordViewAnswer } from './operations/record.js';
 export type { RecordEnvironmentOption, RecordOptionsAnswer, RecordPersonaOption, RecordStartAnswer, RecordViewAnswer } from './operations/record.js';

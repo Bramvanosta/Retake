@@ -1,5 +1,5 @@
 /**
- * L6.13: The scenario screen's reads (its view, the step forms, a run's pictures), the YAML check and the scenario's
+ * The scenario screen's reads (its view, the step forms, a run's pictures), the YAML check and the scenario's
  * one write (scenario_edit). Each op once, typed by StudioOps (data/ops.ts).
  */
 import { op, readHook } from './client.js';

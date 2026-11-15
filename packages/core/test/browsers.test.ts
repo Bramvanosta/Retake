@@ -1,5 +1,5 @@
 /**
- * core/io browsers.ts (L7.25, finding X9): the one module that reads playwright-core's private browser registry,
+ * core/io browsers.ts: the one module that reads playwright-core's private browser registry,
  * through the caller's own `require` (runner-web's launch target, the editor's render browser). What it answers for a
  * registry that knows the browser, does not, gives an empty path, cannot be loaded, and with `installed` for a file
  * that is there or not.

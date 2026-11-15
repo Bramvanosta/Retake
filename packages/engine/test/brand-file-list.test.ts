@@ -1,5 +1,5 @@
 /**
- * L4.7 part A2: the workspace files a new theme may take (engine brand/file-list.ts, the Studio's `brand_files`):
+ * The workspace files a new theme may take (engine brand/file-list.ts, the Studio's `brand_files`):
  * ⚑ the source rules of brand/files.ts — never a hidden folder, the components folder, a folder an agent writes in a
  * project, node_modules; links never followed nor listed — names and sizes only, bounded.
  */

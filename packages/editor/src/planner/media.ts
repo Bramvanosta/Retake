@@ -1,7 +1,7 @@
 /**
- * A step of `planEdit`: the media of component slots — artefacts (L2.9: `email` / `document` / `notification` slots →
- * media with asset-URL images), frames of the capture (L2.10: before / after cards), project images, user files
- * (L2.12: video, Lottie) and CSV tables. The resolver asks for them as it fills slots.
+ * A step of `planEdit`: the media of component slots — artefacts (`email` / `document` / `notification` slots → media
+ * with asset-URL images), frames of the capture (before / after cards), project images, user files
+ * (video, Lottie) and CSV tables. The resolver asks for them as it fills slots.
  */
 import { dirname, isAbsolute, join } from 'node:path';
 import { isLoadedUrl } from '@retake/core/base';
@@ -55,7 +55,7 @@ export function planSlotMedia(c: PlanContext & PlanAddresses & PlanSources): Slo
       };
     }
     if (a.kind === 'text') return { kind: 'text', name: a.name, value: a.value, text: a.text };
-    // The app a system notification names: the host the video shows for its page (L1.7: the display URL); a local
+    // The app a system notification names: the host the video shows for its page (the display URL); a local
     // host without one is never shown — the theme's brand name instead.
     let app = a.origin;
     try {
@@ -75,7 +75,7 @@ export function planSlotMedia(c: PlanContext & PlanAddresses & PlanSources): Slo
       ...(a.icon ? { icon: img(`artefact-notification-${slugOf(a.name)}-icon`, a.icon) } : {}),
     };
   };
-  // L2.10: frames of the capture (before/after cards), project images and CSV tables.
+  // Frames of the capture (before/after cards), project images and CSV tables.
   const projectFile = (rel: string): string => (isAbsolute(rel) ? rel : join(project.dir, rel));
   const captureFrameTime = (t: number): number => {
     const k = clamp(Math.round(t * cap.fps), 0, Math.max(0, srcFrameCount - 1));
@@ -103,7 +103,7 @@ export function planSlotMedia(c: PlanContext & PlanAddresses & PlanSources): Slo
     }
     let t: number | undefined;
     let label = '';
-    // Multi-page scenes (L2.11): a scene start / end or a mark shows the frame of that page's own track.
+    // Multi-page scenes: a scene start / end or a mark shows the frame of that page's own track.
     let src: PlanSource = mainSource;
     if (ref.kind === 'scene') {
       const pg = timeline.scenes.find((x) => x.id === ref.scene && x.kind === 'scene')?.pages?.[0];
@@ -130,7 +130,7 @@ export function planSlotMedia(c: PlanContext & PlanAddresses & PlanSources): Slo
     if (t === undefined) return undefined;
     return { kind: 'picture', name: slot, url: src.url, width: src.width, height: src.height, video: { time_s: captureFrameTime(t) }, label };
   };
-  /** A user file named by a `media` / `lottie` slot (L2.12): served by the renderer, with what was read of it. */
+  /** A user file named by a `media` / `lottie` slot: served by the renderer, with what was read of it. */
   const fileMedia = (type: 'media' | 'lottie', v: string, where: string): MediaValue | undefined => {
     const f = input.files?.[v];
     const file = f?.file ?? projectFile(v);
@@ -184,7 +184,7 @@ export function planSlotMedia(c: PlanContext & PlanAddresses & PlanSources): Slo
         continue;
       }
       if (spec.type === 'media' || spec.type === 'lottie') {
-        // A user file (L2.12): a video or an image (media), a Lottie JSON (lottie) — of the project, or of the theme
+        // A user file: a video or an image (media), a Lottie JSON (lottie) — of the project, or of the theme
         // (absolute paths).
         const m = fileMedia(spec.type, value.trim(), where);
         if (m) (out ??= {})[slot] = m;

@@ -1,6 +1,5 @@
 /**
- * The annotations of the engine's operations (moved from the MCP server's tools/define.ts in L7.13, L7.17, L7.15 and
- * L7.19, with the operations that use them): the hints a client reads, held to each operation's catalogue facets
+ * The annotations of the engine's operations: the hints a client reads, held to each operation's catalogue facets
  * (annotationProblem).
  */
 import type { ToolAnnotations } from './define.js';

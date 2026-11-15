@@ -1,5 +1,5 @@
 /**
- * Checks of user files (L2.12): a segment (intro, outro, card, interstitial — in a scenario or a theme) or a step overlay
+ * Checks of user files: a segment (intro, outro, card, interstitial — in a scenario or a theme) or a step overlay
  * that shows a video, an image or a Lottie file instead of a component. Positioned issues: one file per use, the right
  * container for its kind, the file exists, the renderer can decode it (ffprobe: codec, length), `from` / `to` inside it,
  * an overlay video with an alpha channel, and the fields that only apply to some kinds.

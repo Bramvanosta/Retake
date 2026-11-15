@@ -1,5 +1,5 @@
 /*
- * L5.9: the shell's frame (AppShell.tsx): a fixed window of panes, separated by tone only — the title bar (48), the
+ * The shell's frame (AppShell.tsx): a fixed window of panes, separated by tone only — the title bar (48), the
  * browser (240), the centre pane (the one scroller), the inspector (320, while a screen fills it), the status bar (34).
  * `--ui-*` tokens only (a lint). Under the desktop app's overlay title bar the bar's left keeps the window buttons' room
  * (--ui-titlebar-inset: 80px, set by html[data-titlebar='overlay'] in tokens.css; 0 on the web) and nothing in it can be
@@ -27,7 +27,7 @@
     'status status status';
 }
 
-/* L5.12a: a screen hid the browser pane (Edit, the Review report): the centre takes its column. */
+/* A screen hid the browser pane (Edit, the Review report): the centre takes its column. */
 .sh-app[data-browser='none'] {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
@@ -58,7 +58,7 @@
 }
 
 /* Title bar: the mode switch centred on the WINDOW (the canvas's left: 50%), whatever the window buttons' inset — two
-   equal side columns around it (review B-L1), the inset inside the start one, so neither side runs under it. */
+   equal side columns around it, the inset inside the start one, so neither side runs under it. */
 .sh-titlebar {
   grid-area: title;
   position: relative;
@@ -131,7 +131,7 @@
   text-overflow: ellipsis;
   color: var(--ui-text-2);
 }
-/* A narrow window (review B L6): the app's name gives its room to the crumbs, the project crumb narrower, so the
+/* A narrow window: the app's name gives its room to the crumbs, the project crumb narrower, so the
    scenario's name keeps its words (its full text in a tooltip) */
 @media (max-width: 1100px) {
   .sh-appname {
@@ -215,7 +215,7 @@
 
 /* Inspector */
 .sh-inspector {
-  position: relative; /* its hidden heading scrolls with its content (never left over a picture: L5.10b) */
+  position: relative; /* its hidden heading scrolls with its content (never left over a picture) */
   grid-area: inspector;
   min-height: 0;
   background: var(--ui-pane);
@@ -238,7 +238,7 @@
   display: flex;
   align-items: center;
   gap: var(--ui-space-3);
-  /* L5.12a: a screen's long line (Edit's, the report's) gives way inside the slot; its buttons never do. */
+  /* A screen's long line (Edit's, the report's) gives way inside the slot; its buttons never do. */
   min-width: 0;
 }
 .sh-slot-actions > .k-btn,
@@ -246,7 +246,7 @@
   flex: none;
 }
 
-/* L5.10a fixes (review B-M1): an inspector the person hid, shown in place in the centre pane (ShellSlot inline) */
+/* An inspector the person hid, shown in place in the centre pane (ShellSlot inline) */
 .sh-inline-slot {
   display: grid;
   margin-top: var(--ui-space-8);
@@ -254,7 +254,7 @@
   border-radius: var(--ui-radius-card);
   background: var(--ui-pane);
 }
-/* L5.10b: a screen's own browser (the scenario's scenes) in place of the tree; the foot stays */
+/* A screen's own browser (the scenario's scenes) in place of the tree; the foot stays */
 .sh-slot-browser {
   min-width: 0;
 }
@@ -263,7 +263,7 @@
   gap: var(--ui-space-6);
 }
 
-/* L5.11a: the status bar's scenario — its state (truncates first), then its actions (the blocker's words next) */
+/* The status bar's scenario — its state (truncates first), then its actions (the blocker's words next) */
 .sh-scenario {
   display: inline-flex;
   align-items: center;
@@ -306,7 +306,7 @@
   margin: var(--ui-space-3) 0;
   padding-left: var(--ui-space-7);
 }
-/* L5.11a fixes (review A-L1): the blocker's words are never cut — the state word beside its mark is what makes the
+/* The blocker's words are never cut — the state word beside its mark is what makes the
    mark more than a colour; the segments of the scenario's state give way instead, whole. */
 .sh-actions > .k-blocker.is-compact {
   flex: none;
@@ -320,7 +320,7 @@
 .sh-seg {
   white-space: nowrap;
 }
-/* L5.14: what a take holds is never dropped — its short form at 1000 px and less (review B L6). */
+/* What a take holds is never dropped — its short form at 1000 px and less. */
 .sh-held-short {
   display: none;
 }
@@ -353,7 +353,7 @@
   }
 }
 
-/* L5.12d: the desktop app's quit question (QuitSheet.tsx): the shell's lines and bullets as it wrote them. */
+/* The desktop app's quit question (QuitSheet.tsx): the shell's lines and bullets as it wrote them. */
 .sh-quit-text,
 .sh-update-text {
   display: block;
@@ -361,7 +361,7 @@
   overflow-wrap: anywhere;
 }
 
-/* L5.16c: the installed app's Set-up sheet (SetupSheet.tsx): wider than a confirmation, scrolling inside the window. */
+/* The installed app's Set-up sheet (SetupSheet.tsx): wider than a confirmation, scrolling inside the window. */
 dialog.k-sheet[data-testid='setup-sheet'] {
   width: min(var(--ui-palette-w), calc(100% - 32px));
   /* A modal dialog is fixed: its percentages are the window's (no vh in a height: the lint). */
@@ -396,7 +396,7 @@ dialog.k-sheet[data-testid='setup-sheet'] {
   margin: 0;
 }
 
-/* L5.16d: the update sheet's release notes (the feed's plain text: line breaks kept, long ones scroll). */
+/* The update sheet's release notes (the feed's plain text: line breaks kept, long ones scroll). */
 .sh-update-notes {
   white-space: pre-wrap;
   max-height: 12rem;
@@ -411,7 +411,7 @@ dialog.k-sheet[data-testid='setup-sheet'] {
 dialog.k-sheet[data-testid='update-sheet'] {
   white-space: normal;
 }
-/* Review d A-L3: the notes scroll from the keyboard (a focusable, named region): the kit's focus ring. */
+/* The notes scroll from the keyboard (a focusable, named region): the kit's focus ring. */
 .sh-update-notes:focus-visible {
   outline: 2px solid var(--ui-ring);
   outline-offset: 2px;

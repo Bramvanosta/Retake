@@ -1,5 +1,5 @@
 /**
- * L7.29 (audit 2026-11-10 P6, P7): the jobs worker's ports and its job handlers. The handler table holds one handler
+ * The jobs worker's ports and its job handlers. The handler table holds one handler
  * per job kind (job-input.ts JOB_KINDS), typed by the kind; the worker's ports are the engine's plus the renderer, the record
  * window, the free space and the job processes, their defaults the product's. Heavy jobs run in the worker's own process
  * when its root says so (WorkerOptions.heavyInProcess); a worker handed a port a heavy job reads without it is refused

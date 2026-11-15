@@ -1,5 +1,5 @@
 /**
- * The one module that starts the media tools (core io/media-run.ts, L7.31, finding X3): runs to their end, synchronous
+ * The one module that starts the media tools (core io/media-run.ts): runs to their end, synchronous
  * runs and started processes, their time limits, cancels, signals, stderr and their one error type — on small shell
  * scripts standing in for ffmpeg / ffprobe.
  */

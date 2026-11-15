@@ -1,13 +1,13 @@
 /**
- * L4.6 part A1: the Studio channel of frame comments (engine comments.ts / engine.ts) on synthetic renders (the review
- * tests' helpers; empty videos — no still is made, a warning says so). Trust (T1): client `ui` creates, replies,
+ * The Studio channel of frame comments (engine comments.ts / engine.ts) on synthetic renders (the review
+ * tests' helpers; empty videos — no still is made, a warning says so). Trust: client `ui` creates, replies,
  * resolves and reopens as `{via: studio, name: the Studio process's $RETAKE_AUTHOR}` — never a name from the page;
  * `mcp` and `test` never create or reopen (nothing written); every client but `cli` reopens and resolves on the hash
  * it read (if_match: missing → invalid, stale → conflict naming the current hash); the Studio comments the render it
  * showed (`render_created_at`: missing → invalid, a reused id → conflict). The thread is written before its still
- * (critique B12: a still blocked on its video does not hold the thread back). `anchorAt` = the anchor `add` stores.
- * Counts from the thread files alone (critique B8: memoised per file, a broken file counted as a problem). The
- * `comments:` event sources (plan D9).
+ * (a still blocked on its video does not hold the thread back). `anchorAt` = the anchor `add` stores.
+ * Counts from the thread files alone (memoised per file, a broken file counted as a problem). The
+ * `comments:` event sources.
  */
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import { spawnSync } from 'node:child_process';
@@ -353,7 +353,7 @@ describe('comments: event sources (D9)', () => {
       } finally {
         await rm(join(project.dir, 'comments', 'linked'));
       }
-      // A file renamed in the folder (how the store writes a thread or an entry) moves the folder's signature (probe E4).
+      // A file renamed in the folder (how the store writes a thread or an entry) moves the folder's signature.
       const tmp = join(project.dir, 'comments', 'quote', 'x.tmp');
       await writeFile(tmp, '{}');
       const d = await scanSources(ui.workspace);

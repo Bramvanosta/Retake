@@ -1,5 +1,5 @@
 /**
- * L5.12b: `DiffTable` (R4-Comments: Claude's proposal) — a change to a text file, line by line, drawn code-safe: a table
+ * `DiffTable` (R4-Comments: Claude's proposal) — a change to a text file, line by line, drawn code-safe: a table
  * whose rows are the caller's (a sign and its word — the sign on screen, the word for assistive technology —, the line
  * numbers before and after, the line's pieces), every row shown in the page's own scroll (no inner box, no "Show all": a
  * reader sees the whole change before any button that applies it). A line is a left-to-right monospace cell in byte
@@ -8,7 +8,7 @@
  * the pieces come split that way (comment-words `linePieces`): a text piece holds no direction control, and its text is
  * shown with any left made visible. A gap row says how many unchanged lines it leaves out.
  * The rows differ by more than colour: each starts with its sign (a 3 px bar in the state colour beside it).
- * L5.12b fixes (review A-L7): the table itself is named (a caption for assistive technology: table navigation announces
+ * The table itself is named (a caption for assistive technology: table navigation announces
  * it), and the marks stay visual — edge spaces and tabs are read as words ("2 leading spaces", "a tab"), never as "middle
  * dot" × n.
  */
@@ -147,7 +147,7 @@ export function DiffTable({
 }
 
 /**
- * L5.12b: `RegionOverlay` — a region drawn over a picture (a frame comment's), placed by its shares of the picture
+ * `RegionOverlay` — a region drawn over a picture (a frame comment's), placed by its shares of the picture
  * (0–1), its label at its top-left corner; dashed while it is a draft (a drag in progress). Presentational: the pointer
  * surface that draws it is the caller's (and named in the real-controls lint's exceptions there), and it is hidden from
  * assistive technology (the region is said in words beside the picture).

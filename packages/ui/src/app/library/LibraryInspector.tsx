@@ -1,17 +1,16 @@
 /**
- * L5.12c « Épure » 4c: the Library's inspector (R4-Library; was LibraryScreen.tsx's detail cards) — the selected card's
- * (or the open component's) facts and actions:
+ * The Library's inspector — the selected card's (or the open component's) facts and actions:
  * - its picture, kind, slots, length, kit compatibility, the themes that pick it; Play in the theme (the same play state
  *   as its card: a toggle with one name), Create with Claude… (a new one like it), Open the details; About (the
  *   manifest's description: untrusted, text);
  * - Theme default: "Set as default of <theme>…" — theme_view of the theme shown, then a kit Sheet that says what the
- *   write does (Return = Set as default) → one `set_component` through theme_edit with `if_match` the view's sha256; Undo
- *   restores the exact bytes shown (theme_edit `restore`, if_match the write's sha256). A starter or a read-only theme:
- *   a Sheet asks for the copy's name ("Copy as <name> and set"), theme_copy, then the copy is written and the Library
- *   moves to it (the state here survives the move: the inspector has one place in the screen's tree, keyed by the
- *   component, from the grid as from the component's page — review B-H1).
- * L5.12c fixes: Enter on the selected card brings the focus here (`data-lib-focus`, review A-M3); Play in the theme has
- * the card's rule — off when the loop cannot play, unless it plays (it can always be stopped: review A-L6 / B-L4).
+ *   write does (Return = Set as default) → one `set_component` through theme_edit with `if_match` the view's sha256;
+ *   Undo restores the exact bytes shown (theme_edit `restore`, if_match the write's sha256). A starter or a read-only
+ *   theme: a Sheet asks for the copy's name ("Copy as <name> and set"), theme_copy, then the copy is written and the
+ *   Library moves to it (the state here survives the move: the inspector has one place in the screen's tree, keyed by
+ *   the component, from the grid as from the component's page).
+ * Enter on the selected card brings the focus here (`data-lib-focus`); Play in the theme has
+ * the card's rule — off when the loop cannot play, unless it plays (it can always be stopped).
  * Nothing selected: the theme's summary.
  */
 import { useId, useState } from 'react';
@@ -169,7 +168,7 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
             <span className="lb-quiet">No undo: the theme's file was not shown whole.</span>
           )}
           {st.copied && okTheme(st.copied) && (
-            // The next step (review B L5 of L4.7): the copy is used once a scenario or the project names it.
+            // The next step: the copy is used once a scenario or the project names it.
             <LinkButton size="sm" variant="primary" to={{ name: 'themes', slug: lib.slug, theme: st.copied }} testId="lib-set-next">
               Open the copy: use it in a scenario
             </LinkButton>

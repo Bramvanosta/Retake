@@ -1,5 +1,5 @@
 /**
- * Plan a run (L3.2): the one place where a render, a still, `retake still` and the MCP server's plan_preview turn a
+ * Plan a run: the one place where a render, a still, `retake still` and the MCP server's plan_preview turn a
  * capture run into an EditPlan — the run, its timeline, the theme, the registry, the music's length, the project files
  * the plan reads, then `planEdit`.
  *
@@ -114,7 +114,7 @@ export function servedFileProblems(plan: Pick<EditPlan, 'assets'>, folders: { pr
   for (const [url, file] of Object.entries(plan.assets)) {
     const name = planAssetName(url);
     if (insideFolder(folders.project, file, nodeFileFacts) || insideFolder(folders.run, file, nodeFileFacts) || insideFolder(folders.theme, file, nodeFileFacts)) {
-      // A hard link inside the folders may be the same file as one outside them (review A N4): never served.
+      // A hard link inside the folders may be the same file as one outside them: never served.
       if (hardLinked(file)) problems.push(`the plan serves ${name} from ${file}, a file with more than one name (a hard link): through MCP a render serves none`);
       continue;
     }
@@ -216,7 +216,7 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   };
 }
 
-/** A plan's note on where its edit came from, and the warnings of the re-plan (L5.5). */
+/** A plan's note on where its edit came from, and the warnings of the re-plan. */
 export function noteEdit(plan: EditPlan, edit: PlannedEdit, warnings: readonly string[], runId: string): void {
   if (edit.from === 'scenario' && edit.changes?.length) {
     plan.notes.unshift(`${editReplannedMessage(plan.meta.scenario, runId)} (changed: ${edit.changes.slice(0, 12).join(', ')}${edit.changes.length > 12 ? ', …' : ''})`);
@@ -225,8 +225,8 @@ export function noteEdit(plan: EditPlan, edit: PlannedEdit, warnings: readonly s
 }
 
 /**
- * The timeline a plan reads (L5.5): the run's, rewritten with today's edit when the scenario file's filmed part is
- * unchanged since the capture (core scenarioSinceRun, replanEdit); else the run's as captured. `editText` (L4.5): the
+ * The timeline a plan reads: the run's, rewritten with today's edit when the scenario file's filmed part is
+ * unchanged since the capture (core scenarioSinceRun, replanEdit); else the run's as captured. `editText`: the
  * file's text as a render job snapshotted it, read instead of today's file. `text`: the text the edit came from.
  */
 export function editOfToday(

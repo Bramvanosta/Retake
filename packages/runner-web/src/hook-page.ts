@@ -11,7 +11,7 @@
  * would answer still meet the guard. `window.open` is disabled there; a popup that still opens is closed at once.
  * The guard logs hosts, never URLs or code (the runner log is not hook-redacted).
  *
- * On a read-only run (L1.7, `writes`) the tab also stops every write to the environment's guarded hosts that no
+ * On a read-only run (`writes`) the tab also stops every write to the environment's guarded hosts that no
  * `read_only.allow` entry lets through — never answered by a mock: a hook that writes is refused, not fooled — and on
  * any run with a write policy, every write to a host of the project's other read-only environments. A hook that failed
  * after such a write throws core `WriteRefusedError` (@retake/hooks: refused, reason `read-only`); one that caught
@@ -37,11 +37,11 @@ export interface HookPageOptions {
   env: { name: string; pages: Record<string, string> };
   log: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
   /**
-   * Sessions & personas (L1.6): the tab opens in the browser of its page's persona (BrowserSession.hookContext); a load
+   * Sessions & personas: the tab opens in the browser of its page's persona (BrowserSession.hookContext); a load
    * that lands on that persona's sign-in page is refused with this message (null: not a sign-in page).
    */
   loginLanding?: (key: string, url: string) => string | null;
-  /** A read-only run (L1.7): the tab stops writes (never mocked); each write it sees is reported (`via: hook`). */
+  /** A read-only run: the tab stops writes (never mocked); each write it sees is reported (`via: hook`). */
   writes?: { policy: WritePolicy; onWrite?: (w: GuardedWrite) => void };
 }
 
@@ -263,7 +263,7 @@ class HookTab {
 
   /**
    * Evaluate a hook's code: a request it makes to a host outside the allow-list fails like a network error. A tab a
-   * previous hook left on its persona's sign-in page is refused (L1.6).
+   * previous hook left on its persona's sign-in page is refused.
    */
   async run(code: string): Promise<unknown> {
     if (!isWebPage(this.page.url()) && this.navBlocked) {

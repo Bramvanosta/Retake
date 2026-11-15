@@ -1,5 +1,5 @@
 /**
- * L2.11 contracts in core: multi-page scenes (`pages:` map or list, `on:`), viewport presets, positioned validation,
+ * Contracts in core: multi-page scenes (`pages:` map or list, `on:`), viewport presets, positioned validation,
  * the timeline's tracks and scene pages.
  */
 import { mkdtempSync } from 'node:fs';
@@ -24,7 +24,7 @@ import type { LoadedProject, Scene, Timeline, ValidationIssue } from '@retake/co
 import { errors, warnings } from './helpers.js';
 import { memoryFileFacts } from '@retake/core';
 
-/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+/** No disk: these checks are handed a project but look at no file (a FileFacts is required beside a project). */
 const NO_DISK = memoryFileFacts({});
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}${i.line ? `@${i.line}` : ''}: ${i.message}`);

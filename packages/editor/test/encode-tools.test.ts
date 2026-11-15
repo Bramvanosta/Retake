@@ -1,5 +1,5 @@
 /**
- * L7.3 the encode tools (editor render/encode-tools.ts): this machine's ffmpeg encoding a render's frames, the
+ * The encode tools (editor render/encode-tools.ts): this machine's ffmpeg encoding a render's frames, the
  * rendering library's own doing everything else. The filter rewrite (one value, the frame encode only, an unknown
  * command refused), the dispatcher (which call goes where, started with the environment the library gives), the
  * folder (its entries, private, checked on every use, rebuilt aside and moved into place) and which ffmpeg qualifies.

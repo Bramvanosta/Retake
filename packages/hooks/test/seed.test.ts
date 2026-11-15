@@ -1,5 +1,5 @@
 /**
- * Sandbox mode (L1.8) in the hooks runner: the `seed` phase (stops at the first failure, nothing rolled back, no
+ * Sandbox mode in the hooks runner: the `seed` phase (stops at the first failure, nothing rolled back, no
  * destructive confirmation, no js), `ctx.baseDir` (sql files and shell working directories relative to a sandbox's
  * folder), journal replays that reach the databases of the environment each entry ran in, and the pending rollbacks a
  * sandbox reset supersedes.

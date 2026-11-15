@@ -1,5 +1,5 @@
 /**
- * Public or not (L3.5, R-MCP-12): the classifier of the addresses a site extraction may connect to. Pure: the CONNECT
+ * Public or not (R-MCP-12): the classifier of the addresses a site extraction may connect to. Pure: the CONNECT
  * proxy of the worker (runner-web site/proxy.ts) asks it for EVERY address a name resolves to and refuses the name
  * unless all of them are public unicast — an address that is loopback, private, link-local (169.254.169.254, the cloud
  * metadata service), carrier-grade NAT, documentation, benchmarking, multicast, reserved or any IPv6 special block.

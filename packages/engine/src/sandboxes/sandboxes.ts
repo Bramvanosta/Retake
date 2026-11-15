@@ -1,13 +1,12 @@
 /**
- * The Sandboxes port (L7.25, U14; the target architecture's "SandboxProvider" — named for what it hands out, since
- * core's `SandboxProvider` is a provider's kind, `process` or `docker-compose`): what starts, seeds, resets, stops and
- * reads a project's sandboxes for the engine — the MCP `sandbox_status` answer, the `sandbox_up` / `sandbox_reset`
- * jobs, a run's take on a sandbox (`--sandbox`) and the check of a sandbox environment without it — and what the CLI's
- * `retake sandbox …` commands need (U8c, L7.28, through sandbox-work.ts: the scaffold, the capabilities its usage errors
- * read, the progress of a call, the logs followed, the two-stage Ctrl-C's synchronous kill). The composition roots choose it (ports.ts
- * `EnginePorts.sandboxes`): the sandbox package with its process and docker-compose providers (`packageSandboxes()`),
- * or an in-memory one in tests (memory-sandboxes.ts). One contract suite holds them (engine
- * test/sandbox-contract.ts).
+ * The Sandboxes port (the target architecture's "SandboxProvider" — named for what it hands out, since core's
+ * `SandboxProvider` is a provider's kind, `process` or `docker-compose`): what starts, seeds, resets, stops and reads a
+ * project's sandboxes for the engine — the MCP `sandbox_status` answer, the `sandbox_up` / `sandbox_reset` jobs, a
+ * run's take on a sandbox (`--sandbox`) and the check of a sandbox environment without it — and what the CLI's `retake
+ * sandbox …` commands need (through sandbox-work.ts: the scaffold, the capabilities its usage errors read, the progress
+ * of a call, the logs followed, the two-stage Ctrl-C's synchronous kill). The composition roots choose it (ports.ts
+ * `EnginePorts.sandboxes`): the sandbox package with its process and docker-compose providers (`packageSandboxes`), or
+ * an in-memory one in tests (memory-sandboxes.ts). One contract suite holds them (engine test/sandbox-contract.ts).
  *
  * Its vocabulary is the sandbox package's own, named through its type-only domain entry `@retake/sandbox/types`, and
  * core's (a sandbox's paths and error class, the lock record of core's io side). A handle is one sandbox, as

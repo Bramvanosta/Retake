@@ -1,21 +1,21 @@
 /**
- * The workspace index (L4.1, R-ARC-05, ADR-2): `<workspace>/.retake/index.sqlite`, a cache of what the files say —
+ * The workspace index (R-ARC-05): `<workspace>/.retake/index.sqlite`, a cache of what the files say —
  * projects (name, error, README text), runs (run.json), renders (renders/*.json), the job history (history.jsonl) and a
  * full-text search over them — that the Studio reads for its activity feed and its search box. The files stay the only
  * source of truth: every write goes to files through the engine, the index follows.
  *
- * - Rebuilt from files: `reconcile()` stats the sources (sources.ts: a few stats per project), re-reads only what
+ * - Rebuilt from files: `reconcile` stats the sources (sources.ts: a few stats per project), re-reads only what
  *   changed (a project's summary, its README, its runs, its renders; history.jsonl from the byte after the last line it
  *   read — a shorter file, another inode or another first line (a file rewritten in place) is read again from the
  *   start) and writes it in one transaction.
  * - Missing → built; corrupt (SQLITE_CORRUPT / SQLITE_NOTADB by errcode, or `pragma quick_check` not ok), of another
  *   schema, or not a regular file (a symbolic link: SQLite would create the db, -wal and -shm at its target) → deleted
  *   with its -wal / -shm (links removed, never followed) and rebuilt: a cache, nothing to keep.
- * - Files are read only when they are regular files of the project, within a size cap (review A L3): a README linked
- *   out of the project is never indexed, a FIFO never read. renders/ is read by the one reader of renders/ (L7.6c): a
+ * - Files are read only when they are regular files of the project, within a size cap: a README linked
+ *   out of the project is never indexed, a FIFO never read. renders/ is read by the one reader of renders/: a
  *   render is the record of its own file, and a record file that is a link is never read.
- * - No jobs table (critique B2): an unfinished job's state is derived from process liveness, which no file records —
- *   `activity()` reads unfinished jobs live from the queue; finished ones are history lines.
+ * - No jobs table: an unfinished job's state is derived from process liveness, which no file records —
+ *   `activity` reads unfinished jobs live from the queue; finished ones are history lines.
  * - One writer: the Studio server holding the discovery file (ui.json). The worker and the CLI never open it.
  * - Text in it is shown by the Studio as text (never HTML); a search query becomes quoted prefix terms bound as a
  *   parameter — no FTS syntax from the user reaches SQLite.
@@ -95,7 +95,7 @@ export interface ActivityItem {
   render?: { id: string; scenario?: string };
   /** A running job's progress (steps, phase, fraction). */
   progress?: JobRecord['progress'];
-  /** L5.14: a heavy job a filming take holds (waiting, slowed or past the cap: JobRecord.yield). */
+  /** A heavy job a filming take holds (waiting, slowed or past the cap: JobRecord.yield). */
   yield?: JobRecord['yield'];
 }
 
@@ -110,7 +110,7 @@ export interface SearchHit {
   snippet?: string;
 }
 
-/** What a reconcile changed: the source keys re-read, the runs that changed (critique B1), and the generation after it. */
+/** What a reconcile changed: the source keys re-read, the runs that changed, and the generation after it. */
 export interface IndexChanges {
   keys: string[];
   runs: RunChange[];
@@ -208,7 +208,7 @@ interface ProjectRead {
 export class WorkspaceIndex {
   private reconciling: Promise<IndexChanges> | undefined;
   private closed = false;
-  /** Jobs seen finished: their job.json never changes again, so activity() does not read it again (review B L1). */
+  /** Jobs seen finished: their job.json never changes again, so activity does not read it again. */
   private readonly finishedJobs = new Set<string>();
 
   private constructor(
@@ -229,8 +229,8 @@ export class WorkspaceIndex {
     if (!sqlite) return null;
     const file = indexFile(ws.root);
     await mkdir(stateDir(ws.root), { recursive: true });
-    // lstat, never stat: a link (even a dangling one) in place of the db, its -wal or its -shm is not followed (review
-    // A L4) — the files are removed (rm removes a link itself) and the index rebuilt.
+    // lstat, never stat: a link (even a dangling one) in place of the db, its -wal or its -shm is not followed
+    // — the files are removed (rm removes a link itself) and the index rebuilt.
     const kinds = await Promise.all(
       [file, `${file}-wal`, `${file}-shm`].map((f) =>
         lstat(f).then(
@@ -486,7 +486,7 @@ export class WorkspaceIndex {
     // Jobs whose job.json still says queued or running, with their state derived now: one whose worker died reads
     // `interrupted` (no file says so; the next worker persists it), a cancelled one before it started `cancelled`.
     const live: JobRecord[] = [];
-    // L5.14: what holds heavy work, read once for the whole feed.
+    // What holds heavy work, read once for the whole feed.
     let hold: Promise<'here' | 'elsewhere' | undefined> | undefined;
     const once = () => (hold ??= this.queue.takeHold());
     for (const id of (await this.queue.ids()).reverse()) {

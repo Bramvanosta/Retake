@@ -1,12 +1,12 @@
 /**
- * The Run screen's stream client (L4.4): `POST /v1/live` read through fetch (sse.ts), folded into one state — the
+ * The Run screen's stream client: `POST /v1/live` read through fetch (sse.ts), folded into one state — the
  * run's start, its outline (every step it executes), each step's status, the preflight's sessions, hooks, pauses, the
  * log (capped), the job, the picture's state and the end. Frames never enter React state: they go straight to the
  * LiveView's canvas through `onFrame`.
  *
  * - **Reconnect with a cursor**: the page keeps the largest `seq` of each source (`log`, `job`); a stream that drops
  *   without `end` is opened again with `after` (no duplicate, nothing missed), with a growing delay.
- * - **Only while watched** (critique B8): a hidden tab closes its stream (the Studio then closes the job's upstream when
+ * - **Only while watched**: a hidden tab closes its stream (the Studio then closes the job's upstream when
  *   no other page wants frames) and opens it again with `after` when it is shown. Toggling the picture reopens the
  *   stream with `frames: true / false`. `frames` is sent only when the person chose; otherwise the server's default
  *   holds — the picture on for a dry run, off for a capture (it costs Chromium CPU during the take).
@@ -29,7 +29,7 @@ export interface OutlineStep {
   step: number;
   action: string;
   desc: string;
-  /** A step of an `offscreen: true` scene (L5.8): played (live, pausable), left out of the video. */
+  /** A step of an `offscreen: true` scene: played (live, pausable), left out of the video. */
   offscreen?: true;
 }
 
@@ -156,7 +156,7 @@ export interface RunLiveState {
   outlineTruncated: boolean;
   /** By `<scene>.<step>`. */
   steps: Record<string, StepState>;
-  /** The entries of a `hook:` step (phase `step`, L5.8), by its `<scene>.<step>`: shown on its row. */
+  /** The entries of a `hook:` step (phase `step`), by its `<scene>.<step>`: shown on its row. */
   stepHooks: Record<string, HookRow[]>;
   current: { scene: string; step: number } | null;
   /** The last step that started (kept after the end): the one a stop interrupted, when it did not finish. */
@@ -324,7 +324,7 @@ function foldEvent(s: RunLiveState, source: string, seq: number, ev: Record<stri
     case 'hook': {
       if (!str(ev.phase) || !str(ev.name) || !str(ev.status)) return s;
       const row: HookRow = { phase: ev.phase, name: ev.name, status: ev.status, ...opt('message', ustr(ev.untrusted, 'message')) };
-      // A `hook:` step's entries (L5.8) belong to the step running now: its row shows them.
+      // A `hook:` step's entries belong to the step running now: its row shows them.
       if (row.phase === 'step') {
         if (!s.current) return s;
         const k = stepKey(s.current.scene, s.current.step);
@@ -382,7 +382,7 @@ function foldEvent(s: RunLiveState, source: string, seq: number, ev: Record<stri
 export type StepRowStatus = StepState['status'] | 'waiting' | 'not_reached' | 'stopped' | 'interrupted' | 'hook_skipped';
 
 /**
- * The status a step's row shows (review B M1, M2, L8): its own, except — the step a stop interrupted (the last one that
+ * The status a step's row shows: its own, except — the step a stop interrupted (the last one that
  * started, when it did not finish well) is "stopped"; a step still running when the run ended without finishing it (its
  * worker killed) "interrupted"; a `hook:` step of a run whose hooks are skipped "hook_skipped" (it did not run); a step
  * never reached "not_reached" once the run ended, "waiting" before.
@@ -397,7 +397,7 @@ export function stepStatus(s: RunLiveState, row: Pick<OutlineStep, 'scene' | 'st
   return st.status;
 }
 
-/** Steps done (their row says done) and skipped, of these rows — a failed step is not done (review B L9). */
+/** Steps done (their row says done) and skipped, of these rows — a failed step is not done. */
 export function stepCounts(s: RunLiveState, rows: Array<Pick<OutlineStep, 'scene' | 'step' | 'action'>>, finished: boolean): { done: number; skipped: number } {
   let done = 0;
   let skipped = 0;

@@ -1,5 +1,5 @@
 /**
- * L3.8 phase 3 acceptance through MCP (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`, several minutes).
+ * Phase 3 acceptance through MCP (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`, several minutes).
  * One chained story on ONE empty scratch workspace, the fixture product on free ports: an SDK client drives
  * `retake mcp` (spawned from the sources over stdio) the way the skills tell Claude to — deterministically, no model —
  * from a README to a commented, fixed and re-rendered video. One test per requirement, sharing the workspace:
@@ -185,7 +185,7 @@ async function health(): Promise<number> {
 
 /** page_inspect, followed through job_status when it outlives its wait; the marked screenshot kept. */
 async function inspect(args: Json, keepAs: string): Promise<Inspection> {
-  // `detail: "full"` (L5.8): the acceptance reads each element's verified target and its hint's step object.
+  // `detail: "full"`: the acceptance reads each element's verified target and its hint's step object.
   const r = await job(await call('page_inspect', { project: PROJECT, wait_s: 25, detail: 'full', ...args }));
   const d = r.structuredContent as unknown as Inspection;
   expect(d.status, r.content[0].text).toBe('ok');
@@ -870,7 +870,7 @@ describe.skipIf(!ENABLED)(
         expect((stale.content[0].text ?? '').split('\n')[1]).toBe(
           scenarioChangedMessage(SCENARIO, ids.run1!, `run_capture {project: "${PROJECT}", scenario: "${SCENARIO}"}`, [`scene delivery: step delivery.${at} changed`]),
         );
-        expect((stale.content[0].text ?? '').split('\n').at(-1)).toMatch(/^capture first: run_capture \{/); // never "render it" on the old run (review M1)
+        expect((stale.content[0].text ?? '').split('\n').at(-1)).toMatch(/^capture first: run_capture \{/); // never "render it" on the old run
 
         // So: a new capture, then the render.
         ids.run2 = data<{ id: string }>(await call('run_capture', { project: PROJECT, scenario: SCENARIO })).id;
@@ -885,7 +885,7 @@ describe.skipIf(!ENABLED)(
         const clip = (p: { segments: Array<{ scene?: string; kind: string; duration_s: number }> }) => p.segments.find((s) => s.kind === 'clip' && s.scene === 'delivery')!.duration_s;
         // The longer confirmation is in the edit whole, at 1×: no cut or speed-up of the plan touches the 3 s hold of the new
         // take. (Comparing the two takes' clip lengths depended on everything else each take did: idle gaps around the
-        // threshold, and since L5.7 the freezes a loaded machine adds, which the edit cuts.)
+        // threshold, and the freezes a loaded machine adds, which the edit cuts.)
         const tl2 = JSON.parse(await readFile(join(projectDir(), 'runs', ids.run2, 'timeline.json'), 'utf8')) as { events: Array<{ mark?: string; hold?: { t_start: number; t_end: number } }> };
         const hold = tl2.events.find((x) => x.mark === 'sent')!.hold!;
         const summary = data<{ untrusted: { summary: string } }>(plan).untrusted.summary;

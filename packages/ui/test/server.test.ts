@@ -1,5 +1,5 @@
 /**
- * L4.1 part 1: the Studio server over HTTP — static app from memory, `/v1/info`, the one-time bootstrap code →
+ * The Studio server over HTTP — static app from memory, `/v1/info`, the one-time bootstrap code →
  * session token, `/v1/call/<op>` limited to UI_OPS through the MCP tool layer (README round trip and conflict, error
  * statuses), hostile requests WITH the valid token refused before any op runs (README bytes unchanged, op counter 0),
  * the bundle (no eval, no node built-in, size budget), one server per workspace through the discovery file (no secret
@@ -53,7 +53,7 @@ describe('static app from memory', () => {
     const index = await raw(studio.port, 'GET', '/');
     expect(index.status).toBe(200);
     expect(index.headers['content-type']).toBe('text/html; charset=utf-8');
-    // L4.5: the CSP frames the player origin, and only it.
+    // The CSP frames the player origin, and only it.
     expect(index.headers['content-security-policy']).toBe(studioCsp(studio.player.origin));
     expect(index.body).toBe(INDEX_HTML);
     expect((await raw(studio.port, 'GET', '/', { 'if-none-match': String(index.headers.etag) })).status).toBe(304);
@@ -92,10 +92,10 @@ describe('static app from memory', () => {
     const assets = await buildUi();
     expect(Date.now() - t).toBeLessThan(5000);
     const js = assets.get('/app.js')!.bytes.toString('utf8');
-    // L4.5 part E: the render queue and review (≈ 15 KB minified) took the app past 400 KB (413 KB then).
-    // L4.5 review: tightened to 430 KB (≈ 415 KB after the fixes).
-    // L4.6 part D1: the Comments screen (list, frame viewer, region, composer, thread) — 455.5 KB; room for the proposal view.
-    // L4.7 part D2: the theme screens (list, editor, New theme, site panel) — ≈ 569 KB.
+    // The render queue and review (≈ 15 KB minified) took the app past 400 KB (413 KB then).
+    // Tightened to 430 KB (≈ 415 KB after the fixes).
+    // The Comments screen (list, frame viewer, region, composer, thread) — 455.5 KB; room for the proposal view.
+    // The theme screens (list, editor, New theme, site panel) — ≈ 569 KB.
     expect(js.length).toBeLessThan(850_000);
     expect(js).not.toMatch(/\beval\(|new Function\(/);
     expect(js).not.toMatch(/(?:from|import)\s*\(?\s*["']node:/);

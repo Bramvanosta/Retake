@@ -20,13 +20,13 @@ export class HookError extends Error {
 
 /**
  * A hook was refused before anything ran: host outside the allow-list, unconfirmed destructive hook, or a hook that
- * writes on a read-only run (L1.7).
+ * writes on a read-only run.
  */
 export class HookSecurityError extends Error {
   constructor(
     message: string,
     /**
-     * `mcp`: work submitted through MCP references a file or a secret it may not (core agent-trust). `trust` (L7.39): a
+     * `mcp`: work submitted through MCP references a file or a secret it may not (core agent-trust). `trust`: a
      * file the hook reads is not as the person checked it before the run (HookContext.trustedFiles).
      */
     public readonly reason: 'host' | 'destructive' | 'read-only' | 'mcp' | 'trust',

@@ -89,7 +89,7 @@ export const TIMELINE_POLICY: RedactPolicy = {
   loading: K,
   artefacts: { '*': K, target: 'all', url: 'all' },
   tracks: { id: K, file: K, frames_file: K, preset: K, pages: PAGE_SEGMENT, cursor_effects: K, loading: K },
-  // L1.7: names, enums, the display bases (literal in project.yaml) and the clock are kept; the real URLs of the
+  // Names, enums, the display bases (literal in project.yaml) and the clock are kept; the real URLs of the
   // display table and of the writes, and the patterns that matched them, are redacted like any URL.
   environment: {
     name: K,
@@ -99,7 +99,7 @@ export const TIMELINE_POLICY: RedactPolicy = {
     display: { page: K, display: K },
     clock: K,
     writes: { t: K, method: K, operation: K, outcome: K, status: K, via: K, protected_by: K },
-    // L1.8: names, enums, numbers and the seed hash of the sandbox reset made before the take.
+    // Names, enums, numbers and the seed hash of the sandbox reset made before the take.
     sandbox: K,
   },
 };
@@ -173,7 +173,7 @@ export class RunSecrets {
   };
 
   /**
-   * A value that is a secret as written (a sandbox account's plain password, L1.8): masked from now on like a resolved
+   * A value that is a secret as written (a sandbox account's plain password): masked from now on like a resolved
    * {{env:…}} value.
    */
   addValue(value: string): void {

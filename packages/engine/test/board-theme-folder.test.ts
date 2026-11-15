@@ -1,8 +1,8 @@
 /**
- * L7.9 (BL-164): the project board compares a scenario's theme with its renders' by the theme's folder — the
- * `template_folder` a render record holds since L7.9 (core io templateFolderId: relative to the workspace root, or
- * `starter:<name>`) — so two folders of one name at different paths are two themes. A record of before L7.9 holds no
- * folder: it is compared by its folder's name, as before. The folder's content is no part of it (decided): a theme
+ * BL-164: the project board compares a scenario's theme with its renders' by the theme's folder — the
+ * `template_folder` a render record holds (core io templateFolderId: relative to the workspace root, or
+ * `starter:<name>`) — so two folders of one name at different paths are two themes. An older record holds no
+ * folder: it is compared by its folder's name. The folder's content is no part of it (decided): a theme
  * edited after a render keeps that render current.
  *
  * A temp workspace; hand-made take and records; nothing is rendered, no browser is opened, no job runs.
@@ -114,7 +114,7 @@ describe("a theme's identity is its folder (BL-164, L7.9)", () => {
     expect(templateFolderId(join(ws.root, 'shared', 'brand'), ws.root)).toBe('shared/brand');
     expect(templateFolderId(join(ws.root, '..', 'elsewhere', 'brand'), ws.root)).toBe('../elsewhere/brand');
     expect(templateFolderId(join(STARTER_TEMPLATES_DIR, 'editorial'), ws.root)).toBe('/starter:editorial');
-    // L7.9 fix pass: a starter is a starter inside a workspace too (the checkout as a workspace, an install under it).
+    // A starter is a starter inside a workspace too (the checkout as a workspace, an install under it).
     expect(templateFolderId(join(STARTER_TEMPLATES_DIR, 'editorial'), join(STARTER_TEMPLATES_DIR, '..'))).toBe('/starter:editorial');
     // No folder's path is a starter's id: a folder named so is a path like any other.
     expect(templateFolderId(join(ws.root, 'starter:editorial'), ws.root)).toBe('starter:editorial');
@@ -194,7 +194,7 @@ describe("a theme's identity is its folder (BL-164, L7.9)", () => {
   });
 });
 
-// L7.9 fix pass: an export's re-render (vertical, square) plans with the master's theme folder, named as the project can
+// An export's re-render (vertical, square) plans with the master's theme folder, named as the project can
 // name it (editor exportThemeRef) — before, with the record's theme name, so a project on `./themes/brand` re-rendered
 // with the workspace's `brand` or failed "not found". Through MCP never a path the record holds.
 describe("an export's re-render plans with the master's theme folder (L7.9 fix pass)", () => {

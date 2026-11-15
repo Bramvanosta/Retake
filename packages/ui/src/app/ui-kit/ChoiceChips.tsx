@@ -1,6 +1,6 @@
 /**
- * L5.12a: choice chips (R4-Edit's inspector) — one choice of a few, written at once by a click: a radio group of
- * `<button role="radio">` (the native radios cannot do what this does — L4.5's switch, generalised):
+ * Choice chips (R4-Edit's inspector) — one choice of a few, written at once by a click: a radio group of
+ * `<button role="radio">` (the native radios cannot do what this does — the timeline's switch, generalised):
  * - one tab stop (the checked chip, else the first); the arrows, Home and End move the focus only, Space / Enter picks
  *   (a pick writes a file: never one write per arrow press);
  * - a chip that cannot be picked stays focusable with `aria-disabled` and its reason after a dash (read with it, shown

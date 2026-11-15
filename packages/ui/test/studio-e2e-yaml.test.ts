@@ -1,14 +1,14 @@
 /**
- * L4.3 part 1: the scenario's editable YAML tab, end to end in headless Chromium (the installed browser, no download)
+ * The scenario's editable YAML tab, end to end in headless Chromium (the installed browser, no download)
  * against an in-process Studio server on a scratch workspace. The file on disk is checked after each action with
- * independent facts (critique B11: never a golden made by the code under test) — its parsed value against the value
+ * independent facts (never a golden made by the code under test) — its parsed value against the value
  * intended, the lines that changed, its bytes where they must be exact:
  * Edit → type → Save (Cmd/Ctrl+S) writes one changed line of the fixture's own `quote` (hooks kept) and the blocks
  * re-render; live issues; a save with an error refused, the draft kept and the file unchanged; a change of hooks
  * refused "from the Studio"; an outside write with no draft loads, with a draft shows the banner, then the save's 409
  * opens the conflict panel and "Save mine over it" wins; a CR LF file without a final line break keeps CR LF; while a
- * YAML draft is open the Blocks tab says block editing is off (critique B7); a file holding a secret reference opens
- * read-only with why and its line, no Edit button (critique B3). `RETAKE_UI_SHOTS=<folder>` saves screenshots.
+ * YAML draft is open the Blocks tab says block editing is off; a file holding a secret reference opens
+ * read-only with why and its line, no Edit button. `RETAKE_UI_SHOTS=<folder>` saves screenshots.
  */
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -244,7 +244,7 @@ describe('L5.10b: the YAML source (R4-Source)', () => {
     await page.getByTestId('yaml').waitFor(POLL);
     await page.getByTestId('running').waitFor(POLL);
     expect(await page.getByTestId('running').innerText()).toMatch(/runs-yaml/);
-    // L5.11a: Stop is the status bar's (one Stop for the run, whatever the view).
+    // Stop is the status bar's (one Stop for the run, whatever the view).
     expect(await page.getByTestId('run-stop').isDisabled()).toBe(false);
     await shot('yaml-7-running');
     await page.getByTestId('run-stop').click();

@@ -1,5 +1,5 @@
 /**
- * L4.7 review A H1: a component folder's content hash (componentFolderHash / bundleHash: the render bundle cache, the
+ * A component folder's content hash (componentFolderHash / bundleHash: the render bundle cache, the
  * Studio's preview allow-list, library preview keys) covers every file a bundler loads of it.
  * - for every built-in component, every scaffold and a crafted workspace component (subfolder, JSON, `.js` sibling
  *   import), the files esbuild actually loads (the compile check's metafile) are all hashed, and changing any one of

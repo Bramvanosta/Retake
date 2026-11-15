@@ -55,15 +55,15 @@ export interface ScenarioText {
   utf8: boolean;
   /**
    * Set when the file is a symbolic link to a file of the project outside scenarios/ (its project-relative path): the
-   * Studio never writes through it (review A L1: a scenario linked to a hook script would be written into the script).
+   * Studio never writes through it (a scenario linked to a hook script would be written into the script).
    */
   linked_to?: string;
 }
 
 /**
  * The entry of scenarios/ that `ref` names on a case-insensitive disk when it is not spelt `ref`'s way ("quote.yaml"
- * for scenarios/QUOTE.yaml), else null (review A M1: two spellings of one file were two names — two write locks, and a
- * save renamed the file).
+ * for scenarios/QUOTE.yaml), else null (without it, two spellings of one file would be two names — two write locks, and
+ * a save would rename the file).
  */
 function caseTwin(project: LoadedProject, ref: string): string | null {
   const want = basename(ref);
@@ -92,7 +92,7 @@ export interface ScenarioReadFrom {
 
 /**
  * A scenario's file as it is, read through the project's folder of `o.stores`. `o.seen`: the versions of each
- * scenario file the engine reading it showed or wrote (its context's ledger; review A L3) — undo / redo `restore` only
+ * scenario file the engine reading it showed or wrote (its context's ledger) — undo / redo `restore` only
  * these, an earlier version the person had on disk may hold a hidden character today's file no longer has. Undefined: no engine's ledger (a job's own check, a direct
  * caller) — the read or write is remembered nowhere, and an edit's `restore` is refused.
  */
@@ -137,8 +137,8 @@ export interface ValidateResult {
 
 /**
  * What an agent may not write in a scenario (work submitted through MCP or from the Studio, core agent-trust): secret
- * references, files outside the project, code from agent-writable files — as error issues placed at their line (L4.3,
- * critique B11), worded for the channel (`via`: "through MCP" / "from the Studio"). With `env` (a validation that
+ * references, files outside the project, code from agent-writable files — as error issues placed at their line, worded
+ * for the channel (`via`: "through MCP" / "from the Studio"). With `env` (a validation that
  * knows the environment), a URL on another origin than its pages too, as the run would refuse it; a save has none.
  */
 function agentIssues(project: LoadedProject, scenario: Scenario | undefined, text: string, via: AgentChannel | undefined, env?: AgentTrustEnvironment): ValidationIssue[] {
@@ -244,7 +244,7 @@ export async function saveScenarioText(
   const text = yaml.endsWith('\n') ? yaml : `${yaml}\n`;
   const res = await store.writeText(ref, text, { ifMatch: opts.ifMatch ?? null, what: 'scenario' });
   opts.seen?.remember(path, res.sha256);
-  // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
+  // The project's record of what this write did to the scenario's hook surface, and who made it.
   if (scenario) {
     const before = current?.utf8 ? parseScenario(current.text, { files: opts.files, file: path, project, template: await templateOf(project, opts) }).scenario : undefined;
     await recordScenarioWrite(project, { file: res.path, sha256: res.sha256, scenario, before: before ?? null, caller: opts.scope.caller, clock: opts.scope.clock, stores: opts.scope.stores });
@@ -261,7 +261,7 @@ export type ScenarioEdit =
   | { kind: 'restore'; text: string; text_hash: string }
   /** The Blocks tab: move, delete, duplicate, change or add a step (core step-edits.ts: text splices, verified). */
   | StepEdit
-  /** The timeline (L4.5): one edit value of the video, a scene, a card or an interstitial (core field-edits.ts, verified). */
+  /** The timeline: one edit value of the video, a scene, a card or an interstitial (core field-edits.ts, verified). */
   | FieldEdit;
 
 /** engine.scenarios.edit: one edit of a saved scenario, applied to the version the client showed (`hash`). */
@@ -285,18 +285,18 @@ export interface ScenarioEditResult {
   warnings: ValidationIssue[];
   notices: string[];
   /**
-   * A block or field edit's kind of change (L5.5's rule): `filmed` (what the browser does: a dry run shows it, a capture
+   * A block or field edit's kind of change: `filmed` (what the browser does: a dry run shows it, a capture
    * films it) or `edit` (a caption, a speed, a mark, a layout: a render of the same run re-plans it). Absent for the YAML
-   * tab and undo. A field edit (`set_field`, L4.5) is always `edit`.
+   * tab and undo. A field edit (`set_field`) is always `edit`.
    */
   change?: 'filmed' | 'edit';
 }
 
 /**
- * Why the Studio (an agent channel) may not save this file at all, with each problem's line (critique B3: the YAML view
- * read-only when the file is blocked; B11 lines), or null: not UTF-8 (a save would replace bytes with U+FFFD), larger
- * than SCENARIO_EDIT_MAX_CHARS, holding a carriage return without a line feed (review A M2), a link to a file outside
- * scenarios/ (review A L1, agent channels), or holding what agent trust refuses (a secret reference, an outside file,
+ * Why the Studio (an agent channel) may not save this file at all, with each problem's line (the YAML view read-only
+ * when the file is blocked; B11 lines), or null: not UTF-8 (a save would replace bytes with U+FFFD), larger
+ * than SCENARIO_EDIT_MAX_CHARS, holding a carriage return without a line feed, a link to a file outside
+ * scenarios/ (agent channels), or holding what agent trust refuses (a secret reference, an outside file,
  * code in an agent-writable file, a template folder) — the person edits such a file in their editor.
  */
 export function scenarioEditBlocker(
@@ -316,7 +316,7 @@ export function scenarioEditBlocker(
   }
   const cr = /\r(?!\n)/.exec(file.yaml);
   if (cr) {
-    // Review A M2: a text editor (the YAML view's textarea included) shows a line break where YAML reads none — the
+    // A text editor (the YAML view's textarea included) shows a line break where YAML reads none — the
     // file's text and what it runs differ, and a save from the tab would turn a comment into a step.
     const line = file.yaml.slice(0, cr.index).split('\n').length;
     return {
@@ -344,16 +344,16 @@ export function scenarioEditBlocker(
 }
 
 /**
- * Apply one edit to a saved scenario for the Studio (L4.3; MCP writes with scenario_save): the file the view read, its
+ * Apply one edit to a saved scenario for the Studio (MCP writes with scenario_save): the file the view read, its
  * hash as if_match (a conflict otherwise, naming the current hash), refused whole when the file itself is blocked
- * (scenarioEditBlocker), the new text checked — no hidden character added (critique B9), hooks and mocks unchanged
- * (critique B3, agent channels), the scenario validated against the project with agent trust worded for the channel
+ * (scenarioEditBlocker), the new text checked — no hidden character added, hooks and mocks unchanged
+ * (agent channels), the scenario validated against the project with agent trust worded for the channel
  * (errors refuse the save with their lines, warnings come back) — then written atomically, keeping the file's mode,
  * under the write lock (storage writeText). `replace_text` adds a final line break (the file's own) when missing;
  * `restore` writes the bytes given, which must have `text_hash` (undo / redo: byte-exact); a step edit (move, delete,
  * duplicate, a form's field changes, a new step from the palette: core applyStepEdit) splices the file and is refused unless the result re-parses to exactly the intended
  * value (core verifyEditText) — a step no longer where the edit says (its guard), or a field no longer holding what the
- * form showed (critique B2), is a conflict with `details.stale`.
+ * form showed, is a conflict with `details.stale`.
  */
 export async function editScenario(
   project: LoadedProject,
@@ -364,7 +364,7 @@ export async function editScenario(
   const p = await prepareScenarioEdit(project, name, req, { ...o, stores: o.scope.stores });
   const res = await storeOf(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
   o.seen?.remember(p.base.path, res.sha256);
-  // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
+  // The project's record of what this write did to the scenario's hook surface, and who made it.
   if (p.scenario)
     await recordScenarioWrite(project, { file: res.path, sha256: res.sha256, scenario: p.scenario, before: p.before ?? null, caller: o.scope.caller, clock: o.scope.clock, stores: o.scope.stores });
   return { name, file: p.base.file, path: res.path, hash: res.sha256, label: p.label, select: p.select, warnings: p.warnings, notices: p.notices, ...(p.change ? { change: p.change } : {}) };
@@ -381,16 +381,16 @@ export interface PreparedScenarioEdit {
   warnings: ValidationIssue[];
   notices: string[];
   change?: 'filmed' | 'edit';
-  /** The new text parsed, and the file as it was (L7.27: the record of the write's hook surface). */
+  /** The new text parsed, and the file as it was (the record of the write's hook surface). */
   scenario?: Scenario;
   before?: Scenario;
 }
 
 /**
- * Everything editScenario does before the write (L4.6 split): the file read with the edit's hash, the file not blocked,
+ * Everything editScenario does before the write: the file read with the edit's hash, the file not blocked,
  * the edit built and verified, the size, no hidden character added, hooks and mocks unchanged (and vars / env while
  * there are some, agent channels), the text validated with agent trust worded for the channel — nothing written, no
- * version remembered (a text that is only checked never becomes a version `restore` accepts: critique B9). Used by
+ * version remembered (a text that is only checked never becomes a version `restore` accepts). Used by
  * editScenario and to check a proposal before it is stored, previewed or applied.
  */
 export async function prepareScenarioEdit(
@@ -431,7 +431,7 @@ export async function prepareScenarioEdit(
       if (sha256Hex(edit.text) !== edit.text_hash) {
         throw new EngineError('invalid', 'the text to restore is not the version named by text_hash: nothing written', { details: { argument: 'edit.text_hash' } });
       }
-      // Review A L3: only a version of this file this engine showed or wrote (undo / redo), never any text a page makes
+      // Only a version of this file this engine showed or wrote (undo / redo), never any text a page makes
       // up.
       if (!o.seen?.knows(base.path, edit.text_hash)) {
         throw new EngineError('refused', `the text to restore is not a version of ${base.file} the Studio showed or wrote: nothing written — read the file again`, {
@@ -451,7 +451,7 @@ export async function prepareScenarioEdit(
         applied = applyStepEdit(base.yaml, edit);
       } catch (e) {
         if (!(e instanceof StepEditError)) throw e;
-        // stale: the step the edit names is no longer at that place in this version (critique B2: never edit a neighbour).
+        // stale: the step the edit names is no longer at that place in this version (never edit a neighbour).
         const field = e.field !== undefined ? { field: e.field } : {};
         if (e.code === 'stale') throw new EngineError('conflict', `not saved: ${e.message}`, { details: { current: base.hash, stale: true, ...field } });
         throw new EngineError(e.code === 'invalid' ? 'invalid' : 'refused', `not saved: ${e.message}`, e.field !== undefined ? { details: field } : {});
@@ -460,15 +460,15 @@ export async function prepareScenarioEdit(
       const wrong = verifyEditText(applied.text, applied.intended);
       if (wrong) throw new EngineError('refused', `not saved: ${wrong}`);
       ({ text, label, select, notices } = applied);
-      // L5.5's rule, said after each block edit: a step edit is a filmed change (a new capture films it), a caption,
+      // Said after each block edit: a step edit is a filmed change (a new capture films it), a caption,
       // speed or mark alone is an edit change (a render of the same run re-plans it).
       change = filmedChangesOf(applied.intended, parseYaml(base.yaml).value).length ? 'filmed' : 'edit';
       break;
     }
     case 'set_field': {
-      // L4.5: one edit value of the video, a scene, a card or an interstitial (core applyFieldEdit: allow-list, from /
-      // guard, splice), refused when the component or frame does not fit the use (critique B7: the inspector shows such
-      // an option disabled with the same reason).
+      // One edit value of the video, a scene, a card or an interstitial (core applyFieldEdit: allow-list, from /
+      // guard, splice), refused when the component or frame does not fit the use (the inspector shows such an option
+      // disabled with the same reason).
       let applied: ReturnType<typeof applyFieldEdit>;
       try {
         applied = applyFieldEdit(base.yaml, edit);
@@ -484,7 +484,7 @@ export async function prepareScenarioEdit(
       const registry = await o.registry();
       const misfit = fieldFitProblem(registry, c.componentFit, parseYaml(base.yaml).value, edit);
       if (misfit) throw new EngineError('invalid', `not saved: ${misfit}`, { details: { field: edit.field } });
-      // L4.7 (critique B1): a scenario's theme is a theme the workspace lists (by name, never a path).
+      // A scenario's theme is a theme the workspace lists (by name, never a path).
       if (edit.field === 'template' && typeof edit.to === 'string') {
         const names = (await o.reads.listTemplates(project.root)).map((t) => t.name);
         if (!names.includes(edit.to)) {

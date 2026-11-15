@@ -1017,7 +1017,7 @@ export interface ChildEnvFields {
   files?: FileFacts;
 }
 
-/** childEnv's options; `files` is required with `folders` (FilesWith, L7.34). */
+/** childEnv's options; `files` is required with `folders` (FilesWith). */
 export type ChildEnvOptions = ChildEnvFields & FilesWith<'folders'>;
 
 /**

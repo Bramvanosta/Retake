@@ -115,7 +115,7 @@ describe('generated bundle sources', () => {
       }
     };
     visit(root);
-    // L7.2: the props contract and the library's host are composition files, so a change of either moves every
+    // The props contract and the library's host are composition files, so a change of either moves every
     // bundle key — the reason a props version can never meet a stale bundle.
     expect(files).toContain(join(EDITOR_DIR, 'src', 'remotion', 'contract.ts'));
     expect(files).toContain(join(EDITOR_DIR, 'src', 'remotion', 'host.ts'));
@@ -138,7 +138,7 @@ describe('generated bundle sources', () => {
       }
     }
     expect(spelled, 'a composition id spelled outside remotion/contract.ts').toEqual([]);
-    // L7.34 (finding C4): the root held by what it registers instead of its statements — the contract's ids, each
+    // The root held by what it registers instead of its statements — the contract's ids, each
     // once, in the contract's order (the root is called, not mounted: it uses no hook).
     const Root = createRoot({ components: {}, scaffolds: {} }) as () => ReactElement<{ children: ReactElement<{ id: string }>[] }>;
     const registered = Root().props.children.map((c) => c.props.id);
@@ -158,7 +158,7 @@ describe('generated bundle sources', () => {
     expect(entry).toBe(join(dirname(EDITOR_DIR), 'components', 'src', 'geometry-entry.ts'));
     // Its kit modules are hashed with the kit; type-only re-exports (the registry's) load nothing.
     expect(files.map((f) => basename(f))).toEqual(['data.ts', 'geometry-entry.ts', 'geometry.ts', 'slots.ts', 'theme.ts', 'types.ts']);
-    // L7.34 (finding C4): what the composition loads of the components package is what the bundle hashes — its geometry
+    // What the composition loads of the components package is what the bundle hashes — its geometry
     // entry (above) and the kit (hashed with the kit), never the package root — read off every module of the
     // composition (compositionFiles), not off one statement; the frame helpers (frames.ts) take the geometry entry.
     const loads = (f: string) => [...readFileSync(f, 'utf8').matchAll(/^import (?!type\b)[^;]*? from '(@retake\/components[^']*)';$/gm)].map((m) => m[1]);
@@ -273,7 +273,7 @@ describe('render versions and records', () => {
   it('listRenders reads the records of renders/ (oldest first) and skips other files', async () => {
     const project = join(tmp, 'p');
     await mkdir(join(project, 'renders'), { recursive: true });
-    // (Since L7.6b a record says its status and its scenario: three members decide — version, status, id — and a listing
+    // (A record says its status and its scenario: three members decide — version, status, id — and a listing
     // takes the complete records of their own file, core renderRecordsOf.)
     const rec = (id: string, at: string) => ({ version: 1, id, scenario: id.replace(/-v\d+$/, ''), status: 'succeeded', created_at: at, plan: { version: 1 } });
     await writeFile(join(project, 'renders', 'b-v1.json'), JSON.stringify(rec('b-v1', '2026-10-11T10:00:00.000Z')));
@@ -311,7 +311,7 @@ describe('render versions and records', () => {
     ] as const) {
       await writeRun(runs, id, scenario, mode);
     }
-    // A run of "mobile-quote" is not a run of "quote" (the scenario is the one its record names, L7.6a).
+    // A run of "mobile-quote" is not a run of "quote" (the scenario is the one its record names).
     expect((await findRun(project, 'latest', 'quote')).id).toBe('20260101-100000-quote');
     expect((await findRun(project, 'latest', 'mobile-quote')).id).toBe('20260101-120000-mobile-quote');
     expect((await findRun(project, 'latest')).id).toBe('20260101-120000-mobile-quote');
@@ -373,7 +373,7 @@ describe('render versions and records', () => {
     expect((await findRun(project, '20260102-100000-quote')).id).toBe('20260102-100000-quote');
     // Named, the newer run is refused as it always was.
     await expect(findRun(project, '20260103-100000-quote')).rejects.toThrow(NEWER);
-    // L7.6a D-6: `latest` takes the newest run this build reads and says the newer one it passed over (before: the refusal).
+    // D-6: `latest` takes the newest run this build reads and says the newer one it passed over (before: the refusal).
     const latest = await findRun(project, 'latest', 'quote');
     expect(latest.id).toBe('20260102-100000-quote');
     expect(latest.latest?.passed).toEqual([{ run: '20260103-100000-quote', why: 'newer-format' }]);

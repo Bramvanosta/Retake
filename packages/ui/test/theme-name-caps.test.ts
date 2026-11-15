@@ -1,7 +1,7 @@
 /**
- * L7.5 D-3, at the Studio's ops over HTTP, on a workspace made in a temp folder whose templates/ already holds themes
- * with long names (made before the cap of 60 for a NEW name: an 80-character lower-case one, a 100-character one with
- * capitals and "_", a 101-character one):
+ * Theme name caps at the Studio's ops over HTTP, on a workspace made in a temp folder whose templates/ already holds
+ * themes with long names (made before the cap of 60 for a NEW name: an 80-character lower-case one, a 100-character one
+ * with capitals and "_", a 101-character one):
  * - ⚑ a theme that exists under a name of 61 to 100 characters keeps working: listed, opened, edited, shown by the
  *   library, previewed, the default of a project, the base of a new theme, and copied FROM;
  * - ⚑ a NEW theme's name takes at most 60 characters: theme_copy and theme_create refuse 61, 64 and 100 at the door

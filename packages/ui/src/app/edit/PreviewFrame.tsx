@@ -1,5 +1,5 @@
 /**
- * The preview frame (L4.5 part C, DESIGN §4g): the app's one `<iframe>` — the Remotion Player in the sandboxed frame
+ * The preview frame (DESIGN §4g): the app's one `<iframe>` — the Remotion Player in the sandboxed frame
  * of the player origin, which only displays (every control lives in the page: TimelineScreen.tsx).
  *
  * - Its attributes are fixed literals, the same as player/parent.ts's PREVIEW_FRAME_ATTRS (the source lint checks
@@ -10,7 +10,7 @@
  *   posts before the listener exists could be taken): the first render has no src, the layout effect connects, then
  *   the src is set.
  * - On each hello (a reload says it again) the page sends `load {plan_url, frame}`; on each new plan URL (a switch, a
- *   file changed) it sends `load` again on the same frame — no reload, the media URLs stay (critique B6).
+ *   file changed) it sends `load` again on the same frame — no reload, the media URLs stay.
  * - A stopped preview (a flood, an invalid message) has had its iframe removed by parent.ts: the page unmounts this
  *   component (its wrapper goes, never the removed node) and a restart mounts a new one.
  */

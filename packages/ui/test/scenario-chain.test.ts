@@ -1,12 +1,12 @@
 /**
- * The Studio's per-scenario chain (critique B5 of L4.6), characterized through its real server before scenario_render
- * became the engine's operation (L7.15) and held after: scenario_edit, scenario_render, thread_apply and record_save of
+ * The Studio's per-scenario chain, characterized through its real server before scenario_render
+ * became the engine's operation and held after: scenario_edit, scenario_render, thread_apply and record_save of
  * one scenario run one at a time in a server, in the order they came; another scenario's do not wait. The engine's
  * methods these ops call are replaced on the server's own engine by probes that hold until released (each logs when it
  * starts and ends), so the order is the chain's alone — nothing is written, planned or queued. A probe's call fails
  * (409) once released: the ops' answers are not what this test is about. The chain's keys are `<project>\0<name>`:
  * an edit of "quote" and a render of "quote" share one; a render of "catalogue" has its own.
- * L7.16: a thread's writes (thread_reply, thread_resolve, thread_apply) run one at a time on the thread's key, and
+ * A thread's writes (thread_reply, thread_resolve, thread_apply) run one at a time on the thread's key, and
  * thread_apply takes its scenario's key before its thread's: held behind an edit, it does not hold its thread.
  */
 import { mkdtemp, rm } from 'node:fs/promises';

@@ -98,7 +98,7 @@ export function layoutRects(layout: PlanLayout): LayoutRects {
 
 /**
  * The URL shown by a browser-chrome layout at frame `f` of a clip; undefined while it is a hidden (local) one — the bar
- * shows no address (L1.7: a local URL is never drawn).
+ * shows no address (a local URL is never drawn).
  */
 export function urlAt(clip: Pick<ClipSegment, 'urls'>, f: number): string | undefined {
   let at: ClipSegment['urls'][number] | undefined;
@@ -160,7 +160,7 @@ export function musicVolumeAt(plan: Pick<EditPlan, 'music' | 'fps' | 'durationIn
   return Math.round(m.volume * fadeIn * fadeOut * duck * 1e4) / 1e4;
 }
 
-/** Does a use play a sound of its own (a user video with sound and a volume above 0, L2.12)? */
+/** Does a use play a sound of its own (a user video with sound and a volume above 0)? */
 export function playsSound(rc: Pick<ResolvedComponent, 'media' | 'params'>): boolean {
   const m = rc.media?.file;
   return m?.kind === 'video' && m.audio && (typeof rc.params.volume === 'number' ? rc.params.volume > 0 : true);
@@ -170,7 +170,7 @@ const duckCache = new WeakMap<object, Array<[number, number]>>();
 
 /**
  * Output frames [a, b) under which the music bed ducks: product footage (every clip) and every user file with sound
- * (L2.12: a video intro, outro, card or interstitial, an overlay video over a clip) — "like under any audio segment".
+ * (a video intro, outro, card or interstitial, an overlay video over a clip) — "like under any audio segment".
  */
 export function duckSpans(plan: Pick<EditPlan, 'segments'>): Array<[number, number]> {
   const hit = duckCache.get(plan.segments);
@@ -222,8 +222,8 @@ export function standInParams(kind: ComponentKind, transitionKind?: 'crossfade' 
 export const TRACK_GLIDE_S = 0.45;
 
 /**
- * A source rect of an overlay's page (CSS px) in output px at clip frame `f`: through its pane (multi-page clips,
- * L2.11) or the clip's layout, camera and reframe.
+ * A source rect of an overlay's page (CSS px) in output px at clip frame `f`: through its pane (multi-page
+ * clips) or the clip's layout, camera and reframe.
  */
 export function mapUseRect(
   plan: Pick<EditPlan, 'source' | 'tracks' | 'variant' | 'fps'>,
@@ -237,7 +237,7 @@ export function mapUseRect(
 }
 
 /**
- * Does an overlay of a picture-in-picture inset's page stay inside the inset (L2.11)? Its spotlight (the `screen`
+ * Does an overlay of a picture-in-picture inset's page stay inside the inset? Its spotlight (the `screen`
  * layer) and its step badges (small, beside a target of that page: never half over the inset's edge) do; its other
  * free-standing overlays — key caps, the typing lens, a step's own overlay — are too large for it and are placed in the
  * main page's area.
@@ -341,7 +341,7 @@ export function shortcutRow(
 const overlap = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
 
 /**
- * Where the key caps of an overlay-shortcut use go (L2.11 polish): their preferred row (`position`, default bottom),
+ * Where the key caps of an overlay-shortcut use go: their preferred row (`position`, default bottom),
  * above a caption band over the screen — unless the plate would then cover a target of the current or next step
  * (`OverlayUse.clear`): the other row, when it covers none (else the one covering least).
  */
@@ -568,7 +568,7 @@ export function insetHole(
 export const OVERLAY_BOX_MARGIN = 0.04;
 
 /**
- * The box a box-filling overlay fills at clip frame `f` (L2.12), output px: its rect of the page mapped through the
+ * The box a box-filling overlay fills at clip frame `f`, output px: its rect of the page mapped through the
  * layout (or its pane), the camera and the reframe; or its size — scaled like the page at this frame — at a position of
  * the visible capture (`overlayRects(…).screen`); or that whole visible capture (`screen`). Undefined without a box.
  */

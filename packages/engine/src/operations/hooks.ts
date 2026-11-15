@@ -1,7 +1,7 @@
 /**
- * The hooks operations (moved from the MCP server's tools/hooks.ts in L7.19): hooks_run and env_reset, jobs the worker
- * runs, with the approvals taken at submit through the shell's approver (MCP's elicitation) when it has one — the
- * engine's hooks and env façades gather the items, refuse a production write before asking, and sign what was approved.
+ * The hooks operations: hooks_run and env_reset, jobs the worker runs, with the approvals taken at submit through the
+ * shell's approver (MCP's elicitation) when it has one — the engine's hooks and env façades gather the items, refuse a
+ * production write before asking, and sign what was approved.
  */
 import { z } from 'zod';
 import { HOOKS_SOURCE_RE } from '../jobs/job-input.js';

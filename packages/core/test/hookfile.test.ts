@@ -4,7 +4,7 @@ import type { LoadedProject } from '@retake/core';
 import { DEFAULT_CAPTURE } from '@retake/core';
 import { memoryFileFacts } from '@retake/core';
 
-/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+/** No disk: these checks are handed a project but look at no file (a FileFacts is required beside a project). */
 const NO_DISK = memoryFileFacts({});
 
 const project: LoadedProject = {

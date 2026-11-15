@@ -1,5 +1,5 @@
 /**
- * Pictures of cards (L2.10): a `PictureMedia` — an image file, or a frame of the capture video frozen at its time
+ * Pictures of cards: a `PictureMedia` — an image file, or a frame of the capture video frozen at its time
  * (studio/card-before-after). Deterministic: the frame is the video at `video.time_s` whatever the composition frame.
  */
 import type { CSSProperties, ReactNode } from 'react';

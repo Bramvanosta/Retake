@@ -60,7 +60,7 @@ function clipLines(plan: EditPlan, c: ClipSegment): string[] {
   }
   const box = (r: { x: number; y: number; w: number; h: number }) => `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.w)}×${Math.round(r.h)}`;
   for (const o of c.overlays) {
-    // A box-filling overlay (a user file, L2.12): where its box goes; else what it points at.
+    // A box-filling overlay (a user file): where its box goes; else what it points at.
     const anchor = o.box
       ? o.box.rect
         ? ` in box ${box(o.box.rect)} (${o.box.anchor === 'rect' ? 'rect' : `on the ${o.box.anchor}`})`

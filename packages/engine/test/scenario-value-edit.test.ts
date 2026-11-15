@@ -1,10 +1,10 @@
 /**
- * L4.3 part 3: a step's form and the palette through the Studio's write path (engine scenarios.edit, the `ui` client):
+ * A step's form and the palette through the Studio's write path (engine scenarios.edit, the `ui` client):
  * `set_step` writes only the changed fields (exactly their lines), `insert_step` one new line; both go through every
- * rule of the write path — the hash as if_match (409, nothing written), the field patch's `from` (critique B2: a field
- * Claude changed meanwhile is never reverted, the person's other change still applies on the new version), agent trust
+ * rule of the write path — the hash as if_match (409, nothing written), the field patch's `from` (a field Claude
+ * changed meanwhile is never reverted, the person's other change still applies on the new version), agent trust
  * worded for the Studio (a `{{env:…}}` / `{{keychain:…}}` typed into a field: refused with the reason, nothing written),
- * the input rules (critique B9: refused naming the field), validation (a negative `cps`: an issue at its path); the view
+ * the input rules (refused naming the field), validation (a negative `cps`: an issue at its path); the view
  * gives each step its form values (a URL with sign-in details never among them); undo (`restore`) puts the bytes back.
  */
 import { createHash } from 'node:crypto';

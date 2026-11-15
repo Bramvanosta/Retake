@@ -22,7 +22,7 @@ export interface HookPlace {
 }
 
 /**
- * The fingerprint a human approval is bound to (L3.1, R-MCP-35): sha256 of the raw hook as its file declares it — its
+ * The fingerprint a human approval is bound to (R-MCP-35): sha256 of the raw hook as its file declares it — its
  * templates unresolved, so a dry preflight and the real run agree whatever `{{run.id}}` or a saved response holds —
  * with its phase, position and environment, and the sha256 of each project file it references (`place.files`). Any
  * change to the hook or to one of those files, or the same hook moved or run elsewhere, gives another fingerprint: the

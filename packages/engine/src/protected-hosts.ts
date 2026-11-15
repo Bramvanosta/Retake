@@ -1,5 +1,5 @@
 /**
- * Production across projects (L3.1, trust `mcp`). A project's own production / read-only environments are guarded by
+ * Production across projects (trust `mcp`). A project's own production / read-only environments are guarded by
  * its runs (core access.ts); through MCP an agent can also create a project (project_create) whose environment points at
  * another project's production hosts, then run read-write hooks and captures on it. So, for work submitted through MCP,
  * the protected hosts are those of the production and read-only environments of EVERY project of the workspace: a new

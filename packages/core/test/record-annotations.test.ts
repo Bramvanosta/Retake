@@ -1,5 +1,5 @@
 /**
- * A Studio recording's annotations (L4.8, core record-annotations.ts): what the schema refuses in text typed in the
+ * A Studio recording's annotations (core record-annotations.ts): what the schema refuses in text typed in the
  * Studio (a template, a hidden or control character, a blank or over-long value), the caps, the file parse, and one
  * change applied against the recording's events (the end resolved from the events, default mark names, choices only
  * of offered alternatives). Messages never quote the text.

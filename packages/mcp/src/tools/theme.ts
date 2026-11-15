@@ -1,5 +1,5 @@
 /**
- * The theme tools (L3.5): the engine's operations (L7.17: template_list, template_preview, template_from_site and
+ * The theme tools: the engine's operations (template_list, template_preview, template_from_site and
  * template_create_from_brand are defined in packages/engine/src/operations/themes.ts), in tools/list's order.
  */
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';

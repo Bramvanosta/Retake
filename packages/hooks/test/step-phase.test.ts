@@ -1,5 +1,5 @@
 /**
- * The `step` phase (L5.8, R-FLD-31): a named hook a `hook:` step runs during the take. It stops at its first failure
+ * The `step` phase (R-FLD-31): a named hook a `hook:` step runs during the take. It stops at its first failure
  * (the step fails) without rolling anything back itself, journals its rollbacks like a setup hook (undone with the
  * setup's after the teardown), tolerates an `optional` entry, refuses a malformed one before running any, and is
  * approved bound to its own phase and position (another fingerprint than the same hook in setup).

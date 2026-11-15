@@ -1,18 +1,18 @@
 /**
- * L4.5 part A: the Studio timeline's view of a take (engine timeline-view.ts) on a synthetic project and on the
+ * The Studio timeline's view of a take (engine timeline-view.ts) on a synthetic project and on the
  * fixture's `quote` timeline:
  * - the tracks, the edit source (today's file re-planned on the run), the inspector's choices with every option usable
- *   or disabled with why (critique B7), whether the file takes switches now;
- * - ⚑ path-free and plan-free (critique B4): no absolute path, no `retake-asset:` map, no plan key; text the scenario wrote
+ *   or disabled with why, whether the file takes switches now;
+ * - ⚑ path-free and plan-free: no absolute path, no `retake-asset:` map, no plan key; text the scenario wrote
  *   only under `untrusted`;
  * - a filmed change pending: switches disabled with why; a trust refusal: `blocked` with the command (no exception);
- * - the memo (critique B13): one planning per change — a second read, the event after a write, are memo hits — and
+ * - the memo: one planning per change — a second read, the event after a write, are memo hits — and
  *   the switch time measured (a write plus the view that follows, p95 over 10 switches; the fixture's quote cold and
  *   memoised);
- * - the capture's codec and keyframe spacing (critique B14), read from a descriptor without following a link;
- * - L4.5 fixes: an intro / outro with its own text is not switched (review B H2); a thread added is pinned in the next
- *   view (mutation M4); the plan and theme signatures, a thread of a render of this very version pinned at its own
- *   frame (review B M5); a theme file, a served file or project.yaml changed plans again (review B H3 / A N6); steps of
+ * - the capture's codec and keyframe spacing, read from a descriptor without following a link;
+ * - An intro / outro with its own text is not switched; a thread added is pinned in the next
+ *   view; the plan and theme signatures, a thread of a render of this very version pinned at its own
+ *   frame; a theme file, a served file or project.yaml changed plans again; steps of
  *   a filmed change in 1-based words.
  */
 import { execFileSync } from 'node:child_process';
@@ -273,7 +273,7 @@ describe('timeline view (L4.5)', () => {
     expect(v.source).toMatchObject({ edit: 'run', scenario_changed: true });
     // No switch: no text for undo either.
     expect(r.text).toBeUndefined();
-    // Steps in a person's words, 1-based (review B: core's key a.0 is the first step).
+    // Steps in a person's words, 1-based (core's key a.0 is the first step).
     expect(v.editable).toEqual({ why: expect.stringMatching(/^The scenario's filmed part changed since this take \(scene a: step 1 changed\).*capture again/) });
     for (const c of [...v.choices.video, ...Object.values(v.choices.segments).flat()]) expect(c.editable).toEqual(v.editable);
     await writeFile(scenarioFile(), TEXT);
@@ -312,7 +312,7 @@ describe('timeline view (L4.5)', () => {
     expect(planSignature({ ...JSON.parse(JSON.stringify(r.plan)), notes: ['another'], warnings: [] })).toBe(r.view.plan_sha256);
     const step = r.view.model.steps.find((x) => x.key === 'a.0')!;
     const frame = step.from + 5;
-    // (L7.6c: a record as the writer writes its deciding members — the version, the status, the id —; before, a
+    // (a record as the writer writes its deciding members — the version, the status, the id —; before, a
     // hand-made file of the version, the id, the creation time, the theme hash and the plan was taken.)
     const record = async (plan: unknown, theme: string, o: Record<string, unknown> = {}, file = 'tl-v1') => {
       await mkdir(join(dir, 'renders'), { recursive: true });
@@ -335,10 +335,10 @@ describe('timeline view (L4.5)', () => {
       const other = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
       expect(other.view.pins.placed).toEqual([{ id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', status: 'open', frame: step.from, by: 'step' }]);
     }
-    // L7.6c: the record is read by the one reader of renders/ — a record without a status, of a status Retake never
+    // The record is read by the one reader of renders/ — a record without a status, of a status Retake never
     // writes, a failed one, one of a newer Retake, one that says another id (renders/tl-v1.json renamed from another
-    // render) are no render of this version (moved: the first five were pinned at their frame before); a link to the
-    // record and the same id made at another time are not either (as before): the step's first frame.
+    // render) are no render of this version; a link to the record and the same id made at another time are not
+    // either: the step's first frame.
     const plan = JSON.parse(JSON.stringify(r.plan)) as unknown;
     const theme = r.view.theme_sha256;
     const cases: Array<[string, () => Promise<void>]> = [

@@ -1,31 +1,30 @@
 /**
- * The Studio's component library operations (L4.7, R-UI-06 / R-UI-06b; critique B3, B5, B6, B8, B15, B16, B18, C1;
- * L7.17: moved from the Studio's server's library-ops.ts). Not MCP tools: Claude has component_list, component_get and
- * component_preview.
+ * The Studio's component library operations (R-UI-06 / R-UI-06b). Not MCP tools: Claude has component_list,
+ * component_get and component_preview.
  *
  * - `library_view {project, theme?}`: every usable component (workspace first) with its kind, kinds, version, source,
  *   slot names, the themes listed for the project that pick it (and the kinds the selected theme picks it as), and for
  *   the selected theme (default: the project's) its poster and loop — each with the key the worker writes under (engine
- *   `components.library`: the ONE key builder the worker uses too, B3), the cache state (`committed`, `cached`,
+ *   `components.library`: the ONE key builder the worker uses too), the cache state (`committed`, `cached`,
  *   `too_large`, `failed`, `missing`) and `queued` while a library job of that key is queued or running; the registry's
  *   notices (worded without a path, with the `retake components validate <id>` command); the themes for the switcher.
- *   A workspace component's name, description and a failure's reason are agent-writable text: under `untrusted` (B16).
- *   Memoised (B5) on file-level stat walks — every file of the component folders (workspace and built-in), the theme
+ *   A workspace component's name, description and a failure's reason are agent-writable text: under `untrusted`.
+ *   Memoised on file-level stat walks — every file of the component folders (workspace and built-in), the theme
  *   folder, project.yaml, every theme of templates_dir (what picks each component) and the cache folder — so a component rewritten in place by Claude is a new key
  *   at once, while a re-read after an unrelated event computes nothing. The memo is the engine's (one per engine: the
  *   Studio holds one per server).
  * - `library_images {project, keys, committed?}`: cached posters (PNG) and loops (GIF) by key (engine readLibraryImage:
  *   a complete entry, plain files, magic-checked; it touches the entry for the cache's LRU) and committed posters of
  *   built-in components by id (their preview.png: a built-in only — a workspace component of that id never shows the
- *   built-in's picture, B15) — as base64, checked again here (magic) and capped (B6: POSTER_DATA_MAX, LOOP_DATA_MAX
- *   characters, the answer LIBRARY_IMAGES_ANSWER_MAX), at most LIBRARY_JOB_MAX of each per call. Never a path or a URL.
- * - `library_render {project, theme?, items, retry?}`: queue posters / loops of at most LIBRARY_JOB_MAX components (B8:
- *   the page sends the next chunk when one finishes, so a capture submitted meanwhile runs first), each with the key
- *   library_view gave (B18: the worker writes under its own and reports a mismatch). Keys already queued or running are
- *   skipped (C1: no merge of queued jobs); nothing left → no job. The engine refuses under 1 GB free (B4). Calls of a
+ *   built-in's picture) — as base64, checked again here (magic) and capped (POSTER_DATA_MAX, LOOP_DATA_MAX characters,
+ *   the answer LIBRARY_IMAGES_ANSWER_MAX), at most LIBRARY_JOB_MAX of each per call. Never a path or a URL.
+ * - `library_render {project, theme?, items, retry?}`: queue posters / loops of at most LIBRARY_JOB_MAX components (the
+ *   page sends the next chunk when one finishes, so a capture submitted meanwhile runs first), each with the key
+ *   library_view gave (the worker writes under its own and reports a mismatch). Keys already queued or running are
+ *   skipped (C1: no merge of queued jobs); nothing left → no job. The engine refuses under 1 GB free. Calls of a
  *   project run one at a time (`serialize`: `library:<project>`, the engine's operation chain), so two clicks never
  *   queue a key twice.
- * - `library_component {project, component}` (L4.7 part D1): the library's detail of one component — kinds, version,
+ * - `library_component {project, component}`: the library's detail of one component — kinds, version,
  *   source, kit compatibility (`engines.kit` against this Retake's kit API), duration bounds, variants, slots (name,
  *   type, required, default_from, max_chars: what the manifest schema checks) — and, under `untrusted`, the manifest
  *   author's words: name, description, slot descriptions, the params table (names, types, defaults, enums, bounds,
@@ -50,7 +49,7 @@ import type { TemplateSummary } from '../templates.js';
 import { PREVIEW_JOB, READ } from './annotations.js';
 import { defineOperation } from './define.js';
 
-/** A poster's base64, at most (B6: PREVIEW_MAX_BYTES 204,800 raw × 4/3, rounded up — every committed poster fits). */
+/** A poster's base64, at most (PREVIEW_MAX_BYTES 204,800 raw × 4/3, rounded up — every committed poster fits). */
 export const POSTER_DATA_MAX = 280_000;
 /** A loop's base64, at most (LOOP_FORMAT.max_bytes 1.5 MB raw × 4/3 = the app's SHEET_DATA_MAX). */
 export const LOOP_DATA_MAX = 2_000_000;
@@ -124,7 +123,7 @@ export interface LibraryViewAnswer {
   /** Keys of this theme queued or running now (library jobs of this project). */
   queued: number;
   /**
-   * The newest finished library job of this theme failed as a whole (its words: untrusted, path-free — review B H1):
+   * The newest finished library job of this theme failed as a whole (its words: untrusted, path-free):
    * gone once a later one succeeds.
    */
   job_error?: { job: string; at?: string; untrusted: { message: string } };
@@ -203,7 +202,7 @@ interface ViewMemo {
   themes: Awaited<ReturnType<Engine['templates']['list']>>;
 }
 
-/** library_view memos, one per engine: (project, theme asked) → the reads, while the stat walks are unchanged (B5). */
+/** library_view memos, one per engine: (project, theme asked) → the reads, while the stat walks are unchanged. */
 const memos = new WeakMap<Engine, Map<string, ViewMemo>>();
 
 function memoOf(engine: Engine): Map<string, ViewMemo> {
@@ -212,13 +211,13 @@ function memoOf(engine: Engine): Map<string, ViewMemo> {
   return m;
 }
 
-/** The file-level signature of everything a library view depends on (critique B5). */
+/** The file-level signature of everything a library view depends on. */
 const viewSignature = async (engine: Engine, slug: string, asked: string | undefined): Promise<string> => {
   const ws = engine.workspace;
   const p = await openProjectBySlug(ws, slug);
   const t = await themeForWork(ws, p, asked);
   const reg = await engine.components.registry();
-  // One entry budget for the whole signature (review A L4), as the event stream's scan.
+  // One entry budget for the whole signature, as the event stream's scan.
   const budget = watchBudget();
   return [
     `theme ${t.name} ${t.dir} ${treeSignature(t.dir, budget)}`,
@@ -258,7 +257,7 @@ export const libraryView = defineOperation({
     const queued = await queuedKeys(engine, a.project);
     const jobError = await lastJobError(engine, a.project, m.states.theme.name, m.themes.project_theme);
     const root = engine.workspace.root;
-    /** A failure's words (untrusted, B16) without a path (review A L2: Remotion / esbuild quote absolute files). */
+    /** A failure's words (untrusted) without a path (Remotion / esbuild quote absolute files). */
     const reasonOf = (u: { reason: string } | undefined) => (u ? { untrusted: { reason: pathFree(u.reason, root) } } : {});
     const states = new Map(m.states.items.map((i) => [i.component, i]));
     const selected = m.themes.templates.find((t) => t.name === m!.states.theme.name);
@@ -345,7 +344,7 @@ export const libraryImages = defineOperation({
       const { PREVIEW_FILE, PREVIEW_MAX_BYTES } = await componentCalls();
       const reg = await engine.components.registry();
       for (const id of [...new Set(a.committed)]) {
-        // A built-in only (B15): a workspace component of that id (an override) never shows the built-in's picture.
+        // A built-in only: a workspace component of that id (an override) never shows the built-in's picture.
         const info = reg.has(id) ? reg.get(id) : undefined;
         if (!info || info.source !== 'builtin') {
           out.missing.push({ component: id, reason: 'not_builtin' });

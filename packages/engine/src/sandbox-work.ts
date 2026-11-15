@@ -1,5 +1,5 @@
 /**
- * The sandbox use cases (L7.28, U8c): what `retake sandbox init | up | down | reset | status | logs`, the `sandbox_up` /
+ * The sandbox use cases: what `retake sandbox init | up | down | reset | status | logs`, the `sandbox_up` /
  * `sandbox_reset` jobs and the MCP `sandbox_status` answer do with a project's sandbox, over the Sandboxes port
  * (sandboxes/sandboxes.ts). Shared: a lock-holding call under the caller's interrupt port (the first signal aborts what
  * the call started, a later one kills it synchronously: `killStartedSync`), the seed run journalled as the caller
@@ -30,7 +30,7 @@ export interface SandboxHeldOptions {
 }
 
 /**
- * Who seeds, as hooks-work.ts's `Protected` (L7.23): the person (trust `author`: their own seed steps run as a terminal
+ * Who seeds, as hooks-work.ts's `Protected`: the person (trust `author`: their own seed steps run as a terminal
  * runs them, no seed trust) or the engine (trust `mcp`, a job: the seed trust of the engine's trust, with the approvals
  * taken at submit). The type cannot forget it; seedingCheck refuses it at run time too.
  */

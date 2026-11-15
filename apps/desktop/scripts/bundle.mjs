@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The bundled app (L5.16, DESIGN §4p).
+ * The bundled app (DESIGN §4p).
  *
  * `pnpm desktop:bundle --out <dir> [--ffmpeg <dir>] [--stage <dir>]` (= `bundle.mjs build`; or RETAKE_BUNDLE_OUT;
  * `pnpm desktop:release …` = `build --release`, the person's signed and notarised run — sign.mjs):
@@ -8,8 +8,8 @@
  * app --no-sign` with a generated config overlay (never committed: tauri.conf.json keeps `bundle.active: false`, so
  * `pnpm desktop:build` / `desktop:dev` / `desktop:test` — the developer app on the repository's CLI, launch.json version
  * 1 — are unchanged) → sign the shell and the app → verify (the signatures, Contents/Resources byte for byte against the
- * signed stage, attributes, Info.plist: `appProblems`) → then release.mjs `finishApp` (L5.16e fixes: a release re-signs
- * the ad hoc app with the Developer ID there, notarises and staples it; `--app-only` stops before): the update archive,
+ * signed stage, attributes, Info.plist: `appProblems`) → then release.mjs `finishApp` (a release re-signs the ad hoc
+ * app with the Developer ID there, notarises and staples it; `--app-only` stops before): the update archive,
  * the DMG (`hdiutil create`, APFS, ULFO, an /Applications link; no Finder scripting; tried again on "Resource busy") →
  * verify it (`verifyDmg`: imageinfo; attached read-only, -nobrowse, at a mount point in `<out>`).
  * Everything lands in `<out>` — a dedicated folder (`checkFolder`: outside the checkout, /Applications, the home folder
@@ -46,14 +46,14 @@
  *
  *   (`build` adds launch.json — version 2, paths inside the app — and bin/retake, the launcher, before signing.)
  *
- * L5.16d, the updater: with RETAKE_UPDATE_FEED (the feed's https address — since L5.16f the repository's update-feed
+ * The updater: with RETAKE_UPDATE_FEED (the feed's https address — the repository's update-feed
  * release, `<server>/<owner>/<repo>/releases/download/update-feed/latest.json`, rc.json for a pre-release build:
  * `node scripts/release.mjs feed <version>` — any https feed for a local build) AND RETAKE_UPDATE_PUBKEY (the public
  * key `tauri signer generate` wrote), the build turns the cargo `updater` feature on and the overlay gains
  * `plugins.updater` = {pubkey, endpoints: [feed], requireSignedVersion, allowDowngrades: false} — never `dangerous*`,
  * never in the repository; one without the other is refused; neither: no updater ("Updates are off in this build"). Then, after the app is verified (and notarised), the update archive:
- * Retake.app.tar.gz made by us (`COPYFILE_DISABLE=1 /usr/bin/tar -czf`: the links kept, no AppleDouble file —
- * critique H3, checked against the app: `archiveProblems`) and signed by the Tauri CLI's `signer sign --app-version`
+ * Retake.app.tar.gz made by us (`COPYFILE_DISABLE=1 /usr/bin/tar -czf`: the links kept, no AppleDouble file,
+ * checked against the app: `archiveProblems`) and signed by the Tauri CLI's `signer sign --app-version`
  * with TAURI_SIGNING_PRIVATE_KEY (+ _PASSWORD) — given to that one command only — then verified here against the
  * public key (scripts/publish-update.mjs `verifyMinisign`). Without the private key the archive stays unsigned and
  * the report says so (nothing to publish).
@@ -80,12 +80,12 @@ const REPO = resolve(APP_DIR, '..', '..');
 /** Lowest macOS the bundle runs on: Remotion's own libraries are built for 15.0 (Info.plist's LSMinimumSystemVersion). */
 export const MINIMUM_MACOS = '15.0';
 /**
- * The Node.js the stage copies (review e A-M3): this exact version and the sha256 of its official darwin-arm64
+ * The Node.js the stage copies: this exact version and the sha256 of its official darwin-arm64
  * binary (apps/desktop/bundle/node.json) — a release never ships a Node.js nobody chose.
  */
 export const NODE_PIN = JSON.parse(readFileSync(join(APP_DIR, 'bundle', 'node.json'), 'utf8'));
 /**
- * The browsers the stage copies (review e A-M3): each Playwright revision folder's tree digest (`browserDigest`),
+ * The browsers the stage copies: each Playwright revision folder's tree digest (`browserDigest`),
  * recorded from a known install (apps/desktop/bundle/browsers.json) — Playwright's installer checks no hash.
  */
 export const BROWSER_PINS = JSON.parse(readFileSync(join(APP_DIR, 'bundle', 'browsers.json'), 'utf8'));
@@ -128,7 +128,7 @@ const within = (dir, p) => {
  * — every crate's build script —, hdiutil, plutil, xcrun): an allow-list — the system's basics, the Rust and Xcode
  * toolchains' own variables, pnpm's and corepack's settings (COREPACK_ENABLE_AUTO_PIN=0 keeps pnpm from pinning itself
  * into a package.json) — so no credential of the person's shell (APPLE_*, an updater key, a
- * registry or cloud token) reaches any of them (critique M1, review A M1). A name that reads as a credential is dropped
+ * registry or cloud token) reaches any of them. A name that reads as a credential is dropped
  * even where a prefix allows it (CARGO_REGISTRY_TOKEN). `extra`: the build's own explicit variables.
  */
 const ENV_ALLOWED = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'TERM', 'CI', 'NO_COLOR', 'SDKROOT', 'DEVELOPER_DIR', 'MACOSX_DEPLOYMENT_TARGET', 'RUSTFLAGS', 'RUSTDOCFLAGS', 'PNPM_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME', 'PLAYWRIGHT_BROWSERS_PATH']);
@@ -289,8 +289,8 @@ export function sleepSync(ms) {
 }
 
 /**
- * hdiutil, tried again on "Resource busy" only (review e B-M4: a known intermittent failure of create / attach /
- * detach on hosted macOS runners) — up to `tries` times, `delayMs` doubling between them; any other failure at once.
+ * hdiutil, tried again on "Resource busy" only (a known intermittent failure of create / attach / detach on
+ * hosted macOS runners) — up to `tries` times, `delayMs` doubling between them; any other failure at once.
  * Returns stdout.
  */
 export function hdiutil(args, { env = childEnv, tries = 3, delayMs = 2000, sleep = sleepSync } = {}) {
@@ -561,7 +561,7 @@ export function scrubDeployedEngine(engine) {
   }
 }
 
-/** Folders of the checkout a build writes although git ignores them: tauri-build's generated schemas (review A L2). */
+/** Folders of the checkout a build writes although git ignores them: tauri-build's generated schemas. */
 export const GENERATED = ['apps/desktop/gen'];
 
 /**
@@ -812,7 +812,7 @@ function stageInto({ out, ffmpeg, env = process.env }) {
 /**
  * The Tauri CLI the app is laid out with, rebuilt from the pnpm store: 2.12.4, the version the store holds (the crates
  * are tauri 2.12.5 / tauri-build 2.7.4 — same minor: a test ties the two), every file pinned by its sha512 in
- * apps/desktop/bundle/tauri-cli.json (review A M2: the store's own index is not trusted on its own).
+ * apps/desktop/bundle/tauri-cli.json (the store's own index is not trusted on its own).
  */
 export const TAURI_CLI_PINS = JSON.parse(readFileSync(join(APP_DIR, 'bundle', 'tauri-cli.json'), 'utf8'));
 export const TAURI_CLI_VERSION = TAURI_CLI_PINS.version;
@@ -824,7 +824,7 @@ export const LAUNCHER = 'bin/retake';
 /**
  * The bundled app's launch.json (version 2, read by the shell's desktop_core::launch_config): paths inside Resources —
  * the Node.js, the engine's entry and the module lookup guard the shell loads first (`node --require <preload> <cli>`).
- * L5.16d (review d A-L9): `updates` — "on" in a build made with an update feed, "off" otherwise (doctor says so; the
+ * `updates` — "on" in a build made with an update feed, "off" otherwise (doctor says so; the
  * shell ignores the key).
  */
 export function launchJson(manifest, { updates = false } = {}) {
@@ -850,7 +850,7 @@ export function infoPlistExtras() {
 /**
  * The configuration overlay `tauri build --config <file>` merges into tauri.conf.json (written to `<out>`, never
  * committed): the bundle on, the app only, the payload through `bundle.macOS.files` — each top-level item of the stage
- * to `Resources/<name>` (never `bundle.resources`, which dereferences links and breaks Chromium's framework: plan D1)
+ * to `Resources/<name>` (never `bundle.resources`, which dereferences links and breaks Chromium's framework)
  * — the generated icns, the Info.plist extras, macOS 15. No signing identity (we sign: sign.mjs), no updater, no
  * plugin, nothing `dangerous`.
  */
@@ -924,7 +924,7 @@ export function tauriCli(dest, store = pnpmStore(), pins = TAURI_CLI_PINS) {
  * A Tauri CLI folder laid out by `tauriCli` (`dir/node_modules/@tauri-apps/{cli,cli-darwin-arm64}`) holds exactly the
  * files `pins` names, each with exactly its sha512, and nothing else — no link, no other file or package (an extra
  * module could be loaded instead). The release workflow's `sign` job checks the folder the `build` job hands it so
- * before it runs anything of it (review e A-H1). Returns the path of its `tauri.js`; StageError otherwise.
+ * before it runs anything of it. Returns the path of its `tauri.js`; StageError otherwise.
  */
 export function checkTauriCliDir(dir, pins = TAURI_CLI_PINS) {
   const root = resolve(dir);
@@ -1002,8 +1002,8 @@ export function freshTauriCli(dir, pins = TAURI_CLI_PINS, base = tmpdir(), { che
 }
 
 /**
- * `tauri build`'s arguments: the app bundle only, unsigned (we sign), the overlay, the cargo features (L5.16d: `updater`
- * when the build has a feed and a key), cargo --locked (and --offline).
+ * `tauri build`'s arguments: the app bundle only, unsigned (we sign), the overlay, the cargo features (`updater` when
+ * the build has a feed and a key), cargo --locked (and --offline).
  */
 export function tauriBuildArgs(overlay, offline, features = []) {
   return ['build', '--bundles', 'app', '--no-sign', '--ci', '--config', overlay, ...(features.length ? ['--features', features.join(',')] : []), '--', '--locked', ...(offline ? ['--offline'] : [])];
@@ -1018,7 +1018,7 @@ export function tauriBuild({ cliJs, overlay, targetDir, env = process.env, offli
   return join(targetDir, 'release', 'bundle', 'macos', `${PRODUCT}.app`);
 }
 
-// ---- L5.16d: the updater ----------------------------------------------------------------------------------------
+// ---- The updater ------------------------------------------------------------------------------------------------
 
 /** The update archive's name (what publish-update.mjs uploads; the plugin skips its first path component). */
 export const UPDATE_ARCHIVE = `${PRODUCT}.app.tar.gz`;
@@ -1052,7 +1052,7 @@ export function checkPubkey(value) {
 }
 
 /**
- * The feed's channel follows the app's version (review d B-L3): a pre-release build reads rc.json, a stable one
+ * The feed's channel follows the app's version: a pre-release build reads rc.json, a stable one
  * latest.json — anything else would put that install base on the wrong channel for good. Returns the feed.
  */
 export function checkChannel(feed, version) {
@@ -1074,7 +1074,7 @@ export function updaterSettings(env = process.env, version = CONF.version) {
 }
 
 /**
- * The overlay's updater part for a release or a person's bundle: the plugin's config (H2: the plugin needs it at
+ * The overlay's updater part for a release or a person's bundle: the plugin's config (the plugin needs it at
  * start; `requireSignedVersion` binds a signature to its version, `allowDowngrades: false` keeps "newer only") — never
  * a `dangerous*` key.
  */
@@ -1109,7 +1109,7 @@ export function linkCount(dir) {
 }
 
 /**
- * What `tar -tvzf` lists that the updater must not install (critique H3): an AppleDouble `._` entry, an entry outside
+ * What `tar -tvzf` lists that the updater must not install: an AppleDouble `._` entry, an entry outside
  * `<product>.app/` (absolute, `..`), and a link count other than the app's (`links`: linkCount of the app).
  */
 export function archiveProblems(listing, links, product = PRODUCT) {
@@ -1252,9 +1252,9 @@ export function digestDiff(want, got, what = 'Contents/Resources') {
 export const APP_RESOURCES_OWN = ['icon.icns'];
 
 /**
- * The checks of the laid-out, signed app beyond its signatures (review B M2): Contents/Resources holds exactly the
+ * The checks of the laid-out, signed app beyond its signatures: Contents/Resources holds exactly the
  * signed payload (`digest`: treeDigest of the stage right after signing — every file's bytes, every link's target,
- * nothing more; review A L6: a crate's build script runs between the payload's signing and Tauri's copy), no AppleDouble
+ * nothing more: a crate's build script runs between the payload's signing and Tauri's copy), no AppleDouble
  * file or foreign attribute (`hygieneProblems`), Info.plist's minimum macOS and local network words. Returns the
  * problems (none: []).
  */
@@ -1320,7 +1320,7 @@ export function manifestPath(dir, m, key) {
 
 /**
  * bundle.json's sha256 values (Node.js, ffmpeg and ffprobe) recomputed from the files of `dir` — after the payload is
- * signed, which rewrites them (review B M3); bundle.json itself is no Mach-O: the outer signature seals it as written
+ * signed, which rewrites them; bundle.json itself is no Mach-O: the outer signature seals it as written
  * here. Returns the manifest.
  */
 export function refreshManifestHashes(dir) {
@@ -1342,7 +1342,7 @@ function claimOut(dir) {
 }
 
 /**
- * The bundled app and its DMG (see the module comment), in two halves (L5.16e fixes, review e A-H1): the app laid out
+ * The bundled app and its DMG (see the module comment), in two halves: the app laid out
  * and signed ad hoc here — stage, payload, Tauri, the shell and the app, every check — then `finishApp`
  * (apps/desktop/scripts/release.mjs, the release workflow's `sign` job runs the same on a runner of its own): the
  * update archive and the DMG, after a Developer ID signature, notarisation and stapling in a release. `mode`: 'dry'
@@ -1361,7 +1361,7 @@ export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.e
   if (appOnly && mode !== 'dry') throw new StageError('--app-only lays the ad hoc app out (the release workflow\'s build job); its release signature is the next step: node apps/desktop/scripts/release.mjs sign --release');
   // The layout is always ad hoc: a release re-signs the finished app (finishApp), as the workflow's sign job does.
   const s = signer('dry', env, child);
-  // L5.16d: the updater from RETAKE_UPDATE_FEED + RETAKE_UPDATE_PUBKEY (checked before anything is built); `updater`
+  // The updater from RETAKE_UPDATE_FEED + RETAKE_UPDATE_PUBKEY (checked before anything is built); `updater`
   // (the gated test's testUpdaterOverlay) and `dmg: false` are tests' only — the command line passes neither.
   const updates = testUpdater ? { overlay: testUpdater, pubkey: testUpdater.plugins.updater.pubkey } : (() => {
     const u = updaterSettings(env);

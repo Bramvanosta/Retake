@@ -1,23 +1,21 @@
 /**
- * L5.2 (critique M7) — the desktop shell's security and lifecycle rules run in the default suite: `cargo test` of
+ * The desktop shell's security and lifecycle rules run in the default suite: `cargo test` of
  * apps/desktop/core, a crate with no dependency (no registry, no Tauri build: about a second warm). The supervised
  * line, the navigation allow-list, redaction and sanitising of what the shell prints, the `--route` shape, the launch
  * config (environment in debug builds only), the workspace order, desktop.json (0600, atomic) and the stop sequence
- * against real processes; L5.2 fixes: the navigation decision once the server stopped or an attached one is gone
- * (review A L3), the code loaders a release child never gets (A L4), the workspace check of Open Workspace… (B M1), the
- * CLI's no_workspace line (B L4). L5.2b: the pipe lines (capped reader, enums and slugs, totals), the quit question's
- * words (nothing pending: no question; no character from outside the word tables or a checked slug), the no-storm
- * notification rule; review fixes: framed lines (A L3), names cut where shown (A L1), logout / restart words (B M2),
- * the restart alert's default (B M4), Studio recordings and the other editors' words (B L5 / L7 / L14), the
- * notification permission asked again after a no (B L9), test mode never for a launchd launch (A L2). L5.12d: the quit
- * question's flow (guard_flow: page first, the native alert after 1.5 s without an ack, ids taken once, APPROVED
- * expiring and cleared by any Cancel, every exit closing the page's sheet) and the page's `answer` / `shown` lines. L5.16c:
- * the installed app's location (translocated, read-only, /Volumes), the first-run answers, the `studio:setup` event and
- * the Set-up sheet's pipe and stdin lines. L5.16d: the updater's rules (update_flow) and the update sheet's pipe line.
- * Rust is never required by `pnpm test` (review B M4): skipped, the reason in the
- * title, on Windows, on macOS without the Xcode command line tools (checked with `xcode-select -p` BEFORE cargo runs:
- * the `cc` shim would open their install dialog), without rustc / cargo, or with a Rust older than 1.70 (the crate
- * declares no `rust-version`).
+ * against real processes; the navigation decision once the server stopped or an attached one is gone, the code
+ * loaders a release child never gets, the workspace check of Open Workspace…, the CLI's no_workspace line; the pipe
+ * lines (capped reader, enums and slugs, totals), the quit question's words (nothing pending: no question; no character
+ * from outside the word tables or a checked slug), the no-storm notification rule; framed lines, names cut where shown,
+ * logout / restart words, the restart alert's default, Studio recordings and the other editors' words, the
+ * notification permission asked again after a no, test mode never for a launchd launch; the quit question's flow
+ * (guard_flow: page first, the native alert after 1.5 s without an ack, ids taken once, APPROVED expiring and cleared
+ * by any Cancel, every exit closing the page's sheet) and the page's `answer` / `shown` lines; the installed app's
+ * location (translocated, read-only, /Volumes), the first-run answers, the `studio:setup` event and the Set-up sheet's
+ * pipe and stdin lines; the updater's rules (update_flow) and the update sheet's pipe line.
+ * Rust is never required by `pnpm test`: skipped, the reason in the title, on Windows, on macOS without the Xcode
+ * command line tools (checked with `xcode-select -p` BEFORE cargo runs: the `cc` shim would open their install dialog),
+ * without rustc / cargo, or with a Rust older than 1.70 (the crate declares no `rust-version`).
  */
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -57,9 +55,9 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
       'redact_keeps_origins_only',
       'sanitize_strips_control_and_bidi_characters_and_caps_the_length',
       'launch_config_from_launch_json_and_debug_env',
-      // L5.16b: the bundled app's launch.json (version 2: relative paths inside the app, its own words).
+      // The bundled app's launch.json (version 2: relative paths inside the app, its own words).
       'launch_json_v2_names_files_inside_the_app_only',
-      // L5.16b fixes: the launcher drops the shell's list (review A L4); launch.json from the binary's real path (A L5).
+      // The launcher drops the shell's list; launch.json from the binary's real path.
       'the_launcher_drops_the_same_variables_as_the_shell',
       'launch_json_is_found_from_the_binarys_real_path',
       'desktop_json_is_written_0600_atomically_and_read_back',
@@ -80,7 +78,6 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
       'fifty_job_ends_within_a_second_are_one_post_and_one_summary_no_storm',
       'the_window_in_front_drops_ends_and_a_held_summary',
       'at_most_one_post_per_gap',
-      // L5.2b review fixes: A L3, A L1, B M2, B M4, B L5 / L7 / L14, B L9.
       'a_partial_write_before_a_framed_line_stays_apart_and_blank_lines_are_blank',
       'long_names_are_cut_where_they_are_shown',
       'logout_and_restart_have_their_own_words_and_jobs_alone_never_hold_a_restart',
@@ -88,7 +85,7 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
       'studio_recordings_new_editors_and_fixed_words',
       'permission_asks_again_after_a_no_and_says_each_outcome_once',
       'test_mode_needs_its_variable_and_a_parent_other_than_launchd',
-      // L5.12d: the quit question's flow (page first, native fallback; critique H1) and the page's pipe lines.
+      // The quit question's flow (page first, native fallback) and the page's pipe lines.
       'quit_asks_the_page_first_window_shown_before_the_dispatch_then_quit_anyway_re_enters_once',
       'no_ack_within_the_window_goes_native_and_the_page_sheet_is_closed',
       'a_wrong_old_or_replayed_id_is_ignored_and_a_cancel_leaves_nothing_approved',
@@ -98,17 +95,17 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
       'the_page_script_is_one_constant_shape_with_the_question_as_json_data',
       'ids_are_22_base64url_characters',
       'answer_and_shown_lines_are_strict',
-      // L5.12d fixes: one bound for the page's words (review A-L1 / B-L1), strict page lines (A-L6: in the test above).
+      // One bound for the page's words, strict page lines (in the test above).
       'a_question_past_the_page_bounds_is_asked_natively_at_once',
       'the_longest_question_fits_the_page_bound',
-      // L5.16c: where the app runs from (critique H1), the first run, the Set-up sheet's event and lines.
+      // Where the app runs from, the first run, the Set-up sheet's event and lines.
       'install_location_on_fake_paths',
       'the_app_of_a_binary',
       'first_run_answers_and_words',
       'the_setup_event_has_a_constant_shape',
       'the_lines_for_the_server',
       'setup_lines_are_strict',
-      // L5.16d: the updater's rules (update_flow) — which build updates itself, the daily check, what an install
+      // The updater's rules (update_flow) — which build updates itself, the daily check, what an install
       // waits for or refuses, the server's lines, the remembered checks — and the update sheet's pipe line.
       'update_flow::tests::the_disable_variable',
       'update_flow::tests::which_app_updates_itself',
@@ -119,7 +116,7 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
       'update_flow::tests::the_remembered_checks',
       'update_flow::tests::dates_and_alerts',
       'update_lines_are_strict',
-      // Review d: the line's byte cap, Install and Restart held once asked, checks refused during an install and due
+      // The line's byte cap, Install and Restart held once asked, checks refused during an install and due
       // after a failed one, no install without the click outside the e2e build, the download's limits and watch, the
       // archive on disk.
       'update_flow::tests::the_available_line_fits_the_servers_byte_cap',
@@ -129,7 +126,7 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
       'update_flow::tests::the_download_limits',
       'update_flow::tests::watch_stops_an_endless_or_hanging_download_and_a_later',
       'update_flow::tests::the_archive_on_disk',
-      // L5.16f: https at every hop of the check and the download (GitHub's releases redirect), but in the e2e build.
+      // Https at every hop of the check and the download (GitHub's releases redirect), but in the e2e build.
       'update_flow::tests::https_at_every_hop_but_in_the_e2e_build',
     ]) {
       expect(out, name).toMatch(new RegExp(`${name} \\.\\.\\. ok`));

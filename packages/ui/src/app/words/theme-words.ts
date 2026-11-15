@@ -1,12 +1,12 @@
 /**
- * The theme screens' pure rules (L4.7 part D2, R-UI-07 / R-DEC-04): the edit each control sends through `theme_edit`
+ * The theme screens' pure rules (R-UI-07 / R-DEC-04): the edit each control sends through `theme_edit`
  * (never anything else writes a theme: the server splices template.yaml, verifies it and keeps its comments), the
- * compound edits (critique B7: the background's type with its colours in one write, a kind's component with its old
- * params kept or dropped), the values a control may offer (the theme's own font and image files, the components that
- * serve a kind, zoom in steps of 0.01), undo / redo of exact earlier bytes (critique B14: only versions the server
- * served — the view's text before a write and after it), the draft throttle (colours being dragged: at most five
+ * compound edits (the background's type with its colours in one write, a kind's component with its old params kept
+ * or dropped), the values a control may offer (the theme's own font and image files, the components that
+ * serve a kind, zoom in steps of 0.01), undo / redo of exact earlier bytes (only versions the server served — the
+ * view's text before a write and after it), the draft throttle (colours being dragged: at most five
  * previews a second, written on release), "Use in this scenario" (the scenario's `template` field through
- * scenario_edit, critique B1), the site panel's "New theme from this" and which events re-read what.
+ * scenario_edit), the site panel's "New theme from this" and which events re-read what.
  *
  * Nothing here builds YAML or HTML. Names that reach a prompt or an address are checked against their patterns
  * (library-words.ts); every other string from the server is shown through `Txt`.
@@ -33,12 +33,12 @@ export function pickerHex(v: unknown): string | null {
 }
 
 /**
- * L5.12c: what a colour input shows — the hex as `#rrggbb`, else white (a colour input always holds a value; the kit's
+ * What a colour input shows — the hex as `#rrggbb`, else white (a colour input always holds a value; the kit's
  * ColorField draws the well hatched while nothing is written). Theme data: the kit holds no colour of its own.
  */
 export const pickerValue = (v: unknown): string => pickerHex(v) ?? '#ffffff';
 
-/** L5.12c: a theme's sample accent for the UI gallery's colour field (the gallery holds no colour literal). */
+/** A theme's sample accent for the UI gallery's colour field (the gallery holds no colour literal). */
 export const SAMPLE_ACCENT = '#8c1d2c';
 
 /** Previews of colours being dragged: at most one per this many milliseconds (five a second). */
@@ -145,7 +145,7 @@ export function backgroundOf(view: Pick<ThemeEditView, 'background'>): { value: 
 }
 
 /**
- * The background a type switch writes (critique B7a: type and colours in one write): solid keeps the first colour,
+ * The background a type switch writes (type and colours in one write): solid keeps the first colour,
  * a gradient goes from the solid colour (or the old gradient's) to the paper.
  */
 export function switchedBackground(cur: Background | null, type: Background['type'], paper: string): Background {
@@ -178,7 +178,7 @@ export function componentChoices(components: ThemeListAnswer['components'], kind
 
 /**
  * The words of a component `<option>`: a listed choice as it is (a checked id); a written id that is not one is the
- * file's words — its direction controls made visible and "(as written)": an option holds no `<bdi>` (review A N3).
+ * file's words — its direction controls made visible and "(as written)": an option holds no `<bdi>`.
  */
 export function componentOptionWords(id: string, choices: readonly string[]): string {
   return choices.includes(id) ? id : `${visibleControls(id)} (as written)`;
@@ -194,7 +194,7 @@ export function componentRow(view: Pick<ThemeEditView, 'components'>, kind: Kind
 }
 
 /**
- * The `set_component` a pick sends (critique B7b): `from` what the view shows written there (absent → omitted, none →
+ * The `set_component` a pick sends: `from` what the view shows written there (absent → omitted, none →
  * null, an id → it), the new id or null (captions / transitions only), the old entry's params kept (the server checks
  * them against the new component) or dropped. Null when nothing changes.
  */
@@ -210,12 +210,12 @@ export function componentEdit(view: Pick<ThemeEditView, 'components' | 'editable
   return { edit: { kind: 'set_component', component: kind, ...(from !== undefined ? { from } : {}), id, params } };
 }
 
-/** The image files a logo / wordmark may be (the theme folder's own, checked; listed by name — never shown, B9). */
+/** The image files a logo / wordmark may be (the theme folder's own, checked; listed by name — never shown). */
 export function imageChoices(view: Pick<ThemeEditView, 'images'>): string[] {
   return view.images.filter((i) => !i.problem).map((i) => i.file);
 }
 
-/** The font files of the type pair (the theme folder's own, checked: critique Q4), with their weight in words. */
+/** The font files of the type pair (the theme folder's own, checked), with their weight in words. */
 export function fontChoices(view: Pick<ThemeEditView, 'fonts'>): Array<{ file: string; words: string }> {
   return view.fonts.filter((f) => !f.problem).map((f) => ({ file: f.file, words: `${f.weight ?? '?'}${f.italic ? ' italic' : ''}` }));
 }
@@ -253,7 +253,7 @@ export interface HistoryStep {
 const HISTORY_MAX = 50;
 
 /**
- * Undo / redo of a theme's writes (critique B14): each entry holds the bytes before and after one write, both versions
+ * Undo / redo of a theme's writes: each entry holds the bytes before and after one write, both versions
  * the server served (the view before the write; the view read again after it) — restore sends those bytes and their
  * sha256, never text the page made. The file changing under the editor (another window, Claude, a person) clears it.
  */
@@ -402,7 +402,7 @@ export interface ScenarioFacts {
   edit: { blocks: { ok: true } | { ok: false; why: string } };
 }
 
-/** The scenario_edit `set_field` of the scenario's `template` (critique B1). */
+/** The scenario_edit `set_field` of the scenario's `template`. */
 export interface TemplateFieldEdit {
   kind: 'set_field';
   at: { entry: 'top' };
@@ -421,7 +421,7 @@ export function planUseInScenario(s: ScenarioFacts, theme: string): { edit: Temp
   return { edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', ...(cur !== undefined ? { from: cur } : {}), to: theme } };
 }
 
-/** Said after "Use in this scenario" (L5.5: an edit value — and the one filmed part a theme has, critique B1). */
+/** Said after "Use in this scenario" (an edit value — and the one filmed part a theme has). */
 export const USE_IN_SCENARIO_WORDS = 'A render of each existing take uses it — no new capture. The cursor style is filmed: existing takes keep theirs.';
 
 /** New theme's form (theme_create = core BrandInputSchema without `replace`). */

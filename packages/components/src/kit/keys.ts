@@ -1,5 +1,5 @@
 /**
- * Keyboard shortcuts as key caps (studio/overlay-shortcut, L2.10): a Playwright key combination ("Meta+K",
+ * Keyboard shortcuts as key caps (studio/overlay-shortcut): a Playwright key combination ("Meta+K",
  * "ControlOrMeta+Shift+P", "Enter", "ArrowDown") → the caps to draw, in the platform's conventions (macOS glyphs ⌘ ⌥ ⇧ ⌃,
  * or Ctrl / Alt / Shift words). Pure (no React).
  */

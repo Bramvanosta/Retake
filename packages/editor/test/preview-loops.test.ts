@@ -1,12 +1,12 @@
 /**
- * L4.7 preview sessions with an injected backend (no Remotion, no browser, no bundle): `renderComponentLoops` isolates
+ * Preview sessions with an injected backend (no Remotion, no browser, no bundle): `renderComponentLoops` isolates
  * each component (one that throws while rendering, one whose spec cannot be built — the others are written, the
  * failures listed with their reason, a failed item's files removed), a full disk stops the session (from the renderer
  * or from the caller's writer: RenderDiskFullError, no further item), the 480 px fallback and "too large", a cancel
  * between items, `bundle: 'registry'` (two sessions over disjoint components ask for one bundle; `used` for two) and
- * `renderComponentPreviews` still failing as a whole on its first failure. Review fixes: progress counts failed items
- * (B M2); ⚑ one component of the registry bundle that does not compile or throws at module load fails alone (A M3 / B H1:
- * the others are rendered again with their own components); ⚑ a fresh renderer after a failed item (B M1).
+ * `renderComponentPreviews` still failing as a whole on its first failure. Review fixes: progress counts failed items;
+ * ⚑ one component of the registry bundle that does not compile or throws at module load fails alone (the
+ * others are rendered again with their own components); ⚑ a fresh renderer after a failed item.
  */
 import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -120,7 +120,7 @@ describe('preview sessions (injected backend)', () => {
       onItem: (it) => void seen.push(it.id),
       onProgress: (n, of) => void progress.push([n, of]),
     });
-    // Review B M2: every finished item counts, failed ones too — the job's progress reaches its total.
+    // Every finished item counts, failed ones too — the job's progress reaches its total.
     expect(progress.at(-1)).toEqual([4, 4]);
     expect(progress.map((p) => p[0])).toEqual([1, 2, 3, 4]);
     expect(r.rendered.map((x) => x.id)).toEqual(['studio/intro-stack', 'studio/outro-stack']);
@@ -238,7 +238,7 @@ describe('preview sessions (injected backend)', () => {
   /**
    * A backend whose bundles know their components: `broken` in a bundle either fails its build (`syntax`) or makes every
    * render of that bundle's page throw (`load`: a module-load throw). `poison`: after a failure, the renderer refuses
-   * everything (the leaked port of review B M1) — the session must open a fresh one.
+   * everything (a leaked port) — the session must open a fresh one.
    */
   function pageFake(o: { broken?: string; mode?: 'syntax' | 'load'; failOnce?: string; poison?: boolean }) {
     const bundles: string[][] = [];

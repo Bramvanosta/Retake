@@ -1,5 +1,5 @@
 /**
- * `capture.prewarm` (L5.7, R-FLD-27): before the take, every page the scenario opens is visited once off camera — in a
+ * `capture.prewarm` (R-FLD-27): before the take, every page the scenario opens is visited once off camera — in a
  * scratch tab of the browser that films it (its persona's), never recorded — so its code, fonts, images and data are
  * cached and the first visit is not filmed cold. The URLs are the scenes' `open`s (and their pages' in multi-page
  * scenes) and the `open` steps', templated as the take will template them; one that cannot be resolved yet (a value a

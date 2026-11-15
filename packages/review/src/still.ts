@@ -1,5 +1,5 @@
 /**
- * The still of a frame comment (L3.6): one exact frame of a render (`extractFrames`' frame-number select, the review's
+ * The still of a frame comment: one exact frame of a render (`extractFrames`' frame-number select, the review's
  * own extraction — no seek arithmetic), as a JPEG no larger than 1920 px on its long side (4K masters are scaled), with
  * the commented region outlined when there is one (`drawMarks`: one box, no numbered badge). One image per thread.
  */

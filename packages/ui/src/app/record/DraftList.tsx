@@ -70,8 +70,8 @@ function rowParts(r: DraftRow, can: boolean): { title: ReactNode; meta: ReactNod
 }
 
 /**
- * The selected row's verified target alternatives as a radio group (index 0: the recorder's suggestion). L5.11b fixes
- * (review A-M1): the radio shows the choice asked for at once (`want`) while it is saved — an arrow press checks the
+ * The selected row's verified target alternatives as a radio group (index 0: the recorder's suggestion). The
+ * radio shows the choice asked for at once (`want`) while it is saved — an arrow press checks the
  * radio it lands on, and the screen sends the newest pick when the one in flight ends (never two in flight, never
  * refused) —, then the view's choice again once it says the same or nothing is pending any more (a refusal).
  */
@@ -113,7 +113,7 @@ function modifierChips(r: DraftRow): ReactNode[] {
 }
 
 /**
- * One draft row. Editable (L5.11b fixes, review A-M2): an option of its scene's listbox — the list holds the tab stop and
+ * One draft row. Editable: an option of its scene's listbox — the list holds the tab stop and
  * the keys; pressing a row (a click, Enter or Space on the active one) puts the cursor after it. Read-only: a list item.
  */
 function Row({ r, n, here, option, onPress }: { r: DraftRow; n: number; here: boolean; option: { id: string; active: boolean } | null; onPress: () => void }) {
@@ -182,11 +182,11 @@ interface FlatRow {
 
 /**
  * The draft's step rows with the cursor block (the selected row's inserts, alternatives and Insert toolbar) among them.
- * L5.11b fixes (review A-M2 / A-L3 / A-L7): editable, each scene's rows are a listbox and the draft is ONE tab stop (the
- * list holding the active row; `aria-activedescendant`): ↑ / ↓ the row before / after (across scenes), Home / End the
- * first / last, Page Up / Page Down three rows (board-keys' `gridMove`, one column), Enter / Space selects the active row
- * (= moves the cursor after it; again: back to the end). The cursor block is not an option (a group inside the list,
- * after its row); at the end it is after every scene, in one place — new rows never move it.
+ * Editable, each scene's rows are a listbox and the draft is ONE tab stop (the list holding the active row;
+ * `aria-activedescendant`): ↑ / ↓ the row before / after (across scenes), Home / End the first / last, Page Up / Page
+ * Down three rows (board-keys' `gridMove`, one column), Enter / Space selects the active row (= moves the cursor after
+ * it; again: back to the end). The cursor block is not an option (a group inside the list, after its row); at the end
+ * it is after every scene, in one place — new rows never move it.
  */
 export function DraftList({
   v,

@@ -145,7 +145,7 @@ describe('bundled fixture project', () => {
     expect(card).toMatchObject({ id: 'chapter-request', card: { slots: { title: expect.any(String) } } });
     const steps = scenario.scenes.flatMap((e) => ('steps' in e ? e.steps : []));
     const withOverlay = steps.filter((st) => st.overlay);
-    // L2.9 added the captured web notification (studio/notification, no target) next to the targeted callout.
+    // The captured web notification (studio/notification, no target) next to the targeted callout.
     expect(withOverlay).toHaveLength(2);
     expect(withOverlay.find((st) => st.overlay?.target)?.overlay).toMatchObject({ component: 'studio/overlay-callout', target: { testid: 'proposal-total' } });
     expect(withOverlay.find((st) => !st.overlay?.target)?.overlay).toMatchObject({ component: 'studio/notification', slots: { notification: 'quote-request' } });

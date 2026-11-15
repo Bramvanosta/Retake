@@ -1,5 +1,5 @@
 /**
- * L5.16a — the app bundle resolver (core bundle.ts): manifest discovery and checks, the ffmpeg / ffprobe order, the
+ * The app bundle resolver (core bundle.ts): manifest discovery and checks, the ffmpeg / ffprobe order, the
  * write guard, prepareBundle's browsers path that never leaks into the person's processes, and the H.264 fallback.
  */
 import { spawnSync } from 'node:child_process';

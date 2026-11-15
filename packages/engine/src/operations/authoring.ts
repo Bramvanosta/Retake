@@ -1,14 +1,14 @@
 /**
- * The authoring operations (moved from the MCP server's tools/authoring.ts and tools/scenario.ts in L7.18): scenario_save,
- * scenario_record, scenario_from_script, and `recordOutput` (job_status answers a recording with it).
+ * The authoring operations: scenario_save, scenario_record, scenario_from_script, and `recordOutput` (job_status
+ * answers a recording with it).
  *
- * scenario_record (L3.4, R-MCP-24): a HUMAN shows a flow once in a headed browser window on their machine; a draft
+ * scenario_record (R-MCP-24): a HUMAN shows a flow once in a headed browser window on their machine; a draft
  * scenario is made from it. Claude starts the recording and reads the draft — it never drives the window, never types
  * into it and never sees keystrokes live. The tool returns the job id at once; job_status follows it (the window holds
  * the queue) and, once finished, returns the draft read from the recording's folder under `untrusted` (what the person
  * typed and the page's names), with counts and the check replay's outcome as trusted fields.
  *
- * scenario_from_script (L3.3, R-MCP-22): an optional aid when the user hands a timecoded script table — the table read
+ * scenario_from_script (R-MCP-22): an optional aid when the user hands a timecoded script table — the table read
  * deterministically into an outline and a draft scenario (one `hold` per beat, the action as its note), validated.
  * It calls no model and writes nothing: the draft is a skeleton Claude rewrites from page inspections, then saves with
  * scenario_save. Never the start of the main authoring path (page_inspect → write the YAML → validate → save → run_dry).

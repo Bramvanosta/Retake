@@ -1,5 +1,5 @@
 /**
- * `sandbox_up` / `sandbox_reset` jobs (L3.1, R-SBX-07): `retake sandbox up | reset` submitted by a client outside the
+ * `sandbox_up` / `sandbox_reset` jobs (R-SBX-07): `retake sandbox up | reset` submitted by a client outside the
  * CLI (the MCP server) and run by the jobs worker through the Sandboxes port (sandboxes/sandboxes.ts: the sandbox
  * package in the product), as the CLI runs them. A sandbox is local
  * and disposable (core refuses one that is not), and a reset rewrites only the data the sandbox owns (checked by the

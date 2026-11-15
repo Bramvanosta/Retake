@@ -1,6 +1,6 @@
 /**
  * FINDING_CODES is complete: every code a check of the review package writes (a literal `code: '…'` or the code
- * argument of `finding(…)`) is in it — review_get shows only those as codes (L3.2 review).
+ * argument of `finding(…)`) is in it — review_get shows only those as codes.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';

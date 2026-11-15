@@ -1,10 +1,10 @@
 /**
- * L4.5 part C, gated (`RETAKE_TEST_CHROME=1`; skipped when Google Chrome is not installed): the timeline screen in
+ * Gated (`RETAKE_TEST_CHROME=1`; skipped when Google Chrome is not installed): the timeline screen in
  * the installed Google Chrome (Playwright `channel: 'chrome'`, a temporary profile Playwright creates and deletes — never
  * the person's own; Playwright's mock keychain, no `ignoreDefaultArgs`), which plays H.264 like the person's browser:
  * - takes encoded as the capture encodes — VideoToolbox (keyframes every 12 frames, no B-frames; when this Mac's ffmpeg
  *   has it) and the libx264 fallback (a 250-frame GOP, B-frames) — of the self-numbering synthetic take: no "cannot play"
- *   message, every seek shows exactly the plan's source frame, and the numbers (critique B14): seek → settled latency
+ *   message, every seek shows exactly the plan's source frame, and the numbers: seek → settled latency
  *   (median, p95, max) per encoder, playback (output frames per second of wall time);
  * - with `RETAKE_TEST_REAL=<workspace>:<project>:<scenario>`, also a real capture of the fixture product in that
  *   workspace (opened read-only: nothing is written there but the Studio's own state folder): it loads, seeks settle,

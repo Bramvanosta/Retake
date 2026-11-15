@@ -1,5 +1,5 @@
 /**
- * L5.16d — the desktop app's updates in the Studio server (update-ops.ts; DESIGN §4p (d)), through its HTTP API: the
+ * The desktop app's updates in the Studio server (update-ops.ts; DESIGN §4p (d)), through its HTTP API: the
  * shell's update lines on stdin parsed strictly (fixed keys per state, enums, versions, counts, notes without control
  * or bidi characters), kept and read back by `desktop_update_status` (the notes under `untrusted`), and the sheet's
  * click `desktop_update` written as one pipe line of exactly `{type, action}` — Studio only (never an MCP tool: an
@@ -70,7 +70,7 @@ describe("the shell's update lines", () => {
       { ...L.available, current: 'dev' },
       { ...L.available, notes: 'ok\u202egnp' },
       { ...L.available, notes: 'bell\u0007' },
-      // Review d B-L4 (a): the isolates too (U+2066 – U+2069).
+      // The isolates too (U+2066 – U+2069).
       { ...L.available, notes: 'ok\u2067x' },
       { ...L.failed, retry: 'yes' },
       { ...L.failed, failure: 'check', version: null, retry: true },
@@ -105,7 +105,7 @@ describe("the shell's update lines", () => {
     expect(installable(L.available as never)).toBe(true);
     expect(installable(L.failed as never)).toBe(true);
     expect(installable({ ...L.failed, failure: 'install' } as never)).toBe(true);
-    // Review d M2: a failed install remembered by the restarted app (no update known yet) is not installable.
+    // A failed install remembered by the restarted app (no update known yet) is not installable.
     expect(installable({ ...L.failed, failure: 'install', retry: false } as never)).toBe(false);
     // A folder this account may not write never retries, whatever the line says.
     expect(installable({ ...L.failed, failure: 'not_writable', retry: true } as never)).toBe(false);
@@ -132,7 +132,7 @@ describe('who may call them', () => {
       expect(UI_OPS as readonly string[]).toContain(op);
     }
     expect(TOOLS.map((t) => t.name).filter((n) => /update/.test(n) && n.startsWith('desktop'))).toEqual([]);
-    // L7.34: what the job watch hears (onWrite) — an Install the shell takes and a Later write nothing it watches;
+    // What the job watch hears (onWrite) — an Install the shell takes and a Later write nothing it watches;
     // a README written through the same server does (the listener is live). The server is the desktop app's for this
     // check only (the pipe given back after it: the next case is about a server that is not).
     const pipe = studio.desktop as unknown as { write: ((line: string) => boolean) | undefined };

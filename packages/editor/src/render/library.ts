@@ -24,7 +24,7 @@ export function bundlerLibrary(): Promise<typeof import('@remotion/bundler')> {
 
 /**
  * The folder of the library's own programs (its compositor, ffmpeg, ffprobe and their libraries): what a render uses
- * when it is given no other. The encode tools (encode-tools.ts, L7.3) link to it.
+ * when it is given no other. The encode tools (encode-tools.ts) link to it.
  */
 export async function compositorDir(): Promise<string> {
   const { RenderInternals } = await rendererLibrary();

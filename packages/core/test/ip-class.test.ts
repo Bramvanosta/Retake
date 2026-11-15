@@ -1,5 +1,5 @@
 /**
- * L3.5 the address classifier of site extractions (R-MCP-12): every special-purpose IPv4 range refused, IPv6 allowed
+ * The address classifier of site extractions (R-MCP-12): every special-purpose IPv4 range refused, IPv6 allowed
  * only in global unicast 2000::/3 minus its special blocks, IPv4-mapped and NAT64 addresses classified by the IPv4
  * address they carry, zones and non-addresses refused.
  */

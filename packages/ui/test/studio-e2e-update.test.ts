@@ -1,12 +1,12 @@
 /**
- * L5.16d — the desktop app's update in the Studio (shell/UpdateSheet.tsx, update-ops.ts; DESIGN §4p (d),
+ * The desktop app's update in the Studio (shell/UpdateSheet.tsx, update-ops.ts; DESIGN §4p (d),
  * docs/reference/studio-ui.md), in Chromium with the app's flag, on a Studio server whose desktop pipe is attached as
  * the shell's and whose update lines are the shell's own (applyShellLine):
  * - "Update available · v0.2.1" in the status bar (a kit Button) opens a kit Sheet: the version, the notes as text
  *   (markup shown, never rendered), Later · Install and Restart; its a11y tour in dark (1280 / 900) and light;
  * - nothing is written before the click; Install and Restart writes exactly `{"type":"update","action":"install"}`;
  *   the sheet follows the shell's states (waiting for jobs, Later stops it, a failure in words);
- * - review d: a refusal keeps the sheet open with its words ("not writable": install from the disk image), a failed
+ * - A refusal keeps the sheet open with its words ("not writable": install from the disk image), a failed
  *   install offers Install again only when the shell says it may (`retry`), Later acknowledges a failure; the badge
  *   stays a live button while downloading (it reopens the sheet: Later); the notes are a named region the keyboard
  *   scrolls; the words before the click are in the future tense;
@@ -121,7 +121,7 @@ describe('the update in the status bar and its sheet', () => {
     expect(await sheet(p).innerText()).toContain(
       "You have v0.2.0. Install and Restart downloads the update and checks its signature, waits for this workspace's jobs to end, asks about unsaved text, then restarts Retake.",
     );
-    // Review d A-L3: a named region the keyboard reaches and scrolls.
+    // A named region the keyboard reaches and scrolls.
     expect(await notes.evaluate((e) => [e.tagName, e.getAttribute('tabindex'), e.getAttribute('role'), e.getAttribute('aria-label')])).toEqual([
       'DIV',
       '0',

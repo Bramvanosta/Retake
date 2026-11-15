@@ -1,5 +1,5 @@
 /**
- * L2.10 contracts in core: tutorial switches (scenario → scene → step, `resolveTutorial`), the `capture_text` action and
+ * Contracts in core: tutorial switches (scenario → scene → step, `resolveTutorial`), the `capture_text` action and
  * its `text` artefact, frame references (`before:` / `after:` slots), data and image files of card slots.
  */
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';

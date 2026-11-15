@@ -1,5 +1,5 @@
 /**
- * The PATH a process the tool starts for a client gets (L3.x `retake mcp`, L4.1 `retake ui`, L4.2 the jobs worker a
+ * The PATH a process the tool starts for a client gets (`retake mcp`, `retake ui`, the jobs worker a
  * client starts): the node that runs it first, the current PATH without what a package manager added for the script it
  * runs and without anything inside the workspace, plus the Homebrew / system folders GUI clients lack.
  */

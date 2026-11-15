@@ -1,5 +1,5 @@
 /**
- * The fixture's Docker sandbox for real (L1.8, environment sandbox-docker), gated by RETAKE_TEST_DOCKER=1: a
+ * The fixture's Docker sandbox for real (environment sandbox-docker), gated by RETAKE_TEST_DOCKER=1: a
  * running Docker with axllent/mailpit:v1.29.4 present and node:22-alpine present or pullable. The committed
  * sandbox.yaml + compose.yaml are copied to a temp project, moved to free ports, built from fixtures/wholesale, under
  * a compose project `retake-test-fixture-<run token>-*`; this run's compose projects and images are removed after

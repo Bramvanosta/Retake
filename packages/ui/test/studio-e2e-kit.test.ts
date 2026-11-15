@@ -1,27 +1,27 @@
 /**
- * L5.9 part E: the design system's behaviours in headless Chromium against an in-process Studio server (the fixture
+ * The design system's behaviours in headless Chromium against an in-process Studio server (the fixture
  * project, a scenario with a long name), on the UI gallery and the shell:
  * - ⚑ appearance switching — dark with no preference or `dark`, light only when the system asks, flipped live without a
- *   reload; a `data-appearance` scope keeps its own; the kit's focus ring is --ui-ring with its radius (the legacy layer
- *   cannot override it: critique M4); ⚑ L5.12d: under prefers-reduced-motion nothing of the gallery moves;
+ *   reload; a `data-appearance` scope keeps its own; the kit's focus ring is --ui-ring with its radius (the legacy
+ *   layer cannot override it); ⚑ under prefers-reduced-motion nothing of the gallery moves;
  * - the segmented control (arrows, a disabled segment skipped), the switch (Space), the toolbar (one tab stop; arrows,
- *   Home, End: L8; ⚑ holding a menu, radios and a URL field, it leaves their keys to them: review A-M2), the menu
+ * Home, End; ⚑ holding a menu, radios and a URL field, it leaves their keys to them), the menu
  *   (Enter / ↓ / ↑ open it on the first or last item, arrows, typeahead, Enter chooses, Escape and Tab close it with the
- *   focus back on the trigger, a click on the open trigger closes it: L9, outside click), the sheet (the focus on the
+ *   focus back on the trigger, a click on the open trigger closes it, outside click), the sheet (the focus on the
  *   default, a destructive default falls back to Cancel, Escape cancels, focus back; ⚑ a sheet its owner keeps open
- *   stays in step when the platform closes it: A-L1; ⚑ the focus goes back at once, a late `close` event never
+ *   stays in step when the platform closes it; ⚑ the focus goes back at once, a late `close` event never
  *   takes it from where it moved since — sheet and palette), the palette (filter, ↑ ↓ move `aria-activedescendant` with a 3 px
- *   cue: M1, Enter runs, Escape gives the focus back — to the centre pane when a command took the opener away: A-L6;
- *   "Nothing matches" in the tree: A-L5; nothing while an input method composes: A-L9);
- * - the shell — ⌘K (a Mac) / Ctrl+K (elsewhere, outside a text field: B-L3) opens its palette in a browser tab and a
- *   command navigates; ⚑ while a modal dialog is open `studio:command` and ⌘K wait (M5); the modes follow the scenario
- *   in context and say when there is none; one current page in the browser (A-L9); the centre pane keeps its scroll
- *   inside a screen and starts at the top of a new one (M2); a long scenario name never runs under the mode switch at
- *   900 px (L5);
+ *   cue, Enter runs, Escape gives the focus back — to the centre pane when a command took the opener away;
+ *   "Nothing matches" in the tree; nothing while an input method composes);
+ * - the shell — ⌘K (a Mac) / Ctrl+K (elsewhere, outside a text field) opens its palette in a browser tab and a
+ *   command navigates; ⚑ while a modal dialog is open `studio:command` and ⌘K wait; the modes follow the scenario
+ *   in context and say when there is none; one current page in the browser; the centre pane keeps its scroll
+ *   inside a screen and starts at the top of a new one; a long scenario name never runs under the mode switch at
+ *   900 px;
  * - ⚑ the overlay title bar contract (DESIGN §4j): with `window.__studioShell = {titleBar: 'overlay'}` (the desktop
  *   app's main-frame init script) the bar keeps 80 px for the window buttons, the page binds no ⌘K (the app's menu
  *   does) and a `studio:command` opens the palette; an id off the list does nothing; without it, inset 0; the mode
- *   switch centred on the window either way (B-L1).
+ *   switch centred on the window either way.
  */
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -357,7 +357,7 @@ describe("the kit's keys (L5.9 part E)", () => {
     await sheet.waitFor({ state: 'hidden' });
     expect(await page.getByTestId('answer-dark').innerText()).toBe('Last answer: cancel');
     expect(await opener.evaluate((el) => el === document.activeElement)).toBe(true);
-    // Review A-L2: Return on a Tab-focused destructive action never presses it — the default (Cancel) instead, as the
+    // Return on a Tab-focused destructive action never presses it — the default (Cancel) instead, as the
     // native alert's Return; Space presses it.
     await page.keyboard.press('Enter');
     await sheet.waitFor(POLL);
@@ -491,12 +491,12 @@ describe("the kit's keys (L5.9 part E)", () => {
     expect(cue).toMatch(/3px 0px 0px 0px inset/);
     await box.fill('hello');
     expect(await page.locator('dialog.k-palette[open]').getByRole('option').allInnerTexts()).toEqual(['Say hello\nwrites the last answer']);
-    // Review A-L9: Enter while an input method composes a word confirms the word, it runs nothing.
+    // Enter while an input method composes a word confirms the word, it runs nothing.
     await box.evaluate((el) => el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true })));
     await page.waitForTimeout(100);
     expect(await page.locator('dialog.k-palette[open]').count()).toBe(1);
     expect(await page.getByTestId('answer-dark').innerText()).not.toBe('Last answer: hello');
-    // L5.12b fixes (review A-L9): WebKit (the desktop app's view) may end a composition with isComposing false — keyCode 229.
+    // WebKit (the desktop app's view) may end a composition with isComposing false — keyCode 229.
     await box.evaluate((el) => el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, isComposing: false, bubbles: true, cancelable: true })));
     await page.waitForTimeout(100);
     expect(await page.locator('dialog.k-palette[open]').count()).toBe(1);
@@ -507,19 +507,19 @@ describe("the kit's keys (L5.9 part E)", () => {
     await expect.poll(() => opener.evaluate((el) => el === document.activeElement), POLL).toBe(true);
     await page.keyboard.press('Enter');
     await box.waitFor(POLL);
-    // The "Nothing matches" live region is in the accessibility tree before it speaks (review A-L5).
+    // The "Nothing matches" live region is in the accessibility tree before it speaks.
     expect(await page.locator('dialog.k-palette[open] .k-palette-none').evaluate((el) => [getComputedStyle(el).display, el.textContent])).toEqual(['block', '']);
     expect(await box.getAttribute('aria-expanded')).toBe('true');
     await box.fill('zzz');
     expect(await page.locator('dialog.k-palette[open]').getByRole('option').count()).toBe(0);
-    // L5.12b fixes (review A-L8): nothing listed, nothing expanded.
+    // Nothing listed, nothing expanded.
     expect(await box.getAttribute('aria-expanded')).toBe('false');
     expect(await box.getAttribute('aria-activedescendant')).toBeNull();
     expect(await page.locator('dialog.k-palette[open] .k-palette-none').innerText()).toBe('Nothing matches');
     await page.keyboard.press('Escape');
     await page.locator('dialog.k-palette[open]').waitFor({ state: 'detached' });
     await expect.poll(() => opener.evaluate((el) => el === document.activeElement), POLL).toBe(true);
-    // Review A-L6: a command that takes the opener away (Go to Projects) leaves the focus on the centre pane.
+    // A command that takes the opener away (Go to Projects) leaves the focus on the centre pane.
     await page.keyboard.press('Enter');
     await box.waitFor(POLL);
     await box.fill('projects');
@@ -569,7 +569,7 @@ describe("the kit's keys (L5.9 part E)", () => {
     await hex.fill('#abc');
     await page.keyboard.press('Tab');
     await expect.poll(() => writes.textContent(), POLL).toBe('Written: accent #123456 · accent #abc');
-    // No swatch dot beside the well while nothing is dragged (the well is the swatch: review B-L1).
+    // No swatch dot beside the well while nothing is dragged (the well is the swatch).
     expect(await col.getByTestId('gl-colour-dark').locator('.k-color-swatch').count()).toBe(0);
     // A drag: the dot shows the written colour while the well previews the draft ("previewing" in words).
     await col.getByTestId('gl-colour-dark-picker').evaluate((el) => {
@@ -603,7 +603,7 @@ describe('the shell (L5.9 part E)', () => {
     await box.fill('projects');
     await page.keyboard.press('Enter');
     await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
-    // Review B-L3: in a text field Ctrl+K is the field's (on a Mac "delete to the end of the line"); on a Mac it never
+    // In a text field Ctrl+K is the field's (on a Mac "delete to the end of the line"); on a Mac it never
     // opens the palette at all — ⌘K does.
     await gallery();
     const title = page.getByTestId('scope-dark').getByRole('textbox', { name: 'Title' });
@@ -738,7 +738,7 @@ describe('the shell (L5.9 part E)', () => {
       expect(ops).toEqual(expect.arrayContaining(['theme_list', 'scenario_blocks']));
       expect(visited.some((v) => v.startsWith('Projects: '))).toBe(true);
 
-      // B-L3: on the YAML view a scene picked in the palette goes to its lines, as the browser's pick does.
+      // On the YAML view a scene picked in the palette goes to its lines, as the browser's pick does.
       await page.evaluate((h) => (location.hash = `${h}/yaml`), home);
       await page.getByTestId('yaml').waitFor(POLL);
       expect(await page.locator('[data-testid="yaml"] li[data-focus="true"]').count()).toBe(0);
@@ -766,7 +766,7 @@ describe('the shell (L5.9 part E)', () => {
     await page.locator('[data-testid="step"]').first().waitFor(POLL);
     expect(await modes.getByRole('link', { name: 'Script' }).getAttribute('aria-current')).toBe('page');
     expect(await modes.getByRole('link', { name: 'Edit' }).getAttribute('href')).toBe(`#/p/${P}/s/quote/timeline`);
-    // L5.12a: Review opens the view this tab used last — the Review report first.
+    // Review opens the view this tab used last — the Review report first.
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'mode-review' } })));
     await page.waitForURL(`**#/p/${P}/s/quote/review`);
     expect(await modes.getByRole('link', { name: 'Review' }).getAttribute('aria-current')).toBe('page');
@@ -775,9 +775,9 @@ describe('the shell (L5.9 part E)', () => {
     await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor(POLL);
     expect(await modes.getByRole('link', { name: 'Shoot' }).getAttribute('href')).toBe(`#/p/${P}/s/quote/run`);
     expect(await modes.locator('[aria-current]').count()).toBe(0);
-    // One current page in the browser: Productions (L5.10a: the open project's tree), nothing else (review A-L9).
+    // One current page in the browser: Productions (the open project's tree), nothing else.
     expect(await page.locator('.sh-browser [aria-current="page"] .k-source-label').allInnerTexts()).toEqual(['Productions']);
-    // …and one current row whatever its content (review B-M3: a stray aria-current without a label child counts too).
+    // …and one current row whatever its content (a stray aria-current without a label child counts too).
     expect(await page.locator('.sh-browser [aria-current="page"]').count()).toBe(1);
     // The centre pane: scrolled inside the comments screen, a thread address keeps the scroll; a new screen starts at 0.
     await page.goto(`${studio.url}#/p/${P}/s/quote/comments`);
@@ -824,14 +824,14 @@ describe('the shell (L5.9 part E)', () => {
 
 describe('L5.10a: the productions listbox and the project shell', () => {
   it('⚑ the poster grid is ONE tab stop: arrows move the selection (a row is three), Home / End, Enter opens, Escape clears; a click selects, a double-click opens', async () => {
-    // Wide enough for the gallery's half column to hold three posters (review B-M2: as many columns as fit).
+    // Wide enough for the gallery's half column to hold three posters (as many columns as fit).
     await page.setViewportSize({ width: 2200, height: 900 });
     await gallery();
     const col = page.getByTestId('scope-dark');
     const grid = col.getByRole('listbox', { name: /Sample productions/ });
     const selected = () => grid.locator('[role="option"][aria-selected="true"]').allInnerTexts();
     const columns = () => grid.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
-    // Nothing selected: no aria-activedescendant at all (review A-L6: never an empty reference).
+    // Nothing selected: no aria-activedescendant at all (never an empty reference).
     expect(await grid.getAttribute('aria-activedescendant')).toBeNull();
     expect(await columns()).toBe(3);
     await grid.focus();
@@ -911,7 +911,7 @@ describe('⚑ the overlay title bar contract (L5.9, DESIGN §4j)', () => {
       }));
       expect(geo.mark).toBeGreaterThanOrEqual(80);
       expect(geo.bar).toBe(48);
-      // The mode switch stays centred on the window, inset or not (review B-L1: it sat 42 px right).
+      // The mode switch stays centred on the window, inset or not (it sat 42 px right).
       expect(await centreOffset(p)).toBeLessThanOrEqual(1);
       expect(geo.select).toBe('none');
       // The skip link shows clear of the window buttons too.
@@ -925,7 +925,7 @@ describe('⚑ the overlay title bar contract (L5.9, DESIGN §4j)', () => {
       await p.getByRole('combobox', { name: 'Command' }).waitFor(POLL);
       await p.keyboard.press('Escape');
       await p.locator('dialog[open]').waitFor({ state: 'detached' });
-      // L5.12b fixes (review B-L8): the footnote is true — every row showing a key is a menu bar item with that key.
+      // The footnote is true — every row showing a key is a menu bar item with that key.
       await p.evaluate((h) => (location.hash = h), `#/p/${P}/s/quote`);
       await p.locator('[data-testid="step"]').first().waitFor(POLL);
       await p.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));

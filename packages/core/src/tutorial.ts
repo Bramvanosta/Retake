@@ -1,5 +1,5 @@
 /**
- * Tutorial overlays (L2.10): the switches of a scenario, a scene and a step merged into the effective state of each
+ * Tutorial overlays: the switches of a scenario, a scene and a step merged into the effective state of each
  * overlay. Pure; the edit planner uses it on the switches the runner copied into timeline.json.
  */
 import { TUTORIAL_COMPONENTS, TUTORIAL_FEATURES } from './types/language.js';

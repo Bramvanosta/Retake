@@ -405,7 +405,7 @@ export function pruneKeeper(): { needsTimeline(record: RunRead): boolean; add(fa
   };
 }
 
-/** R-1 (L7.6b): a take kept because a file of renders/ that is no render of its own name says its id. */
+/** R-1: a take kept because a file of renders/ that is no render of its own name says its id. */
 export type PruneRenderFile = 'render-file';
 
 const PRUNE_KEPT_WORDS: Record<Exclude<PruneKeep, 'last-capture'> | PruneAlone | PruneRenderFile, string> = {

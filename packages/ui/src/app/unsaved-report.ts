@@ -1,5 +1,5 @@
 /**
- * The tab's unsaved-text report (L5.2b, DESIGN §4j): what this tab holds unsaved (drafts.ts `unsavedItems()` — kinds and
+ * The tab's unsaved-text report (DESIGN §4j): what this tab holds unsaved (drafts.ts `unsavedItems` — kinds and
  * names, never the text) goes to its own server through the op `unsaved_report`, where the desktop app's quit question
  * reads it. Never the shell: the page talks to its server only.
  *
@@ -8,12 +8,12 @@
  * - Sent when the set (or, while it is not empty, the tab's visibility) changes — one call in flight, the latest state
  *   sent after it; nothing is sent while nothing was ever unsaved. A failed call is tried again after RETRY_MS.
  * - `pagehide`: an empty report with `keepalive` (it outlives the page), so a report never outlives its tab session
- *   (critique L8: no heartbeat, nothing on the server expires it by time — a hidden window's timers are throttled);
+ *   (no heartbeat, nothing on the server expires it by time — a hidden window's timers are throttled);
  *   nothing more is sent until `pageshow` (the unload's own `visibilitychange` comes after `pagehide`: a report sent
  *   then could reach the server after the empty one).
  * - The session ended (401): it stops.
  * - A name that fails the server's rule (a slug of at most 100 characters) is left out before sending, the item kept
- *   (review A L4: one bad name never makes the whole report a 400 — the server drops such a name too).
+ *   (one bad name never makes the whole report a 400 — the server drops such a name too).
  */
 import { CallError } from './api.js';
 import { unsavedReport } from './data/desktop.js';

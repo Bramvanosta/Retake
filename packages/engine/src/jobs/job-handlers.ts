@@ -1,5 +1,5 @@
 /**
- * One handler per job kind (L7.29, P7): what running a claimed job of that kind does once runJob (run-job-record.ts)
+ * One handler per job kind: what running a claimed job of that kind does once runJob (run-job-record.ts)
  * has parsed it, verified its approvals and marked it running — the kind's execute function, and the state, result and
  * error its record ends with. `JOB_HANDLERS` is typed by the job kind: a kind without a handler, or a handler of no
  * kind, does not compile (no default branch). Everything around the handler — the claim, the cancel / stop / pause
@@ -51,11 +51,11 @@ export interface JobRun {
   files: Pick<JobFiles, 'live'>;
   self: ProcessIdentity;
   log: (message: string) => void;
-  /** A run's pause marker, as the poll reads it (L4.4). */
+  /** A run's pause marker, as the poll reads it. */
   pause: { requested: boolean; maxMs?: number };
-  /** A capture take's filming marker (L5.14). */
+  /** A capture take's filming marker. */
   filming: () => { on: (state: FilmingEvent) => void | FilmingReport; close: () => void };
-  /** A `record` job's stop marker (L4.8: the Studio's Stop), as the poll reads it. */
+  /** A `record` job's stop marker (the Studio's Stop), as the poll reads it. */
   stopAsked: AbortController;
   /** The process's slot: a `record` job's worker stop is held there while it runs. */
   slot: { currentStop?: AbortController };
@@ -86,14 +86,14 @@ const runHandler: JobHandler<'run'> = async (job, run) => {
   } catch (e) {
     base.event({ type: 'log', level: 'warn', message: `${errorMessage(e)}: the default (30 min) applies` });
   }
-  // The live picture's channel (L4.4): a loopback listener and live.json, for as long as the job runs.
+  // The live picture's channel: a loopback listener and live.json, for as long as the job runs.
   let channel: LiveChannel | null = null;
   try {
     channel = await openLiveChannel({ files: run.files, jobId: id, runId: job.run_id, worker: run.self });
   } catch (e) {
     log(`job ${id}: no live picture (${errorMessage(e)})`);
   }
-  // L5.14: a filming take holds heavy work of every workspace while it films (captures.ts).
+  // A filming take holds heavy work of every workspace while it films (captures.ts).
   const film = job.mode === 'capture' ? run.filming() : undefined;
   let result: Awaited<ReturnType<typeof executeRunJob>>;
   try {

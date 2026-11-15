@@ -1,5 +1,5 @@
 /**
- * The render policy (L5.15, DESIGN §4r): how every Remotion browser of this process draws, which encoder writes a
+ * The render policy (DESIGN §4r): how every Remotion browser of this process draws, which encoder writes a
  * render, how many frames render at a time — the one place that names a GL, an encoder or a default concurrency for
  * Remotion (render.ts and preview.ts ask here).
  *
@@ -13,7 +13,7 @@
  *   a few frames at the render's size; else libx264 at CRF 16 (today's). `videotoolbox` forces it (macOS only: a clear
  *   error elsewhere, never another hardware encoder); `libx264` gives today's encode.
  * - Concurrency: 3 on the GPU path, three quarters of the CPUs (1–8) in software.
- * - The encode ffmpeg (L7.3, `chooseEncode`): `library` — the rendering library's own encodes the frames, as before;
+ * - The encode ffmpeg (`chooseEncode`): `library` — the rendering library's own encodes the frames, as before;
  *   `own` — this machine's ffmpeg does (encode-tools.ts) when it qualifies for the encoder chosen, else the library's
  *   with the reason in the record; `auto` — ours for a render drawn on the GPU, the library's on the software path and
  *   inside the app bundle (AUTO_ENCODE_FFMPEG, `autoEncodeFfmpeg`). Audio, mux and probes stay the library's either
@@ -70,7 +70,7 @@ export function defaultConcurrency(n: number = typeof availableParallelism === '
 export interface RenderPolicy {
   gl: { asked: RenderGlSetting; resolved: RenderGl; source: RenderSettingSource };
   encoder: { asked: RenderEncoderSetting; source: RenderSettingSource };
-  /** Which ffmpeg encodes the frames (L7.3). */
+  /** Which ffmpeg encodes the frames. */
   ffmpeg: { asked: RenderFfmpegSetting; source: RenderSettingSource };
   /** Frames at a time: the setting, else the default of the resolved GL. */
   concurrency: number;
@@ -146,7 +146,7 @@ export function withGl(p: RenderPolicy, gl: RenderGl, o: { keepConcurrency?: boo
 }
 
 /**
- * The GL a library preview of this process is drawn with, for its cache key (engine library.ts, review M1): the
+ * The GL a library preview of this process is drawn with, for its cache key (engine library.ts): the
  * resolved policy before any browser opens — the Studio server and the job process compute the same one from the same
  * retake.yaml and environment. A setting that cannot work gives "invalid" (the preview itself then fails and says why).
  */
@@ -333,7 +333,7 @@ function untilCancelled<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
   });
 }
 
-// ── The encode ffmpeg (L7.3) ──────────────────────────────────────────────────
+// ── The encode ffmpeg ──────────────────────────────────────────────────
 
 /**
  * What `auto` means for the encode ffmpeg, by where the render runs. Ours on the GPU path — the one path where it was
@@ -447,7 +447,7 @@ function ownEncodes(path: string, s: FrameSize, encoder: RenderEncoder): Promise
  * (encode-tools.ts `ownFfmpeg`), it has not failed at an encode in this process, it runs the frame encode itself with
  * the encoder chosen (`ownEncodes`; VideoToolbox: when ours cannot, the library's is probed and encodes, exactly as
  * before) and its folder can be made outside the workspace. In every other case the library's encodes and `note` says
- * why: never an error, a render works without our ffmpeg as it did before L7.3.
+ * why: never an error, a render works without our ffmpeg.
  */
 export async function chooseEncode(policy: RenderPolicy, gl: RenderGl, s: FrameSize, o: ChooseEncodeOptions): Promise<EncodeChoice> {
   const asked = policy.ffmpeg.asked;
@@ -606,9 +606,9 @@ export interface PolicyBrowser<B> {
 
 /**
  * Open a Remotion browser as the policy says — every Remotion browser of this process is opened here (renders, stills,
- * previews). Software: no `chromiumOptions` (the renders of before L5.15, byte for byte). ANGLE: its GPU is checked
- * (CDP SystemInfo); none under `auto` → closed and opened again in software, `gpu` → kept, with a warning. The caller
- * reports the browser (`onBrowser`) and arms its network guard after this, on the browser that will render.
+ * previews). Software: no `chromiumOptions`. ANGLE: its GPU is checked (CDP SystemInfo); none under `auto` → closed and
+ * opened again in software, `gpu` → kept, with a warning. The caller reports the browser (`onBrowser`) and arms its
+ * network guard after this, on the browser that will render.
  */
 export async function openRenderBrowser<B extends RenderBrowserHandle & { close(o: { silent: boolean }): Promise<unknown> }>(o: {
   policy: RenderPolicy;
@@ -694,7 +694,7 @@ export function gpuPathFailureOf(e: unknown, path: { gl: RenderGl; encoder: Rend
     }
     return (useful[0] ?? lines[0] ?? 'unknown error').slice(0, 200);
   };
-  // Strong signs only (review B M2): a line that merely names the encoder — a stream's `encoder : Lavc… h264_videotoolbox`
+  // Strong signs only: a line that merely names the encoder — a stream's `encoder : Lavc… h264_videotoolbox`
   // metadata quoted by a stitch or audio failure — is not one; nor is an audio encoder that does not open.
   const strongEncoder = /\[h264_videotoolbox @|compression session|VTCompressionSession|-1290\d|\bEPIPE\b/i;
   const encoderOpen = (l: string) => /Error while opening encoder/i.test(l) && !/aost#|\baac\b|audio/i.test(l);
@@ -724,7 +724,7 @@ export interface RenderPathProbe {
   encoder?: RenderEncoder;
   /** Frames at a time for that GL. */
   concurrency?: number;
-  /** The ffmpeg that would encode the frames (L7.3; nothing written). */
+  /** The ffmpeg that would encode the frames (nothing written). */
   ffmpeg?: EncodeFfmpegChoice;
 }
 

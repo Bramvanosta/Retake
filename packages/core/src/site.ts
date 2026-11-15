@@ -1,5 +1,5 @@
 /**
- * The URL a site extraction opens (L3.5, R-MCP-12: template_from_site / `retake theme from-site`). Pure: checked at
+ * The URL a site extraction opens (R-MCP-12: template_from_site / `retake theme from-site`). Pure: checked at
  * submit and again by the worker, before a human is asked and before anything connects.
  *
  * `https:` only, the default port, no user name or password, no query and no fragment (an agent cannot smuggle data

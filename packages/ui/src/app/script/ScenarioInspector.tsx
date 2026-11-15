@@ -1,5 +1,5 @@
 /**
- * L5.10b: the scenario's inspector (B32-Scenario; replaces Inspector.tsx) — what the board's selection is:
+ * The scenario's inspector (B32-Scenario; replaces Inspector.tsx) — what the board's selection is:
  * - a **step** (B32's order): its picture (the inspector's width, 16:9), "Step 3 · Click", its scene and how long it took
  *   in the run shown, its form (StepForm.tsx: the action's fields in words, other ways to find its target, the modifiers
  *   as switches) or its target, what the action does (the language's description), its edit buttons (Move up / Move
@@ -73,8 +73,8 @@ function StepActions({ disabled, locked, moves }: { disabled: boolean; locked: s
   return (
     <div className="sb-step-actions" data-testid="step-actions">
       <Toolbar label="Step">
-        {/* No aria-keyshortcuts (review A L2): Alt+arrows and Delete act in the frames, not on these buttons. `data-step-action`:
-            the button keeps the focus once its edit's view is here (review A L1: a second Enter works). */}
+        {/* No aria-keyshortcuts: Alt+arrows and Delete act in the frames, not on these buttons. `data-step-action`:
+            the button keeps the focus once its edit's view is here (a second Enter works). */}
         <Button size="sm" disabled={disabled || !moves.up} onClick={() => moves.move(-1)} data-step-action="up">
           Move up
         </Button>
@@ -121,7 +121,7 @@ export function StepPicture({
   if (!binding) return <NoThumb size={size}>Not in this run</NoThumb>;
   if ('missing' in binding) return <NoThumb size={size}>{shown(missingWords(binding))}</NoThumb>;
   if (binding.picture === null) return <NoThumb size={size}>{shown(binding.status === 'skipped' ? 'Skipped in this run' : (binding.why ?? 'No picture in this run'))}</NoThumb>;
-  // An attribute cannot be isolated (no <bdi>): the alt's direction controls are made visible (review A #8).
+  // An attribute cannot be isolated (no <bdi>): the alt's direction controls are made visible.
   return <Thumb run={source.run} runKey={binding.run_key} size={size} alt={visibleControls(altOf(step, scene, source.run, source.mode))} />;
 }
 
@@ -155,10 +155,10 @@ function StepInspector({
   const r = step.range;
   const editing = ed.enabled;
   const form = editing && forms && step.form && step.locked === undefined;
-  // Review B L8: the run's own words — a dry run is not "the last take".
+  // The run's own words — a dry run is not "the last take".
   const inRun = v.source ? `in this ${v.source.mode === 'dry' ? 'rehearsal' : 'capture'}` : '';
   const length = bound?.ms !== undefined ? `took ${seconds(bound.ms)} ${inRun}` : v.source ? 'no length in this run' : 'not shot yet';
-  // B32's order (review B L4): the picture, the title and its line, then the form (Action, Modifiers) — the rest after it.
+  // B32's order: the picture, the title and its line, then the form (Action, Modifiers) — the rest after it.
   return (
     <>
       <div className="sb-inspector-picture">
@@ -271,7 +271,7 @@ function StepInspector({
   );
 }
 
-/** A multi-page scene's pages (review B M1): each with its environment page and full URL, or the scene it continues from. */
+/** A multi-page scene's pages: each with its environment page and full URL, or the scene it continues from. */
 function PagesFact({ e, f }: { e: SceneBlock; f: View['scenes'][string] }) {
   const facts = new Map((f.pages ?? []).map((p) => [p.id, p]));
   return (
@@ -480,7 +480,7 @@ function endCard(c: VideoBlock['intro']): string {
   );
 }
 
-/** The Video inspector's location (review A L6): the file's own, and the tab's choice for Dry run and Capture when it differs. */
+/** The Video inspector's location: the file's own, and the tab's choice for Dry run and Capture when it differs. */
 export interface VideoLocation {
   file: string | undefined;
   fileFlags: string;

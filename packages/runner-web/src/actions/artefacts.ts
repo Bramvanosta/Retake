@@ -1,5 +1,5 @@
 /**
- * `wait_for_email` and `download` (L2.9, R-MAIL-02, R-DOC-01): capture an email from the project's test mailbox and a
+ * `wait_for_email` and `download` (R-MAIL-02, R-DOC-01): capture an email from the project's test mailbox and a
  * file a click produces, as run artefacts (runs/<id>/artefacts/; images rendered after the capture, see
  * ../artefacts/store.ts).
  */
@@ -29,7 +29,7 @@ export const ARTEFACT_TIMEOUT_S = 30;
 /** The mailbox client of the run's environment (created once per run). */
 export function mailboxOf(rt: Runtime): MailboxClient {
   if (rt.artefacts.mailbox) return rt.artefacts.mailbox;
-  // The environment's mailbox (L1.8): a sandbox's own, else the project's.
+  // The environment's mailbox: a sandbox's own, else the project's.
   const cfg = mailboxFor(rt.project, rt.env.name);
   if (!cfg) {
     throw new StepError(
@@ -235,7 +235,7 @@ export async function download(ctx: StepContext, args: NormalizedArgsMap['downlo
     context.off('page', onPage);
   }
 
-  // Never a sign-in page saved as the document (L1.6): the URL of the download, of the tab and of the fetched document
+  // Never a sign-in page saved as the document: the URL of the download, of the tab and of the fetched document
   // are checked like the page's own (its persona's sign-in pages) — a landing fails the run, which keeps nothing.
   const signIn = (u: string): void => {
     const e = rt.guard?.check(rt.activeId ?? '', page, u, `the document of download "${args.as}"`);
@@ -339,7 +339,7 @@ export function captureValue(text: string, pattern?: string): string | null {
 }
 
 /**
- * `capture_text` (L2.10, R-STO-01): read the target's rendered text (a field's value) and keep it — or the part the
+ * `capture_text` (R-STO-01): read the target's rendered text (a field's value) and keep it — or the part the
  * pattern selects — as the text artefact `as` (artefacts/texts/<as>.json), for a figure card. The text is polled until
  * the pattern matches (a figure still loading), up to the step timeout. No cursor move: nothing to film.
  */

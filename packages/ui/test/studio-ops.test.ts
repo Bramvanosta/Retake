@@ -1,7 +1,7 @@
 /**
- * L6.12: the app's typed operation client. StudioOps (data/ops.ts) is derived from the Studio's op table (server
- * studio.ts StudioTools: each op's input and answer types, kept by the operation contract's ToolDef<S, D, N>) — L6.12–
- * L6.13 fixes: no generated file, no hand-written result but the NARROWED ones, each with its reason; it names exactly
+ * The app's typed operation client. StudioOps (data/ops.ts) is derived from the Studio's op table (server
+ * studio.ts StudioTools: each op's input and answer types, kept by the operation contract's ToolDef<S, D, N>).
+ * No generated file, no hand-written result but the NARROWED ones, each with its reason; it names exactly
  * the ops the catalogue says the Studio serves; and the type checker refuses a call with an op the Studio does not
  * serve, arguments its input refuses or a result read as another type (a check file compiled with the app's options —
  * the test sources are not type-checked by the build — and its mutations).
@@ -200,7 +200,7 @@ describe('L6.12: the typed operation client', () => {
         `${lines[i].trim()}: ${errors.join(' | ')}`,
       ).toBe(true);
     }
-    // The mutation: the untyped client of before L6.12 (any op name, any arguments, a result of the caller's choosing)
+    // The mutation: an untyped client (any op name, any arguments, a result of the caller's choosing)
     // accepts every mistake — each directive is then unused.
     const untyped = CHECKS.replace(
       "import { call } from '../api.js';\nimport type { OpArgs, OpResult } from '../api.js';",

@@ -1,7 +1,7 @@
 /**
- * L5.8 — the scenario language side of off-camera work (R-FLD-31) and of the environment (R-FLD-30): `hook: <name>`
+ * The scenario language side of off-camera work (R-FLD-31) and of the environment (R-FLD-30): `hook: <name>`
  * steps and named hooks (`hooks:` of a scenario or project.yaml), a scene's `offscreen`; their validation, agent trust,
- * read-only refusals, the L5.5 filmed part and edit re-plan, the L4.3 Studio blocks and protected sections; and the
+ * read-only refusals, the filmed part and edit re-plan, the Studio blocks and protected sections; and the
  * sandbox advice `retake doctor` and `project_get` give.
  */
 import { mkdtempSync } from 'node:fs';
@@ -31,7 +31,7 @@ import { fileFacts, nodeFileFacts } from '@retake/core/io';
 import { PERSON_POLICY } from '@retake/core';
 import { memoryFileFacts } from '@retake/core';
 
-/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+/** No disk: these checks are handed a project but look at no file (a FileFacts is required beside a project). */
 const NO_DISK = memoryFileFacts({});
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);

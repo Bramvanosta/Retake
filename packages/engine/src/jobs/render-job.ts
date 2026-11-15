@@ -1,17 +1,16 @@
 /**
- * `render` jobs (L3.2, R-MCP-29): a render submitted by a client outside the CLI (the MCP server) and executed by the
+ * `render` jobs (R-MCP-29): a render submitted by a client outside the CLI (the MCP server) and executed by the
  * jobs worker with the engine's render use case (render/render-video.ts), guarded (trust `mcp`, network guard).
  *
  * Submit plans the run in the client's process (editor `planRun` with trust `mcp`: its two gates refuse files outside
  * the project, a theme named by folder, remote slot values — no browser is opened), hashes the run's timeline, reserves
- * the render id (an O_EXCL `.<scenario>-v<N>.lock` of renders/, the variant's suffix from the plan) and queues the input;
- * a lock whose job cannot be queued is released. An edit planned from the scenario file is snapshotted in the job
- * folder (edit.yaml, L4.5 critique B5): the worker plans from that text, so a switch made while the render waits in the
- * queue never fails it nor changes what it renders. The worker plans again (the same gates), refuses a timeline or a
- * variant that changed, records the render browser's process (job folder, browser.json) and renders — then, when asked
- * (`review`, L4.5 critique B12), reviews it in the same job. A failed or
- * cancelled render writes nothing under its id and releases the lock: the next render of the scenario reuses the id
- * (render_status looks the job up first).
+ * the render id (an O_EXCL `.<scenario>-v<N>.lock` of renders/, the variant's suffix from the plan) and queues the
+ * input; a lock whose job cannot be queued is released. An edit planned from the scenario file is snapshotted in the
+ * job folder (edit.yaml): the worker plans from that text, so a switch made while the render waits in the queue never
+ * fails it nor changes what it renders. The worker plans again (the same gates), refuses a timeline or a variant that
+ * changed, records the render browser's process (job folder, browser.json) and renders — then, when asked (`review`),
+ * reviews it in the same job. A failed or cancelled render writes nothing under its id and releases the lock: the next
+ * render of the scenario reuses the id (render_status looks the job up first).
  *
  * The editor is imported lazily: a capture-only worker, and an MCP process that never plans, do not load Remotion.
  */
@@ -54,11 +53,11 @@ import { portsOf } from '../ports.js';
 import type { EnginePorts } from '../ports.js';
 import { errorMessage } from '@retake/core/base';
 
-/** The job folder's snapshot of the scenario text a render's edit was planned from (L4.5, critique B5). */
+/** The job folder's snapshot of the scenario text a render's edit was planned from. */
 export const EDIT_SNAPSHOT_FILE = 'edit.yaml';
 
 /**
- * `expect_edit_sha256` (L4.5 part E): the file the edit was planned from (its sha256), or — when the edit comes from the
+ * `expect_edit_sha256`: the file the edit was planned from (its sha256), or — when the edit comes from the
  * run (a filmed change pending, no file) — today's scenario file, must be the version the client showed. A conflict
  * otherwise, before anything is reserved.
  */
@@ -167,7 +166,7 @@ export async function cleanupInterruptedRender(ws: OpenedWorkspace, queue: Pick<
     await releaseRenderLock(ws, input);
     const project = await openProjectBySlug(ws, input.project);
     await removePartials(ws.outputs.renders, ws.outputs.renders.dirOf(project.dir), `.${input.render_id}.partial-`);
-    // A worker killed during the inline review (L4.5): the previous review set aside comes back.
+    // A worker killed during the inline review: the previous review set aside comes back.
     if (input.review) await reviewer.recover(join(ws.outputs.reviews.dirOf(project.dir), input.render_id));
   } catch (e) {
     log(`job ${job.id}: render leftovers not removed (${errorMessage(e)})`);
@@ -193,7 +192,7 @@ async function timelineBytes(runs: Pick<RunOutputs, 'readBytes'>, runDir: string
  */
 export async function killRecordedBrowser(queue: Pick<JobQueue, 'recordedBrowser'>, job: JobRecord, log: (m: string) => void): Promise<void> {
   const browser = await queue.recordedBrowser(job.id);
-  // signal.ts's rule (L5.14a fixes): never a pid of 0 / 1 / -1, this process or its own group.
+  // signal.ts's rule: never a pid of 0 / 1 / -1, this process or its own group.
   if (browser && signalablePid(browser.pid) && browser.started_at && (await isAlive(browser))) {
     for (const target of [-browser.pid, browser.pid]) {
       try {
@@ -219,14 +218,14 @@ export interface RenderJobContext extends EnginePorts {
   browser(b: BrowserProcessInfo): void;
   /** What the job renders with (the runner's: render/renderer.ts). */
   renderer: Renderer;
-  /** A file the submit added to the job, read through the queue (JobQueue.jobFile): its edit.yaml snapshot, L4.5. */
+  /** A file the submit added to the job, read through the queue (JobQueue.jobFile): its edit.yaml snapshot. */
   jobFile?: (name: string, maxBytes: number) => Promise<JobFileRead>;
 }
 
 /**
- * The scenario text a render job plans its edit from (L4.5, critique B5): the job's edit.yaml, read through the queue
+ * The scenario text a render job plans its edit from: the job's edit.yaml, read through the queue
  * without following a link, whose sha256 must be the job's `edit_sha256` (a conflict otherwise). Undefined when the job
- * has no edit of the file, or was queued by a build without snapshots (the worker then reads today's file, as before L4.5).
+ * has no edit of the file, or was queued by a build without snapshots (the worker then reads today's file).
  */
 export async function renderJobEditText(input: Pick<RenderJobInput, 'edit_sha256'>, jobFile: RenderJobContext['jobFile']): Promise<string | undefined> {
   if (!input.edit_sha256 || !jobFile) return undefined;
@@ -246,7 +245,7 @@ export async function renderJobEditText(input: Pick<RenderJobInput, 'edit_sha256
 export type InlineReview = { review: NonNullable<RenderJobResult['review']>; error?: string };
 
 /**
- * The review of a render run inside its render job (L4.5, critique B12; the CLI's `render --review` precedent): the
+ * The review of a render run inside its render job (the CLI's `render --review` precedent): the
  * review job's own execution with the same signal — a cancel stops it (`cancelled`: the render, already written, stays
  * the job's result and the previous review of the id comes back); any other failure is reported (`failed`, the reason
  * as untrusted text) and never fails the render. `exec` is the review job's execution (replaced in tests).

@@ -1,5 +1,5 @@
 /**
- * Semantic checks of a sandbox.yaml (L1.8), positioned in that file: the provider's own keys, paths relative to the
+ * Semantic checks of a sandbox.yaml, positioned in that file: the provider's own keys, paths relative to the
  * manifest, loopback-only URLs, pages, seed steps (the hook checks, without the destructive confirmation), the reset
  * strategy, databases and mailbox, and the accounts (the persona checks of project.yaml `auth`, plus
  * {{account.username}} / {{account.password}}). Given the project, a sandbox page sharing its host and port with a page
@@ -37,7 +37,7 @@ const SYSTEM_DATABASES = new Set(['postgres', 'template0', 'template1']);
 const PROCESS_KEYS = ['command', 'cwd', 'env', 'stop_timeout_s'] as const;
 const DIR_LABEL = 'the sandbox folder';
 
-/** The options of sandbox.yaml's checks; `files` is required with `dir` (FilesWith, L7.34). */
+/** The options of sandbox.yaml's checks; `files` is required with `dir` (FilesWith). */
 export type SandboxCheckOptions = SandboxCheckFields & FilesWith<'dir'>;
 
 export interface SandboxCheckFields {
@@ -173,7 +173,7 @@ export function composeEnvRef(value: unknown): string | undefined {
 }
 
 /**
- * The env file of a docker-compose sandbox, absolute (L5.8): `compose.env_file` (relative to sandbox.yaml), else `.env`
+ * The env file of a docker-compose sandbox, absolute: `compose.env_file` (relative to sandbox.yaml), else `.env`
  * next to the first compose file when it exists (`exists`: the caller's look at the disk); undefined for none
  * (`env_file: false`, no such file, a process sandbox).
  */
@@ -186,7 +186,7 @@ export function composeEnvFilePath(dir: string, manifest: { provider?: unknown; 
 }
 
 /**
- * The env file of a docker-compose sandbox (L5.8): a written `env_file` must exist; a `COMPOSE_PROFILES` in it (or in the
+ * The env file of a docker-compose sandbox: a written `env_file` must exist; a `COMPOSE_PROFILES` in it (or in the
  * default `.env` next to the first compose file) is refused — docker compose would read it and start other services
  * than sandbox.yaml says (the shell's COMPOSE_* are left out for the same reason).
  */

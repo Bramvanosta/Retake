@@ -1,5 +1,5 @@
 /**
- * L3.3 engine.scenarios.fromScript (R-MCP-22): drafts of script tables validate against the fixture project — a
+ * engine.scenarios.fromScript (R-MCP-22): drafts of script tables validate against the fixture project — a
  * French-header table, an English one with every row type, and a loop over generated tables (random scene names,
  * times, captions, pages and types: every draft validates). Nothing is written to the project.
  */

@@ -1,5 +1,5 @@
 /**
- * L4.5 part A, core field edits (field-edits.ts `set_field`): one edit value of the video, a scene, a card or an
+ * Core field edits (field-edits.ts `set_field`): one edit value of the video, a scene, a card or an
  * interstitial written from the timeline as a splice, checked with facts independent of the edit code — the re-parsed
  * value against the change applied to the parsed value (verifyEditText), the lines that may change, every other byte.
  * The allow-list (no hook, var, env, capture, pacing or step path is ever reached), stale `from` / guard, placement (a
@@ -93,7 +93,7 @@ describe('set_field: the allow-list (⚑ no hook, var, env, capture, pacing or s
       ['pacing', 'x'],
       ['clock', 'x'],
       ['scenes', 'x'],
-      ['template.name', 'editorial'], // L4.7 (critique B1): `template` itself is a field (theme name)
+      ['template.name', 'editorial'], // `template` itself is a field (theme name)
       ['title.text', 'x'],
       ['__proto__', 'x'],
       ['intro.params', 'x'],

@@ -1,5 +1,5 @@
 /**
- * L5.7 (capture performance and disk), the pure parts and the encoder: the CFR schedule computed as frames arrive
+ * Capture performance and disk, the pure parts and the encoder: the CFR schedule computed as frames arrive
  * (stream.ts) against the after-the-fact one (encode.ts cfrSchedule), the encoder fed during the take with its grey
  * thumbnails, what the screen did after each click (activity.ts), the CPU sampler (perf.ts), Chromium's GPU report, the
  * measured cause of choppy motion, the pages `capture.prewarm` visits.
@@ -375,7 +375,7 @@ describe('GPU, choppy motion, disk (R-FLD-24, R-FLD-28)', () => {
     expect(choppyCause({ gpu, cpu: { ...cpu, renderer: 45 }, machine, seconds: 50, frameRateLimit: true })).toMatch(/page's own rendering is heavy.*renderer 0\.90/);
     expect(choppyCause({ gpu, cpu, machine, seconds: 50, frameRateLimit: false })).toMatch(/frame_rate_limit: false/);
     expect(choppyCause({ gpu, cpu, machine, seconds: 50, frameRateLimit: true })).toMatch(/^measured: no load measured.*GPU hardware accelerated \(ANGLE Metal\)/);
-    // L5.14b: another take filming beside it is said before a busy machine; heavy work slowed during it is a figure.
+    // Another take filming beside it is said before a busy machine; heavy work slowed during it is a figure.
     expect(choppyCause({ gpu, cpu, machine: { ...machine, load_max: 24, takes_beside: 1, heavy_slowed: true }, seconds: 50, frameRateLimit: true })).toMatch(
       /^measured: another take filmed at the same time on this Mac: film one take at a time \(.*machine load up to 24\.0 on 10 cores, another take filming beside it, heavy work \(a render, review or export\) slowed during the take/,
     );

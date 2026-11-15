@@ -48,7 +48,7 @@ export function masker(secrets: readonly string[]): (text: string) => string {
 /**
  * The hosts an exec seed step names (its rendered command and env values), checked like a shell hook's: each one a
  * service of the compose files (reachable inside the compose network) or allowed for the project (localhost, the
- * pages, allow_hosts), and never a host of a production or read-only environment (L1.7). A host computed inside the
+ * pages, allow_hosts), and never a host of a production or read-only environment. A host computed inside the
  * container (`$VAR`, `$(…)`) cannot be seen from here. Throws SandboxError seed.
  */
 export function checkExecHosts(pctx: Pick<ProviderContext, 'project' | 'sandbox'>, command: string, env: Record<string, string>, services: readonly string[]): void {
@@ -194,9 +194,9 @@ export async function runSeed(
     ...(opts.signal ? { signal: opts.signal } : {}),
     ...(opts.running ? { running: opts.running } : {}),
   };
-  // Trust `mcp` (L3.1): a shell step needs a human approval, bound to its position among ALL the seed steps (runHooks
+  // Trust `mcp`: a shell step needs a human approval, bound to its position among ALL the seed steps (runHooks
   // sees a batch between exec steps: its index is moved to the seed's); a reset hook's to its position among the reset
-  // hooks, under phase `reset` (L7.8).
+  // hooks, under phase `reset`.
   let offset = 0;
   const trust = pctx.seedTrust;
   const record = pctx.recordSeedRun;
@@ -221,7 +221,7 @@ export async function runSeed(
       if (!confirm) return false;
       const at = offset + request.index;
       const index = base + at;
-      // A reset hook (L7.8) is bound to its own phase and its position within reset.hooks: its approval is never a seed
+      // A reset hook is bound to its own phase and its position within reset.hooks: its approval is never a seed
       // step's, nor a seed step's its.
       const place = opts.what ? { phase: 'reset' as const, index: at } : { phase: 'seed' as const, index };
       const fingerprint = await pctx.hookRunner.approval.fingerprint(request.hook, { ...place, env: request.env, ...(request.files ? { files: request.files } : {}) });

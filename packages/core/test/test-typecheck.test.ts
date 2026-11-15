@@ -261,23 +261,22 @@ describe('the type check of the test files (tsconfig.test.json)', () => {
       });
     }
     expect(without).toEqual([]);
-    // Held at the number of the day (17 of the 32 are packages/ui/test/studio-ops.test.ts's check file, whose point they
-    // are): one more is a decision, written here in the commit that adds it; one fewer lowers the number.
-    // L7.6a, +3 (29 → 32), all in packages/core/test/run-record.test.ts: the three assignments that must not compile on
-    // a run record — its status, its error, its end — each over the assignment itself, wrong on purpose.
-    // L7.6b, +3 (32 → 35), all in packages/core/test/render-record.test.ts: a render record made from another state —
-    // an attempt handed to `finishedRender`, a finished render to `renderAttempt`, fields holding a policy — each over
-    // the call itself, wrong on purpose (the transitions take a render's fields only).
-    // L7.11, +1 (35 → 36), packages/hooks/test/describe-entry.test.ts:14: the ratchet's lib.mjs, a plain .mjs script
-    // without types, imported by the entry's walk test.
-    // L7.12, +1 (36 → 37), packages/runner-web/test/types-entry.test.ts:12: the same import, for the runner's types entry.
-    // L7.23, +3 (37 → 40), packages/engine/test/hooks-work.test.ts:165, 168, 173: a trust-`mcp` work without the
-    // protection of the jobs (twice) and the CLI's trust with one — each over the call, wrong on purpose.
-    // L7.28, +3 (40 → 43), packages/engine/test/sandbox-work.test.ts:178, 182, 187: a trust-`mcp` up / reset without
-    // the engine's seed trust (twice) and the person's trust with one — each over the call, wrong on purpose.
-    // L7.34, +4 (43 → 47), packages/core/test/file-facts.test.ts:20, 22, 24, 26: a scenario's project, its file, a hook's
-    // project folder and a theme's folder given without the FileFacts the type now requires beside them (FilesWith) —
-    // each over the call, wrong on purpose: the run-time refusal (FileFactsMissingError) is what the test holds.
+    // Held at the number of the day (17 of the 32 are packages/ui/test/studio-ops.test.ts's check file, whose point
+    // they are): one more is a decision, written here in the commit that adds it; one fewer lowers the number. +3 (29 →
+    // 32), all in packages/core/test/run-record.test.ts: the three assignments that must not compile on a run record —
+    // its status, its error, its end — each over the assignment itself, wrong on purpose. +3 (32 → 35), all in
+    // packages/core/test/render-record.test.ts: a render record made from another state — an attempt handed to
+    // `finishedRender`, a finished render to `renderAttempt`, fields holding a policy — each over the call itself,
+    // wrong on purpose (the transitions take a render's fields only). +1 (35 → 36),
+    // packages/hooks/test/describe-entry.test.ts:14: the ratchet's lib.mjs, a plain .mjs script without types, imported
+    // by the entry's walk test. +1 (36 → 37), packages/runner-web/test/types-entry.test.ts:12: the same import, for the
+    // runner's types entry. +3 (37 → 40), packages/engine/test/hooks-work.test.ts:165, 168, 173: a trust-`mcp` work
+    // without the protection of the jobs (twice) and the CLI's trust with one — each over the call, wrong on purpose.
+    // +3 (40 → 43), packages/engine/test/sandbox-work.test.ts:178, 182, 187: a trust-`mcp` up / reset without the
+    // engine's seed trust (twice) and the person's trust with one — each over the call, wrong on purpose. +4 (43 → 47),
+    // packages/core/test/file-facts.test.ts:20, 22, 24, 26: a scenario's project, its file, a hook's project folder and
+    // a theme's folder given without the FileFacts the type now requires beside them (FilesWith) — each over the call,
+    // wrong on purpose: the run-time refusal (FileFactsMissingError) is what the test holds.
     expect(count).toBe(EXPECT_ERRORS);
   });
 

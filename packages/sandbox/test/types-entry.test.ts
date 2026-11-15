@@ -1,5 +1,5 @@
 /**
- * `@retake/sandbox/types` (L7.25), a sandbox's vocabulary as types only: every statement of the entry is an
+ * `@retake/sandbox/types`, a sandbox's vocabulary as types only: every statement of the entry is an
  * `export type … from` a module of the package, so the built entry imports nothing and loads nothing (no pg, no process
  * or Docker code) — what makes it a domain entry (scripts/audit/lib.mjs DOMAIN_ENTRIES: the engine's Sandboxes port and
  * the shells may name it). Every name it exports, the package root exports too.

@@ -1,5 +1,5 @@
 /**
- * The palette of a theme made from brand inputs (L3.5, R-MCP-10): deterministic (hex in, hex out; no model call), built
+ * The palette of a theme made from brand inputs (R-MCP-10): deterministic (hex in, hex out; no model call), built
  * only on the kit's colour helpers (kit/style.ts). From the accent — and any colour the brand gives — it derives the
  * text, muted, paper and night tones, a background and the cursor ripple, then checks WCAG contrasts:
  *

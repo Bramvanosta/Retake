@@ -1,5 +1,5 @@
 /**
- * L4.5 part E: the Studio's render ops over HTTP (ops.ts renderOps), on a synthetic take (no render is run: the worker
+ * The Studio's render ops over HTTP (ops.ts renderOps), on a synthetic take (no render is run: the worker
  * is off, a review package is prepared by hand):
  * - ⚑ `scenario_render` takes pinned arguments only (no theme, override, variant, sandbox or path: 400) and queues the
  *   capture shown with the review inline and no theme or override of its own; ⚑ a file changed since it was shown is a
@@ -8,17 +8,16 @@
  * - `scenario_renders` answers the queue and the renders with their review's verdict — path-free;
  * - ⚑ `render_cancel` cancels a render of this project only (another project's, or a run of this project: 403);
  * - ⚑ `render_review` holds no path (no `dir`, `files`, filmed environment), its contact sheets by name;
- * - ⚑ `review_image` reads a sheet by NAME without following a link (critique B16) — a link planted in the folder, a PNG
+ * - ⚑ `review_image` reads a sheet by NAME without following a link — a link planted in the folder, a PNG
  *   named .jpg, a review folder linked out of the project are refused; a name with a path is a 400; a real sheet comes
  *   back as a JPEG within the cap;
- * - L4.5 fixes: the review's scene sheets and key frames are listed and served (review B); ⚑ a hard link and a key
- *   frames folder linked out are refused (review A N4); a failed render's message is its first line without paths
- *   (review B M6).
- * - ⚑ L5.12a `review_export` (the Review report's Export video): a strict input (a project and a render id — no format,
- *   no folder, no path: 400), an unknown render queues nothing, one export job of the render in MP4 1080p only (the
- *   engine's own, in the fixed exports/<render id>/), a path-free answer, a second one refused while it waits (L5.12a
- *   fixes: two at once on a render with no export yet — one job), at most two exports of the workspace at once, a Studio
- *   op only (never an MCP tool).
+ * - The review's scene sheets and key frames are listed and served; ⚑ a hard link and a key frames folder linked out
+ *   are refused; a failed render's message is its first line without paths.
+ * - ⚑ `review_export` (the Review report's Export video): a strict input (a project and a render id — no format, no
+ *   folder, no path: 400), an unknown render queues nothing, one export job of the render in MP4 1080p only (the
+ *   engine's own, in the fixed exports/<render id>/), a path-free answer, a second one refused while it waits (two at
+ *   once on a render with no export yet — one job), at most two exports of the workspace at once, a Studio op only
+ *   (never an MCP tool).
  */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -126,8 +125,8 @@ beforeAll(async () => {
   await mkdir(join(ws, 'outside'), { recursive: true });
   jpeg(join(ws, 'outside', 'secret.jpg'), 'green');
   await symlink(join(ws, 'outside', 'secret.jpg'), join(rv, 'sheet_out.jpg'));
-  // Review B: a scene sheet and a marker's key frame (PNG, in keyframes/) are shown too; a hard link to an outside
-  // file is refused (review A N4).
+  // A scene sheet and a marker's key frame (PNG, in keyframes/) are shown too; a hard link to an outside
+  // file is refused.
   jpeg(join(rv, 'sheet_scene_a.jpg'), 'yellow');
   await mkdir(join(rv, 'keyframes'), { recursive: true });
   jpeg(join(rv, 'keyframes', 'first.png'), 'white');
@@ -220,7 +219,7 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     const input = jobs[0].input;
     expect(input).toMatchObject({ kind: 'render', project: 'demo', scenario: 'tl', run_id: RUN, edit_sha256: sha(TEXT), review: { fps: 1 }, overrides: {}, submitted_by: 'ui' });
     expect(input).not.toHaveProperty('template');
-    // The text it was planned from goes with the job (B5).
+    // The text it was planned from goes with the job.
     expect(await readFile(join(queue.files.job(d.job), 'edit.yaml'), 'utf8')).toBe(TEXT);
     // Still refused while it waits (a third click later).
     const again = await call('scenario_render', renderArgs());
@@ -285,7 +284,7 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     ]);
     expect(v.untrusted.messages).toEqual(['The caption "Every frame has its own number." is long', 'a note']);
     // The images the folder really holds (report.json's paths are rebuilt), by name only: the sheets, the key frames
-    // and the scene sheets (review B: not the 1 fps sheets only).
+    // and the scene sheets (not the 1 fps sheets only).
     expect(v.images).toEqual([
       { image: 'sheet_1fps.jpg', label: 'contact sheet (1 fps)' },
       { image: 'sheet_1fps_p2.jpg', label: 'contact sheet (1 fps), page 2' },
@@ -365,7 +364,7 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     const unknown = await call('review_export', { project: 'demo', render_id: 'tl-v99' });
     expect(unknown.status, unknown.body).toBe(404);
     expect(await exportJobs()).toEqual([]);
-    // L5.12a fixes (review B-M3): the race itself — two clicks at once on a render with no export yet: one 200, one 409,
+    // The race itself — two clicks at once on a render with no export yet: one 200, one 409,
     // exactly one job (the chain holds the check and the submit together).
     await writeRecord('tl-v12', '2026-01-02T11:00:00.000Z');
     const race = await Promise.all([call('review_export', { project: 'demo', render_id: 'tl-v12' }), call('review_export', { project: 'demo', render_id: 'tl-v12' })]);
@@ -388,7 +387,7 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
       expect(x.json<{ error: { details: Record<string, unknown> } }>().error.details).toEqual({ job: d.job });
     }
     expect(await exportJobs()).toHaveLength(2);
-    // ⚑ The workspace's cap (review A-L8): two exports queued, a third render's is refused — it queues once one ended.
+    // ⚑ The workspace's cap: two exports queued, a third render's is refused — it queues once one ended.
     await writeRecord('tl-v13', '2026-01-02T11:30:00.000Z');
     const third = await call('review_export', { project: 'demo', render_id: 'tl-v13' });
     expect(third.status, third.body).toBe(409);

@@ -1,5 +1,5 @@
 /**
- * The Sandboxes port's contract (L7.25, U14 — finding X8: the process and docker-compose providers shared no suite):
+ * The Sandboxes port's contract (the process and docker-compose providers shared no suite):
  * one sequence of cases on one sandbox, run on every adapter — the sandbox package with a process sandbox and with a
  * docker-compose one (RETAKE_TEST_DOCKER=1), and the in-memory sandboxes with a manifest of each kind
  * (sandboxes.test.ts). The cases are the answers the engine and the shells read: the refusals of open (their words),

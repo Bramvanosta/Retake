@@ -1,21 +1,21 @@
 /**
- * L4.4 part B: the Run screen's stream `POST /v1/live` — no browser, no worker: the test plays the worker (it claims the
+ * The Run screen's stream `POST /v1/live` — no browser, no worker: the test plays the worker (it claims the
  * job, writes the run's log.jsonl and the job's events.jsonl, and opens the job's live channel, engine
  * live-channel.ts, feeding frames to its sink).
  *
- * - S5 the gate: token, another page, method, content type, body cap and shape; at most 2 run streams (a 3rd 503);
+ * - The gate: token, another page, method, content type, body cap and shape; at most 2 run streams (a 3rd 503);
  *   never an op.
  * - The log view: a snapshot then progress events whose `seq` is the byte offset of the line's end; `after` resumes
  *   without a duplicate; the job's worker notes merged (its `run` events are not repeated); unknown or malformed lines
  *   dropped; a line over 64 KiB skipped with a note; `end` once the run and its job ended.
- * - S9 untrusted text and no paths: no path field (run_start's `dir`), no workspace / home path in any text, the
+ * - Untrusted text and no paths: no path field (run_start's `dir`), no workspace / home path in any text, the
  *   filmed site's and hooks' text under `untrusted`, capped at 2,000 characters.
  * - The picture: one upstream per job whatever the number of page streams, opened only while a page stream wants frames
  *   and closed when none does; a capture streams only when the page asked; a terminal's run shows none; the relay is
- *   latest-only (a page that never reads holds one frame at most); S4 no frame ever lands on disk.
+ *   latest-only (a page that never reads holds one frame at most); no frame ever lands on disk.
  * - Review fixes: U+2028 / U+2029 in a page's text never lose an event (escaped on the wire, the page's parser splits
- *   lines on `\n` only — A M1); a hook named by its description is scrubbed as a text, URLs in texts masked (A notes);
- *   the run's and the worker's lines merged by time (B L5); a snapshot carries the last 500 log lines (B tests).
+ *   lines on `\n` only); a hook named by its description is scrubbed as a text, URLs in texts masked;
+ *   the run's and the worker's lines merged by time; a snapshot carries the last 500 log lines.
  */
 import { appendFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';

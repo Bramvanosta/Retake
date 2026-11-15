@@ -1,5 +1,5 @@
 /**
- * Layout geometry that follows params (L2.5): geometry values may be arithmetic expressions over the numeric params,
+ * Layout geometry that follows params: geometry values may be arithmetic expressions over the numeric params,
  * the geometry `vars` and `aspect` (the capture's width / height); parseManifest checks them, evalLayoutGeometry
  * evaluates them for one use (the planner does it for every layout use).
  */
@@ -67,7 +67,7 @@ describe('geometry expressions', () => {
     expect(geometryScope({ width: 1400, framed: false, tone: 'dark', list: [1] })).toEqual({ width: 1400, framed: 0, aspect: 16 / 9, aspect2: 16 / 9 });
     expect(geometryScope({}, 1.6).aspect).toBe(1.6);
     expect(geometryScope({}, Number.NaN).aspect).toBe(16 / 9);
-    // L2.11: `aspect2` is the second page's aspect (multi-page layouts), the first one's when there is none.
+    // `aspect2` is the second page's aspect (multi-page layouts), the first one's when there is none.
     expect(geometryScope({}, 1.6, 390 / 844).aspect2).toBe(390 / 844);
     expect(geometryScope({}, 1.6).aspect2).toBe(1.6);
   });

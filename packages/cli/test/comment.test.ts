@@ -1,7 +1,7 @@
 /**
- * `retake comment add | list | reply | resolve | reopen` (L3.6) on synthetic renders (the review tests' helpers): frames
+ * `retake comment add | list | reply | resolve | reopen` on synthetic renders (the review tests' helpers): frames
  * by marker, time and number, the region, the author (`--author`, else $RETAKE_AUTHOR), `--json`, the threads
- * printed with their entries (L4.6: a reply holding a proposal with its state, an apply by its proposal), and the usage /
+ * printed with their entries (a reply holding a proposal with its state, an apply by its proposal), and the usage /
  * lookup errors. The first test reads the still (renders drawn with ffmpeg,
  * ffprobe); without them the renders are empty files and the others run.
  */
@@ -159,7 +159,7 @@ describe('retake comment', () => {
       expect(all.err).toMatch(/Studio Person \(studio\), .*:\n {4}Made in the Studio/);
       expect(all.err).toMatch(/Studio Person \(studio\) replied, .*:\n {4}And answered there\./);
 
-      // An MCP proposal and its apply in the Studio are printed as such (review B L2), with the proposal's state.
+      // An MCP proposal and its apply in the Studio are printed as such, with the proposal's state.
       const tour =
         'video: Quote\nintro: false\noutro: false\nscenes:\n  - id: s1\n    page: app\n    open: /\n    caption: The intro caption says far too much\n    steps:\n      - click: Go\n      - hold: 2.4\n';
       await mkdir(join(ws.project.dir, 'scenarios'), { recursive: true });

@@ -6,7 +6,7 @@ declare module 'retake:composition' {
   import type { ComponentType, Context } from 'react';
   /** PlanVideo, the composition of every render (packages/editor src/remotion). */
   export const PlanVideo: ComponentType<Record<string, unknown>>;
-  /** ComponentPreview, the composition of component previews (L4.7: the theme editor's live previews). */
+  /** ComponentPreview, the composition of component previews (the theme editor's live previews). */
   export const ComponentPreview: ComponentType<Record<string, unknown>>;
   export const ModulesContext: Context<unknown>;
   export const PreviewContext: Context<{ warn(message: string): void } | null>;
@@ -20,7 +20,7 @@ declare module 'retake:modules' {
   export const loaders: Record<string, () => Promise<{ default?: unknown }>>;
   /** Each component's params defaults (the manifest's), by id. */
   export const defaults: Record<string, Record<string, unknown>>;
-  /** Workspace components left out until the person allows them in this Studio session (ids; review A H1 c). */
+  /** Workspace components left out until the person allows them in this Studio session (ids). */
   export const held: string[];
   /** The scaffold of each kind (a stand-in for a missing use), loaded the same way. */
   export const scaffolds: Record<string, { load: () => Promise<{ default?: unknown }>; defaults: Record<string, unknown> }>;

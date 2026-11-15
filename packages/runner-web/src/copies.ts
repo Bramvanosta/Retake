@@ -1,5 +1,5 @@
 /**
- * Browser profiles this process made in the system temp folder (L1.6): the session copies of runs and `retake login`
+ * Browser profiles this process made in the system temp folder: the session copies of runs and `retake login`
  * checks, the login profiles, and the throwaway profiles of browsers without a persona profile — a storage_state
  * persona's cookies end up in that one. A hard interrupt removes them (removeSessionCopiesSync); a killed process leaves
  * them to the next sweep (auth.ts sweepStaleSessionCopies). Its own module: session.ts and auth.ts both use it.

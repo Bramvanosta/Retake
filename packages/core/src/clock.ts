@@ -1,5 +1,5 @@
 /**
- * The product's clock (L1.7, R-ENV-05): `clock:` of a project or scenario names the date and time the browser reads
+ * The product's clock (R-ENV-05): `clock:` of a project or scenario names the date and time the browser reads
  * when the capture starts, so dates and times the product shows are the same on every take. Pure helpers: parsing,
  * validation and the instant a clock names (the runner installs it in the browser).
  */

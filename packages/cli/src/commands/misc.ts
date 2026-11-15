@@ -13,8 +13,8 @@ export function schemaCommand(ui: Ui, name: JsonSchemaName): ExitCode {
 }
 
 /**
- * Commands of later phases: registered so `retake --help` lists them, they only say when they arrive. Empty since
- * L4.1 made `ui` a real command; the mechanism stays for the next one.
+ * Commands of later phases: registered so `retake --help` lists them, they only say when they arrive. Empty: every
+ * command is a real one; the mechanism stays for the next one.
  */
 export const LATER_COMMANDS: ReadonlyArray<{ name: string; phase: 4 | 5; summary: string }> = [];
 

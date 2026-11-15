@@ -15,7 +15,7 @@ import { PERSON_POLICY } from '@retake/core';
 const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 /**
- * R-GOAL-01 / R-REC-06 (L1.4): real captures at the virtual sizes the tool promises — 2560×1440, 4K (1920×1080 at
+ * R-GOAL-01 / R-REC-06: real captures at the virtual sizes the tool promises — 2560×1440, 4K (1920×1080 at
  * scale 2) and a phone (390×844 at scale 2) — each one short scene: the page reports the size it laid out at, one
  * click with the debug cursor, a hold. The video has width·scale × height·scale pixels at 30 fps, the page laid out
  * at the virtual width (a phone gets the narrow layout), and the drawn hotspot lands on the click point at that

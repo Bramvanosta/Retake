@@ -70,7 +70,7 @@ export function assertRenderBrowser(b: RenderBrowser, work: WorkPolicy, bundle: 
 /**
  * Which browser renders (pure but for a stat): Playwright's headless shell or `$RETAKE_CHROMIUM_HEADLESS_SHELL` by
  * its real path (the revision is in Playwright's folder name), size and date; `none` when there is none (no render
- * starts then). A library preview's key covers it (L4.7 review A L3): a browser update is a new picture.
+ * starts then). A library preview's key covers it: a browser update is a new picture.
  */
 export function renderBrowserIdentity(env: NodeJS.ProcessEnv = process.env): string {
   const b = renderBrowser(env);

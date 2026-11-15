@@ -49,7 +49,7 @@ export function parseYaml(text: string): ParsedYaml {
 /**
  * Each alias of the document → the node it names: the latest node anchored with its name before it in document order
  * (what `Alias.resolve` finds — but in one pass over the document: `resolve` walks the whole document for each alias,
- * so a file of many aliases cost O(aliases × nodes), review A #1). Computed once per document, on first use.
+ * so a file of many aliases cost O(aliases × nodes)). Computed once per document, on first use.
  */
 const aliasTargetsOf = new WeakMap<Document.Parsed, Map<Alias, Node>>();
 function aliasTargets(doc: Document.Parsed): Map<Alias, Node> {

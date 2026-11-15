@@ -1,5 +1,5 @@
 /**
- * A theme folder's content (L4.5 fixes, review B #3): its hash, written in each render record (`template_sha256`) and
+ * A theme folder's content: its hash, written in each render record (`template_sha256`) and
  * computed by the Studio's timeline view, so "from this version" also means "with the same theme files" — a font, a
  * logo or template.yaml changed since a render makes it another version; and a cheap signature of the same files
  * (size and mtime) for the timeline view's memo.

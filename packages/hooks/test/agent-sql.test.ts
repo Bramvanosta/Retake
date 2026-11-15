@@ -1,5 +1,5 @@
 /**
- * L7.33: under trust `mcp`, an sql hook the agent wrote is asked about like its shell hooks — whatever its statement —
+ * Under trust `mcp`, an sql hook the agent wrote is asked about like its shell hooks — whatever its statement —
  * bound to the same fingerprint (hookFingerprint, its files' bytes included). A person's sql hook keeps the destructive
  * rule only, and a sandbox's seed steps are not concerned. The runs against a real Postgres need RETAKE_TEST_PG
  * (`pnpm test:pg`); the others reach a closed port, so an approved hook gets as far as connecting and fails there.

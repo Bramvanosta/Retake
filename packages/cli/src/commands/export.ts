@@ -14,7 +14,7 @@ import { renderNotes } from './render-notes.js';
 import { heavyGate } from '../heavy-gate.js';
 
 export interface ExportCommandOptions {
-  /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */
+  /** `--no-wait` (wait: false): start even while a take films, at normal priority. */
   wait?: boolean;
   /** Comma-separated formats (default mp4_1080p,webm,gif_preview). */
   formats?: string;
@@ -61,7 +61,7 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (gifStart !== undefined && !(gifStart >= 0)) throw new UsageError(`--gif-start "${opts.gifStart}": use seconds ≥ 0`);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  // Captures first (L5.14): the render is the one named now ("latest" resolved before any wait, critique M10).
+  // Captures first: the render is the one named now ("latest" resolved before any wait).
   // The editor's errors state their kind (core error-kind.ts): main prints their message alone, exit 1.
   // `latest` names a FILE of renders/: the export then reads that file (never the id its record says, looked up again).
   // A render named is looked at first only to say what it is (a record renamed by hand); the export finds it again

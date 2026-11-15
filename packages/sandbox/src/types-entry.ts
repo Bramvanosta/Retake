@@ -1,5 +1,5 @@
 /**
- * `@retake/sandbox/types` (L7.25): a sandbox's vocabulary as types only — what the engine's Sandboxes port and the
+ * `@retake/sandbox/types`: a sandbox's vocabulary as types only — what the engine's Sandboxes port and the
  * shells name (the results of up, down and reset, a status, logs, a take, a call's options and progress, a seed's
  * trust and recorder, the providers' capabilities, the scaffold's options and result).
  * Every line is `export type … from`: the built entry loads nothing (no pg, no process or Docker code), so it is a

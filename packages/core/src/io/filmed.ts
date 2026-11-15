@@ -28,7 +28,7 @@ function scenarioFileOf(project: Pick<LoadedProject, 'dir'>, scenario: string): 
 /**
  * Today's scenario file of a project against a run's snapshot. Undefined when either file is missing, a symbolic link,
  * not a regular file, over SCENARIO_COMPARE_MAX_BYTES or unreadable: a run of a file elsewhere, a scenario since
- * deleted, a run without a snapshot. `scenario` is a name, never a path. `nowText` (L4.5, critique B5): the text of the
+ * deleted, a run without a snapshot. `scenario` is a name, never a path. `nowText`: the text of the
  * file as a render job snapshotted it at submit, used instead of today's file (a switch made while the render waited
  * in the queue no longer changes what it renders). `run` is the run folder whose snapshot is read here, or the snapshot's
  * text as its caller read it (`then`; undefined: none to tell).
@@ -48,7 +48,7 @@ export function scenarioSinceRun(project: Pick<LoadedProject, 'dir'>, run: strin
 }
 
 /**
- * Whether the filmed part of a scenario changed since a run captured it (L5.5): true when it did (or a text no longer
+ * Whether the filmed part of a scenario changed since a run captured it: true when it did (or a text no longer
  * parses), false when only the edit changed or nothing did, undefined when either file is missing or unreadable.
  */
 export function scenarioChangedSinceRun(project: Pick<LoadedProject, 'dir'>, runDir: string, scenario: string): boolean | undefined {

@@ -1,5 +1,5 @@
 /**
- * One line about what a take cost and how it was filmed (L5.7, run.json `perf`): the CLI's run summary, the MCP
+ * One line about what a take cost and how it was filmed (run.json `perf`): the CLI's run summary, the MCP
  * run_status summary. Never names a target (page text): scene.step only.
  */
 import type { StoredRunPerf } from './run-record.js';
@@ -29,7 +29,7 @@ export function perfSummary(p: StoredRunPerf): string {
   }
   if (p.disk) parts.push(`${p.disk.run_mb < 10 ? p.disk.run_mb.toFixed(1) : Math.round(p.disk.run_mb)} MB`);
   if (!p.frame_rate_limit) parts.push('frame-rate limiter off');
-  // L5.14 (captures first): what filmed or rendered beside the take.
+  // Captures first: what filmed or rendered beside the take.
   const beside = p.machine.takes_beside ?? 0;
   if (beside) parts.push(`${beside === 1 ? 'another take' : `${beside} other takes`} filmed beside it`);
   if (p.machine.heavy_slowed) parts.push('heavy work (a render, review or export) was slowed during it');

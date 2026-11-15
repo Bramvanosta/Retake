@@ -1,5 +1,5 @@
 /**
- * Authoring, recording, project writes and job_status (L7.18's family), characterized through their shells before they
+ * Authoring, recording, project writes and job_status, characterized through their shells before they
  * became the engine's operations: MCP's scenario_save, scenario_from_script, scenario_record, project_create,
  * project_prune and job_status through `retake mcp` over stdio (from the sources, the SDK's client; three clients: one
  * that cannot be asked, one that declines, one that accepts), and the Studio's scenario_edit and its seven record_* ops

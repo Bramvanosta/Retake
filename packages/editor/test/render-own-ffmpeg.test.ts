@@ -1,5 +1,5 @@
 /**
- * L7.3 a render whose frames this machine's ffmpeg encodes (editor render/render.ts over render/encode-tools.ts and
+ * A render whose frames this machine's ffmpeg encodes (editor render/render.ts over render/encode-tools.ts and
  * render/policy.ts `chooseEncode`), on real renders of the synthetic run: the frame encode — and nothing else — reaches
  * our ffmpeg, the record says which ffmpeg encoded, the file is what the library's ffmpeg makes of the same frames
  * (stream facts, audio, SSIM), and a failure of ours at the encode renders the video once more with the library's.

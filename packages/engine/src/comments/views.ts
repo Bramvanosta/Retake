@@ -33,9 +33,9 @@ export interface CommentEntryView {
   created_at: string;
   render_id?: string;
   render_created_at?: string;
-  /** A reply's proposal (L4.6): its state against today's file and its size — the lines themselves: `comments.proposal`. */
+  /** A reply's proposal: its state against today's file and its size — the lines themselves: `comments.proposal`. */
   proposal?: CommentProposalSummary;
-  /** An apply (L4.6): the reply whose proposal it applied and the sha256 of the file written. */
+  /** An apply: the reply whose proposal it applied and the sha256 of the file written. */
   applies?: string;
   scenario_sha256?: string;
 }
@@ -74,7 +74,7 @@ export interface CommentView {
   /** Pattern-checked (core trustedAnchor): a value of an unknown shape shows as "unknown", the original under untrusted.anchor. */
   anchor: FrameCommentAnchor;
   /**
-   * The anchored step in today's scenario file (L4.3, critique B10; core locateAnchorStep): "<scene>.<index>", what
+   * The anchored step in today's scenario file (core locateAnchorStep): "<scene>.<index>", what
    * page_inspect {until} takes — `anchor.step_ref` is where it was in the rendered run, and steps moved since (a Studio
    * drag) change the index. Null: today's file has no such step (deleted, changed, or not readable). Absent: the frame
    * shows no step.
@@ -190,7 +190,7 @@ export async function threadView(projectDir: string, thread: CommentThread, hash
     const today = await todayText(projectDir, thread.scenario, texts);
     stepNow = today === null ? null : (locateAnchorStep(today.text, anchor) ?? null);
   }
-  // Proposals (L4.6): their state against today's file (critique B4), read only when the thread holds one.
+  // Proposals: their state against today's file, read only when the thread holds one.
   const states = thread.entries.some((e) => e.proposal)
     ? new Map(proposalStates(thread.entries, (await todayText(projectDir, thread.scenario, texts))?.sha256 ?? null).map((x) => [x.entry, x]))
     : undefined;
@@ -435,7 +435,7 @@ export async function getComment(renders: RenderOutputs, project: LoadedProject,
   return threadView(project.dir, r.thread, r.hash, await renderIndex(renders, project.dir));
 }
 
-// ── Counts and pins from the thread files alone (L4.6, critique B8) ─────────
+// ── Counts and pins from the thread files alone ─────────
 
 /** Scenario folders of comments/ one count reads, at most (as the `comments:` sources). */
 export const COMMENT_COUNT_MAX_FOLDERS = 200;

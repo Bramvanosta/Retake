@@ -1,5 +1,5 @@
 /**
- * A jobs worker's signals go through its capture runner (L7.12: the CaptureRunner port, worker-signals.ts): the first
+ * A jobs worker's signals go through its capture runner (the CaptureRunner port, worker-signals.ts): the first
  * SIGINT / SIGTERM cancels the running job with the runner's own cancel (its message says the signal), the second
  * removes the session copies synchronously before anything else of the quit, then exits 130 on the next tick. Driven on
  * an in-memory runner and a worker record holding only what the handler reads; `process.exit` is stubbed.

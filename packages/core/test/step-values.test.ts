@@ -1,11 +1,11 @@
 /**
- * L4.3 part 3, core value edits (step-edits.ts `set_step` / `insert_step`, step-forms.ts): a form's field changes and the
+ * Core value edits (step-edits.ts `set_step` / `insert_step`, step-forms.ts): a form's field changes and the
  * palette's new steps as text edits — yaml's CST.setScalarValue with a double-quote fallback, a key added or removed,
  * a shorthand turned into a flow map, a new step rendered by yaml — checked with facts independent of the edit code:
  * the re-parsed value against the change applied to the parsed value (verifyEditText), the one line it may touch
  * (located from the original document's node positions), every other byte. Goldens on every step of the fixture's 13
- * scenarios; injection (values that are YAML syntax stay values); shorthands kept; critique B2 (a field changed
- * meanwhile is never reverted), B9 (hidden characters, line breaks), layouts (CR LF without a final line break, block
+ * scenarios; injection (values that are YAML syntax stay values); shorthands kept; a field changed
+ * meanwhile never reverted; hidden characters, line breaks; layouts (CR LF without a final line break, block
  * maps, comments); the forms derived from the schemas (required agrees with zod, the palette's defaults).
  */
 import { readFileSync, readdirSync } from 'node:fs';

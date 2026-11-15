@@ -1,5 +1,5 @@
 /**
- * The one append discipline of the workspace's line logs (L7.26, U15): the journal of authored writes and hook runs
+ * The one append discipline of the workspace's line logs: the journal of authored writes and hook runs
  * (store/journal.ts, `.retake/journal.jsonl`) and the job history (history.ts, `.retake/history.jsonl`) — each its own
  * file and its own readers, both written and read here, with the same guarantee:
  *

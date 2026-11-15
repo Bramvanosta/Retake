@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Retake's own ffmpeg (L5.16): a static, relocatable ffmpeg + ffprobe for macOS arm64, GPL with libx264 — built from
+ * Retake's own ffmpeg: a static, relocatable ffmpeg + ffprobe for macOS arm64, GPL with libx264 — built from
  * the archives pinned in scripts/ffmpeg-sources.json (URL + sha256), with nothing of Homebrew linked:
  *   1. the archives are read from a cache folder (`--sources`, else RETAKE_FFMPEG_SOURCES, else
  *      <os temp>/retake-ffmpeg-sources — never the repository); a missing one is downloaded only with `--fetch`; every
@@ -14,7 +14,8 @@
  *      demuxer / filter / protocol the engine names (ENGINE_NEEDS) is there.
  * Licences and the written source offer for what this builds are in apps/desktop/licenses/ffmpeg/.
  *
- *   node scripts/build-ffmpeg.mjs --fetch --out <dir>     # download what is missing, build, check (≈ 100 s on an M4)
+ *   node scripts/build-ffmpeg.mjs --fetch --out <dir>     # download what is missing, build, check (≈ 100 s on an M4
+ *   Mac)
  *   node scripts/build-ffmpeg.mjs --sources <dir> --out <dir> [--work <dir>] [--jobs <n>] [--keep-work]
  *   node scripts/build-ffmpeg.mjs --check <dir>           # check an ffmpeg folder (ffmpeg + ffprobe) without building
  * Tools: clang, make, perl, curl (macOS command-line tools) and pkg-config; nasm is not needed on arm64. The scratch
@@ -77,7 +78,7 @@ export const ENGINE_NEEDS = {
   // `ipod`: the .m4a test track (editor render/audio.ts); the others by `-f` or by the extension of the file written.
   muxers: ['mp4', 'mov', 'ipod', 'webm', 'gif', 'image2', 'image2pipe', 'rawvideo', 'null'],
   demuxers: ['mov', 'matroska', 'concat', 'image2', 'image2pipe', 'png_pipe', 'rawvideo', 'lavfi'],
-  // `colorspace`: a render's frames encoded by our ffmpeg (L7.3, editor render/encode-tools.ts OWN_FRAME_FILTER). Its
+  // `colorspace`: a render's frames encoded by our ffmpeg (editor render/encode-tools.ts OWN_FRAME_FILTER). Its
   // probe (`probeFrameEncode`) makes three JPEG frames from `color` and runs the frame encode on them: `mjpeg`,
   // `image2pipe` and `null` above.
   filters: ['scale', 'format', 'split', 'select', 'fps', 'palettegen', 'paletteuse', 'color', 'anullsrc', 'aevalsrc', 'null', 'anull', 'colorspace'],

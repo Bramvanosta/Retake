@@ -1,6 +1,6 @@
 import type { JournalEntry } from '@retake/core/hooks';
 
-// L7.11: the vocabulary of a hook run lives in core (core hook-run.ts: the engine's HookRunner port names it there);
+// The vocabulary of a hook run lives in core (core hook-run.ts: the engine's HookRunner port names it there);
 // this package's API keeps every name.
 export { journalsRollback } from '@retake/core/hooks';
 export type {

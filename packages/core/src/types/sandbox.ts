@@ -87,14 +87,14 @@ export interface SandboxDatabase extends DatabaseConfig {
   external?: boolean;
 }
 
-/** sandbox.yaml (version 1, L1.8): how to start a disposable copy of the product, seed it and reset it before a take. */
+/** sandbox.yaml (version 1): how to start a disposable copy of the product, seed it and reset it before a take. */
 export interface SandboxManifest {
   version: typeof SANDBOX_VERSION;
   provider: SandboxProvider;
   /**
    * docker-compose only: the compose files (relative to sandbox.yaml; default [compose.yaml]), the project name, and the
-   * env file docker compose reads its `${VAR}` values from (L5.8: default `.env` next to the first compose file when there
-   * is one; `false`: none).
+   * env file docker compose reads its `${VAR}` values from (default `.env` next to the first compose file when there is
+   * one; `false`: none).
    */
   compose?: { files?: string[]; project?: string; env_file?: string | false };
   services: Record<string, SandboxService>;

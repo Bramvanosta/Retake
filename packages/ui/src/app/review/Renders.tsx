@@ -1,5 +1,5 @@
 /**
- * Render and the render queue in the Studio (L4.5 part E, R-UI-26; L5.12a: rebuilt on the kit, R-UI-45 / R-UI-46) — the
+ * Render and the render queue in the Studio (R-UI-26; rebuilt on the kit, R-UI-45 / R-UI-46) — the
  * state Edit, the Review report and the scenario screen's renders card share:
  *
  * - `useRenders` — the scenario's render list (`scenario_renders`), read again on the events that concern it (at most once
@@ -15,7 +15,7 @@
  * - `RendersList` — the newest render that failed or was cancelled (its message as untrusted text), then the renders
  *   written, newest first (a few, then Show all), each a row: its version, when, length, size and theme, whether it shows
  *   the version on screen, its review's verdict as a mark and a word; a row is a link to that render's Review report
- *   (L5.12a fixes: never a toggle; its time of day shows when another row reads the same).
+ *   (never a toggle; its time of day shows when another row reads the same).
  * Every value from the server is a text node (Txt / a kit slot).
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -107,7 +107,7 @@ export function useRenders(slug: string, name: string, onStale?: () => void): Re
     },
     [slug, reload],
   );
-  // One object while nothing in it changes (review A-L2: a memoised consumer — the thread panel — keeps its props).
+  // One object while nothing in it changes (a memoised consumer — the thread panel — keeps its props).
   return useMemo(() => ({ loaded, reload, sending, outcome, mine, cancelling, render, cancel }), [loaded, reload, sending, outcome, mine, cancelling, render, cancel]);
 }
 
@@ -278,7 +278,7 @@ export function RendersList({ r, slug, name, shown, limit, current }: { r: Rende
 }
 
 /**
- * L5.12b (R4-Palette): the ⌘K palette's "Review report" entry while a screen holds the scenario's renders — the newest
+ * The ⌘K palette's "Review report" entry (R4-Palette) while a screen holds the scenario's renders — the newest
  * render's review in words ("last render v2 · 2 warnings"; never "passed": review-words reportHint), opening its report.
  */
 export function useReportEntry(slug: string, name: string, r: RendersState): void {

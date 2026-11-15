@@ -1,5 +1,5 @@
 /**
- * X8 (L7.25): the providers' optional methods made explicit capabilities. Every provider has every method of
+ * X8: the providers' optional methods made explicit capabilities. Every provider has every method of
  * `Provider`; `capabilities` says which ones do the work: the docker-compose provider all, the process provider none
  * (its exec, logs, followLogs and publishedBy refuse with a SandboxError naming the docker-compose provider; its
  * address and hashInputs give the neutral answers — undefined, none — the Sandbox used when the methods were absent).
@@ -20,7 +20,7 @@ import { providerFor } from '../src/sandbox.js';
 import type { Provider, ProviderCapabilities, ProviderContext } from '../src/provider.js';
 
 const NAMES: Array<keyof ProviderCapabilities> = ['exec', 'logs', 'followLogs', 'snapshots', 'address', 'hashInputs', 'build', 'volumes'];
-/** The methods that were optional before L7.25, by the capability that says they work. */
+/** The methods a capability gates, by the capability that says they work. */
 const METHODS: Record<string, keyof ProviderCapabilities> = { exec: 'exec', logs: 'logs', followLogs: 'followLogs', publishedBy: 'snapshots', address: 'address', hashInputs: 'hashInputs' };
 
 const sandbox = (provider: LoadedSandbox['manifest']['provider']): LoadedSandbox =>

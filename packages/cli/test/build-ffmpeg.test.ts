@@ -1,5 +1,5 @@
 /**
- * scripts/build-ffmpeg.mjs (L5.16): Retake's own ffmpeg — the pinned sources (https, sha256), the sha256 check that
+ * scripts/build-ffmpeg.mjs: Retake's own ffmpeg — the pinned sources (https, sha256), the sha256 check that
  * refuses an altered archive, the configure line (GPL with libx264, never nonfree, no folder of the build machine), the
  * engine's needs re-derived from its own ffmpeg arguments, and — with RETAKE_TEST_FFMPEG_DIR naming a built folder
  * (ffmpeg + ffprobe) — the binary itself: configuration, system-only linkage, every need, a short encode per family.
@@ -221,7 +221,7 @@ describe("the engine's needs", () => {
     const formatNeeds = new Set([...ENGINE_NEEDS.muxers, ...ENGINE_NEEDS.demuxers]);
     expect([...codecs].filter(([c]) => !codecNeeds.has(c))).toEqual([]);
     expect([...formats].filter(([c]) => !formatNeeds.has(c))).toEqual([]);
-    // The VideoToolbox probe (L5.15) runs Remotion's compositor ffmpeg through callFf, never ours: its `nullsrc` is that
+    // The VideoToolbox probe runs Remotion's compositor ffmpeg through callFf, never ours: its `nullsrc` is that
     // binary's need. The exemption is held to that one file and that one filter, and the file must still go through callFf.
     const compositorOnly: Record<string, string[]> = { 'packages/editor/src/render/policy.ts': ['nullsrc'] };
     for (const file of Object.keys(compositorOnly)) expect(readFileSync(join(ROOT, file), 'utf8')).toMatch(/callFf/);

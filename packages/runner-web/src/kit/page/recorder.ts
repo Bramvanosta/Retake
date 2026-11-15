@@ -10,7 +10,7 @@ import { lc } from './text.js';
 import { deepClosest, isA, upOf } from './trees.js';
 import { isVisible } from './visibility.js';
 
-// ───────────────────────────── recorder (L3.4) ─────────────────────────────
+// ───────────────────────────── recorder ─────────────────────────────
 /**
  * The inventory's entry for the interactive element a person acted on (`target`: the event's element, or a ref): the
  * element itself when it is interactive, else its nearest interactive ancestor — a label's control first, a hidden

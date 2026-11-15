@@ -1,8 +1,8 @@
 /**
- * The MCP server's submits (moved verbatim from its tools/run.ts, render.ts, review.ts and export.ts in L7.15): run_dry,
- * run_capture, render, review and export — each queues a job through the engine's submit (its admission rules and, for
- * a run, its hook approvals inside it: the approver is the MCP client's, handed in the call's context), waits up to
- * wait_s and answers with what the job's follow-up read says (run_status, render_status, review_get, job_status).
+ * The MCP server's submits: run_dry, run_capture, render, review and export — each queues a job through the engine's
+ * submit (its admission rules and, for a run, its hook approvals inside it: the approver is the MCP client's, handed in
+ * the call's context), waits up to wait_s and answers with what the job's follow-up read says (run_status,
+ * render_status, review_get, job_status).
  */
 import { z } from 'zod';
 import { SLUG_RE } from '@retake/core/model';

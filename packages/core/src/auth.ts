@@ -1,5 +1,5 @@
 /**
- * Sessions & personas (L1.6): which account each filmed page is signed in as, where a persona's session lives, what a
+ * Sessions & personas: which account each filmed page is signed in as, where a persona's session lives, what a
  * sign-in page looks like. Pure (no browser, no file access); shared by the validation, the runner and the CLI.
  *
  * A persona's files are never written in project.yaml: they are derived under the Retake home —
@@ -65,7 +65,7 @@ export function resolveAuth(project: Pick<LoadedProject, 'config' | 'dir'>, envN
   };
 }
 
-/** `wait_for_email {to: persona:<name>}` (L5.6): the persona a recipient names, else null. */
+/** `wait_for_email {to: persona:<name>}`: the persona a recipient names, else null. */
 export function mailPersona(to: string | undefined): string | null {
   const m = /^persona:\s*(\S+)\s*$/.exec(to ?? '');
   return m ? m[1] : null;
@@ -110,7 +110,7 @@ export interface ResolvedPersona {
   /** The status of the last check (written by the preflight, `retake login`, `retake auth status --check`). */
   statusFile: string;
   /**
-   * An account of a sandbox (L1.8, `accounts:` of its sandbox.yaml): signed in by its login steps whenever its session is
+   * An account of a sandbox (`accounts:` of its sandbox.yaml): signed in by its login steps whenever its session is
    * missing (every take after a reset), which is expected rather than a warning.
    */
   sandbox?: true;
@@ -136,7 +136,7 @@ function projectPath(dir: string, p: string): string {
   return isAbsolute(e) ? e : resolve(dir, e);
 }
 
-/** The personas of an environment (none when it declares no auth); on a sandbox, its accounts (L1.8). */
+/** The personas of an environment (none when it declares no auth); on a sandbox, its accounts. */
 export function resolvePersonas(project: Pick<LoadedProject, 'slug' | 'dir' | 'config'> & Partial<Pick<LoadedProject, 'sandboxes'>>, env: string, opts: { home: string }): ResolvedPersona[] {
   const auth = authFor(project.config, env);
   if (!auth) return [];
@@ -512,7 +512,7 @@ export function planPersonas(sc: Scenario, opts: PlanPersonasOptions): PersonaPl
   }
 
   if (opts.hooks) {
-    // Named hooks (L5.8) too: a js one runs in the same kind of tab (a project.yaml hook's page takes its default).
+    // Named hooks too: a js one runs in the same kind of tab (a project.yaml hook's page takes its default).
     const named = Object.values(isObject(sc.hooks) ? sc.hooks : {}).flatMap((v) => (Array.isArray(v) ? v : [v]));
     for (const list of [sc.setup ?? [], sc.teardown ?? [], named]) {
       for (const h of list) {

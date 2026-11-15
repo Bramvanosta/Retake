@@ -58,7 +58,7 @@ export type MediaFileKind = 'video' | 'image' | 'lottie';
 export const MEDIA_FILE_KINDS: readonly MediaFileKind[] = ['video', 'image', 'lottie'];
 
 /**
- * A user file instead of a component (L2.12): exactly one of `video`, `image` or `lottie` — a path relative to the
+ * A user file instead of a component: exactly one of `video`, `image` or `lottie` — a path relative to the
  * project (a theme's own entries: relative to the template folder). The provided components are never mandatory: an
  * intro, an outro, a card, an interstitial or an overlay can be the user's own motion design.
  */
@@ -88,5 +88,5 @@ export interface MediaFileFields {
   volume?: number;
 }
 
-/** The built-in components that show user files (L2.12). */
+/** The built-in components that show user files. */
 export const MEDIA_COMPONENTS = { media: 'studio/media', lottie: 'studio/lottie' } as const;

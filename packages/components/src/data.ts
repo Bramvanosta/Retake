@@ -1,5 +1,5 @@
 /**
- * Tables for chart cards (L2.10): CSV / TSV files of the project parsed into a header and rows of strings (the planner
+ * Tables for chart cards: CSV / TSV files of the project parsed into a header and rows of strings (the planner
  * hands them to components as `TableMedia`). Pure.
  */
 export { parseNumber } from './kit/figures.js';

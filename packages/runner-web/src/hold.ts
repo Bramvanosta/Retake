@@ -1,5 +1,5 @@
 /**
- * Full-page loads in the capture (R-ISS-08, L1.2): the recorder never writes a frame of a document that has not
+ * Full-page loads in the capture (R-ISS-08): the recorder never writes a frame of a document that has not
  * painted content of its own yet. From a main-frame cross-document commit (or the recorder attaching to a page that has
  * painted nothing yet: a fresh tab's about:blank, a page still loading) the screencast frames are HELD — not written —
  * so the previous frame stays on screen (the encoder shows the latest frame at or before each tick), until a frame

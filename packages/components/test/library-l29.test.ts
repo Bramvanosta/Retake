@@ -1,5 +1,5 @@
 /**
- * L2.9 library: notifications, mails, documents, phone cards and the tap-open transition. Their tap targets (manifest
+ * The library's notifications, mails, documents, phone cards and the tap-open transition. Their tap targets (manifest
  * `anchor`, evaluated by the planner) match where they draw; they render captured media (`props.media`) and fall back
  * to scenario values; pure helpers (page selection, badge count, notification groups, mail dates).
  */
@@ -161,7 +161,7 @@ describe('media and scenario values', () => {
     expect(early).toContain('Confirm your email');
     const top = (h: string) => Number(/src="http:\/\/a\/email.png"[^>]*top:(-?[\d.]+)px/.exec(h)?.[1] ?? /top:(-?[\d.]+)px[^>]*src="http:\/\/a\/email.png"/.exec(h)?.[1]);
     expect(top(late)).toBeLessThan(top(early));
-    // R-FLD-04 (L5.5): no scroll by default.
+    // R-FLD-04: no scroll by default.
     const byDefault = render('studio/mail-view', { media: { email: EMAIL }, at: 150 });
     expect(top(byDefault)).toBe(top(early));
     const none = render('studio/mail-view', { media: { email: EMAIL }, params: { scroll: 'none' }, at: 150 });

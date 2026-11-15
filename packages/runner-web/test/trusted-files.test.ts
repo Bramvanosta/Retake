@@ -1,5 +1,5 @@
 /**
- * L7.39: a capture held to the files a person checked before it (RunOptions.trustedHookFiles → HookContext.trustedFiles):
+ * A capture held to the files a person checked before it (RunOptions.trustedHookFiles → HookContext.trustedFiles):
  * a hook whose script is no longer as checked is refused, and nothing it would run runs; as checked, it runs.
  */
 import { createHash } from 'node:crypto';

@@ -1,8 +1,8 @@
 /**
- * L5.12c « Épure » 4c: the browser pane on the Library and the Themes list (R4-Library's left pane) — back to the
- * Productions, the Library group (Components, Themes) and each theme of the project with where it comes from in words:
- * on the Library a theme row shows the components in that theme (the title bar's Theme select does the same), on the
- * Themes list it opens the theme's editor (a theme with no editor — a project folder's — is listed in the centre only).
+ * The browser pane on the Library and the Themes list — back to the Productions, the Library group (Components, Themes)
+ * and each theme of the project with where it comes from in words: on the Library a theme row shows the components in
+ * that theme (the title bar's Theme select does the same), on the Themes list it opens the theme's editor (a theme with
+ * no editor — a project folder's — is listed in the centre only).
  * Theme names are text (`Txt`).
  */
 import { Txt } from '../bits.js';

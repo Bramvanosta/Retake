@@ -1,5 +1,5 @@
 /**
- * L4.6 part E, gated (`RETAKE_TEST_CHROME=1`; skipped when Google Chrome is not installed): the frame-comments loop
+ * Gated (`RETAKE_TEST_CHROME=1`; skipped when Google Chrome is not installed): the frame-comments loop
  * on the real fixture product, in the installed Google Chrome (Playwright `channel: 'chrome'`, a temporary profile
  * Playwright creates and deletes — never the person's own), on a copy of projects/northfield-fixture whose local
  * environment points at the fixture product started on free ports (never 4401–4404), the worker run in this process:
@@ -10,7 +10,7 @@
  * - Claude's proposal (an in-process engine of client `mcp`, as `comment_reply` makes one): a caption change, its diff in
  *   the thread, all three buttons offered; Preview change → the timeline's banner and the proposed caption, switches
  *   off and greyed, the playhead on the comment's pin (its step in the proposed text), the file untouched, no Apply on
- *   the banner (review A M1); Back to the comment → the thread at its proposal, whose Apply and re-render → the file
+ *   the banner; Back to the comment → the thread at its proposal, whose Apply and re-render → the file
  *   holds exactly the proposed bytes, v2 rendered and reviewed, Resolve with v2 → resolved by the channel `studio`;
  * - the viewer's frame latency (render_frame request → the frame shown) on the real render and on a 4K copy of it (x264
  *   with its default GOP and B-frames): first / median / worst, logged; and the sticky sidebar in a real viewport scroll.
@@ -275,7 +275,7 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     expect(await proposal.getAttribute('data-state')).toBe('pending');
     expect(await proposal.getAttribute('data-verified')).toBe('yes');
     expect(await page.getByTestId('proposal-summary').innerText()).toBe(`A change to the scenario file ${S}: 1 line added, 1 removed, in 1 place.`);
-    // The line as drawn (L5.12b fixes, review A-L7: the words read for edge spaces are for assistive technology).
+    // The line as drawn (the words read for edge spaces are for assistive technology).
     const added = await page.locator('[data-testid="proposal"] [data-testid="diff-row"][data-kind="add"] [data-testid="diff-line"]').evaluateAll((els) =>
       els.map((el) => {
         const c = el.cloneNode(true) as Element;
@@ -297,7 +297,7 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     await expect.poll(async () => (await page.getByTestId('tl-caption').allInnerTexts()).some((x) => x.includes(PROPOSED_CAPTION)), POLL).toBe(true);
     expect(await page.getByTestId('render').isDisabled()).toBe(true);
     // Switches off (the view carries no text to edit); the playhead on the comment's pin — at its step in the proposed
-    // text (the proposed plan is another version than v1's, so the pin is not at v1's own frame: review B M5).
+    // text (the proposed plan is another version than v1's, so the pin is not at v1's own frame).
     expect(await page.locator('[data-testid="inspector"] [role="radiogroup"]:not([aria-disabled="true"])').count()).toBe(0);
     const pin = page.locator(`[data-testid="tl-pin"][data-id="${ids.thread}"]`);
     await pin.waitFor(POLL);
@@ -306,8 +306,8 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     expect(ids.frame - pinAt).toBeLessThan(5 * 30);
     await expect.poll(async () => Number(await page.getByTestId('preview').getAttribute('data-frame')), POLL).toBe(pinAt);
     await expect.poll(() => page.getByTestId('preview').getAttribute('data-loading'), POLL).toBe('no');
-    // The switched-off chips look off (part E's nit; L5.12a: the kit's chips are dashed, the checked one too), and the
-    // banner never applies (review A M1).
+    // The switched-off chips look off (the kit's chips are dashed, the checked one too), and the
+    // banner never applies.
     expect(
       await page
         .locator('[data-testid="inspector"] [role="radiogroup"][aria-disabled="true"] [role="radio"][aria-checked="true"]')
@@ -386,9 +386,9 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     }
     console.log(`viewer latency (render_frame → frame shown), 4K encode ${encodeMs} ms:\n  ${lines.join('\n  ')}`);
 
-    // L5.9: the shell is a fixed window of panes — a pane scrolls a tall content, the page itself never does, and the
+    // The shell is a fixed window of panes — a pane scrolls a tall content, the page itself never does, and the
     // browser stays where it is, under the title bar (a full-page screenshot shows the viewport: the panes scroll).
-    // L5.12b: the thread and its proposal are the inspector pane's — the tall one on this screen (the centre holds the frame).
+    // The thread and its proposal are the inspector pane's — the tall one on this screen (the centre holds the frame).
     await page.goto(`${studio.url}#/p/${P}/s/${S}/comments/${ids.thread}`);
     await page.getByTestId('thread').waitFor(POLL);
     await page.getByTestId('filter-all').check();
@@ -404,7 +404,7 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     }, pane);
     await expect.poll(() => page.evaluate((sel) => document.querySelector(sel)!.scrollTop, pane), POLL).toBeGreaterThan(200);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
-    // L5.12b: the shell's browser pane (it holds the thread list now) stays under the title bar.
+    // The shell's browser pane (it holds the thread list now) stays under the title bar.
     expect(Math.abs((await page.getByRole('complementary', { name: 'Browser' }).evaluate((el) => el.getBoundingClientRect().top)) - 48)).toBeLessThan(1);
     await shot('8-scrolled');
 

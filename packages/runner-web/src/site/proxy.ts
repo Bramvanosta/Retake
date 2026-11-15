@@ -1,5 +1,5 @@
 /**
- * The only network of a site extraction's browser (L3.5, R-MCP-12): a local CONNECT proxy in the worker. Chromium is
+ * The only network of a site extraction's browser (R-MCP-12): a local CONNECT proxy in the worker. Chromium is
  * launched with `--proxy-server=http://127.0.0.1:<this port>` and `--proxy-bypass-list=<-loopback>`, so every
  * connection it makes — the page, its subresources, redirect hops, preconnects, a service worker's script, its own
  * background traffic — reaches this proxy first. It:

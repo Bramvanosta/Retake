@@ -1,11 +1,11 @@
 /**
- * Run ids as the editor reads them from a project's folders (L7.5): which capture `latest` picks and how an export
+ * Run ids as the editor reads them from a project's folders: which capture `latest` picks and how an export
  * names its render. The versions of renders/ are the engine's (engine/test/render-versions.test.ts).
  * Hand-made folders and files in a temp project; nothing is planned or rendered.
  *
- * A row marked `D-<n>` or `G` is an outcome a decision of the lot changed; the mark names it (G: the version bound).
- * Since L7.6a a run is a run of the scenario its record names (`L7.6a D-5`), and `latest` takes a capture that
- * succeeded with its timeline and its film (`L7.6a D-1`, `D-3`): each folder below is written with a record, and the
+ * A row marked `D-<n>` or `G` is an outcome a decision changed; the mark names it (G: the version bound).
+ * A run is a run of the scenario its record names (`D-5`), and `latest` takes a capture that
+ * succeeded with its timeline and its film (`D-1`, `D-3`): each folder below is written with a record, and the
  * rows those decisions moved are marked so.
  */
 import { existsSync } from 'node:fs';
@@ -83,7 +83,7 @@ describe('the run `latest` names', () => {
     await run(p, '2026101-142233-quote', 'quote'); // seven digits: not a stamp
     expect(await latest(p, 'quote')).toBe('zz-quote');
     expect(await latest(p)).toBe('zz-quote');
-    // L7.6a D-5: the name's ending says nothing — a folder of any name is a run of its record's scenario.
+    // D-5: the name's ending says nothing — a folder of any name is a run of its record's scenario.
     await run(p, 'zzz-final', 'quote');
     expect(await latest(p, 'quote')).toBe('zzz-final');
   });
@@ -93,9 +93,9 @@ describe('the run `latest` names', () => {
     const p = await project();
     await run(p, '20261017-142233-quote', 'Quote');
     expect(await latest(p, 'Quote')).toBe('20261017-142233-quote');
-    // L7.6a D-5: the record names the scenario, not the folder (before: this folder was a run of `quote` too).
+    // D-5: the record names the scenario, not the folder (before: this folder was a run of `quote` too).
     expect(await latest(p, 'quote')).toBe('no capture run of scenario "quote"');
-    // L7.6a D-5: a folder renamed by hand stays a run of its record's scenario (before: of none — "no capture run").
+    // D-5: A folder renamed by hand stays a run of its record's scenario (before: of none — "no capture run").
     await run(p, '20261017-142234-Quote', 'quote');
     await run(p, '20261017-142235-quote.bak', 'quote');
     expect(await latest(p, 'quote')).toBe('20261017-142235-quote.bak');
@@ -122,12 +122,12 @@ describe('the run `latest` names', () => {
   it('a stamped folder with nothing after its stamp is a run of no scenario', async () => {
     const p = await project();
     await run(p, '20261017-142233-', null);
-    // L7.6a D-3: without a record it is the latest of nothing (before: of "any scenario"); the sentence counts it.
+    // D-3: without a record it is the latest of nothing (before: of "any scenario"); the sentence counts it.
     expect(await latest(p)).toBe('no capture run');
     expect(await latest(p, 'quote')).toBe('no capture run of scenario "quote"');
-    // L7.5 D-7: it is a run of no scenario.
+    // D-7: it is a run of no scenario.
     expect(await latest(p, '142233-')).toBe('no capture run of scenario "142233-"'); // D-7
-    // L7.6a D-5: with a record it is a run of the scenario the record names, whatever its name lacks.
+    // D-5: with a record it is a run of the scenario the record names, whatever its name lacks.
     await run(p, '20261017-142233-', 'quote');
     expect(await latest(p, 'quote')).toBe('20261017-142233-');
     expect(await latest(p)).toBe('20261017-142233-');
@@ -159,7 +159,7 @@ describe("an export under an agent's trust names its render by its id", () => {
     expect(await exported('')).toBe(notId(''));
     // Past the name: the record is read, and a failed render has nothing to export.
     expect(await exported('quote-v1')).toBe('render quote-v1 failed: nothing to export');
-    // L7.5 D-4: a name without a version is not a render id, whether a record of that name exists or not.
+    // D-4: A name without a version is not a render id, whether a record of that name exists or not.
     expect(await exported('final')).toBe(notId('final')); // D-4
     expect(await exported('quote')).toBe(notId('quote')); // D-4
     expect(await exported('quote-v1000000')).toBe(notId('quote-v1000000'));

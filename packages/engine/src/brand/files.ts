@@ -1,5 +1,5 @@
 /**
- * Brand files of a new theme (L3.5, R-MCP-10): where a logo, a wordmark or a font may come from, and what its bytes
+ * Brand files of a new theme (R-MCP-10): where a logo, a wordmark or a font may come from, and what its bytes
  * must look like before the tool copies it into a theme folder the renderer (and later the studio UI) reads.
  *
  * Sources (trust `mcp`): a path relative to the workspace root that stays in it once links are followed, never in a

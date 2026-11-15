@@ -1,14 +1,14 @@
 /**
- * L4.4 part D (R-UI-19): a capture paused between steps does not film the pause. The capture clock converts every wall
- * time through its list of pauses (critique B1: a time recorded before a pause and converted after it — a held page
- * load — stays right); the take's CPU sampler leaves the pause out (its CPU, its seconds, the unfilmed time of a persona's
+ * R-UI-19: a capture paused between steps does not film the pause. The capture clock converts every wall
+ * time through its list of pauses (a time recorded before a pause and converted after it — a held page load — stays
+ * right); the take's CPU sampler leaves the pause out (its CPU, its seconds, the unfilmed time of a persona's
  * browser). For real, on an animated board of this test's own (a block sweeps the screen all the time, so a filmed pause
  * would be a run of repeated frames): a capture paused 2.5 s right after a click is as long as the same take unpaused,
  * capture.mp4 is as long as the timeline says, the pause left the wall time of the take and nothing else, no frame lies
- * inside it, the first fresh frame after the resume lands at the pause instant (no frameless gap, no stall — B3), the
+ * inside it, the first fresh frame after the resume lands at the pause instant (no frameless gap, no stall), the
  * click's ripple played out before it, the page loads held before and after it are where the frames show them, and the
  * perf report counts the take without it. A multi-page scene pauses both its tracks; a capture paused longer than its
- * maximum stops with the reason. Review B L10: the clock stops before the recorders do (no frameless span filmed per
+ * maximum stops with the reason. The clock stops before the recorders do (no frameless span filmed per
  * pause), one length for a pause in run.json and the timeline, and checks bound to the timeline, not to two takes.
  *
  * `RETAKE_PAUSE_SHOTS=<folder>` saves the frames around the pause point there (to look at them).
@@ -80,7 +80,7 @@ describe('the capture clock with pauses', () => {
     expect(() => c.pause(t0 + 1300)).toThrow(/paused already/);
     expect(c.resume(t0 + 3000)).toBe(2000);
     expect(c.paused).toBe(false);
-    // B1: a wall time before the pause converts as it did before it.
+    // A wall time before the pause converts as it did before it.
     expect(c.at(t0 + 500)).toBe(0.5);
     expect(c.at(t0 + 1000)).toBe(1);
     // Inside the closed pause, and at its end: the pause instant.
@@ -184,7 +184,7 @@ describe('the capture clock with pauses', () => {
   });
 
   it('the CPU sampler leaves a pause out: its CPU, its seconds and the unfilmed time of a browser', async () => {
-    // The sampler's wall clock is the test's (review B: real sleeps made the bounds machine-dependent).
+    // The sampler's wall clock is the test's (real sleeps made the bounds machine-dependent).
     vi.useFakeTimers({ toFake: ['Date'], now: 1_000_000 });
     try {
       let cpuA = 0;
@@ -362,7 +362,7 @@ describe('a capture paused between steps (real Chromium, an animated board)', ()
     expect(Math.abs(d - paused.tl.capture.duration), `video ${d} s, timeline ${paused.tl.capture.duration} s`).toBeLessThanOrEqual(1 / FPS + 0.01);
     // Two takes differ by the machine's load: a sanity bound only (the checks below hold the pause to the timeline).
     if (MAC_TIMING) expect(Math.abs(d - d0), `paused ${d} s, unpaused ${d0} s`).toBeLessThan(1.2);
-    // Wall time of the take (capture time 0 → the last step's end) − capture time = the pause (critique B16), to event
+    // Wall time of the take (capture time 0 → the last step's end) − capture time = the pause, to event
     // delivery's few ms: half of the 2.5 s pause filmed would be 1.25 s off.
     const lastEnd = paused.events.filter((x) => x.e.type === 'step_end').at(-1)!.wall;
     const wallTake = (lastEnd - paused.tl.capture.t0_wall) / 1000;

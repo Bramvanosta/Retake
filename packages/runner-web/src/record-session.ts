@@ -1,5 +1,5 @@
 /**
- * A recording session (L3.4, `retake record` / `scenario_record`, part 1: capture): a HEADED window — like `retake
+ * A recording session (`retake record` / `scenario_record`, part 1: capture): a HEADED window — like `retake
  * login`'s — on a copy of the persona's session, where a person performs a flow once; every action is streamed to
  * `events.jsonl` (core RecordedEvent) for the draft generator. Claude may start a recording, never drive it.
  *
@@ -56,7 +56,7 @@ type Log = (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void
 export const RECORD_MAX_MS = 30 * 60_000;
 /** In-page time budget of one element's suggestion at pointerdown (ms). */
 export const RECORD_BUDGET_MS = 150;
-/** In-page time budget of its alternative targets (ms, inside RECORD_BUDGET_MS): a press waits for them (L4.8). */
+/** In-page time budget of its alternative targets (ms, inside RECORD_BUDGET_MS): a press waits for them. */
 export const RECORD_ALT_BUDGET_MS = 10;
 /** The isolated world the recorder runs in. */
 const WORLD = 'retake-record';
@@ -317,7 +317,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
     if (policy.readOnly) enableServiceWorkerRequests();
     const b = projectBrowser(o.project, o.browser);
     const { executablePath, channel } = launchTarget(b, { headless: o.headless === true, policy: o.policy });
-    // L5.16c: a persona's profile copy is never opened by an older Chromium than the one that opened it last.
+    // A persona's profile copy is never opened by an older Chromium than the one that opened it last.
     if (persona) checkProfileBrowser(userDataDir, launchMajor({ executablePath, channel }), persona.name);
     const size = o.windowSize;
     const httpCredentials = launchCredentials(o.project, o.env.name);

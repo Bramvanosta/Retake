@@ -1,5 +1,5 @@
 /**
- * The one reader of a run folder (L7.6a, core/io run-folder.ts) and, through it, the two rules of core take.ts over the
+ * The one reader of a run folder (core/io run-folder.ts) and, through it, the two rules of core take.ts over the
  * whole table of states (test-support/src/records/states.json; OLD: a good capture of `quote`; NEW: the state named):
  * the run `latest` names with what it passes over, and a run named by its folder at a terminal and through MCP.
  * These are the answers every site gives once it uses the rules.
@@ -67,14 +67,14 @@ describe('`latest`, state by state: the take and what it passed over', () => {
     p: 'OLD', // D-5: the record says another scenario
     p2: 'OLD', // D-5
     r: 'OLD | passed NEW its status is not one Retake writes', // D-1
-    s: 'OLD | 1 without a record', // D-3 (small point 3.5: no record)
+    s: 'OLD | 1 without a record', // D-3 (no record)
     m: 'OLD', // D-4: a dated run first (NEW is never looked at)
     m2: 'OLD', // D-4
     q: 'NEW', // D-5: the record says quote, whatever the folder is called
     t5: 'NEW', // the timeline names no film: capture.mp4
     t6: 'NEW | until catalog.1', // U-1: usable; the take says where it stopped
     t7: 'OLD | passed NEW not finished, or interrupted', // D-1 (its process is gone: the record cannot say so)
-    t9: 'OLD | passed NEW its files are links', // D-7 (small point 3.1)
+    t9: 'OLD | passed NEW its files are links', // D-7
     hr: 'OLD | passed NEW its timeline does not read', // a head made by hand is for a run someone names (before: NEW)
     hf: 'OLD | passed NEW its timeline does not read', // the same
     v: 'NEW', // D-8: a word or a block this build does not know never loses a run
@@ -82,7 +82,7 @@ describe('`latest`, state by state: the take and what it passed over', () => {
     k1f: 'OLD', // D-7
     k2: 'OLD', // F-1
     k3: 'OLD',
-    z: 'NEW', // by design (small point 3.3)
+    z: 'NEW', // by design
   };
 
   it('every state of the table', async () => {

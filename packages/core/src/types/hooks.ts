@@ -66,7 +66,7 @@ export interface HookCommon {
   /** Continue even if this hook fails. */
   optional?: boolean;
   /**
-   * Shell hooks only: `false` declares that the command only reads, so it may run on a read-only environment (L1.7).
+   * Shell hooks only: `false` declares that the command only reads, so it may run on a read-only environment.
    * http and sql hooks are classified from their request / SQL; js hooks are guarded in their tab.
    */
   writes?: boolean;
@@ -77,5 +77,5 @@ export type HookStep = HookCommon & ({ http: HttpHookSpec } | { sql: string | Sq
 
 export type HookKind = 'http' | 'sql' | 'shell' | 'js';
 
-/** `hooks:` of a scenario or project.yaml (L5.8): name → one hook entry, or a list run in order. */
+/** `hooks:` of a scenario or project.yaml: name → one hook entry, or a list run in order. */
 export type NamedHooks = Record<string, HookStep | HookStep[]>;

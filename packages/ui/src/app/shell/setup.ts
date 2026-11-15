@@ -1,5 +1,5 @@
 /**
- * L5.16c: the installed app's Set-up sheet — its data (setup_status, ui setup-ops.ts) and its words (DESIGN §4p (c),
+ * The installed app's Set-up sheet — its data (setup_status, ui setup-ops.ts) and its words (DESIGN §4p (c),
  * docs/reference/studio-ui.md). The sheet opens on the first start of an installed app (setup_status `seen` false), on
  * Help › Set Up Retake… / Install / Uninstall the retake Command… (the shell's `studio:setup` event: apps/desktop
  * menu.rs `setup_page_js`, a constant shape) and at `#/setup`. Every step is skippable and happens only on its click.
@@ -59,14 +59,14 @@ export function cliSentence(c: CliStatus): string {
   }
 }
 
-/** The shell's folder panel, in a sentence (only once the shell said it opened: review c A-L7), or null. */
+/** The shell's folder panel, in a sentence (only once the shell said it opened), or null. */
 export function panelSentence(c: CliStatus): string | null {
   if (c.panel === 'open') return 'Choose the folder in the panel the app opened.';
   if (c.panel === 'cancelled') return 'No folder was chosen: the panel was cancelled, or it could not open while another question was up. Choose a Folder… again.';
   return null;
 }
 
-/** Claude Desktop running, or not known (`ps` failed): the write waits (review c A-L3); null: nothing to say. */
+/** Claude Desktop running, or not known (`ps` failed): the write waits; null: nothing to say. */
 export function runningSentence(running: boolean | null | undefined): string | null {
   if (running === true) return 'Claude Desktop is running: quit it first (⌘Q in Claude), or it may write its settings over the change';
   if (running === null) return `${APP_NAME} could not check whether Claude Desktop is running, so it does not write the file now: quit Claude Desktop and try again, or copy the entry`;

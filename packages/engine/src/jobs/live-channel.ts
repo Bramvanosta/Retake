@@ -1,5 +1,5 @@
 /**
- * The live channel of a running `run` job (L4.4, R-UI-16): how the live picture (runner-web live-preview.ts) leaves the
+ * The live channel of a running `run` job (R-UI-16): how the live picture (runner-web live-preview.ts) leaves the
  * worker for the Studio server — another process, often not started by the Studio (an MCP-started worker serves Studio
  * jobs too), so neither stdio nor IPC.
  *

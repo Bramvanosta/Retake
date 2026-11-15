@@ -1,5 +1,5 @@
 /**
- * `project_prune` on the layouts of what prune keeps (L7.7, R-FLD-28; test-support/src/records prune-layouts.ts):
+ * `project_prune` on the layouts of what prune keeps (R-FLD-28; test-support/src/records prune-layouts.ts):
  * the tool's text, layout by layout, with the run folders under their labels and the sizes left out. The marks over
  * the rows are those of the engine's table (engine/test/prune-keeps.test.ts).
  */
@@ -58,21 +58,21 @@ const TABLE: Record<string, string[]> = {
   B2: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: written by a newer Retake (left alone) — 1 take'],
   // P-1
   B2f: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: written by a newer Retake (left alone) — 1 take'],
-  // C — L7.6b R-1: the renamed record is left alone and keeps its take; both are said, the file's name under "untrusted" only
+  // C — R-1: the renamed record is left alone and keeps its take; both are said, the file's name under "untrusted" only
   C1: [
     'nothing to prune in <p>',
     'kept: 2 takes, 0 renders and 1 other file of renders/, 0 reviews',
     'kept: a file of renders/ that is no render names it — 1 take',
     '1 file of renders/ left alone (no render of its own name, or a record that lacks a member), with the renders and the takes it names ("untrusted.renders_alone" names it)',
   ],
-  // C — L7.6b R-1 (was: OLD and a `render quote-v1` without a file offered)
+  // C — R-1
   C2: [
     'nothing to prune in <p>',
     'kept: 2 takes, 3 renders and 1 other file of renders/, 0 reviews',
     'kept: a file of renders/ that is no render names it — 1 take',
     '1 file of renders/ left alone (no render of its own name, or a record that lacks a member), with the renders and the takes it names ("untrusted.renders_alone" names it)',
   ],
-  // C — L7.6b R-1 (was: OLD offered, `render quote-v1` twice)
+  // C — R-1
   C3: [
     'nothing to prune in <p>',
     'kept: 2 takes, 4 renders and 1 other file of renders/, 0 reviews',
@@ -220,7 +220,8 @@ describe('project_prune: the takes kept beyond the list', () => {
           /^kept: (the last capture that can be edited|the last complete capture \(a newer one was stopped by --until\)|its folder is a link \(left alone\)|written by a newer Retake \(left alone\)|a file of renders\/ that is no render names it) — \d+ takes?$/,
         );
     }
-    // L7.6b: a file of renders/ left alone is counted in the text and named under `untrusted` only (C1: a record renamed by hand).
+    // A file of renders/ left alone is counted in the text and named under `untrusted` only (C1: a record renamed by
+    // hand).
     const c1 = await said('C1');
     expect(c1.lines.join('\n')).not.toContain('quote-final');
     expect([c1.data.renders_alone, c1.data.untrusted]).toEqual([

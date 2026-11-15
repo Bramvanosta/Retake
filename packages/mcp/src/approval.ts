@@ -1,5 +1,5 @@
 /**
- * Human approval of hooks through MCP elicitation (L3.1, R-MCP-35). The engine's preflight lists the hooks of the work
+ * Human approval of hooks through MCP elicitation (R-MCP-35). The engine's preflight lists the hooks of the work
  * submitted that need a human (destructive ones whatever `confirm: true` says, every shell hook); this asks the client's
  * user once, in form mode, with an explicit timeout — and so are a site extraction's URL and an agent's prune. Only `accept` with `approve: true` approves. A decline, a dismissed
  * form, no answer in time or a failed question refuse the submit; a client without form elicitation cannot ask anyone
@@ -41,7 +41,7 @@ export function approvalForm(req: ApprovalRequest): ElicitForm {
 }
 
 /**
- * The question of a site extraction (L3.5): the canonical URL as it opens (percent-encoded path, punycode host — never
+ * The question of a site extraction: the canonical URL as it opens (percent-encoded path, punycode host — never
  * the decoded path, which is the agent's text) and the host in Unicode on its own line.
  */
 export function siteApprovalMessage(req: SiteApprovalRequest): string {

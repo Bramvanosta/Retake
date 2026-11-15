@@ -101,7 +101,7 @@ describe('RunSecrets (R-RUN-17)', () => {
     const desc = describeStep(secrets.redactDeep(step));
     expect(desc).toContain('***');
     expect(desc).not.toContain('strad');
-    // Keys kept elsewhere (a target's `name`, `label`) are redacted in a step too (L1.2 review: S4).
+    // Keys kept elsewhere (a target's `name`, `label`) are redacted in a step too.
     for (const target of [{ name: `${'A'.repeat(70)} straddling-secret-value-123` }, { role: 'row', label: `${'B'.repeat(70)} straddling-secret-value-123` }]) {
       const d = describeStep(secrets.redactDeep(normalizeStep({ wait_for: { target } }, 0)));
       expect(d).not.toContain('strad');
@@ -200,7 +200,7 @@ describe('RunSecrets (R-RUN-17)', () => {
         },
       ],
       tracks: [{ id: 'buyer', file: 'capture-buyer.mp4', frames_file: 'frames-buyer.jsonl', loading: [{ until: 'limit' }], cursor_effects: [{ type: 'icon', icon: 'ibeam' }] }],
-      // L1.7: names, enums, display bases and the clock are kept; real URLs and matched patterns are redacted.
+      // Names, enums, display bases and the clock are kept; real URLs and matched patterns are redacted.
       environment: {
         name: 'prod2026',
         production: true,

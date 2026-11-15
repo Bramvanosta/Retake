@@ -109,7 +109,7 @@ export async function emit(_ctx: StepContext, args: EmitArgs): Promise<ActionRes
 }
 
 /**
- * `hook: <name>` (L5.8, R-FLD-31): the named hook runs now, off camera — the page stays as it is (nothing moves) and the
+ * `hook: <name>` (R-FLD-31): the named hook runs now, off camera — the page stays as it is (nothing moves) and the
  * edit cuts the step's span. A failing entry fails the step (its message names the entry).
  */
 export async function hook(ctx: StepContext, args: HookArgs): Promise<ActionResult> {

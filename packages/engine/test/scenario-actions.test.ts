@@ -1,13 +1,13 @@
 /**
- * L5.11a: what the Studio's status bar reads for the scenario in context (`engine.scenarios.actions`) and the gate kinds
+ * What the Studio's status bar reads for the scenario in context (`engine.scenarios.actions`) and the gate kinds
  * of the run blockers.
  *
- * - critique H3: each blocker says which gate refused (`kind`) — agent trust, a protected host, a refused hook, a
+ * - Each blocker says which gate refused (`kind`) — agent trust, a protected host, a refused hook, a
  *   read-only location's writing hook, hooks to approve (with their `count`), an invalid file — so the Studio's short
  *   words never name a safety reason that is not the one (a planted swap of two kinds fails here).
- * - critique M4: a queued or running run carries its job (null: a terminal's run); with a terminal's run and a Studio job
- *   both unfinished, `running` is the one with the job (L5.11a fixes, review A-L4 / B-M5: Stop reaches it).
- * - critique H2: the actions layer has its own memo — it reads a fresh text layer of the scenario screen but never
+ * - A queued or running run carries its job (null: a terminal's run); with a terminal's run and a Studio job
+ *   both unfinished, `running` is the one with the job (Stop reaches it).
+ * - The actions layer has its own memo — it reads a fresh text layer of the scenario screen but never
  *   inserts into that 16-entry cache (the open scenario's view stays a hit however many scenarios the status bar reads),
  *   and two reads at once compute once (single flight), for the view's text layer too.
  */

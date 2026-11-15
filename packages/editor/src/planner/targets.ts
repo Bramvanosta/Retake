@@ -30,7 +30,7 @@ export function markDoneAt(timeline: Pick<Timeline, 'events' | 'scenes' | 'captu
 }
 
 /**
- * When a step overlay starts (capture s; L2.12 `at`): the end of the step (default), its start, its click, a mark of
+ * When a step overlay starts (capture s; `at`): the end of the step (default), its start, its click, a mark of
  * the run, or seconds after the step starts. `fallback` says why a requested start was not used (the end of the step
  * then): the step recorded no click, no such mark, or the mark (at `markT`) lies outside `clip`. Shared by the planner
  * (where the overlay shows) and the reframe (what it keeps in view meanwhile).

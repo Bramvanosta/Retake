@@ -1,5 +1,5 @@
 /**
- * L3.4 `retake record` (R-MCP-24) end to end on the fixture product: the command with Playwright standing in for the
+ * `retake record` (R-MCP-24) end to end on the fixture product: the command with Playwright standing in for the
  * person (the command's test hooks: a headless "headed" window) prints the summary — actions, scenes, the saved file,
  * the check replay, the next command — or the outcome as JSON; a window closed at once records nothing (exit 1); a URL
  * of another origin is refused before any window opens. Typed text is never printed.

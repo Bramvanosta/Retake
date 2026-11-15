@@ -1,10 +1,10 @@
 /**
- * Page inspection (L3.3, `page_inspect` / `retake inspect`): at the end of a dry replay — or at the step where it failed
+ * Page inspection (`page_inspect` / `retake inspect`): at the end of a dry replay — or at the step where it failed
  * — the page the run shows is inventoried for a scenario's author. A viewport screenshot (the cursor hidden; marks are
  * drawn later, by the engine, from the boxes), the visible interactive elements with a suggested target each and
  * `inspect.json`, all in the run folder.
  *
- * Trust (L3.1 rules): everything the page controls — names, texts, labels, roles, tags, the URL, the suggested targets
+ * Trust: everything the page controls — names, texts, labels, roles, tags, the URL, the suggested targets
  * that embed them — sits under an `untrusted` key; only marks, boxes, booleans, counts and closed enums are outside it.
  * The page is inventoried only on an origin of the environment's pages (a redirect to another host — before or during
  * the inspection — is reported by its host alone: no screenshot, no inventory), never on a sign-in page (the run's
@@ -37,7 +37,7 @@ export const INSPECT_BUDGET_MS = 2500;
  */
 export const INSPECT_DEADLINES = { guard_ms: 5_000, call_ms: 15_000 } as const;
 export type InspectDeadlines = { guard_ms: number; call_ms: number };
-/** The replay's pacing (core inspect-pacing.ts, L7.12): re-exported under the same name. */
+/** The replay's pacing (core inspect-pacing.ts): re-exported under the same name. */
 export { INSPECT_PACING } from '@retake/core/run';
 
 /** What `runScenario` inspects (`RunOptions.inspect`): the run is a dry run, its hooks skipped. */
@@ -399,7 +399,7 @@ export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResu
     );
     await rt.page.screenshot({ path: shot, timeout: 10_000 });
     shotTaken = true;
-    // A sign-in page that showed while the picture was taken (L1.6), or a page that left meanwhile: never kept.
+    // A sign-in page that showed while the picture was taken, or a page that left meanwhile: never kept.
     rt.assertSignedIn();
     const after = rt.page.url();
     onEnv(after);

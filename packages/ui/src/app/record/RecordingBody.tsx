@@ -36,7 +36,7 @@ function RecordingHead({
   v: RecordViewAnswer;
   now: number;
   titleRef?: RefObject<HTMLHeadingElement | null>;
-  /** The one Stop, here while the inspector is hidden (review B-L4). */
+  /** The one Stop, here while the inspector is hidden. */
   stop?: ReactNode;
 }) {
   const left = v.state === 'recording' ? timeLeft(v.ends_at, now) : null;
@@ -99,7 +99,7 @@ function JobError({ v, slug, onSignedIn }: { v: RecordViewAnswer; slug: string; 
   );
 }
 
-/** The last action's refusal or result: an info note is a status (polite), a warning or a failure an alert (L5.11b fixes, review A-L5). */
+/** The last action's refusal or result: an info note is a status (polite), a warning or a failure an alert. */
 function NoteCallout({ note }: { note: NonNullable<RecordingUi['note']> }) {
   const body = (
     <>
@@ -151,13 +151,13 @@ export function RecordingBody({
   const u = v.untrusted;
   const live = LIVE_STATES.has(v.state);
   const readOnly = v.started_by !== 'ui' && v.started_by !== null && v.state !== 'missing';
-  // Held here, not in the inspector or the cursor block (L5.11b fixes, review B-L4 / A-L7): hiding or showing the
-  // inspector (it moves between its pane and the centre: React mounts it again) and a cursor block that moves keep what
-  // was typed — the Name Save uses (the view's until it is edited), the open insert form.
+  // Held here, not in the inspector or the cursor block: hiding or showing the inspector (it moves between its pane and
+  // the centre: React mounts it again) and a cursor block that moves keep what was typed — the Name Save uses (the
+  // view's until it is edited), the open insert form.
   const [edited, setName] = useState<string | null>(null);
   const name = edited ?? v.name ?? '';
   const [form, setForm] = useState<InsertFormState>(NO_INSERT_FORM);
-  // L5.11b fixes (review B-L4): with the inspector hidden, the one Stop is at the top of the centre, beside the time.
+  // With the inspector hidden, the one Stop is at the top of the centre, beside the time.
   const inspectorHidden = Boolean(useContext(SlotContext)?.hidden?.inspector);
   const stopAtHead = inspectorHidden && v.can.stop;
   return (

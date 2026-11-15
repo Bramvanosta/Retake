@@ -14,7 +14,8 @@ import type { NamedRenderPick, RenderEntry, RenderLatestPick, RenderRead, Stored
 import { NODE_RECORD_FS } from './record-file.js';
 import type { RecordFs } from './record-file.js';
 
-// The file seam of the readers (a test, or U6's own file system, hands its own): every read of a record below takes it.
+// The file seam of the readers (a test, or the engine's file system port, hands its own): every read of a record below
+// takes it.
 export { NODE_RECORD_FS } from './record-file.js';
 export type { RecordFileText, RecordFs } from './record-file.js';
 

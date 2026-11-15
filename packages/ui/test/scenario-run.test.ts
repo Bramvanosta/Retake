@@ -1,15 +1,15 @@
 /**
- * L4.2 part 4: the scenario screen's run actions over HTTP — `scenario_run` (an own op with pinned arguments, critique
- * B11) and `run_cancel`, behind the gate, under the `ui` client's agent trust with no approver:
+ * The scenario screen's run actions over HTTP — `scenario_run` (an own op with pinned
+ * arguments) and `run_cancel`, behind the gate, under the `ui` client's agent trust with no approver:
  *
  * - pinned: a sandbox reset, `until`, `hooks`, `wait_s`, another mode → 400 before anything is read or queued;
  *   `run_dry` / `run_capture` stay outside the allow-list;
- * - blocker-first (B2): quote's capture is refused (403 needs_approval) exactly as scenario_blocks showed it before any
+ * - blocker-first: quote's capture is refused (403 needs_approval) exactly as scenario_blocks showed it before any
  *   click, worded for the Studio, with the `retake run …` command; nothing queued, no run id reserved;
  * - a dry run queues a job `submitted_by: ui`; `run_cancel` cancels it;
  * - wording raised deeper (hooks package, core shellAlwaysWrites): a shell hook refused on a read-only environment says
  *   "from the Studio", never MCP;
- * - the worker (B5): the Studio starts it on submit with a clean environment (spawn injected: PATH sanitised, no
+ * - the worker: the Studio starts it on submit with a clean environment (spawn injected: PATH sanitised, no
  *   package-manager / LLM / MCP-token variables, RETAKE_HOME kept absolute, sign-in secrets kept) and
  *   `--started-by ui`; a real one records `started_by: ui` in its lock and exits once idle (no orphan; killed by pid in
  *   any case).
@@ -115,11 +115,11 @@ describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
     expect(r.status).toBe(403);
     const e = r.json<Fail>().error;
     expect(e.code).toBe('needs_approval');
-    // L5.11a: the blocker also says which gate refused (`kind`, `count`: the status bar's words) — the refusal does not.
+    // The blocker also says which gate refused (`kind`, `count`: the status bar's words) — the refusal does not.
     const { fix_node, kind, count, ...shown } = view.run_blockers.capture[0] as (typeof view.run_blockers.capture)[0] & { kind?: string; count?: number };
     expect([kind, count]).toEqual(['needs_approval', 1]);
     expect({ code: e.code, message: e.message, fix: e.fix }).toEqual(shown);
-    // The same command for a person without `retake` on their PATH (review B L6).
+    // The same command for a person without `retake` on their PATH.
     expect(fix_node).toBe(`${process.execPath} ${join(fileURLToPath(new URL('../../..', import.meta.url)), 'packages/cli/dist/bin.js')} -C ${ws} run ${P} quote`);
     expect(e.message).toContain('The Studio cannot approve hooks yet: run it in a terminal');
     expect(e.fix).toBe(`retake -C ${ws} run ${P} quote`);

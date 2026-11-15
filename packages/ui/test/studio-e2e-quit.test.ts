@@ -1,13 +1,13 @@
 /**
- * L5.12d — the desktop app's quit question in the window's page (shell/QuitSheet.tsx, shell/quit.ts; DESIGN §4j), in
+ * The desktop app's quit question in the window's page (shell/QuitSheet.tsx, shell/quit.ts; DESIGN §4j), in
  * Chromium with the app's flag (`window.__studioShell`, as the shell's init script sets it) and `studio:quit` events
  * dispatched as the shell's `page_quit_js` writes them (desktop_answer is fulfilled by the test: this server is not
  * supervised):
  * - the alert's keys: unsaved text → Return = Cancel, Quit Anyway destructive with no default, Escape = Cancel; jobs only →
  *   Return = Quit Anyway; every answer goes out once with the question's id, and the sheet closes;
- * - L5.12d fixes: the buttons in the native alert's visual order (its default rightmost: review B-M1); Return on a
- *   Tab-focused Quit Anyway answers Cancel (A-L2); the sheet stays open and busy until the answer settles, a failed one
- *   is said in the sheet and the question stays answerable (A-L3: a held 409);
+ * - the buttons in the native alert's visual order (its default rightmost); Return on a
+ *   Tab-focused Quit Anyway answers Cancel; the sheet stays open and busy until the answer settles, a failed one
+ *   is said in the sheet and the question stays answerable (a held 409);
  * - the ack: once, after the dialog is open and painted, only while the page is visible (a hidden window acks when it
  *   shows); a re-sent question (a second ⌘Q) acks again; `studio:quit-close {id}` closes it without an answer (another
  *   id does not);
@@ -127,7 +127,7 @@ describe("the quit sheet (the desktop app's question in its page)", () => {
     const text = await d.locator('.sh-quit-text').innerText();
     expect(text).toContain('• README.md of <b>shop</b>[U+202E]gnp.exe\n• A comment being written');
     expect(await d.locator('b').count()).toBe(0);
-    // The native alert's visual order (review B-M1): Cancel, its default, rightmost (focused); Quit Anyway destructive on
+    // The native alert's visual order: Cancel, its default, rightmost (focused); Quit Anyway destructive on
     // its left, never the default.
     expect(await d.locator('.k-sheet-actions button').allInnerTexts()).toEqual(['Quit Anyway', 'Cancel']);
     expect(await d.locator('.k-sheet-actions button').evaluateAll((bs) => bs.map((b) => [(b as HTMLElement).dataset.testid, b.getAttribute('data-default')]))).toEqual([
@@ -149,7 +149,7 @@ describe("the quit sheet (the desktop app's question in its page)", () => {
     await page.keyboard.press('Escape');
     await expect.poll(() => answers().length, POLL).toBe(2);
     expect(answers()[1]).toEqual({ id: ID, answer: 'cancel' });
-    // Review A-L2: Return on a Tab-focused Quit Anyway answers Cancel (the native alert's Return is its default's,
+    // Return on a Tab-focused Quit Anyway answers Cancel (the native alert's Return is its default's,
     // wherever the focus ring is); Space presses it.
     await dispatch(page, UNSAVED);
     await expect.poll(() => shownAcks().length, POLL).toBe(3);
@@ -181,7 +181,7 @@ describe("the quit sheet (the desktop app's question in its page)", () => {
     await dispatch(page, JOBS);
     await expect.poll(() => shownAcks().length, POLL).toBe(1);
     expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.testid)).toBe('quit-proceed');
-    // The native alert's visual order (review B-M1): Quit Anyway, its default, rightmost.
+    // The native alert's visual order: Quit Anyway, its default, rightmost.
     expect(await sheet(page).locator('.k-sheet-actions button').allInnerTexts()).toEqual(['Cancel', 'Quit Anyway']);
     expect(await page.getByTestId('quit-proceed').getAttribute('data-default')).toBe('yes');
     // A second ⌘Q: the same id again — acked again, still one sheet.
@@ -215,7 +215,7 @@ describe("the quit sheet (the desktop app's question in its page)", () => {
     await expect.poll(() => shownAcks().length, POLL).toBe(1);
     await page.keyboard.press('Escape');
     await expect.poll(() => answers().length, POLL).toBe(1);
-    // Closed once the answer arrived (A-L3: open, busy, until then).
+    // Closed once the answer arrived (open, busy, until then).
     await expect.poll(() => sheet(page).evaluate((x: HTMLDialogElement) => x.open), POLL).toBe(false);
     // Over the palette (the menu's command; the app binds no ⌘K of its own).
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));

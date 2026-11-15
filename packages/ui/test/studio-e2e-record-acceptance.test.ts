@@ -1,5 +1,5 @@
 /**
- * L4.8 acceptance (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the Record screen, then the scenario it
+ * The Record acceptance (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the Record screen, then the scenario it
  * saved filmed and rendered. The built-in Studio server on a clean copy of projects/northfield-fixture (its local
  * environment pointed at the fixture product on free ports), headless Chromium on the Studio app, and every job run by
  * a worker IN THIS PROCESS — the `record` job's window played by Playwright (`ports.recordWindow.drive`: a worker process cannot
@@ -100,7 +100,7 @@ async function person(w: Window): Promise<void> {
   await page.getByTestId('record-caption-kicker').fill(KICKER);
   await page.getByTestId('record-caption-text').press('Enter');
   await page.getByTestId('record-pending').waitFor();
-  // Zoom… (L5.11b: a disclosure): the theme's maximum, 1.4×, is the default.
+  // Zoom… (a disclosure): the theme's maximum, 1.4×, is the default.
   expect(await page.getByTestId('record-insert-zoom').textContent()).toBe('Zoom…');
   await page.getByTestId('record-insert-zoom').click();
   expect(await page.getByRole('radio', { name: /^1\.4×/ }).isChecked()).toBe(true);
@@ -110,7 +110,7 @@ async function person(w: Window): Promise<void> {
 
   await w.getByRole('button', { name: 'Request a quote' }).click();
   await expect.poll(() => page.getByTestId('record-pending').count(), POLL).toBe(0);
-  // A pick among the click's verified alternatives (L5.11b: the row pressed shows them under it; then back to the end).
+  // A pick among the click's verified alternatives (the row pressed shows them under it; then back to the end).
   const row = stepRow('Request a quote');
   await row.locator('.k-rowcard-aside').waitFor({ timeout: 20_000 });
   await row.getByTestId('record-insert-after').click();
@@ -283,7 +283,7 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     expect(ci, JSON.stringify(model.untrusted.captions)).toBeGreaterThanOrEqual(0);
     expect(model.untrusted.captions[ci].kicker).toBe(KICKER);
     const caption = model.captions.find((c) => c.i === ci)!;
-    // The zoom the Studio offered is the theme's max_zoom: planned as requested, never clamped (review B-M3).
+    // The zoom the Studio offered is the theme's max_zoom: planned as requested, never clamped.
     const zoom = model.camera.find((c) => c.zoom === 1.4);
     expect(zoom?.requested_zoom ?? 1.4, JSON.stringify(model.camera)).toBe(1.4);
     expect(zoom, JSON.stringify(model.camera)).toBeDefined();

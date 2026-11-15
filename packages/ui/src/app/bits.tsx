@@ -2,7 +2,7 @@
  * Small pieces shared by the screens. Every value from the server is a React text node; names, slugs, paths, URLs and
  * errors go through `Txt`: a `<bdi>` (bidirectional isolation — a right-to-left override cannot reorder the text around
  * it) whose explicit direction controls are shown as visible marks, so a name holding U+202E then "gnp.exe" never reads as "exe.png".
- * L5.12d: the legacy Badge, Notice and Loading are gone — every screen shows states with the kit (StatusMark, Tag,
+ * The legacy Badge, Notice and Loading are gone — every screen shows states with the kit (StatusMark, Tag,
  * Callout, EmptyState, Progress), always with a word: colour is never the only cue.
  */
 import type { ReactNode } from 'react';
@@ -25,7 +25,7 @@ export function Txt({
   text: string;
   className?: string;
   'aria-current'?: 'page';
-  /** L5.10a fixes: the full text in a tooltip (controls made visible too). */
+  /** The full text in a tooltip (controls made visible too). */
   title?: string;
 }) {
   return (
@@ -36,7 +36,7 @@ export function Txt({
 }
 
 /**
- * L5.9 (review A-M1): what the kit shows in a slot it did not write — a label, a hint, a row, a status word. A string
+ * What the kit shows in a slot it did not write — a label, a hint, a row, a status word. A string
  * goes through `Txt` (whoever passed it: a project name and a Studio word look the same to the kit); an element (a
  * caller's own `<Txt>`, an icon, a composition) and a number are shown as they are. A lint keeps every slot of the kit
  * on it.

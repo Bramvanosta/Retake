@@ -164,7 +164,7 @@ describe('one import path', () => {
     for (const entry of [await import('@retake/core'), await import('@retake/core/io'), await import('@retake/engine'), await import('@retake/mcp')] as Array<Record<string, unknown>>) {
       expect(names.filter((n) => n in entry)).toEqual([]);
     }
-    // clientPath stays core's (its io side, @retake/core/io: one path — the MCP package no longer hands it on).
+    // clientPath stays core's (its io side, @retake/core/io: one path — the MCP package does not hand it on).
     expect('clientPath' in (await import('@retake/mcp'))).toBe(false);
   });
 });

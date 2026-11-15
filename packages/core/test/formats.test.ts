@@ -94,7 +94,7 @@ describe('file format versions (R-PRIN-13)', () => {
     };
     expect(await newerRunMessage(run.dir)).toBeUndefined(); // no run.json
     await writeFile(join(run.dir, 'run.json'), '{"id": "r", "status": "succeeded"}');
-    expect(await newerRunMessage(run.dir)).toBeUndefined(); // a run made before L1.4
+    expect(await newerRunMessage(run.dir)).toBeUndefined(); // a run.json without a version
     await writeFile(join(run.dir, 'run.json'), '{"version": 2, "id": "r"}');
     expect(await newerRunMessage(run.dir)).toBe(newer('run.json'));
     const base = {

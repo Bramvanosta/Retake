@@ -1,5 +1,5 @@
 /**
- * L5.14 review A H1 / A M1 / B L8: what a take and the Studio cost while a take holds heavy work, with a long job
+ * What a take and the Studio cost while a take holds heavy work, with a long job
  * history (3000 finished job folders): a take's sampler (TakeBeside) never reads the job folders — the worker's own
  * hold, or its one held file — and a JobsWatch poll with queued heavy jobs reads what holds them once, from the jobs
  * not finished, not every job.json once per queued heavy job. Asserted on the files read, not on time.

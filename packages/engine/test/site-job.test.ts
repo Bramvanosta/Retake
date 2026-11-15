@@ -1,5 +1,5 @@
 /**
- * L3.5 `site` jobs (engine jobs/site-job.ts, R-MCP-12), the worker run in this process (`once`).
+ * `site` jobs (engine jobs/site-job.ts, R-MCP-12), the worker run in this process (`once`).
  *
  * Without any network (always run, openssl or not): the job's own checks; site.json read
  * back as a file of the workspace (values of another shape go; links, large or other files are no candidate or
@@ -13,7 +13,7 @@
  * result, nothing under templates/, a history line without a project); an extraction cancelled while it reads its page
  * (on the in-memory capture runner), through job_cancel within seconds — the worker free for the next job. A page that
  * busy-loops its renderer is the runner package's own test (runner-web site-hostile.test.ts).
- * L7.37: forged jobs refused WHOLE by the worker before anything opens (no approval, an unsigned one, one signed for URL
+ * Forged jobs refused WHOLE by the worker before anything opens (no approval, an unsigned one, one signed for URL
  * A with the input edited to URL B) run the worker on the in-memory capture runner too, which shows nothing reached it.
  */
 import { existsSync } from 'node:fs';

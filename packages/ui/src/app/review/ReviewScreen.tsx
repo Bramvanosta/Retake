@@ -1,5 +1,5 @@
 /**
- * L5.12a « Épure » 4a: the Review report (`#/p/<slug>/s/<name>/review[/<render id>]`, R4-Review; R-UI-46) — Review's
+ * The Review report (`#/p/<slug>/s/<name>/review[/<render id>]`, R4-Review; R-UI-46) — Review's
  * first view (the mode opens the one this tab used last: shell/modes.ts), a scenario's newest render or the one the
  * address names, read from the render list and the review the render wrote (`scenario_renders`, `render_review`,
  * `review_image`, `render_frame`; nothing new is read). The browser pane is hidden (the report takes the width).
@@ -20,7 +20,7 @@
  * - Export: Export video (MP4) queues the engine's export job through the Studio's own `review_export` (one format, the
  *   project's exports folder, one at a time per render; followed in the activity) and the raw capture for an editing tool
  *   is a command to copy (`retake export-capture …`, built only from ids that pass their rules). Show in Finder: BL-132.
- * - Status bar (ReviewChrome, shared with Review › Comments: review B-M3 of L5.12b): "Rendered · when · vN · n open · n
+ * - Status bar (ReviewChrome, shared with Review › Comments): "Rendered · when · vN · n open · n
  *   resolved", Open in Edit, and Render — re-render this scenario: its latest capture with the file on disk (no file is
  *   shown here), through useRenders (the same refusals; one render at a time; a render queued from here opens its report
  *   by itself once reviewed). The screen owns ⌘B at its priority.
@@ -110,7 +110,7 @@ function ReviewViews({ slug, name, current, open }: { slug: string; name: string
       label="View"
       items={[
         { key: 'report', label: 'Report', to: { name: 'review', slug, scenario: name }, current: current === 'report' },
-        // L5.12b: the Comments segment carries the old tab's test id and its count ("Comments (1 open)") on both views.
+        // The Comments segment carries the old tab's test id and its count ("Comments (1 open)") on both views.
         { key: 'comments', label: open === null ? 'Comments' : `Comments (${open} open)`, to: { name: 'comments', slug, scenario: name }, current: current === 'comments', testId: 'comments-tab' },
       ]}
     />
@@ -148,7 +148,7 @@ export function useReviewRender(slug: string, name: string, renders: RendersStat
 }
 
 /**
- * L5.12b fixes (review B-M3): Review's chrome, one for both views — the View in the title bar and the status bar's line:
+ * Review's chrome, one for both views — the View in the title bar and the status bar's line:
  * "Rendered · when · vN · n open · n resolved", Open in Edit, Render (the render shown: the report's, or the one the
  * comments' viewer shows). Shoot's actions never show in Review (the slot is claimed; StatusActions also stands down on
  * Review's routes).
@@ -165,7 +165,7 @@ export function ReviewChrome({ slug, name, current, x, rr }: { slug: string; nam
       <ShellSlot name="actions">
         <span className="sh-scenario" data-testid="review-state">
           {x && x.status === 'succeeded' ? (
-            // L5.12a fixes (review B-L1): what the render did, with a neutral mark — never a verdict beside the review's.
+            // What the render did, with a neutral mark — never a verdict beside the review's.
             <StatusMark
               state="idle"
               word={
@@ -211,7 +211,7 @@ export function ReviewChrome({ slug, name, current, x, rr }: { slug: string; nam
   );
 }
 
-/** The report's h1 for assistive technology while no render is shown: the name as text (review A-M3). */
+/** The report's h1 for assistive technology while no render is shown: the name as text. */
 function ReviewHeading({ name }: { name: string }) {
   return (
     <h1 className="k-sr">
@@ -327,7 +327,7 @@ function Report({
   const [picked, setPicked] = useState<number | null>(null);
   const selected = picked !== null && order.includes(picked) ? picked : (order[0] ?? null);
   const b = reviewBadge(x.review);
-  // Two renders on one date (or one hour) read the same: those show their time of day (review B-L2).
+  // Two renders on one date (or one hour) read the same: those show their time of day.
   const clash = useMemo(() => sharedWhen(renders.map((o) => ({ id: o.render_id, at: o.created_at }))), [renders]);
   const sheetsH = useId();
   const checksH = useId();
@@ -671,7 +671,7 @@ function SelectedCheck({
   const step = stepKeyOf(finding.at);
   const family = CHECK_FAMILIES.find((f) => f.id === familyOf(finding.code))?.label ?? 'Other';
   // The file as it is now and the render's edit (a screen without a plan: the same capture, file bytes, landscape) — said
-  // only once the file is read and the render differs (L5.12a fixes, review B-M1).
+  // only once the file is read and the render differs.
   const differs = fileHash !== undefined && !versionNote(x, { run: x.run_id, hash: fileHash }).same;
   const t = finding.at?.time ?? (frame !== undefined ? frame / x.fps : undefined);
   return (
@@ -733,7 +733,7 @@ function useExport(slug: string, renderId: string): [ExportState, () => void] {
     );
   }, [slug, renderId]);
   useEffect(() => read(), [read]);
-  // (review A-L1): a jobs event of another project reads nothing.
+  // A jobs event of another project reads nothing.
   useEvents((e) => {
     if (exportReadsOn(e, slug)) read();
   });

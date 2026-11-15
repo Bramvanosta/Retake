@@ -1,5 +1,5 @@
 /**
- * L5.16c — the installed app's Set-up sheet (shell/SetupSheet.tsx, setup-ops.ts; DESIGN §4p (c),
+ * The installed app's Set-up sheet (shell/SetupSheet.tsx, setup-ops.ts; DESIGN §4p (c),
  * docs/reference/studio-ui.md), in Chromium with the app's flag, on a Studio server whose machine is injected (a fake
  * app, a scratch HOME, scratch Claude Desktop config, a fake `claude`; the desktop pipe attached as the shell's):
  * - it opens by itself at the first start (setup_status `seen` false); its a11y tour in dark (1280 / 1440 / 900) and light,
@@ -9,14 +9,14 @@
  *   the server's words are text (markup shown, never rendered);
  * - Help › Set Up / Install the retake Command… (the shell's `studio:setup` event, its section) and `#/setup` open it;
  *   a malformed event is ignored;
- * - critique H1: from a translocated copy the sheet says "Move Retake to Applications, then open it again" and the
+ * - from a translocated copy the sheet says "Move Retake to Applications, then open it again" and the
  *   command, Claude Code and Claude Desktop buttons are off (its own a11y tour, dark and light);
  * - a browser tab (no flag) has no Set-up sheet.
- * L5.16c fixes (review c A-M2 / A-L6 / A-L7 / A-L8): the focus — the sheet opens on its title (Return chooses nothing,
- * Escape closes it without remembering it: it opens again), Help › Uninstall on the confirmation's Uninstall, a
- * confirmation on its own button and back to its opener on Cancel / Keep it, the item's first action (or its title)
- * once an action's button is gone; the folder panel said only once the shell opened it, "No folder was chosen" after a
- * cancel; the process list read only while the Claude Desktop step is in view, at most every 5 s.
+ * The focus — the sheet opens on its title (Return chooses nothing, Escape closes it without remembering it: it opens
+ * again), Help › Uninstall on the confirmation's Uninstall, a confirmation on its own button and back to its opener on
+ * Cancel / Keep it, the item's first action (or its title) once an action's button is gone; the folder panel said only
+ * once the shell opened it, "No folder was chosen" after a cancel; the process list read only while the Claude Desktop
+ * step is in view, at most every 5 s.
  * Screenshots go to RETAKE_UI_SHOTS when set.
  */
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -137,11 +137,11 @@ describe('the Set-up sheet', () => {
     const p = await open(true);
     await expect.poll(() => isOpen(p), POLL).toBe(true);
     expect(await sheet(p).locator('h2').first().innerText()).toBe('Set up Retake');
-    // Review c A-L6: the focus starts on the sheet's title (its top in view), never on Done below the fold; Return
+    // The focus starts on the sheet's title (its top in view), never on Done below the fold; Return
     // there chooses nothing.
     await expect.poll(() => focused(p), POLL).toBe('h2:Set up Retake');
     expect(await sheet(p).evaluate((d) => d.scrollTop)).toBe(0);
-    // Review c A-L8: the Claude Desktop step below the fold — the process list is not read (the polls skip it).
+    // The Claude Desktop step below the fold — the process list is not read (the polls skip it).
     expect(
       await sheet(p)
         .getByTestId('setup-claude-desktop')
@@ -209,7 +209,7 @@ describe('the Set-up sheet', () => {
     expect(await desk.locator('.k-check-word').innerText()).toBe('Conflict: another entry');
     expect(await desk.innerText()).toContain('<b>old</b>');
     expect(await desk.locator('b').count()).toBe(0);
-    // Review c A-M2: the confirmation takes the focus on its button; Cancel gives it back to Replace….
+    // The confirmation takes the focus on its button; Cancel gives it back to Replace….
     await desk.getByTestId('setup-claude-desktop-add').click();
     await expect.poll(() => focused(p), POLL).toBe('setup-claude-desktop-confirm');
     await desk.getByTestId('setup-claude-desktop-cancel').click();
@@ -222,7 +222,7 @@ describe('the Set-up sheet', () => {
     // Its button gone (nothing left to do there): the focus is on the item's title, not lost to the page.
     await expect.poll(() => focused(p), POLL).toBe('h3:Claude Desktop');
     expect(await desk.getByTestId('setup-desktop-said').innerText()).toContain(join(retakeHome, 'backups', 'claude-desktop'));
-    // Review c A-L8: the process list is read while this step is in view — at most every 5 s (polls run every 2 s).
+    // The process list is read while this step is in view — at most every 5 s (polls run every 2 s).
     await desk.scrollIntoViewIfNeeded();
     const ps0 = psCalls;
     await p.waitForTimeout(6500);
@@ -244,7 +244,7 @@ describe('the Set-up sheet', () => {
     expect(await said.innerText()).toContain('Registered with Claude Code');
     expect(await said.innerText()).toContain('<img src=x onerror=alert(1)> installed plugin');
     expect(await d.locator('img').count()).toBe(0);
-    // Review c A-L7: Choose a Folder… — the panel is said only once the shell says it opened; a cancel is said.
+    // Choose a Folder… — the panel is said only once the shell says it opened; a cancel is said.
     await d.getByTestId('setup-cli-choose').click();
     await expect.poll(() => lines.at(-1), POLL).toBe('{"type":"setup","action":"cli_folder"}');
     await p.waitForTimeout(500);
@@ -289,7 +289,7 @@ describe('the Set-up sheet', () => {
     expect(await isOpen(again)).toBe(false);
     await again.evaluate(() => window.dispatchEvent(new CustomEvent('studio:setup', { detail: { section: 'cli' } })));
     await expect.poll(() => isOpen(again), POLL).toBe(true);
-    // Review c A-M2: Help › Uninstall the retake Command… — the focus on the confirmation's Uninstall (Return there
+    // Help › Uninstall the retake Command… — the focus on the confirmation's Uninstall (Return there
     // never installs or opens a panel); Keep it gives it back to Uninstall…; after the removal, the item's first action.
     await again.evaluate(() => window.dispatchEvent(new CustomEvent('studio:setup', { detail: { section: 'cli-remove' } })));
     await expect.poll(() => focused(again), POLL).toBe('setup-cli-remove-confirm');

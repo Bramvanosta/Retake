@@ -1,16 +1,16 @@
 /**
- * The timeline inspector's pure parts (L4.5 part D, R-UI-23; DESIGN §4g "Inspector"): what each switch offers as radio
+ * The timeline inspector's pure parts (R-UI-23; DESIGN §4g "Inspector"): what each switch offers as radio
  * buttons, the `set_field` edit a click sends, its words, and the same switch found again on a newer version (the 409
  * offer "Apply it to the new version"). Nothing here builds YAML: the server splices the file (core field-edits.ts).
  *
  * - The choices come from the view (`choices.video`, `choices.segments[<id>]`): each option `usable` or disabled with
- *   the engine's reason (critique B7). `value: null` is the theme's default: the edit is sent without `to` (the key
+ *   the engine's reason. `value: null` is the theme's default: the edit is sent without `to` (the key
  *   removed). The intro / outro switch reads `true` when written as a map ("On, as written": it cannot be picked, it is
  *   what the file says); speeds get chips (1×, 1.25×, 1.5×, 2×) and a custom value; durations a number field.
  * - An edit carries `from` — what the inspector showed — so a value changed meanwhile is refused as stale, never
- *   overwritten (critique B2's rule for forms, kept for switches).
- * - Every switch is an edit value (core FIELD_PATHS): a render of the same take shows it, no new capture. L4.7
- *   (critique B1): the scenario's theme (`template`) is one too — its default is the project's theme.
+ *   overwritten (the forms' rule, kept for switches).
+ * - Every switch is an edit value (core FIELD_PATHS): a render of the same take shows it, no new capture.
+ *   The scenario's theme (`template`) is one too — its default is the project's theme.
  */
 import type { TimelineView } from '@retake/engine';
 import type { ScenarioEdit } from '../data/scenarios.js';

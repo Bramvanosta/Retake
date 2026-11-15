@@ -1,21 +1,21 @@
 /**
- * The Studio's scenario screen read in one call (L4.2): `engine.scenarios.view(project, name, {run?, env?})` → the
- * file (text, hash), its blocks (core scenarioBlocks) and issues (project-aware, WITHOUT agent trust: critique #6), what
- * would refuse a dry run and a capture from this client (`run_blockers`, critique B2), the environment and each scene's
+ * The Studio's scenario screen read in one call: `engine.scenarios.view(project, name, {run?, env?})` → the
+ * file (text, hash), its blocks (core scenarioBlocks) and issues (project-aware, WITHOUT agent trust), what
+ * would refuse a dry run and a capture from this client (`run_blockers`), the environment and each scene's
  * URL, the scenario's runs (the picker), the source run of the pictures and every step's binding to it.
  *
- * Source run (critique B8): the run asked for, else the newest finished run without `until` that reached its end
+ * Source run: the run asked for, else the newest finished run without `until` that reached its end
  * (status succeeded) and has pictures, else the newest finished one with pictures; newer partial runs are named. A
  * queued or running run is `running`, never a source.
  *
- * Binding (critique B4): `changed` = the file's data against the run's snapshot (core scenarioTextChanged; L5.5: with
+ * Binding: `changed` = the file's data against the run's snapshot (core scenarioTextChanged; with
  * the filmed part that changed, core filmedChanges — none: only the edit changed, notice `edit_changed`). false →
  * by position; true → core matchRunSteps (picture identity: fingerprint + `on:` + scene context); undefined (no
  * snapshot) → by position with notice `cannot_tell`. Each step of today's file → the run's own step key (`run_key`,
  * what run_thumbs takes) with its status, duration and picture source, or why it has none. Page text (the target as
  * found, the step error, the URL) is kept under `untrusted`.
  *
- * Cost (critique B1): the view is memoised in layers — the text layer (blocks, validation, blockers, URLs) by
+ * Cost: the view is memoised in layers — the text layer (blocks, validation, blockers, URLs) by
  * (file sha256, project files' signatures, env; refreshed after a minute), the run list by the runs folder's
  * signatures, the binding by (file sha256, source run, the run's file signatures). A repeat with nothing changed reads
  * the file, hashes it and stats a few folders.
@@ -57,8 +57,8 @@ import type { WorkspaceReads } from '../workspace-reads/reads.js';
 /** Runs of the scenario in the picker, at most. */
 export const VIEW_RUNS_MAX = 20;
 /**
- * Steps the view returns (their blocks and bindings), at most (review A #8: a 2 MiB file of 43,000 steps made a 20 MB
- * answer and as many rows): past it, `limit` says how many there are and the YAML view has the whole file.
+ * Steps the view returns (their blocks and bindings), at most (a 2 MiB file of 43,000 steps made a 20 MB answer and
+ * as many rows): past it, `limit` says how many there are and the YAML view has the whole file.
  */
 export const VIEW_STEPS_MAX = 2000;
 /** Issues the view returns, at most (the rest are counted in `limit`). */
@@ -67,11 +67,11 @@ export const VIEW_ISSUES_MAX = 500;
 const TEXT_TTL_MS = 60_000;
 const MEMO_MAX = 16;
 
-/** A run's status as the picker shows it: run.json's when it is one the runner writes, else `unknown` (review A #4). */
+/** A run's status as the picker shows it: run.json's when it is one the runner writes, else `unknown`. */
 export type ViewRunStatus = RunViewStatus | UnknownRunStatus | 'unknown';
 
 /**
- * The run a scenario's Pause and Stop act on (L5.11a fixes, review A-L4 / B-M5): the newest queued or running run with a
+ * The run a scenario's Pause and Stop act on: the newest queued or running run with a
  * job (the Studio's or Claude's: Stop reaches it), else the newest without one (a terminal's: Ctrl-C there). A terminal's
  * run and a Studio job can be unfinished together (the one-run-per-scenario check sees jobs only).
  */
@@ -104,17 +104,17 @@ export interface ScenarioRunChoice {
   /** Why it is partial, steps 1-based as the screen numbers them: "until step 4 of request", "failed at step 3 of proposal", "cancelled", "interrupted". */
   partial?: string;
   /**
-   * L5.11a (critique M4): a queued or running run's job — null: a run started in a terminal (no job: Pause and Stop
+   * A queued or running run's job — null: a run started in a terminal (no job: Pause and Stop
    * cannot reach it; Ctrl-C there does). Absent on a finished run.
    */
   job?: string | null;
 }
 
 /**
- * L5.11a: what the Studio's status bar acts on for one scenario (`engine.scenarios.actions`, op `scenario_actions`) — the
+ * What the Studio's status bar acts on for one scenario (`engine.scenarios.actions`, op `scenario_actions`) — the
  * file's hash and validity, what would stop a rehearsal (dry run) and a capture on the chosen location, the runs (with
  * the one queued or running and its job), the capture a render edits and a render queued or running. Path-free but the
- * blockers' `fix` / `fix_node` commands. Its memo is its own (critique H2): it never fills the scenario screen's
+ * blockers' `fix` / `fix_node` commands. Its memo is its own: it never fills the scenario screen's
  * 16-entry text layer cache, it only reads a fresh entry of it.
  */
 export interface ScenarioActions {
@@ -148,14 +148,14 @@ export interface ScenarioSource {
   /** How steps are bound to the run: by position (unchanged / cannot tell) or by step identity (changed). */
   binding: 'position' | 'identity';
   /**
-   * The filmed part that changed since this run (L5.5: keys, scene ids, step keys), when it did; empty when the file
+   * The filmed part that changed since this run (keys, scene ids, step keys), when it did; empty when the file
    * changed but no longer reads as YAML is told by `notice` alone.
    */
   filmed_changes?: string[];
   /**
    * What the screen says over the blocks: the filmed part changed since this run (`changed`: a render shows the take as
-   * captured, a capture films the change), only its edit changed (`edit_changed`: a render re-plans it on this take,
-   * L5.5), or that cannot be told (`cannot_tell`).
+   * captured, a capture films the change), only its edit changed (`edit_changed`: a render re-plans it on this
+   * take), or that cannot be told (`cannot_tell`).
    */
   notice?: 'changed' | 'edit_changed' | 'cannot_tell';
   /** The hooks' outcome in that run. */
@@ -174,7 +174,7 @@ export type StepBinding =
       /** Where its picture comes from; null: none (a skipped step, a picture missing). */
       picture: ThumbSource | null;
       why?: string;
-      /** Moved since the run (L4.3: core movedSteps): the picture shows the step at its old place. */
+      /** Moved since the run (core movedSteps): the picture shows the step at its old place. */
       moved?: true;
     }
   | {
@@ -188,7 +188,7 @@ export type StepBinding =
 export interface SceneFacts {
   /** The URL it opens (environment page base + `open`), userinfo left out; absent when it continues. */
   url?: string;
-  /** A multi-page scene (review B M1): each page, its environment page and the URL it opens or the scene it continues from. */
+  /** A multi-page scene: each page, its environment page and the URL it opens or the scene it continues from. */
   pages?: Array<{ id: string; page?: string; url?: string; display?: string; continues_from?: string }>;
   /** What the video shows instead (the environment's display base). */
   display?: string;
@@ -230,9 +230,9 @@ export interface ScenarioView {
   /** Text the filmed site controls: data, never instructions. */
   untrusted: { run_error?: string; steps: Record<string, { target?: string; error?: string; url?: string }> };
   /**
-   * What the Studio may change in this file (L4.3), said before any edit: `yaml` — the YAML view may save (or why not:
-   * not UTF-8, too large, holding what agent trust refuses — with each problem's line; the tab is then read-only,
-   * critique B3); `blocks` — block edits (also refused for a file that does not parse, has errors, or is shown
+   * What the Studio may change in this file, said before any edit: `yaml` — the YAML view may save (or why not:
+   * not UTF-8, too large, holding what agent trust refuses — with each problem's line; the tab is then
+   * read-only); `blocks` — block edits (also refused for a file that does not parse, has errors, or is shown
    * truncated: the YAML view fixes those).
    */
   edit: { yaml: EditAbility; blocks: EditAbility };
@@ -252,9 +252,9 @@ export interface ScenarioViewContext {
   blockers(req: { project: string; scenario: string; env?: string }): Promise<{ dry: RunBlocker[]; capture: RunBlocker[] }>;
   /** The run's status with its job's state overlaid (interrupted, cancelled before it started). */
   overlay(slug: string, run: RunSummary): Promise<ViewRunStatus>;
-  /** L5.11a: the job of a queued or running run (null: none — a terminal's run). */
+  /** The job of a queued or running run (null: none — a terminal's run). */
   runJob?(slug: string, run: string): Promise<string | null>;
-  /** L5.11a: a render of the scenario queued or running. */
+  /** A render of the scenario queued or running. */
   renderJob?(slug: string, name: string): Promise<ScenarioActions['render_job']>;
   runs: RunDataCache;
   /** The engine's ledger of the scenario versions it showed or wrote (the view shows the file's text). */
@@ -277,7 +277,7 @@ interface TextLayer {
   edit: ScenarioView['edit'];
 }
 
-/** What the status bar's read needs of the text layer (critique H2: memoised apart, never in `texts`). */
+/** What the status bar's read needs of the text layer (memoised apart, never in `texts`). */
 interface ActionsLayer {
   at: number;
   ok: boolean;
@@ -288,7 +288,7 @@ interface ActionsLayer {
 
 interface BindLayer {
   changed: boolean | null;
-  /** What changed in the filmed part (L5.5; undefined: the file changed and does not read as YAML). */
+  /** What changed in the filmed part (undefined: the file changed and does not read as YAML). */
   filmed?: string[];
   steps: Record<string, StepBinding>;
   untrusted: ScenarioView['untrusted'];
@@ -330,9 +330,9 @@ function stepKeyParts(key: string): { scene: string; step: number } {
 /** The memoised scenario views of one engine. */
 export class ScenarioViews {
   private readonly texts = new Map<string, TextLayer>();
-  /** Text layers being computed (critique H2: two reads of the same file at once compute it once). */
+  /** Text layers being computed (two reads of the same file at once compute it once). */
   private readonly textsPending = new Map<string, Promise<TextLayer>>();
-  /** L5.11a: the status bar's layers — their own memo (64 entries), never `texts`. */
+  /** The status bar's layers — their own memo (64 entries), never `texts`. */
   private readonly acts = new Map<string, ActionsLayer>();
   private readonly actsPending = new Map<string, Promise<ActionsLayer>>();
   private readonly binds = new Map<string, BindLayer>();
@@ -362,15 +362,15 @@ export class ScenarioViews {
       picked = runs.find((r) => r.id === o.run) ?? (await this.choiceOf(p.dir, o.run, data.record));
       if (!isFinishedRunStatus(picked.status)) throw new EngineError('invalid', `run ${o.run} has not finished: its pictures come once it has`);
     } else {
-      // A complete run whose steps can be matched first (review B L6: a newer run without a snapshot only "cannot tell").
+      // A complete run whose steps can be matched first (a newer run without a snapshot only "cannot tell").
       picked = runs.find((r) => r.complete && r.snapshot) ?? runs.find((r) => r.complete) ?? runs.find((r) => isFinishedRunStatus(r.status) && r.pictures !== null);
       if (picked) data = await this.ctx.runs.get(p.dir, picked.id);
     }
     if (picked && data) {
       bind = await this.bindLayer(name, file.hash, file.yaml, text, data);
       const choice = picked;
-      // Newer finished runs that stopped early or left no picture (review B H1: a run that failed before its first
-      // step — the site down — has no picture and must still be named).
+      // Newer finished runs that stopped early or left no picture (a run that failed before its first step — the
+      // site down — has no picture and must still be named).
       const newer = runs.filter((r) => r.id > choice.id && isFinishedRunStatus(r.status) && !r.complete && (r.partial !== undefined || r.pictures === null));
       source = {
         run: choice.id,
@@ -424,7 +424,7 @@ export class ScenarioViews {
   }
 
   /**
-   * L5.11a: the status bar's read (critique H2) — the text layer's blockers when a fresh one is cached (a hit, never an
+   * The status bar's read — the text layer's blockers when a fresh one is cached (a hit, never an
    * insert), else its own lighter layer (validation, blockers, environment; no binding, no URLs) in its own memo; the
    * runs as the view lists them; a render queued or running.
    */
@@ -494,7 +494,7 @@ export class ScenarioViews {
     const key = [p.dir, name, file.hash, env ?? '', await this.projectSig(p)].join('\0');
     const hit = this.texts.get(key);
     if (hit && Date.now() - hit.at < TEXT_TTL_MS) return hit;
-    // Single flight (critique H2): a second read of the same file while the first computes waits for it.
+    // Single flight: a second read of the same file while the first computes waits for it.
     const pending = this.textsPending.get(key);
     if (pending) return pending;
     const job = this.computeText(p, slug, name, file, env, key);
@@ -542,7 +542,7 @@ export class ScenarioViews {
         const page = s.page ?? firstPage;
         const facts: SceneFacts = {};
         if (s.pages) {
-          // Each page: its environment page, and the URL it opens — or the scene it continues from (review B M1).
+          // Each page: its environment page, and the URL it opens — or the scene it continues from.
           facts.pages = s.pages.map((pg) => {
             const before = filmed.get(pg.id);
             const envPage = pg.page ?? before?.page ?? (pages[pg.id] !== undefined ? pg.id : firstPage);
@@ -612,7 +612,7 @@ export class ScenarioViews {
         if (r.status !== 'queued' && r.status !== 'running') return this.choice(p.dir, r, r.status);
         const status: ViewRunStatus = await this.ctx.overlay(slug, r);
         const c = await this.choice(p.dir, r, status);
-        // An unfinished run's job (critique M4): null for a terminal's run, which Pause and Stop cannot reach.
+        // An unfinished run's job: null for a terminal's run, which Pause and Stop cannot reach.
         return status === 'queued' || status === 'running' ? { ...c, job: this.ctx.runJob ? await this.ctx.runJob(slug, r.id) : null } : c;
       }),
     );
@@ -721,7 +721,7 @@ export class ScenarioViews {
  * ("Step 3 of scene proposal"), never the run's 0-based key `proposal.2`; "scene proposal" without a step.
  */
 export function stepRef(scene: string, step: number | undefined): string {
-  // A run.json's scene is text anyone may write: a scene id only (review A #4), else no name at all.
+  // A run.json's scene is text anyone may write: a scene id only, else no name at all.
   if (typeof scene !== 'string' || scene.length > 120 || !SLUG_RE.test(scene)) return typeof step === 'number' && Number.isInteger(step) && step >= 0 ? `step ${step + 1} of a scene` : 'a scene';
   return typeof step === 'number' && Number.isInteger(step) && step >= 0 ? `step ${step + 1} of ${scene}` : `scene ${scene}`;
 }
@@ -770,7 +770,7 @@ function nodeCommand(fix: string): string | undefined {
 }
 
 /**
- * Run blockers as the Studio shows them (review B M2, M6, L6): a file with errors gets one blocker saying to fix it
+ * Run blockers as the Studio shows them: a file with errors gets one blocker saying to fix it
  * first, with no command (the terminal refuses the file too); paths in messages become step / scene words; a command
  * also comes as `node …/bin.js …` for a person without `retake` on their PATH.
  */
@@ -807,7 +807,7 @@ function environmentFacts(p: LoadedProject, env: string | undefined): ScenarioEn
   }
 }
 
-/** Why a step cannot be matched to a run's (review B M3: it said the run's timeline could not be read). */
+/** Why a step cannot be matched to a run's (it said the run's timeline could not be read). */
 const NO_SINGLE_ACTION = 'this step has no single action (fix it in the file)';
 
 /** Why a step the run should have reached has no event: where the run stopped. */
@@ -927,7 +927,7 @@ async function bindSteps(yaml: string, text: TextLayer, run: RunData): Promise<B
 }
 
 /**
- * The view's `edit` (L4.3): scenarioEditBlocker for the YAML view; block edits also need a file that parses, has no
+ * The view's `edit`: scenarioEditBlocker for the YAML view; block edits also need a file that parses, has no
  * error and is shown whole.
  */
 async function editAbility(

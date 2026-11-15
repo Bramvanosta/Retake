@@ -1,5 +1,5 @@
 /**
- * L6.13: The desktop app's own ops: the quit question's answer, the update, the Set-up sheet, the tabs' unsaved
+ * The desktop app's own ops: the quit question's answer, the update, the Set-up sheet, the tabs' unsaved
  * reports. Each op once, typed by StudioOps (data/ops.ts).
  */
 import { op } from './client.js';

@@ -1,5 +1,5 @@
 /**
- * Compact results (L5.8, R-FLD-34): run_status, review / review_get and page_inspect answer compactly by default and in
+ * Compact results (R-FLD-34): run_status, review / review_get and page_inspect answer compactly by default and in
  * full on request; their JSON is one line; job_status waits up to 10 minutes; the server's instructions point to
  * sandboxes, hook steps and the compact results. Pure: synthetic engine views, no worker.
  */

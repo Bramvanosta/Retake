@@ -1,5 +1,5 @@
 /**
- * L4.2 part 1 (BL-79 residue): core readPlainFile, the one reader of files a person or an agent may have replaced —
+ * Core readPlainFile (BL-79), the one reader of files a person or an agent may have replaced —
  * scenarios and README.md through the engine, run snapshots. A FIFO never holds the reader, a link is never followed,
  * a folder or a device is not a file, a file over the cap is refused (also one that grows while read).
  */

@@ -1,5 +1,5 @@
 /**
- * L4.6 part A2 (T8): the timeline's preview of a proposal (engine timeline.view with `proposal`, critique B9). The take
+ * The timeline's preview of a proposal (engine timeline.view with `proposal`). The take
  * is planned from the proposed text in memory, on the commented run: ⚑ the view shows the proposed caption, writes
  * nothing (file bytes and mtime unchanged) and ⚑ never makes the proposed text a version the Studio may restore (no
  * `text` beside the view; `restore` of it refused); ⚑ the Studio's full write checks run on every preview (a planted
@@ -194,7 +194,7 @@ describe('the timeline previews a proposal (T8, critique B9)', () => {
     });
     expect(r.text).toBeUndefined();
     expect([await readFile(scenarioFile()), (await stat(scenarioFile())).mtimeMs]).toEqual(before);
-    // Never a version `restore` accepts (critique B9 b): restore writes any remembered version and skips the hidden-character check.
+    // Never a version `restore` accepts: restore writes any remembered version and skips the hidden-character check.
     // (The ledger is the engine's: the refusal below is the only way to ask it.)
     const restore = await failure(ui.scenarios.edit('demo', SCENARIO, { hash: sha(TEXT), edit: { kind: 'restore', text: PROPOSED, text_hash: sha(PROPOSED) } }));
     expect(restore).toMatchObject({ code: 'refused', message: expect.stringMatching(/not a version of scenarios\/tl.yaml the Studio showed or wrote/) });

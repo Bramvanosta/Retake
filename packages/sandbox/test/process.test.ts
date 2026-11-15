@@ -1,5 +1,5 @@
 /**
- * The process provider for real (L1.8): the bundled fixture as a sandbox on free ports — up (healthy, seeded), an
+ * The process provider for real: the bundled fixture as a sandbox on free ports — up (healthy, seeded), an
  * idempotent up, reset (a created quote, a sent mail and the demo clock undone; pending rollbacks superseded), the take
  * lock, a second sandbox refused on the same ports (naming the program), down (the PDF browser it started outside its
  * group stopped too, ports free), a state whose process is gone, a crashing service (exit code + log tail) and an
@@ -373,7 +373,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     const r = await sb.up({ log: say });
     expect(r.started).toEqual(['app']);
     expect(Date.now() - t0).toBeGreaterThan(1000);
-    // Identity once healthy: the boot time and the group's members (P2).
+    // Identity once healthy: the boot time and the group's members.
     const entry = readState(sandboxPaths(project.dir, 'sandbox').state, 'sandbox', 'process').state.services.app as { pid: number; boot?: number; members?: Array<{ pid: number }> };
     expect(entry.boot).toEqual(expect.any(Number));
     expect(entry.members?.map((m) => m.pid)).toContain(entry.pid);
@@ -463,7 +463,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     expect((await count(a)).seeds).toBe(1);
   });
 
-  // L7.9: a sql reset hook gets the seed's rule (before, its database was never checked: the hook tried to connect).
+  // A sql reset hook gets the seed's rule (before, its database was never checked: the hook tried to connect).
   it("a sql reset hook's database must be served by the sandbox — or `external: true` — checked before the reset changes anything", async () => {
     const [a, db] = await freePorts(2);
     const svcLines = [`url: http://localhost:${a}`, `pages: {app: "http://localhost:${a}"}`];

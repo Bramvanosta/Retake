@@ -1,10 +1,10 @@
 /**
- * L4.5 part A: a render job renders the edit it was submitted with (critique B5) and can review itself inline (B12).
+ * A render job renders the edit it was submitted with and can review itself inline.
  * - Submit snapshots the scenario text its edit was planned from in the job folder (edit.yaml, 0600, sha256 = the job's
  *   `edit_sha256`), written before job.json; a take whose filmed part changed (edit from the run) has none.
  * - ⚑ The worker plans from the snapshot: a switch written while the render waits in the queue neither fails it nor
  *   changes it (the plan passes the edit check and goes on to render — here stopped by an aborted signal before any
- *   bundle or browser); without the snapshot the same render is refused as changed (what happened before L4.5); a
+ *   bundle or browser); without the snapshot the same render is refused as changed; a
  *   snapshot that is not the submitted version is a conflict.
  * - The inline review: a failure leaves the render succeeded with the reason as untrusted text; a cancel stops the
  *   review (the render, already written, stays the job's result).
@@ -74,7 +74,7 @@ beforeAll(async () => {
   t.project = 'demo';
   t.scenario = SCENARIO;
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
-  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  // A run `latest` takes has its record (a folder without a readable run.json is never the latest capture).
   await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: RUN, scenario: SCENARIO, project: 'demo' })));
   await writeFile(join(runDir, 'scenario.yaml'), TEXT);
   await writeFile(join(runDir, 'capture.mp4'), 'never read before the render stage');

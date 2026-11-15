@@ -1,9 +1,9 @@
 /**
- * L5.16a (reviews A M2 / L1, B M2 / M3) — the workspace's ffmpeg reaches every spawn of the process: `openWorkspace`
- * makes retake.yaml `ffmpeg` the process's (the option-less sites: preview quantiser, silent-track fix, review frames,
- * pixels), the workspace opened last wins (one workspace per process, documented), a relative path is the workspace's
- * whatever the cwd, and a worker a client starts never inherits a relative tool variable. And the raw package, exported
- * from a synthetic run with an ffmpeg without libx264, names the encoder its clips were really made with.
+ * The workspace's ffmpeg reaches every spawn of the process: `openWorkspace` makes retake.yaml `ffmpeg` the process's
+ * (the option-less sites: preview quantiser, silent-track fix, review frames, pixels), the workspace opened last wins
+ * (one workspace per process, documented), a relative path is the workspace's whatever the cwd, and a worker a client
+ * starts never inherits a relative tool variable. And the raw package, exported from a synthetic run with an ffmpeg
+ * without libx264, names the encoder its clips were really made with.
  */
 import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';

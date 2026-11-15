@@ -65,7 +65,7 @@ export interface SessionOptions {
   headed?: boolean;
   log?: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
   /**
-   * One browser per persona (L1.6, "realms"): each launched like the single context above, on its own profile. Without
+   * One browser per persona ("realms"): each launched like the single context above, on its own profile. Without
    * it the session is that single context (profileDir / storageState / a temp profile) — the realm named "".
    */
   realms?: RealmSpec[];
@@ -74,7 +74,7 @@ export interface SessionOptions {
   /** The realm of a js hook tab (environment page key; default: ""). */
   hookRealmOf?: (key: string) => string;
   /**
-   * A read-only run (L1.7): every realm is armed with the write guard at launch (write-guard.ts), realms launched later
+   * A read-only run: every realm is armed with the write guard at launch (write-guard.ts), realms launched later
    * too; its pages are closed through about:blank.
    */
   writes?: WriteGuardOptions;
@@ -91,7 +91,7 @@ export interface StorageStateFile {
   origins?: Array<{ origin: string; localStorage?: Array<{ name: string; value: string }>; indexedDB?: unknown[] }>;
 }
 
-/** One persona's browser (L1.6): a persistent context of its own. */
+/** One persona's browser: a persistent context of its own. */
 export interface RealmSpec {
   /** The persona; "" = the default browser (pages without a persona). */
   name: string;
@@ -130,7 +130,7 @@ export const DEFAULT_BROWSER_ARGS = [
 ];
 
 /**
- * `browser.frame_rate_limit: false` launches Chromium without its frame rate limiter (L1.3). With the limiter, frame
+ * `browser.frame_rate_limit: false` launches Chromium without its frame rate limiter. With the limiter, frame
  * production stops ≈ 0.26 s after a dialog whose overlay has a backdrop-filter closes (measured on macOS / Metal: the
  * click ripple freezes in the capture); without it that stall is gone, but the compositor draws back to back:
  * requestAnimationFrame runs at thousands of Hz while anything animates (24 000 Hz with a CSS spinner on screen), so
@@ -142,7 +142,7 @@ export function frameRateArgs(b: Pick<BrowserConfig, 'frame_rate_limit' | 'args'
 }
 
 /**
- * Launch flags for a capture at device scale `scale` (L2.8, measured in docs/HANDOFF.md): the CDP screencast of
+ * Launch flags for a capture at device scale `scale` (measured in docs/HANDOFF.md): the CDP screencast of
  * headless Chromium (new headless and the headless shell alike) sends frames at the window's physical size, which
  * stays at CSS size whatever `deviceScaleFactor` the page emulates — `Emulation.setDeviceMetricsOverride` on the
  * recorder's session and `Page.captureScreenshot` give CSS-size images too. Forcing the browser's own device scale
@@ -222,7 +222,7 @@ export function readNotificationPayload(raw: unknown, frameUrl: string): Notific
 
 /** Name of the binding the kit calls for each web notification the page shows. */
 export const NOTIFICATION_BINDING = '__retakeNotification';
-/** Name of the binding the kit calls with what its cursor shows: icon changes, presses, click ripples (L2.13). */
+/** Name of the binding the kit calls with what its cursor shows: icon changes, presses, click ripples. */
 export const CURSOR_BINDING = '__retakeCursor';
 
 /** playwright-core launch target for a browser config (launch.ts). */
@@ -264,7 +264,7 @@ export class KitClient {
   }
 
   /**
-   * One call in the document the page shows now (an inspection, L3.3): a document replaced during the call (a late
+   * One call in the document the page shows now (an inspection): a document replaced during the call (a late
    * navigation) is an error, never retried in the new one — whatever that document holds is not what was asked for.
    * A document that has no kit when the call starts (its init script not run) gets it installed and the call runs
    * there: whichever document answers, the inventory and the target checks return its origin, which the inspection
@@ -412,27 +412,27 @@ export class KitClient {
   focused(): Promise<{ desc: string; bbox: BBox; input_type: string } | null> {
     return this.call('focused');
   }
-  /** Inspection (L3.3): the visible interactive elements with verified suggested targets (one in-page call). */
+  /** Inspection: the visible interactive elements with verified suggested targets (one in-page call). */
   inventory(opts: InventoryOptions = {}): Promise<KitInventory> {
     return this.callOnce('inventory', opts);
   }
-  /** Inspection (L3.3): `find` for each (normalised) target. */
+  /** Inspection: `find` for each (normalised) target. */
   checkTargets(targets: TargetObject[]): Promise<KitTargetChecks> {
     return this.callOnce('checkTargets', targets);
   }
-  /** L5.6: `find` for each target without acting, with the closest visible elements of those not found. */
+  /** `find` for each target without acting, with the closest visible elements of those not found. */
   closest(targets: TargetObject[]): Promise<Array<{ count: number; near: NearElement[] }>> {
     return this.call('closest', targets);
   }
-  /** L5.6: whether the focus is on `ref` (a `type` step's field) and what has it. */
+  /** Whether the focus is on `ref` (a `type` step's field) and what has it. */
   focusCheck(ref: string): Promise<{ ok: boolean; desc: string | null; field: string | null }> {
     return this.call('focusCheck', ref);
   }
-  /** L5.6: a field's value (input, textarea) or text (contenteditable); null for other elements. */
+  /** A field's value (input, textarea) or text (contenteditable); null for other elements. */
   fieldValue(ref: string | null): Promise<string | null> {
     return this.call('fieldValue', ref);
   }
-  /** L5.6: start counting what a click changes on the page (dead-click detection). */
+  /** Start counting what a click changes on the page (dead-click detection). */
   effectWatch(): Promise<void> {
     return this.call('effectWatch');
   }
@@ -477,8 +477,8 @@ export class KitClient {
 
 /**
  * Persistent Chromium contexts with the kit injected in every document, and named pages: one per environment page key
- * (created lazily) plus tabs opened during the run. A run signed in as personas has one context per persona (L1.6,
- * "realms": each its own browser process and cookie jar), plus the default one for pages without a persona; without
+ * (created lazily) plus tabs opened during the run. A run signed in as personas has one context per persona ("realms":
+ * each its own browser process and cookie jar), plus the default one for pages without a persona; without
  * personas there is one context, as before.
  */
 export class BrowserSession {
@@ -495,20 +495,20 @@ export class BrowserSession {
   private activeKey: string | null = null;
   private closed = false;
   private closing: Promise<void> | null = null;
-  /** Pages with their own viewport (multi-page scenes, L2.11): the CDP session that keeps it, for the whole run. */
+  /** Pages with their own viewport (multi-page scenes): the CDP session that keeps it, for the whole run. */
   private readonly emulations = new Map<Page, { session: CDPSession; key: string; ua?: string }>();
   private readonly realms: Realm[] = [];
   /** A realm launched after the others (the default browser for a page no plan foresaw). */
   private readonly launching = new Map<string, Promise<Realm>>();
   /** Called for every web notification a page of the session shows (set by the runner). */
   onNotification: ((page: Page, n: NotificationPayload) => void) | null = null;
-  /** Called for every cursor effect (icon, press, ripple) a page's kit reports (set by the runner, L2.13). */
+  /** Called for every cursor effect (icon, press, ripple) a page's kit reports (set by the runner). */
   onCursorEffect: ((page: Page, e: CursorEffectPayload) => void) | null = null;
   /** Tabs with a guard of their own (js hook tabs): the context's write guard lets their requests through to it. */
   private readonly ownGuard = new WeakSet<Page>();
-  /** The automated sign-in tabs (L1.6) → whether a URL is its sign-in page: exempt from the write guard there (L1.7). */
+  /** The automated sign-in tabs → whether a URL is its sign-in page: exempt from the write guard there. */
   private readonly signIn = new WeakMap<Page, (url: string) => boolean>();
-  /** The product's clock (L1.7): installed after the preflight (installClock), anchored at capture time 0. */
+  /** The product's clock: installed after the preflight (installClock), anchored at capture time 0. */
   private clockState: ProductClockConfig | null = null;
 
   private constructor(
@@ -593,7 +593,7 @@ export class BrowserSession {
     }
   }
 
-  /** A browser-level CDP session per realm (L5.7: Chromium's process and GPU reports), opened once. */
+  /** A browser-level CDP session per realm (Chromium's process and GPU reports), opened once. */
   private readonly browserCdp = new Map<Realm, Promise<CDPSession | null>>();
 
   private browserTarget(realm: Realm): Promise<CDPSession | null> {
@@ -607,7 +607,7 @@ export class BrowserSession {
   }
 
   /**
-   * Chromium's own report of its processes (L5.7, run.json `perf`): per realm (persona; "" = none), each process's
+   * Chromium's own report of its processes (run.json `perf`): per realm (persona; "" = none), each process's
    * kind ("browser", "GPU", "renderer", a utility's service name), pid and CPU seconds so far. Realms that cannot answer
    * are left out.
    */
@@ -629,7 +629,7 @@ export class BrowserSession {
   }
 
   /**
-   * Is the capture browser GPU-accelerated (L5.7, R-FLD-24)? Chromium's own feature report (the one chrome://gpu shows):
+   * Is the capture browser GPU-accelerated (R-FLD-24)? Chromium's own feature report (the one chrome://gpu shows):
    * compositing and rasterization in hardware, the GL renderer (ANGLE Metal, SwiftShader…), the features that fell back
    * to software. Undefined when it cannot be read.
    */
@@ -709,7 +709,7 @@ export class BrowserSession {
   }
 
   /**
-   * Install the product's clock (L1.7, R-ENV-05) in every realm — after the preflight (the session check and the
+   * Install the product's clock (R-ENV-05) in every realm — after the preflight (the session check and the
    * automated sign-in run on the real time) and before the setup hooks: a Date-only clock (product-clock.ts: `Date` and
    * Intl's default date; timers, frames and `performance` stay real) in every document, frame and dedicated worker,
    * hook tabs included. `freeze`: the time never moves; otherwise it runs from the install, and anchorClock sets it
@@ -793,7 +793,7 @@ export class BrowserSession {
   }
 
   /**
-   * A tab nobody films in the realm of page `id` (L5.7, `capture.prewarm`): not registered, never active; the caller
+   * A tab nobody films in the realm of page `id` (`capture.prewarm`): not registered, never active; the caller
    * closes it.
    */
   async scratchPage(id: string): Promise<Page> {
@@ -846,7 +846,7 @@ export class BrowserSession {
   }
 
   /**
-   * Give one page its own viewport (a page of a multi-page scene filmed at mobile or tablet size, L2.11): device
+   * Give one page its own viewport (a page of a multi-page scene filmed at mobile or tablet size): device
    * metrics (+ mobile emulation, touch and a mobile user agent) on a CDP session kept open for the whole run — the
    * override lives as long as the session that set it (measured: detaching it brings the page back to the window
    * size), and the recorders' own sessions only re-assert the same metrics. Re-applied only when the viewport changes.
@@ -894,7 +894,7 @@ export class BrowserSession {
     return page;
   }
 
-  /** Remember the page a tab was opened from (new_tab): a tab of a `persona: none` page is not guarded either (L1.6). */
+  /** Remember the page a tab was opened from (new_tab): a tab of a `persona: none` page is not guarded either. */
   opened(page: Page, opener: Page): void {
     this.openers.set(page, opener);
   }
@@ -918,7 +918,7 @@ export class BrowserSession {
   }
 }
 
-// The GPU status reading moved to core (L5.15: the render browser reads it too); re-exported for this package's users.
+// The GPU status reading moved to core (the render browser reads it too); re-exported for this package's users.
 export { gpuInfoOf } from '@retake/core/render';
 export type { GpuInfo, SystemInfoReply } from '@retake/core/render';
 
@@ -931,7 +931,7 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
   if (temp) registerSessionCopy(temp);
   const userDataDir = spec.userDataDir ?? temp!;
   if (opts.writes) enableServiceWorkerRequests();
-  // L5.16c (critique M6): a persona's profile is never opened by an older Chromium than the one that opened it last.
+  // A persona's profile is never opened by an older Chromium than the one that opened it last.
   const major = spec.userDataDir ? launchMajor({ executablePath, channel }) : null;
   if (spec.userDataDir) {
     try {
@@ -998,7 +998,7 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
     });
     await context.addInitScript({ content: source });
     if (spec.storageState) await applyStorageState(context, spec.storageState);
-    // Read-only run (L1.7): armed before any page loads — the preflight's check page included.
+    // Read-only run: armed before any page loads — the preflight's check page included.
     if (opts.writes) await armWriteGuard(context, opts.writes, (page) => session.pageRole(page));
   } catch (e) {
     await closeRealm(realm);

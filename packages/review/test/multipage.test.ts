@@ -1,5 +1,5 @@
 /**
- * L2.11 review awareness, without video: clicks of a multi-page clip land on their page's pane (each page with its own
+ * Review awareness, without video: clicks of a multi-page clip land on their page's pane (each page with its own
  * cursor), the cursor / tutorial checks run per pane, and `overlay-covers-target` warns when key caps, a step badge, a
  * loupe or the picture-in-picture inset covers a click target of the current or next step — on the real fixture
  * timelines of live-quote (split), phone-and-desktop (pip) and signup (tutorial overlays).

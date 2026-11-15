@@ -1,5 +1,5 @@
 /**
- * The admission rules across processes (L7.26, U15 — finding P9): two processes on one workspace — an MCP server's
+ * The admission rules across processes: two processes on one workspace — an MCP server's
  * engine and the Studio's — submit at once, and a rule passes once. Each check and its submit hold the job queue's lock
  * of the rule's key (JobQueue `exclusive`: a lock file of the workspace), so of two runs of one scenario, two renders of
  * one scenario or two exports of one render submitted at the same moment by two processes, exactly one job is queued

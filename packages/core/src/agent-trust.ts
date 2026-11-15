@@ -1,5 +1,5 @@
 /**
- * What work submitted through MCP may reference (L3.1, trust `mcp`, core HookTrust). The agent that drives the MCP
+ * What work submitted through MCP may reference (trust `mcp`, core HookTrust). The agent that drives the MCP
  * server writes the scenarios it runs (scenario_save), a project's README.md (project_update_readme) and new projects
  * (project_create), and reads what a run returns (error messages, screenshots). So, for that work:
  *
@@ -10,11 +10,11 @@
  * - a file it references (drop_file.path, eval.file, a hook's sql / js file or a file its shell command names) is a
  *   file of the project folder: relative, never `..` out of it, never through a symbolic link that leaves it;
  * - a file it runs as code (eval.file, a hook's sql / js file, a script its shell command names) is not one the agent
- *   can write itself (README.md, scenarios/, comments/ — L3.6: an agent appends replies and resolutions to frame comment
+ *   can write itself (README.md, scenarios/, comments/ — an agent appends replies and resolutions to frame comment
  *   threads —, and the folders runs and the tools write: runs/, renders/, review/, exports/, .retake/), nor a
  *   brand source of a theme (engine brand files).
  *
- * L3.2, renders: every file a render reads (card / overlay images, `data:` CSV slots, own media, music) is a file of the
+ * Renders: every file a render reads (card / overlay images, `data:` CSV slots, own media, music) is a file of the
  * project folder, a Lottie file counts as code (lottie-web evaluates the expressions it holds), and a theme is named,
  * never a folder — except the project's own `template:` of project.yaml, which a human wrote (renderFileProblems,
  * templateRefProblem; the editor's planRun applies them before any file is read, then checks every file the plan
@@ -64,7 +64,7 @@ export function projectFileProblem(projectDir: string, ref: string, o: { baseDir
   const target = realPathOf(resolve(o.baseDir ?? projectDir, ref), files);
   const rel = relativeInside(target, root);
   if (rel === undefined) {
-    // Never the target itself: a path outside the project is not the agent's to learn (L4.1 review A).
+    // Never the target itself: a path outside the project is not the agent's to learn.
     return `${ref} resolves outside the project folder: ${through} only files of the project folder are read`;
   }
   if (o.code && agentWritable(rel)) {
@@ -122,7 +122,7 @@ export function scenarioFileRefs(sc: Scenario): ScenarioFileRef[] {
       for (const f of hookFileRefs(hook)) out.push({ ref: f.ref, where: `${phase} hook ${i + 1}${hook?.name ? ` "${hook.name}"` : ''} (${f.what})`, code: true });
     });
   }
-  // Named hooks (L5.8): what `hook:` steps run during the take.
+  // Named hooks: what `hook:` steps run during the take.
   for (const [name, v] of Object.entries(sc.hooks && typeof sc.hooks === 'object' ? sc.hooks : {})) {
     (Array.isArray(v) ? v : [v]).forEach((hook, i, all) => {
       for (const f of hookFileRefs(hook)) out.push({ ref: f.ref, where: `hook "${name}"${all.length > 1 ? ` entry ${i + 1}` : ''} (${f.what})`, code: true });
@@ -341,7 +341,7 @@ function stringLeaves(v: unknown, path: IssuePath, out: Array<{ path: IssuePath;
 }
 
 /**
- * agentTrustProblems with where each one is in `text`, the file `sc` was parsed from (L4.3, critique B11: "line 42 uses
+ * agentTrustProblems with where each one is in `text`, the file `sc` was parsed from ("line 42 uses
  * {{env:SHOP_TOKEN}}"): one problem per string holding a secret reference (its path, line and column), a file
  * reference at the string that names it, a template folder at `template`. The same rules; a problem that cannot be
  * placed keeps an empty path and no line.

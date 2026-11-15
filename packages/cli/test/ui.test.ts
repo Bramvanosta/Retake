@@ -1,17 +1,15 @@
 /**
  * `retake ui` from the built entry point (`pnpm build` first; skipped without dist): `--no-open --json` prints one JSON
- * line and nothing on stderr, serves the app and `/v1` on 127.0.0.1, writes `.retake/ui.json` (0600); a second
- * `retake ui` reuses the running server with a fresh one-time link and exits 0 (warning when --port names another
- * port); SIGTERM stops the first and removes the file; an unwritable state folder is a refusal with a fix (exit 1); a
- * folder that is not a workspace is a usage error naming --root. L4.2 (critique B5): its PATH is sanitised like
- * `retake mcp`'s — an `ffmpeg` an agent wrote in the workspace (`bin/`, `node_modules/.bin/`) is never what the
- * thumbnails run.
- * L5.2: `--supervised` (the desktop shell's child) prints the line with `v` and the player origin, stops when its stdin
- * closes — also when the parent holding the pipe is killed, after or during the start (critique M3) — says why on
- * stderr without any URL, and attaches (`reused`, with the player origin) to a running server without touching it; a
- * folder that is no workspace answers `{"type":"error","code":"no_workspace"}` on stdout (exit 2), which the desktop
- * shell tells from another usage error (review B L4).
- * L5.2b: the supervised line says `v` 2 (`--json` keeps 1); after it, an owned server writes `pending` snapshots (a
+ * line and nothing on stderr, serves the app and `/v1` on 127.0.0.1, writes `.retake/ui.json` (0600); a second `retake
+ * ui` reuses the running server with a fresh one-time link and exits 0 (warning when --port names another port);
+ * SIGTERM stops the first and removes the file; an unwritable state folder is a refusal with a fix (exit 1); a folder
+ * that is not a workspace is a usage error naming --root. Its PATH is sanitised like `retake mcp`'s — an `ffmpeg` an
+ * agent wrote in the workspace (`bin/`, `node_modules/.bin/`) is never what the thumbnails run. `--supervised` (the
+ * desktop shell's child) prints the line with `v` and the player origin, stops when its stdin closes — also when the
+ * parent holding the pipe is killed, after or during the start — says why on stderr without any URL, and attaches
+ * (`reused`, with the player origin) to a running server without touching it; a folder that is no workspace answers
+ * `{"type":"error","code":"no_workspace"}` on stdout (exit 2), which the desktop shell tells from another usage error.
+ * The supervised line says `v` 2 (`--json` keeps 1); after it, an owned server writes `pending` snapshots (a
  * running job written in its workspace shows in the next one) and nothing else on stdout — stdin is still read and
  * discarded; a reused server writes nothing after its line.
  * The Studio's token is in the Retake home (`ui/<hash>.token`, 0600), never in ui.json; a `retake ui` of another

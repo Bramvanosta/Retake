@@ -1,5 +1,5 @@
 /**
- * Small JPEG thumbnails of a run's pictures for the Studio's scenario screen (L4.2, critique B7) — the `./thumbs` entry
+ * Small JPEG thumbnails of a run's pictures for the Studio's scenario screen — the `./thumbs` entry
  * of this package: sharp and one ffmpeg process, nothing else. It never imports the editor (Remotion: the first import
  * of the package root costs ≈ 350 ms and ≈ 90 MB), never writes a file, never reads a path it was not given.
  *
@@ -7,7 +7,7 @@
  * - `videoFramesAt(input, seconds[])`: one ffmpeg process for a batch — one input per time (`-ss t -i …`, an input
  *   seek: decodes from the keyframe before t, not from the start), each written as a PNG to its own pipe, so a time past
  *   the end gives `null` for that time and never shifts the others. The input is a path (file protocol only) or, as the
- *   Studio passes it, one open descriptor per time (`fd` protocol only: ffmpeg opens no path at all, review A #7).
+ *   Studio passes it, one open descriptor per time (`fd` protocol only: ffmpeg opens no path at all).
  */
 import type { Readable } from 'node:stream';
 import sharp from 'sharp';

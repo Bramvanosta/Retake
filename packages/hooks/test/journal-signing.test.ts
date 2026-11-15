@@ -1,5 +1,5 @@
 /**
- * L5.14: rollback journal entries are signed when written, with the Retake home's key, over their journal's id and the
+ * Rollback journal entries are signed when written, with the Retake home's key, over their journal's id and the
  * whole entry; an entry without a valid signature is never replayed with trust `mcp` (refused, and said), elsewhere only
  * on request (`replayUnsigned`), and never with secrets. Saving a journal never signs an entry it read unsigned.
  */

@@ -1,6 +1,5 @@
 /**
- * The scenario reads of the MCP server: scenario_get (L7.14) and scenario_validate (L7.13, which the Studio serves too),
- * moved from its tools/scenario.ts.
+ * The scenario reads of the MCP server: scenario_get and scenario_validate (which the Studio serves too).
  */
 import { z } from 'zod';
 import { READ } from './annotations.js';

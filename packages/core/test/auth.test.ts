@@ -1,5 +1,5 @@
 /**
- * L1.6 contracts in core: personas in project.yaml (global, per environment, legacy), derived session paths, sign-in
+ * Contracts in core: personas in project.yaml (global, per environment, legacy), derived session paths, sign-in
  * patterns, the static plan of which persona films each page, and the validation of both files.
  */
 import { mkdtempSync, statSync } from 'node:fs';
@@ -27,7 +27,7 @@ import type { LoadedProject, Scenario, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
 import { memoryFileFacts } from '@retake/core';
 
-/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+/** No disk: these checks are handed a project but look at no file (a FileFacts is required beside a project). */
 const NO_DISK = memoryFileFacts({});
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);

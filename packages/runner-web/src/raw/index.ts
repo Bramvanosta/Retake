@@ -1,4 +1,4 @@
-/** Raw capture export for editors (L2.13): clips, cursor data and layers, markers, manifest. */
+/** Raw capture export for editors: clips, cursor data and layers, markers, manifest. */
 export * from './plan.js';
 export * from './cursor.js';
 export * from './markers.js';

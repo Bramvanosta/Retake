@@ -1,5 +1,5 @@
 /**
- * L4.8 part 5: the Record screen end to end — the built-in Studio server on a scratch workspace and home, headless
+ * The Record screen end to end — the built-in Studio server on a scratch workspace and home, headless
  * Chromium on the Studio app, the fixture product on free ports, and the `record` job run by a
  * worker IN THIS PROCESS with Playwright playing the person in the recording window (`ports.recordWindow.drive`: a worker
  * process cannot receive it — the real headed window with a person switching to the Studio is MACOS-CHECKLIST 13i).
@@ -16,20 +16,20 @@
  *   text): the modifiers wait for the next action ("applies to your next action"), then go on it; a scroll down to
  *   "Far away" (the recorder's scroll row, its target picked) and a button revealed then pressed after a pause (the
  *   recorder's wait row);
- * - the cursor by row identity (review B-H1 / B-M1): a hold after a chosen step, after the recorder's scroll row and
+ * - the cursor by row identity: a hold after a chosen step, after the recorder's scroll row and
  *   after its wait row goes immediately after that row; the cursor moves onto the hold, and the next one goes right
  *   after it; each row's Insert after names its step;
  * - one Stop visible while recording (the inspector's "Stop recording"; the status bar says "Recording · browser window
- *   open" with the counts and holds the actions slot, L5.11a review A-L7 / L5.11b);
- * - L5.11b (critique L2 / H1 of L5.11): while a recording goes, Rehearse and Capture send nothing and say why (the
- *   scenario remembered in context is never run from the Record route); ⌘. stops the recording — after a reload too;
- * - L5.11b: the Discard sheet — "Keep it" holds the focus, Return keeps it (nothing sent), Discard then discards and the
+ *   open" with the counts and holds the actions slot);
+ * - while a recording goes, Rehearse and Capture send nothing and say why (the scenario remembered in context is never
+ *   run from the Record route); ⌘. stops the recording — after a reload too;
+ * - the Discard sheet — "Keep it" holds the focus, Return keeps it (nothing sent), Discard then discards and the
  *   focus lands on the title; after Save the focus is in the centre pane (never dropped);
  * - Stop and keep → the check replay passed; Save: a taken name refused (the file untouched), then a new scenario (no
  *   YAML alias: the block editor deletes and duplicates the scroll row) and the scenario screen;
  * - the hostile flagged page (`/record-lab?hostile=1`): its label shown as inert text (no script ran, the direction
  *   override shown as [U+202E]); saved, its step is left out (hidden_text): no hidden character in the file;
- * - Discard while the window is open: a neutral "discarded", no danger notice, the note gone (review B-M5);
+ * - Discard while the window is open: a neutral "discarded", no danger notice, the note gone;
  * - a recording Claude started: read-only; a preflight refusal (a persona not signed in): the Sessions panel's Sign in.
  *
  * `RETAKE_UI_SHOTS=<folder>` saves screenshots there (1280 and 1600 wide).
@@ -111,7 +111,7 @@ async function view(rec: string): Promise<RecordViewAnswer> {
 
 /**
  * The in-process worker (one job), Playwright playing the person; the window closes after `drive` if still open. A drive
- * that throws fails the job — and the test, with the drive's own error (L5.11b fixes, review B-L2: not a later "failed").
+ * that throws fails the job — and the test, with the drive's own error (not a later "failed").
  */
 async function work(drive: (w: Window) => Promise<void>): Promise<number> {
   let failed: { error: unknown } | null = null;
@@ -265,7 +265,7 @@ describe('recording the lab from the Studio', () => {
 
       // A pick on a click that later folds into the typing.
       await w.locator('#lab-email').click();
-      // L5.11b: a row with verified alternatives says so on its right; pressing it shows them under it (a radio group).
+      // A row with verified alternatives says so on its right; pressing it shows them under it (a radio group).
       const emailRow = page.locator('[data-testid=record-step]', { has: page.locator('.k-rowcard-aside') }).first();
       await emailRow.waitFor({ timeout: 20_000 });
       expect(await emailRow.locator('.k-rowcard-aside').textContent()).toMatch(/^\d+ alternatives?$/);
@@ -307,7 +307,7 @@ describe('recording the lab from the Studio', () => {
       await page.getByTestId('record-pending').waitFor();
       await page.getByTestId('record-insert-mark').click();
       await expect.poll(() => page.getByTestId('record-pending').getByTestId('record-insert-chip').count(), POLL).toBe(2);
-      // Zoom…: the theme's factors, its maximum (1.4) the default (L5.11b: a disclosure like Wait for… and Caption…).
+      // Zoom…: the theme's factors, its maximum (1.4) the default (a disclosure like Wait for… and Caption…).
       expect(await page.getByTestId('record-insert-zoom').textContent()).toBe('Zoom…');
       await page.getByTestId('record-insert-zoom').click();
       expect(await page.getByRole('radio', { name: /^1\.4×/ }).isChecked()).toBe(true);
@@ -354,7 +354,7 @@ describe('recording the lab from the Studio', () => {
       await w.getByRole('button', { name: 'Delayed control' }).click();
       await expect.poll(() => page.locator('[data-testid=record-step][data-helper=wait]').count(), POLL).toBe(1);
       expect(await page.locator('[data-testid=record-step][data-helper=scroll]').count()).toBe(1);
-      // L5.11a (review A-L7) / L5.11b: while recording, ONE Stop is visible — the inspector's; the status bar says
+      // While recording, ONE Stop is visible — the inspector's; the status bar says
       // "Recording · browser window open" with the counts and holds the actions slot (no Rehearse / Capture / second
       // Stop there), and no scenario's state line beside it.
       await page.getByTestId('status-recording').waitFor(POLL);
@@ -412,7 +412,7 @@ describe('recording the lab from the Studio', () => {
     const after = async (rowSel: string) => {
       const row = page.locator(rowSel).first();
       const id = (await row.getAttribute('data-row'))!;
-      // L5.11b: the row itself is an option of its scene's listbox (its name its own words); selected, the toolbar right
+      // The row itself is an option of its scene's listbox (its name its own words); selected, the toolbar right
       // after it says where.
       const btn = row.getByTestId('record-insert-after');
       expect(await btn.getAttribute('aria-selected')).toBe('false');
@@ -442,7 +442,7 @@ describe('recording the lab from the Studio', () => {
       ),
     ).toEqual([expect.stringMatching(new RegExp(`:${first}$`)), h1, 'CURSOR']);
     await expect.poll(() => page.getByTestId('record-cursor-where').textContent(), POLL).toMatch(/after step 2 of/);
-    // Remove takes it out again (L5.11b fixes: the selected row's Remove is in its cursor block — the cursor is on the hold);
+    // Remove takes it out again (the selected row's Remove is in its cursor block — the cursor is on the hold);
     // the cursor's row is gone: back to the end.
     expect(
       await page
@@ -461,7 +461,7 @@ describe('recording the lab from the Studio', () => {
     r = await rows();
     const at = r.findIndex((x) => x === `helper:scroll:${scroll}`);
     expect(r.slice(at, at + 5)).toEqual([`helper:scroll:${scroll}`, s1, s2, 'CURSOR', expect.stringMatching(/^action::a\d+$/)]);
-    // The press after them is the "Far away" click (its target picked earlier: the test id, L5.11b shows the pick in the row).
+    // The press after them is the "Far away" click (its target picked earlier: the test id, the pick shown in the row).
     expect(
       await page
         .locator('[data-testid=record-step]')
@@ -506,13 +506,13 @@ describe('recording the lab from the Studio', () => {
     await page.getByTestId('record-save').click();
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/${P}/s/e2e-lab`);
     await page.getByTestId('step').first().waitFor();
-    // L5.11b: the focus is never dropped — the Save button went with the screen; the centre pane holds it.
+    // The focus is never dropped — the Save button went with the screen; the centre pane holds it.
     expect(await page.evaluate(() => document.activeElement !== document.body && document.activeElement !== null)).toBe(true);
     expect(await page.evaluate(() => Boolean(document.activeElement?.closest('#main')))).toBe(true);
     const text = await readFile(join(ws, 'projects', P, 'scenarios', 'e2e-lab.yaml'), 'utf8');
     for (const t of ['{{vars.password_1}}', 'Two words', 'Pick a bag size', 'mark: m1', 'zoom: 1.4', 'hold: 2']) expect(text, t).toContain(t);
     expect(text).not.toContain(SENTINEL);
-    // No YAML alias (review B-M2): the block editor deletes or duplicates the recorder's scroll row (it shares the picked
+    // No YAML alias: the block editor deletes or duplicates the recorder's scroll row (it shares the picked
     // target with its press).
     expect(text).not.toMatch(/[&*]a\d/);
     const parsed = parseScenario(text).scenario as unknown as { scenes: Array<{ id: string; steps: Array<Record<string, unknown>> }> };
@@ -534,7 +534,7 @@ describe('recording the lab from the Studio', () => {
     // The start form's recent list says so.
     await page.goto(`${studio.url}#/p/${P}/record`);
     await page.getByTestId('record-recent-item').first().waitFor();
-    // L5.11b: the recent recordings are Shoot's browser's Recordings group.
+    // The recent recordings are Shoot's browser's Recordings group.
     expect(await page.locator('.sh-browser').getByTestId('record-recent-item').filter({ hasText: 'e2e-lab' }).first().textContent()).toMatch(/saved as e2e-lab/);
   });
 });
@@ -555,7 +555,7 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
       expect(await page.evaluate(() => (globalThis as { __pwned?: unknown }).__pwned)).toBeUndefined();
       expect(await page.locator('main img, .sh-inspector img').count()).toBe(0);
       await shot('record-hostile-1280');
-      // L5.11b (critique L2): Rehearse and Capture (the menu's ⌘R / ⇧⌘R, the palette's Scenario group) and Render say
+      // Rehearse and Capture (the menu's ⌘R / ⇧⌘R, the palette's Scenario group) and Render say
       // why they wait, and nothing is sent — the remembered scenario is never run from here while the window is open.
       await page.getByTestId('status-recording').waitFor(POLL);
       // The status bar is the recording's: no line for the scenario in context beside it.
@@ -568,7 +568,7 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
       await command('render');
       await expect.poll(said, POLL).toBe('Render waits while a recording window is open: stop the recording first');
       expect(calls.slice(before).filter((c) => c === 'scenario_run' || c === 'scenario_render')).toEqual([]);
-      // ⚑ The one owner of ⌘. after a reload (critique H1): the recording's — record_stop, never a run's stop.
+      // ⚑ The one owner of ⌘. after a reload: the recording's — record_stop, never a run's stop.
       await page.reload();
       await page.getByTestId('record-title').waitFor(POLL);
       await expect.poll(() => page.getByTestId('status-recording').getAttribute('data-state'), POLL).toBe('recording');
@@ -602,7 +602,7 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
       await page.getByTestId('record-discard').click();
       await page.getByTestId('record-discard-confirm').waitFor();
       expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('record-discard-keep');
-      // ⚑ L5.11b: the kit's sheet — Return chooses "Keep it" (the default), never Discard: nothing is sent, the
+      // ⚑ The kit's sheet — Return chooses "Keep it" (the default), never Discard: nothing is sent, the
       // focus goes back to Discard.
       const before = calls.length;
       await page.keyboard.press('Enter');
@@ -626,7 +626,7 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
     expect(await page.getByTestId('record-sentence').textContent()).toMatch(/^Discarded/);
     await expect.poll(() => page.getByTestId('record-note').count(), POLL).toBe(0);
     expect(await page.getByTestId('record-job-error').count()).toBe(0);
-    // No failure callout at all (L5.11b fixes, review B-M1: the kit's callout, not the old notice class).
+    // No failure callout at all (the kit's callout, not the old notice class).
     expect(await page.locator('#main .k-callout[data-state="fail"]').count()).toBe(0);
     expect(existsSync(recDir(rec))).toBe(false);
     // ⚑ The focus was never dropped: Discard went with the window; the title holds it.
@@ -675,7 +675,7 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
     } as JobRecord);
     await expect.poll(stateOf, POLL).toBe('failed');
     await page.getByTestId('record-sign-in').waitFor();
-    // No empty draft card under a refusal (review B-L5).
+    // No empty draft card under a refusal.
     expect(await page.getByTestId('record-draft-section').count()).toBe(0);
     expect(await page.getByTestId('record-sign-in').getByTestId('sign-in-button').getAttribute('aria-label')).toBe('Sign in supplier (signed-in)');
     expect(await page.getByTestId('record-job-error').textContent()).not.toContain(ws);

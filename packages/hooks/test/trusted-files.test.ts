@@ -1,5 +1,5 @@
 /**
- * L7.39: the files a person's trust in an agent's hooks binds (trusted-files.ts hookTrustFiles: code bound strictly,
+ * The files a person's trust in an agent's hooks binds (trusted-files.ts hookTrustFiles: code bound strictly,
  * data when it exists), and a run held to them (HookContext.trustedFiles): a hook whose files are no longer those is
  * refused before it runs; an sql or js file whose bytes differ when read is refused (kinds/common.ts readHookFile).
  */

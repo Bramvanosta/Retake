@@ -1,8 +1,8 @@
 /**
- * L4.2 part 4 acceptance (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the scenario screen's Dry run
+ * The Dry run acceptance (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the scenario screen's Dry run
  * with the real worker, in headless Chromium, on a copy of projects/northfield-fixture whose local environment points
- * at the fixture product started on free ports. The Studio starts the worker on the click (critique B5: clean
- * environment, `started_by: ui`); `highlights` (nothing blocks its dry run) → the running banner with its progress
+ * at the fixture product started on free ports. The Studio starts the worker on the click (clean environment,
+ * `started_by: ui`); `highlights` (nothing blocks its dry run) → the running banner with its progress
  * (run_status, steps 1-based) → finished → the new run's pictures replace the words; a second dry run is cancelled while
  * it runs (its banner goes, the run ends cancelled). The worker is killed by pid at the end, whatever happened (no
  * orphan). `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
@@ -97,7 +97,7 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
   it('Dry run of highlights from the screen: the worker starts, progress, then the new run’s pictures', async () => {
     await page.goto(`${studio.url}#/p/${P}/s/highlights`);
     await page.getByRole('heading', { level: 1, name: 'highlights' }).waitFor();
-    // L5.11a: Rehearse is the status bar's — enabled, nothing stops it (its description says what it does).
+    // Rehearse is the status bar's — enabled, nothing stops it (its description says what it does).
     expect(await page.locator('#sh-why-dry').textContent()).toContain('no hooks, a screenshot per step');
     expect(await page.getByText('No run of this scenario yet').count()).toBe(1);
     await page.getByTestId('run-dry').click();
@@ -132,8 +132,8 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
       )
       .toContain(runId);
     expect(await page.getByTestId('source-line').innerText()).toContain('succeeded');
-    // Pictures are asked for the rows on screen only: the first step brought into view (the editing bar and notices of
-    // L4.3 / L5.5 put the steps below the first screen).
+    // Pictures are asked for the rows on screen only: the first step brought into view (the editing bar and notices
+    // put the steps below the first screen).
     await page.locator('[data-testid="step"]').first().scrollIntoViewIfNeeded();
     await expect.poll(() => page.locator('[data-testid="thumb"][data-state="ok"]').count(), RUN).toBeGreaterThan(0);
     const first = page.locator('[data-testid="step"] img').first();
@@ -158,7 +158,7 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
       )
       .toBe(true);
     noteWorker();
-    // L5.11a: Stop is the status bar's.
+    // Stop is the status bar's.
     await page.getByTestId('run-stop').click();
     await expect.poll(() => page.getByTestId('running').count(), RUN).toBe(0);
     await expect.poll(async () => JSON.parse(await readFile(join(root, 'projects', P, 'runs', runId, 'run.json'), 'utf8')).status as string, RUN).toBe('cancelled');

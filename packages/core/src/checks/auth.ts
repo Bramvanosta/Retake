@@ -112,10 +112,10 @@ function checkPatterns(v: unknown, path: IssuePath, pages: Readonly<Record<strin
 
 /** Options of checkAuth beyond project.yaml's own `auth`. */
 export interface AuthCheckOptions {
-  /** The project's sandbox environments (L1.8): their personas come from the accounts of their sandbox.yaml. */
+  /** The project's sandbox environments: their personas come from the accounts of their sandbox.yaml. */
   sandboxes?: readonly string[];
   /**
-   * The accounts of a sandbox.yaml (L1.8), checked as one global auth block: login steps may use {{account.username}} /
+   * The accounts of a sandbox.yaml, checked as one global auth block: login steps may use {{account.username}} /
    * {{account.password}}, and a password typed as written is advised to use {{account.password}}.
    */
   accounts?: boolean;
@@ -146,7 +146,7 @@ function hookTokens(v: unknown, path: IssuePath, ctx: CheckContext): void {
 }
 
 /**
- * Semantic checks of `auth` (L1.6): global or per environment; the legacy single-account form (a warning: a path that
+ * Semantic checks of `auth`: global or per environment; the legacy single-account form (a warning: a path that
  * only exists on one computer) never mixed with personas; persona names, their pages (an environment page belongs to
  * at most one persona), their check and sign-in patterns, and their login steps (no literal password, no hook result).
  */

@@ -1,5 +1,5 @@
 /**
- * L3.3 page_inspect through `retake mcp` (spawned from the sources over stdio, driven by the SDK client) on a copy of
+ * page_inspect through `retake mcp` (spawned from the sources over stdio, driven by the SDK client) on a copy of
  * projects/northfield-fixture pointed at the fixture product on free ports (and its signed-in side): the tool and the
  * authoring loop in the instructions; the size cap of a result on a 5,000-row page; the inspection lab with its marked screenshot as an image block and the injected
  * instructions (body text, a role, an aria-label) only under `untrusted` — never in the summary nor the trusted data;
@@ -175,7 +175,7 @@ describe('retake mcp: page_inspect', () => {
     }>(r);
     expect(d.status).toBe('ok');
     expect(d.files.marked).toMatch(/\.retake\/inspect\/i_[0-9A-Z]{26}\/marked\.jpg$/);
-    // Compact (L5.8): the elements in view or in a dialog, menu or popover; the others counted.
+    // Compact: the elements in view or in a dialog, menu or popover; the others counted.
     expect(d.untrusted.elements.length + (d.left_out ?? 0)).toBe(d.counts.listed);
     expect(d.untrusted.elements.filter((e) => e.untrusted.hint ?? e.untrusted.target).length).toBeGreaterThan(15);
     expect(d.untrusted.targets_checked.map((t) => t.count)).toEqual([2, 1]);

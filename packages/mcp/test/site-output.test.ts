@@ -1,5 +1,5 @@
 /**
- * L3.5 a finished site job as template_from_site / job_status show it (siteOutput), from a job record and an extraction
+ * A finished site job as template_from_site / job_status show it (siteOutput), from a job record and an extraction
  * folder written here (no browser, no network): job.json is a file of the workspace, so its warnings reach the summary
  * as the tool's text only when they are the tool's own sentences; anything else goes under `untrusted.job_warnings`.
  * Images: only plain files (a screenshot swapped for a link is neither in the result nor shown).

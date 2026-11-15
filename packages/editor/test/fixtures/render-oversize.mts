@@ -1,5 +1,5 @@
 /**
- * L5.15 (critique H2): render the first frames of the synthetic run at `scale: 3` (5760×3240, past VideoToolbox's
+ * Render the first frames of the synthetic run at `scale: 3` (5760×3240, past VideoToolbox's
  * 4096-pixel side) on the GPU path, in a process of its own with NO unhandled-rejection handler of its own — as a
  * `retake render` runs: the render's own guard (editor guardEncoderPipe) is what keeps a broken encoder pipe from
  * crashing it (render-gpu.test.ts). Args: <workspace root> <out.mp4> <cacheDir> <auto|force-videotoolbox>.

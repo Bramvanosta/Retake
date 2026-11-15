@@ -1,25 +1,25 @@
 /**
- * L4.6 part C (T11): the Studio's comment ops over HTTP with the real gate (comment-ops.ts), on a synthetic render of a
+ * The Studio's comment ops over HTTP with the real gate (comment-ops.ts), on a synthetic render of a
  * real encode (review helpers: a drawn capture and render) — the engine client is `ui`:
  * - ⚑ strict inputs: no author, via, marker, time, scenario or proposal field (a proposal from the page is a 400:
  *   proposals are Claude's), no path for an id, `if_match` required by the op itself on resolve / reopen / apply;
  * - ⚑ every answer is path-free (the workspace root, the home folder, `file`, a still path: none);
  * - ⚑ `thread_add` writes the channel `studio` (named by the Studio process) on the render the page showed (a reused
  *   render id: 409); ⚑ `frame_anchor` answers the anchor `thread_add` stores — for frames of several kinds and a region
- *   (the equality T4 had, moved here through the ops);
+ *   (the same equality, through the ops);
  * - resolve / reopen / apply on the hash the page showed (stale: 409 naming the current hash); ⚑ a thread's injected
  *   text comes back as data under `untrusted` only;
- * - thread_get carries the engine's proposal view and ⚑ the offer computed by the server (critique B3): Apply and
+ * - thread_get carries the engine's proposal view and ⚑ the offer computed by the server: Apply and
  *   re-render only for a landscape thread whose render used the files' theme and no override — a vertical thread,
  *   an override, another theme each offer Apply only, with why; Apply writes the proposal's bytes, Undo apply
  *   (scenario_edit restore of `previous`) gives the base back and the proposal reads `undone`, actionable again;
- * - ⚑ thread_apply and scenario_edit of one scenario run one at a time (one chain, critique B5): an edit sent while an
+ * - ⚑ thread_apply and scenario_edit of one scenario run one at a time (one chain): an edit sent while an
  *   apply runs finds the applied file (409), never the other way round;
  * - render_outline / render_frame through the session; ⚑ a frame request past the server's queue is 429 with
  *   Retry-After; a reused render id 409;
- * - ⚑ errors are path-free like answers (review A L1); ⚑ a proposal Apply would refuse is offered nothing (review A L4);
+ * - ⚑ errors are path-free like answers; ⚑ a proposal Apply would refuse is offered nothing;
  * - ⚑ `timeline_view {proposal}` (see timeline-ops for the take): the proposal's plan goes through the workspace
- *   component hold (critique B9 c) — here on the take of `wc`.
+ *   component hold — here on the take of `wc`.
  */
 import { createHash } from 'node:crypto';
 import { cp, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
@@ -311,7 +311,7 @@ describe.skipIf(!canRun)('the comment ops (T11)', () => {
           apply_render: false,
           why: "The commented render used the theme editorial, not the files' default: apply it, then render it from your terminal or ask Claude",
         });
-        // T1's proposal is stale meanwhile (its base is not today's file): nothing offered, with why.
+        // The first thread's proposal is stale meanwhile (its base is not today's file): nothing offered, with why.
         expect((await get(t.id)).proposal!.offer).toEqual({ apply: false, preview: false, apply_render: false, why: 'The scenario changed since it was proposed: ask Claude to propose again' });
       } finally {
         await writeFile(scenarioFile(), TEXT);

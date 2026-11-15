@@ -1,5 +1,5 @@
 /**
- * L3.8 review (the full-suite hang of inspect.test.ts): every wait of an inspection on the page is bounded. A stub page
+ * Every wait of an inspection on the page is bounded (a hang of inspect.test.ts stalled the full suite). A stub page
  * whose navigation guard, kit call or guard removal never answers still gets a report within the deadline — `failed`
  * naming the step while the page stays on the environment, `landed_elsewhere` once it shows another origin — and a
  * guard that cannot be removed leaves the report as it was, with a warning. No browser.

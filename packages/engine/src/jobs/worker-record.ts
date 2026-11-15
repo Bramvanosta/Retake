@@ -29,7 +29,7 @@ import type { ProcInfo } from '@retake/core/io';
 import type { QosYield } from './yield.js';
 import type { FreeBytes, JobProcesses, RecordWindow, WorkerPorts, WorkerPortsGiven } from './worker-ports.js';
 
-/** The OS utilities the worker's signal handler calls synchronously (core/io's; L7.25: was the whole sandbox package). */
+/** The OS utilities the worker's signal handler calls synchronously (core/io's). */
 export interface WorkerOs {
   processTableSync(): ProcInfo[];
 }
@@ -128,7 +128,7 @@ export interface Worker {
   readonly processes: JobProcesses;
   /** WorkerOptions.heavyInProcess: heavy jobs run in this process, one job at a time, on this worker's ports. */
   readonly heavyInProcess: boolean;
-  /** `filming`: the take films now (runner onFilming: not during its setup / teardown hooks, not while paused — review B M3). */
+  /** `filming`: the take films now (runner onFilming: not during its setup / teardown hooks, not while paused). */
   capture?: { id: string; filming: boolean; promise: Promise<void> };
   heavy?: HeavyChild;
   /** The running job's cancel and a `record` job's stop, for the signal handler. */

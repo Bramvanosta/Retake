@@ -1,8 +1,8 @@
 /**
- * L5.11a: Shoot's pure parts — the status bar's blocker words keyed on the gate that refused (critique H3: one case per
- * kind, an unknown kind's honest fallback; a planted swap of two kinds fails here), every state of the status bar with
- * a shape AND a word (M15), the mode's names, and the command bus's ownership by priority (critique H1: never by the
- * order the registrations came in — a fresh load registers the screen's handler BEFORE the status bar's defaults).
+ * Shoot's pure parts — the status bar's blocker words keyed on the gate that refused (one case per kind, an
+ * unknown kind's honest fallback; a planted swap of two kinds fails here), every state of the status bar with
+ * a shape AND a word, the mode's names, and the command bus's ownership by priority (never by the order the
+ * registrations came in — a fresh load registers the screen's handler BEFORE the status bar's defaults).
  */
 import { describe, expect, it } from 'vitest';
 import { MARK_STATES } from '../src/app/ui-kit/index.js';

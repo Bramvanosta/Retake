@@ -1,4 +1,4 @@
-/** Words the operations' summaries share (moved from the MCP server in L7.13). */
+/** Words the operations' summaries share. */
 import type { ValidationIssue } from '@retake/core/base';
 
 /** "3 scenarios" / "1 scenario". */

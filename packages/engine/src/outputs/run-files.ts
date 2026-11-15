@@ -1,5 +1,5 @@
 /**
- * A run's files as the Studio's scenario screen reads them (L4.2, critique B6): run.json, timeline.json, the scenario
+ * A run's files as the Studio's scenario screen reads them: run.json, timeline.json, the scenario
  * snapshot, frame indexes, frames, screenshots and videos are data a person, an agent or a filmed site's text may have
  * shaped — never paths to follow.
  *
@@ -8,10 +8,10 @@
  *   files `^capture-…\.mp4$` / `^frames-…\.jsonl$`, screenshot names rebuilt from scene ids — never a path a run file
  *   recorded), at most one folder deep; that folder is a real folder (not a link) inside the run; the file is read with
  *   core readPlainFile (no link followed, no FIFO held, size capped on the open descriptor).
- * - Every file is checked once open (review A #7): the run folder, the runs folder and the file's folder are still the
+ * - Every file is checked once open: the run folder, the runs folder and the file's folder are still the
  *   real folders the reader resolved (same inode, not a link) and the name still names the file opened — a folder
  *   swapped for a link between the check and the open is refused.
- * - A video goes to ffmpeg as open descriptors, never as a path (review A #7): opened here without following a link,
+ * - A video goes to ffmpeg as open descriptors, never as a path: opened here without following a link,
  *   checked the same way, read by ffmpeg through its `fd` protocol only (review videoFramesAt).
  */
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync } from 'node:fs';
@@ -80,8 +80,8 @@ function stillThere(held: readonly Held[], file: string, st: Stats): boolean {
 export type RangeRead = { ok: true; bytes: Buffer; size: number } | { ok: false; reason: PlainFileProblem };
 
 /**
- * At most `max` bytes of `file` from `offset` (L4.4: the Studio tails a run's log.jsonl and a job's events.jsonl as
- * they grow) — the same rules as core readPlainFile: opened without following a link and without blocking, a regular
+ * At most `max` bytes of `file` from `offset` (the Studio tails a run's log.jsonl and a job's events.jsonl as they
+ * grow) — the same rules as core readPlainFile: opened without following a link and without blocking, a regular
  * file checked on the open descriptor (`verify` sees its stat first: false refuses it as `link`). An offset past the
  * end reads nothing (the caller compares `size`). Never throws.
  */
@@ -187,7 +187,7 @@ export class RunFolder {
     return readPlainFile(file, max, { verify: (st) => stillThere(held, file, st) });
   }
 
-  /** At most `max` bytes of a file of the run folder itself (one segment) from `offset`, checked once open (L4.4). */
+  /** At most `max` bytes of a file of the run folder itself (one segment) from `offset`, checked once open. */
   readRange(name: string, offset: number, max: number): RangeRead | { ok: false; reason: 'bad_name' } {
     if (!SEGMENT_RE.test(name)) return { ok: false, reason: 'bad_name' };
     const file = join(this.dir, name);

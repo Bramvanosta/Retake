@@ -40,7 +40,7 @@ export function useRecordingActions({ slug, rec, cursor, setCursor, reload, acce
     return j ? { job: j } : {};
   };
   /**
-   * One change in flight at a time (L5.11b fixes, review A-M1 / A-L6). Asked while one is being written: a pick waits
+   * One change in flight at a time. Asked while one is being written: a pick waits
    * for it (the newest pick of the same step replaces an older one waiting), Stop and Discard wait for it (said, sent
    * right after); an insert, a Remove or Save is refused and said (a second press of Hold is not a second hold). A change
    * that waited reads the newest view (its revision) when it is sent.
@@ -140,7 +140,7 @@ export function useRecordingActions({ slug, rec, cursor, setCursor, reload, acce
  * before it is read).
  */
 export function useRecordingCommands(v: RecordViewAnswer | null, live: boolean, act: RecordingActions, setConfirming: (on: boolean) => void): void {
-  // L5.11b (critiques H1, M7, L2 of L5.11): while the recording goes — and from the route's first paint, before its view
+  // While the recording goes — and from the route's first paint, before its view
   // is read (a reload) — the Scenario menu's commands are this screen's, above every other owner: ⌘. stops THIS
   // recording (or says why it cannot), never a run of the scenario in context; Rehearse / Capture / Render send nothing
   // and say why. Once it is over they go back to the status bar's defaults (which name their scenario).
@@ -159,7 +159,7 @@ export function useRecordingCommands(v: RecordViewAnswer | null, live: boolean, 
   useShellCommand('rehearse', waits('Rehearse'), PRIORITY.recording, live);
   useShellCommand('capture', waits('Capture'), PRIORITY.recording, live);
   useShellCommand('render', waits('Render'), PRIORITY.recording, live);
-  // The palette's Scenario group is this recording's while it goes (review A-M2 / A-L1): Stop recording (Cancel before the
+  // The palette's Scenario group is this recording's while it goes: Stop recording (Cancel before the
   // window opens) and Discard…, named after the recording — never the scenario remembered in context.
   const recName = v?.name ?? undefined;
   useScenarioGroup(

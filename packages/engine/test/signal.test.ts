@@ -1,5 +1,5 @@
 /**
- * L5.14a fixes (review B L1, lead: HIGH): the one way a worker signals a job process or its tree. A pid of -1 (a failed
+ * The one way a worker signals a job process or its tree. A pid of -1 (a failed
  * spawn: `kill(-1)` reaches every process of the user), 0 (this process's own group), 1 (launchd), this process, its own
  * group, or anything not an integer never reaches a signal call — nor becomes the root of a QoS hold. Signals are
  * recorded here, never sent.

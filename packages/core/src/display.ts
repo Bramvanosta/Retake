@@ -1,5 +1,5 @@
 /**
- * Display URLs (L1.7, R-ENV-01): an environment page may declare the URL a video shows instead of its real one
+ * Display URLs (R-ENV-01): an environment page may declare the URL a video shows instead of its real one
  * (`{url: http://localhost:4402, display: shop.example.com}`). The runner navigates the real URL; what the video shows
  * (address bars, captions, notification apps) maps it through the run's display table. Pure helpers.
  */
@@ -83,9 +83,9 @@ export function displayTable(env: Pick<ResolvedEnvironment, 'pages' | 'display'>
 }
 
 /**
- * The display table an edit uses (L1.7, R-ENV-01). Display URLs are edit-time data: the rows of the pages the project
+ * The display table an edit uses (R-ENV-01). Display URLs are edit-time data: the rows of the pages the project
  * declares now for the run's environment (`displayRows`; each with its display URL or none) come first, so a display
- * URL added after the capture applies on the next render — runs captured before L1.7 included; the rows the run
+ * URL added after the capture applies on the next render — older runs included; the rows the run
  * recorded (`timeline.environment.display`) whose real base the project no longer declares are kept.
  */
 export function editDisplayTable(recorded: readonly DisplayEntry[] | undefined, current: readonly DisplayEntry[] | undefined): DisplayEntry[] {

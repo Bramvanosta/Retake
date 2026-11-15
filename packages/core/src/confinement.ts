@@ -1,5 +1,5 @@
 /**
- * How work an agent shaped is confined, as the domain sees it (L7.35, audit 2026-11-10 D6): the words its refusals say
+ * How work an agent shaped is confined, as the domain sees it: the words its refusals say
  * where the work came from with — never which shell sent it. The rules are the same whatever the words. The application
  * maps its callers onto one (engine caller.ts `confinementOf`: the MCP server's, the Studio's); the domain names no
  * channel and never branches on one (agent-policy.ts's `AgentChannel` and `channelWords` until then).

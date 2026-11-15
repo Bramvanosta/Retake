@@ -93,7 +93,7 @@ export async function createComponent(root: string, opts: CreateComponentOptions
   doc.set('id', id);
   doc.set('name', opts.name ?? componentDisplayName(id));
   doc.set('description', opts.description?.trim() || `TODO: describe what this ${kind} looks like and when to use it.`);
-  // L5.16c: no `$schema` line when the schema lies inside the installed app (a path into the app breaks when it moves).
+  // No `$schema` line when the schema lies inside the installed app (a path into the app breaks when it moves).
   const schemaRel = insideBundle(COMPONENT_SCHEMA_FILE, bundleInfoOrNull()) ? null : posix(relative(dir, COMPONENT_SCHEMA_FILE));
   const manifestText = String(doc).replace(/^# yaml-language-server: \$schema=.*$\n?/m, schemaRel === null ? '' : `# yaml-language-server: $schema=${schemaRel}\n`);
   const check = parseManifest(manifestText, MANIFEST_FILE, { folderId: id });

@@ -1,11 +1,11 @@
 /**
- * Run ids and job ids as the terminal's commands read them (L7.5): the run `latest` names for `retake plan`, and the
+ * Run ids and job ids as the terminal's commands read them: the run `latest` names for `retake plan`, and the
  * refusal of a job id that is not one. Hand-made run folders in a temp project; nothing is planned.
  *
- * A row marked `D-<n>` is an outcome a decision of L7.5 changed; the mark names the decision. Since L7.6a the plan
- * command has no rule of its own: `latest` is the editor's findRun (the newest usable capture, its scenario by its
- * record, dated runs first) — each folder here is a whole capture (record, timeline, film), and a row marked `L7.6a`
- * says what it answered under the plan command's old rule.
+ * A row marked `D-<n>` is an outcome changed on purpose when the id rules were made one, and the mark names the rule:
+ * D-7 a stamped id is never matched by the end of its name. The plan command has no rule of its own: `latest` is the
+ * editor's findRun (the newest usable capture, its scenario by its record, dated runs first) — each folder here is a
+ * whole capture (record, timeline, film).
  */
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -59,12 +59,12 @@ describe('the run `latest` names for the plan command', () => {
     expect(await latest(p, 'mobile-quote')).toBe('20261019-090000-mobile-quote');
     expect(await latest(p)).toBe('20261019-090000-mobile-quote');
     expect(await latest(p, 'catalogue')).toBe('no capture run of scenario "catalogue"');
-    // L7.6a (one order of runs): a dated run is before a folder named by hand, whatever its name sorts as.
+    // One order of runs: a dated run is before a folder named by hand, whatever its name sorts as.
     await run(p, 'my-take-quote', 'quote');
-    expect(await latest(p, 'quote')).toBe('20261017-142233-quote'); // L7.6a: was my-take-quote
+    expect(await latest(p, 'quote')).toBe('20261017-142233-quote'); // Was my-take-quote
     await run(p, 'zz-quote', 'quote');
-    expect(await latest(p, 'quote')).toBe('20261017-142233-quote'); // L7.6a: was zz-quote
-    expect(await latest(p)).toBe('20261019-090000-mobile-quote'); // L7.6a: was zz-quote
+    expect(await latest(p, 'quote')).toBe('20261017-142233-quote'); // Was zz-quote
+    expect(await latest(p)).toBe('20261019-090000-mobile-quote'); // Was zz-quote
     // Alone, a folder named by hand is the latest capture of the scenario its record names.
     const q = await project();
     await run(q, 'my-take-quote', 'quote');
@@ -81,8 +81,8 @@ describe('the run `latest` names for the plan command', () => {
     expect(await latest(p)).toBe('20261017-142233-quote');
     const q = await project();
     await run(q, '.tmp-quote', 'quote');
-    // L7.6a: such a name is no run id — never `latest` (the plan command's own rule took it).
-    expect(await latest(q, 'quote')).toBe('no capture run of scenario "quote"'); // L7.6a: was .tmp-quote
+    // Such a name is no run id — never `latest` (the plan command's own rule took it).
+    expect(await latest(q, 'quote')).toBe('no capture run of scenario "quote"'); // Was .tmp-quote
   });
 
   it('a stamped folder whose part after the stamp is empty or holds a line break is a run of no scenario', async () => {
@@ -90,10 +90,10 @@ describe('the run `latest` names for the plan command', () => {
     await run(p, '20261017-142233-', 'other');
     await run(p, '20261017-142234-a\n-quote', 'quote');
     expect(await latest(p, 'mobile-quote')).toBe('no capture run of scenario "mobile-quote"');
-    // L7.5 D-7: a stamped folder is never matched by the end of its name.
+    // D-7: A stamped folder is never matched by the end of its name.
     expect(await latest(p, '142233-')).toBe('no capture run of scenario "142233-"'); // D-7
     expect(await latest(p, 'quote')).toBe('no capture run of scenario "quote"'); // D-7
-    // L7.6a: a run is of the scenario its record names, whatever its folder is called.
+    // A run is of the scenario its record names, whatever its folder is called.
     expect(await latest(p, 'other')).toBe('20261017-142233-');
   });
 });

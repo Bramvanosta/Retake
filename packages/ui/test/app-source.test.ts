@@ -1,28 +1,28 @@
 /**
- * L4.1 part 2: the Studio app's sources never build HTML from data (D13) — a lint over src/app bans the raw-HTML and
+ * The Studio app's sources never build HTML from data — a lint over src/app bans the raw-HTML and
  * code-from-string APIs, `src=` attributes, and any `href` not built by `hrefTo` (or a literal in-app fragment) — and the
- * hash routes treat whatever the address bar holds as an inert string. L4.2: one image source (Thumb.tsx, a data: URL
- * from `jpegDataUrl`), and no srcSet, createElement, `src` key or embedded media anywhere. L4.4 (critique B14): the live
+ * hash routes treat whatever the address bar holds as an inert string. One image source (Thumb.tsx, a data: URL
+ * from `jpegDataUrl`), and no srcSet, createElement, `src` key or embedded media anywhere. The live
  * picture is decoded by `createImageBitmap(new Blob([bytes], {type: 'image/jpeg'}))` in LiveView.tsx only — no blob: or
- * object URL anywhere (an address a frame could be loaded from). L4.5 part C: one frame — PreviewFrame.tsx's `<iframe`,
+ * object URL anywhere (an address a frame could be loaded from). One frame — PreviewFrame.tsx's `<iframe`,
  * once, with the literal attributes of player/parent.ts's PREVIEW_FRAME_ATTRS (`sandbox="allow-scripts"` and no other
  * sandbox token anywhere in the app) and `src={frameSrc}` once, frameSrc being the URL TimelineScreen.tsx checked with
- * previewUrls (the player origin's frame route) and set only after connectPreview listens. L4.7 part D1: the one image
+ * previewUrls (the player origin's frame route) and set only after connectPreview listens. The one image
  * source is Thumb.tsx's `Picture` (`imageDataUrl`: JPEG step pictures and contact sheets through `Jpeg`, PNG library
  * posters, GIF library loops — fixed prefixes, plain base64, the use's cap, PNG / GIF magic; never SVG or WebP); every
- * `<Picture` of the app names its format and cap literally; the library route; no "made with Claude" anywhere. L4.7 part
- * D2: the theme editor's live frame is the second page passing a checked URL to PreviewFrame (the same literal lines).
- * L4.8 part 5: the Record screen renders page text only through Txt — its views rendered (react-dom/server) with a
- * hostile string in every page field: each one inside a <bdi>, no raw direction control, no markup; its words module
- * never reads page text; the record route. L4.9 part B: the palette closed (no colour literal outside app.css's :root,
- * every var() defined and every token used, no fallback), the Geist pair named first, every text / background token pair
- * at 4.5:1 (the static contrast guarantee), placeholders coloured by the app, and real controls — a TypeScript-parser
- * pass: a user-input handler (any `on…` but focus, change, load and media events) only on a native control or an
- * element with a control role, a literal or roving tabIndex 0 and, for a click, a key handler (five reasoned
- * exceptions, keyed by exact attributes and their source line), no spread onto a non-native element, no <a> without a
- * real href, no positive tabIndex; no outline removed, transparent or faded without an accent ring in its place, and
- * every focus ring drawn in --accent / --accent-strong; opacity below 1 only on the accepted states (four since L5.9, three since L5.12a, two since L5.12c — the unset colour well is hatched in the kit); no colour
- * literal (hex of 3–8 digits, a colour function, a named colour) in the app's TypeScript.
+ * `<Picture` of the app names its format and cap literally; the library route; no "made with Claude" anywhere.
+ * The theme editor's live frame is the second page passing a checked URL to PreviewFrame (the same literal lines).
+ * The Record screen renders page text only through Txt — its views rendered (react-dom/server) with a hostile string in
+ * every page field: each one inside a <bdi>, no raw direction control, no markup; its words module never reads page
+ * text; the record route. The palette closed (no colour literal outside app.css's :root, every var defined and every
+ * token used, no fallback), the Geist pair named first, every text / background token pair at 4.5:1 (the static
+ * contrast guarantee), placeholders coloured by the app, and real controls — a TypeScript-parser pass: a user-input
+ * handler (any `on…` but focus, change, load and media events) only on a native control or an element with a control
+ * role, a literal or roving tabIndex 0 and, for a click, a key handler (five reasoned exceptions, keyed by exact
+ * attributes and their source line), no spread onto a non-native element, no <a> without a real href, no positive
+ * tabIndex; no outline removed, transparent or faded without an accent ring in its place, and every focus ring drawn in
+ * --accent / --accent-strong; opacity below 1 only on the accepted states (two — the unset colour well is hatched in
+ * the kit); no colour literal (hex of 3–8 digits, a colour function, a named colour) in the app's TypeScript.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -124,17 +124,17 @@ const BANNED: Array<[RegExp, string]> = [
 ];
 
 /**
- * L4.4 (B14): the one image decoder — LiveView.tsx's decodeJpeg: `new Decoder({ data: bytes, type: 'image/jpeg' })`
- * (WebCodecs' ImageDecoder, review A) else `createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }))`, each once,
+ * The one image decoder — LiveView.tsx's decodeJpeg: `new Decoder({ data: bytes, type: 'image/jpeg' })`
+ * (WebCodecs' ImageDecoder) else `createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }))`, each once,
  * on the checked bytes of a frame; no other file decodes an image.
  */
 const LIVE_FILE = 'shoot/LiveView.tsx';
 
 /**
- * L4.2: the app's one image source — Thumb.tsx renders `<img src={url}` where `url` is built by the checked-address
- * function. Exactly that line, once, in that file only. L4.5 part E: the step pictures and the review's contact sheets
- * go through `Jpeg`; every `<Jpeg` in the app passes `max={THUMB_DATA_MAX}` or `max={SHEET_DATA_MAX}` literally. L4.7
- * part D1: that `<img>` is `Picture` with `const url = imageDataUrl(format, base64, max);` — every `<Picture` names its
+ * The app's one image source — Thumb.tsx renders `<img src={url}` where `url` is built by the checked-address
+ * function. Exactly that line, once, in that file only. The step pictures and the review's contact sheets
+ * go through `Jpeg`; every `<Jpeg` in the app passes `max={THUMB_DATA_MAX}` or `max={SHEET_DATA_MAX}` literally.
+ * That `<img>` is `Picture` with `const url = imageDataUrl(format, base64, max);` — every `<Picture` names its
  * format and the cap of that format literally (`format="png" … max={POSTER_DATA_MAX}`, `format="gif" … max={LOOP_DATA_MAX}`),
  * except Jpeg's own one in Thumb.tsx (`format="jpeg" base64={base64} max={max}`).
  */
@@ -147,16 +147,16 @@ const PICTURE_CAP = /^<Picture format="(?:png"[^>]*\bmax=\{POSTER_DATA_MAX\}|gif
 const PICTURE_JPEG = '<Picture format="jpeg" base64={base64} max={max} width={width} height={height} alt={alt} />';
 
 /**
- * L4.5: the app's one frame — PreviewFrame.tsx renders `<iframe` once with these literal attributes (the same as
+ * The app's one frame — PreviewFrame.tsx renders `<iframe` once with these literal attributes (the same as
  * PREVIEW_FRAME_ATTRS) and `src={frameSrc}` once, where `const frameSrc = armed ? url : undefined;` (url: the checked
  * frame URL its page passes, `url={urls.frame}`, urls = previewUrls(...)).
  */
 const FRAME_FILE = 'edit/PreviewFrame.tsx';
 const FRAME_TAG = /<iframe\b/g;
 const FRAME_SRC = /\bsrc=\{frameSrc\}/g;
-/** frameSrc is the url prop, only once armed (L7.34: the layout of the statement free). */
+/** frameSrc is the url prop, only once armed (the layout of the statement free). */
 const FRAME_SRC_SET = /\bframeSrc\s*=\s*armed\s*\?\s*url\s*:\s*undefined\b/g;
-/** A page's frame URLs are previewUrls' answer (checked: the L4.5 case below), assigned once. */
+/** A page's frame URLs are previewUrls' answer (checked: the previewUrls case below), assigned once. */
 const PREVIEW_URLS = /\burls\s*=[^;]*\bpreviewUrls\(/g;
 /** Sandbox tokens that would loosen the frame, and attributes that would bypass the literal ones: nowhere in the app. */
 const FRAME_LOOSE =
@@ -165,7 +165,7 @@ const FRAME_LOOSE =
 /** A source as the lint reads it: Thumb.tsx without its one allowed image source, PreviewFrame.tsx without its one frame (each checked on its own). */
 function linted(f: string, src: string): string {
   if (f === THUMB_FILE) return src.replace(THUMB_SRC, '<img ');
-  // L5.9: tokens.css's two font faces (their URLs are pinned by the palette lint).
+  // tokens.css's two font faces (their URLs are pinned by the palette lint).
   if (f === 'tokens.css') return src.replace(/^ {2}src: url\('\/fonts\/[\w-]+\.woff2'\) format\('woff2'\);$/gm, '');
   if (f === 'tokens.ts') return src.replace("\\n  src: url('/fonts/${f.file}') format('woff2');", '');
   if (f === FRAME_FILE) return src.replace(FRAME_TAG, '<span').replace(FRAME_SRC, 'data-frame-src');
@@ -183,7 +183,7 @@ function code(text: string): string {
 }
 
 /**
- * L6.13: the app's API calls go through its data modules (src/app/data/): `themeEdit(args, o)` is
+ * The app's API calls go through its data modules (src/app/data/): `themeEdit(args, o)` is
  * `call('theme_edit', args, o)`, `useThemeList(args, key)` is `useCall('theme_list', args, key)`, and the two data
  * functions whose op is an argument (`threadWrite(op, args)`, `projectRead(op, args)`) are `call(op, args)`. The op
  * lints below see each as the call it makes: `call` / `useCall` by their names, a data function when the file imports
@@ -200,7 +200,7 @@ function dataFunctions(): Map<string, DataFn> {
     const text = readFileSync(join(APP, 'data', f), 'utf8');
     for (const m of text.matchAll(/^export const (\w+) = (?:op|readHook)\('([a-z_]+)'\);$/gm)) out.set(m[1], { op: m[2], ops: [m[2]] });
     const aliases = new Map([...text.matchAll(/^export type (\w+) = ((?:'[a-z_]+'(?: \| )?)+);$/gm)].map((m) => [m[1], m[2]]));
-    // L6.12–L6.13 fixes: generic over the op (`<K extends …>(name: K, …)`); `keyof typeof <TABLE>` names a table's keys.
+    // Generic over the op (`<K extends …>(name: K, …)`); `keyof typeof <TABLE>` names a table's keys.
     const tables = new Map([...text.matchAll(/^const (\w+) = \{ ([^}]+) \};$/gm)].map((m) => [m[1], [...m[2].matchAll(/(\w+): /g)].map((x) => `'${x[1]}'`).join(' | ')]));
     for (const [k, v] of [...text.matchAll(/^export type (\w+) = keyof typeof (\w+);$/gm)].map((m) => [m[1], tables.get(m[2]) ?? ''] as const)) aliases.set(k, v);
     for (const m of text.matchAll(/^export function (\w+)(?:<\w+ extends ([^>]+)>)?\(name: ([^,]+), /gm)) {
@@ -349,7 +349,7 @@ describe('the app builds no HTML from data (source lint)', () => {
   it('L4.4: the one image decoder — ImageDecoder, else createImageBitmap of a JPEG Blob, in LiveView.tsx only; no blob: or object URL anywhere', async () => {
     const files = new Map(await appSources());
     const live = code(files.get(LIVE_FILE) ?? '');
-    // L7.34: what the decoder is handed, by behaviour — the frame's bytes as they are, as a JPEG: to ImageDecoder when
+    // What the decoder is handed, by behaviour — the frame's bytes as they are, as a JPEG: to ImageDecoder when
     // there is one; else (none, or it fails) to createImageBitmap as a Blob of type image/jpeg; no other way.
     const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
     const bytes = bytesOf(jpeg.toString('base64'))!;
@@ -409,7 +409,7 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(frame.match(FRAME_SRC)?.length, 'one src={frameSrc}').toBe(1);
     expect(frame.match(/\bsrc=/g)?.length).toBe(1);
     expect(frame.match(FRAME_SRC_SET)?.length, 'frameSrc set once, from url, only once armed').toBe(1);
-    // L7.34: rendered before its connection listens (react-dom/server runs no effect: not armed) — the attributes are
+    // Rendered before its connection listens (react-dom/server runs no effect: not armed) — the attributes are
     // PREVIEW_FRAME_ATTRS, and the frame has no address yet.
     const rendered = renderToStaticMarkup(
       createElement(PreviewFrame, {
@@ -443,7 +443,7 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(screen.match(/\burl=\{urls\.frame\}/g)?.length).toBe(1);
     expect(screen.match(PREVIEW_URLS)?.length).toBe(1);
     expect(screen.match(/\burls\s*=/g)?.length).toBe(1);
-    // L4.7 part D2: the theme editor's live frame passes its checked URL the same way; no other file mounts a PreviewFrame.
+    // The theme editor's live frame passes its checked URL the same way; no other file mounts a PreviewFrame.
     const themes = code(files.get('themes/ThemeEditor.tsx') ?? '');
     expect(themes.match(/<PreviewFrame\b/g)?.length).toBe(1);
     expect(themes.match(/\burl=\{urls\.frame\}/g)?.length).toBe(1);
@@ -495,7 +495,7 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(thumb.match(THUMB_SRC)?.length, 'one <img src={url} in Thumb.tsx').toBe(1);
     expect(thumb.match(/\burl\s*=/g)?.length, 'url assigned once').toBe(1);
     expect(thumb.match(/\bsrc=/g)?.length).toBe(1);
-    // L7.34: rendered — the one <img>'s address is imageDataUrl's answer for its format, base64 and cap; nothing else
+    // Rendered — the one <img>'s address is imageDataUrl's answer for its format, base64 and cap; nothing else
     // renders an image (a payload past its cap, a wrong magic, a cap that is not one: no <img> at all).
     const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0]).toString('base64');
     const JPG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5]).toString('base64');
@@ -512,7 +512,7 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(img(createElement(Picture, { format: 'gif', base64: PNG, max: LOOP_DATA_MAX, ...at }))).toEqual([]);
     expect(img(createElement(Jpeg, { base64: JPG + 'A'.repeat(THUMB_DATA_MAX), max: 9_999_999 as never, ...at }))).toEqual([]);
     for (const [f, text] of files) if (f !== THUMB_FILE) expect(/\bsrc=/.test(linted(f, code(text))), f).toBe(false);
-    // L4.5 part E: every use of the one <img> names one of the two caps.
+    // Every use of the one <img> names one of the two caps.
     let uses = 0;
     for (const [f, text] of files) {
       for (const m of code(text).matchAll(JPEG_USE)) {
@@ -522,7 +522,7 @@ describe('the app builds no HTML from data (source lint)', () => {
     }
     expect(uses).toBeGreaterThanOrEqual(2);
     expect(JPEG_MAX.test('<Jpeg base64={b} max={9999999} />')).toBe(false);
-    // L4.7 part D1: every <Picture names its format and that format's cap literally; Jpeg's own one, once, in Thumb.tsx.
+    // Every <Picture names its format and that format's cap literally; Jpeg's own one, once, in Thumb.tsx.
     let pictures = 0;
     let jpegs = 0;
     for (const [f, text] of files) {
@@ -557,7 +557,7 @@ describe('the app builds no HTML from data (source lint)', () => {
 });
 
 /**
- * L4.6 part D1: the page never names who writes — every comment write (`thread_*` call) of the app carries no author,
+ * The page never names who writes — every comment write (`thread_*` call) of the app carries no author,
  * channel (`via`) or proposal key: the Studio writes the channel `studio` under the name it was started with, and
  * proposals are Claude's (the server refuses all three: a 400).
  */
@@ -574,10 +574,10 @@ describe('the comment writes name nobody (L4.6 part D1)', () => {
   it('⚑ no thread_* call of the app sends an author, a via, a proposal or a name', async () => {
     const calls = (await appSources()).flatMap(([f, text]) => threadCalls(code(text)).map((c) => ({ f, ...c })));
     const ops = new Set(calls.map((c) => c.op));
-    // Part D2: Apply and Resolve with vN call their ops directly (L5.12b: ProposalCard.tsx).
+    // Part D2: Apply and Resolve with vN call their ops directly (ProposalCard.tsx).
     for (const op of ['thread_add', 'thread_get', 'thread_still', 'thread_apply', 'thread_resolve']) expect(ops, op).toContain(op);
-    // Reply, resolve and reopen go through one helper (ThreadActions' send — L5.12b: ThreadPanel.tsx): its op names are
-    // arguments. M1: the helper's call is pinned by name to its owner, and no other file of the app holds it.
+    // Reply, resolve and reopen go through one helper (ThreadActions' send, in ThreadPanel.tsx): its op names are
+    // arguments. The helper's call is pinned by name to its owner, and no other file of the app holds it.
     const sources = await appSources();
     const screen = code(sources.find(([f]) => f === 'review/ThreadPanel.tsx')![1]);
     for (const op of ['thread_reply', 'thread_resolve', 'thread_reopen']) expect(screen).toContain(`'${op}'`);
@@ -605,18 +605,18 @@ describe('the page makes no proposal (L4.6 part D2)', () => {
     for (const [f, text] of files) {
       const src = code(text);
       expect(/\bscenario_yaml\b|\bscenario_hash\b/.test(src), `${f}: names a proposal's input`).toBe(false);
-      // L7.34: the argument's shape (its two keys), not its statement.
+      // The argument's shape (its two keys), not its statement.
       args += (src.match(/\{\s*proposal:\s*\{\s*comment_id:\s*[\w.]+,\s*entry_id:\s*[\w.]+\s*\}\s*\}/g) ?? []).length;
     }
     expect(args).toBe(1);
     const timeline = code(files.find(([f]) => f === 'edit/TimelineScreen.tsx')![1]);
     expect(timeline).toMatch(/useTimelineView\(args,/);
-    // L6.12–L6.13 fixes (L7): that read is timeline_view's (the one op whose `proposal` it is).
+    // That read is timeline_view's (the one op whose `proposal` it is).
     expect(DATA_FNS.get('useTimelineView')).toEqual({ op: 'timeline_view', ops: ['timeline_view'] });
-    // thread_apply sends the reply and the proposal's hash shown, nothing else (L5.12b: ProposalCard.tsx, M1: the one call
-    // of the app — no other file applies).
+    // thread_apply sends the reply and the proposal's hash shown, nothing else (ProposalCard.tsx: the one call of the
+    // app — no other file applies).
     const panel = code(files.find(([f]) => f === 'review/ProposalCard.tsx')![1]);
-    // (L7.34: its argument object's keys, whatever the names of the values.)
+    // (its argument object's keys, whatever the names of the values.)
     const applies = opCalls(panel, new Set(['thread_apply']));
     expect(applies.map((c) => c.keys)).toEqual([['project', 'comment_id', 'entry_id', 'if_match']]);
     // The version is the one shown, a value of the card's (a name), never a literal, `undefined` or an expression that
@@ -638,7 +638,7 @@ describe('the page makes no proposal (L4.6 part D2)', () => {
         .map(() => f),
     );
     expect(everywhere).toEqual(['review/ProposalCard.tsx']);
-    // L6.13: data/ names it once (its function); its arguments and result are derived from the op table (data/ops.ts).
+    // data/ names it once (its function); its arguments and result are derived from the op table (data/ops.ts).
     expect(files.filter(([f, text]) => !f.startsWith('data/') && /thread_apply|threadApply/.test(code(text))).map(([f]) => f)).toEqual(['review/ProposalCard.tsx']);
     expect(files.filter(([f, text]) => f.startsWith('data/') && /\bop\('thread_apply'\)/.test(text)).map(([f]) => f)).toEqual(['data/comments.ts']);
   });
@@ -656,26 +656,26 @@ describe('hash routes', () => {
     expect(parseRoute(`#/p/${'a'.repeat(201)}`)).toMatchObject({ name: 'not-found' });
     expect(parseRoute('#c=abc')).toMatchObject({ name: 'not-found' });
     expect(parseRoute('#javascript:alert(1)')).toMatchObject({ name: 'not-found' });
-    // L4.2: a scenario as blocks or as YAML.
+    // A scenario as blocks or as YAML.
     expect(parseRoute('#/p/northfield-fixture/s/quote')).toEqual({ name: 'scenario', slug: 'northfield-fixture', scenario: 'quote', tab: 'blocks' });
     expect(parseRoute('#/p/northfield-fixture/s/quote/yaml')).toEqual({ name: 'scenario', slug: 'northfield-fixture', scenario: 'quote', tab: 'yaml' });
     expect(parseRoute('#/p/x/s/%3Cscript%3E')).toEqual({ name: 'scenario', slug: 'x', scenario: '<script>', tab: 'blocks' });
     expect(parseRoute('#/p/x/s/quote/blocks')).toMatchObject({ name: 'not-found' });
     expect(parseRoute('#/p/x/s/')).toMatchObject({ name: 'not-found' });
     expect(parseRoute(`#/p/x/s/${'a'.repeat(201)}`)).toMatchObject({ name: 'not-found' });
-    // L4.4: the Run screen, with or without a run.
+    // The Run screen, with or without a run.
     expect(parseRoute('#/p/northfield-fixture/s/quote/run')).toEqual({ name: 'run', slug: 'northfield-fixture', scenario: 'quote' });
     expect(parseRoute('#/p/northfield-fixture/s/quote/run/20261026-120000-quote')).toEqual({ name: 'run', slug: 'northfield-fixture', scenario: 'quote', run: '20261026-120000-quote' });
     expect(parseRoute('#/p/x/s/q/run/%3Cimg%3E')).toEqual({ name: 'run', slug: 'x', scenario: 'q', run: '<img>' });
     expect(parseRoute('#/p/x/s/q/run/a/b')).toMatchObject({ name: 'not-found' });
     expect(parseRoute(`#/p/x/s/q/run/${'a'.repeat(201)}`)).toMatchObject({ name: 'not-found' });
-    // L4.5: the timeline of the latest capture, of one capture, at one of its steps.
+    // The timeline of the latest capture, of one capture, at one of its steps.
     expect(parseRoute('#/p/northfield-fixture/s/quote/timeline')).toEqual({ name: 'timeline', slug: 'northfield-fixture', scenario: 'quote' });
     expect(parseRoute('#/p/northfield-fixture/s/quote/timeline/20261026-120000-quote')).toEqual({ name: 'timeline', slug: 'northfield-fixture', scenario: 'quote', run: '20261026-120000-quote' });
     expect(parseRoute('#/p/n/s/q/timeline/r1/request.2')).toEqual({ name: 'timeline', slug: 'n', scenario: 'q', run: 'r1', step: 'request.2' });
     expect(parseRoute('#/p/n/s/q/timeline/r1/request.2/x')).toMatchObject({ name: 'not-found' });
     expect(parseRoute('#/p/n/s/q/timeline/%E0%A4%A')).toMatchObject({ name: 'not-found' });
-    // L4.7 part D1: the library, in a theme, one component's detail.
+    // The library, in a theme, one component's detail.
     expect(parseRoute('#/p/northfield-fixture/library')).toEqual({ name: 'library', slug: 'northfield-fixture' });
     expect(parseRoute('#/p/northfield-fixture/library/editorial')).toEqual({ name: 'library', slug: 'northfield-fixture', theme: 'editorial' });
     expect(parseRoute('#/p/n/library/editorial/studio/card-cta')).toEqual({ name: 'library', slug: 'n', theme: 'editorial', component: 'studio/card-cta' });
@@ -719,7 +719,7 @@ describe('hash routes', () => {
       // A step without its run is dropped (the key is the run's own).
       expect(parseRoute(hrefTo({ name: 'timeline', slug: 'p', scenario, step: 'a.1' }))).toEqual({ name: 'timeline', slug: 'p', scenario });
     }
-    // L4.7 part D1: the library; a component needs its theme and two segments.
+    // The library; a component needs its theme and two segments.
     for (const theme of [undefined, 'editorial', '<b>', '../x', '\u202Egnp']) {
       for (const component of [undefined, 'studio/card-cta', 'a b/<c>']) {
         const r = { name: 'library' as const, slug: 'p/q', ...(theme ? { theme } : {}), ...(component ? { component } : {}) };
@@ -1044,8 +1044,8 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
       ]) {
         expect(shown, n).toContain(n);
       }
-      // (L5.11b: an insert row says what it is by its own step — label2 / summary2 — beside its Remove; no chip repeats it.)
-      // L5.11b: the selected row (the cursor's) shows its alternatives — the radios' words — and the inspector its step;
+      // (an insert row says what it is by its own step — label2 / summary2 — beside its Remove; no chip repeats it.)
+      // The selected row (the cursor's) shows its alternatives — the radios' words — and the inspector its step;
       // the cursor's words (its row's step and scene) are page text too, in the Insert toolbar's line and, its controls
       // made visible, in the toolbar's name (an attribute).
       if (cursor.at === 'after') {
@@ -1054,8 +1054,8 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
         expect(html).toMatch(/aria-label="Insert after step 1 of [^"]*PAGE-scene\[U\+202E\]gnp"/);
         expect(html).toMatch(/<bdi>Step 1 · <\/bdi><bdi>[^<]*PAGE-label0/);
       } else expect(html).not.toContain('PAGE-alt0');
-      // Each row an option of its scene's listbox (L5.11b fixes, review A-M2: the cursor's aria-selected="true"), its name
-      // its own words; the cursor block is a group, not an option (review A-L3).
+      // Each row an option of its scene's listbox (the cursor's aria-selected="true"), its name
+      // its own words; the cursor block is a group, not an option.
       if (v.can.annotate) {
         expect((html.match(/role="option" aria-selected="true"/g) ?? []).length).toBe(cursor.at === 'after' ? 1 : 0);
         expect(html).toMatch(/<div class="rc-here" role="group" aria-label="Inserts go [^"]*">/);
@@ -1131,7 +1131,7 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
   });
 });
 
-// ── L4.9 part B: the closed palette, the fonts, contrast by token, real controls ─────────────────────────────────────
+// ── The closed palette, the fonts, contrast by token, real controls ──────────────────────────────────────────────────
 
 interface CssRule {
   selector: string;
@@ -1172,19 +1172,19 @@ function cssRules(text: string): CssRule[] {
   return out;
 }
 
-/** L5.12d: the page's base (element defaults only; the legacy layer, app.css, is gone). */
+/** The page's base (element defaults only; the legacy layer, app.css, is gone). */
 const baseCss = () => readFile(join(APP, 'base.css'), 'utf8');
-/** L5.9: the app's stylesheets — every .css of the app but tokens.css (generated); L5.12d: base.css among them. */
+/** The app's stylesheets — every .css of the app but tokens.css (generated); base.css among them. */
 async function kitCss(): Promise<Array<[string, string]>> {
   return (await appSources()).filter(([f]) => f.endsWith('.css') && f !== 'tokens.css');
 }
-/** L5.12d: the legacy layer is gone — app.css deleted, imported by nothing. */
+/** The legacy layer is gone — app.css deleted, imported by nothing. */
 async function legacyGone(): Promise<void> {
   expect(existsSync(join(APP, 'app.css'))).toBe(false);
   expect((await appSources()).filter(([, text]) => /app\.css['"]/.test(text)).map(([f]) => f)).toEqual([]);
 }
 const APPEARANCES: Appearance[] = ['dark', 'light'];
-/** The tokens of one appearance, name → value: tokens.ts, the one token file (L5.9). */
+/** The tokens of one appearance, name → value: tokens.ts, the one token file. */
 const tokensOf = (a: Appearance): Map<string, string> => tokenMap(a);
 
 /** A colour written as a literal (hex or a colour function); named colours are matched as whole values / words. */
@@ -1196,20 +1196,20 @@ const NAMED_COLOURS =
 const NAMED_COLOUR = new RegExp(`(?:^|[\\s,(])(?:${NAMED_COLOURS.join('|')})(?=$|[\\s,)])`, 'i');
 const colourIn = (value: string) => COLOUR_LITERAL.test(value) || NAMED_COLOUR.test(value);
 
-// L5.12d: the legacy palette's pairs (CONTRAST_SETS, NON_TEXT_PAIRS) went with it — every pair below is the kit's.
+// The legacy palette's pairs (CONTRAST_SETS, NON_TEXT_PAIRS) went with it — every pair below is the kit's.
 /** The kit's backgrounds that carry no text: marks (status, the switch's track and knob, a progress fill), the sheet's backdrop. */
 const UI_NON_TEXT_BG = ['ui-backdrop', 'ui-ring', 'ui-ok', 'ui-warn', 'ui-fail', 'ui-record', 'ui-idle', 'ui-waiting', 'ui-track', 'ui-knob', 'ui-hairline', 'ui-text-3'];
 /** Translucent backgrounds laid over video: composited over every grey (anything may be under them). */
 const OVER_MEDIA: string[] = [];
 
 /**
- * L5.9: the kit's pairs (`--ui-*`), in both appearances — text at 4.5:1 on every surface it may sit on; marks (the focus
+ * The kit's pairs (`--ui-*`), in both appearances — text at 4.5:1 on every surface it may sit on; marks (the focus
  * ring, status marks, the switch's knob and track, the accent fill as a mark) at 3:1 where they stand.
  * Accepted below 3:1 and stated (DESIGN §4k): --ui-hairline (decorative, inside lists), --ui-field-line (a field's
  * edge: every field has a visible label and the focus ring), --ui-select against --ui-pane (a selected row adds weight
  * 600 or a 2 px ring: the checker's `selected` rule), --ui-waiting on raised surfaces (never drawn there),
- * --ui-mark-plate against the title bar / canvas (L5.13b: the app mark's plate is a quiet lift in dark, ≈ 1.3:1 — the
- * blue take carries the mark, its pairs below).
+ * --ui-mark-plate against the title bar / canvas (the app mark's plate is a quiet lift in dark, ≈ 1.3:1 — the blue
+ * take carries the mark, its pairs below).
  */
 const UI_TEXT = ['text', 'text-2', 'text-3', 'text-strong', 'link', 'danger-text'];
 const UI_SURFACES = ['canvas', 'pane', 'raised', 'raised-hi', 'field', 'well', 'overlay', 'select'];
@@ -1228,7 +1228,7 @@ const UI_MARK_PAIRS: Array<[string, string[]]> = [
   ['track', ['canvas', 'pane', 'overlay']],
   ['accent', ['canvas', 'pane', 'overlay']],
   ['record', ['record-tint', 'recording']],
-  // L5.13b: the app mark (kit AppMark, `fill` / `stroke` on these tokens): both takes on the plate, the front on the back.
+  // The app mark (kit AppMark, `fill` / `stroke` on these tokens): both takes on the plate, the front on the back.
   ['mark-back', ['mark-plate']],
   ['mark-front', ['mark-back', 'mark-plate']],
 ];
@@ -1463,7 +1463,7 @@ const VAR_REF = /var\((--[\w-]+)/g;
 
 describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: one token file, dark and light)', () => {
   it('⚑ no colour literal outside tokens.css (hex, colour functions, named colours); no var() fallback; no font file or URL but its two @font-face', async () => {
-    // (L5.12d: the legacy layer is gone; every stylesheet of the app is read.)
+    // (the legacy layer is gone; every stylesheet of the app is read.)
     await legacyGone();
     expect((await kitCss()).flatMap(([, t]) => cssRules(t)).length).toBeGreaterThan(200);
     const bad: string[] = [];
@@ -1517,18 +1517,18 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     expect(await readFile(join(APP, '..', '..', 'fonts', 'LICENSE.txt'), 'utf8')).toContain('SIL Open Font License, Version 1.1');
     // The lint sees a hand edit (planted).
     expect(file.replace('--ui-canvas: #111214', '--ui-canvas: #111215')).not.toBe(tokensCss());
-    // (L5.12d: --main-h, the legacy screens' centre-pane height, went with them: the shell's grid reads the bars' tokens.)
+    // (--main-h, the legacy screens' centre-pane height, went with them: the shell's grid reads the bars' tokens.)
     // Every token is the kit's.
     expect([...tokenMap('dark').keys()].filter((k) => !k.startsWith('--ui-'))).toEqual([]);
-    // Review A-L9: the veils are declared on ::backdrop itself in each appearance (Safari 17 and Firefox 120 do not
+    // The veils are declared on ::backdrop itself in each appearance (Safari 17 and Firefox 120 do not
     // inherit custom properties into it).
     for (const sel of ['::backdrop', "[data-appearance='light'] ::backdrop", "[data-appearance='dark'] ::backdrop"]) {
-      // (L5.12c: the legacy --backdrop left with the Library's dialog: the kit's veil only.)
+      // (the legacy --backdrop left with the Library's dialog: the kit's veil only.)
       expect(file, sel).toMatch(new RegExp(`^${sel.replace(/[[\]()'.*]/g, '\\$&')} \\{\\n  --ui-backdrop: rgba\\([^)]*\\);\\n\\}`, 'm'));
     }
     expect(file).toMatch(/@media \(prefers-color-scheme: light\) \{\n {2}::backdrop \{\n {4}--ui-backdrop: rgba\(22, 24, 29, 0\.35\);/);
     // No other token shares a status family's colour in an appearance: the checker's colour-only rule reads a colour
-    // back to its family (a selection tint equal to --info-soft read as "info": L5.9's first dark tour).
+    // back to its family (a selection tint equal to --info-soft would read as "info").
     const status = (n: string) => STATUS_TOKENS.some((p) => n === p || n.startsWith(`${p}-`));
     for (const a of APPEARANCES) {
       const m = colourTokens(a);
@@ -1563,14 +1563,14 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
       [...tokens.keys()].filter((t) => !used.has(t)),
       'defined but never used',
     ).toEqual([]);
-    // (L5.12c: --ink, --veil and --backdrop left with the theme editor's frame and the Library's dialog: the kit's
+    // (--ink, --veil and --backdrop left with the theme editor's frame and the Library's dialog: the kit's
     // --ui-video / --ui-overlay / --ui-backdrop draw them — the app holds no colour of its own.)
     expect([...used].some((u) => u === '--ink' || u === '--veil' || u === '--backdrop')).toBe(false);
   });
 
   it("⚑ colour literals in the app sources (hex of 3–8 digits, colour functions, named colours): only the theme editor's defaults (theme data, not the Studio's chrome) and tokens.ts", async () => {
     const THEME_DATA = new Set(['themes/ThemeEditor.tsx', 'themes/ThemesScreen.tsx', 'words/theme-words.ts', 'tokens.ts']);
-    // L5.12c (critique M1): the set stays these four — a new file (ThemeFields.tsx, the kit's ColorField) takes its
+    // The set stays these four — a new file (ThemeFields.tsx, the kit's ColorField) takes its
     // colours as data, never a literal of its own.
     expect(THEME_DATA.size).toBe(4);
     for (const [f, src] of await appSources()) {
@@ -1603,8 +1603,8 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
       expect(tokens.get(sans)).toMatch(/sans-serif$/);
       expect(tokens.get(mono)).toMatch(/monospace$/);
     }
-    // (L5.12d: the page's base, on the kit's tokens: the legacy body's 14px/1.5 is the kit's 13 / 18.) L7.34: the family
-    // an element gets, its var() read through the tokens (whatever the rule's layout or the token's name).
+    // (the page's base, on the kit's tokens: the legacy body's 14px/1.5 is the kit's 13 / 18.) The family
+    // an element gets, its var read through the tokens (whatever the rule's layout or the token's name).
     const family = (el: string) => {
       const r = rules.find(
         (x) =>
@@ -1631,7 +1631,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     const fails: string[] = [];
     for (const a of APPEARANCES) {
       const tokens = tokensOf(a);
-      // The kit's set (L5.12d: the only one).
+      // The kit's set (the only one).
       for (const [t, on] of UI_TEXT_PAIRS)
         for (const b of on) if (!(worstRatio(tokens, `ui-${t}`, `ui-${b}`) >= 4.5)) fails.push(`${a}: --ui-${t} on --ui-${b}: ${worstRatio(tokens, `ui-${t}`, `ui-${b}`).toFixed(2)}:1`);
       for (const [m, on] of UI_MARK_PAIRS)
@@ -1647,7 +1647,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     }
     expect(fails).toEqual([]);
     // Every token used as a text colour is a text token; every background token is classified; every `fill` / `stroke`
-    // token is in a mark pair (L5.13b: the app mark's paint — a mark or the ground it is checked on).
+    // token is in a mark pair (the app mark's paint — a mark or the ground it is checked on).
     const texts = new Set(UI_TEXT_PAIRS.map(([t]) => `ui-${t}`));
     const backs = new Set([...UI_TEXT_PAIRS.flatMap(([, on]) => on.map((b) => `ui-${b}`)), ...UI_NON_TEXT_BG]);
     const paints = new Set(UI_MARK_PAIRS.flatMap(([mk, on]) => [mk, ...on].map((x) => `ui-${x}`)));
@@ -1668,7 +1668,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     expect(worstRatio(new Map(tokensOf('light')).set('--ui-text-3', '#8b919b'), 'ui-text-3', 'ui-pane')).toBeLessThan(4.5);
     expect(worstRatio(new Map(tokensOf('dark')).set('--ui-text-3', '#6f747e'), 'ui-text-3', 'ui-raised')).toBeLessThan(4.5);
     expect(worstRatio(new Map(tokensOf('light')).set('--ui-track', '#cfd1d6'), 'ui-knob', 'ui-track')).toBeLessThan(3);
-    // (L5.13b: a lighter dark plate sinks the blue take — the pair catches it.)
+    // (a lighter dark plate sinks the blue take — the pair catches it.)
     expect(worstRatio(new Map(tokensOf('dark')).set('--ui-mark-plate', '#4a5266'), 'ui-mark-back', 'ui-mark-plate')).toBeLessThan(3);
     expect(Number.isNaN(worstRatio(new Map(tokensOf('dark')).set('--ui-text-3', 'grey'), 'ui-text-3', 'ui-pane'))).toBe(true);
   });
@@ -1677,7 +1677,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     const rules = cssRules(await baseCss());
     const ph = rules.filter((r) => /(^|,\s*)::placeholder$/.test(r.selector));
     expect(ph).toHaveLength(1);
-    // (L5.12d: the page's base, every placeholder; the kit's own rules alike.) L7.34: by what the colour is — one of the
+    // (the page's base, every placeholder; the kit's own rules alike.) By what the colour is — one of the
     // kit's text tokens, read at 4.5:1 on a field in both appearances — not by its name.
     let seen = 0;
     for (const [f, css] of await kitCss()) {
@@ -1693,9 +1693,8 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
   });
 
   it("⚑ no outline removed, transparent or faded without an accent ring in its place; every focus ring in --accent / --accent-strong / --ui-ring (the skip link's target excepted)", async () => {
-    // (L5.12d: the page's base ring is --ui-ring, read with the others.)
-    // L7.34: by what the ring is — at least 2 px, solid, in a ring token, set off from the control, none of the lint's
-    // findings — not by its statement.
+    // (the page's base ring is --ui-ring, read with the others.) By what the ring is — at least 2 px, solid, in a ring
+    // token, set off from the control, none of the lint's findings — not by its statement.
     const base = cssRules(await baseCss()).find((r) => r.selector === ':focus-visible');
     expect(focusLint(base ? [base] : [])).toEqual([]);
     const ring = /^(\d+)px solid var\(--(accent|accent-strong|ui-ring)\)$/.exec(new Map(base?.decls).get('outline') ?? '');
@@ -1769,8 +1768,8 @@ describe('real controls (L4.9 part B, a TypeScript-parser lint)', () => {
         REAL_CONTROL_EXCEPTIONS.splice(0, REAL_CONTROL_EXCEPTIONS.length, ...saved);
       }
     }
-    // L5.12a (M1): the radio-group exception moved with its element into the kit — one such group app-wide, so the move
-    // could not leave a second, unexcused copy behind (a screen's own role="radiogroup" is a ratchet finding as well).
+    // The radio-group exception lives with its element in the kit — one such group app-wide, so no second,
+    // unexcused copy exists (a screen's own role="radiogroup" is a ratchet finding as well).
     expect(files.filter(([, text]) => /<\w+\s[^>]*\brole="radiogroup"/.test(code(text))).map(([f]) => f)).toEqual(['ui-kit/ChoiceChips.tsx']);
     // The lint catches each planted case.
     for (const [line, what] of [
@@ -1816,11 +1815,11 @@ describe('real controls (L4.9 part B, a TypeScript-parser lint)', () => {
   });
 });
 
-// ── L5.12d: the end of the legacy layer ────────────────────────────────────────────────────────────────────────────
+// ── No legacy layer ────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * Class words of the app's TSX that no stylesheet defines, each kept on purpose and said why (review A-L5 / B-L2: none
- * harvested from a comparison any more). A new word must be a class of a stylesheet (a forgotten one is a class of the
+ * Class words of the app's TSX that no stylesheet defines, each kept on purpose and said why (none harvested from a
+ * comparison any more). A new word must be a class of a stylesheet (a forgotten one is a class of the
  * deleted legacy layer, or a typo); a word ending in "-" is a prefix a template completes (`k-mark-${state}`): some
  * class must start with it.
  */
@@ -1894,7 +1893,7 @@ function followable(n: ts.Node): boolean {
 }
 
 /**
- * Every class word the app's TSX gives an element (review A-L5 / B-L2): JSX `className` attributes and object-literal
+ * Every class word the app's TSX gives an element: JSX `className` attributes and object-literal
  * `className:` fields (a kit row's class); a name in them is followed to a const or an expression-bodied helper of the
  * same file (`className={cls}`, Button's `cls(variant, size)`), once. The literal parts of each are its words (a
  * template's too) — never a comparison's operands, nor a property read (`i.className`: another field's value).
@@ -1975,7 +1974,7 @@ const STILL = /^(?:none|0s?|0ms)$/;
 const SCROLL_CALL = /\.(scrollIntoView|scrollTo|scrollBy)\??\.?\(((?:[^()]|\([^()]*\))*)\)/g;
 
 /**
- * The app's stylesheets' rules in cascade order (review A-L4): main.tsx's CSS imports, in order (base → kit → shell →
+ * The app's stylesheets' rules in cascade order: main.tsx's CSS imports, in order (base → kit → shell →
  * screens; tokens.css moves nothing), each file's rules in source order.
  */
 async function cascadeRules(): Promise<Array<CssRule & { f: string }>> {
@@ -1989,8 +1988,8 @@ async function cascadeRules(): Promise<Array<CssRule & { f: string }>> {
 
 /**
  * Rules (in cascade order) that animate or transition with no LATER rule of their own selector turning it off under
- * REDUCE — the same specificity, so the later one wins (review A-L4: a rule re-declaring `.k-spinner`'s animation after
- * kit.css's reduce block would move again).
+ * REDUCE — the same specificity, so the later one wins (a rule re-declaring `.k-spinner`'s animation after kit.css's
+ * reduce block would move again).
  */
 function reducedMotionGaps(rules: Array<CssRule & { f: string }>): string[] {
   const out: string[] = [];
@@ -2019,7 +2018,7 @@ describe('⚑ L5.12d: the legacy layer is gone', () => {
     expect([...cssClasses(await baseCss())]).toEqual([]);
     for (const r of cssRules(await baseCss()))
       expect(r.selector, r.selector).toMatch(/^(?:[*a-z0-9]+|\[hidden\]|#root|:focus-visible|::placeholder|a:hover|a:focus-visible)(?:,\n(?:[*a-z0-9]+|#root))*$/);
-    // Review B-L4: a plain link's focus ring keeps the kit ring's radius (the legacy layer gave it one).
+    // A plain link's focus ring keeps the kit ring's radius (the legacy layer gave it one).
     expect(cssRules(await baseCss()).find((r) => r.selector === 'a:focus-visible')?.decls).toContainEqual(['border-radius', 'var(--ui-radius-control)']);
     const bits = files.find(([f]) => f === 'bits.tsx')![1];
     expect([...bits.matchAll(/^export (?:function|const|type) (\w+)/gm)].map((m) => m[1]).sort()).toEqual(['Txt', 'When', 'plural', 'shown', 'visibleControls']);
@@ -2052,7 +2051,7 @@ describe('⚑ L5.12d: the legacy layer is gone', () => {
     const without = real.replace(/(@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?)\s*\.k-spinner \{\n\s*animation: none;\n\s*\}/, '$1');
     expect(without).not.toBe(real);
     expect(reducedMotionGaps(cssRules(without).map((r) => ({ f: 'ui-kit/kit.css', ...r })))).toEqual(['ui-kit/kit.css: .k-spinner (animation)']);
-    // Planted (review A-L4): a later stylesheet animating `.k-spinner` again, after kit.css's reduce block, moves.
+    // Planted: a later stylesheet animating `.k-spinner` again, after kit.css's reduce block, moves.
     const later = [...all, ...cssRules('.k-spinner { animation: k-spin 0.8s linear infinite; }').map((r) => ({ f: 'screens.css', ...r }))];
     expect(reducedMotionGaps(later)).toEqual(['screens.css: .k-spinner (animation, after its reduced-motion rule)']);
     expect([..."el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); m.scrollTo({ top: 0 });".matchAll(SCROLL_CALL)].filter((m) => !/behavior: 'auto'/.test(m[2])).length).toBe(2);
@@ -2076,7 +2075,7 @@ describe('⚑ L5.12d: the legacy layer is gone', () => {
       expect(undefinedClasses([['Planted.tsx', `export const X = () => (${line});`]], defined), line).toContain(`Planted.tsx: ${word}`);
     }
     expect(undefinedClasses([['Planted.tsx', 'export const X = () => (<span className={`k-mark k-mark-${s}`} />);']], defined)).toEqual([]);
-    // Planted (review A-L5 / B-L2): a legacy word in an object-literal `className:` field (a kit row's class), through a
+    // Planted: a legacy word in an object-literal `className:` field (a kit row's class), through a
     // const, through an expression-bodied helper (Button's `cls`); a comparison's string is no class word.
     for (const [text, word] of [
       ["export const row = { key: 'a', label: 'A', current: false, className: 'nav-link' };", 'nav-link'],
@@ -2093,7 +2092,7 @@ describe('⚑ L5.12d: the legacy layer is gone', () => {
   });
 });
 
-// ── L5.9 part E: screens stay on the kit (review A-M3: scripts/kit-ratchet.ts, the table in legacy-controls.json) ─────
+// ── Screens stay on the kit (scripts/kit-ratchet.ts, the table in legacy-controls.json) ──────────────────
 
 /** A legacy screen's row as committed at HEAD (none outside a git checkout, or before the table existed). */
 function headTable(): Record<string, number> | null {
@@ -2110,7 +2109,7 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
     const found = await ratchetFindings();
     const over = [...found].filter(([f, x]) => x.length > (table[f] ?? 0)).map(([f, x]) => `${f}: ${x.length} findings, the table allows ${table[f] ?? 0} (${x.slice(0, 4).join('; ')})`);
     expect(over).toEqual([]);
-    // L5.12d: every legacy screen is rebuilt — the table is empty and every file of the app holds zero findings.
+    // Every legacy screen is rebuilt — the table is empty and every file of the app holds zero findings.
     expect(table).toEqual({});
     expect([...found].filter(([, x]) => x.length > 0).map(([f, x]) => `${f}: ${x.join('; ')}`)).toEqual([]);
     // The shell and the gallery are kit-only: no row, nothing found.
@@ -2177,7 +2176,7 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
   });
 });
 
-// ── L5.9 review A-M1: the kit shows text it did not write through Txt ───────────────────────────────────────────────
+// ── The kit shows text it did not write through Txt ─────────────────────────────────────────────────────────────────
 
 /** What a kit slot may hold as a JSX child: an element, a literal, `shown(…)` / `visibleControls(…)` / a kit formatter, a `.map` of elements. */
 const KIT_TEXT_CALLS = new Set(['shown', 'visibleControls', 'formatTimecode']);
@@ -2252,7 +2251,7 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       createElement(LinkButton, { to: { name: 'projects' }, children: K('lbtn') }),
       createElement(Toolbar, { label: 'Tools', children: K('tool') }),
       createElement(Kbd, { keys: [K('kbd')] }),
-      // L5.10a: the project side's kit additions.
+      // The project side's kit additions.
       createElement(Facts, { rows: [{ key: 'a', label: K('factl'), value: K('factv') }] }),
       createElement(Disclosure, { summary: K('dsum'), children: K('dbody') }),
       createElement(PosterGrid, { label: 'Productions', items: [{ id: 'a', picture: K('ppic'), title: K('ptitle'), meta: K('pmeta') }], selected: 'a', onSelect: go, onOpen: go }),
@@ -2260,7 +2259,7 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
         label: 'Browser 2',
         groups: [{ key: 'g', items: [{ key: 'r', to: { name: 'projects' }, label: 'Row', value: K('svalue'), lead: K('slead'), icon: 'film', quiet: true, current: true }] }],
       }),
-      // L5.10b: the scenario side's kit additions.
+      // The scenario side's kit additions.
       createElement(FrameGrid, {
         label: 'Steps',
         tabbable: true,
@@ -2288,15 +2287,16 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       createElement(TerminalCommands, { fix: K('tfix'), fixNode: K('tnode') }),
       createElement(Switch, { label: K('wrlabel'), hint: K('wrhint'), checked: true, onChange: go, layout: 'row' }),
       createElement(SourceList, { label: 'Scenes', groups: [{ key: 'g', items: [{ key: 'b', label: K('sbtn'), current: true, onSelect: go, bar: 0.5, value: '1 s' }] }] }),
-      // L5.11a: Shoot's kit additions (the checklist, the status bar's compact blocker, a sheet's action test ids).
+      // Shoot's kit additions (the checklist, the status bar's compact blocker, a sheet's action test ids).
       createElement(Checklist, { label: 'Checks', children: createElement(ChecklistItem, { state: 'attention', word: K('ckword'), title: K('cktitle'), actions: K('ckact'), children: K('ckbody') }) }),
       createElement(Blocker, { compact: true, word: K('cbword'), fix: { copy: K('cbcopy') }, children: K('cbtext') }),
       createElement(Blocker, { compact: true, word: K('cbword2'), fix: { label: K('cblink'), to: { name: 'projects' } } }),
       createElement(Sheet, { open: false, alert: true, testId: 't', title: K('astitle'), actions: [{ id: 'c', label: K('asaction'), isCancel: true, testId: 'c' }], onAction: go }),
-      // L5.11b: Record's kit additions (a radio group, a compact row card with a word on the right).
+      // Record's kit additions (a radio group, a compact row card with a word on the right).
       createElement(RadioGroup, { legend: K('rglegend'), value: 'a', onChange: go, options: [{ value: 'a', label: K('rglabel'), detail: K('rgdetail'), aside: K('rgaside') }] }),
       createElement(RowCard, { compact: true, tile: K('crtile'), title: K('crtitle'), meta: K('crmeta'), aside: K('craside'), selected: true, onSelect: go }),
-      // L5.12a: Edit's and the Review report's kit additions (chips, tracks, the scrubber, a contact sheet, a tag, a number field).
+      // Edit's and the Review report's kit additions (chips, tracks, the scrubber, a contact sheet, a tag, a number
+      // field).
       createElement(ChoiceChips, {
         labelledBy: 'l',
         chips: [
@@ -2320,9 +2320,9 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       }),
       createElement(Tag, { children: K('tag') }),
       createElement(NumberField, { label: K('nflabel'), hint: K('nfhint'), error: K('nferror'), value: '1', onChange: go }),
-      // L5.12a fixes (review A-L5): a row card that is a link.
+      // A row card that is a link.
       createElement(RowCard, { compact: true, tile: K('lrtile'), title: K('lrtitle'), meta: K('lrmeta'), selected: true, to: { name: 'projects' } }),
-      // L5.12b: the diff table (its code cells: visible marks, byte order — no <bdi> can go inside a bidi-overridden line),
+      // The diff table (its code cells: visible marks, byte order — no <bdi> can go inside a bidi-overridden line),
       // the region over a frame, the palette's footnote, a tick that is a link.
       createElement(DiffTable, {
         label: 'Change',
@@ -2340,7 +2340,7 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
         count: 1,
         children: createElement(TrackItem, { variant: 'pin', place: { at: 3 }, frames: 10, label: 'Pin', testId: 'p2', to: { name: 'projects' }, tip: K('trltip'), children: K('trlitem') }),
       }),
-      // L5.12c: the Library's data table, the theme editor's colour field, a sheet's fields.
+      // The Library's data table, the theme editor's colour field, a sheet's fields.
       createElement(DataTable, {
         caption: K('dtcap'),
         columns: [
@@ -2520,11 +2520,11 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
   });
 });
 
-// ── L5.10a: the project side (Welcome, the Project screen, the Cast, Lately) ─────────────────────────────────────────
+// ── The project side (Welcome, the Project screen, the Cast, Lately) ─────────────────────────────────────────────────
 
 /** The rebuilt project-side files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
 const PROJECT_SIDE = ['project/WelcomeScreen.tsx', 'project/ProductionsScreen.tsx', 'project/CastScreen.tsx', 'project/Activity.tsx'];
-/** The ops the project side may call: reads only (the write path is unchanged: critique §7.3). */
+/** The ops the project side may call: reads only (the write path is unchanged). */
 const PROJECT_SIDE_OPS = new Set(['project_get', 'project_board', 'auth_status', 'projects_overview', 'engine_info', 'run_list', 'run_status', 'run_thumbs', 'activity_list', 'search']);
 
 /** The op names a source calls through call / useCall or a data function (a call whose op is not a literal is reported as such). */
@@ -2597,7 +2597,8 @@ describe('L5.10a: the project side', () => {
   });
 });
 
-// ── L5.10b: the scenario side (the storyboard, its inspector, the take strip, the scenes browser, the YAML source) ────
+// ── The scenario side (the storyboard, its inspector, the take strip, the scenes browser, the YAML source)
+// ────────────
 
 /** The rebuilt scenario-side files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
 const SCENARIO_SIDE = [
@@ -2613,8 +2614,8 @@ const SCENARIO_SIDE = [
   'script/TextEditing.tsx',
   'Thumb.tsx',
 ];
-/** The ops the scenario side may call: its reads, and the mutating ones the plan allows (critique §7.3). */
-// L5.11a: Rehearse, Capture and Stop moved to the status bar (shoot-data.ts): the scenario side no longer starts or stops a run.
+/** The ops the scenario side may call: its reads, and the allowed mutating ones. */
+// Rehearse, Capture and Stop live in the status bar (shoot-data.ts): the scenario side never starts or stops a run.
 const SCENARIO_SIDE_OPS = new Set(['scenario_blocks', 'scenario_forms', 'scenario_validate', 'run_status', 'run_thumbs', 'threads_counts', 'scenario_edit']);
 
 /** Each `call('scenario_edit', …)` of a source: whether its arguments name the version shown (`hash`: the if_match). */
@@ -2639,7 +2640,7 @@ describe('L5.10b: the scenario side', () => {
     expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
     // The mutation: a frame's target rendered bare.
     const board = files.find(([f]) => f === 'script/Storyboard.tsx')![1];
-    // (L5.10b fixes: the title's target or summary is `rest`, frameTitle's.)
+    // (the title's target or summary is `rest`, frameTitle's.)
     const planted = board.replace('<Txt text={rest} />', '<span>{rest}</span>');
     expect(planted).not.toBe(board);
     expect(kitBareText('script/Storyboard.tsx', planted)).toEqual([expect.stringContaining('{rest}')]);
@@ -2683,7 +2684,8 @@ describe('L5.10b: the scenario side', () => {
   });
 });
 
-// ── L5.11a: Shoot (Prepare, live, the status bar's actions, the Cast) ──────────────────────────────────────────────────
+// ── Shoot (Prepare, live, the status bar's actions, the Cast)
+// ──────────────────────────────────────────────────────────
 
 /** The rebuilt Shoot files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
 const SHOOT_SIDE = ['shoot/ShootPrepare.tsx', 'shoot/ShootLive.tsx', 'shoot/ShootBrowser.tsx', 'shoot/LiveView.tsx', 'project/Sessions.tsx', 'project/CastScreen.tsx', 'shell/StatusActions.tsx'];
@@ -2703,7 +2705,7 @@ const SHOOT_OPS = new Set([
 ]);
 
 /**
- * "dry run" in a string the page shows (M6 / M9 of the plan: the Studio says Rehearse) — string literals, templates and
+ * "dry run" in a string the page shows (the Studio says Rehearse) — string literals, templates and
  * JSX text of the app; comments, test ids and the one mapping line (shoot-words.ts REHEARSE_MAPPING) excepted.
  */
 function dryRunWords(file: string, text: string): string[] {
@@ -2768,7 +2770,7 @@ describe('L5.11a: Shoot', () => {
         .map(() => f),
     );
     expect(runs).toEqual(['shoot/shoot-data.ts']);
-    // L7.34: what startRun sends (the page's request, fetch stood in for): the scenario, the mode and the file shown.
+    // What startRun sends (the page's request, fetch stood in for): the scenario, the mode and the file shown.
     const sent: Array<Record<string, unknown>> = [];
     setToken('t');
     vi.stubGlobal('fetch', async (path: string, init: RequestInit) => {
@@ -2792,7 +2794,7 @@ describe('L5.11a: Shoot', () => {
     const files = await appSources();
     expect(files.flatMap(([f, text]) => dryRunWords(f, text))).toEqual([]);
     // The server's Studio-authored lines the page shows (op descriptions excepted: MCP-style metadata, never on screen).
-    // L7.18: the Record screen's ops and scenario_edit are the engine's operations (operations/record.ts, scenario-edit.ts).
+    // The Record screen's ops and scenario_edit are the engine's operations (operations/record.ts, scenario-edit.ts).
     const server = await readFile(join(REPO, 'packages/engine/src/operations/record.ts'), 'utf8');
     expect(dryRunWords('record.ts', server)).toEqual([]);
     const described = (text: string) => text.replace(/description: (["'`])(?:\\.|(?!\1).)*\1/g, '').replace(/\.describe\((["'`])(?:\\.|(?!\1).)*\1\)/g, '');
@@ -2808,9 +2810,9 @@ describe('L5.11a: Shoot', () => {
   });
 });
 
-// ── L5.11b: the Record screen in the shell (R4-Record) ─────────────────────────────────────────────────────────────
+// ── The Record screen in the shell (R4-Record) ─────────────────────────────────────────────────────────────────────
 
-/** The Record screen's sources (L7.30: the record/ folder, RecordScreen.tsx and its parts), sorted: [file, text]. */
+/** The Record screen's sources (the record/ folder, RecordScreen.tsx and its parts), sorted: [file, text]. */
 async function recordSources(): Promise<Array<[string, string]>> {
   return (await appSources()).filter(([f]) => f.split('\\').join('/').startsWith('record/') && /\.tsx?$/.test(f)).sort(([a], [b]) => a.localeCompare(b));
 }
@@ -2820,7 +2822,7 @@ const RECORD_OPS = new Set(['record_options', 'record_start', 'record_view', 're
 
 describe('L5.11b: Record', () => {
   it('⚑ every value from data is text: each JSX child of the Record screen goes through Txt / shown / a kit slot (a planted bare issue message fails it)', async () => {
-    // L7.30: the screen is the record/ folder's files (RecordScreen.tsx and its parts).
+    // The screen is the record/ folder's files (RecordScreen.tsx and its parts).
     const files = await recordSources();
     expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
     // The mutations: an issue's message, a placeholder's step rendered bare (both in the inspector).
@@ -2857,16 +2859,16 @@ describe('L5.11b: Record', () => {
     expect(called.length).toBeGreaterThanOrEqual(7);
     expect(called.filter((op) => !RECORD_OPS.has(op))).toEqual([]);
     // The four commands, one owner while the recording goes (a reload included: `live` is true before the view is read).
-    // (L7.34: kept as a source check — the commands register in effects, which only a browser runs: the behaviour is
+    // (kept as a source check — the commands register in effects, which only a browser runs: the behaviour is
     // studio-e2e-record-keys.test.ts's "⌘. is the recording's before its view is read" case.)
     for (const id of ['stop', 'rehearse', 'capture', 'render']) expect(text).toMatch(new RegExp(`useShellCommand\\('${id}', [^,]+, PRIORITY\\.recording, live\\)`));
     expect(text).toMatch(/const live = v \? LIVE_STATES\.has\(v\.state\) : error === null;/);
   });
 });
 
-// ── L5.12a: Edit and the Review report (R4-Edit, R4-Review) ──────────────────────────────────────────────────────────
+// ── Edit and the Review report (R4-Edit, R4-Review) ──────────────────────────────────────────────────────────────────
 
-/** The rebuilt Edit / Review files (L5.12a fixes, review A-M3): every value from data through Txt / a kit slot. */
+/** The rebuilt Edit / Review files: every value from data through Txt / a kit slot. */
 const EDIT_REVIEW_SIDE = [
   'edit/TimelineScreen.tsx',
   'edit/TimelineInspector.tsx',
@@ -2895,9 +2897,10 @@ describe('L5.12a: Edit and the Review report', () => {
   });
 });
 
-// ── L5.12b: Review › Comments, Claude's proposal, the README editor, the ⌘K palette (R4-Comments, R4-Palette) ─────────
+// ── Review › Comments, Claude's proposal, the README editor, the ⌘K palette (R4-Comments, R4-Palette)
+// ─────────────────
 
-/** The files L5.12b rebuilt or added (kit only, every value from data through Txt / a kit slot). */
+/** The Comments-side files (kit only, every value from data through Txt / a kit slot). */
 const COMMENTS_SIDE = [
   'review/CommentsScreen.tsx',
   'review/ThreadList.tsx',
@@ -2909,7 +2912,7 @@ const COMMENTS_SIDE = [
   'project/ReadmeEditor.tsx',
 ];
 
-/** The ops each comments-side file may call (L5.12b fixes, reviews A-M1 / B-M1 — like SHOOT_OPS / SCENARIO_SIDE_OPS). */
+/** The ops each comments-side file may call (like SHOOT_OPS / SCENARIO_SIDE_OPS). */
 const COMMENTS_OPS: Record<string, string[]> = {
   'review/CommentsScreen.tsx': [],
   'review/ThreadList.tsx': ['threads_list'],
@@ -3032,7 +3035,7 @@ function paletteGroupWriters(file: string, text: string): Array<{ slot: string; 
     if (w) for (const n of i.names) if (w === '*' || w.includes(n)) writerNames.add(n);
   }
   writerNames.add('call');
-  // L6.13: a data function the file imports whose op writes (the catalogue's effect: anything but a read).
+  // A data function the file imports whose op writes (the catalogue's effect: anything but a read).
   for (const [name, d] of dataImports(src)) if (d.ops.some((op) => catalogueOperation(op)?.effect !== 'read')) writerNames.add(name);
   // Declarations by name, each with the scope that holds it (a block, the file, a function for its parameters); a
   // parameter or a destructured name is a declaration with nothing to follow (it shadows).
@@ -3162,7 +3165,7 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     expect(opsCalled(bus)).toEqual([]);
     // The shell's palette builder: commands go through the bus or a route; the one op the shell calls is engine_info.
     expect(new Set(opsCalled(shell))).toEqual(new Set(['engine_info']));
-    // The mutations (reviews A-L3 / B-M2): a writer one definition away, a writer imported, the bus's commands.
+    // The mutations: a writer one definition away, a writer imported, the bus's commands.
     const timeline = files.find(([f]) => f === 'edit/TimelineScreen.tsx')![1];
     const away = timeline
       .replace(/run: \(\) => onSelect\(s\.id, landingOf\(s\)\)(?:,\s*| )\}\)\),/, 'run: () => pickScene(s.id) })),')
@@ -3189,12 +3192,12 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     // The helper's literal ops (its op is an argument): Reply, Resolve, Reopen — nothing else.
     const panel = files.find(([f]) => f === 'review/ThreadPanel.tsx')![1];
     expect(sendOps(panel).sort()).toEqual(['thread_reopen', 'thread_reply', 'thread_resolve']);
-    // A call with an op that is not a literal: the thread's helper, the project reads' loader and (L6.13) the data layer's
-    // own — its client and the thread writes' data function (L6.12–L6.13 fixes: projectRead calls its reads' own op
+    // A call with an op that is not a literal: the thread's helper, the project reads' loader and the data layer's
+    // own — its client and the thread writes' data function (projectRead calls its reads' own op
     // functions) — no other.
     expect(files.flatMap(([f, text]) => (nonLiteralCalls(text) > 0 ? [f] : [])).sort()).toEqual(['data/client.ts', 'data/comments.ts', 'project-data.ts', 'review/ThreadPanel.tsx']);
     expect(nonLiteralCalls(panel)).toBe(1);
-    // The mutation (review A-M1): a resolve planted in the list fails its allow-list.
+    // The mutation: a resolve planted in the list fails its allow-list.
     const list = files.find(([f]) => f === 'review/ThreadList.tsx')![1];
     const planted = list.replace('  const first = useRef(true);', "  void call('thread_resolve', { project: p.slug, comment_id: 'x', note: 'n' });\n  const first = useRef(true);");
     expect(planted).not.toBe(list);
@@ -3225,7 +3228,7 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
           .map((i) => [i.module, i.names.sort()]),
       ),
     ).toEqual(BANNER_IMPORTS);
-    // The mutation (reviews A-M1 / B-M1): the banner applying through the card's helper (exported again for it) fails both.
+    // The mutation: the banner applying through the card's helper (exported again for it) fails both.
     const card = files.find(([f]) => f === 'review/ProposalCard.tsx')![1];
     const exported = card.replace('async function applyProposal(', 'export async function applyProposal(');
     expect(exported).not.toBe(card);
@@ -3252,8 +3255,9 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
       if (w.op === 'thread_reply') expect(w.keys, `${w.f}: thread_reply`).toEqual(['text']);
       else expect(w.keys, `${w.f}: ${w.op}`).toContain('if_match');
     }
-    // The engine's own input: reply strict and without if_match, the three others requiring it (L7.16: the engine's operations).
-    // L7.34: the operations' input schemas themselves (what the engine parses), not their statements.
+    // The engine's own input: reply strict and without if_match, the three others requiring it (the engine's
+    // operations).
+    // The operations' input schemas themselves (what the engine parses), not their statements.
     const thread = { project: 'northfield-fixture', comment_id: 'c_01JABCDEFGHJKMNPQRSTVWXYZ0' };
     const parses = (op: 'thread_reply' | 'thread_resolve' | 'thread_reopen' | 'thread_apply', args: Record<string, unknown>) => OPERATIONS_BY_NAME[op].input.safeParse(args).success;
     expect([parses('thread_reply', { ...thread, text: 'Yes.' }), parses('thread_reply', { ...thread, text: 'Yes.', if_match: 'a'.repeat(64) })]).toEqual([true, false]);
@@ -3264,7 +3268,7 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     ] as const) {
       expect([parses(op, { ...thread, ...more, if_match: 'a'.repeat(64) }), parses(op, { ...thread, ...more })], op).toEqual([true, false]);
     }
-    // The mutations (review A-M1): a resolve without its version — through the helper, or a direct call.
+    // The mutations: a resolve without its version — through the helper, or a direct call.
     expect(threadWrites("send('Resolve', 'thread_resolve', { note, ...(answer ? { render_id: answer } : {}) }, 'Resolved', () => setNote(''));")).toEqual([
       { op: 'thread_resolve', keys: ['note', '...'], line: 1 },
     ]);
@@ -3273,9 +3277,10 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
   });
 });
 
-// ── L5.12c: the Library, the Themes list and the theme editor (R4-Library, R4-Theme) ──────────────────────────────────
+// ── The Library, the Themes list and the theme editor (R4-Library, R4-Theme)
+// ──────────────────────────────────────────
 
-/** The files L5.12c rebuilt or added (kit only, every value from data through Txt / a kit slot). */
+/** The Library-side files (kit only, every value from data through Txt / a kit slot). */
 const LIBRARY_SIDE = [
   'library/LibraryScreen.tsx',
   'library/LibraryCards.tsx',
@@ -3288,7 +3293,7 @@ const LIBRARY_SIDE = [
   'themes/ThemeFields.tsx',
 ];
 
-/** The ops each Library / themes file may call (critique M1 of L5.12: an allow-list per file, like the comments side's). */
+/** The ops each Library / themes file may call (an allow-list per file, like the comments side's). */
 const LIBRARY_OPS: Record<string, string[]> = {
   'library/LibraryScreen.tsx': ['library_view', 'library_render', 'library_images', 'library_component'],
   'library/LibraryCards.tsx': [],
@@ -3303,20 +3308,20 @@ const LIBRARY_OPS: Record<string, string[]> = {
 
 /** Every `call('<op>', {…})` of a source among `ops` and its argument keys (a parser pass: the object written in the call). */
 function opCalls(text: string, ops: ReadonlySet<string>): Array<{ op: string; keys: string[]; line: number }> {
-  // A bare `call(…)`, a data function or (L5.12c fixes, review A-M2) a member `x.call(…)`.
+  // A bare `call(…)`, a data function or a member `x.call(…)`.
   return apiCalls(text, { members: true })
     .filter((c) => ops.has(c.op))
     .map((c) => ({ op: c.op, keys: keysOf(c.args), line: c.line }));
 }
 
-/** L6.13: the API's call / useCall and every data function (each is a call: data/). */
+/** The API's call / useCall and every data function (each is a call: data/). */
 const API_NAMES = new Set(['call', 'useCall', ...DATA_FNS.keys()]);
 const isApi = (spec: ts.Expression) => ts.isStringLiteral(spec) && (/(^|\/)api\.js$/.test(spec.text) || isDataModule(spec.text));
 
 /**
- * L5.12c fixes (review A-M2): how a file reaches the api — `call` / `useCall` imported by their own names from api.js
+ * How a file reaches the api — `call` / `useCall` imported by their own names from api.js
  * (no `as`, no namespace or default import, no re-export, no dynamic import) and used only as a call's callee (never
- * bound to another name or passed on): the op lints (opsCalled, opCalls) then see every call a file makes. L6.13: the
+ * bound to another name or passed on): the op lints (opsCalled, opCalls) then see every call a file makes. The
  * same for the data modules' functions (data/*.js), the app's calls since only data/ imports call / useCall.
  */
 function apiImportFindings(file: string, text: string): string[] {
@@ -3422,7 +3427,7 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     const found: Record<string, string[]> = {};
     for (const f of Object.keys(LIBRARY_OPS)) found[f] = [...new Set(opsCalled(files.find(([x]) => x === f)![1]))].sort();
     expect(found).toEqual(Object.fromEntries(Object.entries(LIBRARY_OPS).map(([f, ops]) => [f, [...ops].sort()])));
-    // App-wide: who renders library previews, who writes a theme (the palette's Themes rows never do: L5.12b's lint).
+    // App-wide: who renders library previews, who writes a theme (the palette's Themes rows never do).
     const owners = (op: string) =>
       files
         .filter(([, text]) => opsCalled(text).includes(op))
@@ -3447,8 +3452,8 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     const scenario = opCalls(files.find(([f]) => f === 'themes/ThemeEditor.tsx')![1], new Set(['scenario_edit']));
     expect(scenario.length).toBe(2);
     for (const c of scenario) expect(c.keys).toContain('hash');
-    // The engine's own input requires it (L7.17: theme_edit is the engine's operation).
-    // (L7.34: its input schema parsed — with a version, then without.)
+    // The engine's own input requires it (theme_edit is the engine's operation).
+    // (its input schema parsed — with a version, then without.)
     const edit = (args: Record<string, unknown>) => OPERATIONS_BY_NAME.theme_edit.input.safeParse(args);
     const one = { theme: 'my-theme', edit: { set: { 'palette.accent': '#2357d9' } } };
     expect(edit({ ...one, if_match: 'a'.repeat(64) }).error?.issues.filter((i) => i.path[0] === 'if_match') ?? []).toEqual([]);
@@ -3460,7 +3465,7 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
   it("⚑ L5.12c fixes (review A-M2): every app file imports the api's call / useCall by their own names and only calls them — an alias, a namespace import or a call bound to another name fails (both of the review's dodges planted); the if_match lint sees `x.call(…)`", async () => {
     const files = (await appSources()).filter(([f]) => /\.tsx?$/.test(f) && f !== 'api.ts');
     expect(files.flatMap(([f, text]) => apiImportFindings(f, text))).toEqual([]);
-    // The files that call the api at all (L6.13: through a data module) are seen by the lint (it is not vacuous).
+    // The files that call the api at all (through a data module) are seen by the lint (it is not vacuous).
     expect(files.filter(([, text]) => /from '(?:\.\.?\/)+(?:api|data\/[a-z-]+)\.js'/.test(text)).length).toBeGreaterThan(20);
     const editor = files.find(([f]) => f === 'themes/ThemeEditor.tsx')![1];
     const line = "import { CallError, errorText } from '../api.js';";
@@ -3469,7 +3474,7 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     const alias = `${editor.replace(line, `${line}\nimport { call as rpc } from '../api.js';`)}\nexport const dodge = () => rpc('theme_edit', { theme: 'x', edit: {} });\n`;
     expect(opsCalled(alias).filter((op) => op === 'theme_edit').length).toBe(opsCalled(editor).filter((op) => op === 'theme_edit').length);
     expect(apiImportFindings('themes/ThemeEditor.tsx', alias)).toEqual(['themes/ThemeEditor.tsx: import { call as rpc } from the api']);
-    // L6.13: the same dodge through a data function — `import { themeEdit as rpc }`.
+    // The same dodge through a data function — `import { themeEdit as rpc }`.
     const dataAlias = `${editor.replace(line, `${line}\nimport { themeEdit as rpc } from '../data/themes.js';`)}\nexport const dodge = () => rpc({ theme: 'x', edit: {} });\n`;
     expect(opsCalled(dataAlias).filter((op) => op === 'theme_edit').length).toBe(opsCalled(editor).filter((op) => op === 'theme_edit').length);
     expect(apiImportFindings('themes/ThemeEditor.tsx', dataAlias)).toEqual(['themes/ThemeEditor.tsx: import { themeEdit as rpc } from the api']);

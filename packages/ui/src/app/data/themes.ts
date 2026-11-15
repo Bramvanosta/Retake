@@ -1,5 +1,5 @@
 /**
- * L6.13: The themes: the list, a theme's view and its writes (edit, copy, create), its preview, the brand files and
+ * The themes: the list, a theme's view and its writes (edit, copy, create), its preview, the brand files and
  * the site extractions. Each op once, typed by StudioOps (data/ops.ts).
  */
 import { op, readHook } from './client.js';

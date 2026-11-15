@@ -1,5 +1,5 @@
 /**
- * Running one claimed job (L3.1 → L5.14): its state in job.json, its events, its history line — the code the jobs worker
+ * Running one claimed job: its state in job.json, its events, its history line — the code the jobs worker
  * runs for a capture in its own process, and a job process (`worker-main --job`, job-child.ts) runs for a heavy job.
  * One writer of job.json at a time: the claimer until the job runs, then whoever runs it. What a kind does is its
  * handler's (job-handlers.ts, one per kind); runJob holds what every kind shares around it.
@@ -63,9 +63,9 @@ export interface JobRunnerContext extends EnginePorts {
   freeBytes?: FreeBytes;
   /** Why the running job was aborted when it was not a cancel (a job process whose worker stopped): it ends interrupted. */
   abortedBecause?: () => string | undefined;
-  /** A filming take of this process started (true), paused, resumed or stopped filming (L5.14: the worker's loop wakes). */
+  /** A filming take of this process started (true), paused, resumed or stopped filming (the worker's loop wakes). */
   onFilming?: (on: boolean) => void;
-  /** The worker's heavy job runs slowed now (its own hold, review A H1): what a take of this worker reports. */
+  /** The worker's heavy job runs slowed now (its own hold): what a take of this worker reports. */
   heavySlowed?: () => boolean;
 }
 
@@ -127,7 +127,7 @@ export function unknownInput(input: unknown): string | null {
 export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobRecord) => Promise<void> } {
   const { root, ws, queue, files, cli, build, worker, self, log, interrupts, slot, done, writeOrExit, clock, capture } = c;
 
-  /** The filming marker of a capture take (L5.14): written at capture time 0, paused with the take, removed at its end. */
+  /** The filming marker of a capture take: written at capture time 0, paused with the take, removed at its end. */
   const filmingOf = (id: string, event: (e: JobEventBody) => void): { on: (state: FilmingEvent) => void | FilmingReport; close: () => void } => {
     let marker: FilmingMarker | null = null;
     let beside: TakeBeside | undefined;
@@ -245,10 +245,10 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
         closed ? undefined : queue.write(snapshot).catch((e: unknown) => log(`job ${id}: its progress could not be written (${errorMessage(e)}): it shows the last one written`)),
       );
     };
-    // L4.4: a run's pause marker (a client creates and removes it), polled with the cancel marker; the runner reads the
+    // A run's pause marker (a client creates and removes it), polled with the cancel marker; the runner reads the
     // gate between steps (a capture does not film the pause).
     const pauseGate: { requested: boolean; maxMs?: number } = { requested: false };
-    // L4.8: a `record` job's stop marker (the Studio's Stop): the window closes as if the person closed it, the draft is
+    // A `record` job's stop marker (the Studio's Stop): the window closes as if the person closed it, the draft is
     // made and its check replay runs (a worker signal, currentStop, skips the check).
     const stopAsked = new AbortController();
     const cancelPoll = setInterval(() => {

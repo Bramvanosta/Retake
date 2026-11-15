@@ -26,7 +26,7 @@ export interface ChromiumProbe {
   ms?: number;
   /** First line of the launch error. */
   error?: string;
-  /** The launched browser's GPU status (L5.7, R-FLD-24: Chromium's own report, the one chrome://gpu shows). */
+  /** The launched browser's GPU status (R-FLD-24: Chromium's own report, the one chrome://gpu shows). */
   gpu?: GpuInfo;
   /** Whether the launched browser runs sandboxed, read from its own command line (absent: it did not report it). */
   sandbox?: BrowserSandbox;

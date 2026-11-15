@@ -1,6 +1,6 @@
 /**
  * docs/requirements.json quotes test titles as evidence (`'<file> > <describe> > <it>'`): `node scripts/requirements.mjs
- * --check-cites` fails while one no longer names a test of its file (L3.8 review M3: a renamed test left three stale).
+ * --check-cites` fails while one no longer names a test of its file.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';

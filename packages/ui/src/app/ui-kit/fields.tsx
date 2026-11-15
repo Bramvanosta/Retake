@@ -1,10 +1,10 @@
 /**
- * L5.9: fields — `TextField`, `TextArea`, `Select`, `FieldRow` (L5.11b: `RadioGroup`). Native elements with a visible label (stacked, or in the
- * inspector's row: a right-aligned 96 px label column). The text inputs carry the tab's unsaved mark (L5.2b,
- * drafts.ts): `unsaved` is REQUIRED — the item the desktop app's quit question names while the value differs from its
+ * Fields — `TextField`, `TextArea`, `Select`, `FieldRow` (`RadioGroup`). Native elements with a visible label (stacked,
+ * or in the inspector's row: a right-aligned 96 px label column). The text inputs carry the tab's unsaved mark
+ * (drafts.ts): `unsaved` is REQUIRED — the item the desktop app's quit question names while the value differs from its
  * `baseline` — or an explicit `null` for text that is no one's work (a search box); a test parses these two components
- * for the `useUnsavedMark(unsavedFor(…))` call. An error is said in words, starting "Error:" (the red edge is never the only
- * cue: `aria-invalid`, `aria-describedby`).
+ * for the `useUnsavedMark(unsavedFor(…))` call. An error is said in words, starting "Error:" (the red edge is never the
+ * only cue: `aria-invalid`, `aria-describedby`).
  */
 import { useId } from 'react';
 import type { HTMLAttributes, KeyboardEvent, ReactNode, Ref } from 'react';
@@ -37,15 +37,15 @@ interface TextCommon {
   layout?: FieldLayout;
   id?: string;
   name?: string;
-  /** L5.10b: the field's key as a data attribute (a step form's `data-field`: tests and the form find it by it). */
+  /** The field's key as a data attribute (a step form's `data-field`: tests and the form find it by it). */
   dataField?: string;
-  /** L5.10b: a test id kept from an older screen. */
+  /** A test id kept from an older screen. */
   testId?: string;
-  /** L5.10b: a tooltip (the schema's description of a step field). */
+  /** A tooltip (the schema's description of a step field). */
   title?: string;
-  /** L5.10b: more ids that describe the input (a counter, a save state), after the hint and the error. */
+  /** More ids that describe the input (a counter, a save state), after the hint and the error. */
   describedBy?: string;
-  /** L5.10b: the label visually hidden (still the input's name). */
+  /** The label visually hidden (still the input's name). */
   labelHidden?: boolean;
 }
 
@@ -91,7 +91,7 @@ function Frame({
 const describedBy = (id: string, hint: ReactNode, error: ReactNode, more?: string) => [hint ? `${id}-hint` : '', error ? `${id}-error` : '', more ?? ''].filter(Boolean).join(' ') || undefined;
 
 /**
- * L5.10a fixes (review B-L4, B-L6): a search keeps its limits (`maxLength`, no autocomplete, no spell check), and its
+ * A search keeps its limits (`maxLength`, no autocomplete, no spell check), and its
  * label may be visually hidden (`labelHidden`: still the input's name) with a search icon in the field.
  */
 export function TextField({
@@ -124,7 +124,7 @@ export function TextField({
 }: TextCommon & {
   type?: 'text' | 'search' | 'url' | 'email';
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
-  /** L5.12c: the field left (the theme editor writes a text on Enter or when it is left). */
+  /** The field left (the theme editor writes a text on Enter or when it is left). */
   onBlur?: () => void;
   maxLength?: number;
   autoComplete?: string;
@@ -165,7 +165,7 @@ export function TextField({
 }
 
 /**
- * L5.10b (critique M5): a text area for an editor too — its element (`inputRef`: a caret moved to a line), a cap
+ * A text area for an editor too — its element (`inputRef`: a caret moved to a line), a cap
  * (`maxLength`), spell check and auto-correction off, more describing ids; `unsaved={null}` when the caller owns the
  * mark (the YAML draft's is drafts.ts's: the quit question never lists it twice).
  */
@@ -203,7 +203,7 @@ export function TextArea({
   autoCorrect?: boolean;
   /** Fills the height its container gives (an editor). */
   tall?: boolean;
-  /** L5.12b: a key of its own (the comment composer's ⌘↩ posts). */
+  /** A key of its own (the comment composer's ⌘↩ posts). */
   onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
 }) {
   useUnsavedMark(unsavedFor(value, baseline, unsaved));
@@ -236,7 +236,7 @@ export function TextArea({
 }
 
 /**
- * L5.12a: a number field (TextField's sibling: `type="number"`, min / max / step, `inputMode` decimal) — a value written
+ * A number field (TextField's sibling: `type="number"`, min / max / step, `inputMode` decimal) — a value written
  * on Set (an inspector's speed, a duration), not typed text: no unsaved mark. Enter runs `onEnter`.
  */
 export function NumberField({
@@ -268,7 +268,7 @@ export function NumberField({
   id?: string;
   testId?: string;
   onEnter?: () => void;
-  /** L5.12b: the field left (a region's fields settle to the region drawn). */
+  /** The field left (a region's fields settle to the region drawn). */
   onBlur?: () => void;
 }) {
   const own = useId();
@@ -329,7 +329,7 @@ export function Select({
   onChange: (value: string) => void;
   disabled?: boolean;
   hint?: ReactNode;
-  /** L5.10b: an error in words ("Error: …"), as the text fields. */
+  /** An error in words ("Error: …"), as the text fields. */
   error?: ReactNode;
   layout?: FieldLayout;
   id?: string;
@@ -395,7 +395,7 @@ export interface RadioOption {
 }
 
 /**
- * L5.11b: a radio group — a `fieldset` of native radios named by its legend (visible, or hidden and still the group's
+ * A radio group — a `fieldset` of native radios named by its legend (visible, or hidden and still the group's
  * name); each option a label that covers its row: the label, a second line, a word on the right. One tab stop, the arrows
  * move and check (the platform's); the checked radio is a filled dot inside a ring (a shape, not a colour only). A
  * `value` that matches no option leaves every radio unchecked (a choice made elsewhere).

@@ -1,5 +1,5 @@
 /**
- * L3.1 review, in the runner (trust `mcp`: a job submitted through MCP): the scenario's secret references and files are
+ * In the runner (trust `mcp`: a job submitted through MCP): the scenario's secret references and files are
  * refused before anything runs, and a step reading a file whose path only templating reveals (drop_file.path, eval.file)
  * checks it when it runs — inside the project folder, an eval file not agent-writable and naming no secret.
  */

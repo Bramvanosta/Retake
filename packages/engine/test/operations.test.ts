@@ -1,20 +1,20 @@
 /**
- * The engine's operations and `invoke` (L7.13, U7's first slice): one definition per operation, served by the shells
+ * The engine's operations and `invoke`: one definition per operation, served by the shells
  * as these very objects — MCP's TOOLS entry is the engine's object, the Studio's table entry is that object or the
  * Studio's pinned arguments applied to it (pinArguments) — and one call for every shell (`invoke`): the shell must serve
  * the operation (before the parse, the engine never asked), the parse names its problems per argument, the operation's caller
  * rules run after the parse with the engine's caller and before the handler, and nothing it meets is thrown.
- * L7.17: the theme, component and library family joins them; an operation that declares `serialize` runs one call of a
+ * The theme, component and library family joins them; an operation that declares `serialize` runs one call of a
  * key at a time per engine (after its caller rules), MCP's declare none, and theme_edit's caller rule refuses MCP.
- * L7.15: the submits and job controls join them; scenario_render runs on its scenario's key (the Studio's scenario chain).
- * L7.19: MCP's hooks, environment-reset and sandbox operations join them; they hand the engine the shell's approver
+ * The submits and job controls join them; scenario_render runs on its scenario's key (the Studio's scenario chain).
+ * MCP's hooks, environment-reset and sandbox operations join them; they hand the engine the shell's approver
  * (MCP's elicitation) exactly when there is one.
- * L7.16: the comments of both shells join them; the comments façade's caller rules are their `callers` (the façade's
+ * The comments of both shells join them; the comments façade's caller rules are their `callers` (the façade's
  * words), the Studio's thread writes run on their thread's key, thread_apply chains in its handler.
- * L7.18: the authoring, recording and project writes join them, and job_status; scenario_edit and record_save run on
+ * The authoring, recording and project writes join them, and job_status; scenario_edit and record_save run on
  * their scenario's key (record_start declares none: the façade's chain orders starts), and the Record screen's ops
  * refuse every caller but the Studio and tests (drivesRecordScreen as their callers).
- * L7.21: the deprecated `callTool` alias is gone; invoke is the one call (the contract and @retake/mcp export no other).
+ * Invoke is the one call (the contract and @retake/mcp export no other).
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -50,7 +50,7 @@ import type { Approver, Engine } from '../src/index.js';
 
 const signal = new AbortController().signal;
 const ELEVEN = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'scenario_validate', 'run_list', 'run_status', 'run_cancel', 'job_list', 'auth_status', 'auth_login'];
-/** L7.14: the read-only queries of runs, renders, reviews and scenarios — MCP's (job_status waits: its answer is three tools' outputs still in MCP) and the Studio's. */
+/** The read-only queries of runs, renders, reviews and scenarios — MCP's (job_status waits: its answer is three tools' outputs still in MCP) and the Studio's. */
 const QUERIES_MCP = ['scenario_get', 'plan_preview', 'render_status', 'review_get'];
 const QUERIES_STUDIO = [
   'projects_overview',
@@ -64,7 +64,7 @@ const QUERIES_STUDIO = [
   'render_review',
   'review_image',
 ];
-/** L7.17: the theme, component and library family (MCP's nine, the Studio's eleven). */
+/** The theme, component and library family (MCP's nine, the Studio's eleven). */
 const THEMES_MCP = [
   'template_list',
   'template_preview',
@@ -77,12 +77,12 @@ const THEMES_MCP = [
   'component_create',
 ];
 const THEMES_STUDIO = ['library_view', 'library_images', 'library_render', 'library_component', 'theme_list', 'theme_view', 'theme_edit', 'theme_copy', 'theme_create', 'brand_files', 'site_list'];
-/** L7.15: the submits and job controls (MCP's seven — job_status still waits for its recording answer — and the Studio's six). */
+/** The submits and job controls (MCP's seven — job_status still waits for its recording answer — and the Studio's six). */
 const JOBS_MCP = ['page_inspect', 'run_dry', 'run_capture', 'render', 'review', 'export', 'job_cancel'];
 const JOBS_STUDIO = ['scenario_run', 'run_pause', 'sign_in_cancel', 'scenario_render', 'render_cancel', 'review_export'];
-/** L7.19: the hooks, environment-reset and sandbox family (MCP's five). */
+/** The hooks, environment-reset and sandbox family (MCP's five). */
 const HOOKS_MCP = ['hooks_run', 'env_reset', 'sandbox_status', 'sandbox_up', 'sandbox_reset'];
-/** L7.16: the comments (MCP's three, the Studio's twelve). */
+/** The comments (MCP's three, the Studio's twelve). */
 const COMMENTS_MCP = ['comments_list', 'comment_reply', 'comment_resolve'];
 const COMMENTS_STUDIO = [
   'threads_list',
@@ -98,7 +98,7 @@ const COMMENTS_STUDIO = [
   'thread_reopen',
   'thread_apply',
 ];
-/** L7.18: the authoring, recording and project writes (MCP's five and job_status; the Studio's scenario_edit and its seven record_* ops). */
+/** The authoring, recording and project writes (MCP's five and job_status; the Studio's scenario_edit and its seven record_* ops). */
 const AUTHORING_MCP = ['project_create', 'project_prune', 'scenario_save', 'scenario_record', 'scenario_from_script', 'job_status'];
 const AUTHORING_STUDIO = ['scenario_edit', 'record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save'];
 
@@ -140,7 +140,8 @@ describe("the engine's operations: one definition, served by the shells as it is
 
   it("names the read-only queries too (L7.14): MCP's four, then the Studio's ten, each a read served by one shell only", () => {
     const names = OPERATIONS.map((o) => o.name);
-    // In catalogue order among the others (L7.17's theme family, L7.15's jobs and L7.19's hooks left out: the test above holds them).
+    // In catalogue order among the others (the theme family, the jobs and the hooks left out: the test above holds
+    // them).
     const later = [...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO, ...HOOKS_MCP, ...COMMENTS_MCP, ...COMMENTS_STUDIO, ...AUTHORING_MCP, ...AUTHORING_STUDIO];
     expect(names.filter((n) => !ELEVEN.includes(n) && !later.includes(n))).toEqual([...QUERIES_MCP, ...QUERIES_STUDIO]);
     for (const n of [...QUERIES_MCP, ...QUERIES_STUDIO]) {
@@ -150,7 +151,7 @@ describe("the engine's operations: one definition, served by the shells as it is
       expect(servedBy(op, 'studio'), n).toBe(QUERIES_STUDIO.includes(n));
       expect(OPERATIONS_BY_NAME[n as keyof typeof OPERATIONS_BY_NAME].annotations.readOnlyHint, n).toBe(true);
     }
-    // job_status joined them with scenario_record's recording answer (L7.18): a read of MCP's, among the authoring family.
+    // job_status joined them with scenario_record's recording answer: a read of MCP's, among the authoring family.
     expect(names).toContain('job_status');
     expect(catalogueOperation('job_status')!.effect).toBe('read');
     // The Studio's table holds its ten as these very objects (no pin), and MCP's TOOLS none of them.
@@ -233,7 +234,7 @@ describe('invoke', () => {
       const r = op.input.safeParse(args);
       expect(a.ok || r.success, op.name).toBe(false);
       if (a.ok || r.success) continue;
-      // The words the deprecated callTool gave too (L7.13–L7.20): the zod problems, one line per argument.
+      // The words of the zod problems, one line per argument.
       const problems = argumentProblems(r.error);
       expect({ code: a.error.code, message: a.error.message, details: a.error.details }, op.name).toEqual({
         code: 'invalid',
@@ -412,10 +413,10 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
     expect(theme_copy.serialize!({ from: 'editorial', name: 'mine' })).toBe('theme:mine');
     expect(theme_create.serialize!({ name: 'mine' } as never)).toBe('theme:mine');
     expect(library_render.serialize!({ project: 'p', items: [] } as never)).toBe('library:p');
-    // L7.15: the Studio's scenario chain key (scenario_edit, thread_apply and record_save use it on the same chain).
+    // The Studio's scenario chain key (scenario_edit, thread_apply and record_save use it on the same chain).
     expect(scenario_render.serialize!({ project: 'p', name: 'quote', run: '20261017-120000-quote', expect_edit_sha256: 'a'.repeat(64) })).toBe('p\0quote');
     expect(scenario_render.serialize!({ project: 'p', name: 'quote', run: '20261017-120000-quote', expect_edit_sha256: 'a'.repeat(64) })).toBe(scenarioKey('p', 'quote'));
-    // L7.18: the Studio's other scenario writes on the same key. record_start declares none: the façade orders the
+    // The Studio's other scenario writes on the same key. record_start declares none: the façade orders the
     // Studio's starts itself (chainsRecordings), so a second tab gets its 409 at once.
     const { scenario_edit, record_save, record_start } = OPERATIONS_BY_NAME;
     expect(scenario_edit.serialize!({ project: 'p', name: 'quote', hash: 'a'.repeat(64), edit: { kind: 'replace_text', text: '' } })).toBe(scenarioKey('p', 'quote'));
@@ -765,7 +766,7 @@ describe("the authoring, recording and project writes (L7.18: the Record screen'
       expect(op.callers!(callerOf('cli'), ARGS[name] as never), name).toEqual(new EngineError('refused', `${what} is the Studio's (its Record screen): retake record records in a terminal`));
       for (const client of ['ui', 'test'] as const) expect(op.callers!(callerOf(client), ARGS[name] as never), `${name} ${client}`).toBeUndefined();
     }
-    // With theme_edit's (L7.17) and the comment ops' (L7.16, the comments façade's rules).
+    // With theme_edit's and the comment ops' (the comments façade's rules).
     expect(
       OPERATIONS.filter((o) => o.callers)
         .map((o) => o.name)

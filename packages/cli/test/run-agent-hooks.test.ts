@@ -1,5 +1,5 @@
 /**
- * L7.27: a person's `retake run` (and `retake hooks run <scenario>:setup|teardown`) lists the shell hooks of a scenario
+ * A person's `retake run` (and `retake hooks run <scenario>:setup|teardown`) lists the shell hooks of a scenario
  * whose bytes an agent wrote — by the workspace journal — and runs them only on a person's yes: a terminal's answer,
  * or `--yes`; without a terminal and without `--yes` it refuses, naming the hooks and the flag; a dry run without its
  * hooks lists them and asks nothing. A person's later save, a hand edit, or a scenario the person wrote: as before.

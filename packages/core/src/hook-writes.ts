@@ -1,5 +1,5 @@
 /**
- * Which hooks write (L1.7, R-ENV-04): a read-only run refuses them. Static classification shared by validation, the
+ * Which hooks write (R-ENV-04): a read-only run refuses them. Static classification shared by validation, the
  * runner (which refuses a read-only run with writing hooks before any browser opens) and @retake/hooks (which
  * refuses each one again on its templated content). The model is destructive.ts.
  */
@@ -12,7 +12,7 @@ import type { HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } f
 import { graphqlOf, graphqlReadsOnly, graphqlWriteName, isWriteMethod } from './writes.js';
 
 /**
- * Who stands behind the trust flags a hook file carries (`confirm: true`, `writes: false`), L3.1. `author`: the person
+ * Who stands behind the trust flags a hook file carries (`confirm: true`, `writes: false`). `author`: the person
  * who wrote the file and runs it from a terminal — the flags count. `mcp`: work submitted through the MCP server, whose
  * agent can write those files itself (scenario_save) — `confirm: true` does not count (destructive hooks need a human
  * approval), every shell hook needs one, and a shell hook always counts as writing (`writes: false` is ignored).
@@ -21,7 +21,7 @@ export type HookTrust = 'author' | 'mcp';
 
 /**
  * Why a shell hook writes when its `writes: false` is not trusted (work submitted by an agent), in the words of the
- * work's confinement (L4.2: "from the Studio" — a Studio user is never told about MCP).
+ * work's confinement ("from the Studio" — a Studio user is never told about MCP).
  */
 export function shellAlwaysWrites(via?: Confinement): string {
   return `a shell command (${confinementWords(via)} a shell hook always counts as writing: its \`writes: false\` is not trusted)`;
@@ -165,7 +165,7 @@ export function writingHooks(
   opts: DestructiveOptions & { trust?: HookTrust; via?: Confinement } = {},
 ): Array<{ phase: 'setup' | 'teardown' | 'step'; index: number; name?: string; reason: string }> {
   const out: Array<{ phase: 'setup' | 'teardown' | 'step'; index: number; name?: string; reason: string }> = [];
-  // `step`: the entries of the named hooks a scenario's `hook:` steps run (L5.8), journaled like setup hooks.
+  // `step`: the entries of the named hooks a scenario's `hook:` steps run, journaled like setup hooks.
   for (const phase of ['setup', 'teardown', 'step'] as const) {
     (lists[phase] ?? []).forEach((hook, index) => {
       const reason = hookWriteReason(hook, { ...opts, rollback: phase !== 'teardown' });

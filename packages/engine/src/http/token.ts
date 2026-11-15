@@ -1,5 +1,5 @@
 /**
- * Secrets of the engine's local HTTP servers (L4.1): a per-launch bearer token and one-time bootstrap codes, both 32
+ * Secrets of the engine's local HTTP servers: a per-launch bearer token and one-time bootstrap codes, both 32
  * random bytes in base64url, compared in constant time.
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
@@ -27,7 +27,7 @@ export const BOOTSTRAP_CODE_TTL_MS = 60_000;
 export const BOOTSTRAP_CODES_MAX = 16;
 
 /**
- * One-time bootstrap codes (critique B9): the URL a person opens carries a code, never the session token; the page
+ * One-time bootstrap codes: the URL a person opens carries a code, never the session token; the page
  * exchanges it once, within 60 s, for the token (`POST /v1/session`), so a copy of the URL (browser history, terminal
  * scrollback, `open`'s arguments) is dead. Codes are kept as sha256 digests: a lookup reveals nothing by its timing.
  */

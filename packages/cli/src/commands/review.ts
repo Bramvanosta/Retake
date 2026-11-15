@@ -13,7 +13,7 @@ import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface ReviewCommandOptions {
-  /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */
+  /** `--no-wait` (wait: false): start even while a take films, at normal priority. */
   wait?: boolean;
   fps?: string;
   /** Render id to compare with; commander sets false for --no-previous. */
@@ -104,7 +104,7 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (typeof opts.previous === 'string' && opts.previous.trim() === '') throw new UsageError('--previous needs a render id (or use --no-previous)');
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  // Captures first (L5.14): the render is the one named now ("latest" resolved before any wait, critique M10).
+  // Captures first: the render is the one named now ("latest" resolved before any wait).
   // `latest` names a FILE of renders/: the review then reads that file (never the id its record says, looked up again).
   // A render named is looked at first only to say what it is (a record renamed by hand); the review finds it again
   // and says why when it cannot be reviewed.

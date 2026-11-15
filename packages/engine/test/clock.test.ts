@@ -89,7 +89,7 @@ describe('the engine clock', () => {
   });
 
   it('the ports bag gives the product adapters for the ports not handed, and keeps the ones handed', () => {
-    // The hook runner and the reviewer (L7.11) are the packages' adapters: ports.test.ts.
+    // The hook runner and the reviewer are the packages' adapters: ports.test.ts.
     expect(enginePorts()).toMatchObject({ clock: systemClock, stores: diskProjectStores, hooks: expect.any(Object), reviewer: expect.any(Object) });
     const clock = new ManualClock();
     const p = enginePorts({ clock });

@@ -1,5 +1,5 @@
 /**
- * L3.5 the URL a site extraction opens (R-MCP-12): https, the default port, no credentials, query or fragment, a short
+ * The URL a site extraction opens (R-MCP-12): https, the default port, no credentials, query or fragment, a short
  * path, a DNS name with a dot that is neither an IP literal (any notation) nor a reserved or local name; the
  * canonical href approved; the unsafe test resolver (its `.test` names only, loopback only); the site job's input.
  */

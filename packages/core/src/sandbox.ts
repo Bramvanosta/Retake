@@ -1,5 +1,5 @@
 /**
- * Sandbox mode (L1.8), the core model: a project.yaml `sandboxes:` entry names a sandbox.yaml (version 1) — how to start
+ * Sandbox mode, the core model: a project.yaml `sandboxes:` entry names a sandbox.yaml (version 1) — how to start
  * a disposable, local copy of the product, seed it and reset it before a take. loadProject (`@retake/core/io`) reads each
  * manifest and adds the sandbox as an environment of its own: its pages and display URLs (`environments`,
  * `environment_settings`), its accounts as the personas of that environment (`auth`, login steps with {{account.username}} / {{account.password}}
@@ -65,7 +65,7 @@ export interface ParseSandboxOptions {
  * there is no error-level issue.
  */
 export function parseSandboxYaml(text: string, file?: undefined, opts?: ParseSandboxOptions): { manifest?: SandboxManifest; issues: ValidationIssue[] };
-/** With its path: `files` is required (FilesWith, L7.34) — the files it names are looked at through it. */
+/** With its path: `files` is required (FilesWith) — the files it names are looked at through it. */
 export function parseSandboxYaml(text: string, file: string | undefined, opts: ParseSandboxOptions & { files: FileFacts }): { manifest?: SandboxManifest; issues: ValidationIssue[] };
 export function parseSandboxYaml(text: string, file?: string, opts: ParseSandboxOptions = {}): { manifest?: SandboxManifest; issues: ValidationIssue[] } {
   const dir = file ? dirname(resolve(file)) : undefined;
@@ -116,7 +116,7 @@ export function sandboxAuth(manifest: SandboxManifest, composeEnv: Record<string
     const username = fromFile(writtenUsername);
     const password = fromFile(writtenPassword);
     if (persona.login) persona.login = substituteAccount(persona.login, { username, password }) as PersonaConfig['login'];
-    // An account signed in by its mail address receives its mail there (wait_for_email {to: persona:<name>}, L5.6).
+    // An account signed in by its mail address receives its mail there (wait_for_email {to: persona:<name>}).
     if (persona.email === undefined && username !== undefined && /^[^\s@{}]+@[^\s@{}]+\.[^\s@{}]+$/.test(username)) persona.email = username;
     personas[name] = persona;
     if (password !== undefined && !SECRET_REF.test(password.trim())) secrets[name] = [password];
@@ -278,7 +278,7 @@ export function addSandboxEntry(text: string, env: string, file: string): string
 }
 
 /**
- * Why a project would want a sandbox (L5.8, R-FLD-30): it has none, one of its environments films only this machine
+ * Why a project would want a sandbox (R-FLD-30): it has none, one of its environments films only this machine
  * (every page on a loopback host, not production) and the project holds state a take changes — a database, a mailbox,
  * reset hooks. Null otherwise. `retake doctor` and MCP `project_get` point to `retake sandbox init` with it.
  */

@@ -1,11 +1,11 @@
 /**
- * `auth_login` jobs (L3.1, R-AUTH-09): `retake login` submitted by a client outside the CLI (the MCP server) and run by
+ * `auth_login` jobs (R-AUTH-09): `retake login` submitted by a client outside the CLI (the MCP server) and run by
  * the jobs worker with the same engine code (login.ts). `headed` opens a visible browser window on the machine the
  * worker runs on, for a HUMAN to sign in and close — the job waits for that window; `auto` plays the persona's
  * `login:` steps of project.yaml, headless. No input carries a credential, and no result carries a session's path,
  * cookies or a secret: the session goes to the worker's ~/.retake, as with `retake login`.
  *
- * L4.4: a headed window run by the worker closes after AUTH_HEADED_MAX_ENV minutes (default 30) — the single worker is
+ * A headed window run by the worker closes after AUTH_HEADED_MAX_ENV minutes (default 30) — the single worker is
  * held while it is open, and a click in the Studio opens it — and `cancelSignIn` stops one (an `auth_login` job only).
  */
 import { noDisplay } from '../env.js';
@@ -68,7 +68,7 @@ export function withTimeLimit(port: InterruptPort, ms: number, onLimit: () => vo
 }
 
 /**
- * What a stopped sign-in left (review A L5): its session file and status are never written — but a profile persona that
+ * What a stopped sign-in left: its session file and status are never written — but a profile persona that
  * already had a browser profile signs in ON it, so what the window changed there (cookies, storage) stays; a first
  * sign-in removes its new profile, and a `storage_state` persona's window ran on a throwaway profile.
  */

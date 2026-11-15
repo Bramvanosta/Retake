@@ -1,5 +1,5 @@
 /**
- * `render_status` of a render named by its id (L7.8, decision ii of L7.6b): the trusted summary and the trusted data
+ * `render_status` of a render named by its id: the trusted summary and the trusted data
  * hold only closed words and checked values; every text a record file holds is under "untrusted" (`untrusted.record`:
  * the record as the file holds it, without its plan, its warnings and its error). A status Retake never writes is
  * `unknown` by its id as through `latest`. The project is the lot's control state (test-support/src/records), in a

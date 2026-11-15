@@ -1,12 +1,12 @@
 /**
- * L4.7 part E acceptance (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the component library and the
+ * The themes acceptance (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the component library and the
  * theme editor with the real worker, in headless Chromium, on a copy of projects/northfield-fixture whose local
  * environment points at the fixture product started on free ports (never the fixture's own 4401–4404). A capture of
  * `highlights` is queued first; meanwhile the library → Play on a card: the worker renders its loop (a real Remotion GIF,
  * the whole-registry bundle) and the card shows it → Open the theme editor → Copy to edit → the background colour
  * dragged (the live frame shows the draft, nothing written) and released (written), the accent through its hex field →
  * Use in this scenario (`highlights`) → its timeline → Render: the worker renders the existing take with the new theme
- * (B1: the scenario's `template`, re-planned on the take), and a frame of the video shows the new background. The
+ * (the scenario's `template`, re-planned on the take), and a frame of the video shows the new background. The
  * workers are killed by pid at the end, whatever happened. `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { execFileSync } from 'node:child_process';
@@ -165,7 +165,7 @@ describe.skipIf(!ENABLED)('the library and the theme editor with the real worker
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/${P}/themes/editorial`);
     await page.getByTestId('theme-editor').waitFor();
     expect(await page.getByTestId('theme-editor').getAttribute('data-editable')).toBe('no');
-    // (L5.12c: Copy to edit… asks the copy's name in a kit Sheet.)
+    // (Copy to edit… asks the copy's name in a kit Sheet.)
     await page.getByTestId('theme-copy-open').click();
     expect(await page.getByTestId('theme-copy-name').inputValue()).toBe(COPY);
     await page.getByTestId('theme-copy').click();
@@ -216,7 +216,7 @@ describe.skipIf(!ENABLED)('the library and the theme editor with the real worker
     await expect.poll(() => page.getByTestId('render').isDisabled(), POLL).toBe(false);
     const t0 = Date.now();
     await page.getByTestId('render').click();
-    // L5.12a: Edit's status bar says the render this tab queued once its review is written, and links its report.
+    // Edit's status bar says the render this tab queued once its review is written, and links its report.
     await expect
       .poll(
         () =>

@@ -1,5 +1,5 @@
 /**
- * The preview frame (L4.5, DESIGN §4g): PlanVideo in a Remotion Player, inside `<iframe sandbox="allow-scripts">` on the
+ * The preview frame (DESIGN §4g): PlanVideo in a Remotion Player, inside `<iframe sandbox="allow-scripts">` on the
  * player origin (an opaque origin: no storage, no cookie, no access to the Studio page), under the frame's strict CSP,
  * after boot.ts removed WebRTC. It displays only: every control lives in the Studio page, which talks to it over the
  * MessageChannel of protocol.ts.
@@ -7,20 +7,20 @@
  * - On load it posts one `hello` (with the channel's port) to its parent — the origin `location.ancestorOrigins` names
  *   when it is one of the Studio origins the frame document lists, else each of them (only the matching one delivers).
  * - `load {plan_url, frame}`: fetches the preview plan (a capability URL of this player origin, refused otherwise), loads
- *   the plan's components — each lazily, its own `import()` (critique B3): one that throws at load or is not in the
+ *   the plan's components — each lazily, its own `import`: one that throws at load or is not in the
  *   bundle is `missing` (its kind's scaffold draws, a warning says so) — then mounts the Player, muted, at `frame`.
  * - `settled {frame}` once paused at a frame with nothing pending: no delayRender handle, every video ready and not
- *   seeking, fonts and images loaded, for two polls in a row (critique B8: the Player itself waits for nothing). L5.12a
- *   fixes: a delayRender handle an earlier Player left behind (a load that replaced it while it was still loading: its
- *   video never continued it) is not this one's to wait for — two loads in a row no longer leave "Loading the preview…"
- *   for ever.
+ *   seeking, fonts and images loaded, for two polls in a row (the Player itself waits for nothing). A
+ *   delayRender handle an earlier Player left behind (a load that replaced it while it was still loading: its
+ *   video never continued it) is not this one's to wait for — else two loads in a row would leave "Loading the
+ *   preview…" for ever.
  * - Preview mode (PreviewContext): a theme font that fails is a warning, never a blank preview.
- * - A workspace component the person has not allowed in this Studio session is not in the bundle at all (`held`, review
- *   A H1 c): its uses draw their kind's stand-in, and the warning says it was not run.
- * - L4.7: a served `{format: 'component-preview', spec}` (the theme editor's live previews) plays the ComponentPreview
+ * - A workspace component the person has not allowed in this Studio session is not in the bundle at all (`held`): its
+ *   uses draw their kind's stand-in, and the warning says it was not run.
+ * - A served `{format: 'component-preview', spec}` (the theme editor's live previews) plays the ComponentPreview
  *   composition instead, looping: the same checks (every URL of the spec one of this frame's), the same lazy component
  *   loads (held / missing → the kind's stand-in, said in `loaded.warnings`), the same messages.
- * - It starts only in the frame document (review A L2): its own capability path (boot.js runs first there), framed
+ * - It starts only in the frame document: its own capability path (boot.js runs first there), framed
  *   directly by the Studio page — never in a child frame or another page that loads it.
  */
 import { createElement as h, useSyncExternalStore } from 'react';
@@ -81,7 +81,7 @@ const capMatch = /^\/s\/([A-Za-z0-9_-]{43})\/frame$/.exec(here.pathname);
 const MEDIA = capMatch ? `${here.origin}/m/${capMatch[1]}/` : null;
 const PLAN_PREFIX = MEDIA ? `${MEDIA}plan/` : null;
 /**
- * The frame document and nothing else (review A L2): the capability path (its own document, which boot.js always
+ * The frame document and nothing else: the capability path (its own document, which boot.js always
  * precedes), a direct child of the Studio page (top). A srcdoc / about:blank child or another page that loads this
  * script gets nothing.
  */
@@ -198,7 +198,7 @@ async function load(m: Extract<ParentMessage, { type: 'load' }>): Promise<void> 
     if (gen === generation) report('error', `the preview plan could not be loaded (${e instanceof Error ? e.message : 'error'})`);
     return;
   }
-  // L4.7: a component preview (the theme editor), played by ComponentPreview, looping.
+  // A component preview (the theme editor), played by ComponentPreview, looping.
   const isPreview = !!doc && typeof doc === 'object' && (doc as { format?: unknown }).format === COMPONENT_PREVIEW;
   let plan: PlanShape;
   let ids: string[];
@@ -368,12 +368,12 @@ function attach(ref: PlayerRef | null): void {
   });
   ref.addEventListener('ended', () => send({ type: 'ended' }));
   ref.addEventListener('error', (e) => report('error', e.detail.error?.message ?? 'the preview failed'));
-  // The preview starts muted (critique B17): the page shows it, and unmutes on a person's click.
+  // The preview starts muted: the page shows it, and unmutes on a person's click.
   sendState(ref);
 }
 
 function App() {
-  // Read again once subscribed: a `load` the Studio answered before this tree's first effects still mounts (L5.2).
+  // Read again once subscribed: a `load` the Studio answered before this tree's first effects still mounts.
   const m = useSyncExternalStore(shown.subscribe, shown.get);
   if (!m) return null;
   return h(Player, {

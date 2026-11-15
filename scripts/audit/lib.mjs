@@ -6,6 +6,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { commentRefHits } from './comment-refs.mjs';
+export { commentRefHits } from './comment-refs.mjs';
 
 export const BASELINE = 'scripts/audit/baseline.json';
 export const WRITE_HINT = 'node scripts/audit/rules.mjs . --write-baseline';
@@ -179,7 +181,7 @@ const ADAPTERS = ['runner-web', 'editor', 'review', 'sandbox', 'hooks', 'compone
  */
 export const LAYERS = { domain: ['core'], adapters: ADAPTERS, application: ['engine'], shells: SHELLS };
 /**
- * The tests' shared helpers (L7.37, finding C5): a workspace package of test code only — no build, never a dependency of
+ * The tests' shared helpers: a workspace package of test code only — no build, never a dependency of
  * a package, never in the app — and so in no layer: the source rules read the product's packages and the scan leaves it
  * out. What holds it is test-reach (the helpers of another package's tests are reached here, never in its test folder)
  * and home-restore (RETAKE_HOME saved and put back by its home helper only).
@@ -225,7 +227,7 @@ export const RENDER_HOME = 'packages/engine/src/render/';
 export const CLOCK_HOME = 'packages/engine/src/clock.ts';
 /** The project store's folder and the media storage (store-new): where a store or a storage of a folder is built. */
 export const STORE_HOME = 'packages/engine/src/store/';
-/** The WorkspaceReads port's folder (workspace-read, L7.38): the one engine folder that names a workspace loader of core io. */
+/** The WorkspaceReads port's folder (workspace-read): the one engine folder that names a workspace loader of core io. */
 export const WORKSPACE_READS_HOME = 'packages/engine/src/workspace-reads/';
 /** The shell sources the workspace-read check reads beside the engine: the CLI's and the Studio server's (their commands and routes, their composition roots). */
 export const WORKSPACE_READ_SHELLS = ['packages/cli/src/', 'packages/ui/src/server/'];
@@ -520,12 +522,12 @@ export const RENDER_CALLS = [
 export const ENV_HOMES = ['packages/engine/src/ports.ts', 'packages/engine/src/worker-main.ts'];
 /** The doctor's probes adapter (doctor-exec): the one file of the engine's doctor that starts programs. */
 export const DOCTOR_PROBES_HOME = 'packages/engine/src/doctor/machine-probes.ts';
-/** The one module that names playwright-core's private browser registry (browser-registry, L7.25). */
+/** The one module that names playwright-core's private browser registry (browser-registry). */
 export const BROWSER_REGISTRY_HOME = 'packages/core/src/io/browsers.ts';
-/** The one module that starts the media tools, ffmpeg and ffprobe (media-call, L7.31). */
+/** The one module that starts the media tools, ffmpeg and ffprobe (media-call). */
 export const MEDIA_RUN_HOME = 'packages/core/src/io/media-run.ts';
 /**
- * Core's contexts (L7.35, audit 2026-11-10 D1), in order: the files of a context may import those of the contexts
+ * Core's contexts, in order: the files of a context may import those of the contexts
  * before it, never after (core-context), types and values alike; each context declares its own types
  * (types/<name>.ts), and only the wholes of CORE_WHOLES may be named, as types, by an earlier context. Each context is
  * the entry `@retake/core/<name>`
@@ -716,6 +718,11 @@ export const RULES = [
 
 export const CHECKS = [
   ...RULES.map((r) => ({ id: r.id, title: r.title })),
+  {
+    id: 'comment-ref',
+    title:
+      'comments a reader can follow (comment-refs.mjs): a comment of packages/*/src, packages/*/test, apps/ or scripts/ names no lot id and no reference to a note outside the repository (a review, critique or finding by its letter and number, an audit by its date); requirement ids resolve and are no hits; strings, test titles and a comment with the old-name tag are not read (entries: each file and how many it names)',
+  },
   {
     id: 'core-context',
     title:
@@ -1932,7 +1939,7 @@ function wholeImports(ts, rel, text) {
     }
     n.forEachChild(indexed);
   })(sf);
-  // import() and import('…') types name the specifier once more each: no longer named imports only.
+  // import() and import('…') types name the specifier once more each, not only named imports.
   const seen = new Map();
   for (const s of specifiersOf(ts, rel, text)) seen.set(s, (seen.get(s) ?? 0) + 1);
   for (const [s, n] of statements) if ((seen.get(s) ?? 0) > n) other.add(s);
@@ -2370,7 +2377,7 @@ export const RECORD_READ_TYPES = [
   'RenderAttempt',
   'UnknownStatusRender',
   'RenderForWork',
-  // The render record's base types (exported under their own names) and the answers that hold a record (L7.6b fix pass).
+  // The render record's base types (exported under their own names) and the answers that hold a record.
   'RenderBase',
   'StoredRenderBase',
   'RenderFields',
@@ -2788,6 +2795,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
   for (const h of envReadHits(root, scanned.files)) set.add(`env-read ${h.file} → ${h.count} read${h.count === 1 ? '' : 's'} of process.env`);
   for (const h of browserRegistryHits(root, scanned.files)) set.add(`browser-registry ${h.file} → ${h.count} private module${h.count === 1 ? '' : 's'} of playwright-core named`);
   for (const h of mediaCallHits(root, scanned.files)) set.add(`media-call ${h.file} → ${h.count} media tool start${h.count === 1 ? '' : 's'}`);
+  for (const h of commentRefHits(root)) set.add(`comment-ref ${h.file} → ${h.count} lot id${h.count === 1 ? '' : 's'} or note reference${h.count === 1 ? '' : 's'} in its comments`);
   for (const h of idGrammarHits(root, scanned.files)) set.add(`id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`);
   for (const h of recordReadHits(root, scanned.files)) {
     const own = h.kinds.filter((k) => k === 10).length;

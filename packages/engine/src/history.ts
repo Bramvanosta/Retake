@@ -1,10 +1,10 @@
 /**
- * The job history of a workspace (L3.1 guard-rail): `<workspace>/.retake/history.jsonl`, one line per finished job
+ * The job history of a workspace (a guard-rail): `<workspace>/.retake/history.jsonl`, one line per finished job
  * of the worker (historyOf, jobs/run-job-record.ts) and per `retake run` / `render` / `still` / `inspect` of the CLI
  * (which run no job: the engine's in-process operations, in-process.ts), per `retake export` that re-rendered a format,
  * and per `retake record` (record.ts) — one writer per kind of line. It counts what was produced —
  * captures, dry runs, renders — for the usage counters a commercial version would need (entitlements.ts) and for the
- * index a later lot builds. Written and read with the journal's discipline (store/append-log.ts, L7.26): each line
+ * index a later lot builds. Written and read with the journal's discipline (store/append-log.ts): each line
  * appended whole under the history's lock, never through a symbolic link, a torn last line closed first, synced before
  * the work that wrote it replies. A line that cannot be written never fails the work it records: the failure is said
  * on stderr, at most once a minute.
@@ -35,19 +35,19 @@ export interface HistoryEntry {
   state: string;
   ms?: number;
   run?: { id: string; scenario: string; mode: string; status: string };
-  /** A render job's render (L3.2). */
+  /** A render job's render. */
   render?: { id: string; scenario: string; variant?: string };
-  /** A review job's render, and whether the review was clean (L3.2). */
+  /** A review job's render, and whether the review was clean. */
   review?: { render: string; clean?: boolean };
-  /** An export job's render and the formats it wrote (L3.2); `counted.renders` = the formats it re-rendered. */
+  /** An export job's render and the formats it wrote; `counted.renders` = the formats it re-rendered. */
   export?: { render: string; formats: string[] };
-  /** A preview job's id and what it showed (a component id, or `theme`); it counts nothing (L3.2). */
+  /** A preview job's id and what it showed (a component id, or `theme`); it counts nothing. */
   preview?: { id: string; target: string; theme?: string };
-  /** An inspect job's id, its source (a page or a scenario replay) and its outcome; it counts nothing (L3.3). */
+  /** An inspect job's id, its source (a page or a scenario replay) and its outcome; it counts nothing. */
   inspect?: { id: string; source: 'page' | 'scenario'; status?: string; reported?: boolean };
-  /** A recording's id, its draft's steps and whether the draft was saved; it counts nothing (L3.4). */
+  /** A recording's id, its draft's steps and whether the draft was saved; it counts nothing. */
   record?: { id: string; steps: number; saved: boolean };
-  /** A site extraction's id, host and outcome; it counts nothing (L3.5). */
+  /** A site extraction's id, host and outcome; it counts nothing. */
   site?: { id: string; host: string; status?: string };
   /** What it produced. */
   counted: { captures: number; dry_runs: number; renders: number };

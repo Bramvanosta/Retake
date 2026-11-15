@@ -1,15 +1,15 @@
 /**
- * L4.6 part A2 (T5): applying Claude's proposal (engine comments.apply → comments.ts applyProposal), a person channel
- * (`ui`, `cli`). Apply writes exactly the proposal's result bytes through the Studio's own write path (editScenario,
- * every L4.3 rule at the moment of the write) and appends an `apply` entry; Undo apply (scenarios.edit `restore` of the
- * answer's `previous`) gives the base bytes back and the proposal reads `undone` — applicable again (critique B4).
- * ⚑ A planted thread (a proposal changing `setup:` that never went through the write-time checks) is refused at Apply;
- * ⚑ a tampered result hash, ⚑ non-canonical hunks (critique B1), ⚑ a stale base, a superseded or applied proposal, a
- * resolved thread are refused, nothing written; ⚑ only person channels apply, on the thread version they read
- * (`if_match`, checked before the scenario is written); ⚑ the thread lock is held across the scenario write and the
- * apply entry (critique B5): a reply arriving meanwhile waits and lands after, the apply never fails after its write.
- * Fixes after the reviews: ⚑ the view says when Apply would refuse (`blocked`, review A L4); ⚑ a full thread (entries,
- * size) refuses before the scenario is written (review A L5 / B M3).
+ * Applying Claude's proposal (engine comments.apply → comments.ts applyProposal), a person channel (`ui`, `cli`). Apply
+ * writes exactly the proposal's result bytes through the Studio's own write path (editScenario, every one of its rules
+ * at the moment of the write) and appends an `apply` entry; Undo apply (scenarios.edit `restore` of the answer's
+ * `previous`) gives the base bytes back and the proposal reads `undone` — applicable again. ⚑ A planted thread (a
+ * proposal changing `setup:` that never went through the write-time checks) is refused at Apply; ⚑ a tampered result
+ * hash, ⚑ non-canonical hunks, ⚑ a stale base, a superseded or applied proposal, a resolved thread are refused, nothing
+ * written; ⚑ only person channels apply, on the thread version they read (`if_match`, checked before the scenario is
+ * written); ⚑ the thread lock is held across the scenario write and the apply entry: a reply arriving meanwhile waits
+ * and lands after, the apply never fails after its write.
+ * Fixes after the reviews: ⚑ the view says when Apply would refuse (`blocked`); ⚑ a full thread (entries,
+ * size) refuses before the scenario is written.
  */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -169,7 +169,7 @@ describe('Apply (T5)', () => {
     const id = await setup('planted', HOOKED, [planted(HOOKED, result)]);
     const thread = await ui.comments.get('w', id);
     const before = await state('planted', id);
-    // The view says so before anyone clicks (review A L4): Apply's own checks, project-relative words.
+    // The view says so before anyone clicks: Apply's own checks, project-relative words.
     const view = await ui.comments.proposal('w', id);
     expect(view).toMatchObject({ state: 'pending', actionable: true });
     expect(view.blocked).toMatch(/^not applied: setup changed: hooks and mocks run on this Mac/);

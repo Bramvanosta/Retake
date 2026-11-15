@@ -21,7 +21,7 @@ export const SYSTEM_COLORS = {
   page: '#ffffff',
   /**
    * Pure white and black — not theme colours: an SVG mask's shown / hidden parts, the plate and modules of a QR code
-   * (phones read dark on white), the last-resort light ink of `readableOn` (L2.10).
+   * (phones read dark on white), the last-resort light ink of `readableOn`.
    */
   white: '#ffffff',
   black: '#000000',

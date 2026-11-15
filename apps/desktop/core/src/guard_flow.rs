@@ -1,4 +1,4 @@
-//! The quit question's flow (L5.12d, DESIGN §4j): page first, the native alert as the fallback. A pure state machine —
+//! The quit question's flow (DESIGN §4j): page first, the native alert as the fallback. A pure state machine —
 //! no thread, no clock of its own (every input carries `now`, milliseconds of the shell's own monotonic clock), no
 //! AppKit — so that each rule below is a unit test.
 //!
@@ -39,7 +39,7 @@ pub const QUIT_CLOSE_EVENT: &str = "studio:quit-close";
 pub const QUIT_DETAIL_KEYS: [&str; 8] = ["id", "action", "title", "text", "buttons", "proceed", "cancel", "destructive"];
 
 /// The longest title or text the page takes, in UTF-16 units (what the page's `.length` counts): shell/quit.ts
-/// QUIT_TEXT_MAX, compared by a static test (review A-L1 / B-L1). words.rs's longest question fits (its test builds it:
+/// QUIT_TEXT_MAX, compared by a static test. words.rs's longest question fits (its test builds it:
 /// eight unsaved lines and eight job lines of cut names, the largest totals, the recording and unknown notes); a
 /// question that would not is asked natively at once (`page_fits`), never sent to be refused.
 pub const QUIT_TEXT_MAX: usize = 4000;
@@ -177,7 +177,7 @@ impl Flow {
     pub fn terminate(&mut self, a: Ask) -> (Reply, Vec<Effect>) {
         let mut fx = Vec::new();
         if a.other_modal {
-            // Answered first (review B L13); a Cancel clears APPROVED (H1: the restart alert came in between).
+            // Answered first; a Cancel clears APPROVED (the restart alert came in between).
             self.approved = None;
             return (Reply::Cancel, fx);
         }
@@ -462,7 +462,7 @@ mod tests {
         assert_eq!(page_close_js(ID), "window.dispatchEvent(new CustomEvent(\"studio:quit-close\", { detail: {\"id\":\"AAAAAAAAAAAAAAAAAAAAAA\"} }))");
     }
 
-    /// Review A-L1 / B-L1: a question past the page's bounds is asked natively at once (never sent to be refused, never
+    /// A question past the page's bounds is asked natively at once (never sent to be refused, never
     /// the 1.5 s wait); one at the bound still goes to the page.
     #[test]
     fn a_question_past_the_page_bounds_is_asked_natively_at_once() {

@@ -1,5 +1,5 @@
 /**
- * L5.14b: captures first through MCP — a render a filming take holds is said in words and an enum (`yield`) by
+ * Captures first through MCP — a render a filming take holds is said in words and an enum (`yield`) by
  * job_status, job_list, render_status and engine_info (`held`), and nothing of the workspace where the take films is
  * ever named (its path, slug, scenario, run or job id).
  */

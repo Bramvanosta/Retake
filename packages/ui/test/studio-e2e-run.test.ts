@@ -1,20 +1,20 @@
 /**
- * L4.4 part C (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the Run screen end to end — the built-in
+ * Slow (gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the Run screen end to end — the built-in
  * Studio server, the real worker it starts, headless Chromium (the installed build of playwright-core; nothing
  * downloaded) and a small product page of this test's own on a free port (an animated board: the live picture keeps
- * changing, also during a pause — critique B16). Covered:
+ * changing, also during a pause). Covered:
  *
  * - a dry run watched live: the preflight first, Start → its own route, frames drawn on the canvas (pixels that vary),
- *   steps progressing from the run's outline, log lines; a step description holding markup stays text (S9);
- * - a hidden tab closes its stream and the job's upstream (B8), the tab shown again reopens it with `after`;
+ *   steps progressing from the run's outline, log lines; a step description holding markup stays text;
+ * - a hidden tab closes its stream and the job's upstream, the tab shown again reopens it with `after`;
  * - Pause → "paused before step n", no step moves for 2 s while the picture still updates, Resume → the run ends;
  * - a capture: the picture OFF by default (no `frames` asked, no frame drawn), the toggle shows it (`frames: true`,
  *   frames drawn); a second tab follows it too, a third gets the 503 fallback (run_status) without breaking the others;
- *   Pause works on a capture too (part D: "the video does not show the pause"); Stop while paused → cancelled, its
+ *   Pause works on a capture too ("the video does not show the pause"); Stop while paused → cancelled, its
  *   teardown hook said in words;
  * - the Sessions panel (Sign in = a headed job, here answered by a stub so no window opens; Cancel) and the capture's
  *   confirmation for a persona never signed in: nothing is sent before the person confirms, then `sessions_ack`, and
- *   the run's own preflight result is the first row (it stops before filming). Review B L4: the dialog closes before
+ *   the run's own preflight result is the first row (it stops before filming). The dialog closes before
  *   it goes — Escape gives focus back to Start capture, "Sign in first" moves it to that persona's Sign in button.
  *
  * The worker is killed by pid at the end whatever happened. `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
@@ -206,7 +206,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
 
   it('a dry run watched live: frames, steps, log; a hidden tab closes the stream; pause / resume; the outcome', async () => {
     await page.goto(`${studio.url}#/p/${P}/s/watch/run`);
-    // L5.11a: Prepare a take (Shoot's first screen), then the live screen.
+    // Prepare a take (Shoot's first screen), then the live screen.
     await page.getByRole('heading', { level: 1, name: 'Prepare a take of watch' }).waitFor();
     // The preflight first: the sessions (none on this environment), then Start.
     await expect.poll(() => page.getByTestId('preflight-sessions').innerText(), RUN).toContain('None needed on');
@@ -240,7 +240,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
     expect(await page.getByRole('progressbar', { name: 'Steps done' }).count()).toBe(1);
     await shot('41-run-dry-live');
 
-    // B8: a hidden tab closes its stream — the Studio's upstream to the worker goes too — and reopens it with `after`.
+    // A hidden tab closes its stream — the Studio's upstream to the worker goes too — and reopens it with `after`.
     expect(studio.runLive.streamCount).toBe(1);
     const before = streams.length;
     await page.evaluate(() => {
@@ -321,7 +321,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
     expect(await page.getByTestId('picture-state').innerText()).toContain('Live picture hidden');
     expect(await page.getByTestId('picture-help').innerText()).toContain('costs');
     expect(studio.runLive.upstreams).toBe(0);
-    // A capture pauses too (part D): the button is enabled and says the video does not show the pause.
+    // A capture pauses too: the button is enabled and says the video does not show the pause.
     expect(await page.getByTestId('run-pause').isDisabled()).toBe(false);
     expect(await page.getByTestId('controls-why').innerText()).toContain('(the video does not show the pause)');
     await shot('44-run-capture-picture-off');
@@ -408,10 +408,10 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
     await page.route('**/v1/call/sign_in_cancel', (r) =>
       r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { id: job.id, kind: 'auth_login', state: 'cancelled' } }) }),
     );
-    // L5.10a: the Sessions panel lives on the Cast (the project page it was on is the poster grid now).
+    // The Sessions panel lives on the Cast (the project page it was on is the poster grid now).
     await page.goto(`${studio.url}#/p/${P}/cast`);
     const panel = page.getByTestId('sessions-panel');
-    // L5.11a: a persona never signed in is a missing session (a state word beside its shape); one section per location.
+    // A persona never signed in is a missing session (a state word beside its shape); one section per location.
     await expect.poll(() => panel.innerText(), RUN).toContain('Missing session');
     const row = panel.locator('[data-testid="session-row"][data-persona="owner"]');
     expect(await row.locator('xpath=ancestor::section[1]').innerText()).toContain('signed-in');
@@ -421,7 +421,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
     expect(calls.filter((c) => c.op === 'auth_login').map((c) => c.body)).toEqual([{ project: P, persona: 'owner', env: 'signed-in' }]);
     await shot('48-sessions-sign-in');
     await row.getByRole('button', { name: 'Cancel the sign-in of owner' }).click();
-    // The stub's job has no result yet: nothing more is claimed than what is sure (review A L5).
+    // The stub's job has no result yet: nothing more is claimed than what is sure.
     await expect.poll(() => row.getByTestId('sign-in-state').innerText(), RUN).toContain('Stopped: the saved session was not updated.');
     expect(calls.filter((c) => c.op === 'sign_in_cancel').map((c) => c.body)).toEqual([{ job: job.id }]);
     await page.unrouteAll();
@@ -439,7 +439,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
     expect(sent()).toBe(0);
     await shot('49-confirm-dialog');
     await page.keyboard.press('Escape');
-    // L5.11a: the shell's one sheet (the kit's) stays in the document, closed.
+    // The shell's one sheet (the kit's) stays in the document, closed.
     await expect.poll(() => dialog.isVisible(), RUN).toBe(false);
     expect(sent()).toBe(0);
     // Focus back on the button that opened the dialog; "Sign in first" moves it to that persona's Sign in button.
@@ -470,7 +470,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
     expect(await first.getAttribute('data-persona')).toBe('owner');
     expect(await first.getAttribute('data-status')).toBe('failed');
     expect(await page.getByTestId('run-steps').innerText()).toContain('the run stops before filming');
-    // The preflight's error is the tool's, not a page's: said plainly, not boxed as text the site controls (review B L9).
+    // The preflight's error is the tool's, not a page's: said plainly, not boxed as text the site controls.
     expect(await page.getByTestId('outcome-error').getAttribute('data-from')).toBe('run');
     expect(await page.getByTestId('run-outcome').innerText()).not.toContain('text the site controls');
     expect(await frames()).toBe(0);

@@ -17,7 +17,7 @@ export type SandboxLogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type SandboxLog = (level: SandboxLogLevel, message: string) => void;
 
 /**
- * Who stands behind a call's seed steps (L3.1). Trust `mcp` (a job submitted through the MCP server, whose agent may
+ * Who stands behind a call's seed steps. Trust `mcp` (a job submitted through the MCP server, whose agent may
  * have edited the files): every shell seed step needs a human approval, bound to its fingerprint (phase `seed`, its
  * position among all the seed steps, the sandbox's environment); `confirm` checks it. Default: trust `author`.
  */
@@ -152,11 +152,11 @@ export interface ProviderLogs {
 }
 
 /**
- * What a provider can do beyond the methods every provider has (X8, L7.25: the methods that were optional, made
- * explicit). Every method of `Provider` exists on every provider; a capability that is false means its method refuses
- * (exec, logs, followLogs, publishedBy: a SandboxError) or gives the neutral answer (address: undefined, hashInputs:
- * none), and the Sandbox tests the capability before it calls, in its own words. A contract suite holds both providers
- * to it (packages/sandbox/test/provider-capabilities.test.ts; the engine's sandboxes contract, through the Sandbox).
+ * What a provider can do beyond the methods every provider has. Every method of `Provider` exists on every provider; a
+ * capability that is false means its method refuses (exec, logs, followLogs, publishedBy: a SandboxError) or gives the
+ * neutral answer (address: undefined, hashInputs: none), and the Sandbox tests the capability before it calls, in its
+ * own words. A contract suite holds both providers to it (packages/sandbox/test/provider-capabilities.test.ts; the
+ * engine's sandboxes contract, through the Sandbox).
  */
 export interface ProviderCapabilities {
   /** `exec` seed and reset steps (a command in a service's container). */

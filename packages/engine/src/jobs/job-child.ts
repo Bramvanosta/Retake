@@ -1,12 +1,13 @@
 /**
- * A job process (L5.14): one heavy job (job-input.ts JOB_CLASS) a jobs worker claimed, run in a process of its own so the worker
- * can take a capture beside it and lower its priority during a take without touching the take (yield.ts). Started by the
- * worker (`worker-main --job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid> --digest <sha256>`) detached, in a process
- * group of its own; it runs the worker's job code (run-job-record.ts) and writes the job's state from `running` on.
+ * A job process: one heavy job (job-input.ts JOB_CLASS) a jobs worker claimed, run in a process of its own so the
+ * worker can take a capture beside it and lower its priority during a take without touching the take (yield.ts).
+ * Started by the worker (`worker-main --job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid> --digest
+ * <sha256>`) detached, in a process group of its own; it runs the worker's job code (run-job-record.ts) and writes the
+ * job's state from `running` on.
  *
  * - It refuses to start (exit 3, nothing written) on another build than its worker's: the worker gives the job back.
  * - It refuses anything but the heavy job of that kind its worker claimed (exit 4): a raced or edited job.json never
- *   makes it run a take (critique L1), nor another record than the one its worker claimed (its digest: the job id and
+ *   makes it run a take, nor another record than the one its worker claimed (its digest: the job id and
  *   input the worker checked, approvals included — signing.ts).
  * - Its worker gone (its parent pid changed), it cancels the job — teardown and clean-ups run — and ends it
  *   `interrupted`: a job process never outlives its worker for long (probe 3: no kernel safety net on macOS).
@@ -121,7 +122,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
   };
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
-  // As in the worker (critique L14): Remotion's encoder pipe may reject with EPIPE after a failed render.
+  // As in the worker: Remotion's encoder pipe may reject with EPIPE after a failed render.
   const onRejection = (reason: unknown) => {
     if ((reason as NodeJS.ErrnoException | undefined)?.code === 'EPIPE') {
       log(`ignored a write to a closed pipe after a render (${errorMessage(reason)})`);

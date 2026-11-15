@@ -1,5 +1,5 @@
 /**
- * The environment of a jobs worker a client starts (L4.2, critique B5; review A #3, B L5). A dry run or a capture runs
+ * The environment of a jobs worker a client starts. A dry run or a capture runs
  * in the worker, which keeps the environment it was started with and serves every later job of the workspace — so any
  * client but the CLI (the Studio, an MCP client, a test) hands it a clean one, never more than a worker started from a
  * terminal (`retake worker`) needs:

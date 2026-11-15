@@ -1,5 +1,5 @@
 /**
- * L4.9 part D, the R-ACC4-01 acceptance (SPEC §14.4), gated by BOTH `RETAKE_TEST_SLOW=1` and the installed-Chrome
+ * The R-ACC4-01 acceptance (SPEC §14.4), gated by BOTH `RETAKE_TEST_SLOW=1` and the installed-Chrome
  * opt-in `RETAKE_TEST_CHROME=1` (skipped when Google Chrome is not installed or ffmpeg is missing): the Studio end
  * to end through its screens on the fixture product, in the installed Google Chrome (Playwright `channel: 'chrome'`, a
  * temporary profile Playwright creates and deletes — never the person's own; captures are H.264, which Playwright's
@@ -196,7 +196,7 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
     await check('projects', true);
     await page.locator('main').getByRole('link', { name: 'Northfield (fixture)' }).first().click();
     await page.waitForURL(`**#/p/${P}`);
-    // L5.10a: the poster selects, the inspector's Open opens.
+    // The poster selects, the inspector's Open opens.
     await page.locator(`[role="option"][data-id="${S}"]`).click();
     await page.getByTestId('scenario-link').click();
     await page.waitForURL(`**#/p/${P}/s/${S}`);
@@ -266,7 +266,7 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
 
   it("Open timeline → the quotes segment's layout switched (one line, other pixels, same frame); ⌘Z; kept → Render → the verdict", async () => {
     await page.goto(`${studio.url}#/p/${P}/s/${S}`);
-    // L5.11a: the Edit mode opens the newest capture's timeline (the strip's Open timeline went).
+    // The Edit mode opens the newest capture's timeline (the strip's Open timeline went).
     await page.getByRole('navigation', { name: 'Mode' }).getByRole('link', { name: 'Edit' }).click();
     await page.getByTestId('tracks').waitFor(POLL);
     await page.locator('[data-testid="tl-segment"][data-id="quotes"]').click();
@@ -314,7 +314,7 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await page.keyboard.press('ControlOrMeta+z');
     await expect.poll(() => readFile(scenarioFile(), 'utf8'), POLL).toBe(text0);
-    // The undo landed in the view (its hash back, the switches no longer busy) before the next click (review B-M1).
+    // The undo landed in the view (its hash back, the switches no longer busy) before the next click.
     await expect.poll(() => page.getByTestId('timeline').getAttribute('data-hash'), POLL).toBe(hash0);
     await expect.poll(() => page.getByTestId('tl-redo').isEnabled(), POLL).toBe(true);
     await page.locator(`[data-testid="switch"][data-key="${key}"] [data-testid="switch-option"][data-value="${target}"]`).click();
@@ -334,7 +334,7 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
           POLL,
         )
         .not.toBeNull();
-      // L5.12a: Edit's status bar says the render this tab queued once its review is written (the report holds the rows).
+      // Edit's status bar says the render this tab queued once its review is written (the report holds the rows).
       const reviewed = async () => {
         const text = await page
           .getByTestId('render-status')
@@ -344,8 +344,8 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
         return m ? (m[1] === 'clean' ? 'clean' : /warning/.test(m[1]) ? 'warnings' : 'errors') : null;
       };
       // Polled with what the page and the job say meanwhile; fails fast (with the job's phase) when the render job runs
-      // with no live worker, or shows the same phase for RENDER_STALL_MS (review B-M2: a cold-cache run once sat at
-      // 'running' for 600 s with nothing to show).
+      // with no live worker, or shows the same phase for RENDER_STALL_MS (a cold-cache run once sat at 'running'
+      // for 600 s with nothing to show).
       let phase = '';
       let since = Date.now();
       const state = async (): Promise<string> => {
@@ -376,7 +376,7 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
         await page.waitForTimeout(1000);
       }
     });
-    // L5.12a: its review on the Review report (the status bar's link), then back to Edit.
+    // Its review on the Review report (the status bar's link), then back to Edit.
     await page.getByTestId('render-open-review').click();
     await page.waitForURL(`**#/p/${P}/s/${S}/review/${S}-v1`);
     await expect.poll(() => page.getByTestId('review-verdict').innerText(), POLL).toMatch(/\d+ errors?, \d+ warnings?, \d+ notes?/);

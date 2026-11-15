@@ -1,5 +1,5 @@
 /**
- * The read-only queries of runs, renders, reviews and scenarios (L7.14's family), characterized through their shells
+ * The read-only queries of runs, renders, reviews and scenarios, characterized through their shells
  * before they became the engine's operations: MCP's scenario_get, plan_preview, render_status, review_get and job_status
  * through `retake mcp` over stdio (from the sources, the SDK's client), and the Studio's projects_overview,
  * project_board, scenario_blocks, scenario_actions, run_thumbs, scenario_forms, scenario_sessions, scenario_renders,

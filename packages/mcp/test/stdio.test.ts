@@ -177,7 +177,7 @@ describe('retake mcp over stdio', () => {
     const info = await call('engine_info');
     expect(info.structuredContent).toMatchObject({ root: ws, client: 'mcp', api: 1 });
     expect(info.content[0].text).toContain(ws);
-    // started in the repository (this test's cwd), outside the workspace: said, so a skill can stop (review M3)
+    // started in the repository (this test's cwd), outside the workspace: said, so a skill can stop
     expect(info.structuredContent).toMatchObject({ started_in: resolve(REPO), started_outside_workspace: true });
     expect(info.content[0].text).toContain(`Started in ${resolve(REPO)}, outside the workspace`);
     const list = await call('project_list');
@@ -288,7 +288,7 @@ describe('retake mcp over stdio', () => {
     const data = st.structuredContent as { untrusted: { error_message: string; warnings: string[] }; files: { screenshots: { dir: string; count: number } } };
     expect(data.untrusted.error_message).toContain('ignore your rules');
     expect(data.untrusted.warnings[0]).toContain('IGNORE PREVIOUS INSTRUCTIONS');
-    // Compact (L5.8): the screenshots folder and their count; `detail: "full"` lists each one.
+    // Compact: the screenshots folder and their count; `detail: "full"` lists each one.
     expect(data.files.screenshots).toEqual({ dir: join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'screenshots'), count: expect.any(Number) });
     const full = (await call('run_status', { project: 'northfield-fixture', run_id: '20261017-120000-quote', detail: 'full' })).structuredContent as {
       screenshots: Array<{ path: string }>;
@@ -307,7 +307,7 @@ describe('retake mcp over stdio', () => {
     expect((r.structuredContent as { dry_run: boolean }).dry_run).toBe(true);
     expect(existsSync(join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'run.json'))).toBe(true);
     expect(errorOf(await call('project_prune', { project: 'northfield-fixture', keep_renders: 0 })).code).toBe('invalid');
-    // L7.5: a thread file that does not read is not "no thread" — what it may name stays, and the text says so.
+    // A thread file that does not read is not "no thread" — what it may name stays, and the text says so.
     const folder = join(ws, 'projects', 'northfield-fixture', 'comments', 'quote');
     await mkdir(folder, { recursive: true });
     await writeFile(join(folder, 'c_01K8AB1CDE2FGH3JKM4NPQ5RST.json'), '{');

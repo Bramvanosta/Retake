@@ -1,12 +1,12 @@
 /**
- * A step's picture from its run (L4.2): asked when its row comes on screen (one IntersectionObserver per screen, the
+ * A step's picture from its run: asked when its row comes on screen (one IntersectionObserver per screen, the
  * loader in thumbs.ts batches the keys), shown at a fixed size (no layout shift), with an `alt` built by the caller
  * from the scenario only — never from page text. While it loads, or when the run has none, a placeholder says so in
  * words.
  *
  * The app's ONE image source: `Picture`'s `src={url}` where `url` comes from `imageDataUrl` (a fixed prefix of the
- * format and a checked base64 payload, under the use's cap: a step picture's THUMB_DATA_MAX or, L4.5 part E, a review
- * contact sheet's SHEET_DATA_MAX — both JPEG, through `Jpeg`; L4.7, a library poster's POSTER_DATA_MAX (PNG) or loop's
+ * format and a checked base64 payload, under the use's cap: a step picture's THUMB_DATA_MAX or a review
+ * contact sheet's SHEET_DATA_MAX — both JPEG, through `Jpeg`; a library poster's POSTER_DATA_MAX (PNG) or loop's
  * LOOP_DATA_MAX (GIF), magic-checked) — the source lint test allows `src=` here only, in exactly this form.
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
@@ -16,10 +16,10 @@ import { THUMB_DATA_MAX, ThumbLoader, imageDataUrl, jpegDataUrl } from './thumbs
 import type { ImageCap, ImageFormat, MissingReason, ThumbEntry, ThumbFetch } from './thumbs.js';
 
 /**
- * The sizes a picture is drawn at (L5.10a: a prop; L5.10b: the scenario's frames rebuilt — no row size left): a frame
- * (248 × 140: the storyboard's, 100 % of its column), a poster (the same: the Project screen's grid) and the
- * inspector's (280 × 158). The attributes give the box its ratio before the picture comes (no layout shift); the server
- * sends ≤ 480 px for 2× screens. The boxes' look is screens.css's (`th-*`).
+ * The sizes a picture is drawn at (a prop; no row size): a frame (248 × 140: the storyboard's, 100 % of its column), a
+ * poster (the same: the Project screen's grid) and the inspector's (280 × 158). The attributes give the box its ratio
+ * before the picture comes (no layout shift); the server sends ≤ 480 px for 2× screens. The boxes' look is
+ * screens.css's (`th-*`).
  */
 export type ThumbSize = 'frame' | 'poster' | 'inspector';
 const SIZES: Record<ThumbSize, [number, number]> = { frame: [248, 140], poster: [248, 140], inspector: [280, 158] };
@@ -42,7 +42,7 @@ export function ThumbsProvider({ fetch, children }: { fetch: ThumbFetch; childre
         (entries) => {
           for (const e of entries) callbacks.get(e.target)?.(e.isIntersecting);
         },
-        // L5.9: the shell's centre pane is the scroller — its margin, not the window's (the pane clips what is below).
+        // The shell's centre pane is the scroller — its margin, not the window's (the pane clips what is below).
         { root: document.getElementById('main'), rootMargin: '200px 0px' },
       ));
     return {

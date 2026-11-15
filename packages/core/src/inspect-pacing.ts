@@ -1,6 +1,6 @@
 /**
- * The pacing of a replay that checks rather than films (L7.12, moved from @retake/runner-web, which imports and
- * re-exports both unchanged): an inspection's replay and a recording's check replay. Pure data: the runner merges it
+ * The pacing of a replay that checks rather than films (@retake/runner-web imports and re-exports both
+ * unchanged): an inspection's replay and a recording's check replay. Pure data: the runner merges it
  * over the project's and the scenario's pacing, the engine writes it into a check replay's scenario.
  */
 import type { Pacing } from './types/project.js';

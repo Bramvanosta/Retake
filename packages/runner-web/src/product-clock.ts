@@ -1,10 +1,10 @@
 /**
- * The product's clock (L1.7, R-ENV-05): a Date-only clock. A script in every document of the run's browsers (every
+ * The product's clock (R-ENV-05): a Date-only clock. A script in every document of the run's browsers (every
  * frame, popups; dedicated workers as soon as they start) replaces `Date` (the constructor without arguments,
- * `Date()`, `Date.now`) and the "now" default of `Intl.DateTimeFormat#format` / `#formatToParts` so the product reads
+ * `Date`, `Date.now`) and the "now" default of `Intl.DateTimeFormat#format` / `#formatToParts` so the product reads
  * the clock's time; timers, `requestAnimationFrame`, `performance` and event time stamps stay the browser's own — the
  * product's animations and timers run exactly as without a clock. (Playwright's clock fakes them all and slowed the
- * product's own frames and timers: L1.7 review, T1.)
+ * product's own frames and timers.)
  *
  * The time is `epoch + (real now − since)`, or `epoch` when frozen: every document computes it from the same `since`
  * (the runner's wall clock at the anchor), so documents created before and after the anchor, in any browser of the
@@ -118,7 +118,7 @@ export const REAL_TIME_SCRIPT = scriptOf(null);
 const realTimePages = new WeakSet<Page>();
 
 /**
- * Keep a page on the real time (L1.7, T5): the session check after a failed step and the automated sign-in judge a
+ * Keep a page on the real time: the session check after a failed step and the automated sign-in judge a
  * session by its tokens' expiry — never under a product clock far from now. Call before the page loads anything; its
  * documents, frames and workers never get the clock.
  */

@@ -105,7 +105,7 @@ export function selectedRow(u: Untrusted | null, cursor: Cursor): { row: DraftRo
   return null;
 }
 
-/** Which target a row shows as chosen (critique B1 of L4.8: a pick made on an earlier press of the same target is the one in effect). */
+/** Which target a row shows as chosen (a pick made on an earlier press of the same target is the one in effect). */
 export function chosenOf(row: DraftRow): { checked: number; picked: boolean } {
   const alt = row.alt!;
   const earlier = row.source?.chosen !== undefined && row.source.chosen.seq !== alt.seq && row.source.chosen.index > 0;

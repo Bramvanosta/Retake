@@ -25,7 +25,7 @@ export const GEOMETRY_KEYS = { landscape: 'geometry', vertical: 'geometry_vertic
 
 /**
  * Built-in identifiers of geometry expressions: `aspect` (the capture's width / height — the first page's in a
- * multi-page scene) and `aspect2` (the second page's, L2.11; equal to `aspect` for a single page).
+ * multi-page scene) and `aspect2` (the second page's; equal to `aspect` for a single page).
  */
 export const GEOMETRY_BUILTINS = ['aspect', 'aspect2'] as const;
 /** Functions of geometry expressions. */
@@ -280,7 +280,7 @@ export function evalLayoutGeometry(spec: LayoutGeometrySpec, params: Readonly<Re
   return out;
 }
 
-/** Whether a layout geometry shows several pages (split screen `panes`, or a picture-in-picture `inset`) — L2.11. */
+/** Whether a layout geometry shows several pages (split screen `panes`, or a picture-in-picture `inset`). */
 export function isMultiPaneGeometry(g: Pick<LayoutGeometrySpec, 'panes' | 'inset'> | undefined): boolean {
   return !!g && ((g.panes?.length ?? 0) >= 2 || g.inset !== undefined);
 }

@@ -151,7 +151,7 @@ export const DRY_PAGE = page(
 );
 
 /**
- * Probes for the options of the scenario language (L1.4): a click probe logging every pointer event it gets (button,
+ * Probes for the options of the scenario language: a click probe logging every pointer event it gets (button,
  * modifiers, offset from its top-left), a spinner, a client-side route change, a slow fetch and one that hangs, a
  * standalone multi-select popover that closes itself on Escape, the same button in a section and an aside, and a
  * destructive button. `?slow` adds an image that takes 1 s (a `load` waits for it, `domcontentloaded` does not).
@@ -846,7 +846,7 @@ export const CALENDAR_PAGE = page(
   .pop{position:fixed;background:#fff;border:1px solid #ccc;border-radius:10px;padding:6px;width:560px;z-index:5}`,
 );
 
-// ───────────── review fixes of L1.2 (popovers, editors, library-shaped date pickers) ─────────────
+// ───────────── popovers, editors, library-shaped date pickers ─────────────
 
 /**
  * A floating "Filters" popover (role=dialog + data-side, as Radix renders one) holding a "Tags" multi-select whose
@@ -1054,7 +1054,7 @@ export const PICKERS_PAGE = page(
 );
 
 /**
- * Capture sizes (L1.4, R-GOAL-01): the page writes the size it laid out at and its device pixel ratio; a narrow layout
+ * Capture sizes (R-GOAL-01): the page writes the size it laid out at and its device pixel ratio; a narrow layout
  * (≤ 600 px, a phone) shows its own button in place of the wide one.
  */
 export const SIZES_PAGE = page(
@@ -1068,7 +1068,7 @@ export const SIZES_PAGE = page(
 );
 
 /**
- * The cursor and file-chip look (L1.4, R-LOOK-23/24): one flat mid-grey page, so the dark arrow's white outline, the
+ * The cursor and file-chip look (R-LOOK-23/24): one flat mid-grey page, so the dark arrow's white outline, the
  * light arrow's dark outline, the soft shadow, the ripple's accent and the white chip all stand out from it (a small
  * label in the corner is the page's first contentful paint: the cursor is drawn from then on).
  */

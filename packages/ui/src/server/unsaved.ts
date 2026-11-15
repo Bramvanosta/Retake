@@ -1,20 +1,20 @@
 /**
- * Unsaved text in the Studio's tabs (L5.2b, DESIGN §4j): each tab session reports what it holds unsaved — enums and
+ * Unsaved text in the Studio's tabs (DESIGN §4j): each tab session reports what it holds unsaved — enums and
  * slugs only, never the text — through the own op `unsaved_report`, and the server keeps the latest report of each tab
  * on a board. The desktop shell's quit question reads the board through the supervised pipe (supervise.ts); a browser
  * tab's report is harmless and lets the app's server know about a second tab.
  *
  * - A report names kinds (UNSAVED_KINDS) with a project and a scenario that must pass the slug rules (≤ 100 characters)
  *   and exist (`<projects>/<project>/project.yaml`, `scenarios/<scenario>.yaml`): a name that does not is dropped, the
- *   item kept (review A L4: one bad name never refuses the tab's whole report). The op's input is strict in its shape
+ *   item kept (one bad name never refuses the tab's whole report). The op's input is strict in its shape
  *   (an extra field such as a label is a 400): no page text reaches the board.
- * - A report never outlives its tab session (critique L8): an empty report clears the tab (the page sends one when its
+ * - A report never outlives its tab session: an empty report clears the tab (the page sends one when its
  *   set empties and on `pagehide`), and the board ends with its server. Reports of one tab apply in the order they
- *   came (reviews A M1 / B M3): each call takes the tab's next number on entry, and a report whose existence checks
+ *   came: each call takes the tab's next number on entry, and a report whose existence checks
  *   finish after a newer call of its tab is dropped — a late report never re-adds a tab its `pagehide` cleared. No
  *   timer: a hidden window's throttled timers cannot expire a report the person still needs. Worst case, a tab killed
  *   without `pagehide` (a WebContent crash) leaves one needless question until the server stops.
- * - At most UNSAVED_TABS_MAX tabs (critique L3): a new tab id beyond them is refused, never an older tab evicted (the
+ * - At most UNSAVED_TABS_MAX tabs: a new tab id beyond them is refused, never an older tab evicted (the
  *   oldest report is the hidden app window's — the one this exists for).
  */
 import { access } from 'node:fs/promises';
@@ -51,7 +51,7 @@ export const UnsavedReportInput = z.strictObject({
     .array(
       z.strictObject({
         kind: z.enum(UNSAVED_KINDS),
-        // Any short text: one that is no name (no slug, too long) is dropped by the board, the item kept (review A L4).
+        // Any short text: one that is no name (no slug, too long) is dropped by the board, the item kept.
         project: z.string().max(NAME_INPUT_MAX).optional(),
         scenario: z.string().max(NAME_INPUT_MAX).optional(),
       }),
@@ -74,7 +74,7 @@ async function exists(file: string): Promise<boolean> {
 export class UnsavedBoard {
   private readonly tabs = new Map<string, { items: UnsavedItem[]; hidden: boolean }>();
   private readonly listeners = new Set<() => void>();
-  /** Each tab's latest call number (A M1 / B M3): a report applies only if no newer call of its tab came meanwhile. */
+  /** Each tab's latest call number: a report applies only if no newer call of its tab came meanwhile. */
   private readonly seq = new Map<string, number>();
   private calls = 0;
 

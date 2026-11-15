@@ -1,5 +1,5 @@
 /**
- * L5.15 (critique H2): editor guardEncoderPipe in a process with no handler of its own (a `retake render`). Arg
+ * Editor guardEncoderPipe in a process with no handler of its own (a `retake render`). Arg
  * `epipe`: a write to the encoder's closed pipe rejects unhandled — the process lives on and prints "alive". `other`:
  * any other unhandled rejection still ends the process (Node's default is kept).
  */

@@ -1,7 +1,6 @@
 /**
- * The render reads of the MCP server (moved from its tools/render.ts in L7.14): plan_preview and render_status, and the
- * trusted lines they share with the MCP server's render and review (the status of a render, what `latest` passed over,
- * what the edit re-planned).
+ * The render reads of the MCP server: plan_preview and render_status, and the trusted lines they share with the MCP
+ * server's render and review (the status of a render, what `latest` passed over, what the edit re-planned).
  */
 import { z } from 'zod';
 import { SLUG_RE } from '@retake/core/model';
@@ -35,7 +34,7 @@ export function renderStatusSummary(r: RenderStatusView): string {
       ? `queued: ${q.held_by === 'take' ? (job?.yield ? yieldWords(job.yield) : 'waiting for a take to finish') : q.ahead ? `${plural(q.ahead, 'job')} ahead` : 'next'}${q.running ? `, behind job ${q.running.id} (${q.running.kind}${q.running.phase ? ` · ${q.running.phase}` : ''}${pct(q.running.fraction)}${q.running.eta_s !== undefined ? `, ~${q.running.eta_s} s left` : ''})` : ''}`
       : undefined;
   const p = job?.progress;
-  // L5.14: slowed during a take (background priority), said with its progress.
+  // Slowed during a take (background priority), said with its progress.
   const slowed = job?.yield?.state === 'background' ? ` · ${yieldWords(job.yield)}` : '';
   const running =
     r.status === 'running' && p
@@ -118,7 +117,7 @@ export function renderLatestData(p: { renders_passed_over?: number; renders_not_
 }
 
 /**
- * The trusted lines of a plan or a render about its edit (L5.5): the filmed part of the scenario changed since the
+ * The trusted lines of a plan or a render about its edit: the filmed part of the scenario changed since the
  * capture (re-capture to film it), or today's edit was re-planned on the run. They name only the scenario (a checked
  * name), the run id and the parts that changed (keys, scene ids, step keys: core filmedChanges / replanEdit).
  */
@@ -153,7 +152,7 @@ export const planPreview = defineOperation({
         ...latestLines(p),
         `${plural(p.segments.length, 'segment')}: ${[...kinds].map(([k, n]) => `${n} ${k}`).join(', ')}${p.music ? '; music' : ''}`,
         ...(p.untrusted.warnings.length ? [`${plural(p.untrusted.warnings.length, 'warning')} in "untrusted"`] : []),
-        // A changed filmed part shows only in a new capture: never offer to render the old run (L3.8 review M1).
+        // A changed filmed part shows only in a new capture: never offer to render the old run.
         p.scenario_changed
           ? `capture first: run_capture {project: "${project}", scenario: "${scenario}"}; then render {project: "${project}", scenario: "${scenario}"${template ? `, template: "${template}"` : ''}${overrides ? ', overrides: …' : ''}}`
           : `render it: render {project: "${project}", scenario: "${scenario}"${run_id ? `, run_id: "${run_id}"` : ''}${template ? `, template: "${template}"` : ''}${overrides ? ', overrides: …' : ''}} → ${p.next_render_id} (if no other render takes it first)`,

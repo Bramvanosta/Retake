@@ -1,7 +1,7 @@
 /**
- * L5.16c (critique M6): the workspace's jobs worker runs another copy of Retake — its jobs run with that copy's browsers
+ * The workspace's jobs worker runs another copy of Retake — its jobs run with that copy's browsers
  * and tools. The Welcome inspector's Worker row (engine_info `untrusted.worker_other_copy`) and the Studio's own run /
- * render submits (review c B-M2: scenario_run / scenario_render `untrusted.other_copy`) say it; the copy's version and
+ * render submits (scenario_run / scenario_render `untrusted.other_copy`) say it; the copy's version and
  * folder are the worker lock's text, so they are shown as text (Txt) only.
  */
 import { APP_NAME } from './brand.js';

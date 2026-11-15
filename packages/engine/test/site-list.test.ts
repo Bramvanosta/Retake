@@ -1,5 +1,5 @@
 /**
- * L4.7 part A2: the site extractions the Studio's theme panel lists (engine site-list.ts; critique B11, C5). An
+ * The site extractions the Studio's theme panel lists (engine site-list.ts). An
  * extraction made by `retake theme from-site` has no signed job and `.retake/` is a folder any file tool writes:
  * ⚑ the URL and the host (re-parsed, dropped when not a site URL) and every page string are under `untrusted`, never
  * beside the tool's own fields; hex colours with their contrast checks and the candidate PNGs that exist as plain files

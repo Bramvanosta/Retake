@@ -1,9 +1,9 @@
 /**
- * page_inspect (L3.3, R-MCP-23 / R-MCP-36; moved verbatim from the MCP server's tools/inspect.ts in L7.15): what a page
- * of the product shows, for Claude to write a scenario's steps itself — the visible interactive elements with numbered
- * marks, each with a target the runner's own resolver was checked to resolve to it, an action hint, the open popups,
- * frames and scroll containers, a check of targets Claude gives, and the marked screenshot as an image. The operation
- * writes no scenario and calls no model. `inspectOutput` is also job_status's answer for an inspection.
+ * page_inspect (R-MCP-23 / R-MCP-36): what a page of the product shows, for Claude to write a scenario's steps itself —
+ * the visible interactive elements with numbered marks, each with a target the runner's own resolver was checked to
+ * resolve to it, an action hint, the open popups, frames and scroll containers, a check of targets Claude gives, and
+ * the marked screenshot as an image. The operation writes no scenario and calls no model. `inspectOutput` is also
+ * job_status's answer for an inspection.
  *
  * Trust: an `inspect` job of the worker (a dry replay: run_dry's rules). Everything the page controls — URL, title,
  * headings, names, texts, labels, the suggested targets and step hints that embed them — is under `untrusted`; the
@@ -168,7 +168,7 @@ export async function inspectOutput(engine: Engine, job: JobRecord, head: string
 }
 
 /**
- * A finished inspection, compact (L5.8, R-FLD-34): the elements in view or in a dialog, menu or popover, each as its
+ * A finished inspection, compact (R-FLD-34): the elements in view or in a dialog, menu or popover, each as its
  * mark, where it is, its action and the step hint to copy (flags only when set); the popups, the checked targets, the
  * files. inspect.json keeps everything (detail: "full" returns it).
  */

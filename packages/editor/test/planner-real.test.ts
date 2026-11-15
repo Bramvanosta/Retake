@@ -82,7 +82,7 @@ describe('catalogue (real timeline)', () => {
     const imp = clip(p, 'import');
     const A = expectedStart(tl, 'import');
     const n = imp.durationInFrames - imp.heldFrames;
-    // L2.12: the import wait (`wait_for: 921 offers created`, 2.0 s, marked) plays faster after its first 0.5 s, up to
+    // The import wait (`wait_for: 921 offers created`, 2.0 s, marked) plays faster after its first 0.5 s, up to
     // the mark window before what it waited for (0.6 s before its end): exact 1× before and after.
     const wait = events(tl, 'import').find((e) => e.action === 'wait_for' && e.mark)!;
     const a = Math.ceil((wait.t_start + WAIT_KEEP_S) * FPS - 1e-6) - A;
@@ -182,7 +182,7 @@ describe('catalogue (real timeline)', () => {
     // The focus (x ≈ 409) is too close to the left edge at 1.3×: the view centre is clamped to 1920 / 2.6.
     expect(z.view.x).toBeCloseTo(1920 / 2.6, 2);
     expect(z.view.y).toBeCloseTo(z.focus.y, 2);
-    // The output frame of the step's start (the loading before it plays faster since L2.12).
+    // The output frame of the step's start (the loading before it plays faster).
     // (srcFrames are whole frames: the plan's source position of that output frame is within one frame of it.)
     const approx = ap.srcFrames.findIndex((f) => f >= Math.ceil(ev.t_start * FPS - 1e-6));
     expect(Math.abs(z.from - approx)).toBeLessThanOrEqual(1);

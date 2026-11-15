@@ -1,5 +1,5 @@
 /**
- * The Sandboxes port (L7.25) on its contract (sandbox-contract.ts): the sandbox package's adapter (packageSandboxes)
+ * The Sandboxes port on its contract (sandbox-contract.ts): the sandbox package's adapter (packageSandboxes)
  * with a process sandbox — two node services answering /health, an http and a shell seed step — and, with
  * RETAKE_TEST_DOCKER=1 and a running Docker holding busybox:1.38.0, with a docker-compose one (one busybox httpd, an
  * exec seed step; its compose project `retake-test-<token>-*`, removed after); and the in-memory sandboxes on a manifest

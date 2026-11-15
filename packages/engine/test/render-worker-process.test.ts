@@ -1,6 +1,6 @@
 /**
- * L3.2: a render job's worker killed with SIGKILL mid-render (the worker in a process of its own, from the sources).
- * L5.14: a heavy job runs in a job process of its own (detached, its own group): a crash is the worker AND its job
+ * A render job's worker killed with SIGKILL mid-render (the worker in a process of its own, from the sources).
+ * A heavy job runs in a job process of its own (detached, its own group): a crash is the worker AND its job
  * process killed (both SIGKILLed here); the worker alone killed, its job process ends the job itself. Remotion starts
  * its Chromium detached: the browser outlives both. The job reads `interrupted` (with the
  * `retake render` a human runs); the next worker kills the browser the job recorded (pid AND start time), removes its
@@ -117,7 +117,7 @@ beforeAll(async () => {
   t.project = 'demo';
   t.scenario = 'synthetic';
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
-  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  // A run `latest` takes has its record (a folder without a readable run.json is never the latest capture).
   await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: '20260101-120000-synthetic', scenario: 'synthetic', project: 'demo' })));
   makeColourCapture(join(runDir, 'capture.mp4'), 12);
   await linkSharedCache(root);

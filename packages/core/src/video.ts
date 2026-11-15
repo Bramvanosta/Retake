@@ -23,7 +23,7 @@ export function timelineVideo(scenario: Scenario, project: Pick<ProjectConfig, '
 }
 
 /**
- * Reading pace of the text a card or an interstitial shows (R-FLD-03, L5.5): about 250 words a minute, plus 1.5 s for
+ * Reading pace of the text a card or an interstitial shows (R-FLD-03): about 250 words a minute, plus 1.5 s for
  * its entry and exit animations.
  */
 export const READING_PACE = Object.freeze({ words_per_minute: 250, extra_s: 1.5 });

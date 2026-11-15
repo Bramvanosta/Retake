@@ -166,7 +166,7 @@ describe('registry.resolve (R-REG-04)', () => {
     expect(themed.intro?.id).toBe('acme/intro-x');
     expect(Object.keys(themed).sort()).toEqual([...COMPONENT_KINDS].sort());
 
-    // The starter templates point at built-in ids that arrive in L2.5: every failing kind is listed at once.
+    // The starter templates point at built-in ids this registry does not hold: every failing kind is listed at once.
     const legacy: Template = { ...structuredClone(DEFAULT_TEMPLATE), name: 'plain' };
     expect(() => reg.resolveTheme(legacy)).toThrow(/theme "plain": \d+ components cannot be resolved:\n {2}outro \(a legacy template field\): component "studio\/outro-stack" not found/);
     expect(() => reg.resolveTheme(legacy)).toThrow(/card \(the built-in default\): component "studio\/card-title" not found/);

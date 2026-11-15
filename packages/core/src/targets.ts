@@ -94,7 +94,7 @@ export function pickTarget<T extends object>(o: T): TargetObject {
   return out as TargetObject;
 }
 
-// ── Targets in plain words (L4.2) ───────────────────────────────────────────
+// ── Targets in plain words ───────────────────────────────────────────
 
 /** “text” — the curly quotes a reader sees around a word of the page (never markup: the Studio renders text nodes). */
 function quoted(s: string): string {
@@ -118,7 +118,7 @@ export function plainScope(s: ScopeSpec): string {
 }
 
 /**
- * A target as a reader says it (L4.2, R-UI-09), next to `describeTarget` (the timeline's and the logs' selector-like
+ * A target as a reader says it (R-UI-09), next to `describeTarget` (the timeline's and the logs' selector-like
  * form, unchanged): `"Save"` → `“Save”`; `{role: button, name: OK}` → `button “OK”`; `{aria: Increase, in: dialog}` →
  * `“Increase” (aria label) in the dialog`; `{label: Delivery window}` → `field “Delivery window”`; css →
  * `element matching .row > button`; `nth: 1` → `the 2nd …`; a point → `point 640, 360`. Every value as written (a

@@ -1,8 +1,8 @@
 /**
- * L5.13a (review B M3): the previews' bundle components (editor render/preview.ts `previewBundleComponents`). A target
+ * The previews' bundle components (editor render/preview.ts `previewBundleComponents`). A target
  * that is a package scaffold is bundled once, as the scaffold (flagged `scaffold: true`, so the bundle guard does not
  * ask which component its kit imports belong to); a workspace component that reuses a scaffold's id from another folder
- * keeps no flag — it stays under the guard's holder check (L4.7).
+ * keeps no flag — it stays under the guard's holder check.
  */
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';

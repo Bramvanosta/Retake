@@ -1,5 +1,5 @@
 /**
- * Sessions & personas at run time (L1.6), in a real Chromium against a small cookie sign-in app (test-support auth.ts): the
+ * Sessions & personas at run time, in a real Chromium against a small cookie sign-in app (test-support auth.ts): the
  * preflight before anything runs (R-AUTH-03), the guard that fails a run landing on a sign-in page and keeps nothing of
  * it (R-AUTH-04), the automated login with injected secrets (R-AUTH-05), per-run copies of a persona's session —
  * concurrent runs, a held master (R-AUTH-07) — and one browser per persona (R-AUTH-01). Every test has its own Retake
@@ -359,7 +359,7 @@ describe('automated login (R-AUTH-05)', () => {
     process.env[VAR] = literal;
     /**
      * Every text file the run writes under its folder (run.json, log.jsonl, timeline.json…) — but scenario.yaml, the
-     * scenario's own text copied as the author wrote it (a value written as is there stays as is, since L1).
+     * scenario's own text copied as the author wrote it (a value written as is there stays as is).
      */
     const textFiles = async (d: string): Promise<string[]> =>
       (await readdir(d, { recursive: true, withFileTypes: true }))
@@ -411,7 +411,7 @@ describe('automated login (R-AUTH-05)', () => {
           logs(events).some((l) => l.includes('signed in automatically')),
           JSON.stringify(logs(events)),
         ).toBe(!signedIn);
-        // The L4.4 events are there — and masked.
+        // The outline, session and pause events are there — and masked.
         const outline = events.find((e) => e.type === 'outline');
         expect(outline).toBeDefined();
         expect(JSON.stringify(outline)).toContain('***');

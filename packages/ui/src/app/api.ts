@@ -87,7 +87,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 /**
- * A stream route (`POST /v1/live`, L4.4): the response to read as server-sent events, or its status when it is not one
+ * A stream route (`POST /v1/live`): the response to read as server-sent events, or its status when it is not one
  * (503 every stream slot taken, 404 no such run…) with the server's error. A 401 ends the session; a network failure
  * is `{status: 0}` (the caller retries). Same headers as a call: the token in a header, no credentials, no cache.
  */
@@ -145,7 +145,7 @@ function callOp(op: string, args: object, o: CallOptions): Promise<unknown> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(args),
     ...(o.signal ? { signal: o.signal } : {}),
-    // L5.2b: the unsaved report's last call on pagehide outlives the page.
+    // The unsaved report's last call on pagehide outlives the page.
     ...(o.keepalive ? { keepalive: true } : {}),
   });
 }
@@ -153,8 +153,8 @@ function callOp(op: string, args: object, o: CallOptions): Promise<unknown> {
 /**
  * `POST /v1/call/<op>`: one op of the allow-list with its arguments; the tool's data, or a CallError. `signal` aborts
  * it (the server then stops the op: closing the request aborts its work) — a CallError `cancelled`. `keepalive`: the
- * request outlives the page (a `pagehide` report). Typed by StudioOps (L6.12): an op the Studio does not serve, an
- * argument its input refuses or a result read as another type is a compile error. Only data/ calls it (L6.13).
+ * request outlives the page (a `pagehide` report). Typed by StudioOps: an op the Studio does not serve, an
+ * argument its input refuses or a result read as another type is a compile error. Only data/ calls it.
  */
 export function call<K extends StudioOp>(op: K, ...a: OpParams<K>): Promise<OpResult<K>> {
   const [args = {}, o = {}] = a as [object?, CallOptions?];

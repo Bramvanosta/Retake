@@ -4,7 +4,7 @@
  * the worker lock; `retake worker` runs the same). stdout stays empty: whatever a library prints goes
  * to stderr, which the spawner sends to .retake/workers/worker.log.
  *
- * L5.14: `--job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid> --digest <sha256>` runs one heavy job a
+ * `--job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid> --digest <sha256>` runs one heavy job a
  * worker claimed (jobs/job-child.ts), as a process of its own; only a worker starts it so.
  */
 // First: the app bundle's browsers before any module loads playwright-core (bundle-env.ts; the cli app-bundle test).

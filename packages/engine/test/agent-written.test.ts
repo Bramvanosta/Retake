@@ -1,5 +1,5 @@
 /**
- * L7.27: who wrote the hooks of a scenario (the project's record of scenario writes, by hook surface; the workspace
+ * Who wrote the hooks of a scenario (the project's record of scenario writes, by hook surface; the workspace
  * journals for writes it does not hold; asked when it cannot be known), which shell hooks a run executes, and how the
  * listing renders them. The CLI's question is held in packages/cli/test/run-agent-hooks.test.ts.
  */

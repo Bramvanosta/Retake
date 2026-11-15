@@ -226,10 +226,10 @@ describe('typed fields (R-CHO-14, R-CHO-15)', () => {
     expect((await state('#fs-landmark'))!.kind).toBe('search');
     expect((await state('#fs-pop'))!.kind).toBe('search');
     expect(await state('#fs-dlg')).toEqual({ editable: true, empty: false, kind: 'text', known: true });
-    // A popover holding a small form is no search; one listing options is (review fix K10).
+    // A popover holding a small form is no search; one listing options is.
     expect((await state('#fs-rename'))!.kind).toBe('text');
     expect((await state('#fs-tagq'))!.kind).toBe('search');
-    // An editor's hidden input (clipped to a 3 × 0 px box) and a focusable widget are not read (review fix K4).
+    // An editor's hidden input (clipped to a 3 × 0 px box) and a focusable widget are not read.
     await page.focus('#fs-proxy');
     expect(await kit.fieldState(null)).toMatchObject({ editable: true, empty: true, known: false });
     await page.focus('#fs-widget');

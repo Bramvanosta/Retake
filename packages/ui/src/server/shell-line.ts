@@ -1,5 +1,5 @@
 /**
- * The lines the desktop shell writes on the supervised server's stdin (L5.16c; L5.16d: the update's state), parsed
+ * The lines the desktop shell writes on the supervised server's stdin (the update's state), parsed
  * strictly: the Set-up sheet's answers (the folder the person picked, the notification permission) and the update's
  * state (update-ops.ts parseUpdateLine). The lines the server writes to the shell are desktop.ts DesktopPipe's.
  */
@@ -9,16 +9,16 @@ import type { UpdateLine } from './update-ops.js';
 /** The longest line the shell writes on the server's stdin (bytes). */
 export const SHELL_LINE_MAX = 8192;
 
-/** A line the desktop shell wrote on the supervised server's stdin (L5.16c; L5.16d: the update's state). */
+/** A line the desktop shell wrote on the supervised server's stdin (the update's state). */
 export type ShellLine = { type: 'cli_folder'; path: string } | { type: 'cli_folder_open' } | { type: 'cli_folder_cancelled' } | { type: 'notifications'; state: 'on' | 'off' | 'unknown' } | UpdateLine;
 
 /**
  * One line of the shell on stdin, or null for anything but its exact shapes: `{"type":"cli_folder_open"}` (its native
- * folder panel is up: review c A-L7 — the sheet says "choose in the panel" only then), `{"type":"cli_folder","path":
+ * folder panel is up — the sheet says "choose in the panel" only then), `{"type":"cli_folder","path":
  * <absolute>}` (the folder the person picked there), `{"type":"cli_folder_cancelled"}` (none: cancelled, or the panel
  * could not open while another question was up), `{"type":"notifications","state":"on"|"off"|"unknown"}`. Strict: no
  * other field, a path absolute, one line, no NUL, at most 4096 characters; the line at most SHELL_LINE_MAX bytes (UTF-8).
- * L5.16d: `{"type":"update","state":…}` — the update's state (update-ops.ts parseUpdateLine: fixed keys per state).
+ * `{"type":"update","state":…}` — the update's state (update-ops.ts parseUpdateLine: fixed keys per state).
  */
 export function parseShellLine(line: string): ShellLine | null {
   if (Buffer.byteLength(line, 'utf8') > SHELL_LINE_MAX) return null;

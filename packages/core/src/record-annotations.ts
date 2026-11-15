@@ -1,5 +1,5 @@
 /**
- * A Studio recording's annotations (L4.8, `<record folder>/studio.json`): the targets the person picked among the
+ * A Studio recording's annotations (`<record folder>/studio.json`): the targets the person picked among the
  * recorder's verified alternatives, and the quick inserts placed at the draft cursor (hold, wait_for, caption, mark,
  * camera zoom). Positions are event sequence numbers (stable: `seq` has no gaps and is never renumbered), so a choice or
  * an insert survives every regeneration of the draft (core recording.ts `draftFromRecording`, which applies them; a
@@ -32,8 +32,8 @@ export const RECORD_ZOOMS = [1.25, 1.5, 2] as const;
 export const RECORD_ZOOM_DEFAULT = 1.5;
 
 /**
- * The zoom factors a camera insert offers under a theme's `motion.max_zoom` (L4.8 review: a factor above it is clamped
- * by the editor and warned by the validator), and the default — min(1.5, max_zoom); null when the theme allows none.
+ * The zoom factors a camera insert offers under a theme's `motion.max_zoom` (a factor above it is clamped by the
+ * editor and warned by the validator), and the default — min(1.5, max_zoom); null when the theme allows none.
  */
 export function recordZoomOptions(maxZoom: number): { options: number[]; default: number } | null {
   const max = Math.floor(Math.min(3, maxZoom) * 100 + 1e-6) / 100;

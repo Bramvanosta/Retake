@@ -1,5 +1,5 @@
 /**
- * L3.5 a theme from brand files through `retake mcp` (spawned from the sources over stdio, driven by the SDK client),
+ * A theme from brand files through `retake mcp` (spawned from the sources over stdio, driven by the SDK client),
  * in a temporary workspace: template_create_from_brand with the user's files in brand/ → template_list shows the new
  * theme (`workspace`) → template_preview renders its stills through the existing preview job (images inline) → a
  * second call with replace: true changes it while nobody edited it. Refusals over stdio: a starter name, an

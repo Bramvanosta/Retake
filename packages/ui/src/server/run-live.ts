@@ -1,12 +1,12 @@
 /**
- * The Run screen's stream (L4.4, R-UI-16 – R-UI-18): `POST /v1/live {project, run_id, after?, frames?}` — server-sent
+ * The Run screen's stream (R-UI-16 – R-UI-18): `POST /v1/live {project, run_id, after?, frames?}` — server-sent
  * events read by the page through `fetch` (the token in a header, the run in the JSON body: no id in a URL or a log),
  * behind the same gate as every route. One stream follows one run:
  *
  * - **Steps and log** come from the run's own `log.jsonl` (every progress event, redacted by the runner — a job's run
  *   and a terminal's `retake run` alike) and, for a job's run, the worker's notes of its `events.jsonl` — tailed while
  *   the stream is open and never otherwise: a stat-and-read every RUN_LIVE_POLL_MS from byte offsets, through the
- *   run-file rules of L4.2 (RunFolder: no link followed, no FIFO held, checked once open), at most LIVE_READ_CHUNK
+ *   run-file rules (RunFolder: no link followed, no FIFO held, checked once open), at most LIVE_READ_CHUNK
  *   bytes per read, a line longer than LIVE_LINE_MAX skipped with a note (never a buffer without a bound). An event's
  *   `seq` is the byte offset of its line's end in its file; `after: {log, job}` resumes after a reconnect without a
  *   duplicate. On connect: one `snapshot` (the events since `after`, else since the start — at most the last
@@ -246,7 +246,7 @@ function secretSegment(raw: string): boolean {
 }
 
 /**
- * URLs in a text as the Run screen shows them (review A): a password in the URL, every query value and the fragment
+ * URLs in a text as the Run screen shows them: a password in the URL, every query value and the fragment
  * masked, path segments that look like a secret masked — the query keys stay (what a URL is about, never its tokens).
  */
 export function maskUrls(text: string): string {
@@ -361,7 +361,7 @@ export function viewProgress(line: unknown, scrub: Scrub): Record<string, unknow
       return { ...base, state: e.state, scene: e.scene, step: e.step, ...(num(e.ms) ? { ms: Math.round(e.ms) } : {}), ...(str(e.reason) ? { reason: scrub(e.reason) } : {}) };
     case 'hook': {
       if (!str(e.phase) || !HOOK_PHASES.has(e.phase) || !name(e.name) || !str(e.status) || !HOOK_STATUS.has(e.status)) return null;
-      // A hook without a name is named by its description — its shell command or URL (review A): scrubbed as a text.
+      // A hook without a name is named by its description — its shell command or URL: scrubbed as a text.
       const hookName = scrub(e.name as string);
       return { ...base, phase: e.phase, name: hookName || 'hook', status: e.status, ...untrusted(scrub, { message: e.message }) };
     }
@@ -487,8 +487,8 @@ class RunStream {
   }
 
   /**
-   * New lines of both files, as view items (at most POLL_READ_MAX bytes each, or `budget`), in time order (review B L5:
-   * the run's lines and the worker's merged by `ts`, each file's own order kept — a reload shows the same order).
+   * New lines of both files, as view items (at most POLL_READ_MAX bytes each, or `budget`), in time order (the run's
+   * lines and the worker's merged by `ts`, each file's own order kept — a reload shows the same order).
    */
   async pull(budget = POLL_READ_MAX): Promise<{ items: LiveItem[]; notes: string[] }> {
     const notes: string[] = [];

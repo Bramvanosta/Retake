@@ -151,7 +151,7 @@ describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug 
     for (const f of ['capture.mp4', 'frames.jsonl', 'timeline.json', 'run.json', 'log.jsonl', 'hooks-journal.json', 'scenario.yaml']) {
       expect(files, f).toContain(f);
     }
-    // L5.7: capture.mp4 was encoded during the take; no frame is kept by default.
+    // capture.mp4 was encoded during the take; no frame is kept by default.
     expect(files).not.toContain('frames');
     expect(rec.perf).toMatchObject({ frame_rate_limit: true, disk: { frames_kept: false } });
     expect(rec.perf!.cpu!.cores).toBeGreaterThan(0);
@@ -179,7 +179,7 @@ describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug 
     expect(tl.capture.frames).toBeGreaterThan(1000);
     const { stdout } = await execFileP('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', rec.capture!]);
     expect(stdout.trim()).toBe(`${W},${H}`);
-    // About 64 s on the Mac (L1.3); the range catches a stuck wait or a skipped scene, not pacing tweaks.
+    // About 64 s on the Mac; the range catches a stuck wait or a skipped scene, not pacing tweaks.
     expect(tl.capture.duration).toBeGreaterThan(55);
     expect(tl.capture.duration).toBeLessThan(80);
     expect(Math.abs((await ffprobeDuration(rec.capture!)) - tl.capture.duration)).toBeLessThanOrEqual(0.2);

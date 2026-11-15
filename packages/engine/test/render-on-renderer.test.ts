@@ -76,7 +76,7 @@ beforeAll(async () => {
   t.project = 'demo';
   t.scenario = SCENARIO;
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
-  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  // A run `latest` takes has its record (a folder without a readable run.json is never the latest capture).
   await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: RUN, scenario: SCENARIO, project: 'demo' })));
   await writeFile(join(runDir, 'capture.mp4'), 'never read');
   engine = await createEngine({ root, client: 'test', autoStartWorker: false });

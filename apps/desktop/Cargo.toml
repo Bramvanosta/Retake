@@ -1,4 +1,4 @@
-# The desktop shell (L5.2, DESIGN §4j): a Tauri window on the workspace's own `retake ui --supervised` server.
+# The desktop shell (DESIGN §4j): a Tauri window on the workspace's own `retake ui --supervised` server.
 # Not a pnpm package: built by `pnpm desktop:dev` / `pnpm desktop:build` (scripts/desktop.mjs) with `cargo --locked`
 # (`--offline` when CARGO_NET_OFFLINE=true). Rust stays optional for `pnpm build` and `pnpm test`.
 # MSRV 1.90 (tauri 2.12's rust-version). Cargo.lock is committed: the build is reproducible.
@@ -20,13 +20,13 @@ objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSBundle", "NSError", "NSString", "NSURL"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAlert", "NSApplication", "NSButton", "NSControl", "NSOpenPanel", "NSPanel", "NSResponder", "NSRunningApplication", "NSSavePanel", "NSView", "NSWindow"] }
 libc = "0.2"
-# L5.2b: job notifications (UNUserNotificationCenter) — already in Cargo.lock through objc2-ui-kit; no new package.
+# Job notifications (UNUserNotificationCenter) — already in Cargo.lock through objc2-ui-kit; no new package.
 block2 = "0.6"
 objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationTrigger"] }
-# L5.16d: the signed updater — only in a build made with the `updater` feature (bundle.mjs, when the build is given a
+# The signed updater — only in a build made with the `updater` feature (bundle.mjs, when the build is given a
 # feed and a public key); the developer build never has it. Pinned like tauri; its crates are in Cargo.lock either way.
 # On a bump of it (or of reqwest in Cargo.lock): check again that `https_only` still refuses an http redirect hop and
-# reaches the download's client (desktop-config.test.ts pins both versions for that reason; review f A-L8).
+# reaches the download's client (desktop-config.test.ts pins both versions for that reason).
 tauri-plugin-updater = { version = "=2.14.0", optional = true }
 # The config's `plugins` section is embedded as serde_json values by tauri::generate_context! (only an updater build has
 # one): already in Cargo.lock through tauri.
@@ -35,11 +35,11 @@ serde_json = { version = "1", optional = true }
 [features]
 # What the Tauri CLI sets for a production build (pnpm desktop:build): no dev server, no inspector.
 custom-protocol = ["tauri/custom-protocol"]
-# L5.16d: register tauri-plugin-updater (its `plugins.updater` config comes from bundle.mjs's generated overlay only).
+# Register tauri-plugin-updater (its `plugins.updater` config comes from bundle.mjs's generated overlay only).
 updater = ["dep:tauri-plugin-updater", "dep:serde_json"]
 
 [profile.dev]
-# Small debug builds (critique L1): line tables for our crate, none for dependencies.
+# Small debug builds: line tables for our crate, none for dependencies.
 debug = "line-tables-only"
 
 [profile.dev.package."*"]

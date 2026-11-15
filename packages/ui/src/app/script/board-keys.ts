@@ -1,13 +1,13 @@
 /**
- * L5.10b: the storyboard's pure parts (unit-tested) — the keys of the frame grids and a scene's intrinsic height.
+ * The storyboard's pure parts (unit-tested) — the keys of the frame grids and a scene's intrinsic height.
  *
- * Keys (plan §4.2, critique L3): the frames of every scene are one sequence the arrows walk; ← / → the step before /
+ * Keys (plan §4.2): the frames of every scene are one sequence the arrows walk; ← / → the step before /
  * after (across scenes), ↑ / ↓ the frame in the same column of the row above / below — into the scene before's last
  * row or the next scene's first row, the column clamped —, Home / End the first / last step, Page Up / Page Down three
  * rows. Pure index arithmetic on the scenes' step counts and the grid's columns: never a measure of a frame on screen
  * (a scene off screen is skipped by `content-visibility`, its frames have no box).
  *
- * L5.10b fixes: a frame's title words and a scene's length words (pure, unit-tested).
+ * A frame's title words and a scene's length words (pure, unit-tested).
  */
 import type { StepBlock } from '@retake/core/scenario';
 import { verbWords } from '../words/scenario-words.js';
@@ -79,9 +79,9 @@ export function gridMove(counts: readonly number[], at: FramePos, key: string, c
 export const FRAME_ROW_PX = 236;
 
 /**
- * The height a scene is laid out at while `content-visibility` skips it (critique L1: per scene, rows × the row height,
- * so the scroll bar and the scroll anchoring do not jump after End): its header and its rows of frames. The board passes
- * the columns and the row height it measures on a rendered scene (review A L4: they follow the board's width); the
+ * The height a scene is laid out at while `content-visibility` skips it (per scene, rows × the row height, so the
+ * scroll bar and the scroll anchoring do not jump after End): its header and its rows of frames. The board passes
+ * the columns and the row height it measures on a rendered scene (they follow the board's width); the
  * defaults are the 3-column board's.
  */
 export function sceneIntrinsicPx(steps: number, columns = 3, rowPx = FRAME_ROW_PX): number {
@@ -89,7 +89,7 @@ export function sceneIntrinsicPx(steps: number, columns = 3, rowPx = FRAME_ROW_P
 }
 
 /**
- * A frame's title (review B L7): the verb — the action's own words when they start with it ("Wait for", never "Wait
+ * A frame's title: the verb — the action's own words when they start with it ("Wait for", never "Wait
  * wait for") —, then the target, else what it does (`summary`: "Wait 1.6 s", "Press Enter"); the summary is the meta
  * line's note only when the title shows the target.
  */
@@ -104,7 +104,7 @@ export function frameTitle(step: Pick<StepBlock, 'category' | 'label' | 'target'
 }
 
 /**
- * A scene's length beside its number (review A L5): a capture's seconds; else why there are none — "not shot yet" (no
+ * A scene's length beside its number: a capture's seconds; else why there are none — "not shot yet" (no
  * run with pictures), "no capture yet" (the pictures are a dry run's: only a capture gives a scene its length) or "not
  * captured" (the capture shown did not reach it).
  */

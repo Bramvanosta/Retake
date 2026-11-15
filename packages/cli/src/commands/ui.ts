@@ -1,26 +1,24 @@
 /**
- * `retake ui` (L4.1): the Studio web app of the workspace, served on 127.0.0.1 until Ctrl-C (or SIGTERM). One server
- * per workspace: when one already runs (`.retake/ui.json` names it; its token record is in the Retake home), this opens
- * it again and exits. The URL it opens carries a one-time bootstrap code (valid 60 s), never the session token;
- * `retake ui` again gives a new one. On macOS the browser gets that URL through osascript's stdin (openBrowser), never
- * through a program's arguments.
- * `--json` prints one line `{"type":"ui","v":1,"url","port","pid","reused","player"}` on stdout and nothing else (a
- * warning — `--port` naming another port than the running server's — goes to stderr); `player` is the preview frame's
- * origin (absent when an older running server does not say it).
- * `--supervised` (L5.2, the desktop shell): `--json --no-open`, and the server also stops when its stdin closes — the
- * parent that holds the pipe died or quit, so no orphan server keeps `ui.json`. The stdin watcher is installed before
- * the server starts (an EOF during the start closes it right after). L5.16c: stdin carries the shell's lines for the
- * Set-up sheet (ui shell-line.ts parseShellLine: the folder picked in its native panel for the command, the notification
- * state), at most SHELL_LINE_MAX bytes each; anything else read there is dropped (L5.12d: the window page's answer to the
- * quit question comes through the op `desktop_answer` and goes out on stdout). Its line says `"v":2` (L5.2b): after it, a server this process serves
- * writes the `pending` and `job_end` lines of the shell's quit question and notifications (ui supervise.ts: enums and
- * checked slugs only, ≤ 8 KB a line, coalesced) and, L5.12d, the window page's `shown` / `answer` lines (desktop.ts),
- * and nothing else — console.log / info / debug go to stderr, the lines
- * through stdout's own write captured first (critique M4); a reader gone is seen as stdin's end (EPIPE is ignored). A
- * reused server gets no such lines (no pipe reaches it: the shell says so). A folder that is no workspace prints
- * `{"type":"error","v":2,"code":"no_workspace"}` on stdout before exiting 2, so the shell tells it from a usage error
- * (an older CLI without `--supervised` exits 2 with no line). On stopping it says why on stderr: `stopped: SIGTERM`,
- * `stopped: stdin closed`… — never a URL, a code or the token.
+ * `retake ui`: the Studio web app of the workspace, served on 127.0.0.1 until Ctrl-C (or SIGTERM). One server per
+ * workspace: when one already runs (`.retake/ui.json` names it; its token record is in the Retake home), this opens it
+ * again and exits. The URL it opens carries a one-time bootstrap code (valid 60 s), never the session token; `retake
+ * ui` again gives a new one. On macOS the browser gets that URL through osascript's stdin (openBrowser), never through
+ * a program's arguments. `--json` prints one line `{"type":"ui","v":1,"url","port","pid","reused","player"}` on stdout
+ * and nothing else (a warning — `--port` naming another port than the running server's — goes to stderr); `player` is
+ * the preview frame's origin (absent when an older running server does not say it). `--supervised` (the desktop shell):
+ * `--json --no-open`, and the server also stops when its stdin closes — the parent that holds the pipe died or quit, so
+ * no orphan server keeps `ui.json`. The stdin watcher is installed before the server starts (an EOF during the start
+ * closes it right after). Stdin carries the shell's lines for the Set-up sheet (ui shell-line.ts parseShellLine: the
+ * folder picked in its native panel for the command, the notification state), at most SHELL_LINE_MAX bytes each;
+ * anything else read there is dropped (the window page's answer to the quit question comes through the op
+ * `desktop_answer` and goes out on stdout). Its line says `"v":2`: after it, a server this process serves writes the
+ * `pending` and `job_end` lines of the shell's quit question and notifications (ui supervise.ts: enums and checked
+ * slugs only, ≤ 8 KB a line, coalesced) and the window page's `shown` / `answer` lines (desktop.ts), and nothing else —
+ * console.log / info / debug go to stderr, the lines through stdout's own write captured first; a reader gone is seen
+ * as stdin's end (EPIPE is ignored). A reused server gets no such lines (no pipe reaches it: the shell says so). A
+ * folder that is no workspace prints `{"type":"error","v":2,"code":"no_workspace"}` on stdout before exiting 2, so the
+ * shell tells it from a usage error (an older CLI without `--supervised` exits 2 with no line). On stopping it says why
+ * on stderr: `stopped: SIGTERM`, `stopped: stdin closed`… — never a URL, a code or the token.
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
@@ -44,18 +42,18 @@ export interface UiCommandOptions {
   supervised?: boolean;
 }
 
-/** The `--json` line's format version (unchanged by L5.2b: a script reading it keeps working). */
+/** The `--json` line's format version (kept unchanged: a script reading it keeps working). */
 export const UI_LINE_VERSION = 1;
 /**
- * The supervised line's format version (the desktop shell refuses another one: the app and the CLI drift apart). 2
- * (L5.2b): the `pending` / `job_end` lines follow the line.
+ * The supervised line's format version (the desktop shell refuses another one: the app and the CLI drift apart). 2:
+ * the `pending` / `job_end` lines follow the line.
  */
 export const SUPERVISED_LINE_VERSION = 2;
 
 /**
  * The reader of the shell's stdin lines: bytes in, each whole line (UTF-8) out to `onLine`; a line longer than `max`
- * BYTES is dropped whole (review c B-L8: the cap counts bytes, as the shell writes them — a multi-byte character split
- * between two chunks is joined first).
+ * BYTES is dropped whole (the cap counts bytes, as the shell writes them — a multi-byte character split between two
+ * chunks is joined first).
  */
 export function shellLineReader(onLine: (line: string) => void, max: number): (chunk: Buffer) => void {
   let buf = Buffer.alloc(0);
@@ -77,7 +75,7 @@ export function shellLineReader(onLine: (line: string) => void, max: number): (c
 
 /**
  * Resolves when stdin reaches its end (or fails): the supervising parent closed the pipe or died. Each whole line read
- * meanwhile goes to `onLine` (L5.16c: the shell's set-up answers); a line longer than `max` bytes is dropped whole.
+ * meanwhile goes to `onLine` (the shell's set-up answers); a line longer than `max` bytes is dropped whole.
  */
 function stdinClosed(onLine: (line: string) => void, max: number): Promise<string> {
   return new Promise((resolve) => {
@@ -205,8 +203,8 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
   }
   const supervised = opts.supervised === true;
   const json = opts.json === true || supervised;
-  // Installed first (critique M3): a parent that dies during the start still stops this server once it listens.
-  // L5.16c: the shell's set-up lines go to the server once it serves (dropped before).
+  // Installed first: a parent that dies during the start still stops this server once it listens.
+  // The shell's set-up lines go to the server once it serves (dropped before).
   let shellLine: (line: string) => void = () => undefined;
   // 8192: ui SHELL_LINE_MAX (@retake/ui loads only once the workspace is known; a test compares the two).
   const ended = supervised ? [stdinClosed((l) => shellLine(l), 8192)] : [];
@@ -217,7 +215,7 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
     ui.error('retake ui: no workspace here (no retake.yaml or projects/ folder): pass --root <workspace folder> or set RETAKE_ROOT');
     return EXIT.usage;
   }
-  // Like `retake mcp` (critique B5): the Studio's PATH keeps absolute entries only, none a package manager added for the
+  // Like `retake mcp`: the Studio's PATH keeps absolute entries only, none a package manager added for the
   // script (`pnpm retake ui`: node_modules/.bin), none inside the workspace — the ffmpeg of the thumbnails and the
   // worker it starts (with a clean environment: studioWorkerEnv) never run a program an agent wrote.
   process.env.PATH = clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
@@ -234,10 +232,10 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
     throw e;
   }
   const { url, reused, player } = launched;
-  // Before the line (L5.2b): a parent that reads it and signals at once meets the handler, not the default exit.
+  // Before the line: a parent that reads it and signals at once meets the handler, not the default exit.
   const stopping = stopSignal();
   const base = url.replace(/#.*$/, '');
-  // The running server keeps its port (review B L4): say so instead of silently ignoring --port.
+  // The running server keeps its port: say so instead of silently ignoring --port.
   if (reused && opts.port !== undefined && port !== 0 && launched.port !== port) {
     ui.warn(
       `a Studio server already serves this workspace on port ${launched.port}: --port ${port} is not used (stop that server — Ctrl-C in its terminal, or kill ${launched.pid} — then run retake ui --port ${port} again)`,
@@ -255,12 +253,12 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
     return EXIT.ok;
   }
   if (supervised) {
-    // Critique M4: stdout carries the shell's lines only — a stray console.log of any module goes to stderr.
+    // Stdout carries the shell's lines only — a stray console.log of any module goes to stderr.
     const write = process.stdout.write.bind(process.stdout) as (text: string) => boolean;
     for (const k of ['log', 'info', 'debug'] as const) console[k] = (...a: unknown[]) => console.error(...a);
     startSupervisor({ server: launched.server, out: { write: (t) => write(t), once: (e, f) => process.stdout.once(e, f) }, log: (m) => ui.line(m) });
     const server = launched.server;
-    // L5.16d: and the update's state (the Studio's status bar and update sheet).
+    // And the update's state (the Studio's status bar and update sheet).
     shellLine = (l) => void applyShellLine(server.setup, root, l, server.update);
   }
   const reason = await Promise.race([stopping, ...ended]);

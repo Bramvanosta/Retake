@@ -1,5 +1,5 @@
 /**
- * L5.16c fixes (review c A-L4) — engine_info when the workspace's jobs worker runs another copy of Retake: the copy's
+ * engine_info when the workspace's jobs worker runs another copy of Retake: the copy's
  * folder is the worker lock's text, so it is under `untrusted.worker_other_copy` only; the summary says the version's
  * shape (a lock's odd version is said as '?'), never the folder.
  */

@@ -1,5 +1,5 @@
 /**
- * L4.5 part A, the preview's plan (editor preview-plan.ts `previewPlan`, critique B4): what the Studio's player plays
+ * The preview's plan (editor preview-plan.ts `previewPlan`): what the Studio's player plays
  * names no file of this Mac — every `retake-asset:` URL swapped for the player's URL, the asset map, the capture / track /
  * music files, the display table, the notes and warnings gone, an absolute path in a slot blanked, a hidden local URL
  * without its address — and refuses (⚑) a `retake-asset:` URL the plan does not serve, an asset without a player URL, and

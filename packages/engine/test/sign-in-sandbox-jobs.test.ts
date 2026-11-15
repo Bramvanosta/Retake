@@ -1,5 +1,5 @@
 /**
- * L3.1 part D: `auth_login` and `sandbox_up` / `sandbox_reset` jobs run by the worker in a process of its own. A sign-in
+ * `auth_login` and `sandbox_up` / `sandbox_reset` jobs run by the worker in a process of its own. A sign-in
  * (`auto`: the persona's login steps against the fixture's signed-in side) saves a session the next status sees, and
  * its result carries no path or cookie; sandbox jobs start, seed and reset a small process sandbox, and its shell seed
  * step runs only with a human approval of its fingerprint (trust `mcp`), taken at submit — a job queued without one
@@ -247,7 +247,7 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(done.state).toBe('failed');
     expect(done.error?.message).toContain('without a human approval');
     await w.exited;
-    // L7.28: the same for an up that seeds (sandbox-work.ts hands the job's seedTrust on): down first, so the data is gone.
+    // The same for an up that seeds (sandbox-work.ts hands the job's seedTrust on): down first, so the data is gone.
     await openSandbox(await loadProject('s', ws), undefined, PERSON_POLICY, resolveSecretRef, packageHookRunner()).down();
     const up = await queue.enqueue({ version: 1, kind: 'sandbox_up', project: 's', submitted_by: 'test' });
     const w2 = startWorker();

@@ -1,5 +1,5 @@
 /**
- * The network guard of a render's Chromium (L3.2, BACKLOG guard-rail): what a render through MCP loads is the files
+ * The network guard of a render's Chromium (BACKLOG guard-rail): what a render through MCP loads is the files
  * of its plan, nothing else. Component code runs in Remotion's Chromium, and Remotion opens it with Private Network
  * Access checks off: without a guard, a component could reach other hosts and the user's own local services.
  *

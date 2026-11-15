@@ -1,7 +1,7 @@
 /**
- * L4.7 part D1: the component library screen end to end in headless Chromium, against a real Studio server (no worker:
+ * The component library screen end to end in headless Chromium, against a real Studio server (no worker:
  * a queued library job stays queued; the test plays the worker by writing cache entries into a real
- * `.retake/cache/previews/` folder and cancelling the job — critique B18: no render here) on a scratch workspace
+ * `.retake/cache/previews/` folder and cancelling the job — no render here) on a scratch workspace
  * whose templates_dir is its own folder (the starters stay starters) with the fixture project (theme: editorial):
  * - the project page's link → the grid by kind; committed posters of built-ins (editorial starter), a workspace
  *   component's cached poster; source badges in words (never "made with Claude");
@@ -16,9 +16,9 @@
  *   (theme_copy) then written (theme_edit), Undo → the copy's exact bytes; again on the copy (confirm), Undo exact;
  * - "Create with Claude": the prompt from checked names and the person's words, copied to the clipboard;
  * - ⚑ no model call: every request of the page goes to the Studio origin, and the only jobs queued are library previews;
- * - review fixes: card buttons named with the component's name (B L1), the next step after a copy (B L5), a library job
- *   that failed as a whole shows its error (B H1).
- * L5.12c « Épure » 4c (R4-Library): the Library in the shell — the browser's Library group and themes, the title bar's
+ * - card buttons named with the component's name, the next step after a copy, a library job
+ *   that failed as a whole shows its error.
+ * R4-Library: the Library in the shell — the browser's Library group and themes, the title bar's
  * Theme select, the selected card's inspector (its facts, Play in the theme, Open the details), the status bar (Idle ·
  * Render all loops · Open the theme editor); Play is a toggle with one name ("Play <name>", aria-pressed); Create with
  * Claude and the set-default confirmations are kit Sheets (Escape closes; the person's words kept across a close).
@@ -80,7 +80,7 @@ async function seed(key: string, kind: 'poster' | 'loop', component: string, ima
 async function seedFailed(key: string, kind: 'poster' | 'loop', component: string, reason: string): Promise<void> {
   const e = join(libraryCacheDir({ root: ws }), key);
   await mkdir(e, { recursive: true });
-  // Recorded under the registry as it is now (review A M3 / B H1: a failure under another registry reads as missing).
+  // Recorded under the registry as it is now (a failure under another registry reads as missing).
   const bundle = await libraryRegistryHash(await studio.engine.components.registry());
   await writeFile(
     join(e, LIBRARY_FILES.failed),
@@ -208,19 +208,19 @@ describe('the component library in Chromium', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const h = card('acme/hostile');
     await h.scrollIntoViewIfNeeded();
-    // Review B L1: each card's buttons are named with the component's name (the name's element, never an attribute copy).
+    // Each card's buttons are named with the component's name (the name's element, never an attribute copy).
     expect(await page.getByRole('button', { name: `Play ${HOSTILE}`, exact: true }).count()).toBe(1);
     expect(await page.getByRole('button', { name: 'Play Title card', exact: true }).count()).toBe(1);
     expect(await page.getByRole('button', { name: 'Retry the loop Call to action', exact: true }).count()).toBe(1);
     expect(await h.getByTestId('lib-play').getAttribute('aria-label')).toBeNull();
     await h.getByTestId('lib-play').click();
     expect(await h.getByTestId('lib-play').getAttribute('aria-pressed')).toBe('true');
-    // L5.12c (a toggle keeps one name): still "Play <name>", pressed; the poster says "Playing · loop".
+    // A toggle keeps one name: still "Play <name>", pressed; the poster says "Playing · loop".
     expect(await page.getByRole('button', { name: `Play ${HOSTILE}`, exact: true, pressed: true }).count()).toBe(1);
     await expect.poll(() => h.getByTestId('lib-picture').getAttribute('data-state'), POLL).toBe('loop');
     expect(await h.locator('img').getAttribute('src')).toMatch(/^data:image\/gif;base64,/);
     expect(await h.locator('img').getAttribute('alt')).toBe('acme/hostile in editorial, looping');
-    // L5.12c: the poster says it plays, in words on the video plate (white on the video's black).
+    // The poster says it plays, in words on the video plate (white on the video's black).
     expect(await h.getByTestId('lib-picture').innerText()).toContain('Playing · loop');
     expect(await h.locator('.lb-playing .k-mark').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 255, 255)');
     await h.getByTestId('lib-play').click();
@@ -280,7 +280,7 @@ describe('the component library in Chromium', () => {
   });
 
   it('the detail: kit, slots, params, README as text; Set as theme default on a starter copies first, Undo restores the exact bytes; again on the copy', async () => {
-    // L5.12c: a card selects; its inspector opens the details.
+    // A card selects; its inspector opens the details.
     await card('acme/hostile').locator('.k-card').click();
     await page.getByTestId('lib-inspector').waitFor();
     await page.getByTestId('lib-open').click();
@@ -307,7 +307,7 @@ describe('the component library in Chromium', () => {
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/${P}/library/editorial-copy/acme/hostile`);
     await expect.poll(() => page.getByTestId('lib-set-state').innerText(), POLL).toMatch(/^Set the card component to acme\/hostile/);
     expect(await page.getByTestId('lib-set-state').innerText()).toMatch(/the project still uses its own/);
-    // Review B L5: the next step — the copy in the theme editor, where "Use in this scenario" lives.
+    // The next step — the copy in the theme editor, where "Use in this scenario" lives.
     expect(await page.getByTestId('lib-set-next').getAttribute('href')).toBe(`#/p/${P}/themes/editorial-copy`);
     const file = join(ws, 'templates', 'editorial-copy', 'template.yaml');
     const written = await readFile(file, 'utf8');
@@ -440,7 +440,7 @@ describe('the component library in Chromium', () => {
     await expect.poll(() => page.getByTestId('lib-inspector').innerText(), POLL).toMatch(/acme\/hostile/);
     await page.getByTestId('lib-set-start').click();
     await page.locator('[data-testid="lib-set-copy"][open]').waitFor();
-    // (Review A-L2 / B-L2: the name edited, Return in its field copies.)
+    // (the name edited, Return in its field copies.)
     await page.getByTestId('lib-set-copy-name').fill('motion-set');
     await page.getByTestId('lib-set-copy-name').press('Enter');
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/${P}/library/motion-set/acme/hostile`);
@@ -652,7 +652,7 @@ describe('the component library in Chromium', () => {
       .waitFor({ state: 'detached' })
       .catch(() => undefined);
     await expect.poll(() => page.locator('dialog[open]').count(), POLL).toBe(0);
-    // ⚑ L5.12c: the person's words outlive the sheet — reopened, the brief is still there (and still unsaved).
+    // ⚑ The person's words outlive the sheet — reopened, the brief is still there (and still unsaved).
     await page.getByTestId('lib-create-open').click();
     expect(await page.getByTestId('lib-create-words').inputValue()).toBe(words);
     expect(await page.getByTestId('lib-create-id').inputValue()).toBe('acme/intro-split');

@@ -49,7 +49,7 @@ describe("the summary's words for the render path (L5.15, review B L6)", () => {
     expect(glWords({})).toBe('in software');
     expect(encodingWords({ encoding: { ...encoding, encoder: 'h264_videotoolbox', bitrate: '8M', gop: 60 } })).toBe('h264 VideoToolbox 8M');
     expect(encodingWords({ encoding: { ...encoding, encoder: 'libx264', crf: 16 } })).toBe('h264 crf 16');
-    // A record of before L5.15: no encoder, its crf.
+    // An older record: no encoder, its crf.
     expect(encodingWords({ encoding: { ...encoding, crf: 16 } })).toBe('h264 crf 16');
     expect(encodingWords({ encoding: { ...encoding } })).toBe('h264 crf 16');
   });

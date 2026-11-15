@@ -1,19 +1,19 @@
 /**
- * One render's frames (L4.6 part D1; L5.12b « Épure » 4b, R4-Comments' centre: was CommentsScreen.tsx's Viewer and
- * FrameView) — made by the server (`render_frame`: exact, any render, any browser; no video plays in the page): the
- * frame sized by the render's own aspect ratio (the pointer maths use this box — the picture itself, no letterbox) with
- * the region over it (the kit's RegionOverlay), a slider, ◀ / ▶ one frame and ± one second, a typed time (the CLI's
- * `--at` rule), the render's markers and the threads made on it as ticks on one lane (a marker seeks, a pin is a link
- * to its thread); ← → one frame, Shift one second (never while typing, never doubling the slider's own arrows).
+ * One render's frames (R4-Comments' centre) — made by the server (`render_frame`: exact, any render, any browser; no
+ * video plays in the page): the frame sized by the render's own aspect ratio (the pointer maths use this box — the
+ * picture itself, no letterbox) with the region over it (the kit's RegionOverlay), a slider, ◀ / ▶ one frame and ± one
+ * second, a typed time (the CLI's `--at` rule), the render's markers and the threads made on it as ticks on one lane (a
+ * marker seeks, a pin is a link to its thread); ← → one frame, Shift one second (never while typing, never doubling the
+ * slider's own arrows).
  * - Frames: one request in flight, the newest wins, a 429 backs off, a 503 is retried once, a 409 `cancelled` is ignored
  *   (FrameRequests, comment-words.ts); one random session id per tab (the server drops the older asks of a session).
  * - Drawing (`drawing`): a drag on the frame draws a region (pointer capture, Esc cancels, a new drag replaces it, a
- *   click makes none; a cancelled pointer — a system gesture, a lost capture — cancels like Esc: review A-L4) — the one
- *   pointer surface here (named in the real-controls lint's exceptions); its keyboard alternative is the composer's four %
+ *   click makes none; a cancelled pointer — a system gesture, a lost capture — cancels like Esc) — the one pointer
+ *   surface here (named in the real-controls lint's exceptions); its keyboard alternative is the composer's four %
  *   fields (WCAG 2.5.7).
  * - The picture's alt names the frame it shows (not the one asked for); one status line, always there, says a frame that
- *   is slow to come ("Loading frame N…", after a pause: never once per arrow press) — review A-L5.
- * - The arrows never move the frame behind an open modal (the palette, a sheet: review A-L9).
+ *   is slow to come ("Loading frame N…", after a pause: never once per arrow press).
+ * - The arrows never move the frame behind an open modal (the palette, a sheet).
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';

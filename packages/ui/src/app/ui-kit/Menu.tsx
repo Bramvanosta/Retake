@@ -1,5 +1,5 @@
 /**
- * L5.9: the menu button — a trigger (`aria-haspopup="menu"`, `aria-expanded`, `popoverTarget`: a click on the open
+ * The menu button — a trigger (`aria-haspopup="menu"`, `aria-expanded`, `popoverTarget`: a click on the open
  * trigger closes it, never re-opens it) and a `popover="auto"` list (`role="menu"`: the top layer, light dismiss and
  * Escape from the platform) of `role="menuitem"` buttons with one roving tab stop. Enter / Space / ↓ open it on the first
  * item, ↑ on the last; ↓ ↑ Home End move, a letter jumps to the next item starting with it; Enter / Space choose; Escape

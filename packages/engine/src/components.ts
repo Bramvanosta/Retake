@@ -1,5 +1,5 @@
 /**
- * Components as clients outside the CLI see them (L3.2, R-MCP-13/14/16): the registry of the workspace (its
+ * Components as clients outside the CLI see them (R-MCP-13/14/16): the registry of the workspace (its
  * components/ folder, then the built-in library) listed and read, a component validated (manifest, entry, esbuild
  * compile — nothing is executed), and a workspace component scaffolded from its kind's template.
  *
@@ -9,7 +9,7 @@
  * The registry comes from the workspace's ComponentRegistries port; the components package's other work (esbuild)
  * from its calls (registries/component-calls.ts), loaded on the first call.
  *
- * The shell forms (L7.24, the CLI's `retake components`): a person at a terminal names a component by id or by folder,
+ * The shell forms (the CLI's `retake components`): a person at a terminal names a component by id or by folder,
  * may scaffold over a built-in id (the CLI warns), renders previews into the component's own folder (preview.png +
  * preview.json + its README's block) — `componentListEntries`, `componentValidateShell`, `componentCreateShell`,
  * `componentPreviewTargets`, `componentPreviewTheme`, `componentReadmeWriter`: names of their own, so that no MCP or
@@ -470,7 +470,7 @@ export async function componentPreviewTargets(ws: OpenedWorkspace, sel: PreviewS
       .map((i) => ({ id: i.manifest.id, dir: i.dir, entry: i.entry, manifest: i.manifest }));
     if (!sel.workspaceOnly) {
       for (const kind of COMPONENT_KINDS) {
-        // A scaffold is rendered when it has a manifest (as before L7.24: its own validation is the scaffolds' test).
+        // A scaffold is rendered when it has a manifest (its own validation is the scaffolds' test).
         const v = await targetOfDir(catalogueOf(ws), lib.scaffoldDir(kind));
         if (v.target) targets.push(v.target);
       }

@@ -1,5 +1,5 @@
 /**
- * `site` jobs (L3.5, R-MCP-12): template_from_site through the worker. A clean ephemeral Chromium opens one public
+ * `site` jobs (R-MCP-12): template_from_site through the worker. A clean ephemeral Chromium opens one public
  * page through the worker's CONNECT proxy (runner-web site/), and the colours by role, font family names, logo
  * candidates (PNGs made by Chromium) and a screenshot go to <workspace>/.retake/site/<site_id>/ (site.json,
  * screenshot.jpg, logo-<n>.png; the newest 10 kept). The result carries a draft brand input for

@@ -39,7 +39,7 @@ export interface WorkspaceOptions {
 export interface OpenedWorkspace extends WorkspaceConfig {
   /**
    * What the work of this workspace runs under: its retake.yaml `ffmpeg` (core media-tools `ffmpegBin`) and `render:`
-   * (core render-settings.ts, L5.15), and — with `agent` — the agent policy on for its folders. The engine passes it to
+   * (core render-settings.ts), and — with `agent` — the agent policy on for its folders. The engine passes it to
    * every adapter that starts a program, a browser or ffmpeg.
    */
   readonly policy: WorkPolicy;

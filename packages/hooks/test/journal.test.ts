@@ -57,8 +57,8 @@ describe('Journal', () => {
     await expect(Journal.open(runFile('c'))).rejects.toThrow('entries[0].kind "ftp" is unknown');
   });
 
-  // L7.8 (changed): a rollback is checked against its kind's shape when read; before, only its `kind` was, and the entry
-  // below opened, then made a TypeError when it was listed for --replay-unsigned.
+  // A rollback is checked against its kind's shape when read: checked by its `kind` alone, the entry below opened,
+  // then made a TypeError when it was listed for --replay-unsigned.
   it('refuses a rollback whose shape is not its kind, naming the entry, and replays nothing of that journal', async () => {
     const at = '2026-11-04T09:00:00.000Z';
     const entry = (seq: number, rollback: unknown) => ({ seq, kind: 'shell', phase: 'setup', description: 'x', started_at: at, finished_at: at, status: 'ok', rollback });

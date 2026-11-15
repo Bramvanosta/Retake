@@ -3,7 +3,7 @@
  * without music) or a PNG still, with Remotion. The plan's assets are served by a local HTTP server for the duration of
  * the render, the compositions come from a cached bundle (./bundle.ts), and the browser is
  * $RETAKE_CHROMIUM_HEADLESS_SHELL or Playwright's headless shell (./browser.ts). How that browser draws, which encoder
- * writes the video and how many frames render at a time is the render policy's (./policy.ts, L5.15): on a Mac with a
+ * writes the video and how many frames render at a time is the render policy's (./policy.ts): on a Mac with a
  * GPU, ANGLE (Metal) + VideoToolbox at 3 frames at a time; elsewhere today's software raster + libx264 CRF 16.
  */
 import { randomBytes } from 'node:crypto';
@@ -125,7 +125,7 @@ export interface RenderPathRecord {
   /** The GPU path failed and the video was rendered again, in software with libx264 (its first error line). */
   fallback?: { reason: string };
   /**
-   * Which ffmpeg encoded the frames (L7.3): the setting, what was used, our ffmpeg's version when it was looked at,
+   * Which ffmpeg encoded the frames: the setting, what was used, our ffmpeg's version when it was looked at,
    * why the library's encoded although the setting is not `library` (`note`: one of our own sentences — the rule of
    * `auto` on this path, why ours did not qualify, the second attempt) and what the first attempt failed with while
    * ours encoded (`failed`: the failure's own words; the video was rendered again with the library's).
@@ -208,10 +208,10 @@ interface Session {
 }
 
 /**
- * Asset server + bundle + browser for one render or still; `close()` releases the server and the browser. The browser
+ * Asset server + bundle + browser for one render or still; `close` releases the server and the browser. The browser
  * draws as `policy` resolves it; with ANGLE its GPU is checked first (CDP SystemInfo): none under `auto` → closed and
  * reopened in software, `gpu` → kept, with a warning. Only the browser that will render is reported (`onBrowser`) and
- * guarded — after that check, so a reopened one is too (critique H3).
+ * guarded — after that check, so a reopened one is too.
  */
 async function openSession(opts: {
   plan: EditPlan;
@@ -296,14 +296,14 @@ async function openSession(opts: {
     ...(gpu ? { gpu } : {}),
     chromium: opened.chromium,
     executable: guard ? GUARDED_NO_OTHER_BROWSER : executable,
-    // Review A M1 / B M1: a reopen in software renders at the software default (what doctor says), not the GPU's 3.
+    // A reopen in software renders at the software default (what doctor says), not the GPU's 3.
     policy: gl === opts.policy.gl.resolved ? opts.policy : withGl(opts.policy, gl),
   };
 }
 
 const COMMON = { chromeMode: 'headless-shell', logLevel: 'error', timeoutInMilliseconds: 90_000 } as const;
 
-/** The fallback's policy: today's software path (no `--use-gl`, libx264 CRF 16) at the same concurrency (critique M2). */
+/** The fallback's policy: today's software path (no `--use-gl`, libx264 CRF 16) at the same concurrency. */
 function softwarePolicy(p: RenderPolicy): RenderPolicy {
   return { ...withGl(p, 'software', { keepConcurrency: true }), encoder: { asked: 'libx264', source: p.encoder.source } };
 }
@@ -313,7 +313,7 @@ function softwarePolicy(p: RenderPolicy): RenderPolicy {
  * a failure or a cancellation (AbortSignal → Remotion cancel signal) leaves nothing under `out`.
  *
  * The policy (./policy.ts) picks the GL, the encoder (before the render: VideoToolbox's size limit and probe) and the
- * concurrency. One fallback (L5.15): when the GPU path itself fails (`gpuPathFailure`: the GPU process, the GL context,
+ * concurrency. One fallback: when the GPU path itself fails (`gpuPathFailure`: the GPU process, the GL context,
  * the hardware encoder or its pipe — never a cancel, a timeout, a full disk or an error of the plan), the video is
  * rendered once more from frame 0 in software with libx264, to a fresh temporary file, through a new session (its
  * browser reported and guarded again); progress never goes back (stage `retrying`, clamped), a cancel still cancels.
@@ -353,7 +353,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
   const warnings: string[] = [];
   let bundleMs = 0;
   let fallback: { reason: string } | undefined;
-  /** What the last attempt tried (a failed render's record keeps it, review B L1). */
+  /** What the last attempt tried (a failed render's record keeps it). */
   let tried: RenderPathRecord | undefined;
   /** The policy attempt 1 rendered with (its concurrency is the fallback's). */
   let first: RenderPolicy | undefined;
@@ -504,7 +504,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
         },
       });
       if (cancelled(opts.signal)) throw new RenderCancelledError();
-      // What drew it, read again at the end (critique L2): Chromium leaves the GPU by itself when its GPU process keeps failing.
+      // What drew it, read again at the end: Chromium leaves the GPU by itself when its GPU process keeps failing.
       let used = session.gl;
       let gpu = session.gpu;
       if (used === 'angle') {
@@ -561,7 +561,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
       await removeLeftovers(dirname(out), basename(partial));
     }
   };
-  /** A failure carries what was tried and the warnings so far (the failed record keeps them, review B L1). */
+  /** A failure carries what was tried and the warnings so far (the failed record keeps them). */
   const failed = (e: unknown): never => {
     if (e instanceof RenderError && !(e instanceof RenderCancelledError)) {
       e.path = tried;

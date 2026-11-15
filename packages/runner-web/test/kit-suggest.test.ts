@@ -1,8 +1,8 @@
 /**
- * Kit 1.5.0 for the recorder (L3.4): `suggestFor` is the inventory's own entry for one element (same target, context
+ * Kit 1.5.0 for the recorder: `suggestFor` is the inventory's own entry for one element (same target, context
  * and action as `inventory` lists it), found from what a person acts on (a span inside a button, a label, a hidden
  * file input); `secretField` classifies fields without reading a value; the passive kit draws, patches and listens to
- * nothing. Kit 1.6.0 (L4.8): up to three alternative targets per element, for the recorder only.
+ * nothing. Kit 1.6.0: up to three alternative targets per element, for the recorder only.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';

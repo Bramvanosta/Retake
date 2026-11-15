@@ -10,8 +10,8 @@ export type Op<N extends keyof typeof OPERATIONS_BY_NAME> = (typeof OPERATIONS_B
 export { defineTool } from '@retake/engine/contract';
 
 /**
- * The annotations of the engine's operations (L7.13: READ, WRITE_FILES, CANCEL, SIGN_IN; L7.17: THEME_WRITE,
- * PREVIEW_JOB, SITE_JOB; L7.15: RUN_JOB, JOB_CANCEL, RENDER_JOB; L7.19: HOOK_JOB, SANDBOX_JOB), shared by the tools here.
+ * The annotations of the engine's operations (READ, WRITE_FILES, CANCEL, SIGN_IN, THEME_WRITE,
+ * PREVIEW_JOB, SITE_JOB, RUN_JOB, JOB_CANCEL, RENDER_JOB, HOOK_JOB, SANDBOX_JOB), shared by the tools here.
  */
 export { CANCEL, PREVIEW_JOB, READ, SIGN_IN, SITE_JOB, THEME_WRITE, WRITE_FILES } from '@retake/engine/contract';
 export { JOB_CANCEL, RENDER_JOB, RUN_JOB } from '@retake/engine/contract';

@@ -53,7 +53,7 @@ interface Attempt {
   entry?: JournalEntry;
 }
 
-/** A seed step written as a js hook (L1.8): a sandbox's seed runs without a browser. */
+/** A seed step written as a js hook: a sandbox's seed runs without a browser. */
 export const SEED_NO_JS = 'seed steps run without a browser: use http, sql, shell or exec';
 
 /** Setup and seed refuse to start when a hook can obviously not run (malformed, js without a page; js in a seed). */
@@ -185,7 +185,8 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
       if (found.problems.length) throw new HookSecurityError(found.problems.join('; '), 'mcp');
       files = found.files;
     }
-    // L7.39: the files a person checked before the run (their trust, or their yes): a hook whose files are no longer those is refused.
+    // The files a person checked before the run (their trust, or their yes): a hook whose files are no longer those is
+    // refused.
     if (!ctx.dryRun) {
       const changed = await trustedFilesProblem(hook, ctx);
       if (changed.length) throw new HookSecurityError(trustedFilesMessage(changed), 'trust');
@@ -196,14 +197,14 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
     if (ctx.trust === 'mcp') shown = shownLines(ctx, prepared);
     // Through MCP a shell hook always writes: its `writes: false` was written by whoever drives the server.
     if (ctx.trust === 'mcp' && kind === 'shell' && !prepared.writes) prepared.writes = shellAlwaysWrites(ctx.via);
-    // A read-only run (L1.7) refuses a hook that writes before anything else (no destructive prompt for it).
+    // A read-only run refuses a hook that writes before anything else (no destructive prompt for it).
     if (ctx.access?.mode === 'read-only' && prepared.writes) {
       throw new HookSecurityError(readOnlyHookMessage(prepared.writes, ctx.access), 'read-only');
     }
     // Nor does any run write to the hosts of another, read-only environment (production): refused like the above.
     if (prepared.writes && prepared.hosts) checkWriteHosts(prepared.hosts, prepared.writes, ctx.access);
     const reason = approvalReason(hook, kind, prepared, ctx, agentWritten);
-    // A seed rebuilds a local, disposable sandbox (L1.8): destructive steps are its job, never asked about. With trust
+    // A seed rebuilds a local, disposable sandbox: destructive steps are its job, never asked about. With trust
     // `mcp` a shell seed step still needs a human: it runs local code, whatever the sandbox is.
     const asks = reason !== null && (opts.phase !== 'seed' || (ctx.trust === 'mcp' && kind === 'shell'));
     const request: HookApprovalRequest | undefined = asks
@@ -257,9 +258,9 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
  *   refusals) and rolls back the hooks completed in this call, most recent first — also when `ctx.signal` stopped
  *   it, during any hook or between two (a running shell hook is stopped, an http, sql or js one ends first; the
  *   rollbacks run without the signal); refuses to start when a hook is malformed or a js hook has no page to run in.
- * - seed (L1.8): stops at the first failure like setup, rolls nothing back (the next reset rebuilds the data), never
+ * - seed: stops at the first failure like setup, rolls nothing back (the next reset rebuilds the data), never
  *   asks to confirm a destructive step and refuses to start on a js step.
- * - step (L5.8, a `hook:` step during the take): stops at the first failure like setup and journals rollbacks like
+ * - step (a `hook:` step during the take): stops at the first failure like setup and journals rollbacks like
  *   setup, but rolls nothing back itself — the step fails, the take stops, and the teardown's rollback of every pending
  *   entry undoes what it did; a cancel stops a running shell command (`ctx.signal`).
  * - teardown / reset: every hook runs; failures are collected.
@@ -303,7 +304,7 @@ export async function runHooks(hooks: HookStep[], ctx: HookContext, opts: RunHoo
       await rollBack();
       break;
     }
-    // L7.39: a run held to trusted files holds them as this hook leaves them (holdAfter).
+    // A run held to trusted files holds them as this hook leaves them (holdAfter).
     const point = ctx.trustedFiles && !ctx.dryRun ? await holdBefore(hooks[i] as HookStep, ctx) : undefined;
     const { result, entry } = await runOne(hooks[i], i, hooks.length, ctx, opts, log);
     if (point) await holdAfter(ctx, point, result.status);

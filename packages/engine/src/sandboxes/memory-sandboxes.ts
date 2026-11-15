@@ -1,5 +1,5 @@
 /**
- * An in-memory Sandboxes port (L7.25): sandboxes with no process, container, database or file — for the engine's tests
+ * An in-memory Sandboxes port: sandboxes with no process, container, database or file — for the engine's tests
  * (the sandbox jobs, a run's take, a sandbox environment's check) and the port's contract suite (test/sandbox-contract.ts),
  * which runs it beside the sandbox package. What it keeps, per project folder and environment: which declared services
  * run, the seed (its hash: core seedHash, the provider's inputs none), the last reset, the take lock, a log line per

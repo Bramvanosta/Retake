@@ -1,10 +1,10 @@
 /**
- * The comments' list in the browser pane (L4.6 part D1; L5.12b « Épure » 4b, R4-Comments' left pane: was
- * CommentsScreen.tsx's): the scenario's threads — Open (default) · Resolved · All as a segmented control, and "This
- * render only" (the render the viewer shows) — each a link to its thread (the open one `aria-current="page"`): its status
- * as a mark and a word, its time, its render ("render gone" once removed), the first line of the comment (untrusted:
- * text), where it points, its channel and entries, its newest proposal's state. "All" groups them Open, then Resolved,
- * under headings with their counts. The counts, a cut list ("The first 200 of 340") and unreadable files are said.
+ * The comments' list in the browser pane (R4-Comments' left pane): the scenario's threads — Open (default) · Resolved ·
+ * All as a segmented control, and "This render only" (the render the viewer shows) — each a link to its thread (the
+ * open one `aria-current="page"`): its status as a mark and a word, its time, its render ("render gone" once removed),
+ * the first line of the comment (untrusted: text), where it points, its channel and entries, its newest proposal's
+ * state. "All" groups them Open, then Resolved, under headings with their counts. The counts, a cut list ("The first
+ * 200 of 340") and unreadable files are said.
  * While a new filter is read the list shown stays (marked busy) with its own words — the filter it was read with: the
  * pane never flashes back to "Loading" nor says the new filter's words over the old list.
  * Thread rows carry no thumbnail (a still read per row is a read storm: BL-133).
@@ -31,7 +31,7 @@ interface ReadWith {
 
 /**
  * The list as last read for this scenario, with what it was read with (shown while a new filter is read: the pane never
- * jumps to "Loading", and its words stay those of the list on screen — review B-L1). A newly arrived answer (a new object)
+ * jumps to "Loading", and its words stay those of the list on screen). A newly arrived answer (a new object)
  * is tagged with the props of its request; the old answer still held on the render a filter changes keeps its own tag.
  */
 function useSteady<T>(loaded: Loaded<T>, scope: string, now: ReadWith): { data: T | null; read: ReadWith | null; busy: boolean; error: string | null } {
@@ -70,7 +70,7 @@ function ThreadRow({ t, slug, name, current }: { t: ThreadItem; slug: string; na
   );
 }
 
-/** Memoised (review A-L2): a frame step of the viewer re-renders the screen, never this list (its props are stable). */
+/** Memoised: a frame step of the viewer re-renders the screen, never this list (its props are stable). */
 export const ThreadList = memo(function ThreadList(p: {
   slug: string;
   name: string;

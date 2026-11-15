@@ -1,5 +1,5 @@
 /**
- * Markers of a raw export for editing tools (L2.13, R-RAW-03): scenes, steps, marks, captions and loading cuts on
+ * Markers of a raw export for editing tools (R-RAW-03): scenes, steps, marks, captions and loading cuts on
  * the clips, in clip-relative and sequence time, written as FCPXML 1.10 (one project, the clips on a spine), CMX 3600
  * EDL with locators, OpenTimelineIO JSON and CSV / JSON. Every clip carries a start timecode equal to its place on the
  * sequence (00:00:00:00 = the sequence start), so source and record timecodes agree in every tool. Pure.

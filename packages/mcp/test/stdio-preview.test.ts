@@ -1,5 +1,5 @@
 /**
- * L3.2 themes and components through `retake mcp` (spawned from the sources over stdio, driven by the SDK client), in a
+ * Themes and components through `retake mcp` (spawned from the sources over stdio, driven by the SDK client), in a
  * temporary workspace (the repository root is itself one: component_create there would write <repo>/components/):
  * template_list (list, detail), template_preview and component_preview rendered by the worker with their stills inline
  * (JPEG ≤ 1280 px, within the caps, the rest as files) — never into a component folder; job_status returns the stills

@@ -1,11 +1,11 @@
 /**
- * Pausing a run between steps (L4.4, R-UI-19). The run looks at the gate at the top of every step, once the page it acts
+ * Pausing a run between steps (R-UI-19). The run looks at the gate at the top of every step, once the page it acts
  * on is loaded and signed in (scenes.ts runStep), never inside a step (a half-typed field, a held button), never in
  * hooks, teardown or encoding. While paused it waits, polling the gate; a cancel (or the sign-in guard) ends the wait at
  * once and the run stops as any cancelled run does (teardown and rollbacks still run). A pause longer than its maximum
  * stops the run the same way: a paused run holds the single worker, the session copies and a sandbox take.
  *
- * A capture does not film the pause (critique B1, B3, B4): the last click's effect check ends and its ripple plays out
+ * A capture does not film the pause: the last click's effect check ends and its ripple plays out
  * first; then the capture clock stops and, at the same instant, every recorder filming now stops taking frames (its
  * screencast then detaches) and the take's CPU sampler pauses — capture time stands still, so the encoders fed during
  * the take (their ticks follow the clock) write nothing for it. On resume the recorders re-attach to their pages and the clock goes on from the paint time of the
@@ -65,7 +65,7 @@ export interface PausePoint {
   emit(e: RunProgress): void;
   save(): void;
   log(level: LogLevel, message: string): void;
-  /** Captures first (L5.14): the take stopped filming (false, once its recorders paused) or films again (true, first). */
+  /** Captures first: the take stopped filming (false, once its recorders paused) or films again (true, first). */
   filming?(on: boolean): void;
 }
 
@@ -77,7 +77,7 @@ export class RunPauser {
     const { gate, record, take } = this.p;
     if (!gate.requested) return;
     throwIfAborted(this.p.signal);
-    // B3: the last click's effects end before the take stops (its ripple is not cut by the pause).
+    // The last click's effects end before the take stops (its ripple is not cut by the pause).
     await take.settleEffects();
     const press = take.lastPress();
     if (press !== null) {
@@ -90,7 +90,7 @@ export class RunPauser {
     const t0 = performance.now();
     // Capture time stops first, at the wall time read now, and the recorders take no frame from that instant (a
     // recorder's pause drops what comes at once; its screencast then stops): before, they stopped first and capture
-    // time went on until they had — a frameless span of ~0.1 s filmed per pause (review B L10). The CPU sampler last.
+    // time went on until they had — a frameless span of ~0.1 s filmed per pause. The CPU sampler last.
     const t = take.clock.pause(wallNow());
     const filming = take.filming();
     const stopped = Promise.all(filming.map((f) => f.recorder.pause()));
@@ -129,11 +129,11 @@ export class RunPauser {
 
   /**
    * Re-attach the recorders paused for the pause (not when the run stops there) and close the clock's pause at the paint
-   * time of the first fresh frame (B3; the time limit, else). Returns the wall ms capture time left out.
+   * time of the first fresh frame (the time limit, else). Returns the wall ms capture time left out.
    */
   private async resumeTake(filming: ReturnType<PauseTake['filming']>, resumed: boolean): Promise<number> {
     const { take } = this.p;
-    // Heavy work held by this take is held again before its recorders film (L5.14).
+    // Heavy work held by this take is held again before its recorders film.
     if (resumed) this.p.filming?.(true);
     const resumeWall = wallNow();
     let to = resumeWall;

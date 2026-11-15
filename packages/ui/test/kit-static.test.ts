@@ -1,13 +1,13 @@
 /**
- * L5.9 parts B / C: the design system's components, rendered without a browser (react-dom/server) — each one a native
+ * The design system's components, rendered without a browser (react-dom/server) — each one a native
  * element where one exists, named, with its roles and states; ⚑ the kit's text inputs carry the unsaved mark (a
  * TypeScript-parser check that TextField and TextArea call `useUnsavedMark(unsavedFor(value, baseline, unsaved))` and
  * that `unsaved` is a required prop; `unsavedFor` itself); ⚑ a sheet's Return default is never a destructive action;
  * the palette's filter; the menu commands' allow-list; the timecode. The behaviours that need a browser (arrows,
  * popovers, dialogs, the palette's keys, appearance switching) are studio-e2e-kit.test.ts. Review fixes: the switch named
- * by its label alone (A-L3), no dangling `aria-describedby` on a segment (A-L4), the shell's scenario in context
- * forgotten once its project no longer lists it (B-L8). The kit's plain `<bdi>` (its `shown()` / Txt) is unwrapped here;
- * app-source.test.ts plants hostile text in every slot (A-M1).
+ * by its label alone, no dangling `aria-describedby` on a segment, the shell's scenario in context
+ * forgotten once its project no longer lists it. The kit's plain `<bdi>` (its `shown()` / Txt) is unwrapped here;
+ * app-source.test.ts plants hostile text in every slot.
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -139,7 +139,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(links).toMatch(/^<nav class="k-seg k-seg-md k-seg-links" aria-label="Mode"><a href="#\/p\/p\/s\/q" class="k-seg-item is-current" aria-current="page">/);
     const none = html(createElement(SegmentedLinks, { label: 'Mode', hint: 'Open a scenario', items: [{ key: 's', label: 'Script', to: null, current: false }] }));
     expect(none).toMatch(/<button type="button" class="k-seg-item" disabled="" aria-describedby="([^"]+)">.*<span id="\1" class="k-sr">Open a scenario<\/span>/);
-    // Review A-L4: with only some segments off, the reason is there too — every aria-describedby id resolves.
+    // With only some segments off, the reason is there too — every aria-describedby id resolves.
     const some = html(
       createElement(SegmentedLinks, {
         label: 'Mode',
@@ -177,7 +177,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(row).toMatch(/^<button type="button" class="k-rowcard is-selected is-compact" aria-pressed="true" data-testid="r">/);
     expect(row).toContain('<span class="k-rowcard-aside">2 alternatives</span>');
     expect(html(createElement(RowCard, { tile: 'Card', title: 'A card', selected: false, onSelect: noop }))).not.toContain('k-rowcard-aside');
-    // L5.11b fixes (review A-M2): a RowList listbox — the list the tab stop (its active option by id), its items role="none"
+    // A RowList listbox — the list the tab stop (its active option by id), its items role="none"
     // around RowCard options (never a tab stop), the caller's group between them owned by no option; plain, a list.
     const option = (id: string, selected: boolean, active: boolean) =>
       createElement(RowListItem, {
@@ -212,7 +212,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
 
   it('switch: a native checkbox with role="switch" inside its label; fields: a visible label bound to a native input / textarea / select, an error in words', () => {
     const sw = html(createElement(Switch, { label: 'Captions', checked: true, onChange: noop, hint: 'Burned into the video' }));
-    // Review A-L3: named by the label alone (aria-labelledby), the hint its description.
+    // Named by the label alone (aria-labelledby), the hint its description.
     expect(sw).toMatch(
       /^<label class="k-switch-row"><span class="k-switch-text"><span id="([^"]+)" class="k-switch-label">Captions<\/span><span id="([^"]+)" class="k-hint">Burned into the video<\/span><\/span>.*<input type="checkbox" role="switch" class="k-switch-input" aria-labelledby="\1" aria-describedby="\2" checked=""\/>/,
     );
@@ -313,7 +313,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(c).toMatch(/data-testid="sb-copy"[^>]*>.*Copy command/);
     expect(c).not.toContain('k-sr');
     expect(c).toContain('<span class="k-copied" role="status"></span>');
-    // The full form: "Copied" in a visible span too (fixes B-L8), never a screen-reader-only word.
+    // The full form: "Copied" in a visible span too, never a screen-reader-only word.
     expect(html(createElement(Blocker, { word: 'Blocked', children: 'x', fix: { copy: 'y' } }))).toContain('<span class="k-copied" role="status"></span>');
     const l = html(createElement(Blocker, { compact: true, word: 'the file has errors', fix: { label: 'Open the YAML', to: { name: 'scenario', slug: 'p', scenario: 'quote', tab: 'yaml' } } }));
     expect(l).toContain('<a href="#/p/p/s/quote/yaml" class="k-btn k-btn-ghost k-btn-sm">');
@@ -339,7 +339,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     const sel = html(createElement(FrameCard, { picture: createElement('span', null, 'pic'), number: 3, title: 'Checkout', meta: '4 steps', selected: true, onSelect: noop }));
     expect(sel).toMatch(/^<button type="button" class="k-card k-card-frame is-selected" aria-pressed="true">/);
     expect(html(createElement(PosterCard, { picture: 'p', title: 'Quote', to: { name: 'project', slug: 'q' } }))).toMatch(/^<a href="#\/p\/q" class="k-card k-card-poster">/);
-    // L5.12c fixes: a roving grid's stop, named by its title and described by its meta (review A-L7).
+    // A roving grid's stop, named by its title and described by its meta.
     expect(html(createElement(PosterCard, { picture: 'p', title: 'Quote', selected: false, onSelect: noop, tabIndex: -1, labelledBy: 'n1', describedBy: 'm1' }))).toMatch(
       /^<button type="button" class="k-card k-card-poster" aria-pressed="false" tabindex="-1" aria-labelledby="n1" aria-describedby="m1">/,
     );
@@ -368,7 +368,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(html(createElement(Facts, { rows: [{ key: 'l', label: 'Length', value: '1:00.0' }] }))).toBe(
       '<dl class="k-facts"><div class="k-facts-row"><dt class="k-facts-label">Length</dt><dd class="k-facts-value">1:00.0</dd></div></dl>',
     );
-    // A named list: the name on a group around it (review A-L6: a dl takes no name), never on the dl.
+    // A named list: the name on a group around it (a dl takes no name), never on the dl.
     const named = html(createElement(Facts, { label: 'Page console', rows: [{ key: 'u', label: 'URL', value: 'x' }] }));
     expect(named).toMatch(/^<div role="group" aria-label="Page console" class="k-facts-group"><dl class="k-facts">/);
     expect(named).not.toMatch(/<dl[^>]*aria-label/);
@@ -596,7 +596,7 @@ describe('the overlays (L5.9 part C)', () => {
         ],
       }),
     );
-    // L5.12b fixes (review A-L7): the table itself is named (a caption: table navigation announces it).
+    // The table itself is named (a caption: table navigation announces it).
     expect(diff).toMatch(/^<div class="k-diff" data-testid="db">/);
     expect(diff).toMatch(/<table class="k-diff-table" data-testid="d" aria-describedby="[^"]+"><caption class="k-sr">The change<\/caption>/);
     expect(diff.match(/data-testid="diff-row"/g)).toHaveLength(3);
@@ -659,7 +659,7 @@ describe('the overlays (L5.9 part C)', () => {
     );
     expect(pal).toContain('placeholder="Search commands, scenes and themes"');
     expect(pal).toMatch(/<span class="k-palette-icon" aria-hidden="true"><svg class="k-icon"/);
-    // L5.12b fixes (review A-L8): the legend is read (its footnote is information); expanded only while it lists options.
+    // The legend is read (its footnote is information); expanded only while it lists options.
     expect(pal).toContain('<p class="k-palette-legend">');
     expect(pal).toMatch(/Move<\/span>.*Run<\/span>.*Close<\/span><span class="k-palette-legend-note"><bdi>Commands with a key are also in the menu bar<\/bdi>/);
     expect(pal).toContain('aria-expanded="true"');
@@ -717,7 +717,7 @@ describe('the overlays (L5.9 part C)', () => {
         { id: 'go', label: 'Capture anyway', variant: 'primary', isDefault: true },
       ])?.id,
     ).toBe('go');
-    // L5.11a (critique L4): an alert sheet that is not destructive; test ids on the dialog and its actions.
+    // An alert sheet that is not destructive; test ids on the dialog and its actions.
     const a = html(
       createElement(Sheet, {
         open: false,
@@ -758,7 +758,7 @@ describe('the overlays (L5.9 part C)', () => {
   });
 
   it('the menu commands: an allow-list of ids (the desktop menu sends nothing else)', () => {
-    // L5.11a: the Scenario menu's four (Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘.) now act.
+    // The Scenario menu's four (Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘.) now act.
     expect([...MENU_COMMANDS]).toEqual(['palette', 'mode-script', 'mode-shoot', 'mode-edit', 'mode-review', 'inspector', 'rehearse', 'capture', 'render', 'stop']);
     for (const id of MENU_COMMANDS) expect(isMenuCommand(id)).toBe(true);
     for (const id of ['reload', 'record', 'pause', '', 'PALETTE', 'Rehearse', null, 1, { id: 'palette' }]) expect(isMenuCommand(id)).toBe(false);

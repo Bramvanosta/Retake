@@ -1,5 +1,5 @@
 /**
- * L5.6 — capture reliability (R-FLD-10 – R-FLD-16): a take fails early, loudly and completely, never silently wrong.
+ * Capture reliability (R-FLD-10 – R-FLD-16): a take fails early, loudly and completely, never silently wrong.
  * `type` into a field below the fold of a scrolling modal dialog whose page behind holds a field of the same label,
  * a field a calendar covers (the focus check fails before typing), a field that loses the focus (value warning); every
  * missing target of a scene in one error; dead clicks reported at once and `retry_click`; transient download failures

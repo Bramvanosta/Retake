@@ -1,15 +1,15 @@
 /**
- * L4.4 part B: the Run screen's and the Sessions panel's ops over HTTP, under the `ui` client's agent trust:
+ * The Run screen's and the Sessions panel's ops over HTTP, under the `ui` client's agent trust:
  *
- * - S6 `auth_login` narrowed: only the headed window where the person signs in, never a wait — `mode: auto` or a
+ * - `auth_login` narrowed: only the headed window where the person signs in, never a wait — `mode: auto` or a
  *   `wait_s` → 400, nothing queued; `sign_in_cancel` stops a sign-in job only (a run job is refused).
  * - `run_pause`: pinned arguments; a queued run → 409 (no marker left to pause it unseen); a running dry run of a job
- *   pauses (the marker, `pause_requested_at`) and resumes; a running capture too (part D); a finished run → 409.
- * - S7 the session acknowledgement: a capture whose scenario uses a persona whose stored session is invalid and that no
+ *   pauses (the marker, `pause_requested_at`) and resumes; a running capture too; a finished run → 409.
+ * - The session acknowledgement: a capture whose scenario uses a persona whose stored session is invalid and that no
  *   run signs in by itself needs `sessions_ack` naming it — else 409 with `details.sessions`, nothing queued; a dry run
  *   needs none; `scenario_sessions` names those personas (`confirm`), no path, the last check's text untrusted. Review
- *   fixes: login steps whose `{{env:…}}` the worker's environment lacks sign nobody in (B M3: confirmed, said); a
- *   persona without a `check` is not "checked first" — the 409 says what really happens (A M2).
+ *   fixes: login steps whose `{{env:…}}` the worker's environment lacks sign nobody in (confirmed, said); a
+ *   persona without a `check` is not "checked first" — the 409 says what really happens.
  */
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
@@ -160,7 +160,7 @@ describe('run_pause', () => {
     const r = await call('run_pause', { project: P, run_id: q.run_id, paused: false });
     expect(r.status).toBe(200);
     expect(existsSync(join(queue.files.job(q.job), 'pause'))).toBe(false);
-    // A capture pauses too (part D: the capture does not film the pause).
+    // A capture pauses too (the capture does not film the pause).
     const cap = (await call('scenario_run', { project: P, name: 'pause-b', mode: 'capture' })).json<{ data: { run_id: string; job: string } }>().data;
     await take(cap.job);
     const c = await call('run_pause', { project: P, run_id: cap.run_id, paused: true });
@@ -242,7 +242,7 @@ describe('S7: the session acknowledgement of a capture', () => {
       expect(e.message).not.toContain('stops before filming');
     } finally {
       await writeFile(join(project(), 'project.yaml'), yaml);
-      // The supplier never signed in again, as the S7 case above expects it in any order.
+      // The supplier never signed in again, as the session acknowledgement case above expects it in any order.
       await rm(files.snapshot, { force: true });
       await rm(files.statusFile, { force: true });
     }

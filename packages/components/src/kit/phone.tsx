@@ -1,5 +1,5 @@
 /**
- * A phone drawn in CSS for full-screen phone cards (L2.9: studio/phone-lockscreen, studio/phone-home-badge), in the
+ * A phone drawn in CSS for full-screen phone cards (studio/phone-lockscreen, studio/phone-home-badge), in the
  * family of studio/layout-phone: a metal band tinted from the theme, a thin glass bezel, a rounded display, the Dynamic
  * Island, side buttons and the reference soft shadow. `phoneCardGeometry` places it in any output format (centred, or
  * left with a text column beside it; lifted in tall formats) — mirrored by the cards' manifest `anchor` expressions.

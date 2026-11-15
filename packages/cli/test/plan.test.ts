@@ -37,7 +37,7 @@ beforeAll(async () => {
   ]) {
     await mkdir(join(runs, id));
     await copyFile(join(FIXTURES, `${name}.timeline.json`), join(runs, id, 'timeline.json'));
-    // A whole capture: its record and its film too (L7.6a: `latest` is the newest capture an edit can work on).
+    // A whole capture: its record and its film too (`latest` is the newest capture an edit can work on).
     await writeFile(join(runs, id, 'run.json'), record(id, name));
     await writeFile(join(runs, id, 'capture.mp4'), 'never read');
   }
@@ -140,7 +140,7 @@ describe('retake plan', () => {
       const same = await retake('plan', 'demo', run);
       expect(same.code, same.err).toBe(EXIT.ok);
       expect(same.err).not.toContain('changed since');
-      // L5.5: an edit-only change (a caption) is no filmed change.
+      // An edit-only change (a caption) is no filmed change.
       await writeFile(file, snapshot.replace('    open: /\n', '    open: /\n    caption: Hello\n'));
       const edited = await retake('plan', 'demo', run);
       expect(edited.code, edited.err).toBe(EXIT.ok);

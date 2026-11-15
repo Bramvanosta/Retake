@@ -1,9 +1,9 @@
 /**
- * The Comments screen's words and rules (L4.6 part D1; R-UI-27, R-UI-29; plan D3–D5 as amended by the critique), pure —
- * no React, no call: channel and status words, the anchor chips, the region a drag or the four % fields make (critique
- * B11: rounded to 4 decimals, then clamped inside the frame; a click is no region), a typed timecode as a frame (the
- * CLI's `--at` rule), the keys of the viewer, and the frame requests (FrameRequests: one in flight per tab, the newest
- * frame wins, a 429 backs off, a 409 `cancelled` is ignored).
+ * The Comments screen's words and rules (R-UI-27, R-UI-29), pure — no React, no call: channel and status words, the
+ * anchor chips, the region a drag or the four % fields make (rounded to 4 decimals, then clamped inside the frame; a
+ * click is no region), a typed timecode as a frame (the CLI's `--at` rule), the keys of the viewer, and the frame
+ * requests (FrameRequests: one in flight per tab, the newest frame wins, a 429 backs off, a 409 `cancelled` is
+ * ignored).
  *
  * Every word made here is the tool's own or a trusted field (ids checked by pattern on the server: core trustedAnchor,
  * "unknown" for any other shape); text a person or an agent wrote never passes through here — the screen shows it
@@ -46,7 +46,7 @@ export function entryWords(kind: string): string {
   }
 }
 
-/** A proposal's state as a badge's words (B4: undone is actionable again). */
+/** A proposal's state as a badge's words (undone is actionable again). */
 export function proposalWords(state: string): string {
   switch (state) {
     case 'pending':
@@ -83,7 +83,7 @@ const round4 = (v: number) => Math.round(v * 10_000) / 10_000;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 /**
- * A region as the server takes it (critique B11): each value rounded to 4 decimals, the corner kept inside the frame,
+ * A region as the server takes it: each value rounded to 4 decimals, the corner kept inside the frame,
  * then the width and height clamped after rounding so x + w ≤ 1 and y + h ≤ 1 — or null when nothing is left (a side
  * of 0, a value that is not a number).
  */
@@ -133,7 +133,7 @@ export function fieldsOf(r: Region | null): RegionFields {
   return r ? { x: pct(r.x), y: pct(r.y), w: pct(r.w), h: pct(r.h) } : { x: '', y: '', w: '', h: '' };
 }
 
-/** The region the four % fields say, clamped (B11), or null (a field empty or not a number, a side of 0). */
+/** The region the four % fields say, clamped, or null (a field empty or not a number, a side of 0). */
 export function regionOfFields(f: RegionFields): Region | null {
   const vals = [f.x, f.y, f.w, f.h].map((s) => (s.trim() === '' ? NaN : Number(s)));
   if (!vals.every(Number.isFinite)) return null;
@@ -160,7 +160,7 @@ export interface Chip {
 }
 
 /**
- * The chips of an anchor (plan D3): frame and timecode, segment, step (and where it is in today's file), component,
+ * The chips of an anchor: frame and timecode, segment, step (and where it is in today's file), component,
  * marker, page, transition, overlays — trusted fields only (the server checked each id: "unknown" otherwise).
  * `step_now`: null = not in today's file; undefined = the frame shows no step.
  */
@@ -288,7 +288,7 @@ export interface FrameRequestsOptions<T> {
 
 export const BACKOFF_MAX_MS = 8000;
 /**
- * Waits before a frame that keeps failing is said (review B L3): a full queue (429) is asked again this many times
+ * Waits before a frame that keeps failing is said: a full queue (429) is asked again this many times
  * (1 + 2 + 4 + 8 s), a timeout (503, reason `timeout`: the frame took the server's whole 15 s) once.
  */
 export const FRAME_RETRIES = { busy: 4, timeout: 1 } as const;
@@ -296,11 +296,11 @@ export const FRAME_RETRIES = { busy: 4, timeout: 1 } as const;
 const sameAsk = (a: FrameAsk | null, b: FrameAsk | null) => !!a && !!b && a.render_id === b.render_id && a.created_at === b.created_at && a.frame === b.frame;
 
 /**
- * The viewer's frame requests (plan D2, critique B7; part C's contract): at most ONE render_frame call in flight per
+ * The viewer's frame requests (part C's contract): at most ONE render_frame call in flight per
  * tab; while it runs only the newest frame asked is kept (the slider moves: no queue), and it is sent when the call
  * ends; an answer for a frame no longer wanted is dropped. A 429 (`busy`: the server's queue is full) waits — 1 s,
  * then longer — and asks the newest frame again, up to FRAME_RETRIES.busy times; a 503 timeout once; then the failure is
- * said (review B L3). A 409 `cancelled` (superseded by this tab's own newer request) is ignored; any other failure is
+ * said. A 409 `cancelled` (superseded by this tab's own newer request) is ignored; any other failure is
  * said for the newest frame.
  */
 export class FrameRequests<T> {
@@ -410,7 +410,7 @@ export function charactersLeft(text: string): string {
   return `${n.toLocaleString('en')} ${n === 1 ? 'character' : 'characters'} left`;
 }
 
-/** The characters-left thresholds a screen reader hears (L5.12b fixes, review B-L5): never once per key. */
+/** The characters-left thresholds a screen reader hears: never once per key. */
 export const CHARACTERS_LEFT_SAID = [200, 100, 50, 10] as const;
 
 /**
@@ -428,11 +428,11 @@ export function charactersLeftAnnounced(text: string): string {
 
 // ── Proposals (part D2) ─────────────────────────────────────────────────────
 
-/** Past this share of the file a proposal says it is a rewrite (core PROPOSAL_REWRITE_NOTE_PCT; T13 checks they agree). */
+/** Past this share of the file a proposal says it is a rewrite (core PROPOSAL_REWRITE_NOTE_PCT; a test checks they agree). */
 export const REWRITE_NOTE_PCT = 25;
 
 /**
- * A piece of a diff line as the screen draws it (critique B1: what the person reads is what Apply writes):
+ * A piece of a diff line as the screen draws it (what the person reads is what Apply writes):
  * - `text`: characters drawn as they are (in a monospace, left-to-right isolated cell; spaces inside kept);
  * - `space`: a run of leading or trailing spaces, drawn one `·` each (YAML's meaning is indentation; a trailing space
  *   changes the bytes) — so an indentation-only or a trailing-space change is two visibly different rows;
@@ -442,8 +442,8 @@ export const REWRITE_NOTE_PCT = 25;
  *   line / paragraph separators, the Hangul fillers, the braille blank, and every space but U+0020 (a no-break space
  *   looks like a space). A zero-width joiner between two pictographs and a variation selector after an emoji are left
  *   in the text (an emoji sequence, as core's write rules allow); and every combining mark past the
- *   COMBINING_MARKS_SHOWN-th on one character (review A L6: a stack of marks draws as ink over the rows around it, and
- *   hundreds of them read as one letter).
+ *   COMBINING_MARKS_SHOWN-th on one character (a stack of marks draws as ink over the rows around it, and hundreds of
+ *   them read as one letter).
  */
 export type LinePiece = { kind: 'text'; text: string } | { kind: 'space'; count: number } | { kind: 'tab' } | { kind: 'char'; code: string };
 
@@ -457,14 +457,14 @@ export function codeOf(c: string): string {
   return `U+${(c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}`;
 }
 
-/** Combining marks drawn on one character, at most: the next ones are drawn `[U+…]` (review A L6). */
+/** Combining marks drawn on one character, at most: the next ones are drawn `[U+…]`. */
 export const COMBINING_MARKS_SHOWN = 3;
 const MARK = /\p{M}/u;
 /** A strong right-to-left letter (Hebrew, Arabic, Syriac, Thaana, N'Ko… and their presentation forms, the RTL planes). */
 const RTL = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufefc\u{10800}-\u{10fff}\u{1e800}-\u{1efff}]/u;
 
 /**
- * A line holds right-to-left letters (review A L6): the diff draws it in byte order, left to right (bidi override), and
+ * A line holds right-to-left letters: the diff draws it in byte order, left to right (bidi override), and
  * says so — an editor shows such a line in another order.
  */
 export function hasRtl(line: string): boolean {
@@ -571,7 +571,7 @@ export function proposalSummary(p: { added: number; removed: number; hunks: numb
   return `${n(p.added, 'line')} added, ${p.removed.toLocaleString('en')} removed, in ${n(p.hunks, 'place')}`;
 }
 
-/** The rewrite note (critique B13), past REWRITE_NOTE_PCT of the file; null otherwise. */
+/** The rewrite note, past REWRITE_NOTE_PCT of the file; null otherwise. */
 export function rewriteNote(pct: number | undefined): string | null {
   if (typeof pct !== 'number' || !(pct > REWRITE_NOTE_PCT)) return null;
   return `This proposal rewrites ${Math.round(pct)} % of the file: read every line — one real change can hide in a rewrite. Ask Claude for the smallest change if it should not.`;
@@ -604,7 +604,7 @@ export function proposalButtons(offer: Offer | undefined | null): { buttons: Pro
 }
 
 /**
- * What the page says after an apply that went through (review B M2): its problems (the apply entry not recorded…) and
+ * What the page says after an apply that went through: its problems (the apply entry not recorded…) and
  * the scenario's validation warnings for the text written; null when there is nothing to say.
  */
 export function appliedWords(a: { warnings?: readonly unknown[]; problems?: readonly unknown[] }): { tone: 'warning'; words: string } | null {

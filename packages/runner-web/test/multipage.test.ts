@@ -1,5 +1,5 @@
 /**
- * L2.11 runner: a multi-page scene (`pages:`) films its pages at the same time on one clock — one screencast per page,
+ * Runner: a multi-page scene (`pages:`) films its pages at the same time on one clock — one screencast per page,
  * each encoded on the shared CFR grid (capture-<id>.mp4) —, with independent viewports (a mobile one emulated), a
  * cursor per page (only the acting page's moves; a short pause when the acting page changes), a timeline track per
  * page and every event tagged with its page. Single-page scenes around it record capture.mp4 as before.
@@ -255,7 +255,7 @@ describe('multi-page scenes: the main capture and page URLs', () => {
         runId: `all-skipped-${Date.now()}`,
       }),
     );
-    // Nothing navigates, nothing paints: the L2.7 rule (a capture without a frame is a failed capture) applies.
+    // Nothing navigates, nothing paints: the rule (a capture without a frame is a failed capture) applies.
     expect(r.status).toBe('failed');
     expect(r.error?.message).toBe('the capture recorded no frame');
   }, 120_000);

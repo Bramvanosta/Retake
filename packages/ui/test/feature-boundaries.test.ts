@@ -1,6 +1,6 @@
 /**
- * L6.13: the Studio app's feature boundaries, from a static walk of its imports (value and type imports, re-exports
- * and dynamic imports alike). L7.32: the screens grouped by feature. The app's parts:
+ * The Studio app's feature boundaries, from a static walk of its imports (value and type imports, re-exports
+ * and dynamic imports alike), the screens grouped by feature. The app's parts:
  *
  * - `data/` — the data layer: the only part that calls the API (`call` / `useCall` of api.ts; `request` stays
  *   private to api.ts), one module per feature, typed by StudioOps. It imports nothing of the app but api.ts and

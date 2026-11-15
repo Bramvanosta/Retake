@@ -1,5 +1,5 @@
 /**
- * L5.16d: the desktop app's update in the Studio — its data (desktop_update_status, ui update-ops.ts) and its words
+ * The desktop app's update in the Studio — its data (desktop_update_status, ui update-ops.ts) and its words
  * (DESIGN §4p (d), docs/reference/studio-ui.md). "Update available · vX" in the status bar opens the sheet: the
  * release notes (the feed's text: Txt), Later · Install and Restart; then its progress — downloading and checking the
  * signature, waiting for this workspace's jobs, the quit question — or what went wrong. Help › Check for Updates…
@@ -56,8 +56,8 @@ export function verifying(s: UpdateStatus): boolean {
   return s.state === 'downloading' && !!s.total && (s.received ?? 0) >= s.total;
 }
 
-/** The status bar's button: shown while an update is known, under way, or failed for a version (review d A-M3: a
- * refusal such as "not writable" keeps its words in the bar and the sheet); null otherwise (nothing in the bar). */
+/** The status bar's button: shown while an update is known, under way, or failed for a version (a refusal such
+ * as "not writable" keeps its words in the bar and the sheet); null otherwise (nothing in the bar). */
 export function badgeWords(s: UpdateStatus | null): string | null {
   if (s?.available && s.state === 'updated' && s.current) return `Updated to v${s.current}`;
   if (!s?.available || !s.version) return null;

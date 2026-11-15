@@ -1,4 +1,4 @@
-/** A step of `planEdit`: the tap targets of transitions (L2.9), from the manifest anchors of the outgoing segments. */
+/** A step of `planEdit`: the tap targets of transitions, from the manifest anchors of the outgoing segments. */
 import { ANCHOR_KEYS, evalAnchor, paramEnums } from '@retake/components/geometry';
 import type { AnchorSpec } from '@retake/components/geometry';
 import type { EditPlan, PlanLayout, ResolvedComponent } from '../plan-types.js';
@@ -7,7 +7,7 @@ import { ANCHOR_OVERLAY_WINDOW_S } from './rules.js';
 import type { Draft, PlanScope } from './scope.js';
 import { errorMessage } from '@retake/core/base';
 
-/** Tap targets of transitions (L2.9): the outgoing segment's (or its last overlay's) manifest anchor. */
+/** Tap targets of transitions: the outgoing segment's (or its last overlay's) manifest anchor. */
 export function planTapTargets(s: PlanScope, drafts: Draft[]): void {
   const { variant, resolver, design, unit, cssW, cssH, warnings, outFps } = s;
   const anchorKey = ANCHOR_KEYS[variant];

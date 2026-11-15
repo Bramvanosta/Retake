@@ -37,7 +37,7 @@ export { errorMessage } from '@retake/core/base';
 
 /**
  * The message of an error and, when it carries one (an EngineError: the refusal beside an old Studio, a busy lock…), its
- * `fix` on a second line — the one formatter of a refusal the CLI prints (L5.13a review B M2).
+ * `fix` on a second line — the one formatter of a refusal the CLI prints.
  */
 export function errorText(e: unknown): string {
   const fix = e instanceof Error ? (e as { fix?: unknown }).fix : undefined;

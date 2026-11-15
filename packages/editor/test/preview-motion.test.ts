@@ -1,5 +1,5 @@
 /**
- * L4.7 motion mode of component previews (pure, no render): the still spec of every transition stays exactly as before
+ * Motion mode of component previews (pure, no render): the still spec of every transition stays exactly the same
  * in three starter themes (frame, length, no `motion`), a motion spec wraps the transition in a lead-in on the
  * outgoing scene and a hold on the settled card, every other kind's motion spec is its still spec, and the frames a
  * loop covers (15 fps, at most 6 s).
@@ -49,7 +49,7 @@ function build(id: string, template: LoadedTemplate, motion?: boolean) {
   });
 }
 
-/** The still specs of the transitions before L4.7 (frame, composition length, transition length, kind). */
+/** The still specs of the transitions (frame, composition length, transition length, kind). */
 const STILL: Record<string, [number, number, number, 'crossfade' | 'fade-black']> = {
   'studio/transition-crossfade': [5, 11, 11, 'crossfade'],
   'studio/transition-fade-black': [2, 12, 12, 'fade-black'],

@@ -1,5 +1,5 @@
 /**
- * L3.4 scenario_record through `retake mcp` (spawned from the sources over stdio, driven by the SDK client) on a copy
+ * scenario_record through `retake mcp` (spawned from the sources over stdio, driven by the SDK client) on a copy
  * of projects/northfield-fixture pointed at the fixture product on free ports. No real window opens here: the worker
  * lock is held by this process (so the server spawns no worker), first by a bare lock (a job that stays queued), then
  * by an in-process worker whose injected driver plays the person (Playwright in a headless "headed" window).

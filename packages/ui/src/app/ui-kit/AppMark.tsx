@@ -1,5 +1,5 @@
 /**
- * L5.13b: the app mark, "two takes" — the drawing of mark.ts (the one source the favicon and the desktop icon are made
+ * The app mark, "two takes" — the drawing of mark.ts (the one source the favicon and the desktop icon are made
  * from), inline, decorative (`aria-hidden`: the app's name is always written beside it), painted by classes on the
  * `--ui-mark-*` tokens (the plate lifted in dark, the ink plate in light). The variant follows the size it is seen at
  * (`tiny` for the 18 px title bar, `full` for Welcome's 128 px): mark.ts `markVariantFor`.

@@ -1,5 +1,5 @@
 /**
- * L5.2 — the desktop shell, black box (gated: RETAKE_TEST_DESKTOP=1, macOS, cargo on PATH, `pnpm build` first;
+ * The desktop shell, black box (gated: RETAKE_TEST_DESKTOP=1, macOS, cargo on PATH, `pnpm build` first;
  * WKWebView has no WebDriver on macOS, so the proofs are the server's own counters, process tables and lsof).
  *
  * One release build (`desktop.mjs build --id local.retake.desktop.test --out <scratch>`, cargo --offline when
@@ -13,8 +13,8 @@
  * - SIGTERM quits through the graceful path (`quit: SIGTERM`, the child's `stopped: SIGTERM`, ui.json removed);
  *   SIGKILL (a crash) leaves no orphan (the child's stdin EOF); a server already running is attached to and survives;
  * - File › Open Workspace… (SIGUSR1 in test mode) on a folder that is no workspace changes nothing: the app, its
- *   server and its page stay (review B M1);
- * - a hostile launch (review A M1 / M2 / L2 / L4): a copy of the app whose launch.json runs a fake `retake ui
+ *   server and its page stay;
+ * - a hostile launch: a copy of the app whose launch.json runs a fake `retake ui
  *   --supervised` serving an adversarial page, a "player" framed `sandbox="allow-scripts"` as the timeline frames it,
  *   and a foreign port — the foreign port gets no request (iframe, redirect, srcdoc frame, octal host, target=_blank,
  *   window.open, top-level location), data: / blob: / custom-scheme navigations are refused, no download lands in
@@ -27,9 +27,9 @@
  * With RETAKE_TEST_SLOW=1 too (and Chromium): a capture of the fixture, then the app on its timeline (`--route`):
  * the player served the frame its media (bytes counted) — that the Player paints it is the screenshot, looked at by a
  * person (playing needs a click: MACOS-CHECKLIST 14a). RETAKE_TEST_SHOTS=<folder> keeps the screenshots there.
- * A screenshot is honest about itself (review B): a locked screen skips it, and a capture without Screen Recording
+ * A screenshot is honest about itself: a locked screen skips it, and a capture without Screen Recording
  * permission or a blank picture is reported "unverified" (printed with the timings) — never a silent pass.
- * L5.2b (job notifications, quit guard; SIGUSR2 is Quit through `terminate:` in test mode — the ⌘Q path):
+ * Job notifications and the quit guard (SIGUSR2 is Quit through `terminate:` in test mode — the ⌘Q path):
  * - nothing pending: SIGUSR2 quits at once, no question, the server stopped gracefully;
  * - a running job (its worker: this process) holds Quit and Open Workspace… (test mode answers Cancel: the app and its
  *   server stay); once it ended, SIGUSR2 quits;
@@ -39,19 +39,19 @@
  *   summary 5 s later; in front → none;
  * - an attached server: no guard, no notifications (said), SIGUSR2 quits at once and leaves it running with its job;
  * - the real alert (RETAKE_DESKTOP_TEST_MODAL_MS): a second window of the app while it is up, gone after; a second
- *   SIGUSR2 meanwhile is ignored (critique H2); SIGTERM while it is up quits (M1). Screenshots of the question with a job
+ *   SIGUSR2 meanwhile is ignored; SIGTERM while it is up quits. Screenshots of the question with a job
  *   and with unsaved text are kept (RETAKE_TEST_SHOTS);
  * - the owned server killed with unsaved text in the window: the restart alert names it, Not Now (its default: Restart
- *   and Quit have no key, review B M4) keeps the window, and Quit then asks about the text only — the dead server's
- *   jobs are history (critique L2).
- * Review fixes: Quit Anyway and Open Anyway end to end (ANSWERS, review B M5: the app exits 0, the owned server stopped
+ *   and Quit have no key) keeps the window, and Quit then asks about the text only — the dead server's jobs are
+ *   history.
+ * Quit Anyway and Open Anyway end to end (ANSWERS: the app exits 0, the owned server stopped
  * gracefully, the picked workspace served, the job left running); SIGTERM ends every question of the shell, not only
- * the quit question (review B M1: Open Workspace…'s, "not a workspace", the restart alert — each up for real with
- * MODAL_MS, the app gone well before its abort); a Quit while the restart alert is up is answered Cancel by the hook or
- * not delivered by AppKit — never a nested question (B L13); the picker never opens inside the quit question (B L10);
- * the second Quit of H2 sent only once the question is up (B L2); the notification summary polled for (B L3).
+ * the quit question (Open Workspace…'s, "not a workspace", the restart alert — each up for real with MODAL_MS,
+ * the app gone well before its abort); a Quit while the restart alert is up is answered Cancel by the hook or
+ * not delivered by AppKit — never a nested question; the picker never opens inside the quit question;
+ * the second Quit sent only once the question is up; the notification summary polled for.
  * Notifications themselves (the permission prompt, a banner, the click) are a person's check: MACOS-CHECKLIST 14a.
- * L5.12d (critique M2): the quit question is asked in the window's page first. The L5.2b cases above that answer the
+ * The quit question is asked in the window's page first. The cases above that answer the
  * native alert (ANSWERS / MODAL_MS) keep it through test mode's RETAKE_DESKTOP_TEST_QUIT=native; new cases cover
  * the page: Cancel and Quit Anyway through `desktop_answer` with the id test mode logs (the page itself acks `shown`),
  * a second Quit re-dispatching the same id, a replayed old id ignored, and a page that cannot ack (its server
@@ -73,12 +73,12 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const CLI = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
 const SCRIPT = join(REPO, 'apps', 'desktop', 'scripts', 'desktop.mjs');
 const TEST_ID = 'local.retake.desktop.test';
-// The binary's name: Cargo.toml `name`, its one place (review B L12).
+// The binary's name: Cargo.toml `name`, its one place.
 const BIN_NAME = /^name = "([^"]+)"/m.exec(readFileSync(join(REPO, 'apps', 'desktop', 'Cargo.toml'), 'utf8'))![1];
 const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
 const LIBRARY_DIRS = ['WebKit', 'Caches', 'HTTPStorages', 'Saved Application State', 'Preferences', 'Application Support', 'Cookies', 'Logs'];
 const WANTED = process.env.RETAKE_TEST_DESKTOP === '1' && process.platform === 'darwin';
-// Probed only when asked for (review B M4: the default suite never runs cargo for this file).
+// Probed only when asked for (the default suite never runs cargo for this file).
 const ENABLED = WANTED && existsSync(CLI) && spawnSync('cargo', ['--version'], { stdio: 'ignore' }).status === 0;
 const SLOW = ENABLED && process.env.RETAKE_TEST_SLOW === '1';
 const SHOTS = process.env.RETAKE_TEST_SHOTS;
@@ -270,7 +270,7 @@ function run(argv) {
 
 let jobN = 0;
 const RENDER = { version: 1, kind: 'render', project: 'northfield-fixture', scenario: 'quote', render_id: 'quote-v1', submitted_by: 'test' };
-/** A job folder written as a worker would (L5.2b): `running` names this process as its worker (alive: it holds Quit). */
+/** A job folder written as a worker would: `running` names this process as its worker (alive: it holds Quit). */
 async function writeJob(root: string, state: string, at?: string): Promise<string> {
   const id = at ?? `j_${String(Date.now()).padStart(13, '0')}${String(++jobN).padStart(13, '0')}`;
   const dir = join(root, '.retake', 'jobs', id);
@@ -291,7 +291,7 @@ async function report(r: Record_, body: Record<string, unknown>): Promise<number
 }
 const TAB = 'desktopTestTab00000000';
 
-/** `desktop_answer` as the window's page sends it (L5.12d; the Studio's token: the test may read it, the shell never does). */
+/** `desktop_answer` as the window's page sends it (the Studio's token: the test may read it, the shell never does). */
 async function pageSays(r: Record_, body: Record<string, unknown>): Promise<number> {
   const res = await fetch(`http://127.0.0.1:${r.port}/v1/call/desktop_answer`, {
     method: 'POST',
@@ -314,7 +314,7 @@ function tokenDownloads(): string[] | undefined {
 }
 
 /**
- * The fake `retake ui --supervised` of the hostile launch (review A M2): three loopback listeners on free ports — the
+ * The fake `retake ui --supervised` of the hostile launch: three loopback listeners on free ports — the
  * "Studio" serving an adversarial page, a "player" the page frames `sandbox="allow-scripts"`, a foreign port — every
  * request logged to log.txt next to it; it prints the supervised line and stops on stdin's end or SIGTERM.
  */
@@ -613,7 +613,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     await until(() => a.err().includes('quit cancelled in the window: the app stays open'), 5000, 'Cancel');
     await sleep(500);
     expect(a.child.exitCode).toBe(null);
-    // A new question: a fresh id; a second Quit while it is up re-dispatches the SAME id (critique H1, was "ignored").
+    // A new question: a fresh id; a second Quit while it is up re-dispatches the SAME id.
     a.child.kill('SIGUSR2');
     const id2 = await until(() => pageQuestions(a.err())[1], 5000, 'the second page question');
     expect(id2).not.toBe(id1);
@@ -750,7 +750,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
           .err()
           .split('\n')
           .filter((l) => l.includes('(test mode) notification'));
-      // Review B L3: polled for (the summary comes 5–6 s after the first post), then no more within a second.
+      // Polled for (the summary comes 5–6 s after the first post), then no more within a second.
       await until(() => notes().length >= (front === '0' ? 2 : 3), 10_000, 'the notifications');
       if (front === '0') timings.notifications_window_ms = Date.now() - t0;
       await sleep(1000);
@@ -787,11 +787,11 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     const locked = (await windowCount(pid)) < 0;
     if (!locked) expect(await windowCount(pid)).toBe(1);
     a.child.kill('SIGUSR2');
-    // Review B L2: the second Quit only once the question is up (its line is printed with GUARD_OPEN set).
+    // The second Quit only once the question is up (its line is printed with GUARD_OPEN set).
     await until(() => a.err().includes('(test mode) alert: Quit'), 5000, 'the question up');
     a.child.kill('SIGUSR2');
     await until(() => a.err().includes('(test mode) SIGUSR2 ignored: a question is open'), 5000, 'the second Quit ignored');
-    // Review B L10: File › Open Workspace… meanwhile opens no picker inside the question.
+    // File › Open Workspace… meanwhile opens no picker inside the question.
     a.child.kill('SIGUSR1');
     await until(() => a.err().includes('Open Workspace…: another question is open — answer it first'), 5000, 'Open Workspace… refused');
     expect(a.err()).not.toContain('(test mode) folder picker:');
@@ -815,8 +815,8 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
       await until(async () => (await windowCount(pid)) === 2, 5000, 'the alert window');
       await screenshot(pid, 'desktop-quit-alert-unsaved', true);
     }
-    // Unsaved text: Return never quits (critique M3) — Quit Anyway has no key; Cancel comes first and takes Escape
-    // (review B L4: AppKit gives a button titled Cancel Escape, even the first; Return then does nothing).
+    // Unsaved text: Return never quits — Quit Anyway has no key; Cancel comes first and takes Escape
+    // (AppKit gives a button titled Cancel Escape, even the first; Return then does nothing).
     const keys = a
       .err()
       .split('\n')
@@ -849,7 +849,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expect(a.err()).toContain(
       'Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved; Restart or Quit loses what this window holds:\n• README.md of northfield-fixture\n\nCopy it first: Not Now keeps the window as it is.',
     );
-    // Review B M4: Not Now takes Return; Restart and Quit, which lose the text, have no key.
+    // Not Now takes Return; Restart and Quit, which lose the text, have no key.
     expect(a.err()).toContain('(test mode) alert keys: Not Now=return, Restart=none, Quit=none');
     await sleep(500);
     expect(a.child.exitCode).toBe(null);
@@ -925,7 +925,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
         await until(() => a.err().includes('pending: 0 jobs, 1 unsaved'), 10_000, 'the unsaved text in the snapshot');
         process.kill(r.pid, 'SIGKILL');
         await until(() => a.err().includes('(test mode) alert: The Studio server stopped'), 10_000, 'the restart alert');
-        // L13: a Quit (terminate:) while the restart alert — a modal of a Tauri callback — is up: never a question.
+        // A Quit (terminate:) while the restart alert — a modal of a Tauri callback — is up: never a question.
         await sleep(300);
         a.child.kill('SIGUSR2');
         await sleep(1500);
@@ -1032,7 +1032,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     // The page ran, in the app (the fake saw the window's requests).
     expect(log).toContain('studio GET /');
     expect(log).toContain('player GET /frame');
-    // M2: not one request on the foreign port, whatever the route.
+    // Not one request on the foreign port, whatever the route.
     expect(
       log.split('\n').filter((l) => l.startsWith('FOREIGN')),
       log,
@@ -1046,7 +1046,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expect(reports).toContain('main.open=null');
     expect(reports).toContain('p.open=null');
     expect(reports).toContain('main.done=still here');
-    // M1: the link and the attachment frame reached the server; nothing landed; both downloads were cancelled.
+    // The link and the attachment frame reached the server; nothing landed; both downloads were cancelled.
     expect(log).toContain(`studio GET /${TOKEN}-link.bin`);
     expect(log).toContain(`studio GET /${TOKEN}-frame.bin`);
     await sleep(500);
@@ -1061,10 +1061,10 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expect(reports).toContain('p.internals=undefined');
     expect(err).toMatch(/refused 1 IPC message\(s\) from a page frame/);
     expect(reports.find((x) => x.startsWith('p.ipc='))).not.toBe('p.ipc=status 200');
-    // L2: no capture device, nothing granted.
+    // No capture device, nothing granted.
     expect(reports.filter((x) => /gum=/.test(x))).toEqual(expect.arrayContaining(['main.gum=no mediaDevices', 'p.gum=no mediaDevices']));
     expect(reports.join('\n')).not.toContain('GRANTED');
-    // L4: the release build dropped NODE_OPTIONS from the child's environment.
+    // The release build dropped NODE_OPTIONS from the child's environment.
     expect(log).toContain('env NODE_OPTIONS absent');
     expectClean(err, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJ0123456');
   }

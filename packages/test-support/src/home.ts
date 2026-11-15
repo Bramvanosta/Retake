@@ -16,8 +16,8 @@ export interface ScratchHome {
 
 /**
  * Saves RETAKE_HOME — and `others`, variables a test changes beside it (RETAKE_AUTHOR, TMPDIR…) — now. Made where a
- * test file used to keep `const savedHome = process.env.RETAKE_HOME` (at the top of the file or of a case), restored
- * where it used to put it back (an afterAll, an afterEach, a `finally`).
+ * test file would keep `const savedHome = process.env.RETAKE_HOME` (at the top of the file or of a case), restored
+ * where it would put it back (an afterAll, an afterEach, a `finally`).
  */
 export function scratchHome(...others: string[]): ScratchHome {
   const names = ['RETAKE_HOME', ...others.filter((n) => n !== 'RETAKE_HOME')];

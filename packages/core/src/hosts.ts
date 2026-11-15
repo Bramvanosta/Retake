@@ -13,7 +13,7 @@ export const LOCAL_HOSTS: readonly string[] = ['localhost', '127.0.0.1', '::1'];
 
 /**
  * A loopback host: localhost, `*.localhost`, 127.0.0.0/8 or ::1 (brackets, case and a trailing dot aside). The only
- * hosts a sandbox URL may name (L1.8): a sandbox is reset — its databases dropped and recreated — before every take.
+ * hosts a sandbox URL may name: a sandbox is reset — its databases dropped and recreated — before every take.
  */
 export function isLoopbackHost(host: string): boolean {
   const h = normalizeHost(host);
@@ -95,7 +95,7 @@ export function hostMatches(host: string, pattern: string): boolean {
 
 /**
  * Hosts a project may contact: localhost, the hosts of every project environment, project.allow_hosts, and the
- * loopback hosts of its sandboxes' mailboxes and databases (L1.8: `db.localhost`, `127.0.0.2`… — validated loopback).
+ * loopback hosts of its sandboxes' mailboxes and databases (`db.localhost`, `127.0.0.2`… — validated loopback).
  */
 export function allowedHosts(project: Pick<LoadedProject, 'config'>): string[] {
   const out = new Set<string>(LOCAL_HOSTS);

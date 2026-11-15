@@ -1,5 +1,5 @@
 /**
- * L5.12a: Edit's 1,200-step budget (R-UI-45) — a take of 1,200 steps answered in the page (`timeline_view` fetched from
+ * Edit's 1,200-step budget (R-UI-45) — a take of 1,200 steps answered in the page (`timeline_view` fetched from
  * the real server on the bits take, its model given 1,200 steps over 40,000 frames; no preview URL: the stage says
  * nothing plays), in headless Chromium:
  * - the first paint: every step drawn (1,200 items on the Steps track) within the budget;

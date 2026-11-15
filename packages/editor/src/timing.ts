@@ -24,14 +24,14 @@ export const DEFAULT_IDLE_THRESHOLD_S = 1.2;
 /** What is left of a shortened idle gap (seconds of capture: half before the cut, half after). */
 export const IDLE_KEEP_S = 0.4;
 /**
- * A wait after a click (L5.7, R-FLD-26) keeps this much of its start (the viewer sees that it loads) and this much before
+ * A wait after a click (R-FLD-26) keeps this much of its start (the viewer sees that it loads) and this much before
  * the content appears; waits whose middle is shorter than BUSY_CUT_MIN_S are left alone.
  */
 export const BUSY_KEEP_BEFORE_S = 0.3;
 export const BUSY_KEEP_AFTER_S = 0.1;
 export const BUSY_CUT_MIN_S = 0.2;
 /**
- * Waiting (L2.12 — the root cause of the catalogue `long-wait`): a wait step (`wait_for`, `wait_for_email`) and the
+ * Waiting (the root cause of the catalogue `long-wait`): a wait step (`wait_for`, `wait_for_email`) and the
  * post-navigation pause of the step right before it show a loading state (placeholders, spinners — they animate, so the
  * capture is never idle and idle trimming cannot shorten them). The planner plays such a span at `WAIT_SPEED` after its
  * first `WAIT_KEEP_S` (the viewer sees that it loads), ramped like any speed change; marks, holds and the opening still
@@ -90,18 +90,18 @@ export interface RunTimingInput {
    */
   loading?: ReadonlyArray<{ t_start: number; t_end: number }>;
   /**
-   * Freezes of the capture (`timeline.stalls`, L5.7: no new frame while the cursor moved or a click ripple played —
+   * Freezes of the capture (`timeline.stalls`: no new frame while the cursor moved or a click ripple played —
    * R-ISS-12's dialog close): with `trimIdle`, cut whole but their first frame, inside protected spans too.
    */
   frozen?: ReadonlyArray<{ t_start: number; t_end: number }>;
   /**
-   * Waits the screen showed after a click (`timeline.busy`, L5.7, R-FLD-26: skeletons, spinners, blank panels): with
+   * Waits the screen showed after a click (`timeline.busy`, R-FLD-26: skeletons, spinners, blank panels): with
    * `trimIdle`, shortened like idle gaps — outside protected spans, keeping BUSY_KEEP_BEFORE_S of the wait and
    * BUSY_KEEP_AFTER_S before the content appears.
    */
   busy?: ReadonlyArray<{ t_start: number; t_end: number }>;
   /**
-   * Spans the take played off camera (`hookSpans`: the `hook:` steps, L5.8): cut whole, always — idle trimming on or
+   * Spans the take played off camera (`hookSpans`: the `hook:` steps): cut whole, always — idle trimming on or
    * off, inside protected spans too.
    */
   offcamera?: ReadonlyArray<{ t_start: number; t_end: number }>;
@@ -141,7 +141,7 @@ export interface RunCut extends Interval {
   /**
    * `idle`: a shortened idle gap; `loading`: a page load the capture held, cut whole; `frozen`: a freeze of the capture
    * (its frozen frames but the first); `busy`: a wait after a click (a skeleton, a spinner) shortened; `hook`: a `hook:`
-   * step, run off camera (L5.8), cut whole.
+   * step, run off camera, cut whole.
    */
   reason: 'idle' | 'loading' | 'frozen' | 'busy' | 'hook';
   /** The idle piece (outside protected spans) the cut was taken from (a held load: the load itself). */
@@ -169,7 +169,7 @@ export interface RunTiming {
 /**
  * Spans played at 1× whatever the speeds: the opening still, holds (action and modifier), marked step windows. With
  * `waitsFaster` (the default: waiting plays faster, see `WAIT_SPEED`) a marked wait step protects the moment it waited
- * for (its end); without it (`overrides.trim_idle: false`) the whole marked step, as before L2.12.
+ * for (its end); without it (`overrides.trim_idle: false`) the whole marked step.
  */
 export function protectedSpans(clips: readonly RunClipInput[], fps: number, waitsFaster = true): ProtectedSpan[] {
   const out: ProtectedSpan[] = [];
@@ -242,7 +242,7 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
   }
 
   const cuts: Array<Interval & { clip: number; idle: Interval; reason: RunCut['reason'] }> = [];
-  // Hook steps (L5.8): what the take did off camera is cut whole, whatever the trimming.
+  // Hook steps: what the take did off camera is cut whole, whatever the trimming.
   const offcamera: Interval[] = [];
   for (const h of mergeIntervals((input.offcamera ?? []).map((o) => ({ a: o.t_start * srcFps, b: o.t_end * srcFps })))) {
     clips.forEach((c, ci) => {
@@ -269,7 +269,7 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
         }
       });
     }
-    // Freezes of the capture (L5.7): the frozen frames but the first, cut whole like a held load (never inside one).
+    // Freezes of the capture: the frozen frames but the first, cut whole like a held load (never inside one).
     for (const f of input.frozen ?? []) {
       const fz = { a: Math.ceil(f.t_start * srcFps - EPS) + 1, b: Math.ceil(f.t_end * srcFps - EPS) };
       if (fz.b - fz.a < 1 - EPS) continue;
@@ -297,7 +297,7 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
         }
       });
     }
-    // Waits after a click (L5.7, R-FLD-26): outside protected spans, held loads and the idle cuts just made.
+    // Waits after a click (R-FLD-26): outside protected spans, held loads and the idle cuts just made.
     const keptBusy = mergeIntervals([...kept, ...cuts.filter((c) => c.reason === 'idle')]);
     for (const w of input.busy ?? []) {
       const g = { a: w.t_start * srcFps, b: w.t_end * srcFps };
@@ -456,7 +456,7 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
   return { srcFps, outFps, pieces: map, length, p, src, clipRanges, cuts: runCuts, protectedSpans: prot };
 }
 
-/** The spans of `hook:` steps (L5.8): the action ran off camera (its `hold`, after it, stays). Pure. */
+/** The spans of `hook:` steps: the action ran off camera (its `hold`, after it, stays). Pure. */
 export function hookSpans(events: readonly TimelineEvent[]): Array<{ t_start: number; t_end: number }> {
   return events.filter((e) => e.action === 'hook' && e.step >= 0 && e.t_end > e.t_start).map((e) => ({ t_start: e.t_start, t_end: e.t_end }));
 }

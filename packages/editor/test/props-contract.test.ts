@@ -1,5 +1,5 @@
 /**
- * L7.2 the props a render bundle takes (src/remotion/contract.ts): the Node side stamps a version, the root reads it
+ * The props a render bundle takes (src/remotion/contract.ts): the Node side stamps a version, the root reads it
  * — no payload is fine (the root's own defaults), a payload with no version or another one is refused. Pure: no
  * browser, no bundle. The root reads every composition's input through these readers (pinned on its source), and the
  * refusal is shown where a render meets it: the `calculateMetadata` function of each composition the root registers,
@@ -87,7 +87,7 @@ describe('L7.2 the versioned props of a render bundle', () => {
   });
 
   it('the root reads every composition through the readers, and its defaults carry no version; the Node side builds props with the builders only', () => {
-    // L7.34 (finding C4): the root held by what it registers instead of its statements. Its defaults are the readers'
+    // The root held by what it registers instead of its statements. Its defaults are the readers'
     // "no payload" (no version); a payload of this version is read back through the reader by every composition (the
     // refusals of another version are the cases above), and one under a key the reader does not read sizes nothing.
     const comps = registered();

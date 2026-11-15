@@ -98,7 +98,7 @@ export function planEditInfo(c: Omit<PlanContext, 'video'>): TimelineVideo {
 }
 
 /**
- * Where the text the video shows still holds {{tokens}}: runs captured before scenario templating (L1.2) recorded
+ * Where the text the video shows still holds {{tokens}}: runs captured before scenario templating recorded
  * captions, cards, labels and the title as written; a token inside a `vars` value is inserted as written (validation
  * flags it since; BL-56). An unresolved token fails a new run.
  */

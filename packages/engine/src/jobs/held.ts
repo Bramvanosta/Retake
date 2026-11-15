@@ -1,5 +1,5 @@
 /**
- * Captures first in words (L5.14): what a heavy job held by a filming take is doing (JobRecord.yield), said the same
+ * Captures first in words: what a heavy job held by a filming take is doing (JobRecord.yield), said the same
  * way by the Studio, MCP and `retake jobs`. Fixed words only: where the take films is "in this workspace" or
  * "elsewhere on this Mac", never named.
  */

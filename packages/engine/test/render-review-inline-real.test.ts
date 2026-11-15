@@ -1,5 +1,5 @@
 /**
- * L7.11 fix pass: one real inline review through the worker in the default suite (render-review-inline.test.ts runs
+ * One real inline review through the worker in the default suite (render-review-inline.test.ts runs
  * the same job on the in-memory renderer and reviewer). The renderer is the in-memory one with its video drawn by
  * ffmpeg from the plan (test-support review.ts drawRender: no bundle, no browser); the reviewer is the product's
  * (`packageReviewer`): its sheets, key frames and report are the review package's, written next to the render. Then a

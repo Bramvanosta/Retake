@@ -1,5 +1,5 @@
 /**
- * Waiting for a lock another process holds (project-lock.ts takeProjectLock, L7.26 fix pass): the tries back off
+ * Waiting for a lock another process holds (project-lock.ts takeProjectLock): the tries back off
  * (20 ms growing to 200 ms) and a holder found alive once — the same pid, start time and lock — is not asked again by
  * its start time (TakeLock.acquire's synchronous `ps`) while it holds: only by a signal 0. A holder that dies mid-wait
  * is seen at the next try and its lock taken. The holder is a real process (test/fixtures/log-writer.mts `slow`).
@@ -14,7 +14,7 @@ import { EngineError } from '../src/errors.js';
 import { takeProjectLock } from '../src/project-lock.js';
 
 const tries = vi.hoisted(() => ({ n: 0 }));
-// TakeLock is core/io's since L7.25 (@retake/sandbox re-exports the same class).
+// TakeLock is core/io's (@retake/sandbox re-exports the same class).
 vi.mock('@retake/core/io', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@retake/core/io')>();
   const acquire = actual.TakeLock.acquire.bind(actual.TakeLock);

@@ -1,7 +1,7 @@
 /**
- * The sandbox operations (moved from the MCP server's tools/environment.ts in L7.19): sandbox_status, and sandbox_up /
- * sandbox_reset, jobs the worker runs, with the approvals of their shell seed steps and shell reset hooks taken at
- * submit through the shell's approver (MCP's elicitation) when it has one. Their summaries are auth.ts's job output.
+ * The sandbox operations: sandbox_status, and sandbox_up / sandbox_reset, jobs the worker runs, with the approvals of
+ * their shell seed steps and shell reset hooks taken at submit through the shell's approver (MCP's elicitation) when it
+ * has one. Their summaries are auth.ts's job output.
  */
 import { z } from 'zod';
 import { READ, SANDBOX_JOB } from './annotations.js';

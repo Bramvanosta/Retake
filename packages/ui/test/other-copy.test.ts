@@ -1,5 +1,5 @@
 /**
- * L5.16c fixes (review c B-M2 / A-L4) — the Studio's own run submit when the workspace's jobs worker runs another copy
+ * The Studio's own run submit when the workspace's jobs worker runs another copy
  * of Retake: scenario_run answers the copy under `untrusted.other_copy` (the lock's text; `worker` keeps pid / spawned
  * only), and the page's "queued" line (shoot-data.ts → submitNotice) says it — as text, through the status line's Txt.
  * Engine side: engine/test/worker-engine.test.ts; the Welcome inspector's Worker row: otherCopyWords.
@@ -56,7 +56,7 @@ describe("another copy's worker takes the Studio's own submit", () => {
     expect(said).toBe(
       `Rehearsal of quote queued. It runs in another copy of Retake (0.1.0, ${folder}), with that copy's browsers and tools: to use this one, let that worker finish (it stops a minute after its last job) and start it again`,
     );
-    // L7.34: the page's own submits say it — Rehearse through this server (shoot-data.ts → scenario_run), and a render
+    // The page's own submits say it — Rehearse through this server (shoot-data.ts → scenario_run), and a render
     // whose answer names the other copy the same way (the render cannot be queued here: no capture), each line as said
     // (another scenario: quote's rehearsal is queued already).
     setToken(studio.token);

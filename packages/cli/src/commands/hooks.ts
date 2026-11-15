@@ -36,10 +36,10 @@ export interface HookCommandOptions {
   yes?: boolean;
   /** Describe and security-check without executing. */
   dry?: boolean;
-  /** Let hooks write to a production environment whose project.yaml sets `access: read-write` (L1.7). */
+  /** Let hooks write to a production environment whose project.yaml sets `access: read-write`. */
   allowWrites?: boolean;
   /**
-   * L5.14: ask, in a terminal, about each rollback whose journal entry Retake did not sign for its journal (shown in
+   * Ask, in a terminal, about each rollback whose journal entry Retake did not sign for its journal (shown in
    * full; y/N, default no) — never a sql or js one, one with secrets or a shell one on a sandbox.
    */
   replayUnsigned?: boolean;
@@ -156,8 +156,8 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
         }
         return e;
       },
-      // L7.27, L7.33: a scenario's setup or teardown whose bytes an agent wrote: its shell and sql hooks are listed, and run only on a
-      // person's yes (a terminal's, or --yes); listed only with --dry (nothing executes).
+      // A scenario's setup or teardown whose bytes an agent wrote: its shell and sql hooks are listed, and run only on
+      // a person's yes (a terminal's, or --yes); listed only with --dry (nothing executes).
       onSelected: async (sel, { runId }) => {
         if (!sel.scenario || sel.file === undefined || (sel.phase !== 'setup' && sel.phase !== 'teardown')) return;
         const sc = sel.scenario;
@@ -245,7 +245,7 @@ function listRun(ui: Ui, runId: string, list: readonly PendingHookJournal[], ctx
 }
 
 /**
- * L5.14: what a replay is about to run, before it runs — each pending rollback, most recent first, and whether Retake
+ * What a replay is about to run, before it runs — each pending rollback, most recent first, and whether Retake
  * recorded it in this journal with this home (its entry is signed). An unsigned one is shown in full, every field as it
  * would run (its description is the writer's words), and replayed only on a yes to it with --replay-unsigned.
  */
@@ -325,7 +325,7 @@ export interface HooksTrustOptions {
 }
 
 /**
- * `retake hooks trust <project> <scenario>` (L7.27): a person marks the shell and sql hooks of a scenario an agent wrote as
+ * `retake hooks trust <project> <scenario>`: a person marks the shell and sql hooks of a scenario an agent wrote as
  * theirs — listed as a run lists them, then asked (y/N; `--yes`; without a terminal and without `--yes`, refused) —
  * and on yes one record line by the person settles them: a run no longer asks until they change. A terminal's command
  * only: no MCP tool or Studio route does this.

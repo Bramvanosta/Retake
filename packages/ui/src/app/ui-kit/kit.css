@@ -1,7 +1,7 @@
 /*
- * L5.9: the kit's look (docs/reference/studio-ui.md, DESIGN §4k). Rules for `.k-*` classes only, `--ui-*` tokens only
+ * The kit's look (docs/reference/studio-ui.md, DESIGN §4k). Rules for `.k-*` classes only, `--ui-*` tokens only
  * (tokens.css; a lint fails a legacy token, a colour literal, a font size, line height, weight or radius that is not a
- * token). After base.css (element defaults only: L5.12d deleted the legacy layer). Three type sizes (13 / 15 / 20),
+ * token). After base.css (element defaults only). Three type sizes (13 / 15 / 20),
  * weights 400 and 600, a 2 px focus ring in --ui-ring everywhere.
  */
 
@@ -348,7 +348,7 @@
 .k-switch-input:disabled + .k-switch-knob {
   background: var(--ui-text-3);
 }
-/* L5.10b: the inspector's row — the label in the 96 px column, the hint, the switch */
+/* The inspector's row — the label in the 96 px column, the hint, the switch */
 .k-switch-row-layout {
   display: grid;
   grid-template-columns: var(--ui-label-w) minmax(0, 1fr) auto;
@@ -375,7 +375,7 @@
   align-items: center;
   gap: var(--ui-space-4);
 }
-/* L5.10a fixes: a field whose label is visually hidden (a search with its icon) */
+/* A field whose label is visually hidden (a search with its icon) */
 .k-field-bare {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -428,7 +428,7 @@
   padding: var(--ui-space-3) var(--ui-space-4);
   resize: vertical;
 }
-/* L5.10b: an editor's text area fills the height its container gives (the YAML source) */
+/* An editor's text area fills the height its container gives (the YAML source) */
 .k-textarea-tall {
   min-height: 480px;
   white-space: pre;
@@ -532,7 +532,7 @@
   color: var(--ui-fail);
 }
 
-/* L5.13b: the app mark, "two takes" (AppMark: mark.ts's drawing; decorative, the name beside it) */
+/* The app mark, "two takes" (AppMark: mark.ts's drawing; decorative, the name beside it) */
 .k-appmark {
   display: block;
   flex: none;
@@ -650,7 +650,7 @@
   min-width: 0;
   margin-left: auto;
 }
-/* L5.11a: a compact blocker among the actions gives way first (its words truncate), never the buttons. */
+/* A compact blocker among the actions gives way first (its words truncate), never the buttons. */
 .k-statusbar-actions > .k-blocker.is-compact {
   flex-shrink: 1;
 }
@@ -715,7 +715,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* L5.10a fixes (review B-L1): a label with a second line that wraps (a persona's location) */
+/* A label with a second line that wraps (a persona's location) */
 .k-source-text {
   display: grid;
   flex: 1 1 auto;
@@ -738,7 +738,7 @@
 .k-source-item.is-current .k-source-count {
   color: var(--ui-text-2);
 }
-/* L5.10a: rows with an icon, a lead column, a quieter tone */
+/* Rows with an icon, a lead column, a quieter tone */
 .k-source-icon {
   flex: none;
   color: var(--ui-text-3);
@@ -754,7 +754,7 @@
 .k-source-item.is-quiet {
   color: var(--ui-text-3);
 }
-/* L5.10b: a row that acts (a button: the scenes browser) looks like a link row */
+/* A row that acts (a button: the scenes browser) looks like a link row */
 button.k-source-item {
   width: 100%;
   border: 0;
@@ -766,7 +766,7 @@ button.k-source-item {
 button.k-source-item.is-current {
   background: var(--ui-select);
 }
-/* L5.10b: a length bar under the row (decorative: the value on the right says it) */
+/* A length bar under the row (decorative: the value on the right says it) */
 .k-source-item.has-bar {
   flex-wrap: wrap;
   row-gap: var(--ui-space-2);
@@ -817,7 +817,7 @@ summary.k-section-title {
   gap: var(--ui-space-4);
 }
 
-/* L5.10a: facts (read-only rows, the label column of the inspector) */
+/* Facts (read-only rows, the label column of the inspector) */
 .k-facts {
   display: grid;
   gap: var(--ui-space-3);
@@ -844,7 +844,7 @@ summary.k-section-title {
   overflow-wrap: anywhere;
 }
 
-/* L5.10a: disclosure (a native details) */
+/* Disclosure (a native details) */
 .k-disclosure {
   min-width: 0;
 }
@@ -912,7 +912,7 @@ summary.k-section-title {
   flex: 1 1 180px;
   min-width: 0;
 }
-/* L5.11a fixes (review B-M3): the command in full — it wraps, never cut: what Copy copies is what is shown */
+/* The command in full — it wraps, never cut: what Copy copies is what is shown */
 .k-blocker-code {
   min-width: 0;
   max-width: 100%;
@@ -932,7 +932,7 @@ summary.k-section-title {
 .k-copied:empty {
   display: none;
 }
-/* L5.11a fixes (review A-M3): the status bar blocker's command, shown in full in a popover (the top layer) */
+/* The status bar blocker's command, shown in full in a popover (the top layer) */
 .k-popover {
   position: fixed;
   inset: auto;
@@ -1026,10 +1026,10 @@ summary.k-section-title {
 .k-card-meta {
   color: var(--ui-text-3);
 }
-/* L5.10a: the productions listbox (one tab stop; the selected option's fill and ring) */
+/* The productions listbox (one tab stop; the selected option's fill and ring) */
 .k-posters {
   display: grid;
-  /* L5.10a fixes (review B-M2): as many columns as fit (three at 1440 px; two, then one, in a narrow window) */
+  /* As many columns as fit (three at 1440 px; two, then one, in a narrow window) */
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--ui-space-8) var(--ui-space-7);
   margin: 0;
@@ -1135,7 +1135,7 @@ summary.k-section-title {
   margin-top: var(--ui-space-8);
 }
 
-/* Command palette (L5.12b: R4-Palette — 640 px, an icon per row, a footer legend) */
+/* Command palette (R4-Palette — 640 px, an icon per row, a footer legend) */
 .k-palette {
   width: min(var(--ui-palette-w), calc(100% - 32px));
   /* A modal dialog is fixed: its percentages are the window's (no vh in a height: the lint). */
@@ -1273,7 +1273,7 @@ summary.k-section-title {
   font-size: var(--ui-type-sm);
   line-height: var(--ui-lead-sm);
 }
-/* Empty, it stays in the accessibility tree (a live region that leaves it drops its next words: review A-L5), out of sight. */
+/* Empty, it stays in the accessibility tree (a live region that leaves it drops its next words), out of sight. */
 .k-palette-none:empty {
   position: absolute;
   width: 1px;
@@ -1282,7 +1282,7 @@ summary.k-section-title {
   clip-path: inset(50%);
 }
 
-/* L5.10b: callout (a short note: its state as a shape and its title, then its text) */
+/* Callout (a short note: its state as a shape and its title, then its text) */
 .k-callout {
   display: grid;
   gap: var(--ui-space-2);
@@ -1316,7 +1316,7 @@ summary.k-section-title {
   padding-left: var(--ui-space-6);
 }
 
-/* L5.10b: the storyboard — a scene's frames (one listbox in a grid of three; the selected one's fill and ring) */
+/* The storyboard — a scene's frames (one listbox in a grid of three; the selected one's fill and ring) */
 .k-frames {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1327,7 +1327,7 @@ summary.k-section-title {
   border-radius: var(--ui-radius-card);
 }
 /* Inside a board (a `k-board` container: the scenario's storyboard), the columns follow its width — three while a frame
-   keeps about 180 px, then two, then one (review A L4 / B L6: a 900 px window with the inspector shown) */
+   keeps about 180 px, then two, then one (a 900 px window with the inspector shown) */
 @container k-board (max-width: 600px) {
   .k-frames {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1444,7 +1444,7 @@ summary.k-section-title {
   color: var(--ui-text);
 }
 
-/* L5.10b: a row card between scenes (a tile, a title, a meta line; selects) */
+/* A row card between scenes (a tile, a title, a meta line; selects) */
 .k-rowcard {
   display: flex;
   box-sizing: border-box;
@@ -1503,7 +1503,7 @@ summary.k-section-title {
   overflow-wrap: anywhere;
 }
 
-/* L5.11b: a compact row card (the Record screen's draft rows): a number column, the title at the body size, a word on the right */
+/* A compact row card (the Record screen's draft rows): a number column, the title at the body size, a word on the right */
 .k-rowcard.is-compact {
   gap: var(--ui-space-5);
   padding: var(--ui-space-3) var(--ui-space-5);
@@ -1531,7 +1531,7 @@ summary.k-section-title {
   font-size: var(--ui-type-sm);
   line-height: var(--ui-lead-sm);
   font-weight: var(--ui-weight-regular);
-  /* L5.11b fixes (review A-L2): a word breaks only when it cannot fit a line of its own */
+  /* A word breaks only when it cannot fit a line of its own */
   overflow-wrap: break-word;
 }
 .k-rowcard-aside {
@@ -1561,7 +1561,7 @@ summary.k-section-title {
   }
 }
 
-/* L5.11b: a radio group — a fieldset of native radios, each label a row (a ring with a filled dot when checked) */
+/* A radio group — a fieldset of native radios, each label a row (a ring with a filled dot when checked) */
 .k-radios {
   display: grid;
   gap: var(--ui-space-1);
@@ -1631,7 +1631,7 @@ summary.k-section-title {
   color: var(--ui-text-3);
 }
 
-/* L5.10b: a command to type in a terminal (selectable text) */
+/* A command to type in a terminal (selectable text) */
 .k-commands {
   display: grid;
   gap: var(--ui-space-1);
@@ -1653,7 +1653,7 @@ summary.k-section-title {
   user-select: all;
 }
 
-/* L5.11a: Checklist (R4-ShootPrep: a state column, a title, its body, its actions; a hairline between items) */
+/* Checklist (R4-ShootPrep: a state column, a title, its body, its actions; a hairline between items) */
 .k-checklist {
   display: grid;
   margin: 0;
@@ -1714,7 +1714,7 @@ summary.k-section-title {
   gap: var(--ui-space-3);
 }
 
-/* L5.11a: the status bar's blocker — one line, no well; the words truncate before the action does */
+/* The status bar's blocker — one line, no well; the words truncate before the action does */
 .k-blocker.is-compact {
   display: inline-flex;
   flex-wrap: nowrap;
@@ -1744,7 +1744,7 @@ summary.k-section-title {
   flex: none;
 }
 
-/* L5.12a: choice chips (R4-Edit's inspector) — a wrapped row of chips; the checked one raised, weight 600 and a ring. */
+/* Choice chips (R4-Edit's inspector) — a wrapped row of chips; the checked one raised, weight 600 and a ring. */
 .k-chips {
   display: flex;
   flex-wrap: wrap;
@@ -1794,7 +1794,7 @@ summary.k-section-title {
   font-weight: var(--ui-weight-regular);
 }
 
-/* L5.12a: tracks — a label column, a lane of items placed by percentages; the playhead drawn over the lanes. */
+/* Tracks — a label column, a lane of items placed by percentages; the playhead drawn over the lanes. */
 .k-track {
   display: grid;
   grid-template-columns: var(--ui-label-w) minmax(0, 1fr);
@@ -1824,7 +1824,7 @@ summary.k-section-title {
   padding: 0;
   list-style: none;
 }
-/* 24 px tall in the 26 px lane (review A-L3: a 24 px target). */
+/* 24 px tall in the 26 px lane (a 24 px target). */
 .k-trackitem {
   position: absolute;
   top: 1px;
@@ -1988,7 +1988,7 @@ summary.k-section-title {
   background: var(--ui-accent);
 }
 
-/* L5.12a: a contact sheet — figures in a grid; a picture shown larger spans the whole row. */
+/* A contact sheet — figures in a grid; a picture shown larger spans the whole row. */
 .k-contact {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--ui-card-w), 1fr));
@@ -2043,7 +2043,7 @@ summary.k-section-title {
   color: var(--ui-text-3);
 }
 
-/* L5.12a: a tag — a quiet label in a well (not a state). */
+/* A tag — a quiet label in a well (not a state). */
 .k-tag {
   display: inline-flex;
   align-items: center;
@@ -2059,7 +2059,7 @@ summary.k-section-title {
   width: 88px;
 }
 
-/* L5.12b: the diff table — a change line by line, code-safe; no inner scroll (every row in the page's own scroll). */
+/* The diff table — a change line by line, code-safe; no inner scroll (every row in the page's own scroll). */
 .k-diff {
   min-width: 0;
   border: 1px solid var(--ui-hairline);
@@ -2153,7 +2153,7 @@ summary.k-section-title {
   font-style: italic;
 }
 
-/* L5.12b: a region over a picture (a frame comment's) — presentational; dashed while drawn. */
+/* A region over a picture (a frame comment's) — presentational; dashed while drawn. */
 .k-region {
   position: absolute;
   border: 2px solid var(--ui-on-video);
@@ -2180,7 +2180,7 @@ a.k-trackitem-button {
   text-decoration: none;
 }
 
-/* L5.12c: a sheet's fields (a copy's name, Create with Claude's form) under its text. */
+/* A sheet's fields (a copy's name, Create with Claude's form) under its text. */
 .k-sheet-content {
   display: grid;
   gap: var(--ui-space-5);
@@ -2188,7 +2188,7 @@ a.k-trackitem-button {
   min-width: 0;
 }
 
-/* L5.12c: a data table (a component's slots and params) — hairlines between rows, headers in text-3, cells that wrap. */
+/* A data table (a component's slots and params) — hairlines between rows, headers in text-3, cells that wrap. */
 .k-table-wrap {
   min-width: 0;
   border: 1px solid var(--ui-hairline);
@@ -2237,7 +2237,7 @@ a.k-trackitem-button {
   color: var(--ui-text-3);
 }
 
-/* L5.12c: a colour — the native picker's well (the swatch the person drags from), the hex typed beside it. */
+/* A colour — the native picker's well (the swatch the person drags from), the hex typed beside it. */
 .k-color-line {
   display: flex;
   align-items: center;

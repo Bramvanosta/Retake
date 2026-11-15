@@ -1,10 +1,10 @@
 /**
- * The theme editor (L4.7 part D2, R-UI-07; L5.12c « Épure » 4c, R4-Theme, R-UI-49 — `#/p/<slug>/themes/<theme>`): one
- * theme's brand, colours, background, type pair, motion, zoom, cursor and a component per kind (the fields:
+ * The theme editor (R-UI-07, R-UI-49 — `#/p/<slug>/themes/<theme>`): one theme's brand, colours, background, type pair,
+ * motion, zoom, cursor and a component per kind (the fields:
  * ThemeFields.tsx, in the inspector) beside ONE live preview: the theme's intro, a clip with its caption, or its outro
  * (a segmented control picks the target; theme_preview in the sandboxed Player; a workspace component waits for Allow; a
- * theme's own video / image / Lottie is said, not shown, B10). "Use in a scenario" writes the scenario's `template`
- * (critique B1).
+ * theme's own video / image / Lottie is said, not shown). "Use in a scenario" writes the scenario's `template`
+ *.
  *
  * In the shell: the browser is the theme's sections (anchors into the inspector) and its components (each to the
  * library); the inspector holds the fields; the status bar says "Each change is saved and checked", Undo, Redo,
@@ -16,7 +16,7 @@
  *   their values with "Copy to edit…" (a kit Sheet: theme_copy).
  * - Colours being dragged are previewed in memory (theme_preview `draft`, at most five a second: DraftThrottle) and
  *   written on release (the input's `change`); a draft not written yet is unsaved (`theme_draft`).
- * - Undo / redo restore exact earlier bytes the server served (ThemeHistory ≤ 50, critique B14).
+ * - Undo / redo restore exact earlier bytes the server served (ThemeHistory ≤ 50).
  * - Every string from the server (a font's name table, a warning, an error) is a text node through `Txt` or
  *   `visibleControls`; the frame runs workspace component code only on the player origin, in the sandbox.
  */
@@ -146,7 +146,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
   const busyRef = useRef(false);
   const [status, setStatus] = useState<Status | null>(null);
   const [draft, setDraftState] = useState<Draft | null>(null);
-  // L5.2b (review B L7): a colour or background picked and not written yet is unsaved for the desktop app's quit question.
+  // A colour or background picked and not written yet is unsaved for the desktop app's quit question.
   useUnsavedMark(draft && (draft.colors || draft.background) ? { kind: 'theme_draft', project: slug } : null);
   const [target, setTarget] = useState<PreviewTarget>('intro');
   const [rippleFollows, setRippleFollows] = useState(true);
@@ -268,7 +268,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
     }
     void write(plan.edit);
   };
-  // Stable for the memoised fields (review A-L4: a drag renders the dragged field, not every section): they call the
+  // Stable for the memoised fields (a drag renders the dragged field, not every section): they call the
   // latest closures.
   const latest = useRef({ send, setDraftNow });
   latest.current = { send, setDraftNow };
@@ -628,9 +628,9 @@ type UseState =
   | { s: 'error'; message: string };
 
 /**
- * "Use in this scenario" (critique B1): the scenario's `template` set to this theme through scenario_edit `set_field`
+ * "Use in this scenario": the scenario's `template` set to this theme through scenario_edit `set_field`
  * on the version scenario_blocks showed; Undo restores those exact bytes. Every existing take re-plans with it at its
- * next render (L5.5); the cursor style is filmed.
+ * next render; the cursor style is filmed.
  */
 const UseInScenario = memo(function UseInScenario({ slug, theme, scenarios, onChanged }: { slug: string; theme: string; scenarios: string[]; onChanged(): void }) {
   const [scenario, setScenario] = useState(scenarios[0] ?? '');

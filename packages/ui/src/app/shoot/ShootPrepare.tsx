@@ -1,6 +1,6 @@
 /**
- * L5.11a: Prepare a take (`#/p/<slug>/s/<name>/run`, R4-ShootPrep; R-UI-40) — Shoot's first screen: what a rehearsal or a
- * capture of the scenario would do, before anything runs. Nothing here runs anything; no page is probed (critique M1).
+ * Prepare a take (`#/p/<slug>/s/<name>/run`, R4-ShootPrep; R-UI-40) — Shoot's first screen: what a rehearsal or a
+ * capture of the scenario would do, before anything runs. Nothing here runs anything; no page is probed.
  *
  * - Title bar context: the Location (run-location.ts: ONE choice per scenario in this tab, shared with the Scenario
  *   screen and the status bar; sent only when it is not the file's own). Browser: ShootBrowser (Prepare, the runs,
@@ -11,11 +11,11 @@
  *   message and its command to copy — the command through node for a person without `retake` on their PATH in a
  *   disclosure; a rehearsal that is not affected said so); the live picture during a capture (a per-tab switch, off by
  *   default). Then Start rehearsal and ● Start capture, each with what stops it beside a disabled one, the mapping line
- *   "Rehearse = a dry run" (critique M6), a run of the scenario already going (Watch), a refusal with its command.
+ *   "Rehearse = a dry run", a run of the scenario already going (Watch), a refusal with its command.
  * - A start opens the run's live route. A capture with sessions to confirm asks first (the shell's one sheet: Sign in
  *   first… is its default). ⌘R and ⇧⌘R act here as the buttons do (priority: the screen's own, command-bus.ts).
  * - The status bar is this screen's (no Start buttons there: they are on screen) — its state, and Pause / Stop while a
- *   run of the scenario is unfinished (critique M7: one Stop, visible).
+ *   run of the scenario is unfinished (one Stop, visible).
  */
 import { useEffect, useRef } from 'react';
 import type { BoardScenario, RunBlocker } from '@retake/engine';
@@ -161,13 +161,13 @@ export function ShootPrepare({ slug, name }: { slug: string; name: string }) {
   const env = p?.environments.find((e) => e.name === envName);
   const toConfirm = sessions.state === 'ready' ? sessions.data.confirm : [];
   const busy = running !== null || pend !== null;
-  // What does not load says so wherever it would wait (review B-L6): the project, or the scenario's actions.
+  // What does not load says so wherever it would wait: the project, or the scenario's actions.
   const failed = project.state === 'error' ? 'The project cannot be read' : actions.state === 'error' ? 'The scenario cannot be read' : null;
   const openLive = (id: string) => {
     focusLiveOnArrival(id);
     location.hash = hrefTo({ name: 'run', slug, scenario: name, run: id });
   };
-  // A refusal of a start from this screen takes the focus (review A-M2 / B-M2 of L5.11a: never left on <body>).
+  // A refusal of a start from this screen takes the focus (never left on <body>).
   const startedHere = useRef(false);
   const refusedBox = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -452,7 +452,7 @@ export function ShootPrepare({ slug, name }: { slug: string; name: string }) {
         </div>
       )}
       <p className="sc-quiet">{shown(`${REHEARSE_MAPPING} A run can be paused and stopped from the status bar or its screen; stopping still runs its teardown and rollbacks.`)}</p>
-      {/* Sticky at the foot of the centre pane (review A-L1: reachable at 900 px without scrolling past the checks). */}
+      {/* Sticky at the foot of the centre pane (reachable at 900 px without scrolling past the checks). */}
       <div className="sp-starts" role="group" aria-label="Start a take">
         <div className="sp-start">
           <div className="sp-start-text">

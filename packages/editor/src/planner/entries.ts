@@ -33,7 +33,7 @@ export function planEntries(s: PlanScope): Entry[] {
     }
     if (scene.status === 'failed' || scene.status === 'partial')
       warnings.add(`scene "${scene.id}" ${scene.status === 'failed' ? 'failed' : 'is partial'} in the run: its clip shows what was captured`);
-    // Notification events (step -1, L2.9) belong to no step: they are artefacts, not provenance.
+    // Notification events (step -1) belong to no step: they are artefacts, not provenance.
     const events = timeline.events.filter((e) => e.scene === scene.id && e.scene_index === scene.index && e.action !== 'notification').sort((a, b) => a.t_start - b.t_start || a.step - b.step);
     const open = events.find((e) => e.action === 'scene_open');
     const still = events.find((e) => e.action === 'scene_still');
@@ -140,7 +140,7 @@ export function planRuns(s: PlanScope, entries: Entry[]): { runs: ClipEntry[][];
       waits,
       quick,
       loading,
-      // L5.7: the main capture's freezes and waits (a multi-page run shows its pages' tracks: none of them recorded).
+      // The main capture's freezes and waits (a multi-page run shows its pages' tracks: none of them recorded).
       ...(runPages ? {} : { frozen: timeline.stalls ?? [], busy: timeline.busy ?? [] }),
       offcamera: runEntries.flatMap((e) => hookSpans(e.events)),
     });

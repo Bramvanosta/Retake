@@ -1,19 +1,19 @@
 /**
- * L4.7 part C: the Studio's library ops (server/library-ops.ts) over HTTP, on a scratch workspace (the fixture project,
+ * The Studio's library ops (server/library-ops.ts) over HTTP, on a scratch workspace (the fixture project,
  * the starters as templates_dir, one workspace component) with no worker (a queued job stays queued):
  * - `library_view`: every component, workspace first; the keys are the engine's own (`components.library`: the one
- *   builder the worker uses, B3); fresh built-ins are `committed` in the editorial starter, a workspace component never
+ *   builder the worker uses); fresh built-ins are `committed` in the editorial starter, a workspace component never
  *   (its own preview.png is not trusted); path-free; a workspace component's name only under `untrusted`; pinned inputs;
- * - ⚑ B5: a component file rewritten in place (its folder's mtime unchanged) is a new key at once — the memo is keyed on
+ * - ⚑ A component file rewritten in place (its folder's mtime unchanged) is a new key at once — the memo is keyed on
  *   the file-level stat walk, not on folders;
  * - `library_images`: cached entries by key (PNG / GIF89a, a planted wrong-magic entry is missing), ⚑ committed posters
- *   of built-ins only (B15: a workspace component with its own preview.png is `not_builtin`), the largest committed
- *   poster within POSTER_DATA_MAX (B6); at most 12 keys;
- * - `library_render`: at most 12 components; ⚑ keys already queued are skipped and nothing left queues no job (C1);
+ *   of built-ins only (a workspace component with its own preview.png is `not_builtin`), the largest committed
+ *   poster within POSTER_DATA_MAX; at most 12 keys;
+ * - `library_render`: at most 12 components; ⚑ keys already queued are skipped and nothing left queues no job;
  *   library_view then marks them `queued`.
- * - ⚑ review A L2 / B H1: a failure's reason reaches the page path-free under untrusted; a library job that failed as a
+ * - ⚑ A failure's reason reaches the page path-free under untrusted; a library job that failed as a
  *   whole shows its error (`job_error`) until a later one of the theme succeeds;
- * - `library_component` (part D1): the detail — kit compatibility, slots, ⚑ every manifest word (name, description, slot
+ * - `library_component`: the detail — kit compatibility, slots, ⚑ every manifest word (name, description, slot
  *   and param words, README) only under `untrusted`, path-free (a README naming the component's folder); pinned inputs.
  */
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -90,7 +90,7 @@ describe('library_view', () => {
     expect(v.theme).toMatchObject({ name: 'editorial', editorial_starter: true, project_default: true });
     expect(v.items[0].component).toBe('acme/marked');
     expect(v.items.length).toBeGreaterThan(30);
-    // B3: the keys are the worker's (engine components.library), never a second builder.
+    // The keys are the worker's (engine components.library), never a second builder.
     const engine = await studio.engine.components.library({ project: P });
     expect(v.items.map((i) => [i.component, i.poster.key, i.loop.key])).toEqual(expect.arrayContaining(engine.items.map((i) => [i.component, i.poster.key, i.loop.key])));
     expect(v.items).toHaveLength(engine.items.length);
@@ -115,7 +115,7 @@ describe('library_view', () => {
   it('⚑ B5: a component file rewritten in place is a new key at once; an unrelated re-read keeps it', async () => {
     const before = item((await viewOf()).data, 'acme/marked').poster.key;
     expect(item((await viewOf()).data, 'acme/marked').poster.key).toBe(before);
-    // In place: the folder's mtime does not move (probe E1) — only the file's.
+    // In place: the folder's mtime does not move — only the file's.
     await writeFile(join(ws, 'components', 'acme', 'marked', 'index.tsx'), markedCode(2));
     const after = item((await viewOf()).data, 'acme/marked').poster.key;
     expect(after).not.toBe(before);
@@ -153,7 +153,7 @@ describe('library_images', () => {
         { component: 'acme/marked', reason: 'not_builtin' },
       ]),
     );
-    // B6: the largest committed poster (189,595 bytes raw: over 200,000 base64 characters) is within POSTER_DATA_MAX.
+    // The largest committed poster (189,595 bytes raw: over 200,000 base64 characters) is within POSTER_DATA_MAX.
     const largest = d.images.find((i) => i.component === 'studio/card-before-after')!;
     expect(largest).toMatchObject({ kind: 'poster', format: 'png' });
     expect(largest.data.length).toBeGreaterThan(200_000);
@@ -258,7 +258,7 @@ describe('library_component (part D1)', () => {
 
 /** Run the worker (one job at a time: cancelled ones first) until job `id` has finished. */
 async function workUntil(id: string, test: { backend?: PreviewBackend; freeBytes: FreeBytes }): Promise<void> {
-  // The worker's ports (L7.29): the backend draws the previews of its renderer, the free space its disk gate sees.
+  // The worker's ports: the backend draws the previews of its renderer, the free space its disk gate sees.
   const ports = { ...(test.backend ? { renderer: withPreviewBackend(editorRenderer(), test.backend) } : {}), freeBytes: test.freeBytes };
   for (let i = 0; i < 10 && ['queued', 'running'].includes((await studio.engine.jobs.get(id)).state); i++) {
     await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, heavyInProcess: true, ports });

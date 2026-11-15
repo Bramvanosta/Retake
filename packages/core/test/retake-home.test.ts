@@ -1,12 +1,12 @@
 /**
- * L5.13 (critique H4): the canary of the test environment — vitest.config.ts gives every run a scratch RETAKE_HOME
+ * The canary of the test environment — vitest.config.ts gives every run a scratch RETAKE_HOME
  * (never the person's ~/.retake, which holds their signed-in profiles).
- * L5.13a reviews: a link to the real home is refused as RETAKE_HOME too (A M3), and no test
- * file leaves RETAKE_HOME unset for the tests after it (A M2: a later `main()` would look at the real home).
- * L5.16 Library hygiene: an MCP server a test starts gets CFFIXED_USER_HOME too — the SDK's stdio transport passes only
+ * A link to the real home is refused as RETAKE_HOME too, and no test file leaves RETAKE_HOME unset for the tests after
+ * it (a later `main` would look at the real home).
+ * An MCP server a test starts gets CFFIXED_USER_HOME too — the SDK's stdio transport passes only
  * the variables it is given, and a server without it starts workers whose Chromium writes its crash reporter's
- * settings.dat into the account's ~/Library (the leak of the lot-end run).
- * L5.15 fixes (review B M3): those processes get the render pin of vitest.setup.ts too (test-support child-env.ts testChildEnv).
+ * settings.dat into the account's ~/Library.
+ * Those processes get the render pin of vitest.setup.ts too (test-support child-env.ts testChildEnv).
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';

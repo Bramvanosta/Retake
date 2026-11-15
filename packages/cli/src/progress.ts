@@ -29,7 +29,7 @@ export class ProgressPrinter {
         const r = e.run;
         const mode = r.mode === 'dry' ? c.cyan('dry run') : c.magenta('capture');
         const opts = [`env ${r.env}`, `hooks ${r.options.hooks}`];
-        // L1.7: say what is not ordinary — production, a read-only run, writes allowed, a fixed clock.
+        // Say what is not ordinary — production, a read-only run, writes allowed, a fixed clock.
         if (r.environment?.production) opts.push('production');
         if (r.environment?.access === 'read-only') opts.push('read-only');
         else if (r.options.allow_writes) opts.push('writes allowed');
@@ -44,7 +44,7 @@ export class ProgressPrinter {
       case 'hook': {
         if (e.status === 'start') {
           this.hookPhase = e.phase;
-          // A `hook:` step (L5.8) during a scene: its hook's name.
+          // A `hook:` step during a scene: its hook's name.
           ui.line(`${e.phase === 'step' ? `  ${c.bold(`hook ${e.name}`)}` : c.bold(e.phase)} ${c.dim(e.message ?? '')}`);
           break;
         }
@@ -90,7 +90,7 @@ export class ProgressPrinter {
       case 'run_end':
         ui.clearStatus();
         break;
-      // L4.4: the step list (the Studio's), each persona's preflight result (its log lines say it already), pauses.
+      // The step list (the Studio's), each persona's preflight result (its log lines say it already), pauses.
       case 'outline':
         break;
       case 'session':

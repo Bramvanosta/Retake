@@ -28,7 +28,7 @@ export interface Scenario {
   setup?: HookStep[];
   teardown?: HookStep[];
   /**
-   * Named hooks a `hook: <name>` step runs during the take (L5.8): one hook entry or a list of them, run in order. A
+   * Named hooks a `hook: <name>` step runs during the take: one hook entry or a list of them, run in order. A
    * name here wins over project.yaml's `hooks:`.
    */
   hooks?: NamedHooks;
@@ -37,21 +37,21 @@ export interface Scenario {
   frame?: FrameSpec;
   template?: string;
   pacing?: Partial<Pacing>;
-  /** Step defaults (L5.6): win over the project's. */
+  /** Step defaults: win over the project's. */
   defaults?: RunDefaults;
   music?: MusicSpec;
   /** Automatic tutorial overlays fed by the timeline (shortcuts, spotlight, numbered steps, loupe, progress bar). */
   tutorial?: TutorialSwitch;
-  /** The length the video aims at (L5.5): the review's length rule uses it instead of the reference 60–120 s. */
+  /** The length the video aims at: the review's length rule uses it instead of the reference 60–120 s. */
   target_length?: TargetLength;
   /**
-   * The caption component of the whole video (L4.5): a caption component id, between a render override and the theme's
+   * The caption component of the whole video: a caption component id, between a render override and the theme's
    * caption (`overrides.components.caption` → `caption_component` → theme → built-in). An edit value.
    */
   caption_component?: ComponentId;
-  /** The product's clock at capture time 0 (L1.7; wins over the project's); `false` turns the project's clock off. */
+  /** The product's clock at capture time 0 (wins over the project's); `false` turns the project's clock off. */
   clock?: ClockSpec | false;
-  /** Answers to writes stopped on read-only runs (L1.7), tried before the environment's `read_only.mocks`. */
+  /** Answers to writes stopped on read-only runs, tried before the environment's `read_only.mocks`. */
   mocks?: WriteMockSpec[];
   scenes: SceneEntry[];
 }

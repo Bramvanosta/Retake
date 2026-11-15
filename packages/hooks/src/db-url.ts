@@ -54,7 +54,7 @@ export function describeTarget(t: DatabaseTarget): string {
 }
 
 /**
- * Why a sandbox's database URL cannot be used (L1.8), or null. A reset rewrites that database, so pg must connect where
+ * Why a sandbox's database URL cannot be used, or null. A reset rewrites that database, so pg must connect where
  * the URL says (pg's own parser decides): a loopback host and the port written in it — no unix socket, no `?host=` /
  * `?port=` sending the connection to another server.
  */

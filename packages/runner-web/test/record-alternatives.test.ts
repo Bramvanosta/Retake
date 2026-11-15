@@ -1,5 +1,5 @@
 /**
- * The recorder's alternative targets (L4.8, kit 1.6.0, R-UI-21): at a press, a keyboard activation, typing, a native
+ * The recorder's alternative targets (kit 1.6.0, R-UI-21): at a press, a keyboard activation, typing, a native
  * select or a file, the element's event carries up to three other targets verified at that moment — each resolving once
  * to the element the suggestion names (re-checked in the window), never positional, never for a secret field — within
  * their own in-page budget (none, said partial, when it is spent or the page is large). The window is played by
@@ -190,7 +190,7 @@ describe('recordSession: alternative targets (L4.8)', () => {
       `record: a press on the lab, in-page ms — with alternatives p50 ${quantile(a, 0.5)} / p95 ${quantile(a, 0.95)} (n=${a.length}); without p50 ${quantile(b, 0.5)} / p95 ${quantile(b, 0.95)} (n=${b.length})`,
     );
     // Inside the 150 ms press budget: the alternatives' own budget is 10 ms — the bound that matters is what they add
-    // (review B-N2), on the median press (n is small: the p95 is the slowest press).
+    //, on the median press (n is small: the p95 is the slowest press).
     expect(quantile(a, 0.95)).toBeLessThan(150);
     expect(quantile(a, 0.5) - quantile(b, 0.5)).toBeLessThanOrEqual(15);
 

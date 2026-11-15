@@ -1,5 +1,5 @@
 /**
- * `retake login` (L1.6, docs/DESIGN.md §3.6): sign one persona in and save its session — its master profile (this is
+ * `retake login` (docs/DESIGN.md §3.6): sign one persona in and save its session — its master profile (this is
  * its only writer), its snapshot (cookies, session cookies included, and localStorage) and the status of a check made
  * the way a run makes it (on a copy of the master plus the snapshot's cookies). Headed: a visible window the user signs
  * in with (SSO, 2FA…), closed by the user; auto: the persona's login steps, headless (tests, CI, a quick refresh). Both
@@ -363,7 +363,7 @@ async function autoSession(o: SignInOptions, userDataDir: string, url: string, l
 async function headedSession(o: SignInOptions, userDataDir: string, url: string, applied: StorageStateFile | undefined): Promise<StorageStateFile> {
   const b = projectBrowser(o.project, o.browser);
   const { executablePath, channel } = launchTarget(b, { headless: o.headless === true, policy: o.policy });
-  // L5.16c: never an older Chromium than the one that opened this profile last (profile-browser.ts).
+  // Never an older Chromium than the one that opened this profile last (profile-browser.ts).
   const major = launchMajor({ executablePath, channel });
   checkProfileBrowser(userDataDir, major);
   const httpCredentials = launchCredentials(o.project, o.env.name);

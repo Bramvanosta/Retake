@@ -1,5 +1,5 @@
 /**
- * A small built-in icon set for cards (studio/card-features, L2.10): line icons on a 24 × 24 grid, drawn with the
+ * A small built-in icon set for cards (studio/card-features): line icons on a 24 × 24 grid, drawn with the
  * stroke colour the component picks from the theme. Generic shapes only (no brand marks).
  */
 import type { CSSProperties, ReactNode } from 'react';

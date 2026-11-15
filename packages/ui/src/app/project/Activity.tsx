@@ -1,5 +1,5 @@
 /**
- * The Studio's two reads of the workspace index (L4.1 part 3; L5.10a: rebuilt on the kit): "Lately" (`activity_list`:
+ * The Studio's two reads of the workspace index (rebuilt on the kit): "Lately" (`activity_list`:
  * unfinished jobs live from the queue, then finished jobs and terminal commands from the history — of the workspace, a
  * project, or one production filtered on the page) and the search (`search`: projects, READMEs, scenarios, runs,
  * renders). Both re-read on the events that concern them. Every value is text (Txt / a kit slot); a hit links only to
@@ -37,7 +37,7 @@ function what(i: ActivityItem): string {
 function Item({ i, showProject }: { i: ActivityItem; showProject: boolean }) {
   const p = i.progress;
   const progress = i.state === 'running' && p ? (p.fraction !== undefined ? `${Math.round(p.fraction * 100)} %` : p.steps_total ? `${p.steps_done}/${p.steps_total} steps` : p.phase) : undefined;
-  // L5.14: a heavy job a filming take holds (waiting, slowed, or going on past the cap).
+  // A heavy job a filming take holds (waiting, slowed, or going on past the cap).
   const held = i.source === 'queue' && i.yield ? yieldWords(i.yield) : undefined;
   // A finished run job "succeeded" when it ran to its end: the run's own status says how it went.
   const status = i.source === 'history' && i.state === 'succeeded' && i.run?.status ? i.run.status : i.state;

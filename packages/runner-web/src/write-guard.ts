@@ -1,5 +1,5 @@
 /**
- * The write guard of a run's browsers (L1.7, R-ENV-03): on a read-only run, every persona context is armed at launch —
+ * The write guard of a run's browsers (R-ENV-03): on a read-only run, every persona context is armed at launch —
  * before the preflight's check page loads — with a context route that classifies each request (core classifyRequest):
  * reads pass at once; a write to a guarded host (every host on a production environment; else the environment's pages
  * + `read_only.hosts`; on any run, the hosts of the project's other read-only environments) is answered by a mock

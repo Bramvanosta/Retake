@@ -1,5 +1,5 @@
 /**
- * L5.12d: the desktop app's quit question in the window's page (DESIGN §4j). The shell asks with one `studio:quit`
+ * The desktop app's quit question in the window's page (DESIGN §4j). The shell asks with one `studio:quit`
  * event (apps/desktop/core guard_flow `page_quit_js`: its words from the shell's word tables, as data, and a fresh id);
  * the page's kit Sheet acks it through `desktop_answer {id, shown: true}` once it is on screen and sends the person's
  * answer; `studio:quit-close {id}` closes it (the shell went to its native alert, the server went away, a signal…).
@@ -17,7 +17,7 @@ export const QUIT_DETAIL_KEYS = ['id', 'action', 'title', 'text', 'buttons', 'pr
 export const QUIT_ID_RE = /^[A-Za-z0-9_-]{22}$/;
 /**
  * The longest title or text taken (UTF-16 units: `.length`) — the shell's own bound (guard_flow.rs QUIT_TEXT_MAX,
- * compared by a static test), which the longest question of words.rs fits (review A-L1 / B-L1).
+ * compared by a static test), which the longest question of words.rs fits.
  */
 export const QUIT_TEXT_MAX = 4000;
 /** The longest button label taken (guard_flow.rs QUIT_LABEL_MAX). */
@@ -53,7 +53,7 @@ export function parseQuitDetail(d: unknown): QuitQuestion | null {
 }
 
 /**
- * The sheet's actions, left to right as the native alert shows them (review B-M1): the alert's first button — its
+ * The sheet's actions, left to right as the native alert shows them: the alert's first button — its
  * default, Return — is the rightmost, as the kit's other sheets place their primary action. So unsaved text reads
  * [Quit Anyway (destructive, no key)] [Cancel ●] and jobs only [Cancel] [Quit Anyway ●]; the cancel button takes
  * Escape, and a destructive proceed is never the default (the kit's rule; Return on it chooses the default: Sheet).

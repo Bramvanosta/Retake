@@ -1,5 +1,5 @@
 /**
- * The anchor of a frame comment (L3.6, review frameAnchor), without video: a synthetic timeline planned with the real
+ * The anchor of a frame comment (review frameAnchor), without video: a synthetic timeline planned with the real
  * planner and editorial theme (intro, a step with an id, a card, a 2 ms marked `wait_for` with a callout — the fixture's
  * exact shape —, an interstitial, crossfades, outro), and the real fixture timelines of quote (the `proposal` marker)
  * and live-quote (a split: the acting page).

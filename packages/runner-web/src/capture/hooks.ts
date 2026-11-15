@@ -57,7 +57,7 @@ export interface SetupDeps extends DriverHooks {
   via?: Confinement;
   /** Trust `mcp`: the scenario's own vars, the agent's (HookContext.agentVars). */
   agentVars?: readonly string[];
-  /** L7.39: the files a person checked before the run (HookContext.trustedFiles). */
+  /** The files a person checked before the run (HookContext.trustedFiles). */
   trustedFiles?: TrustedHookFiles;
   confirmHook?: ConfirmHook;
   recordHookRun?: RunOptions['recordHookRun'];
@@ -135,7 +135,7 @@ export async function setupHooks(h: HooksState, setup: HookStep[], d: SetupDeps)
 }
 
 /**
- * The runner of `hook:` steps (L5.8): the named hook (the scenario's, else project.yaml's) runs in the setup's context
+ * The runner of `hook:` steps: the named hook (the scenario's, else project.yaml's) runs in the setup's context
  * — the same journal (its rollbacks are undone with the setup's, after the teardown), the same saved results
  * (`{{hooks.<save_as>…}}` in later steps) — with the run's cancel. A failed or refused entry fails the step.
  */

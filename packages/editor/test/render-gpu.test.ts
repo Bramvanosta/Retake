@@ -1,5 +1,5 @@
 /**
- * L5.15 renders on the GPU — real renders on this Mac (darwin only: skipped elsewhere), opted in to the GPU path
+ * Renders on the GPU — real renders on this Mac (darwin only: skipped elsewhere), opted in to the GPU path
  * through `settings` (the suite pins the software path, vitest.setup.ts):
  * - the default policy: ANGLE (Metal) + VideoToolbox — the record says so, no x264 in the file, a key frame every 2 s,
  *   SSIM ≥ 0.995 on every frame against the software render of the same plan (never bytes: the GPU is not
@@ -11,7 +11,7 @@
  * - no GPU found (an injected SystemInfo reply) and the GPU path failing (an injected failure): the browser that renders
  *   instead is reported again (`onBrowser`) and guarded again (a request outside the allow-list refused), progress
  *   never goes back, one fallback only, a cancel during it cancels, nothing half-written is kept.
- * L5.15 fixes: a reopen in software renders at the software default concurrency (what doctor says); a page of a guarded
+ * A reopen in software renders at the software default concurrency (what doctor says); a page of a guarded
  * GPU render that fails gets our one software retry, guarded, and Remotion never opens a browser of its own; a render
  * failing on both paths keeps the GPU story in its record; the Library's preview backend on the GPU path — its check,
  * its reopen, the browser reported and guarded after it, drawn as the policy says.
@@ -310,7 +310,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
       expect(res.warnings).toContain('no GPU for this render (ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device), SwiftShader driver)): rendered in software');
       expect(hits).toEqual([]);
       expect(res.warnings.join('\n')).toMatch(new RegExp(`the render blocked .*requests? to http://127\\.0\\.0\\.1:${port}`));
-      // Review A M1 / B M1: in software at the software default (¾ of the CPUs), not the GPU path's 3 — what doctor says.
+      // In software at the software default (¾ of the CPUs), not the GPU path's 3 — what doctor says.
       expect(res.concurrency).toBe(defaultConcurrency());
       const saved = { gl: process.env.RETAKE_RENDER_GL, enc: process.env.RETAKE_RENDER_ENCODER };
       try {
@@ -396,7 +396,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
         fallback: { reason: 'GPU process exited unexpectedly: exit_code=15' },
       });
       expect(res.encoding).toEqual({ encoder: 'libx264', crf: 16 });
-      expect(res.concurrency).toBe(3); // kept (critique M2: never more memory after a failure)
+      expect(res.concurrency).toBe(3); // kept (never more memory after a failure)
       expect(res.warnings).toContain('the render failed on the GPU path (GPU process exited unexpectedly: exit_code=15) and was rendered again in software');
       // Guarded again: the retry's browser refused B (attempt 1 failed before any page loaded).
       expect(hits).toEqual([]);

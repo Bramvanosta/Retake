@@ -1,22 +1,22 @@
 /**
- * A scenario (L4.2, R-UI-08..10, R-UI-13, R-UI-14; L5.10b: « Épure » — B32-Scenario, R4-Source) — one
+ * A scenario (R-UI-08..10, R-UI-13, R-UI-14; « Épure » — B32-Scenario, R4-Source) — one
  * `scenario_blocks` read gives the file, its blocks (video header, setup / teardown hooks, scenes with their steps,
  * cards, interstitials), its issues, what would stop a run from the Studio (`run_blockers`), the scenario's runs (the
  * "Pictures from" picker), the source run and every step's binding to it.
  *
  * The screen in the shell: the scenario's name is the page's (visually hidden) h1 — the title bar names it; the title
- * bar's context holds the View (Board · YAML) and the Location (critique M1: the environment Rehearse and Capture use,
- * remembered per scenario in this tab only, sent as `env` only when it is not the file's own; L5.11a: one choice shared
- * with Prepare and the status bar — run-location.ts); the browser shows the scenario's entries (ScenesBrowser.tsx); the
- * inspector what is selected (ScenarioInspector.tsx — the File in the YAML view). Above both views: a run of this
- * scenario queued or running (TakeStrip.tsx `Running`: review B M1) and, once, a remembered location project.yaml no
- * longer has (dropped: review A M1). L5.11a: Rehearse, Capture and Render are the status bar's; this screen feeds it
- * what it read (its view, its run_status, its renders: no second read — critique H2) and the hash it shows. One resolved selection drives the board, the browser and the inspector (`resolveSelection`: review B M2). The
- * centre: the take strip (TakeStrip.tsx), the file's notices
- * (not valid YAML, its issues, the steps limit, a YAML draft open), the edit bar (StepEditing.tsx), the palette, the
- * storyboard (Storyboard.tsx) and, closed at its end, the renders (Renders.tsx; L5.12a: their reviews are the Review report's).
+ * bar's context holds the View (Board · YAML) and the Location (the environment Rehearse and Capture use, remembered
+ * per scenario in this tab only, sent as `env` only when it is not the file's own; one choice shared with Prepare and
+ * the status bar — run-location.ts); the browser shows the scenario's entries (ScenesBrowser.tsx); the inspector what
+ * is selected (ScenarioInspector.tsx — the File in the YAML view). Above both views: a run of this scenario queued or
+ * running (TakeStrip.tsx `Running`) and, once, a remembered location project.yaml no longer has (dropped). Rehearse,
+ * Capture and Render are the status bar's; this screen feeds it what it read (its view, its run_status, its renders: no
+ * second read) and the hash it shows. One resolved selection drives the board, the browser and the inspector
+ * (`resolveSelection`). The centre: the take strip (TakeStrip.tsx), the file's notices (not valid YAML, its issues, the
+ * steps limit, a YAML draft open), the edit bar (StepEditing.tsx), the palette, the storyboard (Storyboard.tsx) and,
+ * closed at its end, the renders (Renders.tsx; their reviews are the Review report's).
  *
- * Events (critique B1): the view is read again only for this scenario's own file, a run of this scenario that appears,
+ * Events: the view is read again only for this scenario's own file, a run of this scenario that appears,
  * changes status or goes away, the picker, a reconnection or the window's focus — a running run's progress is a
  * `run_status` read, never the whole view. Every string from the file or the filmed site is a text node (`Txt` / a kit
  * slot); page text stays in boxes titled "From the page".
@@ -69,7 +69,7 @@ export function allIssues(v: View) {
 }
 
 /**
- * Renders (L4.5 part E; L5.12a: the card on the kit, R-UI-46) — the queue (Cancel), the newest failure, the newest three
+ * Renders (the card on the kit, R-UI-46) — the queue (Cancel), the newest failure, the newest three
  * renders (version, when, the verdict, whether it shows this file) and the Review report; Render is the status bar's.
  */
 function RendersCard({ v, slug, name, r }: { v: View; slug: string; name: string; r: RendersState }) {
@@ -113,7 +113,7 @@ function useStepForms(): StepForms | null {
 
 /**
  * What the board's selection is, resolved against the view — ONE value drives the board's marks, the browser's row and
- * the inspector (review B M2). Nothing picked yet: the first step. A picked step, scene or card that is no longer in the
+ * the inspector. Nothing picked yet: the first step. A picked step, scene or card that is no longer in the
  * file is never replaced by another step (whose Delete the person would not expect): a gone step leaves its scene
  * selected, else the video; a gone scene or card, the video. `subject` is the resolved selection as a Subject.
  */
@@ -172,7 +172,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   const [pick, setPick] = useState<string | undefined>(undefined);
   const project = useProjectView(slug);
   const envs = project.state === 'ready' ? project.data.environments : null;
-  // Review A M1: a location remembered in this tab that project.yaml no longer has is never sent (it would blame the
+  // A location remembered in this tab that project.yaml no longer has is never sent (it would blame the
   // file); it is dropped once the project is read and said once, above the take strip (run-location.ts).
   const loc = useRunLocation(slug, name, envs);
   const sentEnv = loc.sent;
@@ -189,10 +189,10 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   const runningId = view.state === 'ready' ? (view.data.running?.id ?? null) : null;
   const [live, progress] = useRunProgress(slug, runningId, reload);
   useScenarioEvents(slug, name, { reread: reload, progress, jobs: () => progress([]) });
-  // L5.11a: a run of this scenario this tab started or stopped (the status bar, ⌘R, ⌘.): read the view again now.
+  // A run of this scenario this tab started or stopped (the status bar, ⌘R, ⌘.): read the view again now.
   useRunChanged(slug, name, reload);
-  // L5.11a: the renders (lifted from the Renders card: the status bar's Render reads its queue) and what the status bar
-  // acts on, fed from this screen's own reads (critique H2: the status bar reads nothing here).
+  // The renders (lifted from the Renders card: the status bar's Render reads its queue) and what the status bar
+  // acts on, fed from this screen's own reads (the status bar reads nothing here).
   const renders = useRenders(slug, name, reload);
   const vNow = view.state === 'ready' ? view.data : null;
   const renderJob = renders.loaded.state === 'ready' ? renders.loaded.data.jobs[0] : undefined;
@@ -225,16 +225,16 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
     },
     [slug, name],
   );
-  // Critique B7: while the YAML view holds unsaved text, board edits are off (they would make its base stale).
+  // While the YAML view holds unsaved text, board edits are off (they would make its base stale).
   const yamlDraft = useDirty(scenarioKey(slug, name));
-  // The board's step edits (L4.3 part 2): kept across view switches; a YAML save clears their history.
+  // The board's step edits: kept across view switches; a YAML save clears their history.
   const ed = useStepEditor(slug, name, view.state === 'ready' ? view.data : null, yamlDraft, reload, tab === 'blocks');
   const edRef = useRef(ed);
   edRef.current = ed;
   const fetchThumbs = useCallback((run: string, keys: string[], signal: AbortSignal) => runThumbs({ project: slug, run, keys }, { signal }), [slug]);
   const forms = useStepForms();
   const v = view.state === 'ready' ? view.data : null;
-  // The one resolved selection (review B M2): what the board marks and the inspector shows. A picked subject that went
+  // The one resolved selection: what the board marks and the inspector shows. A picked subject that went
   // away is replaced by its resolution in the state too — unless something else was picked meanwhile.
   const resolved = useMemo(() => (v ? resolveSelection(v, subject) : null), [v, subject]);
   const effective = resolved?.subject ?? null;
@@ -242,7 +242,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
     if (subject === null || effective === null || sameSubject(subject, effective)) return;
     setSubject((cur) => (cur === subject ? effective : cur));
   }, [subject, effective]);
-  // Review A L1: the inspector's button an edit came from keeps the focus once the edit's view is here (Storyboard).
+  // The inspector's button an edit came from keeps the focus once the edit's view is here (Storyboard).
   const editFrom = useRef<string | null>(null);
 
   // The step edits the keys, drag & drop and the inspector's buttons send (one place: the verified write path).
@@ -265,7 +265,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
         if (!at || at.locked) return;
         const to = keyboardMove(slots, at, dir);
         if (to) edRef.current.send({ kind: 'move_step', from: { scene: at.scene, index: at.index, guard: at.guard }, to });
-        // Review B L6: a key that moves nothing says so (the live region kept the last edit's words).
+        // A key that moves nothing says so (the live region kept the last edit's words).
         else edRef.current.say(`Step ${at.index + 1} of ${at.scene} is already the ${dir < 0 ? 'first' : 'last'} step: it cannot move ${dir < 0 ? 'up' : 'down'}.`);
       },
       act: (k, kind) => {
@@ -276,8 +276,8 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
     [refOf, slots],
   );
 
-  // L5.12b: ⌘K's Scenes — each scene of the file (a pick selects it and brings it into view, as the browser does: on the
-  // YAML view, the scene's lines — review B-L3) — and the Review report with the last render's words. A pick only selects:
+  // ⌘K's Scenes — each scene of the file (a pick selects it and brings it into view, as the browser does: on the
+  // YAML view, the scene's lines) — and the Review report with the last render's words. A pick only selects:
   // the palette never writes. (The browser's own pick, onBrowse, is defined after the loading return: read from a ref.)
   const browse = useRef<((s: Subject, at: string) => void) | null>(null);
   usePaletteGroup(
@@ -340,8 +340,8 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
           },
         }
       : { up: false, down: false, move: () => undefined, act: () => undefined };
-  // The location (critique M1): the file's own, else the project's default; a choice is sent only when it differs. Only a
-  // location project.yaml has is ever shown or sent (review A M1): the select and the strip say the same one.
+  // The location: the file's own, else the project's default; a choice is sent only when it differs. Only a
+  // location project.yaml has is ever shown or sent: the select and the strip say the same one.
   const p = project.state === 'ready' ? project.data : null;
   // A project without default_env runs on its first environment (core resolveEnvironment): that is the file's own then.
   const fileDefault = v.blocks.video.env ?? p?.default_env ?? p?.environments[0]?.name;
@@ -351,7 +351,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   const currentEnv = envList.find((e) => e.name === current);
   const chosen = sentEnv !== undefined && sentEnv !== fileDefault;
   const runLocation: RunLocation | null = current ? { name: current, flags: currentEnv ? envFlagWords(currentEnv, false, current) : '', chosen, ...(fileDefault ? { fileDefault } : {}) } : null;
-  // The Video inspector's Location row: the file's own (review A L6), and the tab's choice beside it when it differs.
+  // The Video inspector's Location row: the file's own, and the tab's choice beside it when it differs.
   const fileEnv = fileDefault ?? (sentEnv === undefined ? v.environment?.name : undefined);
   const fileEnvFlags = envList.find((e) => e.name === fileEnv);
   const videoLocation = { file: fileEnv, fileFlags: fileEnvFlags ? envFlagWords(fileEnvFlags, false, fileEnv) : '', ...(chosen && current ? { chosen: current } : {}) };
@@ -387,7 +387,8 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
               testId="location-select"
               value={current}
               options={envList.map((e) => {
-                // Review A L7: a flag word that repeats the name is left out ("production · read-only", not "production · production · …").
+                // A flag word that repeats the name is left out ("production · read-only", not "production · production
+                // · …").
                 const flags = envFlagWords(e, e.name === fileDefault, e.name);
                 return { value: e.name, label: `${e.name}${flags ? ` · ${flags}` : ''}` };
               })}
@@ -405,7 +406,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
           <Txt text={`The location ${droppedEnv} chosen earlier is no longer in project.yaml: Rehearse and Capture use the file's own${fileDefault ? `, ${fileDefault}` : ''}.`} />
         </Callout>
       )}
-      {/* Review B M1: a run of this scenario queued or running (progress, Watch live) shows on both views; Stop is the status bar's. */}
+      {/* A run of this scenario queued or running (progress, Watch live) shows on both views; Stop is the status bar's. */}
       <Running run={v.running} live={live} slug={slug} name={name} />
       <ThumbsProvider fetch={fetchThumbs}>
         {tab === 'blocks' ? (

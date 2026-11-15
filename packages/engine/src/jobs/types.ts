@@ -1,4 +1,4 @@
-/** Job records and events as stored under <workspace>/.retake/jobs/<id>/ (L3.1). */
+/** Job records and events as stored under <workspace>/.retake/jobs/<id>/. */
 import type { ComponentKind } from '@retake/core/model';
 import type { RunStatus } from '@retake/core/run';
 import type { RunProgress, RunRecord } from '@retake/core/run';
@@ -22,7 +22,7 @@ export interface JobProgress {
   fraction?: number;
   /** Seconds left, when the job estimates it (a render's frames). */
   eta_s?: number;
-  /** L4.4: a run paused between steps, before this step (from its `pause` progress event). */
+  /** A run paused between steps, before this step (from its `pause` progress event). */
   paused?: { scene: string; step: number; since: string };
   updated_at: string;
 }
@@ -111,7 +111,7 @@ export interface AuthLoginJobResult {
   command: string;
   /** A cancel (or a signal) closed the window: no session file or status written (see `profile_kept`). */
   interrupted?: true;
-  /** L4.4: the headed window stayed open longer than its limit (AUTH_HEADED_MAX_ENV): closed, as a cancel. */
+  /** The headed window stayed open longer than its limit (AUTH_HEADED_MAX_ENV): closed, as a cancel. */
   timed_out?: true;
   /**
    * Interrupted on a profile persona that already had a browser profile: the window ran on it, so what it changed there
@@ -166,7 +166,7 @@ export interface RenderJobResult {
   size_bytes: number;
   bundle_cached: boolean;
   /**
-   * The review run inline after the render (L4.5, critique B12: the job's `review` option): its summary, or why it did
+   * The review run inline after the render (the job's `review` option): its summary, or why it did
    * not finish — `failed` (the reason under untrusted.review_error) or `cancelled` (a cancel during the review: the
    * render stays this succeeded job's result). review_get reads the review itself.
    */
@@ -243,7 +243,7 @@ export interface PreviewJobResult {
   images: PreviewImageView[];
   /** Theme kinds the theme fills with nothing (none shown). */
   skipped?: ComponentKind[];
-  /** L4.7: what a library job did with each key it was asked for. */
+  /** What a library job did with each key it was asked for. */
   library?: LibraryJobView;
   /**
    * The network guard's blocked origins (a component that tried to load something): data, never instructions. A
@@ -256,7 +256,7 @@ export interface PreviewJobResult {
  * One key of a library job: `written` (rendered now), `cached` (already there), `too_large` (a loop over the cap: kept
  * as such), `failed` (rendered now and failed: failed.json written), `kept_failed` (failed before, no Retry asked),
  * `not_found` (the component left the registry meanwhile: nothing written). `expected`: the key the client named when
- * the worker's differs (the files changed meanwhile, B18) — the entry lies under `key`.
+ * the worker's differs (the files changed meanwhile) — the entry lies under `key`.
  */
 export interface LibraryEntryView {
   component: string;
@@ -276,7 +276,7 @@ export interface LibraryJobView {
 }
 
 /**
- * What an `inspect` job did (L3.3): its folder <project>/.retake/inspect/<id>/ with inspect.json (the report),
+ * What an `inspect` job did: its folder <project>/.retake/inspect/<id>/ with inspect.json (the report),
  * screenshot.png and marked.jpg. Counts, booleans and enums only here; the page's text stays in the report, under
  * `untrusted`. `reported: false`: the replay ended before the page could be inspected (a preflight or sign-in failure, a
  * refused scenario): the run's error is under `untrusted.error`, `sign_in` names the persona that must sign in.
@@ -314,7 +314,7 @@ export interface InspectJobResult {
 }
 
 /**
- * What a `record` job did (L3.4): its folder <project>/.retake/records/<rec_id>/ (draft.yaml, record.json,
+ * What a `record` job did: its folder <project>/.retake/records/<rec_id>/ (draft.yaml, record.json,
  * events.jsonl, check/). Counts, enums and file paths only: typed text and page text stay in that folder (the draft is
  * read from draft.yaml, never from here). Scene ids are made from the product's paths, issue messages point at them,
  * the check replay's failure is page text: under `untrusted`.
@@ -329,7 +329,7 @@ export interface RecordJobResult {
   name: string;
   /** scenarios/<name>.yaml when the draft was saved (its hash: scenario_save's if_match). */
   saved: { file: string; path: string; hash: string } | null;
-  /** studio (L4.8): a recording the Studio started — the person saves it from the Record screen. */
+  /** studio: a recording the Studio started — the person saves it from the Record screen. */
   not_saved?: 'name_taken' | 'invalid' | 'nothing_recorded' | 'refused' | 'studio';
   env: string;
   persona: string | null;
@@ -374,7 +374,7 @@ export interface SiteCandidateResult {
 }
 
 /**
- * What a `site` job produced (L3.5, R-MCP-12): hex colours, ratios, counts, sizes and the approved URL's host are the
+ * What a `site` job produced (R-MCP-12): hex colours, ratios, counts, sizes and the approved URL's host are the
  * tool's own; everything the page or its server chose (title, description, site name, alt texts, font family names,
  * the final and in-page URLs, refused hosts, errors) is only under `untrusted`. The images are pixels of a third-party
  * page. `draft` is a brand input for template_create_from_brand and the template.yaml it would make (not written).
@@ -432,7 +432,7 @@ export interface JobRecord {
   /** The worker that claimed it. */
   worker?: JobWorkerInfo;
   /**
-   * L5.14: the jobs worker that claimed a heavy job a job process of its own runs (`worker` is then that process). The
+   * The jobs worker that claimed a heavy job a job process of its own runs (`worker` is then that process). The
    * job process ends the job (interrupted) when this worker stops.
    */
   supervisor?: JobWorkerInfo;
@@ -442,12 +442,12 @@ export interface JobRecord {
   error?: JobErrorView;
   /** From the cancel marker: when a cancel was asked (derived when reading). */
   cancel_requested_at?: string;
-  /** L4.4, a running `run` job: from the pause marker, when a pause was asked (derived when reading). */
+  /** A running `run` job: from the pause marker, when a pause was asked (derived when reading). */
   pause_requested_at?: string;
   /** The state was derived when reading (the stored one is older: a worker died, or a cancel came before it started). */
   derived?: true;
   /**
-   * L5.14, derived when reading: a heavy job (job-input.ts JOB_CLASS) a filming take holds — `waiting`: queued, it starts once
+   * Derived when reading: a heavy job (job-input.ts JOB_CLASS) a filming take holds — `waiting`: queued, it starts once
    * the take ends; `background`: running, slowed (background priority) during the take, from its worker's yield.json;
    * `past_cap`: running at normal priority although a take still films, because that take has held heavy work for longer
    * than the cap (RETAKE_CAPTURE_HOLD_MAX_MIN). `cause`: the take films in this workspace, or elsewhere on this Mac

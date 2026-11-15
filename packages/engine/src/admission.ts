@@ -2,7 +2,7 @@
  * The engine's admission rules: what it checks before it queues a run, a render or an export for the Studio and MCP
  * (caller.ts `admits`), named by the operation catalogue (`admission`, ADMISSION_RULES; SUBMIT_RULES is the table
  * both are held to). Each check and the submit that follows it run one at a time per key in this engine (two tabs, a
- * double click, two calls of a client at once), and — L7.26 — under the job queue's lock of that key (JobQueue
+ * double click, two calls of a client at once), and under the job queue's lock of that key (JobQueue
  * `exclusive`: a lock file of the workspace for the file queue), so the second finds the first one's job also when it
  * comes from another process (the Studio, an MCP server, another engine of the workspace):
  *

@@ -1,11 +1,11 @@
 /**
- * The timeline's tracks (L4.5 part C, R-UI-23 / R-UI-24; L5.12a: on the kit's Track / TrackItem, R-UI-45): segments,
+ * The timeline's tracks (R-UI-23 / R-UI-24; on the kit's Track / TrackItem, R-UI-45): segments,
  * captions, steps, camera zooms, speed with its cuts, markers and comment pins, each a labelled row of buttons placed by
  * frame (a percentage of the video: the fit and the zoomed level are one layout at two widths). Every item carries its
  * words (kind, label, times) — a pattern or a weight only repeats them — and activating one seeks there. Text the scenario
  * or the filmed product wrote (captions, step labels, marker names, comment text) comes from the view's `untrusted` part
  * and is only ever a text node or a title. A comment pin seeks to its frame; its tip opens its thread on the Comments
- * screen (L4.6). A segment is also selected by its click (the inspector shows its switches; `aria-pressed` says which).
+ * screen. A segment is also selected by its click (the inspector shows its switches; `aria-pressed` says which).
  * Memoised, and the playhead is not a prop: it is drawn by the screen over the lanes, so a playing preview (or a 1,200-step
  * take) re-renders none of this.
  */
@@ -30,7 +30,7 @@ export interface TracksProps {
   selected: string | null;
   /** A segment clicked: select it and seek to its first frame. */
   onSelect(id: string, from: number): void;
-  /** The project and scenario (L4.6: a pin's tip opens its thread on the Comments screen). */
+  /** The project and scenario (a pin's tip opens its thread on the Comments screen). */
   at?: { slug: string; scenario: string };
 }
 

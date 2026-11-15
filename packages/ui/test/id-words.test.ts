@@ -1,5 +1,5 @@
 /**
- * L7.5 part D: the app's one mirror of the id grammar (app/id-words.ts) is core's (core id-grammar.ts) — the app
+ * The app's one mirror of the id grammar (app/id-words.ts) is core's (core id-grammar.ts) — the app
  * imports types only from the workspace's packages, so this test is what holds the two the same:
  * - every pattern source for source, every cap for cap;
  * - `okNewThemeName` answers as core's `isNewThemeName`, `renderVersionWords` reads the suffix core's `renderSuffix`
@@ -267,7 +267,7 @@ describe("60 characters for a new theme's name, wherever the app asks for one (D
   it("⚑ the four fields that take a new theme's name stop at the cap, by its name, and say the rule under the field", () => {
     // The field stops at 60, so the sentence of a name too long cannot show: the limit is said before it is met.
     expect(NEW_THEME_NAME_HINT).toBe('Lower-case letters, digits and "-", at most 60 characters.');
-    // L7.34: each form rendered (react-dom/server: a sheet's content is in the markup closed or open) — its name field
+    // Each form rendered (react-dom/server: a sheet's content is in the markup closed or open) — its name field
     // read as the browser gets it: the input's maxlength, and the hint the input is described by.
     const fields = (el: ReactElement) => {
       const html = renderToStaticMarkup(el);

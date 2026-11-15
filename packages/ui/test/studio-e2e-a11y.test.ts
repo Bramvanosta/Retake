@@ -1,5 +1,5 @@
 /**
- * L4.9 part C (R-UI-03): the screen tour, part 1 — the project and scenario screens in headless Chromium against a real
+ * R-UI-03: the screen tour, part 1 — the project and scenario screens in headless Chromium against a real
  * Studio server (a11y-tour.ts: the fixture project, the synthetic bits take with a thread and Claude's proposal), each
  * state checked once nothing is loading by the in-repo checker (a11y.ts) at 1280 and 1440 wide — contrast (over media
  * too), names, reachable roles, colour never alone, a selected state more than colour, headings, no sideways scroll —
@@ -8,14 +8,14 @@
  * that does not parse; the run preflight; a failed dry run; the capture's sessions confirmation (a native modal dialog,
  * walked inside: focus moves in, Escape closes it, focus returns); blocks of a take with its inspector; the timeline with a segment selected;
  * Comments (a list, a thread with Claude's proposal and its diff, none yet); the timeline previewing the proposal
- * (switches greyed); L5.9 (review A-L2): the steps while a write is in flight (held, audited busy). Each must have no
+ * (switches greyed); the steps while a write is in flight (held, audited busy). Each must have no
  * finding (the report printed otherwise). No CSP violation, no console error.
  * Part 2 (library, themes, Record, the keyboard path) is studio-e2e-a11y-keyboard.test.ts.
- * L5.9: every state in dark (the default, following the system) at 1280 and 1440, and in light at 1280; ⚑ the UI gallery
+ * Every state in dark (the default, following the system) at 1280 and 1440, and in light at 1280; ⚑ the UI gallery
  * (every component of the design system, both appearances side by side) in dark and light at both widths, and its
  * sheet (a modal alertdialog walked inside: focus in, Escape, focus back), menu (a popover: items named and reached)
  * and command palette (a modal dialog walked inside; its options reached through the combobox) open in each scope.
- * L5.12d: the desktop app's quit sheet (unsaved text; jobs only) and the not-found screen, dark at 1280 / 1440 / 900 and
+ * The desktop app's quit sheet (unsaved text; jobs only) and the not-found screen, dark at 1280 / 1440 / 900 and
  * light at 1280.
  * `RETAKE_UI_SHOTS=<folder>` saves screenshots of every state (the viewport: the shell's panes scroll themselves).
  */
@@ -45,7 +45,7 @@ const at = (hash: string) => `${t.studio.url}#${hash}`;
 describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 part C)', () => {
   it("projects, a project with its Sessions panel, the README's conflict panel", async () => {
     const { page } = t;
-    // L5.10a: Welcome; the Project screen with nothing selected (the project inspector), a production selected, a
+    // Welcome; the Project screen with nothing selected (the project inspector), a production selected, a
     // smart group, a location in the inspector; the Cast (the Sessions panel).
     let r = await station(t, 'welcome', () => go(page, at('/'), 'h2:text("Projects")'));
     expect(r.findings, r.report).toEqual([]);
@@ -57,7 +57,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
       await page.getByTestId('scenario-link').waitFor(POLL);
     });
     expect(r.findings, r.report).toEqual([]);
-    // L5.10a fixes (review B-M2): the desktop app's narrowest window, 900 px — the posters reflow beside the inspector.
+    // The desktop app's narrowest window, 900 px — the posters reflow beside the inspector.
     r = await station(
       t,
       'production-selected-900',
@@ -90,7 +90,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
         await page.getByRole('alert').filter({ hasText: 'README.md changed on disk' }).waitFor(POLL);
         await page.getByRole('button', { name: 'Save', exact: true }).click();
         await page.getByTestId('conflict').waitFor(POLL);
-        // L5.12b (M4): the README on the kit — dark at 1280, 1440 and 900, light at 1280.
+        // The README on the kit — dark at 1280, 1440 and 900, light at 1280.
       },
       {
         schemes: [
@@ -106,7 +106,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     const { page } = t;
     // The write is held until the audits are done (then it goes through: the step moves back on the next station's reload).
     await go(page, at(`/p/${N}/s/quote`), '[data-testid="step"]');
-    // A step's words without its number (the numbers follow the order). L5.10b: each frame's title as text — a scene off
+    // A step's words without its number (the numbers follow the order). Each frame's title as text — a scene off
     // screen is not painted (content-visibility), its words are there all the same.
     const titles = () => page.locator('[data-testid="step"] .k-frame-title').allTextContents();
     const before = await titles();
@@ -133,7 +133,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
         { busy: '[data-testid="blocks"]', walk: false, exemptMax: 40 },
       );
       expect(r.findings, r.report).toEqual([]);
-      // L5.10b: the frames wait with a dashed edge, never a fade.
+      // The frames wait with a dashed edge, never a fade.
       expect(
         await page
           .locator('[data-testid="step"]')
@@ -153,7 +153,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     await expect.poll(order, POLL).toEqual(before);
   }, 180_000);
 
-  // L5.10b: the board with a step selected (and at 900), a row card selected, YAML read and editing, a file that does
+  // The board with a step selected (and at 900), a row card selected, YAML read and editing, a file that does
   // not parse on the board and in YAML (the title kept: the guard compares titles with HEAD).
   it('blocks with a step selected, YAML, a YAML file that does not parse', async () => {
     const { page } = t;
@@ -165,7 +165,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     };
     let r = await station(t, 'blocks', selectStep);
     expect(r.findings, r.report).toEqual([]);
-    // L5.10b: the desktop app's narrowest window — two frames a row, the title bar's Location without its label.
+    // The desktop app's narrowest window — two frames a row, the title bar's Location without its label.
     r = await station(t, 'blocks-900', selectStep, {
       schemes: [
         { scheme: 'dark', widths: [900] },
@@ -200,7 +200,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(r.findings, r.report).toEqual([]);
     r = await station(t, 'run-failed', () => go(page, at(`/p/${N}/s/quote/run/20261017-120000-quote`), '[data-testid="run-outcome"]'));
     expect(r.findings, r.report).toEqual([]);
-    // L5.11a: Prepare with nothing blocking (its Start buttons enabled), the status bar's actions with a blocker line —
+    // Prepare with nothing blocking (its Start buttons enabled), the status bar's actions with a blocker line —
     // at 900 too (the overflow rule: nothing scrolls sideways), and in the light appearance.
     r = await station(t, 'run-preflight-ready', () => go(page, at('/p/demo/s/bits/run'), '[data-testid="start-dry"]'));
     expect(r.findings, r.report).toEqual([]);
@@ -220,7 +220,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(r.findings, r.report).toEqual([]);
     expect(r.result.walk!.stops).toBeGreaterThanOrEqual(2);
     await page.keyboard.press('Escape');
-    // L5.11a: the shell's one sheet stays in the document, closed.
+    // The shell's one sheet stays in the document, closed.
     await page.getByTestId('confirm-sessions').waitFor({ state: 'hidden' });
     expect(await dialogCheck(page, page.getByTestId('start-capture'), () => page.keyboard.press('Enter'))).toEqual([]);
   }, 180_000);
@@ -233,7 +233,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
       await page.getByTestId('inspector').waitFor(POLL);
     });
     expect(r.findings, r.report).toEqual([]);
-    // L5.12a (M4): Edit with a segment selected — dark at 1280, 1440 and 900, light at 1280.
+    // Edit with a segment selected — dark at 1280, 1440 and 900, light at 1280.
     r = await station(
       t,
       'timeline',
@@ -250,7 +250,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
       },
     );
     expect(r.findings, r.report).toEqual([]);
-    // L5.12a (M4): the Review report with a check selected (its frame in the inspector) — the same widths.
+    // The Review report with a check selected (its frame in the inspector) — the same widths.
     r = await station(
       t,
       'review-report',
@@ -274,7 +274,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     const { page } = t;
     let r = await station(t, 'comments', () => go(page, at('/p/demo/s/bits/comments'), '[data-testid="viewer"][data-shown]'));
     expect(r.findings, r.report).toEqual([]);
-    // L5.12b (M4): a thread with Claude's proposal in the inspector (the list in the browser pane, the frame in the centre)
+    // A thread with Claude's proposal in the inspector (the list in the browser pane, the frame in the centre)
     // — dark at 1280, 1440 and 900, light at 1280.
     r = await station(
       t,
@@ -295,7 +295,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(r.findings, r.report).toEqual([]);
     r = await station(t, 'comments-none', () => go(page, at(`/p/${N}/s/quote/comments`), '[data-testid="no-render"]'));
     expect(r.findings, r.report).toEqual([]);
-    // L5.12b (M4): the ⌘K palette open on Edit (a modal: the walk stays in it — its list is no tab stop of its own).
+    // The ⌘K palette open on Edit (a modal: the walk stays in it — its list is no tab stop of its own).
     r = await station(
       t,
       'palette-edit',
@@ -316,7 +316,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     await page.locator('dialog.k-palette[open]').waitFor({ state: 'detached' });
     expect(r.findings, r.report).toEqual([]);
     expect(r.result.walk!.stops).toBe(1);
-    // L5.12b fixes (review B-L6): the palette open on the Scenario screen — the storyboard's frames listbox beneath the modal
+    // The palette open on the Scenario screen — the storyboard's frames listbox beneath the modal
     // is inert, and the checker now skips what lies behind an open modal (its reachable rule and the families' walk).
     r = await station(
       t,
@@ -427,9 +427,9 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
       { scheme: 'dark' as const, widths: WIDTHS },
       { scheme: 'light' as const, widths: WIDTHS },
     ];
-    // (L5.12a: the budgets are the counts measured, not a margin — 26 texts exempt as disabled at the gallery, its sheet and
+    // (The budgets are the counts measured, not a margin — 26 texts exempt as disabled at the gallery, its sheet and
     // its palette (the disabled choice chip, its label and its reason, in both scopes: shown on purpose), 27 with the menu
-    // open (its own disabled item is one more). L5.12a fixes, review B-L6.)
+    // open (its own disabled item is one more).)
     let r = await station(t, 'gallery', () => go(page, at('/ui'), '[data-testid="gallery"]'), { schemes: both, exemptMax: 26 });
     expect(r.findings, r.report).toEqual([]);
     expect(r.result.audits[1280].stats.texts).toBeGreaterThan(150);

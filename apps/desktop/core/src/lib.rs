@@ -1,10 +1,10 @@
-//! The desktop shell's rules (L5.2, DESIGN §4j), kept free of Tauri and of any crate so that their tests run in the
+//! The desktop shell's rules (DESIGN §4j), kept free of Tauri and of any crate so that their tests run in the
 //! default suite: the supervised line, the navigation allow-list, what may be printed, the launch config, the
-//! workspace order, the remembered workspace and the stop sequence; L5.2b: the server's pipe lines (pipe), the words of
-//! the quit question and the notifications (words), when a job end becomes a notification (notify); L5.12d: the quit
-//! question's flow, page first and the native alert as the fallback (guard_flow); L5.16c: the installed app's first run
+//! workspace order, the remembered workspace and the stop sequence; the server's pipe lines (pipe), the words of
+//! the quit question and the notifications (words), when a job end becomes a notification (notify); the quit
+//! question's flow, page first and the native alert as the fallback (guard_flow); the installed app's first run
 //! and Set-up sheet — where it runs from, the first-run alert, the `studio:setup` event, the lines for the server (setup);
-//! L5.16d: the updater's rules — which build updates itself, when it checks, what an install waits for, the lines for
+//! the updater's rules — which build updates itself, when it checks, what an install waits for, the lines for
 //! the server and the remembered checks (update_flow); BL-168: the restart after an update, once this process is gone
 //! (relaunch).
 

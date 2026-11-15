@@ -1,5 +1,5 @@
 /**
- * The one reader of ffprobe's answers (core ffprobe.ts, L7.31, finding X3): besides the summary (ffprobe-summary.test)
+ * The one reader of ffprobe's answers (core ffprobe.ts): besides the summary (ffprobe-summary.test)
  * and a user's video (media.test), a raw export's clip, an open render video, a picture's size and a take's packets —
  * each as its site read it before the readers were one module.
  */

@@ -200,7 +200,7 @@ export abstract class StoredJobQueue implements JobQueue {
       }
     } else if (rec.state === 'running') {
       if (!rec.worker || !(await isAlive(rec.worker))) {
-        // L5.14: a heavy job's `worker` is its job process (its claiming worker is `supervisor`).
+        // A heavy job's `worker` is its job process (its claiming worker is `supervisor`).
         const who = rec.supervisor ? 'its job process' : 'the worker';
         return interrupted(rec, this.cli, `${who}${rec.worker ? ` (pid ${rec.worker.pid})` : ''} stopped while the job ran (killed, crashed or the machine slept through a restart)`);
       }
@@ -239,10 +239,10 @@ export abstract class StoredJobQueue implements JobQueue {
   }
 
   /**
-   * What holds this workspace's heavy work now (L5.14, review B M4): a filming take of this workspace waiting in the
+   * What holds this workspace's heavy work now: a filming take of this workspace waiting in the
    * queue (`here`), else a filming marker of this user (`here` when its workspace is this one); undefined when nothing
-   * does. Reads only the jobs this queue has not seen finished (review A M1: a finished job's record is read once, not
-   * at every call); callers read it once per list or poll.
+   * does. Reads only the jobs this queue has not seen finished (a finished job's record is read once, not at every
+   * call); callers read it once per list or poll.
    */
   async takeHold(): Promise<TakeHold> {
     for (const id of await this.ids()) {
@@ -288,7 +288,7 @@ export abstract class StoredJobQueue implements JobQueue {
   /**
    * Ask for a cancel: the marker is created once (asking again keeps the first time). A queued job is then cancelled
    * (derived at once, closed by the next worker); a running one is stopped by its worker (teardown and rollbacks still
-   * run). A finished job is returned as it is. `reason` 'discard' (L4.8): the Studio's Discard of an open recording
+   * run). A finished job is returned as it is. `reason` 'discard': the Studio's Discard of an open recording
    * window — its view says "discarded", not "cancelled".
    */
   async cancel(id: string, by: string, reason?: 'discard'): Promise<JobRecord> {
@@ -300,7 +300,7 @@ export abstract class StoredJobQueue implements JobQueue {
   }
 
   /**
-   * Ask a running job to pause (`on`) or to resume (L4.4): the `pause` marker is created once (asking again keeps the
+   * Ask a running job to pause (`on`) or to resume: the `pause` marker is created once (asking again keeps the
    * first time) or removed. The caller checks the job may pause (engine runs.pause); the worker only reads the marker.
    */
   async requestPause(id: string, on: boolean, by: string): Promise<void> {
@@ -321,7 +321,7 @@ export abstract class StoredJobQueue implements JobQueue {
   }
 
   /**
-   * Ask a running `record` job to stop and keep (L4.8): the `stop` marker is created once (asking again keeps the first
+   * Ask a running `record` job to stop and keep: the `stop` marker is created once (asking again keeps the first
    * time). The caller checks the job may stop (engine record.stop); the worker only reads the marker, and a marker left
    * by a finished job is inert.
    */
@@ -344,7 +344,7 @@ export abstract class StoredJobQueue implements JobQueue {
   }
 
   /**
-   * Give a claimed job back to the queue (L5.14: its job process refused to start on another build) — only the worker
+   * Give a claimed job back to the queue (its job process refused to start on another build) — only the worker
    * that claimed it, before anything ran.
    */
   async unclaim(id: string): Promise<void> {
@@ -397,9 +397,9 @@ export abstract class StoredJobQueue implements JobQueue {
   }
 
   /**
-   * Where a queued job stands in its lane (L5.14: the worker runs one capture and one heavy job at a time, captures
+   * Where a queued job stands in its lane (the worker runs one capture and one heavy job at a time, captures
    * first): how many jobs of the same class run or wait before it (0: it is next). Undefined when it is not queued.
-   * `held_by: 'take'` (review B M4): a heavy job that cannot start now — a filming take of this workspace waits in the
+   * `held_by: 'take'`: a heavy job that cannot start now — a filming take of this workspace waits in the
    * queue, or a take films on this Mac (a filming marker holds) — whatever its place in its lane.
    */
   async position(id: string): Promise<JobPosition | undefined> {

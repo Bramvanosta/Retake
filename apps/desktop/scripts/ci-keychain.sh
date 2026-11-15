@@ -1,5 +1,5 @@
 #!/bin/bash
-# The release workflow's signing keychain (L5.16e: .github/workflows/release.yml, docs/RELEASING.md) — a TEMPORARY
+# The release workflow's signing keychain (.github/workflows/release.yml, docs/RELEASING.md) — a TEMPORARY
 # keychain holding the Developer ID certificate for the `sign` job, put first on the user's keychain search list
 # (codesign builds the certificate chain from that list) and named to the build (APPLE_KEYCHAIN: sign.mjs passes
 # `codesign --keychain`), then removed again.
@@ -9,12 +9,12 @@
 #                                 `keychain=<path>` for $GITHUB_OUTPUT
 #   ci-keychain.sh delete <dir>   the search list put back as it was before the import, the keychain deleted, every
 #                                 file of <dir> removed even when security fails — safe after a failed import and
-#                                 twice (the workflow runs it in an `if: always()` step)
+#                                 twice (the workflow runs it in an `if: always` step)
 #
 # <dir> is a folder of the job's own (RUNNER_TEMP/signing): the keychain and the saved search list live there.
 # On a GitHub Actions runner only (GITHUB_ACTIONS=true): it changes the user's keychain search list. Nothing else of the
 # login keychain is touched — no default keychain, no import, no setting. No password is ever on a command line
-# (review e A-L1: any process of the user reads command lines): /usr/bin/openssl (LibreSSL: reads both the legacy and
+# (any process of the user reads command lines): /usr/bin/openssl (LibreSSL: reads both the legacy and
 # the current .p12 formats) reads the certificate's from the environment (`-passin env:`) and wraps the identity again
 # with a random one-time password; that one and the keychain's own (random too) reach `security` on its standard
 # input (`security -i`, one command per run: `security_stdin`). Both die with the job's keychain. The private key is
@@ -67,7 +67,7 @@ if [ "$cmd" = delete ]; then
     security list-keychains -d user -s ${list[@]+"${list[@]}"} || status=$?
   fi
   if [ -e "$keychain" ]; then security delete-keychain "$keychain" || status=$?; fi
-  # Whatever security said: no file of the job's signing material is left (review e A-L2).
+  # Whatever security said: no file of the job's signing material is left.
   if [ -d "$dir" ]; then find "$dir" -mindepth 1 -delete; fi
   [ "$status" -eq 0 ] || die "security failed while the keychain was removed (its files are gone; the search list may still name it)"
   exit 0

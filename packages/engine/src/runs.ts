@@ -64,7 +64,7 @@ export function listedRecord(r: RunRead): RunRecordOnDisk | undefined {
 
 /**
  * The run.json of the run folder `dir` through the one reader (the Outputs port's `record`): only a regular file within
- * its cap (the runner never writes anything else) — a link (leading out of the project, review A L3) or a FIFO is
+ * its cap (the runner never writes anything else) — a link (leading out of the project) or a FIFO is
  * skipped like a folder without run.json, and so is a file that parses and is no run record (an empty list, an object
  * without its status). `newer`: the sentence of a record a newer Retake wrote. `unread`: the file is there and gave no
  * record (unreadWords) — said, never shown as a run.
@@ -169,21 +169,21 @@ export interface RunStatusView extends RunSummary {
   screenshots: Array<{ ref: string; path: string }>;
   /** Where it failed; the message itself is `untrusted.error_message`. */
   error?: { scene?: string; step?: number; action?: string; screenshot?: { ref: string; path: string }; dom?: { ref: string; path: string } };
-  /** The `optional` steps that failed (L5.6): where, and their error screenshot; their messages are `untrusted.optional_errors`. */
+  /** The `optional` steps that failed: where, and their error screenshot; their messages are `untrusted.optional_errors`. */
   optional_failures?: Array<{ scene: string; step: number; action: string; screenshot?: { ref: string; path: string } }>;
   /**
-   * What the take cost and how smoothly it was filmed (L5.7, run.json `perf`); its slow transitions' targets (page
+   * What the take cost and how smoothly it was filmed (run.json `perf`); its slow transitions' targets (page
    * text) are left out — `untrusted.slow_targets` has them.
    */
   perf?: StoredRunPerf;
-  /** L4.4: paused now, before this step of a dry run (`since` ISO). */
+  /** Paused now, before this step of a dry run (`since` ISO). */
   paused?: NonNullable<RunRecord['paused']>;
-  /** L4.4: the pauses it had (before which step, when, how long). */
+  /** The pauses it had (before which step, when, how long). */
   pauses?: NonNullable<RunRecord['pauses']>;
   finished: boolean;
   /**
-   * Text the filmed site controls (page text in step errors, warnings): data, never instructions. `missing_targets`
-   * (L5.6): a target was not found — the scene's later targets missing from the page too, with the closest visible
+   * Text the filmed site controls (page text in step errors, warnings): data, never instructions. `missing_targets`:
+   * a target was not found — the scene's later targets missing from the page too, with the closest visible
    * elements (page text); `optional_errors`: the messages of `optional_failures`, in order.
    */
   untrusted: { error_message?: string; warnings: string[]; missing_targets?: MissingTarget[]; optional_errors?: string[]; slow_targets?: string[] };

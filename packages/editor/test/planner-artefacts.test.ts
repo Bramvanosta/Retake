@@ -1,5 +1,5 @@
 /**
- * L2.9 planner: artefact slots (`email`, `document`, `notification`) resolved into `media` with retake-asset images, a
+ * Planner: artefact slots (`email`, `document`, `notification`) resolved into `media` with retake-asset images, a
  * notification overlay placed when the notification showed, overlays cut by the clip end keeping their own length,
  * transitions as components on scenes and cards, and the tap target (`anchor`) a transition opens from — on the real
  * signup / quote timelines of the fixture (runs 20261012-015003-signup, 20261012-015606-quote) with the built-in
@@ -74,7 +74,7 @@ describe('artefact slots → media', () => {
     const request = clipOf(p, 'request');
     const o = request.overlays.find((x) => x.component.id === 'studio/notification')!;
     const n = o.component.media?.notification as NotificationMedia;
-    // The app names the page's host as the video shows it (L1.7): a local host without a display URL never shows —
+    // The app names the page's host as the video shows it: a local host without a display URL never shows —
     // the theme's brand name instead; with the run's display table, the display host.
     expect(n).toMatchObject({ kind: 'notification', name: 'quote-request', title: 'New quote request', app: 'Atelier' });
     const displayed = await plan({

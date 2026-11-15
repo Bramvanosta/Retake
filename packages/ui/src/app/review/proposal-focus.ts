@@ -1,5 +1,5 @@
 /**
- * L5.12b: the proposal's focus hand-off (the timeline's Back to the comment, ProposalBanner.tsx) — one pending ask per tab
+ * The proposal's focus hand-off (the timeline's Back to the comment, ProposalBanner.tsx) — one pending ask per tab
  * (module memory, like edit-handoff.ts): the banner names the project and the thread; the thread's ProposalCard takes it
  * once and scrolls to the proposal, its heading focused. The ask lives only on the way to that thread: a route anywhere
  * else drops it (hashchange), and so does a thread that cannot be read — never a stale focus on a later visit.

@@ -1,5 +1,5 @@
 /**
- * L4.7 part C: the Studio's theme ops (server/theme-ops.ts) over HTTP, on a scratch workspace whose templates_dir is
+ * The Studio's theme ops (server/theme-ops.ts) over HTTP, on a scratch workspace whose templates_dir is
  * its own `templates/` (the starters stay starters) and the fixture project:
  * - theme_copy → theme_view: editable by real path, text and sha256; a starter read-only with why; path-free;
  * - ⚑ theme_edit: pinned inputs (a field outside the allow-list, an extra key, a path for a name → 400 before anything
@@ -11,7 +11,7 @@
  *   image is not previewed; ⚑ a workspace component the preview renders is held until preview_allow; a theme page's
  *   lease ends with timeline_leave (the project's URLs revoked);
  * - the `themes` watch: a theme edit is a change of that theme only (the engine's library-watch.ts);
- * - L4.7 part D2: theme_list — ⚑ editable by real path (starters read-only with why, a workspace copy editable, the
+ * - theme_list — ⚑ editable by real path (starters read-only with why, a workspace copy editable, the
  *   project's own folder theme read-only), hex colours only, what uses each, the components by id and kind, the
  *   project's scenarios; path-free.
  */
@@ -262,7 +262,7 @@ describe('theme_preview', () => {
     // Pinned: a draft colour that is not hex, a target that is a path.
     expect((await call('theme_preview', { project: P, theme: 'mine', target: 'intro', lease: LEASE, draft: { colors: { accent: 'url(x)' } } })).status).toBe(400);
     expect((await call('theme_preview', { project: P, theme: 'mine', target: { component: '../../x' }, lease: LEASE })).status).toBe(400);
-    // Review A N2: a page always holds a lease (a preview no lease holds would lose its URLs to another page's leave).
+    // A page always holds a lease (a preview no lease holds would lose its URLs to another page's leave).
     expect((await call('theme_preview', { project: P, theme: 'mine', target: 'intro' })).status).toBe(400);
   });
 

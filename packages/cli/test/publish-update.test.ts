@@ -1,12 +1,12 @@
 /**
- * L5.16d, moved to a GitHub release by L5.16f — scripts/publish-update.mjs, the release step for the app's updates
- * (DESIGN §4p (d), docs/RELEASING.md): the archive's minisign signature checked in Node before anything is written
- * (Ed25519 over the BLAKE2b-512 prehash, the global signature over the trusted comment, the comment's `version:` equal
- * to the version); then, still before any write, a public repository, the version's published release and what it
- * holds being these very bits; then only what that release lacks (archive, .sig, platform file), and the channels on
- * the fixed `update-feed` release (created once, a pre-release never "latest"): rebuilt from the platform files (a
- * re-run heals), rc.json for every version and latest.json for stable ones, never moved back, replaced through a
- * temporary name so a channel is missing for no longer than the old one's DELETE and the rename.
+ * scripts/publish-update.mjs, the release step for the app's updates (DESIGN §4p (d), docs/RELEASING.md): the archive's
+ * minisign signature checked in Node before anything is written (Ed25519 over the BLAKE2b-512 prehash, the global
+ * signature over the trusted comment, the comment's `version:` equal to the version); then, still before any write, a
+ * public repository, the version's published release and what it holds being these very bits; then only what that
+ * release lacks (archive, .sig, platform file), and the channels on the fixed `update-feed` release (created once, a
+ * pre-release never "latest"): rebuilt from the platform files (a re-run heals), rc.json for every version and
+ * latest.json for stable ones, never moved back, replaced through a temporary name so a channel is missing for no
+ * longer than the old one's DELETE and the rename.
  * Nothing reaches GitHub: `publish()` gets a fetch bound to a stand-in of GitHub's REST API on 127.0.0.1 (its https
  * hosts — api, uploads, the download storage — rewritten; any other address throws), and the keys are test keys made
  * here (Node's Ed25519, and once the Tauri CLI's own `signer generate` in a temp folder when the pinned CLI is in the
@@ -314,7 +314,7 @@ describe('versions, notes, where the feed lives', () => {
       'https://uploads.github.test/repos/o/r/releases/7/assets?name=rc.json.tmp-1',
     );
     expect(() => pub.uploadUrl('http://uploads.github.test/x{?name}', 'a', 'https://api.github.test')).toThrow(/not https/);
-    // Review f A-L4: the token goes to the API's own upload host only — GitHub's, or a server's own (Enterprise Server).
+    // The token goes to the API's own upload host only — GitHub's, or a server's own (Enterprise Server).
     expect(pub.uploadOrigin('https://api.github.com')).toBe('https://uploads.github.com');
     expect(pub.uploadOrigin('https://git.example.test/api/v3')).toBe('https://git.example.test');
     expect(pub.uploadUrl('https://git.example.test/api/uploads/repos/o/r/releases/7/assets{?name,label}', 'a', 'https://git.example.test/api/v3')).toBe(
@@ -394,10 +394,10 @@ describe('the signature, checked in Node before anything is written', () => {
     await expect(run(files('0.2.2', { sig: key.signFile(archive, tc('0.2.1')) }))).rejects.toThrow(/not published: the archive was signed for version 0\.2\.1, not 0\.2\.2/);
     await expect(run(files('0.2.1', { data: Buffer.from('plain'), sig: key.signFile(Buffer.from('plain'), tc('0.2.1')) }))).rejects.toThrow(/not a gzip archive/);
     await expect(run({ ...files('0.2.1'), version: 'v0.2.1' })).rejects.toThrow(/not a version/);
-    // Review d A-L8: the archive is the Apple-silicon app — no other platform.
+    // The archive is the Apple-silicon app — no other platform.
     await expect(run({ ...files('0.2.1'), platforms: ['darwin-x86_64'] })).rejects.toThrow(/cannot be published for darwin-x86_64 \(only darwin-aarch64 for now\)/);
     await expect(run({ ...files('0.2.1'), platforms: ['darwin-aarch64', 'windows-x86_64'] })).rejects.toThrow(/cannot be published for windows-x86_64/);
-    // Review d B-L3: the feed the apps were built with must be this version's channel on this repository.
+    // The feed the apps were built with must be this version's channel on this repository.
     await expect(run(files('0.2.1'), { RETAKE_UPDATE_FEED: dl('update-feed', 'rc.json') })).rejects.toThrow(
       new RegExp(`RETAKE_UPDATE_FEED is ${dl('update-feed', 'rc.json').replace(/[./]/g, '\\$&')}, but 0\\.2\\.1 belongs to ${dl('update-feed', 'latest.json').replace(/[./]/g, '\\$&')}`),
     );

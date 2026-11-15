@@ -1,15 +1,16 @@
 /**
- * L5.10a: the Project screen (B32-Projet; `#/p/<slug>`, a smart group `#/p/<slug>/g/<group>`, a location
- * `#/p/<slug>/loc/<env>`) — the project's productions as a poster grid: ONE listbox (critique M6: the arrows move, Enter
- * opens, one tab stop), each poster its last pictured step (run_thumbs through Thumb.tsx, the app's one image source),
+ * The Project screen (B32-Projet; `#/p/<slug>`, a smart group `#/p/<slug>/g/<group>`, a location
+ * `#/p/<slug>/loc/<env>`) — the project's productions as a poster grid: ONE listbox (the arrows move, Enter opens, one
+ * tab stop), each poster its last pictured step (run_thumbs through Thumb.tsx, the app's one image source),
  * its title, its state as a shape AND a word (board-words.ts) and its length; a search and a sort; New scenario (the
  * Record screen). Nothing is selected at first: the inspector shows the project (facts, README, recent runs, Lately); a
- * selected production shows its facts (length, content, last take, render, review, location), Open and Render (L5.11a:
- * the status bar's Render on it — it is the scenario in context) and its Lately; a location shows its pages, display URLs, flags and personas.
+ * selected production shows its facts (length, content, last take, render, review, location), Open and Render (the
+ * status bar's Render on it — it is the scenario in context) and its Lately; a location shows its pages, display URLs,
+ * flags and personas.
  * Reads: the shared project entries (project-data.ts: one project_get, one project_board per open project); a take
  * running is followed by `run_status` (never the whole board at each step). Every value from data is text.
- * L5.10a fixes: a location route shows the location (it clears the selection; selecting a production afterwards shows
- * it: the newest wins — review B-M1); a production the search hides is no longer selected (review A-L1); with the
+ * A location route shows the location (it clears the selection; selecting a production afterwards shows
+ * it: the newest wins); a production the search hides is no longer selected; with the
  * inspector hidden, what it holds is shown under the grid (ShellSlot inline).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -35,7 +36,7 @@ import { Button, Disclosure, EmptyState, Facts, InspectorSection, LinkButton, Po
 const README_PREVIEW_LINES = 40;
 const SORTS: BoardSort[] = ['activity', 'name', 'length'];
 
-/** Progress of the takes the board shows running: `run_status` on their progress events and job changes (critique M2). */
+/** Progress of the takes the board shows running: `run_status` on their progress events and job changes. */
 function useRunning(slug: string, board: ProjectBoardView | null): Map<string, Pick<RunStatusWithJob, 'status' | 'steps_done' | 'steps_total'>> {
   const [live, setLive] = useState(new Map<string, Pick<RunStatusWithJob, 'status' | 'steps_done' | 'steps_total'>>());
   const running = useMemo(() => new Map((board?.scenarios ?? []).filter((s) => s.running).map((s) => [s.running!.id, s.running!.job])), [board]);
@@ -137,7 +138,7 @@ function ProjectInspector({ p }: { p: ProjectView }) {
           !p.readme_error && <p className="sc-quiet">No README.md yet. It tells Claude the product, the audience, the goals and the tone.</p>
         ) : (
           <>
-            {/* A scroller with a tab stop of its own (review A-L6: older engines do not focus scrollers). */}
+            {/* A scroller with a tab stop of its own (older engines do not focus scrollers). */}
             <pre className="pr-readme k-mono" data-testid="readme-preview" tabIndex={0} role="region" aria-label="README.md, the first lines">
               {shown(lines.slice(0, README_PREVIEW_LINES).join('\n'))}
             </pre>
@@ -254,7 +255,7 @@ function ProductionInspector({ s, p, live }: { s: BoardScenario; p: ProjectView;
                   {env && envFlagWords(env, false) ? <span className="sc-quiet">{shown(` · ${envFlagWords(env, false)}`)}</span> : null}
                 </span>
               ) : s.untrusted.env !== undefined ? (
-                // The file names an environment the project does not have (review A-M2: as written, capped, said so).
+                // The file names an environment the project does not have (as written, capped, said so).
                 <span>
                   <Txt text={s.untrusted.env} />
                   <span className="sc-quiet">{' · not a location of this project'}</span>
@@ -270,7 +271,7 @@ function ProductionInspector({ s, p, live }: { s: BoardScenario; p: ProjectView;
             Open
           </LinkButton>
           {s.capture ? (
-            // L5.11a (BL-128): Render acts — the status bar's own action on this production (the scenario in context).
+            // (BL-128) Render acts — the status bar's own action on this production (the scenario in context).
             <Button data-testid="production-render" onClick={() => runShellCommand('render')}>
               Render
             </Button>
@@ -365,7 +366,7 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
   useEffect(() => {
     if (gone) setSelected(null);
   }, [gone]);
-  // A location route shows its location: it clears the selection (review B-M1); a production selected afterwards wins.
+  // A location route shows its location: it clears the selection; a production selected afterwards wins.
   useEffect(() => {
     if (env !== undefined) setSelected(null);
   }, [env]);

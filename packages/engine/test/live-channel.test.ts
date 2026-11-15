@@ -1,9 +1,9 @@
 /**
- * L4.4: the live channel of a running `run` job (jobs/live-channel.ts) — the worker's loopback listener the live picture
- * leaves through. Its gate (S1: Host, any browser header, the token, route / method, at most 2 streams), live.json (S2:
- * created 0600, removed at the end, trusted only as a private regular file naming this job and the live worker holding
- * its claim), latest-only backpressure (S10: a reader that never reads holds one record at most) and the frame cache
- * (a new stream gets the current picture at once). No browser: frames are handed to the sink by the test. Review A:
+ * The live channel of a running `run` job (jobs/live-channel.ts) — the worker's loopback listener the live picture
+ * leaves through. Its gate (Host, any browser header, the token, route / method, at most 2 streams), live.json (created
+ * 0600, removed at the end, trusted only as a private regular file naming this job and the live worker holding
+ * its claim), latest-only backpressure (a reader that never reads holds one record at most) and the frame cache
+ * (a new stream gets the current picture at once). No browser: frames are handed to the sink by the test. Also:
  * idle connections never lock the Studio out (closed after LIVE_IDLE_MS; the oldest makes room for a newcomer, a stream
  * never does), and live.json is read without following a link (the open descriptor checked).
  */

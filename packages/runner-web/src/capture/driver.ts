@@ -56,7 +56,7 @@ export interface CaptureRun {
   readonly clock: CaptureClock;
   readonly timeline: TimelineBuilder;
   readonly template: TemplateContext;
-  /** The environment's mailbox (L1.8: a sandbox's own, else the project's) and whether this run reads mail. */
+  /** The environment's mailbox (a sandbox's own, else the project's) and whether this run reads mail. */
   readonly mailbox: MailboxConfig | undefined;
   readonly readsMail: boolean;
   /** Capture time 0 is set (writes and the like are stamped from then on). */
@@ -69,13 +69,13 @@ export interface CaptureRun {
   startCapture(): void;
   /** Off camera: a capture that told `start` tells `stop` now, once; its answer is what the take saw beside it. */
   stopFilming(): FilmingReport | undefined;
-  /** A capture told onFilming: its pauses and resumes are told too (L4.4); undefined otherwise. */
+  /** A capture told onFilming: its pauses and resumes are told too; undefined otherwise. */
   readonly filmingPause: ((on: boolean) => void) | undefined;
 }
 
 /** What a driver's take gives the timeline (TimelineBuilder.build, but the duration: the run's endT). */
 export interface DriverTake {
-  /** Nothing of the take is kept (L1.6: a sign-in landing, a failed preflight): no timeline either. */
+  /** Nothing of the take is kept (a sign-in landing, a failed preflight): no timeline either. */
   discard: boolean;
   capture: { file: string; frames: number; frameTimes: number[]; idleFrameTimes?: number[]; size?: { width: number; height: number } };
 }
@@ -90,7 +90,7 @@ export interface CaptureDriver {
   open(): Promise<void>;
   /** The product's side of the hooks' context (asked once, when the run's hooks are opened). */
   hooks(): DriverHooks;
-  /** What runs a `hook:` step (L5.8): the run's hook context, or the line that says the hooks are skipped. */
+  /** What runs a `hook:` step: the run's hook context, or the line that says the hooks are skipped. */
   setHookSteps(run: (name: string) => Promise<HookStepOutcome>): void;
   /** Films the scenes: capture time 0 (`run.startCapture()`) to the last step, or `until`. */
   film(): Promise<void>;
@@ -102,6 +102,6 @@ export interface CaptureDriver {
   close(): Promise<void>;
   /** After the run's signals are released: what is kept of the take, and what the timeline is built from. */
   finish(): Promise<DriverTake>;
-  /** A second signal, before the process quits (synchronous): what must not outlive it (L1.6: session copies). */
+  /** A second signal, before the process quits (synchronous): what must not outlive it (session copies). */
   cleanupSync(): void;
 }

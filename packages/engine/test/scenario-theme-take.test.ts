@@ -1,9 +1,9 @@
 /**
- * L4.7 part A2 (critique B1): "Use in this scenario" re-themes the takes the person is looking at. A scenario's
+ * "Use in this scenario" re-themes the takes the person is looking at. A scenario's
  * `template` set through scenario_edit `set_field` is an edit value: the next plan of an EXISTING take (the timeline
  * view, the plan a render makes) uses the new theme — its name and its folder's content hash (`theme_sha256`, what a
  * render records as `template_sha256`) — with no new capture; a Studio edit of that theme (templates.edit) changes the
- * hash of the next plan; removing `template` goes back to the project's theme. L4.7 part D2: the timeline inspector
+ * hash of the next plan; removing `template` goes back to the project's theme. The timeline inspector
  * offers the switch (`choices.video` field `template`: the project's theme, then every theme the workspace lists).
  */
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';

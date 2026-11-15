@@ -1,10 +1,10 @@
 /**
- * A render's own frames for the Studio's comment viewer (L4.6, R-UI-27; plan D2, critique B7): `renders.frame` → one
+ * A render's own frames for the Studio's comment viewer (R-UI-27): `renders.frame` → one
  * output frame of a succeeded render as a base64 JPEG (≤ 1280 px), `renders.outline` → what the viewer's slider needs
  * (frames, fps, size, markers, the threads made on that render as it is now).
  *
  * Which pixels: an input seek to (F − 0.5) / fps — the first frame at or after it is frame F —, which gives the same
- * decoded picture as the still's exact frame-number select (probes P1 / E1: libx264 with B-frames, an AAC track,
+ * decoded picture as the still's exact frame-number select (libx264 with B-frames, an AAC track,
  * frames on both sides of keyframes). The fps and the frame count are the video's own (ffprobe of the open file), never
  * only the record's (renders/<id>.json is agent-writable): a record whose fps is not its video's is refused, and the
  * frames are bounded by min(record.frames, plan.durationInFrames, the video's frames) — the comment's own bound
@@ -18,7 +18,7 @@
  * cannot stand for; reading the video whole into memory to hand it over would not bound its size. The port gives its
  * path (OUTPUT_DIRS); the record is read through it (renderForWork).
  *
- * Cost (critique B7): frames live in a byte-bounded memory LRU (never written); ffmpeg and ffprobe share the engine's
+ * Cost: frames live in a byte-bounded memory LRU (never written); ffmpeg and ffprobe share the engine's
  * ffmpeg slots with the run thumbnails (2 at once); at most RENDER_FRAME_QUEUE_MAX frame requests wait or run at once
  * (else `busy`, decided at arrival before the file is opened; outlines count too); a newer request of the same Studio
  * session and render supersedes the older one at arrival (its ffmpeg killed: newest wins — a request refused `busy`
@@ -316,7 +316,7 @@ export class RenderFrames {
       );
     }
     // A frame is found by its time (F − 0.5) / fps: only a video that starts at 0 with a constant frame rate maps times
-    // to frame numbers the way the still's frame select does (review B L4; a hand-replaced mp4).
+    // to frame numbers the way the still's frame select does (a hand-replaced mp4).
     if (probe.start_s !== undefined && Math.abs(probe.start_s) >= 0.5 / probe.fps) {
       throw new EngineError('refused', `the video of render ${record.id} starts at ${probe.start_s} s, not 0: its frames cannot be told apart, not shown`);
     }
@@ -334,7 +334,7 @@ export class RenderFrames {
   private abortError(signal: AbortSignal, renderId: string): EngineError {
     const why = signal.reason as string | undefined;
     if (why === 'superseded') return new EngineError('cancelled', `a newer frame of render ${renderId} was asked: this one was dropped`, { details: { reason: 'superseded' } });
-    // A timeout is not a full queue (review B L3): its own code, which the page says after a retry.
+    // A timeout is not a full queue: its own code, which the page says after a retry.
     if (why === 'timeout')
       return new EngineError('unavailable', `the frame of render ${renderId} took longer than ${(this.o.timeoutMs ?? RENDER_FRAME_TIMEOUT_MS) / 1000} s`, { details: { reason: 'timeout' } });
     return new EngineError('cancelled', 'cancelled');
@@ -374,7 +374,7 @@ export class RenderFrames {
     const onOuter = () => ctl.abort('cancelled');
     if (o.signal?.aborted) throw new EngineError('cancelled', 'cancelled');
     const key = o.session !== undefined ? `${project.dir}\0${req.render_id}\0${o.session}` : undefined;
-    // Before any await (review A L2 / N4): the bound, then newest wins — decided at arrival, never after the file is
+    // Before any await: the bound, then newest wins — decided at arrival, never after the file is
     // opened. A request past the bound is refused without dropping the request it would have superseded.
     this.admit(ctl, key);
     o.signal?.addEventListener('abort', onOuter, { once: true });
@@ -446,7 +446,7 @@ export class RenderFrames {
       throw new EngineError('invalid', 'created_at is the created_at of the render as read', { details: { argument: 'created_at' } });
     const timeoutMs = this.o.timeoutMs ?? RENDER_FRAME_TIMEOUT_MS;
     const ctl = new AbortController();
-    // Bounded like the frames (review A N4): it holds a place of the queue while it reads and probes.
+    // Bounded like the frames: it holds a place of the queue while it reads and probes.
     this.admit(ctl, undefined);
     const timer = setTimeout(() => ctl.abort('timeout'), timeoutMs);
     let opened: Opened | undefined;

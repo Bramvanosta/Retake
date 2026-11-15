@@ -1,13 +1,13 @@
 /**
- * The error of a sandbox's work (L1.8; L7.25: from @retake/sandbox's errors.ts, which re-exports it — one class, so
- * `instanceof` holds wherever it is imported from). Pure: the take lock of core's io side (`io/lock.ts`) and the
+ * The error of a sandbox's work (from @retake/sandbox's errors.ts, which re-exports it — one class, so `instanceof`
+ * holds wherever it is imported from). Pure: the take lock of core's io side (`io/lock.ts`) and the
  * engine's in-memory sandboxes throw it too.
  */
 import { GUIDE, sandboxErrorKind } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
 
 /**
- * What went wrong with a sandbox, for callers that act on it (the CLI's exit code, L3.1's MCP tools):
+ * What went wrong with a sandbox, for callers that act on it (the CLI's exit code, the MCP tools):
  * - busy: another command holds the sandbox's take lock;
  * - down: the sandbox is not running (a run on its environment without --sandbox);
  * - port: a port of the sandbox is used by another program;

@@ -244,7 +244,7 @@ describe('retake doctor (mocked environment)', () => {
 
   it("Docker (L1.8): missing, too old or stopped is a warning — a failure only when the --project's default sandbox is a docker-compose one (I6)", async () => {
     const noDocker = macProbes({ which: (c) => (c === 'docker' ? null : `/usr/bin/${c}`), exists: () => false });
-    // Not on PATH: the places the sandbox package looks in too — OrbStack's xbin among them (K10).
+    // Not on PATH: the places the sandbox package looks in too — OrbStack's xbin among them.
     const xbin = '/Applications/OrbStack.app/Contents/MacOS/xbin/docker';
     const orb = macProbes({
       which: (c) => (c === 'docker' ? null : `/usr/bin/${c}`),

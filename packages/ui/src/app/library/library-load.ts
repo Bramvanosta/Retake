@@ -1,5 +1,5 @@
 /**
- * What the library screen asks the server for, and when (L4.7 part D1; critique B8, B18, C1):
+ * What the library screen asks the server for, and when:
  *
  * - `LibraryImages`: posters and loops as base64 (library_images), for the cards ON SCREEN only (an
  *   IntersectionObserver reports them), at most IMAGES_KEYS_MAX keys and IMAGES_KEYS_MAX committed posters per call,
@@ -13,7 +13,7 @@
  *   finished: a capture submitted meanwhile runs first), RENDER_DEBOUNCE_MS after the last change of what is on screen
  *   or of the theme (a Play goes at once), only while the tab is visible. A key is asked once: a failed one is rendered
  *   again only by an explicit Retry (`retry: true`); a key whose job ended without it (cancelled, or the worker computed
- *   another key, B18) is asked again only by "Render again". A refusal (the disk is nearly full…) stops the pump until
+ *   another key) is asked again only by "Render again". A refusal (the disk is nearly full…) stops the pump until
  *   the person tries again.
  */
 import type { LibraryImagesAnswer, LibraryItem } from '../../server/library-ops.js';

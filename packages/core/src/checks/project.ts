@@ -40,7 +40,7 @@ function templatedStrings(v: unknown, path: IssuePath, out: IssuePath[] = []): I
 }
 
 /**
- * Mocks and allow entries (L1.7) of a scenario or an environment: the page key of each pattern must be one of the
+ * Mocks and allow entries of a scenario or an environment: the page key of each pattern must be one of the
  * environment's pages, a mock has at most one of `json` / `body`, and nothing in a mock is templated.
  */
 export function checkWriteRules(list: unknown, base: IssuePath, pages: readonly string[] | undefined, ctx: CheckContext, what: 'mock' | 'allow', envName?: string): void {
@@ -67,7 +67,7 @@ export function checkWriteRules(list: unknown, base: IssuePath, pages: readonly 
   });
 }
 
-/** The long form's `read_only` (L1.7): its patterns, and whether the environment can be read-only at all. */
+/** The long form's `read_only`: its patterns, and whether the environment can be read-only at all. */
 function checkReadOnly(env: Record<string, unknown>, envName: string, pages: readonly string[], ctx: CheckContext): void {
   const ro = env.read_only;
   if (!isObj(ro) || ctx.broken(['environments', envName, 'read_only'])) return;
@@ -82,7 +82,7 @@ function checkReadOnly(env: Record<string, unknown>, envName: string, pages: rea
 }
 
 /**
- * project.yaml `sandboxes:` (L1.8): environment name → its sandbox.yaml. A name is slug-like, not an environment of
+ * project.yaml `sandboxes:`: environment name → its sandbox.yaml. A name is slug-like, not an environment of
  * project.yaml nor an `auth` key; the path is relative to the project and the file exists (when the project dir is
  * known). Returns the sandbox names (the valid and the refused ones: other checks then know them).
  */
@@ -133,13 +133,13 @@ export function checkProject(value: unknown, structural: readonly LocatedIssue[]
   if (!isObj(value)) return [];
   const ctx = new CheckContext(structural, opts.projectDir, undefined, opts.files);
   const written = isObj(value.environments) && !ctx.broken(['environments']) ? value.environments : {};
-  // Both forms (L1.7): the page map of each environment, `{url, display}` reduced to its url.
+  // Both forms: the page map of each environment, `{url, display}` reduced to its url.
   const raw = rawEnvironments(written);
   const envs = rawEnvironmentPages(written);
   const envNames = Object.keys(envs);
   const pageKeys = new Set<string>();
 
-  // Sandbox environments (L1.8): their pages, personas, mailbox and databases come from their sandbox.yaml.
+  // Sandbox environments: their pages, personas, mailbox and databases come from their sandbox.yaml.
   const sandboxNames = checkSandboxEntries(value.sandboxes, envs, ctx);
   if (!ctx.broken(['environments']) && (value.environments === undefined || envNames.length === 0) && sandboxNames.length === 0) {
     ctx.warning(['environments'], 'no environments yet: add environments.<env>.<page>: <url> before running scenarios');
@@ -175,7 +175,7 @@ export function checkProject(value: unknown, structural: readonly LocatedIssue[]
   checkBrowserArgs(value.browser, ctx);
   checkPassEnv(value.pass_env, ctx);
 
-  // Sessions & personas (L1.6): a persona's session path is refused even where the schema already failed.
+  // Sessions & personas: a persona's session path is refused even where the schema already failed.
   checkPersonaPaths(value.auth, ctx);
   checkAuth(value.auth, envs, ctx, { vars: new Set(isObj(value.vars) ? Object.keys(value.vars) : []) }, { sandboxes: sandboxNames });
 

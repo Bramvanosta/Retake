@@ -1,5 +1,5 @@
 /**
- * Where a frame of a render points in the edit (L3.6, R-CMT-04): the anchor a frame comment keeps, computed from the
+ * Where a frame of a render points in the edit (R-CMT-04): the anchor a frame comment keeps, computed from the
  * render's edit plan (pure). The segment shown at the frame (the incoming one during a crossfade — the review's
  * convention), its kind and component; for a clip: the scene, the step (index, id, `<scene>.<step>` ref, fingerprint in
  * the run's scenario snapshot), its action, the acting page, the capture time, the overlays on screen; the marker whose
@@ -25,7 +25,7 @@ export interface FrameAnchorOptions {
   /** The run's scenario snapshot (runs/<run_id>/scenario.yaml, raw text): the step fingerprint is taken from it. */
   scenarioText?: string;
   /**
-   * The run's timeline: names the marked step of a marker in a plan made before L3.6 (its markers carry no `step`)
+   * The run's timeline: names the marked step of a marker in an older plan (its markers carry no `step`)
    * from the timeline marker of the same name.
    */
   timeline?: Pick<Timeline, 'markers' | 'events'>;
@@ -111,7 +111,7 @@ export function frameAnchor(plan: EditPlan, frame: number, opts: FrameAnchorOpti
   return a;
 }
 
-/** The marked step of a plan marker (L3.6 plans), else of the timeline marker of that name (older plans). */
+/** The marked step of a plan marker that carries one, else of the timeline marker of that name (older plans). */
 function markedStep(m: EditPlan['markers'][number], timeline: FrameAnchorOptions['timeline']): { step: number; step_id?: string; action?: string } | undefined {
   if (m.step !== undefined) return { step: m.step, step_id: m.step_id, action: m.action };
   const tm = timeline?.markers.find((x) => x.name === m.name && x.scene === m.scene);

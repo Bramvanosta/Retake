@@ -1,9 +1,9 @@
 /**
- * L5.16c — the installed app's first run and integrations (@retake/engine/integrations, app-setup.ts), on scratch
+ * The installed app's first run and integrations (@retake/engine/integrations, app-setup.ts), on scratch
  * folders only (a scratch HOME, fake apps, a fake `claude`, scratch Claude Desktop configs — never the person's): where
- * the app runs from (critique H1), the `retake` command's link (plan §4, critique L1), `<home>/app.json`, the Claude
- * Desktop merge (critique M7) and the Claude Code runner (argv, no shell, a small environment, the time limit), and
- * which copy of Retake an engine is (critique M6). L5.16c fixes: the runner answers on its process's exit (a helper
+ * the app runs from, the `retake` command's link (plan §4), `<home>/app.json`, the Claude
+ * Desktop merge and the Claude Code runner (argv, no shell, a small environment, the time limit), and
+ * which copy of Retake an engine is. And: the runner answers on its process's exit (a helper
  * holding the pipes never keeps it waiting), another copy's launcher is told by its app's identifier (look-alikes are
  * the person's files), the zsh line single-quotes odd names (evaluated by zsh), the Claude Desktop backups go to
  * Retake's own folder, and every `install_location` case of desktop_core is replayed here.
@@ -94,7 +94,7 @@ describe('where the app runs from (critique H1)', () => {
     const rs = readFileSync(join(__dirname, '..', '..', '..', 'apps', 'desktop', 'core', 'src', 'setup.rs'), 'utf8');
     expect(rs).toContain(`pub const MOVE_TO_APPLICATIONS: &str = "${MOVE_TO_APPLICATIONS}";`);
     for (const l of ['translocated', 'read_only', 'volumes'] as const) expect(rs).toContain(`"${installLocationWords(l)}"`);
-    // Review c B-L2: every `install_location` assert of desktop_core's tests, replayed on this side.
+    // Every `install_location` assert of desktop_core's tests, replayed on this side.
     const LOC = { Translocated: 'translocated', ReadOnly: 'read_only', Volumes: 'volumes', Ok: 'ok' } as const;
     const cases = [...rs.matchAll(/assert_eq!\(install_location\(&p\("([^"]+)"\), (true|false)\), InstallLocation::(\w+)\);/g)];
     expect(cases.length).toBeGreaterThanOrEqual(12);
@@ -395,7 +395,7 @@ describe('Claude Desktop (critique M7)', () => {
     expect(lstatSync(file).isSymbolicLink()).toBe(true);
     expect(readlinkSync(file)).toBe(real);
     expect(JSON.parse(readFileSync(real, 'utf8'))).toEqual({ theme: 'light', mcpServers: { retake: ENTRY } });
-    // Review c A-L2: the backup is in Retake's folder — never in the dotfiles repository beside the target.
+    // The backup is in Retake's folder — never in the dotfiles repository beside the target.
     expect(r.backup).toBe(join(backupDir, 'claude.json.retake-backup-2026-11-03T11-00-00-000Z'));
     expect(readdirSync(dots)).toEqual(['claude.json']);
     // The temporary file was beside the target, never beside the link (nothing left there either).

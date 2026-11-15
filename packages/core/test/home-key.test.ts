@@ -1,5 +1,5 @@
 /**
- * L5.14 review A L2: the Retake home's signing key is made whole before it appears — several processes making it at
+ * The Retake home's signing key is made whole before it appears — several processes making it at
  * once all read one key (never a partial one, never an error) — and its folder is closed to others (an existing 0755
  * home included).
  */

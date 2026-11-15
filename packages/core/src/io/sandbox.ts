@@ -118,7 +118,7 @@ export async function seedHash(sandbox: Pick<LoadedSandbox, 'dir' | 'manifest'>,
 }
 
 /**
- * The env file of a docker-compose sandbox (L5.8, R-FLD-32), absolute: `compose.env_file` (relative to sandbox.yaml),
+ * The env file of a docker-compose sandbox (R-FLD-32), absolute: `compose.env_file` (relative to sandbox.yaml),
  * else `.env` next to the first compose file when it exists; undefined for none (`env_file: false`, no such file, a
  * process sandbox). Retake passes it to every compose command (`--env-file`), and leaves the names it sets out of
  * the environment docker runs with — a shell's value would win over the file's.

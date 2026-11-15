@@ -1,5 +1,5 @@
 /**
- * L5.13b: the "two takes" mark (declension « Nette », BACKLOG BL-124) — the previous take as an outline behind, the new
+ * The "two takes" mark (declension « Nette », BACKLOG BL-124) — the previous take as an outline behind, the new
  * one in front with a play triangle, on a plate. The ONE source of its drawing: the Studio's title bar and Welcome
  * (ui-kit AppMark, coloured by the `--ui-mark-*` tokens), the favicon (bundle.ts) and the desktop app's icon files
  * (`pnpm -F @retake/ui gen:mark` → apps/desktop/icons/, a test compares them) all read `MARK`. Pure: no colour of its own

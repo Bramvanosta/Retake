@@ -1,7 +1,7 @@
 /**
- * L4.3 part 1, core rules of the Studio's scenario writes: the verify (re-parsed with parseYaml — an alias before its
- * anchor throws only at toJS, critique A), hidden characters (critique B9), hooks unchanged (B3), positioned agent-trust
- * problems (B11), the line break a text uses.
+ * Core rules of the Studio's scenario writes: the verify (re-parsed with parseYaml — an alias before its
+ * anchor throws only at toJS), hidden characters, hooks unchanged, positioned agent-trust
+ * problems, the line break a text uses.
  */
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

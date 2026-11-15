@@ -1,5 +1,5 @@
 /**
- * L5.9: the Studio's design system (docs/reference/studio-ui.md, DESIGN §4k) — built in-house on React and the
+ * The Studio's design system (docs/reference/studio-ui.md, DESIGN §4k) — built in-house on React and the
  * platform (native controls, `<dialog>`, `popover`): no component library. Screens use these (a source lint keeps new
  * screens on the kit and lets the legacy count only go down); `kit.css` reads the `--ui-*` tokens of tokens.ts.
  */

@@ -1,5 +1,5 @@
 /**
- * The timeline screen's pure pieces (L4.5 part C): timecodes, the checks of the preview's two capability URLs, the
+ * The timeline screen's pure pieces: timecodes, the checks of the preview's two capability URLs, the
  * capture's codec as a media type and in words, what a key does, and the words of a frame (the scrubber's value text).
  * No DOM here (unit-tested in Node); TimelineScreen.tsx and PreviewFrame.tsx use them.
  */
@@ -62,7 +62,7 @@ export interface CodecProbe {
 }
 
 /**
- * Whether this browser plays the capture's codec (plan D3, critique B14). Playwright's Chromium plays no H.264; the
+ * Whether this browser plays the capture's codec. Playwright's Chromium plays no H.264; the
  * real Chrome, Safari and Firefox on macOS do. Unknown codec or no way to ask: playable (the frame says if it fails).
  */
 export async function canPlay(codec: string | undefined, probe: CodecProbe, size: { width: number; height: number; fps: number }): Promise<boolean> {
@@ -79,7 +79,7 @@ export async function canPlay(codec: string | undefined, probe: CodecProbe, size
   return true;
 }
 
-/** The message a browser that cannot play the take gets (critique Q5: a message only; a proxy is backlog). */
+/** The message a browser that cannot play the take gets (a message only; a proxy is backlog). */
 export function cannotPlayWords(codec: string | undefined): string {
   return `This browser cannot play the take's ${codecWords(codec)} video: open the Studio in Chrome, Safari or Firefox. The tracks still work.`;
 }
@@ -96,11 +96,11 @@ export interface KeyTarget {
 }
 
 /**
- * What a key does on the timeline screen (plan D11, critique "smaller points"): Space play / pause, ← / → one frame,
- * Shift+← / → one second, Home / End, [ / ] the previous / next segment — never while typing (an input, a select, a
- * text area, an editable element) or in a radio group (its arrows move the choice); on the scrubber (a range input) its
- * own arrows, Home and End move it (no double step) and Space, [ / ] and Shift+← / → are the screen's; on a button or a
- * link Space is its own (it activates it).
+ * What a key does on the timeline screen: Space play / pause, ← / → one frame, Shift+← / → one second, Home / End, [ /
+ * ] the previous / next segment — never while typing (an input, a select, a text area, an editable element) or in a
+ * radio group (its arrows move the choice); on the scrubber (a range input) its own arrows, Home and End move it (no
+ * double step) and Space, [ / ] and Shift+← / → are the screen's; on a button or a link Space is its own (it activates
+ * it).
  */
 export function keyAction(e: { key: string; shiftKey?: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }, t: KeyTarget): KeyAction | null {
   if (e.altKey || e.ctrlKey || e.metaKey) return null;
@@ -111,7 +111,7 @@ export function keyAction(e: { key: string; shiftKey?: boolean; altKey?: boolean
   const space = e.key === ' ' || e.key === 'Spacebar';
   if (space) return tag === 'button' || tag === 'a' || tag === 'summary' ? null : { kind: 'toggle' };
   // The scrubber keeps its own arrows (one frame), Home and End; [ / ] and Shift+← → do what the keys line says there too
-  // (L5.12a fixes, review A-L2: the caller's preventDefault stops the range's own step).
+  // (the caller's preventDefault stops the range's own step).
   if (range && !(e.key === '[' || e.key === ']' || (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')))) return null;
   switch (e.key) {
     case 'ArrowLeft':
@@ -153,8 +153,8 @@ export function targetFrame(a: Exclude<KeyAction, { kind: 'toggle' }>, frame: nu
 }
 
 /**
- * Where a segment is shown when picked (a click, [ / ]): its first frame after the transition into it (review B: not
- * inside the crossfade, where the previous segment still shows), within the segment.
+ * Where a segment is shown when picked (a click, [ / ]): its first frame after the transition into it (not inside
+ * the crossfade, where the previous segment still shows), within the segment.
  */
 export function landingOf(s: Pick<Model['segments'][number], 'from' | 'to'> & { transition?: { frames: number } }): number {
   return Math.max(s.from, Math.min(s.to - 1, s.from + (s.transition?.frames ?? 0)));
@@ -176,7 +176,7 @@ export function segmentWords(s: Pick<Model['segments'][number], 'kind' | 'id'>):
 }
 
 /**
- * The scrubber's value text (plan D11): "0:12.40 · scene request · step 3 Click Request a quote" — 1-based steps like
+ * The scrubber's value text: "0:12.40 · scene request · step 3 Click Request a quote" — 1-based steps like
  * every step a person reads; the label is the file's own text (shown, never run).
  */
 export function frameWords(frame: number, m: Pick<Model, 'fps' | 'segments' | 'steps'>, labels: Record<string, string>): string {
@@ -188,7 +188,7 @@ export function frameWords(frame: number, m: Pick<Model, 'fps' | 'segments' | 's
 }
 
 /** Why the capture time jumps at a cut, in words. */
-/** "1.4 s", or "under 0.1 s" for a cut too short to say in tenths (review B: never "0.0 s skipped"). */
+/** "1.4 s", or "under 0.1 s" for a cut too short to say in tenths (never "0.0 s skipped"). */
 export function skippedWords(seconds: number): string {
   return seconds < 0.05 ? 'under 0.1 s' : `${seconds.toFixed(1)} s`;
 }
@@ -207,7 +207,7 @@ export const CUT_WORDS: Record<string, string> = {
   gap: 'a cut',
 };
 
-/** The zoomed level's width, in viewport widths: about ten seconds per screen, at least twice the fit (critique C6). */
+/** The zoomed level's width, in viewport widths: about ten seconds per screen, at least twice the fit. */
 export function zoomFactor(frames: number, fps: number): number {
   const seconds = frames / (fps > 0 ? fps : 30);
   return Math.min(50, Math.max(2, seconds / 10));

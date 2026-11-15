@@ -1,5 +1,5 @@
 /**
- * Dead clicks (L5.6, R-FLD-12): a click that changes nothing — no request, no DOM change, no navigation, no dialog, no
+ * Dead clicks (R-FLD-12): a click that changes nothing — no request, no DOM change, no navigation, no dialog, no
  * new tab or download, no field taking the focus — within about a second is reported at once (a warning with a
  * screenshot), never 60 s later by the wait that follows; `retry_click: true` on the step clicks once more first.
  */
@@ -115,7 +115,7 @@ async function reportDead(ctx: StepContext, desc: string, page: Page): Promise<v
     const file = join(rt.screenshotsDir, `dead-click-${fileSlug(ctx.scene.id)}-${ctx.step.index}.png`);
     try {
       await page.screenshot({ path: file, timeout: 10_000 });
-      // Never a picture of a sign-in page (L1.6).
+      // Never a picture of a sign-in page.
       if (rt.loginGuardError()) await rm(file, { force: true });
       else shot = `; screenshot: ${file}`;
     } catch (e) {

@@ -16,7 +16,7 @@ import { deepContains, deepQsa, hostParent, isA, trees, upOf } from './trees.js'
 import { TRIGGER_NAME, fileInputFor, menuTrigger } from './triggers.js';
 import { bboxOf, docScroller, inView, isScrollable, isVisible, visibleRect } from './visibility.js';
 
-// ───────────────────────────── inspection (L3.3) ─────────────────────────────
+// ───────────────────────────── inspection ─────────────────────────────
 // `inventory` lists the visible interactive elements with one suggested target each. Candidates come from a ladder
 // (text, role + name, then the same scoped `in` dialog / menu / listbox / popover / row, testid, aria, css for a stable
 // id; fields: label, placeholder, role + name first); counts from in-memory indexes skip the obviously ambiguous ones,
@@ -37,7 +37,7 @@ const SUGGEST_MAX = 60;
 const WORDY = /[\p{L}\p{N}]/u;
 /** Verifications per element before the `nth` fallback. */
 const VERIFY_MAX = 5;
-/** Alternatives (L4.8): extra verifications per element, the default time budget, and the suggestion time (ms) and the
+/** Alternatives: extra verifications per element, the default time budget, and the suggestion time (ms) and the
  * count of distinct texts on the page past which a press does not wait for them. */
 const ALT_VERIFY_MAX = 6;
 const ALT_BUDGET_MS = 10;
@@ -302,7 +302,7 @@ function inventoryMemo(opts: InventoryOptions): KitInventory {
     let rowKey: string | null = null;
     if (RT.performance.now() - t0 > budget) partial = true;
     else {
-      // `noisy` (L4.8 review): a text an alternative never offers — mostly digits (a price, a count, a date) or pieces run
+      // `noisy`: a text an alternative never offers — mostly digits (a price, a count, a date) or pieces run
       // together without a space ("5 kg€36.40 / kg"). The suggestion ignores the flag.
       const plain: Array<{ t: TargetObject; m: Index | null; k: string; noisy?: boolean }> = [];
       const numeric = (t: string) => (t.match(/\p{N}/gu)?.length ?? 0) >= (t.match(/\p{L}/gu)?.length ?? 0);
@@ -409,7 +409,7 @@ function inventoryMemo(opts: InventoryOptions): KitInventory {
         return fragile;
       };
       if (suggested) flag(suggested.target, suggested.fragile);
-      // Alternatives (the recorder, L4.8): the rest of the ladder past the suggestion, inside a press — so a small
+      // Alternatives (the recorder): the rest of the ladder past the suggestion, inside a press — so a small
       // budget of their own, none on a large page or after a slow suggestion. Never positional, never a key the
       // indexes know is shared, each verified to resolve once to this very element.
       const want = Math.max(0, Math.min(3, Math.floor(opts.alternatives ?? 0)));

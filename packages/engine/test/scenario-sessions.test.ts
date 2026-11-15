@@ -1,11 +1,11 @@
 /**
- * L4.4: the sessions a scenario's run needs (engine auth.forScenario: the Run screen's preflight panel) — only the
+ * The sessions a scenario's run needs (engine auth.forScenario: the Run screen's preflight panel) — only the
  * personas the run plans, with their stored state, `auto` when every run signs them in by itself, never a profile or
  * snapshot path, the last check's text under `untrusted` — and the headed sign-in's limits: a time limit that closes
- * the window (withTimeLimit, RETAKE_SIGNIN_MAX_MIN) and a stop that only ever cancels a sign-in job. Review fixes:
- * `auto` only when every `{{env:…}}` of the login steps is set for the worker (B M3: the missing names said, never a
- * value; keychain items counted, never looked up), `has_check` (A M2), and a stopped sign-in says truthfully what stays
- * (A L5: a persona's existing browser profile keeps what the window changed). L7.12: the stopped sign-in runs on the
+ * the window (withTimeLimit, RETAKE_SIGNIN_MAX_MIN) and a stop that only ever cancels a sign-in job. And:
+ * `auto` only when every `{{env:…}}` of the login steps is set for the worker (the missing names said, never a
+ * value; keychain items counted, never looked up), `has_check`, and a stopped sign-in says truthfully what stays
+ * (a persona's existing browser profile keeps what the window changed). The stopped sign-in runs on the
  * in-memory capture runner, and a persona's state is read through its sessions (its lock only for a profile persona
  * whose master has files, its status only once a session is saved).
  */

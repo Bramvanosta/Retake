@@ -1,14 +1,14 @@
 /**
- * L3.2 fixture acceptance through MCP (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`, several minutes).
+ * Fixture acceptance through MCP (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`, several minutes).
  * An SDK client drives `retake mcp` (spawned from the sources over stdio) on a copy of projects/northfield-fixture
  * (its local environment pointed at the fixture product started on free ports) the way an agent would: capture the
  * `quote` scenario → render it with the editorial theme → review it (clean, the contact sheet received as images) →
  * render it again with the motion theme and the laptop layout (no scenario change) → review it (all images) → export
  * mp4_1080p, gif_preview and vertical_9x16 → job_status. Every render runs guarded: none may report a blocked request.
- * L3.6: between the two renders a person comments the proposal of the editorial render, asking for a laptop frame
+ * Between the two renders a person comments the proposal of the editorial render, asking for a laptop frame
  * (`retake comment add --marker proposal --region …`, the CLI in its own process); comments_list returns the anchor (the
  * marked wait_for step, the marker, the callout overlay) and the still; comment_reply; the motion + laptop render answers
- * it and comment_resolve names it with if_match; listings by status and render. L3.8: the request is one a render
+ * it and comment_resolve names it with if_match; listings by status and render. The request is one a render
  * answers — a scenario change would need a new capture first (plan_preview says scenario_changed: false here).
  * With RETAKE_ACCEPTANCE_KEEP=<folder>, the reviews' sheets, the comment's still and the exports are copied there.
  */
@@ -223,7 +223,7 @@ describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture → render �
       const before = await readFile(join(root, 'projects', 'northfield-fixture', 'scenarios', 'quote.yaml'), 'utf8');
       const plan = await call('plan_preview', { project: 'northfield-fixture', scenario: 'quote', run_id: ids.run, template: 'motion', overrides: { components: { layout: 'studio/layout-laptop' } } });
       expect(plan.content[0].text).toContain('theme motion');
-      // L3.8: the run's snapshot is the scenario file as it is — a layout or theme switch needs only a render.
+      // The run's snapshot is the scenario file as it is — a layout or theme switch needs only a render.
       expect(plan.structuredContent).toMatchObject({ scenario_changed: false });
       expect(plan.content[0].text).not.toContain('changed since');
       const r = await call('render', { project: 'northfield-fixture', scenario: 'quote', run_id: ids.run, template: 'motion', overrides: { components: { layout: 'studio/layout-laptop' } } });

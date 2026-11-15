@@ -1,5 +1,5 @@
 /**
- * L3.7 Claude Code plugin and registration: the local marketplace at the repository root, the `skills/` plugin (its
+ * The Claude Code plugin and registration: the local marketplace at the repository root, the `skills/` plugin (its
  * manifest, userConfig and the .mcp.json that starts `retake mcp` from those values), the plugin lines of
  * `retake mcp --print-config`, and the PATH `retake mcp` serves with (absolute entries only).
  *

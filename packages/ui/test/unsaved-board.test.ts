@@ -1,11 +1,11 @@
 /**
- * L5.2b — the unsaved-text board (unsaved.ts): what the tabs hold unsaved, kinds and names only, for the desktop app's
- * quit question. A report never outlives its tab session (critique L8: an empty report — the page's `pagehide` —
- * clears it, nothing expires it by time, so a hidden window's report stays) — not even a report still checking its
- * names when the empty one comes (reviews A M1 / B M3); names are kept only for a project and a scenario that exist,
- * and a name that is none drops that name only (review A L4); a new tab beyond 16 is refused, never an older one evicted (L3); the op is strict (an extra
- * field such as a label is a 400: no page text reaches the board) and through the Studio server it runs behind the
- * token like every op, and never nudges the job watch.
+ * The unsaved-text board (unsaved.ts): what the tabs hold unsaved, kinds and names only, for the desktop app's quit
+ * question. A report never outlives its tab session (an empty report — the page's `pagehide` — clears it, nothing
+ * expires it by time, so a hidden window's report stays) — not even a report still checking its names when the empty
+ * one comes; names are kept only for a project and a scenario that exist, and a name that is none drops that name only;
+ * a new tab beyond 16 is refused, never an older one evicted; the op is strict (an extra field such as a label is a
+ * 400: no page text reaches the board) and through the Studio server it runs behind the token like every op, and never
+ * nudges the job watch.
  */
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -158,7 +158,7 @@ describe('the op unsaved_report through the Studio server', () => {
     expect(studio.unsaved.items()).toEqual([{ kind: 'comment' }, { kind: 'readme', project: P }]);
     expect((await call({ tab: tab(1), hidden: true, items: [] })).status).toBe(200);
     expect(studio.unsaved.items()).toEqual([]);
-    // Not a job op: the job watch is not nudged by it (critique L6).
+    // Not a job op: the job watch is not nudged by it.
     expect(writes).toBe(0);
     off();
   });

@@ -1,5 +1,5 @@
 /**
- * One Studio server per workspace (L4.1, critique B8): `launchStudio` reuses the running server when the Retake home
+ * One Studio server per workspace: `launchStudio` reuses the running server when the Retake home
  * holds its token record (`<Retake home>/ui/<hash>.token`, engine discovery.ts) and its holder is alive — a new
  * bootstrap code minted through it, sent to the port of that record with its token, never to a port the workspace
  * names. Else it starts one, binds it, and only then claims `.retake/ui.json` (pid, port, URL: no secret) exclusively
@@ -8,7 +8,7 @@
  * A workspace whose ui.json names a live server with no token record in this home (a server of another RETAKE_HOME, or
  * of an older Retake whose record held the token) is told, and nothing is opened. A Retake home inside the workspace
  * is refused before anything starts (the token would lie where an agent reads files).
- * L5.2: each answer names the player origin (`player`) — the desktop shell allows navigations to it; undefined when an
+ * Each answer names the player origin (`player`) — the desktop shell allows navigations to it; undefined when an
  * older running server's bootstrap answer has none.
  */
 import { resolve } from 'node:path';

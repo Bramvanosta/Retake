@@ -1,5 +1,5 @@
 /**
- * L4.7 `preview` jobs with a `library` target (engine preview-job.ts + library.ts), run by the worker in this process
+ * `preview` jobs with a `library` target (engine preview-job.ts + library.ts), run by the worker in this process
  * with an injected backend (no Remotion, no browser: files written by the test's stand-in): the Studio's keys
  * (`components.library`) are the worker's for every registry component in three themes (all cached after the jobs);
  * committed posters only for fresh built-ins in the editorial starter by real path (not a copy of it, not a workspace
@@ -7,7 +7,7 @@
  * failed.json (its reason under untrusted) and the others go on, a failed key is left alone without Retry and rendered
  * again with it; a full disk stops the job with "the disk has N MB free" and leaves no entry or temporary folder of the
  * keys it did not finish; the disk gate in the worker; a key the client did not compute is reported, the entry written
- * under the worker's; a loop too large to keep; refusals at submit. ⚑ Review A M3 / B H1: a component that throws at
+ * under the worker's; a loop too large to keep; refusals at submit. ⚑ A component that throws at
  * module load fails alone (the others rendered with their own components), its failed.json carries the registry
  * bundle's hash; once the registry changes the failure reads missing and is rendered again without a Retry.
  */
@@ -107,7 +107,7 @@ interface LibraryStandIns {
   freeBytes?: FreeBytes;
 }
 
-/** The worker's ports of these stand-ins (L7.29: the backend draws the previews of the worker's renderer). */
+/** The worker's ports of these stand-ins (the backend draws the previews of the worker's renderer). */
 const libraryPorts = (test: LibraryStandIns): WorkerPortsGiven => ({
   ...(test.backend ? { renderer: withPreviewBackend(editorRenderer(), test.backend) } : {}),
   ...(test.freeBytes ? { freeBytes: test.freeBytes } : {}),
@@ -264,7 +264,7 @@ describe('library preview jobs (injected backend)', () => {
       ['studio/intro-stack', 'poster', 'written'],
       ['studio/intro-stack', 'loop', 'written'],
     ]);
-    // Review A L2: the workspace's part of the path is cut from the reason the job keeps.
+    // The workspace's part of the path is cut from the reason the job keeps.
     expect(result.untrusted.failures).toEqual([{ component: 'acme/thrower', reason: 'its preview failed: boom at load (components/acme/thrower/index.tsx)' }]);
     const thrower = states.items.find((i) => i.component === 'acme/thrower')!;
     const failure = JSON.parse(await readFile(join(cache(), thrower.poster.key, LIBRARY_FILES.failed), 'utf8'));

@@ -1,5 +1,5 @@
 /**
- * The timeline screen (L4.5 part C; R-UI-15 "Open timeline", R-UI-24, R-UI-25; DESIGN §4g): one capture of a scenario
+ * The timeline screen (R-UI-15 "Open timeline", R-UI-24, R-UI-25; DESIGN §4g): one capture of a scenario
  * as the edit plans it — the preview (the Remotion Player in the sandboxed frame of the player origin: PreviewFrame),
  * the transport, the scrubber and the tracks (TimelineTracks), with the take's warnings and notes.
  *
@@ -7,40 +7,40 @@
  *   scenario's file or runs change and after a reconnection; the engine's memo makes a re-read of an unchanged take
  *   free, and a new plan URL loads into the same frame (no reload).
  * - The preview starts muted (the frame's first `state` says so; "Unmute" asks it), shows "Loading the preview…" until
- *   the frame is `settled` at the frame asked (critique B8), seeks exactly when paused (a seek pauses), and a scrub
+ *   the frame is `settled` at the frame asked, seeks exactly when paused (a seek pauses), and a scrub
  *   sends at most one seek per animation frame. A browser that cannot play the capture's codec (Playwright's Chromium
- *   and H.264) gets the message only (critique Q5) — the tracks and the scrubber still work. A stopped preview (a
+ *   and H.264) gets the message only — the tracks and the scrubber still work. A stopped preview (a
  *   flood, an invalid message: parent.ts) says why and can be restarted.
  * - Keys (timeline-words keyAction): Space, ← / →, Shift+← / →, Home / End, [ / ] — never while typing or in a radio
  *   group, and not doubling the scrubber's own arrows. Zoom: fit, or about ten seconds per screen with scroll; the
  *   playhead follows while playing.
- * - The inspector (part D, TimelineInspector.tsx) beside the preview: a segment is selected by a click on the segments
+ * - The inspector (TimelineInspector.tsx) beside the preview: a segment is selected by a click on the segments
  *   track or by [ / ] (the segment the playhead lands on); the video's and that segment's switches write in one click,
  *   the view is read again and its new plan loads into the same frame — "Loading the preview…" until it is settled at
  *   the playhead, which stays where it was. Undo / redo restore the exact bytes. Every string from the server is a text
  *   node.
- * - Render (part E, Renders.tsx): the header's Render bar renders the capture shown on the version shown (a file changed
+ * - Render (Renders.tsx): the header's Render bar renders the capture shown on the version shown (a file changed
  *   since is refused and the view read again) and says what the newest render is doing; the Renders card under the
  *   tracks holds the queue (Cancel), the renders with their review's verdict, and a render's review — its findings seek
  *   the preview only when the render is of the version shown (the same plan signature and theme files), its images.
- * - L4.6: Comment (key C) opens the Comments screen at the playhead's frame of the newest render of the version shown
+ * - Comment (key C) opens the Comments screen at the playhead's frame of the newest render of the version shown
  *   (its frame f is the preview's frame f); a pin's tooltip and the other-take card open the thread; the pins are read
  *   again when the scenario's threads change.
- * - L4.6 part D2: Preview change (`#/p/<slug>/s/<name>/proposal/<comment>/<entry>`) shows the take planned from the
+ * - Preview change (`#/p/<slug>/s/<name>/proposal/<comment>/<entry>`) shows the take planned from the
  *   text Claude proposed on a thread (`timeline_view {proposal}`: in memory, nothing written, switches and Render off),
  *   under a banner (ProposalBanner: which comment, whether the plan shows the change, Back to the comment — the thread,
  *   scrolled to its proposal: Apply is offered only there, under the whole diff) and seeks to that comment's pin.
- * - Review A (fixes): the page holds a lease on its project's preview capability (timeline_view `lease`) and gives it
+ * - The page holds a lease on its project's preview capability (timeline_view `lease`) and gives it
  *   back when it leaves (`timeline_leave`): the project's preview URLs are revoked once no page holds one. A workspace
  *   component the take uses is not run in the preview until the person allows it here (`preview_allow`, by id and
  *   folder hash, for this Studio session): its stand-in draws, a notice names it with an Allow button.
- * - L5.12a « Épure » 4a (R4-Edit, R-UI-45): Edit in the shell — no breadcrumb, heading or tabs (the title bar names the
+ * - (R-UI-45) Edit in the shell — no breadcrumb, heading or tabs (the title bar names the
  *   project and scenario, the modes go to the other views; the h1 stays for assistive technology), the browser pane
  *   hidden; the stage (EditPreview.tsx: the preview region, the transport, the take's facts) above the tracks
  *   (TimelineTracks.tsx on the kit, a scrubber with time labels, the playhead over the lanes), the inspector in the
  *   shell's pane (TimelineInspector.tsx), the notes (EditNotes.tsx), and the status bar (EditStatus.tsx: what is on
- *   screen, the render line with Cancel, Undo · Redo, Render — Edit owns ⌘B at the screen's priority, H2). The renders'
- *   list and reviews moved to the Review report; its "Show in Edit" hands a finding over (edit-handoff.ts) and Edit seeks
+ *   screen, the render line with Cancel, Undo · Redo, Render — Edit owns ⌘B at the screen's priority). The renders'
+ *   list and reviews are the Review report's; its "Show in Edit" hands a finding over (edit-handoff.ts) and Edit seeks
  *   to its frame only when that render shows this version. This file keeps the one PreviewFrame and its checked URL
  *   (the source lint pins them here), the state, the keys and the seek loop.
  */
@@ -134,17 +134,17 @@ export function TimelineScreen({ slug, name, run, step, proposal }: { slug: stri
   );
   const [loaded, reload] = useTimelineView(args, `${slug}\0${name}\0${run ?? ''}\0${pc ?? ''}\0${pe ?? ''}`);
   useScenarioEvents(slug, name, { reread: reload, progress: () => undefined });
-  // L4.6: this scenario's threads changed (a comment posted, resolved): the pins are read again.
+  // This scenario's threads changed (a comment posted, resolved): the pins are read again.
   useEvents((e) => {
     if (e.type !== 'resync' && commentsEventAction(e, slug, name).threads) reload();
   });
 
-  // L5.12a fixes (review A-M1): on a proposal's preview Render is refused in every state — before the view is read, on an
+  // On a proposal's preview Render is refused in every state — before the view is read, on an
   // error, on a blocked take — at the screen's priority (the status bar's own refuses too); once the view is read, the
   // take's screen (Timeline below) owns it.
   const shows = loaded.state === 'ready' && !('blocked' in loaded.data);
   useShellCommand('render', () => say(`Render of ${name}: ${PROPOSAL_RENDER}`), PRIORITY.screen, proposal !== undefined && !shows);
-  // (review A-L6): an Edit that cannot show the take drops the report's pending Show in Edit (never a stale seek later).
+  // An Edit that cannot show the take drops the report's pending Show in Edit (never a stale seek later).
   const cannot = loaded.state === 'error' || (loaded.state === 'ready' && 'blocked' in loaded.data);
   useEffect(() => {
     if (cannot) takeEditSeek(slug, name);
@@ -210,7 +210,7 @@ export function TimelineScreen({ slug, name, run, step, proposal }: { slug: stri
   return <Timeline key={d.run_id} slug={slug} name={name} v={d as Ready} step={step} reload={reload} {...(proposal ? { proposal } : {})} />;
 }
 
-/** The screen's h1 for assistive technology (the title bar names the scenario): the name as text (review A-M3). */
+/** The screen's h1 for assistive technology (the title bar names the scenario): the name as text. */
 function EditHeading({ name }: { name: string }) {
   return (
     <h1 className="k-sr">
@@ -252,13 +252,13 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   const ed = useSwitchEditor(slug, name, v, reload);
   // The scenario's renders (a Render refused because the file changed reads the view again).
   const renders = useRenders(slug, name, reload);
-  // L5.11a (critique L6): the status bar's Render (⌘B) renders the capture and the file this screen shows.
+  // The status bar's Render (⌘B) renders the capture and the file this screen shows.
   useShownFile(slug, name, proposal ? null : (v.hash ?? null), v.run_id);
   const shownVersion = useMemo(
     () => ({ run: v.run_id, theme: v.theme, plan_sha256: v.plan_sha256, theme_sha256: v.theme_sha256, ...(v.hash ? { hash: v.hash } : {}) }),
     [v.run_id, v.theme, v.hash, v.plan_sha256, v.theme_sha256],
   );
-  // Workspace components the take uses that the preview does not run yet (review A H1 c), and the Allow clicks.
+  // Workspace components the take uses that the preview does not run yet, and the Allow clicks.
   const [allowing, setAllowing] = useState<string | null>(null);
   const [allowError, setAllowError] = useState<string | null>(null);
   const allow = (c: { id: string; hash: string }) => {
@@ -278,7 +278,7 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
       )
       .finally(() => setAllowing(null));
   };
-  // L4.6: Comment at the playhead — a render of the version shown (the same plan and theme files: its frame f is the
+  // Comment at the playhead — a render of the version shown (the same plan and theme files: its frame f is the
   // preview's frame f), the newest; without one the button is off, with why.
   const commentOn = renders.loaded.state === 'ready' ? renders.loaded.data.renders.find((x) => x.status === 'succeeded' && versionNote(x, shownVersion).same) : undefined;
   const tracksAt = useMemo(() => ({ slug, scenario: name }), [slug, name]);
@@ -444,8 +444,8 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
     seek(pin.frame);
   }, [proposal, v.pins.placed, seek]);
 
-  // L5.12a: the Review report's Show in Edit — the finding's frame only when its render shows this version (the same plan
-  // and theme files: its frame f is the preview's frame f); else its step. L5.12a fixes (review B-M1): the note "made from
+  // The Review report's Show in Edit — the finding's frame only when its render shows this version (the same plan
+  // and theme files: its frame f is the preview's frame f); else its step. The note "made from
   // another version" only when the render is found AND differs — a finding with no frame on this version (the video's
   // length) goes to its step or stays, saying nothing; a render no longer listed goes to the step, no frame trusted.
   const [handoff] = useState<EditSeek | null>(() => (proposal ? null : takeEditSeek(slug, name)));
@@ -515,7 +515,7 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   );
   // A segment gone from the new version (renamed, deleted): nothing selected.
   const segment = m.segments.find((s) => s.id === selected) ?? null;
-  // L5.12b: ⌘K's Scenes (a pick selects the segment and seeks to it), its Themes (the theme the take is edited with:
+  // ⌘K's Scenes (a pick selects the segment and seeks to it), its Themes (the theme the take is edited with:
   // the theme editor — the palette never sets one) and the Review report with the last render's words.
   usePaletteGroup(
     'scenes',

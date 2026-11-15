@@ -1,11 +1,11 @@
 /**
- * What a take costs (L5.7, R-FLD-23): CPU seconds per process group while the take runs, sampled every PERF_SAMPLE_MS —
+ * What a take costs (R-FLD-23): CPU seconds per process group while the take runs, sampled every PERF_SAMPLE_MS —
  * Chromium's own process report (SystemInfo.getProcessInfo, per browser: one per persona) for its browser processes
  * (they encode the screencast's JPEG frames), GPU processes, page renderers and other helpers; the system's process
  * table (`ps -p`) for the encoders and the product's local servers (the processes listening on the environment's
  * localhost ports); Retake's own process from Node. The machine's load average is read on every sample. A process
- * that exits between two samples loses its last interval: a measure, not an account. A pause of the take (L4.4) counts
- * for nothing: neither its CPU nor its seconds (`pause()` / `resume()`).
+ * that exits between two samples loses its last interval: a measure, not an account. A pause of the take counts
+ * for nothing: neither its CPU nor its seconds (`pause` / `resume`).
  */
 import { execFile } from 'node:child_process';
 import { cpus, loadavg } from 'node:os';
@@ -128,7 +128,7 @@ export class PerfSampler {
   private lastSampleAt = 0;
   /** Per realm: CPU seconds and wall seconds while no recorder filmed it. */
   private readonly unfilmed = new Map<string, { cpu: number; seconds: number }>();
-  /** A pause of the take (L4.4): when it began (0: none), Retake's own CPU then, the wall ms of the pauses so far. */
+  /** A pause of the take: when it began (0: none), Retake's own CPU then, the wall ms of the pauses so far. */
   private pausedAt = 0;
   private ownAtPause = 0;
   private pausedMs = 0;
@@ -157,7 +157,7 @@ export class PerfSampler {
     this.running = this.sample().finally(() => (this.running = null));
   }
 
-  /** The take pauses (L4.4): what ran up to now is sampled; from now until `resume` nothing counts. */
+  /** The take pauses: what ran up to now is sampled; from now until `resume` nothing counts. */
   async pause(): Promise<void> {
     if (this.pausedAt || !this.t0) return;
     if (this.timer) clearInterval(this.timer);

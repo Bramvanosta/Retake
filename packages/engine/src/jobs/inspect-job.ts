@@ -1,5 +1,5 @@
 /**
- * `inspect` jobs (L3.3, R-MCP-23 / R-MCP-36): page_inspect through the worker. A dry replay — of a one-scene scenario
+ * `inspect` jobs (R-MCP-23 / R-MCP-36): page_inspect through the worker. A dry replay — of a one-scene scenario
  * opening a path on an environment page, or of a saved scenario up to `until` — with the runner's `inspect` option: the
  * page it shows is inventoried for an author (runner-web inspect.ts) into <project>/.retake/inspect/<id>/
  * (inspect.json, screenshot.png and, drawn here through the review package, marked.jpg). The newest 20 are kept.

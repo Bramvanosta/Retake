@@ -15,11 +15,11 @@ export interface PointerHost {
   scale: number;
   /** Clock of the motion loop (tests inject a fake one to simulate a loaded machine): default wall clock + sleep. */
   clock?: { now(): number; sleep(ms: number, signal?: AbortSignal): Promise<void> };
-  /** Where cursor samples go (default: the timeline's cursor — a page's own track in a multi-page scene, L2.11). */
+  /** Where cursor samples go (default: the timeline's cursor — a page's own track in a multi-page scene). */
   sample?: (s: { x: number; y: number; visible: boolean; down?: boolean }) => void;
-  /** Called before a press (L1.3: the runtime lets the capture catch up with the cursor's last painted position). */
+  /** Called before a press (the runtime lets the capture catch up with the cursor's last painted position). */
   beforePress?: () => Promise<void>;
-  /** Called once a press is dispatched (L5.7: the recorder keeps frames flowing while its ripple plays). */
+  /** Called once a press is dispatched (the recorder keeps frames flowing while its ripple plays). */
   afterPress?: () => void;
 }
 

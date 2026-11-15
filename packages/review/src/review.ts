@@ -138,7 +138,7 @@ function inset(r: { x: number; y: number; w: number; h: number }, d: number) {
   return { x: r.x + d, y: r.y + d, w: Math.max(1, r.w - 2 * d), h: Math.max(1, r.h - 2 * d) };
 }
 
-/** The rules of a review: the defaults, the scenario's target length (R-FLD-05, L5.5), then the caller's. */
+/** The rules of a review: the defaults, the scenario's target length (R-FLD-05), then the caller's. */
 export function reviewRules(plan: Pick<EditPlan, 'target_length'>, given: Partial<ReviewRules> = {}): ReviewRules {
   const rules: ReviewRules = { ...DEFAULT_RULES, ...given };
   if (plan.target_length && given.video_min_s === undefined && given.video_max_s === undefined) {

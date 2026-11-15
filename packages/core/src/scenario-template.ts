@@ -39,7 +39,7 @@ export function isEditTextPath(rel: IssuePath): boolean {
 /**
  * A scene entry (scene, card or interstitial) with every string interpolated, except `note`s, `eval` (templated
  * when it runs, its file included) and the literal names (isLiteralPath). Throws a TemplateError naming the string
- * ("scenes[2].steps[3].type.text: unknown template key …"). `editCtx` (L1.7), when given, templates the text the
+ * ("scenes[2].steps[3].type.text: unknown template key …"). `editCtx`, when given, templates the text the
  * video shows (isEditTextPath: captions, cards, overlays, page labels…) — its `pages` are the display URLs, so
  * `{{shop}}` in a caption reads `https://shop.example.com` while `open: "{{shop}}/x"` still navigates the real URL.
  */
@@ -53,7 +53,7 @@ export function templateSceneEntry<T extends SceneEntry>(entry: T, index: number
 
 /**
  * The video's title, intro, outro and tutorial switches with their strings interpolated (timeline `video`). All of it
- * is text the video shows: the runner passes the edit context (display URLs, L1.7).
+ * is text the video shows: the runner passes the edit context (display URLs).
  */
 export function templateVideo(video: TimelineVideo, ctx: TemplateContext): TimelineVideo {
   const out: TimelineVideo = { ...video };

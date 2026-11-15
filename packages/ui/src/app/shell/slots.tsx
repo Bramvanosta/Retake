@@ -1,13 +1,13 @@
 /**
- * L5.9: the shell's slots — a screen fills the inspector pane, the title bar's context control or the status bar's
+ * The shell's slots — a screen fills the inspector pane, the title bar's context control or the status bar's
  * actions by rendering `<ShellSlot name="…">` anywhere in its tree (a portal into the shell's pane). The inspector pane
  * shows only while a screen claims it: the legacy screens claim nothing and keep the whole centre.
- * L5.10a fixes (review B-M1): a slot the person hid (the inspector toggle, ⌥⌘I) is `hidden`; a screen whose inspector is
- * the only home of what it shows (`inline`: the Project screen's project facts, README, recent runs, a location's pages)
- * then renders it in place, in the centre pane, under a heading of its own.
- * L5.10b: `browser` — a screen replaces the browser's tree while it claims it (the scenario's scenes); the foot stays.
- * L5.12a: `BrowserCollapsed` — a screen hides the browser pane while it is mounted (Edit, the Review report: R4 gives the
- * preview and the report the width; the title bar's modes and ⌘K still go everywhere).
+ * A slot the person hid (the inspector toggle, ⌥⌘I) is `hidden`; a screen whose inspector is the only home of what it
+ * shows (`inline`: the Project screen's project facts, README, recent runs, a location's pages) then renders it in
+ * place, in the centre pane, under a heading of its own. `browser` — a screen replaces the browser's tree while it
+ * claims it (the scenario's scenes); the foot stays. `BrowserCollapsed` — a screen hides the browser pane while it is
+ * mounted (Edit, the Review report: R4 gives the preview and the report the width; the title bar's modes and ⌘K still
+ * go everywhere).
  */
 import { createContext, useContext, useEffect } from 'react';
 import type { ReactNode } from 'react';
@@ -21,7 +21,7 @@ export interface SlotHost {
   hidden?: Partial<Record<SlotName, boolean>>;
   /** Claims a slot while mounted; returns the release. */
   claim(name: SlotName): () => void;
-  /** L5.12a: hides the browser pane while held; returns the release. */
+  /** Hides the browser pane while held; returns the release. */
   collapseBrowser?(): () => void;
 }
 
@@ -41,7 +41,7 @@ export function ShellSlot({ name, children, inline }: { name: SlotName; children
   return target ? createPortal(children, target) : null;
 }
 
-/** L5.12a: the browser pane is hidden while this is mounted. */
+/** The browser pane is hidden while this is mounted. */
 export function BrowserCollapsed() {
   const host = useContext(SlotContext);
   useEffect(() => host?.collapseBrowser?.(), [host]);

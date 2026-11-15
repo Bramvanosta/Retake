@@ -1,6 +1,6 @@
 /**
  * The types the app's StudioOps (src/app/data/ops.ts) is derived from, held exactly for the Studio's comment operations
- * (L7.16: they became the engine's operations; written on the commit before the move): each op's arguments as a page
+ * (they became the engine's operations; written on the commit before the move): each op's arguments as a page
  * sends them (`ToolArgs`) and its answer (`ToolData`) of `StudioTools` (server/studio.ts). A type that widens or
  * narrows fails `pnpm typecheck` (tsconfig.test.json), not this file's run: the run only says the file is part of the
  * suite.

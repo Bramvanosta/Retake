@@ -1,8 +1,8 @@
 /**
- * L4.2 part 2: the scenario screen's server side over HTTP — `scenario_blocks`, `run_thumbs` and `run_status` through
+ * The scenario screen's server side over HTTP — `scenario_blocks`, `run_thumbs` and `run_status` through
  * `/v1/call` behind the gate (allow-list, zod refusals before any read, run blockers worded for the Studio, page text
  * only under `untrusted` and cut, base64 JPEGs that decode, `run_status` without its long-poll), and the `workspace`
- * event naming the scenario file saved in place and the run that started with its scenario (critique B1).
+ * event naming the scenario file saved in place and the run that started with its scenario.
  */
 import { request } from 'node:http';
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';

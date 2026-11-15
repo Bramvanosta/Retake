@@ -1,13 +1,13 @@
 /**
- * The docker-compose provider (L1.8): the sandbox's services are the compose files' (`compose.files`, default
- * compose.yaml next to sandbox.yaml), run through the `docker compose` CLI under a project name of their own —
- * `compose.project`, else `retake-<project>-<environment>-<hash of the folder>` (two checkouts of one project never
- * share containers or volumes). The folder is the first compose file's, as for docker compose itself: the files may
- * live elsewhere than sandbox.yaml (the product's repository), and their relative paths resolve next to them. Every
- * call names the project, its folder and its files (`-p`, `--project-directory`, `-f`) and its env file (`--env-file`, L5.8: the image versions and settings of `${VAR}`s — the names it sets are left
- * out of the shell's environment, which would win over it), with `COMPOSE_*` variables of the shell left out, and every
- * command reads the project's containers first (`ps`): containers of that name made from another folder (another
- * checkout sharing a `compose.project`) refuse it.
+ * The docker-compose provider: the sandbox's services are the compose files' (`compose.files`, default compose.yaml
+ * next to sandbox.yaml), run through the `docker compose` CLI under a project name of their own — `compose.project`,
+ * else `retake-<project>-<environment>-<hash of the folder>` (two checkouts of one project never share containers or
+ * volumes). The folder is the first compose file's, as for docker compose itself: the files may live elsewhere than
+ * sandbox.yaml (the product's repository), and their relative paths resolve next to them. Every call names the project,
+ * its folder and its files (`-p`, `--project-directory`, `-f`) and its env file (`--env-file`: the image versions and
+ * settings of `${VAR}`s — the names it sets are left out of the shell's environment, which would win over it), with
+ * `COMPOSE_*` variables of the shell left out, and every command reads the project's containers first (`ps`):
+ * containers of that name made from another folder (another checkout sharing a `compose.project`) refuse it.
  *
  * up: the compose files read (`config --format json`); a name an earlier up used (compose.project changed since) still
  * running refused; no container of another project may publish one of the ports, on any address (`docker ps --filter
@@ -91,7 +91,7 @@ export interface ComposeProjectRef {
    */
   sandboxDir?: string;
   files: string[];
-  /** The env file every command reads (`--env-file`, L5.8: core composeEnvFile), absolute; absent: none. */
+  /** The env file every command reads (`--env-file`: core composeEnvFile), absolute; absent: none. */
   envFile?: string;
   /** The names it sets: left out of the environment docker runs with (a shell's value would win over the file's). */
   envKeys?: string[];
@@ -1139,7 +1139,7 @@ export class ComposeProvider implements Provider {
       }
     }
     const out = cfg.services.map((s) => `image ${s}=${ids.get(cfg.images[s]) ?? 'missing'}`).sort();
-    // The env file's settings (L5.8): another value there is another product.
+    // The env file's settings: another value there is another product.
     const ref = this.ref(ctx);
     if (ref.envFile) {
       try {

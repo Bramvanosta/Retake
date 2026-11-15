@@ -18,7 +18,7 @@ import { recordGolden } from '@retake/test-support/golden';
 const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 /**
- * The cursor and file-chip look (L1.4: R-KIT-06, R-LOOK-23, R-LOOK-24), in two layers: structural checks that carry the
+ * The cursor and file-chip look (R-KIT-06, R-LOOK-23, R-LOOK-24), in two layers: structural checks that carry the
  * assertion (fill, outline, size, shadow, the ripple's colour and alpha, the chip's card, badge colour and tilt), and
  * a golden image compared with a tolerance (a Chromium update or another rasteriser moves a few pixels, not the look).
  * The chip's golden is compared on macOS only: its text uses the system UI font. Goldens are written only on request:

@@ -1,5 +1,5 @@
 /**
- * L3.5 themes from brand inputs — the deterministic palette (src/brand/palette.ts) and the generated template.yaml
+ * Themes from brand inputs — the deterministic palette (src/brand/palette.ts) and the generated template.yaml
  * (src/brand/template-file.ts): goldens for four accents in both tones, every threshold met after `adjust`, given
  * colours lifted and reported (never the accent: a suggestion instead), `adjust: false` warnings, the tone from a given
  * paper, and every starter as a base producing a template.yaml the template schema accepts with no issue.

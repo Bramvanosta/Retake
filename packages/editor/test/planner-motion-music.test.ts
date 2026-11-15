@@ -1,5 +1,5 @@
 /**
- * L2.8 planner rules: the theme default zoom (R-ED-22: style_bias balanced / motion + motion.default_zoom → at most one
+ * Planner rules: the theme default zoom (R-ED-22: style_bias balanced / motion + motion.default_zoom → at most one
  * slow zoom per scene on a marked step's target, eased back out before the scene ends; real → static) and the music
  * bed (R-ED-17: fades, ducking under footage, loop with crossfaded seams or trim to the video, the volume curve).
  */

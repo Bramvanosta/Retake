@@ -1,5 +1,5 @@
 /**
- * The MCP server's authoring tools: scenario_record and scenario_from_script are the engine's operations since L7.18
+ * The MCP server's authoring tools: scenario_record and scenario_from_script are the engine's operations
  * (packages/engine/src/operations/authoring.ts, with `recordOutput`, which job_status answers a recording with), served
  * here as these very objects in tools/list order.
  */

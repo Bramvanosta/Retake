@@ -1,5 +1,5 @@
 /**
- * L3.4 recordings (engine record.ts, R-MCP-24): record → draft → validate → save → check replay, on the fixture, with
+ * Recordings (engine record.ts, R-MCP-24): record → draft → validate → save → check replay, on the fixture, with
  * Playwright standing in for the person (trusted input; the "headed" window runs headless here — the real window is
  * MACOS-CHECKLIST 12f). The quote flow (shop: select, date clicks, typing, a write) and the catalogue flow (console:
  * select, drop_file, an address-bar navigation, a row menu with its confirm, a pick) round trip: the drafts validate, are

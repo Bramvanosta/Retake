@@ -1,6 +1,6 @@
 /**
- * The run operations the shells share (moved from the MCP server's tools/run.ts in L7.13): run_list, run_status,
- * run_cancel, and the summary of a run with its job (also the MCP server's run_dry / run_capture's).
+ * The run operations the shells share: run_list, run_status, run_cancel, and the summary of a run with its job (also
+ * the MCP server's run_dry / run_capture's).
  */
 import { z } from 'zod';
 import { perfSummary } from '@retake/core/run';

@@ -1,5 +1,5 @@
 /**
- * What plan_preview and render say of the run `latest` picked (L7.6a), on a stub engine — nothing is planned or
+ * What plan_preview and render say of the run `latest` picked, on a stub engine — nothing is planned or
  * rendered: the newer captures passed over as a count in the trusted text and their folder names under `untrusted`
  * only, and where a capture stopped by `--until` ends. A folder of runs/ is named by whoever can write there: its name
  * never reaches a trusted line.

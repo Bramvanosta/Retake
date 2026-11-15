@@ -1,5 +1,5 @@
 /**
- * L4.5 part A, the Studio timeline's model (editor timeline.ts `timelineOf`, `placePins`): the tracks of real fixture
+ * The Studio timeline's model (editor timeline.ts `timelineOf`, `placePins`): the tracks of real fixture
  * plans (quote, live-quote: same-page joins and multi-page clips, catalogue: a camera zoom) checked against the plan
  * they come from — absolute frames, every step, speed span, zoom and caption, text only under `untrusted`; the cuts and
  * their reasons on a synthetic take (a hook step, an idle gap, a freeze, a busy wait, a page load: the planner's own
@@ -138,7 +138,7 @@ describe('cuts and their reasons (a synthetic take)', () => {
     expect(m.cuts.map((x) => x.reason)).toEqual(['hook', 'idle', 'frozen', 'busy', 'loading']);
     // The planner's notes name the same cuts.
     expect(p.notes.filter((n) => /cut|shortened/.test(n))).toHaveLength(5);
-    // L4.5 fixes (review B M4): the planner records why it cut on each trim — the model needs no run timeline for it.
+    // The planner records why it cut on each trim — the model needs no run timeline for it.
     expect(c.trims.map((x) => x.reason)).toEqual(['hook', 'idle', 'frozen', 'busy', 'loading']);
     expect(timelineOf(p).cuts.map((x) => x.reason)).toEqual(['hook', 'idle', 'frozen', 'busy', 'loading']);
     // A plan made before (no reason on its trims) without the run's timeline: the reason cannot be told.

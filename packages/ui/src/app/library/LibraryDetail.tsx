@@ -1,9 +1,9 @@
 /**
- * L5.12c « Épure » 4c: one component's page in the Library (`#/p/<slug>/library/<theme>/<ns>/<name>`; was
- * LibraryScreen.tsx's Detail) — the picture large with its play controls and description, then About (kind, version,
- * source, kit compatibility, duration, formats, the themes that pick it), the slots and the params as kit DataTables
- * (column headers, row headers, a caption) and the README as text (never Markdown). Its actions are the inspector's
- * (LibraryInspector.tsx). Every manifest word is untrusted text (`Txt`).
+ * One component's page in the Library (`#/p/<slug>/library/<theme>/<ns>/<name>`) — the picture large with its play
+ * controls and description, then About (kind, version, source, kit compatibility, duration, formats, the themes that
+ * pick it), the slots and the params as kit DataTables (column headers, row headers, a caption) and the README as text
+ * (never Markdown). Its actions are the inspector's (LibraryInspector.tsx). Every manifest word is untrusted text
+ * (`Txt`).
  */
 import type { LibraryComponentAnswer, LibraryItem, LibraryViewAnswer } from '../../server/library-ops.js';
 import type { Loaded } from '../api.js';

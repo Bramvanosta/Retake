@@ -1,5 +1,5 @@
 /**
- * L5.9: status and time — `StatusMark` (a shape AND a word, always: ● ok, ◐ running, ○ idle, ◌ waiting, ◆ warning,
+ * Status and time — `StatusMark` (a shape AND a word, always: ● ok, ◐ running, ○ idle, ◌ waiting, ◆ warning,
  * ▲ attention, ✕ failed, ● recording; the shape is hidden from the accessibility tree, the word is visible text — the
  * checker's colour-only rule wants a state word there), `Timecode` (mono, tabular figures; the spoken form in hidden
  * text, not an `aria-label` on a span), `Progress` (`role="progressbar"`, determinate or not; no motion when the system
@@ -12,7 +12,7 @@ import { shown, visibleControls } from '../bits.js';
 export type MarkState = 'ok' | 'running' | 'waiting' | 'idle' | 'warn' | 'attention' | 'fail' | 'recording';
 export const MARK_STATES: MarkState[] = ['ok', 'running', 'waiting', 'idle', 'warn', 'attention', 'fail', 'recording'];
 
-/** A state's shape alone (decorative: the caller shows its word beside it — L5.11a's checklist). */
+/** A state's shape alone (decorative: the caller shows its word beside it — the checklist). */
 export function Shape({ state }: { state: MarkState }) {
   if (state === 'attention') {
     return (
@@ -86,7 +86,7 @@ export function Progress({
   value?: number;
   max?: number;
   valueText?: string;
-  /** L5.12a: a test id kept from an older screen. */
+  /** A test id kept from an older screen. */
   testId?: string;
 }) {
   const id = useId();

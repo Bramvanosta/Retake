@@ -1,7 +1,7 @@
 /**
- * L4.3 part 2: step edits on the Blocks tab, end to end in headless Chromium (the installed browser, no download)
+ * Step edits on the Blocks tab, end to end in headless Chromium (the installed browser, no download)
  * against an in-process Studio server on a scratch workspace. The file on disk is checked after each action with
- * independent facts (critique B11: never a golden made by the code under test) — its parsed value against the edit
+ * independent facts (never a golden made by the code under test) — its parsed value against the edit
  * applied to the value before, the lines that moved, its bytes where they must be exact:
  * native drag & drop within a scene (the moved step keeps its run picture, says "moved since this run", and no
  * thumbnail is asked again), across scenes and into an empty scene; the keyboard path (Alt+↓ / Alt+↑ within and across
@@ -50,7 +50,7 @@ const live = () => page.getByTestId('edit-live').innerText();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Review B M3 (the flake's cascade): every route a test installs is removed after it — passed or failed — and the requests
+ * Every route a test installs is removed after it — passed or failed — and the requests
  * it held go on, so a failed test never leaves the next ones' reads held forever.
  */
 const installed: Array<{ url: string; held: Route[] }> = [];
@@ -71,8 +71,8 @@ async function holdRoute(url: string, handler?: (r: Route) => Promise<void>): Pr
 const blocksInFlight = new Set<Request>();
 let blocksAskedAt = 0;
 /**
- * Review B M3 (the flake's first failure): wait until no `scenario_blocks` read is on its way and none was asked for
- * `ms` — a read already in flight when the test holds the reads would land after an outside write and show that version.
+ * Wait until no `scenario_blocks` read is on its way and none was asked for `ms` — a read already in flight when the
+ * test holds the reads would land after an outside write and show that version.
  */
 async function readsQuiet(ms = 400): Promise<void> {
   await expect.poll(() => blocksInFlight.size === 0 && Date.now() - blocksAskedAt >= ms, POLL).toBe(true);
@@ -132,7 +132,7 @@ async function centreColour(key: string): Promise<Rgb | null> {
   });
 }
 
-/** Drag a frame onto the left or right half of another (native HTML5 DnD driven by Playwright's mouse; L5.10b: a grid). */
+/** Drag a frame onto the left or right half of another (native HTML5 DnD driven by Playwright's mouse; a grid). */
 async function dragRow(from: string, to: string, side: 'left' | 'right'): Promise<void> {
   const box = await row(to).boundingBox();
   await row(from).dragTo(row(to), { targetPosition: { x: side === 'left' ? 8 : box!.width - 8, y: box!.height / 2 } });

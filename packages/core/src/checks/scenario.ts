@@ -110,7 +110,7 @@ class ScenarioChecker {
   private readonly sceneIdSet = new Set<string>();
   /** Artefact references in card / overlay slots (`email: <name>`…), checked once every step is known. */
   private readonly artefactRefs: Array<{ kind: ArtefactRefKind; value: string; path: IssuePath }> = [];
-  /** Overlays starting at a mark (`at: mark:<name>`, L2.12), checked once every mark is known. */
+  /** Overlays starting at a mark (`at: mark:<name>`), checked once every mark is known. */
   private readonly atMarks: Array<{ name: string; path: IssuePath }> = [];
 
   constructor(
@@ -163,7 +163,7 @@ class ScenarioChecker {
   }
 
   /**
-   * Read-only environments (L1.7): the scenario's mocks (page keys, literal values), and the hooks a read-only run of
+   * Read-only environments: the scenario's mocks (page keys, literal values), and the hooks a read-only run of
    * this scenario refuses (a warning: `--hooks skip`, or `--allow-writes` on a production environment that allows
    * writes, make the run valid).
    */
@@ -183,7 +183,7 @@ class ScenarioChecker {
       return;
     }
     const how = `environment ${this.envName} is ${production ? 'production, ' : ''}read-only${configured === 'read-write' ? ' without --allow-writes' : ''}`;
-    // Named hooks (L5.8): each entry of each name, journaled like a setup hook (its rollback runs later).
+    // Named hooks: each entry of each name, journaled like a setup hook (its rollback runs later).
     const named = isObj(this.s.hooks)
       ? Object.entries(this.s.hooks).flatMap(([name, v]) =>
           Array.isArray(v) ? v.map((h, i) => ({ path: ['hooks', name, i] as IssuePath, hook: h as unknown })) : [{ path: ['hooks', name] as IssuePath, hook: v as unknown }],
@@ -207,7 +207,7 @@ class ScenarioChecker {
   }
 
   /**
-   * `hook: <name>` steps (L5.8): the name is a hook of the scenario's `hooks:` or of project.yaml's (unknown names are an
+   * `hook: <name>` steps: the name is a hook of the scenario's `hooks:` or of project.yaml's (unknown names are an
    * error once the project is known); edit values on such a step are never shown (the edit cuts its span); a named hook
    * no step runs is a warning.
    */
@@ -364,7 +364,7 @@ class ScenarioChecker {
   }
 
   /**
-   * A multi-page scene (L2.11): its `pages` (2, unique ids, environment pages, `open` forms, viewports), no scene-level
+   * A multi-page scene: its `pages` (2, unique ids, environment pages, `open` forms, viewports), no scene-level
    * `page` / `open`, steps acting on one of its pages (`on:`), no tab switching inside it. Returns its first page id.
    */
   private multiPageScene(entry: Record<string, unknown>, p: IssuePath, visited: Set<string>): string | undefined {
@@ -451,7 +451,7 @@ class ScenarioChecker {
     return entries[0]?.id;
   }
 
-  /** `wait_for_email {to: persona:<name>}` (L5.6): a persona of the scenario's environment that has an `email`. */
+  /** `wait_for_email {to: persona:<name>}`: a persona of the scenario's environment that has an `email`. */
   private mailPersona(step: NormalizedStep, sp: IssuePath): void {
     const to = (step.args as { to?: string }).to;
     const name = mailPersona(to);
@@ -488,7 +488,7 @@ class ScenarioChecker {
   }
 
   /**
-   * Personas (L1.6): in every environment that declares some, a page keeps one persona for the whole run (core
+   * Personas: in every environment that declares some, a page keeps one persona for the whole run (core
    * planPersonas — the walk the runner makes). Unknown names were reported by personaName (across environments); the
    * runner re-plans for the environment it runs on and stops before the browser opens.
    */
@@ -539,7 +539,7 @@ class ScenarioChecker {
     this.slotRefs(slots, [...p, 'slots']);
   }
 
-  /** `intro` / `outro` (L2.12): the user's own file instead of the theme's component. */
+  /** `intro` / `outro`: the user's own file instead of the theme's component. */
   private segmentFile(spec: unknown, p: IssuePath, what: 'intro' | 'outro'): void {
     if (!isObj(spec)) return;
     const file = checkMediaFields(spec, p, this.ctx);
@@ -782,7 +782,7 @@ class ScenarioChecker {
       const prev = known.get(facts.artefact.name);
       if (prev) this.ctx.error(facts.artefact.path, `${facts.artefact.kind} "${facts.artefact.name}" is already captured at ${formatPath(prev)}: give each capture its own \`as\``);
       else known.set(facts.artefact.name, facts.artefact.path);
-      // The environment's mailbox (L1.8): a sandbox's own, else the project's.
+      // The environment's mailbox: a sandbox's own, else the project's.
       if (facts.artefact.kind === 'email' && this.opts.project && !mailboxFor(this.opts.project, this.envName)) {
         this.ctx.error(
           [...sp, 'wait_for_email'],
@@ -799,7 +799,7 @@ class ScenarioChecker {
     }
   }
 
-  /** A step `overlay` (L2.12 additions): a component or a file, when it starts, where a file goes. */
+  /** A step `overlay`: a component or a file, when it starts, where a file goes. */
   private overlay(step: NormalizedStep, op: IssuePath): void {
     const o = step.overlay!;
     if (this.ctx.broken(op)) return;

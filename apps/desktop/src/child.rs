@@ -1,14 +1,15 @@
-//! The child `retake ui --supervised`: started with its three pipes, its first stdout line read (≤ 30 s) and checked,
-//! its stderr forwarded line by line (through the log filter) and its last 8 KB kept for an alert. Owned (it serves):
-//! the shell holds the only write end of its stdin — the shell's death is its EOF, so no orphan — and stops it on
-//! Quit (desktop_core::stop_child). Attached (`reused`: another process serves the workspace): it exits at once and
-//! the shell never touches that server. A release build gives the child the app's environment without the variables
-//! that make Node.js or the linker load code (desktop_core::child_env_dropped: review A L4).
-//! L5.2b: after the line, stdout keeps being read through a capped line reader (desktop_core::LineReader, 16 KB a line):
-//! each `pending` replaces the snapshot the quit guard reads (a malformed one marks it unreadable until the next), each
-//! `job_end` goes to the notifier (held, at most 32, until `on_job_end` is installed), a blank line (the server frames
-//! each line with one before it: review A L3) is skipped silently, anything else is ignored (said once). The counts are logged when they change (`pending: 1 job, 0 unsaved`: the gated test's signal). At the
-//! server's end its jobs are history (critique L2): the snapshot keeps only the unsaved text.
+// ! The child `retake ui --supervised`: started with its three pipes, its first stdout line read (≤ 30 s) and checked,
+// ! its stderr forwarded line by line (through the log filter) and its last 8 KB kept for an alert. Owned (it serves):
+// ! the shell holds the only write end of its stdin — the shell's death is its EOF, so no orphan — and stops it on !
+// Quit (desktop_core::stop_child). Attached (`reused`: another process serves the workspace): it exits at once and !
+// the shell never touches that server. A release build gives the child the app's environment without the variables !
+// that make Node.js or the linker load code (desktop_core::child_env_dropped). ! After the line, stdout keeps being
+// read through a capped line reader (desktop_core::LineReader, 16 KB a line): ! each `pending` replaces the snapshot
+// the quit guard reads (a malformed one marks it unreadable until the next), each ! `job_end` goes to the notifier
+// (held, at most 32, until `on_job_end` is installed), a blank line (the server frames ! each line with one before it)
+// is skipped silently, anything else is ignored (said once). The counts are logged when they change (`pending: 1 job, 0
+// unsaved`: the gated test's signal). At the ! server's end its jobs are history: the snapshot keeps only the unsaved
+// text.
 
 use crate::log;
 use desktop_core::{child_env_dropped, parse_ui_line, parse_pipe_line, sanitize, stop_child, JobEnd, LaunchConfig, Line, LineError, LineReader, Pending, PipeMsg, Stopped, UiLine, PIPE_LINE_MAX};
@@ -34,7 +35,7 @@ const LINE_MAX: usize = 64 * 1024;
 const ENDS_HELD_MAX: usize = 32;
 
 /// The CLI's usage exit code (EXIT.usage): "no workspace here" comes with its JSON error line; without it, the CLI
-/// refused its arguments (review B L4: a build older than `ui --supervised`).
+/// refused its arguments (a build older than `ui --supervised`).
 const EXIT_USAGE: i32 = 2;
 
 #[derive(Default)]
@@ -72,7 +73,7 @@ pub enum StartError {
 }
 
 impl StartError {
-    /// Its words; `bundled` (launch.json version 2): the app's own engine — no repository command (L5.16).
+    /// Its words; `bundled` (launch.json version 2): the app's own engine — no repository command.
     pub fn text(&self, bundled: bool) -> String {
         match self {
             StartError::NotWorkspace(t) => t.clone(),
@@ -152,22 +153,22 @@ fn read_pipe(mut reader: LineReader<std::process::ChildStdout>, pending: Arc<Mut
                         None => {}
                     }
                 }
-                // L5.12d: the window page's ack or answer to the quit question (checked against the question up).
+                // The window page's ack or answer to the quit question (checked against the question up).
                 msg @ (PipeMsg::Answer { .. } | PipeMsg::Shown { .. }) => {
                     crate::guard::from_page(msg);
                     continue;
                 }
-                // L5.16c: the Set-up sheet's request (the person's click in the page, through the server's setup ops).
+                // The Set-up sheet's request (the person's click in the page, through the server's setup ops).
                 PipeMsg::Setup(a) => {
                     crate::setup_request(a);
                     continue;
                 }
-                // L5.16d: the update sheet's click (Install and Restart, Later) — through the server's desktop_update op.
+                // The update sheet's click (Install and Restart, Later) — through the server's desktop_update op.
                 PipeMsg::Update(a) => {
                     crate::update_request(a);
                     continue;
                 }
-                // The server's framing newline (review A L3): nothing to say, nothing changed.
+                // The server's framing newline: nothing to say, nothing changed.
                 PipeMsg::Blank => continue,
                 PipeMsg::Ignored(why) => {
                     if !std::mem::replace(&mut said_ignored, true) {
@@ -239,7 +240,7 @@ pub fn start(cfg: &LaunchConfig, workspace: &Path) -> Result<Server, StartError>
             };
             let got = first.is_some();
             let _ = line_tx.send(first);
-            // L5.2b: the pipe lines (read to the end, so the child never blocks on a full pipe).
+            // The pipe lines (read to the end, so the child never blocks on a full pipe).
             if got {
                 read_pipe(reader, pending, ends);
             } else {
@@ -296,7 +297,7 @@ pub fn start(cfg: &LaunchConfig, workspace: &Path) -> Result<Server, StartError>
     Ok(Server { line, proc: Some(proc), pending, ends })
 }
 
-/// L5.16c, the first run: `retake init <dir>` with the app's own Node.js and CLI (its guard first, the same
+/// The first run: `retake init <dir>` with the app's own Node.js and CLI (its guard first, the same
 /// environment as the server's), at most 30 s. Err: its last words.
 pub fn init_workspace(cfg: &LaunchConfig, dir: &Path) -> Result<(), String> {
     let mut cmd = Command::new(&cfg.node);
@@ -356,7 +357,7 @@ impl Server {
         self.proc.as_ref().map(|_| lock(&self.pending).clone())
     }
 
-    /// L5.16c: write one line on the owned server's stdin (the Set-up sheet's answers: desktop_core::setup's lines);
+    /// Write one line on the owned server's stdin (the Set-up sheet's answers: desktop_core::setup's lines);
     /// false for an attached server or a closed pipe.
     pub fn send_line(&self, line: &str) -> bool {
         use std::io::Write;

@@ -1,8 +1,8 @@
 /**
- * The engine's operations (U7, from L7.13): every operation a shell serves that is defined here, in catalogue order,
+ * The engine's operations: every operation a shell serves that is defined here, in catalogue order,
  * each with its input, answer and name types (`OperationsByName`). The MCP server serves those it serves as these very
  * objects (its TOOLS), the Studio those it serves as they are or with its pinned arguments (pinArguments); both run them
- * through invoke.ts. Later lots move the other families here (U7: L7.16, L7.18, L7.19).
+ * through invoke.ts.
  */
 import { authLogin, authStatus } from './auth.js';
 import { scenarioFromScript, scenarioRecord, scenarioSave } from './authoring.js';
@@ -30,10 +30,10 @@ import { exportRender, render, review, runCapture, runDry } from './submit.js';
 import { brandFiles, siteList, templateCreateFromBrand, templateFromSite, templateList, templatePreview, themeCopy, themeCreate, themeEdit, themeList, themeView } from './themes.js';
 
 /**
- * Every engine operation, in catalogue order: the eleven MCP and the Studio share (L7.13); MCP's reads of scenarios,
- * plans, renders and reviews, and the Studio's screen reads (L7.14); the themes, components and the library (L7.17);
- * the submits and job controls of both (L7.15); MCP's hooks, environment reset and sandboxes (L7.19); the comments of
- * both (L7.16); the authoring, recording and project writes of both, and job_status (L7.18).
+ * Every engine operation, in catalogue order: the eleven MCP and the Studio share; MCP's reads of scenarios,
+ * plans, renders and reviews, and the Studio's screen reads; the themes, components and the library;
+ * the submits and job controls of both; MCP's hooks, environment reset and sandboxes; the comments of
+ * both; the authoring, recording and project writes of both, and job_status.
  */
 export const OPERATIONS = [
   engineInfo,

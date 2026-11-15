@@ -1,5 +1,5 @@
 /**
- * L4.1 (critique B3): the HTTP gate of the engine's local servers, layer by layer, each hostile request sent WITH the
+ * The HTTP gate of the engine's local servers, layer by layer, each hostile request sent WITH the
  * valid token over a raw http.request with forged headers — so a layer that answers only because the token is missing
  * cannot pass for the layer under test. The order is fixed: Host (421) → Origin / Sec-Fetch-Site (403) → route /
  * method (404 / 405) → token (401) → content type (415) → size (413).
@@ -287,7 +287,7 @@ describe('security headers and error statuses', () => {
       expect(r.headers['referrer-policy']).toBe('no-referrer');
       expect(r.headers['cross-origin-opener-policy']).toBe('same-origin');
       expect(r.headers['cross-origin-resource-policy']).toBe('same-origin');
-      // L5.2 (critique L5): no camera / microphone / screen / location for the page and its frames.
+      // No camera / microphone / screen / location for the page and its frames.
       expect(r.headers['permissions-policy']).toBe('camera=(), microphone=(), display-capture=(), geolocation=()');
     }
     expect(securityHeaders('api')['Cache-Control']).toBe('no-store');

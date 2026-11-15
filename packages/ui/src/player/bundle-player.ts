@@ -1,14 +1,14 @@
 /**
- * The preview bundle (L4.5, DESIGN §4g; critiques B3, B11): esbuild, in memory, one classic IIFE script for the
- * sandboxed preview frame — the Remotion Player, PlanVideo (the render's own composition, src/remotion), L4.7
+ * The preview bundle (DESIGN §4g): esbuild, in memory, one classic IIFE script for the
+ * sandboxed preview frame — the Remotion Player, PlanVideo (the render's own composition, src/remotion),
  * ComponentPreview (the component previews' composition) and EVERY
  * component of the workspace (built-in and workspace components, plus the per-kind scaffolds), so a switch in the
  * Studio never rebuilds it — and `boot.js`, the frame's first script (boot.ts).
  *
- * - Lazy components (B3): the generated `retake:modules` maps each component id to `() => import(entry)`; esbuild
+ * - Lazy components: the generated `retake:modules` maps each component id to ` => import(entry)`; esbuild
  *   turns each into a lazily initialised module inside the one IIFE. Nothing a component's module does runs before the frame
  *   asks for it (the plan uses it), and a module that throws rejects its own import only.
- * - Import allow-list (B11), because a workspace component is code an agent may write: a component may import only
+ * - Import allow-list, because a workspace component is code an agent may write: a component may import only
  *   files inside its own folder (compile.ts `importProblem`, the rule `retake components` checks), `react`, `remotion`
  *   and the kit — bare imports resolved from this package, never from the component's folder (no planted
  *   node_modules). Each of its files is then loaded by this plugin: real path inside the component's real folder (a
@@ -18,8 +18,8 @@
  *   frame helpers come from the components' geometry entry (`@retake/components/geometry`, pure), resolved to its source.
  * - A component that breaks a rule or does not compile is excluded (one retry without it): its uses draw with their
  *   kind's scaffold, and `excluded` says why (worded with its id, never its folder).
- * - A WORKSPACE component is bundled only once the person allowed it in this Studio session (review A H1 c; the
- *   Studio's PreviewAllowList, by id and folder content hash): until then it is `held` — not in the bundle at all, its
+ * - A WORKSPACE component is bundled only once the person allowed it in this Studio session (the Studio's
+ * PreviewAllowList, by id and folder content hash): until then it is `held` — not in the bundle at all, its
  *   uses drawn with their kind's scaffold. Built-in components and the scaffolds are always bundled.
  * - Memo (PlayerBundles): keyed by a hash of the render bundle's inputs (editor `bundleHash`: composition, kit, every
  *   component folder by content, Remotion's version), the frame's sources and the Player's version; at most two
@@ -38,7 +38,7 @@ import type { BundleComponent, PlayerBuildEntries, PreviewAllowed, WorkspaceComp
 import { playerMaking } from '@retake/engine/shell';
 import { UI_TARGETS } from '../bundle.js';
 
-/** Bump when the generated modules or the frame's layout change. 2: `held`. 3: ComponentPreview (L4.7). */
+/** Bump when the generated modules or the frame's layout change. 2: `held`. 3: ComponentPreview. */
 export const PLAYER_BUNDLE_FORMAT = 3;
 /** Largest component file the preview bundles. */
 export const COMPONENT_FILE_MAX = 1024 * 1024;
@@ -150,7 +150,7 @@ export function compositionSource(rootFile: string): string {
   const ext = rootFile.endsWith('.tsx') ? { tsx: '.tsx', ts: '.ts' } : { tsx: '.js', ts: '.js' };
   return [
     `export { PlanVideo } from ${JSON.stringify(`${dir}/PlanVideo${ext.tsx}`)};`,
-    // L4.7: the component previews of the theme editor (a `component-preview` served by publishPreview).
+    // The component previews of the theme editor (a `component-preview` served by publishPreview).
     `export { ComponentPreview } from ${JSON.stringify(`${dir}/Preview${ext.tsx}`)};`,
     `export { ModulesContext } from ${JSON.stringify(`${dir}/modules${ext.ts}`)};`,
     `export { PreviewContext, usedComponentIds } from ${JSON.stringify(`${dir}/preview-mode${ext.ts}`)};`,

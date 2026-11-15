@@ -49,7 +49,7 @@ async function openDatabase(ctx: HookContext, log: (level: HookLogLevel, msg: st
   const urlTemplate = dbs[k].url;
   const tpl = snapshot ? await snapshotTemplateContext(ctx, snapshot, urlTemplate) : await hookTemplateContext(ctx, urlTemplate);
   const connectionString = render(urlTemplate, tpl);
-  // A sandbox's database (L1.8): pg must connect where its URL says, on this machine (validation refuses the rest).
+  // A sandbox's database: pg must connect where its URL says, on this machine (validation refuses the rest).
   if (sandboxOf(ctx.project, env)) {
     const problem = sandboxDatabaseProblem(connectionString);
     if (problem) throw new HookSecurityError(`refusing database ${k} of sandbox ${env}: ${problem}`, 'host');
@@ -57,7 +57,7 @@ async function openDatabase(ctx: HookContext, log: (level: HookLogLevel, msg: st
   const target = databaseTarget(connectionString);
   if (target.password) {
     addSecret(ctx, target.password);
-    // A sandbox's database is local and disposable (L1.8): its plain demo password is expected.
+    // A sandbox's database is local and disposable: its plain demo password is expected.
     if (collectSecretRefs(urlTemplate).size === 0 && !sandboxOf(ctx.project, env)) {
       log('warn', `databases.${k}.url contains a clear-text password: use {{env:VAR}} or {{keychain:service/account}}`);
     }
@@ -93,7 +93,7 @@ function summarize(res: pg.QueryResult | pg.QueryResult[]): string {
 
 /**
  * Run a whole SQL text as one multi-statement query inside BEGIN … COMMIT (ROLLBACK on error). `readOnly` (a read-only
- * run, L1.7): BEGIN READ ONLY — whatever the static check could not see (a function that writes) fails in Postgres.
+ * run): BEGIN READ ONLY — whatever the static check could not see (a function that writes) fails in Postgres.
  */
 async function runSql(db: Database, sql: string, where: string, log: (level: HookLogLevel, msg: string) => void, readOnly = false): Promise<string> {
   const client = new pg.Client({

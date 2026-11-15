@@ -1,6 +1,6 @@
 /**
- * The shell and sql hooks of a scenario an agent wrote, as a person's own command sees them (L7.27, L7.33: an agent's
- * sql hook is treated like its shell hooks). The rule: when the hooks `retake run` (or `retake hooks run
+ * The shell and sql hooks of a scenario an agent wrote, as a person's own command sees them (an agent's sql hook is
+ * treated like its shell hooks). The rule: when the hooks `retake run` (or `retake hooks run
  * <scenario>:setup|teardown`) is about to run were written by an agent, it lists every shell and sql hook as it will
  * run and asks the person before any of them runs (work submitted through MCP or the
  * Studio has its own approvals: trust `mcp`).
@@ -22,7 +22,7 @@
  * that file with exactly these bytes decides. Otherwise, when the journals hold an agent's write of that file the
  * record does not, who brought the surface cannot be told apart: asked.
  *
- * **A person's trust binds the files the hooks read** (`retake hooks trust`, L7.39). Its record line also holds the sha256
+ * **A person's trust binds the files the hooks read** (`retake hooks trust`). Its record line also holds the sha256
  * of every file the scenario's hooks read — code (an sql / js file and its rollback's, a shell command's own script)
  * and data (the other files a shell command names, when they exist) — as the hooks package's resolver sorts them
  * (hookTrustFiles, through the HookRunner port). When that line decides, whatever the kinds of the hooks the command
@@ -320,7 +320,7 @@ export interface RenderedText {
 
 /** Where a shell or sql hook of a scenario's run is declared and everything it runs with. */
 export interface ScenarioShellHook {
-  /** A shell command, or sql statements (an agent's sql hook is asked about like its shell hooks, L7.33). */
+  /** A shell command, or sql statements (an agent's sql hook is asked about like its shell hooks). */
   kind: 'shell' | 'sql';
   /** `setup`, `teardown`, or `step` (a named hook a `hook:` step runs). */
   phase: 'setup' | 'teardown' | 'step';

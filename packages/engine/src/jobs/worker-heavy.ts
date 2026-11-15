@@ -1,5 +1,5 @@
 /**
- * The heavy slot of a jobs worker (worker.ts, L5.14): one heavy job at a time in a job process of its own
+ * The heavy slot of a jobs worker (worker.ts): one heavy job at a time in a job process of its own
  * (job-child.ts) — started detached with the worker's build, yielding while a take films (background QoS on its tree,
  * yield.ts; `.retake/workers/held.json` follows the hold), killed `cancelGraceMs` after a cancel it did not honour, and
  * its end written here only when its job process died before it wrote it (one writer). The takes it yields to are read
@@ -51,7 +51,7 @@ export async function startHeavy(w: Worker, stored: JobRecord): Promise<void> {
     closeSync(out);
   }
   // A spawn that failed (ENOENT, EAGAIN) has no pid until its `error` event: 0, which signal.ts never signals and QoS
-  // never touches (review B L1).
+  // never touches.
   const pid = child.pid ?? 0;
   const h: HeavyChild = {
     id: stored.id,
@@ -144,7 +144,7 @@ export async function steerHeavy(w: Worker, h: HeavyChild): Promise<void> {
     await h.qos.hold();
   } else {
     if (h.qos.held) {
-      // The yield goes first: whoever sees normal priority again sees it gone (review B H1).
+      // The yield goes first: whoever sees normal priority again sees it gone.
       await recordYield(w, h.id, null);
       await h.qos.release();
       w.log(`job ${h.id}: normal priority again`);
@@ -159,7 +159,7 @@ export async function steerHeavy(w: Worker, h: HeavyChild): Promise<void> {
       await recordYield(w, h.id, null);
     }
   }
-  // Critique M3: a cancelled job ends itself (teardown, clean-ups) — at background priority during a take; its tree
+  // A cancelled job ends itself (teardown, clean-ups) — at background priority during a take; its tree
   // is killed only when it has not ended `cancelGraceMs` after the cancel.
   if (h.cancelSeen === undefined && (await w.queue.cancelOf(h.id)) !== undefined) h.cancelSeen = w.clock.monotonic();
   if (h.cancelSeen !== undefined && !h.killed && w.clock.monotonic() - h.cancelSeen >= w.cancelGraceMs) {

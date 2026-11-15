@@ -1,5 +1,5 @@
 /**
- * Review A #3 / B L5 (L4.2 fixes): the environment of a jobs worker a client starts. Every client but the CLI (the
+ * The environment of a jobs worker a client starts. Every client but the CLI (the
  * Studio, an MCP client, tests) hands its worker cleanWorkerEnv — no package-manager variables, no model or agent
  * credential, no code loaded from the workspace (NODE_OPTIONS files, NODE_PATH / DYLD_* / LD_* entries inside one of its
  * folders or relative), PATH without its folders under any spelling — the tool variables kept as they are (the

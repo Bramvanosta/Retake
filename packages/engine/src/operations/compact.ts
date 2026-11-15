@@ -1,8 +1,7 @@
 /**
- * Compact results (L5.8, R-FLD-34): the `detail` argument, the run status as run_status returns it by default — the
+ * Compact results (R-FLD-34): the `detail` argument, the run status as run_status returns it by default — the
  * status, where it failed, the paths to read — and the review as review_get returns it, and, with `detail: "full"`,
- * everything as before (moved from the MCP server's compact.ts: the run's in L7.13 with run_status, the review's in
- * L7.14 with review_get, the inspection's in L7.15 with page_inspect). Nothing the summary says is dropped: run.json and
+ * everything (the run's, the review's and the inspection's). Nothing the summary says is dropped: run.json and
  * report.json keep the rest.
  *
  * Trust is unchanged: what the filmed site or the scenario wrote stays under `untrusted` (capUntrusted still applies).

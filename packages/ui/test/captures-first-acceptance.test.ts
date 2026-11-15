@@ -1,5 +1,5 @@
 /**
- * L5.14b measured acceptance of captures first (heavy: gated by RETAKE_TEST_CAPTURES_FIRST=1, run once by hand with the
+ * The measured acceptance of captures first (heavy: gated by RETAKE_TEST_CAPTURES_FIRST=1, run once by hand with the
  * machine otherwise quiet) — from the Studio's own submits (`scenario_run`, `scenario_render` over its HTTP API) with
  * the real worker it starts, on a copy of projects/northfield-fixture whose shop is the fixture product on free ports
  * (port 0: two runs at once, or a stray listener, never collide). The scenario is `quote` without the two hooks the Studio cannot approve (the console tab's js hook and a
@@ -8,21 +8,21 @@
  * - 3 times: a render queued and running, then a take submitted — the take starts at once (the render does not hold
  *   it), the render runs at background priority while the take films (its job's `yield`, its job process at `ps -o pri`
  *   4), at normal priority again after it, and finishes with the reference's frames — identical (framemd5) on the
- *   software path, SSIM ≥ 0.995 on every frame on the GPU path (L5.15: ANGLE + VideoToolbox are not frame-identical run
- *   to run); the reference and every render beside a take use the same resolved policy, none fell back (else the
+ *   software path, SSIM ≥ 0.995 on every frame on the GPU path (ANGLE + VideoToolbox are not frame-identical run to
+ *   run); the reference and every render beside a take use the same resolved policy, none fell back (else the
  *   comparison would not mean anything: a refusal, not a pass);
- * - a quiet machine first (review B M2): the 1-minute load average at the start at most half the cores, each alone
+ * - a quiet machine first: the 1-minute load average at the start at most half the cores, each alone
  *   take's highest load at most 1.5 × the cores and the alone takes' motion fps within QUIET_SPREAD_FPS of each other —
  *   else the test FAILS "machine not quiet — re-run" (it never passes on a noisy machine);
  * - fixed bars, independent of the noise: every take beside a render films motion at ≥ the alone median − 2 fps; the
  *   beside takes' median dropped and kicked frames ≤ the alone takes' most; freezes ≤ the alone takes' most;
  * - the render's speed (frames per second) measured before the take, during it and after it: after ≥ 0.8 × before.
- *   "Slower during" is reported, not asserted (L5.15, decided before the run, DESIGN §4q): on the GPU path most of the
+ *   "Slower during" is reported, not asserted (decided before the run, DESIGN §4q): on the GPU path most of the
  *   render's work is the GPU's and VideoToolbox's, which background QoS does not reach — the take's bars are what
  *   protects the take. The job process and at least half of its tree are at `ps -o pri` 4 during the take (a few
  *   Chromium processes keep a priority of their own, 46 / 47); every process that was at 4 and is still alive is not
  *   after it.
- * - L5.15: the renders run the shipped default policy (this file sets RETAKE_RENDER_GL / _ENCODER back to `auto`).
+ * - The renders run the shipped default policy (this file sets RETAKE_RENDER_GL / _ENCODER back to `auto`).
  * The numbers are printed (and written to RETAKE_CAPTURES_FIRST_OUT when set) for the requirement's evidence.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -156,7 +156,7 @@ async function submitRender(run: string): Promise<{ job: string; id: string }> {
   return { job: String(d.job), id: String(d.render_id) };
 }
 
-/** The record of a render: what drew it (L5.15 `policy`). */
+/** The record of a render: what drew it (its `policy`). */
 function renderPolicyOf(id: string): { gl: string; encoder: string; fallback: boolean } {
   const r = JSON.parse(readFileSync(join(project, 'renders', `${id}.json`), 'utf8')) as { policy?: { gl: { used: string }; encoder: { used: string }; fallback?: unknown } };
   return { gl: r.policy?.gl.used ?? 'software', encoder: r.policy?.encoder.used ?? 'libx264', fallback: r.policy?.fallback !== undefined };
@@ -273,7 +273,7 @@ describe.skipIf(!ENABLED)('captures first, measured from the Studio (RETAKE_TEST
     'takes beside a render are within the alone spread; the render is at background priority during each take, back after, its frames unchanged',
     async () => {
       const t0 = Date.now();
-      // 0. A quiet machine, or no conclusion (review B M2).
+      // 0. A quiet machine, or no conclusion.
       const startLoad = load1();
       if (!(startLoad <= CORES / 2)) notQuiet(`load average ${startLoad} at the start on ${CORES} cores (at most ${CORES / 2})`);
       // 1. Takes alone.
@@ -303,7 +303,7 @@ describe.skipIf(!ENABLED)('captures first, measured from the Studio (RETAKE_TEST
       const refFrames = framemd5(ref.id);
       expect(refFrames.length).toBeGreaterThan(100);
       const refPolicy = renderPolicyOf(ref.id);
-      // A GPU-path failure of the shipped default is a finding, not noise (review B L4): its own failure, never "re-run".
+      // A GPU-path failure of the shipped default is a finding, not noise: its own failure, never "re-run".
       expect(
         refPolicy.fallback,
         `the reference render (${ref.id}) failed on the GPU path and was rendered again in software — a failure of the default render path on this Mac, not a busy machine`,
@@ -326,7 +326,7 @@ describe.skipIf(!ENABLED)('captures first, measured from the Studio (RETAKE_TEST
             await sleep(250);
           }
         })();
-        // Rendering for 4 s at least (its speed before the take: review B M3), then the take.
+        // Rendering for 4 s at least (its speed before the take), then the take.
         await until('the render rendering for 4 s', () => samples.length >= 2 && samples[samples.length - 1]!.t - samples[0]!.t >= 4000, 10 * 60_000);
         const take = await submitTake();
         // It starts at once: the render does not hold it (a capture slot of its own).
@@ -370,7 +370,7 @@ describe.skipIf(!ENABLED)('captures first, measured from the Studio (RETAKE_TEST
           60_000,
         );
         const after = (await queue.get(r.job))!;
-        // Each process lowered during the take and still alive: back from 4 (review B M3: per process, not "any").
+        // Each process lowered during the take and still alive: back from 4 (per process, not "any").
         await sleep(500);
         const backFrom = after.state === 'running' ? priOfPids(lowered) : new Map<number, number>();
         const priAfter = [...backFrom.values()];
@@ -380,7 +380,7 @@ describe.skipIf(!ENABLED)('captures first, measured from the Studio (RETAKE_TEST
         expect(end.state).toBe('succeeded');
         const same = framemd5(r.id);
         const policy = renderPolicyOf(r.id);
-        // The same resolved policy as the reference, no fallback (critique M3): else the comparison means nothing.
+        // The same resolved policy as the reference, no fallback: else the comparison means nothing.
         expect(policy, `the render beside the take drew as the reference did (${r.id})`).toEqual(refPolicy);
         const ssim = gpuPath ? ssimFrames(r.id, ref.id) : [];
         const before = samples.filter((s) => !s.held && s.t < take.at);
@@ -412,7 +412,7 @@ describe.skipIf(!ENABLED)('captures first, measured from the Studio (RETAKE_TEST
           expect(backFrom.get(held.worker!.pid), 'the job process after the take').not.toBe(4);
           for (const [p, v] of backFrom) expect(v, `pid ${p} lowered during the take, after it`).not.toBe(4);
         }
-        // Back to its speed after the take. Slower during it is reported (renders[].slower_during), not asserted (L5.15).
+        // Back to its speed after the take. Slower during it is reported (renders[].slower_during), not asserted.
         expect(speed.before, "the render's speed before the take").not.toBeNull();
         expect(speed.during).not.toBeNull();
         expect(speed.after, "the render's speed after the take").not.toBeNull();
@@ -425,7 +425,7 @@ describe.skipIf(!ENABLED)('captures first, measured from the Studio (RETAKE_TEST
       }
 
       const a = { fps: aloneFps, kicked: alone.map((x) => x.kicked), dropped: alone.map((x) => x.dropped), stalls: alone.map((x) => x.stalls) };
-      // Fixed bars (review B M2): never widened by the alone takes' noise (the quiet gate refused a noisy machine above).
+      // Fixed bars: never widened by the alone takes' noise (the quiet gate refused a noisy machine above).
       const bar = median(a.fps) - 2;
       const out = {
         start_load: startLoad,

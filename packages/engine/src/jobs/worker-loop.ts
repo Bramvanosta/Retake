@@ -71,7 +71,7 @@ export async function serve(w: Worker): Promise<boolean> {
         continue;
       }
     }
-    // Not while this worker's take films (review B L2: the stamp is a synchronous walk on the take's event loop).
+    // Not while this worker's take films (the stamp is a synchronous walk on the take's event loop).
     if (w.clock.monotonic() - lastBuildCheck >= w.buildCheckMs && w.capture?.filming !== true) {
       lastBuildCheck = w.clock.monotonic();
       if (w.processes.buildStamp() !== build) {
@@ -85,7 +85,7 @@ export async function serve(w: Worker): Promise<boolean> {
   return false;
 }
 
-/** Critique L3: both slots end before the lock is released (a next worker must not claim beside a dying job). */
+/** Both slots end before the lock is released (a next worker must not claim beside a dying job). */
 export async function drain(w: Worker): Promise<void> {
   if (w.capture) await w.capture.promise;
   if (w.heavy) {

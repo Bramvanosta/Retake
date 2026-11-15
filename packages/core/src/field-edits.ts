@@ -1,9 +1,10 @@
 /**
- * Field edits of a scenario's edit part from the Studio's timeline (L4.5, R-UI-23): one value of the video, a scene, a
+ * Field edits of a scenario's edit part from the Studio's timeline (R-UI-23): one value of the video, a scene, a
  * card or an interstitial changed in one click — a layout, the caption component, a speed, a transition, a component, a
  * duration, the intro / outro switch — as a splice of the file's text, never a re-serialisation (step-edits.ts's rules:
  * every byte outside the lines it touches stays). Pure; the engine (scenarios.edit) re-parses the result and refuses it
- * unless its value is exactly `intended` (core verifyEditText), then validates and writes it under L4.3's rules.
+ * unless its value is exactly `intended` (core verifyEditText), then validates and writes it under the rules of the
+ * Studio's scenario writes.
  *
  * - The allow-list (FIELD_PATHS) is the only set of paths `set_field` takes: all of them are edit values (core
  *   filmedChanges: a render of the same take re-plans them, no new capture). Hooks, vars, env, capture, pacing and steps
@@ -11,12 +12,12 @@
  * - A value is changed only while the file still holds `from` there (stale otherwise), and a scene, card or
  *   interstitial is addressed by its id plus its guard (stepGuard of the entry as written): an edit sent on a newer
  *   version that moved or changed the entry is refused, never applied to a neighbour.
- * - Its own small editor (critique B10: L4.3's step operations untouched; since L4.7 map-edits.ts `setMapPath`, shared
- *   with theme edits): a scalar set (CST, its quoting kept), a value replaced (a flow value, or a block map written over
- *   by `intro: false`), a pair added — a new top-level key just before `scenes:`, a new scene key just before `steps:`,
- *   else after the map's last pair or into a flow map —, a pair removed with the comment lines that belong to it;
- *   removing the last key of a nested map (`intro: {component: x}` → the theme's intro) removes the parent pair.
- * - `template` (L4.7, critique B1): the scenario's theme by name (a render of every existing take re-plans it, L5.5);
+ * - Its own small editor (the step operations untouched; map-edits.ts `setMapPath`, shared with theme edits): a scalar
+ *   set (CST, its quoting kept), a value replaced (a flow value, or a block map written over by `intro: false`), a pair
+ *   added — a new top-level key just before `scenes:`, a new scene key just before `steps:`, else after the map's last
+ *   pair or into a flow map —, a pair removed with the comment lines that belong to it; removing the last key of a
+ *   nested map (`intro: {component: x}` → the theme's intro) removes the parent pair.
+ * - `template`: the scenario's theme by name (a render of every existing take re-plans it);
  *   the engine accepts only a theme the workspace lists.
  */
 import { isDeepStrictEqual } from 'node:util';
@@ -104,7 +105,7 @@ export function fieldValueProblem(field: string, to: unknown): string | null {
     return `${field} takes crossfade, cut, fade-black or a transition component "namespace/name"`;
   }
   if (kind === 'component' && !COMPONENT_ID_RE.test(to)) return `${field} takes a component "namespace/name"`;
-  // L4.7 (critique B1): a theme of the workspace by its name (templates.list) — never a path; the engine checks it is listed.
+  // A theme of the workspace by its name (templates.list) — never a path; the engine checks it is listed.
   if (kind === 'theme' && !isThemeName(to)) return `${field} takes a theme name (the themes list names them), never a path`;
   return null;
 }
@@ -217,7 +218,7 @@ export function applyFieldEdit(text: string, edit: FieldEdit): FieldEditApplied 
     throw new StepEditError('stale', `${what} changed meanwhile (it is now ${current === undefined ? 'not set' : JSON.stringify(current)}): read the file again`, field);
   }
   if (isDeepStrictEqual(current, edit.to)) throw new StepEditError('invalid', `nothing to change: ${what} is already ${say(edit.to)}`, field);
-  // Review B H2: the intro / outro switch replaces or removes the whole map — never over its own content (a title, a
+  // The intro / outro switch replaces or removes the whole map — never over its own content (a title, a
   // tagline, an image): only a map of component / duration is switched; the YAML view changes the rest.
   if (kind === 'switch') {
     const v = getAt(loc.value, segs);

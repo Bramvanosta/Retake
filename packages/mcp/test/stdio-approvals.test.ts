@@ -1,5 +1,5 @@
 /**
- * Human approval of hooks through MCP elicitation (L3.1, R-MCP-33/34/35): `retake mcp` spawned from the sources over
+ * Human approval of hooks through MCP elicitation (R-MCP-33/34/35): `retake mcp` spawned from the sources over
  * stdio, driven by SDK clients that answer elicitation (accept, decline, never) or do not declare it. hooks_run and
  * env_reset are jobs the workspace's worker (a separate process) runs, with the approvals taken at submit; the fixture
  * product runs on free ports (no browser is needed).
@@ -82,7 +82,7 @@ async function makeWorkspace(): Promise<string> {
   await writeFile(join(project, 'project.yaml'), yaml);
   await mkdir(join(project, 'hooks'), { recursive: true });
   await writeFile(join(project, 'hooks', 'post.yaml'), `- name: post\n  shell: {run: "curl -s -X POST ${fixture.urls.console}/api/reset"}\n  writes: false\n`);
-  // L7.15: a dry run whose setup hook runs a shell command (run_dry hooks: "run" needs a human for it), twice.
+  // A dry run whose setup hook runs a shell command (run_dry hooks: "run" needs a human for it), twice.
   for (const n of ['say-accept', 'say-decline']) {
     await writeFile(
       join(project, 'scenarios', `${n}.yaml`),

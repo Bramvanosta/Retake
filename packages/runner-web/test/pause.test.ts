@@ -1,5 +1,5 @@
 /**
- * L4.4: pausing a run between steps (pause.ts) and the run's new progress events. A dry run waits at the top of a step
+ * Pausing a run between steps (pause.ts) and the run's new progress events. A dry run waits at the top of a step
  * while its gate asks (run.json says `paused`, then records the pause); a cancel while paused ends the wait at once and
  * the teardown and the setup's rollbacks still run; a pause longer than its maximum stops the run the same way (a
  * capture's pause: capture-pause.test.ts). The `outline` event lists the steps the run executes (`until`, skipped scenes
@@ -158,8 +158,8 @@ describe('pausing a run between steps', () => {
 
   it('the outline lists the steps the run executes before any step starts: `until` and skipped scenes honoured; secrets masked', async () => {
     const events: RunProgress[] = [];
-    // A secret the scene uses ({{env:…}}, resolved by an injected reader), also written as is in a step (review A: the
-    // outline came before the secrets were resolved, so that step's description showed it).
+    // A secret the scene uses ({{env:…}}, resolved by an injected reader), also written as is in a step (the outline
+    // came before the secrets were resolved, so that step's description showed it).
     const SECRET = 'Sesame-Open-2026';
     await run(
       'outline',

@@ -1,9 +1,9 @@
 /**
- * The render use case (engine render/render-video.ts, moved from the editor; its tests with it): it writes the record
- * from what the renderer answers and reads a renderer's failure by what it says — its kind (a cancel that is not the
- * editor's class is still recorded `cancelled`), its `renderPath` and `renderWarnings` —; the record's members and
- * bytes; an export's re-rendered format goes through it; a render without its renderer, or with the options of the
- * editor's own driver beside one, is refused (a reserved version released); a project slug or folder is refused.
+ * The render use case (engine render/render-video.ts): it writes the record from what the renderer answers and reads a
+ * renderer's failure by what it says — its kind (a cancel that is not the editor's class is still recorded
+ * `cancelled`), its `renderPath` and `renderWarnings` —; the record's members and bytes; an export's re-rendered format
+ * goes through it; a render without its renderer, or with the options of the editor's own driver beside one, is refused
+ * (a reserved version released); a project slug or folder is refused.
  * The renderer here draws nothing (no Remotion, no browser, no ffmpeg / ffprobe); the renders go to the disk's outputs.
  */
 import { existsSync } from 'node:fs';
@@ -227,10 +227,10 @@ describe("a renderer named in the options and not handed, or handed beside the o
   });
 });
 
-// ── The bytes of a record (L7.6b, pinned before the record becomes a union) ──
+// ── The bytes of a record (pinned before the record becomes a union) ──
 
 describe('the record renderVideo writes, and the one a failure carries: their members, in order', () => {
-  // L7.9: `template_folder` (the theme's folder, core io templateFolderId) after `template_sha256`.
+  // `template_folder` (the theme's folder, core io templateFolderId) after `template_sha256`.
   const BASE = [
     'version',
     'id',
@@ -308,7 +308,7 @@ describe('the record renderVideo writes, and the one a failure carries: their me
   });
 });
 
-// L7.9 fix pass: an export's re-rendered format plans with the master's theme folder (editor exportThemeRef). Before,
+// An export's re-rendered format plans with the master's theme folder (editor exportThemeRef). Before,
 // with its theme's name: a project on `./themes/brand` failed "not found" (or took the workspace's `brand`).
 describe("an export's re-rendered format uses the master's theme folder", () => {
   it('a project on a theme folder: the vertical is rendered with that folder, as the master was', async () => {

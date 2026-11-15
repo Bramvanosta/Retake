@@ -1,5 +1,5 @@
 /**
- * `export` jobs (L3.2, R-MCP-32): delivery files of a render in exports/<render_id>/ (+ manifest.json), submitted by
+ * `export` jobs (R-MCP-32): delivery files of a render in exports/<render_id>/ (+ manifest.json), submitted by
  * a client outside the CLI and run by the jobs worker with the editor's `exportRender`. Formats derived from the master
  * are transcoded with ffmpeg; the others (vertical, square, 4K from a smaller master) are re-rendered through the
  * planner from the master's run, theme and overrides — under the trust rules of a render job (planRun's gates, the

@@ -1,8 +1,9 @@
 /**
  * The worker lock (<workspace>/.retake/workers/worker.lock): one worker per workspace, so one capture and one heavy job
- * at a time (L5.14: captures first; a heavy job yields during a take — a capture is CPU- and GPU-heavy). It holds the worker's pid, start time and build. Created whole and
- * atomically (sandbox createExclusive); a lock whose process is gone — or whose pid belongs to another program now — is
- * stale and taken over under a breaker (sandbox breakStale), so two workers finding one stale lock never both take it.
+ * at a time (captures first; a heavy job yields during a take — a capture is CPU- and GPU-heavy). It holds the worker's
+ * pid, start time and build. Created whole and atomically (sandbox createExclusive); a lock whose process is gone — or
+ * whose pid belongs to another program now — is stale and taken over under a breaker (sandbox breakStale), so two
+ * workers finding one stale lock never both take it.
  */
 import { readFileSync, rmSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
@@ -20,18 +21,18 @@ import { z } from 'zod';
 
 export interface WorkerLockRecord extends ProcessIdentity {
   host: string;
-  /** The version it runs (a version's shape only: an odd one is dropped when the lock is read — review c A-L4). */
+  /** The version it runs (a version's shape only: an odd one is dropped when the lock is read). */
   version?: string;
   /** The code it runs (buildStamp): a worker of another build hands over once idle. */
   build: string;
   since: string;
   /**
-   * The client whose submit started it (L4.2: `ui`, `mcp`; absent: `retake worker` in a terminal, or an older build).
+   * The client whose submit started it (`ui`, `mcp`; absent: `retake worker` in a terminal, or an older build).
    * One worker serves the workspace, in the environment of whoever started it.
    */
   started_by?: string;
   /**
-   * L5.16c (critique M6): which copy of Retake it runs — the `.app` it runs from, or the repository checkout (core
+   * Which copy of Retake it runs — the `.app` it runs from, or the repository checkout (core
    * engineLocation). Absent: an older build. A workspace's worker of another copy is said (doctor, the Studio, a submit).
    */
   engine?: string;
@@ -43,7 +44,7 @@ function engineOk(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith('/') && v.length <= 4096 && !HIDDEN_RE.test(v);
 }
 
-/** A recorded version (review c A-L4): a version's shape (`1.2.3`, an optional short suffix), at most 40 characters. */
+/** A recorded version: a version's shape (`1.2.3`, an optional short suffix), at most 40 characters. */
 export const LOCK_VERSION_RE = /^\d{1,6}\.\d{1,6}\.\d{1,6}(?:[-+.][0-9A-Za-z.-]{1,20})?$/;
 /** A recorded build stamp (core buildStamp: hex) and start time (ISO): anything else is dropped or replaced. */
 const LOCK_BUILD_RE = /^[0-9A-Za-z._-]{1,64}$/;
@@ -89,7 +90,7 @@ function parse(text: string | null): WorkerLockRecord | null {
   // A client name only (it is shown: doctor, retake jobs, the Studio's sidebar).
   if (v.started_by !== undefined && !(typeof v.started_by === 'string' && WORKER_CLIENT_RE.test(v.started_by))) delete v.started_by;
   if (v.engine !== undefined && !engineOk(v.engine)) delete v.engine;
-  // Review c A-L4: every field that is shown has its shape (a lock is a file anyone of this user can write).
+  // Every field that is shown has its shape (a lock is a file anyone of this user can write).
   if (v.version !== undefined && !(typeof v.version === 'string' && v.version.length <= 40 && LOCK_VERSION_RE.test(v.version))) delete v.version;
   if (!(typeof v.build === 'string' && LOCK_BUILD_RE.test(v.build))) v.build = '?';
   if (!(typeof v.since === 'string' && LOCK_SINCE_RE.test(v.since))) v.since = '?';
@@ -104,8 +105,8 @@ export function readWorkerLock(root: string): WorkerLockRecord | null {
 
 /**
  * Whether the process a lock names is its worker. A worker records its start time (ps): a lock without one names a pid
- * that cannot be told from any other process of the user (review A #7: a lock forged in the workspace naming the
- * Studio's own pid made it never start a worker, the sidebar saying "started by the Studio") — it counts only where ps
+ * that cannot be told from any other process of the user (a lock forged in the workspace naming the Studio's own
+ * pid made it never start a worker, the sidebar saying "started by the Studio") — it counts only where ps
  * cannot tell this pid's start time either (then the pid alone decides, as before).
  */
 async function holderAlive(held: WorkerLockRecord): Promise<boolean> {

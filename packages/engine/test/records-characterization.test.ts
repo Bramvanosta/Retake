@@ -1,5 +1,5 @@
 /**
- * The run records and takes as the engine answers them (L7.6a), state by state and site by site: the list of runs, a
+ * The run records and takes as the engine answers them, state by state and site by site: the list of runs, a
  * run's status, the capture the Studio's Render edits, the board's capture, the timeline view's default take and its
  * picker, and what prune lists. The states are those of test-support/src/records/states.json (OLD: a good capture of
  * `quote`; NEW: the state named), one project per state in a temp workspace; nothing is rendered, no job runs.
@@ -7,7 +7,7 @@
  * A row marked `D-<n>` is an outcome a decision of the lot changes; `F-<n>` one a fix made on the way changes; `U-1`
  * the row of a capture stopped by `--until` (it stays usable; later parts add a notice); `P` a row of prune, which this
  * lot must leave as it is (what prune keeps is decided in a lot of its own). Until a part moves a row it holds today's
- * answer. That lot is L7.7: the twelve prune cells it moved say so over their row (`L7.7 P-1` / `L7.7 U-1`; the rule
+ * answer. The twelve prune cells a later decision moved say so over their row (`P-1` / `U-1`; the rule
  * layout by layout: prune-keeps.test.ts); the renders renamed by hand at the end of this file did not move.
  */
 import { execFileSync } from 'node:child_process';
@@ -114,7 +114,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'NEW of [NEW OLD]',
     prune: 'run OLD (older capture nothing uses) | kept 1',
   },
-  // D-1: the timeline's default is OLD (was the refusal of NEW, which has no timeline)
+  // D-1: the timeline's default is OLD (not the refusal of NEW, which has no timeline)
   a: {
     list: 'NEW:running OLD:succeeded',
     status: 'running',
@@ -124,7 +124,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [NEW OLD]',
     prune: 'nothing | kept 2',
   },
-  // D-1: the timeline's default is OLD (was the refusal of NEW)
+  // D-1: the timeline's default is OLD (not the refusal of NEW)
   b: {
     list: 'NEW:queued OLD:succeeded',
     status: 'queued',
@@ -134,7 +134,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [NEW OLD]',
     prune: 'nothing | kept 2',
   },
-  // D-1: the timeline's default is OLD (was NEW, the failed take)
+  // D-1: the timeline's default is OLD (not NEW, the failed take)
   c: {
     list: 'NEW:failed OLD:succeeded',
     status: 'failed',
@@ -144,7 +144,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [NEW OLD]',
     prune: 'run NEW (failed take) | kept 1',
   },
-  // D-1: the timeline's default is OLD (was the refusal of NEW, which has no film)
+  // D-1: the timeline's default is OLD (not the refusal of NEW, which has no film)
   d: {
     list: 'NEW:failed OLD:succeeded',
     status: 'failed',
@@ -154,7 +154,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [NEW OLD]',
     prune: 'run NEW (failed take) | kept 1',
   },
-  // D-1: the timeline's default is OLD (was the refusal of NEW)
+  // D-1: the timeline's default is OLD (not the refusal of NEW)
   e: {
     list: 'NEW:cancelled OLD:succeeded',
     status: 'cancelled',
@@ -173,8 +173,8 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [OLD]',
     prune: 'run NEW (dry run) | kept 1',
   },
-  // D-1: the timeline's default is OLD (was the refusal of NEW)
-  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
+  // D-1: the timeline's default is OLD (not the refusal of NEW) P-1: prune — OLD, the take that can be edited, stays
+  // (it listed OLD)
   g: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -184,8 +184,8 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [NEW OLD]',
     prune: 'nothing | kept 2',
   },
-  // D-1: the timeline's default is OLD (was the refusal of NEW)
-  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
+  // D-1: the timeline's default is OLD (not the refusal of NEW) P-1: prune — OLD, the take that can be edited, stays
+  // (it listed OLD)
   gn: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -196,7 +196,7 @@ const TABLE: Record<string, Row> = {
     prune: 'nothing | kept 2',
   },
   // D-1: the board's capture and the timeline's default are OLD (frames without a film are no take; the board said NEW)
-  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
+  // P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
   gf: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -247,7 +247,7 @@ const TABLE: Record<string, Row> = {
     prune: 'nothing | kept 2',
   },
   // D-1: Render, the board and the timeline's default are OLD (NEW's timeline does not read; the timeline view threw a parser's message)
-  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
+  // P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
   l: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -257,8 +257,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [NEW OLD]',
     prune: 'nothing | kept 2',
   },
-  // D-6
-  // L7.7 P-1: prune — a take of a newer Retake is left alone and not counted: OLD stays (it listed OLD)
+  // D-6 P-1: prune — a take of a newer Retake is left alone and not counted: OLD stays (it listed OLD)
   o: {
     list: 'NEW:newer OLD:succeeded',
     listOf: 'OLD:succeeded',
@@ -269,8 +268,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [OLD]',
     prune: 'nothing | kept 2',
   },
-  // D-6
-  // L7.7 P-1: prune — a take of a newer Retake is left alone (it listed NEW)
+  // D-6 P-1: prune — a take of a newer Retake is left alone (it listed NEW)
   of: {
     list: 'NEW:newer OLD:succeeded',
     listOf: 'OLD:succeeded',
@@ -301,7 +299,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [OLD]',
     prune: 'nothing | kept 2',
   },
-  // D-1: the timeline's default is OLD (was NEW, whose status Retake never writes)
+  // D-1: the timeline's default is OLD (not NEW, whose status Retake never writes)
   r: {
     list: 'NEW:done OLD:succeeded',
     status: 'done',
@@ -311,7 +309,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [NEW OLD]',
     prune: 'nothing | kept 2',
   },
-  // F-6 (small point 3.5): a run.json that is no record is no run of a list nor of the Studio (it was a row of empty
+  // F-6: a run.json that is no record is no run of a list nor of the Studio (it was a row of empty
   // fields); it is said as what it is: a row with its id and the sentence, and run_status's refusal
   s: {
     list: 'NEW:unread OLD:succeeded',
@@ -363,7 +361,7 @@ const TABLE: Record<string, Row> = {
     prune: 'run OLD (older capture nothing uses) | kept 1',
   },
   // U-1: stays NEW everywhere; later parts say it stops at a step (no notice today)
-  // L7.7 U-1: prune — OLD, the last complete capture, stays (it listed OLD)
+  // U-1: prune — OLD, the last complete capture, stays (it listed OLD)
   t6: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -373,7 +371,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'NEW of [NEW OLD]',
     prune: 'nothing | kept 2',
   },
-  // D-1: the timeline's default is OLD (was NEW, whose record still says running)
+  // D-1: the timeline's default is OLD (not NEW, whose record still says running)
   t7: {
     list: 'NEW:running OLD:succeeded',
     status: 'running',
@@ -392,8 +390,8 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [OLD]',
     prune: 'nothing | kept 1',
   },
-  // D-7 (small point 3.1): the timeline's default is OLD (was NEW, refused for its linked film)
-  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
+  // D-7: the timeline's default is OLD (not NEW, refused for its linked film) P-1: prune — OLD, the take that can be
+  // edited, stays (it listed OLD)
   t9: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -404,8 +402,8 @@ const TABLE: Record<string, Row> = {
     prune: 'nothing | kept 2',
   },
   // A timeline made by hand, without its run id: no take for `latest` (Render, the board and the timeline's default are
-  // OLD: they were NEW); named, it still plans (the editor's table)
-  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
+  // OLD: they were NEW); named, it still plans (the editor's table) P-1: prune — OLD, the take that can be edited,
+  // stays (it listed OLD)
   hr: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -415,8 +413,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [NEW OLD]',
     prune: 'nothing | kept 2',
   },
-  // The same, its capture block naming no film
-  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
+  // The same, its capture block naming no film P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
   hf: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -437,8 +434,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'NEW of [NEW OLD]',
     prune: 'run OLD (older capture nothing uses) | kept 1',
   },
-  // D-7
-  // L7.7 P-1: prune — a linked folder is never the last capture: OLD stays (it listed OLD)
+  // D-7 P-1: prune — a linked folder is never the last capture: OLD stays (it listed OLD)
   k1: {
     list: 'OLD:succeeded',
     // run_status reads no run folder that is a link out of runs/ (the refusal runs.ts gives).
@@ -449,8 +445,7 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [OLD]',
     prune: 'nothing | kept 2',
   },
-  // D-7
-  // L7.7 P-1: prune — a linked folder is never listed (it listed NEW)
+  // D-7 P-1: prune — a linked folder is never listed (it listed NEW)
   k1f: {
     list: 'OLD:succeeded',
     // run_status reads no run folder that is a link out of runs/ (the refusal runs.ts gives).
@@ -697,8 +692,8 @@ describe('the lists and the default take', () => {
     renameSync(b.runs, elsewhere);
     symlinkSync(elsewhere, b.runs);
     const plan = (run_id?: string) => answer(b, async () => who(b, (await engine.renders.plan({ project: b.slug, scenario: STATES.scenario, ...(run_id ? { run_id } : {}) })).run_id));
-    // Through the engine neither reads a run outside the project (before L7.6a's close `latest` planned NEW there while
-    // naming NEW was refused): `latest` passes both captures over and says how many, in the rule's fixed words.
+    // Through the engine neither reads a run outside the project (`latest` never plans NEW there while naming NEW is
+    // refused): `latest` passes both captures over and says how many, in the rule's fixed words.
     expect(await plan()).toBe(
       'invalid: no capture run of scenario "quote" in <root>/projects/l-linked-runs/runs: capture one with `retake run l-linked-runs quote` — 2 captures of it cannot be edited: it lies outside the project (2)',
     );
@@ -751,8 +746,8 @@ describe("the engine's other readers of a run folder go through the one parse bo
   });
 });
 
-// ── Prune and the renders (P: L7.6a and L7.7 leave every row as it is; R-1 goes with the render records) ──
-// L7.6b: these rows moved with R-1 (rows 2 and 3 of the lot's table — a renamed record is left alone and keeps the
+// ── Prune and the renders (P: every row stays as it is; R-1 goes with the render records) ──
+// These rows moved with R-1 (rows 2 and 3 of the lot's table — a renamed record is left alone and keeps the
 // render and the take it names; the render written under its own name did not move).
 
 describe('prune and renders renamed by hand', () => {
@@ -943,10 +938,10 @@ describe('the records the engine writes', () => {
   });
 });
 
-// ── The render records (L7.6b), state by state and site by site ─────────────
+// ── The render records, state by state and site by site ─────────────
 //
 // The states are those of test-support/src/records/render-states.json: two good captures (OLD, NEW), a good render
-// `quote-v1` and the file(s) the state names. Every cell was first pinned on the code before the lot (its P0); the
+// `quote-v1` and the file(s) the state names. Every cell was first pinned on the code before the lot; the
 // cells its engine and prune parts changed are marked `// moved: <row>` with the row of the lot's table of visible
 // changes (the lead's plan §4, and the rulings added to it: rows 21–29) — each flipped on purpose, none other moved —,
 // a raw TypeError is pinned as what it is. The three readers staged to the next lot (the search index, the timeline's
@@ -1002,7 +997,7 @@ describe('the render records, state by state and site by site', () => {
       }),
     index: (b: BuiltRenders) => answer(b, async () => (await renderIndex(diskOutputs.renders, b.dir)).map((r) => r.id).join(' ') || '-'),
     commentsLatest: (b: BuiltRenders) => answer(b, async () => `listed ${(await engine.comments.list(b.slug, { render: 'latest', scenario: 'quote' })).total}`),
-    // L7.6c: the search index's rows of the project (id:status), in the order of ids.
+    // The search index's rows of the project (id:status), in the order of ids.
     search: (b: BuiltRenders) =>
       answer(
         b,
@@ -1012,7 +1007,7 @@ describe('the render records, state by state and site by site', () => {
             .sort()
             .join(' ') || '-',
       ),
-    // L7.6c: the timeline's version matcher on the id asked, at the creation times of quote-v1 (09:01) and quote-v2
+    // The timeline's version matcher on the id asked, at the creation times of quote-v1 (09:01) and quote-v2
     // (09:02), against the plan of NEW and the fixture's theme hash: the times it says are this version.
     matcher: (b: BuiltRenders) =>
       answer(b, async () => {
@@ -1111,7 +1106,7 @@ describe('the render records, state by state and site by site', () => {
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 7 — latest and workLatest take quote-v1 and say what they passed over; row 6: index lists quote-v1 only
-    // moved: L7.6c — search lists quote-v1 only (before: also the id quote-final.json says, a row of no file)
+    // search lists quote-v1 only (not also the id quote-final.json says, a row of no file)
     'renamed-newest': {
       latest: 'quote-v1:succeeded',
       byId: 'not_found: render "quote-v2" not found in r-renamed-newest (no job, no renders/quote-v2.json): render starts one',
@@ -1126,7 +1121,7 @@ describe('the render records, state by state and site by site', () => {
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 7 — latest and workLatest take quote-v1 and say what they passed over; row 6: index lists quote-v1 only
-    // moved: L7.6c — search lists quote-v1 only (before: also the id quote-final.json says)
+    // search lists quote-v1 only (not also the id quote-final.json says)
     'renamed-fixed': {
       latest: 'quote-v1:succeeded',
       byId: 'not_found: render "quote-v2" not found in r-renamed-fixed (no job, no renders/quote-v2.json): render starts one',
@@ -1141,7 +1136,7 @@ describe('the render records, state by state and site by site', () => {
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 2 — prune lists nothing (OLD stays, no line without a file); row 6: index without quote-v0; row 19: prune counts the four record files
-    // moved: L7.6c — search without quote-v0 (the id quote-final.json says)
+    // search without quote-v0 (the id quote-final.json says)
     'renamed-old': {
       latest: 'quote-v3:succeeded',
       byId: 'not_found: render "quote-v0" not found in r-renamed-old (no job, no renders/quote-v0.json): render starts one',
@@ -1156,7 +1151,8 @@ describe('the render records, state by state and site by site', () => {
       prune: 'nothing | kept 2 runs, 4 renders',
     },
     // moved: row 3 — prune lists nothing (the renamed file says quote-v1: the real quote-v1 stays while it is there); row 6: index names quote-v1 once; row 19: five record files
-    // moved: L7.6c — search names quote-v1 once (before: twice — two rows of one id, the index's transaction failed and the whole index stayed behind)
+    // search names quote-v1 once (not twice: two rows of one id would fail the index's transaction and leave the whole
+    // index behind)
     'renamed-reused': {
       latest: 'quote-v4:succeeded',
       byId: 'quote-v1:succeeded',
@@ -1171,7 +1167,7 @@ describe('the render records, state by state and site by site', () => {
       prune: 'nothing | kept 2 runs, 5 renders',
     },
     // moved: row 6 — index names quote-v1 once; row 19: prune counts two record files
-    // moved: L7.6c — search names quote-v1 once (before: twice — the index's transaction failed)
+    // search names quote-v1 once (not twice: that would fail the index's transaction)
     copy: {
       latest: 'quote-v1:succeeded',
       byId: 'quote-v1:succeeded',
@@ -1186,7 +1182,7 @@ describe('the render records, state by state and site by site', () => {
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 6 — index names quote-v1 once; row 19: prune counts two record files
-    // moved: L7.6c — search names quote-v1 once (before: twice — the index's transaction failed)
+    // search names quote-v1 once (not twice: that would fail the index's transaction)
     'copy-backup': {
       latest: 'quote-v1:succeeded',
       byId: 'quote-v1:succeeded',
@@ -1294,11 +1290,14 @@ describe('the render records, state by state and site by site', () => {
       matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 1 renders',
     },
-    // moved: row 12 — studio and board do not show it as succeeded (counted: `not_shown`), prune leaves it alone, index without it; row 27: `latest` of render_status still names it and says its status as `unknown` (by id: as the file says it, N5)
-    // moved: L7.6c — search says its status as unknown (before: the file's word); matcher: a status Retake never writes is no version of the take (before: 09:02)
+    // moved: row 12 — studio and board do not show it as succeeded (counted: `not_shown`), prune leaves it alone, index
+    // without it; row 27: `latest` of render_status still names it and says its status as `unknown` (by id: as the file
+    // says it)
+    // search says its status as unknown (not the file's word); matcher: a status Retake never writes is no version of
+    // the take (not 09:02)
     paused: {
       latest: 'quote-v2:unknown',
-      byId: 'quote-v2:unknown', // moved: L7.8, decision ii (before: the file's word, `paused`)
+      byId: 'quote-v2:unknown', // decision ii (not the file's word, `paused`)
       work: 'invalid: render quote-v2: its status is not one Retake writes: nothing to read', // moved: fix pass, ruling 27 (before: the file's word, `paused`)
       workLatest: 'taken quote-v1',
       studio: 'quote-v1:succeeded:landscape:NEW',
@@ -1435,7 +1434,7 @@ describe('the render records, state by state and site by site', () => {
     },
     // before the lot a record without a status was `failed` for render_status, `undefined` in a sentence, a succeeded render in the Studio, and prune offered it as an `undefined render`
     // moved: rows 15 and 28 — byId, work: the file does not read as a render record (status); latest passes it over; studio, board, index without it; prune leaves it alone (keeps more)
-    // moved: L7.6c — search lists no row for a file without a status (before: a row without one); matcher: none (before: 09:02)
+    // search lists no row for a file without a status (not a row without one); matcher: none (not 09:02)
     'no-status': {
       latest: 'quote-v1:succeeded',
       byId: 'invalid: render "quote-v2": renders/quote-v2.json does not read as a render record (status)',
@@ -1462,7 +1461,7 @@ describe('the render records, state by state and site by site', () => {
       matcher: '09:02',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
-    // moved: L7.6c — search lists no row for x.json, which says an empty id (before: a row of id "")
+    // search lists no row for x.json, which says an empty id (not a row of id "")
     'empty-id': {
       latest: 'quote-v1:succeeded',
       byId: 'invalid: invalid render id "x": <scenario>-v<N> (render returns it), or "latest"',
@@ -1490,7 +1489,7 @@ describe('the render records, state by state and site by site', () => {
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 4 — the same keeps, now said (`renders_alone`, `render-file`); row 19: prune counts the five record files; row 6: index names quote-v1 once
-    // moved: L7.6c — search names quote-v1 once (before: twice — the index's transaction failed)
+    // search names quote-v1 once (not twice: that would fail the index's transaction)
     'keep-json': {
       latest: 'quote-v4:succeeded',
       byId: 'quote-v1:succeeded',
@@ -1660,9 +1659,9 @@ describe('the render records, state by state and site by site', () => {
       list: (b: BuiltRenders) => answer(b, async () => `listed ${(await engine.comments.list(b.slug, { render: ask(b.state) })).total}`),
       // What a new comment is prepared from (renderForWork, then the comment's own tests).
       anchor: (b: BuiltRenders) => answer(b, async () => `frame ${(await engine.comments.anchorAt(b.slug, { render: ask(b.state), render_created_at: '2026-10-02T09:02:00.000Z', frame: 0 })).frame}`),
-      // The frame service's open (L7.6c: on core's rules — renderForWork, quotableRender, sameRender; no row moved).
+      // The frame service's open (on core's rules — renderForWork, quotableRender, sameRender; no row moved).
       outline: (b: BuiltRenders) => answer(b, async () => `frames ${(await engine.renders.outline(b.slug, { render_id: ask(b.state) })).frames}`),
-      // L7.6c: the viewer's outline of the render as the page read it (quote-v2's creation time): its identity.
+      // The viewer's outline of the render as the page read it (quote-v2's creation time): its identity.
       asRead: (b: BuiltRenders) => answer(b, async () => `frames ${(await engine.renders.outline(b.slug, { render_id: ask(b.state), created_at: '2026-10-02T09:02:00.000Z' })).frames}`),
     };
     const got: Record<string, Record<keyof typeof sites, string>> = {};
@@ -1711,7 +1710,7 @@ describe('the render records, state by state and site by site', () => {
   }, 120_000);
 
   it("what the engine's `latest` passed over is said: a count, the file names under `untrusted` only — render_status, a review and an export submitted, the comment list; a render named by its id says nothing", async () => {
-    // L7.6b (rows 7 and 14): a record renamed by hand, newer than the newest render of its own file.
+    // Rows 7 and 14: a record renamed by hand, newer than the newest render of its own file.
     const b = buildRenderState(root, 'renamed-newest', { slug: 'r-said', film, runFilm: film });
     const passed = [{ file: 'quote-final.json', why: 'renamed' }];
     const st = await engine.renders.status(b.slug, 'latest', { scenario: 'quote' });
@@ -1759,7 +1758,7 @@ describe('the render records, state by state and site by site', () => {
       writeFileSync(join(b.renders, `${value.id}.json`), `${JSON.stringify(value, null, 2)}\n`);
       const v = await engine.renders.status(b.slug, value.id);
       // render_status hands the record on as the file holds it, without its plan and its warnings — under `untrusted`
-      // (L7.8, decision ii; before: as `record`); `record` holds its checked members: what is left out is text of the file.
+      // (decision ii; before: as `record`); `record` holds its checked members: what is left out is text of the file.
       const { plan: _plan, warnings: _warnings, ...rest } = value as Record<string, unknown>;
       const out = (a: Record<string, unknown>, b: Record<string, unknown> | undefined, at = ''): string[] =>
         Object.keys(a).flatMap((k) =>
@@ -1773,7 +1772,7 @@ describe('the render records, state by state and site by site', () => {
         `${v.status} ${JSON.stringify(v.untrusted.record) === JSON.stringify(rest) ? 'the record as written' : 'ANOTHER RECORD'}; not trusted: ${out(rest, v.record as unknown as Record<string, unknown>).join(' ')}`;
     }
     expect(got).toEqual({
-      // `project`: the fixtures name another project than the one asked; the rest: paths and sentences (L7.8).
+      // `project`: the fixtures name another project than the one asked; the rest: paths and sentences.
       'render-l24.json': 'succeeded the record as written; not trusted: project run_dir file record browser.path',
       'render-l55.json': 'succeeded the record as written; not trusted: project run_dir edit.changes edit.captions file record browser.path',
       'render-l515.json': 'succeeded the record as written; not trusted: project run_dir file record browser.path policy.gl.renderer',

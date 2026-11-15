@@ -56,7 +56,7 @@ function pageUrl(page: Page): string {
 /**
  * Watches a page for a main-frame document navigation started by an action. A navigation that turns into a download
  * (Content-Disposition: attachment, a file the browser does not display) never commits: it is not a page change. Nor is
- * one answered 204 / 205 or aborted — a form POST the read-only guard stopped (L1.7) is answered 204: the page stays
+ * one answered 204 / 205 or aborted — a form POST the read-only guard stopped is answered 204: the page stays
  * where it is, at once (never a 15 s wait for a commit that cannot come).
  */
 export function watchNavigation(page: Page) {
@@ -210,7 +210,7 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
       strategy = requested;
     } else {
       t_click = await pointer.click({ button: opts.button, count: opts.count, modifiers: opts.modifiers });
-      // The press may have waited for the capture to catch up (Pointer beforePress, L1.3): time the click from it.
+      // The press may have waited for the capture to catch up (Pointer beforePress): time the click from it.
       clickWall = wallNow() - (rt.now() - t_click) * 1000;
       strategy = 'real';
     }

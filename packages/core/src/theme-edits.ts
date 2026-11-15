@@ -1,6 +1,6 @@
 /**
- * Theme edits from the Studio's theme editor (L4.7, R-UI-07; critique B7 and D A1): one value of a theme's template.yaml
- * changed as a splice of its text (map-edits.ts `setMapPath`, the editor of L4.5's scenario field edits), never a
+ * Theme edits from the Studio's theme editor (R-UI-07): one value of a theme's template.yaml
+ * changed as a splice of its text (map-edits.ts `setMapPath`, the editor of the scenario field edits), never a
  * re-serialisation — comments, quoting and every byte outside the lines it touches stay. Pure; the engine
  * (templates.edit) checks the hash the page read (if_match), re-parses the result and refuses it unless its value is
  * exactly `intended` (core verifyEditText), validates the theme (parseTemplateYaml, the registry, its files) and writes it
@@ -10,11 +10,11 @@
  *   cursor, brand name / URL, the outro's URL / tagline, style bias, zoom, the logo / wordmark / font files (relative
  *   paths of the theme folder: the engine checks they are real files inside it). Removable only where the theme stays
  *   whole without it (THEME_REMOVABLE_FIELDS). `colors.accent` with `ripple` writes the cursor ripple too (same alpha).
- * - `set_background`: the type with its colours in one write (critique B7a: a solid background without `color` does not
- *   parse, so a type switch is never a sequence of single fields).
+ * - `set_background`: the type with its colours in one write (a solid background without `color` does not parse, so a
+ *   type switch is never a sequence of single fields).
  * - `set_component`: a kind's component, its old `params` kept or dropped (`keep` | `drop`: the engine checks kept params
  *   against the new component); a legacy field that now contradicts the entry (`frame.style`, `intro.layout`,
- *   `transitions.between_scenes`… — core legacyContradictions) is removed by the same write and named (critique B7c), so
+ *   `transitions.between_scenes`… — core legacyContradictions) is removed by the same write and named, so
  *   a copied starter never warns after its first change. A theme's own file (`{video | image | lottie}`) is never
  *   replaced from here.
  * - Every edit applies only while the file holds `from` there (stale otherwise); values are checked and normalised (hex
@@ -138,7 +138,7 @@ export interface ThemeEditApplied {
   intended: unknown;
   /** "Set the accent colour to #8a2332". */
   label: string;
-  /** Legacy fields the same write removed because they contradicted the new component (critique B7c). */
+  /** Legacy fields the same write removed because they contradicted the new component. */
   removed: string[];
   /** set_component: the params carried over to the new component (the engine checks them). */
   kept_params?: Record<string, unknown>;
@@ -258,7 +258,7 @@ export function themeValueProblem(field: ThemeField, to: unknown): string | null
       if (hidden) return hidden;
       if (kind === 'url' && /[\s<>"'`\\]/.test(to)) return `${name} takes an address as shown (example.com/path): no space, quote, angle bracket or backslash`;
       // Shown as typed, never opened: no scheme and no `//` (the Studio's preview scan refuses such a string as a URL it
-      // does not serve — L4.7 review A M2).
+      // does not serve).
       if (kind === 'url' && SCHEME_LIKE.test(to)) return `${name} takes an address as shown (example.com/path): no scheme (https://) and no leading //`;
       return null;
     }
@@ -354,7 +354,7 @@ function applyField(text: string, root: Obj, edit: ThemeFieldEdit): ThemeEditApp
     throw new StepEditError('stale', `${what} changed meanwhile (it is now ${current === undefined ? 'not set' : JSON.stringify(current)}): read the theme again`, field);
   }
   if (segs[0] === 'background') {
-    // Critique B7a: each type has its own colours — another type is switched with set_background (type and colours at once).
+    // Each type has its own colours — another type is switched with set_background (type and colours at once).
     const bg = sectionOf(root, 'background', what);
     const type = typeof bg?.type === 'string' ? bg.type : 'radial';
     const own = type === 'solid' ? ['color'] : ['from', 'to'];
@@ -444,7 +444,7 @@ function applyComponent(text: string, root: Obj, edit: ThemeComponentEdit): Them
   const value: unknown = edit.id === null ? null : keep ? { id: edit.id, params: structuredClone(params) } : edit.id;
   if (isDeepStrictEqual(cur, value)) throw new StepEditError('invalid', `nothing to change: ${what} is already ${edit.id ?? 'none'}`, kind);
   let r = themeWords(() => setMapPath(text, root, ['components', kind], value, spliceOptions(what)));
-  // Critique B7c: a legacy field this entry now contradicts goes in the same write (named; undo restores it).
+  // A legacy field this entry now contradicts goes in the same write (named; undo restores it).
   const removed: string[] = [];
   for (const c of legacyContradictions(r.intended).filter((x) => x.kind === kind)) {
     for (const f of c.written) {

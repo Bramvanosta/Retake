@@ -1,21 +1,22 @@
 /**
- * The Studio server (L4.1): the app and the engine's `/v1` HTTP API of one workspace, on 127.0.0.1 behind the engine's
+ * The Studio server: the app and the engine's `/v1` HTTP API of one workspace, on 127.0.0.1 behind the engine's
  * gate (Host → Origin / Sec-Fetch-Site → route / method → token → content type / size), every answer with the strict
  * CSP and no CORS header.
  *
- * Routes: `/`, `/app.js`, `/app.css`, `/fonts/<file>` (L5.9: the bundled Geist pair) (static, from memory, no token); `POST /v1/session` (a one-time bootstrap code →
- * the session token); `GET /v1/info` (engine info + `http_api` + the allowed ops + L5.2's `counters`: sessions
- * redeemed, event streams open, player media bytes read and range requests — numbers only, what the desktop shell's
- * acceptance asserts); `POST /v1/bootstrap` (a new code, for a second `retake ui`, with the player origin: L5.2); `GET /v1/events` (the event stream: live.ts); `POST /v1/live` (L4.4: one run's steps, log
- * and live picture: run-live.ts); `POST /v1/call/<op>` — the engine's operation of
- * that name (@retake/engine/contract OPERATIONS: the ones MCP serves too), or one of the Studio's own ops (ops.ts and
- * the other *-ops.ts modules), run through the same SDK-free `invoke` the MCP server uses (served by the shell, zod
- * parse, trust, untrusted caps, typed errors), for the ops of `UI_OPS` only.
+ * Routes: `/`, `/app.js`, `/app.css`, `/fonts/<file>` (the bundled Geist pair) (static, from memory, no token); `POST
+ * /v1/session` (a one-time bootstrap code → the session token); `GET /v1/info` (engine info + `http_api` + the allowed
+ * ops + `counters`: sessions redeemed, event streams open, player media bytes read and range requests — numbers only,
+ * what the desktop shell's acceptance asserts); `POST /v1/bootstrap` (a new code, for a second `retake ui`, with the
+ * player origin); `GET /v1/events` (the event stream: live.ts); `POST /v1/live` (one run's steps, log and live picture:
+ * run-live.ts); `POST /v1/call/<op>` — the engine's operation of that name (@retake/engine/contract OPERATIONS: the
+ * ones MCP serves too), or one of the Studio's own ops (ops.ts and the other *-ops.ts modules), run through the same
+ * SDK-free `invoke` the MCP server uses (served by the shell, zod parse, trust, untrusted caps, typed errors), for the
+ * ops of `UI_OPS` only.
  *
- * Trust: the engine client is `ui` — the ops L4.1 allows run under the agent's trust, with no approver (a page's
+ * Trust: the engine client is `ui` — the allowed ops run under the agent's trust, with no approver (a page's
  * script cannot be told from a person's click): a run whose hooks need a person is refused with the `retake run …`
  * command to type in a terminal, and the scenario screen shows that before any click (scenario_blocks `run_blockers`).
- * L4.5: a second loopback listener in the same process, the player origin (player.ts), serves the sandboxed preview
+ * A second loopback listener in the same process, the player origin (player.ts), serves the sandboxed preview
  * frame; the Studio's CSP names it in `frame-src` (the one origin a Studio page may frame). The timeline screen's read
  * (`timeline_view`) publishes each view's plan there and answers its capability URLs.
  *
@@ -131,7 +132,7 @@ export interface StudioServerOptions {
   /** The stat poll's period while an event stream is open (ms; default 1 s). */
   pollMs?: number;
   /**
-   * Start the workspace's jobs worker when a run is submitted (default true; L4.2): with a clean environment
+   * Start the workspace's jobs worker when a run is submitted (default true): with a clean environment
    * (studioWorkerEnv). Tests turn it off to keep a submitted job queued, or inject `workerSpawn`.
    */
   startWorker?: boolean;
@@ -143,7 +144,7 @@ export interface StudioServerOptions {
   runPollMs?: number;
   /** The player origin's port (0 or absent: a free port). */
   playerPort?: number;
-  /** L5.16c, tests: what the setup ops read from the machine (default: the machine itself, systemSetupContext). */
+  /** Tests: what the setup ops read from the machine (default: the machine itself, systemSetupContext). */
   setup?: () => SetupContext;
 }
 
@@ -161,14 +162,14 @@ export interface StudioServer {
   readonly calls: number;
   /** Event streams open now (at most EVENT_STREAMS_MAX). */
   readonly streams: number;
-  /** One-time codes redeemed for the token (`POST /v1/session` answered 200; L5.2). */
+  /** One-time codes redeemed for the token (`POST /v1/session` answered 200). */
   readonly sessions: number;
   /**
    * Requests that came from another site (Sec-Fetch-Site cross-site / same-site, or Origin `null`): the gate refuses
    * them; tests assert the preview frame sent none.
    */
   readonly crossSite: number;
-  /** The player origin (L4.5): the preview frame, its bundle, the preview plans and media under one capability. */
+  /** The player origin: the preview frame, its bundle, the preview plans and media under one capability. */
   player: PlayerServer;
   /** The preview bundles (memo). */
   bundles: PlayerBundles;
@@ -178,13 +179,13 @@ export interface StudioServer {
   live: Live;
   /** The run streams (`POST /v1/live`). */
   runLive: RunLive;
-  /** What the tabs hold unsaved (L5.2b: `unsaved_report`). */
+  /** What the tabs hold unsaved (`unsaved_report`). */
   unsaved: UnsavedBoard;
-  /** The window page's word to the desktop shell (L5.12d: `desktop_answer`; attached by startSupervisor). */
+  /** The window page's word to the desktop shell (`desktop_answer`; attached by startSupervisor). */
   desktop: DesktopPipe;
-  /** L5.16c: the Set-up sheet's state (the folder the shell's panel gave, the notification state it said). */
+  /** The Set-up sheet's state (the folder the shell's panel gave, the notification state it said). */
   setup: { state: SetupState; context(): SetupContext };
-  /** L5.16d: the desktop app's update state, as its shell said it (desktop_update_status). */
+  /** The desktop app's update state, as its shell said it (desktop_update_status). */
   update: UpdateState;
   /**
    * `f` runs after each op that succeeded and is not read-only (NO_NUDGE excepted): the supervised server's job
@@ -196,9 +197,9 @@ export interface StudioServer {
 }
 
 /**
- * The ops of the allow-list: the engine's operation of each name (L7.13: the operations MCP serves too; L7.14: the
- * Studio's read-only queries), or one of `own` (the Studio's own ops — which never take an engine operation's or an
- * MCP tool's name).
+ * The ops of the allow-list: the engine's operation of each name (the operations MCP serves too: the Studio's read-only
+ * queries among them), or one of `own` (the Studio's own ops — which never take an engine operation's or an MCP tool's
+ * name).
  */
 export function uiTools(own: readonly ToolDef[] = []): Map<string, ToolDef> {
   const shared = new Map<string, ToolDef>(OPERATIONS.map((t) => [t.name, t]));
@@ -299,7 +300,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     if (!player) throw new Error('the preview server is not started');
     return player;
   };
-  // L4.7: the preview pages' leases — timeline pages and theme preview pages — and the forbidden folders of a preview.
+  // The preview pages' leases — timeline pages and theme preview pages — and the forbidden folders of a preview.
   const leases = new PreviewLeases((p) => playerNow().release(p));
   const forbid = () => [engine.workspace.root, homedir()];
   const unsaved = new UnsavedBoard(engine.workspace.projectsDir);
@@ -415,7 +416,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     if (g.path === '/v1/bootstrap') {
       if (!(await jsonBody(req, res, SMALL_BODY_MAX))) return;
       const code = codes.mint();
-      // The player origin (L5.2): a desktop shell attaching to this server allows navigations to it (no secret: the
+      // The player origin: a desktop shell attaching to this server allows navigations to it (no secret: the
       // capabilities under it are).
       send(res, 200, { ok: true, code, url: `http://127.0.0.1:${port}/#c=${code}`, player: playerNow().origin });
       return;

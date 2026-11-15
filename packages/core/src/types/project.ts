@@ -20,33 +20,33 @@ export interface CaptureSettings {
   fps: number;
   /** Screencast frame format. */
   format: 'jpeg' | 'png';
-  /** JPEG quality of the screencast frames (1-100; default 90 since L5.7: small text measured indistinguishable from 100). */
+  /** JPEG quality of the screencast frames (1-100; default 90: small text measured indistinguishable from 100). */
   quality: number;
   /**
-   * Keep the screencast frames in runs/<id>/frames (their real timing, for the raw export at 60 fps). Default false
-   * since L5.7: capture.mp4 is encoded during the take and nothing else is written.
+   * Keep the screencast frames in runs/<id>/frames (their real timing, for the raw export at 60 fps). Default false:
+   * capture.mp4 is encoded during the take and nothing else is written.
    */
   keep_frames: boolean;
   /** libx264 CRF of capture.mp4 (when the encoder is libx264). */
   crf: number;
   /**
-   * Encoder of capture.mp4, fed during the take (L5.7): `auto` (default) uses the Mac's hardware H.264 encoder
+   * Encoder of capture.mp4, fed during the take: `auto` (default) uses the Mac's hardware H.264 encoder
    * (VideoToolbox) when ffmpeg has it, else libx264 (preset veryfast, `crf`).
    */
   encoder?: CaptureEncoder;
   /**
-   * Visit each page of the scenario once off camera before the take (L5.7, R-FLD-27): its code, fonts and images are
+   * Visit each page of the scenario once off camera before the take (R-FLD-27): its code, fonts and images are
    * cached, so the first visit is not filmed cold. Default false.
    */
   prewarm?: boolean;
   /**
-   * Keep one picture per step of a capture in runs/<id>/screenshots, as a dry run does (L5.6): the captured frame at
+   * Keep one picture per step of a capture in runs/<id>/screenshots, as a dry run does: the captured frame at
    * the end of each step (no screenshot taken during the take). Default false.
    */
   step_shots?: boolean;
 }
 
-/** `defaults` of a project or a scenario (L5.6; the scenario's win): values every step uses when it sets none. */
+/** `defaults` of a project or a scenario (the scenario's win): values every step uses when it sets none. */
 export interface RunDefaults {
   /**
    * Seconds every wait and action waits when it has no `timeout` of its own: targets, `wait_for`, `wait_for_email`,
@@ -116,7 +116,7 @@ export interface Pacing {
   /** After navigation: wait for network idle up to this many ms. */
   settle_ms: number;
   /**
-   * Multi-page scenes (L2.11): pause when a step acts on another page than the previous step, before that page's cursor
+   * Multi-page scenes: pause when a step acts on another page than the previous step, before that page's cursor
    * starts to move (the viewer's eye moves to the other page; no cursor ever jumps).
    */
   page_switch_ms: number;
@@ -162,7 +162,7 @@ export interface BrowserConfig {
   timezone?: string;
   color_scheme?: 'light' | 'dark';
   /**
-   * false: run Chromium without its frame rate limiter (L1.3). It removes the ≈ 0.26 s capture stall after a dialog
+   * false: run Chromium without its frame rate limiter. It removes the ≈ 0.26 s capture stall after a dialog
    * whose overlay has a backdrop-filter closes, but requestAnimationFrame then runs at thousands of Hz while anything
    * animates (fixed-step animations play too fast) and the CPU climbs 2–6×. Default true (the limiter).
    */
@@ -178,9 +178,9 @@ export interface ProjectConfig {
    * `pages`, `{url, display}` → its url). Display URLs, production and access live in `environment_settings`.
    */
   environments: Record<string, Record<string, string>>;
-  /** Derived by loadProject from the environments (never written in project.yaml): only those that say something (L1.7). */
+  /** Derived by loadProject from the environments (never written in project.yaml): only those that say something. */
   environment_settings?: Record<string, EnvironmentSettings>;
-  /** The product's clock at capture time 0 for every scenario (a scenario's `clock` wins; L1.7). */
+  /** The product's clock at capture time 0 for every scenario (a scenario's `clock` wins). */
   clock?: ClockSpec;
   default_env?: string;
   /** Global auth, or per environment name. */
@@ -199,20 +199,20 @@ export interface ProjectConfig {
   pass_env?: string[];
   databases?: Record<string, DatabaseConfig>;
   pacing?: Partial<Pacing>;
-  /** Step defaults of every scenario (L5.6; a scenario's `defaults` win). */
+  /** Step defaults of every scenario (a scenario's `defaults` win). */
   defaults?: RunDefaults;
   browser?: BrowserConfig;
   /** Hooks run by `env_reset`. */
   reset?: HookStep[];
-  /** Named hooks of every scenario (L5.8): what a `hook: <name>` step runs when the scenario has no hook of that name. */
+  /** Named hooks of every scenario: what a `hook: <name>` step runs when the scenario has no hook of that name. */
   hooks?: NamedHooks;
   vars?: Record<string, string>;
   /** Test mailbox read by `wait_for_email`. */
   mailbox?: MailboxConfig;
-  /** Defaults of the raw capture export for editors (`retake export-capture`, `retake run --raw`; L2.13). */
+  /** Defaults of the raw capture export for editors (`retake export-capture`, `retake run --raw`). */
   raw?: RawSettings;
   /**
-   * Sandbox environments (L1.8), as written: environment name → its sandbox.yaml, relative to the project dir. loadProject
+   * Sandbox environments, as written: environment name → its sandbox.yaml, relative to the project dir. loadProject
    * adds each one to `environments` (its pages), `environment_settings` and `auth` (its accounts).
    */
   sandboxes?: Record<string, string>;
@@ -262,7 +262,7 @@ export interface WorkspaceConfig {
   browser?: BrowserConfig;
   /** ffmpeg binary (ffprobe is looked for beside it); default: $RETAKE_FFMPEG, the app's own, else "ffmpeg" on PATH. */
   ffmpeg?: string;
-  /** retake.yaml `render:` (L5.15): this machine's render settings (each key wins over its RETAKE_RENDER_* variable). */
+  /** retake.yaml `render:`: this machine's render settings (each key wins over its RETAKE_RENDER_* variable). */
   render?: RenderSettings;
 }
 
@@ -281,6 +281,6 @@ export interface LoadedProject {
   file: string;
   /** Non-blocking issues (warnings) of project.yaml, set by loadProject. */
   issues?: ValidationIssue[];
-  /** The sandboxes of project.yaml `sandboxes:` (L1.8), by environment name; absent when it declares none. */
+  /** The sandboxes of project.yaml `sandboxes:`, by environment name; absent when it declares none. */
   sandboxes?: Record<string, LoadedSandbox>;
 }

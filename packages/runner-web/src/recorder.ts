@@ -28,7 +28,7 @@ export interface RecorderOptions {
   width: number;
   height: number;
   scale: number;
-  /** Emulate a mobile device on the recorder's session (a page filmed at a mobile viewport, L2.11). */
+  /** Emulate a mobile device on the recorder's session (a page filmed at a mobile viewport). */
   mobile?: boolean;
   clock: CaptureClock;
   onError?: (message: string) => void;
@@ -38,7 +38,7 @@ export interface RecorderOptions {
   holdLoads?: boolean;
   /** Write every frame to `framesDir` (capture.keep_frames; default true). The index is written either way. */
   keepFrames?: boolean;
-  /** Where each kept frame goes as well (L5.7: the encoder fed during the take). */
+  /** Where each kept frame goes as well (the encoder fed during the take). */
   sink?: { push(f: StreamFrame): void };
 }
 
@@ -86,7 +86,7 @@ export const KICK_WINDOW_MS = 700;
 const KICK_POLL_MS = 30;
 
 /**
- * CDP screencast of the active page. Frames are acked immediately and handed to the encoder fed during the take (L5.7)
+ * CDP screencast of the active page. Frames are acked immediately and handed to the encoder fed during the take
  * — and written asynchronously to `framesDir` when kept — so capture never blocks the action loop; timestamps come from
  * the compositor (epoch seconds, same clock as the runner).
  */
@@ -444,7 +444,7 @@ export class ScreencastRecorder {
   }
 
   /**
-   * Stop recording for a while (L2.11: the main capture while a multi-page scene records its pages on their own
+   * Stop recording for a while (the main capture while a multi-page scene records its pages on their own
    * tracks, a page's track between the scenes that film it): no frame arrives, so the encoder holds the last one.
    */
   async pause(): Promise<void> {
@@ -543,7 +543,7 @@ export function imageSize(buf: Buffer): { width: number; height: number } | null
       i++;
       continue;
     }
-    // SOF0..SOF15 except DHT (C4), JPG (C8) and DAC (CC) carry the frame size.
+    // SOF0..SOF15 except DHT (0xC4), JPG (0xC8) and DAC (0xCC) carry the frame size.
     if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
       return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
     }

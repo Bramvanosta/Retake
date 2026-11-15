@@ -1,5 +1,5 @@
 /**
- * L3.5 brand inputs (src/brand.ts): the input schema of a new theme (lower-case name, hex colours, fonts, refs) and the
+ * Brand inputs (src/brand.ts): the input schema of a new theme (lower-case name, hex colours, fonts, refs) and the
  * syntax rules of a brand file reference under trust `mcp` — relative to the workspace root, never absolute, `~`, a
  * drive letter, a backslash, `..`, an empty / `.` segment or a hidden one; `site:` references well formed.
  */

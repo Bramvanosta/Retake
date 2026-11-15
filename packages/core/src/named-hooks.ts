@@ -1,5 +1,5 @@
 /**
- * Named hooks (L5.8, R-FLD-31): `hooks:` of a scenario or project.yaml — name → one hook entry or a list of them — and
+ * Named hooks (R-FLD-31): `hooks:` of a scenario or project.yaml — name → one hook entry or a list of them — and
  * the `hook: <name>` steps that run them during a take. A scenario's name wins over project.yaml's. Each entry runs
  * under the hook's name unless it has its own (logs, journals, approvals).
  */

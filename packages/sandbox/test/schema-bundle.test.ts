@@ -1,5 +1,5 @@
 /**
- * L5.16c (critique H1) — scaffolds never write a path into the installed app into the person's files: from an app
+ * Scaffolds never write a path into the installed app into the person's files: from an app
  * bundle, `retake sandbox init`'s sandbox.yaml and `retake components create`'s component.yaml have no
  * `# yaml-language-server: $schema=…` line at all (a path into the app breaks when it moves or updates); from a
  * repository checkout they keep today's relative path.

@@ -1,5 +1,5 @@
 /**
- * Captures first (L5.14, BL-116): the filming markers of this user on this Mac. A take writes one marker while it films
+ * Captures first (BL-116): the filming markers of this user on this Mac. A take writes one marker while it films
  * (from capture time 0 to the end of its scenes, not around its setup or teardown hooks, and not while it is paused);
  * every heavy job of every workspace — the jobs workers' and the `retake render` / `still` / `export` / `review` /
  * `export-capture` commands' — waits to start while one holds, and a running one yields (background priority, yield.ts).
@@ -9,20 +9,20 @@
  *   TMPDIR says); elsewhere `<RETAKE_HOME>/captures` (BL-147). `RETAKE_CAPTURES_DIR` (absolute) replaces it — the test
  *   runner gives every test file its own. The folder must be a real directory of this user, 0700: anything else is not
  *   used (nothing holds: renders go on rather than wait on a folder another account could write). Under a test run
- *   (VITEST, or any RETAKE_TEST_* variable) the per-user folder is never used: only RETAKE_CAPTURES_DIR (review B M2).
+ *   (VITEST, or any RETAKE_TEST_* variable) the per-user folder is never used: only RETAKE_CAPTURES_DIR.
  * - One file per take, `k_<26 Crockford base32>.json` (created whole: tmp + rename), so two takes never share one.
  *   Content: `{v, pid, started_at, ws, source, paused?}` — the owner process (the worker of a queued take, the `retake`
  *   process of a CLI take) and a random id of its workspace (`<ws>/.retake/capture-id`), so a reader tells "this
  *   workspace" from "elsewhere" without the marker naming one: never a path, slug, scenario, run or job id.
- * - Liveness (critique M1): the owner rewrites the file's time every BEAT_MS; a marker counts while its time is within
- *   STALE_MS of now — either way: a time in the future is no fresher (review A L2) — AND its pid runs with the recorded
+ * - Liveness: the owner rewrites the file's time every BEAT_MS; a marker counts while its time is within
+ *   STALE_MS of now — either way: a time in the future is no fresher — AND its pid runs with the recorded
  *   start time (a marker without one counts only where ps cannot read that pid's start either). A take suspended with
  *   Ctrl-Z stops beating: stale within STALE_MS. A stale marker is removed by the reader that saw it. Read with core
- *   readPlainFile (no link followed, never blocking on a FIFO, at most MARKER_MAX_BYTES: review A L1).
+ *   readPlainFile (no link followed, never blocking on a FIFO, at most MARKER_MAX_BYTES).
  * - Cap: a marker's owner (its pid and start time, not the file's name) holds heavy work for at most
  *   RETAKE_CAPTURE_HOLD_MAX_MIN (default 60) of holding time counted by each reader from its first sight of it; neither a
- *   rewritten file, a renamed one, nor one removed as stale and written again restarts it while that owner runs (review
- *   A L2, B L4). A paused take does not count.
+ *   rewritten file, a renamed one, nor one removed as stale and written again restarts it while that owner runs. A
+ *   paused take does not count.
  */
 import type { EngineEnv } from '../env.js';
 import { execFileSync } from 'node:child_process';
@@ -61,7 +61,7 @@ export interface MarkerRecord {
   /** The random id of the take's workspace (capture-id), never its path. */
   ws: string;
   source: 'job' | 'cli';
-  /** The take is paused (L4.4): it films nothing, so it holds nothing. */
+  /** The take is paused: it films nothing, so it holds nothing. */
   paused?: boolean;
 }
 
@@ -88,7 +88,7 @@ function darwinUserTemp(): string | null {
 
 /**
  * Where the markers of this user live (before the folder's own checks), and whether RETAKE_CAPTURES_DIR named it;
- * `refused` under a test run without RETAKE_CAPTURES_DIR (review B M2: the per-user folder is then never made nor read).
+ * `refused` under a test run without RETAKE_CAPTURES_DIR (the per-user folder is then never made nor read).
  */
 export function capturesLocation(env: EngineEnv): { dir: string; override: boolean; problem?: string; refused?: boolean } {
   const named = env.RETAKE_CAPTURES_DIR?.trim();
@@ -385,12 +385,12 @@ export class FilmingWatch {
     for (const name of names) {
       const file = join(dir, name);
       let mtime = NaN;
-      // No link followed, never blocked by a FIFO, never a large file read whole (review A L1).
+      // No link followed, never blocked by a FIFO, never a large file read whole.
       const read = readPlainFile(file, MARKER_MAX_BYTES, { verify: (st) => ((mtime = st.mtimeMs), true) });
       if (!read.ok) continue; // removed meanwhile, or not a marker
       const rec = readMarker(read.bytes.toString('utf8'));
       if (!rec) continue;
-      // A time in the future is no fresher than one in the past (review A L2: a forged or skewed marker goes stale too).
+      // A time in the future is no fresher than one in the past (a forged or skewed marker goes stale too).
       const stale = !(Math.abs(now - mtime) <= staleMs);
       let alive = !stale && sig(rec.pid) === 'alive';
       let start: number | null = null;
@@ -454,11 +454,11 @@ export interface TakeBesideReport {
 }
 
 /**
- * A filming take's view of what runs beside it (L5.14, critique L9: the caller samples, the runner only records): every
+ * A filming take's view of what runs beside it (the caller samples, the runner only records): every
  * `everyMs` while it films, the other takes filming on this Mac (live, unpaused markers but its own) and whether heavy
  * work of its workspace's jobs worker runs slowed — `slowed`: the worker's own hold when the take runs in the worker,
- * else its one file `.retake/workers/held.json` (HELD_FILE). Never a walk of the job folders (review A H1: the take's
- * event loop). `onFirst` is told once when another take films beside it.
+ * else its one file `.retake/workers/held.json` (HELD_FILE). Never a walk of the job folders (the take's event
+ * loop). `onFirst` is told once when another take films beside it.
  */
 export class TakeBeside {
   private max = 0;
@@ -520,7 +520,7 @@ export class TakeBeside {
 }
 
 /**
- * Whether a command line (ps `command=`) is one of the processes that film a take and own its marker (review A L3): a
+ * Whether a command line (ps `command=`) is one of the processes that film a take and own its marker: a
  * jobs worker (`…/worker-main.js`, a capture runs in it) or the CLI's `run` (`…/bin.js … run …`, `retake … run …`).
  * Doctor warns about a marker whose owner is anything else (another node process included).
  */

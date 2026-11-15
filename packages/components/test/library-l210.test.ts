@@ -1,5 +1,5 @@
 /**
- * L2.10 library: the tutorial overlays (shortcut, spotlight, steps, loupe, progress) and the story cards (figure,
+ * The library's tutorial overlays (shortcut, spotlight, steps, loupe, progress) and the story cards (figure,
  * features, before/after, testimonial, CTA, chart) render from their props in every format; the kit helpers behind
  * them — key caps, figures, placement, CSV, icons — are pure and tested here.
  */

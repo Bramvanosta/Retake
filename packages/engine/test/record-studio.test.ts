@@ -1,25 +1,27 @@
 /**
- * L4.8 the Studio's side of a recording (engine record-studio.ts, R-UI-20 / 21 / 22) on the fixture product (free
+ * The Studio's side of a recording (engine record-studio.ts, R-UI-20 / 21 / 22) on the fixture product (free
  * ports), the worker run in this process with Playwright playing the person (`ports.recordWindow.drive`, which a worker
  * process cannot receive) — and the person's Studio calls made from inside the drive, while the window is open.
  *
  * - A Studio recording (`ui`): meta.json at folder creation, never auto-saved; the live view; a caption inserted "at the
- *   end" right after a visit to the Studio committed the typing (resolved under the lock: B3); a hold, a target pick, a
+ *   end" right after a visit to the Studio committed the typing (resolved under the lock); a hold, a target pick, a
  *   stale revision; Stop (the window closes as if closed, the check replay runs); Save — a new file only, the name
- *   rules, a stale revision, then read-only; a password sentinel nowhere but where L3.4 allows (nowhere at all here).
- * - Its events edited after the check: Save refused (B8), the view says so, a crafted line dropped.
+ *   rules, a stale revision, then read-only; a password sentinel nowhere but where a recording allows (nowhere at all
+ *   here).
+ * - Its events edited after the check: Save refused, the view says so, a crafted line dropped.
  * - studio.json a symbolic link: never read or written through it; Discard of a finished recording.
  * - A recording Claude started (`mcp`): unchanged (auto-saved), read-only from the Studio, the view's draft
  *   byte-identical to the worker's draft.yaml; the record ops refused to the MCP client.
- * - Discard during the check (B9); MCP job_cancel refused on the person's open recording (B16); one window at a time
- *   (B5); an interrupted recording (B6) saved; Stop before the window opens; prune keeps what is in use (B12); the
- *   records folder a link: Discard removes nothing through it.
- * - After the reviews: Save writes only the draft the person saw (A-M1); a spoiled or missing record.json is tampered
- *   (A-M2); a hidden character is never saved (A-M3); a recording is the person's only with its job (A-L1); reads never
- *   follow a link (A-L3); the zoom under the theme's max_zoom (B-M3); the check's failing step on screen (B-M4); Discard
- *   of an open window ends "discarded" (B-M5); a Discard during the check is settled by the job and the list (B-L2);
- *   Stop before the window is a clean cancel (B-L8).
- * - L7.37: the recording Claude started, B16 / B5 / B9 and B-M5 run the worker on the in-memory capture runner (the
+ * - Discard during the check; MCP job_cancel refused on the person's open recording; one window at a time; an
+ *   interrupted recording saved; Stop before the window opens; prune keeps what is in use; the records folder a link:
+ *   Discard removes nothing through it.
+ * - After the reviews: Save writes only the draft the person saw; a spoiled or missing record.json is tampered; a
+ *   hidden character is never saved; a recording is the person's only with its job; reads never follow a link; the zoom
+ *   under the theme's max_zoom; the check's failing step on screen; Discard of an open window ends "discarded"; a
+ *   Discard during the check is settled by the job and the list;
+ *   Stop before the window is a clean cancel.
+ * - The recording Claude started, the cancel, the one-window rule, the Discard during the check and the open window's
+ *   Discard run the worker on the in-memory capture runner (the
  *   lab's recorded events replayed by its window, its check replay in memory); the lab itself stays a real window.
  */
 import { randomBytes } from 'node:crypto';
@@ -106,7 +108,7 @@ function work(drive: (page: Page) => Promise<void>): Promise<number> {
   });
 }
 
-/** The worker on the in-memory capture runner (L7.37): its window and check replay are `capture`'s; nothing opens. */
+/** The worker on the in-memory capture runner: its window and check replay are `capture`'s; nothing opens. */
 function workInMemory(capture: MemoryCaptureRunner): Promise<number> {
   return runWorker({
     root,
@@ -246,7 +248,7 @@ beforeAll(async () => {
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   root = await mkdtemp(join(tmpdir(), 'studio-record-studio-'));
   retakeHome.use(join(root, '.home'));
-  // The window's session copies land here: the sentinel scan reads them, and none may stay (review A-N4).
+  // The window's session copies land here: the sentinel scan reads them, and none may stay.
   await mkdir(join(root, '.tmp'), { recursive: true });
   process.env.TMPDIR = join(root, '.tmp');
   delete process.env.RETAKE_RECORD_MAX_MIN;
@@ -374,7 +376,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       const rj = JSON.parse(await readFile(join(dir, 'record.json'), 'utf8')) as { events_sha256: string };
       expect(rj.events_sha256).toMatch(/^[0-9a-f]{64}$/);
 
-      // B3: "at the end" is the newest event in the file when the change was made — the typing the blur committed.
+      // "at the end" is the newest event in the file when the change was made — the typing the blur committed.
       const ann = await studioJson(sub.rec_id);
       const i1 = ann.inserts.find((x) => x.id === caption!.insert_id)!;
       expect(i1.after_seq).toBeGreaterThanOrEqual(noteSeq);
@@ -453,7 +455,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       expect(s).toMatchObject({ name: 'studio-lab', file: 'scenarios/studio-lab.yaml', rev: 4 });
       const written = await readFile(join(p.dir, 'scenarios', 'studio-lab.yaml'), 'utf8');
       expect(written).toBe(shown.untrusted!.yaml.endsWith('\n') ? shown.untrusted!.yaml : `${shown.untrusted!.yaml}\n`);
-      // A Studio draft holds no YAML anchor or alias (B-M2).
+      // A Studio draft holds no YAML anchor or alias.
       expect(written).not.toMatch(/[&*]a\d/);
       expect(JSON.stringify(s)).not.toContain(root);
       const after = keep(await ui.record.view(PROJECT, lab.rec));
@@ -475,7 +477,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
   });
 
   /**
-   * L7.37: what the engine does around a window — a recording Claude started, a Discard during the check, a Discard of an
+   * What the engine does around a window — a recording Claude started, a Discard during the check, a Discard of an
    * open window — on the in-memory capture runner: its window replays the lab's recorded events (as written by the real
    * window above), its check replay is the in-memory run. The real window, typing and check are the lab's case.
    */
@@ -497,7 +499,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       const v = keep(await ui.record.view(PROJECT, sub.rec_id));
       expect(v).toMatchObject({ state: 'done', started_by: 'mcp', can: { annotate: false, save: false, discard: false, stop: false }, saved: { file: 'scenarios/by-claude.yaml' } });
       expect(v.problem).toMatch(/Claude started this recording/);
-      // B4: meta.json gives the worker's context — the same draft, byte for byte.
+      // meta.json gives the worker's context — the same draft, byte for byte.
       expect(v.untrusted!.yaml).toBe(await readFile(join(dir, 'draft.yaml'), 'utf8'));
       for (const p of [
         () => ui.record.annotate(PROJECT, sub.rec_id, { rev: 0, change: { op: 'insert', at: 'end', insert: { kind: 'mark' } } }),
@@ -519,12 +521,12 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
     it('B16 / B5 while queued; Discard during the check removes the folder once the job is over (B9)', async () => {
       const events = await labEvents();
       const sub = keep(await ui.record.submit({ project: PROJECT, page: 'shop', scenario: 'to-discard' }));
-      // B16: Claude's job_cancel never discards the person's open recording.
+      // Claude's job_cancel never discards the person's open recording.
       const b16 = await refusal(mcp.jobs.cancel(sub.job.id));
       expect(b16.code).toBe('refused');
       expect(b16.message).toMatch(/started in the Studio/);
       expect((await ui.jobs.get(sub.job.id)).cancel_requested_at).toBeUndefined();
-      // B5: one window at a time.
+      // One window at a time.
       const second = await refusal(ui.record.submit({ project: PROJECT, page: 'shop' }));
       expect(second.code).toBe('conflict');
       expect(second.details).toMatchObject({ job: sub.job.id, rec_id: sub.rec_id });
@@ -542,7 +544,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       expect(discarded).toEqual({ rec_id: sub.rec_id, state: 'discarding' });
       const job = await ui.jobs.get(sub.job.id);
       expect(FINISHED.has(job.state)).toBe(true);
-      // The job itself removed the folder at its end (B-L2): no Record screen needs to look again; the list never shows it.
+      // The job itself removed the folder at its end: no Record screen needs to look again; the list never shows it.
       expect(existsSync(await recDir(sub.rec_id))).toBe(false);
       expect((await ui.record.list(PROJECT, { limit: 50 })).some((x) => x.rec_id === sub.rec_id)).toBe(false);
       // Read once the folder is gone, with the job as the Record screen passes it: discarded (the job ended well though
@@ -928,7 +930,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       const p = await project();
       // None of the window's session copies stays (the browser's last writes are removed a moment after it closed).
       await until(async () => (await readdir(join(root, '.tmp'))).every((n) => !n.startsWith('retake-session-record-')), 'the session copies removed', 10_000);
-      // A-N4: the Retake home (the profile the window ran on) and the temporary folder (the window's session copies) too.
+      // The Retake home (the profile the window ran on) and the temporary folder (the window's session copies) too.
       const scanned = [
         ...(await files(jobsDir(root))),
         ...(await files(recordsRoot(p))),

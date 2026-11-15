@@ -1,11 +1,10 @@
 /**
- * L5.2b — the page's half of the quit question, without a browser: `unsavedItems()` (drafts.ts) names the drafts with
- * unsaved text and the marks of component-local text — kinds and names only — and the reporter (unsaved-report.ts)
- * sends on a change (one call in flight, the latest state after it), nothing while nothing was ever unsaved, the
- * visibility while the set is not empty, an empty report with keepalive on pagehide (a report never outlives its tab
- * session), a retry after a failed call, and stops when the session ends; a name that is none is left out before
- * sending, the item kept (review A L4). The real tab (typing in the README editor and
- * the comments composer, a reload) is studio-e2e-unsaved.test.ts.
+ * The page's half of the quit question, without a browser: `unsavedItems` (drafts.ts) names the drafts with unsaved
+ * text and the marks of component-local text — kinds and names only — and the reporter (unsaved-report.ts) sends on a
+ * change (one call in flight, the latest state after it), nothing while nothing was ever unsaved, the visibility while
+ * the set is not empty, an empty report with keepalive on pagehide (a report never outlives its tab session), a retry
+ * after a failed call, and stops when the session ends; a name that is none is left out before sending, the item kept.
+ * The real tab (typing in the README editor and the comments composer, a reload) is studio-e2e-unsaved.test.ts.
  */
 import { describe, expect, it } from 'vitest';
 import { getDraft, readmeKey, scenarioKey, setDraft, setMark, unsavedItems } from '../src/app/drafts.js';

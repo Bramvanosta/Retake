@@ -1,5 +1,5 @@
 /**
- * L4.1 part 3: MCP over HTTP (R-MCP-02) — `startMcpHttpServer` on a scratch copy of the fixture project, driven by the
+ * MCP over HTTP (R-MCP-02) — `startMcpHttpServer` on a scratch copy of the fixture project, driven by the
  * SDK's own Streamable HTTP client: the same tools as stdio (names, schemas, annotations, instructions), calls,
  * an approval form answered over the session (accepted: the worker runs the hook; declined: nothing queued), sessions
  * (initialize first, unknown id 404, DELETE, the cap — a session not in use makes room, one with its event stream open
@@ -390,7 +390,7 @@ describe('the stable token (Retake home, 0600)', () => {
     await writeFile(other, 'short\n');
     await expect(stableToken(other)).rejects.toThrow(/no valid token/);
     expect((await stableToken(other, { rotate: true })).rotated).toBe(true);
-    // The registration printers: the URL and the bearer header by reference only (review A M1) — an environment
+    // The registration printers: the URL and the bearer header by reference only — an environment
     // variable in the .mcp.json block, the token file read by the shell in the command.
     const url = 'http://127.0.0.1:47820/mcp';
     expect(mcpHttpConfigJson({ url })).toEqual({ mcpServers: { 'retake': { type: 'http', url, headers: { Authorization: 'Bearer ${RETAKE_MCP_TOKEN}' } } } });

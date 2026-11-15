@@ -40,7 +40,7 @@ const ibeamSvg = svg(
   12,
   `<path d="${ibeamPath}" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="${ibeamPath}" fill="none" stroke="#111" stroke-width="1.3" stroke-linecap="round"/>`,
 );
-/** The overlay's look (also handed to the raw export's cursor layer, L2.13: `api.cursorLook`). */
+/** The overlay's look (also handed to the raw export's cursor layer: `api.cursorLook`). */
 export const lookCss = `
     :host{all:initial}
     .c{position:absolute;left:0;top:0;display:none;will-change:transform}
@@ -70,6 +70,6 @@ export const lookCss = `
   `;
 export const lookHtml =
   `<div class="rps"></div><div class="g"></div>` + `<div class="c" data-k="arrow"><div class="s">${arrowSvg}${handSvg}${ibeamSvg}</div>${debug ? '<div class="dbg"></div>' : ''}</div>`;
-// Raw capture without the cursor (L2.13): the pointer, its icon, presses and ripples keep working and are reported,
+// Raw capture without the cursor: the pointer, its icon, presses and ripples keep working and are reported,
 // nothing of them is drawn (the file-drag ghost card stays: it is the page's content being dragged).
 export const css = lookCss + (config.cursor.hidden ? '.c,.rps{display:none!important}' : '');

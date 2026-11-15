@@ -1,7 +1,6 @@
 /**
- * L5.11a: one run, live (`#/p/<slug>/s/<name>/run/<run_id>`, R4-ShootLive; R-UI-41) — any run of the scenario: the
- * Studio's, Claude's, a terminal's (the last without picture). L4.4's Run screen rebuilt on the kit, every capability
- * kept:
+ * One run, live (`#/p/<slug>/s/<name>/run/<run_id>`, R4-ShootLive; R-UI-41) — any run of the scenario: the
+ * Studio's, Claude's, a terminal's (the last without picture), on the kit:
  *
  * - Centre: "Rehearsal of quote" / "Capture of quote" (no run id in a title: the browser and the inspector name it),
  *   the current step, when it started and on which location with its flags (`run-facts`), the live picture
@@ -14,12 +13,12 @@
  *   teardown, rollbacks, encoding — the current one marked (`aria-current="step"`, the selection fill and weight 600),
  *   "Follow current step"; the log (every line, or warnings and errors; Follow; the lines it dropped).
  * - Status bar: this screen's while the run is unfinished — its state, Pause / Resume (between steps; a capture does
- *   not film the pause, L5.7's clock) and Stop (run_cancel: its teardown and rollbacks still run; a terminal's run:
+ *   not film the pause) and Stop (run_cancel: its teardown and rollbacks still run; a terminal's run:
  *   Ctrl-C there). ⌘. stops THIS run (it outranks the status bar's defaults: command-bus.ts). Once it ended the
  *   defaults come back (Rehearse, Capture, Render).
  *
  * Every text from the run (step descriptions, messages, the filmed site's text) is a text node (Txt); the site's text
- * sits in "From the page" boxes; a run's error is "from the page" only when a step raised it (review B L9 of L4.4).
+ * sits in "From the page" boxes; a run's error is "from the page" only when a step raised it.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { errorText } from '../api.js';
@@ -73,7 +72,7 @@ const HOOK_WORDS: Record<string, [string, MarkState]> = { start: ['running', 'ru
 /** "The run …" once it ended. */
 const ENDED_WORDS: Record<string, string> = { succeeded: 'succeeded', failed: 'failed', cancelled: 'was stopped', interrupted: 'was interrupted (its worker stopped)' };
 const endedWords = (status: string) => `The run ${ENDED_WORDS[status] ?? RUN_STATUS_WORDS[status] ?? status}`;
-/** A run's state in a word on this screen: a stopped run says "stopped" (one word for it across Shoot, review B-L2). */
+/** A run's state in a word on this screen: a stopped run says "stopped" (one word for it across Shoot). */
 const stateWord = (w: string) => RUN_STATUS_WORDS[w] ?? w;
 const PHASE_WORDS: Record<string, string> = { setup: 'Setup hook', teardown: 'Teardown hook', rollback: 'Rollback', step: 'Hook' };
 const LEVEL_WORDS: Record<string, string> = { debug: 'debug', info: 'info', warn: 'warning', error: 'error' };
@@ -121,7 +120,7 @@ function useElapsed(from: string | undefined, to: string | undefined): string | 
   return s >= 3600 ? `${Math.floor(s / 3600)}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-/** The steps the run executes: its outline, else (a run older than L4.4) the steps it reported, in order. */
+/** The steps the run executes: its outline, else (an older run with none) the steps it reported, in order. */
 function stepRows(s: RunLiveState): OutlineStep[] {
   if (s.outline) return s.outline;
   return Object.keys(s.steps).map((k) => {
@@ -171,7 +170,7 @@ function Controls({ slug, name, runId, s, fb, mode, finished }: { slug: string; 
     // Whose run it is comes with the stream's hello (or run_status): until then nothing is sent, and it is said.
     if (s.hello === null && fb === null) return say('Wait: the run is still being read');
     if (terminal) return say('Started in a terminal: press Ctrl-C there to stop it');
-    // ⌘. always answers (review A-L3 of L5.11a): a stop already asked, or a pause on its way, is said.
+    // ⌘. always answers: a stop already asked, or a pause on its way, is said.
     const now = inFlight.current;
     if (stopping) return say(`The ${modeWord(mode ?? 'dry', true)} of ${name} is already stopping`);
     if (now) return say(`Wait: ${now === 'pause' ? 'pausing' : now === 'resume' ? 'resuming' : 'stopping'}…`);
@@ -187,12 +186,12 @@ function Controls({ slug, name, runId, s, fb, mode, finished }: { slug: string; 
       )
       .finally(() => setBusy(null));
   };
-  // ⌘. stops this run while it goes (critique H1: the screen's priority, whatever order the effects ran in).
+  // ⌘. stops this run while it goes (the screen's priority, whatever order the effects ran in).
   useShellCommand('stop', stop, PRIORITY.screen, !finished);
   if (finished) return null;
   const holding = paused || pauseAsked;
   const m = mode ?? 'dry';
-  // The state word of SHOOT_STATES (review A-L6 / B-L3: "Rehearsing", "Capture paused"…), the same as the status bar's.
+  // The state word of SHOOT_STATES ("Rehearsing", "Capture paused"…), the same as the status bar's.
   const word =
     st.word === 'running'
       ? `${SHOOT_STATES.running.word(m)}${pauseAsked ? ' · pausing after this step' : ''}`
@@ -296,7 +295,7 @@ function StepList({ s, fb, finished, mode }: { s: RunLiveState; fb: RunStatusLit
     else scenes.push({ scene: r.scene, steps: [r] });
   }
   const before = s.hooks.filter((h) => h.phase === 'setup');
-  // A `hook:` step's entries (phase `step`, L5.8) are on its step row (s.stepHooks), not "after the scenes".
+  // A `hook:` step's entries (phase `step`) are on its step row (s.stepHooks), not "after the scenes".
   const after = s.hooks.filter((h) => h.phase !== 'setup' && h.phase !== 'step');
   return (
     <InspectorSection title="Steps" testId="steps-section">
@@ -585,7 +584,7 @@ export function ShootLive({ slug, name, runId }: { slug: string; name: string; r
   const loc = useRunLocation(slug, name, p?.environments ?? null);
   const actions = useScenarioActions(slug, name, loc.sent);
   const st = runState(s, fallback);
-  // A pause still asked (not yet taken) when the run ended: it came too late (B15). The last value seen while running.
+  // A pause still asked (not yet taken) when the run ended: it came too late. The last value seen while running.
   const pauseWaiting = useRef(false);
   if (!st.finished) pauseWaiting.current = Boolean(s.job?.pause_requested) && s.paused === null;
   const mode = s.start?.mode ?? s.hello?.mode ?? fallback?.mode;
@@ -621,8 +620,8 @@ export function ShootLive({ slug, name, runId }: { slug: string; name: string; r
   const curRow = cur ? rows.find((r) => r.scene === cur.scene && r.step === cur.step) : undefined;
   const envFlags = s.start ? envFlagWords({ production: s.start.production ?? false, access: s.start.access === 'read-only' ? 'read-only' : 'read-write', sandbox: false }, false) : '';
   const title = mode ? `${modeWord(mode)} of ${name}` : `Run of ${name}`;
-  // Opened by a start from this tab: the title takes the focus (review A-M2 of L5.11a: the start button went with
-  // Prepare; the focus is never left on <body>).
+  // Opened by a start from this tab: the title takes the focus (the start button went with Prepare; the focus is
+  // never left on <body>).
   const h1 = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (takeLiveFocus(runId)) h1.current?.focus({ preventScroll: true });

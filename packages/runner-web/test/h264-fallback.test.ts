@@ -1,9 +1,9 @@
 /**
- * L5.16a — the H.264 sites with an ffmpeg that has no libx264 (a foreign build, the system's when the app carries none):
+ * The H.264 sites with an ffmpeg that has no libx264 (a foreign build, the system's when the app carries none):
  * the capture encoder (resolveEncoder: run.ts takes its answer as is), the raw export's MP4 clips (encodeClip, and the
  * package's codec label), the 1080p export (transcodeMp4) and the frames encode (encodeFrames: the synthetic-run test
  * harness, no production caller) never ask for libx264 then. Fake ffmpeg scripts print an encoder list and record their
- * arguments; each site is driven itself, not only its argument builder (review B M1).
+ * arguments; each site is driven itself, not only its argument builder.
  */
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -1,5 +1,5 @@
 /**
- * Reviews of a project as clients outside the CLI see them (L3.2, R-MCP-31): a render's review read from
+ * Reviews of a project as clients outside the CLI see them (R-MCP-31): a render's review read from
  * review/<render_id>/report.json, with its newest review job overlaid (queued, running, failed…). The report is read as
  * data, never trusted for where its files are: every image and file path is rebuilt from review/<render_id>/ (a known
  * file name in that folder, symbolic links resolved inside it), whatever report.json says — a hand-edited or moved
@@ -284,11 +284,11 @@ export async function thumbnail(ws: OpenedWorkspace, frames: Pick<FrameTools, 't
   return frames.thumbnailOf(file, Math.max(64, Math.min(1280, Math.round(maxPx))));
 }
 
-// ── One review image for the Studio (L4.5 part E, critique B16) ─────────────
+// ── One review image for the Studio ─────────────
 
 /**
  * The images the Studio shows from a review folder, by their name in it: contact sheet pages, scene sheets and the diff
- * sheet (JPEG), and the key frames (PNG, in keyframes/) — review B: not the 1 fps sheets only.
+ * sheet (JPEG), and the key frames (PNG, in keyframes/) — not the 1 fps sheets only.
  */
 export const REVIEW_IMAGE_RE = /^(?:(?:sheet|diff)_[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.jpg|keyframes\/[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.png)$/;
 /** A sheet read from the folder, at most (bytes): a 1 fps sheet page is ≈ 0.3–2 MB. */
@@ -314,7 +314,7 @@ const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
  * memory by the reviewer's frames: `image` is a file NAME of review/<render_id>/ (REVIEW_IMAGE_RE: a contact sheet page, a scene sheet, the diff
  * sheet, or `keyframes/<name>.png`, as render_review lists them) — never a path. The folder (and the key frames'
  * folder) must lie in the project once links are resolved; the file is opened without following a link (O_NOFOLLOW),
- * must be a regular file with one name (no hard link: review A N4) within REVIEW_IMAGE_SOURCE_MAX and start like its
+ * must be a regular file with one name (no hard link) within REVIEW_IMAGE_SOURCE_MAX and start like its
  * kind (JPEG FF D8 FF, PNG's signature): a link planted in the folder, a renamed file or a huge file is refused.
  */
 export async function reviewImage(ws: OpenedWorkspace, frames: Pick<FrameTools, 'load' | 'thumb'>, slug: string, renderId: string, image: string): Promise<ReviewImageView> {

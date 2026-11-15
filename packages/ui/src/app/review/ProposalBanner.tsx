@@ -1,6 +1,6 @@
 /**
- * The timeline's banner while it previews a proposal (L4.6 part D2; L5.12b on the kit: a Callout over Edit's stage —
- * was ProposalPanel.tsx's): `timeline_view {proposal}` plans the proposed text in memory on the commented take, nothing is
+ * The timeline's banner while it previews a proposal (on the kit: a Callout over Edit's stage): `timeline_view
+ * {proposal}` plans the proposed text in memory on the commented take, nothing is
  * written and the switches are off. It says which comment, whether the plan shows the change, and Back to the comment —
  * the thread, scrolled to its proposal (a one-shot hand-off: focusProposalOf). It NEVER applies: Apply is offered only
  * where the whole diff is shown (the thread's ProposalCard). Every server string is text.

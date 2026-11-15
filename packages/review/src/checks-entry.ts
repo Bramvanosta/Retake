@@ -8,7 +8,7 @@
  * Every module reachable from here imports `@retake/core`, `@retake/editor/plan` and `@retake/components/geometry`
  * only — no Node module, no image library, no renderer (test/checks-entry.test.ts walks the imports and traces the
  * built entry). The names are the package root's, value for value: also a key frame's safe name, which images an
- * agent is shown, and the findings as lines (L7.11: the engine's and the CLI's words for a review).
+ * agent is shown, and the findings as lines (the engine's and the CLI's words for a review).
  */
 export * from './types.js';
 export {

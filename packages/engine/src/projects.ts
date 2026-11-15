@@ -33,7 +33,7 @@ export interface ProjectSummary {
 export const README_MAX_CHARS = 200_000;
 
 /**
- * The first line of an error for a one-line display: "project.yaml has 1 error:" alone says nothing (review B L5), so a
+ * The first line of an error for a one-line display: "project.yaml has 1 error:" alone says nothing, so a
  * first line that ends with a colon gets the next non-empty line.
  */
 export function firstErrorLine(message: string): string {
@@ -46,12 +46,12 @@ export function firstErrorLine(message: string): string {
 }
 
 /**
- * project.yaml must be a file of the project once symbolic links are followed (review B M5): one leading out is never
+ * project.yaml must be a file of the project once symbolic links are followed: one leading out is never
  * read through the engine (MCP, the Studio) — its content would come back in errors and views. The CLI reads what the
  * person points it at.
  */
 async function checkProjectFile(ws: Pick<OpenedWorkspace, 'reads'>, dir: string): Promise<void> {
-  // The native real paths (node's promises realpath, as before L7.38: the case as the disk keeps it).
+  // The native real paths (node's promises realpath: the case as the disk keeps it).
   const facts = ws.reads.disk.facts;
   const realDir = facts.nativeRealpath(dir);
   const real = realDir === undefined ? undefined : facts.nativeRealpath(join(dir, PROJECT_FILE));
@@ -149,7 +149,7 @@ export function maskUrlCredentials<T>(value: T): T {
   return value;
 }
 
-/** README.md as project_get shows it: the text, or why it cannot be edited (review B M1, M3). */
+/** README.md as project_get shows it: the text, or why it cannot be edited. */
 async function readmeOf(folder: ProjectFolder): Promise<{ text: string; sha256: string; error?: string } | { text: null; sha256: null; error: string } | undefined> {
   let r;
   try {
@@ -271,7 +271,7 @@ export async function updateProjectReadme(project: LoadedProject, markdown: stri
     });
   }
   const text = markdown.endsWith('\n') ? markdown : `${markdown}\n`;
-  // The cap holds for the file as written (review B L6): a text at the cap without its final line break would be
+  // The cap holds for the file as written: a text at the cap without its final line break would be
   // written one character over it, and could not be sent back unchanged.
   if (text.length > README_MAX_CHARS) {
     throw new EngineError('invalid', `${README_FILE} would be ${text.length.toLocaleString('en')} characters with its final line break: at most ${README_MAX_CHARS.toLocaleString('en')}`, {

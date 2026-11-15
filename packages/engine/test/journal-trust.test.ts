@@ -1,10 +1,10 @@
 /**
- * L5.14 — what the worker replays and runs is what Retake wrote (worker in-process, trust `mcp`):
+ * What the worker replays and runs is what Retake wrote (worker in-process, trust `mcp`):
  * - rollback journal entries are signed when written: an environment reset job replays the signed ones and never a
  *   journal placed by hand (in runs/<id>/ or .retake/journals/), which it refuses and says;
  * - a journal placed in a run's reserved folder between its submit and its start is not replayed by the run;
  * - approvals are bound to their job: a job.json copied under another id runs no approved hook, and a job folder made
- *   again under the id of a job that already ran is refused at its claim (L7.37: on the in-memory hook runner).
+ *   again under the id of a job that already ran is refused at its claim (on the in-memory hook runner).
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -103,7 +103,7 @@ describe('rollback journal entries are signed (L5.14)', () => {
     expect(await work()).toBe(0);
     expect((await queue.stored(hooks.job.id))?.state).toBe('succeeded');
     expect(read('marks.log')).toBe('x');
-    // A copy of the signed journal while its rollback is pending (review A M2).
+    // A copy of the signed journal while its rollback is pending.
     const pendingCopy = await readFile(join(project, '.retake', 'journals', `${hooks.journal_id}.json`), 'utf8');
     await place('runs/20261104-091000-placed/hooks-journal.json', placed('printf run >> placed.log'));
     await place('.retake/journals/20261104-092000-hooks-placed.json', placed('printf standalone >> placed.log'));
@@ -172,7 +172,7 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('a run replays only its own 
 });
 
 /**
- * L7.37: the approvals are the engine's (signed for their job at submit, taken once at the claim): the hooks job runs on
+ * The approvals are the engine's (signed for their job at submit, taken once at the claim): the hooks job runs on
  * the in-memory hook runner, whose executions stand for marks.log. An approved shell hook that really runs is the
  * environment reset case above.
  */

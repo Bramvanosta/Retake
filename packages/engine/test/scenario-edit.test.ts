@@ -1,9 +1,9 @@
 /**
- * L4.3 part 1: the Studio's scenario write path (engine scenarios.edit, the `ui` client) and the view's `edit` field.
+ * The Studio's scenario write path (engine scenarios.edit, the `ui` client) and the view's `edit` field.
  * `replace_text` (the YAML tab) and `restore` (undo / redo, byte-exact) write the file the view read with its hash as
  * if_match (a conflict names the current hash, nothing written); a file the Studio may not write — not UTF-8, too
  * large, holding a secret reference or an outside file — is refused whole and the view says why with the lines before
- * any edit (critique B3, B11); the new text adds no hidden character (B9) and leaves hooks and mocks unchanged (B3);
+ * any edit; the new text adds no hidden character and leaves hooks and mocks unchanged;
  * it is validated with agent trust worded "from the Studio" (errors refuse with their lines, warnings save) — and
  * scenarios.validate / save now pass that channel too (the pre-existing defect); the mode is kept and a `.yml` is
  * written in place. getScenario keeps the `utf8` flag.
@@ -290,7 +290,7 @@ describe('hidden characters (critique B9)', () => {
     const text = `${bom}${withMark.replace('scenes:', `# ${family} the family\nscenes:`)}`;
     const r2 = await ui.scenarios.edit('w', 'marked', { hash: r.hash, edit: { kind: 'replace_text', text } });
     expect(await readFile(file('marked.yaml'), 'utf8')).toBe(text);
-    // Review A L2: kept only on a line the file has word for word — the marked line itself edited is refused.
+    // Kept only on a line the file has word for word — the marked line itself edited is refused.
     const e = await failure(ui.scenarios.edit('w', 'marked', { hash: r2.hash, edit: { kind: 'replace_text', text: text.replace('# first a', '# then a') } }));
     expect(e.message).toMatch(/^not saved: line 8, column 16 holds U\+202E \(a direction control\)/);
   });

@@ -1,5 +1,5 @@
 /**
- * L4.5 part C: the timeline screen end to end in headless Chromium (playwright-core's build: it plays VP9, not H.264),
+ * The timeline screen end to end in headless Chromium (playwright-core's build: it plays VP9, not H.264),
  * against a real Studio server, its player origin and the real preview bundle, on a synthetic take whose every
  * capture frame shows its own index in binary (test-support take.ts):
  * - the scenario screen's "Open timeline" (R-UI-15: disabled with why without a capture) → the timeline route; the
@@ -9,10 +9,10 @@
  *   tracks, a drag of the scrubber and the keys (arrows, Shift+arrows, Home, End, ], Space) — after each, the frame shown
  *   in the iframe (a screenshot of its region, decoded) is exactly the source frame the plan maps that output frame to,
  *   in a scene at normal speed and in a scene at 2×; zoom fit and in; "Show in timeline" (a step's route);
- * - a take encoded as the capture encodes (libx264, H.264): Playwright's Chromium cannot play it — the real message
- *   (critique B14), no frame, the tracks and the scrubber still working, the codec and the slow-scrub note shown.
- * - L5.9 (review B-M1): inside the shell at 1440 × 900 and 1280 × 800, as many track rows show on load as before it.
- * - L5.12a (R4-Edit): Edit in the shell — the Mode's Edit current, the browser pane hidden, no tabs (the modes and the
+ * - a take encoded as the capture encodes (libx264, H.264): Playwright's Chromium cannot play it — the real message, no
+ *   frame, the tracks and the scrubber still working, the codec and the slow-scrub note shown.
+ * - inside the shell at 1440 × 900 and 1280 × 800, as many track rows show on load as before it.
+ * - R4-Edit: Edit in the shell — the Mode's Edit current, the browser pane hidden, no tabs (the modes and the
  *   title bar replace them); the rows are the kit's tracks (`[data-testid^="track-"]`), the preview `[data-testid=preview]`.
  * `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  */
@@ -136,7 +136,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
   it('Open timeline from the scenario screen (disabled with why without a capture); the tracks, pins and the one frame', async () => {
     await page.goto(`${studio.url}#/p/demo/s/nocap`);
     await page.getByRole('heading', { level: 1, name: 'nocap' }).waitFor();
-    // L5.11a: Open timeline went (the Edit mode opens the same capture); the status bar's Render says why it is off.
+    // Open timeline went (the Edit mode opens the same capture); the status bar's Render says why it is off.
     await expect.poll(() => page.getByTestId('run-render').isDisabled(), POLL).toBe(true);
     const why = await page.getByTestId('run-render').getAttribute('aria-describedby');
     expect(await page.locator(`[id="${why}"]`).textContent()).toContain('no finished capture yet');
@@ -149,7 +149,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     expect(await page.locator(`text=${RUN}`).count()).toBeGreaterThan(0);
     await page.getByTestId('tracks').waitFor();
     expect(await page.title()).toBe('bits · Timeline · Retake');
-    // L5.12a: Edit in the shell — the Mode says Edit, the browser pane is hidden (the stage takes the width), no tabs.
+    // Edit in the shell — the Mode says Edit, the browser pane is hidden (the stage takes the width), no tabs.
     expect(await page.getByRole('navigation', { name: 'Mode' }).getByRole('link', { name: 'Edit' }).getAttribute('aria-current')).toBe('page');
     expect(await page.locator('.sh-app').getAttribute('data-browser')).toBe('none');
 
@@ -196,9 +196,9 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
       // Measured once the screen has settled (the preview loaded, nothing left to arrive above the tracks).
       await expect.poll(async () => page.getByTestId('preview').getAttribute('data-loading'), POLL).toBe('no');
       await expect.poll(() => page.evaluate(() => document.getElementById('main')!.scrollTop), POLL).toBe(0);
-      // Before the shell (L4.9) the page began at the window's top and the preview was min(44vh, 460px) tall (the
+      // Before the shell the page began at the window's top and the preview was min(44vh, 460px) tall (the
       // inspector beside it at most 150 px taller: the stage moves with the preview), the rest of the screen the same
-      // (review B: 0 computed-style differences): a row showed when its top cleared the window's bottom. Now: when it
+      // (0 computed-style differences): a row showed when its top cleared the window's bottom. Now: when it
       // clears the centre pane's.
       const rows = await page.evaluate(() => {
         const pane = document.getElementById('main')!.getBoundingClientRect();
@@ -207,7 +207,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
         const tops = [...document.querySelectorAll('[data-testid="tracks"] [data-testid^="track-"]')].map((r) => r.getBoundingClientRect().top - pane.top);
         const box = document.querySelector('[data-testid="tracks"]')!.getBoundingClientRect();
         const tracks = box.top - pane.top;
-        // L5.12a: Edit's stage fills what the tracks leave — the tracks' whole height in the pane counts as "as much".
+        // Edit's stage fills what the tracks leave — the tracks' whole height in the pane counts as "as much".
         const whole = box.bottom - pane.top <= pane.height + 1;
         return {
           now: tops.filter((t) => t < pane.height - 8).length,
@@ -258,7 +258,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     let fast = b.from + (b.transition?.frames ?? 0);
     while (fast < b.to - 1 && srcAt(fast + 1)! - srcAt(fast)! !== 2) fast++;
     expect(srcAt(fast + 1)! - srcAt(fast)!).toBe(2);
-    // A click lands after the crossfade into it (review B: never inside the transition).
+    // A click lands after the crossfade into it (never inside the transition).
     const landB = landingOf(b);
     await page.locator('[data-testid="tl-segment"][data-id="b"]').click();
     expect(await shown()).toBe(landB);

@@ -75,7 +75,7 @@ describe('shellHostRefs (R-SEC-06)', () => {
     expect(refs(cmd, opts)).toEqual(expected);
   });
 
-  // Review fixes of L1.2: what a script computes, assigns or runs inline, and option values that are not hosts.
+  // What a script computes, assigns or runs inline, and option values that are not hosts.
   const run = { vars: { PATH: '/usr/bin', HOME: '/home/u' } };
   const more: Array<[string, string, ShellHostOptions | undefined, string[]]> = [
     // S1: command substitutions and backticks are scripts too, wherever they are.

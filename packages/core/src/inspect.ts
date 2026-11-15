@@ -1,5 +1,5 @@
 /**
- * Page inspection helpers (L3.3, `page_inspect`): the synthetic scenario that opens one page of an environment, the
+ * Page inspection helpers (`page_inspect`): the synthetic scenario that opens one page of an environment, the
  * origin check of an inspected page, and the serialisation of a suggested target as a scenario writes it.
  */
 import { parse, stringify } from 'yaml';

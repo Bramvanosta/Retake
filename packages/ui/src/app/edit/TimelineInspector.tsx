@@ -1,28 +1,28 @@
 /**
- * The timeline's inspector (L4.5 part D, R-UI-23; DESIGN §4g "Inspector"): the video's switches (the caption component,
+ * The timeline's inspector (R-UI-23; DESIGN §4g "Inspector"): the video's switches (the caption component,
  * every scene's layout) and the selected segment's (a scene's layout, transition and speed; a card's component,
  * duration and transition; a waiting screen's component and duration; the intro / outro switch, component and
  * duration), each written in one click through `scenario_edit` `set_field`.
  *
  * - The choices are the view's (engine field-options.ts): an option the use cannot take is shown disabled with the
- *   engine's reason (critique B7) and cannot be picked; the server refuses it too.
+ *   engine's reason and cannot be picked; the server refuses it too.
  * - Radio groups: the kit's ChoiceChips — `role="radiogroup"` of `role="radio"` buttons (the timeline's keys leave them
  *   alone: keyAction). The arrows move the focus only and Space / Enter picks (a pick writes the file: never one write per
  *   arrow press); a disabled option stays focusable so its reason is read.
  * - One click writes at once on the version shown (`hash`), then the screen re-reads the view: the new plan loads into
  *   the same preview frame, which shows "Loading the preview…" until it is settled at the playhead. From the send until
- *   the new view lands, picks are ignored (never a second edit on a stale view: L4.3's `busy`); L5.12a (BL-122): an undo
+ *   the new view lands, picks are ignored (never a second edit on a stale view: `busy`); (BL-122) an undo
  *   or a redo asked meanwhile is queued and said ("Saving… Undo in a moment"), then runs once the view lands — never
- *   dropped while the write goes; a write that fails or meets another writer drops it, said once (review A-M2).
- * - L5.12a (R4-Edit, R-UI-45): in the shell's inspector — the selected segment first (its name, times and steps; said in
+ *   dropped while the write goes; a write that fails or meets another writer drops it, said once.
+ * - (R-UI-45) In the shell's inspector — the selected segment first (its name, times and steps; said in
  *   the inspector's own polite region when it changes), then the whole video, the general hint last; Undo / Redo are
- *   Edit's status-bar actions. An empty "what was just done" line takes no room (review B-L4).
- * - Undo / redo (⌘Z, Shift+⌘Z, Ctrl+Y; the buttons): L4.3's EditHistory — `restore` of the exact earlier bytes (the
+ *   Edit's status-bar actions. An empty "what was just done" line takes no room.
+ * - Undo / redo (⌘Z, Shift+⌘Z, Ctrl+Y; the buttons): EditHistory — `restore` of the exact earlier bytes (the
  *   view's `text`), checked against their sha256 by the server; a version this screen did not make clears the history.
  * - A 409 (another writer changed the file): "Your switch … was not applied", **Apply it to the new version** (the same
  *   switch found again: a value changed meanwhile is refused as stale, never overwritten) and **Leave it**. A stale
  *   refusal re-reads the view and says why.
- * - Every switch is an edit change (L5.5's rule, said once and after each switch): a render of this take shows it, no
+ * - Every switch is an edit change (said once and after each switch): a render of this take shows it, no
  *   new capture. Text from the server is a text node.
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
@@ -44,7 +44,7 @@ type Segment = TimelineView['model']['segments'][number];
 /** The parts of the timeline view the switches need (the file's text: what undo restores). */
 export type SwitchView = Pick<TimelineView, 'hash' | 'editable' | 'choices'> & { text?: string };
 
-/** Said after a switch (L5.5's rule: every switch is an edit value). */
+/** Said after a switch (every switch is an edit value). */
 export const SWITCH_CHANGE_WORDS = 'Only the edit changed: a render of this take shows it, no new capture.';
 
 export interface SwitchEditor {
@@ -66,7 +66,7 @@ export interface SwitchEditor {
   dismiss: () => void;
 }
 
-/** The screen's switch loop (L4.3's useStepEditor, for `set_field`): send, undo / redo, the 409 offer. */
+/** The screen's switch loop (useStepEditor's, for `set_field`): send, undo / redo, the 409 offer. */
 export function useSwitchEditor(slug: string, name: string, v: SwitchView, reload: () => void): SwitchEditor {
   const history = useRef<EditHistory>(new EditHistory());
   const [, bump] = useState(0);
@@ -125,7 +125,7 @@ export function useSwitchEditor(slug: string, name: string, v: SwitchView, reloa
         },
         (e: unknown) => {
           busyRef.current = false;
-          // L5.12a fixes (review A-M2 = B-M2): an undo / redo queued behind a write that failed or met another writer (409)
+          // An undo / redo queued behind a write that failed or met another writer (409)
           // is dropped and said once — it meant "undo THIS switch", never the one before it.
           const dropped = queued.current;
           queued.current = null;
@@ -463,7 +463,7 @@ export function TimelineInspector({ v, segment, ed, fps, stepsOf }: { v: SwitchV
           </p>
         )}
       </InspectorSection>
-      {/* The general hint last (R4-Edit: the selected segment first; review B-L4). */}
+      {/* The general hint last (R4-Edit: the selected segment first). */}
       <p className="ed-quiet" data-testid="inspector-general">
         {'A click writes the scenario at once; ⌘Z undoes it. '}
         <Txt text={SWITCH_CHANGE_WORDS} />

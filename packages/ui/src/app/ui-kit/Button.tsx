@@ -1,5 +1,5 @@
 /**
- * L5.9: buttons — `Button` (primary, secondary, ghost, destructive, record; three sizes), `LinkButton` (the same look,
+ * Buttons — `Button` (primary, secondary, ghost, destructive, record; three sizes), `LinkButton` (the same look,
  * a link to a route: `hrefTo`), `IconButton` (an icon named by its label, optionally pressed), `Kbd` (key caps).
  * Native elements only: a `<button type="button">` (a disabled one is natively disabled, its reason in `why`, read
  * through `aria-describedby`), an `<a href>`. A destructive action is never a form's default; the record variant's dot is
@@ -82,16 +82,16 @@ export function LinkButton({
   children: ReactNode;
   current?: boolean;
   testId?: string;
-  /** L5.12a: a fuller name than the visible label ("Comment frame 12 of render quote-v3"). */
+  /** A fuller name than the visible label ("Comment frame 12 of render quote-v3"). */
   label?: string;
-  /** L5.12a: the render a link opens (Edit's Comment: tests read it). */
+  /** The render a link opens (Edit's Comment: tests read it). */
   dataRender?: string;
-  /** L5.12b: run as it is followed (a hand-off to the screen it opens: the proposal's focus). */
+  /** Run as it is followed (a hand-off to the screen it opens: the proposal's focus). */
   onClick?: () => void;
-  /** L5.12c: named by elements (its words and an agent-writable name shown elsewhere: never copied into an attribute). */
+  /** Named by elements (its words and an agent-writable name shown elsewhere: never copied into an attribute). */
   id?: string;
   labelledBy?: string;
-  /** L5.12c: not a stop of a roving grid (-1). */
+  /** Not a stop of a roving grid (-1). */
   tabIndex?: number;
 }) {
   return (

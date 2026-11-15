@@ -1,16 +1,16 @@
 /**
- * L4.9 part C (R-UI-03): the screen tour, part 2, and the keyboard-only path — headless Chromium against a real Studio
+ * R-UI-03: the screen tour, part 2, and the keyboard-only path — headless Chromium against a real Studio
  * server (a11y-tour.ts), the fixture product on free ports (the project's environments rewritten to them) for a recording:
- * - the checker (a11y.ts) at 1280 and 1440 wide with its Tab walk at 1280 on: the component library (its grid one
- *   tab stop since L5.12c's fixes: the selected card's controls walked) and its "Create with Claude" dialog (walked inside), a component's detail (once its About, Slots and
- *   Params have loaded), the themes, ⚑ the theme editor on the workspace's own editable theme (its fields enabled,
- *   measured and walked; no sideways scroll at either width — its hidden legend once widened the page), the Record start
- *   form, a recording live with its draft (the `record` job run in this process, Playwright playing the person in the
- *   recording window — no headed window), the recording done and its Discard dialog (walked inside); L5.11b: the start
- *   form and the live recording (a row selected: its alternatives and the Insert toolbar; the status bar the
- *   recording's) also in dark at 900 px, the shell's narrowest window, beside light 1280; L5.12c: the Library with a card
- *   selected (its inspector), its Create with Claude sheet, a component's page and the theme editor with a colour field
- *   focused — dark at 1280 / 1440 / 900 and light at 1280;
+ * - the checker (a11y.ts) at 1280 and 1440 wide with its Tab walk at 1280 on: the component library (its grid one tab
+ *   stop: the selected card's controls walked) and its "Create with Claude" dialog (walked inside), a component's
+ *   detail (once its About, Slots and Params have loaded), the themes, ⚑ the theme editor on the workspace's own
+ *   editable theme (its fields enabled, measured and walked; no sideways scroll at either width — its hidden legend
+ *   once widened the page), the Record start form, a recording live with its draft (the `record` job run in this
+ *   process, Playwright playing the person in the recording window — no headed window), the recording done and its
+ *   Discard dialog (walked inside); the start form and the live recording (a row selected: its alternatives and the
+ *   Insert toolbar; the status bar the recording's) also in dark at 900 px, the shell's narrowest window, beside light
+ *   1280; the Library with a card selected (its inspector), its Create with Claude sheet, a component's page and the
+ *   theme editor with a colour field focused — dark at 1280 / 1440 / 900 and light at 1280;
  * - the native dialogs' keyboard contract (modal, focus moves in, Escape closes, focus returns to the opener): Create
  *   with Claude, Discard the recording;
  * - ⚑ a keyboard-only path (no pointer event at all): Skip to content → the demo project → bits → the steps listbox
@@ -76,12 +76,12 @@ afterAll(async () => {
 });
 
 const at = (hash: string) => `${t.studio.url}#${hash}`;
-/** L5.12c: the Library's and the theme editor's stations — dark at the three shell widths, light at 1280. */
+/** The Library's and the theme editor's stations — dark at the three shell widths, light at 1280. */
 const SHELL_SCHEMES = [
   { scheme: 'dark' as const, widths: [1280, 1440, 900] },
   { scheme: 'light' as const, widths: [1280] },
 ];
-/** L5.11b: the Record screen in dark at 1280 / 1440 and the 900 px window, and light at 1280. */
+/** The Record screen in dark at 1280 / 1440 and the 900 px window, and light at 1280. */
 const RECORD_SCHEMES = [
   { scheme: 'dark' as const, widths: [1280, 1440, 900] },
   { scheme: 'light' as const, widths: [1280] },
@@ -136,7 +136,7 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
       await page.getByTestId('record-caption-text').fill('Pick a bag size');
       await page.getByTestId('record-caption-text').press('Enter');
       await page.getByTestId('record-pending').waitFor(POLL);
-      // L5.11b: a row with alternatives selected — its radio group and the Insert toolbar right after it.
+      // A row with alternatives selected — its radio group and the Insert toolbar right after it.
       const row = page.locator('[data-testid=record-step]', { has: page.locator('.k-rowcard-aside') }).first();
       await row.waitFor(POLL);
       await row.getByTestId('record-insert-after').click();
@@ -169,7 +169,7 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
 
   it("the library and its Create with Claude dialog (focus in, Escape, focus back); a component's detail", async () => {
     const { page } = t;
-    // L5.12c: a card selected — its inspector (facts, Play in the theme, Set as default…, About) beside the grid.
+    // A card selected — its inspector (facts, Play in the theme, Set as default…, About) beside the grid.
     let r = await station(
       t,
       'library',
@@ -181,8 +181,8 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
       { schemes: SHELL_SCHEMES },
     );
     expect(r.findings, r.report).toEqual([]);
-    // The walk went round the whole page and came back to its first stop. (L5.12c fixes, review A-M3: the card grid is
-    // one tab stop — the selected card and its controls — where every card's controls were stops: 104 then.)
+    // The walk went round the whole page and came back to its first stop. (the card grid is one tab stop — the
+    // selected card and its controls — where every card's controls were stops: 104 then.)
     expect(r.result.walk!.stops).toBeGreaterThan(10);
     expect(r.result.walk!.stops).toBeLessThan(60);
     r = await station(
@@ -197,7 +197,7 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
     expect(r.findings, r.report).toEqual([]);
     expect(r.result.walk!.stops).toBeGreaterThanOrEqual(2);
     await page.keyboard.press('Escape');
-    // (L5.12c: the kit Sheet stays in the page, closed.)
+    // (the kit Sheet stays in the page, closed.)
     await page.locator('[data-testid="lib-create"][open]').waitFor({ state: 'detached' });
     expect(await dialogCheck(page, page.getByTestId('lib-create-open'), () => page.keyboard.press('Enter'))).toEqual([]);
     // The detail once loaded: its About, Slots and Params cards (reached by a hash change, it answers after the list).
@@ -225,10 +225,10 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
       async () => {
         await go(page, at(`/p/${N}/themes/${TOUR_THEME}`), `h1:has-text("${TOUR_THEME}")`);
         await page.locator('[data-testid="theme-editor"][data-editable="yes"]').waitFor(POLL);
-        // L5.12c: a colour field focused (its ring in the inspector).
+        // A colour field focused (its ring in the inspector).
         await page.getByTestId('color-accent-hex').focus();
       },
-      // (L5.9: + the shell's four Mode buttons, disabled with no scenario in context.)
+      // (+ the shell's four Mode buttons, disabled with no scenario in context.)
       { exemptMax: 8, schemes: SHELL_SCHEMES },
     );
     expect(r.findings, r.report).toEqual([]);
@@ -275,7 +275,7 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     await tabTo(page, 'main a[href="#/p/demo"]');
     await page.keyboard.press('Enter');
     await page.waitForURL('**#/p/demo');
-    // L5.10a: the productions are ONE listbox (one tab stop): Home selects the first poster (bits: the newest
+    // The productions are ONE listbox (one tab stop): Home selects the first poster (bits: the newest
     // activity), Enter opens it.
     await tabTo(page, 'ul.k-posters[role="listbox"]');
     await page.keyboard.press('Home');
@@ -283,7 +283,7 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     await page.keyboard.press('Enter');
     await page.waitForURL('**#/p/demo/s/bits');
 
-    // L5.10b: the frames listbox (a grid): one tab stop; the arrows select, the inspector follows.
+    // The frames listbox (a grid): one tab stop; the arrows select, the inspector follows.
     await tabTo(page, 'ul.k-frames[role="listbox"]');
     const selected = () => page.evaluate(() => document.querySelector('[data-testid="step"][aria-selected="true"]')?.getAttribute('data-key') ?? null);
     // The first arrow selects (the list may already hold the first step as its current option); ↑ comes back to it.
@@ -304,12 +304,13 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     expect(moved).not.toBe(BITS_TEXT);
     await expect.poll(() => readFile(file, 'utf8'), POLL).toBe(moved);
     // ⌘Z once the move has landed in the view (the file is written before the answer: until the view reloads, an edit
-    // is in flight and ⌘Z waits for it — review B-H1), the focus on the listbox, not a field: the exact bytes back.
+    // is in flight and ⌘Z waits for it), the focus on the listbox, not a field: the exact bytes back.
     await expect.poll(() => page.getByTestId('undo').isEnabled(), POLL).toBe(true);
     await page.keyboard.press('ControlOrMeta+z');
     await expect.poll(() => readFile(file, 'utf8'), POLL).toBe(BITS_TEXT);
 
-    // The Edit mode (the title bar, above the steps: Shift+Tab; L5.11a: the strip's Open timeline went), `]` selects the next segment.
+    // The Edit mode (the title bar, above the steps: Shift+Tab; the strip has no Open timeline), `]` selects the next
+    // segment.
     await tabTo(page, 'a[href$="/s/bits/timeline"]', 120, 'Shift+Tab');
     await page.keyboard.press('Enter');
     await page.getByTestId('tracks').waitFor(POLL);
@@ -335,7 +336,7 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     await page.keyboard.press('ControlOrMeta+z');
     await expect.poll(() => readFile(file, 'utf8'), POLL).toBe(BITS_TEXT);
 
-    // L5.12a: the Review mode (the title bar: Shift+Tab) opens the Review report; its View's Comments, the thread, a reply
+    // The Review mode (the title bar: Shift+Tab) opens the Review report; its View's Comments, the thread, a reply
     // typed and sent with the keyboard.
     await tabTo(page, 'a[href$="/s/bits/review"]', 120, 'Shift+Tab');
     await page.keyboard.press('Enter');

@@ -97,7 +97,7 @@ export interface RunJobView {
   /** Queued: how many jobs run or wait before it, and the one running. */
   queue?: { ahead: number; running?: string; held_by?: 'take' };
   cancel_requested_at?: string;
-  /** L4.4: a pause was asked (the run pauses before its next step; `paused` says when it is). */
+  /** A pause was asked (the run pauses before its next step; `paused` says when it is). */
   pause_requested_at?: string;
   error?: JobRecord['error'];
 }
@@ -114,7 +114,7 @@ export interface RunStatusWithJob extends Omit<RunStatusView, 'status'> {
 }
 
 /**
- * A run's status as run_status answers it by default (`detail: "compact"`, L5.8; the MCP server's compactRunStatus):
+ * A run's status as run_status answers it by default (`detail: "compact"`; the MCP server's compactRunStatus):
  * no per-step screenshot list, no hashes, the take's cost as one line. Shared by the MCP tool that writes it and the
  * Studio, which serves that tool and reads this answer.
  */
@@ -179,7 +179,7 @@ export interface AuthStatusItem extends Omit<PersonaStateView, 'detail' | 'at'> 
 }
 
 /**
- * engine.auth.forScenario (L4.4): the personas a run of a scenario signs in on an environment, with their stored state
+ * engine.auth.forScenario: the personas a run of a scenario signs in on an environment, with their stored state
  * (no browser), `auto` — every run's preflight signs it in by itself, off camera (it has `login:` steps and each
  * `{{env:…}}` they use is set for the worker this client starts; `login_env_missing` names the others, `login_keychain`
  * counts the keychain items, never looked up) — and `has_check` (the preflight checks it before filming).
@@ -208,12 +208,12 @@ export interface Engine {
   readonly root: string;
   /**
    * Who drives this engine (caller.ts): the caller of the client it was made for, fixed for its life (the workspace's
-   * agent policy is opened from it). Read-only: invoke hands it to an operation's caller rules (L7.13).
+   * agent policy is opened from it). Read-only: invoke hands it to an operation's caller rules.
    */
   readonly caller: Caller;
   /**
    * The engine's clock (clock.ts, the Clock port its composition root chose: the system's, or a test's ManualClock):
-   * what an operation reads when it needs the time as the engine sees it (L7.18: record_options' suggested draft
+   * what an operation reads when it needs the time as the engine sees it (record_options' suggested draft
    * name). Read-only, like `caller`.
    */
   readonly clock: Clock;
@@ -240,7 +240,7 @@ export interface Engine {
     create(input: CreateProjectRequest): Promise<ProjectView>;
     updateReadme(project: string, markdown: string, ifMatch?: string | null): Promise<{ file: string; path: string; hash: string }>;
     /**
-     * Delete failed takes, dry runs, older captures and renders nothing uses (L5.7, R-FLD-28; prune.ts): `dry_run`
+     * Delete failed takes, dry runs, older captures and renders nothing uses (R-FLD-28; prune.ts): `dry_run`
      * (default true) only reports what would go and how much it frees. Whatever a queued or running job names is kept.
      * Under agent trust (every client but the CLI and tests), `dry_run: false` first lists what would go and asks the
      * person through `approver` (approvals.ts `takePruneApproval`: no approver → `needs_approval`, declined →
@@ -249,7 +249,7 @@ export interface Engine {
      */
     prune(project: string, req?: Pick<PruneRequest, 'keep_renders' | 'dry_run'>, o?: { approver?: Approver }): Promise<PruneResult>;
     /**
-     * The Studio's Project screen in one read (L5.10a, project-board.ts): every scenario's file facts, running / last
+     * The Studio's Project screen in one read (project-board.ts): every scenario's file facts, running / last
      * take, capture (current or not), dry run, newest render and its review, render job, length and poster — one pass
      * over the runs, one renders readdir, one queue read; memos apart from `scenarios.view`'s. Path-free.
      */
@@ -259,34 +259,34 @@ export interface Engine {
     get(project: string, name: string): Promise<ScenarioText>;
     validate(project: string, yaml: string, opts?: { env?: string; until?: string; name?: string }): Promise<ValidateResult>;
     /**
-     * A saved scenario as the Studio's scenario screen reads it (L4.2): its text and hash, its own problems — validated
+     * A saved scenario as the Studio's scenario screen reads it: its text and hash, its own problems — validated
      * against the project WITHOUT agent trust (a person's `{{env:…}}` is valid in their file) — and, apart, what would
      * refuse a dry run and a capture submitted by this client (`run_blockers`: agent-trust problems, protected hosts,
      * hooks a rule refuses, hooks that need a person), so a screen says it before any click.
      */
     check(project: string, name: string, opts?: { env?: string }): Promise<ScenarioCheck>;
     /**
-     * The Studio's scenario screen in one read (L4.2, scenario-view.ts): `check`'s file, issues and run blockers, plus
+     * The Studio's scenario screen in one read (scenario-view.ts): `check`'s file, issues and run blockers, plus
      * the blocks, the environment and scene URLs, the scenario's runs, the source run of the pictures (the one asked
      * for, else the newest complete one) and every step's binding to it; memoised by file hash and the runs' files.
      */
     view(project: string, name: string, opts?: { run?: string; env?: string }): Promise<ScenarioView>;
     /**
-     * L5.11a: the Studio's status bar for one scenario (scenario-view.ts `actions`): hash, validity, run blockers on the
+     * The Studio's status bar for one scenario (scenario-view.ts `actions`): hash, validity, run blockers on the
      * location (each with its gate's `kind`), the runs with the unfinished one's job, the capture a render edits, a
      * render queued or running. Memoised apart from `view` (it never evicts the open scenario's text layer).
      */
     actions(project: string, name: string, opts?: { env?: string }): Promise<ScenarioActions>;
     save(project: string, name: string, yaml: string, opts?: { ifMatch?: string | null }): Promise<SaveResult>;
     /**
-     * One edit of a saved scenario from the Studio (L4.3, scenarios.ts editScenario): the file the view read, `hash` as
+     * One edit of a saved scenario from the Studio (scenarios.ts editScenario): the file the view read, `hash` as
      * if_match, the file itself not blocked (view `edit`), no hidden character added, hooks and mocks unchanged (agent
      * clients), validated (errors refuse, warnings save) with agent trust worded for the client — atomic, mode kept.
      */
     edit(project: string, name: string, req: ScenarioEditRequest): Promise<ScenarioEditResult>;
     /**
      * A timecoded script table → an outline and a draft scenario (one `hold` per beat, the action as its note), validated
-     * against the project (L3.3 aid; deterministic, no model call, nothing written — save with `save`).
+     * against the project (an aid; deterministic, no model call, nothing written — save with `save`).
      */
     fromScript(project: string, markdown: string, opts?: { env?: string; name?: string }): Promise<ScriptDraftView>;
   };
@@ -307,22 +307,22 @@ export interface Engine {
       job: JobRecord;
       run_id: string;
       warnings: string[];
-      worker?: { pid?: number; spawned: boolean /** L5.16c: the live worker runs another copy of Retake (the lock's text). */; other?: { version: string; engine?: string } };
+      worker?: { pid?: number; spawned: boolean /** The live worker runs another copy of Retake (the lock's text). */; other?: { version: string; engine?: string } };
     }>;
     /** Cancel the job of a run (teardown and rollbacks still run). A run started from the CLI is refused. */
     cancel(project: string, runId: string): Promise<JobRecord>;
     /**
-     * Pause (`paused: true`) or resume a running run of a job (L4.4): the job's `pause` marker; the run pauses before its
+     * Pause (`paused: true`) or resume a running run of a job: the job's `pause` marker; the run pauses before its
      * next step (at most RETAKE_PAUSE_MAX_MIN, default 30 min, then it stops) — a capture does not film the pause.
      * Refused: a run started from the CLI; a queued, stopping or finished run (conflict). Resuming always removes the marker.
      */
     pause(project: string, runId: string, paused: boolean): Promise<RunStatusWithJob>;
     /**
-     * JPEG thumbnails (base64, ≤ 480 px) of up to 24 steps of a run, by the run's own step keys (L4.2, run-thumbs.ts):
+     * JPEG thumbnails (base64, ≤ 480 px) of up to 24 steps of a run, by the run's own step keys (run-thumbs.ts):
      * dry-run screenshots, error screenshots, the frame on screen at a capture step's end. Made in memory, never stored.
      */
     thumbs(project: string, runId: string, keys: readonly string[], opts?: { signal?: AbortSignal }): Promise<RunThumbsView>;
-    /** A run's poster (L5.10a): its timeline's last step with a picture (run_thumbs takes `key`) and its scenes' length. */
+    /** A run's poster: its timeline's last step with a picture (run_thumbs takes `key`) and its scenes' length. */
     poster(project: string, runId: string): Promise<RunPoster>;
   };
   jobs: {
@@ -353,10 +353,10 @@ export interface Engine {
      * the persona's login steps. Never takes a credential.
      */
     login(req: AuthLoginSubmitRequest): Promise<{ job: JobRecord; persona: string; env: string; worker?: { pid?: number; spawned: boolean } }>;
-    /** Stop a sign-in job (its window closes; signInStoppedText says what stays): an `auth_login` job only, anything else refused (L4.4). */
+    /** Stop a sign-in job (its window closes; signInStoppedText says what stays): an `auth_login` job only, anything else refused. */
     cancelSignIn(jobId: string): Promise<JobRecord>;
     /**
-     * The personas a run of a saved scenario signs in (L4.4: the Run screen's preflight), with their stored state; `mode`
+     * The personas a run of a saved scenario signs in (the Run screen's preflight), with their stored state; `mode`
      * capture (default) counts the hooks' tabs too.
      */
     forScenario(project: string, scenario: string, opts?: { env?: string; mode?: RunMode }): Promise<ScenarioSessions>;
@@ -377,7 +377,7 @@ export interface Engine {
         variant: string;
         duration_s: number;
         warnings: string[];
-        worker?: { pid?: number; spawned: boolean /** L5.16c: the live worker runs another copy of Retake (the lock's text). */; other?: { version: string; engine?: string } };
+        worker?: { pid?: number; spawned: boolean /** The live worker runs another copy of Retake (the lock's text). */; other?: { version: string; engine?: string } };
         untrusted?: { passed_over: PassedOverRuns };
       } & RenderEditSource &
         LatestRunNotice
@@ -386,11 +386,11 @@ export interface Engine {
     status(project: string, renderId: string, o?: { scenario?: string }): Promise<RenderStatusView>;
     /**
      * A scenario's render jobs (queued / running, with progress and queue position) and renders (newest first, each with
-     * its review's verdict) — path-free (L4.5 part E: the Studio's render queue).
+     * its review's verdict) — path-free (the Studio's render queue).
      */
     ofScenario(project: string, scenario: string): Promise<ScenarioRendersView>;
     /**
-     * One output frame of a succeeded render as a JPEG (≤ 1280 px, base64; L4.6 render-frames.ts): the video's own fps
+     * One output frame of a succeeded render as a JPEG (≤ 1280 px, base64; render-frames.ts): the video's own fps
      * and frames checked against the record, its file opened safely; memory only. `session` (the Studio session):
      * the same session's earlier request on that render is dropped (newest wins); past 4 requests at once, `busy`.
      */
@@ -400,7 +400,7 @@ export interface Engine {
   };
   timeline: {
     /**
-     * The Studio timeline's view of a scenario's take (L4.5, timeline-view.ts): tracks, pins, the inspector's choices
+     * The Studio timeline's view of a scenario's take (timeline-view.ts): tracks, pins, the inspector's choices
      * (usable or disabled with why), the capture's codec and keyframes — path-free, text under `untrusted` — and, beside
      * it for the in-process caller only, the plan. Memoised per file / run / components (one planning per change).
      */
@@ -422,7 +422,7 @@ export interface Engine {
     /** A render's review: its newest job, then review/<id>/report.json (paths rebuilt from the folder, messages untrusted). */
     get(project: string, renderId: string, o?: { scenario?: string; images?: ReviewImagesMode }): Promise<ReviewView>;
     /**
-     * One contact sheet of a render's review as a base64 JPEG (L4.5 part E): named by its file name in review/<id>/, read
+     * One contact sheet of a render's review as a base64 JPEG: named by its file name in review/<id>/, read
      * without following a link, JPEG only, scaled and capped.
      */
     image(project: string, renderId: string, image: string): Promise<ReviewImageView>;
@@ -451,13 +451,13 @@ export interface Engine {
     /** Queue stills of a theme (intro, layout + caption, card, interstitial, outro) into .retake/previews/. */
     preview(req: { project: string; template?: string }): Promise<PreviewSubmitted>;
     /**
-     * A new workspace theme from brand inputs (L3.5; core BrandInputSchema), under trust `mcp`: brand files are
+     * A new workspace theme from brand inputs (core BrandInputSchema), under trust `mcp`: brand files are
      * workspace files outside agent-writable, hidden and components folders; never an existing theme, except `replace`
      * of one this tool made that nobody changed. `retake theme create` calls createThemeFromBrand with trust `author`.
      */
     create(input: unknown): Promise<ThemeCreated>;
     /**
-     * Queue a site extraction (L3.5, R-MCP-12) after asking the human (through `approver`) to approve the exact URL:
+     * Queue a site extraction (R-MCP-12) after asking the human (through `approver`) to approve the exact URL:
      * colours, font names, logo PNGs and a screenshot into .retake/site/<id>/, and a draft brand input. Refused
      * for an environment page or a protected host; needs_approval when the client cannot ask anyone.
      */
@@ -465,27 +465,27 @@ export interface Engine {
     /** A site extraction read back (site.json as a file of the workspace) with its draft; null view before it is written. */
     site(siteId: string, url: string): Promise<{ dir: string; view: SiteJobResult | null }>;
     /**
-     * L4.7: one theme as the Studio's editor shows it — editable or read-only with why (by real path), template.yaml's
+     * One theme as the Studio's editor shows it — editable or read-only with why (by real path), template.yaml's
      * text and sha256, the allow-listed fields, components, its font and image files checked, palette checks, used by.
      */
     view(name: string): Promise<ThemeEditView>;
-    /** L4.7: the themes as the theme editor lists them (editable or why not, used by), the project's marked. */
+    /** The themes as the theme editor lists them (editable or why not, used by), the project's marked. */
     editList(project?: string): Promise<ThemeEditList>;
     /**
-     * L4.7: one verified write of a theme's template.yaml (core applyThemeEdit, if_match, re-parse, files served from
+     * One verified write of a theme's template.yaml (core applyThemeEdit, if_match, re-parse, files served from
      * its folder only, the registry, the write lock; `restore` of a version shown or written). Refused for MCP.
      */
     edit(name: string, req: ThemeEditRequest): Promise<ThemeEditResult>;
-    /** L4.7: a new workspace theme copied from a listed one ("Copy to edit"; refused inside the Retake package). */
+    /** A new workspace theme copied from a listed one ("Copy to edit"; refused inside the Retake package). */
     copy(req: { from: string; name: string }): Promise<ThemeCopied>;
-    /** L4.7: the workspace's image or font files a new theme may take (names and sizes; brand source rules). */
+    /** The workspace's image or font files a new theme may take (names and sizes; brand source rules). */
     files(kind: 'image' | 'font'): Promise<BrandFileList>;
-    /** L4.7: the newest site extractions (hex colours and candidates; URL, host and page text under untrusted). */
+    /** The newest site extractions (hex colours and candidates; URL, host and page text under untrusted). */
     sites(): Promise<SiteList>;
     /** Why a host is never extracted as a site: a page of an environment of a project, a protected host (none: empty). */
     siteConflicts(host: string): Promise<string[]>;
     /**
-     * L4.7 theme_preview's spec (views/theme-preview.ts): built with this engine's registry and preview samples;
+     * theme_preview's spec (views/theme-preview.ts): built with this engine's registry and preview samples;
      * `start` hands the shell's registrar of the files it serves.
      */
     previewSpec(req: ThemePreviewRequest, o: { start: () => ThemePreviewServe }): Promise<ThemePreviewBuild>;
@@ -502,20 +502,20 @@ export interface Engine {
     /** Queue a still of a component with a theme, slot values and params into .retake/previews/ (never its folder). */
     preview(req: { project: string; template?: string; component: string; slots?: Record<string, string>; params?: Record<string, unknown>; at_s?: number }): Promise<PreviewSubmitted>;
     /**
-     * L4.7, the Studio library: the poster and loop keys of `components` (default: the whole registry) in a theme (a
+     * The Studio library: the poster and loop keys of `components` (default: the whole registry) in a theme (a
      * name; default the project's) and what the preview cache holds for each — `committed` for a fresh built-in poster
      * in the editorial starter. Failure reasons under `untrusted`.
      */
     library(req: { project: string; template?: string; components?: string[] }): Promise<LibraryStatesView>;
     /**
-     * L4.7: queue posters and / or loops of at most 12 components into the preview cache, each with the key the caller
+     * Queue posters and / or loops of at most 12 components into the preview cache, each with the key the caller
      * expects (`library` gave them). Refused under 1 GB free.
      */
     libraryRender(req: { project: string; template?: string; items: Array<{ component: string; poster?: string; loop?: string }>; retry?: boolean }): Promise<PreviewSubmitted>;
   };
   inspect: {
     /**
-     * Queue an inspection (L3.3): a dry replay of a page (page key + path, or a URL of the environment's own origins) or
+     * Queue an inspection: a dry replay of a page (page key + path, or a URL of the environment's own origins) or
      * of a saved scenario up to a step, then the page inventoried into <project>/.retake/inspect/<id>/ — run_dry's
      * trust rules (agent trust, protected hosts, production read-only, no hook, no template).
      */
@@ -525,7 +525,7 @@ export interface Engine {
   };
   record: {
     /**
-     * Queue a recording (L3.4): a headed window opens on this machine for a HUMAN to perform a flow and close it (nobody
+     * Queue a recording: a headed window opens on this machine for a HUMAN to perform a flow and close it (nobody
      * drives it through the job); a draft scenario is made from it, saved when its name is free, and checked by a
      * headless dry replay. The environment's own access, never --allow-writes; no hook; the workspace's protected hosts.
      */
@@ -533,7 +533,7 @@ export interface Engine {
     /** A recording's draft.yaml read back (null when there is none); its text is page and typed text: untrusted. */
     get(project: string, recId: string): Promise<{ dir: string; draft: string | null; truncated: boolean }>;
     /**
-     * The Record screen (L4.8, record-studio.ts; clients `ui` and `test` only): a recording's state and live draft —
+     * The Record screen (record-studio.ts; clients `ui` and `test` only): a recording's state and live draft —
      * counts and enums, page text under `untrusted`, no path. `job`: the job record_start returned (before the folder
      * exists); `since`: the previous answer's `version` (unchanged: a short answer).
      */
@@ -555,11 +555,11 @@ export interface Engine {
   /** A JPEG thumbnail (base64) of an image of the workspace, made on read: never stored. */
   thumbnail(file: string, maxPx?: number): Promise<{ base64: string; width: number; height: number; bytes: number }>;
   /**
-   * Frame comments (L3.6, L4.6): threads on frames of renders. Entries are written as the channel `cli` for client
+   * Frame comments: threads on frames of renders. Entries are written as the channel `cli` for client
    * `cli`, `studio` for client `ui` (the Studio web app; its name the Studio process's $RETAKE_AUTHOR, else the OS
    * user — never a name from the page), `mcp` for any other client (`test` included: fail-safe). Only the person
    * channels (`cli`, `ui`) create and reopen threads and apply proposals. Every client but `cli` needs `if_match` to
-   * resolve, to reopen and to apply; `ui` names the render it showed (`render_created_at`) to create. Proposals (L4.6)
+   * resolve, to reopen and to apply; `ui` names the render it showed (`render_created_at`) to create. Proposals
    * come from the MCP only (`reply` with `proposal`: client `mcp`, and `test`).
    */
   comments: {
@@ -567,7 +567,7 @@ export interface Engine {
     get(project: string, id: string): Promise<CommentView>;
     add(project: string, req: CommentAddRequest): Promise<CommentAdded>;
     /**
-     * A reply; with `proposal` (MCP only, critique B10): Claude's whole new text of the thread's scenario file and the
+     * A reply; with `proposal` (MCP only): Claude's whole new text of the thread's scenario file and the
      * hash it read, checked as the Studio would check it at Apply and stored as the canonical line diff (open threads).
      */
     reply(project: string, id: string, text: string, o?: { proposal?: ProposalInput }): Promise<CommentWritten>;
@@ -577,7 +577,8 @@ export interface Engine {
     anchorAt(project: string, req: CommentAnchorRequest): Promise<CommentAnchorView>;
     /**
      * Apply a thread's newest pending proposal (person channels; `if_match` but for `cli`): under the thread's lock, the
-     * text rebuilt and checked, written by the Studio's own write path (every L4.3 rule), then the apply entry appended.
+     * text rebuilt and checked, written by the Studio's own write path (every write rule), then the apply entry
+     * appended.
      */
     apply(project: string, id: string, req: { entry_id: string; if_match?: string }): Promise<CommentApplied>;
     /** A proposal's state and the diff a person reads, computed from the file (rows with context; lines under untrusted). */

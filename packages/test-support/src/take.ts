@@ -1,5 +1,5 @@
 /**
- * L4.5 part C test helpers: a scratch workspace with a synthetic take whose capture shows its own frame number — ten
+ * Test helpers: a scratch workspace with a synthetic take whose capture shows its own frame number — ten
  * white-or-black blocks across the middle of every frame, block k white when bit k of the source frame index is set,
  * and a reference block above them always white (a blank or unloaded preview reads as nothing, never as frame 0) —
  * so a screenshot of the preview tells which source frame it shows (robust to scaling and lossy coding). Encoders:

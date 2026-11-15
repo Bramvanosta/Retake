@@ -1,5 +1,5 @@
 /**
- * What the timeline may switch in one click (L4.5, R-UI-23; critique B7): for a field of the scenario's edit part (core
+ * What the timeline may switch in one click (R-UI-23): for a field of the scenario's edit part (core
  * field-edits.ts FIELD_PATHS), the values offered — the theme's default first, then the frame styles or the
  * registry's components of that kind — each `usable` or disabled with why (components package `componentFit`: kind,
  * slots, params, pages, files); and the same check refusing a `set_field` the inspector would have shown disabled.
@@ -29,7 +29,7 @@ export const FRAME_STYLE_OPTIONS: ReadonlyArray<[string, string]> = [
   ['tablet', 'Tablet'],
   ['raw', 'Full screen'],
 ];
-/** The multi-page frames (L2.11). */
+/** The multi-page frames. */
 export const MULTI_PAGE_OPTIONS: ReadonlyArray<[string, string]> = [
   ['split', 'Split screen'],
   ['pip', 'Picture in picture'],
@@ -93,7 +93,7 @@ export function componentUseOf(entry: Obj | undefined, field: string): Component
 }
 
 /**
- * Why a `set_field` value does not fit (critique B7: the inspector shows it disabled with this reason), or null. Only
+ * Why a `set_field` value does not fit (the inspector shows it disabled with this reason), or null. Only
  * what needs the registry or the scenario is checked here (the value's kind and range: core fieldValueProblem).
  */
 export function fieldFitProblem(
@@ -119,7 +119,7 @@ export function fieldFitProblem(
     const styleWord = FRAME_STYLE_OPTIONS.some(([v]) => v === to);
     if (edit.at.entry === 'top') {
       // The video's frame is every scene's without its own: a multi-page frame dresses the scenes that film several
-      // pages (one-page scenes keep the theme's layout), a one-page style the others (review B: say when it changes none).
+      // pages (one-page scenes keep the theme's layout), a one-page style the others (say when it changes none).
       const v = videoPages(root);
       if (multiWord) return v.multi > 0 ? null : `${to} shows several pages: no scene of this video films more than one`;
       const allMulti = v.scenes > 0 && v.multi === v.scenes;

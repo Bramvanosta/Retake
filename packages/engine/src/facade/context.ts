@@ -141,11 +141,11 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
   const caches = engineCaches();
   const commentIndex = new CommentIndex();
   const submitCtx: SubmitContext = { ws, queue, cli: studio, client: opts.client, ...ports };
-  // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
+  // The scenario screen's reads: runs read once and held in memory, shared by the view and the thumbnails.
   const runData = new RunDataCache();
   // Both draw with this engine's reviewer (its frames: the product's load the review's light entry only).
   const runThumbs = new RunThumbs({ policy: ws.policy, frames: ports.reviewer.frames }, runData);
-  // The comment viewer's frames wait for the same ffmpeg slots as the run thumbnails (critique B7).
+  // The comment viewer's frames wait for the same ffmpeg slots as the run thumbnails.
   const renderFrames = new RenderFrames({ policy: ws.policy, frames: ports.reviewer.frames, renders: ws.outputs.renders, slots: runThumbs.ffmpegSlots, comments: commentIndex });
   const startWorker: EngineContext['startWorker'] = async () => {
     if (opts.autoStartWorker === false) return undefined;
@@ -182,7 +182,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
     stores: ports.stores,
     seen: caches.scenarioVersions,
   });
-  // L5.10a: the Project screen's board, its memos apart from the views' (critique H1: never evict the open scenario's).
+  // The Project screen's board, its memos apart from the views' (never evict the open scenario's).
   const boards = new ProjectBoards({
     ws,
     queue,

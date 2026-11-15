@@ -1,5 +1,5 @@
 /**
- * L4.8 part 4: the Record screen's ops over HTTP (record-ops.ts, R-UI-20 / 21 / 22), under the `ui` client — the
+ * The Record screen's ops over HTTP (record-ops.ts, R-UI-20 / 21 / 22), under the `ui` client — the
  * fixture product on ephemeral ports, the worker run in this process with Playwright playing the person
  * (`ports.recordWindow.drive`: a worker process cannot receive it), the person's Studio calls made over HTTP from inside the
  * drive while the window is open.
@@ -247,7 +247,7 @@ describe('the allow-list and the pinned inputs', () => {
       ['record_save', { project: P, rec_id: id, name: 'x', rev: 0, draft: 'a'.repeat(64), author: 'claude' }],
       ['record_save', { project: P, rec_id: id, name: 'x', rev: 0, draft: 'a'.repeat(64), overwrite: true }],
       ['record_save', { project: P, rec_id: id, name: '../escape', rev: 0, draft: 'a'.repeat(64) }],
-      // Never a save of whatever is on disk: the draft the person saw is required (review A-M1).
+      // Never a save of whatever is on disk: the draft the person saw is required.
       ['record_save', { project: P, rec_id: id, name: 'x', rev: 0 }],
       ['record_save', { project: P, rec_id: id, name: 'x', rev: 0, draft: 'not-a-hash' }],
     ] as const) {
@@ -492,7 +492,7 @@ describe('a real recording through the ops', () => {
     const mine = newRecordId();
     await cp(recDir(lab.rec), recDir(mine), { recursive: true });
     await rm(join(recDir(mine), 'meta.json'));
-    // The Studio's own: its job (submitted_by ui) is the one meta.json names (review A-L1).
+    // The Studio's own: its job (submitted_by ui) is the one meta.json names.
     const q = new FileJobQueue(ws);
     const job = await q.enqueue({ version: 1, kind: 'record', project: P, rec_id: mine, source: { page: 'shop', path: '/record-lab' }, check: true, submitted_by: 'ui' });
     const at = new Date().toISOString();

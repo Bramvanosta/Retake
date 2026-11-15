@@ -1,5 +1,5 @@
 /**
- * The in-page recorder (L3.4, `retake record`): serialised like the kit and evaluated, after a passive copy of the kit,
+ * The in-page recorder (`retake record`): serialised like the kit and evaluated, after a passive copy of the kit,
  * in an ISOLATED WORLD of the recording window's page (record-session.ts: CDP `Page.addScriptToEvaluateOnNewDocument`
  * with a world name, a binding scoped to that world). The page's own scripts share the DOM but not this world's
  * globals or prototypes: they cannot see the recorder, its kit, its binding or its memory, nor call any of them.
@@ -139,7 +139,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
     if (v.length >= cfg.secret_min) partials.set(el, v);
     else partials.delete(el);
   };
-  /** Shortest start of a remembered secret that makes typed text secret (the first part of a split typing, L4.8 review). */
+  /** Shortest start of a remembered secret that makes typed text secret (the first part of a split typing). */
   const SECRET_PREFIX_MIN = 4;
   /** Does `text` end with the start (SECRET_PREFIX_MIN characters or more) of a value the memory knows? */
   const secretPrefix = (text: string): boolean => {
@@ -293,7 +293,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
   };
   /**
    * The element acted on, as the kit's inventory entry describes it. `alts`: an action whose step targets this element
-   * (a press, a keyboard activation, typing, a native select, a file): up to three alternative targets too (L4.8) —
+   * (a press, a keyboard activation, typing, a native select, a file): up to three alternative targets too —
    * never for a secret field.
    */
   function info(target: Element | null, alts = false): Record<string, unknown> | null {

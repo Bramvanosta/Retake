@@ -1,5 +1,5 @@
 /**
- * Words of the scenario screen (L4.2): a step's state in the source run, why it has no picture, durations — said in
+ * Words of the scenario screen: a step's state in the source run, why it has no picture, durations — said in
  * words, never by colour alone.
  */
 import type { StepBinding } from '@retake/engine';
@@ -24,14 +24,14 @@ export function stepWords(scene: string, index: number): string {
 }
 
 /**
- * A run's error in the screen's words (review B M2): the runner leads it with "scene proposal, step 2 (click …)", its
+ * A run's error in the screen's words: the runner leads it with "scene proposal, step 2 (click …)", its
  * 0-based index — said here "step 3 of proposal (click …)" like every step a person reads.
  */
 export function runErrorWords(message: string): string {
   return message.replace(/^scene ([A-Za-z0-9][A-Za-z0-9_-]*), step (\d{1,4})\b/, (_m, scene: string, step: string) => stepWords(scene, Number(step)));
 }
 
-/** How a scene's pages are laid out in the video (review B M1): its frame, else the video's, else the render's choice. */
+/** How a scene's pages are laid out in the video: its frame, else the video's, else the render's choice. */
 export function layoutWords(sceneFrame: string | undefined, videoFrame: string | undefined, pages: number): string {
   const frame = sceneFrame ?? videoFrame;
   const named = (f: string) => (f === 'pip' ? 'picture in picture (pip)' : f === 'split' ? 'side by side (split)' : `layout ${f}`);
@@ -89,7 +89,7 @@ export const RUN_STATUS_WORDS: Record<string, string> = {
   interrupted: 'interrupted',
 };
 
-/** run.json's `partial` in the Studio's words: a stopped run says "stopped" (the engine's "cancelled", review B-L2 of L5.11a). */
+/** run.json's `partial` in the Studio's words: a stopped run says "stopped" (the engine's "cancelled"). */
 export function partialWords(p: string): string {
   return p === 'cancelled' ? 'stopped' : p;
 }
@@ -100,7 +100,7 @@ export function bindingWords(b: StepBinding | undefined, hasSource: boolean): st
   if (!b) return 'not in this run';
   if ('missing' in b) return missingWords(b);
   const words = STATUS_WORDS[b.status]?.[0] ?? b.status;
-  // L4.3: a step moved since the run keeps its picture, which shows it at its old place.
+  // A step moved since the run keeps its picture, which shows it at its old place.
   return b.moved ? `${words} · moved since this run` : words;
 }
 
@@ -113,14 +113,14 @@ export function timelineRun(v: Pick<View, 'capture'>): string | undefined {
   return v.capture?.id;
 }
 
-/** L5.10b: a step's verb on its frame (B32: "Hover", "Wait for", "Drop file"), from its category. */
+/** A step's verb on its frame ("Hover", "Wait for", "Drop file"), from its category. */
 export function verbWords(category: string): string {
   if (category === 'unknown') return 'Unknown';
   const w = category.replace(/_/g, ' ');
   return w.charAt(0).toUpperCase() + w.slice(1);
 }
 
-/** L5.10b: a step's state in the source run as a mark (a shape beside its words: never colour alone). */
+/** A step's state in the source run as a mark (a shape beside its words: never colour alone). */
 export function bindingMark(b: StepBinding | undefined, hasSource: boolean): 'ok' | 'fail' | 'warn' | 'idle' | 'waiting' {
   if (!hasSource || !b) return 'idle';
   if ('missing' in b) return b.missing === 'new' ? 'waiting' : b.missing === 'changed' || b.missing === 'scene_changed' ? 'warn' : 'idle';

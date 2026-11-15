@@ -1,9 +1,9 @@
 /**
- * Themes (templates) as clients outside the CLI see them (L3.2, R-MCP-09): the workspace's templates_dir and the
+ * Themes (templates) as clients outside the CLI see them (R-MCP-09): the workspace's templates_dir and the
  * starter templates shipped with Retake, with the component each one picks per kind; one theme in detail
  * (template.yaml, its colours, fonts, brand, assets and resolved components). Through MCP a theme is named, switched
  * per render or per scenario, and previewed (template_preview); a new one may be created from brand inputs
- * (brand/create.ts, L3.5) — an existing one is never edited (a human does).
+ * (brand/create.ts) — an existing one is never edited (a human does).
  *
  * A theme is named, never given as a folder: the only theme folder used is the one project.yaml's own `template:`
  * names (a human wrote it), listed with source `project`.
@@ -60,7 +60,7 @@ function picks(reg: ComponentRegistry, t: LoadedTemplate): { components: Partial
 
 /**
  * The first reason a listed theme cannot be used for work, or null (its components resolve, its files lie in its folder):
- * the timeline's theme switch shows it disabled with this (review B L4). One line; the workspace's part of a path cut off.
+ * the timeline's theme switch shows it disabled with this. One line; the workspace's part of a path cut off.
  */
 export async function themeUnusable(dir: string, reg: ComponentRegistry, ws: Pick<OpenedWorkspace, 'root' | 'reads' | 'policy'>): Promise<string | null> {
   const root = ws.root;

@@ -1,13 +1,13 @@
 /**
- * L5.9: the panes' pieces — `Toolbar` (one tab stop, the arrows / Home / End rove across its controls — never into a
- * popover or a menu, and never taking the keys a menu, a radio group or a field inside it handles: review A-M2), `StatusBar` (the
- * state on the left, information, the actions on the right; a labelled region), `SourceList` (the browser: a `nav` of
- * headed groups of links, the current one `aria-current="page"` with the selection fill and weight 600, nested items,
- * a count or a flag in words), `InspectorSection` (a titled section, collapsible as a native `<details>`),
- * `Facts` (L5.10a: read-only rows), `Disclosure` (L5.10a: a native `<details>`), `Callout` (L5.10b: a short note), `EmptyState`, `Blocker` (one line: what blocks, and the one action that unblocks it — a button, or Copy with a
- * visible "Copied"; L5.11a: `compact`, the status bar's form — its command in a popover that shows it in full beside its
- * Copy), `Checklist` (L5.11a: an ordered list of checks, each a
- * state column, a title, its body and its actions).
+ * The panes' pieces — `Toolbar` (one tab stop, the arrows / Home / End rove across its controls — never into a popover
+ * or a menu, and never taking the keys a menu, a radio group or a field inside it handles), `StatusBar` (the state on
+ * the left, information, the actions on the right; a labelled region), `SourceList` (the browser: a `nav` of headed
+ * groups of links, the current one `aria-current="page"` with the selection fill and weight 600, nested items, a count
+ * or a flag in words), `InspectorSection` (a titled section, collapsible as a native `<details>`), `Facts` (read-only
+ * rows), `Disclosure` (a native `<details>`), `Callout` (a short note), `EmptyState`, `Blocker` (one line: what blocks,
+ * and the one action that unblocks it — a button, or Copy with a visible "Copied"; `compact`, the status bar's form —
+ * its command in a popover that shows it in full beside its Copy), `Checklist` (an ordered list of checks, each a state
+ * column, a title, its body and its actions).
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { FocusEvent, KeyboardEvent, ReactNode } from 'react';
@@ -55,7 +55,7 @@ export function Toolbar({
   label: string;
   children: ReactNode;
   /**
-   * L5.12a fixes (review B-L5): a control focused by a click (Chromium focuses a clicked button) leaves the arrows, Home
+   * A control focused by a click (Chromium focuses a clicked button) leaves the arrows, Home
    * and End to the page — Edit's transport, where they step the playhead; the toolbar roves once the focus came by the
    * keyboard (Tab, Shift+Tab, a script).
    */
@@ -84,7 +84,7 @@ export function Toolbar({
     }
   };
   const rove = (e: KeyboardEvent<HTMLDivElement>) => {
-    // A control inside handled the key (a menu's trigger or items, a field): theirs (review A-M2).
+    // A control inside handled the key (a menu's trigger or items, a field): theirs.
     if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
     if (clickLeavesKeys && byPointer.current) return;
     const t = e.target as HTMLElement;
@@ -132,7 +132,7 @@ export interface SourceItem {
   key: string;
   /** A place (a link) … */
   to?: Route;
-  /** … or, L5.10b, an action (a `<button>` row: the scenes browser selects an entry into the inspector). */
+  /** … or an action (a `<button>` row: the scenes browser selects an entry into the inspector). */
   onSelect?: () => void;
   label: ReactNode;
   current: boolean;
@@ -142,19 +142,19 @@ export interface SourceItem {
   children?: SourceItem[];
   /** The nested list's name ("Projects of the workspace"). */
   childrenLabel?: string;
-  /** L5.10a: an icon before the label (decorative: the label names the row). */
+  /** An icon before the label (decorative: the label names the row). */
   icon?: IconName;
-  /** L5.10a: a value on the right in mono (a length, a count in words). */
+  /** A value on the right in mono (a length, a count in words). */
   value?: string;
-  /** L5.10a: a quieter row (text-3): a secondary entry. */
+  /** A quieter row (text-3): a secondary entry. */
   quiet?: boolean;
-  /** L5.10a: a lead column before the label (a number, mono). */
+  /** A lead column before the label (a number, mono). */
   lead?: string;
   /** A test id kept from an older screen (`library-link`). */
   testId?: string;
-  /** L5.10a fixes (review B-L1): a second line under the label that wraps (never cut: what tells two rows apart). */
+  /** A second line under the label that wraps (never cut: what tells two rows apart). */
   detail?: ReactNode;
-  /** L5.10b: a 2 px bar under the row (0–1 of the longest: a scene's length; decorative, the value says it). */
+  /** A 2 px bar under the row (0–1 of the longest: a scene's length; decorative, the value says it). */
   bar?: number;
 }
 
@@ -259,7 +259,7 @@ export function InspectorSection({
   );
 }
 
-/** L5.10a: read-only facts — a `<dl>` of rows, the label in the 96 px right-aligned column (the inspector's look). */
+/** read-only facts — a `<dl>` of rows, the label in the 96 px right-aligned column (the inspector's look). */
 export function Facts({ rows, label }: { rows: Array<{ key: string; label: ReactNode; value: ReactNode }>; label?: string }) {
   const list = (
     <dl className="k-facts">
@@ -271,7 +271,7 @@ export function Facts({ rows, label }: { rows: Array<{ key: string; label: React
       ))}
     </dl>
   );
-  // A name goes on a group around the list (review A-L6: a `dl` has no role that takes one).
+  // A name goes on a group around the list (a `dl` has no role that takes one).
   return label ? (
     <div role="group" aria-label={label} className="k-facts-group">
       {shown(list)}
@@ -282,8 +282,8 @@ export function Facts({ rows, label }: { rows: Array<{ key: string; label: React
 }
 
 /**
- * L5.10a: a disclosure — a native `<details>` with its summary (the platform's keyboard and state; closed by default).
- * The one place a collapsible lives outside the inspector (the ratchet bans `<details>` outside the kit: critique M5).
+ * A disclosure — a native `<details>` with its summary (the platform's keyboard and state; closed by default).
+ * The one place a collapsible lives outside the inspector (the ratchet bans `<details>` outside the kit).
  */
 export function Disclosure({ summary, children, defaultOpen = false, testId }: { summary: ReactNode; children: ReactNode; defaultOpen?: boolean; testId?: string }) {
   return (
@@ -297,7 +297,7 @@ export function Disclosure({ summary, children, defaultOpen = false, testId }: {
   );
 }
 
-/** L5.12d: `level` 1 for a screen that is only this (the not-found screen's heading is the centre pane's h1). */
+/** `level` 1 for a screen that is only this (the not-found screen's heading is the centre pane's h1). */
 export function EmptyState({ title, children, actions, level = 2 }: { title: ReactNode; children?: ReactNode; actions?: ReactNode; level?: 1 | 2 | 3 }) {
   const id = useId();
   const H = level === 1 ? 'h1' : level === 2 ? 'h2' : 'h3';
@@ -313,7 +313,7 @@ export function EmptyState({ title, children, actions, level = 2 }: { title: Rea
 }
 
 /**
- * L5.10b: a callout — a short note in a pane-tone well: its state as a shape AND its title (the title says the state:
+ * A callout — a short note in a pane-tone well: its state as a shape AND its title (the title says the state:
  * "Unsaved YAML changes", "Not saved"), then its text. `role`: `status` (default), `alert` for what went wrong now,
  * `note` for a standing fact. It replaces the legacy Notice on the rebuilt screens.
  */
@@ -341,8 +341,8 @@ export function Callout({
 }
 
 /**
- * L5.10b: the command to type in a terminal (what a blocker or a refusal asks for) and, for a person without `retake` on
- * their PATH, the same command through node — both as text to select (test ids kept from L4.2).
+ * The command to type in a terminal (what a blocker or a refusal asks for) and, for a person without `retake` on
+ * their PATH, the same command through node — both as text to select.
  */
 export function TerminalCommands({ fix, fixNode }: { fix?: string; fixNode?: string }) {
   if (!fix) return null;
@@ -406,7 +406,7 @@ function CopiedWord({ copied }: { copied: Copied }) {
 }
 
 /**
- * L5.11a fixes (review A-M3): the compact blocker's command — a button that opens a small popover (`popover="auto"`: the
+ * The compact blocker's command — a button that opens a small popover (`popover="auto"`: the
  * top layer, light dismiss, Escape gives the focus back) SHOWING the whole command, wrapped, beside its Copy button: what
  * is copied is what is on screen.
  */
@@ -466,9 +466,9 @@ function CommandPopover({ command, testId }: { command: string; testId?: string 
 }
 
 /**
- * One line: what blocks (a state word and a sentence), and the one action that unblocks it. L5.10a: without `word`, the
+ * One line: what blocks (a state word and a sentence), and the one action that unblocks it. Without `word`, the
  * same line with no state mark — a command to copy that nothing waits on (Welcome's New project, Claude's set-up). The
- * command is shown in full (it wraps: what is copied is what is shown, review B-M3 of L5.11a).
+ * command is shown in full (it wraps: what is copied is what is shown).
  */
 export function Blocker({
   state = 'attention',
@@ -483,7 +483,7 @@ export function Blocker({
   children?: ReactNode;
   /** Optional only in the compact form (nothing to do here: the words alone). */
   fix?: BlockerFix;
-  /** L5.11a: the status bar's one line — the command behind a "Command…" popover that shows it with its Copy. */
+  /** The status bar's one line — the command behind a "Command…" popover that shows it with its Copy. */
   compact?: boolean;
   testId?: string;
 }) {
@@ -533,7 +533,7 @@ export function Blocker({
 }
 
 /**
- * L5.11a: a checklist (R4-ShootPrep) — an ordered list of checks; each item a 28 px state column (a shape AND its word,
+ * A checklist (R4-ShootPrep) — an ordered list of checks; each item a 28 px state column (a shape AND its word,
  * the word visible to assistive technology only beside the title that says the same), its title (h3), its body and its
  * actions; a hairline between items.
  */

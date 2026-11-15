@@ -3,7 +3,7 @@
  * template_from_site, component_list, component_get, component_validate, component_preview, component_create; the
  * Studio: theme_list, theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, library_view,
  * library_images, library_render, library_component), characterized through their shells before they became the
- * engine's operations (L7.17): each call's answer through `retake mcp` over stdio (from the sources, the SDK's client)
+ * engine's operations: each call's answer through `retake mcp` over stdio (from the sources, the SDK's client)
  * and through the Studio's `POST /v1/call/<op>` (no worker), each shell on its own copy of a fixture workspace (the
  * fixture project, its own templates/, brand files copied from the starters and the built-in library, a workspace
  * card), normalised — the workspace, repository and home paths, ISO stamps, a theme file's day, job ids, library keys and sha256s by order

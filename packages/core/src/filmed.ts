@@ -1,18 +1,18 @@
 /**
- * The filmed part of a scenario (L5.5, R-FLD-01 / R-FLD-02): what drives the browser during a take, as opposed to the
+ * The filmed part of a scenario (R-FLD-01 / R-FLD-02): what drives the browser during a take, as opposed to the
  * edit, which a render re-plans from today's file on an existing run.
  *
- * Filmed: the environment (`env`), the setup, teardown and named hooks (L5.8: a `hook:` step is a step like any other),
+ * Filmed: the environment (`env`), the setup, teardown and named hooks (a `hook:` step is a step like any other),
  * the capture settings, the pacing, the product clock, the write mocks, the vars that a filmed part uses, the capture
  * scenes (their ids, order and `skip`), each scene's page (inherited included), `open`, `pages` (page labels left out),
  * `persona`, `still` and `cursor`, and each step's action and arguments (core stepFingerprint: shorthands and object
- * forms agree) with the modifiers that act on the page — `hold`, `park`, `on`, `retry_click` (L5.6).
+ * forms agree) with the modifiers that act on the page — `hold`, `park`, `on`, `retry_click`.
  *
  * Everything else is edit: title, intro / outro, frame, template, music, tutorial switches, target length, the caption
- * component (L4.5); cards and interstitials (their text, duration, place between scenes); a scene's caption, speed,
- * transition, frame, tutorial, page labels and `offscreen` (L5.8: the take plays the scene either way); a step's
+ * component; cards and interstitials (their text, duration, place between scenes); a scene's caption, speed,
+ * transition, frame, tutorial, page labels and `offscreen` (the take plays the scene either way); a step's
  * caption, speed, camera, mark, overlay, tutorial and id. `timeout`, `optional` and `irreversible` change nothing a successful take filmed and are
- * left out, as are `defaults` (L5.6: a default timeout) and `capture.step_shots` (pictures copied after the take);
+ * left out, as are `defaults` (a default timeout) and `capture.step_shots` (pictures copied after the take);
  * `note`s are ignored.
  *
  * The comparison reads both texts as data (core parseYaml: comments, quoting, key order are no change) and tolerates
@@ -110,7 +110,7 @@ export function filmedPartsOf(value: unknown): FilmedParts {
   const top: Record<string, string> = {};
   const topStrings: string[] = [];
   for (const [k] of FILMED_TOP) {
-    // capture.step_shots (L5.6) keeps pictures copied after the take: it changes no frame.
+    // capture.step_shots keeps pictures copied after the take: it changes no frame.
     const v = k === 'capture' && isPlainObject(doc[k]) ? Object.fromEntries(Object.entries(doc[k]).filter(([ck]) => ck !== 'step_shots')) : doc[k];
     top[k] = canonicalJson((k === 'capture' && isPlainObject(v) && Object.keys(v).length === 0 ? undefined : v) ?? null);
     collectStrings(doc[k], topStrings);
@@ -239,7 +239,7 @@ export function filmedChanges(now: string, then: string): string[] | undefined {
   return filmedChangesOf(a.value, b.value);
 }
 
-/** A run's scenario against today's file (L5.5). */
+/** A run's scenario against today's file. */
 export interface ScenarioSinceRun {
   /** Today's file. */
   file: string;

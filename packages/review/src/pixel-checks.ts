@@ -31,7 +31,7 @@ export interface PixelCheckInput {
   analyses: Map<number, FrameAnalysis>;
   /**
    * Capture frames analysed (`sourceKey` → whole-frame stats): of the main capture, or of a page's own track (multi-page
-   * clips, L2.11); undefined when the capture is not available.
+   * clips); undefined when the capture is not available.
    */
   sources?: Map<string, RegionStats>;
   /** Signatures of capture frames (whole frame): the opening-still check of a clip whose view moves (a reframe, a zoom). */
@@ -96,11 +96,11 @@ export function captionOverDuring(clip: ClipSegment, a: number, b: number): bool
 
 /**
  * The opening still of a clip is compared on its capture frames rather than on the rendered ones: the view moves (a
- * reframe, a zoom), an overlay comes in during it (L2.10: the spotlight of the first step fades in before it starts) or
+ * reframe, a zoom), an overlay comes in during it (the spotlight of the first step fades in before it starts) or
  * a caption over the screen does (its entrance animation).
  */
 export function stillFromSource(plan: Pick<EditPlan, 'source' | 'variant'>, clip: ClipSegment, a: number, b: number): boolean {
-  // A multi-page clip (L2.11) compares each page on its own track (the acting emphasis may change the rendered frames).
+  // A multi-page clip compares each page on its own track (the acting emphasis may change the rendered frames).
   if (clip.panes) return true;
   return viewMoves(plan, clip, a, b) || overlayDuring(clip, a, b) || captionOverDuring(clip, a, b);
 }
@@ -137,7 +137,7 @@ const GLIDE_SETTLE_S = 0.3;
 
 /**
  * Capture time from which the opening still of `scene` holds still: the end of its scene-start glide (`t_settled`,
- * estimated from `move_ms` for runs before L5.1) plus GLIDE_SETTLE_S; undefined when no cursor glided. A multi-page
+ * estimated from `move_ms` for older runs) plus GLIDE_SETTLE_S; undefined when no cursor glided. A multi-page
  * scene records one cursor per page: the last glide counts.
  */
 export function stillGlideEnd(timeline: Timeline | undefined, scene: string): number | undefined {

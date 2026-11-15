@@ -1,5 +1,5 @@
 /**
- * Frame comment threads (L3.6, core comments.ts): ids, the strict thread schema (shape, region, entries, no stored
+ * Frame comment threads (core comments.ts): ids, the strict thread schema (shape, region, entries, no stored
  * status), the derived status, the text and name sanitisers, step fingerprints, the pattern check of a stored anchor,
  * and the layout lists (comments/ authored, committed, agent-writable).
  */

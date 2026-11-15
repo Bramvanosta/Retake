@@ -1,15 +1,14 @@
 /**
- * L5.12c: `ColorField` (R4-Theme's inspector) — one colour: the native `<input type="color">` (the system's picker: its
- * well is the swatch the person drags from; every move is `onDraft`, the release — the input's native `change`, not
- * React's onChange which fires on every move — is `onCommit`), and the hex typed in a text field beside it (written on
- * Enter or when the field is left; an empty removable field is `onRemove`; anything but a hex goes back to the written
- * value). While a colour is dragged, a small swatch in the hex field shows the WRITTEN colour beside the well's draft
- * ("previewing #…" says it in words); otherwise the well alone is the swatch (review B-L1).
- * L5.12c fixes: `version` (the written file's version, e.g. its sha256) — a new one puts the written value back in the
- * hex field even when the value is the same (a refused write re-read: review A-M1 / B-L5 — leaving the field never
- * sends the refused colour again); `onText` — a form that owns the text (the New theme form) gets every keystroke and
- * the field keeps what was typed (the form says why a value is not a hex: review B-M2); an unset colour says "not set"
- * in words for a screen reader too (review A-L3); the swatch draws only a hex value (review A-L5).
+ * `ColorField` (R4-Theme's inspector) — one colour: the native `<input type="color">` (the system's picker: its well is
+ * the swatch the person drags from; every move is `onDraft`, the release — the input's native `change`, not React's
+ * onChange which fires on every move — is `onCommit`), and the hex typed in a text field beside it (written on Enter or
+ * when the field is left; an empty removable field is `onRemove`; anything but a hex goes back to the written value).
+ * While a colour is dragged, a small swatch in the hex field shows the WRITTEN colour beside the well's draft
+ * ("previewing #…" says it in words); otherwise the well alone is the swatch. `version` (the written file's version,
+ * e.g. its sha256) — a new one puts the written value back in the hex field even when the value is the same (a refused
+ * write re-read / leaving the field never sends the refused colour again); `onText` — a form that owns the text (the
+ * New theme form) gets every keystroke and the field keeps what was typed (the form says why a value is not a hex); an
+ * unset colour says "not set" in words for a screen reader too; the swatch draws only a hex value.
  * The kit holds no colour: the picker's value (a fallback when nothing is written) and the swatch's colour come from the
  * caller as data — theme data, from the theme files (a lint keeps colour literals there). Its label is the picker's
  * `<label>`; the hex field is named by that label and the hidden word "hex" (no copy of the label in an attribute).

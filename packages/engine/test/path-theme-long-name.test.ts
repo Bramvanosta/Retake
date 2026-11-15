@@ -1,5 +1,5 @@
 /**
- * A theme a project names by a path, in a folder whose name is longer than a theme's name (L7.5). The id module has
+ * A theme a project names by a path, in a folder whose name is longer than a theme's name. The id module has
  * one rule for the name of a theme that exists (at most 100 characters) and one for a new theme's (60). A folder a
  * project.yaml points at may be named otherwise: the theme still loads, plans and renders, and everything that reads
  * its renders by their id keeps working (the render list, prune, comments). Its name is then read nowhere: a render's
@@ -143,8 +143,8 @@ describe("a theme named by a path whose folder name is longer than a theme's nam
     ]);
   });
 
-  // L7.8 (changed, BL-164): the board compares the theme by its identity. Before, it named no theme and compared none:
-  // the row held quote-v2, the newer render made with another theme, as if it showed today's file.
+  // BL-164: the board compares the theme by its identity — without it, the row would hold quote-v2, the newer
+  // render made with another theme, as if it showed today's file.
   it("the board names no theme for it, but compares it by its identity: the row holds the render of today's file, take and theme", async () => {
     const s = (await engine.projects.board('demo')).scenarios.find((x) => x.name === 'quote');
     expect(s?.capture?.id).toBe(demo.run.id);

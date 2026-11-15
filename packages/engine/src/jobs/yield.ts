@@ -1,22 +1,22 @@
 /**
- * How a running heavy job yields during a filming take (L5.14a): background QoS (macOS `taskpolicy -b`: efficiency
+ * How a running heavy job yields during a filming take: background QoS (macOS `taskpolicy -b`: efficiency
  * cores only, throttled I/O), applied to every process of its tree and reversed (`taskpolicy -B`) per process when the
  * take ends. Chosen by the spike over SIGSTOP (DESIGN §4q): it passes the take criteria, needs no root, raises no timer
  * of Remotion's, and a process left behind keeps working (only slower).
  *
  * - The tree: a job process's group (it leads one: started detached) plus every descendant by parent pid — Remotion
  *   starts its browser detached, in a group of its own. Walked again every REWALK_MS while held; `-b` goes only to the
- *   pids not seen before (review A L5: one `ps` per walk, a `/bin/sh` only when the tree grew — the take's event loop may
- *   be this process's). A process forked under background QoS inherits it; `-B` on a parent does not reach its
- *   children: the reversal is per pid.
- * - Each pid's own QoS before the hold is kept (review A L3): a pid already at background QoS when first seen (`ps -o
+ *   pids not seen before (one `ps` per walk, a `/bin/sh` only when the tree grew — the take's event loop may be this
+ *   process's). A process forked under background QoS inherits it; `-B` on a parent does not reach its children: the
+ *   reversal is per pid.
+ * - Each pid's own QoS before the hold is kept: a pid already at background QoS when first seen (`ps -o
  *   pri` 4 — a person who started `taskpolicy -b retake render`) is neither held nor released; a pid forked during the
  *   hold takes its parent's. Release gives default QoS back only to the pids the hold made background (and to what they
  *   forked since).
  * - A pid is touched only while its start time is the one first seen for it (a reused pid is never changed); the root
  *   must be a pid this process may signal (signal.ts: never 0, 1, -1, itself or its own group), or this process itself
  *   for a command's own tree (`self`).
- * - `ps` and `taskpolicy` run with time limits (review A L4: a hung `ps` never blocks a cancel).
+ * - `ps` and `taskpolicy` run with time limits (a hung `ps` never blocks a cancel).
  * - Other platforms: nothing (heavy jobs still wait to start; BL-147).
  */
 import { execFile } from 'node:child_process';

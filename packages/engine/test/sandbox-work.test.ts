@@ -1,5 +1,5 @@
 /**
- * The sandbox use cases (sandbox-work.ts, L7.28): what the CLI's `retake sandbox …` commands and the sandbox jobs share.
+ * The sandbox use cases (sandbox-work.ts): what the CLI's `retake sandbox …` commands and the sandbox jobs share.
  * A lock-holding call (up, reset, down) runs under the caller's interrupt port — one scope opened with the sandbox's
  * message and a quit kill that is the handle's `killStartedSync`, disposed after an answer and after a refusal —; the
  * call's own options reach the handle key for key (a key given as `undefined` stays, no `seedTrust` the caller did not

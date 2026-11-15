@@ -1,5 +1,5 @@
 /**
- * The shell forms of the component use cases (L7.24, U8d: the CLI's `retake components` on the engine): what the CLI's
+ * The shell forms of the component use cases (the CLI's `retake components` on the engine): what the CLI's
  * characterization (packages/cli/test/operations-cli.test.ts) does not reach — a scaffold over a built-in id, a kind's
  * scaffold named for a preview, a component with a manifest that does not validate, the preview READMEs' journal — and
  * the MCP forms beside them, unchanged.

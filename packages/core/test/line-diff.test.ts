@@ -1,5 +1,5 @@
 /**
- * L4.6 part A2 (T9): the line diff of scenario proposals (core line-diff.ts). Fuzzed on 5,000 random line edits
+ * The line diff of scenario proposals (core line-diff.ts). Fuzzed on 5,000 random line edits
  * (insertions, deletions, moves, whitespace-only changes, CR LF, empty texts, no final line break): the hunks rebuild
  * the new text exactly, are well-formed (sorted, separated, none empty), minimal (their changed lines are the edit
  * distance a dynamic programme finds) and canonical (`diffLines(base, applyHunks(base, h))` deep-equals `h`); undoing
@@ -99,7 +99,7 @@ describe('diffLines / applyHunks (T9)', () => {
     const base = ['a', 'b', 'c', 'd', 'e'];
     expect(() => applyHunks(base, [{ at: 2, del: ['x'], add: ['y'] }])).toThrow(LineDiffError);
     expect(() => applyHunks(base, [{ at: 2, del: ['x'], add: ['y'] }])).toThrow(/line 2 is not the line it removes/);
-    // Out of order: displayed in one order, applied in another (critique B1 b).
+    // Out of order: displayed in one order, applied in another.
     expect(() =>
       applyHunks(base, [
         { at: 4, del: ['d'], add: ['D'] },

@@ -2,7 +2,7 @@
  * Media storage abstraction (R-ARC-03), local only: project artefacts are addressed by a ref — a project-relative POSIX
  * path such as `runs/20261017-142233-quote/capture.mp4` — with a sha256 where the content matters. Clients get the ref
  * (what a later remote storage keeps) and the local path (what Claude reads). The producers (runner, editor, review)
- * still write absolute paths into their own records: moving them to refs is a format change (L3.6 / BL-70).
+ * still write absolute paths into their own records: moving them to refs is a format change.
  */
 import { createHash, randomBytes } from 'node:crypto';
 import { isUtf8 } from 'node:buffer';
@@ -55,7 +55,7 @@ export interface Storage {
    * again just before the rename); null → the file must not exist (an atomic link: never overwrites); undefined → no
    * check. A mismatch is an EngineError `conflict` with `details.current` (the current hash, or null). A file that is a
    * symbolic link to another file of the project is written through it (the link stays a link); a link leading out of
-   * the project, or to nothing, is refused. L4.3: a write with an `ifMatch` hash holds the target's write lock
+   * the project, or to nothing, is refused. A write with an `ifMatch` hash holds the target's write lock
    * (`.retake/locks/write-*.lock`, shared across processes) from the check to the rename — unless `locked`: the
    * caller holds a lock that serialises every write of that file (a comment thread's) —; a replaced file keeps its mode.
    */
@@ -169,7 +169,7 @@ export class LocalStorage implements Storage {
    * included). Refused when that real path lies outside the project's real path (a symbolic link leading out, at any
    * level) — the read side of `writableDir`'s rule. A project folder that is itself a link is fine: both are real paths.
    * The refusal never names the link's target (a path outside the project the agent must not learn either). The real
-   * path is then read with core readPlainFile (L4.2, the BL-79 residue): a regular file only — a FIFO, a device or a
+   * path is then read with core readPlainFile (the BL-79 residue): a regular file only — a FIFO, a device or a
    * folder is refused without blocking — of at most `max` bytes (`invalid`, "too large", never "not found").
    * `details.reason` says which: `link_out`, `not_file`, `too_large`.
    */
@@ -214,7 +214,7 @@ export class LocalStorage implements Storage {
 
   /**
    * Where a write of `path` lands: `path` itself, or — when it is a symbolic link — its target, if that is a file of the
-   * project (review B M3: a README.md linked to docs/product.md is saved into docs/product.md, and stays a link).
+   * project (a README.md linked to docs/product.md is saved into docs/product.md, and stays a link).
    * Refused when the link leads out of the project or to nothing.
    */
   private async writeTarget(path: string): Promise<string> {
@@ -245,9 +245,9 @@ export class LocalStorage implements Storage {
   }
 
   /**
-   * The lock of a write to `target` (critique B1): named after the target's real path in the project, so a write
-   * through a link and one to the file itself share it — the existing file's real path as the disk spells it (review A
-   * M1: on a case-insensitive disk "quote.yaml" and "QUOTE.yaml" are one file, so one lock).
+   * The lock of a write to `target`: named after the target's real path in the project, so a write
+   * through a link and one to the file itself share it — the existing file's real path as the disk spells it (on a
+   * case-insensitive disk "quote.yaml" and "QUOTE.yaml" are one file, so one lock).
    */
   private async lockWrite(ref: string, target: string): Promise<TakeLock> {
     const [realRoot, realDir, realFile] = await Promise.all([realpath(this.root), realpath(dirname(target)), realpath(target).catch(() => null)]);
@@ -273,7 +273,7 @@ export class LocalStorage implements Storage {
     const target = await this.writeTarget(path);
     const buf = Buffer.from(text, 'utf8');
     const written = { ref, path, sha256: sha256Hex(buf), bytes: buf.length };
-    // A write that checks a hash holds the target's lock from the first check to the rename (critique B1): another
+    // A write that checks a hash holds the target's lock from the first check to the rename: another
     // writer with the same if_match waits, then finds the new content and gets its conflict.
     const lock = typeof opts.ifMatch === 'string' && !opts.locked ? await this.lockWrite(ref, target) : undefined;
     try {
@@ -281,7 +281,7 @@ export class LocalStorage implements Storage {
         const current = await this.currentHash(path);
         if (current !== opts.ifMatch) throw conflictError(ref, current, current === null ? 'missing' : 'stale');
       }
-      // The replaced file's permissions are kept (critique B11): set explicitly, since writeFile's `mode` is masked by
+      // The replaced file's permissions are kept: set explicitly, since writeFile's `mode` is masked by
       // the umask (a 0600 or 0664 scenario became 0644 after a save). A new file takes the umask's default.
       const mode = await lstat(target).then(
         (st) => (st.isFile() ? st.mode & 0o7777 : undefined),

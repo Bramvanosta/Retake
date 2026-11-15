@@ -1,5 +1,5 @@
 /**
- * L3.1 review: what work submitted through MCP may not do, without a browser. A scenario that names a secret is refused
+ * What work submitted through MCP may not do, without a browser. A scenario that names a secret is refused
  * at save, at submit and again by the worker; a project created through MCP may not point at another project's
  * production hosts, and nothing runs read-write on them; approvals are signed with the Retake home's key; a run whose
  * job was cancelled before any worker took it is listed `cancelled`; the build stamp covers every runtime package.
@@ -438,7 +438,7 @@ describe('approvals are signed with the Retake home key, for their job', () => {
     expect((await stat(keyFile)).mode & 0o777).toBe(0o600);
     expect((await stat(home)).mode & 0o777).toBe(0o700);
     expect(await verifiedApprovals(signed, { jobId, root: ws, keyFile })).toEqual({ approvals: signed.approvals, rejected: 0 });
-    // L5.14: bound to their job — the same input under another job id verifies nothing.
+    // Bound to their job — the same input under another job id verifies nothing.
     expect((await verifiedApprovals(signed, { jobId: 'j_01K9AZ0000000000000000000B', root: ws, keyFile })).rejected).toBe(1);
     // …and to their workspace: the same job in another workspace (another root) verifies nothing.
     expect((await verifiedApprovals(signed, { jobId, root: join(ws, 'projects'), keyFile })).rejected).toBe(1);

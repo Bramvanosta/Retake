@@ -90,12 +90,12 @@ export class ExportError extends Error {
 
 /**
  * The theme a re-render of `record` plans with (an export's vertical or square format): the folder the master was
- * rendered with (its record's `template_folder`, L7.9), named so that the editor's folder rule (core io
+ * rendered with (its record's `template_folder`), named so that the editor's folder rule (core io
  * projectTemplateFolderId) finds that very folder — the project's own `template:`, the record's theme name (a theme of
  * the workspace, or a starter's) or a starter's name, the first whose folder is the record's. At a terminal, else, the
  * folder itself (`/starter:<name>`: that starter's folder; a path: against the workspace root). Through MCP never a
  * path the record holds: a folder the project could not name is refused (PlanTrustError), in words that quote nothing
- * of the record. A record of before L7.9 (no folder) is re-rendered with its theme's name, as before.
+ * of the record. An older record (no folder) is re-rendered with its theme's name.
  */
 export async function exportThemeRef(project: LoadedProject, record: Pick<NamedRender, 'template'> & { template_folder?: unknown }, o: { trust?: PlanTrust } = {}): Promise<string> {
   const folder = record.template_folder;
@@ -203,8 +203,8 @@ export function exportMethod(record: Pick<NamedRender, 'id' | 'variant' | 'width
 
 /**
  * The warnings of a re-render (a square or vertical export) an export passes on: files upscaled, missing or blocked,
- * and how it was drawn and encoded (L5.15: no GPU found, VideoToolbox's size limit or probe, the GPU path failing and
- * the video rendered again in software). Pure.
+ * and how it was drawn and encoded (no GPU found, VideoToolbox's size limit or probe, the GPU path failing and the
+ * video rendered again in software). Pure.
  */
 export function exportRenderWarnings(warnings: readonly string[]): string[] {
   return warnings.filter((w) => /upscaled|missing|not found|blocked|\bGPU\b|VideoToolbox|in software/i.test(w));
@@ -331,7 +331,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportMad
       scenario: record.scenario,
       template: theme,
       overrides,
-      // The master's edit (L5.5): the same version of the scenario file, or the run as captured (renders before L5.5).
+      // The master's edit: the same version of the scenario file, or the run as captured (older renders).
       ...(record.edit?.from === 'scenario' ? { editSha256: record.edit.sha256 ?? null } : { edit: 'run' as const }),
       out: file,
       registry: opts.registry,

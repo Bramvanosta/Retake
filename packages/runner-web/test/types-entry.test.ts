@@ -1,5 +1,5 @@
 /**
- * `@retake/runner-web/types` (L7.12), the capture's vocabulary as types only: every statement of the entry is an
+ * `@retake/runner-web/types`, the capture's vocabulary as types only: every statement of the entry is an
  * `export type … from` a module of the package, so the built entry imports nothing and loads nothing (no Playwright, no
  * encoder, no kit) — what makes it a domain entry (scripts/audit/lib.mjs DOMAIN_ENTRIES: the engine's CaptureRunner port
  * and the shells may name it). Every name it exports, the package root exports too.

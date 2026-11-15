@@ -1,10 +1,10 @@
 /**
- * L5.16c (critique M6) — which copy of Retake a workspace's worker runs: the worker lock records `engine` (the `.app` it
+ * Which copy of Retake a workspace's worker runs: the worker lock records `engine` (the `.app` it
  * runs from, or the repository checkout: core engineLocation), a lock's `engine` is only an absolute one-line path,
  * `otherCopy` tells another copy (or version) from this one, and a run submitted while such a worker is alive warns
- * that it runs there. L5.16c fixes (review c A-L4): every lock field that is shown has its shape (a version's, a build
+ * that it runs there. Every lock field that is shown has its shape (a version's, a build
  * stamp's, a time's; odd text dropped), a submit's warning has fixed words and the version only (its folder is
- * engine_info's, under `untrusted`), and a render submitted then warns too (review c B-L1).
+ * engine_info's, under `untrusted`), and a render submitted then warns too.
  */
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';

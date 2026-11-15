@@ -1,6 +1,5 @@
 /**
- * The delivery formats of an export (L3.2; in jobs.ts until L7.35, when the job vocabulary went to the engine): the names
- * an export job takes and the editor's EXPORT_FORMATS table is keyed by.
+ * The delivery formats of an export: the names an export job takes and the editor's EXPORT_FORMATS table is keyed by.
  */
 export const EXPORT_FORMAT_NAMES = ['mp4_1080p', 'mp4_4k', 'webm', 'vertical_9x16', 'square_1x1', 'gif_preview'] as const;
 

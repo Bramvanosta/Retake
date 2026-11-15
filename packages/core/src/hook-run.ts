@@ -1,5 +1,5 @@
 /**
- * The vocabulary of a hook run (L7.11, moved from @retake/hooks, which re-exports it unchanged): which list runs, the
+ * The vocabulary of a hook run (@retake/hooks re-exports it unchanged): which list runs, the
  * context hooks run in, a hook's result, what an approval is asked about, a journal entry and its rollback action. Types
  * only (and `journalsRollback`, a rule of the phases): the engine's HookRunner port and the hooks package both name them
  * here, so that the port names no adapter's type.
@@ -13,10 +13,10 @@ import type { LoadedProject } from './types/project.js';
 import type { ResolvedEnvironment } from './types/environment.js';
 
 /**
- * Which list of hooks is being run. Only `setup` and `step` hooks journal a rollback action. `seed` (L1.8): the steps
+ * Which list of hooks is being run. Only `setup` and `step` hooks journal a rollback action. `seed`: the steps
  * that build a sandbox's demo data — they stop at the first failure like setup, but nothing is rolled back (the next
  * reset rebuilds the data), no destructive hook asks for a confirmation (a sandbox is local and disposable) and js hooks
- * cannot run. `step` (L5.8): a named hook a `hook:` step runs during the take — it stops at its first failure (the step
+ * cannot run. `step`: a named hook a `hook:` step runs during the take — it stops at its first failure (the step
  * fails), and the rollbacks of what it did run with the setup's, after the teardown.
  */
 export type HookPhase = 'setup' | 'teardown' | 'reset' | 'seed' | 'step';
@@ -45,7 +45,7 @@ export interface HookContext {
   runDir?: string;
   /**
    * The folder hook files (sql `file`) and shell working directories are relative to (default `project.dir`): a sandbox
-   * seed's is the folder of its sandbox.yaml (L1.8).
+   * seed's is the folder of its sandbox.yaml.
    */
   baseDir?: string;
   /** Describe (and security-check) what would run, without executing anything. */
@@ -80,13 +80,13 @@ export interface HookContext {
    */
   confirmDestructive?: (description: string, reason: string, request: HookApprovalRequest) => boolean | Promise<boolean>;
   /**
-   * Who stands behind the flags of the hook files (L3.1, core HookTrust). Default `author`: `confirm: true` and a shell
+   * Who stands behind the flags of the hook files (core HookTrust). Default `author`: `confirm: true` and a shell
    * hook's `writes: false` count. `mcp` (work submitted through the MCP server): `confirm: true` is ignored, every shell
    * hook needs an approval and always counts as writing.
    */
   trust?: HookTrust;
   /**
-   * L5.14: replay a rollback whose journal entry Retake did not sign for its journal (journal.ts) when this says yes to
+   * Replay a rollback whose journal entry Retake did not sign for its journal (journal.ts) when this says yes to
    * it — never with trust `mcp`, never a sql or js one, one that references secrets or a shell one on a sandbox. The
    * CLI's `--replay-unsigned` asks the person in the terminal about each entry, shown in full (`file`: its journal).
    * Default: refused.
@@ -106,12 +106,12 @@ export interface HookContext {
    */
   agentVars?: readonly string[];
   /**
-   * The confinement of trust-`mcp` work, for the wording of its refusals (L4.2; L7.35: a value, core Confinement — the
-   * Studio's says "from the Studio" and "run it in a terminal"; absent: AGENT_CONFINEMENT, "through MCP").
+   * The confinement of trust-`mcp` work, for the wording of its refusals (a value, core Confinement — the Studio's
+   * says "from the Studio" and "run it in a terminal"; absent: AGENT_CONFINEMENT, "through MCP").
    */
   via?: Confinement;
   /**
-   * The access of the run (L1.7, core resolveRunAccess): on `read-only`, a hook that writes is refused (status
+   * The access of the run (core resolveRunAccess): on `read-only`, a hook that writes is refused (status
    * `refused`, reason `read-only`) and SQL runs in a read-only transaction. Absent: read-write.
    */
   access?: HookAccess;
@@ -122,20 +122,20 @@ export interface HookContext {
    */
   accessOf?: (env: string) => HookAccess | undefined;
   /**
-   * Ctrl-C (a sandbox seed, L1.8): a running shell command's process group gets SIGTERM (SIGKILL 2 s later) and the
+   * Ctrl-C (a sandbox seed): a running shell command's process group gets SIGTERM (SIGKILL 2 s later) and the
    * hooks stop — the caller reports the interrupt.
    */
   signal?: AbortSignal;
-  /** The process groups of the shell commands running now (L1.8): a second Ctrl-C kills them synchronously. */
+  /** The process groups of the shell commands running now: a second Ctrl-C kills them synchronously. */
   running?: Set<number>;
   /**
-   * Where a sql step connects for a sandbox database's host and port (L1.8, a docker-compose sandbox's seed): the
+   * Where a sql step connects for a sandbox database's host and port (a docker-compose sandbox's seed): the
    * address Docker publishes the port on (127.0.0.1, ::1) instead of the URL's host name — `localhost` may reach another
    * container publishing the same port on ::1. Undefined: the URL's host.
    */
   connectAddress?: (host: string, port: number) => string | undefined;
   /**
-   * L7.39: the files a person checked before this run (their trust in an agent's hooks, `retake hooks trust`, or their
+   * The files a person checked before this run (their trust in an agent's hooks, `retake hooks trust`, or their
    * yes to the listing): a hook that reads one of them otherwise is refused — an sql or js file whose bytes differ when
    * read, a code file that was not there, or any of a hook's files not as bound when it is about to run.
    */
@@ -144,7 +144,7 @@ export interface HookContext {
 
 /**
  * The files the hooks of a scenario read, by project-relative POSIX path → sha256 of their bytes (`unreadable`: it
- * could not be read, or is not a regular file), as a person's trust binds them (L7.39). `code`: what runs as code (an
+ * could not be read, or is not a regular file), as a person's trust binds them. `code`: what runs as code (an
  * sql / js file and its rollback's; a shell command's own script — argv[0] with a slash, an interpreter's script, psql
  * `-f`, a `<` target): bound strictly — one changed, newly read or unreadable is not as trusted. `data`: every other
  * file a shell command names, bound when it existed then: one changed or unreadable is not as trusted, one that
@@ -174,7 +174,7 @@ export interface TrustedHookFiles {
   codeOutputs?: string[];
 }
 
-/** Where a hook's files are looked for (trusted files, L7.39), and what its templates render with. */
+/** Where a hook's files are looked for (trusted files), and what its templates render with. */
 export interface TrustFilesPlace {
   /** The project folder: the keys are relative to it. */
   projectDir: string;
@@ -335,27 +335,27 @@ export interface JournalEntry {
   rollback?: RollbackAction;
   rolled_back_at?: string;
   /**
-   * The rollback will never be replayed (L1.8): a sandbox reset rebuilt the data of the entry's environment (replaying
+   * The rollback will never be replayed: a sandbox reset rebuilt the data of the entry's environment (replaying
    * it would act on the new data). Not pending any more.
    */
   superseded?: { at: string; by: string };
   /** Last failed rollback attempt (the entry stays pending). */
   rollback_error?: string;
   rollback_attempts?: number;
-  /** L5.14: HMAC-SHA256 with the Retake home's key over the journal's id and the entry (journal.ts), hex. */
+  /** HMAC-SHA256 with the Retake home's key over the journal's id and the entry (journal.ts), hex. */
   sig?: string;
 }
 
 /**
  * Approves a hook that needs a human (a destructive one without `confirm: true`; with trust `mcp`, any shell hook too):
- * HookContext's `confirmDestructive`, named once (L7.25: what runner-web's RunOptions.confirmHook and the engine's
+ * HookContext's `confirmDestructive`, named once (what runner-web's RunOptions.confirmHook and the engine's
  * ExecuteRunOptions take).
  */
 export type ConfirmHook = (description: string, reason: string, request: HookApprovalRequest) => boolean | Promise<boolean>;
 
 /**
- * A journal of hook runs, as a hook runner hands it out (L7.25, moved from the engine's HookRunner port so that the
- * capture runner names the same type: runner-web's mirror of it is gone): the hooks package's Journal in the product.
+ * A journal of hook runs, as a hook runner hands it out (here so that the engine's HookRunner port and the capture
+ * runner name the same type): the hooks package's Journal in the product.
  */
 export interface HookJournal {
   /** The entries whose rollback has not run yet (nor been superseded). */
@@ -376,7 +376,7 @@ export interface HookRunOptions {
 }
 
 /**
- * What runs a capture's hooks (L7.25: the shared type of the engine's HookRunner port and runner-web's
+ * What runs a capture's hooks (the shared type of the engine's HookRunner port and runner-web's
  * RunOptions.hookRunner — the runner's hand-written mirror of the hooks package is gone): the part of the port a capture
  * uses. The engine's HookRunner extends it; the hooks package's runHooks and Journal satisfy it (the engine's package
  * hook runner, an in-memory one in tests).

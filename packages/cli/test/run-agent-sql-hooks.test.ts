@@ -1,5 +1,5 @@
 /**
- * L7.33: a person's `retake run` (and `retake hooks run <scenario>:setup|teardown`) lists the sql hooks of a scenario
+ * A person's `retake run` (and `retake hooks run <scenario>:setup|teardown`) lists the sql hooks of a scenario
  * an agent wrote with its shell hooks — each statement as it will run (a file's text), rendered with the run's
  * context, a secret kept as its token, its database key and its rollback — and runs none of them before the person
  * says yes. A scenario the person wrote, or one without shell or sql hooks, runs as before; `retake hooks trust` lists

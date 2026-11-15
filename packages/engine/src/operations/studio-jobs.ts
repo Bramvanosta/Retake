@@ -1,8 +1,8 @@
 /**
- * The Studio's submits and job controls (moved verbatim from the Studio server's ops.ts in L7.15: runOps, liveOps,
- * renderOps). Not MCP tools: Claude has run_dry / run_capture, render, export and job_cancel.
+ * The Studio's submits and job controls. Not MCP tools: Claude has run_dry / run_capture, render, export and
+ * job_cancel.
  *
- * - `scenario_run` (L4.2): the scenario screen's Dry run and Capture — engine runs.submit with pinned arguments: the
+ * - `scenario_run`: the scenario screen's Dry run and Capture — engine runs.submit with pinned arguments: the
  *   mode, the scenario, an environment of the project; the default hooks (none for a dry run, all for a capture), never
  *   a sandbox reset, never `until`, never a wait. It runs under the `ui` client's agent trust with no approver, so what
  *   the screen showed as a run blocker is refused here too (the submit is the authority) with the `retake run …`
@@ -12,11 +12,11 @@
  *   that no run signs in by itself needs `sessions_ack` naming it, else 409 `conflict` with `details.sessions` — a
  *   confirmation against a wasted take, not person presence (the run's own preflight stays the authority and stops
  *   before anything is filmed). Dry runs need none.
- * - `run_pause` (L4.4): Pause / Resume of the Run screen — engine runs.pause (a running run of a job pauses before its
+ * - `run_pause`: Pause / Resume of the Run screen — engine runs.pause (a running run of a job pauses before its
  *   next step, a capture without filming the pause; a queued, stopping or finished run is a 409; a terminal's run is
  *   refused).
- * - `sign_in_cancel` (L4.4): the Sessions panel's Cancel — engine auth.cancelSignIn (an `auth_login` job only).
- * - `scenario_render` (L4.5 part E, R-UI-26): Render from the timeline (or the scenario screen) — engine renders.submit
+ * - `sign_in_cancel`: the Sessions panel's Cancel — engine auth.cancelSignIn (an `auth_login` job only).
+ * - `scenario_render` (R-UI-26): Render from the timeline (or the scenario screen) — engine renders.submit
  *   with pinned arguments: the project, the scenario and the capture shown; the theme and every override come from the
  *   files (none can be passed: landscape, the scenario's or project's theme), the review runs inline after the render
  *   (`review: {fps: 1}`) and the scenario text is snapshotted with the job. `expect_edit_sha256` (the view's `hash`)
@@ -27,7 +27,7 @@
  *   scenario never interleave in a server.
  * - `render_cancel`: a render or review job of THIS project only (another project's job, or another kind, is refused
  *   403: job_cancel stays out of the Studio). A cancel during the inline review keeps the render.
- * - `review_export` (L5.12a): the Review report's Export video (MP4) — the existing engine `export` job, one format, the
+ * - `review_export`: the Review report's Export video (MP4) — the existing engine `export` job, one format, the
  *   fixed folder; one at a time per render and at most two exports of the workspace at once are the engine's admission
  *   rules (export_cap).
  */
@@ -78,7 +78,7 @@ export interface ScenarioRunAnswer {
   warnings: string[];
   /** The worker serving the queue: started now, or already running (absent: not started — tests). */
   worker?: { pid?: number; spawned: boolean };
-  /** L5.16c fixes (review c B-M2): that worker runs another copy of Retake (its version and folder: the lock's text). */
+  /** That worker runs another copy of Retake (its version and folder: the lock's text). */
   untrusted?: { other_copy: { version: string; engine?: string } };
 }
 
@@ -118,7 +118,7 @@ export const scenarioRun = defineOperation({
 const statusWords = (st: { status: string; paused?: { scene: string; step: number }; job?: { pause_requested_at?: string } }) =>
   st.paused ? `paused before step ${st.paused.step + 1} of ${st.paused.scene}` : st.job?.pause_requested_at ? `${st.status}, pausing before its next step` : st.status;
 
-/** run_pause: the Run screen's Pause / Resume (L4.4). */
+/** run_pause: the Run screen's Pause / Resume. */
 export const runPause = defineOperation({
   name: 'run_pause',
   title: 'Pause or resume a run',
@@ -131,7 +131,7 @@ export const runPause = defineOperation({
   },
 });
 
-/** sign_in_cancel: the Sessions panel's Cancel (L4.4). */
+/** sign_in_cancel: the Sessions panel's Cancel. */
 export const signInCancel = defineOperation({
   name: 'sign_in_cancel',
   title: 'Stop a sign-in',
@@ -156,7 +156,7 @@ const RenderInput = z.strictObject({
 const RenderCancelInput = z.strictObject({ project, job: z.string().regex(JOB_ID_RE, 'a job id (j_…)').describe('A render or review job of this project (scenario_renders lists them).') });
 const ReviewExportInput = z.strictObject({ project, render_id: renderId });
 
-/** L5.12a: the one format the Review report exports (the other formats stay `retake export` / Claude's `export`). */
+/** The one format the Review report exports (the other formats stay `retake export` / Claude's `export`). */
 export const REVIEW_EXPORT_FORMATS = ['mp4_1080p'] as const;
 /** The exports of the workspace queued or running at once that review_export still adds to (the engine's export_cap). */
 export const REVIEW_EXPORTS_OPEN = EXPORTS_OPEN_MAX;
@@ -236,7 +236,7 @@ export const renderCancel = defineOperation({
   },
 });
 
-/** review_export: the Review report's Export video (L5.12a). */
+/** review_export: the Review report's Export video. */
 export const reviewExport = defineOperation({
   name: 'review_export',
   title: 'Export a render as MP4 from the Studio',

@@ -1,5 +1,5 @@
 /**
- * L4.7 part D1: the library screen's pure rules (app/library-words.ts, app/library-load.ts):
+ * The library screen's pure rules (app/library-words.ts, app/library-load.ts):
  * - filters, groups by kind, counts; the source badge in words (never "made with Claude");
  * - ⚑ the "Create with Claude" prompt carries only checked names and the person's cleaned words (a hostile slug, theme
  *   or id is left out; direction and control characters removed; quotes cannot close the quoted words);

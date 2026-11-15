@@ -1,14 +1,13 @@
 /**
- * L5.12c « Épure » 4c: the theme editor's fields in the inspector (R4-Theme; were ThemeEditor.tsx's sections) — Brand
- * (name, URL, the outro's URL and tagline, logo and wordmark among the theme folder's own image files, listed by name:
- * critique B9), Colours (the kit's ColorField: the native picker previews each move in the frame and writes on release,
- * the hex writes on Enter; the cursor ripple following the accent; the background's type and colours in one write,
- * critique B7a; the contrast checks after each write), Type (the theme's own font files, Q4), Motion and cursor (style,
- * max zoom in steps of 0.01, the default zoom, the cursor: filmed, the ripple colour) and Components (one per kind, its
- * old params kept or dropped, B7b). Each section is an anchor of the browser (`data-section`).
- * L5.12c fixes (review A-L4): a colour drag re-renders the dragged field (and the frame), not the editor — the sections
+ * The theme editor's fields in the inspector — Brand (name, URL, the outro's URL and tagline, logo and wordmark among
+ * the theme folder's own image files, listed by name), Colours (the kit's ColorField: the native picker previews each
+ * move in the frame and writes on release, the hex writes on Enter; the cursor ripple following the accent; the
+ * background's type and colours in one write; the contrast checks after each write), Type (the theme's own font files),
+ * Motion and cursor (style, max zoom in steps of 0.01, the default zoom, the cursor: filmed, the ripple colour) and
+ * Components (one per kind, its old params kept or dropped). Each section is an anchor of the browser (`data-section`).
+ * A colour drag re-renders the dragged field (and the frame), not the editor — the sections
  * are memoised on the theme shown, `send` / `setDraft` are stable, each colour row is memoised on its own value / draft;
- * a colour field's `version` is the theme's sha256 (a refused write re-read shows what is written: review A-M1).
+ * a colour field's `version` is the theme's sha256 (a refused write re-read shows what is written).
  * Every control sends a plan through `send` (ThemeEditor.tsx owns the one write path, theme_edit with if_match). This
  * file holds no colour: what a colour input shows when nothing is written comes from theme-words.ts / the editor (theme
  * data). Every string from the server (a font's name table, a warning) is text.
@@ -180,7 +179,7 @@ function DefaultZoom({ view, off, send }: { view: ThemeEditView; off: boolean; s
   );
 }
 
-/** A logo / wordmark among the theme folder's image files (listed by name, never shown here: critique B9). */
+/** A logo / wordmark among the theme folder's image files (listed by name, never shown here). */
 function FileSelect({ label, field, view, files, off, send, none }: { label: string; field: string; view: ThemeEditView; files: string[]; off: boolean; send: Send; none?: string }) {
   const w = written(view, field);
   const cur = typeof w === 'string' ? w : '';
@@ -205,7 +204,7 @@ function Chips({ label, name, value, options, off, onPick }: { label: string; na
   );
 }
 
-/** The background: its type (a switch writes type and colours together, critique B7a) and its colours. */
+/** The background: its type (a switch writes type and colours together) and its colours. */
 function BackgroundField({
   bg,
   paper,

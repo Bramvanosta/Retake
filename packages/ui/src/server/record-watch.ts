@@ -1,5 +1,5 @@
 /**
- * What the Record screen watches (L4.8): each recording folder's own files — events.jsonl (the runner streams it while
+ * What the Record screen watches: each recording folder's own files — events.jsonl (the runner streams it while
  * the window is open), studio.json (the annotations: another tab arranged the draft), record.json (the draft and the
  * check written) and meta.json (the folder created) — by size and mtime. Nothing is read: stats only, never through a
  * link. The event stream (live.ts) diffs the scans each poll and names the recordings that changed

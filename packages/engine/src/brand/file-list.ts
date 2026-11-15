@@ -1,5 +1,5 @@
 /**
- * The workspace files a new theme may take as its logo, wordmark or fonts (L4.7, plan D7 `brand_files`): what the
+ * The workspace files a new theme may take as its logo, wordmark or fonts (`brand_files`): what the
  * Studio's New theme form offers to pick from. A bounded walk of the workspace (BRAND_LIST_MAX_ENTRIES entries read,
  * BRAND_LIST_MAX_DEPTH folders deep) that leaves out exactly what brand/files.ts refuses as a source under trust `mcp`
  * — hidden folders and files, the components folder, the folders an agent writes in a project (scenarios, runs,

@@ -1,7 +1,8 @@
 /**
- * L2.9 runner: wait_for_email (Mailpit API, baseline of the messages already there, cid images, HTML rendered to a
+ * Runner: wait_for_email (Mailpit API, baseline of the messages already there, cid images, HTML rendered to a
  * PNG), download (download event and a document opened in a new tab with the session's cookies; PDFs rasterised with
- * pdf.js in Chromium at 2× A4), web notifications (Notification + ServiceWorkerRegistration.showNotification, icon
+ * pdf.js in Chromium at twice A4 size), web notifications (Notification + ServiceWorkerRegistration.showNotification,
+ * icon
  * fetched with the session) and project documents named by slots.
  */
 import { createServer } from 'node:http';

@@ -1,5 +1,5 @@
 /**
- * User media (L2.12, R-OWN-*): the video, image and Lottie files a scenario or a theme shows instead of a provided
+ * User media (R-OWN-*): the video, image and Lottie files a scenario or a theme shows instead of a provided
  * component — a segment (intro, outro, card, interstitial) or an overlay over the capture. The scenario writes them as
  * sugar (`intro: {video: assets/intro.mp4}`, `overlay: {video: assets/burst.webm, anchor: target}`); everything below
  * (and a step overlay's use: overlay-use.ts) turns that sugar into an ordinary component use (studio/media, studio/lottie) so the rest of the pipeline — planner,

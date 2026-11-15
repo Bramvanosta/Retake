@@ -1,14 +1,14 @@
 /**
- * L5.11a: the words of Shoot — the status bar's state (a shape AND a word for each), a blocker's short words keyed on
- * the gate that refused (`kind`, critique H3: never the generic `code`, which cannot tell agent trust from a protected
+ * The words of Shoot — the status bar's state (a shape AND a word for each), a blocker's short words keyed on
+ * the gate that refused (`kind`: never the generic `code`, which cannot tell agent trust from a protected
  * host), and the mode's names. "Rehearse" is the Studio's word for a dry run (`retake run … --dry`, MCP `run_dry`):
  * the engine's own text may still say "dry run" (shared with the CLI and MCP) and is shown only in details, beside one
- * mapping line (critique M6).
+ * mapping line.
  */
 import type { RunBlocker } from '@retake/engine';
 import type { MarkState } from '../ui-kit/index.js';
 
-/** A persona's stored session in words, and its shape (L4.4's words; the Cast, Prepare's sessions, the browser). */
+/** A persona's stored session in words, and its shape (the Cast, Prepare's sessions, the browser). */
 export const STORED_WORDS: Record<string, [string, MarkState]> = {
   valid: ['valid', 'ok'],
   expired: ['expired', 'fail'],
@@ -63,7 +63,7 @@ export function blockerShort(b: Pick<RunBlocker, 'kind' | 'count' | 'fix' | 'fix
 /** The status bar's state of the scenario in context. */
 export type ShootState = 'idle' | 'queued' | 'running' | 'paused' | 'stopping' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted' | 'unknown';
 
-/** Every state: its shape and its word (M15: a pure table, each one said). */
+/** Every state: its shape and its word (a pure table, each one said). */
 export const SHOOT_STATES: Record<ShootState, { mark: MarkState; word: (mode: string) => string }> = {
   idle: { mark: 'idle', word: () => 'Idle' },
   queued: { mark: 'waiting', word: (m) => `${modeWord(m)} queued` },

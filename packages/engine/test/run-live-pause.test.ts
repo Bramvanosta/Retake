@@ -1,9 +1,9 @@
 /**
- * L4.4: a `run` job watched and paused through the worker (in-process, real Chromium, the fixture product on free ports).
+ * A `run` job watched and paused through the worker (in-process, real Chromium, the fixture product on free ports).
  * The worker opens the job's live channel (live.json) and polls its `pause` marker with the cancel marker: engine
  * runs.pause asks, the dry run pauses before its next step (run.json and the job's progress say so), resumes, records
  * the pause; a cancel while paused still runs the teardown; RETAKE_PAUSE_MAX_MIN stops a long pause. Live frames
- * reach a reader of the channel and are never written anywhere (B6: every file of the run, the workspace state, the
+ * reach a reader of the channel and are never written anywhere (every file of the run, the workspace state, the
  * Retake home and the worker's temporary folder scanned for the frames' bytes). runs.pause refuses a run of the CLI, a
  * queued or a finished run, writing no marker — a capture is no exception since part D (it does not film the pause).
  * Skipped without Chromium.
@@ -206,13 +206,13 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     expect(existsSync(queue.files.live(sub.job.id))).toBe(false);
     const events = (await queue.events(sub.job.id)).flatMap((e) => (e.type === 'run' ? [e.event] : []));
     expect(events.filter((e) => e.type === 'pause').map((e) => (e as { state: string }).state)).toEqual(['paused', 'resumed']);
-    // The outline comes once the run's secrets are known, before any step (review A).
+    // The outline comes once the run's secrets are known, before any step.
     const outlineAt = events.findIndex((e) => e.type === 'outline');
     expect(outlineAt).toBeGreaterThan(0);
     expect(events.findIndex((e) => e.type === 'step_start')).toBeGreaterThan(outlineAt);
     expect((events.find((e) => e.type === 'pause' && e.state === 'paused') as { max_ms?: number } | undefined)?.max_ms).toBe(30 * 60_000);
 
-    // B6: frames came, and not one of them is in any file the run, the workspace, the Retake home or the worker's
+    // Frames came, and not one of them is in any file the run, the workspace, the Retake home or the worker's
     // temporary folder holds — as a file, inside a file, or in base64.
     expect(frames.length).toBeGreaterThan(0);
     const hashes = new Set(frames.map((f) => createHash('sha256').update(f.data).digest('hex')));
@@ -235,7 +235,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
 });
 
 /**
- * L7.34 (U9): the same engine without a browser — the worker drives its run through the in-memory capture runner (its
+ * The same engine without a browser — the worker drives its run through the in-memory capture runner (its
  * pause gate is the runner's: a pause asked is seen before the next step, RETAKE_PAUSE_MAX_MIN reaches it as the
  * request's limit) and the in-memory hook runner, whose setup hook holds the first step back a moment (as a real
  * browser's start does) so that the pause lands before step 0. What the engine does around it — the pause marker, the

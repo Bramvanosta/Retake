@@ -1,12 +1,11 @@
 /**
- * L5.9: the page's commands that the desktop app's menu may send (`studio:command`, DESIGN §4j) — ONE list, compared
- * with the menu table of apps/desktop/src/menu.rs by a static test. The shell listens for them and accepts these ids
- * only; while a modal dialog is open it ignores them (critique M5), but the palette's own ⌘K closes the palette. In a
- * browser tab the page binds ⌘K itself on a Mac, Ctrl+K elsewhere outside a text field (⌘R, ⌘1 – 4, ⌥⌘I stay the
- * browser's); in the app (`__studioShell`) it binds
- * none of them: the menu's accelerators send the commands, so a key never acts twice. L5.11a: the Scenario menu's
- * Rehearse, Capture, Render and Stop (⌘R, ⇧⌘R, ⌘B, ⌘. in the app; never bound in a browser tab, where the palette
- * offers them) go through the shell's command bus (shell/command-bus.ts) to whoever owns them.
+ * The page's commands that the desktop app's menu may send (`studio:command`, DESIGN §4j) — ONE list, compared with the
+ * menu table of apps/desktop/src/menu.rs by a static test. The shell listens for them and accepts these ids only; while
+ * a modal dialog is open it ignores them, but the palette's own ⌘K closes the palette. In a browser tab the page binds
+ * ⌘K itself on a Mac, Ctrl+K elsewhere outside a text field (⌘R, ⌘1 – 4, ⌥⌘I stay the browser's); in the app
+ * (`__studioShell`) it binds none of them: the menu's accelerators send the commands, so a key never acts twice. The
+ * Scenario menu's Rehearse, Capture, Render and Stop (⌘R, ⇧⌘R, ⌘B, ⌘. in the app; never bound in a browser tab, where
+ * the palette offers them) go through the shell's command bus (shell/command-bus.ts) to whoever owns them.
  */
 export const MENU_COMMANDS = ['palette', 'mode-script', 'mode-shoot', 'mode-edit', 'mode-review', 'inspector', 'rehearse', 'capture', 'render', 'stop'] as const;
 export type MenuCommand = (typeof MENU_COMMANDS)[number];

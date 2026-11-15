@@ -1,5 +1,5 @@
 /**
- * L3.5 acceptance through MCP: a new theme made from a site and brand files, then filmed with (slow: gated by
+ * Acceptance through MCP: a new theme made from a site and brand files, then filmed with (slow: gated by
  * RETAKE_TEST_SLOW=1 — `pnpm test:slow`). An SDK client drives `retake mcp` (spawned from the sources over stdio)
  * on a scratch workspace holding a copy of projects/northfield-fixture (its local environment pointed at the fixture
  * product started on free ports) and the user's font files in brand/ (the OFL fonts of templates/ under other names):

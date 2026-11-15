@@ -1,5 +1,5 @@
 /**
- * L2.9 contracts in core: project `mailbox` (allow-listed host), actions `wait_for_email` and `download`, artefact
+ * Contracts in core: project `mailbox` (allow-listed host), actions `wait_for_email` and `download`, artefact
  * references in slots (`email:`, `document:`, `notification:`), transitions as components on scenes and cards, and the
  * timeline `artefacts` / `notification` events.
  */

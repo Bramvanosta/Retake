@@ -1,5 +1,5 @@
 /**
- * L5.9: placing a popover (a menu) under its trigger — `position: fixed` from the trigger's box, flipped above it when it
+ * Placing a popover (a menu) under its trigger — `position: fixed` from the trigger's box, flipped above it when it
  * would cross the window's bottom, kept inside the window sideways; re-placed on resize and scroll while open. The
  * platform does the rest (`popover="auto"`: the top layer above every pane, light dismiss, Escape) — no library.
  */

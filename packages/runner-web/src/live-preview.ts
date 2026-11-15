@@ -1,5 +1,5 @@
 /**
- * The live picture of a run (L4.4, R-UI-16): a small JPEG screencast of the page the run acts on, for a person watching
+ * The live picture of a run (R-UI-16): a small JPEG screencast of the page the run acts on, for a person watching
  * from the Studio. Its own CDP session on that page — never the recorder's, never `Emulation.*` (the recorder's session
  * owns the device metrics) — so a dry run (no recorder) has it too and a capture's frames are not touched.
  *
@@ -8,13 +8,13 @@
  *   at once and at most LIVE_FPS_MAX per second are handed on; the newest frame of a burst always follows within one
  *   interval (trailing edge), so the picture never stays on an older state of the page.
  * - Only while someone watches (`LiveSink.wanted`): nobody watching, no CDP session at all.
- * - Only while the run is on camera: `start()` at capture time 0, `stop()` first thing when the scenes end (before the
- *   recorders stop, the teardown hooks, the session diagnosis, the artefacts). In between it shows whatever the page the
- *   run acts on shows — an `offscreen` scene's steps and a `hook:` step's still page included (L5.8: played live, left
- *   out of the video by the edit). It follows that page (`page()`), checked every FOLLOW_MS: a sign-in tab, a hook's
- *   page or the preflight's browser are never that page.
+ * - Only while the run is on camera: `start` at capture time 0, `stop` first thing when the scenes end (before the
+ *   recorders stop, the teardown hooks, the session diagnosis, the artefacts). In between it shows whatever the page
+ *   the run acts on shows — an `offscreen` scene's steps and a `hook:` step's still page included (played live, left
+ *   out of the video by the edit). It follows that page (`page`), checked every FOLLOW_MS: a sign-in tab, a hook's page
+ *   or the preflight's browser are never that page.
  * - Frames go to the sink in memory; nothing here writes a file or logs a frame. What watching cost is counted
- *   (`watched()`: the seconds a screencast ran, the frames handed on) for the take's perf report (run.json
+ *   (`watched`: the seconds a screencast ran, the frames handed on) for the take's perf report (run.json
  *   `perf.live_preview`): the screencast's JPEG encoding runs in Chromium's browser process during the take.
  */
 import type { CDPSession, Page } from 'playwright-core';

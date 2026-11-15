@@ -1,10 +1,10 @@
 /**
- * L5.2b (critique M6) — the page's unsaved-text report end to end in headless Chromium against an in-process Studio
+ * The page's unsaved-text report end to end in headless Chromium against an in-process Studio
  * server: typing in the README editor puts `readme:<project>` on the server's board within a second, typed fields of a
  * step form put a `step_form` item, saving or clearing takes them off, and a reload clears the old tab session
  * (its `pagehide` report, sent with keepalive) — the board never keeps a tab that is gone. Kinds and names only reach
  * the server: the request bodies are checked for the typed text. (WebKit's visibility change on a hidden window is
- * MACOS-CHECKLIST 14a; the comments composer's mark is the same hook, checked in studio-e2e-comments.) Review B L7: the
+ * MACOS-CHECKLIST 14a; the comments composer's mark is the same hook, checked in studio-e2e-comments.) Also: the
  * Library's "create a component" words, a changed new-theme form and a theme editor's colour draft report too.
  */
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';

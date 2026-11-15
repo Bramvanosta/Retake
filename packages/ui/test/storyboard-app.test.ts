@@ -1,8 +1,8 @@
 /**
- * L5.10b: the storyboard's keys (board-keys.ts) — pure index arithmetic on the scenes' step counts and the grid's
+ * The storyboard's keys (board-keys.ts) — pure index arithmetic on the scenes' step counts and the grid's
  * columns: ← / → across scenes, ↑ / ↓ by column into the scene before's last row or the next scene's first row (the
  * column clamped; an empty scene skipped), Home / End, Page Up / Page Down three rows; and a scene's intrinsic height
- * (rows × the row height: critique L1).
+ * (rows × the row height).
  */
 import { describe, expect, it } from 'vitest';
 import { FRAME_ROW_PX, frameTitle, gridMove, sceneIntrinsicPx, sceneLengthWords } from '../src/app/script/board-keys.js';

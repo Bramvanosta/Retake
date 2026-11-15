@@ -1,5 +1,5 @@
 /**
- * Choreography helpers (L1.2): the trigger re-click (R-CHO-10), row-action triggers (R-CHO-13), adaptive typing
+ * Choreography helpers: the trigger re-click (R-CHO-10), row-action triggers (R-CHO-13), adaptive typing
  * (R-CHO-14), the React-safe clear (R-CHO-15), parking (R-CHO-18/21) and the `date` action (R-CHO-24), on static pages
  * in a real browser (dry runs, fast pacing).
  */

@@ -1,5 +1,5 @@
 /**
- * The ProjectStore port's contract (L7.10): what every adapter of `ProjectStores` does, run on the disk's
+ * The ProjectStore port's contract: what every adapter of `ProjectStores` does, run on the disk's
  * (project-store.test.ts) and the memory one (memory-store.test.ts). Written against the disk adapter as it was first
  * (a characterization), then run on both: the exact refusal and conflict messages (one set of words, storage.ts), and
  * one exact journal line per outcome under a ManualClock (key order included).

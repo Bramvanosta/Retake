@@ -49,7 +49,7 @@ export function RecordingInspector({
   const problem = nameProblem(name);
   const sel = selectedRow(u, cursor);
   const saveWhy = saveWhyWords(v, name, problem);
-  // Enter in Name while Save cannot go says why (L5.11b fixes, review A-L4).
+  // Enter in Name while Save cannot go says why.
   const save = () => {
     if (saveWhy === null) act.save(name);
     else say(saveWhy);

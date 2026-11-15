@@ -1,16 +1,15 @@
 /**
- * L5.12a: the Review report's pure rules (review-words.ts, route.ts, shell/modes.ts):
+ * The Review report's pure rules (review-words.ts, route.ts, shell/modes.ts):
  * - ⚑ the check families are total over the review package's FINDING_CODES (each code in exactly one family; a code the
  *   table does not know is Other) and keep the table's order, errors first inside a family;
  * - ⚑ never "passed": the counts in words say what the review found; no source of the report, the renders, Edit's status
  *   bar, the scenario card or the palette writes the word (a review does not record which checks ran: BL-132);
  * - ⚑ the raw capture's export command is built only from a project slug and a run id that pass their rules (a space, a
- *   quote, a `;`, a path give no command) — L5.12a fixes (review B-L7): the unused MP4 command is gone (Export video is
- *   the review_export job);
+ *   quote, a `;`, a path give no command) — no MP4 command (Export video is the review_export job);
  * - ⚑ the review route: a render id of a render id's shape (the same as core's RENDER_ID_RE) or not found; hrefTo drops
  *   another; Review's mode opens the view this tab used last, the report first.
- * - L5.12a fixes: two renders that read the same "when" show their time (B-L2); the export part reads the activity on
- *   its own project's jobs only (A-L1); a pending Show in Edit is dropped by a route elsewhere (A-L6).
+ * - Two renders that read the same "when" show their time; the export part reads the activity on
+ *   its own project's jobs only; a pending Show in Edit is dropped by a route elsewhere.
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -74,11 +73,11 @@ describe('the Review report (L5.12a)', () => {
     expect(countWords({ error: 1, warning: 1, info: 0 })).toBe('1 error, 1 warning, 0 notes');
     expect(NOTHING_ELSE).toBe('Nothing else found.');
     for (const s of ['error', 'warning', 'info'] as const) expect(severityMark(s).word).not.toMatch(/pass/i);
-    // L5.12b: the palette's "Review report — last render vN · <words>" row says what the review found, never "passed".
+    // The palette's "Review report — last render vN · <words>" row says what the review found, never "passed".
     expect(reportHint({ render_id: 'bits-v2', review: { state: 'clean', counts: { error: 0, warning: 0, info: 0 } } })).toBe('last render v2 · clean');
     expect(reportHint({ render_id: 'bits-v2', review: { state: 'warnings', counts: { error: 0, warning: 2, info: 0 } } })).toBe('last render v2 · 2 warnings');
     expect(reportHint(undefined)).toBe('no render yet');
-    // L5.12b fixes (review B-L2): a render without a review is said so — never "no render yet"; failed ones only, too.
+    // A render without a review is said so — never "no render yet"; failed ones only, too.
     expect(reportHint({ render_id: 'bits-v1', review: { state: 'none' } })).toBe('last render v1 · not reviewed');
     expect(reportHint(undefined, 2)).toBe('no finished render yet');
     for (const state of ['clean', 'warnings', 'errors', 'queued', 'running', 'failed', 'cancelled', 'none'])

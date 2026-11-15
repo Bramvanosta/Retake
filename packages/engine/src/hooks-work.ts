@@ -1,5 +1,5 @@
 /**
- * The hooks use cases outside a capture, orchestrated once (L7.23, U8b) for the two shells that run them: `retake hooks
+ * The hooks use cases outside a capture, orchestrated once for the two shells that run them: `retake hooks
  * run`, `retake hooks rollback` and `retake env reset` (the CLI, trust `author`, a person at a terminal) and the `hooks`
  * and `env_reset` jobs (the worker, trust `mcp`, the approvals taken at submit). Each work selects, builds the hook
  * context (hooks.ts createHookContext), opens the journal and runs or replays through the HookRunner port; the caller
@@ -152,8 +152,8 @@ interface HooksRunWorkBase extends Omit<HookWorkOptions, 'trust'> {
   reads: WorkspaceReads;
   /**
    * After the selection, before anything opens: a person's command asks here about what it is about to run (the CLI's
-   * shell hooks of a scenario an agent wrote, L7.27, rendered with the run's id); what it throws ends the work. What it
-   * returns: the files the person checked (L7.39), which the hooks are held to (HookContext.trustedFiles).
+   * shell hooks of a scenario an agent wrote, rendered with the run's id); what it throws ends the work. What it
+   * returns: the files the person checked, which the hooks are held to (HookContext.trustedFiles).
    */
   onSelected?: (sel: HookSelection, s: { runId: string }) => Promise<{ trustedFiles?: TrustedHookFiles } | undefined>;
   onStart?: (s: { sel: HookSelection; ctx: HookContext; access: RunAccess; runId: string; journalFile: string }) => void;

@@ -41,7 +41,7 @@ const once = <T>(make: () => Promise<T>) => {
 };
 /** The clean render (`clean-v1`, scenario `clean`), made by the first case that needs it, in whatever order they run. */
 const cleanCase = once(async () => {
-  // L1.7: a run that records its environment gets the line in report.md (and report.json `environment`).
+  // A run that records its environment gets the line in report.md (and report.json `environment`).
   const timeline = scenesTimeline([19, 19, 21]);
   timeline.environment = { name: 'local', access: 'read-write', clock: { at: '2026-11-02T10:24:00', epoch_ms: Date.UTC(2026, 10, 2, 10, 24) } };
   await makeCase(ws, 'clean', timeline);
@@ -320,7 +320,7 @@ describe.skipIf(!can)('reviewRender', () => {
   it(
     'a 35 s scene at 1×, a long wait on an unchanging screen, empty cards, a video far under 1 min; pagination',
     async () => {
-      // A fixed `wait` (since L2.12 the planner plays a `wait_for`'s waiting faster; a fixed wait is the author's choice).
+      // A fixed `wait` (the planner plays a `wait_for`'s waiting faster; a fixed wait is the author's choice).
       await makeCase(ws, 'long', scenesTimeline([35], { steps: { 0: [{ action: 'wait', t_start: 8, t_end: 13 }] } }), { draw: { emptyCards: true } });
       const r = await review('long-v1', { sheet: { columns: 4, rows: 3 } });
       expect(of(r, 'long-scene')).toHaveLength(1);
@@ -488,7 +488,7 @@ describe.skipIf(!can)('reviewRender', () => {
       await writeFile(join(renders, 'y.json'), JSON.stringify({ ...record, id: '../../escape' }));
       expect((await review('y', { thumbnails: false, previous: false })).files.dir).toBe(join(reviews, 'y'));
       // A copy that says the id of a render of renders/ (clean-v1.json is there): reviewed into review/<its file's name>
-      // — review/clean-v1/ is clean-v1's and stays as it was (L7.6b fix pass; before: the copy's review replaced it).
+      // — review/clean-v1/ is clean-v1's and stays as it was (before: the copy's review replaced it).
       // An upper-case id is the same on a disk that ignores case (review/CLEAN-V1 is review/clean-v1 there).
       const kept = await readFile(join(reviews, 'clean-v1', 'report.json'));
       await writeFile(join(renders, 'clean-v1 copy.json'), JSON.stringify(record));

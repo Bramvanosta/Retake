@@ -1,15 +1,15 @@
 /**
- * L5.9: the switch — a native checkbox with `role="switch"` drawn as the track itself (appearance none: the real element
+ * The switch — a native checkbox with `role="switch"` drawn as the track itself (appearance none: the real element
  * takes the click, the focus ring and Space), the knob a sibling that slides (on: right and the accent fill; off: left
  * on a grey track — position, not only colour). The label row is a `<label>`: a click on the words toggles too. The
- * name is the label alone (`aria-labelledby`), the hint its description (review A-L3: never "NotificationsA notice…").
+ * name is the label alone (`aria-labelledby`), the hint its description (never "NotificationsA notice…").
  */
 import { useId } from 'react';
 import type { ReactNode } from 'react';
 import { shown } from '../bits.js';
 
 /**
- * L5.10b: `layout="row"` — the inspector's row (B32's modifiers): the label in the 96 px right-aligned column, the hint
+ * `layout="row"` — the inspector's row (B32's modifiers): the label in the 96 px right-aligned column, the hint
  * and the switch on the right.
  */
 export function Switch({
@@ -29,7 +29,7 @@ export function Switch({
   disabled?: boolean;
   layout?: 'row';
   dataField?: string;
-  /** L5.11a: a test id on the input. */
+  /** A test id on the input. */
   testId?: string;
 }) {
   const hintId = useId();

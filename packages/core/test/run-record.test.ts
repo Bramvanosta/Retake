@@ -1,5 +1,5 @@
 /**
- * The run record (L7.6a, core run-record.ts): the transitions — the only way a status changes —, and the parse boundary
+ * The run record (core run-record.ts): the transitions — the only way a status changes —, and the parse boundary
  * of run.json and of a timeline's head: a value or a typed problem, never a throw.
  *
  * How the records read here were made (test-support/src/records/README.md has the table): `past/run-0.1.0` and

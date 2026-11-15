@@ -1,7 +1,7 @@
 /**
- * `retake mcp`: the MCP server over stdio (L3.1), for Claude Code, Claude desktop or any MCP client. stdout carries the
+ * `retake mcp`: the MCP server over stdio, for Claude Code, Claude desktop or any MCP client. stdout carries the
  * protocol only: this command writes nothing else there (diagnostics go to stderr). `--print-config` prints the
- * registration instead. `--http` (L4.1) serves the same tools over Streamable HTTP on 127.0.0.1 (default port 47820)
+ * registration instead. `--http` serves the same tools over Streamable HTTP on 127.0.0.1 (default port 47820)
  * behind the engine's gate, with the stable token of the Retake home (`--rotate-token` renews it); `--print-config
  * --http` prints that registration for Claude Code — the URL, and the token only by reference (its file, an
  * environment variable): never the token itself — and says that stdio is the safe default. A fixed port held by a
@@ -61,7 +61,7 @@ async function mcpHttp(ui: Ui, ports: EnginePorts, root: string, opts: McpComman
   if (opts.printConfig) {
     if (port === 0) throw new UsageError('--print-config --http needs a fixed port: leave --port out (47820) or name one');
     const url = `http://127.0.0.1:${port}${mcp.MCP_HTTP_PATH}`;
-    // Never the token itself (review A M1): the JSON names an environment variable, the command reads the token file.
+    // Never the token itself: the JSON names an environment variable, the command reads the token file.
     ui.result(JSON.stringify(mcpHttpConfigJson({ url }), null, 2));
     ui.line('');
     ui.line(

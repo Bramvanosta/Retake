@@ -1,5 +1,5 @@
 /**
- * Your own files rendered for real (L2.12, R-OWN-01/02): a video intro and a video outro with their own sound — the
+ * Your own files rendered for real (R-OWN-01/02): a video intro and a video outro with their own sound — the
  * intro leaves and the outro enters by the theme's crossfade, and their sound keeps its level through the transition
  * windows (no replayed start ramp, the end ramp where the part ends) —, and alpha overlay videos — VP9 with alpha
  * (.webm) and ProRes 4444 (.mov) — composited over a colour-coded synthetic capture. Pixel checks: the

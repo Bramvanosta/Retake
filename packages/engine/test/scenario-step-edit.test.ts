@@ -1,12 +1,12 @@
 /**
- * L4.3 part 2: step edits through the Studio's write path (engine scenarios.edit, the `ui` client): move / delete /
- * duplicate splice the file the view read (its hash as if_match), each step named by its guard (critique B2: stale →
- * a conflict with `details.stale`, nothing written); the spliced text must re-parse to exactly the intended value (the
+ * Step edits through the Studio's write path (engine scenarios.edit, the `ui` client): move / delete /
+ * duplicate splice the file the view read (its hash as if_match), each step named by its guard (stale → a conflict
+ * with `details.stale`, nothing written); the spliced text must re-parse to exactly the intended value (the
  * verify: a splice that would change another value — a keep-chomped block scalar losing its blank line — is refused,
  * nothing written); every part-1 rule still applies (a blocked file refused whole, no new hidden character — a copy of
  * a step holding one included —, errors refuse); `restore` puts the exact earlier bytes back (undo). The view gives each
  * step its guard and lock, and marks a step moved since the run (LIS) that keeps its picture; comments_list's
- * `step_now` follows a moved step (critique B10).
+ * `step_now` follows a moved step.
  */
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';

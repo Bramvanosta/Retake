@@ -1,19 +1,19 @@
 /**
- * Step editing on the board (L4.3 part 2, R-UI-12; L5.10b: the bar on the kit): one hook holding the screen's edit loop
+ * Step editing on the board (R-UI-12; the bar on the kit): one hook holding the screen's edit loop
  * and the bar above the board that shows it (undo / redo naming the edit, the live region, a refusal, the conflict offer).
  *
  * - Each edit is saved at once through `scenario_edit` on the version shown (`hash`); the screen then re-reads the view.
  *   Non-optimistic: the blocks change when the new view lands. From the send until then editing input is off
- *   (`busy`, critique B7) — a held Alt+↓ or a double drop never builds a second edit on a stale view.
- * - Off too while the YAML view holds an unsaved draft (critique B7) or when the view says block edits are not possible
+ *   (`busy`) — a held Alt+↓ or a double drop never builds a second edit on a stale view.
+ * - Off too while the YAML view holds an unsaved draft or when the view says block edits are not possible
  *   (`edit.blocks`: a file that does not parse, has errors, is shown in part, or the Studio does not write — why shown).
  * - A 409 (the file changed meanwhile): "your edit … was not applied", with **Apply it to the new version** (the same
  *   edit on the version now shown — the step's guard refuses it as stale when that place holds another step, never a
  *   neighbour moved; a form's changes go to the same step found again, each applied only while that field still holds
- *   what the form showed: critique B2) and **Leave it**.
+ *   what the form showed) and **Leave it**.
  * - Undo / redo (step-edit.ts EditHistory): `restore` of the exact earlier bytes; a version this screen did not make
  *   clears the history, with a notice (its own words for a save from this screen's YAML view).
- * - After a 409, Apply is off (with why) when the new version turns block editing off (review B L9).
+ * - After a 409, Apply is off (with why) when the new version turns block editing off.
  * - Announcements: one polite status region ("Moved step 3 of request to position 1. Saved."); refusals in an alert.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -58,7 +58,7 @@ export interface StepEditor {
   ownSave: (hash: string) => void;
 }
 
-/** After a form's change (L5.5's rule): what the browser does is filmed again; an edit change is a render away. */
+/** After a form's change: what the browser does is filmed again; an edit change is a render away. */
 export const CHANGE_WORDS = {
   filmed: 'What the browser does changed: a rehearsal shows it, a capture films it.',
   edit: 'Only the edit changed: a render of the last capture shows it, no new capture needed.',
@@ -166,7 +166,7 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
       setConflict(null);
       run(op, (r, shown) => {
         history.current.push({ label: r.label, before: shown.text, hashBefore: shown.hash, after: null, hashAfter: r.hash });
-        // A form's change says which kind it is (L5.5): a move, a delete, a copy or a new step is always filmed.
+        // A form's change says which kind it is: a move, a delete, a copy or a new step is always filmed.
         return `${r.label}. Saved.${op.kind === 'set_step' ? ` ${CHANGE_WORDS[r.change ?? 'filmed']}` : ''}`;
       });
     },
@@ -257,7 +257,7 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
 }
 
 /**
- * The line above the board (L5.10b: on the kit): undo / redo naming the edit, Add a step, the saving mark, the live
+ * The line above the board (on the kit): undo / redo naming the edit, Add a step, the saving mark, the live
  * region; then why editing is off, the conflict offer, a refusal (each a callout: its state as a shape and words).
  */
 export function EditBar({ ed, add }: { ed: StepEditor /** The board's "Add a step…" (the palette). */; add?: ReactNode }) {

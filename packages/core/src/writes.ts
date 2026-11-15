@@ -1,5 +1,5 @@
 /**
- * Read-only environments (L1.7, R-ENV-03): which requests write, which writes an environment lets through
+ * Read-only environments (R-ENV-03): which requests write, which writes an environment lets through
  * (`read_only.allow`) or answers (`mocks`), and the policy a read-only run enforces in its browser. Pure helpers,
  * shared by validation (patterns), the hooks (GraphQL bodies) and the runner's write guard.
  */

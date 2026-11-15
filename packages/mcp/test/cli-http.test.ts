@@ -63,7 +63,7 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
     const file = join(home, 'mcp-http.token');
     expect((await stat(file)).mode & 0o777).toBe(0o600);
     const token = (await readFile(file, 'utf8')).trim();
-    // Review A M1: neither the .mcp.json block (often committed) nor the command line (shell history) carries it.
+    // Neither the .mcp.json block (often committed) nor the command line (shell history) carries it.
     expect(first.out).not.toContain(token);
     expect(first.err).not.toContain(token);
     const json = JSON.parse(first.out.slice(0, first.out.indexOf('\n}\n') + 2)) as { mcpServers: Record<string, unknown> };

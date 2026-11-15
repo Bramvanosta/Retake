@@ -1,5 +1,5 @@
 /**
- * The fixture's SMTP relay (fixtures/wholesale/server/smtp.mjs, L1.8): what its Docker sandbox uses to deliver mail to
+ * The fixture's SMTP relay (fixtures/wholesale/server/smtp.mjs): what its Docker sandbox uses to deliver mail to
  * a real Mailpit. Against a tiny SMTP server in the test: the conversation (EHLO, MAIL FROM, one RCPT per recipient,
  * DATA, QUIT; HELO when EHLO is refused), the MIME message (RFC 2047 subject, multipart/related with the cid: logo,
  * base64 bodies with short lines, dot-stuffing), failures logged and never thrown, and the fixture server delivering

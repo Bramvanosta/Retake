@@ -1,5 +1,5 @@
 /**
- * The Studio page's side of the preview protocol (L4.5, protocol.ts; critique B2): connect one sandboxed preview frame.
+ * The Studio page's side of the preview protocol (protocol.ts): connect one sandboxed preview frame.
  *
  * - Armed: one `message` listener on `window`, for the frame's `hello`. The FIRST message whose source is the frame
  *   disarms it — a valid `hello` carrying a MessagePort connects (replacing any older port); anything else stops the
@@ -36,7 +36,7 @@ export interface PreviewConnection {
 }
 
 /**
- * The preview iframe's attributes (L4.5): `sandbox="allow-scripts"` and no other sandbox token — never the same-origin
+ * The preview iframe's attributes: `sandbox="allow-scripts"` and no other sandbox token — never the same-origin
  * one (the frame would get the player origin's storage and could script a same-origin sibling), no popups, no forms,
  * no top navigation (the player-bundle lint scans for them); no Referer; autoplay for the music after the person
  * unmutes; out of the tab order and the accessibility tree (every control lives in the page).

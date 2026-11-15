@@ -10,7 +10,7 @@ import { pathInside } from './path-inside.js';
 function spellings(p: string, files: FileFacts): string[] {
   const abs = resolve(p);
   // nativeRealpath: the spelling the file system keeps (macOS: case-insensitive, `/Users/Me/WS` and `/users/me/ws` are
-  // one folder — the JS realpath keeps the case it was given, review A #3).
+  // one folder — the JS realpath keeps the case it was given).
   const real = files.nativeRealpath(abs);
   return real === undefined ? [abs] : [...new Set([abs, real])];
 }

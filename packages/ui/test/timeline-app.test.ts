@@ -1,5 +1,5 @@
 /**
- * L4.5 part C: the timeline screen's pure rules (app/timeline-words.ts) — what a key does and where it leaves a control
+ * The timeline screen's pure rules (app/timeline-words.ts) — what a key does and where it leaves a control
  * its own keys (⚑ never while typing or in a radio group; the scrubber's arrows are its own, no double step; Space on
  * a button activates it), the frame a key moves to, timecodes, the scrubber's value text, and the codec check that
  * decides between the preview and the "cannot play" message.
@@ -61,7 +61,7 @@ describe('the timeline keys (plan D11, critique "smaller points")', () => {
     const range = { tag: 'INPUT', type: 'range' };
     for (const key of ['ArrowLeft', 'ArrowRight', 'Home', 'End']) expect(keyAction({ key }, range), key).toBeNull();
     expect(keyAction({ key: ' ' }, range)).toEqual({ kind: 'toggle' });
-    // L5.12a fixes (review A-L2): on the scrubber [ / ] and Shift+← → do what the keys line says (the screen stops the
+    // On the scrubber [ / ] and Shift+← → do what the keys line says (the screen stops the
     // range's own step).
     expect(keyAction({ key: ']' }, range)).toEqual({ kind: 'segment', dir: 1 });
     expect(keyAction({ key: '[' }, range)).toEqual({ kind: 'segment', dir: -1 });

@@ -1,15 +1,15 @@
 /**
- * `retake prune <project> [--keep-renders N] [--yes]` (L5.7, R-FLD-28): what the project's runs/, renders/ and review/
+ * `retake prune <project> [--keep-renders N] [--yes]` (R-FLD-28): what the project's runs/, renders/ and review/
  * hold that nothing needs any more — failed takes, dry runs, older captures and renders — and how much deleting it
  * frees (engine prune.ts: the last succeeded capture of each scenario, the takes and renders kept renders and comment
  * threads use, the last N renders of each scenario and whatever a queued or running job names stay; when comment
  * threads cannot be read, the renders and takes they may name stay too, and a warning says so). A capture that stays
  * only because it is the last one of its scenario that can be edited, or the last complete one, and a run folder
  * prune leaves alone (a link, a take of a newer Retake) get a line `kept` with the reason
- * (L7.7: the list is shorter, and says why) — per reason the first five, newest first, then how many more (their
+ * (the list is shorter, and says why) — per reason the first five, newest first, then how many more (their
  * names: --json). A file of renders/ that is no render of its own name (a record renamed or copied by hand, one of a
  * status Retake never writes or of a newer Retake, a link, a file that does not read) is left alone and gets a line
- * `kept  render  <file>  <reason>` the same way (L7.6b), and the take it names a line `kept  run`; a file of renders/
+ * `kept  render  <file>  <reason>` the same way, and the take it names a line `kept  run`; a file of renders/
  * too big to read keeps everything, and a warning says so. Without --yes it only lists.
  */
 import { resolve } from 'node:path';

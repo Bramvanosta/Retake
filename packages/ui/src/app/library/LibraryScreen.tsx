@@ -1,9 +1,8 @@
 /**
- * The component library (L4.7 part D1, R-UI-06 / R-UI-06b; L5.12c « Épure » 4c, R4-Library, R-UI-49 —
- * `#/p/<slug>/library[/<theme>[/<ns>/<name>]]`): every usable component of the workspace by kind, each card the
- * component's poster in the selected theme (the project's by default), its source in words ("Built-in" / "Workspace"),
- * "Theme default" for the theme's picks, and Play — the component's looping GIF in place of the poster (loops never
- * start by themselves).
+ * The component library (R-UI-06 / R-UI-06b, R-UI-49 — `#/p/<slug>/library[/<theme>[/<ns>/<name>]]`): every usable
+ * component of the workspace by kind, each card the component's poster in the selected theme (the project's by
+ * default), its source in words ("Built-in" / "Workspace"), "Theme default" for the theme's picks, and Play — the
+ * component's looping GIF in place of the poster (loops never start by themselves).
  *
  * In the shell:
  * - browser: the Library group (Components, Themes) and the project's themes (LibraryBrowser.tsx);
@@ -15,9 +14,9 @@
  *   Create with Claude…, About (LibraryInspector.tsx); nothing selected: the theme's summary;
  * - status bar: "Idle · Posters render while their cards are on screen", Render all loops, Open the theme editor.
  * Create with Claude is a kit Sheet (CreateSheet.tsx): the person's words are kept here, across a close and a reopen.
- * L5.12c fixes: the component inspector is rendered at ONE place of the tree whether the grid or a component's page is
- * shown, keyed by the component (review B-H1: "Set as default" on a starter from the grid moves to the copy's page and
- * keeps its result, Undo and "Open the copy"); the card grid is one tab stop (review A-M3) — the arrows move the selection
+ * The component inspector is rendered at ONE place of the tree whether the grid or a component's page is
+ * shown, keyed by the component ("Set as default" on a starter from the grid moves to the copy's page and keeps its
+ * result, Undo and "Open the copy"); the card grid is one tab stop — the arrows move the selection
  * (← → one card, ↑ ↓ a row of the section, across sections), Home / End, Escape clears it, Enter on the selected card
  * takes the focus to its inspector (in place when the inspector is hidden).
  *
@@ -211,7 +210,7 @@ function Focused({ item, view, playing, detail, onCreate }: { item: LibraryItem;
 }
 
 /**
- * The grid's keys (one tab stop, review A-M3): the next card in a direction among the sections' cards, by component.
+ * The grid's keys (one tab stop): the next card in a direction among the sections' cards, by component.
  * ← → one card (across sections), ↑ ↓ a row of the section (the columns the browser laid out; past its first or last
  * row, the same column of the section before or after), Home / End the first and the last.
  */
@@ -263,8 +262,8 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
   }, []);
   const [creating, setCreating] = useState(false);
   const [brief, setBrief] = useState<Brief>(NO_BRIEF);
-  // L5.2b (review B L7): the person's words, kept in this tab only, are unsaved text the desktop app's quit question
-  // names — held here (L5.12c): closing the sheet keeps them.
+  // The person's words, kept in this tab only, are unsaved text the desktop app's quit question
+  // names — held here: closing the sheet keeps them.
   useUnsavedMark(brief.words.trim() ? { kind: 'component_brief', project: slug } : null);
   const themeRef = useRef('');
   // The last view stays on screen while another theme's loads (a copy made by "Set as theme default" keeps its Undo).
@@ -303,7 +302,7 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
     },
     [images, pump, observer],
   );
-  // The tab hidden: nothing is queued (B8).
+  // The tab hidden: nothing is queued.
   useEffect(() => {
     const on = () => pump.setActive(document.visibilityState !== 'hidden');
     on();
@@ -313,7 +312,7 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
   useEffect(() => {
     if (view.state === 'ready') pump.setView(view.data.theme.name, view.data.items, view.data.queued);
   }, [view, pump]);
-  // Live re-reads: a theme, a component, the project changed; a job while previews are queued (B5, B8).
+  // Live re-reads: a theme, a component, the project changed; a job while previews are queued.
   const timer = useRef<number | null>(null);
   useEvents((e) => {
     const busy = view.state === 'ready' && (view.data.queued > 0 || view.data.items.some((i) => pump.askedOf(i.poster.key) === 'pending' || pump.askedOf(i.loop.key) === 'pending'));
@@ -502,7 +501,7 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
             </div>
           </>
         )}
-        {/* One place for the component inspector, keyed by the component: the grid's and the page's (review B-H1). */}
+        {/* One place for the component inspector, keyed by the component: the grid's and the page's. */}
         {focus ? (
           <Focused key={focus.component} item={focus} view={v} playing={playing.has(focus.component)} detail={component !== undefined} onCreate={openCreate} />
         ) : component === undefined ? (

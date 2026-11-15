@@ -1,5 +1,5 @@
 /**
- * The Reviewer port (L7.11, U6): how the engine reviews a render (its contact sheets, key frames, checks and report in
+ * The Reviewer port: how the engine reviews a render (its contact sheets, key frames, checks and report in
  * review/<render id>/), puts a review folder back in order after a review that died, and draws the frames and
  * thumbnails the façade serves (a run's thumbnails, a render's frame, a review's images, a comment's still, an
  * inspection's marked screenshot). The review's vocabulary comes from its domain entry (`@retake/review/checks`); the

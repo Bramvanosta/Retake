@@ -116,7 +116,7 @@ describe('studio usage, schema and later phases', () => {
   });
 
   it('says when later-phase commands arrive', async () => {
-    // No command waits for a later phase since L4.1 (`ui` is real): the mechanism, with an injected entry.
+    // No command waits for a later phase (`ui` is real): the mechanism, with an injected entry.
     expect(LATER_COMMANDS).toEqual([]);
     const io = memoryIo();
     const code = laterCommand(new Ui(io), 'shell', 5);
@@ -126,15 +126,15 @@ describe('studio usage, schema and later phases', () => {
     expect(r.err).toContain('inspect, record, plan');
     expect(r.err).toContain('render, still, review, export');
     expect(r.err).toContain('doctor, mcp and ui');
-    // ui is a real command since L4.1: an unknown option is a usage error (the server itself: packages/cli/test/ui.test.ts).
+    // ui is a real command: an unknown option is a usage error (the server itself: packages/cli/test/ui.test.ts).
     expect((await retake('ui', '--whatever')).code).toBe(EXIT.usage);
     expect((await retake('ui', '--port', 'eighty')).code).toBe(EXIT.usage);
-    // record is a real command since L3.4: an unknown option is a usage error, --url goes alone.
+    // record is a real command: an unknown option is a usage error, --url goes alone.
     expect((await retake('record', 'demo', '--whatever')).code).toBe(EXIT.usage);
     expect((await retake('record', 'demo', '--url', 'https://app.staging.example.com/', '--page', 'app')).code).toBe(EXIT.usage);
-    // mcp is a real command since L3.1: an unknown option is a usage error (the server itself: packages/mcp/test).
+    // mcp is a real command: an unknown option is a usage error (the server itself: packages/mcp/test).
     expect((await retake('mcp', '--whatever')).code).toBe(EXIT.usage);
-    // render (L2.4), review (L2.6) and export (L2.8) are real commands: an unknown option is a usage error.
+    // render, review and export are real commands: an unknown option is a usage error.
     expect((await retake('render', 'demo', 'good', '--whatever')).code).toBe(EXIT.usage);
     expect((await retake('review', 'demo', 'latest', '--whatever')).code).toBe(EXIT.usage);
     expect((await retake('export', 'demo', 'latest', '--whatever')).code).toBe(EXIT.usage);

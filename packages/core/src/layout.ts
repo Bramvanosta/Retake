@@ -123,7 +123,7 @@ export interface SandboxPaths {
   logs: string;
 }
 
-/** The files of the sandbox of environment `env` (L7.25: from @retake/sandbox's paths.ts, which re-exports them). */
+/** The files of the sandbox of environment `env` (from @retake/sandbox's paths.ts, which re-exports them). */
 export function sandboxPaths(projectDir: string, env: string): SandboxPaths {
   const dir = join(projectDir, SANDBOX_STATE_DIR, env);
   return { dir, state: join(dir, 'state.json'), lock: join(dir, 'take.lock'), seedJournal: join(dir, 'seed-journal.json'), resetJournal: join(dir, 'reset-journal.json'), logs: join(dir, 'logs') };
@@ -133,5 +133,5 @@ export function sandboxPaths(projectDir: string, env: string): SandboxPaths {
 export function serviceLog(paths: SandboxPaths, service: string): string {
   return join(paths.logs, `${service}.log`);
 }
-/** A project's record of scenario writes: `<project>/.retake/scenario-writes.jsonl` (each write's hook surface and who made it, L7.27). */
+/** A project's record of scenario writes: `<project>/.retake/scenario-writes.jsonl` (each write's hook surface and who made it). */
 export const PROJECT_SCENARIO_WRITES_FILE = 'scenario-writes.jsonl';

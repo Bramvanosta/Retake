@@ -27,7 +27,7 @@ export interface RawFlags {
 export interface ExportCaptureCommandOptions extends RawFlags {
   scenario?: string;
   json?: boolean;
-  /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */
+  /** `--no-wait` (wait: false): start even while a take films, at normal priority. */
   wait?: boolean;
 }
 
@@ -76,7 +76,7 @@ export async function rawExportOfRun(
     else ui.setStatus(ui.c.dim(`  … ${p.stage}${p.total > 1 ? ` ${p.done}/${p.total}` : ''}${p.message ? ` ${p.message}` : ''}`));
   };
   try {
-    // The engine's raw export (L7.22, U8e: rawExportWork on the capture port): the run's gate (a run it refuses is
+    // The engine's raw export (rawExportWork on the capture port): the run's gate (a run it refuses is
     // refused in its words, before the theme is looked for), the run's theme (a note on stderr when it does not load:
     // the default look), the edit's files, the package. Its refusals state their kind: main prints their sentence.
     const r = await rawExportWork({
@@ -143,7 +143,7 @@ export async function exportCaptureCommand(ui: Ui, global: GlobalOptions, projec
   const runDir = run.dir;
   // What `latest` passed over, and a capture stopped by `--until` (stderr; nothing for a run that was named).
   warnLatest(ui, run, { ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}), name: 'name one in place of "latest"', json: opts.json });
-  // Captures first (L5.14, critique L8): its encodes are heavy work — the run was resolved before any wait.
+  // Captures first: its encodes are heavy work — the run was resolved before any wait.
   const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'exporting', noWait: opts.wait === false });
   const ac = new AbortController();
   const onSigint = () => ac.abort();

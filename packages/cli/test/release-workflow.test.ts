@@ -1,10 +1,10 @@
 /**
- * L5.16e — releases from GitHub Actions, their rules without GitHub (fast, no network, never the real `security` or a
+ * Releases from GitHub Actions, their rules without GitHub (fast, no network, never the real `security` or a
  * keychain): .github/workflows/release.yml read as data (its triggers, permissions, environments, pinned actions,
  * where each secret and the job token go, which job runs dependency code — never the one holding the keys) and its
  * step scripts run in bash against stand-ins (gh, security) — the preflight, the artifact's check, the signing
  * material, the files collected, the attach to a draft only, the update fetched and published with the job token alone
- * (L5.16f: the feed is the repository's update-feed release, no update host); scripts/release.mjs (the tag is the
+ * (the feed is the repository's update-feed release, no update host); scripts/release.mjs (the tag is the
  * version, the notes, the feed publish-update.mjs accepts, the preflight's sets, the files' names);
  * apps/desktop/scripts/ci-keychain.sh against a recording `security` (the temporary keychain, the search list put
  * back, no password on a command line, the files removed whatever security says); the sign entry's import graph
@@ -545,8 +545,8 @@ describe('release.yml: secrets and the job token go only where they are used', (
     expect(BUILD_TOOL.test(m.run!) || CALLS_GH.test(m.run!) || usesToken(m)).toBe(false);
     expect(m.run).toMatch(/umask 077/);
     expect(m.run!.indexOf('missing="$missing')).toBeLessThan(m.run!.indexOf('ci-keychain.sh import'));
-    // The sign job's first steps: checkout, Node.js, the build job's app downloaded and unpacked, then the set
-    // (review e B-L4): no key is on the runner while the archive is read.
+    // The sign job's first steps: checkout, Node.js, the build job's app downloaded and unpacked, then the set:
+    // no key is on the runner while the archive is read.
     expect(jobs.sign!.steps.findIndex((s) => s.name === 'Signing material')).toBe(4);
   });
 
@@ -746,7 +746,7 @@ describe('release.yml: what it runs', () => {
     expect(partial.stdout).toMatch(/::error::A Developer ID build, notarised needs all of .* — or none: missing APPLE_API_KEY_P8 \(a secret, not set\)/);
     expect(partial.stdout).toMatch(/::error::An app that updates itself .* missing TAURI_SIGNING_PRIVATE_KEY \(a secret, not set\), .*RETAKE_UPDATE_PUBKEY \(set as a secret: it must be a variable\)/);
     expect(partial.outputs.signed).toBeUndefined();
-    // The updater set: its feed is this repository's update-feed release, from the run's own context (L5.16f).
+    // The updater set: its feed is this repository's update-feed release, from the run's own context.
     const { generateKeyPairSync } = await import('node:crypto');
     const raw32 = (generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }) as Buffer).subarray(12);
     const pubkey = Buffer.from(`untrusted comment: minisign public key\n${Buffer.concat([Buffer.from('Ed'), Buffer.alloc(8, 7), raw32]).toString('base64')}\n`).toString('base64');
@@ -758,7 +758,7 @@ describe('release.yml: what it runs', () => {
     const nowhere = runStep(s, { ...updater, REPO_PRIVATE: 'false', REPO_VISIBILITY: 'public' });
     expect(nowhere.status).toBe(1);
     expect(nowhere.stdout).toMatch(/::error::The update feed: GITHUB_REPOSITORY is not set/);
-    // Review f A-L3: a repository that is not public is refused here, before anything is built — not after the release.
+    // A repository that is not public is refused here, before anything is built — not after the release.
     const hidden = runStep(s, { ...updater, ...here, REPO_PRIVATE: 'true', REPO_VISIBILITY: 'private' });
     expect(hidden.status).toBe(1);
     expect(hidden.stdout).toMatch(/::error::The update feed: the repository is not public \(private: true, visibility: private\) — an installed app downloads its updates with no credentials/);
@@ -1024,7 +1024,7 @@ describe('scripts/release.mjs', () => {
       );
     const repo = { GITHUB_REPOSITORY: 'example-owner/example-repo', GITHUB_SERVER_URL: 'https://github.example.test', REPO_PRIVATE: 'false', REPO_VISIBILITY: 'public' };
     const updater = { ...secrets('updater'), RETAKE_UPDATE_PUBKEY: pub, ...repo };
-    // L5.16f: two sets — the update host's upload set is gone, the feed needs no setting of its own.
+    // Two sets — the update host's upload set is gone, the feed needs no setting of its own.
     expect(Object.keys(CONFIG_SETS)).toEqual(['apple', 'updater']);
     expect(CONFIG_SETS.updater.names).toEqual({ TAURI_SIGNING_PRIVATE_KEY: 'secret', TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'secret', RETAKE_UPDATE_PUBKEY: 'variable' });
     const none = preflight('0.2.0', {});
@@ -1055,7 +1055,7 @@ describe('scripts/release.mjs', () => {
       [{ ...updater, GITHUB_REPOSITORY: '' }, /^The update feed: GITHUB_REPOSITORY is not set/],
       [{ ...updater, GITHUB_REPOSITORY: 'example-owner/example-repo/x' }, /^The update feed: GITHUB_REPOSITORY "example-owner\/example-repo\/x" is not <owner>\/<repo>/],
       [{ ...updater, GITHUB_SERVER_URL: 'http://github.example.test' }, /^The update feed: GITHUB_SERVER_URL must be https/],
-      // Review f A-L3: the repository must be public (the API's description, read with the job token) — unknown is refused.
+      // The repository must be public (the API's description, read with the job token) — unknown is refused.
       [{ ...updater, REPO_PRIVATE: 'true', REPO_VISIBILITY: 'private' }, /^The update feed: the repository is not public \(private: true, visibility: private\)/],
       [{ ...updater, REPO_VISIBILITY: 'internal' }, /^The update feed: the repository is not public \(private: false, visibility: internal\)/],
       [{ ...updater, REPO_PRIVATE: '', REPO_VISIBILITY: '' }, /^The update feed: the repository is not public \(its visibility unknown\)/],

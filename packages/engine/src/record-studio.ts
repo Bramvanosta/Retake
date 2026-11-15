@@ -1,5 +1,5 @@
 /**
- * The Studio's side of a recording (L4.8, R-UI-20 / 21 / 22): the Record screen is the control panel of the headed
+ * The Studio's side of a recording (R-UI-20 / 21 / 22): the Record screen is the control panel of the headed
  * window the worker opened (record-job.ts) — it reads the draft live, picks target alternatives, places quick inserts,
  * stops, discards and saves. Nothing here reaches the window: every operation reads or writes the recording's folder
  * (`<project>/.retake/records/<rec_id>/`) or the job's markers.
@@ -12,17 +12,17 @@
  *   events read, no draft made. Reads, like writes, never go through a link: the records folder and the recording's
  *   folder must be real folders of the project (else nothing is read and the view says why).
  * - annotate: one change (choose / insert / remove) under the recording's lock and its revision; an insert "at the end"
- *   goes after the newest event read under the lock (critique B3: a visit to the Studio commits the typing in
- *   progress, after the screen's last poll). studio.json is read without following a link and replaced by a rename.
+ *   goes after the newest event read under the lock (a visit to the Studio commits the typing in progress, after the
+ *   screen's last poll). studio.json is read without following a link and replaced by a rename.
  * - save: the draft made again from the events file (refused when it is not the one the worker drafted and checked:
  *   record.json's events_sha256, B8 — fail closed: a record.json without a valid one, or a finished job without its
  *   record.json, is `tampered`) with the annotations, validated with the project; refused unless it is byte for byte
  *   the draft the person saw (`draft`: the view's draft_sha256 — an events line, a project.yaml var or an annotation
  *   changed since is a conflict); a hidden character anywhere refused again; then a NEW scenarios/<name>.yaml only (a
  *   taken name is a conflict, never an overwrite) under agent trust (`via: 'studio'`). Errors are fixed words located
- *   by scene and step; the validator's text sits under `untrusted`, paths removed (B15).
- * - discard: an open window is cancelled (the worker removes the folder, L3.4; the view says "discarded"); during the
- *   draft or the check the folder is marked and removed once the job is over (B9: by the job itself, else by the next
+ *   by scene and step; the validator's text sits under `untrusted`, paths removed.
+ * - discard: an open window is cancelled (the worker removes the folder; the view says "discarded"); during the
+ *   draft or the check the folder is marked and removed once the job is over (by the job itself, else by the next
  *   view or list); afterwards it is removed at once — only a real folder directly under the project's real records
  *   folder, never through a link.
  * - stop: queued = cancel (unless the worker took it meanwhile); before the window opened = the stop marker, which the
@@ -314,8 +314,8 @@ async function jobOf(queue: JobQueueView, slug: string, id: string, meta: Record
 /**
  * Is the recording's folder there, and a real one: the project's records folder a real folder (its real path exactly
  * <real project>/.retake/records — no link on the way) and the recording's folder a real folder directly in it.
- * `link`: something on the way is a link or leads elsewhere — nothing is read, written or removed there (L4.1: reads
- * never follow a link out of a project).
+ * `link`: something on the way is a link or leads elsewhere — nothing is read, written or removed there (reads never
+ * follow a link out of a project).
  */
 async function folderState(project: LoadedProject, id: string): Promise<'folder' | 'none' | 'link'> {
   const root = recordsRoot(project);
@@ -410,7 +410,7 @@ async function situation(ctx: RecordStudioContext, project: LoadedProject, id: s
   const [stop, cancel] = job ? await Promise.all([ctx.queue.stopOf(job.id), ctx.queue.cancelOf(job.id)]) : [undefined, undefined];
   const [stopAsked, cancelAsked, reason] = [stop !== undefined, cancel !== undefined, cancel?.reason];
   const discardAsked = reason === 'discard';
-  // Who started it (A-L1): a Studio recording only when its job — the one meta.json names — says so too.
+  // Who started it: a Studio recording only when its job — the one meta.json names — says so too.
   const byJob = job?.input.kind === 'record' ? job.input.submitted_by : undefined;
   let studio: boolean;
   let startedBy: JobClient | null;
@@ -429,16 +429,16 @@ async function situation(ctx: RecordStudioContext, project: LoadedProject, id: s
   let state: RecordState;
   if (job && (job.state === 'queued' || job.state === 'running')) state = job.state === 'queued' ? 'queued' : runningState(job, folder);
   else if (folder) {
-    // Fail closed (A-M2): a Studio recording's record.json must hold the events checksum, and a job that ended well
+    // Fail closed: a Studio recording's record.json must hold the events checksum, and a job that ended well
     // wrote one — a missing or spoiled one is tampered (never "done" or "interrupted", which Save accepts).
     if (record) state = studio && record.events_sha256 === null ? 'tampered' : 'done';
     else if (job) state = job.state === 'failed' ? 'failed' : job.state === 'cancelled' ? 'cancelled' : job.state === 'succeeded' && studio ? 'tampered' : 'interrupted';
     else if (meta && meta.job_id === null && (await isAlive(meta.owner))) state = 'recording';
     else state = 'interrupted';
   } else if (job) {
-    // A job that ended well though it was cancelled: the cancel came during the draft or the check (a Discard, B9), and
+    // A job that ended well though it was cancelled: the cancel came during the draft or the check (a Discard), and
     // the folder is gone since — discarded (not "nothing recorded"); a cancel that was the Studio's Discard of the open
-    // window: discarded too (not "cancelled", B-M5).
+    // window: discarded too (not "cancelled").
     state =
       job.state === 'succeeded'
         ? cancelAsked
@@ -511,7 +511,7 @@ const ACTION_EVENT_KINDS: ReadonlySet<string> = new Set(['pointer', 'dblclick', 
 
 /**
  * The draft of the recording as it is now (meta.json's context with the current project.yaml), or why not. A Studio
- * recording's draft holds no YAML anchor or alias (B-M2: the block editor edits it after Save); the others' is exactly
+ * recording's draft holds no YAML anchor or alias (the block editor edits it after Save); the others' is exactly
  * their job's.
  */
 function draftOf(s: Situation, events: readonly RecordedEvent[], annotations: RecordAnnotations | null, files: WorkFileFacts): { draft: RecordingDraft } | { problem: string } {
@@ -616,7 +616,7 @@ async function versionFor(s: Situation): Promise<string> {
 }
 
 /**
- * A discard asked during the draft or the check: once the job is over, the folder goes (the job removes it itself, B9;
+ * A discard asked during the draft or the check: once the job is over, the folder goes (the job removes it itself;
  * this catches a Discard that came as the job ended, from a view or the recent list). A read removes a folder here — on
  * purpose: only a Studio recording whose job is verified and marked, which an agent could remove anyway.
  */
@@ -640,7 +640,7 @@ const studioWords = (by: JobClient | null) =>
       ? 'this recording was made in a terminal: it is read-only here'
       : 'this recording was not started from the Studio: it is read-only here';
 
-/** The camera insert's factors under the project theme's max_zoom (B-M3). */
+/** The camera insert's factors under the project theme's max_zoom. */
 async function zoomOf(project: LoadedProject, ctx: Pick<RecordStudioContext, 'reads' | 'files'>): Promise<RecordZoomView | null> {
   let max = DEFAULT_TEMPLATE.motion.max_zoom;
   try {
@@ -726,7 +726,7 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
     base.problem = read.problem;
     return base;
   }
-  // The events as drafted and checked (B8, fail closed: a record.json without the checksum never matches).
+  // The events as drafted and checked (fail closed: a record.json without the checksum never matches).
   const eventsChanged = !!s.record && s.record.events_sha256 !== sha256Hex(read.bytes);
   const shownAnn = studio ? ann : null;
   const made = draftOf(s, read.events, shownAnn, ctx.files);
@@ -750,7 +750,7 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
   base.can.annotate = annotatable;
   base.can.save = annotatable && FINAL_STATES.has(s.state) && !eventsChanged && read.events.length > 0;
   if (annotatable) base.zoom = await zoomOf(project, ctx);
-  // The check replayed the recorder's own draft (no picks, no inserts): its failing step, found on screen (B-M4).
+  // The check replayed the recorder's own draft (no picks, no inserts): its failing step, found on screen.
   let checkUntrusted = check.untrusted;
   const failedAt = checkUntrusted?.failed_at;
   if (failedAt) {
@@ -808,7 +808,7 @@ export async function recordAnnotate(ctx: RecordStudioContext, project: LoadedPr
   if (!Number.isInteger(req.rev) || req.rev < 0) throw new EngineError('invalid', 'rev must be the revision the view returned');
   const change = parsed.data;
   if (change.op === 'insert' && change.insert.kind === 'camera') {
-    // A factor above the project theme's max_zoom is clamped by the editor and warned by the validator (B-M3).
+    // A factor above the project theme's max_zoom is clamped by the editor and warned by the validator.
     const zoom = await zoomOf(project, ctx);
     if (!zoom || change.insert.zoom > zoom.max) {
       throw new EngineError(
@@ -828,7 +828,7 @@ export async function recordAnnotate(ctx: RecordStudioContext, project: LoadedPr
     const a = annotationsOrRefuse(s, 'annotate');
     checkOpen(a, 'annotate');
     checkRev(a, req.rev);
-    // Read now, under the lock: "at the end" is the newest event in the file at this moment (critique B3).
+    // Read now, under the lock: "at the end" is the newest event in the file at this moment.
     const read = readRecordEvents(dir);
     if (!read.ok) throw new EngineError('refused', `annotate: ${read.problem}`);
     const r = applyRecordChange(a, change, read.events);
@@ -845,7 +845,7 @@ export async function recordAnnotate(ctx: RecordStudioContext, project: LoadedPr
   return { rev, ...(insertId !== undefined ? { insert_id: insertId } : {}), view: await recordView(ctx, project, id) };
 }
 
-/** Remove the project's and the workspace's absolute paths from a text that leaves the engine (B15). */
+/** Remove the project's and the workspace's absolute paths from a text that leaves the engine. */
 function withoutPaths(text: string, dirs: string[]): string {
   let out = text;
   for (const d of dirs.filter(Boolean).sort((a, b) => b.length - a.length)) out = out.split(d).join('…');
@@ -867,7 +867,7 @@ function hiddenIn(v: unknown): string | undefined {
 }
 
 /**
- * A hidden character in a draft (A-M3, defence in depth — the generator leaves such steps out): where it is, in fixed
+ * A hidden character in a draft (defence in depth — the generator leaves such steps out): where it is, in fixed
  * words (`scene <id>, step <n>` and the character's code), or null.
  */
 function hiddenProblem(yaml: string): string | null {
@@ -952,7 +952,7 @@ export async function recordSave(ctx: RecordStudioContext, project: LoadedProjec
     const made = draftOf(s, read.events, a, ctx.files);
     if ('problem' in made) throw new EngineError('refused', `save: ${made.problem}`);
     const d = made.draft;
-    // The draft the person saw, or nothing (A-M1): its events, project.yaml (pages, vars) and annotations as they were.
+    // The draft the person saw, or nothing: its events, project.yaml (pages, vars) and annotations as they were.
     if (sha256Hex(d.yaml) !== req.draft) {
       throw new EngineError('conflict', 'save: the draft changed since you read it (its events, project.yaml or the arrangement): read it again, look at it, then save', {
         fix: 'read the recording again',
@@ -984,7 +984,7 @@ export async function recordDiscard(ctx: RecordStudioContext, project: LoadedPro
     if (job && !FINISHED_JOB_STATES.has(job.state)) {
       // During the draft or the check a cancel stops only the check replay: the folder is marked, and removed once the
       // job is over (by the job itself, else the next view, list or operation). While the window is open (or before it
-      // opens), the cancel discards it (L3.4) — marked as a discard, so the view says "discarded" (B-M5).
+      // opens), the cancel discards it — marked as a discard, so the view says "discarded".
       const marked = s.folder && (s.state === 'draft' || s.state === 'check');
       if (marked) {
         const dir = await checkedFolder(project, id);
@@ -1005,7 +1005,7 @@ export async function recordDiscard(ctx: RecordStudioContext, project: LoadedPro
 /**
  * Stop and keep (see the module comment): any recording whose job runs, whoever started it. Before the window opens
  * it is a cancel — through the job's stop marker once the worker has the job, so a window that opens meanwhile is
- * stopped and kept, never discarded (B-L8).
+ * stopped and kept, never discarded.
  */
 export async function recordStop(ctx: RecordStudioContext, project: LoadedProject, id: string, o: { job?: string } = {}): Promise<RecordStopped> {
   const s = await situation(ctx, project, id, o.job);
@@ -1028,7 +1028,7 @@ export async function recordStop(ctx: RecordStudioContext, project: LoadedProjec
 }
 
 /**
- * The end of a Studio recording's job (B9 / B-L2, called by the job itself): a Discard asked during the draft or the
+ * The end of a Studio recording's job (called by the job itself): a Discard asked during the draft or the
  * check marked the folder — it goes now, whether or not a Record screen is still open. True when it was removed.
  */
 export async function settleDiscardAtJobEnd(project: LoadedProject, id: string): Promise<boolean> {
@@ -1070,7 +1070,7 @@ export interface RecordListItem {
 /**
  * The Record screen's operations (a recording's view, annotations, stop, discard, save and the recent list) are the
  * Studio's and tests' (caller.ts drivesRecordScreen): any other caller's refusal, worded for its channel, else
- * undefined. The operations' `callers` (operations/record.ts, L7.18) and the façade (record-api.ts) refuse with it.
+ * undefined. The operations' `callers` (operations/record.ts) and the façade (record-api.ts) refuse with it.
  */
 export function recordScreenRefused(caller: Caller, what: string): EngineError | undefined {
   if (drivesRecordScreen(caller)) return undefined;
@@ -1087,7 +1087,7 @@ export const RECORD_LIST_MAX = 50;
  * The project's recordings, newest first (the Record screen's recent list, inside record_options): those whose job is
  * queued or running before their folder exists, then the folders of `.retake/records/` (real folders only, never
  * through a link: a records folder that is one, or leads elsewhere, lists nothing). Each one's state as the view gives
- * it, without reading its events; a Discard asked during the check whose job is over is settled here too (B-L2).
+ * it, without reading its events; a Discard asked during the check whose job is over is settled here too.
  */
 export async function recordList(ctx: RecordStudioContext, project: LoadedProject, o: { limit?: number } = {}): Promise<RecordListItem[]> {
   const limit = Math.max(1, Math.min(RECORD_LIST_MAX, o.limit ?? 20));

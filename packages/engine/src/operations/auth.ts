@@ -1,6 +1,6 @@
 /**
- * The sign-in operations the shells share (moved from the MCP server's tools/environment.ts in L7.13): auth_status,
- * auth_login, and the summary of an auth_login or sandbox job (also the MCP server's sandbox_up / sandbox_reset's).
+ * The sign-in operations the shells share: auth_status, auth_login, and the summary of an auth_login or sandbox job
+ * (also the MCP server's sandbox_up / sandbox_reset's).
  */
 import { z } from 'zod';
 import { SLUG_RE } from '@retake/core/model';

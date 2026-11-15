@@ -22,9 +22,9 @@ import { round3, wallNow } from './util.js';
 
 /**
  * Capture-time clock: seconds since t0 (the moment recording starts), on the wall clock of screencast frames, less the
- * pauses of the take (L4.4, R-UI-19): capture time stands still during a pause, so the video goes on from where it
+ * pauses of the take (R-UI-19): capture time stands still during a pause, so the video goes on from where it
  * paused. Every wall time converts through the list of pauses — also one recorded before a pause and converted after it
- * (a held page load, critique B1); a wall time inside a pause (open or closed) is the pause instant. `t0Wall` never moves.
+ * (a held page load); a wall time inside a pause (open or closed) is the pause instant. `t0Wall` never moves.
  */
 export class CaptureClock {
   /** The pauses (wall ms; `to` undefined while one is open), in order. */
@@ -95,7 +95,7 @@ const MOVE_MIN_S = 0.2;
 /**
  * A frame gap at least this long while the cursor moves or a click ripple plays is a visible freeze (≥ 4–5 frames at
  * 30 fps). Shorter hitches (100–130 ms) remain on a Mac when the cursor enters an element with a hover effect: noise
- * a warning would repeat on every capture (L1.3).
+ * a warning would repeat on every capture.
  */
 export const STALL_MIN_S = 0.15;
 /** How long a click ripple animates after the press (kit: .5 s scale, .55 s fade). */
@@ -118,7 +118,7 @@ export interface MotionCapture {
   slow: number;
   /** Lowest frame rate observed during a move, and when (capture time of the move start). */
   worst?: { fps: number; t: number };
-  /** Frame gaps ≥ STALL_MIN_S while the cursor moved or a click ripple played (L1.3): the capture froze there. */
+  /** Frame gaps ≥ STALL_MIN_S while the cursor moved or a click ripple played: the capture froze there. */
   stalls: CaptureStall[];
 }
 
@@ -210,7 +210,7 @@ export function pushCursorSample(list: CursorSample[], s: Omit<CursorSample, 't'
   list.push(sample);
 }
 
-/** Append a cursor effect (L2.13) unless it repeats the icon already shown. */
+/** Append a cursor effect unless it repeats the icon already shown. */
 export function pushCursorEffect(list: CursorEffect[], e: CursorEffect): void {
   if (e.type === 'icon') {
     for (let i = list.length - 1; i >= 0; i--) {
@@ -228,14 +228,14 @@ function sortedEffects(list: readonly CursorEffect[]): CursorEffect[] {
 }
 
 /**
- * The track of one page of multi-page scenes (L2.11): its video, viewport, the intervals it was recorded, its URL
+ * The track of one page of multi-page scenes: its video, viewport, the intervals it was recorded, its URL
  * segments and its own cursor, on the capture clock.
  */
 export class TrackBuilder {
   readonly recording: Array<{ t_start: number; t_end: number }> = [];
   readonly pages: TimelinePageSegment[] = [];
   readonly cursor: CursorSample[] = [];
-  /** Icon changes, presses and ripples of this page's cursor (L2.13). */
+  /** Icon changes, presses and ripples of this page's cursor. */
   readonly cursorEffects: CursorEffect[] = [];
   /** Page loads its recorder held (R-ISS-08), set when the run ends. */
   loading: TimelineLoading[] = [];
@@ -330,7 +330,7 @@ export interface TimelineMeta {
   capture: CaptureSettings;
   /** The scenario's edit info (title, intro, outro, frame, template, music). */
   video?: TimelineVideo;
-  /** Captured without the in-page cursor (raw export, L2.13). */
+  /** Captured without the in-page cursor (raw export). */
   cursor?: 'hidden';
 }
 
@@ -341,25 +341,25 @@ export class TimelineBuilder {
   readonly markers: TimelineMarker[] = [];
   readonly pages: TimelinePageSegment[] = [];
   readonly cursor: CursorSample[] = [];
-  /** Icon changes, presses and ripples of the main capture's cursor (L2.13). */
+  /** Icon changes, presses and ripples of the main capture's cursor. */
   readonly cursorEffects: CursorEffect[] = [];
   readonly warnings: string[] = [];
   readonly createdAt = new Date().toISOString();
   /** Captured emails, documents and notifications (the run's ArtefactStore items). */
   artefacts: TimelineArtefact[] = [];
-  /** Per-page tracks of multi-page scenes (L2.11), in the order they were first recorded. */
+  /** Per-page tracks of multi-page scenes, in the order they were first recorded. */
   readonly tracks: TrackBuilder[] = [];
   /** Page loads the main capture held (R-ISS-08), set when the run ends. */
   loading: TimelineLoading[] = [];
-  /** Where the main capture froze while the cursor moved or a ripple played (L5.7), set when the run ends. */
+  /** Where the main capture froze while the cursor moved or a ripple played, set when the run ends. */
   stalls: TimelineStall[] = [];
-  /** Waits the main capture showed after clicks (L5.7, R-FLD-26), set when the run ends. */
+  /** Waits the main capture showed after clicks (R-FLD-26), set when the run ends. */
   busy: TimelineBusy[] = [];
   /** Hotfix v0.2.6: loading indicators in the filmed page (LoadingWatch). */
   loading_ui: TimelineLoadingUi[] = [];
-  /** Where the take was paused between steps (L4.4). */
+  /** Where the take was paused between steps. */
   readonly pauses: TimelinePause[] = [];
-  /** The run's environment (L1.7): access, display table, clock; the read-only guard appends to `writes`. */
+  /** The run's environment: access, display table, clock; the read-only guard appends to `writes`. */
   environment?: TimelineEnvironment;
 
   constructor(

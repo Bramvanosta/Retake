@@ -1,5 +1,5 @@
 /**
- * Pruning a project's generated folders (L5.7, R-FLD-28): `runs/`, `renders/` and `review/` grow with every take and
+ * Pruning a project's generated folders (R-FLD-28): `runs/`, `renders/` and `review/` grow with every take and
  * render (24 GB in three days on the first real use). Kept: the last succeeded capture of each scenario, the last
  * capture of it that can be edited and the last complete one (below), every take a
  * kept render or a comment thread uses, the last `keep_renders` succeeded renders of each scenario and variant (and
@@ -14,7 +14,7 @@
  * a render's place, it stays with its review and its take when it succeeded, and goes only when it failed or was
  * cancelled.
  *
- * The renders (L7.6b): renders/ is read by the one reader (core/io readRendersFolder: no link followed, each file
+ * The renders: renders/ is read by the one reader (core/io readRendersFolder: no link followed, each file
  * within its cap) and what stays is core's rule (render-record.ts renderKeeper) — in every state of the folder a
  * superset of what stayed before. A render is the record of its OWN file: only such a record is ever listed, with the
  * files named after it and never a file of another entry. Every other `*.json` of renders/ — a record renamed or
@@ -25,7 +25,7 @@
  * reason `render-file` in `kept_takes`, `renders_unread`). A record file that is a link is read through it by prune's
  * own read (`renderSaid`), for what it says only, so that a linked record keeps what it kept.
  *
- * The takes (L7.7): the run folders are read by the one reader (core/io readRunFolder: no link followed) and the
+ * The takes: the run folders are read by the one reader (core/io readRunFolder: no link followed) and the
  * captures kept are core's rule 3 (take.ts pruneKeeper). Per scenario prune keeps the newest take whose record says a
  * capture that succeeded AND the newest take that can really be edited (its timeline reads, its film is there) AND the
  * newest such take that was not stopped by `--until`: a newer capture that lost its film, or a short test of the first
@@ -105,15 +105,15 @@ export interface PruneResult {
   bytes: number;
   kept: { runs: number; renders: number; reviews: number };
   /**
-   * The takes that stay for a reason the list does not show (L7.7), newest first: a capture kept only because it is the
+   * The takes that stay for a reason the list does not show, newest first: a capture kept only because it is the
    * last one of its scenario that can be edited (`editable`) or the last complete one beside a newer capture stopped by
-   * `--until` (`complete`), every run folder left alone (`linked`, `newer-format`), and (L7.6b) a take that stays only
+   * `--until` (`complete`), every run folder left alone (`linked`, `newer-format`), and a take that stays only
    * because a file of renders/ that is no render names it (`render-file`). `reason`: the fixed words of the reason
    * (core pruneKeptWords). Absent when there is none.
    */
   kept_takes?: PruneKeptTake[];
   /**
-   * The files of renders/ left alone (L7.6b): every `*.json` that is no render of its own name — a record renamed or
+   * The files of renders/ left alone: every `*.json` that is no render of its own name — a record renamed or
    * copied, one of a status Retake never writes, one of a newer Retake, a link, a file that does not read — and a
    * record that lacks its scenario, its creation time or its plan. Never listed; each keeps the render whose id it
    * says and the take it names. How many, and by reason (a closed list —

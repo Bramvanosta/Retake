@@ -1,8 +1,7 @@
 /**
- * L5.12c « Épure » 4c: the Library's "Create with Claude" (R4-Library; was LibraryScreen.tsx's native `<dialog>`) — a
- * kit Sheet, not destructive: a prompt for Claude Code's component skill and the scaffold command, both built from the
- * kind, a checked id and the person's words (library-words.ts `createPrompt`: no manifest text, ever). The Studio writes
- * no code and calls no model.
+ * The Library's "Create with Claude" — a kit Sheet, not destructive: a prompt for Claude Code's component skill and the
+ * scaffold command, both built from the kind, a checked id and the person's words (library-words.ts `createPrompt`: no
+ * manifest text, ever). The Studio writes no code and calls no model.
  * - Copy the prompt is the sheet's default (off until there is a prompt: the focus then starts on the first field);
  *   Close / Escape closes.
  * - The person's words are the screen's (`brief`, LibraryScreen.tsx): closing keeps them, reopening shows them again; the

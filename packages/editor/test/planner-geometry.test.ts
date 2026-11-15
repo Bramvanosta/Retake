@@ -1,5 +1,5 @@
 /**
- * Layout geometry that follows params, through the planner (L2.5): the built-in studio/layout-card evaluates its
+ * Layout geometry that follows params, through the planner: the built-in studio/layout-card evaluates its
  * geometry with the params of each use (theme components entry, legacy `frame.width`, overrides) and the capture
  * aspect; the card, the capture rect, the caption area, the brand mark and the overlay anchors all move together.
  */
@@ -141,14 +141,14 @@ describe('device and window layouts through the planner (L2.7)', () => {
   };
 
   it('browser: the window around the capture with its chrome bar; every clip keeps the URLs it showed', () => {
-    // A run of the fixture with display URLs (L1.7): the bar shows them, nothing to warn about.
+    // A run of the fixture with display URLs: the bar shows them, nothing to warn about.
     const displayed = realTimeline('quote');
     displayed.environment = { name: 'local', access: 'read-write', display: [{ page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' }] };
     const d = plan(displayed, { frame: 'browser' });
     expect(d.warnings).toEqual([]);
     expect(clip(d, 'proposal').urls.map((u) => u.url)).toEqual(['https://shop.northfield.example/', 'https://shop.northfield.example/quotes/1043', 'https://shop.northfield.example/quotes/1043/pdf']);
     expect(clips(d).every((c) => c.urls.every((u) => !u.hidden))).toBe(true);
-    // A run without display URLs (this timeline predates L1.7): every URL is local — kept, marked hidden (the bar
+    // A run without display URLs (an older timeline): every URL is local — kept, marked hidden (the bar
     // shows no address: urlAt), and one plan warning names the page.
     const p = plan(realTimeline('quote'), { frame: 'browser' });
     expect(p.warnings).toEqual([
@@ -174,7 +174,7 @@ describe('device and window layouts through the planner (L2.7)', () => {
   it("display URLs are edit-time data: a run captured before them gets the project's current ones (V2)", () => {
     const edit = (timeline: Timeline, env?: string, proj: LoadedProject = project) =>
       planEdit({ timeline, template: editorial, project: proj, registry, captureFile: '/captures/capture.mp4', overrides: { frame: 'browser' }, ...(env ? { env } : {}) });
-    // A timeline without an environment block (before L1.7) and run.json's env: the fixture's display URLs apply.
+    // A timeline without an environment block (an older one) and run.json's env: the fixture's display URLs apply.
     const old = edit(realTimeline('quote'), 'local');
     expect(old.warnings).toEqual([]);
     expect(urlAt(clip(old, 'proposal'), 0)).toBe('https://shop.northfield.example/');
@@ -190,7 +190,7 @@ describe('device and window layouts through the planner (L2.7)', () => {
     expect(none.warnings).toEqual([
       'page "shop" has no display URL (http://localhost:4402): the browser bar shows no address for it — add display: to environments.local.shop in project.yaml and render again (docs/guide/environments.md)',
     ]);
-    // A sandbox environment (L1.8): its pages live in its sandbox.yaml, under the service that serves them (I9).
+    // A sandbox environment: its pages live in its sandbox.yaml, under the service that serves them.
     const sandboxed: LoadedProject = {
       ...project,
       config: {

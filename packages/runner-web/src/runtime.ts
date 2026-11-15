@@ -68,12 +68,12 @@ export interface RuntimeInit {
   secrets: RunSecrets;
   recorder: ScreencastRecorder | null;
   log: (level: LogLevel, message: string) => void;
-  /** Watches the filmed pages for a sign-in page (L1.6; null: the environment has no sign-in to watch). */
+  /** Watches the filmed pages for a sign-in page (null: the environment has no sign-in to watch). */
   guard?: LoginGuard | null;
   /** The persona each page id is planned with (core planPersonas): a page created in another one is reported. */
   plannedPersonas?: ReadonlyMap<string, string | null>;
   /**
-   * Work submitted through MCP (L3.1, core HookTrust `mcp`): the files a step reads (drop_file.path, eval.file) stay in
+   * Work submitted through MCP (core HookTrust `mcp`): the files a step reads (drop_file.path, eval.file) stay in
    * the project folder, an eval file is not one an agent can write and names no secret (core agent-trust).
    */
   agentTrust?: boolean;
@@ -83,14 +83,14 @@ export interface RuntimeInit {
    */
   navigation?: NavigationRule;
   /**
-   * The run replays a scenario for an inspection (L3.3, RunOptions.inspect): no per-step dry-run screenshots, and the
+   * The run replays a scenario for an inspection (RunOptions.inspect): no per-step dry-run screenshots, and the
    * pauses (`hold`, `wait`, a step's `hold:`, a scene's still) last at most INSPECT_PAUSE_CAP_S.
    */
   inspecting?: boolean;
-  /** `defaults.timeout_s` of the scenario, else the project's (L5.6): the timeout of every step that sets none. */
+  /** `defaults.timeout_s` of the scenario, else the project's: the timeout of every step that sets none. */
   defaultTimeoutS?: number;
   /**
-   * The encoder a page track of a capture is fed to during the take (L5.7): `horizon` reads its recorder's. Absent (or
+   * The encoder a page track of a capture is fed to during the take: `horizon` reads its recorder's. Absent (or
    * null): the track keeps its frames only.
    */
   encoderFor?: (o: { out: string; width: number; height: number; horizon: () => number }) => StreamEncoder | null;
@@ -115,16 +115,16 @@ const FRESH_FRAME_PROBE_GAP_MS = 40;
 const CAUGHT_UP_SLACK_MS = 20;
 /**
  * How long after an input the capture is given to show it. Stalls that ended by themselves did within ≈ 0.15–0.36 s
- * (L1.3 Mac runs); the longer ones only ended with the next input (a mousedown), so waiting longer only adds a
+ * (Mac runs); the longer ones only ended with the next input (a mousedown), so waiting longer only adds a
  * motionless pause.
  */
 const STALL_GIVE_UP_MS = 450;
 
-/** A page's own track (multi-page scenes, L2.11): its timeline part and its screencast (none in a dry run). */
+/** A page's own track (multi-page scenes): its timeline part and its screencast (none in a dry run). */
 export interface PageTrack {
   builder: TrackBuilder;
   recorder: ScreencastRecorder | null;
-  /** Its capture-<page>.mp4, encoded during the take (L5.7). */
+  /** Its capture-<page>.mp4, encoded during the take. */
   encoder: StreamEncoder | null;
   started: boolean;
   viewport: ResolvedViewport;
@@ -184,7 +184,7 @@ export class Runtime {
   /** The element the last acting step used (parking keeps clear of it). */
   lastActed: Acted | null = null;
   /**
-   * Runs a named hook for a `hook:` step (L5.8, run.ts stepHookRunner): the hooks of the run's context, journaled with
+   * Runs a named hook for a `hook:` step (run.ts stepHookRunner): the hooks of the run's context, journaled with
    * the setup's. Null when the run has no hook step.
    */
   runHook: ((name: string) => Promise<HookStepOutcome>) | null = null;
@@ -204,7 +204,7 @@ export class Runtime {
   readonly declaredPages = new Map<string, { page?: string; viewport: ResolvedViewport; label?: string }>();
 
   /**
-   * The template context of the text the video shows — captions, cards, overlays, page labels (L1.7): `{{page}}` reads
+   * The template context of the text the video shows — captions, cards, overlays, page labels: `{{page}}` reads
    * the page's display URL. Made per use: the setup hooks' saved results land in `template` after the runtime exists.
    */
   get editTemplate(): TemplateContext {
@@ -235,7 +235,7 @@ export class Runtime {
     this.guard = init.guard ?? null;
     this.plannedPersonas = init.plannedPersonas;
     this.artefacts = new ArtefactStore(init.runDir, (m) => this.warn(m));
-    // What each page's cursor shows (icon, press, ripple; L2.13) goes with the capture that films that page.
+    // What each page's cursor shows (icon, press, ripple) goes with the capture that films that page.
     this.session.onCursorEffect = (page, p) => this.cursorEffect(page, p);
     this.mainPointer = new Pointer({
       page: () => this.page,
@@ -254,7 +254,7 @@ export class Runtime {
   private cursorCapWarned = false;
 
   /**
-   * A cursor effect reported by a page's kit (L2.13): on that page's track while it records (multi-page scenes), on
+   * A cursor effect reported by a page's kit: on that page's track while it records (multi-page scenes), on
    * the main capture's timeline when that page is the one recorded there. A payload of the wrong types (a time or a
    * point that is not a finite number) is ignored; beyond CURSOR_EFFECTS_PER_SECOND from one page in a second, the
    * others of that second are ignored (one warning per run).
@@ -312,7 +312,7 @@ export class Runtime {
   }
 
   /**
-   * After a scroll, the frames showing newly exposed content can stop for 0.26–0.43 s a moment later (a Mac, L1.5): a
+   * After a scroll, the frames showing newly exposed content can stop for 0.26–0.43 s a moment later (a Mac): a
    * cursor glide started meanwhile freezes, then jumps. Probe the capture with 1 px nudges of the resting cursor (back
    * and forth) until FRESH_FRAME_PROBES of them in a row show up within FRESH_FRAME_QUICK_MS — at most
    * FRESH_FRAME_TIMEOUT_MS, and a probe no frame answers within STALL_GIVE_UP_MS ends it — so the next glide starts on
@@ -343,7 +343,7 @@ export class Runtime {
 
   /**
    * Before a press: when no captured frame shows the cursor's last move yet (the capture stopped — the page rendering
-   * a hover effect, L1.3: a frame showing a move is stamped after its dispatch), wait for one until STALL_GIVE_UP_MS
+   * a hover effect: a frame showing a move is stamped after its dispatch), wait for one until STALL_GIVE_UP_MS
    * after that move, so the press and its ripple are filmed rather than frozen. Free when the capture keeps up.
    */
   async awaitCaughtUp(page: Page, pointer: Pointer): Promise<void> {
@@ -422,7 +422,7 @@ export class Runtime {
   }
 
   /**
-   * Start a multi-page scene (L2.11): every page exists (created blank when new) with its viewport, the main capture
+   * Start a multi-page scene: every page exists (created blank when new) with its viewport, the main capture
    * pauses and each page is recorded on its own track, at the same time, on the capture clock; each page gets its own
    * cursor (taking over where the page already shows one). The first page acts.
    */
@@ -592,13 +592,13 @@ export class Runtime {
     return id;
   }
 
-  /** The run's sign-in landing (L1.6), once a filmed page landed on a sign-in page. */
+  /** The run's sign-in landing, once a filmed page landed on a sign-in page. */
   loginGuardError(): LoginPageError | null {
     return this.guard?.error ?? null;
   }
 
   /**
-   * Never go on — act, take a screenshot, start a still — on a sign-in page (L1.6): every filmed page's current URL is
+   * Never go on — act, take a screenshot, start a still — on a sign-in page: every filmed page's current URL is
    * checked (a landing the navigation event did not report yet, a tab that opened on one); the landing is thrown.
    */
   assertSignedIn(): void {
@@ -612,7 +612,7 @@ export class Runtime {
     if (e) throw e;
   }
 
-  /** Track URL changes of a page for the timeline page segments (and the sign-in guard, L1.6). */
+  /** Track URL changes of a page for the timeline page segments (and the sign-in guard). */
   private track(id: string, page: Page): void {
     if (this.tracked.has(page)) return;
     this.tracked.add(page);
@@ -685,7 +685,7 @@ export class Runtime {
   /**
    * Resolve once the active page has painted the current DOM state (two animation frames; at most 150 ms when the
    * page does not render). Used before a scene's still so its first frames already show the cursor in place. The kit
-   * waits on the timers and frames it captured when it started (L1.7: whatever the page does to its globals since).
+   * waits on the timers and frames it captured when it started (whatever the page does to its globals since).
    */
   async painted(page: Page = this.page): Promise<void> {
     await page

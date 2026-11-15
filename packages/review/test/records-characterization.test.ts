@@ -1,5 +1,5 @@
 /**
- * The run of a render as the review reads it (L7.6a): `renderRun` (the take's record: what it cost) and
+ * The run of a render as the review reads it: `renderRun` (the take's record: what it cost) and
  * `renderTimeline`, state by state (test-support/src/records/states.json; NEW: the state named). A review reads the
  * run its render names, whatever the record says: these rows do not move in this lot but where marked (the reads go
  * through the core's one reader: a file that is no record, or one a newer Retake wrote, is not handed over).
@@ -104,7 +104,7 @@ describe('the run of a render, state by state', () => {
   });
 });
 
-// ── The render records (L7.6b): the render a review works on, state by state ─
+// ── The render records: the render a review works on, state by state ─
 //
 // The states are those of test-support/src/records/render-states.json. The cells were written before the lot (its
 // P0) and flipped by its editor part on purpose: a cell that changed is marked `moved: <row>` (the lead's plan §4 and
@@ -232,8 +232,8 @@ describe('the render a review works on, state by state', () => {
     // (creation time, then id as text: `quote-v10` sorts before `quote-v9`), so v11's previous is v9, not v10.
     for (const n of [9, 10, 11]) add({ file: `quote-v${n}`, run: 'NEW', at: '2026-10-02T09:10:00.000Z' });
     expect([await previous('quote-v11'), await previous('quote-v10'), await previous('quote-v9')]).toEqual(['quote-v9', 'quote-v9', 'quote-v6']);
-    // D-10 (L7.6b): a record renamed by hand is no render of the folder's — never the one compared with, its video there
-    // or not (before the lot it was, under the id it says: here quote-v12).
+    // D-10: a record renamed by hand is no render of the folder's — never the one compared with, its video there
+    // or not (here quote-v12).
     add({ file: 'kept-aside', id: 'quote-v12', run: 'NEW', at: '2026-10-02T09:11:00.000Z' });
     writeFileSync(join(b.renders, 'quote-v12.mp4'), 'x');
     add({ file: 'quote-v13', run: 'NEW', at: '2026-10-02T09:12:00.000Z' });
@@ -253,8 +253,7 @@ describe('the render a review works on, state by state', () => {
     expect(await findRender(project, join(b.renders, 'alone.mp4')).catch(said)).toBe(
       `ReviewError: <root>/projects/review-paths/renders/alone.mp4 has no render record next to it (alone.json): review needs the plan the video was rendered from`,
     );
-    // The renders a "not found" names are the records of their own file (D-10; before the lot: `quote-v1, quote-v2`, the
-    // renamed record's inner id among them).
+    // The renders a "not found" names are the records of their own file (D-10).
     expect(await findRender(project, 'quote-v9').catch(said)).toBe(
       'ReviewError: render "quote-v9" not found in <root>/projects/review-paths/renders (renders: quote-v1); use a render id, a .json/.mp4 path or "latest"',
     );

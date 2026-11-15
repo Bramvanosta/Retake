@@ -15,8 +15,8 @@ import type { Worker } from './worker-record.js';
 import { errorMessage } from '@retake/core/base';
 
 /**
- * The open jobs as `pick` reads them; what a dead worker or job process left is persisted on the way (critique M2:
- * never the jobs of this worker's own slots, whose ends this worker writes itself).
+ * The open jobs as `pick` reads them; what a dead worker or job process left is persisted on the way (never the
+ * jobs of this worker's own slots, whose ends this worker writes itself).
  */
 export async function scanOpenJobs(w: Worker): Promise<PickRecord[]> {
   const out: PickRecord[] = [];
@@ -35,7 +35,7 @@ export async function scanOpenJobs(w: Worker): Promise<PickRecord[]> {
     }
     // The class comes from the kind of the input the job runs, through this build's JOB_CLASS (no field of job.json orders it).
     const kind = String((stored.input as { kind?: unknown } | undefined)?.kind ?? stored.kind);
-    // A cancelled queued take holds nothing (review B L7): only takes are asked (one marker read each).
+    // A cancelled queued take holds nothing: only takes are asked (one marker read each).
     const cancelled = stored.state === 'queued' && isFilming(stored.input) && (await w.queue.cancelOf(id)) !== undefined;
     out.push({ id, state: stored.state, kind, input: stored.input, claimed, ...(cancelled ? { cancelled } : {}) });
   }
@@ -53,7 +53,7 @@ export async function hasQueued(w: Worker): Promise<boolean> {
 
 /**
  * Claim a job (re-read: it may have changed since the scan); undefined when someone else took it, or when it was refused
- * at once — review A M2: a record whose kind is not its input's kind (which a job process would refuse) ends `failed`
+ * at once: a record whose kind is not its input's kind (which a job process would refuse) ends `failed`
  * on its first claim, never claimed and given back in a loop. A job's approvals are taken as it is claimed (signing.ts
  * consumeApprovals): a job whose approvals were taken before (a job folder made again under the same id) is refused.
  */
@@ -78,7 +78,7 @@ export async function claimJob(w: Worker, id: string): Promise<JobRecord | undef
     });
     return undefined;
   }
-  // Review B L4: a record that cannot be written is said as such (not as approvals taken before).
+  // A record that cannot be written is said as such (not as approvals taken before).
   const consumed = await consumeApprovals(stored, w.ports.env, w.clock.now()).then(
     (ok) => (ok ? null : `refused without running: the approvals of job ${id} were taken by an earlier claim of that id (approvals are bound to their job) — submit it again`),
     (e: unknown) => `not run: the record of the approvals workers took (${approvalsUsedDir(w.ports.env)}) cannot be written (${errorMessage(e)}) — fix it, then submit the job again`,

@@ -1,6 +1,6 @@
 /**
- * The security gate of the engine's local HTTP servers (L4.1; BACKLOG guard-rail "engine API security contract"),
- * applied to every request before any routing, in a fixed order (critique B3), each layer answering on its own:
+ * The security gate of the engine's local HTTP servers (BACKLOG guard-rail "engine API security contract"),
+ * applied to every request before any routing, in a fixed order, each layer answering on its own:
  *
  * 1. Host — exactly `127.0.0.1:<port>` or `localhost:<port>`, else 421 (DNS rebinding: a name an attacker resolves to
  *    127.0.0.1 carries its own Host; this check is what stops it). A server that takes no request from a web page at
@@ -10,9 +10,9 @@
  *    Sec-Fetch-Site / -Mode / -Dest set from secure contexts only (a plain-http page sends no Sec-Fetch-*; its no-cors
  *    GET carries neither header — and no token: layer 4).
  * 2. Origin / Sec-Fetch-Site — a present Origin must be this server's own (`http://127.0.0.1:<port>` or
- *    `http://localhost:<port>`) — or `null` on a server that takes `allowNullOrigin` (L4.5: the Studio's player origin,
- *    whose only client is the sandboxed preview frame, an opaque origin) — and on API routes a present Sec-Fetch-Site
- *    must be `same-origin` or `none`, else 403.
+ *    `http://localhost:<port>`) — or `null` on a server that takes `allowNullOrigin` (the Studio's player origin, whose
+ *    only client is the sandboxed preview frame, an opaque origin) — and on API routes a present Sec-Fetch-Site must be
+ *    `same-origin` or `none`, else 403.
  *    Pages of another port of 127.0.0.1 (a filmed local app) are *same-site* with this server: the Sec-Fetch-Site
  *    check is what stops their `no-cors` fetches and `<form>` posts, which do reach the server.
  * 3. Route and method — an unknown path 404; OPTIONS and any method the route does not take 405 (no CORS preflight
@@ -61,7 +61,7 @@ export interface GateOptions {
   /** Refuse every request a browser could send (fromBrowser): 403. */
   refuseBrowsers?: boolean;
   /**
-   * Accept `Origin: null` too (L4.5: the player origin — its pages are the sandboxed preview frame, whose fetches carry
+   * Accept `Origin: null` too (the player origin — its pages are the sandboxed preview frame, whose fetches carry
    * `Origin: null`; what proves a right there is the capability in the path, never the Origin).
    */
   allowNullOrigin?: boolean;
@@ -201,11 +201,11 @@ export function readBody(req: IncomingMessage, max: number): Promise<Buffer> {
 export const STUDIO_CSP =
   "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
-/** A loopback origin a Studio page may frame (L4.5: the player origin) — nothing else is ever put in `frame-src`. */
+/** A loopback origin a Studio page may frame (the player origin) — nothing else is ever put in `frame-src`. */
 export const FRAME_SRC_RE = /^http:\/\/127\.0\.0\.1:\d{1,5}$/;
 
 /**
- * The Studio CSP, with `frame-src <frameSrc>` when the Studio frames its player origin (L4.5): the one origin a Studio
+ * The Studio CSP, with `frame-src <frameSrc>` when the Studio frames its player origin: the one origin a Studio
  * page may embed, which is also what stops the frame from navigating itself anywhere else (CSP has no `navigate-to`:
  * the parent's `frame-src` covers its child's navigations). Throws on anything but `http://127.0.0.1:<port>`.
  */
@@ -215,7 +215,7 @@ export function studioCsp(frameSrc?: string): string {
   return STUDIO_CSP.replace("font-src 'self';", `font-src 'self'; frame-src ${frameSrc};`);
 }
 
-/** The Studio's Permissions-Policy (L5.2): every powerful feature off, for the page and every frame it holds. */
+/** The Studio's Permissions-Policy: every powerful feature off, for the page and every frame it holds. */
 export const PERMISSIONS_POLICY = 'camera=(), microphone=(), display-capture=(), geolocation=()';
 
 /**
@@ -230,9 +230,9 @@ export function securityHeaders(kind: 'api' | 'static', o: { frameSrc?: string }
     'Referrer-Policy': 'no-referrer',
     'Cross-Origin-Opener-Policy': 'same-origin',
     'Cross-Origin-Resource-Policy': 'same-origin',
-    // L5.2 (critique L5): asks for no camera, microphone, screen or location for the page and its frames — what Chromium
+    // Asks for no camera, microphone, screen or location for the page and its frames — what Chromium
     // browsers enforce. Whether WKWebView enforces the header is unverified: the desktop shell denies every capture
-    // request itself and its Info.plist names no camera / microphone / location use (review A L2).
+    // request itself and its Info.plist names no camera / microphone / location use.
     'Permissions-Policy': PERMISSIONS_POLICY,
     'Cache-Control': kind === 'api' ? 'no-store' : 'no-cache',
   };

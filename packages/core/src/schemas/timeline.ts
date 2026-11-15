@@ -287,7 +287,7 @@ const TimelineWriteSchema = z.strictObject({
   protected_by: z.string().describe('The other, read-only environment whose host it went to.').optional(),
 });
 
-/** The sandbox of a run (L1.8): its provider, and the reset made before the take. */
+/** The sandbox of a run: its provider, and the reset made before the take. */
 const RunSandboxSchema = z
   .strictObject({
     name: nonEmpty().describe("The sandbox's environment."),
@@ -387,7 +387,7 @@ const runEngineSchema = (object: ObjectOf) =>
       .optional(),
   }).describe('What ran the capture: Retake, Node.js, Chromium, the OS and its installed fonts.');
 
-/** run.json `perf` (L5.7): what the take cost and how smoothly it was filmed. `retake`: the schema of `cpu.retake`. */
+/** run.json `perf`: what the take cost and how smoothly it was filmed. `retake`: the schema of `cpu.retake`. */
 const runPerfSchema = <C extends z.ZodType>(object: ObjectOf, retake: C) =>
   object({
     seconds: z.number().min(0).describe('Seconds of the take (capture time: its pauses left out).'),

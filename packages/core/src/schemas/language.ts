@@ -81,7 +81,7 @@ export const FRAME_STYLES: readonly FrameStyle[] = ['raw', 'card', 'browser', 'l
 
 export const FrameStyleSchema = z.enum(['raw', 'card', 'browser', 'laptop', 'phone', 'tablet']).describe('How the capture is framed: raw, card, browser chrome, laptop, phone or tablet mockup.');
 
-/** Layouts of a multi-page scene (L2.11). */
+/** Layouts of a multi-page scene. */
 export const MULTI_PAGE_FRAMES: readonly MultiPageFrame[] = ['split', 'pip'];
 
 export const MultiPageFrameSchema = z.enum(['split', 'pip']).describe('Layout of a multi-page scene: split (side by side, stacked in vertical) or pip (picture in picture).');
@@ -125,7 +125,7 @@ export const SceneTransitionSchema: z.ZodType<SceneTransition> = z
     description: "crossfade, cut or fade-black (the theme's transition of that kind), or a transition component: its id " + '(e.g. studio/transition-tap-open) or {component, params}.',
   });
 
-// ── Tutorial overlays (L2.10) ────────────────────────────────────────────────
+// ── Tutorial overlays ────────────────────────────────────────────────
 
 const tutorialComponent = () => componentIdSchema('tutorial overlay component id').describe('Overlay component drawing it (default: the built-in one), "namespace/name".');
 

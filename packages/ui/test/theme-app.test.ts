@@ -1,15 +1,15 @@
 /**
- * L4.7 part D2: the theme screens' pure rules (app/theme-words.ts) and the route:
+ * The theme screens' pure rules (app/theme-words.ts) and the route:
  * - mirrors pinned equal to core (hex, removable fields, text caps through core's own value check);
  * - each control's edit: `set_field` with `from` what the view showed (absent when not written), nothing when the value
  *   is the same, a value the field cannot take refused with why, a read-only theme refused with its why;
- * - ⚑ compound edits (critique B7): a background type switch writes its type and colours together; a background
+ * - ⚑ compound edits: a background type switch writes its type and colours together; a background
  *   written as one value is refused (by hand); a kind's component with `from` as written, none only for captions /
  *   transitions, params kept or dropped, a theme's own media file refused;
  * - ⚑ undo / redo send only bytes the server served (ThemeHistory: the view before a write and after it), on the version
  *   shown; another writer clears the history;
  * - ⚑ the draft throttle: at most one preview per 200 ms (five a second), the newest value always previewed last;
- * - "Use in this scenario": the scenario's `template` set_field with `from` as written (critique B1);
+ * - "Use in this scenario": the scenario's `template` set_field with `from` as written;
  * - New theme from a site extraction: its hex roles and first candidate, nothing else of the page;
  * - ⚑ no Studio op queues a site job (template_from_site is not a UI op), which events re-read what, the themes route.
  */
@@ -177,7 +177,7 @@ describe('⚑ compound edits (critique B7)', () => {
         'card',
       ),
     ).toEqual(['studio/a', 'acme/b']);
-    // Review A N3: a written id not among the choices is the file's words, its direction controls visible in the option.
+    // A written id not among the choices is the file's words, its direction controls visible in the option.
     expect(componentOptionWords('studio/a', ['studio/a'])).toBe('studio/a');
     expect(componentOptionWords(`acme/x${String.fromCharCode(0x202e)}gnp`, ['studio/a'])).toBe('acme/x[U+202E]gnp (as written)');
   });

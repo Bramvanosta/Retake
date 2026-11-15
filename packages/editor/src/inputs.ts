@@ -1,6 +1,6 @@
 /**
- * The project files a plan needs (L2.10), read before planning — `planEdit` itself does no I/O: the CSV / TSV text of
- * `data:` slots and the pixel size of image files named by card and overlay slots (`logo:`, `before:` …). L2.12: the
+ * The project files a plan needs, read before planning — `planEdit` itself does no I/O: the CSV / TSV text of
+ * `data:` slots and the pixel size of image files named by card and overlay slots (`logo:`, `before:` …). The
  * user files of segments and overlays (`intro: {video: …}`, `overlay: {lottie: …}`) and of the theme
  * (`components.intro: {video: …}`): videos are probed (ffprobe: size, length, sound, alpha), Lottie files parsed.
  */
@@ -31,7 +31,7 @@ type PlanTimeline = Pick<Timeline, 'scenes' | 'events'> & Partial<Pick<Timeline,
 
 /**
  * Every project file the plan of `timeline` reads, where it is named: slot values of cards and step overlays that name
- * a data or image file, and the user files of segments and overlays (L2.12). Remote and served values excluded.
+ * a data or image file, and the user files of segments and overlays. Remote and served values excluded.
  */
 export function planFileUses(timeline: PlanTimeline): PlanFileUse[] {
   const out: PlanFileUse[] = [];
@@ -62,7 +62,7 @@ export function planFileUses(timeline: PlanTimeline): PlanFileUse[] {
   return out;
 }
 
-/** Slot values of the timeline's cards and step overlays that name a project file (data or image), and the user files of its segments and overlays (L2.12). */
+/** Slot values of the timeline's cards and step overlays that name a project file (data or image), and the user files of its segments and overlays. */
 export function planFileRefs(timeline: PlanTimeline): string[] {
   return [...new Set(planFileUses(timeline).map((u) => u.ref))].sort();
 }
@@ -91,7 +91,7 @@ export function remoteSlotUses(timeline: PlanTimeline, slotType?: (component: st
   return out;
 }
 
-/** The theme's own files (`components.intro: {video: …}`, L2.12), absolute. */
+/** The theme's own files (`components.intro: {video: …}`), absolute. */
 export function themeFileRefs(template: LoadedTemplate | undefined): string[] {
   if (!template) return [];
   const out: string[] = [];
@@ -99,7 +99,7 @@ export function themeFileRefs(template: LoadedTemplate | undefined): string[] {
   return out;
 }
 
-/** Read one user / project file for the planner (L2.12 videos and Lottie files included). */
+/** Read one user / project file for the planner (videos and Lottie files included). */
 async function readInputFile(ref: string, file: string, work: WorkPolicy): Promise<PlanInputFile> {
   const ext = fileExtension(ref);
   if (VIDEO_FILE_EXTENSIONS.includes(ext)) {

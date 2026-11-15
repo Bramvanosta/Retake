@@ -1,4 +1,4 @@
-/** The MCP server's scenario tools: the engine's operations (scenario_get L7.14, scenario_validate L7.13, scenario_save L7.18), in tools/list order. */
+/** The MCP server's scenario tools: the engine's operations (scenario_get, scenario_validate, scenario_save), in tools/list order. */
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
 import type { Op, ToolDef } from './define.js';
 

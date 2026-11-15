@@ -1,5 +1,5 @@
 /**
- * The reader of a listing judges the file it OPENED, never a name it looked at before (L7.6b): core/io record-file.ts
+ * The reader of a listing judges the file it OPENED, never a name it looked at before: core/io record-file.ts
  * reads a record of a listing with readPlainFile — opened without following a link, checked on the descriptor. Here
  * every `lstat` / `stat` of the file swaps it for a link to another file right after it answered: a reader that looks
  * at the name first and reads the name next (`lstat` then a read by path) reads the other file; the reader of the lot
@@ -81,7 +81,7 @@ describe('a record of a listing is judged on the file opened', () => {
     writeFileSync(swap.target, '[]');
     // The file a swapped name would point to is a record that reads (of another id): a reader that looked at the name
     // and then read it would answer that record, not the folder's file — the entry itself tells them apart, not only
-    // the counter (L7.6b fix pass).
+    // the counter.
     writeFileSync(swap.outside, renderRecordText({ file: 'quote-v9', at: '2026-10-02T09:09:00.000Z' }, { dir: root, project: 'p', old: 'OLD', new: 'NEW' })!);
     const entries = await readRendersFolder(join(root, 'renders'), { only: (n) => n === 'quote-v2' });
     expect(entries.map((e) => [e.name, e.link, e.read.ok ? `record ${e.read.value.id}` : e.read.problem])).toEqual([['quote-v2', false, 'invalid']]);

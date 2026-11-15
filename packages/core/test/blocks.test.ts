@@ -1,7 +1,7 @@
 /**
- * L4.2 part 1: a scenario read as blocks (core blocks.ts) — the model behind the Studio's scenario screen (R-UI-08..10,
- * R-UI-14). Goldens of the fixture's scenarios (an outline of every block, validated against the fixture project),
- * the action badges (exhaustive), the modifier chips, targets in plain words, line ranges and comments kept for L4.3,
+ * A scenario read as blocks (core blocks.ts) — the model behind the Studio's scenario screen (R-UI-08..10, R-UI-14).
+ * Goldens of the fixture's scenarios (an outline of every block, validated against the fixture project), the action
+ * badges (exhaustive), the modifier chips, targets in plain words, line ranges and comments kept for the editor,
  * tolerance of broken scenarios, hostile text kept verbatim, URLs without `user:password@`, YAML aliases bounded.
  *
  * Goldens are written only on request: `RETAKE_WRITE_SNAPSHOTS=1 npx vitest run packages/core/test/blocks.test.ts`
@@ -208,7 +208,7 @@ describe('scenarioBlocks on the fixture scenarios (goldens)', async () => {
     expect(free.needs_person).toBe('HTTP DELETE');
     expect(free.flags.map((f) => f.kind)).toEqual(['destructive', 'rollback', 'confirm']);
     expect(free.comment).toContain('Finca Quenaro 2026 is already linked');
-    // The editor directive is left out, the hard wraps joined (review B M5); the comment as written stays at its lines.
+    // The editor directive is left out, the hard wraps joined; the comment as written stays at its lines.
     expect(quote.video.comment).toMatch(/^Buyer side: discover a coffee, request a quote \(the roaster's console shows a web notification, captured and overlaid\), receive/);
     expect(quote.video.comment).not.toMatch(/yaml-language-server|\$schema/);
     expect(quote.video.comment?.split('\n\n')[1]).toMatch(/^The `open-console` setup hook loads the supplier console in a background tab: it polls/);

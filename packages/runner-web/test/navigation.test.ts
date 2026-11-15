@@ -6,7 +6,7 @@
  * white picture in capture.mp4 — a fresh tab's about:blank included —, `timeline.loading` lists each held load, no
  * frame lies inside one, the stills start after them, the first frame after each shows the cursor, and a click that
  * navigated keeps after_navigation_ms of the new page after the held load. A control records the same navigation
- * without the hold: its frames show the skeleton. Then (L1.2 review): a fresh tab opened by a step or after a
+ * without the hold: its frames show the skeleton. Then: a fresh tab opened by a step or after a
  * switch_page is not waited for, a step's hold after a non-click navigation starts on the painted page, and a cancelled
  * run stops waiting for a held load.
  */

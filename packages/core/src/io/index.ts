@@ -6,7 +6,7 @@
  * I/O and imports none of this; it reads the environment only in two listed defaults (docs/DESIGN.md §1:
  * expandHome, unsafeTestResolve) — the clock and ids aside.
  *
- * And the OS utilities (L7.25, from @retake/sandbox): who a process is and its group (`proc.ts`), a lock file made
+ * And the OS utilities (from @retake/sandbox): who a process is and its group (`proc.ts`), a lock file made
  * whole and atomically (`lock.ts`: TakeLock), who listens on a TCP port (`listeners.ts`).
  */
 export * from './browsers.js';

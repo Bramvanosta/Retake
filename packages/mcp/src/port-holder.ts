@@ -1,5 +1,5 @@
 /**
- * Who holds the port `retake mcp --http` could not take (L5.18). The port is fixed (47820) so a registration survives
+ * Who holds the port `retake mcp --http` could not take. The port is fixed (47820) so a registration survives
  * restarts; while the server is down, any local program may listen there first — another account's included — and
  * receive the bearer token a client sends to it. So when the port is taken, the server looks the listener up before
  * giving its "port busy" answer: only a listener that belongs to this account AND is a Retake MCP server

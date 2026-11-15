@@ -1,9 +1,9 @@
 /**
- * L4.8 part 5: the Record screen's pure rules (app/record-words.ts, RecordScreen's draftRows, events.ts
+ * The Record screen's pure rules (app/record-words.ts, RecordScreen's draftRows, events.ts
  * recordEventAction) — states in words, who started a recording, the window note (full size, never "side by side"),
  * the time left, the target flags, the inserts, the check (B7 wording, the events changed after it), the preflight
  * refusal a Sign in answers, the Studio's text rules (core studioText's, before anything is sent), the writes' reset
- * advice, the status line, and which events make the screen read its recording again. L5.11b: a recording's state in the
+ * advice, the status line, and which events make the screen read its recording again. A recording's state in the
  * Shoot browser and beside its mark — a shape and a state word for every state (the colour-only rule).
  */
 import { createElement } from 'react';
@@ -301,7 +301,7 @@ describe("L5.11b: a recording's state beside its mark (Shoot's browser, the scre
     expect(recordingWords({ ...r, state: 'done', studio: false, started_by: 'mcp' })).toBe('Recorded · by Claude');
     expect(recordingWords({ ...r, state: 'discarded', studio: false })).toBe('Discarded');
     expect(recordingWords({ ...r, state: 'queued', actions: null })).toBe('Waiting for the worker');
-    // L5.11b fixes (review B-L6): its location, and its steps once over (L4.8's list said both).
+    // Its location, and its steps once over.
     expect(recordingWords({ ...r, env: 'local', steps: 5 })).toBe('Recording · 7 actions · local');
     expect(recordingWords({ ...r, state: 'done', env: 'staging', steps: 12, saved: { name: 'quote-v2', file: 'scenarios/quote-v2.yaml' } })).toBe('Recorded · 12 steps · staging · saved as quote-v2');
     expect(recordingWords({ ...r, state: 'done', env: 'local', steps: 1 })).toBe('Recorded · 1 step · local · not saved');

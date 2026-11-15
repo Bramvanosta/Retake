@@ -1,5 +1,5 @@
 /**
- * L7.29 (audit 2026-11-10 P7): each job kind's handler (jobs/job-handlers.ts), on stand-in execute functions — the
+ * Each job kind's handler (jobs/job-handlers.ts), on stand-in execute functions — the
  * state, error and progress rule each kind ends with, as runJob's switch over the kinds had them (run-job-record.ts at
  * 394c30e): a cancelled run (its untrusted message), hooks / env_reset / sign-in interrupted, an export cancelled between
  * formats; the kinds whose record keeps their last progress; what a handler hands its execute function.

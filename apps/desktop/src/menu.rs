@@ -2,14 +2,14 @@
 //! style switch.
 //!
 //! - `MENUS`: every item of the menu bar, in order. A `Cmd` is the shell's own command (id, label, accelerator,
-//!   enabled) handled in main.rs `on_menu_event`; a `Page` is one of the page's commands (L5.9: the View menu's
-//!   Command Palette ⌘K, the modes Script · Shoot · Edit · Review ⌘1 – ⌘4, the inspector ⌥⌘I), sent to the page as a
+//!   enabled) handled in main.rs `on_menu_event`; a `Page` is one of the page's commands (the View menu's ! 
+// Command Palette ⌘K, the modes Script · Shoot · Edit · Review ⌘1 – ⌘4, the inspector ⌥⌘I), sent to the page as a
 //!   `studio:command` event by `page_command_js` — its id one of the page's MENU_COMMANDS (ui-kit/commands.ts; a static
 //!   test compares the two lists), always enabled (a command the page cannot run says so in its status bar); a `Std` is
-//!   a macOS standard item (Edit's undo / copy / paste…, which reach the page's fields). L5.11a: the Scenario menu's
+//!   a macOS standard item (Edit's undo / copy / paste…, which reach the page's fields). The Scenario menu's
 //!   Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B and Stop ⌘. are page commands too (the page's command bus gives them to their
 //!   owner: the status bar, a screen, a live recording); ⌘S and ⌘Enter stay the page's (desktop-config.test.ts pins it).
-//! - `TITLE_BAR`: the standard macOS title bar (L5.9 shipped it: the overlay's drag band is BL-126); `Overlay` lets the
+//! - `TITLE_BAR`: the standard macOS title bar (the overlay's drag band is BL-126); `Overlay` lets the
 //!   page draw under a transparent title bar with the window buttons inset. `SHELL_FLAG_JS`, a constant main-frame init
 //!   script, tells the page which one it is under (`window.__studioShell`): the page then keeps the buttons' room (80 px
 //!   for the overlay) and binds no shortcut of its own (the menu's accelerators send the commands: a key never acts
@@ -21,13 +21,13 @@ use tauri::{AppHandle, LogicalPosition, TitleBarStyle, WebviewWindowBuilder, Wry
 /// The shell's own commands.
 pub const OPEN_WORKSPACE: &str = "open-workspace";
 pub const SHOW_WINDOW: &str = "show-window";
-/// L5.16c, the Help menu: the Set-up sheet (a `studio:setup` page event, desktop_core::setup::setup_page_js), on the
+/// The Help menu: the Set-up sheet (a `studio:setup` page event, desktop_core::setup::setup_page_js), on the
 /// command's section for Install / Uninstall the retake Command… (those two say "move the app" first when it runs from a
 /// translocated copy, its disk image or /Volumes).
 pub const SET_UP: &str = "set-up";
 pub const CLI_INSTALL: &str = "cli-install";
 pub const CLI_REMOVE: &str = "cli-remove";
-/// L5.16d: Help › Check for Updates… (update.rs: an alert with the answer, or the Studio's update sheet).
+/// Help › Check for Updates… (update.rs: an alert with the answer, or the Studio's update sheet).
 pub const CHECK_UPDATES: &str = "check-updates";
 
 /// A macOS standard item.
@@ -63,8 +63,8 @@ pub enum Item {
 pub const MENUS: &[(&str, &[Item])] = &[
     ("", &[Item::Std(Std::About), Item::Separator, Item::Std(Std::Hide), Item::Std(Std::HideOthers), Item::Std(Std::ShowAll), Item::Separator, Item::Std(Std::Quit)]),
     ("File", &[Item::Cmd { id: OPEN_WORKSPACE, label: "Open Workspace…", accelerator: Some("CmdOrCtrl+O"), enabled: true }, Item::Separator, Item::Std(Std::CloseWindow)]),
-    // ⌘Z ⌘C ⌘V ⌘X ⌘A in the page's fields. No Reload item (critique M1: WKWebView never asks before leaving unsaved
-    // text; ⌘R stays free for the redesign's Rehearse).
+    // ⌘Z ⌘C ⌘V ⌘X ⌘A in the page's fields. No Reload item (WKWebView never asks before leaving unsaved text; ⌘R
+    // stays free for the redesign's Rehearse).
     ("Edit", &[Item::Std(Std::Undo), Item::Std(Std::Redo), Item::Separator, Item::Std(Std::Cut), Item::Std(Std::Copy), Item::Std(Std::Paste), Item::Std(Std::SelectAll)]),
     (
         "View",
@@ -81,7 +81,7 @@ pub const MENUS: &[(&str, &[Item])] = &[
             Item::Std(Std::FullScreen),
         ],
     ),
-    // L5.11a: the scenario in context (the page says in its status bar why a command cannot act; menu state is BL-126).
+    // The scenario in context (the page says in its status bar why a command cannot act; menu state is BL-126).
     (
         "Scenario",
         &[
@@ -92,9 +92,9 @@ pub const MENUS: &[(&str, &[Item])] = &[
             Item::Page { id: "stop", label: "Stop", accelerator: Some("CmdOrCtrl+.") },
         ],
     ),
-    // ⌘0 brings back a window closed with ⌘W (review B M3: the Dock icon is the only other way; ⌘Tab shows no window).
+    // ⌘0 brings back a window closed with ⌘W (the Dock icon is the only other way; ⌘Tab shows no window).
     ("Window", &[Item::Std(Std::Minimize), Item::Std(Std::Zoom), Item::Separator, Item::Cmd { id: SHOW_WINDOW, label: "Show Studio Window", accelerator: Some("CmdOrCtrl+0"), enabled: true }]),
-    // L5.16c: the installed app's set-up (the page says so in a development build: its server is no app's).
+    // The installed app's set-up (the page says so in a development build: its server is no app's).
     (
         "Help",
         &[
@@ -146,7 +146,7 @@ pub fn build(app: &AppHandle, name: &str) -> tauri::Result<Menu<Wry>> {
 /// The title-bar style.
 #[allow(dead_code)]
 pub enum TitleBar {
-    /// The standard macOS title bar (L5.2: today's Studio has no title-bar zone).
+    /// The standard macOS title bar (today's Studio has no title-bar zone).
     Standard,
     /// A transparent title bar over the page, no title text, the window buttons at `buttons` (points from the top
     /// left). The page keeps its content clear of the buttons and marks its drag zone; WKWebView honours no
@@ -155,7 +155,7 @@ pub enum TitleBar {
     Overlay { buttons: (f64, f64) },
 }
 
-/// THE switch. L5.9 keeps the standard bar: an overlay needs a native drag band whose WebKit edge cases were not
+/// THE switch. The standard bar stays: an overlay needs a native drag band whose WebKit edge cases were not
 /// proven (DESIGN §4j, BACKLOG BL-126); `TitleBar::Overlay { buttons: (16.0, 18.0) }` is the value that waits for it.
 pub const TITLE_BAR: TitleBar = TitleBar::Standard;
 

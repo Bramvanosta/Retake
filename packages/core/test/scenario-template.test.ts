@@ -152,7 +152,7 @@ describe('display URLs in edit text (L1.7, R-ENV-01)', () => {
     expect((m.pages as Record<string, unknown>).buyer).toMatchObject({ open: 'http://localhost:4402/', label: 'Café · https://shop.example.com' });
     const card: CardScene = { card: { slots: { title: 'Try {{shop}}', url: '{{console}}' } } };
     expect(templateSceneEntry(card, 2, ctx, edit).card).toEqual({ slots: { title: 'Try https://shop.example.com', url: 'http://localhost:4401/app' } });
-    // Without an edit context everything reads the real URLs (as before L1.7).
+    // Without an edit context everything reads the real URLs.
     expect(templateSceneEntry(scene, 0, ctx).caption).toEqual({ kicker: 'Live', text: 'Order at http://localhost:4402' });
   });
 });

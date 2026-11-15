@@ -1,10 +1,10 @@
 /**
- * Recording a scenario (L3.4, `retake record`; the `record` job and scenario_record build on it): a HEADED window where
+ * Recording a scenario (`retake record`; the `record` job and scenario_record build on it): a HEADED window where
  * a person performs a flow once (runner-web recordSession), then a draft scenario from what they did (core
  * draftFromRecording), saved as scenarios/<name>.yaml when the name is free, then a headless check replay of the draft.
  * Claude may start a recording through MCP, never drive it.
  *
- * Files: <project>/.retake/records/<rec_id>/ (0700) — meta.json (L4.8: written once when the folder is made: the
+ * Files: <project>/.retake/records/<rec_id>/ (0700) — meta.json (written once when the folder is made: the
  * draft's context, who started it, its job and process; record-files.ts), events.jsonl (streamed by the runner while
  * recording), draft.yaml and record.json (0600; record.json holds the events file's sha256, `events_sha256`, so a
  * later Save can tell an edited events file), check/ (the check replay's run folder, without its per-step
@@ -26,7 +26,7 @@
  *   replays the whole draft): nothing is written twice. It starts from the state the recording left the product in.
  * - the draft is validated with the project (its vars, pages, personas) before it is saved or checked; an error is an
  *   `invalid` issue with its scene and step, never the validator's text;
- * - a recording the Studio started (`submittedBy: 'ui'`, L4.8) is never saved here (`not_saved: 'studio'`): the person
+ * - a recording the Studio started (`submittedBy: 'ui'`) is never saved here (`not_saved: 'studio'`): the person
  *   arranges the draft and saves it from the Record screen (record-studio.ts).
  */
 import type { RunOutputs } from './outputs/outputs.js';
@@ -96,7 +96,7 @@ export async function activeRecords(queue: JobQueueView, slug: string): Promise<
 
 /**
  * Keep the newest `keep` recording folders of a project; `except` is never removed, nor — given the workspace's job
- * queue — the folder of a recording whose job is still queued or running. L4.8 (critique B12): nor a folder whose lock is held
+ * queue — the folder of a recording whose job is still queued or running, nor a folder whose lock is held
  * (an annotate, a Save or a Discard in progress), nor an unsaved, undiscarded Studio recording younger than
  * RECORD_UNSAVED_KEEP_MS.
  */
@@ -417,7 +417,7 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   await mkdir(recordsRoot(project), { recursive: true });
   await mkdir(dir, { recursive: true, mode: 0o700 });
   await chmod(dir, 0o700);
-  // What the Studio's view and Save rebuild the draft's context from, and who may change it (critique B4).
+  // What the Studio's view and Save rebuild the draft's context from, and who may change it.
   await writeRecordMeta(dir, {
     v: 1,
     rec_id: id,
@@ -511,7 +511,7 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
 
   const draftFile = join(dir, 'draft.yaml');
   await writePrivate(draftFile, draft.yaml);
-  // The events file as drafted and checked (the stream has ended): a Save from the Studio refuses another one (B8).
+  // The events file as drafted and checked (the stream has ended): a Save from the Studio refuses another one.
   const eventsSha256 = await fileSha256(eventsFile).catch(() => null);
   // Valid in the project (its vars, pages, personas), not only as a scenario: else it is neither saved nor checked.
   if (!draft.issues.some((i) => i.severity === 'error')) {

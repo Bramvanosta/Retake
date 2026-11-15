@@ -1,5 +1,5 @@
 /**
- * The Studio's Project screen in one read (L5.10a, critique H1): `engine.projects.board(project)` → every scenario's
+ * The Studio's Project screen in one read: `engine.projects.board(project)` → every scenario's
  * facts for the poster grid, the smart groups and the inspector — never through `scenarios.view` (its 16-entry memos
  * would thrash past 16 scenarios and evict the open scenario screen's entries).
  *
@@ -8,21 +8,21 @@
  *   files' signatures (project.yaml, sandbox.yaml, hooks/, retake.yaml, the project theme's folder and template.yaml),
  *   sized past BOARD_SCENARIOS_MAX. An entry also holds the files its checks looked for (own media, data, SQL…: core
  *   CheckContext.filesRead), re-statted before it is trusted, and expires after FILE_FACTS_TTL_MS (the scenario view's
- *   text TTL) — review A-M1: an asset removed shows at once, anything else within the minute.
+ *   text TTL): an asset removed shows at once, anything else within the minute.
  * - Runs: ONE pass over the project's runs folder, newest first — the newest BOARD_RUNS_WINDOW run.json re-checked by
  *   their stat — grouped by scenario: the running take, the last finished one, the capture (the timeline's rule: the
  *   newest succeeded capture with its video, `until` allowed) and the newest complete dry run. Older runs (finished: they
  *   do not change) are summed up once per project in the same groups and held while the older ids stay the same; new
- *   ones joining at their head are added to it (review A-L2: a never-run scenario no longer walks the folder each read).
+ *   ones joining at their head are added to it (a never-run scenario does not walk the folder each read).
  * - "Current": the capture's own scenario.yaml against today's file (core scenarioTextChanged + filmedChanges: an edit-only
  *   change keeps the take current; no snapshot: null), memoised by (capture, snapshot stat, file hash).
  * - Poster and length: `poster(project, run)` — the last step of the capture's timeline with a picture (the binding's
  *   rule) and its scenes' summed length, memoised by the run folder's and timeline's stat.
  * - Renders: one readdir of renders/ (records memoised by their stat) and ONE pass over the job queue per call (render,
- *   review and run jobs of the project; each job.json memoised by its stat, review A-M3), split by scenario in memory —
- *   the running take's job comes from that pass too. The render shown is the newest succeeded landscape render that
- *   shows today's file (the same capture, file bytes and theme, no override: render-words sameVersion), else the newest
- *   succeeded landscape one (review B-L2).
+ *   review and run jobs of the project; each job.json memoised by its stat), split by scenario in memory — the running
+ *   take's job comes from that pass too. The render shown is the newest succeeded landscape render that shows today's
+ *   file (the same capture, file bytes and theme, no override: render-words sameVersion), else the newest succeeded
+ *   landscape one.
  * Path-free; text read from a file (the video's title, an environment the project does not have) under `untrusted`,
  * capped; strings from run.json only when they have the expected shape (an environment name, an ISO time).
  */
@@ -125,7 +125,7 @@ export interface BoardScenario {
   render?: ScenarioRenderView;
   /**
    * With `render`: whether it shows today's file — the same capture, file bytes and theme (by the theme's folder, a
-   * theme the row cannot name included; a record of before L7.9 by its folder's name), no option beyond the files'.
+   * theme the row cannot name included; an older record by its folder's name), no option beyond the files'.
    * The Studio says "Rendered" only then.
    */
   render_current?: boolean;
@@ -185,7 +185,7 @@ interface BoardFileFacts {
   template?: string;
   title?: string;
   error?: string;
-  /** When computed (ms), the files its checks looked for and their signatures then (review A-M1). */
+  /** When computed (ms), the files its checks looked for and their signatures then. */
   at?: number;
   deps?: string[];
   depSig?: string;
@@ -217,7 +217,7 @@ async function pool<T, R>(items: readonly T[], n: number, fn: (t: T) => Promise<
   return out;
 }
 
-/** A stat signature without awaiting (thousands of job.json per board read: review A-M3). */
+/** A stat signature without awaiting (thousands of job.json per board read). */
 function lsigSync(path: string): string {
   try {
     const s = lstatSync(path);
@@ -261,7 +261,7 @@ function themeName(p: LoadedProject, ref: string | undefined): string | undefine
 /**
  * The theme's name as a render record holds it (`template`: the name of the folder the editor loaded, core io
  * template.ts loadTemplateDir), whatever that folder is called and however long its reference: a name as it is, a
- * path its folder's name. The board compares it with a record that holds no `template_folder` (one of before L7.9),
+ * path its folder's name. The board compares it with a record that holds no `template_folder` (an older one),
  * never shows it (`theme` is themeName).
  */
 function themeIdentity(p: LoadedProject, ref: string | undefined): string | undefined {
@@ -315,7 +315,7 @@ export class ProjectBoards {
       const g = groups.get(name) ?? {};
       const s: BoardScenario = { name, file: f.file, content: f.content, untrusted: {} };
       if (f.hash) s.hash = f.hash;
-      // An environment the file names is the production's location only when the project has it (review A-M2).
+      // An environment the file names is the production's location only when the project has it.
       if (f.env !== undefined) {
         if (Object.hasOwn(envs, f.env)) s.env = f.env;
         else s.untrusted.env = f.env.slice(0, BOARD_TITLE_MAX);
@@ -335,7 +335,7 @@ export class ProjectBoards {
         const raw: RunStatus = g.running.record.status === 'queued' ? 'queued' : 'running';
         const status = job ? (overlaid(raw, job) ?? raw) : pass.complete ? this.statusOf(raw) : await this.ctx.overlay(slug, { id: g.running.id, status: raw });
         const run = this.boardRun(g.running.id, g.running.record, status, job?.id);
-        // Its job is not in `jobs`: a take's progress is the page's run_status, never a board read (critique M2).
+        // Its job is not in `jobs`: a take's progress is the page's run_status, never a board read.
         if (status === 'queued' || status === 'running') s.running = run;
         else if (!g.last || run.id > g.last.id) g.lastRun = run;
       }
@@ -358,12 +358,12 @@ export class ProjectBoards {
       // Renders: the newest succeeded landscape one, a newer failure, the job running.
       const recs = records.get(name) ?? [];
       const mine = renderJobs.filter((j) => j.input.kind === 'render' && j.input.scenario === name);
-      // The newest render that shows today's file (render-words sameVersion's rule, review B-L2), else the newest one.
+      // The newest render that shows today's file (render-words sameVersion's rule), else the newest one.
       const landscape = recs.filter((r) => r.status !== 'failed' && r.status !== 'cancelled' && (r.variant ?? 'landscape') === 'landscape');
       const views: Array<{ r: StoredRenderRecord; v: ScenarioRenderView }> = [];
       for (const r of landscape) views.push({ r, v: await renderView(this.ctx.renderMemos, this.ctx.ws.outputs.reviews, p.dir, r, mine, reviewJobs) });
       // The theme by its identity (BL-164): the record's folder against today's (two folders of one name are two
-      // themes); a record of before L7.9, which holds no folder, by its folder's name — also when it is no theme name.
+      // themes); an older record, which holds no folder, by its folder's name — also when it is no theme name.
       const sameTheme = (r: StoredRenderRecord): boolean =>
         typeof r.template_folder === 'string' && themeFolder !== undefined ? r.template_folder === themeFolder : themeId === undefined || r.template === themeId;
       const shows = (x: { r: StoredRenderRecord; v: ScenarioRenderView }) =>
@@ -393,8 +393,8 @@ export class ProjectBoards {
         shownJobs.add(open.id);
       }
       for (const j of reviewJobs) if (j.input.kind === 'review' && recs.some((r) => r.id === (j.input as { render_id: string }).render_id)) shownJobs.add(j.id);
-      // Poster: a failed take newer than the capture shows its error screenshot when it has one (review B-L5: the
-      // production's word is that failure), else the capture's picture, else the dry run's. Length: the capture's.
+      // Poster: a failed take newer than the capture shows its error screenshot when it has one (the production's
+      // word is that failure), else the capture's picture, else the dry run's. Length: the capture's.
       const failed = s.last_run && s.last_run.status === 'failed' && (!g.capture || s.last_run.id > g.capture.id) ? await this.poster(p, s.last_run.id) : undefined;
       const pictured = g.capture?.id ?? g.dry?.id;
       const fromCapture = pictured ? await this.poster(p, pictured) : undefined;
@@ -488,7 +488,7 @@ export class ProjectBoards {
     }
     const key = `${p.dir}\0${name}\0${sig}\0${psig}`;
     const hit = sig ? this.files.get(key) : undefined;
-    // Trusted while young and while every file its checks looked for is as it was (review A-M1).
+    // Trusted while young and while every file its checks looked for is as it was.
     if (hit && (hit.at === undefined || Date.now() - hit.at < FILE_FACTS_TTL_MS) && (!hit.deps || (await this.depSig(hit.deps)) === hit.depSig)) return hit;
     this.stats.files++;
     const empty = { scenes: 0, cards: 0, interstitials: 0, steps: 0, hooks: 0 };
@@ -625,7 +625,7 @@ export class ProjectBoards {
 
   /**
    * The project's older runs (past the window) summed up, held while their ids stay the same; ids that joined at the
-   * head (the window moved on) are summed and put before what was held (review A-L2).
+   * head (the window moved on) are summed and put before what was held.
    */
   private async olderGroups(p: LoadedProject, ids: readonly string[]): Promise<Map<string, RunGroup>> {
     const held = this.older.get(p.dir);
@@ -676,7 +676,7 @@ export class ProjectBoards {
       }
       await this.addFinished(p, g, id, r);
     }
-    // A scenario still without its last take and capture: the older runs, summed up once (review A-L2).
+    // A scenario still without its last take and capture: the older runs, summed up once.
     if (ids.length > BOARD_RUNS_WINDOW && [...names].some((n) => !groups.get(n)?.last || !groups.get(n)?.capture)) {
       const older = await this.olderGroups(p, ids.slice(BOARD_RUNS_WINDOW));
       for (const name of names) {
@@ -717,7 +717,7 @@ export class ProjectBoards {
 
   /**
    * The project's render, review and run jobs, newest first, at most BOARD_JOBS_MAX — ONE pass over the queue, each
-   * job.json read once while its stat holds (review A-M3: jobs are never pruned; a finished job never changes).
+   * job.json read once while its stat holds (jobs are never pruned; a finished job never changes).
    * `complete`: the pass saw the whole queue (a run whose job is not in it has none).
    */
   private async jobsOf(slug: string): Promise<{ jobs: JobRecord[]; complete: boolean }> {

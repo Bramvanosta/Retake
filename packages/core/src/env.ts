@@ -25,7 +25,7 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object
 
 /**
  * Whether an environment value of project.yaml is the long form (`{production?, access?, pages: {…}, read_only?}`);
- * otherwise it is the short form, the page map itself (L1.7).
+ * otherwise it is the short form, the page map itself.
  */
 export function isLongFormEnvironment(value: unknown): value is Record<string, unknown> & { pages: Record<string, unknown> } {
   return isObj(value) && Object.hasOwn(value, 'pages') && isObj(value.pages);

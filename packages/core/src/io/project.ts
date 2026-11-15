@@ -25,7 +25,7 @@ import { findWorkspaceRootOn, loadWorkspaceConfigOn } from './workspace.js';
 const README_LOAD_MAX_BYTES = 2 * 1024 * 1024;
 
 /**
- * README.md for `project.readme`, or null: missing, or not a small plain file (L4.2, BL-79 residue: a FIFO named
+ * README.md for `project.readme`, or null: missing, or not a small plain file (BL-79 residue: a FIFO named
  * README.md held every project load; a link or an oversized file is left to the engine's reader, which says why).
  */
 function readmeText(disk: WorkspaceDisk, file: string): string | null {
@@ -122,7 +122,7 @@ export async function loadProjectOn(disk: WorkspaceDisk, dirOrSlug: string, root
   const text = (await disk.readFile(file)).toString('utf8');
   const { config, issues } = parseProjectYaml(text, file, disk.facts);
   if (!config) throw new ConfigError(issuesMessage('project', issues, file), issues, file);
-  // Sandbox environments (L1.8): each manifest is read and validated (a broken one throws), then merged in.
+  // Sandbox environments: each manifest is read and validated (a broken one throws), then merged in.
   const sandboxes = await loadSandboxesOn(disk, dir, config);
   return {
     slug: basename(dir),

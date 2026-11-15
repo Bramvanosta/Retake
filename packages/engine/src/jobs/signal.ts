@@ -1,5 +1,5 @@
 /**
- * The one way a jobs worker signals a job process or its tree (L5.14a fixes, review B L1): every target is checked
+ * The one way a jobs worker signals a job process or its tree: every target is checked
  * first. A pid that is not an integer above 1 (a failed spawn's -1, a forged 0 or 1: `kill(0)` is this process's own
  * group, `kill(-1)` every process of the user, 1 is launchd), this process itself, or this process's own group never
  * reaches `process.kill` — whatever recorded or computed it (the spawn failure window, recovery from a job.json, a cancel,

@@ -1,5 +1,5 @@
 /**
- * Admission stays inside the submits (L7.15): every operation the catalogue holds to admission rules is an engine
+ * Admission stays inside the submits: every operation the catalogue holds to admission rules is an engine
  * operation, and one call of it through `invoke` — an MCP engine for MCP's, a Studio (`ui`) engine for the Studio's —
  * enters the engine's admission exactly once, before its job is queued (a run's checks from inside the submit too, once
  * each and before the job: `prepared` on the scenario it parsed, then `reserve`; never invoke itself), and a call the

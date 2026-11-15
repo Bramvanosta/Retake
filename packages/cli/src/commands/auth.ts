@@ -21,7 +21,7 @@ import type { Ui } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
-// Moved into @retake/engine (L3.1); re-exported for the commands that import them from here.
+// Moved into @retake/engine; re-exported for the commands that import them from here.
 export { personaState, projectPersonaStates, tildePath } from '@retake/engine/shell';
 export type { PersonaState } from '@retake/engine';
 

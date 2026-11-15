@@ -1,5 +1,5 @@
 /**
- * Whether a component can take one use as the scenario writes it (L4.5, critique B7): the timeline offers a switch in
+ * Whether a component can take one use as the scenario writes it: the timeline offers a switch in
  * one click only when the result is what the click promised — not a planner fallback with a warning, nor an empty card.
  *
  * A component fits a use when it is registered and loads (kit API included), is usable as the use's kind, shows every

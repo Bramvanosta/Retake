@@ -1,5 +1,5 @@
 /**
- * @retake/sandbox, the parts that need no app (L1.8): process identity (ps lstart read with LC_ALL=C, `sh -c`
+ * @retake/sandbox, the parts that need no app: process identity (ps lstart read with LC_ALL=C, `sh -c`
  * exec'd, a leader gone with its group alive, a pid that is another program's), group stops (SIGKILL after the timeout,
  * descendants that left the group), the take lock (busy, stale), the state file, ports (probe, lsof owner), health
  * checks (refused → 503 → 200, text, timeout, abort, a process gone), commands and the environment of a service.
@@ -107,7 +107,7 @@ describe('process identity (ps lstart, LC_ALL=C)', () => {
     expect(signalState(c.pid!)).toBe('gone');
     expect(signalState(-c.pid!)).toBe('alive');
     const at = new Date(start ?? Date.now()).toISOString();
-    // A group of that id whose members nobody recorded: possibly another program's after a pid reuse (P2).
+    // A group of that id whose members nobody recorded: possibly another program's after a pid reuse.
     expect(await identify(c.pid!, at)).toBe('reused');
     expect(await identify(c.pid!, at, { members: [{ pid: c.pid! + 1, start: Date.now() - 3600_000 }] })).toBe('reused');
     expect(await identify(c.pid!, at, { members })).toBe('ours');
@@ -337,7 +337,7 @@ describe('health', () => {
       intervalMs: 100,
     });
     expect(serviceHealth('db', { health: { tcp: 4632 } }).targets).toEqual([{ kind: 'tcp', port: 4632 }]);
-    // health: false skips the service's own check, never its pages (P5).
+    // health: false skips the service's own check, never its pages.
     expect(serviceHealth('app', { url: 'http://localhost:4601', health: false, pages: { a: 'http://localhost:4602' } }).targets).toEqual([
       { kind: 'http', url: 'http://localhost:4602', anyStatus: true },
     ]);

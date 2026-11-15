@@ -1,6 +1,6 @@
 /**
- * L5.12a: Edit's status bar (R4-Edit; R-UI-45; lead decisions H2 / M6) — the screen fills the shell's actions slot:
- * - what is on screen (`timeline-source`), in plain words (review B-L3: no tag there): today's edit of take <run> (with
+ * Edit's status bar (R4-Edit; R-UI-45) — the screen fills the shell's actions slot:
+ * - what is on screen (`timeline-source`), in plain words (no tag there): today's edit of take <run> (with
  *   what changed since the take), the take as captured, or the edit Claude proposed (not written);
  * - the render line (`render-status`, polite): a render of the scenario queued or running (its words and progress, with
  *   Cancel — Stop is for runs only), else the newest render ended without a video ("v4 failed"), else the latest render:

@@ -1,8 +1,8 @@
 /**
- * L5.14a: a running heavy job yields during a take — background QoS (`taskpolicy -b`) on every process of its tree (its
- * group and every descendant, the detached browser included), walked again with `-b` for new pids only (review A L5),
- * reversed per pid (`-B`) at the end for the pids the hold made background only (review A L3: a pid already at background
- * QoS keeps it); a pid whose start time changed is never touched. The real oracle: `ps -o pri` (31 → 4 → 31).
+ * A running heavy job yields during a take — background QoS (`taskpolicy -b`) on every process of its tree (its
+ * group and every descendant, the detached browser included), walked again with `-b` for new pids only,
+ * reversed per pid (`-B`) at the end for the pids the hold made background only (a pid already at background QoS keeps
+ * it); a pid whose start time changed is never touched. The real oracle: `ps -o pri` (31 → 4 → 31).
  */
 import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';

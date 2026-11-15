@@ -1,5 +1,5 @@
 /**
- * One map path of a YAML file set or removed as a splice of its text (L4.7, critique D A1): the small editor of L4.5's
+ * One map path of a YAML file set or removed as a splice of its text: the small editor of the
  * timeline field edits (field-edits.ts), extracted so that a theme's template.yaml (theme-edits.ts) is edited by the same
  * code — never a re-serialisation (step-edits.ts's rules: every byte outside the lines it touches stays). Pure.
  *

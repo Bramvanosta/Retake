@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Publish one signed update of the macOS app on GitHub (L5.16d, moved to a GitHub release by L5.16f; DESIGN §4p (d),
- * docs/RELEASING.md), then rebuild the feed the installed apps read.
+ * Publish one signed update of the macOS app on GitHub (DESIGN §4p (d), docs/RELEASING.md), then rebuild the feed the
+ * installed apps read.
  *
  *   node scripts/publish-update.mjs 0.2.1 --artifact <dir>/Retake.app.tar.gz --signature <dir>/Retake.app.tar.gz.sig \
  *     [--platforms darwin-aarch64] [--notes notes.txt]
@@ -63,7 +63,7 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** Every key a Tauri updater may look up in a feed; the feed lists those present for the version. */
 export const KNOWN_PLATFORMS = ['darwin-aarch64', 'darwin-x86_64', 'linux-x86_64', 'linux-aarch64', 'windows-x86_64'];
 export const DEFAULT_PLATFORMS = ['darwin-aarch64'];
-/** What an archive of this repository can be for (review d A-L8): the macOS app on Apple silicon only, for now. */
+/** What an archive of this repository can be for: the macOS app on Apple silicon only, for now. */
 export const SUPPORTED_PLATFORMS = ['darwin-aarch64'];
 /** The fixed release whose files are the channels. */
 export const FEED_TAG = 'update-feed';
@@ -265,7 +265,7 @@ export function settings(env) {
 // ---- GitHub's REST API ----------------------------------------------------------------------------------------------
 
 /**
- * Where the API's uploads go (review f A-L4): `api.<host>` uploads to `uploads.<host>` (GitHub: api.github.com →
+ * Where the API's uploads go: `api.<host>` uploads to `uploads.<host>` (GitHub: api.github.com →
  * uploads.github.com), any other API host (GitHub Enterprise Server: `<host>/api/v3`) to itself.
  */
 export function uploadOrigin(api) {
@@ -364,7 +364,7 @@ export function createGitHub({
       return null;
     }
     if (exists && res.status === 422) {
-      // Only GitHub's "already exists" means that (review f B-L2): any other validation error is the error.
+      // Only GitHub's "already exists" means that: any other validation error is the error.
       const text = await res.text().catch(() => '');
       if (alreadyExists(text)) return null;
       throw new PublishError(`${method} ${new URL(url).pathname}: 422 ${text.replace(/\s+/g, ' ').slice(0, 300)}`.trim());
@@ -454,11 +454,11 @@ async function readJson(gh, asset, log) {
  * Replace a release's file with no moment where it is missing longer than two API calls (GitHub cannot overwrite an
  * asset, nor rename one onto a taken name): the new content (the feed of `version`) uploaded whole under
  * `<name>.tmp-<run>`, then the old file deleted and the new one renamed. Before each delete, every file holding the
- * name is looked at again (review f A-M1): one that appeared since the caller's check (not `known`, the asset it
+ * name is looked at again: one that appeared since the caller's check (not `known`, the asset it
  * compared) holding `version` or a newer one is kept and ours dropped — a channel never goes back. A rename refused
  * (another run took the name, or GitHub's list was not up to date yet) is tried again after a pause, `tries` times in
  * all. The temporary file is dropped only when the name is held by an equal or newer feed; otherwise a run that gives
- * up keeps it and says the channel may be missing and what to re-run (review f A-M2). Afterwards, temporary files of
+ * up keeps it and says the channel may be missing and what to re-run. Afterwards, temporary files of
  * that name left by an interrupted run are removed. Returns 'written' or 'kept <version>'.
  */
 export async function replaceAsset(gh, release, name, body, run, { version, known = null, log = () => {}, tries = 4 } = {}) {
@@ -617,7 +617,7 @@ export async function publish({ args, env = process.env, fetchImpl = fetch, net 
   const file = basename(args.artifact);
   const sigFile = basename(args.signature);
   const listed = await gh.assets(release);
-  // An interrupted upload is listed in the state `starter` (review f A-L7): never downloadable, it is not a file of the
+  // An interrupted upload is listed in the state `starter`: never downloadable, it is not a file of the
   // release — deleted before this run uploads its own (step 2).
   const half = listed.filter((a) => !uploaded(a));
   const held = listed.filter(uploaded);
@@ -669,8 +669,8 @@ export async function publish({ args, env = process.env, fetchImpl = fetch, net 
   }
 
   // 3. This version's feed, from every platform file its release holds (never edited: rebuilt) — this run's platforms
-  // from the entry checked here, which their file read back must equal (review f A-L1: never a feed that names other
-  // bits, or lacks this run's platform).
+  //    from the entry checked here, which their file read back must equal (never a feed that names other bits, or lacks
+  //    this run's platform).
   const platforms = {};
   const holds = await gh.assets(release);
   for (const p of KNOWN_PLATFORMS) {
@@ -711,7 +711,7 @@ export async function publish({ args, env = process.env, fetchImpl = fetch, net 
 }
 
 /**
- * A channel kept at a version that has no published release (review f A-L2): a hand-placed or forged feed naming a
+ * A channel kept at a version that has no published release: a hand-placed or forged feed naming a
  * version nobody can install freezes every app reading it, and never moving a channel back keeps it so. The run stays
  * green — this version's release is complete, and which feed is right is a person's call — but says it loudly.
  */

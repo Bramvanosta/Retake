@@ -1,13 +1,12 @@
 /**
- * L4.1 fixes (reviews A and B): the README editor's edge cases and the live-update fallbacks, end to end in headless
- * Chromium against an in-process Studio server on a scratch workspace —
- * a CR LF README round-trips byte for byte and loading it is no change (B M1); a README that is not UTF-8, or that
- * links out of the project, opens read-only with why (B M1, M3); one linked inside the project is saved through the
- * link (B M3); a missing README says saving creates it (B L7); the cap counts the final line break (B L6); a re-read
- * that started before a save is ignored (the epoch guard), closing a tab with unsaved text asks first, every stream slot
- * taken → the tab polls and still sees changes, a lost stream's successor re-reads what changed meanwhile (B M4); the
- * Projects screen re-reads its cards in one call (B L2); and the session ending (server restarted on the same port)
- * keeps the unsaved text on screen (B H1).
+ * The README editor's edge cases and the live-update fallbacks, end to end in headless Chromium against an in-process
+ * Studio server on a scratch workspace — a CR LF README round-trips byte for byte and loading it is no change; a README
+ * that is not UTF-8, or that links out of the project, opens read-only with why; one linked inside the project is saved
+ * through the link; a missing README says saving creates it; the cap counts the final line break; a re-read that
+ * started before a save is ignored (the epoch guard), closing a tab with unsaved text asks first, every stream slot
+ * taken → the tab polls and still sees changes, a lost stream's successor re-reads what changed meanwhile; the Projects
+ * screen re-reads its cards in one call; and the session ending (server restarted on the same port) keeps the unsaved
+ * text on screen.
  */
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
@@ -156,7 +155,7 @@ describe('the README editor keeps the bytes it was given (review B M1, M3, L6, L
     // Linked out: the project opens (its card and page are not a dead end), the README is never read.
     await page.goto(`${studio.url}#/p/out-link`);
     await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor(POLL);
-    // L5.10a: the README's notice is in the project inspector.
+    // The README's notice is in the project inspector.
     await expect.poll(() => page.locator('.sh-inspector').innerText(), POLL).toContain('README.md cannot be edited here');
     await page.getByRole('link', { name: 'Open the README' }).click();
     await page.getByTestId('readme-readonly').waitFor(POLL);
@@ -201,7 +200,7 @@ describe('the Projects screen (review B L2)', () => {
       .first()
       .waitFor(POLL);
     expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toMatch(/Last rehearsal failed\s*·\s*quote/);
-    // The flag words exactly, not the environment's name (review B-M3).
+    // The flag words exactly, not the environment's name.
     expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toContain('production: production · read-only');
     await sleep(1000);
     const ops: string[] = [];

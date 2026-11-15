@@ -1,5 +1,5 @@
 /**
- * Human approvals of hooks for work submitted through MCP (L3.1, R-MCP-35, safety S1), without a browser: the
+ * Human approvals of hooks for work submitted through MCP (R-MCP-35), without a browser: the
  * preflight at submit, the approval matrix (approved, declined, dismissed, timed out, failed, no approver), approvals
  * bound to the raw hook (a hook changed between submit and run is refused by the executor), `confirm: true` ignored
  * through MCP and honoured by the CLI, a shell hook's `writes: false` ignored on production, dry runs that ask nobody,

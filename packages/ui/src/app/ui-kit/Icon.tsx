@@ -1,5 +1,5 @@
 /**
- * L5.9: the kit's icons — a table of stroke paths on a 16 × 16 grid (1.5 px strokes, round caps; the canvas' set), drawn
+ * The kit's icons — a table of stroke paths on a 16 × 16 grid (1.5 px strokes, round caps; the canvas' set), drawn
  * by `<Icon>` as an `aria-hidden` SVG in `currentColor`: an icon never carries meaning alone (a button names itself, a
  * status mark says its word). No icon font, no file, no dependency.
  */

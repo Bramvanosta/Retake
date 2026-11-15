@@ -1,22 +1,22 @@
-//! The updater's rules (L5.16d, DESIGN §4p (d)) — pure, so each one is a unit test; main.rs / update.rs do the I/O
+//! The updater's rules (DESIGN §4p (d)) — pure, so each one is a unit test; main.rs / update.rs do the I/O
 //! (tauri-plugin-updater, the quit guard, the server's stdin).
 //!
 //! - Which build can update itself (`availability`): only one made with the cargo `updater` feature (bundle.mjs, when
 //!   the build was given a feed and a public key: `plugins.updater` comes from its generated overlay, never from the
 //!   repository); RETAKE_DISABLE_UPDATE_CHECK=1 (or true / yes) turns the checks off; an app running from a translocated
-//!   copy or a read-only disk cannot replace itself (critique H1: the plugin's renames need a writable folder on the
-//!   app's volume) — "Move Retake to Applications".
+//!   copy or a read-only disk cannot replace itself (the plugin's renames need a writable folder on the !   app's
+// volume) — "Move Retake to Applications".
 //! - When (`launch_check_due`): at launch, at most once a day (the last successful check is remembered in
-//!   `<Retake home>/desktop-updates.json`, which doctor reads too: critique L7) — at once after an install that failed;
+// !   `<Retake home>/desktop-updates.json`, which doctor reads too) — at once after an install that failed;
 //!   Help › Check for Updates… asks now, unless an install is under way (`check_refused`: said, never silent).
 //! - Install (`install_step`): only on the person's click (the Studio's sheet, or the native alert when the page cannot
-//!   show it), never while a job of this workspace runs or waits (critique M6: an idle worker hands over by itself when
-//!   its code changes; a running one is waited for), then as a quit through the existing quit guard (Action::Update:
+//!   show it), never while a job of this workspace runs or waits (an idle worker hands over by itself when !   its code
+// changes; a running one is waited for), then as a quit through the existing quit guard (Action::Update:
 //!   unsaved text asks, the page's sheet first) — the owned server stops gracefully, the plugin swaps the bundle, the
 //!   app restarts. The person's Install and Restart holds however long the question waits (`Arm`); an approved install
 //!   ends in the swap and a restart, or a failure said. An install that fails keeps the old app: it restarts and says so
 //!   (`Remembered::failed`, kept until a newer check, an install or the person's Later: doctor says it meanwhile).
-//! - The download (review d A-M2 / A-M4): a timeout on the check, a byte cap, a stall and a total limit, Later aborts it
+//! - The download: a timeout on the check, a byte cap, a stall and a total limit, Later aborts it
 //!   (`watch`: a seam unit-tested with an endless and a hanging producer); the verified archive is kept in a 0600 file in
 //!   the app's cache folder, never in memory (`write_archive`), removed after the install, on Later and at the next start.
 //! - What the server is told (`state_line`): one JSON line per state on its stdin, fixed keys, enums, a checked version
@@ -108,14 +108,14 @@ pub fn check_due(last: Option<u64>, now: u64) -> bool {
     }
 }
 
-/// The launch check: due by the day rule — or at once when an install failed (review d B-M2: the Studio then shows a
-/// fresh answer, never a dead Install and Restart).
+/// The launch check: due by the day rule — or at once when an install failed (the Studio then shows a fresh answer,
+/// never a dead Install and Restart).
 pub fn launch_check_due(last: Option<u64>, now: u64, failed_remembered: bool) -> bool {
     failed_remembered || check_due(last, now)
 }
 
 /// Why a check is refused now (said: Help's alert), or None. A check while an install is under way would drop the
-/// downloaded archive the wait holds (review d B-M1); a check already under way answers itself.
+/// downloaded archive the wait holds; a check already under way answers itself.
 pub fn check_refused(s: &State, app: &str) -> Option<String> {
     match s {
         State::Checking => Some(format!("{app} is checking for updates already.")),
@@ -279,7 +279,7 @@ fn opt_num(v: Option<u64>) -> String {
 
 /// The line for the server's stdin (ui shell-line.ts parseShellLine takes exactly these keys per state); None when a
 /// version fails `version_ok` (nothing is sent: the server keeps its last state). `current`: this app's version. The
-/// notes are shortened (then "…") until the line fits SHELL_LINE_MAX bytes (review d B-L4).
+/// notes are shortened (then "…") until the line fits SHELL_LINE_MAX bytes.
 pub fn state_line(current: &str, s: &State) -> Option<String> {
     let State::Available { version, notes, checked } = s else { return state_line_with(current, s, "") };
     let mut keep: Vec<char> = clean_notes(notes).chars().collect();
@@ -344,7 +344,7 @@ pub struct Remembered {
     /// The last successful check (seconds since 1970).
     pub checked: Option<u64>,
     /// An install that failed (the old app restarted): said by the next launch, and kept (doctor says it too) until
-    /// `failed_after_check` drops it, an install succeeds, or the person's Later acknowledges it (review d B-L2).
+    /// `failed_after_check` drops it, an install succeeds, or the person's Later acknowledges it.
     pub failed: Option<(Failure, String)>,
     /**
      * Hotfix v0.2.6 (BL-167): the version an install just put in place — the restarted app says "Updated to vX" once
@@ -428,8 +428,8 @@ pub fn last_check_words(checked: Option<u64>) -> String {
 }
 
 /// The native alert of an available update (when the page cannot show its sheet): title, text, buttons (Install and
-/// Restart first: Return; Later is the cancel answer). The feed's notes are NOT shown in it (review d A-L3: the feed is
-/// not signed — its text never appears in the app's own native chrome; the Studio's sheet shows it as the feed's text).
+/// Restart first: Return; Later is the cancel answer). The feed's notes are NOT shown in it (the feed is not signed —
+/// its text never appears in the app's own native chrome; the Studio's sheet shows it as the feed's text).
 pub fn available_alert(app: &str, current: &str, version: &str) -> (String, String, [&'static str; 2]) {
     let text = format!("You have {current}. Install and Restart downloads the update and checks its signature, waits for this workspace's jobs to end, then restarts {app}. The release notes are in the Studio's update sheet.");
     (format!("{app} {version} is available"), text, ["Install and Restart", "Later"])
@@ -445,7 +445,7 @@ pub fn refusal_words(r: Refusal, app: &str, current: &str) -> String {
 }
 
 /// RETAKE_DESKTOP_TEST_UPDATE=install clicks Install and Restart by itself (the gated end-to-end test) only in test mode
-/// AND in a build made with the e2e test's overlay (`test_feed`: its feed is http on 127.0.0.1 — review d A-L7: no
+/// AND in a build made with the e2e test's overlay (`test_feed`: its feed is http on 127.0.0.1, so no
 /// release build installs without the person's click, whatever its environment says).
 pub fn test_install_allowed(test_mode: bool, var: Option<&str>, test_feed: bool) -> bool {
     test_mode && test_feed && var == Some("install")
@@ -457,7 +457,7 @@ pub fn is_test_feed(insecure_transport: bool, endpoints: &[&str]) -> bool {
     insecure_transport && !endpoints.is_empty() && endpoints.iter().all(|e| e.starts_with("http://127.0.0.1:"))
 }
 
-// ---- Install and Restart's quit (review d A-M1 / B-L1) ---------------------------------------------------------
+// ---- Install and Restart's quit ---------------------------------------------------------
 
 /// How long the posted `terminate:` may take to reach the quit guard (milliseconds). Once the guard took it, the
 /// person's question holds the choice however long it waits.
@@ -511,7 +511,7 @@ impl Arm {
 }
 
 /// What an exit does with the arming (`finish`): Approved → install (or, without an archive to install, say why and
-/// restart: an approved install never just closes the app — review d B-M1); anything else → nothing.
+/// restart: an approved install never just closes the app); anything else → nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Exit {
     Nothing,
@@ -528,13 +528,13 @@ pub fn exit_step(arm: Arm, have_archive: bool) -> Exit {
     }
 }
 
-// ---- The download (review d A-M2 / A-M4) ---------------------------------------------------------------------
+// ---- The download ---------------------------------------------------------------------
 
 /// The feed's answer must come within this (the plugin's request timeout for the check).
 pub const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Whether every request of the updater — the check, the download, and each redirect either follows — must be https
-/// (L5.16f: the feed and the archives are files of GitHub releases, which answer with a redirect to GitHub's download
+/// (the feed and the archives are files of GitHub releases, which answer with a redirect to GitHub's download
 /// host). Any https host is followed, an http one refused, at every hop: the plugin's reqwest client is built with
 /// `https_only` (update.rs `configure_client`), which reqwest applies to the first request and to each redirect. The
 /// e2e build's feed on 127.0.0.1 (`is_test_feed`) alone is http.
@@ -678,7 +678,7 @@ pub fn dock_label(s: &State) -> Option<String> {
     }
 }
 
-// ---- The downloaded archive, on disk (review d A-M4) -----------------------------------------------------------
+// ---- The downloaded archive, on disk -----------------------------------------------------------
 
 /// The folder of the downloaded archive in the app's cache folder (made 0700).
 pub const ARCHIVE_DIR: &str = "updates";
@@ -884,7 +884,7 @@ mod tests {
         assert_eq!(last_check_words(Some(0)), "Last successful check: 1970-01-01 00:00 UTC.");
         let (title, text, buttons) = available_alert("Retake", "0.2.0", "0.2.1");
         assert_eq!(title, "Retake 0.2.1 is available");
-        // Before the click, in the future tense; the feed's notes never in the native alert (review d A-L3 / A-L4).
+        // Before the click, in the future tense; the feed's notes never in the native alert.
         assert_eq!(text, "You have 0.2.0. Install and Restart downloads the update and checks its signature, waits for this workspace's jobs to end, then restarts Retake. The release notes are in the Studio's update sheet.");
         assert_eq!(buttons, ["Install and Restart", "Later"]);
         assert!(Failure::Install.words("Retake", "0.2.0").contains("Retake 0.2.0 was kept"));
@@ -892,12 +892,12 @@ mod tests {
         assert!(refusal_words(Refusal::NotWritable, "Retake", "0.2.0").contains("install the new version from its disk image"));
         assert_eq!(refusal_words(Refusal::Off(Off::Build), "Retake", "0.2.0"), "Updates are off in this build.");
         assert!(refusal_words(Refusal::NoUpdate, "Retake", "0.2.0").contains("checks its feed again"));
-        // A failed swap that could not put the old app back says where it is (review d A-L5).
+        // A failed swap that could not put the old app back says where it is.
         let w = not_restored_words("Retake", "/Applications/Retake (previous version).app");
         assert!(w.contains("could not be put back") && w.contains("\n/Applications/Retake (previous version).app\n") && w.contains("named Retake.app"));
     }
 
-    /// Review d B-L4: the notes are cut until the line fits the server's byte cap — 2000 characters that quote to 6 bytes
+    /// The notes are cut until the line fits the server's byte cap — 2000 characters that quote to 6 bytes
     /// each, or 4-byte characters, would push it past 8192 and the server would drop the update.
     #[test]
     fn the_available_line_fits_the_servers_byte_cap() {
@@ -917,7 +917,7 @@ mod tests {
         assert!(l.contains(&format!("\"notes\":\"{}\"", "a".repeat(NOTES_MAX))));
     }
 
-    /// Review d A-M1 / B-L1: once the guard took the quit for the update, the person's choice holds however long the
+    /// Once the guard took the quit for the update, the person's choice holds however long the
     /// question waits; only the posting itself has a reach.
     #[test]
     fn install_and_restart_holds_once_asked() {
@@ -947,7 +947,7 @@ mod tests {
         }
     }
 
-    /// Review d B-M1 / B-M2: no check while an install is under way (said), a check at once after a failed install;
+    /// No check while an install is under way (said), a check at once after a failed install;
     /// what a click may retry; the remembered failure kept while the feed offers that version.
     #[test]
     fn checks_during_an_install_and_after_a_failed_one() {
@@ -971,7 +971,7 @@ mod tests {
         assert_eq!(failed_after_check(f, None), None);
     }
 
-    /// Review d A-L7: a click by itself only in test mode, with the variable, in a build made with the e2e overlay.
+    /// A click by itself only in test mode, with the variable, in a build made with the e2e overlay.
     #[test]
     fn no_install_without_the_click_outside_the_e2e_build() {
         assert!(test_install_allowed(true, Some("install"), true));
@@ -986,7 +986,7 @@ mod tests {
         assert!(!is_test_feed(true, &[]));
     }
 
-    /// L5.16f: every request and every redirect https (GitHub's releases redirect to their download host), but in the
+    /// Every request and every redirect https (GitHub's releases redirect to their download host), but in the
     /// e2e build.
     #[test]
     fn https_at_every_hop_but_in_the_e2e_build() {
@@ -996,7 +996,7 @@ mod tests {
         assert!(https_only(is_test_feed(true, &["https://github.example.test/o/r/releases/download/update-feed/latest.json"])));
     }
 
-    /// Review d A-M2: the download's limits — size (received or announced), a stall, the total, Later.
+    /// The download's limits — size (received or announced), a stall, the total, Later.
     #[test]
     fn the_download_limits() {
         let l = Limits { max_bytes: 1000, stall_ms: 100, total_ms: 10_000, step_ms: 5 };
@@ -1059,7 +1059,7 @@ mod tests {
         assert_eq!(bytes.len(), seen.len(), "a byte count is said once");
     }
 
-    /// Review d A-M2: `watch` against an endless feed, a hanging one, a Later, and one that ends in time.
+    /// `watch` against an endless feed, a hanging one, a Later, and one that ends in time.
     #[test]
     fn watch_stops_an_endless_or_hanging_download_and_a_later() {
         use std::sync::atomic::AtomicBool;
@@ -1109,7 +1109,7 @@ mod tests {
         assert_eq!(watch(&p, &l, || true, || false), Some(Stop::TooBig));
     }
 
-    /// Review d A-M4: the archive on disk — 0600 in a 0700 folder, one per process, stale ones removed at start.
+    /// The archive on disk — 0600 in a 0700 folder, one per process, stale ones removed at start.
     #[test]
     fn the_archive_on_disk() {
         use std::os::unix::fs::PermissionsExt;

@@ -4,8 +4,8 @@ import { enginePorts } from '../src/ports.js';
 import type { StoreScope } from '../src/store/store.js';
 
 /**
- * The scope a comment of `author` was written under before L7.10 made the scope required (the caller its channel
- * stands for, the product's ports): what a test that writes a thread directly hands.
+ * The scope a comment of `author` is written under (the caller its channel stands for, the product's ports): what a
+ * test that writes a thread directly hands.
  */
 export function authorScope(project: { root: string }, author: { via: string; name?: string }): StoreScope {
   return { workspace: project.root, caller: callerOf(author.via === 'cli' ? 'cli' : author.via === 'studio' ? 'ui' : 'mcp'), ...enginePorts() };

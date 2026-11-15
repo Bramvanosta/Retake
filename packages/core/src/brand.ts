@@ -1,5 +1,5 @@
 /**
- * Brand inputs of a new theme (L3.5, R-MCP-10): what `template_create_from_brand` / `retake theme create` take — a new
+ * Brand inputs of a new theme (R-MCP-10): what `template_create_from_brand` / `retake theme create` take — a new
  * theme name, a base theme, hex colours, a logo, an optional wordmark and fonts, the brand's name and URL. Pure:
  * schemas and the syntax rules of file references; the engine (brand/files.ts) resolves references on disk (links,
  * agent-writable folders, the components folder) and checks the bytes; the components package derives the palette.

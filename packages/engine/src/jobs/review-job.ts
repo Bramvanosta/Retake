@@ -1,5 +1,5 @@
 /**
- * `review` jobs (L3.2, R-MCP-31): a render's review — contact sheets, per-scene sheets, key frames, checks, report.json
+ * `review` jobs (R-MCP-31): a render's review — contact sheets, per-scene sheets, key frames, checks, report.json
  * and report.md in review/<render_id>/ — submitted by a client outside the CLI and run by the jobs worker with the
  * reviewer its composition root chose (review/reviewer.ts; the product's: the review package's `reviewRender`, ffmpeg +
  * sharp, no browser).

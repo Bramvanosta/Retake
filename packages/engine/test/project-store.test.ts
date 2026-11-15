@@ -259,7 +259,7 @@ describe('the workspace journal', () => {
       'readJournalLine',
     ]);
     const src = readFileSync(join(REPO, 'packages/engine/src/store/journal.ts'), 'utf8');
-    // L7.26: the journal appends and reads through the line logs' one discipline (store/append-log.ts), which the
+    // The journal appends and reads through the line logs' one discipline (store/append-log.ts), which the
     // history shares; neither file truncates, rewrites or removes.
     const log = readFileSync(join(REPO, 'packages/engine/src/store/append-log.ts'), 'utf8');
     for (const s of [src, log]) expect(s).not.toMatch(/\b(unlink|rm|truncate|ftruncate|writeFile|rename|copyFile)\b\s*\(/);
@@ -267,7 +267,7 @@ describe('the workspace journal', () => {
     // Two opens there: the writer's and the reader's; never a truncating or read-write mode.
     expect([...log.matchAll(/\bopen\(/g)]).toHaveLength(2);
     expect(log).not.toMatch(/O_TRUNC|'w\+?'|'r\+'/);
-    // L7.34 (finding C4): what the two opens do, held by behaviour instead of their statements. A fresh journal is
+    // What the two opens do, held by behaviour instead of their statements. A fresh journal is
     // created owner-only; each line is written whole under the journal's lock (`.retake/locks/journal.lock`) and
     // synced before appendJournal returns (the operation replies after it); a read changes nothing; the lock is gone
     // after. (A link in the journal's place is refused: "never appends through a symbolic link"; the lock's discipline

@@ -9,14 +9,14 @@ export type { PlainFileProblem, PlainFileRead } from '../file-facts.js';
 
 /**
  * A small regular file read whole — the one reader of the files a person or an agent may have replaced by something
- * else (L3.8, L4.2): opened without following a symbolic link (`O_NOFOLLOW`) and without blocking (`O_NONBLOCK`: a
+ * else: opened without following a symbolic link (`O_NOFOLLOW`) and without blocking (`O_NONBLOCK`: a
  * FIFO with no writer, a device, never hold the reader), then checked on the open descriptor — a regular file of at
  * most `max` bytes — so nothing can be swapped between the check and the read. At most `max + 1` bytes are ever read
  * (a file that grows meanwhile is refused as too large). Never throws.
  *
  * `verify` (optional) sees the open descriptor's stat before anything is read: false refuses the file as `link` — the
  * caller's check that the file opened is still the one its folder names (O_NOFOLLOW guards the last path segment
- * only: a folder swapped for a link between a check and the open is caught there, review A #7).
+ * only: a folder swapped for a link between a check and the open is caught there).
  */
 export function readPlainFile(file: string, max: number, o: { verify?: (st: Stats) => boolean } = {}): PlainFileRead {
   let fd: number | undefined;

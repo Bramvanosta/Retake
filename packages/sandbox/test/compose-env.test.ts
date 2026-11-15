@@ -1,5 +1,5 @@
 /**
- * The env file of a docker-compose sandbox (L5.8, R-FLD-32): image versions and settings read from a `.env` next to the
+ * The env file of a docker-compose sandbox (R-FLD-32): image versions and settings read from a `.env` next to the
  * compose file (or `compose.env_file`), passed to every compose command (`--env-file`), the names it sets left out of
  * the environment docker runs with (a shell's value would win over the file's), its hash in the seed's inputs, and the
  * validation of `env_file` and of a COMPOSE_PROFILES in it. The unit part runs on a fake docker; the last test asks

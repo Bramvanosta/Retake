@@ -1,9 +1,9 @@
 /**
- * A small app with a cookie sign-in for the L1.6 tests: two accounts on ONE host with the SAME cookie name (one browser
- * holds one of them at a time: two personas need two browsers), a session cookie for one and a persistent cookie for
- * the other, a server-side expiry, a page that routes itself to the sign-in page (pushState), a document link that opens
- * a tab, a page that never answers, a page that shows the browser clock's year, a landing page that writes as it loads
- * (L1.7: what the automated sign-in tab sends after the sign-in), and counters.
+ * A small app with a cookie sign-in for the sign-in tests: two accounts on ONE host with the SAME cookie name (one
+ * browser holds one of them at a time: two personas need two browsers), a session cookie for one and a persistent
+ * cookie for the other, a server-side expiry, a page that routes itself to the sign-in page (pushState), a document
+ * link that opens a tab, a page that never answers, a page that shows the browser clock's year, a landing page that
+ * writes as it loads (what the automated sign-in tab sends after the sign-in), and counters.
  */
 import { createServer } from 'node:http';
 import type { IncomingMessage } from 'node:http';
@@ -104,7 +104,7 @@ export async function startAuthServer(): Promise<AuthServer> {
     if (path === '/hang') return;
     if (!who) return html(302, '', { location: `/sign-in?next=${encodeURIComponent(path + url.search)}` });
     const account = ACCOUNTS[who];
-    // The browser's clock (L1.7): which year the page reads.
+    // The browser's clock: which year the page reads.
     if (path === '/clock') {
       return html(200, page('Clock', `<h1>Signed in as ${account.name}</h1><p id="y"></p><script>document.getElementById('y').textContent = 'Year ' + new Date().getFullYear()</script>`));
     }

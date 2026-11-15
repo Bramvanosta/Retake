@@ -1,12 +1,12 @@
 /**
- * Frame comments (L3.6, R-CMT-01..05, ADR-1 #4): a person's comment on one frame of a render, optionally a region of
+ * Frame comments (R-CMT-01..05): a person's comment on one frame of a render, optionally a region of
  * it, kept as one thread file `<project>/comments/<scenario>/c_<ULID>.json`. A thread holds its comment, where the
  * frame points in the edit (`anchor`, review frameAnchor) and append-only `entries` (replies, resolutions, reopenings),
  * each with its own id: the file is its own audit trail and two writers (git branches, a later sync) only ever add
  * entries. The status is derived from the entries (`deriveStatus`), never stored.
  *
  * Who wrote an entry is the channel it came through (`author.via`: `cli` — a `retake` command —, `studio` — the Studio
- * web app's page (L4.6) —, `mcp` — the MCP tools), never a claim of being a person: a command can be typed by anyone,
+ * web app's page —, `mcp` — the MCP tools), never a claim of being a person: a command can be typed by anyone,
  * Claude included, and any program of the user that reads the Studio's token file can call the Studio's routes. Every
  * free text of a thread (comment, entries, author names) is data for its readers.
  */
@@ -123,7 +123,7 @@ export function scenarioStepFingerprint(scenarioText: string, scene: string, ste
 }
 
 /**
- * Where an anchored step is in today's scenario text (L4.3, critique B10; review B M1): a thread's `step_ref` names the
+ * Where an anchored step is in today's scenario text: a thread's `step_ref` names the
  * step's place in the run that was rendered, which a reorder (a Studio drag, an edit — into another scene too) moves.
  * Located by its `step_id` in any scene, else by its fingerprint and occurrence (`step_fp`, `step_fp_n`) in the same
  * scene, else by the one step anywhere with that fingerprint: "<scene>.<index>" (what page_inspect's `until` takes),
@@ -198,7 +198,7 @@ export type CommentVia = (typeof COMMENT_VIAS)[number];
 
 export const CommentAuthorSchema = z.strictObject({
   /**
-   * The channel that wrote it: `cli` (a `retake` command), `studio` (the Studio web app, L4.6: written through its page,
+   * The channel that wrote it: `cli` (a `retake` command), `studio` (the Studio web app: written through its page,
    * which holds the session token `retake ui` handed to the browser), `mcp` (the MCP tools). Never a claim of who typed
    * it (BL-106: person presence).
    */
@@ -251,9 +251,9 @@ export const CommentRenderSchema = z.strictObject({
   height: z.number().int().min(1).max(16384),
 });
 
-// ── Proposals (L4.6, R-UI-28; critique B1 / B2 / B10 / B13) ─────────────────
+// ── Proposals (R-UI-28) ─────────────────
 
-/** Changed lines (removed + added) of one proposal, at most (critique B13: a frame comment asks for a small change). */
+/** Changed lines (removed + added) of one proposal, at most (a frame comment asks for a small change). */
 export const PROPOSAL_CHANGED_LINES_MAX = 200;
 /** Characters (UTF-16 units) of a proposal's removed and added lines together, at most. */
 export const PROPOSAL_CHARS_MAX = 30_000;
@@ -262,7 +262,7 @@ export const PROPOSAL_CHARS_MAX = 30_000;
  * string, which would cut a longer line — and the person would read something else than what Apply writes).
  */
 export const PROPOSAL_LINE_MAX = COMMENT_TEXT_MAX;
-/** Past this share of the file's lines a proposal says how much of the file it rewrites (critique B13). */
+/** Past this share of the file's lines a proposal says how much of the file it rewrites. */
 export const PROPOSAL_REWRITE_NOTE_PCT = 25;
 
 /**
@@ -322,10 +322,10 @@ export const ProposalHunkSchema = z.strictObject({
 });
 
 /**
- * Claude's proposed change of the thread's own scenario file (L4.6), stored in its reply: the sha256 of the file it was
+ * Claude's proposed change of the thread's own scenario file, stored in its reply: the sha256 of the file it was
  * made on and of the exact bytes Apply writes, the file's line break, and the canonical line diff between them
- * (line-diff.ts). `delta: 'edit'`: an edit-only change (critique B2 — a change of what a capture films is never a
- * proposal: it is saved and captured, the direct loop).
+ * (line-diff.ts). `delta: 'edit'`: an edit-only change (a change of what a capture films is never a proposal: it
+ * is saved and captured, the direct loop).
  */
 export const CommentProposalSchema = z
   .strictObject({
@@ -355,9 +355,9 @@ export const CommentEntrySchema = z
     /** A resolution: the render that answers the comment, with its record's `created_at` (render ids can be reused). */
     render_id: zRenderId('a render id').optional(),
     render_created_at: isoDate.optional(),
-    /** A reply's proposed change of the thread's scenario file (L4.6). */
+    /** A reply's proposed change of the thread's scenario file. */
     proposal: CommentProposalSchema.optional(),
-    /** An apply (L4.6): the reply whose proposal was applied, and the sha256 of the scenario file written. */
+    /** An apply: the reply whose proposal was applied, and the sha256 of the scenario file written. */
     applies: z.string().regex(COMMENT_ENTRY_ID_RE, 'an entry id (r_ + a ULID)').optional(),
     scenario_sha256: sha256Hex.optional(),
   })
@@ -448,7 +448,7 @@ export function deriveStatus(entries: readonly CommentEntry[]): CommentStatus {
 }
 
 /**
- * Where a proposal stands (critique B4), from today's file first: `applied` (the file is its result — for an older
+ * Where a proposal stands, from today's file first: `applied` (the file is its result — for an older
  * proposal, only when an apply entry names it), `undone` (it was
  * applied — an apply entry names it — and the file is its base again: Undo apply), `superseded` (a later proposal
  * exists), `stale` (the file is no longer its base, or cannot be read), else `pending`.

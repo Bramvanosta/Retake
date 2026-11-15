@@ -1,5 +1,5 @@
 /**
- * The id module of the domain (L7.5; id-grammar.ts and ids.ts): one grammar each for a run id, a render id, the ULID
+ * The id module of the domain (id-grammar.ts and ids.ts): one grammar each for a run id, a render id, the ULID
  * ids and a theme name, with their caps, parsers, formatters, generators and zod helpers.
  *
  * - Every exported pattern equals the text written here once (the shells publish these as JSON-schema patterns).

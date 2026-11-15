@@ -1,4 +1,4 @@
-/** The elicitation approver (L3.1, R-MCP-35): only `accept` with `approve: true` approves; everything else refuses. */
+/** The elicitation approver (R-MCP-35): only `accept` with `approve: true` approves; everything else refuses. */
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

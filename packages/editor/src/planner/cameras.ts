@@ -1,6 +1,6 @@
 /**
  * A step of `planEdit`: the camera of each run — the zoom moves of the steps' camera hints and the theme's default
- * zoom (R-ED-22), as a per-frame camera track; a multi-page run (L2.11) has one camera per page.
+ * zoom (R-ED-22), as a per-frame camera track; a multi-page run has one camera per page.
  */
 import type { Timeline } from '@retake/core/run';
 import { MIN_ZOOM_EASE_S, cameraTrack, hintEase } from '../camera.js';
@@ -66,7 +66,7 @@ export function planCameras(s: PlanScope, runs: ClipEntry[][], runOf: RunOf): Ru
     }
     return null;
   };
-  // Multi-page runs (L2.11): one camera per page (its own steps' hints and theme zoom, on its own page size).
+  // Multi-page runs: one camera per page (its own steps' hints and theme zoom, on its own page size).
   const camByRun: RunCameras = new Map();
   let hintCount = 0;
   const runCamera = (runEntries: ClipEntry[], run: RunTiming, page: string | undefined, cursor: Timeline['cursor'], W: number, H: number): RunCamera => {

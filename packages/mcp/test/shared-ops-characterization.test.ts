@@ -1,7 +1,7 @@
 /**
  * The eleven operations both MCP and the Studio serve (engine_info, project_list, project_get, project_update_readme,
  * scenario_validate, run_list, run_status, run_cancel, job_list, auth_status, auth_login), characterized through both
- * shells before they became the engine's operations (L7.13): each call's answer through `retake mcp` over stdio (from
+ * shells before they became the engine's operations: each call's answer through `retake mcp` over stdio (from
  * the sources, the SDK's client) and through the Studio's `POST /v1/call/<op>`, each shell on its own copy of the
  * fixture workspace with a dry run queued by a test engine (no worker), normalised — the workspace, repository and home
  * paths, ISO stamps, job ids by order of appearance, the queued run's id, pids, the host name, Node's and Retake's versions — and

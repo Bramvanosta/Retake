@@ -1,7 +1,6 @@
 /**
- * The component operations (moved from the MCP server's tools/component.ts in L7.17): component_list, component_get,
- * component_validate, component_preview (a preview job) and component_create (the tool's own scaffold) — by id, never a
- * folder (engine components.ts).
+ * The component operations: component_list, component_get, component_validate, component_preview (a preview job) and
+ * component_create (the tool's own scaffold) — by id, never a folder (engine components.ts).
  */
 import { z } from 'zod';
 import { COMPONENT_KINDS, KEY_RE } from '@retake/core/model';

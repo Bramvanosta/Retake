@@ -1,5 +1,5 @@
 /**
- * The take the Studio's timeline plans and its Render edits (L7.6a): `timelineRun` over the runs the engine lists, state
+ * The take the Studio's timeline plans and its Render edits: `timelineRun` over the runs the engine lists, state
  * by state (test-support/src/records/states.json; OLD: a good capture of `quote`; NEW: the state named).
  *
  * The front end holds no rule: it takes the first run the engine marks as a take (`take`: the one rule of the domain).
@@ -111,10 +111,10 @@ describe('the take the timeline plans and Render edits, state by state', () => {
   });
 });
 
-// ── The render records (L7.6b): the Studio's `scenario_renders` op, state by state ─
+// ── The render records: the Studio's `scenario_renders` op, state by state ─
 //
 // The states are those of test-support/src/records/render-states.json. Every row was first pinned on the code before
-// the lot (its P0): the op's status, its summary, the renders it lists and the members of its answer; the thirteen rows
+// the lot: the op's status, its summary, the renders it lists and the members of its answer; the thirteen rows
 // the lot's engine part changed are marked `moved: <row>` (the lead's plan §4) — each flipped on purpose, no other moved.
 
 describe("the Studio's list of renders, state by state", () => {

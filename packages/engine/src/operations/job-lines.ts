@@ -1,8 +1,7 @@
 /**
  * How a tool shows a job: its one summary line (jobLine), its error line (jobErrorLine), the job as data with an error
  * that can quote the product kept under `untrusted` (untrustedError, jobData), and a preview job's stills
- * (previewImages). Shared by job_list (jobs.ts), the MCP server's job_status and the tools that submit jobs (moved from
- * the MCP server's tools/job-lines.ts in L7.13).
+ * (previewImages). Shared by job_list (jobs.ts), the MCP server's job_status and the tools that submit jobs.
  */
 import { jobProject } from '../jobs/queue-core.js';
 import { yieldWords } from '../jobs/held.js';

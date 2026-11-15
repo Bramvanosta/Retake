@@ -121,7 +121,7 @@ describe.skipIf(!AVAILABLE)('retake mcp: dry runs and captures as jobs', () => {
     expect(st.status, r.content[0].text).toBe('succeeded');
     expect(st.job.state).toBe('succeeded');
     expect(st.steps_done).toBe(2);
-    // Compact (L5.8): the folder and the count; `detail: "full"` lists each screenshot.
+    // Compact: the folder and the count; `detail: "full"` lists each screenshot.
     expect(st.files.screenshots.count).toBe(2);
     const full = (await call(client, 'run_status', { project: 'northfield-fixture', run_id: runId, detail: 'full' })).structuredContent as { screenshots: Array<{ path: string }> };
     expect(full.screenshots).toHaveLength(2);

@@ -1,5 +1,5 @@
 /**
- * The Record screen (L4.8, R-UI-20 / 21 / 22; L5.11b: « Épure » 3b, R4-Record, R-UI-44 — on the kit, in the shell): the
+ * The Record screen (R-UI-20 / 21 / 22; « Épure » 3b, R4-Record, R-UI-44 — on the kit, in the shell): the
  * control panel of the REAL browser window the worker opens on this Mac, full size — the person clicks through the
  * product there; nothing typed or clicked here reaches the window (no input is forwarded: BL-25). Two routes:
  *
@@ -11,23 +11,23 @@
  * - `#/p/<slug>/record/<rec_id>` — one recording (`record_view`, read every 700 ms while it is live and the tab is
  *   visible, every 3 s once it is over, and at once on a `workspace {records}` or `jobs` event; `since` makes an
  *   unchanged read cheap). Centre: "Recording <name>", the state in a sentence, the time left, the window callout, the
- *   draft as step rows (page text through `Txt` only). A row is a pressed button: pressing it puts the draft cursor right
- *   after it (keyed by the row's identity, never its index — it stays on its row while the draft regenerates and moves
- *   onto a hold or a wait it adds), shows the row's verified target alternatives as a radio group (`record_annotate
- *   choose`) and the Insert toolbar "Insert after step n" (Hold 2 s, Wait for…, Caption…, Mark, Zoom… up to the theme's
- *   max_zoom: `record_annotate insert`; at the end, a hold or a wait goes before the next action and the rest waits for
- *   it — critique B3 of L4.8); pressing it again (or Back to the end) moves the cursor back to the end. Inspector:
+ *   draft as step rows (page text through `Txt` only). A row is a pressed button: pressing it puts the draft cursor
+ *   right after it (keyed by the row's identity, never its index — it stays on its row while the draft regenerates and
+ *   moves onto a hold or a wait it adds), shows the row's verified target alternatives as a radio group
+ *   (`record_annotate choose`) and the Insert toolbar "Insert after step n" (Hold 2 s, Wait for…, Caption…, Mark, Zoom…
+ *   up to the theme's max_zoom: `record_annotate insert`; at the end, a hold or a wait goes before the next action and
+ *   the rest waits for it); pressing it again (or Back to the end) moves the cursor back to the end. Inspector:
  *   Started with (its facts, the name Save uses), the selected step (its facts, Add after this step), Stop recording /
  *   Save as new scenario (with why it waits) / Discard (the kit's sheet: "Keep it" is the default, Return never
  *   discards), then the check (a replay of the recorded draft without the picks and inserts, its failing step shown on
  *   its row), the issues, the secret placeholders as `{{vars.…}}` names only (never a value), the writes with the reset
  *   advice. Browser: Shoot's, with the Recordings group (ShootBrowser). Recordings Claude or a terminal started are
- *   shown read-only (Q5).
+ *   shown read-only.
  * - The status bar while a recording is live (queued → check): this screen's — "Recording · browser window open",
  *   "n actions · n inserts · draft updated …" — and the Scenario menu's commands at the recording's priority
  *   (command-bus.ts PRIORITY.recording, from the first paint of the route: a reload included): ⌘. stops THIS recording
- *   (never a run of the scenario in context — critique H1 / M7 of L5.11), Rehearse / Capture / Render say why they wait
- *   and send nothing (critique L2). The one Stop visible is the inspector's (shown in place when the inspector is hidden).
+ *   (never a run of the scenario in context), Rehearse / Capture / Render say why they wait
+ *   and send nothing. The one Stop visible is the inspector's (shown in place when the inspector is hidden).
  *
  * Accessibility: every control is a kit button, field or radio group; the insert forms are disclosures (Enter adds,
  * Escape closes and gives focus back); the cursor is a block with words, never only a colour; the steps are a list, not
@@ -105,7 +105,7 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
   useEffect(() => {
     if (cursor.at === 'after' && v?.untrusted && !rows.has(cursor.row)) setCursor({ at: 'end' });
   }, [cursor, rows, v]);
-  // A discard that is over: the screen says "discarded" — the note about it goes (review B-M5 of L4.8).
+  // A discard that is over: the screen says "discarded" — the note about it goes.
   useEffect(() => {
     if (discarding && state && !LIVE_STATES.has(state)) {
       setDiscarding(false);

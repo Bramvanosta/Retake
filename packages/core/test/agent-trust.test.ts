@@ -1,5 +1,5 @@
 /**
- * L3.1 review (trust `mcp`, core agent-trust): what work submitted through MCP may reference — no secret in a scenario,
+ * Trust `mcp` (core agent-trust): what work submitted through MCP may reference — no secret in a scenario,
  * no file outside the project folder (absolute, `..`, a symbolic link out of it), no code from a file an agent can
  * write — and the rollbacks that need a human.
  */

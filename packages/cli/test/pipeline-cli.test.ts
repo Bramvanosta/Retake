@@ -30,7 +30,7 @@ const fakes = vi.hoisted(() => ({
   calls: [] as Array<{ call: string; options: Record<string, unknown> }>,
   /** Names made at run time (an inspection's id), replaced by a placeholder. */
   volatile: [] as string[],
-  /** The hook runner each run was handed (L7.12: the CLI's ports' hooks; kept out of the recorded options). */
+  /** The hook runner each run was handed (the CLI's ports' hooks; kept out of the recorded options). */
   hookRunners: [] as unknown[],
   /** The secret resolvers the runs were handed (the CLI's Secrets port), apart from the recorded options like the hook runner. */
   resolvers: [] as unknown[],
@@ -295,7 +295,7 @@ beforeAll(async () => {
   await writeFile(join(projectDir, 'scenarios', 'tour.yaml'), 'video: tour\nscenes:\n  - id: home\n    page: app\n    open: /\n    steps:\n      - hold: 1\n');
   const runDir = join(projectDir, 'runs', RUN_ID);
   await mkdir(runDir, { recursive: true });
-  // A whole capture — the head of its timeline, its record, its film: `latest` takes nothing less (L7.6a).
+  // A whole capture — the head of its timeline, its record, its film: `latest` takes nothing less.
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify({ version: 1, run_id: RUN_ID, project: 'demo', scenario: 'tour', mode: 'capture', capture: { file: 'capture.mp4' } }));
   await writeFile(
     join(runDir, 'run.json'),

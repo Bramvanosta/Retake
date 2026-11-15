@@ -1,6 +1,6 @@
 /**
- * The MCP server's render tools: the engine's operations (plan_preview and render_status since L7.14, render since
- * L7.15), served here as these very objects in tools/list order.
+ * The MCP server's render tools: the engine's operations (plan_preview, render_status and
+ * render), served here as these very objects in tools/list order.
  */
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
 import type { Op, ToolDef } from './define.js';

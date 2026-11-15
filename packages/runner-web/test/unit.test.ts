@@ -471,7 +471,7 @@ describe('choreography helpers (pure)', () => {
     expect(matchDay([cell('Lundi 1 janvier'), cell('Lundi 11 janvier')], '1 janvier')?.label).toBe('Lundi 1 janvier');
     // An outside-month copy only when nothing else matches.
     expect(matchDay([cell('Monday, 1 February 2027', { outside: true }), cell('Monday, 1 February 2027', { ref: 'in' })], '1 February 2027')?.ref).toBe('in');
-    // A day shown only as a disabled copy from the next month is not shown: the calendar pages to it (review fix K5).
+    // A day shown only as a disabled copy from the next month is not shown: the calendar pages to it.
     expect(matchDay([...days, cell('Wednesday, 3 February 2027', { outside: true, disabled: true })], '3 February 2027')).toBeNull();
     expect(monthDirection([...days, cell('Wednesday, 3 February 2027', { outside: true, disabled: true })], '3 February 2027')).toBe('next');
     expect(matchDay([cell('Monday, 1 February 2027', { disabled: true })], '1 February 2027')?.disabled).toBe(true);

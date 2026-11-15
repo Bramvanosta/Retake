@@ -1,5 +1,5 @@
 /**
- * L3.5 a new theme from brand inputs (engine src/brand/create.ts, `engine.templates.create`) in a temporary workspace:
+ * A new theme from brand inputs (engine src/brand/create.ts, `engine.templates.create`) in a temporary workspace:
  * the folder written (template.yaml loading as a workspace theme, logo / wordmark / fonts copied and renamed by role
  * and weight, LICENSES.md, the provenance file with the sha256 of every file), its names refused (a starter's in any
  * case, an existing folder of any type and case, an empty folder, a dangling link), templates_dir inside the Retake

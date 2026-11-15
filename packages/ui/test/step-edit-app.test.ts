@@ -1,5 +1,5 @@
 /**
- * L4.3 part 2, the app's pure step-edit logic (step-edit.ts): where Alt+↑/↓ and a drop move a step, the words of an
+ * The app's pure step-edit logic (step-edit.ts): where Alt+↑/↓ and a drop move a step, the words of an
  * edit, the undo / redo history (caps, the versions this screen made), what counts as a field for the shortcuts.
  */
 import { describe, expect, it } from 'vitest';

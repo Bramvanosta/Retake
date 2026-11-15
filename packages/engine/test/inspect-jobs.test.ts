@@ -1,12 +1,12 @@
 /**
- * L3.3 `inspect` jobs (engine jobs/inspect-job.ts) on the fixture product, the worker run in this process (`once`): the
+ * `inspect` jobs (engine jobs/inspect-job.ts) on the fixture product, the worker run in this process (`once`): the
  * refusals at submit (a URL on another origin — a foreign host, another port of localhost, `file:` —, a `{{…}}`
  * template in a path or a target, an unknown page, two sources, a persona with a scenario, a host another project
  * protects), a page inspection (files in .retake/inspect/<id>/, a marked JPEG, nothing in runs/, page text only
  * under `untrusted` in the job, a history line that counts nothing), a URL resolved to a page key and a path, a scenario
  * replayed up to the step that opens the quote dialog, a scenario changed between submit and execute (refused), a
  * persona that cannot sign in (no report: the error under `untrusted`, `sign_in` names the persona), a cancel before
- * start, and the pruning to the newest 20. No write reaches the fixture. L7.12: the three cases the engine decides
+ * start, and the pruning to the newest 20. No write reaches the fixture. The three cases the engine decides
  * before anything is replayed (a changed scenario, a cancel before start, the pruning) run the worker on the in-memory
  * capture runner, which shows nothing reached it; the request an inspection hands the runner is capture-runner.test.ts's.
  */
@@ -53,7 +53,7 @@ async function settle(worker: () => Promise<unknown>): Promise<void> {
     if (!(await engine.jobs.list()).some((j) => j.state === 'queued')) return;
   }
 }
-/** The worker on the in-memory capture runner (L7.12): the engine's own logic, nothing replayed in a browser. */
+/** The worker on the in-memory capture runner: the engine's own logic, nothing replayed in a browser. */
 const workInMemory = async (capture = new MemoryCaptureRunner()) => {
   await settle(() => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { capture } }));
   return capture.calls.filter((c) => c.member === 'run');

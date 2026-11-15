@@ -1,5 +1,5 @@
 /**
- * A new workspace theme from brand inputs (L3.5, R-MCP-10): `template_create_from_brand` (trust `mcp`) and
+ * A new workspace theme from brand inputs (R-MCP-10): `template_create_from_brand` (trust `mcp`) and
  * `retake theme create` (trust `author`). It writes one new folder `<templates_dir>/<name>/` — template.yaml over a
  * base theme (components/src/brand), the logo, wordmark and fonts copied after their checks (brand/files.ts),
  * LICENSES.md and a provenance file — and never touches an existing theme, except `replace` of one this tool made and
@@ -105,7 +105,7 @@ interface Provenance {
 
 /**
  * A base theme's own file, read to be copied into the new theme (its fonts, LICENSES.md): a regular file with one name
- * only — a symbolic or hard link would turn bytes from elsewhere into the new theme's own file (L4.7 review A M1).
+ * only — a symbolic or hard link would turn bytes from elsewhere into the new theme's own file.
  */
 async function readOwnThemeFile(abs: string, theme: string): Promise<Buffer> {
   const st = await lstat(abs);

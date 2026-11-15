@@ -11,7 +11,7 @@ import type { Cursor, RecordingActions } from './draft.js';
 type InsertForm = 'wait' | 'caption' | 'zoom';
 
 /**
- * The open insert form and what is typed in it. L5.11b fixes (review A-L7 / B-L3): held by the recording's body, not by
+ * The open insert form and what is typed in it. Held by the recording's body, not by
  * the cursor block — the block moves (the first row arrives, a new scene starts, a row before it changes) and the form
  * keeps its text; the focus keeper puts the focus back on the field by its test id. `focus`: the form was just opened
  * (its first field takes the focus once; a block mounted again never takes it).

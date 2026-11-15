@@ -1,5 +1,5 @@
 /**
- * Signing a persona in (`retake login`, `retake new`, the `auth_login` job), moved from the CLI (L3.1): which persona a
+ * Signing a persona in (`retake login`, `retake new`, the `auth_login` job): which persona a
  * sign-in is for, and the sign-in itself under an interrupt port — a headed window a human signs in to and closes, or
  * the persona's login steps, headless. Native errors with the CLI's messages (LoginOptionError says which ones are
  * usage errors); what it tells its client goes through `SignInPorts`. Nothing here ever receives a credential.

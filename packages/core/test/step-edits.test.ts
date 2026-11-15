@@ -1,11 +1,11 @@
 /**
- * L4.3 part 2, core step edits (step-edits.ts): move / delete / duplicate as text splices, checked with facts
+ * Core step edits (step-edits.ts): move / delete / duplicate as text splices, checked with facts
  * independent of the splice code — the re-parsed value against the edit applied to the parsed value (verifyEditText),
  * the bytes outside the touched lines, moves reversible to the byte —, on every step of the fixture's 15 scenarios
- * (goldens), then a hostile corpus (critique B6: comment ownership by the dash column; anchors, aliases, flow lists,
- * block scalars holding `#`, CR LF + BOM + no final line break, indentless lists, empty scenes), duplicates (critique
- * B8: id and mark dropped, a capture's `as` renamed), the guard (critique B2), the `moved` flags (LIS) and where a
- * comment's step is today (critique B10).
+ * (goldens), then a hostile corpus (comment ownership by the dash column; anchors, aliases, flow lists, block
+ * scalars holding `#`, CR LF + BOM + no final line break, indentless lists, empty scenes), duplicates (id and
+ * mark dropped, a capture's `as` renamed), the guard, the `moved` flags (LIS) and where a
+ * comment's step is today.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';

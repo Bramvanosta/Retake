@@ -1,5 +1,5 @@
 /**
- * Pieces of multi-page layouts (L2.11: studio/layout-split, studio/layout-pip): a compact browser bar above a page, the
+ * Pieces of multi-page layouts (studio/layout-split, studio/layout-pip): a compact browser bar above a page, the
  * label of a page, a phone drawn around an inset page. Every colour from the theme (the window controls are system
  * colours); sizes in design px × unit.
  */

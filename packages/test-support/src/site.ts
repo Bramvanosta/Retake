@@ -1,5 +1,5 @@
 /**
- * The brand-site fixture (L3.5): an invented brand ("Quillmere") served over self-signed https on invented `.test`
+ * The brand-site fixture: an invented brand ("Quillmere") served over self-signed https on invented `.test`
  * names — brand.test (redirects to www.brand.test), www.brand.test and cdn.test on one local port — plus escape
  * listeners that must never be reached: a TCP port (esc.test and 127.0.0.1 literals, TURN over TCP, WebSockets) and a
  * UDP port (STUN). hostile.test serves pages that attack the extraction itself (a renderer busy loop, huge font names,

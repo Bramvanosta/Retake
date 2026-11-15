@@ -1,11 +1,11 @@
-//! When a job end becomes a notification (L5.2b, DESIGN §4j) — pure, so the no-storm rule is tested without macOS:
+//! When a job end becomes a notification (DESIGN §4j) — pure, so the no-storm rule is tested without macOS:
 //!
 //! - the window in front (the app active, its window key, visible, not minimised): nothing — the page shows it;
 //! - otherwise the first end posts at once; ends within `NOTIFY_GAP` of a post are held and flushed as ONE summary at
 //!   the gap's end (dropped if the window came to front meanwhile) — at most one post per gap, 12 a minute;
 //! - a summary lists at most `BATCH_MAX` ends; the rest are counted.
 //!
-//! The notification permission (`Auth`, review B L9): asked at the first post that would be shown; a denial or an error
+//! The notification permission (`Auth`): asked at the first post that would be shown; a denial or an error
 //! is never kept for the session — the next post asks again (once the person answered, that call never prompts: a
 //! switch turned on in System Settings takes effect without a relaunch); each different outcome is said once, an error
 //! with its domain and code (an unsigned or ad hoc bundle is refused for another reason than a person's "no").
@@ -204,7 +204,7 @@ mod tests {
         assert_eq!(n.on_tick(t0 + Duration::from_secs(6), false), Decision::Nothing);
     }
 
-    /// Review B L9: a denial or an error is not kept for the session; each different outcome is said once, honestly.
+    /// A denial or an error is not kept for the session; each different outcome is said once, honestly.
     #[test]
     fn permission_asks_again_after_a_no_and_says_each_outcome_once() {
         let mut p = Permission::default();

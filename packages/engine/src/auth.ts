@@ -1,6 +1,6 @@
 /**
  * What is known of personas' saved sessions, without opening a browser (`retake auth status`, `retake doctor`, the MCP
- * `auth_status` tool). Moved from the CLI (L3.1); `check` (a live, headless check) stays in the CLI: it opens Chromium.
+ * `auth_status` tool). Moved from the CLI; `check` (a live, headless check) stays in the CLI: it opens Chromium.
  */
 import type { EngineEnv } from './env.js';
 import { existsSync } from 'node:fs';
@@ -82,7 +82,7 @@ export interface PersonaState {
   /** What to do when it is not valid and no command signs it in. */
   fix?: string;
   /**
-   * An account of a sandbox (L1.8): signed in automatically, off camera, by every take that finds no valid session (a
+   * An account of a sandbox: signed in automatically, off camera, by every take that finds no valid session (a
    * reset drops the sessions the app stored) — never signing it in is normal.
    */
   sandbox?: boolean;
@@ -235,7 +235,7 @@ export interface ScenarioPersona {
   state: PersonaState;
   /**
    * Every run's preflight signs it in by itself, off camera, when its session is not valid: it has `login:` steps and
-   * each `{{env:…}}` they use is set in the worker's environment (review B M3: a missing one fails the run instead).
+   * each `{{env:…}}` they use is set in the worker's environment (a missing one fails the run instead).
    */
   auto: boolean;
   /** It has a `check`: the preflight checks its session before anything is filmed. */
@@ -247,7 +247,7 @@ export interface ScenarioPersona {
 }
 
 /**
- * The personas a run of scenario `sc` signs in on an environment (L4.4, the Run screen's preflight panel), the way the
+ * The personas a run of scenario `sc` signs in on an environment (the Run screen's preflight panel), the way the
  * run plans them (core planPersonas: its pages, `open: {page}`, tabs, multi-page scenes; the hooks' tabs when `hooks`),
  * each with what is known of its session (no browser), whether every run signs it in by itself, off camera (its
  * `login:` steps, their `{{env:…}}` set in `workerEnv` — the environment of the worker that runs it), and whether the

@@ -62,7 +62,7 @@ export interface CommentPrepareRequest {
   render: string;
   scenario?: string;
   /**
-   * The render record's `created_at` as the caller saw it (L4.6: the Studio sends what it showed): a render id reused
+   * The render record's `created_at` as the caller saw it (the Studio sends what it showed): a render id reused
    * since (renders/ cleaned, rendered again) is a conflict, never the other render's frame.
    */
   render_created_at?: string;
@@ -121,7 +121,7 @@ export function pickFrame(req: CommentPrepareRequest, record: RenderForWork): nu
 }
 
 /**
- * The run's scenario snapshot and (for a plan whose markers carry no step: before L3.6) its timeline, by run id: read
+ * The run's scenario snapshot and (for an older plan whose markers carry no step) its timeline, by run id: read
  * as the run's other files are (outputs/run-files.ts RunFolder: runs/<id> a real folder of the project, no link
  * followed, each file within its cap).
  */
@@ -283,8 +283,8 @@ export async function anchorAt(renders: RenderOutputs, project: LoadedProject, r
 
 /**
  * A new thread on one frame of a render (the CLI and the Studio): prepareComment, then the thread created whole (never
- * over an existing file), then its still (critique B12: the thread exists whatever the still costs; a still that fails
- * is a warning; it is made by `frames`, the caller's reviewer's).
+ * over an existing file), then its still (the thread exists whatever the still costs; a still that fails is a warning;
+ * it is made by `frames`, the caller's reviewer's).
  */
 export async function addComment(
   project: LoadedProject,
@@ -396,7 +396,7 @@ export async function appendEntry(
 }
 
 /**
- * A reply on a thread (open or resolved). With `proposal` (L4.6, MCP only — Engine.comments refuses it from any other
+ * A reply on a thread (open or resolved). With `proposal` (MCP only — Engine.comments refuses it from any other
  * client): Claude's whole new text of the thread's own scenario file and the hash it read, checked as the Studio would
  * check it at Apply (comment-proposals.ts buildProposal) and stored as the canonical line diff — on an open thread only.
  */

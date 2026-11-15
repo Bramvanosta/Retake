@@ -1,14 +1,14 @@
 /**
- * L5.10b: the storyboard's pieces — `FrameGrid` (a scene's frames as ONE listbox laid out in a grid: the caller holds
+ * The storyboard's pieces — `FrameGrid` (a scene's frames as ONE listbox laid out in a grid: the caller holds
  * the selection and its keys; the list holds the tab stop through `aria-activedescendant`), `FrameOption` (a frame: its
  * picture with the step's number over it, a title line, a meta line; selected: the selection fill and a 2 px ring; a
  * drop targeting it: a 3 px insertion bar on its left or right; dragged: a dashed outline and a dimmed picture) and
  * `RowCard` (a one-line card between scenes — a card, Before / After filming: a `<button aria-pressed>` that selects).
- * L5.11b fixes (review A-M2): `RowList` / `RowListItem` — a list of compact rows (the Record screen's draft), a listbox
+ * `RowList` / `RowListItem` — a list of compact rows (the Record screen's draft), a listbox
  * when the caller holds its keys (one tab stop, `aria-activedescendant`; its items `role="none"` around a RowCard option
  * or the caller's own group between options).
  *
- * Drag & drop (critique M7): the list takes `dragover` / `drop` itself, so the 24 px gaps between frames belong to it;
+ * Drag & drop: the list takes `dragover` / `drop` itself, so the 24 px gaps between frames belong to it;
  * the slot comes from the pointer (`slotFromPointer`: the nearest row by Y, then the frame's half by X; past the last
  * frame of the last row — the trailing empty cells — the end of the scene). The caller says whether it accepts a slot
  * (a drag that started in this document, a scene that is not locked): nothing else is ever read from the drag.
@@ -66,7 +66,7 @@ export function slotFromPointer(rects: readonly FrameRect[], x: number, y: numbe
   return x < (r.left + r.right) / 2 ? at : at + 1;
 }
 
-/** The insertion bar for a gap, drawn on ONE side (critique M7): after the frame before it, before the first frame. */
+/** The insertion bar for a gap, drawn on ONE side: after the frame before it, before the first frame. */
 export function dropSide(gap: number, index: number): 'before' | 'after' | null {
   if (gap === 0) return index === 0 ? 'before' : null;
   return index === gap - 1 ? 'after' : null;
@@ -215,10 +215,10 @@ export function FrameOption({
 }
 
 /**
- * A one-line card (B32's row between scenes): a tile (a word on the video tone, or a picture), a title and a meta line;
- * a `<button aria-pressed>` that selects it into the inspector. L5.11b: `compact` — a list row (the Record screen's draft):
+ * A one-line card (the row between scenes): a tile (a word on the video tone, or a picture), a title and a meta line;
+ * a `<button aria-pressed>` that selects it into the inspector. `compact` — a list row (the Record screen's draft):
  * the tile a narrow lead column (a step number), a word on the right (`aside`: under the text in a narrow list), the title
- * at the body size; `option` — an option of the caller's listbox instead of a button (review A-M2).
+ * at the body size; `option` — an option of the caller's listbox instead of a button.
  */
 export function RowCard({
   tile,
@@ -244,12 +244,12 @@ export function RowCard({
   quiet?: boolean;
   compact?: boolean;
   /**
-   * L5.11b fixes (review A-M2): an option of a listbox the caller holds (one tab stop, `aria-activedescendant`, its keys):
+   * An option of a listbox the caller holds (one tab stop, `aria-activedescendant`, its keys):
    * its id, whether it is the active one (the list's focus ring marks it) — never a tab stop of its own.
    */
   option?: { id: string; active: boolean };
   /**
-   * L5.12a fixes (review A-L5): a row that opens another screen (a render's report) is a link — `aria-current` marks the
+   * A row that opens another screen (a render's report) is a link — `aria-current` marks the
    * row of the screen shown — never a toggle that says "not pressed".
    */
   to?: Route;
@@ -347,11 +347,11 @@ export function RowListItem({
     row?: string;
     role?: string;
     helper?: string;
-    /** L5.12a: a render row's id and its review's state, a job's state (tests). */
+    /** A render row's id and its review's state, a job's state (tests). */
     id?: string;
     review?: string;
     state?: string;
-    /** L5.12b: a thread's status. */
+    /** A thread's status. */
     status?: string;
   };
   children: ReactNode;

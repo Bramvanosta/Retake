@@ -1,5 +1,5 @@
 /**
- * The access of a run (L1.7, R-ENV-02 / R-ENV-04): what project.yaml allows on an environment and what the command
+ * The access of a run (R-ENV-02 / R-ENV-04): what project.yaml allows on an environment and what the command
  * line confirms. A production environment is read-only unless project.yaml sets `access: read-write` AND the run is
  * given `--allow-writes`; without the flag it runs read-only, with a notice. Pure helpers.
  */
@@ -67,7 +67,7 @@ export interface ProtectedHost {
 type AccessEnv = Pick<ResolvedEnvironment, 'name' | 'production' | 'access'>;
 
 /**
- * The hosts of the project's other environments a run on `runEnv` must not write to (L1.7): the pages' hosts and
+ * The hosts of the project's other environments a run on `runEnv` must not write to: the pages' hosts and
  * `read_only.hosts` entries of every environment such a run would be read-only on (production, `access: read-only`) —
  * unless that environment's own access applies (production with `access: read-write`, and `--allow-writes`). A host
  * shared with an environment this run may write to (`writable`: the page hosts of read-write environments, the run's

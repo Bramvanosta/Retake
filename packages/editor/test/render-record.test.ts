@@ -1,5 +1,5 @@
 /**
- * The one place a plan read from a disk becomes an edit plan (L7.6b): `withPlan`. It asks what was always asked — the
+ * The one place a plan read from a disk becomes an edit plan: `withPlan`. It asks what was always asked — the
  * record has a plan, and it is an object — and nothing of the plan's inside.
  */
 import { describe, expect, it } from 'vitest';

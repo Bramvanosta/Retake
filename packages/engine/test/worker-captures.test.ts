@@ -1,12 +1,12 @@
 /**
- * L5.14a captures first, with the real worker (in this process, as the Studio's tests run it) and a real render in a job
+ * Captures first, with the real worker (in this process, as the Studio's tests run it) and a real render in a job
  * process of its own (synthetic capture, no fixture product): a render does not start while a take films (a filming
  * marker, as a take of another workspace or a terminal writes it) and starts within a poll once it ends; the job process
- * runs the worker's build (critique H1: no refusal, no hand-over, no second worker); a take starting mid-render puts
+ * runs the worker's build (no refusal, no hand-over, no second worker); a take starting mid-render puts
  * every process of the render's tree — its detached browser included — at background priority and back after it (the
  * frames are those of an unheld render); a cancel while held ends the job in its own process (clean-ups ran), not by a
  * kill. A job process refuses another build (exit 3, nothing written) and anything but the heavy job its worker claimed.
- * Needs ffmpeg and a headless shell. L5.14a fixes (review B H1): every wait is for the state itself (yield.json gone, not
+ * Needs ffmpeg and a headless shell. Every wait is for the state itself (yield.json gone, not
  * read between the release and its removal), and a worker a failed test left is stopped before the next test.
  */
 import { spawnSync } from 'node:child_process';
@@ -127,7 +127,7 @@ beforeAll(async () => {
   t.project = 'demo';
   t.scenario = 'held';
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
-  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  // A run `latest` takes has its record (a folder without a readable run.json is never the latest capture).
   await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: RUN, scenario: 'held', project: 'demo' })));
   makeColourCapture(join(runDir, 'capture.mp4'), 10);
   await linkSharedCache(root);
@@ -293,7 +293,7 @@ describe('a job process (L5.14a)', () => {
     await q.claim(review.id, me);
     expect(await runJobChild({ root: ws, id: review.id, kind: 'render', build, supervisor: process.pid, digest, ...quiet })).toBe(JOB_EXIT.refused);
     expect(await runJobChild({ root: ws, id: review.id, kind: 'review', build, supervisor: 999_999, digest, ...quiet })).toBe(JOB_EXIT.refused);
-    // Review A L6: job.json rewritten after the claim (another record under that id): not the record its worker claimed.
+    // job.json rewritten after the claim (another record under that id): not the record its worker claimed.
     const claimed = (await q.stored(review.id))!;
     await q.write({ ...claimed, input: { ...(claimed.input as object), render_id: 'other-v1' } as never });
     expect(await runJobChild({ root: ws, id: review.id, kind: 'review', build, supervisor: process.pid, digest, ...quiet })).toBe(JOB_EXIT.refused);

@@ -1,5 +1,5 @@
 /**
- * Colour roles of a site extraction (L3.5): deterministic, from the samples the isolated world took (page-script.ts).
+ * Colour roles of a site extraction: deterministic, from the samples the isolated world took (page-script.ts).
  * Colours are bucketed by quantising each channel (8 levels of 32), each bucket represented by its most weighted
  * exact colour; roles: `paper` the largest painted background, `text` the colour of most characters, `accent` the most
  * saturated colour of links and buttons (else of the page), `dark` the darkest large background. The model chooses

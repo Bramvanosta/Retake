@@ -1,5 +1,5 @@
 /**
- * L5.16d (review d B-M3) — scripts/set-version.mjs: the one version number moved in every file that carries it (the
+ * scripts/set-version.mjs: the one version number moved in every file that carries it (the
  * list app-bundle.test.ts "one version number" checks), only the version field of each, on a copy of those files.
  */
 import { spawnSync } from 'node:child_process';

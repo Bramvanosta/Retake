@@ -1,22 +1,22 @@
 /**
- * L5.9: the sheet — a confirmation that drops from under the title bar: a native `<dialog>` opened with `showModal()`
+ * The sheet — a confirmation that drops from under the title bar: a native `<dialog>` opened with `showModal`
  * (the top layer, the page behind inert, Escape cancels), `role="alertdialog"` when it confirms something destructive.
- * The default action holds the focus on open (Return chooses it) — but an action that loses work is NEVER the default
- * (L5.2b): a destructive default falls back to the cancel action. The focus goes back to where it was on close — at
+ * The default action holds the focus on open (Return chooses it) — but an action that loses work is NEVER the default:
+ * a destructive default falls back to the cancel action. The focus goes back to where it was on close — at
  * once, never on the dialog's `close` event: that event is a task of its own, and under load it lands after the user
  * (or another sheet) has moved the focus on, which it would steal back. The sheet follows its `open` prop even when the
- * platform closes the dialog itself (review A-L1).
- * L5.12c: a sheet that asks for a value too (a copy's name, the Library's Create with Claude): its fields go in `content`,
+ * platform closes the dialog itself.
+ * A sheet that asks for a value too (a copy's name, the Library's Create with Claude): its fields go in `content`,
  * under the text and outside the sheet's description (a screen reader reads the text, not every field, on open); an
  * action can be off (`disabled`: no prompt to copy yet) — the focus then starts on the first field.
- * L5.12c fixes: the focus on open is the default action when it is on, else the first text field of `content`, else the
- * first action that is on — never a control that is not a tab stop (review A-L1: an unchecked chip); Return in a
- * one-line text field of the sheet chooses the default action when it is on (review A-L2 / B-L2: edit a copy's name,
- * press Return).
- * L5.12d fixes (review A-L2): Return never activates a destructive action — on a focused destructive button it chooses
+ * The focus on open is the default action when it is on, else the first text field of `content`, else the
+ * first action that is on — never a control that is not a tab stop (an unchecked chip); Return in a
+ * one-line text field of the sheet chooses the default action when it is on (edit a copy's name, press
+ * Return).
+ * Return never activates a destructive action — on a focused destructive button it chooses
  * the default instead, as the native alert's Return does wherever the focus ring is (Space and a click still press it);
  * an action can be `busy` (its answer in flight: the kit Button's moving mark, disabled).
- * L5.16c fixes (review c A-L6): a long sheet whose default action sits below the fold may start the focus on its title
+ * A long sheet whose default action sits below the fold may start the focus on its title
  * instead (`focusTitle`: the title is focusable, never a tab stop) — a first Return then chooses nothing; and Escape may
  * answer an action id of its own (`escapeAction`: closing without the choice its visible button records).
  */
@@ -34,11 +34,11 @@ export interface SheetAction {
   isDefault?: boolean;
   /** Escape chooses it. */
   isCancel?: boolean;
-  /** L5.11a: a test id kept from an older dialog. */
+  /** A test id kept from an older dialog. */
   testId?: string;
-  /** L5.12c: off for now (nothing to act on yet). */
+  /** Off for now (nothing to act on yet). */
   disabled?: boolean;
-  /** L5.12d fixes: chosen, its answer in flight (disabled, the moving mark). */
+  /** Chosen, its answer in flight (disabled, the moving mark). */
   busy?: boolean;
 }
 
@@ -78,14 +78,14 @@ export function Sheet({
   actions: SheetAction[];
   onAction: (id: string) => void;
   destructive?: boolean;
-  /** L5.11a (critique L4): `role="alertdialog"` without marking the sheet destructive (a warning that loses no work). */
+  /** `role="alertdialog"` without marking the sheet destructive (a warning that loses no work). */
   alert?: boolean;
   testId?: string;
-  /** L5.12c: fields under the text (not part of the sheet's description). */
+  /** Fields under the text (not part of the sheet's description). */
   content?: ReactNode;
-  /** L5.16c fixes: the focus starts on the title (a long sheet: its top in view, Return chooses nothing). */
+  /** The focus starts on the title (a long sheet: its top in view, Return chooses nothing). */
   focusTitle?: boolean;
-  /** L5.16c fixes: what Escape (or the platform closing the dialog) answers — default: the cancel action's id. */
+  /** What Escape (or the platform closing the dialog) answers — default: the cancel action's id. */
   escapeAction?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -128,7 +128,7 @@ export function Sheet({
     }
     // A close event of an earlier closing that lands after the sheet opened again: not this one's.
     if (ref.current?.open) return;
-    // Review A-L1: the platform may close a modal dialog by itself (Chromium's close watcher lets a page refuse Escape
+    // The platform may close a modal dialog by itself (Chromium's close watcher lets a page refuse Escape
     // once per user activation) while the owner still holds it open — that is the cancel action, and if the owner keeps
     // the sheet open (a busy one, or no cancel at all) it shows again rather than leaving the two out of step.
     if (openNow.current) {
@@ -139,7 +139,7 @@ export function Sheet({
     giveBack();
   };
   // Return in a one-line text field: the default action, when it is on (a text area keeps its Return). Return on a
-  // focused destructive action never presses it (review A-L2): the default instead, when it is on — else nothing.
+  // focused destructive action never presses it: the default instead, when it is on — else nothing.
   const onKeyDown = (e: KeyboardEvent<HTMLDialogElement>) => {
     if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || e.nativeEvent.isComposing) return;
     const t = e.target as HTMLElement;

@@ -1,5 +1,5 @@
 /**
- * L5.16b — the bundled app's build, its rules without building (fast; the gated build + acceptance is
+ * The bundled app's build, its rules without building (fast; the gated build + acceptance is
  * app-bundle-acceptance.test.ts): the generated Tauri overlay (tauri.conf.json keeps no bundle section), the signing
  * table, its walk and its entitlement sets (dry = release + disable-library-validation only), ad hoc signing and the
  * app's verification on a mini app, one allow-listed environment for every child of the build, the release path
@@ -131,7 +131,7 @@ describe('the Tauri overlay is generated; tauri.conf.json keeps no bundle sectio
   });
 });
 
-/** Credentials a person's shell may hold: none may reach any child of a build (critique M1, review A M1). */
+/** Credentials a person's shell may hold: none may reach any child of a build. */
 const SECRETS = {
   APPLE_SIGNING_IDENTITY: 'Developer ID Application: Example (ABCDE12345)',
   APPLE_TEAM_ID: 'ABCDE12345',
@@ -307,7 +307,7 @@ describe('one allow-listed environment for every child of the build (critique M1
       xattr: 'exit 0',
       plutil: "echo '{}'",
     });
-    // L5.16d: the updater's two variables are checked by the build itself (a feed and a key, or neither): left out
+    // The updater's two variables are checked by the build itself (a feed and a key, or neither): left out
     // here — buildEnv's own test above shows they never reach a child.
     const { RETAKE_UPDATE_FEED: _feed, RETAKE_UPDATE_PUBKEY: _key, ...secrets } = SECRETS;
     const env = { ...secrets, PATH: `${tools.bin}:/usr/bin:/bin`, HOME: join(tmp, 'home'), KEEP_ME: '1' };
@@ -321,7 +321,7 @@ describe('one allow-listed environment for every child of the build (critique M1
     } finally {
       useBuildEnv(buildEnv(process.env));
     }
-    // bundle.json's hashes are the signed files' (review B M3).
+    // bundle.json's hashes are the signed files'.
     expect(JSON.parse(readFileSync(join(stage, 'bundle.json'), 'utf8')).sha256.node).toBe(
       createHash('sha256')
         .update(readFileSync(join(stage, 'node', 'bin', 'node')))
@@ -335,11 +335,11 @@ describe('one allow-listed environment for every child of the build (critique M1
       expect(text, tool).toContain(env.HOME);
     }
     expect([...seen].sort()).toEqual(['codesign', 'git', 'iconutil', 'plutil', 'pnpm', 'sips', 'tauri', 'xattr']);
-    // What the stand-ins cannot reach: apps/desktop/gen is put back whatever tauri build does (review A L2), and the
+    // What the stand-ins cannot reach: apps/desktop/gen is put back whatever tauri build does, and the
     // DMG is checked after it is made.
     const js = readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8');
     expect(js).toMatch(/const saved = saveGenerated\(REPO, dir\);\s*let built;\s*try \{\s*built = tauriBuild\([^)]*\);\s*\} finally \{\s*restoreGenerated\(REPO, saved\);\s*\}/);
-    // L5.16e fixes: the DMG is release.mjs finishApp's (made after the app's checks; hdiutil tried again on "Resource busy").
+    // The DMG is release.mjs finishApp's (made after the app's checks; hdiutil tried again on "Resource busy").
     const rel = readFileSync(join(APP, 'scripts', 'release.mjs'), 'utf8');
     expect(js).toMatch(/const done = appOnly \? \{ dmg: null, update: null \} : finishApp\(\{ app, out: dir, mode, env, tauriCli: join\(dir, 'tauri-cli'\), tauriPins,/);
     expect(rel).toMatch(/hdiutil\(dmgCreateArgs\(\{ src: appDir, dmg \}\), \{ env: child, \.\.\.retry \}\);[^]*const problems = verifyDmg\(dmg, join\(out, 'mnt'\), \{ env: child, retry \}\);/);
@@ -532,7 +532,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     const { notarizeArgs, redactArgs, signer } = await signModule();
     const byProfile = signer('release', { ...BASE, APPLE_KEYCHAIN_PROFILE: 'profile-canary' }, {});
     const byKey = signer('release', { ...BASE, APPLE_API_KEY: 'key-id-canary', APPLE_API_ISSUER: 'issuer-canary', APPLE_API_KEY_PATH: '/keys/AuthKey.p8' }, {});
-    // Waited for at most NOTARY_TIMEOUT, the answer as JSON (review e B-L3: notarize reads its status).
+    // Waited for at most NOTARY_TIMEOUT, the answer as JSON (notarize reads its status).
     expect(notarizeArgs(byProfile, '/o/Retake.zip')).toEqual([
       'notarytool',
       'submit',
@@ -669,7 +669,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     const rejected = run('echo "TeamIdentifier=ABCDE12345" >&2; echo "flags=0x10000(runtime)" >&2', 'echo "rejected" >&2; exit 3', 'echo "does not have a ticket" >&2; exit 65').problems.join('\n');
     expect(rejected).toMatch(/spctl -a -vv -t exec .*: rejected/);
     expect(rejected).toMatch(/xcrun stapler validate .*Retake\.dmg: does not have a ticket/);
-    // Gatekeeper's words, not only its exit status (review e B-L2): accepted as a notarised Developer ID.
+    // Gatekeeper's words, not only its exit status: accepted as a notarised Developer ID.
     const team = 'echo "TeamIdentifier=ABCDE12345" >&2; echo "flags=0x10000(runtime)" >&2';
     const unnotarised = run(team, 'p=$(eval "echo \\${$#}"); echo "$p: accepted" >&2; echo "source=Developer ID" >&2').problems.join('\n');
     expect(unnotarised).toMatch(/spctl -a -vv -t exec .*: accepted, but not as a notarised Developer ID \(Developer ID\)/);
@@ -824,7 +824,7 @@ describe('launch.json version 2 and the launcher', () => {
   it('launch.json v2: relative paths inside Resources, bundled, the module lookup guard first — what desktop_core::launch_config reads', async () => {
     const { launchJson, LAUNCHER, GUARD } = await bundleModule();
     const v2 = launchJson({ paths: { node: 'node/bin/node', engine: 'engine' } });
-    // L5.16d (review d A-L9): whether the build updates itself (doctor reads it; the shell ignores the key).
+    // Whether the build updates itself (doctor reads it; the shell ignores the key).
     expect(v2).toEqual({ version: 2, bundled: true, node: 'node/bin/node', cli: 'engine/dist/bin.js', preload: 'node/guard.cjs', updates: 'off' });
     expect(launchJson({ paths: { node: 'node/bin/node', engine: 'engine' } }, { updates: true }).updates).toBe('on');
     expect(readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8')).toContain('launchJson(manifest, { updates: !!updates })');
@@ -883,7 +883,7 @@ describe('launch.json version 2 and the launcher', () => {
       ]);
     }
     expect(readFileSync(join(APP, 'bundle', 'retake.sh'), 'utf8')).toMatch(/^#!\/bin\/sh\n/);
-    // A copy outside an app, or an app without its guard: refused, the fake node never runs (review A L4).
+    // A copy outside an app, or an app without its guard: refused, the fake node never runs.
     copyFileSync(join(res, 'bin', 'retake'), join(bin, 'copied'));
     chmodSync(join(bin, 'copied'), 0o755);
     const copied = spawnSync(join(bin, 'copied'), ['--version'], { encoding: 'utf8', env });

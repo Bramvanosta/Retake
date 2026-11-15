@@ -1,5 +1,5 @@
 /**
- * Multi-page clips (L2.11): the geometry of each page (pane) of a split screen or a picture in picture, the corner
+ * Multi-page clips: the geometry of each page (pane) of a split screen or a picture in picture, the corner
  * track of a picture-in-picture inset, the acting page over time, and the mapping of a page's source CSS px to output
  * px at one frame. Pure — shared by the planner, the composition and the review.
  */
@@ -413,7 +413,7 @@ export function mapPaneRect(plan: Pick<EditPlan, 'tracks' | 'source' | 'variant'
   return { x: round(cap.x + (rect.x - left) * sx, 2), y: round(cap.y + (rect.y - top) * sy, 2), w: round((rect.w ?? 0) * sx, 2), h: round((rect.h ?? 0) * sy, 2) };
 }
 
-/** The URL of pane `i` at clip frame `f`; undefined while it is a hidden (local) one (L1.7: the bar shows no address). */
+/** The URL of pane `i` at clip frame `f`; undefined while it is a hidden (local) one (the bar shows no address). */
 export function paneUrlAt(pane: Pick<PlanPane, 'urls'>, f: number): string | undefined {
   let at: PlanPane['urls'][number] | undefined;
   for (const u of pane.urls) {
@@ -425,7 +425,7 @@ export function paneUrlAt(pane: Pick<PlanPane, 'urls'>, f: number): string | und
 }
 
 /**
- * Whether a clip's layout draws a page URL (L1.7) — the whole clip, or pane `pane` of a multi-page clip:
+ * Whether a clip's layout draws a page URL — the whole clip, or pane `pane` of a multi-page clip:
  * studio/layout-browser unless both `show_url` and `tabs` are off (its tab strip names the host); studio/layout-split
  * and studio/layout-pip with `chrome` (a picture in picture: its main page only). Other layouts (card, laptop, tablet,
  * phone, raw, your own) draw none as far as the planner knows.

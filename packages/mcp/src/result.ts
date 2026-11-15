@@ -84,7 +84,7 @@ export function okResult(out: ToolOutput): CallResult {
   return {
     content: [
       { type: 'text', text: out.summary },
-      // One line (L5.8): the indentation of pretty-printed JSON was ≈ 40 % of a large result.
+      // One line: the indentation of pretty-printed JSON was ≈ 40 % of a large result.
       { type: 'text', text: JSON.stringify(data) },
     ],
     // The protocol's structured content is a JSON object: what every tool's data is (ToolOutput's `object`).
@@ -110,5 +110,5 @@ export function errorResult(e: unknown): CallResult {
   };
 }
 
-/** "3 scenarios" / "1 scenario": the engine's operations' words (L7.13). */
+/** "3 scenarios" / "1 scenario": the engine's operations' words. */
 export { plural } from '@retake/engine/contract';

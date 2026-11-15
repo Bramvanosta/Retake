@@ -1,5 +1,5 @@
 /**
- * The preview protocol (L4.5, DESIGN §4g; critique B2): what the Studio page and the sandboxed preview frame say to each
+ * The preview protocol (DESIGN §4g): what the Studio page and the sandboxed preview frame say to each
  * other. Shared by both sides, browser-only, no dependency. Version 1:
  *
  * - The frame opens a MessageChannel and posts exactly one `hello` on `window` to its parent, with the channel's port.
@@ -26,17 +26,17 @@ export const ID_MAX = 128;
 export const FRAMES_MAX = 432_000;
 
 /**
- * The parent's flood budget over the port (critique B2): above this many messages in one second the preview stops. A
+ * The parent's flood budget over the port: above this many messages in one second the preview stops. A
  * playing preview sends at most one `frame` per animation frame (60/s) plus a few `state` / `settled`.
  */
 export const FLOOD_MESSAGES_PER_S = 240;
 
 /**
- * Strings of a component preview spec (L4.7) that are text drawn, never loaded — exempt from the "every URL is one this
+ * Strings of a component preview spec that are text drawn, never loaded — exempt from the "every URL is one this
  * preview serves" scan on both sides (the server's checkPreviewSpec, the frame's own check). A fixed list of paths
  * (root `spec`, array indices written `[*]`): the sample address a browser layout draws in its bar, each pane's, the
  * theme's brand address. Plus a slot value of a component use (`spec.….slots.<name>`) equal to that brand address: a
- * slot filled from `default_from: theme.brand.url`. Nothing else, so no free-form path widens it (L4.7 review A M2).
+ * slot filled from `default_from: theme.brand.url`. Nothing else, so no free-form path widens it.
  */
 export const PREVIEW_DISPLAY_PATHS: readonly string[] = ['spec.scene.url', 'spec.scene.rects.panes[*].url', 'spec.theme.brand.url'];
 const PREVIEW_SLOT_PATH = /^spec(?:\.[A-Za-z_]+)+\.slots\.[A-Za-z0-9_-]+$/;

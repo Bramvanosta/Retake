@@ -1,5 +1,5 @@
 /**
- * L5.13b (R-REN-03): the "two takes" mark from one source — mark.ts's drawing (three variants by size), its colours in
+ * R-REN-03: the "two takes" mark from one source — mark.ts's drawing (three variants by size), its colours in
  * tokens.ts (`--ui-mark-*` in both appearances, the fixed `MARK_INK` for the icon and the favicon). The committed desktop
  * icon files are what `pnpm -F @retake/ui gen:mark` writes from it (the SVGs compared as text; each PNG's size read from
  * its header and its pixels compared, within a small tolerance, with its SVG rasterised again by sharp as gen:mark does —
@@ -218,7 +218,7 @@ describe("the favicon and the Studio's mark", () => {
         v,
       ).toEqual(MARK[v].map((s) => `k-appmark-${s.paint}`));
     }
-    // L7.34: kit.css read as the browser reads it (its rules, whatever the layout of the text): each part's class paints
+    // kit.css read as the browser reads it (its rules, whatever the layout of the text): each part's class paints
     // with its --ui-mark-* token only, and every token it names is one of tokens.ts's (both appearances).
     const rules = cssRules(readFileSync(join(REPO, 'packages', 'ui', 'src', 'app', 'ui-kit', 'kit.css'), 'utf8'));
     const paints = [...new Set(MARK_VARIANTS.flatMap((v) => MARK[v].map((s) => s.paint)))].sort();
@@ -236,7 +236,7 @@ describe("the favicon and the Studio's mark", () => {
   });
 
   it('⚑ the title bar (tiny, 18 px) and Welcome (full, 128 px) render the mark, aria-hidden, beside the name', () => {
-    // The shell reads external stores (no server snapshot): it cannot render here. L7.34: its one AppMark is found in
+    // The shell reads external stores (no server snapshot): it cannot render here. Its one AppMark is found in
     // its tree (TypeScript's parser: in the title bar, the first element there, the product's name next) and rendered
     // with the props it is given there.
     const titleBar = shellMark(readFileSync(join(REPO, 'packages', 'ui', 'src', 'app', 'shell', 'AppShell.tsx'), 'utf8'));
@@ -251,7 +251,7 @@ describe("the favicon and the Studio's mark", () => {
       /<section class="wl-intro" aria-labelledby="wl-h1"><svg class="k-appmark" viewBox="0 0 100 100" width="128" height="128" aria-hidden="true" focusable="false" data-variant="full">[\s\S]*?<\/svg><h1 id="wl-h1"/,
     );
     // The gallery shows each variant at its sizes with a visible caption naming them (the marks themselves are aria-hidden):
-    // L7.34: rendered, its "App mark" section read.
+    // Rendered, its "App mark" section read.
     const gallery = renderToStaticMarkup(createElement(GalleryScreen));
     const sections = [...gallery.matchAll(/<section class="gl-section"><h3 class="gl-title">App mark<\/h3>([\s\S]*?)<\/section>/g)].map((m) => m[1]);
     expect(sections.length).toBeGreaterThan(0);

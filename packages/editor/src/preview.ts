@@ -83,7 +83,7 @@ export interface BuildPreviewOptions {
   /** Params over the manifest's preview params (the caller validates them against the params schema). */
   params?: Record<string, unknown>;
   /**
-   * Motion mode (L4.7, a looping preview): a transition gets a lead-in on the outgoing scene and a hold on the settled
+   * Motion mode (a looping preview): a transition gets a lead-in on the outgoing scene and a hold on the settled
    * card around it (`spec.motion`); every other kind already animates over its duration. Stills never set it: their
    * spec stays exactly as before.
    */
@@ -258,7 +258,7 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
   const spec: ComponentPreviewSpec = { width, height, fps, durationInFrames: main.durationInFrames, frame: 0, theme: tokens, main };
   let screen: PreviewScreenName | undefined = screenName;
   /**
-   * A multi-page layout (L2.11) with one sample screen per page (`preview.screens`, default desktop + desktop): the
+   * A multi-page layout with one sample screen per page (`preview.screens`, default desktop + desktop): the
    * geometry evaluated with both samples' aspects, each page placed as the planner places it (split: top-aligned in its
    * pane; picture in picture: the main page, the inset at its default corner); the first page acts.
    */

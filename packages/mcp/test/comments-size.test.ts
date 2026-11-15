@@ -1,5 +1,5 @@
 /**
- * L3.6 review: the size of what the comment tools return. Thread files planted in a workspace (no render, no ffmpeg),
+ * The size of what the comment tools return. Thread files planted in a workspace (no render, no ffmpeg),
  * ten threads of 495 replies of 2000 characters each: comments_list carries the last 10 entries of a thread
  * (`entries_total` counts them all) and at most COMMENTS_LIST_UNTRUSTED_MAX characters of thread text, leaving the next
  * threads out with a hint to narrow the listing; comment_reply returns its thread the same way. Tools run in-process

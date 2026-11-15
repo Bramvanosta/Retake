@@ -1,7 +1,7 @@
 /**
  * The hooks, environment-reset and sandbox operations (MCP: hooks_run, env_reset, sandbox_status, sandbox_up,
  * sandbox_reset), characterized through `retake mcp` over stdio (from the sources, the SDK's client) before they became
- * the engine's operations (L7.19). One temp workspace: a small project whose hooks are harmless shell `echo`s (a scenario's
+ * the engine's operations. One temp workspace: a small project whose hooks are harmless shell `echo`s (a scenario's
  * setup with a rollback and its teardown, a hooks file declared `writes: false`, the project's reset hooks) and a process
  * sandbox (a node service answering /health, a shell seed step, a shell reset hook). The calls go through four clients in
  * turn: one without elicitation (needs_approval with the command a human runs), one that declines, one that never

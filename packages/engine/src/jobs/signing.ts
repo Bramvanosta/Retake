@@ -1,5 +1,5 @@
 /**
- * Approvals signed at submit (L3.1), bound to their job (L5.14). A job's `approvals` let the worker run hooks a human
+ * Approvals signed at submit, bound to their job. A job's `approvals` let the worker run hooks a human
  * approved; a job.json written into .retake/jobs/ by anything but a submit (another process, a file-writing tool of the
  * agent) must not carry approvals the worker honours. So each approval is signed at enqueue with the Retake home's key
  * (core home-key.ts: `<RETAKE_HOME>/approvals.key`), over the job's id, its input and the approval; the worker ignores

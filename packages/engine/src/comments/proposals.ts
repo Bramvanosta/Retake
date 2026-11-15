@@ -28,7 +28,7 @@ import type { CommentWritten } from './threads.js';
 import { stampOf } from '../clock.js';
 import type { WorkspaceReads } from '../workspace-reads/reads.js';
 
-// ── Proposals: apply, the diff shown, the preview (L4.6, R-UI-28) ─────────────
+// ── Proposals: apply, the diff shown, the preview (R-UI-28) ─────────────
 
 /** The proposal entry of a thread named by `entryId` (default: the newest proposal). */
 export function proposalEntry(thread: CommentThread, entryId: string | undefined): CommentEntry & { proposal: CommentProposal } {
@@ -97,13 +97,13 @@ export interface CommentApplied {
 }
 
 /**
- * Apply a thread's proposal (L4.6, a person channel: Engine.comments allows `cli` and `ui` only): under the thread's
- * lock, held across the scenario write and the apply entry (critique B5: thread lock → storage write lock, nothing takes
- * them the other way), the thread read with `ifMatch`, open, the entry its newest pending (or undone) proposal; the
- * text rebuilt from today's file and checked (rebuildProposal: base hash, strict hunks, result hash, canonical diff) and
- * edit-only; then written by editScenario itself (`replace_text` with agent trust from the Studio: every L4.3 rule runs
- * again at the moment of the write — a planted thread is refused here); then the apply entry is appended with no
- * second hash check (a failure there is a problem in words, never a failed answer: the file's hash says `applied`).
+ * Apply a thread's proposal (a person channel: Engine.comments allows `cli` and `ui` only): under the thread's lock,
+ * held across the scenario write and the apply entry (thread lock → storage write lock, nothing takes them the other
+ * way), the thread read with `ifMatch`, open, the entry its newest pending (or undone) proposal; the text rebuilt from
+ * today's file and checked (rebuildProposal: base hash, strict hunks, result hash, canonical diff) and edit-only; then
+ * written by editScenario itself (`replace_text` with agent trust from the Studio: every write rule runs again at the
+ * moment of the write — a planted thread is refused here); then the apply entry is appended with no second hash check
+ * (a failure there is a problem in words, never a failed answer: the file's hash says `applied`).
  */
 export async function applyProposal(
   project: LoadedProject,
@@ -130,7 +130,7 @@ export async function applyProposal(
     const text = rebuildProposal(today, entry.proposal, 'applied');
     // Edit-only and the Studio's checks once more before the write (editScenario repeats the latter while writing).
     await checkProposedText(project, r.thread.scenario, today, text, 'applied', read);
-    // The apply entry must fit the thread (entries, size) before the scenario is written (review A L5 / B M3): a full
+    // The apply entry must fit the thread (entries, size) before the scenario is written: a full
     // thread refuses with nothing changed. The entry written after names the hash editScenario returns (= this one).
     try {
       appendedThread(id, r, applyEntryOf(author, entry.id, entry.proposal.result_sha256, FIT_STAMP));
@@ -196,21 +196,21 @@ export interface CommentProposalView {
   added: number;
   removed: number;
   hunks: number;
-  /** Changed lines over the lines of both versions, in % (critique B13: say it past PROPOSAL_REWRITE_NOTE_PCT). */
+  /** Changed lines over the lines of both versions, in % (say it past PROPOSAL_REWRITE_NOTE_PCT). */
   rewrites_pct?: number;
   /**
-   * The rows are the canonical diff of the exact bytes (critique B1: rebuilt from today's file — pending, undone or
-   * applied — and checked: result hash, canonical hunks), with context lines. False: the hunks as stored (the file is
+   * The rows are the canonical diff of the exact bytes (rebuilt from today's file — pending, undone or applied —
+   * and checked: result hash, canonical hunks), with context lines. False: the hunks as stored (the file is
    * neither its base nor its result), no context.
    */
   verified: boolean;
   /**
    * Pending or undone: the proposed text's filmed part equals the commented run's snapshot — it renders on that take
-   * (critique B2: "Apply and re-render", "Preview change"); false when it does not or the run is gone.
+   * ("Apply and re-render", "Preview change"); false when it does not or the run is gone.
    */
   same_take?: boolean;
   /**
-   * Actionable, yet Apply would refuse it now (review A L4): the same checks as Apply's before its write — the text
+   * Actionable, yet Apply would refuse it now: the same checks as Apply's before its write — the text
    * rebuilt (base, strict hunks, result hash, canonical, rows), the Studio's write checks, edit-only, no theme change,
    * the apply entry fitting the thread — in the tool's words, project-relative. Absent: Apply would go ahead.
    */
@@ -221,7 +221,7 @@ export interface CommentProposalView {
 }
 
 /**
- * A proposal as a person reads it (critique B1, B15): its state and the diff computed by the engine from the file —
+ * A proposal as a person reads it: its state and the diff computed by the engine from the file —
  * rebuilt from today's file when it is the base (pending, undone) or the result (applied), checked (result hash,
  * canonical hunks) and shown with context; otherwise the stored hunks, unverified. Lines are data (`untrusted.rows`).
  */
@@ -262,7 +262,7 @@ export async function getProposal(
       const after = textLines(today.yaml);
       const before = applyHunks(after, invertHunks(p.hunks));
       const canonical = diffLines(before, after, { maxChanged: PROPOSAL_CHANGED_LINES_MAX });
-      // The base may have had no final line break (Apply writes one): both spellings of the base are its hash (review B L1).
+      // The base may have had no final line break (Apply writes one): both spellings of the base are its hash.
       const baseOk = sha256Hex(joinLines(before, eol)) === p.base_sha256 || sha256Hex(before.join(eol)) === p.base_sha256;
       if (baseOk && canonical && sameHunks(canonical, p.hunks)) {
         base = before;
@@ -273,7 +273,7 @@ export async function getProposal(
     }
   }
   const verified = base !== undefined && result !== undefined;
-  // What Apply would say now (review A L4): its checks before the write, run only for a proposal it would take.
+  // What Apply would say now: its checks before the write, run only for a proposal it would take.
   let blocked: string | undefined;
   if (today && status === 'open' && st.actionable) {
     try {
@@ -334,7 +334,7 @@ export async function getProposal(
   };
 }
 
-/** A proposal checked for the timeline's preview (critique B9): the text to plan and where it comes from. */
+/** A proposal checked for the timeline's preview: the text to plan and where it comes from. */
 export interface ProposalPreview {
   comment_id: string;
   entry: string;
@@ -349,7 +349,7 @@ export interface ProposalPreview {
 }
 
 /**
- * The proposed text of a thread's actionable proposal for the timeline's preview (critique B9): the thread of
+ * The proposed text of a thread's actionable proposal for the timeline's preview: the thread of
  * `scenario`, open, the entry its newest pending (or undone) proposal, today's file its base, the text rebuilt and
  * checked (rebuildProposal) and passed through the Studio's full write checks (prepareScenarioEdit: agent trust,
  * hooks, vars / env) — nothing written, no version remembered. Run on every preview (outside any memo).

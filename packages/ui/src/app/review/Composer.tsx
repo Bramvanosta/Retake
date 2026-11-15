@@ -1,14 +1,13 @@
 /**
- * The composer under the frame (L4.6 part D1; L5.12b « Épure » 4b on the kit: was CommentsScreen.tsx's): a region
- * dragged on the frame or typed in four % number fields (the WCAG 2.5.7 alternative — rounded, then clamped inside the
- * frame; a field left settles to the region drawn), Clear region; the anchor chips the server computes with the code
- * that stores them (`frame_anchor`, 150 ms after the frame or region settles; an answer older than the newest ask is
- * dropped: a sequence number) as kit tags; the text (unsaved while it holds words: the desktop app's quit question names
- * it), ⌘↩ or Post — `thread_add` with the render's id and created_at as shown ("Posting…": the still is made after the
- * thread). A 409 (the render was replaced) reads the renders again; the text stays. The text box is described by the
- * characters left and how ⌘↩ posts (review B-L5); the characters left are announced politely only as thresholds are
- * crossed (charactersLeftAnnounced), never per key. Asked to (`focusText`: an `at` address, once the frame is laid out),
- * it brings its text box and Post into view and focuses the text (review B-L4).
+ * The composer under the frame, on the kit: a region dragged on the frame or typed in four % number fields (the WCAG
+ * 2.5.7 alternative — rounded, then clamped inside the frame; a field left settles to the region drawn), Clear region;
+ * the anchor chips the server computes with the code that stores them (`frame_anchor`, 150 ms after the frame or region
+ * settles; an answer older than the newest ask is dropped: a sequence number) as kit tags; the text (unsaved while it
+ * holds words: the desktop app's quit question names it), ⌘↩ or Post — `thread_add` with the render's id and created_at
+ * as shown ("Posting…": the still is made after the thread). A 409 (the render was replaced) reads the renders again;
+ * the text stays. The text box is described by the characters left and how ⌘↩ posts; the characters left are announced
+ * politely only as thresholds are crossed (charactersLeftAnnounced), never per key. Asked to (`focusText`: an `at`
+ * address, once the frame is laid out), it brings its text box and Post into view and focuses the text.
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';

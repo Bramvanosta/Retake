@@ -122,7 +122,7 @@ export function timelineJsonSchema(): JsonSchema {
   return cached('timeline', TimelineSchema);
 }
 
-/** JSON Schema of a sandbox.yaml (version 1, L1.8). */
+/** JSON Schema of a sandbox.yaml (version 1). */
 export function sandboxJsonSchema(): JsonSchema {
   return cached('sandbox', SandboxFileSchema);
 }

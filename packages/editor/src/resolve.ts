@@ -49,9 +49,9 @@ export interface Candidate {
   label: string;
   /** The ref is the theme's own choice for the kind (already resolved by `registry.resolveTheme` when it succeeded). */
   fromTheme?: boolean;
-  /** Slot values this candidate brings (a user file in studio/media's `file` slot, L2.12), over the use's own. */
+  /** Slot values this candidate brings (a user file in studio/media's `file` slot), over the use's own. */
   slots?: Record<string, string>;
-  /** Seconds on screen this candidate sets (a theme's own file, L2.12). */
+  /** Seconds on screen this candidate sets (a theme's own file). */
   duration?: number;
 }
 
@@ -106,7 +106,7 @@ export class ComponentResolver {
     if (c === null) return { ref: null, source: 'theme', label: `the theme (${kind}: none)` };
     const out: Candidate = { ref: { id: c.id, params: c.params }, source: c.source === 'default' ? 'builtin-default' : 'theme', label: 'the theme', fromTheme: true };
     if (c.file) {
-      // The theme's own file (L2.12): its path is relative to the template folder.
+      // The theme's own file: its path is relative to the template folder.
       out.slots = { file: resolvePath(this.template.dir, c.file.path) };
       out.label = `the theme's ${c.file.kind} file ${c.file.path}`;
       if (c.duration !== undefined) out.duration = c.duration;
@@ -148,7 +148,7 @@ export class ComponentResolver {
   }
 
   /**
-   * A multi-page layout (L2.11) dressed by the theme: its card radius and shadow, a browser bar on each page when the
+   * A multi-page layout dressed by the theme: its card radius and shadow, a browser bar on each page when the
    * theme frames captures in a browser window (studio/layout-browser), the theme's card width for the main page of a
    * picture in picture.
    */

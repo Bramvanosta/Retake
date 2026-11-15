@@ -1,9 +1,10 @@
 /**
- * The ids of the domain as the Studio's server and app read them (L7.5): the scenario a finished job's notification
+ * The ids of the domain as the Studio's server and app read them: the scenario a finished job's notification
  * names, the sentence of a proposal's offer when the themes differ, the raw export's command, the review route's
  * render id, the words of a render's version, and the name rules of the library and the theme forms.
  *
- * A row marked `D-<n>` is an outcome a decision of the lot changed; the mark names the decision.
+ * A row marked `D-<n>` is an outcome changed on purpose when the id rules were made one, and the mark names the rule:
+ * D-3 a new theme's name of at most 60 characters.
  */
 import { describe, expect, it } from 'vitest';
 import type { JobRecord } from '@retake/engine';
@@ -167,7 +168,7 @@ describe('names in the library and the theme forms', () => {
     expect(copyName('My_Theme', [])).toBe('my-theme-copy');
     expect(copyName('a.b', [])).toBe('theme-copy');
     expect(copyName(a(101), [])).toBe('theme-copy');
-    // L7.5 D-3: a new theme's name has at most 60 characters. The source may be any listed theme (up to 100): its
+    // D-3: A new theme's name has at most 60 characters. The source may be any listed theme (up to 100): its
     // proposed copy is cut so that "-copy-999" still fits. (Before: cut for a cap of 100, and one character over it
     // once 99 copies were taken.)
     expect(short(copyName(a(80), []))).toBe('<51 a>-copy'); // D-3
@@ -185,7 +186,7 @@ describe('names in the library and the theme forms', () => {
     const lower = 'Lower-case letters, digits and "-" only, starting with a letter or a digit.';
     const copy = (name: string) => themeNameProblem(name, ['taken']);
     expect([copy(''), copy('My_Theme'), copy('a.b'), copy('taken'), copy('mine'), copy(a(60))]).toEqual(['Give the copy a name.', lower, lower, 'A theme of that name exists.', null, null]);
-    // L7.5 D-3: a name that passes the grammar and has more than 60 characters is too long, in both forms (before:
+    // D-3: A name that passes the grammar and has more than 60 characters is too long, in both forms (before:
     // accepted up to 100, and the grammar's sentence at 101).
     const long = 'At most 60 characters.';
     expect([copy(a(61)), copy(a(64)), copy(a(65)), copy(a(100))]).toEqual([long, long, long, long]); // D-3

@@ -1,5 +1,5 @@
 /**
- * A cursor layer whose ffmpeg quits while its frames are written (L7.31 review): the write fails on the closed pipe, the
+ * A cursor layer whose ffmpeg quits while its frames are written: the write fails on the closed pipe, the
  * frames stop and the layer fails with the tool's exit — an EncodeError — while this process goes on (no unhandled EPIPE).
  */
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';

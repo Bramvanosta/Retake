@@ -1,29 +1,28 @@
 /**
- * What changes, as the Studio sees it (L4.1 part 3): the workspace index (engine WorkspaceIndex, node:sqlite) kept up
+ * What changes, as the Studio sees it: the workspace index (engine WorkspaceIndex, node:sqlite) kept up
  * to date, and the event stream `GET /v1/events` — server-sent events read by the page through `fetch` (the token in a
  * header: EventSource cannot send one, and a token in a URL lands in logs and history).
  *
- * - A bounded stat poll, every second while a stream is open and never otherwise (critique C2: no recursive
- *   fs.watch): the index's reconcile (or, without node:sqlite, the same scan held in memory) and the job watch (live
- *   from the queue, critique B2). An op of the index (activity_list, search) refreshes first, so it never answers
- *   stale, and what it found goes out on the streams too.
- * - Events: `hello {api, index, generation}`, `workspace {projects, readme, files, scenarios?, renders?, runs?, comments?}`, `jobs {changed, projects}`
- *   (L5.10a fixes: `projects` the projects of the changed jobs; `files` the projects whose project.yaml, sandbox.yaml or
- *   scenario list changed),
- *   `index {generation}`, and a comment line every 15 s (proxies and idle sockets). `scenarios` names the scenario files
- *   changed (`<slug>/<name>`, an in-place save included) and `runs` the runs that started, progressed, finished or went
- *   away, each with its scenario (L4.2, critique B1): a scenario screen re-reads only for its own file and its own
- *   scenario's runs starting or finishing — a running run's progress is a `run_status` read, never a whole view.
- *   `renders` (L4.5 part E) names the projects whose renders/ or review/ folder changed: a render list or a board re-reads for its project.
- *   `comments` (L4.6) names the scenarios whose comment threads changed (`<slug>/<scenario>`, only when there are
- *   any): a Comments screen and a timeline re-read for their own scenario only.
- *   L4.7 (critique B5): `themes` names the theme folders of templates_dir whose files changed, `components` the
- *   namespaces of components_dir whose component files changed (an in-place rewrite included: the engine's library-watch.ts's
+ * - A bounded stat poll, every second while a stream is open and never otherwise (no recursive fs.watch): the index's
+ *   reconcile (or, without node:sqlite, the same scan held in memory) and the job watch (live from the queue). An op of
+ *   the index (activity_list, search) refreshes first, so it never answers stale, and what it found goes out on the
+ *   streams too.
+ * - Events: `hello {api, index, generation}`, `workspace {projects, readme, files, scenarios?, renders?, runs?,
+ *   comments?}`, `jobs {changed, projects}` (`projects` the projects of the changed jobs; `files` the projects whose
+ *   project.yaml, sandbox.yaml or scenario list changed), `index {generation}`, and a comment line every 15 s (proxies
+ *   and idle sockets). `scenarios` names the scenario files changed (`<slug>/<name>`, an in-place save included) and
+ *   `runs` the runs that started, progressed, finished or went away, each with its scenario: a scenario screen re-reads
+ *   only for its own file and its own scenario's runs starting or finishing — a running run's progress is a
+ *   `run_status` read, never a whole view. `renders` names the projects whose renders/ or review/ folder changed: a
+ *   render list or a board re-reads for its project. `comments` names the scenarios whose comment threads changed
+ *   (`<slug>/<scenario>`, only when there are any): a Comments screen and a timeline re-read for their own scenario
+ *   only. `themes` names the theme folders of templates_dir whose files changed, `components` the namespaces of
+ *   components_dir whose component files changed (an in-place rewrite included: the engine's library-watch.ts's
  *   file-level stat walk), `site: true` an extraction written or removed — the library and theme screens re-read on
- *   them (`projects` is then empty: no project changed). L4.8: `records` names the recordings whose own files changed
+ *   them (`projects` is then empty: no project changed). `records` names the recordings whose own files changed
  *   (`<project>/<rec_id>`: events streamed while the window is open, the annotations, the draft and the check written,
  *   the folder created or removed — record-watch.ts); a Record screen re-reads its own recording's view on it.
- * - At most 4 streams (critique B1): the page keeps one per browser (the tab holding a Web Lock relays to the others
+ * - At most 4 streams: the page keeps one per browser (the tab holding a Web Lock relays to the others
  *   over a BroadcastChannel); a 5th gets 503 `too_many_streams` and that tab re-reads on a timer instead. A stream is
  *   never an op: the op counter does not move.
  *
@@ -54,8 +53,8 @@ import { recordsChanges, recordsWatchScan } from './record-watch.js';
 import { errorMessage } from '@retake/core/base';
 
 /**
- * One server-sent event: `data` is one line of JSON with U+2028 / U+2029 escaped (review A M1: JSON.stringify leaves
- * them raw, and a reader treating them as line ends would drop the event — a page's text may hold them).
+ * One server-sent event: `data` is one line of JSON with U+2028 / U+2029 escaped (JSON.stringify leaves them raw,
+ * and a reader treating them as line ends would drop the event — a page's text may hold them).
  */
 export function sseText(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)
@@ -94,9 +93,9 @@ export class Live {
   private readonly streams = new Set<ServerResponse>();
   private readonly jobs: JobsWatch;
   private sources: SourceMap | undefined;
-  /** L4.7: the library / theme watch as last scanned (the engine's library-watch.ts). */
+  /** The library / theme watch as last scanned (the engine's library-watch.ts). */
   private libSources: Map<string, string> | undefined;
-  /** L4.8: the recordings' files as last scanned (record-watch.ts). */
+  /** The recordings' files as last scanned (record-watch.ts). */
   private recSources: Map<string, string> | undefined;
   /** Without node:sqlite: each project's runs as last read (what a run change is told from). */
   private readonly runRows = new Map<string, RunRow[]>();
@@ -171,8 +170,8 @@ export class Live {
     this.recSources = recNext;
     if (this.closed) return;
     const w = workspaceChanges(keys);
-    // L4.5 part E: the projects whose renders/ folder changed (a render written, a version reserved or released), or
-    // their review/ (L5.10a fixes: a review run from a terminal).
+    // The projects whose renders/ folder changed (a render written, a version reserved or released), or
+    // their review/ (a review run from a terminal).
     const renders = [
       ...new Set(
         keys
@@ -181,7 +180,7 @@ export class Live {
           .map((k) => k.project as string),
       ),
     ].sort();
-    // L5.10a fixes: the projects whose project.yaml, sandbox.yaml or scenario list changed — always sent (empty: none),
+    // The projects whose project.yaml, sandbox.yaml or scenario list changed — always sent (empty: none),
     // so a page tells "a file no list names" from "a runs folder that changed with no run told yet".
     const files = [
       ...new Set(
@@ -199,16 +198,16 @@ export class Live {
         ...(w.scenarios.length ? { scenarios: w.scenarios } : {}),
         ...(renders.length ? { renders } : {}),
         ...(runs.length ? { runs } : {}),
-        // L4.6 (plan D9): the scenarios whose comment threads changed — a thread written, an entry appended.
+        // The scenarios whose comment threads changed — a thread written, an entry appended.
         ...(w.comments?.length ? { comments: w.comments } : {}),
-        // L4.7: theme folders, component namespaces and site extractions that changed.
+        // Theme folders, component namespaces and site extractions that changed.
         ...lib,
-        // L4.8: the recordings whose files changed (`<project>/<rec_id>`): a Record screen re-reads its own.
+        // The recordings whose files changed (`<project>/<rec_id>`): a Record screen re-reads its own.
         ...(records.length ? { records } : {}),
       });
     }
     if (changed.length) {
-      // L5.10a fixes (review A-L7): the projects of the changed jobs, so an open project's board ignores another one's.
+      // The projects of the changed jobs, so an open project's board ignores another one's.
       const projects = [
         ...new Set(
           changed
@@ -217,7 +216,7 @@ export class Live {
             .filter((x): x is string => typeof x === 'string'),
         ),
       ].sort();
-      // L5.14: what a filming take holds of the workspace's jobs now (fixed words and a kind; null: nothing).
+      // What a filming take holds of the workspace's jobs now (fixed words and a kind; null: nothing).
       this.send('jobs', { changed, projects, held: this.jobs.held() ?? null });
     }
     if (keys.length && generation !== undefined) this.send('index', { generation });

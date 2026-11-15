@@ -1,6 +1,6 @@
 /**
- * Waiting on a job inside a call (moved from the MCP server's tools/run.ts in L7.13): the long-poll budgets, the
- * `wait_s` argument and the wait itself, with progress notifications; the call's cancel ends the wait, never the job.
+ * Waiting on a job inside a call: the long-poll budgets, the `wait_s` argument and the wait itself, with progress
+ * notifications; the call's cancel ends the wait, never the job.
  */
 import { z } from 'zod';
 import type { Engine } from '../engine.js';
@@ -9,7 +9,7 @@ import type { ToolContext } from './define.js';
 
 /** Long-poll budget of one call (s): no call outlives an agent's tool timeout. */
 export const WAIT_MAX_S = 25;
-/** job_status's own budget (L5.8, R-FLD-34): a capture or a render followed in one call instead of a side script. */
+/** job_status's own budget (R-FLD-34): a capture or a render followed in one call instead of a side script. */
 export const JOB_WAIT_MAX_S = 600;
 /** While a long wait lasts, a progress notification at least this often (clients that time out without one). */
 export const WAIT_HEARTBEAT_MS = 15_000;

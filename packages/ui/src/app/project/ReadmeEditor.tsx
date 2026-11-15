@@ -1,5 +1,5 @@
 /**
- * The README editor (L4.1): a plain textarea (no Markdown rendering: a renderer is the largest script-injection
+ * The README editor: a plain textarea (no Markdown rendering: a renderer is the largest script-injection
  * surface), saved through `project_update_readme` — the tool's atomic write — always with `if_match` (the hash the text
  * was based on; null only when there was no README).
  *
@@ -17,7 +17,7 @@
  *   rewritten with replacement characters. A project with no README.md says that saving creates it.
  * - Unsaved text survives moving around the app (drafts.ts) and the end of the session (main.tsx); Cmd/Ctrl+S saves;
  *   closing the tab asks first.
- * L5.12b « Épure » 4b (R-UI-48): on the kit — a tall text area, Callouts for what changed or failed, the shared conflict
+ * (R-UI-48) On the kit — a tall text area, Callouts for what changed or failed, the shared conflict
  * panel and kept text (TextEditing.tsx), the save state in words; the title bar names the project, the browser marks the
  * README "unsaved". Still no Markdown preview (deliberate: see above).
  */

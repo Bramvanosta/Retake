@@ -1,5 +1,5 @@
 /**
- * `preview` jobs (L3.2, R-MCP-11 / R-MCP-15): stills of one component (component_preview: its manifest's preview
+ * `preview` jobs (R-MCP-11 / R-MCP-15): stills of one component (component_preview: its manifest's preview
  * samples, or the slot values and params the client gives) or of a theme (template_preview: the theme's own intro,
  * layout with its caption over a sample screen, card, interstitial and outro), rendered by the jobs worker with the
  * editor's `renderComponentPreviews` — one bundle, one browser, guarded like a render (network-guard.ts).
@@ -10,7 +10,7 @@
  * one of the registry; slot values only for text slots (text, url, color — file and media slots keep their samples);
  * params valid against the component's schema. A preview counts nothing in the history. The editor is imported lazily.
  *
- * L4.7 `library` targets (the Studio library): posters and / or loops of up to 12 registry components in the job's theme
+ * The `library` targets (the Studio library): posters and / or loops of up to 12 registry components in the job's theme
  * into the content-keyed cache of ../library.ts — refused under 1 GB free (at submit and in the worker), the worker's
  * own keys (a difference from the client's is reported, never trusted), cached keys skipped, failed keys left alone
  * unless `retry`, one whole-registry bundle (`bundle: 'registry'`: every library job shares it), items isolated (a
@@ -304,8 +304,8 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
     const have = await readLibraryEntry(cacheDir, w.key);
     if (have.state === 'cached') w.state = 'cached';
     else if (have.state === 'too_large') w.state = 'too_large';
-    // A failure under the registry as it is now waits for a Retry; one under another registry state is stale (review
-    // A M3 / B H1: maybe another component's) and is rendered again.
+    // A failure under the registry as it is now waits for a Retry; one under another registry state is stale (maybe
+    // another component's) and is rendered again.
     else if (have.state === 'failed' && !target.retry && failureIsCurrent(have.failure, await keys.registryHash())) w.state = 'kept_failed';
     else if (have.state === 'failed') await dropLibraryEntry(cacheDir, w.key);
   }
@@ -396,7 +396,7 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
       bundle = done.bundle;
       warnings = done.warnings;
       for (const f of done.failed) {
-        // Untrusted words (B16), the workspace's part of any path cut off (review A L2; the Studio shortens the rest).
+        // Untrusted words, the workspace's part of any path cut off (the Studio shortens the rest).
         const reason = libraryReason(f.reason.split(`${ws.root}/`).join('').split(ws.root).join('.'));
         failures.push({ component: f.id, reason });
         const slot = byComponent.get(f.id);

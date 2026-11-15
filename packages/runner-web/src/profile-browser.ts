@@ -1,5 +1,5 @@
 /**
- * Signed-in profiles and the Chromium that opens them (L5.16c, critique M6): the installed app brings its own Chromium,
+ * Signed-in profiles and the Chromium that opens them: the installed app brings its own Chromium,
  * a repository checkout uses the one its Playwright pins, and both read the same profiles in the Retake home. A profile
  * a newer Chromium wrote, opened by an older one, is a downgrade Chromium does not support — its sessions may be lost.
  * So every launch on a persona's profile records the Chromium major that opened it (`retake-browser.json` in the

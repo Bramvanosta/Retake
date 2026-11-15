@@ -1,8 +1,8 @@
 /**
- * L5.14a captures first in the terminal: a heavy command waits to start while a take of this user films (one line on
+ * Captures first in the terminal: a heavy command waits to start while a take of this user films (one line on
  * stderr, stdout untouched), starts within a poll once it ends, then yields (background priority) during a later take;
  * `--no-wait` skips both; nothing filming costs nothing; a take's own hooks never wait for it; Ctrl-C while waiting exits
- * interrupted with nothing written (the built CLI). L5.14a fixes (review B H2 / L6): every heavy command waits —
+ * interrupted with nothing written (the built CLI). Every heavy command waits —
  * render, still, export, review, export-capture (and run --raw: cli e2e.test.ts) —, `latest` is the one named before the
  * wait, a marker of the CLI's own parent (a take's hook) does not hold it, and `--no-wait` / Ctrl-C are checked by what
  * they wrote.
@@ -30,7 +30,7 @@ const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const BIN = join(REPO, 'packages/cli/dist/bin.js');
 const REAL_RUN = '20260101-120000-held';
 
-/** A whole capture of `held` in `dir` — its record, the head of its timeline, its film: what `latest` takes (L7.6a). */
+/** A whole capture of `held` in `dir` — its record, the head of its timeline, its film: what `latest` takes. */
 function wholeCapture(dir: string, id: string): void {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'run.json'), JSON.stringify(syntheticRunRecord(dir, { id, scenario: 'held', project: 'latest' })));

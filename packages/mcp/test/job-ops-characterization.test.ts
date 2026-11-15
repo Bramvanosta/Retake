@@ -1,5 +1,5 @@
 /**
- * Submitting and controlling jobs (L7.15's family), characterized through their shells before they became the engine's
+ * Submitting and controlling jobs, characterized through their shells before they became the engine's
  * operations: MCP's run_dry, run_capture, render, review, export, page_inspect, job_cancel (and job_status on each kind
  * they queue) through `retake mcp` over stdio (from the sources, the SDK's client, which asks no approval), and the
  * Studio's scenario_run, scenario_render, review_export, run_pause, sign_in_cancel, render_cancel through its

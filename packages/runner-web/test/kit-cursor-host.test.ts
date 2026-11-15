@@ -1,5 +1,5 @@
 /**
- * L5.13 (critique L5): the in-page cursor's host element is renamed with the product (`<retake-cursor>`); the kit's
+ * The in-page cursor's host element carries the product's name (`<retake-cursor>`); the kit's
  * text helpers and resolver skip it by tag name (SKIP_TAGS), so the two names must move together — a host the resolver
  * did not skip could be taken for page text (its tag name is compared upper-case, as the DOM reports it).
  */

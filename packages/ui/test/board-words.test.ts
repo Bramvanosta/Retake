@@ -1,5 +1,5 @@
 /**
- * L5.10a: the Project screen's state words (board-words.ts) — every row of the table yields a mark AND a non-empty word
+ * The Project screen's state words (board-words.ts) — every row of the table yields a mark AND a non-empty word
  * (never colour alone), the smart groups, the render rule shared with the scenario screen (sameVersion), every review
  * state and every run status, the length and content words, search and sort.
  */
@@ -92,10 +92,10 @@ const ROWS: Array<[string, BoardScenario, string, string, string | null]> = [
   ['render of another capture', base({ capture: capture(true), render: render(CLEAN, { run_id: '20261019-100000-quote' }) }), 'warn', 'Render outdated', 'ready'],
   ['render of an earlier file', base({ capture: capture(true), render: render(CLEAN, { edit: { from: 'scenario', sha256: 'b'.repeat(64) } }) }), 'warn', 'Render outdated', 'ready'],
   ['render as captured', base({ capture: capture(true), render: render(CLEAN, { edit: { from: 'run' } }) }), 'warn', 'Render outdated', 'ready'],
-  // L5.10a fixes (review B-L2): the theme a render would use today counts, as on the scenario screen.
+  // The theme a render would use today counts, as on the scenario screen.
   ['render with the theme of today', base({ theme: 'default', capture: capture(true), render: render(CLEAN) }), 'ok', 'Rendered · clean', null],
   ["render with another theme than today's", base({ theme: 'editorial', capture: capture(true), render: render(CLEAN) }), 'warn', 'Render outdated', 'ready'],
-  // L7.8 (BL-164): the board's own verdict, which compares a theme it cannot name (no `theme`) by its identity.
+  // BL-164: the board's own verdict, which compares a theme it cannot name (no `theme`) by its identity.
   ["the board says the render does not show today's file (a theme it cannot name)", base({ capture: capture(true), render: render(CLEAN), render_current: false }), 'warn', 'Render outdated', 'ready'],
   ["the board says the render shows today's file (a theme it cannot name)", base({ capture: capture(true), render: render(CLEAN), render_current: true }), 'ok', 'Rendered · clean', null],
   ['shot, not rendered', base({ capture: capture(true), last_run: run(CAP) }), 'waiting', 'Shot · ready to render', 'ready'],

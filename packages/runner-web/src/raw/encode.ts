@@ -1,5 +1,5 @@
 /**
- * Encoding of a raw export's clips (L2.13, R-RAW-01): each clip frame is the screencast frame on screen at its capture
+ * Encoding of a raw export's clips (R-RAW-01): each clip frame is the screencast frame on screen at its capture
  * time (`cfrSchedule` at the export rate over the run's frame index — 60 fps by real frame timing, never
  * interpolated), linked into a plain sequence and encoded once from the captured JPEG / PNG frames (no generation
  * loss from capture.mp4): H.264 high profile CRF 14 yuv420p + faststart (.mp4) or ProRes 422 HQ yuv422p10le (.mov),

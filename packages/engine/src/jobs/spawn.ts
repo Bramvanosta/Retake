@@ -1,10 +1,10 @@
 /**
- * Starting the jobs worker of a workspace (L3.1): `ensureWorker` after each submit — nothing when the worker lock's
+ * Starting the jobs worker of a workspace: `ensureWorker` after each submit — nothing when the worker lock's
  * holder is alive, else a detached `node …/engine/worker-main.js --root <ws>` whose output goes to
  * .retake/workers/worker.log. It outlives the client that started it (a capture finishes with its teardown even
  * when the MCP session closes) and exits once idle. Run from the sources (tests), the same entry is started as
  * TypeScript through tsx with the packages' `source` export condition. From an app bundle the worker gets the bundle's
- * module lookup guard first (core bundleNodeArgs: `--require <Resources>/node/guard.cjs`, L5.16).
+ * module lookup guard first (core bundleNodeArgs: `--require <Resources>/node/guard.cjs`).
  */
 import type { EngineEnv } from '../env.js';
 import { spawn } from 'node:child_process';
@@ -24,8 +24,8 @@ export interface WorkerSpawnOptions {
   /** Exit after this long without a job (ms; default the worker's own, 60 s). */
   idleExitMs?: number;
   /**
-   * The worker's environment: its starter's (the engine's ports env; for every client but the CLI a clean one, L4.2,
-   * critique B5: the PATH sanitised like `retake mcp`'s, no package-manager or LLM variables, RETAKE_HOME kept).
+   * The worker's environment: its starter's (the engine's ports env; for every client but the CLI a clean one, the
+   * PATH sanitised like `retake mcp`'s, no package-manager or LLM variables, RETAKE_HOME kept).
    */
   env: EngineEnv;
   /** The client starting it, recorded in the worker lock (`started_by`). */
@@ -70,10 +70,10 @@ export function workerCommand(root: string, opts: Pick<WorkerSpawnOptions, 'idle
 }
 
 /**
- * The command line of a job process (L5.14): the worker's own entry in `--job` mode, for one heavy job the worker
+ * The command line of a job process: the worker's own entry in `--job` mode, for one heavy job the worker
  * claimed. `--build` is the worker's stamp: the job process refuses to start on another build (exit 3). Its folders come
- * in RETAKE_JOB_BUILD_DIRS (critique H1: a worker run in-process by a test resolves the packages otherwise than a
- * process started from the sources, so the job process stamps the worker's folders, not its own).
+ * in RETAKE_JOB_BUILD_DIRS (a worker run in-process by a test resolves the packages otherwise than a process
+ * started from the sources, so the job process stamps the worker's folders, not its own).
  */
 export function jobProcessCommand(root: string, job: { id: string; kind: string; build: string; supervisor: number; digest: string }): { command: string; args: string[] } {
   const args = entryArgs();
@@ -98,7 +98,7 @@ export async function spawnWorker(root: string, opts: WorkerSpawnOptions): Promi
 
 /**
  * What a submit says when the workspace's worker runs another copy of Retake (`other`: ensureWorker's). Fixed words and
- * a version's shape only (review c A-L4): the lock is a file, its folder is said under `untrusted` where it is shown
+ * a version's shape only: the lock is a file, its folder is said under `untrusted` where it is shown
  * (engine_info, the Studio's notice).
  */
 export function otherCopyWarning(other: { version: string; engine?: string }): string {
@@ -113,7 +113,7 @@ export function otherCopyWarning(other: { version: string; engine?: string }): s
  */
 export async function ensureWorker(root: string, opts: WorkerSpawnOptions): Promise<{ pid?: number; spawned: boolean; other?: { version: string; engine?: string } }> {
   const live = await liveWorker(root);
-  // L5.16c (critique M6): a live worker of another copy of Retake runs this job with its own tools — said by the submit.
+  // A live worker of another copy of Retake runs this job with its own tools — said by the submit.
   const other = otherCopy(live, { engine: engineLocation(), version: RETAKE_VERSION });
   if (live) return { pid: live.pid, spawned: false, ...(other ? { other } : {}) };
   return { pid: await spawnWorker(root, opts), spawned: true };

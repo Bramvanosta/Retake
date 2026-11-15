@@ -1,5 +1,5 @@
 /**
- * L5.12a: the Review report and Edit's Render, end to end in headless Chromium against a real Studio server (no worker:
+ * The Review report and Edit's Render, end to end in headless Chromium against a real Studio server (no worker:
  * nothing renders) — on the self-numbering bits take (test-support take.ts) with bits-v1, a render of the version the
  * timeline shows (a11y-tour's writeRender: its plan, an x264 video for its frames), and its review written by hand
  * (two sheets, three findings — one message carries markup), a render whose review is queued (v2), one whose review
@@ -16,14 +16,13 @@
  * - ⚑ H2: Render — the report's and Edit's (the screen owns ⌘B: the menu's command is its button) queue a render through
  *   useRenders; ⚑ on a proposal's preview ⌘B renders nothing (said); ⚑ a file changed since Edit showed it is refused
  *   (render-refused) and the view read again.
- * L5.12a fixes (the two reviews): ⚑ on a proposal's preview Render is refused before the view is read and on an error too
- * (A-M1); ⚑ Show in Edit says "another version" only when the render is found and differs (B-M1), ⚑ a pending one is
- * dropped by an Edit that cannot show the take, whose browser pane stays collapsed (A-L6, A-L7); the renders newest first,
- * with their time of day when they share a date, each a link (B-L2, A-L5); the report's status bar says "Rendered" with a
- * neutral mark (B-L1); Edit: its status line in plain words (B-L3), the inspector's general hint last with no blank band
- * (B-L4), ⚑ the transport leaves the arrows to the playhead after a click (B-L5), [ ] and Shift+← → on the scrubber (A-L2),
- * every track item a 24 px target (A-L3).
- * `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
+ * Also: ⚑ on a proposal's preview Render is refused before the view is read and on an error too; ⚑ Show in Edit says
+ * "another version" only when the render is found and differs, ⚑ a pending one is dropped by an Edit that cannot show
+ * the take, whose browser pane stays collapsed; the renders newest first, with their time of day when they share a
+ * date, each a link; the report's status bar says "Rendered" with a neutral mark; Edit: its status line in plain words,
+ * the inspector's general hint last with no blank band, ⚑ the transport leaves the arrows to the playhead after a
+ * click, [ ] and Shift+← → on the scrubber, every track item a 24 px target. `RETAKE_UI_SHOTS=<folder>` saves
+ * screenshots there.
  */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -99,7 +98,7 @@ beforeAll(async () => {
   if (!('view' in v)) throw new Error(`blocked: ${JSON.stringify(v.blocked)}`);
   await writeRender(dir, v.plan as EditPlan, v.view.hash!);
   // Its theme folder's hash as a render writes it (the timeline's "from this version" compares plan and theme files).
-  // (L5.12a fixes, review B-L2: the oldest of the four, so the list reads v4, v3, v2, v1 — newest first.)
+  // (the oldest of the four, so the list reads v4, v3, v2, v1 — newest first.)
   const rec = JSON.parse(await readFile(join(dir, 'renders', 'bits-v1.json'), 'utf8')) as Record<string, unknown>;
   await writeFile(
     join(dir, 'renders', 'bits-v1.json'),
@@ -214,8 +213,8 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     expect(await views.getByRole('link', { name: 'Report' }).getAttribute('aria-current')).toBe('page');
     await expect.poll(() => page.getByTestId('comments-tab').innerText(), POLL).toBe('Comments (1 open)');
     await expect.poll(() => page.getByTestId('review-verdict').innerText(), POLL).toContain('1 error, 1 warning, 1 note');
-    // The status bar: what the render did, with a neutral mark — never a verdict beside the review's (review B-L1).
-    // L5.12b fixes (review B-M3): the line Review shares with Comments ends with the scenario's comment counts.
+    // The status bar: what the render did, with a neutral mark — never a verdict beside the review's.
+    // The line Review shares with Comments ends with the scenario's comment counts.
     expect((await page.getByTestId('review-state').textContent())!.replace(/\s+/g, ' ').trim()).toMatch(/^Rendered · .+ · v1 · \d+ open · \d+ resolved$/);
     expect(await page.getByTestId('review-state').locator('.k-mark-shape').getAttribute('class')).toContain('k-mark-idle');
     // v1 shows the version on screen: no "another version" note.
@@ -319,8 +318,8 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     const card = page.getByTestId('renders-card');
     await expect.poll(() => card.locator('[data-testid="render-row"]').count(), POLL).toBe(3);
     expect(await card.innerText()).not.toMatch(/\bpassed\b/i);
-    // Newest first (the newest three, then Show all); they share a date, so each says its time of day too (review B-L2);
-    // a row is a link (A-L5).
+    // Newest first (the newest three, then Show all); they share a date, so each says its time of day too;
+    // a row is a link.
     expect(await card.getByTestId('render-row').evaluateAll((els) => els.map((e) => e.getAttribute('data-id')))).toEqual(['bits-v4', 'bits-v3', 'bits-v2']);
     await card.getByRole('button', { name: 'Show all 4 renders' }).click();
     expect(await card.getByTestId('render-row').evaluateAll((els) => els.map((e) => e.getAttribute('data-id')))).toEqual(['bits-v4', 'bits-v3', 'bits-v2', 'bits-v1']);
@@ -400,7 +399,7 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     const edit = (await openJobs('render'))[0];
     expect(edit.input).toMatchObject({ kind: 'render', scenario: 'bits', run_id: RUN, edit_sha256: sha(BITS_TEXT) });
     await expect.poll(() => page.getByTestId('render-job').getAttribute('data-state'), POLL).toBe('queued');
-    // M6: Cancel in the status bar (Stop is for runs).
+    // Cancel in the status bar (Stop is for runs).
     await page.getByTestId('render-cancel').click();
     await expect.poll(async () => (await openJobs('render')).length, POLL).toBe(0);
 
@@ -488,19 +487,19 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     await page.goto(`${studio.url}#/p/demo/s/bits/timeline`);
     await page.getByTestId('tracks').waitFor(POLL);
     const frame = async () => Number(await page.getByTestId('preview').getAttribute('data-frame'));
-    // B-L3: plain words, no tag, never two spaces.
+    // Plain words, no tag, never two spaces.
     const source = page.getByTestId('timeline-source');
     expect(await source.innerText()).toBe(`Today's edit of take ${RUN}`);
     expect(await source.locator('.k-tag').count()).toBe(0);
     expect(await page.getByTestId('edit-state').innerText()).not.toMatch(/ {2}/);
-    // B-L4: the selected segment first (right under the pane's top), the general hint last.
+    // The selected segment first (right under the pane's top), the general hint last.
     await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
     const band = await page.evaluate(
       () => document.querySelector('[data-testid="inspector-segment"]')!.getBoundingClientRect().top - document.querySelector('.sh-inspector')!.getBoundingClientRect().top,
     );
     expect(band).toBeLessThanOrEqual(16);
     expect(await page.locator('.ed-inspector > :last-child').getAttribute('data-testid')).toBe('inspector-general');
-    // B-L5: a click on Next frame (no blur), then → and End are the playhead's, not the toolbar's.
+    // A click on Next frame (no blur), then → and End are the playhead's, not the toolbar's.
     await page.getByTestId('play').waitFor(POLL);
     const at = await frame();
     await page.getByTestId('next-frame').click();
@@ -510,7 +509,8 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('next-frame');
     await page.keyboard.press('Home');
     await expect.poll(frame, POLL).toBe(0);
-    // (After a Tab into it the toolbar roves: the kit's own test.) A-L2: the scrubber focused — ] the next segment, Shift+→ a second.
+    // (After a Tab into it the toolbar roves: the kit's own test.) The scrubber focused — ] the next segment, Shift+→ a
+    // second.
     await page.getByTestId('scrubber').focus();
     await page.keyboard.press(']');
     await expect.poll(frame, POLL).toBeGreaterThan(0);
@@ -520,7 +520,7 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     await expect.poll(frame, POLL).toBe(seg + fps);
     await page.keyboard.press('[');
     await expect.poll(frame, POLL).toBe(seg);
-    // A-L3: every track item is at least 24 px tall; a tick 24 px wide; a span narrower has a 24 px hit area.
+    // Every track item is at least 24 px tall; a tick 24 px wide; a span narrower has a 24 px hit area.
     const sizes = await page.locator('.k-trackitem-button').evaluateAll((els) =>
       els.map((e) => {
         const r = e.getBoundingClientRect();

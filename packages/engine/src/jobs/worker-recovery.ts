@@ -1,6 +1,6 @@
 /**
  * What earlier workers left, recovered by a jobs worker (worker.ts) before its first claim: the job processes a dead
- * worker left (signalled only when provably that job's — review A M1), the approvals and rollbacks no job needs any more.
+ * worker left (signalled only when provably that job's), the approvals and rollbacks no job needs any more.
  */
 import { errorMessage } from '../errors.js';
 import { execFile } from 'node:child_process';
@@ -25,7 +25,7 @@ function commandLine(pid: number): Promise<string | null> {
 }
 
 /**
- * Review A M1: the process a running job's record names is provably that job's job process — a pid this worker may
+ * The process a running job's record names is provably that job's job process — a pid this worker may
  * signal, on this host, running with the recorded start time (ps), with the command line of a job process of this job
  * and this workspace (`worker-main… --job <id> --kind … --root <root> --build`). A hand-edited, restored or synced
  * job.json never makes the worker signal another process.
@@ -44,7 +44,7 @@ async function provenJobProcess(id: string, root: string, w: JobWorkerInfo | und
 /**
  * Before any claim (probe 3: no kernel safety net): a job process a dead worker left — it ends its job itself once its
  * worker is gone; given `orphanGraceMs`, then SIGTERM (cancel with teardown), then its tree killed; its end persisted.
- * Only a process provably that job's is ever signalled (review A M1); any other recorded pid is left alone and the job
+ * Only a process provably that job's is ever signalled; any other recorded pid is left alone and the job
  * persisted `interrupted` (its clean-ups, which may signal its recorded browser, do not run then).
  */
 async function recoverOrphans(w: Worker): Promise<void> {

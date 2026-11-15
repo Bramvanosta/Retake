@@ -1,33 +1,33 @@
 /**
- * L5.11a: Shoot's actions end to end in headless Chromium — the built-in Studio server with no worker (a started run
+ * Shoot's actions end to end in headless Chromium — the built-in Studio server with no worker (a started run
  * stays queued: nothing reaches a page), a project of this test's own:
  *
  * - ⚑ one run per start: a click and two menu commands in the same tick queue ONE rehearsal (the store's `sending`
  *   guard; the server's one-run-per-scenario 409 stays the authority); in a browser tab ⌘R, ⇧⌘R, ⌘B and ⌘. stay the
- *   browser's (nothing bound, nothing sent) and the palette's Scenario group runs them (critique M3);
+ *   browser's (nothing bound, nothing sent) and the palette's Scenario group runs them;
  * - ⚑ a command acts only when it can: a blocked capture by ⇧⌘R sends nothing and says why in the gate's words; no
  *   scenario in context says so; the blocker line's Copy command copies exactly the command;
- * - ⚑ Stop's owner (critique H1): after a reload of a live route the screen's own Stop answers ⌘. — a terminal's run is
+ * - ⚑ Stop's owner: after a reload of a live route the screen's own Stop answers ⌘. — a terminal's run is
  *   told "Ctrl-C there" and nothing is sent; a Studio run's live screen stops ITS run; off the live route the status
- *   bar's Stop is off for a terminal's run (critique M4);
+ *   bar's Stop is off for a terminal's run;
  * - ⚑ the confirmation sheet: "Sign in owner first…" holds the focus (Return chooses it), Escape and Cancel queue
  *   nothing and give the focus back, Capture anyway sends `sessions_ack` once; on Prepare it asks before any request;
  * - ⚑ the location: the status bar sends `env` only when the tab chose another location than the file's — on the
  *   Project screen too — and names it;
  * - ⚑ a step's progress is never said in the polite line, and the status bar follows it with run_status, not
  *   scenario_actions.
- * L5.11a fixes (reviews A and B):
- * - ⚑ the blocker's command is shown in full in a popover beside its Copy (what is copied is what is shown, A-M3);
- * - ⚑ a start from Prepare leaves the focus on the live screen's title; a refusal shows its words and takes the focus
- *   (A-M2 / B-M2); the polite line is text (A-M4), goes on a route change and after 6 s (B-M1); a scenario that cannot
- *   be read says so where it would wait (B-L6);
- * - ⚑ a run's job rewritten at each step reads no scenario_actions and no engine_info (A-M1);
+ * Also:
+ * - ⚑ the blocker's command is shown in full in a popover beside its Copy (what is copied is what is shown);
+ * - ⚑ a start from Prepare leaves the focus on the live screen's title; a refusal shows its words and takes the focus;
+ *   the polite line is text, goes on a route change and after 6 s; a scenario that cannot
+ *   be read says so where it would wait;
+ * - ⚑ a run's job rewritten at each step reads no scenario_actions and no engine_info;
  * - ⚑ a terminal's run and a Studio run together: Stop acts on the Studio run; ⌘. on a live screen stops the run it
- *   shows and nothing else (B-M5 / A-L4); ⌘. twice says the stop is on its way (A-L3); the outcome's Rehearse again and
- *   Start capture open the new run (B-L4);
+ *   shows and nothing else; ⌘. twice says the stop is on its way; the outcome's Rehearse again and
+ *   Start capture open the new run;
  * - ⚑ Prepare's sessions table at 1280 and 900 px: no Location column, no cell under its header word, nothing overlaps,
- *   notes on their own line and never repeating an issue, no Sign in for a persona its login steps sign in (B-H1,
- *   B-L1); ⌘. with the palette open closes it and answers (A-L3).
+ *   notes on their own line and never repeating an issue, no Sign in for a persona its login steps sign in;
+ *   ⌘. with the palette open closes it and answers.
  * `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -242,7 +242,7 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
     await command('capture');
     await expect.poll(said, POLL).toBe('Capture of hooked is blocked: 1 hook to approve');
     expect(ops('scenario_run', t0)).toEqual([]);
-    // Command…: a popover SHOWS the whole command (review A-M3: never a command copied unseen) beside its Copy.
+    // Command…: a popover SHOWS the whole command (never a command copied unseen) beside its Copy.
     const pop = page.getByTestId('blockers-capture-popover');
     expect(await pop.isVisible()).toBe(false);
     expect(await line.innerText()).not.toContain(ws);
@@ -256,7 +256,7 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
     expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('blockers-capture-copy');
     await page.getByTestId('blockers-capture-copy').click();
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()), POLL).toBe(shownCommand);
-    // "Copied" is visible (review B-L8), not only to a screen reader.
+    // "Copied" is visible, not only to a screen reader.
     await expect.poll(() => pop.getByRole('status').innerText(), POLL).toBe('Copied');
     const copiedBox = await pop.getByRole('status').boundingBox();
     expect(copiedBox!.width).toBeGreaterThan(20);
@@ -290,7 +290,7 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
       await page.getByRole('heading', { level: 1, name: 'Rehearsal of free' }).waitFor(POLL);
       await page.getByTestId('controls-why').waitFor(POLL);
       await page.locator('.sp-live-screen[data-read="yes"]').waitFor(POLL);
-      // Review A-L6: the live state word is the status bar's ("Rehearsing"), not "worker busy".
+      // The live state word is the status bar's ("Rehearsing"), not "worker busy".
       await expect.poll(() => page.getByTestId('live-state').innerText(), POLL).toBe('Rehearsing');
       const t0 = Date.now();
       await command('stop');
@@ -303,7 +303,7 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
       await command('stop');
       await expect.poll(said, POLL).toContain('Ctrl-C');
       expect(ops('run_cancel', t0)).toEqual([]);
-      // Prepare: its disabled Pause and Stop say why (review A-L2), and the running callout says it in words.
+      // Prepare: its disabled Pause and Stop say why, and the running callout says it in words.
       await page.goto(`${studio.url}#/p/${P}/s/free/run`);
       await page.getByRole('heading', { level: 1, name: 'Prepare a take of free' }).waitFor(POLL);
       await expect.poll(() => page.getByTestId('run-stop').isDisabled(), POLL).toBe(true);
@@ -459,10 +459,10 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
     await start.click();
     await page.waitForURL(/\/run\/\d{8}-\d{6}-free$/, POLL);
     await page.getByTestId('live-title').waitFor(POLL);
-    // Review A-M2: the focus is on the live screen's title, never left on <body>.
+    // The focus is on the live screen's title, never left on <body>.
     await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid')), POLL).toBe('live-title');
     expect(ops('scenario_run', t0)).toHaveLength(1);
-    // Review B-M1: "queued" was said on Prepare; the live screen says the run's own state — the line went with the route
+    // "queued" was said on Prepare; the live screen says the run's own state — the line went with the route
     // (at once: long before its 6 s).
     await sleep(1000); // past the line's own 30 ms re-announce delay: a line kept would show by now
     expect(await said()).toBe('');
@@ -499,7 +499,7 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
       expect(await page.getByTestId('start-refused-box').innerText()).toContain('The rehearsal was not started');
       expect(await page.getByTestId('start-refused-box').getByTestId('blocker-fix').innerText()).toBe(`retake -C ${ws} run ${P} free`);
       await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid')), POLL).toBe('start-refused-box');
-      // Review A-M4: the polite line is text — the override shown as a mark, never applied.
+      // The polite line is text — the override shown as a mark, never applied.
       await expect.poll(said, POLL).toBe('The rehearsal of free was not started: refused [U+202E]by the test');
       expect(await page.locator('.sh-said bdi').count()).toBe(1);
       // Gone after about 6 s (announced once), on the same screen.
@@ -521,7 +521,7 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
     await openScenario('free');
     await stopAll();
 
-    // Review B-L6: a scenario whose actions cannot be read says so where it would wait (not "Loading…").
+    // A scenario whose actions cannot be read says so where it would wait (not "Loading…").
     await page.route('**/v1/call/scenario_actions', (route) =>
       route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'internal', message: 'unreadable by the test' } }) }),
     );
@@ -637,7 +637,7 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
       expect(await table.locator('thead th').allTextContents()).toEqual(['Persona', 'Session', 'Last check', 'Sign in']);
       const lead = table.locator('[data-testid="session-row"][data-persona="lead"]');
       const editor = table.locator('[data-testid="session-row"][data-persona="editor"]');
-      // Review B-L1: the lead's login steps sign it in at every run — no "Sign in…" to offer.
+      // The lead's login steps sign it in at every run — no "Sign in…" to offer.
       expect(await lead.getByTestId('sign-in-button').count()).toBe(0);
       expect(await lead.getByTestId('signed-in-by').innerText()).toBe('Each run signs it in, off camera');
       expect(await editor.getByTestId('sign-in-button').count()).toBe(1);
@@ -658,12 +658,12 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
       await shot('64-shoot-sessions-1280');
       await page.setViewportSize({ width: 900, height: 760 });
       await expect.poll(geometry, POLL).toEqual({ stacked: true, out: [] });
-      // Review A-L1: the Start actions are on screen at 900 px without scrolling past the checks.
+      // The Start actions are on screen at 900 px without scrolling past the checks.
       const box = await page.getByTestId('start-dry').boundingBox();
       expect(box).not.toBeNull();
       expect(box!.y + box!.height).toBeLessThanOrEqual(760 - 34);
       await shot('65-shoot-sessions-900');
-      // Review A-L1: at 900 px the status bar drops whole segments (the last take, the scenario's name), never cuts a
+      // At 900 px the status bar drops whole segments (the last take, the scenario's name), never cuts a
       // word — a production with a last take AND a blocker on the Project screen, the tightest case.
       await writeRun(project(), { id: '20261101-090000-hooked', scenario: 'hooked', mode: 'dry', status: 'cancelled', noTimeline: true, steps_total: 1, events: [] });
       await page.goto(`${studio.url}#/p/${P}`);
@@ -695,7 +695,7 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
     } finally {
       await page.setViewportSize({ width: 1360, height: 860 });
     }
-    // Review A-L3: ⌘. always answers — the palette open, it closes and Stop's owner says what it does.
+    // ⌘. always answers — the palette open, it closes and Stop's owner says what it does.
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+k' : 'Control+k');
     await page.locator('dialog.k-palette[open]').waitFor(POLL);
     await command('stop');

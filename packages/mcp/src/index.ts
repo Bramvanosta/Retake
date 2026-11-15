@@ -1,21 +1,25 @@
 /**
- * @retake/mcp — the MCP server (L3.1, R-MCP-01): Retake's engine as MCP tools over stdio, started by
+ * @retake/mcp — the MCP server (R-MCP-01): Retake's engine as MCP tools over stdio, started by
  * `retake mcp`. The read side (engine, projects, scenarios, runs, auth and sandbox status), the authored files
  * (project_create, project_update_readme, scenario_save with if_match), and dry runs and captures as jobs (run_dry,
  * run_capture, run_status with wait_s, run_cancel, job_*), hooks and environment resets as jobs (hooks_run, env_reset), and
  * human approval of hooks through elicitation (approval.ts), sign-ins (auth_login: a window for the human) and sandbox
- * up / reset as jobs, renders as jobs (L3.2: plan_preview, render, render_status), reviews and exports as jobs (review, review_get with
+ * up / reset as jobs, renders as jobs (plan_preview, render, render_status), reviews and exports as jobs (review,
+ * review_get with
  * images inline, export), themes and components (template_list, template_preview, component_list / get / validate /
- * preview / create — a scaffold only: no tool writes component code, an existing theme or project.yaml), page inspections for authoring (L3.3:
- * page_inspect as a job; Claude writes the scenario, no tool calls a model; scenario_from_script, a deterministic aid
- * that turns a timecoded script table into a skeleton), and recordings (L3.4: scenario_record — a window where the USER
- * performs a flow, never driven by Claude; the draft comes back through job_status), and new themes (L3.5:
- * template_create_from_brand from the user's files; template_from_site — a draft read off a public page whose URL the
- * user approves, as a job), and frame comments (L3.6: comments_list with each thread's anchor and still, comment_reply,
- * comment_resolve with if_match — people create and reopen threads with `retake comment` or in the Studio, never through
- * this server; L4.6: comment_reply {proposal} for an edit-only change on a Studio thread, applied by the person there).
+ * preview / create — a scaffold only: no tool writes component code, an existing theme or project.yaml), page
+ * inspections for authoring (page_inspect
+ * as a job; Claude writes the scenario, no tool calls a model; scenario_from_script, a deterministic aid that
+ * turns a timecoded script table into a skeleton), and recordings (scenario_record — a window where the USER
+ * performs a flow, never driven by Claude; the draft comes back through job_status), and new themes
+ * (template_create_from_brand
+ * from the user's files; template_from_site — a draft read off a public page whose URL the user
+ * approves, as a job), and frame comments (comments_list with each thread's anchor and still, comment_reply,
+ * comment_resolve with if_match — people create and reopen threads with `retake comment` or in the Studio, never
+ * through this
+ * server; comment_reply {proposal} for an edit-only change on a Studio thread, applied by the person there).
  * Nothing here opens a browser or runs a capture in this process: the workspace's jobs worker, a
- * separate process, runs them. L4.1: the same tools over Streamable HTTP too (`retake mcp --http`, http.ts: 127.0.0.1,
+ * separate process, runs them. The same tools over Streamable HTTP too (`retake mcp --http`, http.ts: 127.0.0.1,
  * the engine's gate refusing any request a browser could send, a stable token in the Retake home).
  */
 import { RETAKE_VERSION } from '@retake/core/base';
@@ -50,7 +54,7 @@ export type { ImageCaps, Thumbnailer, ToolImage, ToolOutput } from './result.js'
 export type { ToolDef, ToolContext } from './tools/define.js';
 /**
  * One call of an operation, SDK-free: the operation contract's (`invoke`, which the Studio's server runs its ops
- * through too). Its deprecated alias `callTool` (L7.13) was removed in L7.21.
+ * through too).
  */
 export { invoke } from '@retake/engine/contract';
 export type { ToolCallOutcome } from '@retake/engine/contract';

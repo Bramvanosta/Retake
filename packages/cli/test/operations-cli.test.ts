@@ -1,5 +1,5 @@
 /**
- * U8.0 (L7.21): what the commands U8 moves onto engine operations print, exit with, record and write — `retake plan`,
+ * What the commands served by engine operations print, exit with, record and write — `retake plan`,
  * `hooks run`, `hooks rollback`, `env reset`, `sandbox init | up | down | reset | status | logs`, `components list |
  * validate | create | preview`, `export-capture` and their `--help` — held byte for byte against
  * fixtures/operations-cli.json, on pipeline-cli.test.ts's method. Each case records stdout, stderr, the exit code, the
@@ -8,21 +8,19 @@
  * files and the workspace components' manifests; the rest by name), and the options of the replaced calls.
  *
  * The heavy calls are replaced at their boundary: the engine's Sandboxes port (`packageSandboxes`, what
- * `cliEnginePorts` is made of; L7.28 — before it, @retake/sandbox's `openSandbox`, with the same records) opens a fake
- * handle (the real one's env, kind, paths and capabilities; up / down / reset / status / logs answer fixed results and
- * journal a seed step as the caller's), @retake/runner-web's `exportCapture` writes a small fake package (its folder
- * and settings from the runner's own `rawPackageDir` / `rawSettings`; `rawExportRun`, the gate, stays real), and the
- * engine's `editorRenderer` (what the CLI ports' `renderer` is made of) is the memory renderer (no bundle, no browser:
- * 1 × 1 previews). The planner (`planEdit`), the hook runner (harmless `shell: echo …` hooks, run for real in the temp
- * workspace), the hook journals, the sandbox scaffold (`initSandbox`), the component registry, validation and scaffold
- * are the real code.
+ * `cliEnginePorts` is made of) opens a fake handle (the real one's env, kind, paths and capabilities; up / down / reset
+ * / status / logs answer fixed results and journal a seed step as the caller's), @retake/runner-web's `exportCapture`
+ * writes a small fake package (its folder and settings from the runner's own `rawPackageDir` / `rawSettings`;
+ * `rawExportRun`, the gate, stays real), and the engine's `editorRenderer` (what the CLI ports' `renderer` is made of)
+ * is the memory renderer (no bundle, no browser: 1 × 1 previews). The planner (`planEdit`), the hook runner (harmless
+ * `shell: echo …` hooks, run for real in the temp workspace), the hook journals, the sandbox scaffold (`initSandbox`),
+ * the component registry, validation and scaffold are the real code.
  *
  * Normalised, and only these: clocks (ISO stamps other than the fixture's own 2026-01-01 ones, a run id's stamp made
  * now, HH:MM:SS, durations), ids made at run time (jobs' and journals'), the workspace and repository paths, the host
  * name as a whole word, Node's and Retake's versions, journal signatures (keyed by the home's secret: their shape). The
  * test also holds that the fixture names nothing of this machine. After an intended change: RETAKE_WRITE_SNAPSHOTS=1 on
- * this file, then review the diff. Recorded on 596f693 (before U8; L7.21's removal of `callTool` touches nothing the
- * CLI runs): no U8 lot starts without it green on the commit before it. Cases marked `pins:` hold today's output where it looks wrong (listed in the lot's notes), unfixed.
+ * this file, then review the diff. Cases marked `pins:` hold today's output where it looks wrong, unfixed.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -46,7 +44,7 @@ const fakes = vi.hoisted(() => ({
 }));
 
 // The stamp of a run or journal id is a clock read (second resolution): a fixed clock, one tick per id, so that two
-// commands never share an id by the timing of the machine (L7.21: they would — see "hooks run twice in one second").
+// commands never share an id by the timing of the machine (they would — see "hooks run twice in one second").
 vi.mock('@retake/core/ids', async (importOriginal) => {
   const real = await importOriginal<typeof import('@retake/core/ids')>();
   return {

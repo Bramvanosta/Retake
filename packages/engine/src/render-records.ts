@@ -1,6 +1,6 @@
 /**
- * The engine's reads of renders/ through the one reader (core/io render-folder.ts), and what its answers say of them
- * (L7.6b): the folder as a listing reads it, one record BY ITS ID, why a file that is there is no record a by-id call
+ * The engine's reads of renders/ through the one reader (core/io render-folder.ts), and what its answers say of them:
+ * the folder as a listing reads it, one record BY ITS ID, why a file that is there is no record a by-id call
  * takes — never "not found" —, and what a `latest` passed over, as an answer carries it (a count a trusted line may
  * say; the file names under `untrusted`). Kept apart from renders.ts so that the comment views, prune and the jobs
  * read renders/ without importing the render views.
@@ -67,8 +67,8 @@ export function renderFileProblem(entry: RenderEntry, id: string): EngineError |
 }
 
 /**
- * The render a review compares `current` with by default (L7.11: the records rule the review package's findPrevious
- * runs, over core, not the reviewer's): core previousRender over the complete records of their own file of renders/
+ * The render a review compares `current` with by default (the records rule the review package's findPrevious runs,
+ * over core, not the reviewer's): core previousRender over the complete records of their own file of renders/
  * (core renderRecordsOf), whose video is there. Undefined when there is none.
  */
 export async function previousOfRender(

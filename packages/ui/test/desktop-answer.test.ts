@@ -1,5 +1,5 @@
 /**
- * L5.12d — the window page's word to the desktop shell (desktop.ts `desktop_answer`, critique M7): Studio only (an
+ * The window page's word to the desktop shell (desktop.ts `desktop_answer`): Studio only (an
  * own op, never an MCP tool), strict input (the question id's shape and one of the two forms), supervised only (409,
  * reason `not_supervised`, on any other server), `shown` capped at 20 a minute while an answer is never capped nor
  * dropped, never a nudge of the job watch; the supervisor frames the lines like its own on the same pipe.
@@ -53,7 +53,7 @@ describe('DesktopPipe', () => {
     expect(pipe.supervised).toBe(true);
     for (let i = 0; i < SHOWN_PER_MIN; i++) expect(pipe.shown(ID)).toBe(true);
     expect(pipe.shown(ID)).toBe(false);
-    // The cap never drops an answer (critique M7): written behind 20 acks, both kinds.
+    // The cap never drops an answer: written behind 20 acks, both kinds.
     pipe.answer(ID, 'cancel');
     pipe.answer(ID, 'proceed');
     expect(lines).toHaveLength(SHOWN_PER_MIN + 2);
@@ -83,7 +83,7 @@ describe('DesktopPipe', () => {
     expect(out).toContain(`\n${JSON.stringify({ type: 'answer', id: ID, answer: 'proceed' })}\n`);
     await server.close();
     sup.stop();
-    // Review B-L6: stopped (the server closing), nothing can be written — said (unavailable, reason stopped), not
+    // Stopped (the server closing), nothing can be written — said (unavailable, reason stopped), not
     // "answered"; nothing written, nothing counted.
     const before = [out.length, desktop.written];
     expect(() => desktop.answer(ID, 'cancel')).toThrow(expect.objectContaining({ code: 'unavailable', opts: expect.objectContaining({ details: { reason: 'stopped' } }) }));
@@ -147,7 +147,7 @@ describe('the op desktop_answer through the Studio server', () => {
     // Never echoes words, never nudges the job watch (like unsaved_report).
     expect(writes).toBe(0);
     off();
-    // Review B-L6: a pipe that can no longer be written (the supervisor stopped) — 503, reason stopped, never 200.
+    // A pipe that can no longer be written (the supervisor stopped) — 503, reason stopped, never 200.
     studio.desktop.attach(() => false);
     for (const body of [
       { id: ID, answer: 'proceed' },

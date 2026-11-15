@@ -1,5 +1,5 @@
 /**
- * `retake sandbox init` (L1.8): a docker-compose sandbox scaffold in a project — `sandbox.yaml` (snapshot strategy),
+ * `retake sandbox init`: a docker-compose sandbox scaffold in a project — `sandbox.yaml` (snapshot strategy),
  * `compose.yaml` (an `app` placeholder page, Postgres 17, Mailpit; ports on 127.0.0.1), `seed/01-demo-data.sql`,
  * `app/index.html` and a README saying how to put the application in it — plus `sandboxes: {<env>: <folder>/sandbox.yaml}`
  * in project.yaml (comments kept). Ports are picked free from 4600 upward (not used by the project's other sandboxes,
@@ -62,8 +62,8 @@ function posixPath(p: string): string {
 
 /**
  * How sandbox.yaml names its JSON Schema: a path relative to its folder when both are under one top-level folder,
- * else a file:// URL (a workspace on another volume, or under /tmp). L5.16c: null when the schema lies inside the
- * installed app (critique H1) — a path into the app written into the person's files breaks when the app moves or
+ * else a file:// URL (a workspace on another volume, or under /tmp). Null when the schema lies inside the
+ * installed app — a path into the app written into the person's files breaks when the app moves or
  * updates, so the scaffold then has no `$schema` line at all.
  */
 export function schemaRef(dir: string, schema: string = SANDBOX_SCHEMA_FILE, bundle: BundleInfo | null = bundleInfoOrNull()): string | null {

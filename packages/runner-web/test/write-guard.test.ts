@@ -1,5 +1,5 @@
 /**
- * The read-only guard (L1.7, R-ENV-03), in a real Chromium against a recording server: every write that reaches the
+ * The read-only guard (R-ENV-03), in a real Chromium against a recording server: every write that reaches the
  * server is listed in `hits`, so a write the guard missed shows. The app is on 127.0.0.1 (the guarded host); localhost
  * is another site on the same server (a frame from there runs out of process; guarded too on a production environment,
  * unguarded on a read-only one that is not). One row per hole of the guard: fetch / XHR / beacon / worker / cross-site

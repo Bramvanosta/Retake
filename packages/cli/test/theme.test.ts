@@ -1,8 +1,9 @@
 /**
- * L3.5 `retake theme create` and `retake theme from-site` (trust `author`): a human names any local file (here: outside the workspace), the theme
- * lands in the workspace's templates_dir, `--json` prints what the MCP tool returns; refusals keep their fix and exit 1;
- * a missing required option is a usage error. from-site runs the extraction in-process on the brand-site fixture (the
- * unsafe test resolver set): no approval, the same URL rules, an environment host only warned; doctor warns.
+ * `retake theme create` and `retake theme from-site` (trust `author`): a human names any local file (here: outside the
+ * workspace), the theme lands in the workspace's templates_dir, `--json` prints what the MCP tool returns; refusals
+ * keep their fix and exit 1; a missing required option is a usage error. from-site runs the extraction in-process on
+ * the brand-site fixture (the unsafe test resolver set): no approval, the same URL rules, an environment host only
+ * warned; doctor warns.
  */
 import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';

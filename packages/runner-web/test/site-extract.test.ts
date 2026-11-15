@@ -1,5 +1,5 @@
 /**
- * L3.5 site extraction end to end (R-MCP-12): the brand-site fixture over self-signed https on invented `.test` names,
+ * Site extraction end to end (R-MCP-12): the brand-site fixture over self-signed https on invented `.test` names,
  * through the production path (CONNECT proxy, route policy, Chromium switches) with only the unsafe test resolver in
  * between. The known palette comes back by role; font family names and every page string only under `untrusted`;
  * logo candidates are transparent PNGs; the escape attempts (POST, beacon, WebSocket, STUN, TURN, service worker on

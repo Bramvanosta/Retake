@@ -28,7 +28,7 @@ export function checkTargets(list: TargetObject[]): KitTargetChecks {
   }));
 }
 
-// ───────────────────────────── reliability checks (L5.6) ─────────────────────────────
+// ───────────────────────────── reliability checks ─────────────────────────────
 /** The visible elements closest to a query (R-FLD-10): role, accessible name and text, most similar first. */
 function nearElements(query: string, root: Element, max = 3): NearElement[] {
   if (!query) return [];

@@ -1,10 +1,10 @@
 /**
- * L5.12d: the desktop app's quit question as a kit Sheet (shell/quit.ts; DESIGN §4j). It opens on `studio:quit` even
+ * The desktop app's quit question as a kit Sheet (shell/quit.ts; DESIGN §4j). It opens on `studio:quit` even
  * over another modal (the palette, a sheet: the top layer stacks it), acks `shown` once the dialog is open, one frame
  * painted and the window visible (a minimised window or another Space acks when it shows — before that the shell's
  * native alert takes over after 1.5 s), answers through `desktop_answer`, and closes on `studio:quit-close` of its id.
  * A re-sent question (a second ⌘Q) acks again. The words are the shell's data: through Txt (the kit's slots).
- * L5.12d fixes (review A-L3): an answer keeps the sheet open, its button busy, until `desktop_answer` settles — then it
+ * An answer keeps the sheet open, its button busy, until `desktop_answer` settles — then it
  * closes; a failed one says so in the sheet and the question stays answerable (the shell's own timers still apply: a
  * second ⌘Q re-asks, natively 10 s after the first ack).
  */

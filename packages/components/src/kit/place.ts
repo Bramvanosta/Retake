@@ -1,5 +1,5 @@
 /**
- * Placing a box next to a target without covering it (numbered step badges, the typing loupe — L2.10). Pure.
+ * Placing a box next to a target without covering it (numbered step badges, the typing loupe). Pure.
  */
 import { safeAreaRect } from './style.js';
 

@@ -19,7 +19,7 @@ import type { PreviewRect } from './remotion/preview-types.js';
 /** A delivery format of an export (core's one list). */
 export type ExportFormat = ExportFormatName;
 
-/** `retrying`: the GPU path failed and the video renders again in software (L5.15; progress does not go back). */
+/** `retrying`: the GPU path failed and the video renders again in software (progress does not go back). */
 export type RenderStage = 'planning' | 'bundling' | 'rendering' | 'retrying' | 'encoding' | 'done';
 
 export interface RenderProgress {
@@ -145,9 +145,9 @@ export interface PreviewMediaSamples {
   document?: { file_name: string; pages: Array<{ file: string; width: number; height: number; width_pt: number; height_pt: number }> };
   /** Two states of one screen, for `frame` slots (before / after cards). */
   frames?: Array<{ file: string; width: number; height: number; label: string }>;
-  /** A user image for `media` slots (studio/media, L2.12). */
+  /** A user image for `media` slots (studio/media). */
   image?: { file: string; width: number; height: number };
-  /** A Lottie animation for `lottie` slots (studio/lottie, L2.12). */
+  /** A Lottie animation for `lottie` slots (studio/lottie). */
   lottie?: { file: string; width: number; height: number; fps: number; frames: number };
 }
 
@@ -246,21 +246,21 @@ export interface PlanRunOptions {
   trust?: PlanTrust;
   /** Measure the music bed with ffprobe so the plan loops or trims it (default true; a still does without). */
   measureMusic?: boolean;
-  /** How the music bed is measured (default: ffprobe each time; the Studio's timeline memoises it by file, L4.5). */
+  /** How the music bed is measured (default: ffprobe each time; the Studio's timeline memoises it by file). */
   musicLength?: (file: string) => Promise<number | undefined>;
   /**
-   * Where the edit comes from (L5.5). `auto` (default): today's scenario file when its filmed part is unchanged since
+   * Where the edit comes from. `auto` (default): today's scenario file when its filmed part is unchanged since
    * the run, else the run as captured. `run`: the run as captured.
    */
   edit?: 'auto' | 'run';
   /**
-   * The scenario file's text to plan the edit from instead of today's file (L4.5, critique B5): a render job's snapshot
+   * The scenario file's text to plan the edit from instead of today's file: a render job's snapshot
    * of the file as it was planned at submit (its job folder's edit.yaml). The same parse, filmed-part check and trust
    * gates apply; only the source of the text differs.
    */
   editText?: string;
   /**
-   * What the plan is for (L7.22). `render` (default): what renders it — its words say render, and a run without its
+   * What the plan is for. `render` (default): what renders it — its words say render, and a run without its
    * film is refused. `plan`: a plan alone (`retake plan`) — its words say plan, and a run without its film still plans
    * (a plan reads no film).
    */
@@ -268,7 +268,7 @@ export interface PlanRunOptions {
 }
 
 /**
- * Where a plan's edit came from (L5.5): today's scenario file re-planned on the run (`scenario`: its filmed part is
+ * Where a plan's edit came from: today's scenario file re-planned on the run (`scenario`: its filmed part is
  * unchanged since the capture), or the run as captured (`run`: no snapshot or file, the filmed part changed, or today's
  * file does not validate).
  */
@@ -301,9 +301,9 @@ export interface PlannedRun {
   overrides: EditOverrides;
   /** The run's scenario snapshot (undefined when absent or invalid). */
   scenario?: Scenario;
-  /** Where the edit came from (L5.5). */
+  /** Where the edit came from. */
   edit: PlannedEdit;
-  /** The scenario text the edit was planned from (from `scenario`): what a render job snapshots at submit (L4.5). */
+  /** The scenario text the edit was planned from (from `scenario`): what a render job snapshots at submit. */
   editText?: string;
   plan: EditPlan;
   plan_ms: number;

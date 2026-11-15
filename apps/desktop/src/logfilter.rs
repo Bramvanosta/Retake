@@ -1,9 +1,9 @@
-//! Everything this process prints on stderr goes through one filter (critique M5): its own lines, the child server's
+//! Everything this process prints on stderr goes through one filter: its own lines, the child server's
 //! forwarded lines and Tauri's own — which include the text a page frame sends to the IPC handler wry registers for
 //! every frame. fd 2 is a pipe read by a thread that redacts (origins only, no secret-shaped run), replaces control
 //! characters, caps each line, rate-limits, and drops Tauri's IPC-key lines (counted), before writing to the real
 //! stderr. `finish` restores fd 2 and drains the pipe before the process exits. A panic writes its sanitised message to
-//! the real stderr itself (review B L7: an abort would kill the process before the filter thread prints it).
+//! the real stderr itself (an abort would kill the process before the filter thread prints it).
 
 use crate::BIN;
 use desktop_core::{is_ipc_noise, sanitize, Admit, RateLimit};
@@ -84,7 +84,7 @@ pub fn install() {
     *INSTALLED.lock().unwrap_or_else(|e| e.into_inner()) = Some(Installed { original, done: rx });
 }
 
-/// L5.16d: a copy of the real stderr for a process this one starts and outlives no more (test mode's restart after an
+/// A copy of the real stderr for a process this one starts and outlives no more (test mode's restart after an
 /// update): fd 2 is the filter's pipe, whose reader dies with this process — a child writing there would lose its lines
 /// and fail on its first one after the exit. None when the filter is not installed (fd 2 is the real one: inherit it).
 pub fn real_stderr() -> Option<std::process::Stdio> {

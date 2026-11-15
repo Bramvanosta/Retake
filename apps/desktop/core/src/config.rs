@@ -1,5 +1,5 @@
 //! Which Node runs which CLI (`launch.json`: version 1 written by `pnpm desktop:build`, the developer app; version 2
-//! by `pnpm desktop:bundle`, the bundled app — L5.16) with which environment, which workspace opens, and the remembered
+// ! by `pnpm desktop:bundle`, the bundled app) with which environment, which workspace opens, and the remembered
 //! one (`<Retake home>/desktop.json`).
 
 use crate::json::{self, Json};
@@ -76,7 +76,7 @@ fn is_file(path: PathBuf, bad: impl Fn(&'static str) -> ConfigError) -> Result<P
 
 /// A version 2 path: relative to launch.json's folder (the app's `Contents/Resources`), plain names only — no `..`,
 /// no `.`, never absolute — then a regular file whose real path (links followed) is still inside the app's folder:
-/// it can only name a file inside the app, whether or not the app's seal still holds (review B L2b).
+/// it can only name a file inside the app, whether or not the app's seal still holds.
 fn check_inside(what: &'static str, p: &str, resources: &Path) -> Result<PathBuf, ConfigError> {
     use std::path::Component;
     let bad = |why| ConfigError::BadPath { what, path: p.to_string(), why, bundled: true };
@@ -108,7 +108,7 @@ pub fn launch_config(env_node: Option<&str>, env_cli: Option<&str>, allow_env: b
         }
     }
     let resources = launch_json.parent().unwrap_or(Path::new("."));
-    // A bundled app's folder holds bundle.json: its words for a missing or broken launch.json name no pnpm (review B L1).
+    // A bundled app's folder holds bundle.json: its words for a missing or broken launch.json name no pnpm.
     let in_bundle = resources.join("bundle.json").is_file();
     let text = match fs::read_to_string(launch_json) {
         Ok(t) => t,
@@ -135,19 +135,19 @@ pub fn launch_config(env_node: Option<&str>, env_cli: Option<&str>, allow_env: b
     }
 }
 
-/// Whether RETAKE_DESKTOP_TEST (its value `var`) puts the shell in test mode (L5.2b review A L2): `1`, and a parent
+/// Whether RETAKE_DESKTOP_TEST (its value `var`) puts the shell in test mode: `1`, and a parent
 /// other than launchd (`parent_pid` 1: a Finder or Dock launch, which `launchctl setenv` could otherwise arm — no
 /// question asked, notifications never posted, SIGUSR2 a quit). A test or a terminal starts the binary itself.
 pub fn test_mode_allowed(var: Option<&str>, parent_pid: i32) -> bool {
     var == Some("1") && parent_pid != 1
 }
 
-/// Whether a release build drops this variable from the child's environment (review A L4): what makes Node.js or the
+/// Whether a release build drops this variable from the child's environment: what makes Node.js or the
 /// dynamic linker load code — `NODE_OPTIONS` (`--require`, `--import`…), `NODE_PATH`, `NODE_REPL_EXTERNAL_MODULE`,
 /// `DYLD_*`, `LD_PRELOAD` / `LD_LIBRARY_PATH` / `LD_AUDIT` — which a Finder launch would otherwise take from
 /// `launchctl setenv`. Not an allow-list: the rest stays, as for `retake ui` in a terminal (an automated sign-in's
 /// `{{env:NAME}}` secrets come from the environment the worker inherits). The bundled app's launcher
-/// (apps/desktop/bundle/retake.sh) unsets the same names (a test compares the two: review A L4).
+/// (apps/desktop/bundle/retake.sh) unsets the same names (a test compares the two).
 pub fn child_env_dropped(name: &str) -> bool {
     CHILD_ENV_DROPPED.contains(&name) || name.starts_with(CHILD_ENV_DROPPED_PREFIX)
 }
@@ -157,8 +157,8 @@ pub const CHILD_ENV_DROPPED: [&str; 6] = ["NODE_OPTIONS", "NODE_PATH", "NODE_REP
 pub const CHILD_ENV_DROPPED_PREFIX: &str = "DYLD_";
 
 /// Where the app reads its launch.json: `<App>.app/Contents/MacOS/<binary>` → `<App>.app/Contents/Resources/launch.json`,
-/// from the binary's real path — `current_exe()` keeps a link's path as given on macOS, and a link to the binary
-/// elsewhere would otherwise read a launch.json beside the link (review A L5).
+/// from the binary's real path — `current_exe` keeps a link's path as given on macOS, and a link to the binary
+/// elsewhere would otherwise read a launch.json beside the link.
 pub fn launch_json_path(exe: &Path) -> PathBuf {
     let exe = fs::canonicalize(exe).unwrap_or_else(|_| exe.to_path_buf());
     exe.parent().and_then(Path::parent).map(|c| c.join("Resources").join("launch.json")).unwrap_or_else(|| PathBuf::from("launch.json"))
@@ -183,7 +183,7 @@ pub enum Source {
     Remembered,
     Cwd,
     Picker,
-    /// L5.16c: made by the first run (`retake init`).
+    /// Made by the first run (`retake init`).
     Created,
 }
 
@@ -324,7 +324,7 @@ mod tests {
 
     #[test]
     fn launch_json_v2_names_files_inside_the_app_only() {
-        // L5.16: the bundled app's launch.json — paths relative to its folder (Contents/Resources), plain names only.
+        // The bundled app's launch.json — paths relative to its folder (Contents/Resources), plain names only.
         let d = test_dir("launch-v2");
         let res = d.join("Retake.app").join("Contents").join("Resources");
         fs::create_dir_all(res.join("node").join("bin")).unwrap();
@@ -334,7 +334,7 @@ mod tests {
         fs::write(res.join("engine").join("dist").join("bin.js"), "").unwrap();
         fs::write(d.join("outside.js"), "").unwrap();
         let lj = res.join("launch.json");
-        // Missing in a bundled app's folder (bundle.json beside it): the disk image, never pnpm (review B L1).
+        // Missing in a bundled app's folder (bundle.json beside it): the disk image, never pnpm.
         fs::write(res.join("bundle.json"), "{}").unwrap();
         for e in [launch_config(None, None, false, &lj).unwrap_err(), {
             fs::write(&lj, "not json").unwrap();
@@ -368,7 +368,7 @@ mod tests {
         assert!(matches!(launch_config(None, None, false, &lj), Err(ConfigError::BadPath { what: "cli", why: "does not exist", bundled: true, .. })));
         fs::write(&lj, v2("node", "engine/dist/bin.js")).unwrap();
         assert!(matches!(launch_config(None, None, false, &lj), Err(ConfigError::BadPath { what: "node", why: "is not a file", bundled: true, .. })));
-        // A link inside the app to a file outside it: refused (the rule holds without the seal: review B L2b).
+        // A link inside the app to a file outside it: refused (the rule holds without the seal).
         std::os::unix::fs::symlink(d.join("outside.js"), res.join("engine").join("dist").join("linked.js")).unwrap();
         fs::write(&lj, v2("node/bin/node", "engine/dist/linked.js")).unwrap();
         assert!(matches!(launch_config(None, None, false, &lj), Err(ConfigError::BadPath { what: "cli", why: "leads out of the app through a link", bundled: true, .. })));
@@ -438,7 +438,7 @@ mod tests {
 
     #[test]
     fn the_launcher_drops_the_same_variables_as_the_shell() {
-        // The bundled app's command (apps/desktop/bundle/retake.sh) and the shell's Studio server drop one list (review A L4).
+        // The bundled app's command (apps/desktop/bundle/retake.sh) and the shell's Studio server drop one list.
         let sh = include_str!("../../bundle/retake.sh");
         let line = sh.lines().find(|l| l.starts_with("unset ")).expect("an unset line");
         let mut named: Vec<&str> = line["unset ".len()..].split_whitespace().collect();

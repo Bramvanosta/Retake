@@ -1,10 +1,9 @@
 /**
- * An operation's definition (L6.12–13, moved here from contract.ts in L7.13): one zod input schema (published as JSON
- * Schema, and the parser), annotations and a handler over the engine — `ToolDef`, typed by its input, its answer and
- * its name — and an engine operation (`OperationDef`): a `ToolDef` whose name is an operation of the catalogue, with
- * the caller rules it holds beyond "served by" (`callers`, checked by invoke after the parse). The shells serve these
- * definitions (MCP as tools, the Studio as `POST /v1/call/<op>`) through invoke.ts. @retake/engine/contract re-exports
- * this module.
+ * An operation's definition: one zod input schema (published as JSON Schema, and the parser), annotations and a handler
+ * over the engine — `ToolDef`, typed by its input, its answer and its name — and an engine operation (`OperationDef`):
+ * a `ToolDef` whose name is an operation of the catalogue, with the caller rules it holds beyond "served by"
+ * (`callers`, checked by invoke after the parse). The shells serve these definitions (MCP as tools, the Studio as `POST
+ * /v1/call/<op>`) through invoke.ts. @retake/engine/contract re-exports this module.
  */
 import type { z } from 'zod';
 import type { Approver } from '../approvals.js';
@@ -59,7 +58,7 @@ export interface ToolContext {
 
 /**
  * An operation: one zod input schema (published as JSON Schema, and the parser), annotations and a handler. Its types
- * are kept (L6.12–L6.13 fixes): `S` the input, `D` the data it answers, `N` its name — so a table of operations says
+ * are kept: `S` the input, `D` the data it answers, `N` its name — so a table of operations says
  * each one's arguments and answer (`ToolArgs`, `ToolData`, `ToolsByName`). `ToolDef` alone is any operation.
  */
 export interface ToolDef<S extends z.ZodType = z.ZodType, D extends object = object, N extends string = string> {
@@ -75,7 +74,7 @@ export interface ToolDef<S extends z.ZodType = z.ZodType, D extends object = obj
    */
   callers?(caller: Caller, args: z.output<S>): EngineError | undefined;
   /**
-   * The key of the calls that run one at a time (L7.17: a theme's writes, a project's library renders): invoke runs
+   * The key of the calls that run one at a time (a theme's writes, a project's library renders): invoke runs
    * the handler after every earlier call of the same key on the same engine has settled (operationChain). MCP's
    * operations declare none.
    */

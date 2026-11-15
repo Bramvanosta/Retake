@@ -236,7 +236,7 @@ function unsignedNever(action: RollbackAction, env: string, ctx: HookContext): s
  * (runs/<id>/hooks-journal.json for captures, .retake/journals/<id>.json for standalone hook runs).
  * Not safe for concurrent use by several processes.
  *
- * L5.14: every entry Retake writes is signed with the Retake home's key (core home-key.ts) over where its journal
+ * Every entry Retake writes is signed with the Retake home's key (core home-key.ts) over where its journal
  * stands (JournalPlace: project, workspace, location, id) and its whole content (its seq included), signed again on
  * every save. An entry is trusted only with a valid signature, a seq no other entry of its journal has, and a
  * `started_at` within ROLLBACKS_DONE_KEEP_MS; a trusted entry's rollback is replayed once (ROLLBACKS_DONE_DIR: a copy
@@ -346,7 +346,7 @@ export class Journal {
   }
 
   /**
-   * Mark the pending entries recorded on environment `env` as superseded (L1.8): a sandbox reset rebuilt that
+   * Mark the pending entries recorded on environment `env` as superseded: a sandbox reset rebuilt that
    * environment's data, so replaying their rollbacks would act on the new data (`DELETE /api/quotes/7` would delete the
    * reseeded quote 7). Persisted when any entry changed; returns how many did.
    */
@@ -405,7 +405,7 @@ export class Journal {
       return { ...base, ok: false, status: 'refused' as const, error, ms: Date.now() - t0 };
     };
     const signed = this.trusted.has(entry);
-    // L5.14: an entry Retake did not write here (untrusted) is never replayed with trust `mcp`, and elsewhere only when a
+    // An entry Retake did not write here (untrusted) is never replayed with trust `mcp`, and elsewhere only when a
     // person says yes to it, shown in full — never a sql or js one, one with secrets, or a shell one on a sandbox.
     if (!signed) {
       const where = `${journalId(this.file)} #${entry.seq}`;
@@ -421,7 +421,7 @@ export class Journal {
       const asked = typeof ctx.replayUnsigned === 'function' ? await ctx.replayUnsigned(entry, this.file) : ctx.replayUnsigned === true;
       if (!asked) return refuse(`not replayed: ${unsigned}; ${ctx.replayUnsigned ? 'you said no' : 'look at it, then replay it with --replay-unsigned in a terminal'}`);
     }
-    // L1.7: a replay writes on the environment the hook ran in — checked against that environment's access, not the
+    // A replay writes on the environment the hook ran in — checked against that environment's access, not the
     // command's (`retake env reset` on a read-write environment never replays a production write without --allow-writes).
     const access = (entry.env !== undefined ? ctx.accessOf?.(entry.env) : undefined) ?? ctx.access;
     const writes = access?.mode === 'read-only' ? rollbackWriteReason(action) : null;
@@ -538,7 +538,7 @@ export async function findPendingJournals(projectDir: string, opts: JournalLocat
 }
 
 /**
- * After a sandbox reset (L1.8): mark every pending rollback recorded on environment `env` as superseded, in both
+ * After a sandbox reset: mark every pending rollback recorded on environment `env` as superseded, in both
  * journal locations. Journals that cannot be read are left as they are (their error surfaces when they are replayed).
  * Returns the journals changed and how many entries each.
  */

@@ -1,5 +1,5 @@
 /**
- * L5.16a — the relocatable engine's rules outside core: every ffmpeg / ffprobe spawn goes through the resolver (a source
+ * The relocatable engine's rules outside core: every ffmpeg / ffprobe spawn goes through the resolver (a source
  * lint), the bundle setup runs first in both entry points, one version number, the stage's layout check (on a small
  * fake stage), `retake init`, the plugin marketplace and the preview writes of an app bundle.
  */
@@ -105,8 +105,8 @@ describe('the render browser is checked before the asset server starts (review B
   it('render.ts: renderBrowser / assertRenderBrowser come before startAssetServer() in openSession', () => {
     const code = readFileSync(join(REPO, 'packages', 'editor', 'src', 'render', 'render.ts'), 'utf8');
     const session = code.slice(code.indexOf('async function openSession('));
-    // L7.34 (finding C4, review fix): the order of the two calls, the check handed the work's own policy; the
-    // refusal itself is the behaviour case below.
+    // The order of the two calls, the check handed the work's own policy; the refusal itself is the behaviour case
+    // below.
     const check = /\bassertRenderBrowser\(browser, opts\.workPolicy\)/;
     expect(session.search(check)).toBeGreaterThan(0);
     expect(session.search(check)).toBeLessThan(session.search(/\bstartAssetServer\(/));
@@ -345,8 +345,8 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
 });
 
 /**
- * pnpm through corepack, the same under any HOME (L5.16c fixes, review c — B's note: under a scratch HOME corepack found
- * no cache and fetched a pnpm): never a download (COREPACK_ENABLE_NETWORK=0), corepack's cache found from the account's
+ * pnpm through corepack, the same under any HOME (B's note: under a scratch HOME corepack found no cache and fetched a
+ * pnpm): never a download (COREPACK_ENABLE_NETWORK=0), corepack's cache found from the account's
  * home rather than $HOME (unless COREPACK_HOME / XDG_CACHE_HOME name it), nothing pinned into a package.json; the mini
  * workspace pins the repository's pnpm (packageManager). No pnpm in that cache: the test is skipped.
  */
@@ -701,7 +701,7 @@ describe('the render bundle takes no module from above the app (review A H1, the
   });
 
   it('ensureBundle passes the restriction to the bundler when Retake runs from an app bundle (only then)', async () => {
-    // L7.34 (finding C4): held by what the bundler is handed instead of the statements that hand it — the bundler is
+    // Held by what the bundler is handed instead of the statements that hand it — the bundler is
     // stood in (it reads the webpack configuration it is given and writes a page), once outside an app, once inside.
     const seen: Array<Record<string, unknown> | undefined> = [];
     bundler.bundle = async (o: { outDir: string; webpackOverride: (c: Record<string, unknown>) => { resolve?: Record<string, unknown> } }) => {

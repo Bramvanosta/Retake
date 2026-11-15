@@ -1,5 +1,5 @@
 /**
- * The render record (L7.6b): the tolerant parser — three members decide, every other is read leniently — the two
+ * The render record: the tolerant parser — three members decide, every other is read leniently — the two
  * transitions, and the pure rules laid over the entries of renders/: a record of its file, a render of its scenario,
  * what a message may quote, the order, the previous render, the two `latest`, why a file is no render, a renamed
  * record whose video is another render's, what a named use needs.
@@ -484,7 +484,7 @@ describe('the two `latest` (D-11: two rules, on purpose)', () => {
   });
 
   it("a terminal's: the newest succeeded complete record whatever its file is called and whatever id it says — the command acts on the file", () => {
-    // The lead's ruling: a renamed newest record is picked (by its file), not passed over; so is one with an empty id.
+    // A renamed newest record is picked (by its file), not passed over; so is one with an empty id.
     expect(named([good(1), entry({ file: 'quote-final', id: 'quote-v2', at: at(2) })])).toEqual({ pick: 'quote-final.json (says quote-v2)', passed: [], not_considered: 0 });
     expect(named([good(1), entry({ file: 'x', id: '', at: at(2) })]).pick).toBe('x.json (says an empty id)');
     // A copy made at the same time as its original: the record of its own file wins.

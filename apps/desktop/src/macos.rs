@@ -1,19 +1,16 @@
-//! The two native dialogs of the shell, on the main thread: the workspace folder picker (NSOpenPanel, folders only)
-//! and an alert with buttons (NSAlert). Under RETAKE_DESKTOP_TEST=1 neither is shown (a test never waits on a
-//! modal): the picker answers the folders of RETAKE_DESKTOP_TEST_PICK (a `:` list, each once: the gated test's
-//! File › Open Workspace…), then Cancel, and an alert prints its text and its buttons' keys and answers its cancel
-//! button (`alert`: the last; `ask`: the one it names) — or, L5.2b, the next index of RETAKE_DESKTOP_TEST_ANSWERS
-//! (a `,` list, one per alert). RETAKE_DESKTOP_TEST_MODAL_MS=<ms> (test mode only) shows the alert for real and
-//! aborts it after that delay: the gated test's proof that a question is a real window that goes away, and that SIGTERM
-//! ends it.
-//!
-//! Every modal of the shell is counted while it is up (review B M1 / L13): `end_modals` — the signal thread's, on
-//! SIGTERM / SIGINT / SIGHUP — ends whichever is up through `performSelectorOnMainThread:` (it runs in the modal panel
-//! mode: a run loop source of the modal loop, outside any callout of it): the picker by its own `cancel:`, an alert by
-//! `abortModal`, each only while `[NSApp modalWindow]` says a modal loop runs (abortModal without one raises). Once a
-//! signal asked to quit, no new modal opens (`quitting`): the code waiting on one goes on to the queued exit. The
-//! quit hook answers Cancel while one is up (guard.rs: no question nested in another, no `terminate:` inside a modal
-//! of a Tauri callback).
+// ! The two native dialogs of the shell, on the main thread: the workspace folder picker (NSOpenPanel, folders only) !
+// and an alert with buttons (NSAlert). Under RETAKE_DESKTOP_TEST=1 neither is shown (a test never waits on a ! modal):
+// the picker answers the folders of RETAKE_DESKTOP_TEST_PICK (a `:` list, each once: the gated test's ! File › Open
+// Workspace…), then Cancel, and an alert prints its text and its buttons' keys and answers its cancel ! button
+// (`alert`: the last; `ask`: the one it names) — or the next index of RETAKE_DESKTOP_TEST_ANSWERS ! (a `,` list, one
+// per alert). RETAKE_DESKTOP_TEST_MODAL_MS=<ms> (test mode only) shows the alert for real and ! aborts it after that
+// delay: the gated test's proof that a question is a real window that goes away, and that SIGTERM ! ends it. ! ! Every
+// modal of the shell is counted while it is up: `end_modals` — the signal thread's, on ! SIGTERM / SIGINT / SIGHUP —
+// ends whichever is up through `performSelectorOnMainThread:` (it runs in the modal panel ! mode: a run loop source of
+// the modal loop, outside any callout of it): the picker by its own `cancel:`, an alert by ! `abortModal`, each only
+// while `[NSApp modalWindow]` says a modal loop runs (abortModal without one raises). Once a ! signal asked to quit, no
+// new modal opens (`quitting`): the code waiting on one goes on to the queued exit. The ! quit hook answers Cancel
+// while one is up (guard.rs: no question nested in another, no `terminate:` inside a modal ! of a Tauri callback).
 
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Bool, NSObject};
@@ -33,7 +30,7 @@ fn headless() -> bool {
     crate::test_mode()
 }
 
-/// A signal asked to quit: no new modal (B M1).
+/// A signal asked to quit: no new modal.
 fn quitting() -> bool {
     crate::guard::QUIT_NOW.load(Ordering::SeqCst)
 }
@@ -154,7 +151,7 @@ pub fn pick_folder(message: &str) -> Option<PathBuf> {
     pick_folder_with(&format!("Open a {} workspace", crate::app_name()), message, "Open")
 }
 
-/// Ask for a folder with this panel title and button (L5.16c: the `retake` command's folder); as `pick_folder`.
+/// Ask for a folder with this panel title and button (the `retake` command's folder); as `pick_folder`.
 pub fn pick_folder_with(title: &str, message: &str, prompt: &str) -> Option<PathBuf> {
     if quitting() {
         return None;
@@ -227,7 +224,7 @@ fn keys(a: &NSAlert, buttons: &[&str]) -> String {
 
 /// Show an alert: the index of the button pressed; None when its modal loop was ended without a button (a signal —
 /// the shell quitting — or the test's abort), or when the app is quitting (no new alert then). `cancel`: what test mode
-/// answers; `destructive`: the buttons shown as destructive (never Return: critique M3, review B M4).
+/// answers; `destructive`: the buttons shown as destructive (never Return).
 pub fn ask(title: &str, text: &str, buttons: &[&str], cancel: usize, destructive: &[usize]) -> Option<usize> {
     if quitting() {
         return None;

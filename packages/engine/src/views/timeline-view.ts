@@ -1,18 +1,18 @@
 /**
- * The Studio timeline's view of a scenario's take (L4.5, R-UI-23 / R-UI-24; plan D5, critique B4 / B7 / B13 / B14):
- * the take planned as a render would plan it (trust `mcp`, the L5.5 edit source: today's file re-planned on the run
- * while its filmed part is unchanged), its tracks (editor timelineOf), the comment pins placed on them, the inspector's
- * choices with each option usable or disabled with why, whether the file takes edits from the Studio, and the capture's
- * codec and keyframe spacing (a long GOP makes scrubbing slow).
+ * The Studio timeline's view of a scenario's take (R-UI-23 / R-UI-24): the take planned as a render would plan it
+ * (trust `mcp`, the edit source: today's file re-planned on the run while its filmed part is unchanged), its tracks
+ * (editor timelineOf), the comment pins placed on them, the inspector's choices with each option usable or disabled
+ * with why, whether the file takes edits from the Studio, and the capture's codec and keyframe spacing (a long GOP
+ * makes scrubbing slow).
  *
  * - Path-free and plan-free: the view holds no absolute path, no `retake-asset:` map and no plan; text the scenario or the
  *   filmed product wrote (captions, markers, step and page labels, warnings, notes, comment text) is only under
  *   `untrusted`. The plan itself goes beside the view (`plan`, `folders`) for the in-process caller that serves the
  *   preview (Part B's player origin), never into a result.
- * - Memo (critique B13): one view per key — the scenario file's sha256, the run, its timeline.json (size, mtime), the
+ * - Memo: one view per key — the scenario file's sha256, the run, its timeline.json (size, mtime), the
  *   scenario's comment folder (size, mtime: a thread added or answered), project.yaml (size, mtime), the workspace's
  *   components (their folders' mtimes) — so a click's write and the scenario event it raises re-plan once; and what
- *   only the planning names, checked again on every hit (review B H3): the theme folder's files (names, sizes,
+ *   only the planning names, checked again on every hit: the theme folder's files (names, sizes,
  *   mtimes) and every file the plan serves (size, mtime) — a template.yaml or a logo changed re-plans;
  *   concurrent reads of one key share one planning; the registry is reused while its folders are unchanged and the
  *   music bed is measured once per file (size, mtime).
@@ -69,7 +69,7 @@ export interface TimelineViewRequest {
   /** A capture run of the scenario (default: its latest capture). */
   run_id?: string;
   /**
-   * Preview a thread's proposal (L4.6, critique B9): the take planned from the proposed text in memory, on the
+   * Preview a thread's proposal: the take planned from the proposed text in memory, on the
    * commented run — checked on every call (open thread, newest pending proposal, today's file its base, the Studio's
    * full write checks), nothing written, the text never a version the Studio may restore; switches off.
    */
@@ -94,7 +94,7 @@ export interface TimelineCaptureInfo {
   /** Seconds between keyframes (the largest gap seen in its first 30 s); `at_least` when a single keyframe was seen. */
   keyframe_interval_s?: number;
   at_least?: true;
-  /** Set when scrubbing will be slow: keyframes more than a second apart (critique B14). */
+  /** Set when scrubbing will be slow: keyframes more than a second apart. */
   slow_scrub?: string;
 }
 
@@ -105,7 +105,7 @@ export interface TimelineView {
   theme: string;
   /** sha256 of today's scenario file: the `hash` of a `scenario_edit` (absent: no file). */
   hash?: string;
-  /** Where the edit comes from (L5.5) and the sha256 of the file it was planned from. */
+  /** Where the edit comes from and the sha256 of the file it was planned from. */
   source: RenderEditSource & { edit_sha256?: string };
   /** Whether switches can be written now, else why (a filmed change pending, a file the Studio does not edit…). */
   editable: true | { why: string };
@@ -124,7 +124,7 @@ export interface TimelineView {
   /** Milliseconds: planning the take, and the whole view. */
   ms: { planning: number; total: number };
   /**
-   * A proposal previewed (L4.6): which, the sha256 of its text, and whether the plan shows it (`shown` false: the take
+   * A proposal previewed: which, the sha256 of its text, and whether the plan shows it (`shown` false: the take
    * came out as captured — the change cannot be previewed on this take).
    */
   proposal?: { comment_id: string; entry_id: string; result_sha256: string; shown: boolean };
@@ -139,7 +139,7 @@ export type TimelineViewResult =
       folders: { project: string; run: string; theme: string };
       /**
        * The file's text (the view's `hash`), while switches can be written — beside the view, like the plan: the Studio's
-       * undo restores it byte for byte (L4.3 `restore`), as the scenario screen's scenario_blocks gives it.
+       * undo restores it byte for byte (`restore`), as the scenario screen's scenario_blocks gives it.
        */
       text?: string;
       /** Served from the memo (no planning). */ memo?: true;
@@ -149,7 +149,7 @@ export type TimelineViewResult =
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => v !== null && typeof v === 'object' && !Array.isArray(v);
 
-// ── Memo (critique B13) ─────────────────────────────────────────────────────
+// ── Memo ─────────────────────────────────────────────────────
 
 const VIEW_MEMO_MAX = 4;
 /**
@@ -257,7 +257,7 @@ async function musicLength(memo: TimelineMemos['music'], file: string, policy: W
   return length;
 }
 
-// ── The capture's codec and keyframes (critique B14) ────────────────────────
+// ── The capture's codec and keyframes ────────────────────────
 
 /** Keyframes further apart than this make scrubbing slow (each seek decodes from the previous keyframe). */
 export const SLOW_SCRUB_KEYFRAME_S = 1;
@@ -350,7 +350,7 @@ function currentAt(entry: Obj | undefined, field: string): { value?: FieldValue;
 /** The themes the scenario's `template` switch offers: the workspace's listed names, and the project's own. */
 interface ThemeChoices {
   names: string[];
-  /** Listed themes that cannot be used (why), offered disabled (review B L4). */
+  /** Listed themes that cannot be used (why), offered disabled. */
   unusable: Record<string, string>;
   project?: string;
 }
@@ -359,7 +359,7 @@ async function choicesOf(registry: ComponentRegistry, root: unknown, plan: EditP
   const make = async (at: FieldAt, field: string, range?: FieldChoice['range']): Promise<FieldChoice> => {
     const entry = entryOf(root, at);
     const cur = currentAt(entry, field);
-    // Review B H2: "Theme default" or "Off" would drop an intro / outro's own text and files — the YAML view changes it.
+    // "Theme default" or "Off" would drop an intro / outro's own text and files — the YAML view changes it.
     const content = cur.content?.filter((k) => /^[a-z_]{1,40}$/.test(k)).slice(0, 6);
     const why =
       editable !== true
@@ -371,7 +371,7 @@ async function choicesOf(registry: ComponentRegistry, root: unknown, plan: EditP
             : true;
     return { at, field, ...(cur.value !== undefined ? { current: cur.value } : {}), editable: why, options: await fieldOptions(registry, root, at, field), ...(range ? { range } : {}) };
   };
-  // L4.7 (critique B1): the scenario's theme — the project's (the key removed) or a theme the workspace lists, by name.
+  // The scenario's theme — the project's (the key removed) or a theme the workspace lists, by name.
   const theme = await make({ entry: 'top' }, 'template');
   theme.options = [
     { value: null, label: themes.project !== undefined && !isTemplatePath(themes.project) ? `The project's theme (${themes.project})` : "The project's theme", usable: true },
@@ -404,7 +404,7 @@ async function choicesOf(registry: ComponentRegistry, root: unknown, plan: EditP
 // ── The view ────────────────────────────────────────────────────────────────
 
 /**
- * A filmed change in a person's words (review B: "step coffees.1" read as the second step): core filmedChangesOf names
+ * A filmed change in a person's words ("step coffees.1" read as the second step): core filmedChangesOf names
  * steps by their 0-based key (what page_inspect takes); the timeline says "step 2", 1-based.
  */
 export function filmedChangeWords(change: string): string {
@@ -499,13 +499,13 @@ async function buildView(
   const snap = readPlainFile(join(planned.run.dir, 'scenario.yaml'), 2 * 1024 * 1024);
   const labelText = fromScenario ? planned.editText : snap.ok ? snap.bytes.toString('utf8') : undefined;
   const model = timelineOf(plan, { labels: stepLabels(labelText), timeline: planned.timeline });
-  // Comment pins (read-only, L3.6 threads): the scenario's last 50.
+  // Comment pins (read-only, threads): the scenario's last 50.
   const threads = await listComments(ws.outputs.renders, project, { scenario: req.scenario, status: 'all', limit: 50 }).catch(() => undefined);
   // (A plan this version made always has a signature; '' would match no record.)
   const planSha = planSignature(plan) ?? '';
   const themeSha = themeHash(memos.themeHashes, hashes, planned.template.dir);
-  // A thread made on a render of this very version (the same plan and theme files) is pinned at its own frame (review
-  // B M5); any other only at the step, marker or segment it pointed at.
+  // A thread made on a render of this very version (the same plan and theme files) is pinned at its own frame; any
+  // other only at the step, marker or segment it pointed at.
   const onTake = (threads?.threads ?? []).filter((t) => t.run_id === planned.run.id);
   const matched = await versionMatches(
     ws.outputs.renders,
@@ -575,7 +575,7 @@ async function buildView(
       threads: Object.fromEntries((threads?.threads ?? []).map((t) => [t.id, { text: t.untrusted.text.slice(0, 300), author: t.untrusted.author.slice(0, 80) }])),
     },
   };
-  // The file's text for undo, never a proposal's (critique B9 b: a proposed text is not a version the Studio restores).
+  // The file's text for undo, never a proposal's (a proposed text is not a version the Studio restores).
   return {
     view,
     plan,
@@ -617,7 +617,7 @@ export async function timelineView(
   } catch (e) {
     if (!(e instanceof EngineError && e.code === 'not_found')) throw e;
   }
-  // A proposal (critique B9 d): its state and every write check run on each call, before the memo — a proposal applied,
+  // A proposal: its state and every write check run on each call, before the memo — a proposal applied,
   // superseded or gone stale since the last view is refused, never served from the memo.
   let proposal: ProposalPreview | undefined;
   if (req.proposal !== undefined) {
@@ -673,7 +673,7 @@ export async function timelineView(
     ]),
   ).slice(0, 24);
   let p = memos.views.get(key);
-  // A hit whose theme files or served files changed since its planning plans again (review B H3).
+  // A hit whose theme files or served files changed since its planning plans again.
   const deps = memos.deps.get(key);
   if (p && deps && deps.now() !== deps.sig) {
     memos.views.delete(key);

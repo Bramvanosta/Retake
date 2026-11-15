@@ -1,5 +1,5 @@
 /**
- * `retake sandbox …` and `retake run --sandbox` (L1.8) on the bundled fixture's own sandbox.yaml (the committed one,
+ * `retake sandbox …` and `retake run --sandbox` on the bundled fixture's own sandbox.yaml (the committed one,
  * moved to free ports and started with --no-build) and its `sandbox-quote` scenario (fast pacing, no holds): status / up /
  * logs / down, a run on the sandbox environment without --sandbox while it is down (refused) and while it is up (no
  * reset), two takes with --sandbox showing the same data though the sandbox was changed between them, the take lock,
@@ -195,7 +195,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
     });
     expect(one.texts['new-quote'].value).toMatch(/^Q-\d+ · requested Today, 10:24$/);
     // The buyer signed in off camera by the sandbox account; its plain password (only typed, off camera) is in none of
-    // the run's files. That it is masked wherever it would appear: runner-web auth.test.ts 'a sandbox account (L1.8)…'.
+    // the run's files. That it is masked wherever it would appear: runner-web auth.test.ts 'a sandbox account…'.
     const log = await readFile(join(one.dir, 'log.jsonl'), 'utf8');
     expect(log).toMatch(/persona buyer[^"]*: signed in automatically, off camera \([^"]*a sandbox account\)/);
     for (const f of ['log.jsonl', 'run.json', 'timeline.json']) expect(await readFile(join(one.dir, f), 'utf8')).not.toContain('filter-bloom-2026');
@@ -243,7 +243,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
       expect(dry.code, dry.err).toBe(EXIT.ok);
       expect(dry.err).toContain('sandbox sandbox is in use by run 20261014-101500-other');
       // A scenario without `env:` waiting for an email only the sandbox's mailbox receives: --sandbox picks the sandbox
-      // before validating it (I2) — it gets as far as the lock; without --sandbox (env local, no mailbox) it is refused.
+      // before validating it — it gets as far as the lock; without --sandbox (env local, no mailbox) it is refused.
       await writeFile(
         join(dir, 'scenarios', 'mail-wait.yaml'),
         'video: mail-wait\nscenes:\n  - id: a\n    page: shop\n    steps:\n      - wait_for_email: {to: orders@demo-cafe.example, subject: Confirm, timeout: 2, as: m}\n',

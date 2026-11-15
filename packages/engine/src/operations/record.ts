@@ -1,11 +1,10 @@
 /**
- * The Studio's Record screen ops (L4.8, R-UI-20 / 21 / 22; critique D4), the engine's operations since L7.18 (moved
- * from the Studio server's record-ops.ts). Not MCP tools: Claude has scenario_record and
- * job_status. The screen is the control panel of the headed window the worker opens on this machine — a PERSON clicks
- * in that window; nothing here reaches it (no input is forwarded from a page: BL-25). Every op reads or writes the
- * recording's folder or its job through the engine (record-studio.ts), which gates them to the `ui` client: the
- * operations' `callers` refuse any other caller first, in the façade's words (recordScreenRefused, after the parse and
- * before the project is read), and the façade keeps its own copy for its direct callers.
+ * The Studio's Record screen ops (R-UI-20 / 21 / 22), the engine's operations. Not MCP tools: Claude has
+ * scenario_record and job_status. The screen is the control panel of the headed window the worker opens on this machine
+ * — a PERSON clicks in that window; nothing here reaches it (no input is forwarded from a page: BL-25). Every op reads
+ * or writes the recording's folder or its job through the engine (record-studio.ts), which gates them to the `ui`
+ * client: the operations' `callers` refuse any other caller first, in the façade's words (recordScreenRefused, after
+ * the parse and before the project is read), and the façade keeps its own copy for its direct callers.
  *
  * - `record_options {project}`: what the start form shows — the environments (access, production, sandbox flags, page
  *   keys), each one's personas with their stored session state (engine auth.status: no browser) and whether their
@@ -23,7 +22,7 @@
  *   `untrusted.yaml_lines` (one string per line: the untrusted cap is per string).
  * - `record_annotate {project, rec_id, rev, change}`: one change (choose / insert / remove: core
  *   RecordAnnotationChangeSchema) at the revision the view returned; an insert `at: 'end'` is placed by the engine
- *   under the recording's lock (critique B3).
+ *   under the recording's lock.
  * - `record_stop`, `record_discard {project, rec_id, job?}`: Stop and keep (any recording whose job runs); Discard (a
  *   Studio recording only; during the draft or the check the folder goes once the job is over).
  * - `record_save {project, rec_id, name, rev, draft}`: a NEW scenarios/<name>.yaml only (a taken name is a 409), under
@@ -78,7 +77,7 @@ const scenarioName = z.string().min(1).max(100).regex(SLUG_RE, 'a scenario name 
 const rev = z.number().int().min(0).max(1_000_000).describe('The revision record_view returned (`rev`): a stale one is a 409.');
 
 const OptionsInput = z.strictObject({ project });
-/** Strict: no url, no allow_writes, no check, no submitted_by — what a page may ask is pinned here (critique D4). */
+/** Strict: no url, no allow_writes, no check, no submitted_by — what a page may ask is pinned here. */
 const StartInput = z.strictObject({
   project,
   env: env.optional().describe("The environment (default: the project's default_env)."),
@@ -115,7 +114,7 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 /**
  * Where a string is a URL path (the page path the window opened) — kept as written, only the workspace's path cut: the
  * `path` of an answer's top level (a view, the start answer), of an annotate or stop answer's `view`, of a recent list
- * item and of an environment's default start. Any other `path` key gets pathFree like every trusted string (N1: an
+ * item and of an environment's default start. Any other `path` key gets pathFree like every trusted string (an
  * absolute file path never passes).
  */
 const URL_PATH_AT: ReadonlySet<string> = new Set(['path', 'view.path', 'recent.path', 'environments.default.path']);
@@ -360,7 +359,7 @@ export const recordStartOp = defineOperation({
   input: StartInput,
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   async run(a, { engine }) {
-    // Pinned (critique D4): never a URL, never --allow-writes, the check replay on; `submitted_by` is the engine's client.
+    // Pinned: never a URL, never --allow-writes, the check replay on; `submitted_by` is the engine's client.
     const sub = await engine.record.submit({
       project: a.project,
       ...(a.env !== undefined ? { env: a.env } : {}),

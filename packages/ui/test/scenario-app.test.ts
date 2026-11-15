@@ -1,5 +1,5 @@
 /**
- * L4.2 part 3: the scenario screen's logic without a browser — the thumbnail loader (only rows on screen, ≤ 24 keys
+ * The scenario screen's logic without a browser — the thumbnail loader (only rows on screen, ≤ 24 keys
  * of one run per call, ≤ 2 calls at a time, a call aborted when its rows all left the screen, `budget` / `cancelled`
  * asked again, a hostile answer never becomes a picture, keyed by run and the run's own key) and which events make the
  * screen read its view again (its own file, its runs starting / finishing / going away, a reconnection — never a

@@ -1,5 +1,5 @@
 /**
- * L5.6 acceptance cases on the fixture product (R-FLD-10 – R-FLD-16): the committed `proforma` scenario and variants
+ * Acceptance cases on the fixture product (R-FLD-10 – R-FLD-16): the committed `proforma` scenario and variants
  * of it, dry-run through the `retake` CLI against the fixture on free ports (environment `local`, the personas' mail
  * addresses declared there). The page is the fixture's "Pro forma invoices": a modal dialog whose body scrolls over a
  * page that has a "Quantity (kg)" field too, a calendar that covers the fields under it, a "Preview" button wired to

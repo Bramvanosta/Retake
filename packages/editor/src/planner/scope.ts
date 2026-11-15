@@ -105,7 +105,7 @@ export interface ClipEntry {
   type: 'clip';
   scene: TimelineScene;
   events: TimelineEvent[];
-  /** Multi-page scene (L2.11): its pages, each recorded on its own track. */
+  /** Multi-page scene: its pages, each recorded on its own track. */
   pages?: TimelineScenePage[];
   /** Source seconds shown [s0, s1) and frames [A, B). */
   s0: number;

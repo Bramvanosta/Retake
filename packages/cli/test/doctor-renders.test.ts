@@ -1,5 +1,5 @@
 /**
- * L5.15 `retake doctor`'s "Renders" line (doctor.ts rendersCheck over editor probeRenderPath): the GPU path (the render
+ * `retake doctor`'s "Renders" line (doctor.ts rendersCheck over editor probeRenderPath): the GPU path (the render
  * browser's GPU, VideoToolbox, 3 frames at a time), the software path by choice or by platform, the warnings (auto
  * found no GPU; VideoToolbox does not work), the failure (a setting that cannot work), and where a setting came from.
  * The real probe on this Mac (darwin, opted in to `auto`) says the GPU and VideoToolbox.
@@ -97,7 +97,7 @@ describe('the Renders line', () => {
       name: 'Renders',
       detail: `GPU (${metal.renderer}) · VideoToolbox H.264 (the rendering library's ffmpeg: no ffmpeg found on this machine) · 3 frames at a time`,
     });
-    // The library's by choice, or a probe of before L7.3: the line of before.
+    // The library's by choice, or an older probe: the line without the ffmpeg words.
     const library = rendersCheck({ ...base, policy: mac({ workspace: { ffmpeg: 'library' } }), ffmpeg: { used: 'library' } });
     expect(library).toEqual({ status: 'ok', name: 'Renders', detail: `GPU (${metal.renderer}) · VideoToolbox H.264 · 3 frames at a time · set: ffmpeg library (retake.yaml render.ffmpeg)` });
     expect(rendersCheck({ ...base, policy: mac(), ffmpeg: { used: 'library' } }).detail).toBe(`GPU (${metal.renderer}) · VideoToolbox H.264 · 3 frames at a time`);

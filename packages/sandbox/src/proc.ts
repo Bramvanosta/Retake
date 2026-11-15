@@ -1,4 +1,4 @@
-// L7.25: process identity and groups are an OS utility of core's io side (core/src/io/proc.ts), re-exported here for
+// Process identity and groups are an OS utility of core's io side (core/src/io/proc.ts), re-exported here for
 // this package's modules and users.
 export {
   START_TOLERANCE_MS,

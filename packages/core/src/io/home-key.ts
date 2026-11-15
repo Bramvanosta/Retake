@@ -1,5 +1,5 @@
 /**
- * The Retake home's signing key (L3.1, shared since L5.14): an HMAC-SHA256 key in `<RETAKE_HOME>/approvals.key` (64 hex
+ * The Retake home's signing key: an HMAC-SHA256 key in `<RETAKE_HOME>/approvals.key` (64 hex
  * characters, 0600, its folder 0700, created whole on first use). Job approvals (engine signing.ts) and the entries of the
  * hooks rollback journals (hooks journal.ts) are signed with it when written; whatever is read back without a valid
  * signature was not written by Retake with this home — a file placed by another process or a file-writing tool.
@@ -37,7 +37,7 @@ async function tighten(dir: string): Promise<void> {
 }
 
 /**
- * The key, created (0600, its folder 0700) when there is none yet. Made whole before it appears (review A L2): written
+ * The key, created (0600, its folder 0700) when there is none yet. Made whole before it appears: written
  * to a temporary file, then linked into place — a reader never sees a partial key, and of two processes making it at
  * once the second reads the first one's.
  */

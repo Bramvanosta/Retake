@@ -1,11 +1,12 @@
 /**
- * The ids of the domain as core accepts, refuses, builds and matches them (L7.5): run ids (a folder name of runs/),
+ * The ids of the domain as core accepts, refuses, builds and matches them: run ids (a folder name of runs/),
  * render ids (`<scenario>-v<N>[-vertical|-square]`), the ULID ids (job, preview, inspection, site, recording, comment
  * thread and entry) and theme names (a theme that exists; a new theme). One table per grammar, string by string, then
  * the schemas that name one of them: their length cap and the first sentence each gives.
  *
- * A row marked `D-<n>` is an outcome a decision of the lot changed; the mark names the decision. A row marked `N-<x>`
- * is an outcome a fix made on the way changed, never a decision: stricter only.
+ * A row marked `D-<n>` is an outcome changed on purpose when the id rules were made one, and the mark names the rule:
+ * D-6 a version of at most 999999; D-7 a stamped id is never matched by the end of its name. A row marked `N-<x>` is an
+ * outcome a fix made on the way changed, never a decision: stricter only.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -179,7 +180,7 @@ describe('whether a run id is a run of a scenario', () => {
     expect(of('')).toEqual([]);
   });
 
-  // L7.5 D-7: a stamped id is never answered by the "ends in -<scenario>" rule.
+  // D-7: A stamped id is never answered by the "ends in -<scenario>" rule.
   const D7 = false;
   it('a stamped id whose part after the stamp is empty or holds a line break is a run of no scenario', () => {
     const rows: Array<[string, string, boolean]> = [
@@ -265,7 +266,7 @@ describe('a render id: <scenario>-v<N>[-vertical|-square]', () => {
     const out: Record<string, string[]> = {};
     for (const [name, s] of Object.entries(sites)) out[name] = values.map((v) => first(s, v));
     const big = 'too_big: Too big: expected string to have <=200 characters';
-    // L7.5 D-6: a version above 999999 is no render id for a schema either (the sentence of the site, as a custom issue).
+    // D-6: A version above 999999 is no render id for a schema either (the sentence of the site, as a custom issue).
     const row = (message: string) => ['ok', big, `invalid_format: ${message}`, `invalid_format: ${message}`, `custom: ${message}`, `custom: ${message}`, big]; // D-6
     expect(out).toEqual({
       renderIdSchema: row('a render id such as quote-v3 (renders/<id>.json), never a path'),
@@ -309,7 +310,7 @@ describe('a render id: <scenario>-v<N>[-vertical|-square]', () => {
   };
 
   it('a comment thread names a render of its own scenario, exactly', () => {
-    // L7.5 D-6: a version above 999999 is no render id (the field's own sentence), so no render of the scenario.
+    // D-6: A version above 999999 is no render id (the field's own sentence), so no render of the scenario.
     const D6 = (id: string) => `render.id: a render id (<scenario>-v<N>[-vertical|-square]) | render.id: render ${id} is not a render of scenario quote`;
     const rows: Array<[string, string, string]> = [
       ['quote', 'quote-v3', 'ok'],
@@ -338,7 +339,7 @@ describe('a render id: <scenario>-v<N>[-vertical|-square]', () => {
     const notId = 'render.id: a render id (<scenario>-v<N>[-vertical|-square])';
     const notName = 'scenario: a scenario name';
     const notOf = (id: string, scenario: string) => `render.id: render ${id} is not a render of scenario ${scenario}`;
-    // L7.5 N-c (rows of part A): the scenario is compared as text; a render id past its cap is a render of no scenario.
+    // N-c: the scenario is compared as text; a render id past its cap is a render of no scenario.
     const rows: Array<[string, string, string]> = [
       ['quote', 'final', `${notId} | ${notOf('final', 'quote')}`],
       ['a.b', 'a.b-v1', `${notName} | ${notId} | ${notOf('a.b-v1', 'a.b')}`], // N-c

@@ -1,10 +1,10 @@
 /**
- * L4.9 part A: the accessibility checker's own tests (headless Chromium, `page.setContent`): each rule fires on its
+ * The accessibility checker's own tests (headless Chromium, `page.setContent`): each rule fires on its
  * planted case and stays silent on its clean twin, and its contrast maths is `contrastRatio`'s
- * (`@retake/components/kit`). The planted cases are the regressions the critique named: text over a picture whose
+ * (`@retake/components/kit`). The planted cases are known regressions: text over a picture whose
  * overlay is too thin (only visible when the picture is dark), a chip whose visible ring rule is gone (the invisible
  * input still carries the global outline), text of a disabled container that is not itself a control — and the review's
- * probes (L4.9 fixes): a faded dark card, an unreadable colour space, pseudo-element and submit text, status colour on a
+ * probes: a faded dark card, an unreadable colour space, pseudo-element and submit text, status colour on a
  * mark beside unrelated words or on rows differing by colour alone, a selected state carried by a tint, a transparent /
  * faint / tinted / covered focus indicator, a truncated walk, a lost roving stop, a shared tab stop the arrows do not
  * cross, focusable content under aria-hidden, a picture with no alt, a second level-1 role heading, a non-modal dialog,
@@ -216,7 +216,7 @@ describe('the checker (L4.9 part A)', () => {
         `${scheme}: ${formatFindings(r.findings)}`,
       ).toEqual(['span#root-fail', 'span#scoped-fail', 'span#dark-ok', 'span#layer-warn']);
       expect(r.stats.statusTokens).toBeGreaterThanOrEqual(3);
-      // Review A-L7: an SVG mark drawn in currentColor (outside a control), and the recording / idle / waiting families,
+      // An SVG mark drawn in currentColor (outside a control), and the recording / idle / waiting families,
       // are watched too.
       const svg = (id: string, token: string) =>
         `<svg id="${id}" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" style="color:var(${token})"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>`;

@@ -1,10 +1,10 @@
 /**
- * L5.16d: the desktop app's update (shell/update.ts; DESIGN §4p (d)) — a kit Button in the status bar ("Update
+ * The desktop app's update (shell/update.ts; DESIGN §4p (d)) — a kit Button in the status bar ("Update
  * available · vX", then the progress) and a kit Sheet: the version, the release notes (the feed's text, through Txt:
  * never markup), Later · Install and Restart. Install and Restart goes to the shell (`desktop_update`): it downloads and
  * checks the update, waits for this workspace's jobs, asks the quit question about unsaved text, then restarts — the
- * sheet shows each step while the page lives — and a click's refusal in words (review d A-M3: the sheet stays open on a
- * failure or "off"). Nothing installs without the click. The badge stays a live button while a step runs (it reopens
+ * sheet shows each step while the page lives — and a click's refusal in words (the sheet stays open on a failure or
+ * "off"). Nothing installs without the click. The badge stays a live button while a step runs (it reopens
  * the sheet: Later). The notes are a named, keyboard-scrollable region. In the app's window only (AppShell renders it
  * when `inApp`); a server that is not the app's own says `available: false` and nothing shows.
  * The status is read on mount, every 60 s (every 2 s while a step is under way or the sheet is open, every second while

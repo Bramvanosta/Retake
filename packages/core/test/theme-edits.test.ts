@@ -1,5 +1,5 @@
 /**
- * L4.7 part A1, core theme edits (theme-edits.ts; critique B7): one value of a theme's template.yaml written from the
+ * Core theme edits (theme-edits.ts): one value of a theme's template.yaml written from the
  * Studio's theme editor as a splice (map-edits.ts setMapPath), checked with facts independent of the edit code — the
  * re-parsed value against the edit applied to the parsed value (verifyEditText), the theme still valid
  * (parseTemplateYaml), the lines that may change, every comment and every other byte. On copies of the three starters:
@@ -224,7 +224,7 @@ describe('theme set_field: the allow-list and value checks (⚑ nothing else is 
       ['outro.tagline', 'x'.repeat(121), /at most 120/],
       ['brand.url', 'exa mple.com', /no space/],
       ['brand.url', 'example.com/"><img', /no space, quote/],
-      // L4.7 review A M2: shown as typed, never opened — no scheme, no leading // (the preview scan's rule).
+      // Shown as typed, never opened — no scheme, no leading // (the preview scan's rule).
       ['brand.url', 'https://example.com', /no scheme \(https:\/\/\) and no leading \/\//],
       ['brand.url', '//evil.example/x', /no scheme/],
       ['outro.url', 'HTTP://example.net', /no scheme/],

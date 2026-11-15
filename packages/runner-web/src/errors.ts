@@ -63,7 +63,7 @@ export class CancelledError extends RunnerError {
 }
 
 /**
- * The session preflight stopped the run before anything ran or was recorded (L1.6): a persona's session is expired,
+ * The session preflight stopped the run before anything ran or was recorded: a persona's session is expired,
  * was never saved, could not be checked, or its profile is open in another browser. The message names the fix.
  */
 export class PreflightError extends RunnerError {
@@ -78,7 +78,7 @@ export class PreflightError extends RunnerError {
 }
 
 /**
- * A filmed page landed on a sign-in page during the run (L1.6). The run fails (not cancelled) and keeps nothing of the
+ * A filmed page landed on a sign-in page during the run. The run fails (not cancelled) and keeps nothing of the
  * capture: no frames, no video, no screenshot.
  */
 export class LoginPageError extends RunnerError {

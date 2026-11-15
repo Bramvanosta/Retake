@@ -1,7 +1,7 @@
 /**
- * Signing of the bundled app (L5.16, DESIGN §4p) — used by `bundle.mjs build` (`pnpm desktop:bundle`) and
+ * Signing of the bundled app (DESIGN §4p) — used by `bundle.mjs build` (`pnpm desktop:bundle`) and
  * `release.mjs sign` (a release: the ad hoc app re-signed with the Developer ID). We sign, Tauri only lays the app out
- * (critique M1: `tauri build` runs with no secret in its environment):
+ * (`tauri build` runs with no secret in its environment):
  *
  * - the payload (the stage, before Tauri copies it into Contents/Resources), inside-out — files before the bundle that
  *   holds them, helpers before the framework, the framework before Chromium.app — after a walk that fails on any Mach-O
@@ -20,7 +20,7 @@
  * ditto / spctl only. No credential is ever on a command line or in a child's environment: notarytool reads a keychain
  * profile (stored once by the person: `xcrun notarytool store-credentials`) or an App Store Connect API key file; a
  * failure's text redacts every credential flag's value (`redactArgs`). Nothing here touches a keychain itself; the
- * release workflow (L5.16e, .github/workflows/release.yml) imports the Developer ID certificate into a temporary keychain
+ * release workflow (.github/workflows/release.yml) imports the Developer ID certificate into a temporary keychain
  * of its own (apps/desktop/scripts/ci-keychain.sh) and names it in APPLE_KEYCHAIN: codesign then takes the identity from
  * that keychain only (`--keychain`).
  */
@@ -167,7 +167,7 @@ function run(cmd, args, env) {
  * once with `xcrun notarytool store-credentials`), or an App Store Connect API key: APPLE_API_KEY (its id) +
  * APPLE_API_ISSUER + APPLE_API_KEY_PATH (the .p8 file). An Apple ID's app-specific password is not taken: notarytool
  * only reads it from its command line, where any local process sees it (`ps`) — store it in a keychain profile instead.
- * APPLE_KEYCHAIN (optional, L5.16e): the absolute path of the keychain file holding the identity (the release
+ * APPLE_KEYCHAIN (optional): the absolute path of the keychain file holding the identity (the release
  * workflow's temporary one) — codesign looks for the identity there only. An empty variable counts as absent. Throws,
  * naming what is missing, before anything runs.
  */
@@ -288,7 +288,7 @@ export function verifyApp(app, mode, { entries = readTable(), env = process.env,
 }
 
 /**
- * How long notarytool waits for Apple's answer (review e B-L3): a new team's first submissions can take long — the
+ * How long notarytool waits for Apple's answer: a new team's first submissions can take long — the
  * release workflow's `sign` job allows two of them within its own timeout.
  */
 export const NOTARY_TIMEOUT = '75m';
@@ -309,7 +309,7 @@ export function notarizeArgs(s, file) {
 }
 
 /**
- * Submit `file` and wait (review e B-L3): Accepted, or a SignError that says Apple's status and message and, for a
+ * Submit `file` and wait: Accepted, or a SignError that says Apple's status and message and, for a
  * submission Apple answered, the first issues of its log (`notarytool log <id>`, the same credentials) — never a
  * credential (redactArgs). Returns the submission id.
  */
@@ -370,7 +370,7 @@ export function teamOf(path, env = process.env) {
 }
 
 /**
- * What `spctl -a -vv` says of a notarised file (review e B-L2): accepted, and its source a notarised Developer ID — the
+ * What `spctl -a -vv` says of a notarised file: accepted, and its source a notarised Developer ID — the
  * exit status alone passes on a Mac whose assessments are relaxed. Returns the problem, or null.
  */
 export function gatekeeperProblem(status, text) {

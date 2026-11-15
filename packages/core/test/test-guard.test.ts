@@ -1,6 +1,5 @@
 /**
- * scripts/test-guard.mjs: a migrated test that loses a title, an expect or a test id is reported (L5.10's migrations
- * of the e2e tests ran under it; L5.11 – L5.12 do too).
+ * scripts/test-guard.mjs: a migrated test that loses a title, an expect or a test id is reported.
  */
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';

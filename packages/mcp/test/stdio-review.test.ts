@@ -1,5 +1,5 @@
 /**
- * L3.2 reviews and exports through `retake mcp` (spawned from the sources over stdio, driven by the SDK client), on
+ * Reviews and exports through `retake mcp` (spawned from the sources over stdio, driven by the SDK client), on
  * synthetic renders drawn with ffmpeg (the review tests' helpers: no fixture product, no browser for the reviews):
  * review returns review_get's result with the contact sheet as inline JPEG images when it finishes within its wait,
  * else review_get follows it; images obey the caps (count, base64 bytes, ≤ 1280 px) and the rest are listed as files;

@@ -1,5 +1,5 @@
 /**
- * L1.7 on the command line (R-ENV-02/04): `--allow-writes` on run / hooks run / hooks rollback / env reset, writing
+ * On the command line (R-ENV-02/04): `--allow-writes` on run / hooks run / hooks rollback / env reset, writing
  * hooks refused on read-only environments (before any browser opens for `retake run`), journal replays judged by
  * each entry's own environment. A local HTTP server stands in for the product; no browser is needed.
  */

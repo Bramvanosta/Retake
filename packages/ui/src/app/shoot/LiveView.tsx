@@ -1,8 +1,8 @@
 /**
- * The live picture of a run (L4.4, R-UI-16): the page the run acts on, as the worker's live channel sends it (≤ 960
+ * The live picture of a run (R-UI-16): the page the run acts on, as the worker's live channel sends it (≤ 960
  * px, ≤ 10 fps), drawn on a canvas — the JPEG decoded from bytes in memory by `ImageDecoder` where the browser has it
- * (WebCodecs: the bytes go to the decoder as they are), else by `createImageBitmap` of a Blob (review A: a browser may
- * keep a Blob's bytes in its blob storage, on disk under memory pressure — a 50 KB frame stays in memory in practice):
+ * (WebCodecs: the bytes go to the decoder as they are), else by `createImageBitmap` of a Blob (a browser may keep a
+ * Blob's bytes in its blob storage, on disk under memory pressure — a 50 KB frame stays in memory in practice):
  * no image address (no `src=`, no blob: or object URL — the source lint allows both decoders in this file only),
  * nothing stored.
  * The box keeps a fixed aspect and the canvas a fixed size: the picture is letterboxed — scaled to fit, centred, the
@@ -16,7 +16,7 @@
  * The picture is ON by default for a rehearsal and OFF for a capture (it costs Chromium CPU during the take; Prepare's
  * "Live picture during a capture" turns it on from the start); the toggle says so. It is a picture for the eye only:
  * the canvas has a label, its state is said in words next to it, and it is not a live region (a frame is not news).
- * L5.11a: on the kit (R4-ShootLive: the picture in a video-toned frame, a "Live" mark over it, the toggle a kit button);
+ * On the kit (R4-ShootLive: the picture in a video-toned frame, a "Live" mark over it, the toggle a kit button);
  * the letterbox colour is the kit's `--ui-video`.
  */
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';

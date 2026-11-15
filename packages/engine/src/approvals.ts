@@ -1,5 +1,5 @@
 /**
- * Human approvals of hooks for work submitted through MCP (L3.1, R-MCP-35). The agent that drives the MCP server can
+ * Human approvals of hooks for work submitted through MCP (R-MCP-35). The agent that drives the MCP server can
  * write the scenario files it runs (scenario_save), so their trust flags do not count: `confirm: true` is ignored, every
  * shell hook and every destructive hook needs a human, and a shell hook always counts as writing (trust `mcp`).
  *
@@ -127,7 +127,7 @@ export interface ApprovalRequest {
 export type ApprovalOutcome = { approved: true } | { approved: false; reason: 'declined' | 'cancelled' | 'timeout' | 'error'; message?: string };
 
 /**
- * What a human is asked before a site extraction (L3.5, R-MCP-12): open exactly this URL in a clean browser. `href` is
+ * What a human is asked before a site extraction (R-MCP-12): open exactly this URL in a clean browser. `href` is
  * the canonical URL (percent-encoded path, punycode host) — what opens and what the approval's fingerprint covers;
  * `unicode_host` is the same host as a person reads it. The decoded path is never shown (agent text).
  */

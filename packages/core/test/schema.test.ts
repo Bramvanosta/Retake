@@ -53,7 +53,7 @@ describe('JSON Schemas', () => {
   it('project, template and timeline schemas', () => {
     const p = projectJsonSchema() as Json;
     expect(p.required).toEqual(['name']);
-    // L1.7: an environment is the long form {production, access, pages, read_only} or the page map (short form);
+    // An environment is the long form {production, access, pages, read_only} or the page map (short form);
     // a page is a URL or {url, display}.
     expect(p.properties.environments.additionalProperties).toEqual({ $ref: '#/$defs/Environment' });
     const [long, short] = p.$defs.Environment.anyOf;
@@ -227,7 +227,7 @@ describe('zod schemas', () => {
     expect(
       perfSummary({ ...run.perf!, cpu: undefined, gpu: { accelerated: false }, stalls: [{ t: 1, ms: 250, during: 'ripple' }], transitions: undefined, disk: undefined, frame_rate_limit: false }),
     ).toBe('no GPU · 34.4 fps (moves ≥ 55) · 1 freeze (cut by the edit) · frame-rate limiter off');
-    // L5.14b: what ran beside the take (captures first) is recorded and said.
+    // What ran beside the take (captures first) is recorded and said.
     const beside = { ...run.perf!, machine: { ...run.perf!.machine, takes_beside: 1, heavy_slowed: true as const } };
     expect(RunRecordSchema.safeParse({ ...run, perf: beside }).success).toBe(true);
     expect(RunRecordSchema.safeParse({ ...run, perf: { ...beside, machine: { ...beside.machine, heavy_slowed: false } } }).success).toBe(false);

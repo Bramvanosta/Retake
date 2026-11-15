@@ -1,5 +1,5 @@
 /**
- * The component library screen's pure rules (L4.7 part D1, R-UI-06 / R-UI-06b): filters and groups, the words of a
+ * The component library screen's pure rules (R-UI-06 / R-UI-06b): filters and groups, the words of a
  * card's poster and loop states, the source badge ("Built-in" / "Workspace" — the tool cannot tell who wrote a workspace
  * component, so it never says "made with Claude"), which events re-read the library, the theme write behind "Set as
  * theme default" (one `set_component` through theme_edit; a starter or read-only theme is copied first), and the
@@ -245,7 +245,7 @@ export function idProblem(id: string, taken: Iterable<string>): string | null {
 export const PROMPT_WORDS_MAX = 600;
 
 /**
- * Characters never kept in the prompt (review A L1): core's hidden class (hidden-chars.ts) — controls, every format and
+ * Characters never kept in the prompt: core's hidden class (hidden-chars.ts) — controls, every format and
  * default-ignorable character (direction marks and overrides, zero widths, the invisible tag characters U+E0000 to
  * U+E007F that smuggle hidden text, variation selectors, the combining grapheme joiner), line / paragraph separators, the
  * Hangul fillers and the braille blank (blank-looking letters).

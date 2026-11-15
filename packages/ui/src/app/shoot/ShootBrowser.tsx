@@ -1,12 +1,12 @@
 /**
- * L5.11a: Shoot's browser (R4-ShootPrep / R4-ShootLive) — Prepare (the scenario's preflight), its Runs (newest first,
+ * Shoot's browser (R4-ShootPrep / R4-ShootLive) — Prepare (the scenario's preflight), its Runs (newest first,
  * the one queued or running on top: its kind in words, when, its outcome as a shape and words; each opens its live
  * route, which replays a finished run's outcome, steps and log) and Record a scenario. The runs are the status bar's
  * `scenario_actions` read (shoot-data.ts: one entry per scenario and location).
- * L5.11b (R4-Record): on the Record routes, the Recordings group — the project's recent recordings (record_options'
+ * On the Record routes, the Recordings group — the project's recent recordings (record_options'
  * `recent`), the open one first with its live state and actions from the screen's own view; each opens its route — and
- * Prepare / Runs only while a scenario is in context. L5.11b fixes (review B-L6): a recording's line says its location
- * and step count again, and a saved one links its scenario (a row under it).
+ * Prepare / Runs only while a scenario is in context. A recording's line says its location
+ * and step count, and a saved one links its scenario (a row under it).
  */
 import type { RecordListItem, RecordState, ScenarioRunChoice } from '@retake/engine';
 import { Txt, plural } from '../bits.js';

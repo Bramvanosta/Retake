@@ -1,5 +1,5 @@
 /**
- * L3.4 recording acceptance through MCP (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`). An SDK client
+ * Recording acceptance through MCP (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`). An SDK client
  * drives `retake mcp` (spawned from the sources over stdio) on a copy of projects/northfield-fixture pointed at the
  * fixture product on free ports. No human in CI: the worker that runs the `record` job lives in this process and its
  * injected driver plays the person in a headless "headed" window (Playwright input is trusted, as a person's) — the

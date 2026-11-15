@@ -1,5 +1,5 @@
 /**
- * L5.16b — the bundled app, end to end (gated: RETAKE_TEST_BUNDLE=1, macOS on Apple silicon, `pnpm build` first,
+ * The bundled app, end to end (gated: RETAKE_TEST_BUNDLE=1, macOS on Apple silicon, `pnpm build` first,
  * cargo offline; slow — a build is ≈ 2–5 min, the capture and render ≈ 3 min — and ≈ 3 GB of scratch, removed after).
  *
  * The app: RETAKE_TEST_BUNDLE_APP=<…/Retake.app> takes a built one; otherwise `pnpm desktop:bundle` runs here
@@ -8,31 +8,31 @@
  * Then, from the built app only — no repository on PATH (/usr/bin:/bin:/usr/sbin:/sbin), a scratch HOME, RETAKE_HOME
  * and TMPDIR, nothing else in the environment:
  * - the launcher (Contents/Resources/bin/retake, directly and through a link): `--version` names the app bundle;
- *   `doctor --json`: Node.js, Chromium, the render browser, ffmpeg and ffprobe are the app's (`bundled`); L5.16d: its
+ *   `doctor --json`: Node.js, Chromium, the render browser, ffmpeg and ffprobe are the app's (`bundled`); its
  *   `App updates` line says "updates are off in this build" (no feed given to this build: launch.json `updates`);
  * - `retake init` makes a workspace, the fixture project is copied in (its hosts on ports 4970–4973, where this test
  *   serves the fixture product), `run northfield-fixture quote` captures it and `render … --review` renders it with the
- *   app's headless shell (the render record says `bundled`; L5.15: ANGLE + VideoToolbox, and doctor's Renders line says
+ *   app's headless shell (the render record says `bundled`; ANGLE + VideoToolbox, and doctor's Renders line says
  *   so), the review passes;
  * - the shell binary started directly (Contents/MacOS, test mode — never `open` / Launch Services) serves the Studio
  *   from the app's own Node.js and engine (the server's command line), the page redeems its code, SIGTERM stops it;
- * - L5.16c: the first run — no workspace, test mode answers Create ~/Retake: the app's own `retake init` makes it in the
+ * - the first run — no workspace, test mode answers Create ~/Retake: the app's own `retake init` makes it in the
  *   scratch HOME and the Studio serves it; then the Set-up sheet's ops on that server: the command linked into the scratch
  *   HOME's ~/.local/bin and run through the link, the folder panel (test mode's pick) answering on the server's stdin,
  *   the notification request reaching the shell, Claude Desktop refused (no folder: nothing created), Done remembered;
- *   L5.16c fixes: one command per app (installing elsewhere waits for Uninstall), a panel that gives nothing is said
+ *   One command per app (installing elsewhere waits for Uninstall), a panel that gives nothing is said
  *   (`cancelled`); the first run's Choose a Folder… — a folder that is not empty refused by `retake init`, the question
- *   asked again with the reason, then an empty folder made the workspace (review c B-L5);
- * - module lookups never leave the app (review A H1): canary packages — every bare specifier the engine's JavaScript
+ *   asked again with the reason, then an empty folder made the workspace;
+ * - module lookups never leave the app: canary packages — every bare specifier the engine's JavaScript
  *   names that the engine does not hold, bufferutil and utf-8-validate among them — planted in the node_modules folders
  *   above the app (this test's folders only) and in the scratch home's ~/node_modules and ~/.node_modules never run
  *   during doctor, the capture, the render and the Studio, and none is in the render bundle; a clone of the app (cp -c) with canaries above Resources
  *   (Contents/node_modules, Retake.app/node_modules) runs doctor without loading them either;
- * - bundle.json's sha256 values are the app's files' (review B M3);
+ * - bundle.json's sha256 values are the app's files';
  * - afterwards the app still verifies (`codesign --verify --deep --strict`), nothing inside it is newer than the start
  *   of the runs, and ~/Library's entries named after the bundle id are unchanged — names, sizes and mtimes (Launch
  *   Services' record of the scratch app is removed with `lsregister -u`) — and Chromium's crash reporter settings there
- *   too (every child runs with CFFIXED_USER_HOME at the scratch home: L5.16c fixes). The numbers (sizes, timings) are printed and
+ *   too (every child runs with CFFIXED_USER_HOME at the scratch home). The numbers (sizes, timings) are printed and
  *   written to RETAKE_TEST_BUNDLE_REPORT when set.
  */
 import { spawn, spawnSync } from 'node:child_process';
@@ -303,9 +303,9 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
       expect(check(name).detail, name).toMatch(/bundled/);
     }
     expect(check('MCP').detail).toContain(join(app, 'Contents', 'Resources', 'node', 'bin', 'node'));
-    // L5.15: the app's renders run on the GPU — its relinked compositor's ffmpeg passes the VideoToolbox probe.
+    // The app's renders run on the GPU — its relinked compositor's ffmpeg passes the VideoToolbox probe.
     expect(check('Renders'), JSON.stringify(check('Renders'))).toMatchObject({ status: 'ok', detail: expect.stringMatching(/^GPU \(.*\) · VideoToolbox H\.264 · 3 frames at a time$/) });
-    // L5.16d (review d A-L9): a bundle built without an update feed says so (its launch.json `updates: "off"`).
+    // A bundle built without an update feed says so (its launch.json `updates: "off"`).
     expect(JSON.parse(readFileSync(join(app, 'Contents', 'Resources', 'launch.json'), 'utf8')).updates).toBe('off');
     expect(check('App updates').detail).toMatch(/^updates are off in this build/);
   });
@@ -357,7 +357,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
         encoding: { encoder?: string };
       };
       expect(r.status).toBe('succeeded');
-      // L5.15: the signed app's path (its relinked compositor, hardened runtime) draws with ANGLE and encodes with
+      // The signed app's path (its relinked compositor, hardened runtime) draws with ANGLE and encodes with
       // VideoToolbox — the only check of that path (render-gpu.test.ts checks the repository's and a relinked copy's probe).
       expect(r.policy, JSON.stringify(r.policy)).toMatchObject({ gl: { used: 'angle', renderer: expect.stringMatching(/Metal/) }, encoder: { used: 'h264_videotoolbox' } });
       expect(r.policy?.fallback).toBeUndefined();
@@ -378,7 +378,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     async () => {
       const t0 = Date.now();
       let out = '';
-      // Outside the repository, as from Finder (review B L2): a cwd-relative lookup into the checkout would fail here.
+      // Outside the repository, as from Finder: a cwd-relative lookup into the checkout would fail here.
       shell = spawn(join(app, 'Contents', 'MacOS', BIN_NAME), ['--root', ws], { cwd: base, env: { ...env, RETAKE_ROOT: '', RETAKE_DESKTOP_TEST: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
       shell.stdout!.on('data', (c: Buffer) => (out += c.toString('utf8')));
       shell.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
@@ -453,7 +453,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
       const v = retake(['--version'], { via: link });
       expect(v.stdout.trim()).toContain(`(app bundle: ${app})`);
       // The folder panel (test mode: RETAKE_DESKTOP_TEST_PICK) answers on the server's stdin; then the command goes there
-      // — once the one in ~/.local/bin is uninstalled (one command per app: review c B-M1).
+      // — once the one in ~/.local/bin is uninstalled (one command per app).
       expect((await call('setup_cli_choose')).status).toBe(200);
       await until(async () => (await call('setup_status')).body.data.cli.chosen === true, 15_000, `the panel's answer (${out.slice(-500)})`);
       expect((await call('setup_cli_install', { folder: 'chosen' })).body.error?.details?.reason).toBe('installed_elsewhere');

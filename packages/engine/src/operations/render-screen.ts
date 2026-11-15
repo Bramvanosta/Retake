@@ -1,5 +1,5 @@
 /**
- * The Studio's render queue and Review screen reads (moved from the Studio server's ops.ts renderOps in L7.14, R-UI-26):
+ * The Studio's render queue and Review screen reads (R-UI-26):
  * - `scenario_renders`: engine renders.ofScenario — the queue (queued with what runs first / running with phase,
  *   fraction and eta / reviewing) and the renders with their review verdict, path-free.
  * - `render_review`: the review without any path (reviewAnswer).

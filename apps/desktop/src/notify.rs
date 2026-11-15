@@ -1,4 +1,4 @@
-//! Job notifications (L5.2b, DESIGN §4j): a capture, render, review, export, recording… that ends while the window is
+//! Job notifications (DESIGN §4j): a capture, render, review, export, recording… that ends while the window is
 //! not in front posts a macOS notification (UNUserNotificationCenter) — the shell's words (desktop_core::words), the
 //! no-storm rule of desktop_core::Notifier (one post at once, then one summary per 5 s), grouped under one thread, no
 //! sound. A click shows the window. In front (the app active, its window key, visible, not minimised): nothing — the
@@ -6,7 +6,7 @@
 //!
 //! - Permission is asked on the first notification that would be shown (a prompt with context, never at launch), and
 //!   that first one is posted once granted (if the answer came within a minute). A no or an error is not kept for the
-//!   session (review B L9, desktop_core::Permission): the next notification asks again — no prompt once the person
+//!   session (desktop_core::Permission): the next notification asks again — no prompt once the person
 //!   answered, so turning them on in System Settings works without a relaunch — and each outcome is said once, an error
 //!   with its domain and code.
 //! - Only a real bundle calls UN (`desktop:dev` runs a bare binary: UN would raise) — said once otherwise.
@@ -200,7 +200,7 @@ fn post(title: String, body: String) {
     }
 }
 
-/// L5.16c, the Set-up sheet's Allow…: ask macOS for the permission now (it prompts only when the person never answered;
+/// The Set-up sheet's Allow…: ask macOS for the permission now (it prompts only when the person never answered;
 /// otherwise it answers what they chose), and tell the server the outcome (desktop_core::setup::notifications_line).
 /// Test mode never calls UN: it logs and answers `unknown`; a bare binary has no bundle id to ask for.
 pub fn request_permission(_app: &AppHandle) {

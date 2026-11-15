@@ -1,5 +1,5 @@
 /**
- * The panes of a multi-page clip (L2.11), for the segments step of `planEdit`: the layout's geometry evaluated with
+ * The panes of a multi-page clip, for the segments step of `planEdit`: the layout's geometry evaluated with
  * both pages' aspects, each page's output rect (split: top-aligned in its pane; picture in picture: the main page in
  * `screen`, the other in `inset`), its camera (its own steps' zooms; none in an inset), its reframe in vertical /
  * square, its URLs.

@@ -21,7 +21,7 @@ export const checkedString = (why: (s: string) => string | null) =>
     if (message) ctx.addIssue({ code: 'custom', message });
   });
 
-/** `clock:` (L1.7): an ISO 8601 date-time, or {at, freeze}. */
+/** `clock:`: an ISO 8601 date-time, or {at, freeze}. */
 export const ClockSpecSchema = z
   .union([
     checkedString(clockError).describe("ISO 8601 date and time, e.g. 2026-11-02T10:24:00 (without an offset: wall time in the browser's time zone)."),
@@ -92,7 +92,7 @@ const LongEnvironmentSchema = z.strictObject({
   read_only: ReadOnlySchema.optional(),
 });
 
-/** One environment: the page map (short form), or {production, access, pages, read_only} (long form, L1.7). */
+/** One environment: the page map (short form), or {production, access, pages, read_only} (long form). */
 const EnvironmentSchema = keyedUnion(
   [LongEnvironmentSchema, PagesSchema],
   {
@@ -210,7 +210,7 @@ export const ProjectConfigSchema = z.strictObject({
   template: nonEmpty(),
 });
 
-/** retake.yaml `render:` (L5.15): how this machine renders; each key wins over its `RETAKE_RENDER_*` variable. */
+/** retake.yaml `render:`: how this machine renders; each key wins over its `RETAKE_RENDER_*` variable. */
 export const RenderSettingsSchema = z
   .strictObject({
     gl: z

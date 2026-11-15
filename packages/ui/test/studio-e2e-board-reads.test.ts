@@ -1,20 +1,20 @@
 /**
- * L5.10a fixes (reviews A-H1 and B-H1): the open project's shared reads, counted at the server's door in headless
- * Chromium against an in-process Studio on a scratch copy of the fixture (the fixture product on free ports):
+ * The open project's shared reads, counted at the server's door in headless Chromium against an in-process Studio on a
+ * scratch copy of the fixture (the fixture product on free ports):
  * - ⚑ a take run from a terminal (`retake run … --dry`, a separate process: every step rewrites run.json) while the
  *   Project screen and the Cast are open in two tabs — project_board, project_get and auth_status stay under a ceiling
  *   set by the take's changes (it started, it ended), far under its step count (they were one read per step);
  * - ⚑ a project whose project.yaml does not load: its reads over 5 s stay bounded (they looped ~300 times a second);
  * - ⚑ the arrow keys in the poster grid: no project read at all (they were one read of each op per key press);
- * - ⚑ L5.11a (critique H2): the status bar's `scenario_actions` for the production selected reads once the selection
+ * - ⚑ The status bar's `scenario_actions` for the production selected reads once the selection
  *   settled (10 quick arrow keys: ≤ 2 reads); a terminal take's steps never re-read it; on the Scenario screen it reads
  *   nothing (the screen feeds it its own view: a change of the file is one scenario_blocks, no scenario_actions);
- * - a job of another project re-reads nothing here; one of this project re-reads the board (review A-L7);
- * - the inspector hidden: what it shows has a home in the centre pane (review B-M1); the poster grid at the desktop
- *   app's narrowest window, 900 px, keeps readable posters (review B-M2);
- * - the lows: a production the search hides leaves the inspector (A-L1); the warnings' disclosure says what it shows,
- *   the README preview has a tab stop, the folder its full path in a tooltip (A-L6, B-L6); the searches keep their
- *   limits (B-L4); a persona's location on a line of its own in the browser (B-L1).
+ * - a job of another project re-reads nothing here; one of this project re-reads the board;
+ * - the inspector hidden: what it shows has a home in the centre pane; the poster grid at the desktop
+ *   app's narrowest window, 900 px, keeps readable posters;
+ * - a production the search hides leaves the inspector; the warnings' disclosure says what it shows,
+ *   the README preview has a tab stop, the folder its full path in a tooltip; the searches keep their
+ *   limits; a persona's location on a line of its own in the browser.
  */
 import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
@@ -133,7 +133,7 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
   it('⚑ a take from a terminal with the Project screen and the Cast open: project_board / project_get / auth_status bounded by its changes, not its steps', async () => {
     const proj = await tab(`/p/${P}`);
     await proj.locator('[role="option"]').first().waitFor(POLL);
-    // L5.11a: the take's production selected — the scenario in context of the status bar.
+    // The take's production selected — the scenario in context of the status bar.
     await proj.locator('[role="option"][data-id="many-steps"]').click();
     await proj.getByTestId('status-scenario').waitFor(POLL);
     const cast = await tab(`/p/${P}/cast`);
@@ -178,7 +178,7 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
       expect(c.count('project_get')).toBeLessThanOrEqual(1);
       expect(c.count('auth_status')).toBeLessThanOrEqual(1);
     }
-    // L5.11a (M14 of the plan): the status bar's read of the take's scenario follows its changes, never its steps.
+    // The status bar's read of the take's scenario follows its changes, never its steps.
     console.log(`  scenario_actions: Project screen ${a.count('scenario_actions')}`);
     expect(a.count('scenario_actions')).toBeLessThanOrEqual(4);
     await proj.context().close();
@@ -228,7 +228,7 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
     console.log(`six arrow keys in the poster grid: ${JSON.stringify(c.ops)}`);
     expect(await page.locator('[role="option"][aria-selected="true"]').count()).toBe(1);
     // The first one opens a production's inspector (its Lately reads the project's activity once); the next ones: nothing
-    // of the project — L5.11a: the status bar reads the production in context once it settled (300 ms), at most a key.
+    // of the project — the status bar reads the production in context once it settled (300 ms), at most a key.
     const project = (l: string[]) => l.filter((o) => o !== 'scenario_actions');
     expect(project(afterFirst).filter((o) => o !== 'activity_list')).toEqual([]);
     expect(project(c.ops.slice(afterFirst.length))).toEqual([]);

@@ -1,9 +1,9 @@
 /**
- * node:sqlite, loaded lazily (L4.1, the workspace index). Node 22.13+ loads it without a flag and prints one
+ * node:sqlite, loaded lazily (the workspace index). Node 22.13+ loads it without a flag and prints one
  * ExperimentalWarning ("SQLite is an experimental feature…"; Node 24.15+ prints none); Node 22.0–22.12 do not have it
  * (`ERR_UNKNOWN_BUILTIN_MODULE`) — the Studio then runs without its index, and nothing else changes.
  *
- * The warning filter is scoped twice (critique B11): it lives only while the module is imported, and it swallows only
+ * The warning filter is scoped twice: it lives only while the module is imported, and it swallows only
  * the warning whose message names SQLite — any other warning emitted in that window (a DeprecationWarning…) still prints.
  */
 import type { DatabaseSync } from 'node:sqlite';

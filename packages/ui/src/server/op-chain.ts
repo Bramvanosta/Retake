@@ -8,7 +8,7 @@ export type { OpChain } from '@retake/engine';
 /**
  * A chain of calls per key (a double click, two tabs): each call of a key waits for the previous one, so the second
  * finds the first one's result (a new hash: its 409). The Studio passes ONE chain to scenario_edit, thread_apply and
- * record_save, keyed by scenarioKey — since L7.15 the engine's operation chain (`operationChain(engine)`), which
+ * record_save, keyed by scenarioKey — the engine's operation chain (`operationChain(engine)`), which
  * scenario_render (the engine's operation) runs on by its `serialize`: an apply, an edit and a render submit of one
  * scenario never interleave in this server (the engine's own admission rules chain a submit and its check apart from
  * this one). A chain of its own is for stand-ins that never run an op (tests).

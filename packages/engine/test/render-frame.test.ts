@@ -1,14 +1,14 @@
 /**
- * L4.6 part A1, T6 / T7 (engine render-frames.ts; critique B7): a render's own frames for the Studio's comment viewer,
+ * A render's own frames (engine render-frames.ts) for the Studio's comment viewer,
  * on a render encoded as a real one is (libx264 with B-frames, a 60-frame GOP without scene cuts, an AAC track) whose
- * every frame shows its own index in white blocks (the L4.5 bits take): the frame shown is the frame asked on both
+ * every frame shows its own index in white blocks (the bits take): the frame shown is the frame asked on both
  * sides of keyframes and at the last frame, and the still of a thread on it holds the same index (viewer = still =
  * thread). Refused: a record whose fps is not its video's, a video that is a link, a hard link, another file than
  * renders/<id>.mp4 or outside the project; a reused id (created_at) is a conflict, a frame past the video's own end an
  * argument error. The LRU serves a repeat without ffmpeg; the same session's newer request supersedes the older one,
- * decided at arrival (review A L2); past the queue bound requests — outlines too — are `busy` before any file is opened
- * (review A N4); a request ends within its timeout (`unavailable`, review B L3); a video that does not start at 0 or
- * has a variable frame rate is refused (review B L4). Needs ffmpeg and ffprobe.
+ * decided at arrival; past the queue bound requests — outlines too — are `busy` before any file is opened
+ *; a request ends within its timeout (`unavailable`); a video that does not start at 0 or
+ * has a variable frame rate is refused. Needs ffmpeg and ffprobe.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { copyFile, link, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
@@ -221,7 +221,7 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
       expect(outline.pins.map((p) => p.frame)).toEqual([GOP - 1, GOP + 1]);
       expect(outline.pins.every((p) => p.status === 'open' && /^c_/.test(p.id))).toBe(true);
       expect(outline.markers.length).toBe(outline.untrusted.markers.length);
-      // The same id made at another time is another render (core sameRender, L7.6c): the threads made on the render as it
+      // The same id made at another time is another render (core sameRender): the threads made on the render as it
       // was are none of its pins, and the page that read it then is told it was replaced.
       const later = '2026-12-01T10:00:00.000Z';
       await withRecord(
@@ -386,7 +386,7 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
       expect((busy[0] as EngineError).details?.reason).toBe('queue_full');
       expect(results.filter((r) => !(r instanceof EngineError)).length).toBe(4);
 
-      // A request that cannot get a slot in time ends with its own code (review B L3: a timeout is not a full queue).
+      // A request that cannot get a slot in time ends with its own code (a timeout is not a full queue).
       const slots3 = new Semaphore(1);
       const held3 = await slots3.acquire();
       const t = frames({ slots: slots3, timeoutMs: 400 });

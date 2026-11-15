@@ -1,9 +1,9 @@
 /**
- * The Studio's own ops (L4.1): reads in the MCP tool shape (a zod input, a summary and data) so `/v1/call/<op>` runs
+ * The Studio's own ops: reads in the MCP tool shape (a zod input, a summary and data) so `/v1/call/<op>` runs
  * them through the same `invoke` — but they are not MCP tools: Claude reads files, project_get, run_list and job_list
  * instead, and the MCP server never depends on this package.
  *
- * L7.14: the Studio's read-only queries are the engine's operations (packages/engine/src/operations/): board.ts
+ * The Studio's read-only queries are the engine's operations (packages/engine/src/operations/): board.ts
  * (`projects_overview`, `project_board`), scenario-screen.ts (`scenario_blocks`, `scenario_actions`, `run_thumbs`,
  * `scenario_forms`, `scenario_sessions`), render-screen.ts (`scenario_renders`, `render_review`, `review_image`); the
  * Studio serves them as they are (studio.ts uiTools). The ops below stay here for now:
@@ -11,21 +11,21 @@
  * - `activity_list`: unfinished jobs, live from the queue (derived states included), then finished jobs and CLI
  *   commands from the history — ids, kinds, states and times only (no product text: history lines carry none).
  * - `search`: projects (name, slug, README), scenarios, runs and renders matching every word as a prefix.
- * - L7.15: the submits and job controls — `scenario_run`, `run_pause`, `sign_in_cancel`, `scenario_render`,
+ * - The submits and job controls — `scenario_run`, `run_pause`, `sign_in_cancel`, `scenario_render`,
  *   `render_cancel`, `review_export` — are the engine's operations (operations/studio-jobs.ts); their answer types are
  *   re-exported here for the app and the tests.
- * - `timeline_view` (L4.5): the timeline screen's read — engine timeline.view and the preview's capability URLs on the
+ * - `timeline_view`: the timeline screen's read — engine timeline.view and the preview's capability URLs on the
  *   player origin (timelineOps); `timeline_leave` (the page left: its project's preview URLs are revoked once no page
  *   holds a lease) and `preview_allow` (the person allows a workspace component to run in the preview, this session).
- * - L4.7: the library ops live in library-ops.ts (library_view, library_images, library_render) and the theme ops in
+ * - The library ops live in library-ops.ts (library_view, library_images, library_render) and the theme ops in
  *   theme-ops.ts (theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview); the
  *   preview pages' leases (preview-leases.ts PreviewLeases) are shared by timeline_view and theme_preview.
- * - L4.8: the Record screen's ops (record_options, record_start, record_view, record_annotate, record_stop,
- *   record_discard, record_save): the engine's operations since L7.18 (operations/record.ts; record-ops.ts names them).
- * - L4.6: `timeline_view {proposal}` (the preview of Claude's proposal, through the same workspace-component hold); the
- *   comment ops live in comment-ops.ts; scenario_edit, scenario_render and thread_apply share one op chain (op-chain.ts,
- *   critique B5; since L7.15 it is the engine's operation chain, which scenario_render runs on by its `serialize`).
- * - L7.18: scenario_edit (the Studio's one scenario write) is the engine's operation (operations/scenario-edit.ts, on
+ * - The Record screen's ops (record_options, record_start, record_view, record_annotate, record_stop,
+ *   record_discard, record_save): the engine's operations (operations/record.ts; record-ops.ts names them).
+ * - `timeline_view {proposal}` (the preview of Claude's proposal, through the same workspace-component hold); the
+ *   comment ops live in comment-ops.ts; scenario_edit, scenario_render and thread_apply share one op chain
+ *   (op-chain.ts; the engine's operation chain, which scenario_render runs on by its `serialize`).
+ * - scenario_edit (the Studio's one scenario write) is the engine's operation (operations/scenario-edit.ts, on
  *   the engine's operation chain by its `serialize`); its answer carries no absolute path.
  */
 import { z } from 'zod';
@@ -94,10 +94,10 @@ export function indexOps(live: Live) {
 /** The personas a capture's `sessions_ack` must name, and what the capture does with them: the engine's rule. */
 export { confirmWhy, sessionsToConfirm } from '@retake/engine/shell';
 export type { SessionToConfirm } from '@retake/engine';
-/** The read-only queries' answers the app and the tests name (the engine's operations since L7.14). */
+/** The read-only queries' answers the app and the tests name (the engine's operations). */
 export { REVIEW_IMAGES_MAX, reviewAnswer } from '@retake/engine/contract';
 export type { ProjectOverview, RenderReviewAnswer } from '@retake/engine/contract';
-/** The submits' and job controls' answers and constants the app and the tests name (the engine's operations since L7.15). */
+/** The submits' and job controls' answers and constants the app and the tests name (the engine's operations). */
 export { REVIEW_EXPORTS_OPEN, REVIEW_EXPORT_FORMATS } from '@retake/engine/contract';
 export type { ReviewExportAnswer, ScenarioRenderAnswer, ScenarioRunAnswer } from '@retake/engine/contract';
 
@@ -122,7 +122,7 @@ const PreviewAllowInput = z.strictObject({
   hash: z.string().regex(COMPONENT_HASH_RE, 'the folder hash timeline_view preview_held gave (16 hex characters)'),
 });
 
-/** The file's text while switches can be written (the engine gives it beside the view): what undo restores (L4.5 part D). */
+/** The file's text while switches can be written (the engine gives it beside the view): what undo restores. */
 export interface TimelineText {
   text?: string;
 }
@@ -138,21 +138,21 @@ export type TimelineViewAnswer =
   | { blocked: { problems: string[]; command?: string }; run_id?: string };
 
 /**
- * timeline_view (L4.5 part C): the timeline screen's one read — engine timeline.view (memoised per file, run,
+ * timeline_view: the timeline screen's one read — engine timeline.view (memoised per file, run,
  * timeline and components: a re-read after an event plans nothing new), then the player origin publishes the view's
  * plan (`publish`: its files registered under the session capability, the preview plan served as plan.json; `forbid`
  * adds the workspace and the home folder) and the answer carries `frame_url` and `plan_url` — never the plan, its
- * folders or any path (critique B4: the plan holds product text and local URLs; it reaches the sandboxed frame by its
- * capability URL only). The two URLs hold the session capability: the page that frames the preview needs them, the
+ * folders or any path (the plan holds product text and local URLs; it reaches the sandboxed frame by its capability
+ * URL only). The two URLs hold the session capability: the page that frames the preview needs them, the
  * server never logs them. Part D: while switches can be written, `text` — the file's text (the view's `hash`), which
  * the screen's undo restores byte for byte (scenario_edit `restore`), the same text scenario_blocks gives the page.
- * L4.5 fixes: the plan is published in the project's own scope (its own capability, review A L3) and the page's `lease`
+ * The plan is published in the project's own scope (its own capability) and the page's `lease`
  * keeps it alive until `timeline_leave`; `preview_held` names the workspace components the take uses that the preview
- * does not run until `preview_allow` (review A H1 c: the Studio's in-memory allow-list, by folder content hash).
+ * does not run until `preview_allow` (the Studio's in-memory allow-list, by folder content hash).
  * Not MCP tools: Claude reads plan_preview.
  */
 export function timelineOps(o: { player: () => PlayerServer; forbid: () => readonly string[]; allow?: PreviewAllowList; registry?: () => Promise<ComponentRegistry>; leases?: PreviewLeases }) {
-  // L4.7: the theme editor's preview pages hold leases of the same set (theme-ops.ts), so timeline_leave ends theirs too.
+  // The theme editor's preview pages hold leases of the same set (theme-ops.ts), so timeline_leave ends theirs too.
   const leases = o.leases ?? new PreviewLeases((p) => o.player().release(p));
   /** The workspace components a plan uses that are not allowed (empty without an allow-list: every one runs). */
   const heldOf = async (plan: Parameters<PlayerServer['publish']>[0]['plan']): Promise<NonNullable<PreviewHeld['preview_held']>> => {
@@ -178,16 +178,16 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
         return { summary: `${a.name}: the take cannot be previewed from the Studio (${plural(r.blocked.problems.length, 'problem')})`, data: data };
       }
       const v = r.view;
-      // The file's text, for undo (L4.5 part D: L4.3's `restore` of the exact bytes) — as scenario_blocks gives it.
+      // The file's text, for undo (`restore` of the exact bytes) — as scenario_blocks gives it.
       const text = r.text !== undefined ? { text: r.text } : {};
       const head = `${a.name}: ${v.run_id}, ${plural(v.model.segments.length, 'segment')}, ${plural(v.model.frames, 'frame')}${v.proposal ? `, previewing the proposal of ${v.proposal.comment_id}` : ''}`;
       leases.prune();
       if (a.lease) leases.hold(a.project, a.lease);
-      // The proposal's plan too (critique B9 c): a workspace component a proposal adds is held until the person allows it.
+      // The proposal's plan too: a workspace component a proposal adds is held until the person allows it.
       const held = await heldOf(r.plan);
       const heldPart: PreviewHeld = held.length ? { preview_held: held } : {};
       try {
-        // Each project its own capability (review A L3): a page of one project never holds URLs of another's files.
+        // Each project its own capability: a page of one project never holds URLs of another's files.
         const p = await o.player().publish(r, { forbid: o.forbid(), scope: a.project });
         const data: TimelineViewAnswer = { ...v, ...text, ...heldPart, frame_url: p.frame_url, plan_url: p.plan_url };
         return { summary: head, data: data };
@@ -233,7 +233,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
   return [view, leave, allow] as const;
 }
 
-/** The names of the Studio's own ops (not MCP tools; the read-only queries among them are the engine's operations since L7.14). */
+/** The names of the Studio's own ops (not MCP tools; the read-only queries among them are the engine's operations). */
 export const TIMELINE_OPS = ['timeline_view', 'timeline_leave', 'preview_allow'] as const;
 export const RENDER_OPS = ['scenario_render', 'scenario_renders', 'render_cancel', 'render_review', 'review_image', 'review_export'] as const;
 export const INDEX_OPS = ['activity_list', 'search'] as const;

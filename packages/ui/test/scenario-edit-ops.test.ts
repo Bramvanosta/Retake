@@ -1,5 +1,5 @@
 /**
- * L4.3 part 1: the Studio's scenario write path over HTTP — `scenario_edit` (an own op: `replace_text`, `restore`)
+ * The Studio's scenario write path over HTTP — `scenario_edit` (an own op: `replace_text`, `restore`)
  * behind the gate: strict zod refusals before any read (an unknown kind, a path as a name, extra keys, a text over
  * 500,000 characters, a hash that is not one), a stale hash → 409 with the current hash, two concurrent edits of one
  * file → one saved and one 409, a refusal worded "from the Studio"; `scenario_validate` allowed for the YAML tab's live
@@ -10,7 +10,7 @@
  * Part 3: `scenario_forms` allowed; the form's `set_step` and the palette's `insert_step` — strict shapes refused before
  * any read (an object or a list as a value, a path segment with a dot, four levels, a whole step, raw YAML, an action
  * outside the palette), a field changed meanwhile a 409 with `stale` and the field, a secret reference refused for the
- * Studio. L4.5 part D: the timeline's `set_field` — ⚑ the strict shape refused before any read (a field outside the
+ * Studio. The timeline's `set_field` — ⚑ the strict shape refused before any read (a field outside the
  * allow-list or not of that entry, a step / hook / var path, an object or null as a value, a guard that is not one, an
  * extra key), a switch written as one line with `change: 'edit'`, a value changed meanwhile a 409 with `stale`.
  */

@@ -3,7 +3,7 @@
  * edits (steps, fields, maps), the filmed part, the step match, a draft from a script,
  * the agent's trust checks.
  *
- * A context of core (L7.35, audit 2026-11-10 D1): its files may import the contexts before it (base, model, ids,
+ * A context of core: its files may import the contexts before it (base, model, ids,
  * language, environment, policy, hooks, project, sandbox); the ratchet's `core-context` check holds it
  * (scripts/audit/lib.mjs CORE_CONTEXTS). Each name is exported by the entry of the file that declares it; the root
  * `@retake/core` is every entry at once, for tests and scripts (the packages' sources import an entry: the `core-root`

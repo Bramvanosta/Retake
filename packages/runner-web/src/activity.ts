@@ -1,5 +1,5 @@
 /**
- * What the screen did after each click (L5.7, R-FLD-23, R-FLD-26), from a 96×54 grey copy of every output frame of
+ * What the screen did after each click (R-FLD-23, R-FLD-26), from a 96×54 grey copy of every output frame of
  * capture.mp4 (the encoder fed during the take writes it: stream.ts `onThumb`). Each frame is compared with the one
  * before on a grid of 16 × 9 cells (a cell changed when at least CELL_MIN_PIXELS of its pixels moved by more than
  * PIXEL_DELTA grey levels). Cells around the in-page cursor and its click ripples, and cells that change all the time

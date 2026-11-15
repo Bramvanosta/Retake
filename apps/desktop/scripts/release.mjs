@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The release's last half (L5.16e fixes, review e A-H1; DESIGN §4p (e)): from an app laid out and signed ad hoc by
+ * The release's last half (DESIGN §4p (e)): from an app laid out and signed ad hoc by
  * `bundle.mjs build` to what a release ships — the Developer ID signature, notarisation and stapling, the update
  * archive and its signature, the DMG.
  *

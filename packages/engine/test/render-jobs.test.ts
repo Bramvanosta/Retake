@@ -1,5 +1,5 @@
 /**
- * L3.2 `render` jobs (engine jobs/render-job.ts, renders.ts), on a synthetic capture (no fixture product): the submit
+ * `render` jobs (engine jobs/render-job.ts, renders.ts), on a synthetic capture (no fixture product): the submit
  * plans through the trust gates and reserves the render id at once (from the scenario name, upper case allowed), the
  * worker (in this process, `once`) renders it guarded; render_status looks the job up first; a failed or cancelled
  * render releases its id (the next render reuses it) and leaves nothing under the final name; a refusal or a queue
@@ -82,7 +82,7 @@ afterAll(async () => {
 beforeEach(async () => {
   if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'studio-render-jobs-'));
-  // L5.15: the workspace's render settings reach the job's render (the job process opens the workspace).
+  // The workspace's render settings reach the job's render (the job process opens the workspace).
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\nrender:\n  concurrency: 2\n`);
   const dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
@@ -104,7 +104,7 @@ beforeEach(async () => {
   t.scenario = SCENARIO;
   timelineFile = join(runDir, 'timeline.json');
   await writeFile(timelineFile, JSON.stringify(t, null, 2));
-  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  // A run `latest` takes has its record (a folder without a readable run.json is never the latest capture).
   await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: RUN, scenario: SCENARIO, project: 'demo' })));
   await copyFile(colourCapture, join(runDir, 'capture.mp4'));
   // The renders share the repository's bundle cache (no rebundle per test file).
@@ -202,7 +202,7 @@ describe.skipIf(!canRender)('render jobs', () => {
     'cancel mid-render: cancelled, nothing under the final name, no partial file, the lock released',
     async () => {
       const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
-      // L7.34 (U9): on the in-memory renderer, which draws until the cancel reaches it. What this case holds is the
+      // On the in-memory renderer, which draws until the cancel reaches it. What this case holds is the
       // engine's and the editor's render flow around the renderer: the cancel reaches the renderer (its signal), the job
       // and the render end cancelled, the version lock is released, nothing is left under the render's name. A partial
       // file is the renderer's own to remove — the renderer is handed the final name and writes its temporary files
@@ -287,7 +287,7 @@ describe.skipIf(!canRender)('render jobs', () => {
     await mkdir(join(dir, 'scenarios'), { recursive: true });
     await writeFile(join(dir, 'scenarios', `${SCENARIO}.yml`), snapshot);
     expect(await engine.renders.plan({ project: 'demo', scenario: SCENARIO })).toMatchObject({ edit: 'scenario', scenario_changed: false });
-    // L5.5: an edit-only change re-plans on this run; the submitted job carries the file's sha256.
+    // An edit-only change re-plans on this run; the submitted job carries the file's sha256.
     await writeFile(join(dir, 'scenarios', `${SCENARIO}.yml`), snapshot.replace('    open: /\n', '    open: /\n    caption: Today\n'));
     expect(await engine.renders.plan({ project: 'demo', scenario: SCENARIO })).toMatchObject({ edit: 'scenario', scenario_changed: false, edit_changes: ['caption of a'] });
     const edited = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });

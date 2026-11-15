@@ -1,15 +1,15 @@
 /**
- * L5.16c — the installed app's setup ops (setup-ops.ts; DESIGN §4p (c)), through the Studio server's HTTP API with an
+ * The installed app's setup ops (setup-ops.ts; DESIGN §4p (c)), through the Studio server's HTTP API with an
  * injected machine (a fake app, a scratch HOME, a fake `claude`, scratch Claude Desktop configs, a fake process list —
  * never the person's): Studio only (own ops in the `ui` allow-list, never MCP tools: no MCP tool can install the command
  * or register Retake), the installed app's own server only (supervised AND bundled), refused from a translocated copy /
- * a disk image / /Volumes (critique H1), paths the server's (the folder from the shell's panel, checked), the command's
+ * a disk image / /Volumes, paths the server's (the folder from the shell's panel, checked), the command's
  * link (a foreign file refused), the Claude Code run (argv, untrusted output), the Claude Desktop merge (running Claude
  * Desktop, unparsable JSON, a symlinked config, Replace), the rate cap, `setup_done` and the shell's stdin lines.
- * L5.16c fixes: the link the app recorded survives a restart (review c B-M1: no second link elsewhere, Uninstall takes
- * the recorded one), Claude Code's environment is the small one at the op too, one run at a time, a folder inside the app
- * refused when it arrives, Uninstall from a misplaced app, `ps` failing refuses Add (A-L3) and is read only when asked,
- * at most every 5 s (A-L8), the folder panel's open / cancelled lines (A-L7), the line cap in bytes (B-L8).
+ * The link the app recorded survives a restart (no second link elsewhere, Uninstall takes the recorded
+ * one), Claude Code's environment is the small one at the op too, one run at a time, a folder inside the app
+ * refused when it arrives, Uninstall from a misplaced app, `ps` failing refuses Add and is read only when asked,
+ * at most every 5 s, the folder panel's open / cancelled lines, the line cap in bytes.
  */
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -133,9 +133,9 @@ describe('the setup ops without a server', () => {
       '[1]',
       'not json',
       `{"type":"cli_folder_cancelled","x":"${'a'.repeat(SHELL_LINE_MAX)}"}`,
-      // Review c B-L1: a valid shape past the cap (JSON spaces) — the cap alone refuses it.
+      // A valid shape past the cap (JSON spaces) — the cap alone refuses it.
       `{"type":"cli_folder_cancelled"${' '.repeat(SHELL_LINE_MAX)}}`,
-      // Review c B-L8: the cap counts bytes — a path of 3000 three-byte characters (9000 bytes, 3000 UTF-16 units).
+      // The cap counts bytes — a path of 3000 three-byte characters (9000 bytes, 3000 UTF-16 units).
       `{"type":"cli_folder","path":"/${'\u20ac'.repeat(3000)}"}`,
     ]) {
       expect(parseShellLine(bad), bad.slice(0, 80)).toBeNull();
@@ -143,7 +143,7 @@ describe('the setup ops without a server', () => {
     expect(parseShellLine(`{"type":"cli_folder_cancelled"${' '.repeat(100)}}`)).toEqual({ type: 'cli_folder_cancelled' });
     expect(parseShellLine('{"type":"cli_folder_open"}')).toEqual({ type: 'cli_folder_open' });
     expect(parseShellLine(`{"type":"cli_folder","path":"/${'\u20ac'.repeat(2000)}"}`)).toEqual({ type: 'cli_folder', path: `/${'\u20ac'.repeat(2000)}` });
-    // L7.34: the CLI's reader at this cap — a line of exactly SHELL_LINE_MAX bytes reaches the parser, one byte more is
+    // The CLI's reader at this cap — a line of exactly SHELL_LINE_MAX bytes reaches the parser, one byte more is
     // dropped whole (and the next line is read again), across chunks.
     const got: string[] = [];
     const read = shellLineReader((l) => got.push(l), SHELL_LINE_MAX);
@@ -159,7 +159,7 @@ describe('the setup ops without a server', () => {
     // the supervised process), so only the supervised CLI itself could show it — the number it passes is this cap.
     const cli = await readFile(join(__dirname, '..', '..', 'cli', 'src', 'commands', 'ui.ts'), 'utf8');
     expect([...cli.matchAll(/\bstdinClosed\([^;]*?,\s*(\d+)\)/g)].map((m) => Number(m[1]))).toEqual([SHELL_LINE_MAX]);
-    // L5.16d: the update's state goes through the same reader (update-ops.test.ts): the line handler hands it on.
+    // The update's state goes through the same reader (update-ops.test.ts): the line handler hands it on.
     expect(cli).toMatch(/\bshellLine = \(\w+\) => void applyShellLine\([^)]*, server\.update\);/);
   });
 });
@@ -443,7 +443,7 @@ describe('the setup ops on one server, case after case', { shuffle: false }, () 
       freshPs();
       expect((await call('setup_status', { processes: true })).body.data.claude_desktop.running).toBe(true);
       expect(reason(await call('setup_claude_desktop_add'))).toBe('claude_running');
-      // Review c A-L3: `ps` failing — it cannot tell: Add refused too, said in the status (null).
+      // `ps` failing — it cannot tell: Add refused too, said in the status (null).
       running = null;
       expect(reason(await call('setup_claude_desktop_add'))).toBe('claude_unknown');
       expect((await call('setup_status')).body.data.claude_desktop.running).toBeNull();
@@ -463,7 +463,7 @@ describe('the setup ops on one server, case after case', { shuffle: false }, () 
       symlinkSync(real, desktopConfig);
       const r = await call('setup_claude_desktop_add');
       expect(r.body.data).toMatchObject({ ok: true, kind: 'add', file: real });
-      // Review c A-L2: the backup went to Retake's folder, never beside the dotfiles' file.
+      // The backup went to Retake's folder, never beside the dotfiles' file.
       expect(r.body.data.backup).toMatch(new RegExp(`^${join(base, 'retake-home', 'backups', 'claude-desktop')}/dotfiles-claude\\.json\\.retake-backup-`));
       expect(existsSync(r.body.data.backup)).toBe(true);
       expect(readdirSync(base).filter((f) => f.startsWith('dotfiles-claude.json'))).toEqual(['dotfiles-claude.json']);

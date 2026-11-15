@@ -1,5 +1,5 @@
 /**
- * The preview's allow-list of workspace components (L4.5 fixes, review A H1 c — the structural fix): the sandboxed
+ * The preview's allow-list of workspace components (the structural fix): the sandboxed
  * preview runs a component that is not built in only after the person allowed it in this Studio session, by its id and
  * its folder's content hash (editor componentFolderHash). A component an agent wrote or changed is code that has not
  * been looked at: until it is allowed it is not even in the frame's bundle (its uses draw their kind's stand-in), so

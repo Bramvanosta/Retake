@@ -29,10 +29,10 @@ export interface RenderRequest {
   /** A theme name (template_list): never a folder. */
   template?: string;
   overrides?: EditOverridesInput;
-  /** Review the render in the same job once it is written (L4.5, critique B12): contact sheets at `fps`. */
+  /** Review the render in the same job once it is written: contact sheets at `fps`. */
   review?: { fps: 1 | 2 };
   /**
-   * sha256 of the scenario file as the client showed it (the Studio timeline's `hash`, L4.5 part E): after planning and
+   * sha256 of the scenario file as the client showed it (the Studio timeline's `hash`): after planning and
    * before the id is reserved, the file the edit was planned from — today's file when the edit comes from the run — must
    * still be that one, else `conflict` (nothing reserved, nothing queued): what was clicked is what renders.
    */
@@ -71,7 +71,7 @@ export function checkRenderRequest(req: RenderRequest): EditOverridesInput {
 }
 
 /**
- * Where a planned render's edit comes from (L5.5): `scenario` — today's scenario file re-planned on the run (its filmed
+ * Where a planned render's edit comes from: `scenario` — today's scenario file re-planned on the run (its filmed
  * part is unchanged since the capture); `run` — the run as captured. `scenario_changed`: the filmed part changed since
  * the capture (re-capture to film it; absent when either file is missing), `filmed_changes` what changed in it,
  * `edit_changes` what today's edit changed. Both lists hold keys, scene ids and step keys only (trusted words).
@@ -134,8 +134,8 @@ export function latestNoticeOf(planned: Pick<PlannedRun, 'run'>): { notice: Late
 /**
  * Plan a render request in this process (no browser), through the trust gates of work submitted through MCP. A
  * refusal is EngineError `refused` with the `retake render` command a human runs. The plan's edit comes from today's
- * scenario file when its filmed part is unchanged since the run, else from the run as captured (L5.5, editor planRun):
- * `source` says which and what changed. `editText` (L4.6): a text read instead of today's file (a proposal's preview).
+ * scenario file when its filmed part is unchanged since the run, else from the run as captured (editor planRun):
+ * `source` says which and what changed. `editText`: a text read instead of today's file (a proposal's preview).
  */
 export async function planRenderRequest(
   ws: OpenedWorkspace,
@@ -157,7 +157,7 @@ export async function planRenderRequest(
       trust: ENGINE_TRUST,
       registry: o.registry ?? registryLoader(ws.registries),
       ...(o.musicLength ? { musicLength: o.musicLength } : {}),
-      // L4.6 (critique B9): a proposal previewed in the timeline is planned from its text in memory, never written.
+      // A proposal previewed in the timeline is planned from its text in memory, never written.
       ...(o.editText !== undefined ? { editText: o.editText } : {}),
     });
     // The run id reaches trusted summaries: `latest` picks only run ids (editor findRun); never one of another shape.

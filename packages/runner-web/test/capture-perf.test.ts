@@ -1,5 +1,5 @@
 /**
- * L5.7 on a real capture: by default (`capture.keep_frames: false`) capture.mp4 is encoded during the take and no frame
+ * On a real capture: by default (`capture.keep_frames: false`) capture.mp4 is encoded during the take and no frame
  * is written; run.json reports what the take cost (perf); a click whose content shows after a skeleton is a slow
  * transition and its wait is in timeline.busy; step pictures come from the video. With the frames kept, the video the
  * encoder wrote during the take is, frame for frame, the CFR schedule of the screencast frames (frame-accurate edit).

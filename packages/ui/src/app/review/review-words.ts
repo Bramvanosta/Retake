@@ -1,5 +1,5 @@
 /**
- * The Review report's words and rules (L5.12a, R-UI-46), pure — no React, no call:
+ * The Review report's words and rules (R-UI-46), pure — no React, no call:
  * - the check families a finding belongs to (Video length, Scene lengths, Captions, Cursor, Camera and zoom, Transitions
  *   and speed, Targets on screen, Blank or loading screens, Text slots, Capture and media, Changes since the previous
  *   render, Other) — a table over every code a check writes (a test keeps it total over the review package's
@@ -9,7 +9,7 @@
  * - the command a person types to export the raw capture, built only from a project slug and a run id that pass their
  *   rules (a path-free answer's one path-like text is a command, never a value that could carry an argument);
  * - "2 h ago" as a plain string (a select's option cannot hold a <time>), and the time of day where two renders would
- *   read the same (L5.12a fixes, review B-L2).
+ *   read the same.
  */
 import type { RenderReviewSummary, ReviewFindingView } from '@retake/engine';
 import type { StudioEvent } from '../events.js';
@@ -129,7 +129,7 @@ export function rawExportCommand(slug: string, runId: string): string | null {
 }
 
 /**
- * Whether an event makes the export part read the activity again (L5.12a fixes, review A-L1): a reconnection, or a jobs
+ * Whether an event makes the export part read the activity again: a reconnection, or a jobs
  * event of this project (an older server's, which names no project, too) — never another project's busy queue.
  */
 export function exportReadsOn(e: StudioEvent, slug: string): boolean {
@@ -158,7 +158,7 @@ export function clockWords(iso: string): string {
   return Number.isFinite(t) ? new Date(t).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
 }
 
-/** The ids whose "when" words (agoWords) another item shares: those show their time of day too (review B-L2). */
+/** The ids whose "when" words (agoWords) another item shares: those show their time of day too. */
 export function sharedWhen(items: ReadonlyArray<{ id: string; at: string }>, now = Date.now()): Set<string> {
   const by = new Map<string, string[]>();
   for (const i of items) {
@@ -190,10 +190,10 @@ export function stepKeyOf(at: ReviewFindingView['at']): string | undefined {
 }
 
 /**
- * L5.12b: the ⌘K palette's Review report hint — the newest finished render and its review in the badge's words ("last
- * render v2 · clean", "last render v2 · 2 warnings", "last render v1 · not reviewed": L5.12b fixes, review B-L2 — a render
- * without a review is never "no render yet"); "no finished render yet" when only failed ones exist, "no render yet" with
- * none. Never "passed" (a test).
+ * The ⌘K palette's Review report hint — the newest finished render and its review in the badge's words ("last render v2
+ * · clean", "last render v2 · 2 warnings", "last render v1 · not reviewed", a render without a review is never "no
+ * render yet"); "no finished render yet" when only failed ones exist, "no render yet" with none. Never "passed" (a
+ * test).
  */
 export function reportHint(newest: { render_id: string; review: RenderReviewSummary } | undefined, renders = newest ? 1 : 0): string {
   if (newest) return `last render ${versionWords(newest.render_id)} · ${reviewBadge(newest.review).words}`;

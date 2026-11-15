@@ -1,5 +1,5 @@
 /**
- * The pre-flight of an environment's pages (L5.8, R-FLD-33): before a take — sandbox or not — every page of the
+ * The pre-flight of an environment's pages (R-FLD-33): before a take — sandbox or not — every page of the
  * environment must answer, so a page that moved to another port or a dev server that stopped fails the run up front,
  * naming the page and its URL, instead of a blank or an error page filmed at the first step that opens it.
  *

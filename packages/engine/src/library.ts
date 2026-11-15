@@ -1,18 +1,18 @@
 /**
- * L4.7 library previews (R-UI-06 / R-UI-06b): the posters and loops of the Studio's component library, rendered by the
+ * Library previews (R-UI-06 / R-UI-06b): the posters and loops of the Studio's component library, rendered by the
  * jobs worker (a `preview` job, target `library`) into a content-keyed cache the Studio reads.
  *
- * **Keys** (critique B3): one builder for the Studio (what is cached?) and the worker (where to write) —
- * `libraryKeyContext` + `libraryPreviewKey`. A key is the sha256 (32 hex) of: LIBRARY_PREVIEW_FORMAT; the editor's
- * `compositionHash()` (composition + kit + Remotion versions); the render browser's identity; the kind and its output settings (poster: 960×540 under
- * 200 KB; loop: LOOP_FORMAT); the theme folder's `themeContentHash`; the spec the worker renders, built with every
- * served URL replaced by `asset:<sha256 of the file>` (theme fonts / logo / wordmark, sample screens and media); and
- * for every component the spec uses (the target and its context: the theme's layout, caption, card) its
+ * **Keys**: one builder for the Studio (what is cached?) and the worker (where to write) — `libraryKeyContext` +
+ * `libraryPreviewKey`. A key is the sha256 (32 hex) of: LIBRARY_PREVIEW_FORMAT; the editor's `compositionHash`
+ * (composition + kit + Remotion versions); the render browser's identity; the kind and its output settings (poster:
+ * 960×540 under 200 KB; loop: LOOP_FORMAT); the theme folder's `themeContentHash`; the spec the worker renders, built
+ * with every served URL replaced by `asset:<sha256 of the file>` (theme fonts / logo / wordmark, sample screens and
+ * media); and for every component the spec uses (the target and its context: the theme's layout, caption, card) its
  * `componentFolderHash` — every code file, manifest and asset of its registry folder by bytes (the bundle's and the
- * preview allow-list's own definition of "this component's content"). A component whose spec cannot be built gets a
- * key over its folder and the error (a failure recorded under it is retried once the component changes).
+ * preview allow-list's own definition of "this component's content"). A component whose spec cannot be built gets a key
+ * over its folder and the error (a failure recorded under it is retried once the component changes).
  *
- * **Cache** `<workspace>/.retake/cache/previews/<key>/` (B4, B17): `.retake`, `cache` and `previews` are real
+ * **Cache** `<workspace>/.retake/cache/previews/<key>/`: `.retake`, `cache` and `previews` are real
  * folders (a link or a file there is refused, nothing is written); an entry is written into `<key>.tmp-<pid>-<hex>/` and
  * the folder renamed into place, `meta.json` (or `failed.json`) last — an entry is complete or absent. One entry per key:
  * `meta.json` + `poster.png` / `loop.gif`, `meta.json` alone for a loop too large to keep, or `failed.json` (the reason:
@@ -20,10 +20,10 @@
  * the registry is unchanged; a failure under another registry bundle reads as missing (asked again once). Read with `readPlainFile` (no link,
  * regular file, one link count, capped) and a magic check (PNG / GIF89a); the meta must name its key. The prune (end of
  * each library job) sweeps temporary folders older than an hour and, over 400 entries or 200 MB, drops other versions of
- * the job's theme first, then the least recently read (the Studio touches meta.json when it reads an image); it lstat()s
+ * the job's theme first, then the least recently read (the Studio touches meta.json when it reads an image); it lstats
  * every entry and touches only names of the key / temporary shapes.
  *
- * **Disk** (B4): a library job is refused under 1 GB free (`statfs`), and a full disk during one stops it with the same
+ * **Disk**: a library job is refused under 1 GB free (`statfs`), and a full disk during one stops it with the same
  * sentence ("the disk has N MB free").
  */
 import { createHash, randomBytes } from 'node:crypto';
@@ -52,7 +52,7 @@ export const LIBRARY_PREVIEW_FORMAT = 1;
 export const LIBRARY_CACHE_MAX_ENTRIES = 400;
 /** …and at most this many bytes. */
 export const LIBRARY_CACHE_MAX_BYTES = 200 * 1024 * 1024;
-/** A library job needs this much free disk (critique B4). */
+/** A library job needs this much free disk. */
 export const LIBRARY_DISK_MIN_BYTES = 1_000_000_000;
 /** Abandoned temporary entry folders older than this are swept. */
 export const LIBRARY_TMP_MAX_AGE_MS = 3600_000;
@@ -86,8 +86,8 @@ export interface LibraryKeyContext {
   composition: string;
   samples: PreviewSamples;
   /**
-   * The render browser's identity (editor renderBrowserIdentity: its executable by path, size and date — review A L3)
-   * and the GL the render policy resolves (editor previewGlKey, L5.15).
+   * The render browser's identity (editor renderBrowserIdentity: its executable by path, size and date)
+   * and the GL the render policy resolves (editor previewGlKey).
    */
   browser: string;
   /** Component id → componentFolderHash (memo). */
@@ -97,7 +97,7 @@ export interface LibraryKeyContext {
   /**
    * The hash of the whole registry's bundle (editor bundleHash of every usable component and the scaffolds; computed once,
    * when first asked). A failure is recorded under it: once any component, the kit or the composition changes, the
-   * failure is stale and the key is asked again without a Retry (review A M3 / B H1).
+   * failure is stale and the key is asked again without a Retry.
    */
   registryHash: () => Promise<string>;
 }
@@ -111,7 +111,7 @@ export async function libraryKeyContext(template: LoadedTemplate, registry: Comp
     themeHash: hashes.contentHash(template.dir),
     composition: await making.compositionHash(),
     samples: making.loadSamples(),
-    // The GL the previews are drawn with is part of the picture (L5.15, critique M1): the resolved policy, which the
+    // The GL the previews are drawn with is part of the picture: the resolved policy, which the
     // Studio server and the job process compute alike (same retake.yaml, same environment), never the GL a job found.
     browser: o.browser ?? making.browserIdentity(o.policy),
     folders: new Map(),
@@ -204,7 +204,7 @@ export async function libraryPreviewKey(ctx: LibraryKeyContext, id: string, kind
 
 /**
  * The cache folder, made when missing: `.retake`, `cache` and `previews` each a real folder (not a link, not a
- * file) inside the workspace once links are followed — else refused and nothing is written (B17).
+ * file) inside the workspace once links are followed — else refused and nothing is written.
  */
 export async function ensureLibraryCacheDir(ws: Pick<OpenedWorkspace, 'root'>): Promise<string> {
   let parent = resolve(ws.root);
@@ -516,7 +516,7 @@ export interface LibraryStatesView {
 }
 
 /**
- * Is this theme folder the editorial starter shipped with Retake (by real path, B15: a workspace whose
+ * Is this theme folder the editorial starter shipped with Retake (by real path: a workspace whose
  * templates_dir is the starters folder lists it as `workspace`)?
  */
 export function isEditorialStarter(template: Pick<LoadedTemplate, 'dir'>): boolean {
@@ -532,7 +532,7 @@ export async function currentEntry(ctx: Pick<LibraryKeyContext, 'registryHash'>,
 
 /**
  * The cache states of `ids` (default: every registry component) in the context's theme, with their keys. A built-in's
- * committed preview.png is the poster in the editorial starter while it is fresh (Q7, B15): a workspace component's own
+ * committed preview.png is the poster in the editorial starter while it is fresh: a workspace component's own
  * preview.png is never used (who wrote it is unknown), nor a workspace override of a built-in id.
  */
 export async function libraryStates(ws: Pick<OpenedWorkspace, 'root' | 'registries'>, ctx: LibraryKeyContext, ids?: readonly string[]): Promise<LibraryStatesView> {

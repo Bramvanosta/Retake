@@ -1,9 +1,9 @@
 /**
- * L5.16d — the updater's build side (apps/desktop/scripts/bundle.mjs; DESIGN §4p (d)), fast, no app built (the gated
+ * The updater's build side (apps/desktop/scripts/bundle.mjs; DESIGN §4p (d)), fast, no app built (the gated
  * end-to-end update is app-update-e2e.test.ts): the feed and the key from RETAKE_UPDATE_FEED + RETAKE_UPDATE_PUBKEY
  * only (both or neither, https, a .json feed, a real minisign key), the overlay's `plugins.updater` (signed versions,
  * no downgrade, never `dangerous*` — the e2e test's overlay alone is http on 127.0.0.1), `--features updater` for cargo
- * only then; the update archive made by us (critique H3: links kept, no AppleDouble entry, nothing outside the app)
+ * only then; the update archive made by us (links kept, no AppleDouble entry, nothing outside the app)
  * and signed by the Tauri CLI with the private key given to that one command only, then checked against the key.
  */
 import { spawnSync } from 'node:child_process';
@@ -62,7 +62,7 @@ describe('the feed and the key (build-time environment only)', () => {
     expect(feed('https://downloads.example.test/retake/')).toThrow(/feed file itself/);
     expect(feed('not a url')).toThrow(/not a URL/);
     expect(() => updaterSettings({ RETAKE_UPDATE_FEED: FEED, RETAKE_UPDATE_PUBKEY: 'bm90IGEga2V5' })).toThrow(/RETAKE_UPDATE_PUBKEY/);
-    // Review d B-L3: the channel follows the version — a stable app reads latest.json, a pre-release rc.json.
+    // The channel follows the version — a stable app reads latest.json, a pre-release rc.json.
     const RC = 'https://downloads.example.test/retake/rc.json';
     expect(() => updaterSettings({ RETAKE_UPDATE_FEED: RC, RETAKE_UPDATE_PUBKEY: key.pub }, '0.2.0')).toThrow(/must end in \/latest\.json for version 0\.2\.0/);
     expect(() => updaterSettings({ RETAKE_UPDATE_FEED: FEED, RETAKE_UPDATE_PUBKEY: key.pub }, '0.3.0-rc.1')).toThrow(/must end in \/rc\.json for version 0\.3\.0-rc\.1/);

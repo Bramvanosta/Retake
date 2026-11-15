@@ -1,8 +1,8 @@
 /**
- * L4.5 part E: the render queue's pure rules (app/render-words.ts) — ⚑ which events make the render list read again
+ * The render queue's pure rules (app/render-words.ts) — ⚑ which events make the render list read again
  * (only what it shows: its jobs, a job never seen, its project's renders/ folder, a reconnection — never another
  * project, a README, a known job of another kind progressing), whether a render shows the version on screen, and the
- * words of a job and of a review's verdict; review B H1: on the timeline "this version" is the same plan signature and
+ * words of a job and of a review's verdict; on the timeline "this version" is the same plan signature and
  * theme files (a render with other options, fps, variant or theme files never seeks the preview).
  */
 import { describe, expect, it } from 'vitest';
@@ -107,13 +107,13 @@ describe('versions and words', () => {
     expect(versionWords('quote-v12')).toBe('v12');
     expect(versionWords('quote-v3-vertical')).toBe('v3 vertical');
     expect(jobWords(job({ state: 'queued', queue: { ahead: 0 } }))).toBe('v3 · queued — next in the queue');
-    // L5.14a fixes (review B M4): a render a take holds is not "next".
+    // A render a take holds is not "next".
     expect(jobWords(job({ state: 'queued', queue: { ahead: 0, held_by: 'take' } }))).toBe('v3 · queued — waiting for a take to finish');
     expect(jobWords(job({ state: 'queued', queue: { ahead: 2, running: { id: 'j_x', kind: 'run', fraction: 0.4 } } }))).toBe('v3 · queued — 2 jobs before it (a run is running, 40 %)');
     expect(jobWords(job({ phase: 'rendering', fraction: 0.431, eta_s: 12.2 }))).toBe('v3 · rendering 43 % · about 12 s left');
     expect(jobWords(job({ phase: 'review:sheets', fraction: 0.5, reviewing: true }))).toBe('v3 · reviewing: making the contact sheets');
     expect(jobWords(job({ cancel_requested: true }))).toBe('v3 · stopping…');
-    // L5.14b: what a take does to it — waiting (where), slowed (no time left said: it would be wrong), past the cap.
+    // What a take does to it — waiting (where), slowed (no time left said: it would be wrong), past the cap.
     expect(jobWords(job({ state: 'queued', queue: { ahead: 0, held_by: 'take' }, yield: { state: 'waiting', cause: 'elsewhere' } }))).toBe(
       'v3 · queued — waiting for a take to finish (elsewhere on this Mac)',
     );
@@ -125,7 +125,7 @@ describe('versions and words', () => {
     );
     expect(heldWords({ state: 'background', cause: 'elsewhere', kind: 'render', count: 1 })).toBe('a render is slowed during a take (elsewhere on this Mac)');
     expect(heldWords({ state: 'waiting', cause: 'here', kind: 'review', count: 2 })).toBe('2 jobs wait for a take to finish (in this workspace)');
-    // Review B L6: the narrow status bar's short form.
+    // The narrow status bar's short form.
     expect(heldShortWords({ state: 'background', cause: 'elsewhere', kind: 'render', count: 1 })).toBe('a render slowed by a take');
     expect(heldShortWords({ state: 'waiting', cause: 'here', kind: 'review', count: 2 })).toBe('2 jobs wait for a take');
     expect(heldShortWords({ state: 'past_cap', cause: 'here', kind: 'export', count: 1 })).toBe("an export past a take's cap");
@@ -156,7 +156,7 @@ describe('the files of renders/ the list does not show (L7.6b)', () => {
       }),
     ).toEqual([
       '1 file of renders/ is not shown as a render: its status is not one Retake writes',
-      '2 files of renders/ are not shown as renders — for each, its record says another id', // fix pass: "files … its" (review B L-8)
+      '2 files of renders/ are not shown as renders — for each, its record says another id', // fix pass: "files … its"
     ]);
     // The mirror of core's words (the app imports core's types only): every reason, word for word.
     for (const why of Object.keys(RENDER_NOT_WORDS) as RenderNot[]) expect(RENDER_NOT_WORDS[why], why).toBe(renderNotWords(why));

@@ -20,7 +20,7 @@ export const PROJECT_SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 export const DEFAULT_FRAME: FrameStyle = 'card';
 export const DEFAULT_TEMPLATE_NAME = 'default';
 /**
- * Every file Retake reads or writes in a workspace, in three classes (L3.1 guard-rail): `authored` (what a person
+ * Every file Retake reads or writes in a workspace, in three classes (the guard-rail): `authored` (what a person
  * or Claude writes and keeps in git), `generated` (outputs, rebuilt from the authored files and a capture) and
  * `machine` (tool state of this machine: hook journals, sandbox state, the job queue and its history — never shared).
  * One list for the .gitignore written into a new project, for what `retake doctor` expects a workspace's own
@@ -35,7 +35,7 @@ export const WORKSPACE_FILES = {
     machine: ['.retake/'],
   },
   project: {
-    /** comments/: frame comment threads (L3.6; their stills live in .retake/comments/, machine-local). */
+    /** comments/: frame comment threads (their stills live in .retake/comments/, machine-local). */
     authored: ['project.yaml', 'README.md', 'scenarios/', 'hooks/', 'assets/', 'data/', 'sandbox/', 'comments/', '.gitignore'],
     generated: ['runs/', 'renders/', 'review/', 'exports/', 'frames/'],
     /** journals/ (hooks outside a capture), sandbox/ (sandbox state and logs). */
@@ -57,7 +57,7 @@ export type ProjectFile = z.infer<typeof ProjectFileSchema>;
 
 /**
  * Defaults: capture = DEFAULT_CAPTURE merged, frame 'card', template 'default', environments {}. Environments are
- * normalised (L1.7): `environments` keeps the real page URLs of both forms, `environment_settings` the rest.
+ * normalised: `environments` keeps the real page URLs of both forms, `environment_settings` the rest.
  */
 export function applyProjectDefaults(file: ProjectFile): ProjectConfig {
   const { environments, settings } = normalizeEnvironments(file.environments);
@@ -76,7 +76,7 @@ export function applyProjectDefaults(file: ProjectFile): ProjectConfig {
  * `config` (defaults applied) is returned only when there is no error-level issue.
  */
 export function parseProjectYaml(text: string, file?: undefined, files?: FileFacts): { config?: ProjectConfig; issues: ValidationIssue[] };
-/** With its path: `files` is required (FilesWith, L7.34) — the hook files it names are looked at through it. */
+/** With its path: `files` is required (FilesWith) — the hook files it names are looked at through it. */
 export function parseProjectYaml(text: string, file: string | undefined, files: FileFacts): { config?: ProjectConfig; issues: ValidationIssue[] };
 export function parseProjectYaml(text: string, file?: string, files?: FileFacts): { config?: ProjectConfig; issues: ValidationIssue[] } {
   const projectDir = file ? dirname(resolve(file)) : undefined;
@@ -102,7 +102,7 @@ export interface CreateProjectInput {
   environments?: Record<string, Record<string, string | { url: string; display?: string }>>;
   /** The environment used when a scenario does not say (default: the first one). */
   default_env?: string;
-  /** Personas (L1.6): global, or keyed by environment name. */
+  /** Personas: global, or keyed by environment name. */
   auth?: ProjectConfig['auth'];
   template?: string;
   capture?: Partial<CaptureSettings>;
@@ -143,7 +143,7 @@ export function readmeEnvironmentLine(line: string): { env: string; pages: strin
 }
 
 /**
- * What a README's "## Environments & links" section no longer says about the project's environments (hotfix v0.2.2: the
+ * What a README's "## Environments & links" section no longer says about the project's environments (the
  * section is written once, when the project is created, and environments are added to project.yaml later). `missing`:
  * pages whose URL the section does not mention; `gone`: lines in the skeleton's own form (`- env · page: url`) for an
  * environment or a page that no longer exists. Null when there is no such section, or nothing to say.

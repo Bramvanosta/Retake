@@ -1,5 +1,5 @@
 /**
- * L5.12c: the Library's budget (R-UI-49) — a library of 240 components answered in the page (`library_view` fetched from
+ * The Library's budget (R-UI-49) — a library of 240 components answered in the page (`library_view` fetched from
  * the real server on the fixture project, its items cloned to 240 workspace cards whose previews are queued: nothing is
  * rendered or loaded), in headless Chromium:
  * - the first paint: every card drawn within the budget;
@@ -142,7 +142,7 @@ describe('the Library with 240 cards (L5.12c)', () => {
         .locator(`[data-testid="lib-card"][data-component="${id}"] .k-card`)
         .first()
         .evaluate((el) => (el as HTMLButtonElement).click());
-    // (L5.12c fixes, review A-M3: the grid's one tab stop moves from the first card shown to the selected one — the two.)
+    // (the grid's one tab stop moves from the first card shown to the selected one — the two.)
     const first = (await page.getByTestId('lib-card').first().getAttribute('data-component'))!;
     expect(first).not.toBe('acme/budget-005');
     await pick('acme/budget-005');

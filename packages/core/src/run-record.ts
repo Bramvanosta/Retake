@@ -30,7 +30,7 @@ type No<K extends string> = { readonly [P in K]?: never };
 
 /** What every state of a run record holds, the two diagnostic blocks aside. */
 interface RunCommon {
-  /** Format version (1; absent in runs made before L1.4: read as 1). */
+  /** Format version (1; absent in older runs: read as 1). */
   version?: 1;
   id: string;
   project: string;
@@ -43,34 +43,34 @@ interface RunCommon {
   /** `allow_writes`: `--allow-writes` was given and accepted (production with `access: read-write`). */
   options: { until?: string; hooks: 'run' | 'skip'; headed: boolean; cursor?: 'hidden'; allow_writes?: true };
   /**
-   * The environment's safety (L1.7): production, the run's effective access, the product's clock (as written, the zone
+   * The environment's safety: production, the run's effective access, the product's clock (as written, the zone
    * a time without an offset is read in, frozen or not).
    */
   environment?: { production?: true; access: EnvironmentAccess; clock?: { at: string; timezone?: string; freeze?: true }; sandbox?: RunSandbox };
   steps_total: number;
   steps_done: number;
-  /** One screenshot per step: a dry run's, or a capture's with `capture.step_shots` (L5.6). */
+  /** One screenshot per step: a dry run's, or a capture's with `capture.step_shots`. */
   screenshots: string[];
   hooks: {
     setup: 'ok' | 'failed' | 'skipped' | 'none';
     teardown: 'ok' | 'failed' | 'skipped' | 'none';
-    /** `hook:` steps (L5.8; absent when the scenario has none): ok, a step's hook failed, or skipped with the hooks. */
+    /** `hook:` steps (absent when the scenario has none): ok, a step's hook failed, or skipped with the hooks. */
     steps?: 'ok' | 'failed' | 'skipped';
   };
   warnings: string[];
-  /** The `optional` steps that failed, in order (L5.6; absent when none did). */
+  /** The `optional` steps that failed, in order (absent when none did). */
   optional_failures?: OptionalFailure[];
   /** The reason the run stopped early (a dry run's irreversible step, --until). */
   stopped_at?: { scene: string; step: number; reason: 'irreversible' | 'until' };
-  /** L4.4: the pauses it had, in order (before which step, when, how long); absent when none. */
+  /** The pauses it had, in order (before which step, when, how long); absent when none. */
   pauses?: RunPause[];
 }
 
 /** What every state of a record this version writes holds. */
 export interface RunBase extends RunCommon {
-  /** What ran it (absent in runs made before L1.4, and in a queued run). */
+  /** What ran it (absent in older runs, and in a queued run). */
   engine?: RunEngine;
-  /** What the take cost and how smoothly it was filmed (L5.7; captures only). */
+  /** What the take cost and how smoothly it was filmed (captures only). */
   perf?: RunPerf;
 }
 
@@ -101,7 +101,7 @@ export interface StoredRunBase extends Omit<RunCommon, 'options' | 'environment'
 
 /** The step a run is at (or was at when it was closed from outside). */
 export type RunCurrent = { scene: string; step: number; action: string };
-/** L4.4: a run paused now, before this step; `since` ISO time. */
+/** A run paused now, before this step; `since` ISO time. */
 export type RunPaused = { scene: string; step: number; since: string };
 /** Where a run is and what it has filmed so far. */
 interface InFlight {
@@ -187,14 +187,14 @@ export function isFinishedRunStatus(status: string): boolean {
 /** Progress events streamed by runners (CLI prints them, MCP stores them). */
 export type RunProgress =
   | { type: 'run_start'; run: RunRecord }
-  /** L4.4: right after run_start, every step this run executes (`until` and skipped scenes honoured). */
+  /** Right after run_start, every step this run executes (`until` and skipped scenes honoured). */
   | { type: 'outline'; steps: RunOutlineStep[] }
-  /** L4.4: one per persona, from the preflight (before any setup hook); `detail` may hold page text. */
+  /** One per persona, from the preflight (before any setup hook); `detail` may hold page text. */
   | { type: 'session'; persona: string; status: RunSessionStatus; detail?: string }
   /**
-   * L4.4: a pause between steps: `paused` before step `step` of `scene` (`max_ms`: the longest it may last before the
+   * A pause between steps: `paused` before step `step` of `scene` (`max_ms`: the longest it may last before the
    * run stops), `resumed` after `ms` (a capture does not film it). `refused` (with its `reason`) is no longer emitted:
-   * runs of part A's lot wrote it for a capture.
+   * older runs wrote it for a capture.
    */
   | { type: 'pause'; state: 'paused' | 'resumed' | 'refused'; scene: string; step: number; ms?: number; max_ms?: number; reason?: string }
   | { type: 'hook'; phase: 'setup' | 'teardown' | 'rollback' | 'step'; name: string; status: 'start' | 'ok' | 'failed' | 'skipped'; message?: string }

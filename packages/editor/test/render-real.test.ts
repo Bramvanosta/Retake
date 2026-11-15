@@ -133,11 +133,11 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
         overrides: { scale: 0.5 },
       });
       expect(record.encoding).toEqual({ codec: 'h264', encoder: 'libx264', crf: 16, pixel_format: 'yuv420p', faststart: true, audio: 'silent' });
-      // The suite's software path (vitest.setup.ts, L5.15): today's renderer and encoder, said in the record.
+      // The suite's software path (vitest.setup.ts): today's renderer and encoder, said in the record.
       expect(record.policy).toEqual({
         gl: { asked: 'software', source: 'env', resolved: 'software', used: 'software' },
         encoder: { asked: 'libx264', source: 'env', used: 'libx264' },
-        // L7.3: the frame encode's ffmpeg, pinned to the library's by the suite (RETAKE_RENDER_FFMPEG).
+        // The frame encode's ffmpeg, pinned to the library's by the suite (RETAKE_RENDER_FFMPEG).
         ffmpeg: { asked: 'library', source: 'env', used: 'library' },
         concurrency_source: 'option',
       });

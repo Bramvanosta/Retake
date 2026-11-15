@@ -46,15 +46,15 @@ export interface RunCommandOptions extends RawFlags {
   env?: string;
   headed?: boolean;
   json?: boolean;
-  /** Capture, then export the raw package for editors (L2.13). */
+  /** Capture, then export the raw package for editors. */
   raw?: boolean;
-  /** Let a run on a production environment that allows writes write (L1.7). */
+  /** Let a run on a production environment that allows writes write. */
   allowWrites?: boolean;
-  /** Reset the sandbox environment to its seed before the take (L1.8): up if needed, health, reset. */
+  /** Reset the sandbox environment to its seed before the take: up if needed, health, reset. */
   sandbox?: boolean;
-  /** `--no-wait` (wait: false): the raw export starts even while another take films, at normal priority (L5.14). */
+  /** `--no-wait` (wait: false): the raw export starts even while another take films, at normal priority. */
   wait?: boolean;
-  /** L7.27: run the shell hooks of a scenario an agent wrote last without asking. */
+  /** Run the shell hooks of a scenario an agent wrote last without asking. */
   yes?: boolean;
 }
 
@@ -107,18 +107,18 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
   // run --raw --cursor none|layer captures without the in-page cursor (its track and effects are still recorded).
   const rawCursor = rawFlags ? (rawFlags.cursor ?? project.config.raw?.cursor ?? 'baked') : undefined;
 
-  // L1.8: --sandbox resets the sandbox before the take (it stays up after); a sandbox environment without it is filmed as
+  // --sandbox resets the sandbox before the take (it stays up after); a sandbox environment without it is filmed as
   // it is, and must be up. A failure there creates no run folder.
   const emitNote = (level: 'info' | 'warn', message: string) => {
     if (json) emitJson({ type: 'log', level, message });
     else if (level === 'warn') ui.warn(message);
     else ui.line(ui.c.dim(message));
   };
-  // L7.27: the shell hooks of a scenario whose hooks an agent wrote (or whose writer cannot be known) are listed as
+  // The shell hooks of a scenario whose hooks an agent wrote (or whose writer cannot be known) are listed as
   // they will run — rendered with this run's context, its id reserved for it — and run only on a person's yes (a
   // terminal's, or --yes); listed only when they do not run (the runner's default: run for a capture, skip for --dry).
   let listedRun: Awaited<ReturnType<typeof reserveListedRun>> | undefined;
-  // L7.39: the files the person's check read (a trust, or a yes to the listing): the run's hooks are held to them.
+  // The files the person's check read (a trust, or a yes to the listing): the run's hooks are held to them.
   let trustedHookFiles: TrustedHookFiles | undefined;
   try {
     const check = await scenarioHooksCheck(
@@ -157,7 +157,7 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
     await (listedRun as { release(): Promise<void> } | undefined)?.release();
     return fail(errorMessage(e));
   }
-  // Captures first (L5.14): while this capture films, heavy work of every workspace of this user waits or yields
+  // Captures first: while this capture films, heavy work of every workspace of this user waits or yields
   // (engine captures.ts) — from capture time 0 to the end of its scenes, not around its hooks; none for a dry run.
   const owner = await selfIdentity();
   let marker: FilmingMarker | null = null;
@@ -241,7 +241,7 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
   if (record.status !== 'succeeded') return EXIT.failure;
   if (rawFlags) {
     if (!json) ui.line();
-    // Its encodes are heavy work (critique L8): they wait for another take filming now, and yield during a later one.
+    // Its encodes are heavy work: they wait for another take filming now, and yield during a later one.
     const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'exporting', noWait: opts.wait === false });
     try {
       // --json: stdout stays JSON lines — the package is one `raw_export` event after run_end.
@@ -288,7 +288,7 @@ async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<vo
     ui.line(`  ${c.dim('capture')}   ${ui.path(r.capture)}${detail}`);
   }
   if (r.timeline) ui.line(`  ${c.dim('timeline')}  ${ui.path(r.timeline)}`);
-  // L5.7: what the take cost and how smoothly it was filmed (run.json perf).
+  // What the take cost and how smoothly it was filmed (run.json perf).
   if (r.perf) ui.line(`  ${c.dim('perf')}      ${perfSummary(r.perf)}`);
   if (r.screenshots.length) ui.line(`  ${c.dim('shots')}     ${ui.path(join(r.dir, 'screenshots'))} ${c.dim(`(${r.screenshots.length})`)}`);
   ui.line(`  ${c.dim('run')}       ${ui.path(join(r.dir, 'run.json'))}`);
@@ -297,7 +297,7 @@ async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<vo
   }
   const sandbox = sandboxSummary(r);
   if (sandbox) ui.line(`  ${c.dim('sandbox')}   ${sandbox}`);
-  // L1.7: what the read-only guard did (timeline.json environment.writes lists each one) — once the run got going.
+  // What the read-only guard did (timeline.json environment.writes lists each one) — once the run got going.
   const writes = r.steps_done > 0 || (tl?.environment?.writes?.length ?? 0) > 0 ? writesSummary(tl) : undefined;
   if (writes) ui.line(`  ${c.dim('writes')}    ${writes.stopped ? c.yellow(writes.text) : writes.text}`);
   if (r.warnings.length) ui.line(`  ${c.yellow(plural(r.warnings.length, 'warning'))} ${c.dim('(listed in run.json)')}`);

@@ -1,9 +1,9 @@
 /**
- * L5.10a: the Project screen's words, pure (no React) — a production's state as a shape AND a word (StatusMark: never
- * colour alone) and its smart group (Ready to render · Needs a shoot · Failed), from `project_board`'s facts. The
- * render rule is the scenario screen's own (render-words sameVersion: the same capture, the edit planned from the same
- * file bytes, the theme a render would use today (L5.10a fixes, review B-L2), landscape, no override — critique M3),
- * "the capture" the board's (the newest succeeded capture with its video). First match wins; every row of the table has a test (board-words.test.ts).
+ * The Project screen's words, pure (no React) — a production's state as a shape AND a word (StatusMark: never colour
+ * alone) and its smart group (Ready to render · Needs a shoot · Failed), from `project_board`'s facts. The render rule
+ * is the scenario screen's own (render-words sameVersion: the same capture, the edit planned from the same file bytes,
+ * the theme a render would use today, landscape, no override), "the capture" the board's (the newest succeeded capture
+ * with its video). First match wins; every row of the table has a test (board-words.test.ts).
  */
 import type { AuthStatusItem, BoardRun, BoardScenario, RenderReviewSummary } from '@retake/engine';
 import type { MarkState } from '../ui-kit/index.js';
@@ -52,7 +52,7 @@ export function runningWords(r: Pick<BoardRun, 'mode' | 'status' | 'steps_done' 
 }
 
 /**
- * The render that shows today's file on the capture with today's theme (sameVersion; review B-L2), or undefined. The
+ * The render that shows today's file on the capture with today's theme (sameVersion), or undefined. The
  * board's own verdict too (`render_current`): it compares a theme it cannot name by its identity (BL-164).
  */
 function currentRender(s: BoardScenario) {
@@ -127,7 +127,7 @@ export function lastTakeWords(r: BoardRun): { state: MarkState; words: string } 
     case 'failed':
       return { state: 'fail', words: `${what} ${r.partial ?? 'failed'}` };
     case 'cancelled':
-      // One word for a stopped run across the Studio (review B-L2 of L5.11a): "stopped".
+      // One word for a stopped run across the Studio: "stopped".
       return { state: 'idle', words: `${what} stopped` };
     case 'interrupted':
       return { state: 'fail', words: `${what} interrupted` };
@@ -172,7 +172,7 @@ export function filterSort(list: readonly BoardScenario[], query: string, sort: 
 
 /** An environment's flags in words: "default · production · read-only · sandbox" (empty: none). */
 export function envFlagWords(e: { production: boolean; access: 'read-only' | 'read-write'; sandbox: boolean }, isDefault: boolean, name?: string): string {
-  // L5.10b fixes (review A L7): beside its name, a flag word that only repeats it is left out ("production · read-only").
+  // Beside its name, a flag word that only repeats it is left out ("production · read-only").
   return [...(isDefault ? ['default'] : []), ...(e.production ? ['production'] : []), ...(e.access === 'read-only' ? ['read-only'] : []), ...(e.sandbox ? ['sandbox'] : [])]
     .filter((w) => w !== name)
     .join(' · ');

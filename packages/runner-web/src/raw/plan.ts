@@ -1,5 +1,5 @@
 /**
- * Raw capture export for editors (L2.13, R-RAW-01): which frames of a run make each clip — pure and deterministic.
+ * Raw capture export for editors (R-RAW-01): which frames of a run make each clip — pure and deterministic.
  *
  * One clip per captured scene (one per page of a multi-page scene, all of a scene's pages on the same frames), from
  * the scene's still — the page load before it is never in a clip — to the scene's end, at real time (1×: speeds and
@@ -29,7 +29,7 @@ export const RAW_CUT = {
   action_keep_s: 0.3,
   /**
    * The clip resumes once the awaited state is painted: this long after the wait saw it in the page at least — new
-   * content reaches the screen up to ≈ 0.2 s after its DOM (the catalogue import: 0.16 s, measured in L1.3 with
+   * content reaches the screen up to ≈ 0.2 s after its DOM (the catalogue import: 0.16 s, measured with
    * frames every few ms) —, and `paint_frames` screencast intervals there, at most `paint_max_s` — then on the next
    * screencast frame when one arrived within that margin again (the page was still painting: the frame on screen may
    * be half drawn), so the first frame after the cut is a frame painted after it.
@@ -51,7 +51,7 @@ export const RAW_CUT = {
   contiguous_s: 0.1,
 } as const;
 
-/** Why frames were cut inside a scene (`hook`: a `hook:` step, run off camera — L5.8 — always cut). */
+/** Why frames were cut inside a scene (`hook`: a `hook:` step, run off camera — always cut). */
 export type RawCutReason = 'navigation' | 'loading' | 'mail' | 'hook';
 
 /** A loading interval of a scene (capture seconds). */
@@ -325,7 +325,7 @@ export function loadingCuts(
 }
 
 /**
- * The spans of a scene's `hook:` steps (L5.8: run off camera) added to its cuts — with or without the loading cuts — as
+ * The spans of a scene's `hook:` steps (run off camera) added to its cuts — with or without the loading cuts — as
  * cuts of their own, or merged into a loading cut they overlap (a hook right before a wait); sorted, never overlapping.
  */
 function withHookCuts(loading: RawLoading[], events: readonly TimelineEvent[], s0: number, s1: number): RawLoading[] {
@@ -500,7 +500,7 @@ export function planRawExport(timeline: Timeline, opts: PlanRawOptions): RawPlan
   const scenes = timeline.scenes.filter((s) => s.kind === 'scene');
   const played = scenes.filter((s) => s.status !== 'skipped');
   for (const s of scenes) if (s.status === 'skipped') notes.push(`scene "${s.id}" was skipped by the run: no clip`);
-  // L5.8: a scene played off camera (`offscreen: true`) prepares the next ones: no clip of it either.
+  // A scene played off camera (`offscreen: true`) prepares the next ones: no clip of it either.
   for (const s of played) if (s.offscreen) notes.push(`scene "${s.id}" was played off camera (offscreen): no clip`);
   const captured = played.filter((s) => !s.offscreen);
   const clips: RawClipPlan[] = [];

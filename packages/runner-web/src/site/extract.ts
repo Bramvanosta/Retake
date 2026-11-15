@@ -1,5 +1,5 @@
 /**
- * A site extraction (L3.5, R-MCP-12): open one public page in a clean, ephemeral Chromium whose only network is the
+ * A site extraction (R-MCP-12): open one public page in a clean, ephemeral Chromium whose only network is the
  * worker's CONNECT proxy (proxy.ts), and read what a theme needs — colour swatches by role, font family names, logo
  * candidates converted to transparent PNGs, a viewport screenshot. The caller (the engine's `site` job, or
  * `retake theme from-site`) checked the URL (core parseSiteUrl) and, through MCP, a human approved it.

@@ -1,5 +1,5 @@
 /**
- * The product's clock (L1.7, R-ENV-05), in a real Chromium: a Date-only clock (product-clock.ts) installed in every
+ * The product's clock (R-ENV-05), in a real Chromium: a Date-only clock (product-clock.ts) installed in every
  * browser of a session, anchored at capture time 0 (the page reads the clock's time then, and it runs), or frozen — in
  * every document, frame, popup and dedicated worker; the product's own timers, animation frames and `performance` stay
  * the browser's (measured: a clock that faked them slowed them down). Pages kept on the real time (the session check,

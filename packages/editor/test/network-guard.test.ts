@@ -1,11 +1,11 @@
 /**
- * L3.2 network guard of a render's Chromium (network-guard.ts): the allow-list (asset server URLs, Remotion's bundle
+ * The network guard of a render's Chromium (network-guard.ts): the allow-list (asset server URLs, Remotion's bundle
  * server, its /proxy only for asset-server sources), the CSP meta of the bundle, and real renders of a workspace
  * component that evades the compile-time scan (`globalThis['fe' + 'tch']`) and reaches for a second local server B:
  * fetch, a localhost alias, an image, Remotion's /proxy with a source on B, a WebSocket, and an `<Audio>` source on B
  * (downloaded by Remotion in Node, never through Chromium). Guarded: B gets no request, the render warns with B's
  * origin (or fails, for the audio download). Open (the CLI's renders): B gets them — the positive control.
- * L5.15 fixes: a guarded render or preview never lets Remotion open a browser of its own — a component whose page fails
+ * A guarded render or preview never lets Remotion open a browser of its own — a component whose page fails
  * ends the render or that preview with a plain error; B gets nothing, and no browser outlives the run.
  * Needs ffmpeg/ffprobe and a Chromium headless shell.
  */

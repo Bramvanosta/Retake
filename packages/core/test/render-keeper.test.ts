@@ -1,5 +1,5 @@
 /**
- * What prune keeps of renders/ (L7.6b, R-FLD-28, R-1): core's pure rule `renderKeeper`. A record of its own file is
+ * What prune keeps of renders/ (R-FLD-28, R-1): core's pure rule `renderKeeper`. A record of its own file is
  * judged as ever; every other file is left alone and keeps the render and the take it names. The rule only ever keeps
  * more than the one before the lot (the engine's prune-only-keeps-more test holds that against a frozen copy).
  */

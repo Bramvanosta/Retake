@@ -1,15 +1,15 @@
 /**
- * L4.9 part C: the screen tour's shared set-up (a test helper): a scratch workspace holding a copy of
+ * The screen tour's shared set-up (a test helper): a scratch workspace holding a copy of
  * projects/northfield-fixture (with the fixture workspace's failed dry run and capture, engine test helpers) and the
  * synthetic `demo` project with the bits take (test-support take.ts: VP9, two comment threads at one frame, Claude's proposal
  * on the first — an in-process engine of client `mcp`, as `comment_reply` makes one — whose diff holds a trailing space
  * and right-to-left text), a scenario file that does not parse, an editable workspace theme `tour-theme` (a copy of editorial in the
  * workspace's own templates folder: the theme editor is toured with its fields enabled); the Studio server with no
- * worker; headless Chromium. `station()` visits one state at 1280 then 1440 wide once nothing is loading (a station still
+ * worker; headless Chromium. `station` visits one state at 1280 then 1440 wide once nothing is loading (a station still
  * loading after 30 s is a finding) and runs the checker on it: every rule, a budget of unmeasured and of exempt texts,
  * the Tab walk at 1280 (its cap per station; a truncated walk is a finding) and the arrows across a shared tab stop.
- * L5.9: in both appearances — dark (the default, following the system) at 1280 and 1440 with the walk, then light at
- * 1280 (its values are L4.9's, proven at both widths then) — and the colour-only rule must have status tokens to watch.
+ * In both appearances — dark (the default, following the system) at 1280 and 1440 with the walk, then light at
+ * 1280 (its values proven at both widths) — and the colour-only rule must have status tokens to watch.
  * Whatever `startTour` started is closed again when it throws.
  */
 import { createHash } from 'node:crypto';
@@ -111,7 +111,7 @@ export async function writeRender(dir: string, plan: EditPlan, edit: string): Pr
   await writeFile(record.record, JSON.stringify(record));
 }
 
-/** L5.12a: bits-v1's review (the Review report's station): a contact sheet, a scene sheet, three findings at frames. */
+/** bits-v1's review (the Review report's station): a contact sheet, a scene sheet, three findings at frames. */
 export async function writeReview(dir: string): Promise<void> {
   const rv = join(dir, 'review', 'bits-v1');
   await mkdir(rv, { recursive: true });

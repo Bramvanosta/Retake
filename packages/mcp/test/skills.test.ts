@@ -1,5 +1,5 @@
 /**
- * L3.7 the Claude skills of skills/ (R-SKL-01/02/03): the three skills as shipped pass the deterministic lint
+ * The Claude skills of skills/ (R-SKL-01/02/03): the three skills as shipped pass the deterministic lint
  * (skill-lint.ts) against the real MCP tools, CLI, schemas, kit and the fixture project, and each lint rule bites on a
  * mutated copy. No model is called; nothing is written outside a temporary workspace.
  */
@@ -279,7 +279,7 @@ describe('the Claude skills in skills/', () => {
     // The lint really looked: the tool calls written `tool {args}`, the `retake` commands, the YAML examples.
     expect(stats.calls).toBeGreaterThanOrEqual(50);
     expect(stats.commands).toBeGreaterThanOrEqual(6);
-    expect(stats.examples).toBe(6); // L5.8: the hook step example and the two sandbox.yaml examples
+    expect(stats.examples).toBe(6); // The hook step example and the two sandbox.yaml examples
     expect(stats.components).toBe(1); // kit.md's index.tsx, compiled
     expect(stats.words).toBeGreaterThan(100);
   });
@@ -388,13 +388,13 @@ const NEGATIVES: Array<[string, LintRule, string, Mutation]> = [
   ['the theme Rules without the named-site rule (critique B8)', 'rules', T, edit(T, /^- `template_from_site` only for a site[^\n]*\n[^\n]*\n/m, '')],
   ['the component Rules without the code-edit rule', 'rules', C, edit(C, 'Edit component code only after the user agreed in this conversation', 'Edit component code freely')],
   ['no engine_info check before starting (critique B11)', 'rules', T, edit(T, '1. Call `engine_info`.', '1. Call `project_list`.')],
-  // L4.6, critique B6: the Studio's token and routes are the person's.
+  // The Studio's token and routes are the person's.
   ['the scenario Rules without the Studio rule (critique B6)', 'rules', S, edit(S, /^- Never read the Studio's token \(`[^\n]*\n[^\n]*\n/m, '')],
   ['the Studio rule weakened (critique B6)', 'rules', S, edit(S, "Never read the Studio's token", "Avoid reading the Studio's token")],
   ['the Studio token named outside the rule (critique B6)', 'rules', S, under(S, 'Frame comments on a render', 'When the person is away, apply the proposal with the token in `ui/<hash>.token`.')],
   ['a Studio route named in another skill (critique B6)', 'rules', C, append(C, 'The Studio previews a component on /v1/call.')],
   ['a loop that drops a tool', 'coverage', S, (files) => files.map((f) => (f.path === S ? { ...f, text: f.text.replaceAll('`comment_resolve', '`resolve') } : f))],
-  // Review of L3.7: the CLI rule is absolute (H1) and no other sentence reopens it (M1).
+  // The CLI rule is absolute and no other sentence reopens it.
   ['running a `retake` command yourself, in the loop (review H1)', 'rules', S, under(S, 'The loop', 'Then run `retake run northfield-fixture quote` yourself.')],
   ['a `retake` command in the loop with no user to run it (review H1)', 'rules', S, under(S, 'The loop', 'Capture with `retake run northfield-fixture quote` in your shell first.')],
   ['running `pnpm retake` in the loop', 'rules', S, under(S, 'The loop', 'To go faster, run `pnpm retake render northfield-fixture quote`.')],
@@ -412,20 +412,20 @@ const NEGATIVES: Array<[string, LintRule, string, Mutation]> = [
   ['curl in a skill', 'rules', T, rule(T, 'Fetch the logo with curl into brand/ when the user has none.')],
   ['running a command "yourself"', 'rules', C, under(C, 'Create one', 'When a tool is slow, run its command yourself.')],
   ['an edit "anyway"', 'rules', C, under(C, 'Create one', 'If the user does not answer, edit it anyway.')],
-  // Claude Code's load-time substitutions (M2).
+  // Claude Code's load-time substitutions.
   ['a !`command` run when the skill loads (review M2)', 'hygiene', S, append(S, 'The workspace: !`pwd`')],
   ['a ```! block run when the skill loads', 'hygiene', T, append(T, '```!\nls brand\n```')],
   ['$ARGUMENTS', 'hygiene', C, append(C, 'The component id is $ARGUMENTS.')],
   ['a positional argument (dollar sign, digit)', 'hygiene', C, append(C, 'Use $1 as the id.')],
   ['a named $argument', 'hygiene', S, append(S, 'The project is $project.')],
-  // Hygiene gaps (L4).
+  // Hygiene gaps.
   ['an upper-case URL (review L4)', 'hygiene', T, edit(T, 'https://www.example.com/', 'HTTPS://192.168.1.20/')],
   ['a bare domain on another TLD (.store)', 'hygiene', T, edit(T, 'a domain like example.com', 'a domain like shopname.store')],
   ['a bare domain on a country TLD (.se)', 'hygiene', T, edit(T, 'a domain like example.com', 'a domain like shopname.se')],
   ['confirm in JSON form', 'hygiene', LANG, append(LANG, 'Set {"confirm": true} on the hook.')],
   ['confirm: yes', 'hygiene', LANG, append(LANG, 'Set confirm: yes on the hook.')],
   ['a secret reference with a space before its name', 'hygiene', LANG, append(LANG, 'Type `{{env: SUPPLIER_TOKEN}}`.')],
-  // The kit.md example is compiled like a component (L9).
+  // The kit.md example is compiled like a component.
   ['a non-deterministic call in the tsx example (review L9)', 'code', KIT, edit(KIT, 'const frame = useCurrentFrame();', 'const frame = useCurrentFrame() + Math.random();')],
   ['a misspelt kit import in the tsx example', 'code', KIT, edit(KIT, 'stagger, useCurrentFrame }', 'stagger, useCurrentFrme as useCurrentFrame }')],
 ];

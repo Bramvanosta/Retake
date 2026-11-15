@@ -157,7 +157,7 @@ export function scanSource(src: string, file: string): ComponentIssue[] {
  * What a component folder's content hash (editor `bundleHash` / `componentFolderHash`: the render bundle cache, the
  * Studio's preview allow-list, library preview keys) skips: dot entries, these folders, the generated preview files and
  * files of other types. No import may reach one of them — a change there would change what the component renders under
- * an unchanged hash (L4.7 review fix). One definition, used by the hash and by every import check.
+ * an unchanged hash. One definition, used by the hash and by every import check.
  */
 export const UNHASHED_DIRS: ReadonlySet<string> = new Set(['node_modules', 'previews', '.git', 'dist']);
 /** Files of a component folder its content hash reads (by extension). */

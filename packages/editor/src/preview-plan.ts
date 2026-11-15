@@ -1,5 +1,5 @@
 /**
- * The plan the Studio's preview plays (L4.5, critique B4): the EditPlan with every `retake-asset:` URL swapped for the URL
+ * The plan the Studio's preview plays: the EditPlan with every `retake-asset:` URL swapped for the URL
  * the player origin serves the file at, and nothing that names a file of this Mac — no `assets` map, no `file` of the
  * capture, the page tracks or the music, no absolute path left in a slot (a theme's own file), no real local URL a
  * browser bar would hide (`hidden` entries keep their frame, lose their URL) — nor the planner's display table, notes

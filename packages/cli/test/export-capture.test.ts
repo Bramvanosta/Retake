@@ -1,5 +1,5 @@
 /**
- * `retake export-capture` (L2.13) on the synthetic run of the render tests: a colour-coded capture whose frame n has
+ * `retake export-capture` on the synthetic run of the render tests: a colour-coded capture whose frame n has
  * its own colour and no kept screencast frames (the video fallback), so each clip frame tells which capture frame it
  * shows — at 60 fps every capture frame twice (repeated, not interpolated), the page load of scene b left out. Also
  * the summary, `--json` and the usage errors of `export-capture` and `run --raw`.

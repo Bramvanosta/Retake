@@ -1,15 +1,15 @@
 /**
- * L4.7 part A2: the Studio's theme write path (engine theme-edit.ts; critique B7, B14, B15): the editor's view of a
- * theme and one verified write of its template.yaml, on a scratch workspace with a copy of the editorial starter.
- * - ⚑ editable by real path, never by `source` (B15): a starter, the repository's starters listed as `workspace`, a
+ * The Studio's theme write path (engine theme-edit.ts): the editor's view of a theme and one verified write of its
+ * template.yaml, on a scratch workspace with a copy of the editorial starter.
+ * - ⚑ editable by real path, never by `source`: a starter, the repository's starters listed as `workspace`, a
  *   linked folder, a linked or hard-linked template.yaml, a theme outside the workspace are read-only with why, and a
  *   write to one is refused;
  * - ⚑ if_match (a conflict names the current hash), a value changed since read (stale), the verify, hidden characters;
  * - ⚑ files a theme names: regular files of its own folder only — no symbolic or hard link, images and SVGs checked,
  *   fonts sniffed; the registry resolves the components (kept params validated);
- * - ⚑ restore only a version shown or written, byte-exact (B14); MCP never edits a theme;
+ * - ⚑ restore only a version shown or written, byte-exact; MCP never edits a theme;
  * - the view: path-free, fields, components, fonts and images checked, palette checks, used by (projects and
- *   scenarios); a scenario's `template` is a theme the workspace lists (B1).
+ *   scenarios); a scenario's `template` is a theme the workspace lists.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';

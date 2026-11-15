@@ -1,5 +1,5 @@
 /**
- * The window page's word to the desktop shell (L5.12d, DESIGN §4j): the shell asks the quit question in its window's
+ * The window page's word to the desktop shell (DESIGN §4j): the shell asks the quit question in its window's
  * page (`studio:quit`, a fresh id), the page's sheet answers through the own op `desktop_answer`, and the server writes
  * one pipe line the shell reads (supervise.ts frames it): `{"type":"shown","id","shown":true}` once the sheet is on
  * screen, `{"type":"answer","id","answer":"proceed"|"cancel"}` when the person answers. The shell takes them only for
@@ -14,7 +14,7 @@
  * - `shown` lines: at most SHOWN_PER_MIN a minute (a page looping on acks cannot flood the pipe); an `answer` is never
  *   capped nor dropped (it is the person's).
  * - Not read-only (a line is written) but never nudges the job watch (studio.ts NO_NUDGE, like unsaved_report).
- * - Honest (review B-L6): once the supervisor has stopped (the server is closing) no line can be written — the op
+ * - Honest: once the supervisor has stopped (the server is closing) no line can be written — the op
  *   answers `unavailable` (503, reason `stopped`), never "answered"; the page's sheet says the answer did not arrive.
  */
 import { z } from 'zod';
@@ -32,7 +32,7 @@ export const DesktopAnswerInput = z.union([
   z.strictObject({ id, answer: z.enum(['proceed', 'cancel']).describe('Quit Anyway (proceed) or Cancel.') }),
 ]);
 
-/** L5.16c: what the server may ask the shell to do for the Set-up sheet (desktop_core pipe.rs SetupAction). */
+/** What the server may ask the shell to do for the Set-up sheet (desktop_core pipe.rs SetupAction). */
 export const SETUP_ACTIONS = ['notifications', 'cli_folder'] as const;
 export type SetupAction = (typeof SETUP_ACTIONS)[number];
 
@@ -71,7 +71,7 @@ export class DesktopPipe {
   }
 
   /**
-   * L5.16c: a set-up request for the shell (setup-ops.ts) — `notifications` (ask macOS for the permission) or
+   * A set-up request for the shell (setup-ops.ts) — `notifications` (ask macOS for the permission) or
    * `cli_folder` (show the native folder panel; the answer comes back on stdin: shell-line.ts parseShellLine). Fixed
    * shapes only.
    */
@@ -79,7 +79,7 @@ export class DesktopPipe {
     this.send(this.need(), JSON.stringify({ type: 'setup', action }));
   }
 
-  /** L5.16d: the update sheet's click for the shell (update-ops.ts `desktop_update`): Install and Restart, or Later. */
+  /** The update sheet's click for the shell (update-ops.ts `desktop_update`): Install and Restart, or Later. */
   update(action: 'install' | 'later'): void {
     this.send(this.need(), JSON.stringify({ type: 'update', action }));
   }

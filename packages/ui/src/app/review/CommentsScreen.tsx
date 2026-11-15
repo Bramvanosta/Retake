@@ -1,6 +1,6 @@
 /**
- * Review › Comments (L4.6 part D1, R-UI-27 / R-UI-29; L5.12b « Épure » 4b, R4-Comments, R-UI-47):
- * `#/p/<slug>/s/<name>/comments[/<thread> | /at/<render>/<frame>]` — frame comments in the shell's panes:
+ * Review › Comments (R-UI-27 / R-UI-29, R4-Comments, R-UI-47): `#/p/<slug>/s/<name>/comments[/<thread> |
+ * /at/<render>/<frame>]` — frame comments in the shell's panes:
  *
  * - Context (title bar): Review's View — Report · Comments (n open) (the Comments segment keeps `comments-tab`); the status
  *   bar: Review's own line (ReviewChrome, shared with the report: "Rendered · when · vN · n open · n resolved", Open in
@@ -11,11 +11,11 @@
  *   (Composer.tsx); with a thread open, "Comment this frame" opens a new one at the frame shown.
  * - Inspector: the thread (ThreadPanel.tsx: its entries, Claude's proposal with its diff and the offered buttons —
  *   ProposalCard.tsx —, Reply, Resolve, Reopen), or how comments work while none is open.
- * - ⌘K: "Comment at this frame" (the palette's Review group, shell/command-bus.ts paletteGroup) while a render is shown;
- *   its words name the render only (review A-L1: a frame in them would rebuild the shell's palette on every step — the
- *   frame is read when it runs).
+ * - ⌘K: "Comment at this frame" (the palette's Review group, shell/command-bus.ts paletteGroup) while a render is
+ *   shown; its words name the render only (a frame in them would rebuild the shell's palette on every step — the frame
+ *   is read when it runs).
  * - Arriving to comment a frame (an `at` address: Comment this frame, the timeline's Comment or C), the composer's text
- *   box and Post are brought into view and the text focused once the frame is laid out (review B-L4).
+ *   box and Post are brought into view and the text focused once the frame is laid out.
  * Where the viewer starts, once per address: a thread's render and frame, a render's frame, else the newest render; a
  * render gone says so (the thread's still is shown with it). Events (commentsEventAction): the list, the thread and the
  * pins read again when this scenario's comments or file change or after a reconnection, at most once a second; the
@@ -136,7 +136,7 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
             icon: 'plus',
             run: () => {
               // The text is focused once the palette has closed and given the focus back (behind its modal the page is
-              // inert: a focus asked while it is open is lost — L5.12b fixes, found by the palette's op-counter test).
+              // inert: a focus asked while it is open is lost, found by the palette's op-counter test).
               if (composing) setTimeout(() => document.querySelector<HTMLElement>('[data-testid="comment-text"]')?.focus(), 0);
               else location.hash = hrefTo({ name: 'comments', slug, scenario: name, at: { render: shown.render_id, frame } });
             },

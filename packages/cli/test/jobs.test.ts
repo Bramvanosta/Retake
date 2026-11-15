@@ -1,5 +1,5 @@
 /**
- * `retake jobs` (L3.1): the jobs an MCP client started, for the human at the terminal — list (text and --json), status
+ * `retake jobs`: the jobs an MCP client started, for the human at the terminal — list (text and --json), status
  * and cancel of a queued job; usage errors for a malformed id or state. Jobs are queued through the engine (no worker
  * runs them here, and the terminal's cancel starts none: a worker started with the terminal's environment would run the
  * other jobs an MCP client queued).
@@ -71,7 +71,7 @@ describe('retake jobs', () => {
     expect(cancel.code, cancel.err).toBe(EXIT.ok);
     expect(cancel.err).toContain(`${sub.job.id} cancelled`);
     expect((await new FileJobQueue(ws).get(sub.job.id))?.state).toBe('cancelled');
-    // No worker was started by the terminal (N1); the run is listed cancelled all the same (run.json still says queued).
+    // No worker was started by the terminal; the run is listed cancelled all the same (run.json still says queued).
     expect(await liveWorker(ws)).toBeNull();
     expect(existsSync(join(workersDir(ws), 'worker.log'))).toBe(false);
     expect((await engine.runs.list('northfield-fixture')).find((r) => r.id === sub.run_id)?.status).toBe('cancelled');

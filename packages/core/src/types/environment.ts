@@ -9,13 +9,13 @@
 import type { OpenArgs, PressArgs, TargetSpec, WaitForArgs } from './language.js';
 
 /**
- * What a sign-in page looks like (L1.6), matched against a page's origin + path (never its query or fragment): a path
+ * What a sign-in page looks like, matched against a page's origin + path (never its query or fragment): a path
  * prefix ("/sign-in" — also "/sign-in/…", not "/sign-in-help"), "<environment page>:<path>" (that page's origin and
  * path), an absolute URL prefix ("https://sso.example.com" — every page there), or {regex, flags?}.
  */
 export type LoginPattern = string | { regex: string; flags?: string };
 
-/** How the runner tells a persona is signed in (L1.6), off camera before every run. */
+/** How the runner tells a persona is signed in, off camera before every run. */
 export interface PersonaCheck {
   /** "<env page>:/path", a path (on the persona's first page) or an absolute URL. Default: the first page's "/". */
   url?: string;
@@ -28,7 +28,7 @@ export interface PersonaCheck {
 }
 
 /**
- * One step of an automated login (L1.6): open, click, type, press, wait_for or wait (scenario syntax), run off camera in
+ * One step of an automated login: open, click, type, press, wait_for or wait (scenario syntax), run off camera in
  * a tab of its own. Typed secrets come from {{env:…}} / {{keychain:…}} references.
  */
 export type LoginStep = (
@@ -45,11 +45,11 @@ export type LoginStep = (
 };
 
 /**
- * One account the videos are filmed as (L1.6): its session lives outside the project, in
+ * One account the videos are filmed as: its session lives outside the project, in
  * ~/.retake/profiles|sessions/<project>/<env>/<persona> (RETAKE_HOME moves it) — never a path here.
  */
 export interface PersonaConfig {
-  /** The persona's mail address (L5.6): `wait_for_email {to: persona:<name>}`, the mailbox label of a mail card. */
+  /** The persona's mail address: `wait_for_email {to: persona:<name>}`, the mailbox label of a mail card. */
   email?: string;
   /** Environment pages this persona is signed into by default (a page is in at most one persona's list). */
   pages?: string[];
@@ -69,7 +69,7 @@ export interface AuthConfig {
   storage_state?: string;
   /** Sign-in pages of every persona (and of pages without one): landing there during a run fails it. */
   login_url?: LoginPattern | LoginPattern[];
-  /** Named accounts (L1.6). */
+  /** Named accounts. */
   personas?: Record<string, PersonaConfig>;
 }
 
@@ -135,7 +135,7 @@ export interface EnvironmentSettings {
   /** Page key → display base, normalised (`https://host[:port][/path]`, no trailing slash). */
   display?: Record<string, string>;
   read_only?: ReadOnlySettings;
-  /** A sandbox environment (L1.8): its manifest and provider. A sandbox is never production and always read-write. */
+  /** A sandbox environment: its manifest and provider. A sandbox is never production and always read-write. */
   sandbox?: EnvironmentSandbox;
   /** The sandbox's own test mailbox (core mailboxFor: it replaces the project's `mailbox` on this environment). */
   mailbox?: MailboxConfig;
@@ -188,7 +188,7 @@ export interface MailboxConfig {
   headers?: Record<string, string>;
 }
 
-/** A write request seen on a read-only run (L1.7). */
+/** A write request seen on a read-only run. */
 export interface TimelineWrite {
   /** Capture time; absent before capture time 0 (session preflight, setup hooks). */
   t?: number;
@@ -208,7 +208,7 @@ export interface TimelineWrite {
   status?: number;
   /** Who sent it: a capture page, a js hook tab, the automated sign-in tab. */
   via?: 'page' | 'hook' | 'sign-in';
-  /** The other, read-only environment whose host it went to (guarded in every run, L1.7). */
+  /** The other, read-only environment whose host it went to (guarded in every run). */
   protected_by?: string;
 }
 
@@ -216,13 +216,13 @@ export interface ResolvedEnvironment {
   name: string;
   /** page key → real base URL (what the runner and the hooks use). */
   pages: Record<string, string>;
-  /** page key → display base (L1.7), for the pages that declare one. */
+  /** page key → display base, for the pages that declare one. */
   display?: Record<string, string>;
   /** Absent: false. */
   production?: boolean;
   /** As written in project.yaml; absent: read-only in production, else read-write (core environmentAccess). */
   access?: EnvironmentAccess;
   read_only?: ReadOnlySettings;
-  /** A sandbox environment (L1.8): never production, always read-write. */
+  /** A sandbox environment: never production, always read-write. */
   sandbox?: EnvironmentSandbox;
 }

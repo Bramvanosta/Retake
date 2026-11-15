@@ -1,14 +1,14 @@
 /**
- * L5.10a: Welcome (`#/`, R4-Welcome) — no project open. The app (its name from brand.ts, its version, one sentence),
+ * Welcome (`#/`, R4-Welcome) — no project open. The app (its name from brand.ts, its version, one sentence),
  * how to start a project (a command to copy: the page has no write path for projects), the workspace folder; the
- * projects of the workspace (`project_list`) with — in ONE call for all of them (`projects_overview`, review B L2) —
+ * projects of the workspace (`project_list`) with — in ONE call for all of them (`projects_overview`) —
  * their scenario count, last run (a shape and a word, and when), environment flags in words and folder; a project whose
  * project.yaml does not load says so with its first error line. Then the search and "Lately" (the index: Activity.tsx).
  * The inspector: the workspace (folder, version, worker) and Claude (the MCP registration command to copy). Posters of
- * projects are cut (critique H2: they span projects; BL-128). Every value from data is text (Txt / a kit slot).
- * L5.10a fixes: R4-Welcome's layout — an identity column (the app's mark, name, version, New project, the projects
- * folder) beside "Recent projects", one column in a narrow centre (review B-L6); a step of a take re-reads nothing here
- * (review A-L5: `onlyRunProgress`); with the inspector hidden, the workspace and Claude show under Lately.
+ * projects are cut (they span projects; BL-128). Every value from data is text (Txt / a kit slot).
+ * R4-Welcome's layout — an identity column (the app's mark, name, version, New project, the projects
+ * folder) beside "Recent projects", one column in a narrow centre; a step of a take re-reads nothing here
+ * (`onlyRunProgress`); with the inspector hidden, the workspace and Claude show under Lately.
  */
 import { useEngineInfo, useProjectsOverview } from '../data/projects.js';
 import type { ProjectList } from '../data/ops.js';

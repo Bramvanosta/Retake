@@ -1,6 +1,6 @@
 /**
- * The MCP server's run tools: the engine's operations (run_list, run_status, run_cancel since L7.13; run_dry and
- * run_capture since L7.15), served here as these very objects in tools/list order.
+ * The MCP server's run tools: the engine's operations (run_list, run_status, run_cancel, run_dry and
+ * run_capture), served here as these very objects in tools/list order.
  */
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
 import type { Op, ToolDef } from './define.js';

@@ -1,9 +1,9 @@
 /**
- * L6.12: StudioOps — every op the Studio serves, with its arguments and its result: `call` / `useCall` (api.ts) are
+ * StudioOps — every op the Studio serves, with its arguments and its result: `call` / `useCall` (api.ts) are
  * typed by it, so an op the Studio does not serve, an argument its input refuses or a result read as another type is a
  * compile error.
  *
- * Both are derived from the Studio's op table (L6.12–L6.13 fixes; types only — this module imports nothing at run
+ * Both are derived from the Studio's op table (types only — this module imports nothing at run
  * time): `StudioTools` (server/studio.ts) is each op as `/v1/call/<op>` runs it — the MCP tool or the Studio's own op,
  * its pinned arguments applied — and the operation contract keeps each one's types (`ToolDef<S, D, N>`). An op's
  * arguments are its input schema's input type (read-only: a call never changes them), its result the data its handler
@@ -23,7 +23,7 @@ export type Sent<T> = T extends object ? { readonly [K in keyof T]: Sent<T[K]> }
 /**
  * The ops the app calls with narrower arguments than the op takes, and so reads a narrower result (the reason of each):
  * - run_status: the Studio never asks `detail: "full"` (the answer with every screenshot and output, for Claude); it
- *   reads the compact status (L5.8: `duration_s`, `files`; no `outputs`, `screenshots` or `duration_ms`).
+ *   reads the compact status (`duration_s`, `files`; no `outputs`, `screenshots` or `duration_ms`).
  */
 interface Narrowed {
   run_status: { args: Omit<ToolArgs<StudioTools['run_status']>, 'detail'> & { detail?: 'compact' }; result: CompactRunStatus };

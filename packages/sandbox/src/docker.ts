@@ -1,5 +1,5 @@
 /**
- * The `docker` CLI for the docker-compose provider (L1.8): where it is (`$RETAKE_DOCKER`, PATH, then the usual
+ * The `docker` CLI for the docker-compose provider: where it is (`$RETAKE_DOCKER`, PATH, then the usual
  * install places of Docker Desktop, OrbStack and Homebrew), the environment it runs with (Retake's own — an
  * allow-list of it under the agent policy — minus every `COMPOSE_*` variable: a shell's COMPOSE_PROFILES or
  * COMPOSE_FILE would change which services a sandbox starts), how it is run (output captured, a timeout, an abort
@@ -64,7 +64,7 @@ export function findDocker(env: NodeJS.ProcessEnv = process.env, exists: (p: str
  * The environment docker runs with: this process's — under the agent policy (a job of the Studio, the desktop app or an
  * MCP client) only core childEnv's allow-list of it for docker (the shell's own variables, docker's own by name, the
  * names of `pass`: project.yaml `pass_env:`) —, without `COMPOSE_*` (sandbox.yaml alone says what is started) nor the
- * names of `unset` (L5.8: those a sandbox's env file sets — a shell's value would win over the file's).
+ * names of `unset` (those a sandbox's env file sets — a shell's value would win over the file's).
  */
 export function dockerEnv(policy: WorkPolicy, base: NodeJS.ProcessEnv = process.env, unset: readonly string[] = [], pass: readonly string[] = []): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
@@ -115,7 +115,7 @@ export interface DockerRunOptions {
   argv0?: string;
   /** Variables added to dockerEnv() (an exec step's `-e NAME` values). */
   env?: Record<string, string>;
-  /** Names left out of this process's environment (the ones the sandbox's env file sets, L5.8). */
+  /** Names left out of this process's environment (the ones the sandbox's env file sets). */
   unset?: readonly string[];
   /** Names passed on under the agent policy besides childEnv's base (project.yaml `pass_env:`). */
   pass?: readonly string[];

@@ -1,5 +1,5 @@
 /**
- * The interrupt port (L3.1): how engine code that holds something a signal must not leave behind (a sandbox take that
+ * The interrupt port: how engine code that holds something a signal must not leave behind (a sandbox take that
  * started processes) learns that it should stop. The CLI implements it with its Ctrl-C handler (`onInterrupt`: the first
  * signal aborts, a second one quits after `onQuitSync`); the jobs worker with the job's AbortSignal and its own signal
  * rule (worker.ts). Engine code never installs process signal handlers itself.

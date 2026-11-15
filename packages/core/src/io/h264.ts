@@ -1,5 +1,5 @@
 /**
- * Which H.264 encoder an ffmpeg has (L5.16): libx264 (today's encoder everywhere: the repository's ffmpeg and the app's
+ * Which H.264 encoder an ffmpeg has: libx264 (today's encoder everywhere: the repository's ffmpeg and the app's
  * own build have it), else the Mac's VideoToolbox (`h264_videotoolbox`) — an ffmpeg built without libx264, the
  * system's one when the app carries none. The sites that encode H.264 (the capture, the frames encode, the raw export's
  * MP4 clips, the 1080p export) ask here once per ffmpeg path.

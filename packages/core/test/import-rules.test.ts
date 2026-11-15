@@ -18,7 +18,7 @@ import * as lib from '../../../scripts/audit/lib.mjs';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 /**
- * The repository's ratchet entries, computed once for the file (L7.37): the tree does not change while it runs, and a
+ * The repository's ratchet entries, computed once for the file: the tree does not change while it runs, and a
  * dozen whole scans (~4 s each, synchronous) ran past vitest's 60 s RPC timeout on a loaded machine.
  */
 let repoScan: { pkgs: string[]; files: Array<{ rel: string; pkg: string; text: string; specs: string[] }>; fileImports: Record<string, string[]> } | undefined;
@@ -443,7 +443,7 @@ describe('the import-rules ratchet', () => {
       expect(loaders('packages/engine/src/review/review-package.ts', "import { review, thumbs } from '../lazy.js';")).toEqual([]);
       expect(loaders('packages/engine/src/hook-run/package-hooks.ts', "import { hooks } from '../lazy.js';")).toEqual([]);
       expect(loaders('packages/engine/src/review/x.ts', "import { hooks } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/review/x.ts → hooks']);
-      // The capture runner's loader (L7.12): free in capture/ only.
+      // The capture runner's loader: free in capture/ only.
       expect(loaders('packages/engine/src/capture/runner-web-capture.ts', "import { runnerWeb } from '../lazy.js';")).toEqual([]);
       expect(loaders('packages/engine/src/jobs/worker.ts', "import { runnerWeb as rw } from '../lazy.js';\nawait rw();")).toEqual(['loader-use packages/engine/src/jobs/worker.ts → runnerWeb']);
       expect(loaders('packages/engine/src/capture/x.ts', "export { runnerWeb } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/capture/x.ts → runnerWeb re-exported']);
@@ -472,7 +472,7 @@ describe('the import-rules ratchet', () => {
       expect(loaders('packages/engine/src/review/a.ts', "export { thumbs } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/review/a.ts → thumbs re-exported']);
       expect(loaders('packages/engine/src/a.ts', "export * from './lazy.js';")).toEqual(['loader-use packages/engine/src/a.ts → export * from lazy.ts']);
       expect(loaders('packages/engine/src/a.ts', "export * as lazy from './lazy.js';")).toEqual(['loader-use packages/engine/src/a.ts → export * from lazy.ts']);
-      // TypeScript's import-equals and a require() of the loader file (L7.11 fix pass); a type-only one loads nothing.
+      // TypeScript's import-equals and a require of the loader file; a type-only one loads nothing.
       expect(loaders('packages/engine/src/a.ts', "import lazy = require('./lazy.js');\nawait lazy.review();")).toEqual(['loader-use packages/engine/src/a.ts → * as lazy']);
       expect(loaders('packages/engine/src/review/a.ts', "import type lazy = require('../lazy.js');")).toEqual([]);
       expect(loaders('packages/engine/src/jobs/a.ts', "const lazy = require('../lazy.js');")).toEqual(['loader-use packages/engine/src/jobs/a.ts → require() of lazy.ts']);
@@ -497,7 +497,7 @@ describe('the import-rules ratchet', () => {
       for (const root of lib.PORT_ROOTS.packageHookRunner) expect(ports(root, 'f(packageHookRunner());'), root).toEqual([]);
       for (const root of lib.PORT_ROOTS.packageReviewer) expect(ports(root, 'f(packageReviewer());'), root).toEqual([]);
       expect(ports('packages/engine/src/index.ts', "export { packageHookRunner } from './hook-run/package-hooks.js';\nexport { packageReviewer } from './review/review-package.js';")).toEqual([]);
-      // The capture runner's adapter (L7.12): its file and the bag only; a CLI command names the capture of the ports
+      // The capture runner's adapter: its file and the bag only; a CLI command names the capture of the ports
       // it is handed.
       expect(ports('packages/cli/src/interrupt.ts', "import { runnerWebCapture } from '@retake/engine';\nrunnerWebCapture().cleanupSync();")).toEqual([
         'loader-use packages/cli/src/interrupt.ts → runnerWebCapture outside a root',
@@ -521,7 +521,7 @@ describe('the import-rules ratchet', () => {
       const specs = lib.specifiersOf(ts, port, "import type { HookResult } from '@retake/hooks';\nlet h: typeof import('@retake/review');") as string[];
       expect(at({ [port]: specs })).toEqual([`port-types ${port} → @retake/hooks`, `port-types ${port} → @retake/review`]);
       expect(lib.PORT_FILES).toContain('packages/engine/src/review/reviewer.ts');
-      // The capture runner's port (L7.12): the runner's type-only entry is free, its root is not, types included.
+      // The capture runner's port: the runner's type-only entry is free, its root is not, types included.
       const capture = 'packages/engine/src/capture/runner.ts';
       expect(lib.PORT_FILES).toContain(capture);
       expect(at({ [capture]: ['@retake/core', '@retake/runner-web/types', '../hook-run/runner.js'] })).toEqual([]);
@@ -1217,14 +1217,14 @@ describe('the import-rules ratchet', () => {
     it('holds today: the operations each shell still defines, none in the engine (the counts move as families move)', () => {
       const entries = ratchetOfRepo().filter((e) => e.startsWith('shell-op '));
       const total = (prefix: string) => entries.filter((e) => e.startsWith(`shell-op ${prefix}`)).reduce((n, e) => n + Number(/→ (\d+) operations? defined$/.exec(e)![1]), 0);
-      // L7.13: 34 / 65 (the eleven both serve moved); L7.14: 30 / 55 (MCP's four read-only queries — scenario_get,
-      // plan_preview, render_status, review_get — and the Studio's ten screen reads); L7.17: 21 / 44 (the theme,
-      // component and library family: MCP's nine, the Studio's eleven); L7.15: −7 / −6 (the submits and job controls:
+      // 34 / 65 (the eleven both serve moved); 30 / 55 (MCP's four read-only queries — scenario_get,
+      // plan_preview, render_status, review_get — and the Studio's ten screen reads); 21 / 44 (the theme,
+      // component and library family: MCP's nine, the Studio's eleven); −7 / −6 (the submits and job controls:
       // MCP's run_dry, run_capture, render, review, export, page_inspect, job_cancel; the Studio's scenario_run,
-      // run_pause, sign_in_cancel, scenario_render, render_cancel, review_export); L7.19: MCP −5 (hooks_run, env_reset,
+      // run_pause, sign_in_cancel, scenario_render, render_cancel, review_export); MCP −5 (hooks_run, env_reset,
       // sandbox_status, sandbox_up, sandbox_reset).
-      // L7.16: MCP −3 (comments_list, comment_reply, comment_resolve), Studio −12 (comment-ops.ts: the twelve).
-      // L7.18: −6 / −8 (MCP's scenario_save, scenario_from_script, scenario_record, project_create, project_prune,
+      // MCP −3 (comments_list, comment_reply, comment_resolve), Studio −12 (comment-ops.ts: the twelve).
+      // −6 / −8 (MCP's scenario_save, scenario_from_script, scenario_record, project_create, project_prune,
       // job_status; the Studio's scenario_edit and its seven record_* ops).
       expect(total('packages/mcp/src/')).toBe(9 - 3 - 6);
       expect(total('packages/ui/src/')).toBe(38 - 12 - 8);
@@ -1300,7 +1300,7 @@ describe('the import-rules ratchet', () => {
       'queue-call packages/cli/src/commands/a.ts → queue.setYield',
       'queue-call packages/cli/src/commands/a.ts → queue.append',
     ]);
-    // L7.26: the queue's lock is the engine's admission's, never a shell's.
+    // The queue's lock is the engine's admission's, never a shell's.
     expect(at('packages/ui/src/server/a.ts', 'await engine.queue.exclusive(key, fn);')).toEqual(['queue-call packages/ui/src/server/a.ts → queue.exclusive']);
     // Reads and a client's requests are the view's: fine anywhere; the engine's own modules submit and write.
     expect(at('packages/ui/src/server/a.ts', 'await engine.queue.list({});\nawait queue.cancel(id, by);\nawait queue.withOwnMemory().takeHold();\nawait other.write(x);')).toEqual([]);
@@ -1808,7 +1808,7 @@ describe('the import-rules ratchet', () => {
 
   it('every package is in exactly one layer; a relative import never leaves its package; a .cts source is read like the others', () => {
     // A new folder of packages/ belongs to no list until someone decides its layer: the rules would not read it. The
-    // tests' shared helpers are test code, in no layer and left out of the scan (L7.37): their rules are test-reach and
+    // tests' shared helpers are test code, in no layer and left out of the scan: their rules are test-reach and
     // home-restore.
     expect(lib.TEST_SUPPORT).toBe('test-support');
     const dirs = readdirSync(join(ROOT, 'packages'))
@@ -2253,7 +2253,7 @@ describe('the import-rules ratchet', () => {
         kinds([
           'const a = `${scenario}-v${version}${suffix}`;',
           'const b = join(dir, `.${name}-v${version}.lock`);',
-          'const c = id.startsWith(`${scenario}-v`);', // the critique's missed shape: nothing after -v
+          'const c = id.startsWith(`${scenario}-v`);', // a shape easy to miss: nothing after -v
           'const d = `j_${ulid()}`;',
           'const e = `rec_${newJobId().slice(2)}`;',
           'const f = `k_${ulid()}.json`;',
@@ -2468,7 +2468,7 @@ describe('the import-rules ratchet', () => {
 
     it("the reader is free, and it is this file, no more; the types are the run record's states and the timeline's", () => {
       const all = ['const a = JSON.parse(text) as RunRecord;', 'const b = value as unknown as Timeline;'];
-      // (L7.6b: the render record's parse boundary, the lenient read it shares with the run record's, the reader of
+      // (the render record's parse boundary, the lenient read it shares with the run record's, the reader of
       // renders/ and its file seam, and the editor's one place where a stored plan becomes an edit plan.)
       expect(lib.RECORD_READ_HOME).toEqual([
         'packages/core/src/run-record.ts',
@@ -2530,7 +2530,7 @@ describe('the import-rules ratchet', () => {
         .map((f) => readFileSync(join(ROOT, f), 'utf8'))
         .join('\n');
       for (const name of lib.RECORD_READ_TYPES.filter((n: string) => !['Timeline', 'RunRecordOnDisk'].includes(n))) expect(declared, name).toMatch(new RegExp(`export (type|interface) ${name}\\b`));
-      // A render record cast, annotated or guarded outside the homes is seen as a run record is (L7.6b).
+      // A render record cast, annotated or guarded outside the homes is seen as a run record is.
       expect(
         kinds([
           'const a = JSON.parse(text) as StoredRenderRecord;',
@@ -2540,7 +2540,7 @@ describe('the import-rules ratchet', () => {
           'const e = StoredRenderRecordSchema.safeParse(value);',
           'const f = record as RenderForWork;',
           "const g: StoredRender['plan'] = value;", // a member's type: not a record
-          // (L7.6b fix pass) The base types under their own names, and the answers that hold a record.
+          // The base types under their own names, and the answers that hold a record.
           'const h = JSON.parse(t) as RenderBase<unknown, unknown>;',
           "const i = JSON.parse(t) as StoredRenderBase & { status: 'succeeded' };",
           'function j(t: string): RenderFields<unknown, unknown> { return JSON.parse(t); }',
@@ -2579,8 +2579,8 @@ describe('the import-rules ratchet', () => {
     });
 
     it('10. a file that reads a run folder on its own, on purpose: each JSON.parse there is an entry of its own kind', () => {
-      // (L7.6c: the readers of renders/ staged by L7.6b are on the one reader — no own reader of renders/ is left but prune's
-      // read through a link, and no function of an own reader is said to parse no record.)
+      // (the other readers of renders/ are on the one reader — no own reader of renders/ is left but prune's read
+      // through a link, and no function of an own reader is said to parse no record.)
       expect(lib.RECORD_READ_OWN).toEqual(['packages/engine/src/prune.ts', 'packages/engine/src/jobs/run-job.ts']);
       expect(lib.RECORD_READ_NOT_RECORD).toBeUndefined();
       const own = ["const r = JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as Mine | null;", 'const again = JSON.parse(text);'];
@@ -2621,7 +2621,7 @@ describe('the import-rules ratchet', () => {
       expect(index).toMatch(/const entry = await renders\.listed\(renders\.dirOf\(dir\), name\)/);
       expect(index).toMatch(/renderOfFile\(entry\)/);
       expect(index).not.toMatch(/readSmall\(dir, projectRef\('renders'|readdir\(projectPath\(dir, 'renders'\)\)/);
-      // The timeline: it parses nothing itself (ffprobe's output is core's reader's, L7.31); the record of a pin is read
+      // The timeline: it parses nothing itself (ffprobe's output is core's reader's); the record of a pin is read
       // under a listing's rules (the port's renders.listed: no link, the listing's cap) and judged by core's rules; renders/
       // is never named by hand.
       const timeline = src('packages/engine/src/views/timeline-view.ts');
@@ -2631,7 +2631,7 @@ describe('the import-rules ratchet', () => {
       expect(timeline.match(/'renders'/g)).toBeNull();
       expect(timeline).toMatch(/renderOfFile\(await entry\)/);
       expect(timeline).toMatch(/sameRender\(record, a\)/);
-      // The frame service: it parses nothing itself (probeFd's ffprobe output is core's reader's, L7.31); its record comes
+      // The frame service: it parses nothing itself (probeFd's ffprobe output is core's reader's); its record comes
       // from renderForWork; core's identity rule.
       const frames = src('packages/engine/src/render-frames.ts');
       expect(parsesIn(frames)).toEqual([]);
@@ -2660,9 +2660,9 @@ describe('the import-rules ratchet', () => {
       const scanned = scanOfRepo();
       const today: string[] = ratchetOfRepo();
       // No record or timeline is typed outside the reader. The own reads — prune's two (a run.json the reader does not
-      // take; a linked record file of renders/, L7.6b) and the job's lenient close, each into a shape of its own, as
-      // their comments say — are in sight: one entry per file, with its reason in the baseline (L7.6c: the readers of
-      // renders/ L7.6b staged are on the one reader, and no entry).
+      // take; a linked record file of renders/) and the job's lenient close, each into a shape of its own, as
+      // their comments say — are in sight: one entry per file, with its reason in the baseline (the other readers of
+      // renders/ are on the one reader, and no entry).
       expect(lib.recordReadHits(ROOT, scanned.files).map((h: ReadHit) => [h.file, h.kinds])).toEqual([
         ['packages/engine/src/jobs/run-job.ts', [10]],
         ['packages/engine/src/prune.ts', [10, 10]],
@@ -2707,7 +2707,7 @@ describe('the import-rules ratchet', () => {
     });
 
     it('the shared lenient read and the file seam of the readers are in no index: imported by path by the parse boundaries and the reader of renders/ only (L7.6b)', () => {
-      // The root, core's entries (L7.35: the render record is the render context's) and the io side.
+      // The root, core's entries (the render record is the render context's) and the io side.
       const entries = readdirSync(join(ROOT, 'packages/core/src/entries')).map((f) => [`entries/${f}`, readFileSync(join(ROOT, 'packages/core/src/entries', f), 'utf8')] as const);
       const index = readFileSync(join(ROOT, 'packages/core/src/entries/render.ts'), 'utf8');
       const io = readFileSync(join(ROOT, 'packages/core/src/io/index.ts'), 'utf8');
@@ -2899,5 +2899,58 @@ describe('the import-rules ratchet', () => {
       // The render browser a job records goes through the port, both adapters.
       for (const f of ['jobs/job-queue.ts', 'jobs/queue-core.ts']) expect(readFileSync(join(ROOT, E, f), 'utf8'), f).toContain('recordedBrowser(id: string)');
     });
+  });
+});
+
+describe('comment-ref: comments a reader can follow', () => {
+  type Ref = { file: string; count: number; refs: Array<{ line: number; ref: string }> };
+  const refs = (rel: string, text: string): string[] => (lib.commentRefHits(ROOT, [{ rel, text }]) as Ref[]).flatMap((h) => h.refs.map((r) => `${r.line} ${r.ref}`));
+  const LOT = ['L', '5.9'].join('');
+  const NOTE = ['review', 'A M2'].join(' ');
+
+  it('a lot id or a private-note reference in a comment is a hit; in a string, a test title or a tagged comment it is not', () => {
+    const f = 'packages/core/src/x.ts';
+    expect(refs(f, `// ${LOT}: the shell's slots.\nconst a = 1;`)).toEqual([`1 ${LOT}`]);
+    expect(refs(f, `/**\n * Never the token (${NOTE}: the JSON names a variable).\n */\nexport const b = 2;`)).toEqual([`2 ${NOTE}`]);
+    expect(refs(f, `const c = 3; // the bound (critique B7c)`)).toEqual(['1 critique']);
+    expect(refs(f, `// as the audit 2026-11-10 says, and finding X3\nconst d = 4;`)).toEqual(['1 audit 2026-11-10', '1 finding X3']);
+    expect(refs('packages/ui/src/app/A.tsx', `export const A = () => <div>{/* ${LOT} */}<p>${LOT} text</p></div>;`)).toEqual([`1 ${LOT}`]);
+    expect(refs('apps/desktop/src/main.rs', `/// ${LOT}: the quit\nlet s = "// ${NOTE}"; let c = 'x'; // ok\nfn f<'a>() {} /* ${NOTE} */`)).toEqual([`1 ${LOT}`, `3 ${NOTE}`]);
+    expect(refs('apps/desktop/bundle/x.sh', `echo "# ${LOT}"\n# ${LOT}: a note`)).toEqual([`2 ${LOT}`]);
+    // Not hits: strings, a test title, requirement ids, the plain word "review", a comment with the old-name tag.
+    expect(refs('packages/core/test/x.test.ts', `it('${LOT} ${NOTE}', () => {});\nconst s = \`// ${LOT}\`;`)).toEqual([]);
+    expect(refs(f, `// R-UI-07 and R-FLD-28: a review of the render, its review/ folder\nconst e = 5;`)).toEqual([]);
+    expect(refs(f, `// ${['old-name', ':'].join('')} ${LOT} names the old spellings\nconst g = 6;`)).toEqual([]);
+  });
+
+  it('the wider forms are hits too: any case and review letter, any critique, a private path, finding codes, bare codes in a parenthesis, plan ids, phase ids', () => {
+    const f = 'packages/core/src/x.ts';
+    const one = (comment: string): string[] =>
+      refs(f, `${comment}\nconst a = 1;`)
+        .map((r) => r.replace(/^1 /, ''))
+        .sort();
+    expect(one('// Review f A-L3: a repository that is not public is refused')).toEqual(['A-L3', 'L3', 'Review f A-L3']);
+    expect(one('// a quoted path (review c A-L1 / B-L6: never run)')).toEqual(['A-L1', 'B-L6', 'L1', 'L6', 'review c A-L1']);
+    expect(one('// Review B-M4: the check first')).toEqual(['B-M4', 'Review B-M4']);
+    expect(one('// review d: a refusal keeps the sheet')).toEqual(['review d']);
+    expect(one("// the Critique's probe, and a critique of it")).toEqual(['Critique', 'critique']);
+    expect(one('// see .private/l7/notes.md')).toEqual(['.private/']);
+    expect(one('// the plan item (plan D8), the probe E4')).toEqual(['plan D8', 'probe E4']);
+    expect(one('// finding CC-S4 of the audit')).toEqual(['CC-S4']);
+    expect(one('// one case only (T-5)')).toEqual(['T-5']);
+    expect(one('// untrusted words (B16), the gate (untrusted, H1), the fix (A M3 / B H1: alone)')).toEqual(['B16', 'H1', 'H1', 'M3']);
+    expect(one('// the Sandboxes port (U14), checked by T13 and U8e')).toEqual(['T13', 'U14', 'U14', 'U8e']);
+    expect(one('// as is, since L1')).toEqual(['L1']);
+    // Not hits: the import rules' R-numbers, look-alike names, a code that is not an item's start, backlog and table
+    // labels.
+    expect(one('// the rule (R6), the codecs (VP8 / VP9), the sets (C0, DEL, C1), at twice A4 size, on an M4 Mac')).toEqual([]);
+    expect(one('// BL-164, D-6, R-1, P-1, N-c: the labels of the table; R4-Comments of the mockups')).toEqual([]);
+    expect(one('// to review a render, the reviews and the review/ folder')).toEqual([]);
+  });
+
+  it('holds today: no lot id, phase id or note reference left in any comment, and no baseline entry for it', () => {
+    expect((lib.commentRefHits(ROOT) as Ref[]).map((h) => `${h.file} → ${h.count}`)).toEqual([]);
+    const pinned = (lib.readBaseline(ROOT) as { groups: Array<{ rule: string }> }).groups.filter((g) => g.rule === 'comment-ref');
+    expect(pinned).toEqual([]);
   });
 });

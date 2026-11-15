@@ -1,5 +1,5 @@
 /**
- * L3.3 authoring acceptance through MCP (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`). An SDK client
+ * Authoring acceptance through MCP (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`). An SDK client
  * drives `retake mcp` (spawned from the sources over stdio) on a copy of projects/northfield-fixture pointed at the
  * fixture product on free ports, the way Claude authors a scenario on the MAIN path — no model anywhere, the scripted
  * "agent" copies what the inspections suggest:
@@ -78,7 +78,7 @@ function trustedPart(v: unknown): unknown {
 
 /** page_inspect, followed through job_status when it outlives its wait; summaries and trusted parts kept for the checks. */
 async function inspect(args: Record<string, unknown>, keepAs: string): Promise<Inspection> {
-  // `detail: "full"` (L5.8): this loop reads each element's verified target and box, not only its step hint.
+  // `detail: "full"`: this loop reads each element's verified target and box, not only its step hint.
   let r = await call('page_inspect', { project: PROJECT, wait_s: 25, detail: 'full', ...args });
   const job = (r.structuredContent as { job: { id: string } }).job.id;
   for (let i = 0; i < 10 && !(r.structuredContent as { status?: string }).status; i++) r = await call('job_status', { job_id: job, wait_s: 25, detail: 'full' });

@@ -1,16 +1,16 @@
 /**
- * L5.9: the command palette (⌘K) — a modal `<dialog>` holding a combobox (`role="combobox"`, `aria-expanded`,
+ * The command palette (⌘K) — a modal `<dialog>` holding a combobox (`role="combobox"`, `aria-expanded`,
  * `aria-controls`, `aria-activedescendant`: the focus stays in the input) and a listbox of options in labelled groups.
  * Typing filters (case-folded: every word of the query in the label or hint, labels starting with it first); ↑ ↓ move the
  * active option (its cue: the selection fill and a 3 px bar, more than colour), Enter runs it, a click runs it, Escape
  * closes; the focus goes back to where it was (to the centre pane, `#main`, when that is gone) — at once when the palette
  * closes itself, never on its late `close` event (a task that, under load, lands after the focus has moved on).
- * L5.12b (R4-Palette): 640 px wide, "Search commands, scenes and themes", an icon per row (decorative: the label names
+ * 640 px wide, "Search commands, scenes and themes", an icon per row (decorative: the label names
  * it), Esc's key cap beside the field, and a footer legend (↑ ↓ Move · Return Run · Esc Close, and the caller's
  * footnote: the desktop app's "Commands with a key are also in the menu bar").
- * L5.12b fixes: the legend is read too (review A-L8: the footnote is information, not decoration); `aria-expanded` is
+ * The legend is read too (the footnote is information, not decoration); `aria-expanded` is
  * false while no option is listed; an input method's composition-ending Enter is ignored by `isComposing` or its
- * keyCode 229 (WebKit — the desktop app's view — can end a composition with `isComposing` false: review A-L9).
+ * keyCode 229 (WebKit — the desktop app's view — can end a composition with `isComposing` false).
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
@@ -25,7 +25,7 @@ export interface Command {
   group: string;
   hint?: string;
   kbd?: string[];
-  /** L5.12b: the row's icon. */
+  /** The row's icon. */
   icon?: IconName;
   run: () => void;
 }
@@ -80,7 +80,7 @@ export function CommandPalette({
   const giveBack = () => {
     const back = opener.current;
     opener.current = null;
-    // A "Go to" command often unmounts the opener: the focus goes to the centre pane then (review A-L6).
+    // A "Go to" command often unmounts the opener: the focus goes to the centre pane then.
     (back && back.isConnected ? back : document.getElementById('main'))?.focus();
   };
   useEffect(() => {
@@ -113,7 +113,7 @@ export function CommandPalette({
     c.run();
   };
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    // An input method composing a word owns its keys (Enter confirms the word, not a command: review A-L9).
+    // An input method composing a word owns its keys (Enter confirms the word, not a command).
     if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();

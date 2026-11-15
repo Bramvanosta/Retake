@@ -1,17 +1,17 @@
 /**
- * L4.5 part C: the Studio op `timeline_view` (ops.ts timelineOps) over HTTP — the engine's view plus the preview's two
+ * The Studio op `timeline_view` (ops.ts timelineOps) over HTTP — the engine's view plus the preview's two
  * capability URLs on the player origin:
- * - ⚑ the answer is path-free and plan-free (critique B4): no `plan` / `folders` key, no absolute path (workspace, home),
+ * - ⚑ the answer is path-free and plan-free: no `plan` / `folders` key, no absolute path (workspace, home),
  *   no `retake-asset:` name, no product URL; the frame and plan URLs hold one capability of the player origin, and the plan
  *   they name is served there (its capture under the same capability);
  * - a re-read of the same take answers the same URLs (the engine's memo); an edit of the file publishes a new plan URL
- *   on the same frame URL and keeps every media URL (critique B6: no reload of the capture);
- * - part D: the file's text beside the view while switches can be written (undo restores those bytes);
+ *   on the same frame URL and keeps every media URL (no reload of the capture);
+ * - the file's text beside the view while switches can be written (undo restores those bytes);
  * - pinned arguments (a path, an extra key → 400); no capture → 404; a take the trust gates refuse → `blocked` with
  *   the command, and no capability URL;
- * - L4.5 fixes: ⚑ a workspace component is held out of the frame's bundle until `preview_allow` (the hash shown, this
- *   session; no MCP tool reaches it — review A H1 c); ⚑ the project's preview URLs are revoked when the last page
- *   holding a lease leaves (`timeline_leave`), a re-read gets new ones (review A L3).
+ * - ⚑ A workspace component is held out of the frame's bundle until `preview_allow` (the hash shown, this session; no
+ *   MCP tool reaches it); ⚑ the project's preview URLs are revoked when the last page holding a lease leaves
+ *   (`timeline_leave`), a re-read gets new ones.
  */
 import { createHash } from 'node:crypto';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -85,7 +85,7 @@ beforeAll(async () => {
   const outside = TEXT.replace('{slots: {title: Chapter two}}', '{slots: {title: Chapter two, kicker: "https://example.com/tracker.png"}}');
   await writeTake(dir, 'out', { run: '20260101-120000-out', text: TEXT, timeline: structuredClone(t), codec: 'h264-x264', seconds: 3 });
   await writeFile(join(dir, 'scenarios', 'out.yaml'), outside);
-  // A take whose card is a workspace component (review A H1 c: held until the person allows it).
+  // A take whose card is a workspace component (held until the person allows it).
   const comp = join(ws, 'components', 'acme', 'marked');
   await mkdir(comp, { recursive: true });
   await cp(scaffoldDir('card'), comp, { recursive: true });

@@ -1,5 +1,5 @@
 /**
- * Claude's proposal in the thread (L4.6 part D2; R-UI-28; L5.12b « Épure » 4b on the kit, R-UI-47 — was ProposalPanel.tsx):
+ * Claude's proposal in the thread (R-UI-28, R-UI-47; on the kit):
  *
  * - The diff (the kit's DiffTable): the rows the server computed — the canonical diff of the exact bytes Apply writes,
  *   with context, rebuilt from today's file — each a sign and its word, the line numbers before and after, the line drawn
@@ -136,7 +136,7 @@ export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; 
   const note = rewriteNote(p.rewrites_pct);
   const reloadRenders = rs.reload;
   const line = firstLine(p);
-  // The diff's rows drawn once per proposal read (review A-L2), not on every render of the card.
+  // The diff's rows drawn once per proposal read, not on every render of the card.
   const rows = useMemo(() => diffRowsView(p.rows, p.untrusted.rows), [p.rows, p.untrusted.rows]);
 
   const apply = (render: boolean) => {

@@ -1,5 +1,5 @@
 /**
- * L7.22 (U8a, U8e): the CLI's plan and raw export as the engine's use-case functions.
+ * The CLI's plan and raw export as the engine's use-case functions.
  *
  * - The capture port's raw export (`raw.timeline`, the export's gate): one contract on both adapters (the runner
  *   package and the in-memory runner) — a run that reads gives its timeline, a dry run and a folder without a timeline

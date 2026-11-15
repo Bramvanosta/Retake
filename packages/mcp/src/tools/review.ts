@@ -1,5 +1,5 @@
 /**
- * The MCP server's review tools: the engine's operations (review_get since L7.14, review since L7.15), served here as
+ * The MCP server's review tools: the engine's operations (review_get and review), served here as
  * these very objects in tools/list order.
  */
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';

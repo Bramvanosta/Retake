@@ -1,5 +1,5 @@
 /**
- * The Studio timeline's model (L4.5, R-UI-23 / R-UI-24): the tracks of an EditPlan as absolute output frames — the
+ * The Studio timeline's model (R-UI-23 / R-UI-24): the tracks of an EditPlan as absolute output frames — the
  * segments (with their component, transition and same-page joins), the captions, the steps, the camera zooms, the
  * speed spans, the cuts (the planner's trims, and any other jump of the time map, each with its reason: idle, a held
  * page load, a frozen screen, a busy wait, a hook step), the markers —
@@ -37,7 +37,7 @@ export interface TimelineSegment {
   joined?: true;
   /** Clips: the caption component (null: captions off for this clip). */
   caption?: TimelineComponent | null;
-  /** Multi-page clips (L2.11): the page ids in the layout's order (labels under untrusted.pages). */
+  /** Multi-page clips: the page ids in the layout's order (labels under untrusted.pages). */
   pages?: string[];
   /** Cards and interstitials: the words of their text and the seconds they need (R-FLD-03). */
   reading?: { words: number; seconds: number };
@@ -275,7 +275,7 @@ export function timelineOf(plan: EditPlan, opts: TimelineOptions = {}): Timeline
   };
 }
 
-// ── Comment pins (read-only; the comments UI is L4.6) ───────────────────────
+// ── Comment pins (read-only) ───────────────────────
 
 /** A thread as the pins need it (engine comments `CommentView`, reduced). */
 export interface PinThread {
@@ -306,7 +306,7 @@ export interface PlacedPin {
 }
 
 /**
- * Where each thread's pin goes on the shown plan (plan D8): at its own frame when its render shows this version (the
+ * Where each thread's pin goes on the shown plan: at its own frame when its render shows this version (the
  * caller says so by giving `frame`); else a thread of the shown run at its anchored step's first frame (else its marker,
  * else its segment's start) — a frame of another version of the edit, so only the step or segment it pointed at; else,
  * when the view shows today's edit, at today's step (`step_now`); else it is listed beside the track ("made on another

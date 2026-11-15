@@ -1,5 +1,5 @@
 /**
- * L3.6 frame comment store (engine comments.ts) on synthetic renders (the review tests' helpers): a thread made at the
+ * The frame comment store (engine comments.ts) on synthetic renders (the review tests' helpers): a thread made at the
  * marker of a 2 ms marked wait (the fixture's shape) with a region, the still kept in .retake/comments/ (drawn with
  * ffmpeg: that test needs ffmpeg and ffprobe); frames by time / number / marker and the argument errors; trust (only the
  * CLI creates and reopens, every other client writes as `mcp`); resolutions (if_match, a later render of the same
@@ -558,7 +558,7 @@ describe('frame comment store', () => {
           expect(e.code, JSON.stringify(edit)).toBe('refused');
           expect(e.message).toBe('renders/quote-v2.json has a scenario, created_at or variant the tool never writes: not used');
           const listed = await engineError(listComments(diskOutputs.renders, project, { scenario: 'quote', render: 'quote-v2' }));
-          // L7.6b: a file that is there is never "not found" — refused, in fixed words.
+          // A file that is there is never "not found" — refused, in fixed words.
           expect(listed.code).toBe('refused');
           expect(`${listed.message} ${JSON.stringify(listed.details ?? {})}`).not.toContain('IGNORE');
           expect((await getComment(diskOutputs.renders, project, thread.id)).newer_renders).toEqual([]);

@@ -1,5 +1,5 @@
 /**
- * Page inspection (L3.3, R-MCP-23 runner part): `runScenario` with `inspect` on the fixture product — the inspection lab
+ * Page inspection (R-MCP-23 runner part): `runScenario` with `inspect` on the fixture product — the inspection lab
  * (ambiguous buttons, generated ids, injection text, shadow root and frames, a 5,000-row table), a replay up to a step
  * that opens the quote dialog and its Radix select, a replay that fails, a page that lands on another origin, and the
  * signed-in console after an automated sign-in. Every suggestion is checked again outside the inspection: read back
@@ -524,7 +524,7 @@ describe('a page that leaves for another origin while it is inspected', () => {
   /**
    * One inspection of the late page, bounded: past ITERATION_MS the run is cancelled and the test fails naming the query,
    * the stage (the replay and the inspection, or the run's close after the report) and the run's last progress events —
-   * a hang shows where it is instead of the whole test timing out (L3.8 review: a full-suite hang of this file).
+   * a hang shows where it is instead of the whole test timing out (a full-suite hang of this file).
    */
   const ITERATION_MS = 60_000;
   async function inspectLate(query: string): Promise<{ r: InspectReport; startedAfter: number }> {

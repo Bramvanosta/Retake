@@ -1,5 +1,5 @@
 /**
- * What a take says of its own filming (L1.3, L5.7, R-FLD-24 / 28): the loads the recorder held at their limit, the
+ * What a take says of its own filming (R-FLD-24 / 28): the loads the recorder held at their limit, the
  * motion warnings and their measured cause, the run folder's size and the disk's free space.
  */
 import { readdir, stat, statfs } from 'node:fs/promises';
@@ -31,7 +31,7 @@ export function warnLimitedLoads(rec: ScreencastRecorder, timeline: TimelineBuil
 
 /**
  * Run warnings about the motion a capture shows: moves below `minFps` (slow rendering) and stalls — the capture froze
- * ≥ STALL_MIN_S (150 ms) while the cursor moved or a click ripple played (L1.3). Null (cursor hidden): nothing can be
+ * ≥ STALL_MIN_S (150 ms) while the cursor moved or a click ripple played. Null (cursor hidden): nothing can be
  * judged.
  */
 export function motionWarnings(motion: MotionCapture | null, minFps: number, prefix: string, cause?: string): string[] {
@@ -59,7 +59,7 @@ export function motionWarnings(motion: MotionCapture | null, minFps: number, pre
 }
 
 /**
- * Why cursor moves were filmed below the frame rate (L5.7, R-FLD-24), from what the take measured: the GPU, the
+ * Why cursor moves were filmed below the frame rate (R-FLD-24), from what the take measured: the GPU, the
  * machine's load, Chromium's CPU, the frame-rate limiter, several browsers. The most likely cause first, then the
  * figures it rests on.
  */

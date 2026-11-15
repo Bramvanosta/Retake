@@ -74,7 +74,7 @@ export function planClipDetails(s: PlanScope, drafts: Draft[], overlays: StepOve
     clipProvenance(s, c);
     clipUrls(s, c);
     clipPanes(s, c);
-    // Your own file placed at a position of the screen (L2.12: a corner, a side) keeps clear of what the viewer looks
+    // Your own file placed at a position of the screen (a corner, a side) keeps clear of what the viewer looks
     // at — the boxes of its step and of the steps that come while it shows, around the cursor (stepBoxes) — in the
     // framing of THIS variant (a vertical crop puts a corner over a list that a landscape frame leaves free): the
     // nearest free position of the same kind, else where it was asked, with a note naming what it covers.
@@ -139,7 +139,7 @@ function clipStepOverlays(s: PlanScope, c: ClipPass, overlays: StepOverlays): vo
     // Multi-page clip: the overlay belongs to the page the step acted on.
     const pi = paneIndexOf(seg, ev.page);
     if (pi >= 0) use.pane = pi;
-    // A box-filling overlay (L2.12): a user file — or any overlay given anchor / rect / scale.
+    // A box-filling overlay: a user file — or any overlay given anchor / rect / scale.
     const isFile = rc.id === MEDIA_COMPONENTS.media || rc.id === MEDIA_COMPONENTS.lottie;
     if (o.box || isFile) {
       const page = pi >= 0 && seg.panes ? paneSource(planShape, seg.panes[pi]) : mainSource;
@@ -151,7 +151,7 @@ function clipStepOverlays(s: PlanScope, c: ClipPass, overlays: StepOverlays): vo
 }
 
 /**
- * Tutorial overlays (L2.10): the spotlight is drawn over the capture, under everything else; badges, loupe and key
+ * Tutorial overlays: the spotlight is drawn over the capture, under everything else; badges, loupe and key
  * caps under the scenario's own step overlays.
  */
 function clipTutorialOverlays(s: PlanScope, c: ClipPass): void {
@@ -192,7 +192,7 @@ function clipTutorialOverlays(s: PlanScope, c: ClipPass): void {
 }
 
 /**
- * Overlays keep clear of what the viewer is about to look at (L2.11 polish): the targets of the step they belong to
+ * Overlays keep clear of what the viewer is about to look at: the targets of the step they belong to
  * and of the next click step(s) — key caps take the other row, a lens or a badge another side.
  */
 function clipClearAreas(c: ClipPass): void {
@@ -234,7 +234,7 @@ function clipProvenance(s: PlanScope, c: ClipPass): void {
 }
 
 /**
- * URLs (browser chrome) along the clip: of the main capture, or of each page's track — as the video shows them (L1.7):
+ * URLs (browser chrome) along the clip: of the main capture, or of each page's track — as the video shows them:
  * display URLs; a local one is kept hidden, and a layout that would draw it gets a plan warning.
  */
 function clipUrls(s: PlanScope, c: ClipPass): void {
@@ -259,7 +259,7 @@ function clipUrls(s: PlanScope, c: ClipPass): void {
   }
 }
 
-/** Multi-page clips (L2.11): the acting page over time, and where a picture-in-picture inset sits. */
+/** Multi-page clips: the acting page over time, and where a picture-in-picture inset sits. */
 function clipPanes(s: PlanScope, c: ClipPass): void {
   const { outFps, planShape, unit, notes } = s;
   const { seg, entry, rel, n, drafts, i } = c;

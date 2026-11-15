@@ -1,5 +1,5 @@
 /**
- * docker-compose sandboxes for real (L1.8 part C), gated by RETAKE_TEST_DOCKER=1 (a running Docker with the
+ * docker-compose sandboxes for real, gated by RETAKE_TEST_DOCKER=1 (a running Docker with the
  * images busybox:1.38.0, postgres:17-alpine and axllent/mailpit present). Every compose project and container of a
  * run is named `retake-test-<run token>-*` and removed after (containers, networks, volumes, images it built):
  * another run at the same time (another worktree) and packages/cli/test/sandbox-docker.test.ts keep theirs; shared
@@ -14,7 +14,7 @@
  * - a published port another program holds: refused before up (nothing created), and, when the platform lets a
  *   program bind the wildcard address next to Docker's 127.0.0.1, refused after up;
  * - another checkout sharing the compose project name is refused by every command, and another container publishing
- *   the sandbox's port on [::1] (OrbStack allows it next to 127.0.0.1) is refused by up (K2, K3).
+ *   the sandbox's port on [::1] (OrbStack allows it next to 127.0.0.1) is refused by up.
  */
 import { resolveSecretRef } from '@retake/core/io';
 import { packageHooks } from './hook-runner.js';

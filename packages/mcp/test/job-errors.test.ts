@@ -1,5 +1,5 @@
 /**
- * L3.2 review: a job's error message that can quote the product (run, render, preview, review, export) never leaves
+ * A job's error message that can quote the product (run, render, preview, review, export) never leaves
  * `untrusted` — job_status, job_list, job_cancel and export return a placeholder in the job's own fields and the
  * message under untrusted.error, and no summary prints it. An interrupted job's message (written by the engine) and
  * the other kinds' messages are shown as before. Tools run on a stub engine.

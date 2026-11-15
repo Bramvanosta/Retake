@@ -1,5 +1,5 @@
 /**
- * L5.9: the Studio's shell (DESIGN §4k, docs/reference/studio-ui.md) — a fixed window of panes: the title bar (the app,
+ * The Studio's shell (DESIGN §4k, docs/reference/studio-ui.md) — a fixed window of panes: the title bar (the app,
  * the project › scenario, the mode switch Script · Shoot · Edit · Review centred, the screen's context control, the
  * inspector toggle), the browser on the left (the projects of the workspace and the open one's pages; the workspace,
  * version and worker at its foot), the centre pane (the current screen: the one scroller), the inspector on the right
@@ -8,14 +8,14 @@
  * title bar, browser, centre, inspector, status bar.
  * Commands: the palette (⌘K), the modes (⌘1 – 4) and the inspector (⌥⌘I) come from the desktop app's menu as
  * `studio:command` events (ids of MENU_COMMANDS only); in a browser tab the page binds ⌘K itself on a Mac (Ctrl+K
- * elsewhere, outside a text field: review B-L3) and nothing else (the browser keeps its own keys). While a modal dialog
- * is open the shell's commands wait (critique M5) — but Stop (⌘.), which closes the palette and acts (L5.11a fixes).
- * L5.11a: the status bar's actions for the scenario in context (StatusActions.tsx: its state, Rehearse, Capture, Render,
+ * elsewhere, outside a text field) and nothing else (the browser keeps its own keys). While a modal dialog
+ * is open the shell's commands wait — but Stop (⌘.), which closes the palette and acts.
+ * The status bar's actions for the scenario in context (StatusActions.tsx: its state, Rehearse, Capture, Render,
  * Pause / Stop, the confirmation sheet) — the default owner of the Scenario menu's commands (Rehearse ⌘R, Capture ⇧⌘R,
  * Render ⌘B, Stop ⌘. from the app's menu; the palette's Scenario group in a browser tab, which binds none of the four),
  * routed through the command bus (command-bus.ts: a screen or a live recording outranks the defaults by priority).
- * L5.12d: in the desktop app, the quit question as a kit Sheet (QuitSheet.tsx: `studio:quit`, answered through
- * `desktop_answer`); a browser tab has none (only the app's window is ever asked). L5.16d: in the app's window, the
+ * In the desktop app, the quit question as a kit Sheet (QuitSheet.tsx: `studio:quit`, answered through
+ * `desktop_answer`); a browser tab has none (only the app's window is ever asked). In the app's window, the
  * update's button in the status bar and its sheet (UpdateSheet.tsx).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -61,7 +61,7 @@ const UPDATES: Record<EventMode, string> = { connecting: '', stream: 'live updat
 const SAID_MS = 6000;
 const MODE_COMMAND: Record<Mode, MenuCommand> = { script: 'mode-script', shoot: 'mode-shoot', edit: 'mode-edit', review: 'mode-review' };
 const MODE_ICON: Record<Mode, IconName> = { script: 'report', shoot: 'record', edit: 'film', review: 'check' };
-/** The Scenario menu's commands in the palette (a browser tab binds none of their keys: critique M3). */
+/** The Scenario menu's commands in the palette (a browser tab binds none of their keys). */
 const SCENARIO_COMMANDS: Array<{ id: ShellCommand; label: string; kbd: string[]; icon: IconName }> = [
   { id: 'rehearse', label: 'Rehearse', kbd: ['⌘', 'R'], icon: 'play' },
   { id: 'capture', label: 'Capture', kbd: ['⇧', '⌘', 'R'], icon: 'record' },
@@ -69,7 +69,7 @@ const SCENARIO_COMMANDS: Array<{ id: ShellCommand; label: string; kbd: string[];
   { id: 'stop', label: 'Stop', kbd: ['⌘', '.'], icon: 'stop' },
 ];
 /**
- * L5.12b (R4-Palette): the palette's groups, in this order — Commands (the Scenario menu's, or a live recording's own;
+ * The palette's groups, in this order — Commands (the Scenario menu's, or a live recording's own;
  * Review's "Comment at this frame"; the inspector), Go to (the modes, the Review report, the project's pages, the
  * workspace), Scenes (the screen's scenes), Themes (the theme set for the scenario shown, the project's, all themes),
  * Scenarios, Projects. An entry goes somewhere or selects something; it never writes (a test counts the ops).
@@ -79,7 +79,7 @@ const PALETTE_GROUPS = ['Commands', 'Go to', 'Scenes', 'Themes', 'Scenarios', 'P
 /**
  * Worker state and version: `engine_info` now, when a job the page never saw appears (a new job may start a worker), on a
  * reconnection and every 15 s (an idle worker exits quietly). A job rewritten at each step of its run is not a worker
- * change: no re-read (L5.11a fixes, review A: 17 reads in 30 s of a run before).
+ * change: no re-read (17 reads in 30 s of a run before).
  */
 function useEngineInfo(): EngineInfoAnswer | null {
   const [v, set] = useState<EngineInfoAnswer | null>(null);
@@ -111,7 +111,7 @@ function useEngineInfo(): EngineInfoAnswer | null {
 }
 
 /**
- * L5.14 (captures first): what a filming take holds of this workspace's jobs — engine_info's `held`, then each jobs
+ * What a filming take holds of this workspace's jobs — engine_info's `held`, then each jobs
  * event's (the server says it with every change of a job, a hold included: the job stream's signature has it).
  */
 function useHeld(info: EngineInfoAnswer | null): HeldWork | null {
@@ -166,7 +166,7 @@ function workspaceTree(route: Route, projects: ProjectSummary[]): SourceGroup[] 
 }
 
 /**
- * L5.10a: an open project's browser (B32): Productions and its smart groups, the Library, the Locations (environments
+ * An open project's browser: Productions and its smart groups, the Library, the Locations (environments
  * with their flags in words), the Cast (each persona's session: a shape and a word), the Project's README and Record.
  */
 function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: boolean): SourceGroup[] {
@@ -224,7 +224,7 @@ function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: bo
           childrenLabel: 'Personas',
           children: personas.map((p) => {
             const c = castState(p);
-            // Several locations: each one under its persona's name, on a line that wraps (review B-L1: never cut off).
+            // Several locations: each one under its persona's name, on a line that wraps (never cut off).
             return row(`p-${p.env}-${p.persona}`, { name: 'cast', slug }, <Txt text={p.persona} />, false, {
               quiet: true,
               flag: <StatusMark state={c.state} word={c.word} />,
@@ -256,8 +256,8 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   const openSlug = PROJECT_ROUTES.has(route.name) ? slugOf(route) : null;
   const readmeDirty = useDirty(readmeKey(openSlug ?? ''));
   const project = openSlug !== null ? projects.find((p) => p.slug === openSlug) : undefined;
-  // L5.10a: the open project's shared reads (the browser and the screens read the same entries).
-  // L5.10b (critique M2): no board read behind a scenario screen (its browser shows the scenes, not the smart groups).
+  // The open project's shared reads (the browser and the screens read the same entries).
+  // No board read behind a scenario screen (its browser shows the scenes, not the smart groups).
   const open: OpenProject = { view: useProjectView(openSlug), board: useBoard(route.name === 'scenario' ? null : openSlug), cast: useCast(openSlug) };
   useProjectDataEvents(openSlug);
   useSyncExternalStore(contextWatch.subscribe, contextWatch.version);
@@ -266,10 +266,10 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   const mode = modeOf(route, ctx);
   const inApp = useMemo(() => studioShell() !== null, []);
 
-  // The centre pane scrolls back to the top when the screen changes, not when a screen moves inside itself (M2).
+  // The centre pane scrolls back to the top when the screen changes, not when a screen moves inside itself.
   const key = screenKey(route);
   // The screen a polite line was said on (read by `say`: a screen's own mount effect runs after this render) — a run's
-  // live screen is another screen than Prepare (the same screenKey), a recording another than the start form (L5.11b).
+  // live screen is another screen than Prepare (the same screenKey), a recording another than the start form.
   const saidKey = `${key}|${route.name === 'run' ? (route.run ?? '') : route.name === 'record' ? (route.rec ?? '') : ''}`;
   const keyNow = useRef(saidKey);
   keyNow.current = saidKey;
@@ -281,7 +281,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
       return;
     }
     // A new screen whose old one took the focused control with it (a link, a palette command): the focus lands on the
-    // centre pane, not the document (review A-L6). The first screen of a load leaves it alone (Tab starts at the top).
+    // centre pane, not the document. The first screen of a load leaves it alone (Tab starts at the top).
     if (!document.activeElement || document.activeElement === document.body) main.current?.focus({ preventScroll: true });
   }, [key]);
 
@@ -297,7 +297,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     const at = (name: SlotName) => (el: HTMLElement | null) => setTargets((t) => (t[name] === el ? t : { ...t, [name]: el }));
     return { inspector: at('inspector'), context: at('context'), actions: at('actions'), browser: at('browser') };
   }, []);
-  // L5.12a: a screen that hides the browser pane while mounted (Edit, the Review report).
+  // A screen that hides the browser pane while mounted (Edit, the Review report).
   const [collapsed, setCollapsed] = useState(0);
   const collapseBrowser = useCallback(() => {
     setCollapsed((n) => n + 1);
@@ -308,15 +308,15 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   const inspectorShown = hasInspector && !inspectorOff;
   const host = useMemo<SlotHost>(() => ({ targets, claim, collapseBrowser, hidden: { inspector: inspectorOff } }), [targets, claim, collapseBrowser, inspectorOff]);
   const inspector = useRef<HTMLElement>(null);
-  /** Shows or hides the inspector; hiding it with the focus inside moves the focus to the centre pane (review A-L6). */
+  /** Shows or hides the inspector; hiding it with the focus inside moves the focus to the centre pane. */
   const toggleInspector = useCallback(() => {
     if (inspector.current?.contains(document.activeElement)) main.current?.focus({ preventScroll: true });
     setInspectorOff((v) => !v);
   }, []);
 
   // What a command answers (a polite line in the status bar): one line at a time — a new one replaces it —, gone after
-  // SAID_MS (announced once anyway) and when the screen changes (L5.11a fixes, review B-M1 / A-L5: "queued" never stays
-  // beside the run's own state). Said as text (Txt: engine and project words, review A-M4).
+  // SAID_MS (announced once anyway) and when the screen changes ("queued" never stays beside the run's own
+  // state). Said as text (Txt: engine and project words).
   const [said, setSaid] = useState('');
   const saidFor = useRef<string | null>(null);
   const saidTimer = useRef<number | null>(null);
@@ -351,15 +351,15 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   const run = useCallback(
     (id: MenuCommand) => {
       if (modalOpen()) {
-        // A modal waits for its answer; the palette's own ⌘K closes it. ⌘. always answers (review A-L3: a capture may be
-        // running behind the sheet or the palette): the palette closes, then Stop's owner acts — it changes no page.
+        // A modal waits for its answer; the palette's own ⌘K closes it. ⌘. always answers (a capture may be running
+        // behind the sheet or the palette): the palette closes, then Stop's owner acts — it changes no page.
         if (id === 'palette' && palette) setPalette(false);
         if (id !== 'stop') return;
         if (palette) setPalette(false);
       }
       if (id === 'palette') setPalette(true);
       else if (isShellCommand(id)) {
-        // L5.11a: whoever owns it acts (the status bar's defaults are always there; they say why when they cannot).
+        // Whoever owns it acts (the status bar's defaults are always there; they say why when they cannot).
         if (!runShellCommand(id)) say('Open a scenario first');
       } else if (id === 'inspector') {
         if (hasInspector) toggleInspector();
@@ -384,7 +384,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     const onKey = (e: KeyboardEvent) => {
       if (inApp || e.isComposing || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'k') return;
       // ⌘K on a Mac — never Ctrl+K there (a text field's "delete to the end of the line"); Ctrl+K elsewhere, outside a
-      // text field (review B-L3).
+      // text field.
       if (MAC ? !e.metaKey || e.ctrlKey : !e.ctrlKey || e.metaKey || inTextField(e.target)) return;
       // A modal waiting for its answer keeps the key (the browser's own ⌘K too), but the palette's own ⌘K closes it.
       if (modalOpen() && !document.querySelector('dialog.k-palette[open]')) return;
@@ -407,13 +407,13 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     const screen = (slot: PaletteSlot) => paletteGroup.get(slot);
     const out: Command[] = [];
     const add = (group: (typeof PALETTE_GROUPS)[number], c: Omit<Command, 'group'>) => out.push({ ...c, group });
-    // Commands. L5.11b fixes (review A-M2 / A-L1): a live recording's own entries (Stop recording, Discard…, named after
+    // Commands. A live recording's own entries (Stop recording, Discard…, named after
     // it) take the Scenario menu's place — with or without a scenario in context, never naming that scenario.
     const recording = screen('scenario');
     if (recording)
       for (const c of recording)
         add('Commands', { id: c.id, label: c.label, ...(c.hint ? { hint: c.hint } : {}), icon: c.icon ?? 'record', ...(inApp && c.id === 'record-stop' ? { kbd: ['⌘', '.'] } : {}), run: c.run });
-    // L5.11a: the Scenario menu (the palette closes as it runs: the bus, not the modal-waiting `run`).
+    // The Scenario menu (the palette closes as it runs: the bus, not the modal-waiting `run`).
     else if (ctx)
       for (const c of SCENARIO_COMMANDS)
         add('Commands', { id: c.id, label: c.label, hint: ctx.scenario, icon: c.icon, ...(inApp ? { kbd: c.kbd } : {}), run: () => void (runShellCommand(c.id) || say('Open a scenario first')) });
@@ -479,7 +479,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     // slotVersion: a screen's group changed (the entries are read from the registry above).
   }, [ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, open.view, say, slotVersion]);
 
-  // L5.11a: the scenario in context's state and actions (the buttons hide while a screen claims the slot).
+  // The scenario in context's state and actions (the buttons hide while a screen claims the slot).
   const shoot = useStatusActions({ route, ctx, say, claimed: claims.actions > 0, inApp });
 
   const conn = CONNECTION[connection];
@@ -571,7 +571,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
                 {held && (
                   <span className="sh-seg" data-testid="held" data-held={held.state}>
                     {' · '}
-                    {/* Review B L6: the long words, or at 1000 px and less their short form (shell.css). */}
+                    {/* The long words, or at 1000 px and less their short form (shell.css). */}
                     <span className="sh-held-long">{heldWords(held)}</span>
                     <span className="sh-held-short">{heldShortWords(held)}</span>
                   </span>

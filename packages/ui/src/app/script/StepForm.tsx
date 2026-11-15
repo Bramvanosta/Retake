@@ -1,11 +1,11 @@
 /**
- * The step's form in the inspector and the palette of new steps (L4.3 part 3, R-UI-12; L5.10b: on the kit, B32's step
+ * The step's form in the inspector and the palette of new steps (R-UI-12; on the kit, B32's step
  * inspector). Fields come from the scenario language's schemas (scenario_forms: text, numbers, yes / no, a choice, a
  * target's flat keys) in the inspector's row layout; a target's empty ways to find it fold under "Other ways to find it
  * (n)" and the empty optional fields under "More: …"; the modifiers (caption, hold, speed, mark) are switches — on shows
  * their fields, off empties them (Save then sends their removal: the same `set_step` changes). What a form cannot show
  * stays in the YAML view and is named. A save sends the changed fields only (`set_step`, each with the value the form
- * showed — critique B2), a new step its form values (`insert_step`); the server writes the file (a shorthand kept when
+ * showed), a new step its form values (`insert_step`); the server writes the file (a shorthand kept when
  * only its own value changes), validates it and refuses what agent trust refuses — a `{{env:…}}` or `{{keychain:…}}`
  * typed into a field, with the reason. The rules each field shows (a number, its bounds, a pattern) are checked here
  * before sending and again on the server (its issues come back at their fields).
@@ -49,7 +49,7 @@ function FieldInput({
       {required && <span className="sc-quiet">{' (required)'}</span>}
     </>
   );
-  // The error said in words at its field (the kit adds "Error:"); the test id kept from L4.3.
+  // The error said in words at its field (the kit adds "Error:").
   const err =
     error !== undefined ? (
       <span data-testid="field-error">
@@ -88,7 +88,7 @@ function FieldInput({
       label={label}
       value={value}
       onChange={onChange}
-      // The form owns its unsaved mark (StepForm's useUnsavedMark): the quit question never lists a field twice (critique M5).
+      // The form owns its unsaved mark (StepForm's useUnsavedMark): the quit question never lists a field twice.
       unsaved={null}
       disabled={disabled || locked !== undefined}
       hint={hint}
@@ -242,7 +242,7 @@ function Fields({
 
 /**
  * The selected step's form (inspector). Its values reset when the step changes on disk (its guard); a step changed
- * meanwhile while the form held changes is said, with what was typed (to copy: review B).
+ * meanwhile while the form held changes is said, with what was typed (to copy).
  */
 export function StepForm({ slug, name, forms, scene, step, ed }: { slug: string; name: string; forms: StepForms; scene: SceneBlock; step: StepBlock; ed: StepEditor }) {
   const idBase = useId().replace(/:/g, '');
@@ -255,7 +255,7 @@ export function StepForm({ slug, name, forms, scene, step, ed }: { slug: string;
   const [changedOnDisk, setChangedOnDisk] = useState<string[] | null>(null);
   const typed = fields.filter((f) => (inputs[f.key] ?? '') !== (shownInputs[f.key] ?? ''));
   const dirty = typed.length > 0;
-  // L5.2b: typed fields are unsaved text the desktop app's quit question names.
+  // Typed fields are unsaved text the desktop app's quit question names.
   useUnsavedMark(dirty ? { kind: 'step_form', project: slug, scenario: name } : null);
   // A new step selected, or this one changed on disk (our own save included): the form shows its values.
   useEffect(() => {
@@ -368,8 +368,8 @@ function placesOf(scenes: SceneBlock[], selected: { scene: SceneBlock; step: Ste
 }
 
 /**
- * The palette (critique C3): ≈ 15 actions; one chosen shows its form with the schema's defaults; Add inserts it. L5.10b:
- * a scene's "Add step" opens it placed at that scene's end (`at`).
+ * The palette: ≈ 15 actions; one chosen shows its form with the schema's defaults; Add inserts it.
+ * A scene's "Add step" opens it placed at that scene's end (`at`).
  */
 export function Palette({
   forms,

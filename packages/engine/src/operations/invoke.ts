@@ -1,5 +1,5 @@
 /**
- * One call of an operation, SDK-free (L7.13): what every shell runs an operation through — the MCP protocol layer
+ * One call of an operation, SDK-free: what every shell runs an operation through — the MCP protocol layer
  * (`protocolTool`, shell `mcp`) and the Studio's HTTP API (`POST /v1/call/<op>`, shell `studio`) — so that who may call
  * it, the parse, the caller rules and the errors stay one. Never throws: every failure comes back as an EngineError.
  */
@@ -31,7 +31,7 @@ export interface InvokeOptions {
 const chains = new WeakMap<Engine, OpChain>();
 
 /**
- * The engine's chain of operation calls (L7.17): the calls of one key run one at a time on this engine, in order (a
+ * The engine's chain of operation calls: the calls of one key run one at a time on this engine, in order (a
  * double click, two tabs: the second finds the first's result — a new hash, its 409). invoke runs a `serialize`
  * operation through it.
  */
@@ -50,7 +50,7 @@ function failure(e: unknown): EngineError {
   }
 }
 
-/** The zod parse, its problems named per argument: invoke's words (the deprecated callTool alias's before L7.21). */
+/** The zod parse, its problems named per argument: invoke's words. */
 function parsed<S extends z.ZodType>(t: ToolDef<S, object>, args: unknown): { ok: true; data: z.output<S> } | { ok: false; error: EngineError } {
   const r = t.input.safeParse(args);
   if (r.success) return { ok: true, data: r.data };

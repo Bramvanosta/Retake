@@ -1,6 +1,6 @@
 'use strict';
 /**
- * The module lookup guard of Retake.app (L5.16, DESIGN §4p), staged as Contents/Resources/node/guard.cjs and given to
+ * The module lookup guard of Retake.app (DESIGN §4p), staged as Contents/Resources/node/guard.cjs and given to
  * every Node.js the app starts as an argument (`node --require <Resources>/node/guard.cjs …`: the launcher, the shell's
  * Studio server, the jobs worker, the MCP registration) — never through NODE_OPTIONS, which the app drops.
  *

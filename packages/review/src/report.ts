@@ -17,7 +17,7 @@ export function reportMarkdown(r: Omit<ReviewResult, 'thumbnails'>, tl: OutputTi
     `${r.render.scenario} · ${r.render.duration_s.toFixed(2)} s · ${r.render.frames} frames @ ${r.render.fps} fps · ${r.render.width}×${r.render.height} · theme ${r.render.template} · run ${r.render.run_id}`,
   );
   L.push('');
-  // L1.7: the environment the run filmed — production, its access, the writes a read-only run saw, the clock.
+  // The environment the run filmed — production, its access, the writes a read-only run saw, the clock.
   if (r.environment) {
     L.push(`Environment ${environmentLine(r.environment)}`);
     L.push('');

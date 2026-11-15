@@ -87,4 +87,4 @@ export type { ActivityItem, SearchHit } from './index-db/index-db.js';
 export type { SqliteLoader } from './index-db/sqlite.js';
 export type { RunChange, RunRow, SourceMap } from './index-db/sources.js';
 export type { ThemeCreateOptions, ThemeCreated } from './brand/create.js';
-// theme_preview's spec (L7.17: built by the engine; the Studio serves it on its player origin).
+// theme_preview's spec (built by the engine; the Studio serves it on its player origin).

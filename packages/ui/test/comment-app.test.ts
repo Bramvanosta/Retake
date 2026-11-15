@@ -1,7 +1,7 @@
 /**
- * L4.6 part D1 (T13): the Comments screen's pure rules (app/comment-words.ts) and routes —
+ * The Comments screen's pure rules (app/comment-words.ts) and routes —
  * - channel, status, entry and proposal words; ⚑ `studio` is said as a channel, never as a person;
- * - ⚑ regions (critique B11): a drag or the four % fields give a region the server accepts (core regionProblem) —
+ * - ⚑ regions: a drag or the four % fields give a region the server accepts (core regionProblem) —
  *   rounded to 4 decimals, then clamped inside the frame (an edge drag never makes x + w = 1.0001), a click none; the
  *   pointer maths on the image's own box (a vertical render too); the fields round-trip;
  * - a typed time as a frame by the CLI's `--at` rule; the anchor chips from trusted fields ("unknown" stays unknown);
@@ -9,16 +9,16 @@
  * - ⚑ the frame requests: one in flight, the newest wins (older answers dropped), a 429 backs off then asks the newest
  *   again, a 409 `cancelled` is ignored, another failure is said; the session id;
  * - the comments routes (ids inert strings, frames whole numbers).
- * L4.6 part D2 (T13, the proposal):
- * - ⚑ the diff's lines code-safe (critique B1): edge spaces `·`, tabs `→`, every character core calls hidden and every
+ * The proposal:
+ * - ⚑ the diff's lines code-safe: edge spaces `·`, tabs `→`, every character core calls hidden and every
  *   space but U+0020 as `[U+…]` (direction controls included) — an indentation-only or a trailing-space change gives two
  *   visibly different rows; markup and right-to-left text stay text; emoji sequences stay whole;
  * - the rows' signs, words and line numbers; the summary; ⚑ the rewrite note past core's 25 %;
  * - ⚑ the buttons from the server's offer only (a literal true each; `why` said when something is not offered);
  * - Undo apply's restore and the render after Apply on the apply's hash; the proposal route.
- * Fixes after the reviews: ⚑ a right-to-left line flagged and combining marks past the third shown (review A L6); ⚑ an
- * apply's problems and warnings said (review B M2); ⚑ a frame that keeps failing said (review B L3); minutes under 60
- * after the hours (review B N4).
+ * Fixes after the reviews: ⚑ a right-to-left line flagged and combining marks past the third shown; ⚑ an
+ * apply's problems and warnings said; ⚑ a frame that keeps failing said; minutes under 60
+ * after the hours.
  */
 import { describe, expect, it } from 'vitest';
 import { PROPOSAL_REWRITE_NOTE_PCT, firstHiddenChar, regionProblem } from '@retake/core';
@@ -111,7 +111,7 @@ describe('the words (channels, status, entries, proposals)', () => {
     expect(renderWords('odd')).toBe('odd');
     expect(charactersLeft('')).toBe('2,000 characters left');
     expect(charactersLeft('x'.repeat(1999))).toBe('1 character left');
-    // L5.12b fixes (review B-L5): the polite line speaks only as a threshold is crossed — the same words between two.
+    // The polite line speaks only as a threshold is crossed — the same words between two.
     expect(charactersLeftAnnounced('')).toBe('');
     expect(charactersLeftAnnounced('x'.repeat(1799))).toBe('');
     expect(charactersLeftAnnounced('x'.repeat(1800))).toBe('At most 200 characters left');
@@ -238,7 +238,7 @@ describe('time, chips, keys', () => {
     expect(parseTimecode('00:30.00', 30, 900)).toEqual({ frame: 899 });
     expect('error' in parseTimecode('30.1', 30, 900)).toBe(true);
     for (const bad of ['', 'abc', '1:75', '-1', '1::2', '12,4', '1e3']) expect('error' in parseTimecode(bad, 30, 900), bad).toBe(true);
-    // Minutes past the hours are under 60 too (review B N4).
+    // Minutes past the hours are under 60 too.
     expect(parseTimecode('1:75:00', 30, 1_000_000)).toEqual({ error: 'minutes under 60 after the hours' });
     expect(parseTimecode('1:59:00', 30, 1_000_000)).toEqual({ frame: (3600 + 59 * 60) * 30 });
     expect(frameTime(372, 30)).toBe('00:12.40');

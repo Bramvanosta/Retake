@@ -1,10 +1,10 @@
 /**
- * L4.6 (T2): the thread schema's L4.6 additions (core comments.ts) — the `studio` channel, the `apply` entry, Claude's
- * proposal in a reply (critique B1 / B10 / B13: hunks sorted, separated, none empty; lines without hidden characters,
- * ≤ 2,000 UTF-16 units; ≤ 200 changed lines and 30,000 characters; edit-only) — and `proposalStates` (critique B4:
- * applied, undone, superseded, stale, pending, from today's file first; only the newest pending or undone proposal is
- * actionable). ⚑ marks the rules a mutation check reverted. Fixes after the reviews: a lone surrogate is refused (review
- * A L6); an older proposal reads applied only when an apply names it (review B L6).
+ * The thread schema's proposal parts (core comments.ts) — the `studio` channel, the `apply` entry, Claude's
+ * proposal in a reply (hunks sorted, separated, none empty; lines without hidden characters, ≤ 2,000 UTF-16 units; ≤
+ * 200 changed lines and 30,000 characters; edit-only) — and `proposalStates` (applied,
+ * undone, superseded, stale, pending, from today's file first; only the newest pending or undone proposal is
+ * actionable). ⚑ marks the rules a mutation check reverted. Fixes after the reviews: a lone surrogate is refused; an
+ * older proposal reads applied only when an apply names it.
  */
 import { describe, expect, it } from 'vitest';
 import { CommentEntrySchema, CommentThreadSchema, PROPOSAL_CHANGED_LINES_MAX, PROPOSAL_CHARS_MAX, PROPOSAL_LINE_MAX, proposalHunksProblem, proposalLineProblem, proposalStates } from '../src/index.js';
@@ -124,14 +124,14 @@ describe('the thread schema in L4.6 (T2)', () => {
       expect(ok(thread([reply(1, { proposal: proposal({ hunks: [{ at: 1, del: [`a${c}`], add: ['b'] }] }) })])), `del U+${c.codePointAt(0)!.toString(16)}`).toBe(false);
     }
     expect(proposalLineProblem('x‮y')).toMatch(/U\+202E \(a direction control\)/);
-    // Half a character (review A L6): written as UTF-8 it would be U+FFFD; a whole pair is fine.
+    // Half a character: written as UTF-8 it would be U+FFFD; a whole pair is fine.
     expect(proposalLineProblem('says \ud800 much')).toBe('half of a character (a lone UTF-16 surrogate)');
     expect(proposalLineProblem('says \udfff')).toBe('half of a character (a lone UTF-16 surrogate)');
     expect(line('caption: \ud83d')).toBe(false);
     expect(proposalLineProblem('says 😀 much')).toBeNull();
     expect(line('x'.repeat(PROPOSAL_LINE_MAX))).toBe(true);
     expect(line('x'.repeat(PROPOSAL_LINE_MAX + 1))).toBe(false);
-    // 1,001 emoji: 1,001 code points but 2,002 UTF-16 units — what a 2,000-unit cut would truncate (critique B1 d).
+    // 1,001 emoji: 1,001 code points but 2,002 UTF-16 units — what a 2,000-unit cut would truncate.
     expect(line('😀'.repeat(1000))).toBe(true);
     expect(line('😀'.repeat(1001))).toBe(false);
     expect(proposalLineProblem('😀'.repeat(1001))).toMatch(/2002 characters \(UTF-16 units\)/);
@@ -175,7 +175,7 @@ describe('proposalStates (critique B4)', () => {
       ['superseded', false],
       ['pending', true],
     ]);
-    // The file holds the older one's result but no apply names it: superseded, never "applied" (review B L6)…
+    // The file holds the older one's result but no apply names it: superseded, never "applied"…
     expect(proposalStates(two, H('b')).map((s) => [s.state, s.actionable])).toEqual([
       ['superseded', false],
       ['stale', false],

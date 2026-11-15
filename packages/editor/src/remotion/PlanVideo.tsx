@@ -112,7 +112,7 @@ function CaptureScreen({
 }) {
   const current = useCurrentFrame();
   const f = Math.max(0, Math.min(clip.durationInFrames - 1, frame ?? current));
-  // Multi-page clips (L2.11): a page's own track, view and size.
+  // Multi-page clips: a page's own track, view and size.
   const source = pane !== undefined && clip.panes?.[pane] ? paneSource(plan, clip.panes[pane]) : plan.source;
   // A fixed source region (the typing loupe) instead of the camera's view.
   const view: SourceView = region
@@ -191,7 +191,7 @@ function OverlayView({ plan, clip, use }: { plan: EditPlan; clip: ClipSegment; u
   const f = use.from + local;
   // The anchor of this frame (a track glides from box to box), mapped through layout (or the page's pane) + camera + reframe.
   const a = trackBoxAt(use, local, plan.fps);
-  // A box-filling overlay (a user file, L2.12): the box it fills this frame; else what it points at.
+  // A box-filling overlay (a user file): the box it fills this frame; else what it points at.
   const anchor = use.box ? overlayBoxAt(plan, clip, use, f) : a ? mapUseRect(plan, clip, use, f, a) : undefined;
   const extra: Partial<ComponentProps> = { rects: overlayRects(plan, clip, use, f), ...(anchor ? { anchor } : {}) };
   if (use.moment !== undefined) extra.moment = use.moment;
@@ -258,7 +258,7 @@ function ClipView({ plan, clip, stillAt }: { plan: EditPlan; clip: ClipSegment; 
   const current = useCurrentFrame();
   const still = stillAt !== undefined;
   const f = stillAt ?? current;
-  // Multi-page clips (L2.11): every page from its own track, all at the same source frame; the layout gets one screen
+  // Multi-page clips: every page from its own track, all at the same source frame; the layout gets one screen
   // per page and each page's rects of this frame (an inset glides between corners and grows while its page acts).
   const layoutExtra: Partial<ComponentProps> = clip.panes
     ? {
@@ -352,7 +352,7 @@ function SegmentView({ plan, index }: { plan: EditPlan; index: number }) {
 
 // ── Progress bar ──────────────────────────────────────────────────────────────
 
-/** The chapter progress bar (L2.10): one overlay over every segment between the intro and the outro. */
+/** The chapter progress bar: one overlay over every segment between the intro and the outro. */
 function Progress({ plan }: { plan: EditPlan }) {
   const p = plan.tutorial?.progress;
   if (!p) return null;

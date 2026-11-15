@@ -1,7 +1,7 @@
 /**
- * The Reviewer port's contract (L7.11, U9): what every adapter does, run by reviewer.test.ts on the review package
+ * The Reviewer port's contract: what every adapter does, run by reviewer.test.ts on the review package
  * (packageReviewer, synthetic renders drawn with ffmpeg) and on the in-memory reviewer (MemoryReviewer). Each case
- * reviews a render of `setup()`'s workspace through the port only, and reads what it wrote through the case's Outputs
+ * reviews a render of `setup`'s workspace through the port only, and reads what it wrote through the case's Outputs
  * (the disk's for the package, a MemoryOutputs for the in-memory reviewer):
  * - the review folder written, every file named in `result.files` there, report.json the result without thumbnails;
  * - the progress stages in their order, from `loading` to `done`;
@@ -200,7 +200,7 @@ export function reviewerContract(name: string, setup: () => Promise<ReviewerCase
       'frames: at gives a PNG per time and null past the end; thumb fits maxPx; thumbnailOf, still and marks give JPEGs',
       async () => {
         const c = await setup();
-        // load makes at and thumb ready, and answers nothing (L7.11 fix pass: what a caller awaits outside its catch).
+        // load makes at and thumb ready, and answers nothing (what a caller awaits outside its catch).
         await expect(c.reviewer.frames.load()).resolves.toBeUndefined();
         const [png, past] = await c.reviewer.frames.at(c.video, [Math.min(0.5, c.durationS / 2), c.durationS + 5], { policy: PERSON_POLICY, maxPx: 64 });
         expect(png && PNG(png)).toBe(true);

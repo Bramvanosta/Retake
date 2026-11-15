@@ -1,15 +1,15 @@
 /**
- * L4.7 part C: component previews on the player origin (player.ts publishPreview, frame-main.tsx's `component-preview`
+ * Component previews on the player origin (player.ts publishPreview, frame-main.tsx's `component-preview`
  * branch, theme-ops.ts theme_preview):
- * - ⚑ the `forbid` scan of a preview spec (checkPreviewSpec): a `file:` URL, an absolute path, a folder of this Mac, a URL
- *   the scope does not serve (a tracker, a `data:` URL) are refused — the sample address a browser layout draws is text;
- *   a refused spec is never served; ⚑ display text is a fixed list (review A M2: the bar's and each pane's sample address,
- *   the theme's brand url, a slot equal to it), and every registry component × the three starters is previewed;
+ * - ⚑ the `forbid` scan of a preview spec (checkPreviewSpec): a `file:` URL, an absolute path, a folder of this Mac, a
+ *   URL the scope does not serve (a tracker, a `data:` URL) are refused — the sample address a browser layout draws is
+ *   text; a refused spec is never served; ⚑ display text is a fixed list (the bar's and each pane's sample address, the
+ *   theme's brand url, a slot equal to it), and every registry component × the three starters is previewed;
  * - in Chromium, the Studio page framing the sandboxed preview: the frame loads a theme's intro as a `component-preview`
  *   (ComponentPreview, looping), settles, and draws the theme — a draft background colour shows in its pixels;
  * - ⚑ a workspace component the person has not allowed is not in the frame's bundle (its bytes absent) and the frame says
  *   its stand-in draws instead;
- * - ⚑ L5.2: a `load` answered between the frame's first React render and its effects (WebKit's order: the desktop shell's
+ * - ⚑ A `load` answered between the frame's first React render and its effects (WebKit's order: the desktop shell's
  *   stuck "Loading the preview…") still mounts the Player and settles — the order forced here in Chromium.
  */
 import { execFileSync } from 'node:child_process';

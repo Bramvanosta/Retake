@@ -59,7 +59,7 @@ export interface SceneLoopOptions {
   emit: (e: RunProgress) => void;
   save: () => void;
   /**
-   * Called at the top of every step, once its page is loaded and signed in, before anything of the step (L4.4: a pause
+   * Called at the top of every step, once its page is loaded and signed in, before anything of the step (a pause
    * between steps waits here).
    */
   beforeStep?: (scene: string, step: number) => Promise<void>;
@@ -174,7 +174,7 @@ async function cameraFor(ctx: StepContext, hint: CameraHint, res: ActionResult):
  * else the cursor position.
  */
 async function overlayFor(ctx: StepContext, spec: OverlaySpec, res: ActionResult): Promise<NonNullable<TimelineEvent['overlay']>> {
-  // A user file (L2.12) is recorded as its component use (studio/media, studio/lottie) with the box it goes in.
+  // A user file is recorded as its component use (studio/media, studio/lottie) with the box it goes in.
   const use = overlayUseOf(spec);
   const out: NonNullable<TimelineEvent['overlay']> = { component: use.component, slots: use.slots, params: use.params };
   if (spec.duration !== undefined) out.duration = spec.duration;
@@ -219,7 +219,7 @@ export function trimSnippet(html: string, max: number): string {
 async function errorArtifacts(rt: Runtime, scene: string, step: number, e: unknown): Promise<{ screenshot?: string; dom?: string }> {
   const base = join(rt.screenshotsDir, `error-${fileSlug(scene)}-${step}`);
   const out: { screenshot?: string; dom?: string } = await errorFiles(rt, scene, step, e, base);
-  // Never a picture or the DOM of a sign-in page (L1.6): a landing seen while they were taken removes them.
+  // Never a picture or the DOM of a sign-in page: a landing seen while they were taken removes them.
   if (rt.guard && guardFired(rt)) {
     await Promise.all([out.screenshot, out.dom].filter((f): f is string => !!f).map((f) => rm(f, { force: true }).catch(() => undefined)));
     return {};
@@ -276,7 +276,7 @@ async function dryScreenshot(rt: Runtime, opts: SceneLoopOptions, scene: string,
   } catch (e) {
     rt.log('warn', `dry-run screenshot failed: ${errorMessage(e)}`);
   }
-  // A sign-in page that showed while the picture was taken (L1.6): never kept.
+  // A sign-in page that showed while the picture was taken: never kept.
   if (rt.guard && guardFired(rt)) {
     await rm(file, { force: true }).catch(() => undefined);
     opts.record.screenshots = opts.record.screenshots.filter((f) => f !== file);
@@ -290,10 +290,10 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
   // Never act on a page whose load the capture holds (R-ISS-08): one the app started itself, or — in a multi-page scene —
   // another page's (cut from every page of the scene). Not part of the step's time.
   await rt.awaitShownLoaded();
-  // …nor on a sign-in page (L1.6).
+  // …nor on a sign-in page.
   rt.assertSignedIn();
   if (opts.beforeStep) {
-    // A pause (L4.4) waits here: between steps, on a loaded page — then the page is checked again (a session may have
+    // A pause waits here: between steps, on a loaded page — then the page is checked again (a session may have
     // expired meanwhile).
     await opts.beforeStep(scene.id, step.index);
     rt.assertSignedIn();
@@ -399,7 +399,7 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
         page: rt.page,
       };
     }
-    // Where an overlay or a zoom added to the scenario after this take anchors (L5.5), as overlayFor reads it now.
+    // Where an overlay or a zoom added to the scenario after this take anchors, as overlayFor reads it now.
     const end = rt.pointer.pos();
     ev.end_point = { x: end.x, y: end.y };
     if (step.camera) ev.camera = await cameraFor(ctx, step.camera, res);
@@ -422,7 +422,7 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
   } catch (e) {
     ev.t_end = rt.now();
     ev.status = 'failed';
-    // A step that failed because its page landed on a sign-in page (L1.6) — a target missing there, an abort — fails
+    // A step that failed because its page landed on a sign-in page — a target missing there, an abort — fails
     // the run with the landing: never tolerated as optional, no screenshot or DOM of that page.
     const landing = rt.loginGuardError() ?? (guardFired(rt) ? rt.loginGuardError() : null);
     ev.error = errorMessage(landing ?? e);
@@ -490,7 +490,7 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
     const entry = scenes[si];
     const id = sceneId(entry, si);
     // Every string of the entry is templated now, once (R-RUN-16): what the timeline records holds values, not tokens.
-    // The text the video shows reads the display URLs (L1.7); steps and `open` the real ones.
+    // The text the video shows reads the display URLs; steps and `open` the real ones.
     const templateEntry = <T extends SceneEntry>(e: T): T => templated(() => templateSceneEntry(untilSteps(e, si, opts.until), si, rt.template, rt.editTemplate), opts.record);
     if (isInterstitial(entry)) {
       const t = rt.now();
@@ -548,7 +548,7 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
       } else if (fresh) {
         rt.warn(`scene ${id} starts on a blank "${pageKey}" page (add \`open\`)`);
       }
-      // A scene never starts on a sign-in page (L1.6).
+      // A scene never starts on a sign-in page.
       rt.assertSignedIn();
       // Scene-start cursor (scene key `cursor`): placed while the page loads, or glided during the still — never a jump.
       const stillS = Math.min(scene.still ?? rt.pacing.scene_start_still, rt.inspecting ? INSPECT_PAUSE_CAP_S : Infinity);
@@ -610,12 +610,12 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
       ts.t_end = rt.now();
     }
   }
-  // The last frames never show a sign-in page either (L1.6).
+  // The last frames never show a sign-in page either.
   rt.assertSignedIn();
 }
 
 /**
- * A multi-page scene (L2.11): its pages are opened and recorded at the same time, each on its own track (one clock);
+ * A multi-page scene: its pages are opened and recorded at the same time, each on its own track (one clock);
  * each page's cursor is placed (teleported while its page loads, else glided during the still); then the steps run on
  * the page they name (`on:`, default the first page). When a step acts on another page than the previous one, the
  * runner pauses `pacing.page_switch_ms` and that page's cursor glides from where it rests — the other cursor stays

@@ -36,7 +36,7 @@ function targetArg(flag: string, text: string): TargetSpec {
 }
 
 /**
- * `retake inspect <project> <page|scenario|url>` (L3.3): replay a page (an environment page key, with --path, or a URL
+ * `retake inspect <project> <page|scenario|url>`: replay a page (an environment page key, with --path, or a URL
  * of one of the environment's origins) or a saved scenario (up to --until) as a dry run, then list the page's visible
  * interactive elements with a target the runner resolves to each — what page_inspect gives an MCP client, in a
  * terminal. The files go to <project>/.retake/inspect/<id>/ (or --out). Exit 1 unless the page was inspected.

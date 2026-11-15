@@ -1,5 +1,5 @@
 /**
- * L5.14: a terminal's replay of rollbacks (`retake hooks rollback`, `retake env reset`) lists what it is about to replay
+ * A terminal's replay of rollbacks (`retake hooks rollback`, `retake env reset`) lists what it is about to replay
  * before replaying it, and shows in full the entries Retake did not record in their journal with this home (their entry
  * is not signed); those are replayed only with `--replay-unsigned`, in a terminal, on a yes to each.
  */

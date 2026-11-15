@@ -1,5 +1,5 @@
 /** The browser's real timers and clocks, captured once. */
-// ── Time sources (L1.7): the kit's timers, frames and clocks are the browser's real ones, captured once — also under
+// ── Time sources: the kit's timers, frames and clocks are the browser's real ones, captured once — also under
 // a product clock (`clock:`: product-clock.ts replaces `Date` in every document). The kit's init script runs before
 // the clock's in each new document, so `Date` is still real there; evaluated later (KitClient.install), it takes the
 // real `Date` the clock kept. Cursor effects are stamped on the real clock (the runner maps them to capture time); a

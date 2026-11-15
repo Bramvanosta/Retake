@@ -1,8 +1,8 @@
 /**
- * L4.4 part C: the Run screen's state from the stream's view events (app/run-live.ts `applyEvent`) — the log capped at
+ * The Run screen's state from the stream's view events (app/run-live.ts `applyEvent`) — the log capped at
  * LOG_KEEP lines (the oldest dropped and counted), texts kept as plain strings (markup is never interpreted: the screen
  * renders them through Txt), a phase's start marker replaced by its hooks' results, step and pause states, malformed
- * or unknown events ignored. L4.4 part E: the live picture's letterbox (`nextLayout`, `placeFrame`). Review fixes: a
+ * or unknown events ignored. The live picture's letterbox (`nextLayout`, `placeFrame`). Review fixes: a
  * step row's status (`stepStatus`: only the step a stop interrupted says "stopped here", a step left running by a
  * killed worker "interrupted", a skipped `hook:` step says so), done counts without failures (`stepCounts`), a `hook:`
  * step's entries on its row, the log in time order, the job's state in words that are not the run's, the end of the

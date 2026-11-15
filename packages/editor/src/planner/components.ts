@@ -1,6 +1,6 @@
 /**
  * Steps of `planEdit`: how components are resolved (the resolver over the registry and the theme, the candidates of a
- * render override, the slot context) and the tutorial overlays' switches (L2.10: scenario → scene → step, the render
+ * render override, the slot context) and the tutorial overlays' switches (scenario → scene → step, the render
  * override over the scenario's).
  */
 import { TUTORIAL_COMPONENTS } from '@retake/core/language';

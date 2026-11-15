@@ -1,5 +1,5 @@
 /**
- * L4.2 part 1 (critique B4): which step of a run a step of today's scenario is — the picture identity (fingerprint +
+ * Which step of a run a step of today's scenario is — the picture identity (fingerprint +
  * `on:` + the scene's page / open / pages / persona) and the matching after edits. A step whose frame no longer shows
  * what it does has no picture (`changed`, `new`, `scene_changed`); a modifier-only edit keeps it.
  */

@@ -1,5 +1,5 @@
 /**
- * L5.10b: the scenario's browser (B32-Scenario: the shell's `browser` slot while a scenario is open) — the video, then
+ * The scenario's browser (B32-Scenario: the shell's `browser` slot while a scenario is open) — the video, then
  * the entries in file order: Before filming (its hooks), each filmed scene (its number, its title, its captured length
  * and a bar of it against the longest scene: decorative, the length says it), the cards and interstitials (quieter, their
  * length), After filming. A row selects its entry into the inspector and brings it into view (on the board: the entry;

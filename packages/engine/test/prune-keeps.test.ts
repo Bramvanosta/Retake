@@ -1,5 +1,5 @@
 /**
- * What prune keeps of a scenario's captures (L7.7, R-FLD-28), layout by layout (test-support/src/records
+ * What prune keeps of a scenario's captures (R-FLD-28), layout by layout (test-support/src/records
  * prune-layouts.ts): what a dry prune lists through the engine, how many takes it keeps and what it says it kept.
  * A row marked `P-1` or `U-1` is one the decisions of the lot change (the newest take that can be edited stays; a
  * linked folder and a take of a newer Retake are left alone; the newest complete capture stays beside one stopped by
@@ -85,11 +85,11 @@ const TABLE: Record<string, string> = {
   B2: 'nothing | kept 2 | NEW newer-format',
   // P-1
   B2f: 'nothing | kept 2 | NEW newer-format',
-  // C — L7.6b R-1: the take a renamed record names stays whatever the count of newer renders, and it is said
+  // C — R-1: the take a renamed record names stays whatever the count of newer renders, and it is said
   C1: 'nothing | kept 2 | OLD render-file',
-  // C — L7.6b R-1 (was: OLD offered, and a line `render quote-v1` without a file)
+  // C — R-1 (never OLD offered, nor a line `render quote-v1` without a file)
   C2: 'nothing | kept 2 | OLD render-file',
-  // C — L7.6b R-1 (was: OLD offered, and `render quote-v1` twice): the renamed file says quote-v1, the real one stays
+  // C — R-1 (never OLD offered, nor `render quote-v1` twice): the renamed file says quote-v1, the real one stays
   C3: 'nothing | kept 2 | OLD render-file',
   // C
   C4: 'render quote-v2 (older render) | kept 2',
@@ -321,7 +321,7 @@ describe('what the result says, and what a deletion leaves', () => {
     expect(text.split('\n')[1]).toBe(
       'Kept: the last good take of each scenario, the last one that can still be edited and the last complete one, the last 3 renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; a run folder that is a link and a take written by a newer Retake are left alone, and so is a file of renders/ that is no render of its own name, or a record that lacks a member, with the render and the take it names; exports/ is not touched.',
     );
-    // L7.6b: the files of renders/ left alone are said with a count, never a name.
+    // The files of renders/ left alone are said with a count, never a name.
     const alone = (n: number) =>
       pruneApprovalFormText({
         what: 'prune',

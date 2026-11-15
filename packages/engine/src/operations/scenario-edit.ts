@@ -1,7 +1,7 @@
 /**
- * The Studio's scenario write (moved from the Studio server's ops.ts in L7.18): scenario_edit and its edit schema. It
- * declares `serialize` on the scenario's key (scenarioKey), so invoke runs it on the engine's operation chain with
- * scenario_render, thread_apply and record_save (the Studio holds one engine per server: its chain).
+ * The Studio's scenario write: scenario_edit and its edit schema. It declares `serialize` on the scenario's key
+ * (scenarioKey), so invoke runs it on the engine's operation chain with scenario_render, thread_apply and record_save
+ * (the Studio holds one engine per server: its chain).
  */
 import { z } from 'zod';
 import { SLUG_RE } from '@retake/core/model';
@@ -16,14 +16,14 @@ const editText = z.string().max(SCENARIO_EDIT_MAX_CHARS, `at most ${SCENARIO_EDI
 
 const sceneId = z.string().max(100).regex(SLUG_RE, 'a scene id of the file');
 const stepIndex = z.number().int().min(0).max(100_000);
-/** A step as the screen showed it: scene id, index, and its guard (scenario_blocks `guard`, critique B2). */
+/** A step as the screen showed it: scene id, index, and its guard (scenario_blocks `guard`). */
 const StepAtInput = z.strictObject({
   scene: sceneId,
   index: stepIndex.describe('Its index in the scene (0-based).'),
   guard: z.string().regex(/^[0-9a-f]{16}$/, "the step's guard as scenario_blocks gave it (16 hex characters)"),
 });
 
-/** A form field's value (critique B9 is checked by core, which names the field): one line of text, a number, yes / no. */
+/** A form field's value (checked by core, which names the field): one line of text, a number, yes / no. */
 const fieldValue = z.union([z.string().max(10_000, 'at most 10,000 characters'), z.number().finite(), z.boolean()]);
 const fieldSeg = z.string().regex(/^[a-z][a-z_]{0,39}$/, 'a field name of the form (lower-case letters and _)');
 /** A form field's key, dotted ("type.into.label"): at most three levels (a flat target). */
@@ -38,7 +38,7 @@ const FieldChangeInput = z.strictObject({
 });
 
 /**
- * A timeline switch's place (L4.5, core FieldAt): the video's top level, or a scene / card / interstitial by its id and
+ * A timeline switch's place (core FieldAt): the video's top level, or a scene / card / interstitial by its id and
  * its guard (timeline_view `choices[…].at`).
  */
 const FieldAtInput = z.union([
@@ -112,12 +112,12 @@ const EditInput = z.strictObject({
 });
 
 /**
- * scenario_edit (L4.3): the Studio's one write path for scenarios — engine scenarios.edit under the `ui` client's agent
+ * scenario_edit: the Studio's one write path for scenarios — engine scenarios.edit under the `ui` client's agent
  * trust ("from the Studio"): the file the view read, `hash` as if_match, refused whole when the file is blocked (the
  * view's `edit` said so first), no hidden character added, hooks and mocks unchanged, validated (errors refuse with
  * their lines, warnings save), atomic with its mode kept, under the write lock. Edits of one file run one at a time on
- * the engine's operation chain (a double click, two tabs): the second then finds the new hash and gets its 409. L4.5
- * part D: the timeline inspector's `set_field` (SetFieldInput: strict, a field of core FIELD_PATHS that the entry
+ * the engine's operation chain (a double click, two tabs): the second then finds the new hash and gets its 409. The
+ * timeline inspector's `set_field` (SetFieldInput: strict, a field of core FIELD_PATHS that the entry
  * takes, checked before any read). Not an MCP tool: Claude edits a scenario with scenario_save.
  */
 export const scenarioEdit = defineOperation({
@@ -132,7 +132,7 @@ export const scenarioEdit = defineOperation({
   serialize: (a) => scenarioKey(a.project, a.name),
   async run(a, { engine }) {
     const r = await engine.scenarios.edit(a.project, a.name, { hash: a.hash, edit: a.edit });
-    // Path-free (L4.6, the L4.5 rule for Studio answers): the file's project-relative name, never its absolute path.
+    // Path-free (the rule for Studio answers): the file's project-relative name, never its absolute path.
     const { path: _path, ...data } = r as typeof r & { path?: string };
     return {
       summary: `${r.label}: ${r.file} (hash ${r.hash})${r.warnings.length ? ` with ${plural(r.warnings.length, 'warning')}` : ''}`,

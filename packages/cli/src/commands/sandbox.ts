@@ -1,7 +1,7 @@
 /**
- * `retake sandbox init | up | down | reset | status | logs` (L1.8) and the sandbox side of `retake run`: `--sandbox`
+ * `retake sandbox init | up | down | reset | status | logs` and the sandbox side of `retake run`: `--sandbox`
  * (up if needed, health, reset to the seed, then the capture; the sandbox stays up) and a run on a sandbox environment
- * without it (no reset: the sandbox must be up). The work is the engine's sandbox use cases (sandboxWork, L7.28) over
+ * without it (no reset: the sandbox must be up). The work is the engine's sandbox use cases (sandboxWork) over
  * the Sandboxes port (the `sandboxes` of the ports a command is handed); these commands print it, with the person's
  * trust (their own seed steps run without an approval, as a terminal runs them) and their own usage errors.
  */

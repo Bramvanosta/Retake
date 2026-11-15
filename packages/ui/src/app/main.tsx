@@ -1,12 +1,15 @@
 /**
- * The Studio app (L4.1): the session bootstrap (session.ts), the hash router (route.ts), live updates (events.ts: one
- * event stream per browser) and the screens inside the shell — Welcome (L5.10a: the projects, search and recent activity), a project's productions (L5.10a: the poster grid, its smart groups and locations; the Cast),
- * its README editor, a scenario as blocks with its run's pictures (L4.2), its Shoot screens (L4.4; L5.11a: Prepare a take and one run live), its timeline (L4.5; L5.12a: Edit in the shell), its Review report (L5.12a), its frame comments and the preview of a proposed change (L4.6), its component library and its themes (L4.7), the Record screen (L4.8). Every string from the server is a React text node: no HTML from data,
- * ever (a source lint test bans the raw-HTML APIs); the strict CSP (no inline script, no eval, same-origin connections)
- * is the second line. L5.9: the screens sit in the design system's shell (shell/AppShell.tsx: title bar with the mode
- * switch, browser, centre pane, inspector, status bar), the `#/ui` gallery shows every component of the kit (ui-kit/);
- * the desktop app's overlay title bar (`window.__studioShell`, a main-frame init script of the shell) moves the title
- * bar's content clear of the window buttons (`html[data-titlebar]`), nothing else; the product's name is brand.ts's.
+ * The Studio app: the session bootstrap (session.ts), the hash router (route.ts), live updates (events.ts: one event
+ * stream per browser) and the screens inside the shell — Welcome (the projects, search and recent activity), a
+ * project's productions (the poster grid, its smart groups and locations; the Cast), its README editor, a scenario as
+ * blocks with its run's pictures, its Shoot screens (Prepare a take and one run live), its timeline (Edit in the
+ * shell), its Review report, its frame comments and the preview of a proposed change, its component library and its
+ * themes, the Record screen. Every string from the server is a React text node: no HTML from data, ever (a source lint
+ * test bans the raw-HTML APIs); the strict CSP (no inline script, no eval, same-origin connections) is the second line.
+ * The screens sit in the design system's shell (shell/AppShell.tsx: title bar with the mode switch, browser, centre
+ * pane, inspector, status bar), the `#/ui` gallery shows every component of the kit (ui-kit/); the desktop app's
+ * overlay title bar (`window.__studioShell`, a main-frame init script of the shell) moves the title bar's content clear
+ * of the window buttons (`html[data-titlebar]`), nothing else; the product's name is brand.ts's.
  */
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -78,10 +81,10 @@ function Studio() {
   const [list, reloadList] = useProjectList({}, 'all');
   const connection = useConnection();
   useEffect(() => guardUnload(), []);
-  // L5.2b: what the tab holds unsaved, for the desktop app's quit question (kinds and names only).
+  // What the tab holds unsaved, for the desktop app's quit question (kinds and names only).
   useEffect(() => startUnsavedReport(), []);
   // A project added, removed or changed on disk (or a reconnection): the list and the sidebar read it again — not a
-  // step of a take (L5.10a fixes: nothing the list holds changed; the shell re-rendered at every step).
+  // step of a take (nothing the list holds changed; the shell re-rendered at every step).
   useEvents((e) => {
     if ((e.type === 'workspace' && e.projects.length > 0 && !onlyRunProgress(e)) || e.type === 'resync') reloadList();
   });
@@ -137,8 +140,8 @@ function Studio() {
 
 /**
  * The session ended (the server restarted or stopped answering this tab's token). Unsaved text (a README, a scenario's YAML) stays on screen,
- * read-only, to copy into the new session (review B H1: the editor is gone, the text must not go with it); closing the
- * tab still asks first while there is some. L5.12d: on the kit (Callout, read-only TextArea), as are Connecting, the
+ * read-only, to copy into the new session (the editor is gone, the text must not go with it); closing the
+ * tab still asks first while there is some. On the kit (Callout, read-only TextArea), as are Connecting, the
  * start error and the not-found screen.
  */
 function Ended() {

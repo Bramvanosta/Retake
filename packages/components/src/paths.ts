@@ -16,7 +16,7 @@ export const SCAFFOLDS_DIR = join(PACKAGE_DIR, 'scaffolds');
 export const COMPONENT_SCHEMA_FILE = join(PACKAGE_DIR, 'schema', 'component.schema.json');
 
 /**
- * The kit API this Retake provides (L4.5, the guard-rail "engines / kit-API version"): a component declares the
+ * The kit API this Retake provides (the guard-rail "engines / kit-API version"): a component declares the
  * major it was written for in `engines.kit` ("1" or "^1"; absent = 1); a component that needs another one is not
  * loaded (a registry notice; its uses fall back with a warning, else render as `missing`).
  */

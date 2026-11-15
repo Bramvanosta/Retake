@@ -1,5 +1,5 @@
 /**
- * Postgres snapshot resets (L1.8, strategy `snapshot`): after the seed, the sandbox's database is copied as a template
+ * Postgres snapshot resets (strategy `snapshot`): after the seed, the sandbox's database is copied as a template
  * database `<db>__retake_snap`; before each take the database is dropped and created again from that template — a
  * file-level copy, faster than reseeding once the seed is realistic. SQL only, through `pg` (no pg_dump needed on the
  * host). The template's comment `retake snapshot <seed hash>` (and the state file) say which seed it holds: any

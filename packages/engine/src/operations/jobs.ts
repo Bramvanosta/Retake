@@ -1,7 +1,7 @@
 /**
- * The job operations (moved from the MCP server's tools/jobs.ts): job_list, which the shells share (L7.13),
- * job_cancel with the job id argument job_status takes too (L7.15), and job_status (L7.18: its recording answer is
- * scenario_record's `recordOutput`, its site and inspection answers template_from_site's and page_inspect's).
+ * The job operations: job_list, which the shells share, job_cancel with the job id argument job_status takes too, and
+ * job_status (its recording answer is scenario_record's `recordOutput`, its site and inspection answers
+ * template_from_site's and page_inspect's).
  */
 import { z } from 'zod';
 import { JOB_ID_RE } from '@retake/core/ids';
@@ -47,7 +47,7 @@ export const jobId = z
   .regex(JOB_ID_RE, 'a job id: j_ followed by 26 characters (job_list names them)')
   .describe('Job id (from run_dry, run_capture, render, review, export, component_preview, template_preview, template_from_site, page_inspect, scenario_record, hooks_run, env_reset or job_list).');
 
-/** Where a queued job stands, in words (L5.14: a heavy job a take holds waits for it whatever its place). */
+/** Where a queued job stands, in words (a heavy job a take holds waits for it whatever its place). */
 function queueWords(position: { ahead: number; running?: string; held_by?: 'take' }): string {
   if (position.held_by === 'take') return `waiting for a take to finish${position.ahead ? ` (${plural(position.ahead, 'job')} ahead)` : ''}`;
   return position.ahead ? `${plural(position.ahead, 'job')} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next in the queue';

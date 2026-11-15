@@ -1,5 +1,5 @@
 /**
- * The installed app's Set-up sheet (L5.16c, DESIGN §4p (c), docs/reference/studio-ui.md): the Studio's own ops that
+ * The installed app's Set-up sheet (DESIGN §4p (c), docs/reference/studio-ui.md): the Studio's own ops that
  * read and make the integrations — the `retake` command's link, the Claude Code plugin route, the Claude Desktop
  * entry, the notification permission — each on the person's click. The rules are @retake/engine/integrations
  * (app-setup.ts, config-snippet.ts); here, who may call them and with what:
@@ -9,19 +9,19 @@
  * - **The installed app's own server only:** supervised (`retake ui --supervised`, the desktop shell's pipe attached)
  *   AND run from an app bundle (`….app/Contents/Resources`). Any other server answers setup_status with
  *   `available: false` and refuses every other op (409, reason `not_supervised` / `not_bundled`).
- * - **Where the app runs from** (critique H1): translocated, a read-only volume or /Volumes — the command and both Claude
+ * - **Where the app runs from**: translocated, a read-only volume or /Volumes — the command and both Claude
  *   registrations are refused (409, reason `location`) with "Move Retake to Applications, then open it again".
  * - **Paths are the server's:** the page sends choices, never a path. Another folder for the command is chosen in the
  *   shell's native panel (`setup_cli_choose` writes a pipe line; the shell answers on the server's stdin: ui.ts →
  *   `SetupState.chose`), checked here (absolute, the person's, writable, outside the workspace and the app).
  * - **Rate-capped:** SETUP_WRITES_PER_MIN writes a minute (busy, 423), like the quit question's acks; one Claude Code
- *   run at a time (409, reason `busy`: review c A-L5).
- * - **Claude Desktop running:** `ps` decides; when it cannot tell (it failed), Add is refused too (review c A-L3). The
+ *   run at a time (409, reason `busy`).
+ * - **Claude Desktop running:** `ps` decides; when it cannot tell (it failed), Add is refused too. The
  *   status reads `ps` only when the page asks (`processes`: the Claude Desktop step in view, or the window focused),
- *   at most every PS_EVERY_MS (review c A-L8).
+ *   at most every PS_EVERY_MS.
  * - **The command's link the app made** is recorded in `<home>/app.json`: the status, Install and Uninstall read it
- *   beside the default folder (review c B-M1: a link in a chosen folder survives a restart; a second one elsewhere is
- *   refused until it is uninstalled).
+ *   beside the default folder (a link in a chosen folder survives a restart; a second one elsewhere is refused until it
+ *   is uninstalled).
  * - What other programs wrote (Claude Code's output, Claude Desktop's current entry) is under `untrusted`: the page
  *   shows it as text.
  */
@@ -170,7 +170,7 @@ export class SetupState {
 export function applyShellLine(setup: { state: SetupState; context(): SetupContext }, workspace: string, line: string, update?: UpdateState): boolean {
   const m = parseShellLine(line);
   if (!m) return false;
-  // L5.16d: the update's state (update-ops.ts), kept for desktop_update_status.
+  // The update's state (update-ops.ts), kept for desktop_update_status.
   if (m.type === 'update') {
     update?.apply(m);
     return update !== undefined;
@@ -425,7 +425,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       }
       const home = homeOf(ctx);
       const launcher = join(b.root, LAUNCHER_REL);
-      // One command per app (review c B-M1): a second link elsewhere would be forgotten by Uninstall.
+      // One command per app: a second link elsewhere would be forgotten by Uninstall.
       const there = installedLink(ctx, home, launcher);
       if (there && there !== join(dir, CLI_NAME))
         throw refused('installed_elsewhere', `the command is installed already: ${there} — Uninstall it first, then install it in the other folder`, { installed: there });
@@ -492,7 +492,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       if (!claude) throw refused('no_claude', `Claude Code was not found (${claudeCandidates(ctx.home).join(', ')}): copy the lines into Terminal`);
       const steps = claudeSteps(b, ctx, workspace);
       if (!steps) throw refused('no_plugin', 'this copy of Retake has no Claude plugin: install it again from its disk image');
-      // One run at a time (review c A-L5): two would write the same Claude Code settings.
+      // One run at a time: two would write the same Claude Code settings.
       if (state.claudeRunning) throw refused('busy', 'a Claude Code run is in flight: wait for its answer');
       state.claudeRunning = true;
       let r;
@@ -517,8 +517,8 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
     async run(a: { replace: boolean }) {
       const ctx = o.ctx();
       const b = gate(pipe, ctx, state, true);
-      // Claude Desktop rewrites its config from memory while it runs (critique M7): it quits first — and when `ps`
-      // cannot tell, the write waits too (review c A-L3).
+      // Claude Desktop rewrites its config from memory while it runs: it quits first — and when `ps`
+      // cannot tell, the write waits too.
       const running = await readRunning(ctx, state);
       if (running === null) throw refused('claude_unknown', 'Retake could not check whether Claude Desktop is running: quit it (⌘Q in Claude), then Add again — or copy the entry');
       if (running) throw refused('claude_running', 'Claude Desktop is running and may write its config over the change: quit it (⌘Q in Claude), then Add again');

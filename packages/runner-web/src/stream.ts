@@ -1,5 +1,5 @@
 /**
- * capture.mp4 encoded during the take (L5.7, R-FLD-21): the screencast frames are piped to ffmpeg on the CFR schedule as
+ * capture.mp4 encoded during the take (R-FLD-21): the screencast frames are piped to ffmpeg on the CFR schedule as
  * they come, so a take ends without a long encode and writes no frame to disk (unless `capture.keep_frames`). The
  * schedule is the one `cfrSchedule` computes after the fact (encode.ts): output frame n shows the latest captured frame
  * stamped at or before n / fps; the first captured frame also covers the time before it; the last one holds until the
@@ -117,7 +117,7 @@ export interface StreamEncoderOptions {
   /** The tick horizon (capture seconds), read every STREAM_TICK_MS: the capture clock less STREAM_LAG_S, a held load's start. */
   horizon: () => number;
   /**
-   * Activity of every output frame (L5.7, R-FLD-23/26): ffmpeg also writes a 96×54 grey copy of each output frame to
+   * Activity of every output frame (R-FLD-23/26): ffmpeg also writes a 96×54 grey copy of each output frame to
    * its stdout, handed here in order.
    */
   onThumb?: (n: number, gray: Buffer) => void;
@@ -200,7 +200,7 @@ export function videotoolboxWorks(ffmpeg: string): Promise<boolean> {
 
 /**
  * The encoder `capture.encoder` names (auto: VideoToolbox when it works here, else libx264). An ffmpeg without
- * libx264 (L5.16: a foreign build, the system's when the app carries none) never gets libx264: VideoToolbox when it
+ * libx264 (a foreign build, the system's when the app carries none) never gets libx264: VideoToolbox when it
  * works, else an error naming that ffmpeg.
  */
 export async function resolveEncoder(want: CaptureEncoder | undefined, ffmpeg: string | undefined, policy: WorkPolicy): Promise<Exclude<CaptureEncoder, 'auto'>> {

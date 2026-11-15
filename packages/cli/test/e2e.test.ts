@@ -254,7 +254,7 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
     const dir = process.env.RETAKE_CAPTURES_DIR!;
     expect(dir).toBeTruthy();
     const markers = async () => (await readdir(dir).catch(() => [] as string[])).filter((n) => /^k_.*\.json$/.test(n));
-    // The hooks call this server, which reads the markers folder before it answers (review B M1: sampled during them).
+    // The hooks call this server, which reads the markers folder before it answers (sampled during them).
     const inHook: Record<string, string[]> = {};
     const server = createServer((req, res) => {
       void markers().then(async (names) => {
@@ -554,7 +554,7 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
       // Neither the rest of the teardown (the reset) nor the setup rollback ran: the journal kept the rollback.
       expect(await armedNow()).toBe(true);
       await fetch(`${fixture.urls.console}/api/quotes/auto-proposal`, { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } });
-      // L5.14: the run's journal is signed with its own Retake home's key: the replay uses that home.
+      // The run's journal is signed with its own Retake home's key: the replay uses that home.
       const retakeHome = scratchHome();
       retakeHome.use(join(r.tmp, 'home'));
       let rb: Awaited<ReturnType<typeof retake>>;

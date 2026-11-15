@@ -1,9 +1,9 @@
 /**
- * L4.5 part E: Render from the timeline, end to end in headless Chromium against a real Studio server — on a tiny
+ * Render from the timeline, end to end in headless Chromium against a real Studio server — on a tiny
  * synthetic take (two seconds, VP9: the preview plays it), with the jobs worker run in this process when the test says
  * so (the Studio's own worker is off: the queued state is seen first):
  * - Render in Edit's status bar queues the capture shown (the status bar says "next in the queue", the button is off: one
- *   render of a scenario at a time); L5.12a: the queue, the renders and the reviews are the Review report's;
+ *   render of a scenario at a time); the queue, the renders and the reviews are the Review report's;
  * - the worker renders it (the report's queue shows its phase and progress while the page polls) and reviews it in the
  *   same job;
  * - the render appears with its review's verdict and "from this version"; the report shows the newest render's review:
@@ -12,8 +12,8 @@
  * - the scenario screen's Renders card shows the same render and verdict (and a step's picture still shows: the same
  *   one `<img>` under the step pictures' cap); its row opens the render's report.
  * No CSP violation, no console error. `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
- * L4.5 fixes (review B H1): the real render's plan signature is the timeline's ("from this version"); a render of the
- * same file with other options is another version — L5.12a: its findings' Show in Edit never seeks the preview to their
+ * The real render's plan signature is the timeline's ("from this version"); a render of the
+ * same file with other options is another version — its findings' Show in Edit never seeks the preview to their
  * frame (said); a copy of the same plan does; a render that failed after them is said in Edit's status bar.
  */
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -113,7 +113,7 @@ describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', (
     expect(await page.getByTestId('render').isDisabled()).toBe(true);
     await shot('render-1-queued');
 
-    // L5.12a: the queue in full on the Review report (what each job renders).
+    // The queue in full on the Review report (what each job renders).
     await page.goto(`${studio.url}#/p/demo/s/tiny/review`);
     const job = page.getByTestId('render-job');
     await expect.poll(() => job.getAttribute('data-state'), POLL).toBe('queued');
@@ -171,7 +171,7 @@ describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', (
 
     // The scenario screen's Renders card: the same render, the same verdict; its row opens the render's report.
     await page.goto(`${studio.url}#/p/demo/s/tiny`);
-    // L5.10b: in the closed "Renders and review" section at the board's end.
+    // In the closed "Renders and review" section at the board's end.
     await page.getByTestId('renders-section').locator('summary').click();
     const card = page.getByTestId('renders-card');
     await card.waitFor();
@@ -183,7 +183,7 @@ describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', (
     await expect.poll(() => page.getByTestId('thumb').first().getAttribute('data-state'), POLL).toBe('ok');
     await card.scrollIntoViewIfNeeded();
     await shot('render-4-scenario');
-    // (L5.12a fixes, review A-L5: a link to the report, never a toggle.)
+    // (a link to the report, never a toggle.)
     expect(await sRow.locator('a').getAttribute('href')).toBe('#/p/demo/s/tiny/review/tiny-v1');
     await sRow.locator('a').click();
     await page.waitForURL('**#/p/demo/s/tiny/review/tiny-v1');
@@ -219,7 +219,7 @@ describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', (
     // `render --no-intro --scale 0.25` of the same file and capture (another plan), and a copy of v1 (the same plan).
     await copy('tiny-v2', 2, (r) => Object.assign(r, { overrides: { intro: false, scale: 0.25 }, plan: { ...r.plan, width: 480, height: 270 }, width: 480, height: 270 }));
     await copy('tiny-v3', 3, () => undefined);
-    // L5.12a: the rows on the Review report; Show in Edit of a finding seeks the preview only for the same plan.
+    // The rows on the Review report; Show in Edit of a finding seeks the preview only for the same plan.
     await page.goto(`${studio.url}#/p/demo/s/tiny/review`);
     const row = (id: string) => page.locator(`[data-testid="render-row"][data-id="${id}"]`);
     await expect.poll(() => row('tiny-v3').getAttribute('data-review'), POLL).toBe('warnings');

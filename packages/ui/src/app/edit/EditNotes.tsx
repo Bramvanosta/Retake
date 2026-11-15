@@ -1,9 +1,9 @@
 /**
- * L5.12a: Edit's notes (R-UI-45) — what the take says beside the preview, on the kit:
+ * Edit's notes (R-UI-45) — what the take says beside the preview, on the kit:
  * - `EditNotices` (above the stage, each a Callout): why the switches are off (the filmed part changed since the take —
  *   with "Capture again from Shoot" —, no scenario file, a take as captured), the workspace components the preview does
- *   not run until the person allows them (Allow in the preview, by id and folder hash, for this Studio session; review A
- *   H1 c), a slow scrub on this take;
+ *   not run until the person allows them (Allow in the preview, by id and folder hash, for this Studio session), a slow
+ *   scrub on this take;
  * - `EditNotes` (under the tracks): the comments made on another take (each opens its thread), then in a closed
  *   Disclosure "Warnings and notes" what the preview could not draw (stand-ins), the notes the preview posted (≤ 20; text a
  *   component may have written) and the edit's own warnings and notes.

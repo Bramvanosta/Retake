@@ -1,5 +1,5 @@
 /**
- * Your own files in the edit (L2.12, R-OWN-01/02/03): segments that are a video, an image or a Lottie file (scenario
+ * Your own files in the edit (R-OWN-01/02/03): segments that are a video, an image or a Lottie file (scenario
  * and theme), box-filling overlays (anchor / rect / scale, `at`), the music bed ducking under a file's own sound, and
  * the waits that play faster (the root cause of the catalogue's `long-wait`). The real built-in library (studio/media,
  * studio/lottie) and the editorial theme; files described as planInputFiles reads them (no ffmpeg needed).

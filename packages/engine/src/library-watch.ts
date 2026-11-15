@@ -1,7 +1,7 @@
 /**
- * What the Studio's library and theme screens watch (L4.7, critique B5): file-level stat signatures — names, sizes and
+ * What the Studio's library and theme screens watch: file-level stat signatures — names, sizes and
  * mtimes of every file, links named and never followed, dot entries and node_modules skipped, bounded — because a
- * folder's mtime moves neither on an in-place rewrite of a file nor on a new folder two levels down (probe E1: Claude
+ * folder's mtime moves neither on an in-place rewrite of a file nor on a new folder two levels down (Claude
  * rewriting `index.tsx`, a second component of a namespace). Nothing is read: stats only.
  *
  * - `components`: one signature per namespace folder of components_dir (`acme`), over every file of its component
@@ -12,8 +12,7 @@
  * - `site`: one signature of `.retake/site/` (the folder and each extraction's site.json).
  *
  * The library view's memo (operations/library.ts) is keyed on the same walks; the Studio's event stream (ui live.ts)
- * diffs them each poll and says which themes / namespaces changed, and that an extraction appeared. (L7.17: moved from
- * the Studio's server with library_view, whose memo reads them.)
+ * diffs them each poll and says which themes / namespaces changed, and that an extraction appeared.
  */
 import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync } from 'node:fs';
@@ -28,8 +27,8 @@ export const WATCH_DEPTH_MAX = 6;
 /** Namespaces / themes / site extractions looked at, at most. */
 export const WATCH_FOLDERS_MAX = 500;
 /**
- * Entries one scan looks at over every folder, at most (review A L4: the per-folder bounds alone allow 500 × 5,000
- * lstat calls a second on the Studio's event loop). Spent: the folders left get a coarse signature — their own stat
+ * Entries one scan looks at over every folder, at most (the per-folder bounds alone allow 500 × 5,000 lstat calls
+ * a second on the Studio's event loop). Spent: the folders left get a coarse signature — their own stat
  * (an entry added or removed moves it; a file rewritten in place there is not seen until the tree is smaller).
  */
 export const WATCH_SCAN_BUDGET = 20_000;
@@ -155,7 +154,7 @@ export function siteSignature(root: string): string {
 /** Everything the library / theme screens watch, as one map: `components:<ns>`, `themes:<name>`, `site`. */
 export async function libraryWatchScan(o: { root: string; componentsDir: string; templatesDir: string; budget?: number }): Promise<Map<string, string>> {
   const out = new Map<string, string>();
-  // One budget for the whole scan (review A L4); site extractions are at most WATCH_FOLDERS_MAX stats, outside it.
+  // One budget for the whole scan; site extractions are at most WATCH_FOLDERS_MAX stats, outside it.
   const budget = watchBudget(o.budget);
   for (const [ns, sig] of componentNamespaceSignatures(o.componentsDir, budget)) out.set(`components:${ns}`, sig);
   for (const [name, sig] of await themeSignatures(o.templatesDir, budget)) out.set(`themes:${name}`, sig);

@@ -1,5 +1,5 @@
 /**
- * `retake comment add | list | reply | resolve | reopen` (L3.6): frame comments on renders, written as the channel `cli`
+ * `retake comment add | list | reply | resolve | reopen`: frame comments on renders, written as the channel `cli`
  * (trust author: whoever types the command). Only this command creates and reopens threads; Claude replies to and
  * resolves them through MCP. Texts shown on the terminal are printable only (they are written by people and agents).
  */
@@ -92,7 +92,7 @@ function anchorLine(t: CommentView): string {
   return parts.join(' · ');
 }
 
-/** A proposal's state as `comment list` prints it (L4.6; the Studio's and the MCP's words). */
+/** A proposal's state as `comment list` prints it (the Studio's and the MCP's words). */
 const PROPOSAL_STATE_WORDS: Record<NonNullable<CommentView['entries'][number]['proposal']>['state'], string> = {
   pending: 'pending',
   applied: 'applied',

@@ -1,27 +1,25 @@
 /**
- * L5.12c « Épure » 4c: the Library's cards (R4-Library; was LibraryScreen.tsx's) — the screen's context (the theme, the
- * image loader, the render pump, the on-screen observer, the selection), a component's picture box, its play controls
- * and its poster card.
+ * The Library's cards — the screen's context (the theme, the image loader, the render pump, the on-screen observer, the
+ * selection), a component's picture box, its play controls and its poster card.
  *
  * - A card is one selection control (the kit's PosterCard: a pressed button — the inspector then shows the component)
- *   and its play controls under it: Play (a toggle: `aria-pressed`, ONE name — "Play <name>", its state the pressed look
- *   and the "Playing · loop" mark on the poster; loops never start by themselves), Retry of a failed poster or loop,
- *   "Render again"; the failure's words (untrusted). Each button's name is its words and the component's name
+ *   and its play controls under it: Play (a toggle: `aria-pressed`, ONE name — "Play <name>", its state the pressed
+ *   look and the "Playing · loop" mark on the poster; loops never start by themselves), Retry of a failed poster or
+ *   loop, "Render again"; the failure's words (untrusted). Each button's name is its words and the component's name
  *   (`aria-labelledby` the button and the element showing the name: the name, agent-writable text, is never copied into
- *   an attribute — review B L1 of L4.7).
+ *   an attribute).
  * - Cards are memoised (a grid of 200+ stays responsive): a card renders again only when ITS item, selection or play
  *   state changes (an item compared by value: a re-read of the view hands new objects); the pump is read per card
  *   (useSyncExternalStore of that card's two keys), never a re-render of every card per pump change.
  * - A picture box tells the pump and the image loader when it is on screen: the observer's root is the scroller that
  *   holds the box (the shell's centre pane; the inspector's picture is watched against the window).
- * - L5.12c fixes: the grid is ONE tab stop (review A-M3: a roving tab stop — the selected card, else the last one
- *   picked, else the first; its controls are stops too, every other card's are not: LibraryScreen.tsx moves it with the
- *   arrows, Home / End, and Enter on the selected card takes the focus to its inspector); the card's frame — the
- *   selection fill and ring, the hover — is the whole card with its Play (review B-M1: the ring is the selecting
- *   button's own mark, drawn over the card); the selecting button is named by
- *   the component's name, its id and tags its description (review A-L7: the picture's alt is not said first); with the
- *   inspector hidden, the selected card links to its page (review B-L3); Play pressed has a look of its own, not the focus
- *   ring's (review A-L6), and its icon turns to a pause.
+ * - The grid is ONE tab stop (a roving tab stop — the selected card, else the last one picked, else the first; its
+ *   controls are stops too, every other card's are not: LibraryScreen.tsx moves it with the arrows, Home
+ * / End, and Enter on the selected card takes the focus to its inspector); the card's frame — the selection fill and
+ * ring, the hover — is the whole card with its Play (the ring is the selecting button's own mark, drawn over the card);
+ * the selecting button is named by the component's name, its id and tags its description (the picture's alt is not said
+ * first); with the inspector hidden, the selected card links to its page; Play pressed has a look of its own, not the
+ * focus ring's, and its icon turns to a pause.
  *
  * Safety: every manifest word is text (`Txt`); pictures reach the one `<img>` only as checked data addresses (`Picture`:
  * PNG posters, GIF loops, magic and caps).
@@ -266,7 +264,7 @@ interface CardProps {
   testId: string;
 }
 
-/** With the inspector hidden, the selected card links to the component's page (its facts are there; review B-L3). */
+/** With the inspector hidden, the selected card links to the component's page (its facts are there). */
 function CardPage({ item, nameId, tabStop }: { item: LibraryItem; nameId: string; tabStop: boolean }) {
   const lib = useLibrary();
   const host = useContext(SlotContext);

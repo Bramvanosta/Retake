@@ -1,9 +1,9 @@
 /**
- * Step forms for the Studio's inspector and palette (L4.3 part 3, R-UI-12): which values of a step a form edits, derived
+ * Step forms for the Studio's inspector and palette (R-UI-12): which values of a step a form edits, derived
  * from the scenario language's own schemas (z.toJSONSchema of ACTION_ARG_SCHEMAS — the conversion the published
  * scenario.schema.json uses, so forms and schema cannot drift), and a step's values in that shape.
  *
- * - Cut to scalars and a flat target (critique C2): a field is text, a number, an integer, yes / no or one of a list.
+ * - Cut to scalars and a flat target: a field is text, a number, an integer, yes / no or one of a list.
  *   A property that is a target (TargetSpec) becomes a group of flat fields — text, role, name, label, aria,
  *   placeholder, css, testid, `in` (the scope keywords), nth, exact. Anything else (lists, points, nested targets, `in`
  *   as a row or a target, `contains`, code) stays in the YAML view: listed, shown read-only.
@@ -64,7 +64,7 @@ export interface StepForms {
   palette: ActionName[];
 }
 
-/** The actions of the palette (critique C3): those whose required values fit the form fields. */
+/** The actions of the palette: those whose required values fit the form fields. */
 export const PALETTE_ACTIONS = [
   'open',
   'click',
@@ -87,7 +87,7 @@ export const PALETTE_ACTIONS = [
 /** Actions without a form: code, custom events, cursor points (the YAML view). */
 const NO_FORM: ReadonlySet<ActionName> = new Set<ActionName>(['eval', 'emit', 'cursor']);
 
-/** The flat keys of a target in a form (critique C2). */
+/** The flat keys of a target in a form. */
 export const TARGET_FIELDS = ['text', 'role', 'name', 'label', 'aria', 'placeholder', 'css', 'testid', 'in', 'nth', 'exact'] as const;
 
 /** The modifiers a form edits. */
@@ -341,7 +341,7 @@ export function stepFormValues(raw: unknown): StepFormValues | undefined {
       if (fieldKindProblem(f, r.value)) locked[f.key] = 'written in a form these fields do not show: edit it in the YAML view';
       else if (typeof r.value === 'string' && USERINFO.test(r.value)) locked[f.key] = 'holds a URL with sign-in details (user@): edit it in the YAML view';
       else if (typeof r.value === 'string' && firstHiddenChar(r.value) !== undefined) {
-        // An input would show it as nothing (review A): the YAML view marks the line.
+        // An input would show it as nothing: the YAML view marks the line.
         locked[f.key] = `holds ${hiddenCharName(firstHiddenChar(r.value)!)}, which a form cannot show: edit it in the YAML view`;
       } else values[f.key] = r.value;
     } else if ('complex' in r) locked[f.key] = 'written in a form these fields do not show: edit it in the YAML view';

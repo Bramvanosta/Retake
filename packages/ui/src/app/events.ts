@@ -1,7 +1,7 @@
 /**
- * Live updates (L4.1 part 3): the server's event stream `GET /v1/events`, read through `fetch` (the token in a header —
- * EventSource cannot send one) — ONE stream per browser, not per tab (critique B1: over HTTP/1.1 every stream holds
- * one of the browser's 6 connections to this server; at 6 tabs every call would hang, and a 7th tab would not load).
+ * Live updates: the server's event stream `GET /v1/events`, read through `fetch` (the token in a header —
+ * EventSource cannot send one) — ONE stream per browser, not per tab (over HTTP/1.1 every stream holds one of the
+ * browser's 6 connections to this server; at 6 tabs every call would hang, and a 7th tab would not load).
  *
  * - The tab that holds the Web Lock `retake.events` reads the stream and relays each event to the other tabs over
  *   the BroadcastChannel of the same name; when it closes, the lock passes to another tab, which opens the stream.
@@ -18,7 +18,7 @@ import type { HeldWork } from '@retake/engine';
 import { sessionEnded } from './api.js';
 import { parseSseBlock } from './sse.js';
 
-/** A run that appeared, changed status, progressed (its run.json rewritten while unfinished) or went away (L4.2). */
+/** A run that appeared, changed status, progressed (its run.json rewritten while unfinished) or went away. */
 export interface RunEvent {
   project: string;
   run: string;
@@ -33,27 +33,27 @@ export type StudioEvent =
       type: 'workspace';
       projects: string[];
       readme: string[];
-      /** L5.10a fixes: projects whose project.yaml, sandbox.yaml or scenario list changed (absent from an older server). */
+      /** Projects whose project.yaml, sandbox.yaml or scenario list changed (absent from an older server). */
       files?: string[];
       scenarios?: string[];
       renders?: string[];
       runs?: RunEvent[];
       comments?: string[];
-      /** L4.7: theme folders whose files changed (names). */
+      /** Theme folders whose files changed (names). */
       themes?: string[];
-      /** L4.7: component namespaces whose component files changed. */
+      /** Component namespaces whose component files changed. */
       components?: string[];
-      /** L4.7: a site extraction was written or removed. */
+      /** A site extraction was written or removed. */
       site?: true;
-      /** L4.8: recordings whose files changed or whose folder appeared or went (`<slug>/<rec_id>`). */
+      /** Recordings whose files changed or whose folder appeared or went (`<slug>/<rec_id>`). */
       records?: string[];
     }
   | {
       type: 'jobs';
       changed: string[];
-      /** L5.10a fixes: the projects of the changed jobs (absent from an older server). */
+      /** The projects of the changed jobs (absent from an older server). */
       projects?: string[];
-      /** L5.14: what a filming take holds of the workspace's jobs (null: nothing; absent from an older server). */
+      /** What a filming take holds of the workspace's jobs (null: nothing; absent from an older server). */
       held?: HeldWork | null;
     }
   | { type: 'index'; generation: number }
@@ -214,7 +214,7 @@ export function useEventMode(): EventMode {
 }
 
 /**
- * L5.10a fixes (review A-L5): a `workspace` event that only says unfinished runs progressed (a step of a take) — nothing
+ * A `workspace` event that only says unfinished runs progressed (a step of a take) — nothing
  * a project list, a card or an overview shows changed.
  */
 export function onlyRunProgress(e: StudioEvent): boolean {
@@ -232,7 +232,7 @@ export function useProjectEvents(slug: string, fn: () => void): void {
 }
 
 /**
- * What a scenario screen does with an event (L4.2, critique B1): `reread` its view only when its own file changed
+ * What a scenario screen does with an event: `reread` its view only when its own file changed
  * (`scenarios` names `<slug>/<name>`), a run of its scenario appeared, changed status or went away, or after a
  * reconnection (`resync`); `progress` (a `run_status` read, never the whole view) when a run of its scenario only
  * progressed; `jobs` for a job change (the screen then checks the run it shows running); nothing for anything else —
@@ -241,7 +241,7 @@ export function useProjectEvents(slug: string, fn: () => void): void {
 export function scenarioEventAction(e: StudioEvent, slug: string, name: string): { reread: boolean; progress: string[]; jobs?: true } {
   if (e.type === 'resync') return { reread: true, progress: [] };
   // A job changed (a worker that died marks its job interrupted, with no word from the run's run.json): the screen
-  // checks the run it shows running, if any (review B M4) — a run_status read, never the whole view.
+  // checks the run it shows running, if any — a run_status read, never the whole view.
   if (e.type === 'jobs') return { reread: false, progress: [], jobs: true };
   if (e.type !== 'workspace') return { reread: false, progress: [] };
   let reread = Array.isArray(e.scenarios) && e.scenarios.includes(`${slug}/${name}`);
@@ -255,7 +255,7 @@ export function scenarioEventAction(e: StudioEvent, slug: string, name: string):
 }
 
 /**
- * What a screen showing one scenario's comments does with an event (L4.6, plan D9): `threads` — re-read its list and
+ * What a screen showing one scenario's comments does with an event: `threads` — re-read its list and
  * the open thread — when that scenario's threads changed (`comments` names `<slug>/<name>`) or after a reconnection;
  * `scenario` when its file changed (a proposal's state, step_now); `renders` when the project's renders/ changed (newer
  * renders, a render gone). Never for another scenario's comments, another project, a README or a job.
@@ -282,7 +282,7 @@ export function useScenarioEvents(slug: string, name: string, on: { reread: () =
 }
 
 /**
- * What the Record screen does with an event (L4.8): `reread` the recording it shows when its folder changed (`records`
+ * What the Record screen does with an event: `reread` the recording it shows when its folder changed (`records`
  * names `<slug>/<rec_id>`), on a job change (its state, its phase), or after a reconnection; with no recording shown
  * (the start form), when any recording of the project changed or a job changed (the recent list, the open recording).
  */

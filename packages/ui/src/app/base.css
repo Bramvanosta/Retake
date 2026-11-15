@@ -1,5 +1,5 @@
 /*
- * L5.12d: the page's base — the legacy layer (app.css, L4.1 – L5.12) is gone with the last legacy screen. Element
+ * The page's base — the legacy layer (app.css) is gone with the last legacy screen. Element
  * defaults only (no class: the kit, the shell and the screens style their own) on `--ui-*` tokens only; the kit's lints
  * (closed palette, sizes from tokens, the focus ring, placeholders, reduced motion) read this file too.
  */
@@ -44,7 +44,7 @@ a:hover {
   outline: 2px solid var(--ui-ring);
   outline-offset: 2px;
 }
-/* Review B-L4: a plain link's ring keeps the kit ring's radius (a kit control's own rule sets it too). */
+/* A plain link's ring keeps the kit ring's radius (a kit control's own rule sets it too). */
 a:focus-visible {
   border-radius: var(--ui-radius-control);
 }

@@ -81,7 +81,7 @@ export interface LegacyContradiction {
  * The `components` entries of a parsed template file that disagree with a legacy field written in the same file (e.g.
  * `components.layout: studio/layout-browser` next to `frame: {style: card}`): the components entry wins, so the legacy
  * field changes nothing. `value` must be structurally valid. Used by checkTemplateFile (a warning each) and by the
- * Studio's theme edits (L4.7, critique B7: a component change removes the legacy fields it now contradicts).
+ * Studio's theme edits (a component change removes the legacy fields it now contradicts).
  */
 export function legacyContradictions(value: unknown): LegacyContradiction[] {
   if (!isPlainObject(value) || !isPlainObject(value.components)) return [];
@@ -121,7 +121,7 @@ function checkTemplateFile(value: unknown, structural: readonly LocatedIssue[]):
 }
 
 /**
- * The theme's own files (L2.12, `components.intro: {video: …}`): checked like a scenario's (container, existence,
+ * The theme's own files (`components.intro: {video: …}`): checked like a scenario's (container, existence,
  * codec, from / to) relative to the template folder `dir` — skipped without one.
  */
 function checkTemplateMedia(value: unknown, structural: readonly LocatedIssue[], dir: string | undefined, files: CheckFiles | undefined): LocatedIssue[] {

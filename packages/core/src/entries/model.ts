@@ -4,7 +4,7 @@
  * (FileFacts, VideoProber), a path's place under a root, the render settings, the confinement of agent work, and the
  * checks' shared context. Each other context declares its own types (types/<context>.ts).
  *
- * A context of core (L7.35, audit 2026-11-10 D1): its files may import the contexts before it (base); the ratchet's
+ * A context of core: its files may import the contexts before it (base); the ratchet's
  * `core-context` check holds it (scripts/audit/lib.mjs CORE_CONTEXTS). Each name is exported by the entry of the file
  * that declares it; the root `@retake/core` is every entry at once, for tests and scripts (the packages' sources import
  * an entry: the `core-root` check).

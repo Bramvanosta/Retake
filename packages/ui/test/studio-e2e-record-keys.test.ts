@@ -1,5 +1,5 @@
 /**
- * L5.11b fixes: the Record screen's keyboard, its one change in flight and its commands, on a recording the test plays —
+ * The Record screen's keyboard, its one change in flight and its commands, on a recording the test plays —
  * the built-in Studio server on a scratch workspace and home, headless Chromium, and `record_view` / `record_annotate` /
  * `record_stop` / `record_discard` answered by the test (page routes: a live recording of any length and state, a
  * change held back), so each rule is checked in a few seconds without a recording window (the real recorder:
@@ -7,22 +7,20 @@
  *
  * - ⚑ ⌘. is the recording's from the route's first paint — before its view is read ("Wait: the recording is still being
  *   read", nothing sent) — and Rehearse / Capture / Render say why they wait in every live state (queued, preflight,
- *   recording: "stop the recording first"; draft, check: "made and checked"); ⌘. in each state says what it does (review
- *   B-L1);
+ *   recording: "stop the recording first"; draft, check: "made and checked"); ⌘. in each state says what it does;
  * - the draft is ONE tab stop (a listbox per scene): from the title, Stop is a few Tabs away with 60 rows; ↑ / ↓ cross
  *   scenes, Home / End, Enter selects (the cursor moves), Enter again goes back to the end; the cursor block is a group,
- *   not an option (review A-M2 / A-L3);
- * - ⌘K on a live recording: "Stop recording" and "Discard…" named after the recording, never the scenario in context
- *   (review A-M2 / A-L1);
+ *   not an option;
+ * - ⌘K on a live recording: "Stop recording" and "Discard…" named after the recording, never the scenario in context;
  * - the alternatives with a save held back: two arrow presses — the radio follows each press, one write in flight, the
- *   newest pick sent when it ends; the focused radio = the checked one = the saved one (review A-M1);
- * - Stop pressed while a change is written: sent right after it (review A-L6);
- * - an open Caption… keeps its text and its focus when the first row arrives, and when a new scene starts (review A-L7);
- * - hiding / showing the inspector keeps the Name typed; hidden, the one Stop is at the top of the centre (review B-L4);
- * - Save disabled with its reason in each state, enabled when done; Enter in Name says why (review B-M2 / A-L4);
- * - Zoom… with a factor other than the default sends that factor (review B-L7);
- * - an info note is a status, not an alert (review A-L5);
- * - a narrow centre (900 px): a row's aside goes under its text, a word is never broken (review A-L2).
+ *   newest pick sent when it ends; the focused radio = the checked one = the saved one;
+ * - Stop pressed while a change is written: sent right after it;
+ * - an open Caption… keeps its text and its focus when the first row arrives, and when a new scene starts;
+ * - hiding / showing the inspector keeps the Name typed; hidden, the one Stop is at the top of the centre;
+ * - Save disabled with its reason in each state, enabled when done; Enter in Name says why;
+ * - Zoom… with a factor other than the default sends that factor;
+ * - an info note is a status, not an alert;
+ * - a narrow centre (900 px): a row's aside goes under its text, a word is never broken.
  *
  * `RETAKE_UI_SHOTS=<folder>` saves screenshots there (a live recording: 1440 dark, 900 dark, the inspector hidden,
  * 1280 light).

@@ -260,7 +260,7 @@ describe('semantic checks', () => {
       '  - shell: {run: "true", env: {DATABASE_URL: "postgres://x@db.prod.example.com/d"}}',
       '  - shell: {run: "psql -h localhost demo", rollback: "ssh deploy@other.example.net cleanup"}',
       '  - shell: "curl https://$TARGET/x && curl https://{{vars.host}}/y"',
-      // A command substitution is a command; the script's own variables are expanded (L1.2 review: S1, S2).
+      // A command substitution is a command; the script's own variables are expanded.
       `  - shell: 'TOKEN=$(curl -s https://auth.prod.example.com/t); BASE=other.prod.example.com; curl "https://$BASE/x"'`,
       '',
     ].join('\n');
@@ -390,7 +390,7 @@ describe('semantic checks', () => {
       'unknown variable {{vars.prodct}} (did you mean "product"?); declared: product',
       'unknown template key {{run.name}}; available: run.id, run.dir',
     ]);
-    // vars values are inserted as written (L1.2 review: D5): a token in one is an error, positioned on the value.
+    // vars values are inserted as written: a token in one is an error, positioned on the value.
     const text = scenario('      - click: "{{vars.who}}"\n', 'vars: {pw: "{{env:DEMO_PW}}", who: "Agent {{vars.pw}}", plain: Harbour}\n');
     expect(errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues).map((i) => `${formatPath(i.path)}: ${i.message}`)).toEqual([
       'vars.pw: {{env:DEMO_PW}}: a vars value is not templated (it would be inserted as written): write the value, or put the token where the variable is used',
@@ -558,7 +558,7 @@ describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', (
       expect(await changed(text.replace('video: Quote', 'video: "Quote"'))).toBe(false); // quoting
       expect(await changed(text.replace(/^ {2}/gm, '    '))).toBe(false); // indentation
       expect(await changed(text.replace('    page: shop\n    open: /\n', '    open: /\n    page: shop\n'))).toBe(false); // key order
-      expect(await changed(text.replace('video: Quote', 'video: Quote tour'))).toBe(false); // an edit value (L5.5)
+      expect(await changed(text.replace('video: Quote', 'video: Quote tour'))).toBe(false); // an edit value
       expect(await changed(text.replace('open: /', 'open: /quote'))).toBe(true); // a filmed value
       expect(await changed(text.replace('      - hold: 1\n', '      - hold: 1\n      - hold: 1\n'))).toBe(true); // a step
       expect(await changed(`${text}  - [unclosed\n`)).toBe(true); // does not parse: the text differs

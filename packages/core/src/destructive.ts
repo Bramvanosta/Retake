@@ -90,7 +90,7 @@ export function sqlSource(spec: string | SqlHookSpec): { file?: string; query?: 
   return { file: spec.file, query: spec.query };
 }
 
-/** The options of the destructive-hook rules; `files` is required with `projectDir` unless `readText` reads the files (FilesWith, L7.34). */
+/** The options of the destructive-hook rules; `files` is required with `projectDir` unless `readText` reads the files (FilesWith). */
 export type DestructiveOptions = DestructiveFields & (FilesWith<'projectDir'> | { readText: (absPath: string) => string | undefined });
 
 export interface DestructiveFields {
@@ -299,7 +299,7 @@ export function hookApprovalReason(hook: HookStep, phase: string, opts: Destruct
       hook.destructive === true
         ? 'declared destructive'
         : (destructiveReason(hook, opts) ?? (kind === 'shell' ? 'a shell command (runs local code)' : kind === 'sql' && opts.agentWritten === true ? AGENT_SQL_REASON : null));
-    // Setup and step hooks (L5.8) journal their rollback, run later without asking again.
+    // Setup and step hooks journal their rollback, run later without asking again.
     const rollback = phase === 'setup' || phase === 'step' ? rollbackApprovalReason(hook, opts) : null;
     const reasons = [own, rollback].filter((r): r is string => r !== null);
     return reasons.length ? reasons.join('; ') : null;

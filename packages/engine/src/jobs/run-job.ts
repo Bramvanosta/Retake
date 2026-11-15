@@ -1,5 +1,5 @@
 /**
- * `run` jobs (L3.1): a dry run or a capture submitted by a client outside the CLI (the MCP server) and executed by the
+ * `run` jobs: a dry run or a capture submitted by a client outside the CLI (the MCP server) and executed by the
  * jobs worker with the same `executeRun` as `retake run`.
  *
  * Submit checks everything that can be checked without running anything (names, the scenario against its
@@ -136,7 +136,7 @@ async function prepareSubmit(ctx: SubmitContext, req: RunSubmitRequest): Promise
   checkProjectSlug(req.project);
   checkScenarioName(req.scenario);
   const project = await openProjectBySlug(ctx.ws, req.project);
-  // The file is read first as the Studio and MCP read scenarios (L4.2): inside the project once links are followed, a
+  // The file is read first as the Studio and MCP read scenarios: inside the project once links are followed, a
   // regular file of bounded size — never through a link out, never a FIFO that would hold the reader.
   await getScenario(project, req.scenario, { stores: ctx.stores, seen: undefined });
   try {
@@ -160,7 +160,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
   const what = `${req.mode === 'dry' ? 'the dry run' : 'the capture'} of scenario ${prepared.scenario.name}`;
   // The hooks this run executes, checked with trust `mcp` (R-MCP-35): what a safety rule refuses fails the submit; what
   // needs a human is asked through the client's approver, else refused with the `retake` command a human runs.
-  // `hook:` steps (L5.8): each named hook they run is asked about once, wherever its steps are.
+  // `hook:` steps: each named hook they run is asked about once, wherever its steps are.
   const named = usedNamedHooks(sc, project);
   const hasHooks = hooksMode === 'run' && ((sc.setup?.length ?? 0) > 0 || (sc.teardown?.length ?? 0) > 0 || named.length > 0);
   let pre: Promise<Preflight | undefined> | undefined;
@@ -209,7 +209,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
 }
 
 /**
- * Which gate refused (L5.11a, critique H3): the generic `code` cannot tell agent trust from a protected host or a refused
+ * Which gate refused: the generic `code` cannot tell agent trust from a protected host or a refused
  * hook (all `refused`), so the Studio's short words key on this. `agent_trust` — the scenario names a secret or a file
  * outside the project; `opens_other_site` — every reason agent trust gave is a URL the scenario opens outside the
  * environment's origins; `protected_host` — the location reaches another project's production / read-only host;
@@ -220,7 +220,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
  */
 export type RunBlockerKind = 'agent_trust' | 'opens_other_site' | 'protected_host' | 'hook_refused' | 'read_only' | 'needs_approval' | 'too_long' | 'invalid' | 'prepare';
 
-/** Why a run would be refused at submit, before anything is clicked (L4.2, critique B2): a refusal and its command. */
+/** Why a run would be refused at submit, before anything is clicked: a refusal and its command. */
 export interface RunBlocker {
   code: EngineErrorCode;
   /** The gate that refused (runBlockers sets it; the CLI and MCP ignore it). */
@@ -275,7 +275,7 @@ export async function runBlockers(ctx: SubmitContext, req: { project: string; sc
 /**
  * The gate that threw, as runGates orders them (0 agent trust, 1 protected hosts, 2 refused hooks, 3 approvals; null:
  * preparing the run): its kind, and how many hooks for the hook gates. An error a gate did not word as its own refusal
- * (a hooks preflight that failed) is `prepare` — never a safety reason it was not (critique H3).
+ * (a hooks preflight that failed) is `prepare` — never a safety reason it was not.
  */
 export function blockerKind(err: EngineError, gate: number | null): { kind: RunBlockerKind; count?: number } {
   const list = (k: string) => {
@@ -323,7 +323,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
     const r = await gate();
     if (r) approvals = r;
   }
-  // The bytes the gates checked (those prepareRun read once and parsed), never a later read of the file (review A #6);
+  // The bytes the gates checked (those prepareRun read once and parsed), never a later read of the file;
   // the worker parses only bytes with this hash.
   const sha = prepared.scenario.sha256 ?? sha256Hex(Buffer.from(prepared.scenario.text, 'utf8'));
   if (req.expect_sha256 !== undefined && req.expect_sha256 !== sha) {
@@ -395,11 +395,11 @@ export interface RunJobContext extends EnginePorts {
   event(e: JobEventBody): void;
   /** Progress of the job (the worker writes it to job.json, throttled). */
   progress(p: JobProgress): void;
-  /** L4.4: the live picture's sink (the worker's live channel). */
+  /** The live picture's sink (the worker's live channel). */
   live?: LiveSink;
-  /** L4.4: the job's pause marker, as the worker polls it. */
+  /** The job's pause marker, as the worker polls it. */
   pause?: PauseGate;
-  /** L5.14: when the take films (the worker writes its filming marker). */
+  /** When the take films (the worker writes its filming marker). */
   onFilming?: (state: FilmingEvent) => void | FilmingReport;
 }
 

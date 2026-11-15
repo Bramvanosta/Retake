@@ -1,19 +1,19 @@
 /**
- * The Studio's scenario and Run screens' reads (moved from the Studio server's ops.ts in L7.14):
- * - `scenario_blocks` (L4.2): the scenario screen in one read — engine scenarios.view: text, hash, blocks, issues
+ * The Studio's scenario and Run screens' reads:
+ * - `scenario_blocks`: the scenario screen in one read — engine scenarios.view: text, hash, blocks, issues
  *   (without agent trust), run blockers worded for the Studio, scene URLs, the runs (picker), the source run and every
  *   step's binding to it; page text under `untrusted`. Memoised by the engine (file hash, runs' files). Plus `hints`:
  *   the scenario language's description of each action the file uses (the inspector's edit hints).
- * - `scenario_actions` (L5.11a): the status bar's read for the scenario in context — engine scenarios.actions: the
+ * - `scenario_actions`: the status bar's read for the scenario in context — engine scenarios.actions: the
  *   file's hash and validity, the run blockers on the chosen location (each with its gate's `kind`), the runs with the
  *   unfinished one's job, the capture a render edits, a render queued or running. Memoised apart from scenario_blocks
- *   (critique H2: it never evicts the open scenario's view). Path-free but the blockers' commands (`fix`, `fix_node`).
- * - `run_thumbs` (L4.2): base64 JPEGs (≤ 480 px) of up to 24 steps of one run, by the run's own step keys — shown as
+ *   (it never evicts the open scenario's view). Path-free but the blockers' commands (`fix`, `fix_node`).
+ * - `run_thumbs`: base64 JPEGs (≤ 480 px) of up to 24 steps of one run, by the run's own step keys — shown as
  *   `data:image/jpeg;base64,…` (the CSP's `img-src data:`), never stored. Not MCP tools: Claude reads files, run_status
  *   and review contact sheets.
- * - `scenario_forms` (L4.3): the step forms (core stepForms: each action's fields derived from its schema, the
+ * - `scenario_forms`: the step forms (core stepForms: each action's fields derived from its schema, the
  *   modifiers, the palette) — static, read once by the scenario screen.
- * - `scenario_sessions` (L4.4): the Run screen's preflight panel — engine auth.forScenario (the personas the run signs
+ * - `scenario_sessions`: the Run screen's preflight panel — engine auth.forScenario (the personas the run signs
  *   in, their stored state, `auto`; no path; the last check's text under `untrusted`) and `confirm`: the personas a
  *   capture's `sessions_ack` must name.
  */

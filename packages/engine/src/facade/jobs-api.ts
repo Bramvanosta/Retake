@@ -59,7 +59,7 @@ export function jobsApi(ctx: EngineContext): Engine['jobs'] {
     list: (f) => queue.list(f),
     events: async (id, o) => (await getJob(id), queue.events(id, o)),
     cancel: async (id) => {
-      // B16 (L4.8): Claude never discards the person's open Studio recording through job_cancel.
+      // B16: Claude never discards the person's open Studio recording through job_cancel.
       checkAgentCancel(await getJob(id), opts.client);
       const rec = await queue.cancel(id, opts.client);
       await startWorker();

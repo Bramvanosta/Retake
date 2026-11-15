@@ -158,7 +158,7 @@ beforeAll(async () => {
   t.project = 'demo';
   t.scenario = SCENARIO;
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
-  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  // A run `latest` takes has its record (a folder without a readable run.json is never the latest capture).
   await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: RUN, scenario: SCENARIO, project: 'demo' })));
   await writeFile(join(runDir, 'capture.mp4'), 'never read');
   await writeFile(join(dir, 'renders', `${SCENARIO}-v1.json`), JSON.stringify(recordOf(`${SCENARIO}-v1`)));
@@ -278,7 +278,7 @@ describe('the in-process functions write one history line each; the pipeline non
   });
 
   it('every use case of the editor is reached through the one guarded helper of render/work.ts', async () => {
-    // L7.34 (finding C4): held by behaviour instead of the helper's five statements — each work of render/work.ts calls
+    // Held by behaviour instead of the helper's five statements — each work of render/work.ts calls
     // its own use case once, handing it the renderer it was given (the refusal before the editor loads is the case
     // above; that the editor's entries are named in work.ts only is the ratchet's `render-call`). The render of a run is
     // the engine's own use case (replaced above at its module): it loads no editor here; an export is handed it.

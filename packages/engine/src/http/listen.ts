@@ -1,5 +1,5 @@
 /**
- * The listener of the engine's local HTTP servers (L4.1): 127.0.0.1 only — never every interface, never IPv6 — on a
+ * The listener of the engine's local HTTP servers: 127.0.0.1 only — never every interface, never IPv6 — on a
  * free port (0) or a fixed one; refused when the bound address is anything but 127.0.0.1. No option names another host.
  */
 import type { AddressInfo } from 'node:net';

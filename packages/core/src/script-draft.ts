@@ -1,5 +1,5 @@
 /**
- * Script → draft (L3.3, `scenario_from_script`, R-MCP-22): a deterministic aid — no model, no network, nothing written.
+ * Script → draft (`scenario_from_script`, R-MCP-22): a deterministic aid — no model, no network, nothing written.
  * A timecoded Markdown table (one GFM pipe table; English or French headers) becomes an outline (scenes, beats, times,
  * durations, captions, pages) and a draft scenario: one `hold` per beat, sized to its duration, with the script's action
  * as its `note`. The draft validates and dry-runs, but it films nothing until the steps are written (page_inspect gives

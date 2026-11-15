@@ -2,8 +2,8 @@
  * `retake mcp --print-config`: how an MCP client starts this server. GUI clients (Claude desktop) see neither the shell's
  * version-manager shims nor Homebrew: the snippet names an absolute Node.js ≥ 22 — a stable alias of it where one exists,
  * so a patch upgrade does not break the registration — and carries a PATH with the folders the tools the engine runs
- * live in (ffmpeg, docker, psql). It also prints the Claude Code plugin route (L3.7: the repository's local marketplace,
- * the `skills/` plugin with its userConfig values); `retake mcp` itself serves with `clientPath` as its PATH.
+ * live in (ffmpeg, docker, psql). It also prints the Claude Code plugin route (the repository's local marketplace, the
+ * `skills/` plugin with its userConfig values); `retake mcp` itself serves with `clientPath` as its PATH.
  */
 import type { EngineEnv } from '../env.js';
 import { existsSync, realpathSync } from 'node:fs';
@@ -91,8 +91,8 @@ export function claudeCodeCommand(o: McpConfigInput): string {
 }
 
 /**
- * MCP over HTTP (L4.1): the registration of `retake mcp --http` — a URL and the bearer header, no command. The printed
- * registrations never carry the token itself (review A M1): the `.mcp.json` block names the environment variable
+ * MCP over HTTP: the registration of `retake mcp --http` — a URL and the bearer header, no command. The printed
+ * registrations never carry the token itself: the `.mcp.json` block names the environment variable
  * Claude Code expands when it reads the file (a project's `.mcp.json` is often committed), and the `claude mcp add`
  * line reads the token file in the shell that runs it (the shell history keeps `$(cat …)`, not the token).
  */
@@ -134,7 +134,7 @@ export function mcpHttpTokenExport(tokenFile: string): string {
 
 /**
  * The folder holding the local plugin marketplace (`.claude-plugin/marketplace.json` + `skills/`): the app bundle's
- * `plugin/` when Retake runs from one (L5.16), else the first such folder above the retake entry point (the repository),
+ * `plugin/` when Retake runs from one, else the first such folder above the retake entry point (the repository),
  * or undefined (an install without the repository's `skills/`).
  */
 export function pluginMarketplaceRoot(bin: string, exists: (p: string) => boolean = existsSync, bundle: BundleInfo | null = bundleInfo()): string | undefined {
@@ -169,8 +169,8 @@ export function pluginInstallCommands(o: McpConfigInput & { repo: string }): str
 }
 
 /**
- * The same two lines as argv for `claude` (L5.16c: the installed app's Set-up sheet runs them on the person's click — no
- * shell; the install line's `cd` becomes its working folder).
+ * The same two lines as argv for `claude` (the installed app's Set-up sheet runs them on the person's click — no shell;
+ * the install line's `cd` becomes its working folder).
  */
 export function pluginInstallSteps(o: McpConfigInput & { repo: string }): Array<{ argv: string[]; cwd?: string }> {
   const e = mcpServerEntry(o);

@@ -1,5 +1,5 @@
 /**
- * Phase-2 contracts in core (lot L2.1): component references, template `brand` + `components` with the legacy
+ * Phase-2 contracts in core: component references, template `brand` + `components` with the legacy
  * mapping, scenario additions (intro/outro/interstitial components, `card` entries, `frame` as a layout id, step
  * `overlay`), timeline `video` / card scenes / overlay events, JSON Schemas for editor autocompletion.
  */
@@ -431,7 +431,7 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
     expect(d.Card.required).toEqual(['card']);
     expect(Object.keys(d.Card.properties.card.properties)).toEqual(['component', 'params', 'slots', 'duration', 'transition', 'video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume']);
     for (const k of ['component', 'params', 'slots', 'duration', 'transition']) expect(typeof d.Card.properties.card.properties[k].description, k).toBe('string');
-    // L2.12: a component or a file (checked semantically): nothing is required by the schema.
+    // A component or a file (checked semantically): nothing is required by the schema.
     expect(d.Overlay.required).toBeUndefined();
     for (const k of ['video', 'image', 'lottie', 'at', 'anchor', 'rect', 'scale', 'loop']) expect(typeof d.Overlay.properties[k].description, k).toBe('string');
     expect(d.Overlay.properties.background).toBeUndefined();
@@ -472,7 +472,7 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
     expect(comps.additionalProperties).toBe(false);
     expect(Object.keys(comps.properties)).toEqual([...COMPONENT_KINDS]);
     for (const k of COMPONENT_KINDS) {
-      // L2.12: an intro, an outro or an interstitial may be the theme's own file.
+      // An intro, an outro or an interstitial may be the theme's own file.
       if ((TEMPLATE_MEDIA_KINDS as readonly string[]).includes(k)) {
         expect(comps.properties[k].anyOf[0].anyOf[0], k).toEqual({ $ref: '#/$defs/ComponentRef' });
         expect(Object.keys(comps.properties[k].anyOf[0].anyOf[1].properties), k).toEqual(['video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume', 'duration', 'params']);

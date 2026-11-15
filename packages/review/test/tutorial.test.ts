@@ -1,5 +1,5 @@
 /**
- * L2.10 review awareness, without video: what the planner could not show (`tutorial-skipped`), tutorial targets cut by
+ * Review awareness, without video: what the planner could not show (`tutorial-skipped`), tutorial targets cut by
  * the framing (`tutorial-target-cut`), story-card media that could not be resolved (`media-missing`), and the opening
  * still of a scene compared on its capture frames while an overlay comes in (the spotlight of the first step dims the
  * whole screen) — on the real fixture timelines of `signup` (tutorial on) and `highlights` (every story card).
@@ -91,7 +91,7 @@ describe('tutorial overlays in the review', () => {
     badge.durationInFrames += 2 * ctx.plan.fps;
     const f = checkTutorial(ctx).filter((x) => x.code === 'tutorial-stale-target');
     expect(f).toHaveLength(1);
-    // A local URL without a display URL is named by its path, never its host (L1.7: report.md shows no localhost).
+    // A local URL without a display URL is named by its path, never its host (report.md shows no localhost).
     expect(f[0].message).toMatch(new RegExp(`^${clip!.id} step ${badge.step}: the step badge stays \\d\\.\\d s on its target after the page went to /[^ ]* \\(a local page\\)$`));
     // With the run's display URLs the check still sees the navigation, and names the display URL.
     const t = load('signup-tutorial');
@@ -148,7 +148,7 @@ describe('tutorial overlays in the review', () => {
     expect(pair[1]).toBe(pair0[1]);
     // The capture frames extracted for the comparison follow the shifted pair (this still is compared on them).
     expect(stillSourceFrames(ctx.plan, ctx.spans, ctx.plan.fps, t)).toContain(`main:${clip.srcFrames[pair[0] - clip.from]}`);
-    // Runs before L5.1 have no t_settled: the end is estimated from the glide's lead and length; one cursor per page.
+    // Older runs have no t_settled: the end is estimated from the glide's lead and length; one cursor per page.
     still.data = { cursor: { desk: { how: 'keep' }, phone: { how: 'glide', move_ms: 450 } } };
     const lead = Math.min(0.3, 0.2 * (still.t_end - still.t_start));
     expect(stillGlideEnd(t, 'signup')).toBeCloseTo(still.t_start + lead + 0.45 + 0.3, 6);

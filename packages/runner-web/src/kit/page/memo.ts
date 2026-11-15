@@ -1,5 +1,5 @@
 /** The per-call memo of an inspection. */
-// ─────────────────────── per-call memo (L3.3) ───────────────────────
+// ─────────────────────── per-call memo ───────────────────────
 // An inspection (`inventory`, `checkTargets`) runs many resolver lookups in one synchronous call: the DOM cannot change
 // during it, so the trees, selector queries, visibility, names, label pairs, texts and rows are computed once each.
 // Set only for the length of such a call (null otherwise: every other kit call sees the live DOM).

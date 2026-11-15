@@ -1,5 +1,5 @@
 /**
- * Sessions & personas at run time (L1.6, docs/DESIGN.md §3.6): each persona a run films is signed in on a copy of its
+ * Sessions & personas at run time (docs/DESIGN.md §3.6): each persona a run films is signed in on a copy of its
  * session (its master profile, never opened by a run, plus the cookies of its snapshot), checked off camera before
  * anything runs (the preflight), signed in automatically when it declares login steps, and watched during the run (a
  * page landing on a sign-in page fails the run: the guard).
@@ -280,7 +280,7 @@ function personaLabel(p: Pick<ResolvedPersona, 'name' | 'env'>): string {
  * when a profile closes; the snapshot keeps them) — the legacy form applies the whole storage state, as before; with no
  * master, on a fresh profile plus the snapshot; a `storage_state` persona on a fresh profile plus its snapshot. A master
  * held by a running browser (the `retake login` window) is refused: Chromium writes cookies lazily, a copy taken then
- * may miss them. The legacy `auth.storage_state` file must exist (as before L1.6: only a missing legacy profile starts
+ * may miss them. The legacy `auth.storage_state` file must exist (only a missing legacy profile starts
  * signed out). Stale copies of killed processes are swept first; on failure the copies made so far are removed.
  * `failure`: the first line of a failure when the sessions are not for a run (a check, the js hooks of the CLI).
  */
@@ -405,7 +405,7 @@ export async function checkPersona(context: BrowserContext, persona: ResolvedPer
   const page = await context.newPage();
   try {
     // On the real time even after the product's clock is installed (the check after a failed step): a session is
-    // judged by its tokens' real expiry (L1.7).
+    // judged by its tokens' real expiry.
     await keepRealTime(page);
     let status: number | undefined;
     page.on('response', (r) => {
@@ -441,7 +441,7 @@ export async function checkPersona(context: BrowserContext, persona: ResolvedPer
       await sleep(100, deps.signal);
     }
   } finally {
-    // Through about:blank on a read-only run: what the page sends while it unloads meets the write guard (L1.7).
+    // Through about:blank on a read-only run: what the page sends while it unloads meets the write guard.
     await closePage(page);
   }
 }
@@ -480,7 +480,7 @@ export interface LoginDeps extends CheckDeps {
   template: TemplateContext;
   secrets: RunSecrets;
   /**
-   * The sign-in tab, before its first navigation (L1.7): a guarded run exempts it from the write guard while its main
+   * The sign-in tab, before its first navigation: a guarded run exempts it from the write guard while its main
    * frame is on a sign-in page (`onSignInPage`; its POST /sign-in must happen) and guards it elsewhere (the page the
    * sign-in lands on) — BrowserSession.markSignIn.
    */
@@ -595,7 +595,7 @@ async function runLoginStep(page: Page, kit: KitClient, step: NormalizedStep, pe
  * and the kit's targets. Errors name the step as written (never a typed value) and are redacted.
  */
 export async function autoLogin(context: BrowserContext, persona: ResolvedPersona, deps: LoginDeps): Promise<void> {
-  // A sandbox account's plain password (L1.8) is a secret as written: masked before anything can print it (a run's
+  // A sandbox account's plain password is a secret as written: masked before anything can print it (a run's
   // files and messages, and `retake login`'s, which builds its own RunSecrets).
   for (const v of persona.secrets ?? []) deps.secrets.addValue(v);
   const raw = persona.login ?? [];
@@ -608,7 +608,7 @@ export async function autoLogin(context: BrowserContext, persona: ResolvedPerson
   const page = await context.newPage();
   // Counted before its first request (a session's browsers already do; a `wait_for: {network_idle}` step reads it).
   trackRequests(page);
-  // The write guard's exemption (L1.7): while the steps run, on the persona's sign-in pages — every page when it
+  // The write guard's exemption: while the steps run, on the persona's sign-in pages — every page when it
   // declares none (login_url / check.expect_not_url narrow it) —; never while the tab closes.
   const matchers = loginMatchers(persona.loginPatterns, deps.envPages);
   let signingIn = true;
@@ -657,7 +657,7 @@ export interface PreflightDeps extends LoginDeps {
   log: Log;
   /** The command that signs a persona in again (default core loginCommand). */
   loginCommand?: (p: { project: string; env: string; persona?: string }) => string;
-  /** Each persona's result as it is known (L4.4: the run's `session` progress events); `detail` may hold page text. */
+  /** Each persona's result as it is known (the run's `session` progress events); `detail` may hold page text. */
   onPersona?: (persona: string, status: RunSessionStatus, detail?: string) => void;
 }
 
@@ -667,7 +667,7 @@ export interface PreflightDeps extends LoginDeps {
  * resolved one after the other first — a keychain prompt each —, then the logins in parallel) and checked again. The
  * status of each check is saved (an automatic login leaves the saved session expired: nothing is written back). Throws
  * a PreflightError naming each failing persona and the exact `retake login` command to run. The legacy single-account
- * form never fails for a missing or unchecked session (as before L1.6: the run starts signed out).
+ * form never fails for a missing or unchecked session (the run starts signed out).
  */
 export async function preflight(session: BrowserSession, prepared: readonly PreparedSession[], deps: PreflightDeps): Promise<void> {
   const command = (p: ResolvedPersona) => (deps.loginCommand ?? loginCommand)({ project: deps.project, env: p.env, persona: p.legacy ? undefined : p.name });
@@ -743,7 +743,7 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
       }
       const again = await checkPersona(context, p.persona, deps);
       if (again.status === 'valid' || again.status === 'unchecked') {
-        // A sandbox account (L1.8) signs in on every take after a reset: expected, not worth a warning.
+        // A sandbox account signs in on every take after a reset: expected, not worth a warning.
         if (p.persona.sandbox) deps.log('info', `${personaLabel(p.persona)}: signed in automatically, off camera (${why}; a sandbox account)`);
         else deps.log('warn', `${personaLabel(p.persona)}: signed in automatically, off camera (${why}) — \`${command(p.persona)}\` saves a session runs can reuse`);
         statuses.push({ persona: p.persona, status: 'expired', detail: `${why}; signed in automatically for run ${deps.runId}`, at: again.at });
@@ -777,8 +777,8 @@ export interface GuardTarget {
 }
 
 /**
- * The sign-in patterns a page shown as `persona` is watched with (L1.6): the persona's own; a page without a persona
- * (null), the environment's (`auth.login_url`). Shared by a run's sign-in guard and a recording (L3.4).
+ * The sign-in patterns a page shown as `persona` is watched with: the persona's own; a page without a persona
+ * (null), the environment's (`auth.login_url`). Shared by a run's sign-in guard and a recording.
  */
 export function signInMatchers(project: Pick<LoadedProject, 'config'>, env: { name: string; pages: Record<string, string> }, persona: Pick<ResolvedPersona, 'loginPatterns'> | null): LoginMatcher[] {
   return loginMatchers(persona ? persona.loginPatterns : environmentLoginPatterns(project.config, env.name), env.pages);
@@ -798,7 +798,7 @@ export interface Landing {
 }
 
 /**
- * Watches the filmed pages (L1.6): the first one whose main frame lands on a sign-in page fails the run — `onLanding`
+ * Watches the filmed pages: the first one whose main frame lands on a sign-in page fails the run — `onLanding`
  * aborts it with the LoginPageError (the run keeps nothing of its capture). Same-document navigations count too
  * (Playwright reports pushState routes as frame navigations).
  */

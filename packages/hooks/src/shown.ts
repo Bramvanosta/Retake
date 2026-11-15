@@ -91,7 +91,7 @@ export function referencesSecrets(action: RollbackAction): boolean {
 /**
  * A rollback action in full, as it would run — its templates filled from the data the entry carries (a secret is never
  * resolved: an action that references one is shown as written) — one line per field, every character visible
- * (shown.ts; L5.14: what a person reads before replaying an entry Retake did not sign).
+ * (what a person reads before replaying an entry Retake did not sign).
  */
 export function rollbackActionLines(action: RollbackAction): string[] {
   let a: RollbackAction = action;

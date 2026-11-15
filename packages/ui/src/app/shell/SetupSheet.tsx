@@ -1,5 +1,5 @@
 /**
- * L5.16c: the installed app's Set-up sheet (shell/setup.ts; DESIGN §4p (c); docs/reference/studio-ui.md) — a kit Sheet
+ * The installed app's Set-up sheet (shell/setup.ts; DESIGN §4p (c); docs/reference/studio-ui.md) — a kit Sheet
  * with one checklist: the workspace, the Retake home, the `retake` command, Claude Code, Claude Desktop, notifications,
  * screen recording (not needed: captures are headless) and the local network. Each step acts only on its own click
  * through the Studio's setup ops (never MCP tools; the desktop app's own server only); Done closes it and remembers it
@@ -7,11 +7,11 @@
  * the app's native panel. Claude Code's output and Claude Desktop's current entry are other programs' text: shown as
  * text (Txt). When the app runs from a translocated copy, a disk image or /Volumes, the command and Claude steps are
  * off and the sheet says "Move Retake to Applications, then open it again".
- * L5.16c fixes (review c A-M2 / A-L6 / A-L7 / A-L8): the focus — the sheet opens on its title (the top in view; a first
- * Return chooses nothing), Help › Uninstall the retake Command… on the confirmation's Uninstall, an inline confirmation
- * on its own button, and back to the item's opener when it closes (else the item's first action, else its title); only
- * Done remembers the sheet (Escape closes it without that). The folder panel is said only once the shell opened it. The
- * process list (Claude Desktop running) is read only while that step is in view, or when the window comes to front.
+ * The focus — the sheet opens on its title (the top in view; a first Return chooses nothing), Help › Uninstall the
+ * retake Command… on the confirmation's Uninstall, an inline confirmation on its own button, and back to the item's
+ * opener when it closes (else the item's first action, else its title); only Done remembers the sheet (Escape closes it
+ * without that). The folder panel is said only once the shell opened it. The process list (Claude Desktop running) is
+ * read only while that step is in view, or when the window comes to front.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -146,7 +146,7 @@ export function SetupSheet({ route }: { route: Route }) {
       window.removeEventListener('focus', onFocus);
     };
   }, [open, load]);
-  // The Claude Desktop step in view (review c A-L8): only then is the process list read.
+  // The Claude Desktop step in view: only then is the process list read.
   useEffect(() => {
     if (!open || !st?.available) return;
     const d = document.querySelector<HTMLDialogElement>(SHEET);
@@ -212,7 +212,7 @@ export function SetupSheet({ route }: { route: Route }) {
     );
   };
 
-  /** Done remembers the sheet for this version; Escape closes it without that (review c A-L6: no choice was seen). */
+  /** Done remembers the sheet for this version; Escape closes it without that (no choice was seen). */
   const close = (id: string) => {
     setOpen(false);
     setSaid(null);
@@ -248,7 +248,7 @@ export function SetupSheet({ route }: { route: Route }) {
     const cli = st.cli!;
     const cc = st.claude_code!;
     const cd = st.claude_desktop!;
-    // Not moved to Applications: the steps that record the app's path wait (critique H1).
+    // Not moved to Applications: the steps that record the app's path wait.
     const held = { state: 'attention' as const, word: 'Blocked: move the app first' };
     const c = placed ? cliStep(cli) : held;
     const d = placed ? desktopStep(cd) : held;

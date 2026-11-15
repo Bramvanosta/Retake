@@ -7,7 +7,7 @@
  * server's wrapper exiting) — such a group is ours only when one of its members is a process recorded in the service's
  * group once it was healthy (pid and start time): a pid reused by another program can lead a group of the same id.
  *
- * An OS utility of core's io side (L7.25: from @retake/sandbox, which re-exports it): the sandbox's process provider,
+ * An OS utility of core's io side (from @retake/sandbox, which re-exports it): the sandbox's process provider,
  * the take lock (io/lock.ts) and the engine's jobs (who a worker or a job process is, its process tree) use it.
  */
 import { execFile, execFileSync } from 'node:child_process';
@@ -49,7 +49,7 @@ export function parseProcessTable(text: string): ProcInfo[] {
 
 const PS_TABLE_ARGS = ['-A', '-o', 'pid=,ppid=,pgid=,lstart='];
 
-/** The longest one `ps` may take (ms): a hung `ps` never blocks a stop or a cancel (L5.14a fixes, review A L4). */
+/** The longest one `ps` may take (ms): a hung `ps` never blocks a stop or a cancel. */
 export const PS_TIMEOUT_MS = 5_000;
 
 /** Every process of this machine (empty when ps cannot run or takes longer than PS_TIMEOUT_MS). */

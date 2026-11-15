@@ -1,5 +1,5 @@
 /**
- * The in-memory capture runner's run (memory-capture.ts `run`, L7.12 Part 2): what a run does that the engine reads,
+ * The in-memory capture runner's run (memory-capture.ts `run`): what a run does that the engine reads,
  * without a browser or an encoder — the run folder and its run.json through the request's Outputs port (`req.runs`:
  * reserve, writeJson) and core's records (startedRun, finishRun), scenario.yaml, a minimal timeline.json, a marker capture.mp4 in capture mode; the progress
  * events (`run_start`, `outline`, hooks, `scene_start`, `step_start` / `step_end`, pauses, `run_end`); the signal, `until`,
@@ -10,7 +10,7 @@
  * A `wait` or `hold` step sleeps its seconds (abortably): a cancel during a run is seen as with the runner. A step the
  * options script as failing (`fail`) fails the run there. Limits: nothing is opened, filmed, typed or checked; no
  * persona, no sign-in, no secret, no write guard; a dry run executes every step (no irreversible one is skipped).
- * What it stamps (run.json's times, a pause's, the timeline's) is its clock's; elapsed times are performance.now()'s.
+ * What it stamps (run.json's times, a pause's, the timeline's) is its clock's; elapsed times are performance.now's.
  */
 import { join, resolve } from 'node:path';
 import { FORMAT_VERSIONS, errorMessage } from '@retake/core/base';

@@ -1,5 +1,5 @@
 /**
- * The MCP server's job tools: job_list (L7.13), job_cancel (L7.15) and job_status (L7.18, with its recording answer)
+ * The MCP server's job tools: job_list, job_cancel and job_status (with its recording answer)
  * are the engine's operations, served here as these very objects in tools/list order.
  */
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';

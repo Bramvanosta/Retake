@@ -1,20 +1,20 @@
 /**
- * The edit of today's scenario on an existing take (L5.5, R-FLD-01). When the filmed part of a scenario is unchanged
+ * The edit of today's scenario on an existing take (R-FLD-01). When the filmed part of a scenario is unchanged
  * since a run (core filmedChanges), a render re-plans the edit from today's file: this module rewrites the run's
  * timeline — the planner's only input — with today's edit values on the run's measurements.
  *
  * Kept from the take: every capture time (scenes, steps, holds, clicks), the cursor, the pages, the target boxes the
  * runner measured, the artefacts (mails, documents, notifications, texts), the tracks, the environment.
  * From today's file: title, intro / outro, frame, template, music, tutorial switches, target length, the caption
- * component (L4.5); the cards and interstitials and their place between the scenes; each scene's caption, speed,
- * transition, frame, tutorial switches, page labels and `offscreen` (L5.8); each step's caption, speed, tutorial
+ * component; the cards and interstitials and their place between the scenes; each scene's caption, speed,
+ * transition, frame, tutorial switches, page labels and `offscreen`; each step's caption, speed, tutorial
  * switches, id, mark (the markers are rebuilt on the steps' start times), overlay and camera hint.
  *
  * A value equal to the run's snapshot keeps the timeline's (templated at capture: `{{hooks.…}}` resolved then). A
  * changed value is templated now with the edit context (display URLs, vars, run); a token only the take knew
  * (`{{hooks.…}}`, a secret) keeps the captured value with a warning. An overlay or camera hint names its target: the
  * same target as the take measured reuses that box; none (the default) uses the step's target box, else the cursor at
- * the end of the step (`end_point`, L5.5); a target the take never measured falls back to the step's with a warning.
+ * the end of the step (`end_point`); a target the take never measured falls back to the step's with a warning.
  */
 import { canonicalJson } from './canonical-json.js';
 import { overlayUseOf } from './overlay-use.js';
@@ -79,7 +79,7 @@ export function replanEdit(input: ReplanEditInput): ReplanEditResult {
   };
 
   // ── Video ───────────────────────────────────────────────────────────────────
-  // A run made before L2.1 has no video block: the snapshot's (the planner reads it from there for such a run).
+  // An older run without a video block: the snapshot's (the planner reads it from there for such a run).
   const video: TimelineVideo = { ...(src.video ?? timelineVideo(then, input.project)) };
   const vNow = timelineVideo(now, input.project);
   for (const k of ['title', 'intro', 'outro', 'music', 'tutorial'] as const) {
@@ -154,7 +154,7 @@ export function replanEdit(input: ReplanEditInput): ReplanEditResult {
       if (entry[k] === undefined) delete out[k];
       else (out as unknown as Record<string, unknown>)[k] = k === 'speed' || k === 'frame' ? entry[k] : tpl(structuredClone(entry[k]), ['scenes', si, k], ts[k], `the ${k} of ${where}`);
     }
-    // Off camera (L5.8): the take played it either way; today's file says whether the video shows it.
+    // Off camera: the take played it either way; today's file says whether the video shows it.
     if (!same(entry.offscreen === true, old?.offscreen === true)) changes.push(`offscreen of ${entry.id}`);
     if (entry.offscreen === true) out.offscreen = true;
     else delete out.offscreen;

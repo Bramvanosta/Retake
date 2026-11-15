@@ -1,8 +1,7 @@
 /**
- * The schema pieces of the operations' inputs (moved from the MCP server's schema.ts in L7.13, verbatim: the same zod
- * objects, so the published JSON Schemas stay byte for byte). Every name an operation takes is a slug or an id, checked
- * here before the engine (and core, which also accepts paths) sees it. Published in *input* mode by the shells: a field
- * with a default is optional for the caller.
+ * The schema pieces of the operations' inputs (the zod objects the published JSON Schemas are made from). Every name an
+ * operation takes is a slug or an id, checked here before the engine (and core, which also accepts paths) sees it.
+ * Published in *input* mode by the shells: a field with a default is optional for the caller.
  */
 import { z } from 'zod';
 import { COMPONENT_ID_RE, SLUG_RE } from '@retake/core/model';

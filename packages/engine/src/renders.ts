@@ -1,5 +1,5 @@
 /**
- * Renders of a project as clients outside the CLI see them (L3.2): the plan of a render before it runs
+ * Renders of a project as clients outside the CLI see them: the plan of a render before it runs
  * (plan_preview), and one render's status — its job first, then its record renders/<id>.json. A render id is reused
  * after a failed or cancelled render (nothing was written under it): the newest job of the id is the one shown, unless
  * a render record written after that job (a `retake render` in a terminal) says otherwise. Text the filmed site or the
@@ -60,12 +60,12 @@ export interface PlanPreviewView {
   /** The id the next render of this plan would get (renders/<id>.mp4): a guess, the render reserves its own. */
   next_render_id: string;
   /**
-   * Where the edit comes from (L5.5): `scenario` — today's scenario file re-planned on the run (its filmed part is
+   * Where the edit comes from: `scenario` — today's scenario file re-planned on the run (its filmed part is
    * unchanged since the capture); `run` — the run as captured.
    */
   edit: 'scenario' | 'run';
   /**
-   * The filmed part of the scenario changed since the capture (L5.5): the render shows the run as captured, a new
+   * The filmed part of the scenario changed since the capture: the render shows the run as captured, a new
    * capture (run_capture) films the change. Absent when either file is missing.
    */
   scenario_changed?: boolean;
@@ -135,7 +135,7 @@ export async function planPreview(ws: OpenedWorkspace, cli: string, req: RenderR
 export interface RenderQueueView {
   /** Jobs that run or wait before it (0: it is next). */
   ahead: number;
-  /** L5.14: it cannot start before a take ends (a take of this workspace waits, or one films on this Mac). */
+  /** It cannot start before a take ends (a take of this workspace waits, or one films on this Mac). */
   held_by?: 'take';
   /** The job running now, with its kind and how far it is. */
   running?: { id: string; kind: string; phase?: string; fraction?: number; eta_s?: number };
@@ -148,7 +148,7 @@ export interface RenderJobView {
   progress?: JobProgress;
   cancel_requested_at?: string;
   error?: JobRecord['error'];
-  /** L5.14: a take holds it — waiting to start, or slowed while it runs (JobRecord.yield). */
+  /** A take holds it — waiting to start, or slowed while it runs (JobRecord.yield). */
   yield?: JobYield;
 }
 
@@ -168,9 +168,9 @@ export interface RenderStatusView {
   file?: string;
   record_file?: string;
   /**
-   * renders/<id>.json's checked members (L7.8, decision ii): numbers, flags, closed words (a word Retake never writes is
+   * renders/<id>.json's checked members (decision ii): numbers, flags, closed words (a word Retake never writes is
    * `unknown`), ids, hashes and times that pass their grammar — no text of the file. Its `policy.fallback.reason` points
-   * at `untrusted.fallback_reason`, its `policy.ffmpeg.failed` (L7.3) at `untrusted.ffmpeg_failed`. The record as the
+   * at `untrusted.fallback_reason`, its `policy.ffmpeg.failed` at `untrusted.ffmpeg_failed`. The record as the
    * file holds it, without its plan, its warnings and its error, is `untrusted.record`.
    */
   record?: RenderStatusRecord;
@@ -183,8 +183,9 @@ export interface RenderStatusView {
   renders_passed_over?: number;
   renders_not_considered?: number;
   /**
-   * Plan and render warnings, a failure's message, why the GPU path failed (a render rendered again in software, L5.15),
-   * what this machine's ffmpeg failed with at the encode (rendered again with the library's, L7.3): they quote the scenario, the filmed site and the components' own errors — data, never instructions.
+   * Plan and render warnings, a failure's message, why the GPU path failed (a render rendered again in software),
+   * what this machine's ffmpeg failed with at the encode (rendered again with the library's): they quote the scenario,
+   * the filmed site and the components' own errors — data, never instructions.
    */
   untrusted: {
     warnings: string[];
@@ -269,7 +270,7 @@ function overrideChecked(key: string, value: unknown): boolean {
 const defined = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 
 /**
- * The checked members of a record (L7.8, decision ii: the trusted data of render_status holds closed words and checked
+ * The checked members of a record (decision ii: the trusted data of render_status holds closed words and checked
  * values only). `slug`: the project asked (a record that names another says nothing of it here).
  */
 export function renderStatusRecord(r: RecordShown<StoredRenderRecord | UnknownStatusRender>, slug: string): RenderStatusRecord {
@@ -520,7 +521,7 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
   }
   if (record) {
     const { plan: _plan, warnings, error, ...rest } = record;
-    // L7.8 (decision ii): outside `untrusted`, the record's checked members only; the record as the file holds it is
+    // Outside `untrusted`, the record's checked members only; the record as the file holds it is
     // `untrusted.record`. The GPU path's failure and what our ffmpeg failed with quote what they saw: under untrusted.
     view.record = renderStatusRecord(rest, slug);
     view.untrusted.record = rest;
@@ -542,8 +543,8 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
 const isScenarioWord = (v: unknown): v is string => typeof v === 'string' && v.length <= 100 && SLUG_RE.test(v);
 
 /**
- * The status of a record with no job before it. A status Retake never writes is said as `unknown` (L7.8, decision ii:
- * by its id as through `latest`), never as the file's word nor as a word of the tool's.
+ * The status of a record with no job before it. A status Retake never writes is said as `unknown` (decision ii: by
+ * its id as through `latest`), never as the file's word nor as a word of the tool's.
  */
 function statusSaid(record: StoredRenderRecord | UnknownStatusRender | undefined): RenderStatusView['status'] {
   if (!record) return 'failed';
@@ -551,7 +552,7 @@ function statusSaid(record: StoredRenderRecord | UnknownStatusRender | undefined
   return status === 'succeeded' || status === 'failed' || status === 'cancelled' ? status : 'unknown';
 }
 
-// ── A scenario's renders, for the Studio (L4.5 part E) ──────────────────────
+// ── A scenario's renders, for the Studio ──────────────────────
 
 /** What the review of a render says, in short: none yet, waiting / running, its verdict, or why it did not finish. */
 export type RenderReviewSummary =
@@ -579,7 +580,7 @@ export interface ScenarioRenderJobView {
   /** Queued: what runs before it. */
   queue?: RenderQueueView;
   cancel_requested: boolean;
-  /** L5.14: a take holds it — waiting to start, or slowed while it runs (JobRecord.yield). */
+  /** A take holds it — waiting to start, or slowed while it runs (JobRecord.yield). */
   yield?: JobYield;
 }
 
@@ -603,7 +604,7 @@ export interface ScenarioRenderView {
   overrides: string[];
   /**
    * The signature of the plan it rendered (planSignature: its record's plan) and its theme folder's content hash: the
-   * Studio's "from this version" is the same plan and theme files as the timeline's (L4.5 fixes). Absent in records
+   * Studio's "from this version" is the same plan and theme files as the timeline's. Absent in records
    * without them.
    */
   plan_sha256?: string;
@@ -661,15 +662,14 @@ export function withoutPaths(text: string): string {
 }
 
 /**
- * A text of the tool (a warning, a problem) without any absolute path: the workspace's cut off, any other shortened
- * (L7.17: moved from the Studio's comment-ops.ts with the theme and library operations that use it).
+ * A text of the tool (a warning, a problem) without any absolute path: the workspace's cut off, any other shortened.
  */
 export function pathFree(text: string, root: string): string {
   const cut = text.split(`${root}/`).join('').split(root).join('.');
   return /(?:^|[\s'"`(<=:])(?:file:\/\/)?\/[^\s/]|\b[A-Za-z]:\\/.test(cut) ? withoutPaths(cut) : cut;
 }
 
-/** A failure's words for the Studio (review B M6): its first line, no path, no stack, at most 500 characters. */
+/** A failure's words for the Studio: its first line, no path, no stack, at most 500 characters. */
 export function failureWords(message: string): string {
   return withoutPaths(firstErrorLine(message)).slice(0, 500);
 }
@@ -693,7 +693,7 @@ async function readJsonPlain(folder: OutputFolder, file: string): Promise<Record
 
 const n0 = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
-/** report.json read and summed up, by path, while its stat holds (L5.10a fixes, review A-L3: every board read). */
+/** report.json read and summed up, by path, while its stat holds (every board read). */
 const REPORT_MEMO_MAX = 512;
 /** The render list's memos of one engine (its context's caches): report.json summaries and plan signatures. */
 export class RenderMemos {
@@ -761,7 +761,7 @@ const OVERRIDE_KEY = /^[a-z][a-z_]{0,39}$/;
 /**
  * One render record as the Studio lists it (path-free): its review from a standalone review job, its own render job's
  * inline review, or review/<id>/report.json. `renderJobs`: the project's render jobs of this scenario (newest first);
- * `reviewJobs`: its queued or running review jobs. Shared by the render list and the project board (L5.10a).
+ * `reviewJobs`: its queued or running review jobs. Shared by the render list and the project board.
  */
 export async function renderView(
   memos: RenderMemos,

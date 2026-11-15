@@ -1,5 +1,5 @@
 /**
- * The take and the two rules (L7.6a, core take.ts), on facts — no disk: whether a capture can be edited (`takeOf`),
+ * The take and the two rules (core take.ts), on facts — no disk: whether a capture can be edited (`takeOf`),
  * the named run's own rule (`namedRunProblem`), the order of runs (`orderRuns`) and `latest` (`latestTake`).
  * The same rules over the whole table of states, read from real folders: run-folder.test.ts.
  */
@@ -540,7 +540,7 @@ it('the base record of the table is the good capture these tests start from', ()
   expect(takeOf(facts()).usable).toBe(true);
 });
 
-// ── Rule 3: the captures prune keeps (L7.7) ─────────────────────────────────
+// ── Rule 3: the captures prune keeps ─────────────────────────────────
 
 describe('pruneKeeper: the captures prune keeps, per scenario', () => {
   const UNTIL = { stopped_at: { scene: 'one', step: 1, reason: 'until' }, options: { hooks: 'run', headed: false, until: 'one.1' } };

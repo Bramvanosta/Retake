@@ -1,5 +1,5 @@
 /**
- * L4.5 part A: whether a component fits a use as the scenario writes it (fit.ts `componentFit`, critique B7: the
+ * Whether a component fits a use as the scenario writes it (fit.ts `componentFit`: the
  * timeline shows an option that does not fit disabled with why, and `set_field` refuses it) — on the built-in library
  * and workspace components; and the manifest's `engines.kit` (the guard-rail): a component written for another kit API
  * is not loaded (a registry notice), so its uses fall back.

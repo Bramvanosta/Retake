@@ -15,7 +15,7 @@ export interface TokenScope {
   /** `save_as` names of http hooks ({{hooks.<name>…}}). */
   saved: ReadonlySet<string>;
   /**
-   * `{{account.username}}` / `{{account.password}}` (sandbox.yaml, L1.8): `login` in an account's login steps (where
+   * `{{account.username}}` / `{{account.password}}` (sandbox.yaml): `login` in an account's login steps (where
    * they are substituted), `elsewhere` in the rest of a sandbox.yaml (refused); absent: not a special root.
    */
   account?: 'login' | 'elsewhere';

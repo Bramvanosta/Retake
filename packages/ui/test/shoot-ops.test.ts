@@ -1,5 +1,5 @@
 /**
- * L5.11a: the status bar's read over HTTP — `scenario_actions` behind the gate: in the `ui` allow-list (a Studio read,
+ * The status bar's read over HTTP — `scenario_actions` behind the gate: in the `ui` allow-list (a Studio read,
  * not an MCP tool), its input pinned (a strict object: project slug, scenario name, an environment name — refused before
  * any read), its answer path-free but the blockers' commands (`fix`, `fix_node`: the commands a person types), the
  * blockers with their gate's `kind` and `count`, and the same blockers scenario_blocks shows for the same location.
@@ -84,7 +84,7 @@ describe('scenario_actions', () => {
     expect(a.run_blockers.dry).toEqual([]);
     expect(a.run_blockers.capture).toHaveLength(1);
     expect(a.run_blockers.capture[0]).toMatchObject({ code: 'needs_approval', kind: 'needs_approval', count: 1, fix: expect.stringMatching(new RegExp(`run ${P} quote$`)) });
-    // Path-free but the commands a person types (critique L9: fix and fix_node, explicitly).
+    // Path-free but the commands a person types (fix and fix_node, explicitly).
     const without = { ...a, run_blockers: { dry: a.run_blockers.dry, capture: a.run_blockers.capture.map(({ fix: _f, fix_node: _n, ...rest }) => rest) } };
     expect(JSON.stringify(without)).not.toContain(ws);
     expect(JSON.stringify(without)).not.toMatch(/"file"|\/scenarios\//);

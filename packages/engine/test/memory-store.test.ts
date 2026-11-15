@@ -2,8 +2,9 @@
  * The ProjectStore port's memory adapter (store/memory-store.ts): the contract suite the disk adapter passes
  * (project-store-contract.ts), its stated limit (a `build` reading its stage from the disk fails), and the README's
  * rules through the engine on in-memory ports — conflict, creation, the cap, and project_get reading back what was
- * written — with exact journal lines under a ManualClock, the workspace itself in memory (a MemoryWorkspace, L7.38). One disk test of each kind stays: engine.test.ts (conflict,
- * replacement), storage-links.test.ts (a link written through), project-store.test.ts (the journal on disk).
+ * written — with exact journal lines under a ManualClock, the workspace itself in memory (a MemoryWorkspace). One disk
+ * test of each kind stays: engine.test.ts (conflict, replacement), storage-links.test.ts (a link written through),
+ * project-store.test.ts (the journal on disk).
  */
 import { readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -81,7 +82,7 @@ describe('the memory store: what only the disk does', () => {
 describe('the README on in-memory ports (engine.projects: updateReadme, get)', () => {
   const AT = '2026-05-06T07:08:09.000Z';
   const clock = new ManualClock(AT);
-  // L7.38: the workspace is in memory too (a MemoryWorkspace: its reads and its store share one Map) — no folder of the disk.
+  // The workspace is in memory too (a MemoryWorkspace: its reads and its store share one Map) — no folder of the disk.
   // A new one for each case: its README and journal lines are the case's own.
   let mem: MemoryWorkspace;
   let stores: MemoryWorkspace['stores'];

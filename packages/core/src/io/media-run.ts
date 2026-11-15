@@ -1,5 +1,5 @@
 /**
- * The one place that starts the media tools (ffmpeg, ffprobe; L7.31, finding X3): a run to its end with its output
+ * The one place that starts the media tools (ffmpeg, ffprobe): a run to its end with its output
  * collected (`runMediaTool`, `runMediaToolSync`) or a process the caller streams through (`startMediaTool`) — with the
  * arguments as given, a time limit, a cancel, the signal each sends, what the tool wrote on stderr kept, and one error
  * type for what went wrong (`MediaToolError`). Which tool runs is media-tools.ts's (ffmpegBin / ffprobeBin, under the

@@ -1,5 +1,5 @@
 /**
- * Projects for what prune keeps (L7.7; test data only: see README.md): each layout is one project whose runs/ holds a
+ * Projects for what prune keeps (test data only: see README.md): each layout is one project whose runs/ holds a
  * few run folders in the states of states.json, with the renders and comment threads named. Shared by the prune tests
  * of the engine and of the CLI, which each hold their own expected answers.
  *
@@ -31,7 +31,7 @@ export interface LayoutRender {
   /** The files' name when it is not the id (a render renamed by hand). */
   file?: string;
 }
-/** A file of renders/ in a state of render-states.json's kind (L7.6b): the entry, and the label of the run it names. */
+/** A file of renders/ in a state of render-states.json's kind: the entry, and the label of the run it names. */
 export interface LayoutRenderFile {
   spec: RenderFileSpec;
   run: string;
@@ -45,7 +45,7 @@ export interface Layout {
   about: string;
   runs: LayoutRun[];
   renders?: LayoutRender[];
-  /** Files of renders/ written after `renders`, in order (L7.6b). */
+  /** Files of renders/ written after `renders`, in order. */
   files?: LayoutRenderFile[];
   /** Folders of review/ (each holds one small file). */
   reviews?: string[];

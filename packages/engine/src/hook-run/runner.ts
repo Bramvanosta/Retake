@@ -1,5 +1,5 @@
 /**
- * The HookRunner port (L7.11, U6): how the engine runs hooks outside a capture — the hooks of `retake hooks run`, of a
+ * The HookRunner port: how the engine runs hooks outside a capture — the hooks of `retake hooks run`, of a
  * `hooks` or `env_reset` job, a sandbox's approvals, the dry-run preflight of work submitted through MCP or the Studio —
  * and replays the rollbacks their journals hold. Its vocabulary is core's (hook-run.ts); it names no adapter, types
  * included (the import-rules ratchet's `port-types`). Adapters: the hooks package (`packageHookRunner`,
@@ -12,7 +12,7 @@
 import type { HookStep } from '@retake/core/hooks';
 import type { HookContext, HookJournal, HookPlace, HookResult, HookRunOptions, SandboxHookRunner, TrustFilesPlace, TrustedHookFiles } from '@retake/core/hooks';
 
-// L7.25: a journal's handle, a run's options and the capture's part of the port are core's (hook-run.ts), shared with
+// A journal's handle, a run's options and the capture's part of the port are core's (hook-run.ts), shared with
 // runner-web's RunOptions.hookRunner; re-exported here for the engine's modules.
 export type { HookJournal, HookPlace, HookRunOptions } from '@retake/core/hooks';
 
@@ -37,7 +37,7 @@ export interface HookJournalRollback {
 export interface HookRunner extends SandboxHookRunner {
   /**
    * Load what runs the hooks (the package adapter: the hooks package), so that a caller that must tell a load failure
-   * from a hook's — the capture's hooks (runner-web's run, L7.12) — can; resolves at once once loaded. Every other member
+   * from a hook's — the capture's hooks (runner-web's run) — can; resolves at once once loaded. Every other member
    * loads on its own call too.
    */
   load(): Promise<void>;
@@ -63,7 +63,7 @@ export interface HookRunner extends SandboxHookRunner {
     fingerprint(hook: HookStep, place: HookPlace): Promise<string>;
     /** The project files `hook` references (their sha256: part of its fingerprint) and those it may not use. */
     files(hook: HookStep, o: { projectDir: string; baseDir?: string; agentWritten?: boolean }): Promise<{ files: Record<string, string>; problems: string[] }>;
-    /** The files `hook` reads as a person's trust binds them (L7.39: code and data, by project path; not a fingerprint's list). */
+    /** The files `hook` reads as a person's trust binds them (code and data, by project path; not a fingerprint's list). */
     trustFiles(hook: HookStep, place: TrustFilesPlace): Promise<TrustedHookFiles>;
   };
 }

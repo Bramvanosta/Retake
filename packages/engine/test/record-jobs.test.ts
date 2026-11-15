@@ -1,5 +1,5 @@
 /**
- * L3.4 `record` jobs (engine jobs/record-job.ts, R-MCP-24) on the fixture product, the worker run in this process
+ * `record` jobs (engine jobs/record-job.ts, R-MCP-24) on the fixture product, the worker run in this process
  * (`once`) with an injected driver: Playwright stands in for the person in a headless "headed" window (the worker
  * port `recordWindow`, which a worker process cannot receive). Refusals at submit (another origin, a template, an
  * unknown page, a bad name, a protected host); a recording of the lab (a sentinel typed in its password field, a note):

@@ -1,4 +1,4 @@
-//! The quit guard (L5.2b, DESIGN §4j): before the app quits (⌘Q, the menu, the Dock, a quit Apple event, logout) or
+//! The quit guard (DESIGN §4j): before the app quits (⌘Q, the menu, the Dock, a quit Apple event, logout) or
 //! opens another workspace with jobs running or unsaved text in the window, it asks — words from desktop_core::words,
 //! the server's last `pending` snapshot (child.rs) as the facts. Nothing pending (or no server of this app's own: an
 //! attached one has no pipe): no question, Quit stays instant — a mutex read.
@@ -6,33 +6,33 @@
 //! - The hook: `applicationShouldTerminate:` added at launch to the class of NSApp's delegate (tao 0.37 does not
 //!   implement it; Tauri's ExitRequested never fires for ⌘Q). If the class already has it (a later tao), the guard is
 //!   off and says so ("quit guard off"): the gated test turns red at that upgrade, never silent.
-//! - L5.12d: a plain Quit asks the window's page first (desktop_core::guard_flow — its rules and their tests): the hook
+//! - A plain Quit asks the window's page first (desktop_core::guard_flow — its rules and their tests): the hook
 //!   answers Cancel at once, shows the window and dispatches `studio:quit` (the question's words from words.rs as
 //!   JSON data and a fresh id, only while the window is on the Studio's own origin); the page's kit Sheet acks `shown`
 //!   and answers through the op `desktop_answer`, which the server writes on its pipe (child.rs → `from_page`). Quit
-//!   Anyway re-enters through `request_terminate()` (as SIGUSR2 does: no TerminateLater, no reply from a tao callback);
+//!   Anyway re-enters through `request_terminate` (as SIGUSR2 does: no TerminateLater, no reply from a tao callback);
 //!   no ack within 1.5 s, logout / restart / shut down, test mode's RETAKE_DESKTOP_TEST_QUIT=native: the native
 //!   alert below. Every exit from a page question closes its sheet (`studio:quit-close`).
 //! - The native alert: app-modal inside the hook (the standard pattern: logout waits for it), the window shown first.
-//!   Unsaved text: Cancel is the default button and Quit Anyway destructive (critique M3); jobs only: Quit Anyway first.
-//! - Logout, restart and shut down (review B M2): the quit Apple event's `kAEQuitReason` picks the words — the jobs
+//!   Unsaved text: Cancel is the default button and Quit Anyway destructive; jobs only: Quit Anyway first.
+//! - Logout, restart and shut down: the quit Apple event's `kAEQuitReason` picks the words — the jobs
 //!   worker ends with the session, so its jobs stop; at a restart or shut down, jobs alone ask nothing (an unattended
 //!   restart is never held by them), unsaved text still asks.
 //! - SIGTERM / SIGINT / SIGHUP stay "quit now" (`app.exit` → `[NSApp stop:]`, never `terminate:`): QUIT_NOW is set
 //!   before, and the signal thread ends whichever modal of the shell is up (macos::end_modals: this question, Open
-//!   Workspace…'s, the restart alert, "not a workspace", the picker — review B M1); the hook then answers Now.
-//! - AppKit treats a `terminate:` sent while the hook is still deciding as Now, without asking again (critique H2):
+// !   Workspace…'s, the restart alert, "not a workspace", the picker); the hook then answers Now.
+//! - AppKit treats a `terminate:` sent while the hook is still deciding as Now, without asking again:
 //!   GUARD_OPEN is set while a question is up; the test hook (SIGUSR2) is ignored then, and the restart alerts wait.
 //!   A `terminate:` while any other modal of the shell is up (the restart alert, the picker, a question of Open
-//!   Workspace…) answers Cancel (review B L13): no question nested in another, no `applicationWillTerminate` inside a
+//!   Workspace…) answers Cancel: no question nested in another, no `applicationWillTerminate` inside a
 //!   modal a Tauri callback opened (tao's callback lock: the H1 hang).
-//! - Never call `terminate:` from a Tauri / tao callback (critique H1: tao's callback lock is held there, and
-//!   `applicationWillTerminate` takes it again — a hang): the test hook sends it through
+//! - Never call `terminate:` from a Tauri / tao callback (tao's callback lock is held there, and ! 
+// `applicationWillTerminate` takes it again — a hang): the test hook sends it through
 //!   `performSelectorOnMainThread:` from its own thread, like a real ⌘Q arrives (outside tao's callback).
 //! - A panic in the hook answers Now (catch_unwind): an app that cannot quit is worse than a question not asked.
 //! - Open Workspace… stays native (BL-135: through the page it would turn a synchronous menu callback into an async
 //!   flow); it drops a page question first.
-//! - L5.16d: Install and Restart is a quit armed by update.rs — the same flow in Action::Update's words; once this hook
+//! - Install and Restart is a quit armed by update.rs — the same flow in Action::Update's words; once this hook
 //!   took it for the update, the choice holds however long its question waits (update_flow Arm). Now approves the
 //!   install (RunEvent::Exit then swaps and restarts); a Cancel (the page's, the alert's, another question up) or a page
 //!   question dropped disarms it.
@@ -48,9 +48,9 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
-/// A question of the guard is up (H2).
+/// A question of the guard is up.
 pub static GUARD_OPEN: AtomicBool = AtomicBool::new(false);
-/// A signal asked to quit now (M1).
+/// A signal asked to quit now.
 pub static QUIT_NOW: AtomicBool = AtomicBool::new(false);
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
@@ -93,7 +93,7 @@ fn decide() -> NSApplicationTerminateReply {
     let Some(app) = APP.get() else { return NSApplicationTerminateReply::TerminateNow };
     // No server of this app's own (none, or an attached one: no pipe), or nothing pending: no question.
     let pending = if other_modal || quit_now { None } else { crate::current_pending(app) };
-    // L5.16d: Install and Restart's quit (armed by its click) asks in its own words; a logout / restart keeps its own.
+    // Install and Restart's quit (armed by its click) asks in its own words; a logout / restart keeps its own.
     let reason = quit_reason();
     let action = if reason.is_none() && crate::update::take_quit() { Action::Update } else { quit_action(reason) };
     let question = pending.as_ref().and_then(|p| {
@@ -103,7 +103,7 @@ fn decide() -> NSApplicationTerminateReply {
         }
         q
     });
-    // L5.12d: the page is asked for a plain Quit only (loginwindow never waits on a web page), with the window on the
+    // The page is asked for a plain Quit only (loginwindow never waits on a web page), with the window on the
     // Studio's own origin (the player's would swallow the event), unless test mode keeps the native alert.
     let page = question.is_some() && matches!(action, Action::Quit | Action::Update) && page_question_on() && crate::window_on_studio(app);
     let ask_ = Ask { now: now_ms(), other_modal, quit_now, question, page, new_id: if page { fresh_id() } else { String::new() } };
@@ -112,7 +112,7 @@ fn decide() -> NSApplicationTerminateReply {
     let update = action == Action::Update;
     match reply {
         Reply::Now => {
-            // L5.16d: nothing to ask (or a page's Install and Restart re-entered): the update installs at the exit — a
+            // Nothing to ask (or a page's Install and Restart re-entered): the update installs at the exit — a
             // signal's quit never does.
             if update && !quit_now {
                 crate::update::approved();
@@ -120,7 +120,7 @@ fn decide() -> NSApplicationTerminateReply {
             NSApplicationTerminateReply::TerminateNow
         }
         Reply::Cancel if other_modal => {
-            // Another question of the shell is up (Open Workspace…, the restart alert, the picker): answered first (L13).
+            // Another question of the shell is up (Open Workspace…, the restart alert, the picker): answered first.
             log("quit: another question is open — answer it first");
             if update {
                 crate::update::cancelled(app);
@@ -169,8 +169,8 @@ fn fresh_id() -> String {
     }
 }
 
-/// RETAKE_DESKTOP_TEST_QUIT=native (test mode only): the quit question is the native alert, as before L5.12d —
-/// the L5.2b gated tests answer it through RETAKE_DESKTOP_TEST_ANSWERS / MODAL_MS.
+/// RETAKE_DESKTOP_TEST_QUIT=native (test mode only): the quit question is the native alert —
+/// the gated tests answer it through RETAKE_DESKTOP_TEST_ANSWERS / MODAL_MS.
 fn page_question_on() -> bool {
     !(crate::test_mode() && std::env::var("RETAKE_DESKTOP_TEST_QUIT").is_ok_and(|v| v == "native"))
 }
@@ -201,8 +201,8 @@ fn run(app: &AppHandle, fx: Vec<Effect>) {
             Effect::Close { js, .. } => crate::eval_in_window(app, js),
             // Queued on the main thread behind the Close just evaluated (an eval from another thread takes the same
             // queue: tauri-runtime-wry's event loop proxy), then posted: the page's sheet is closed before the
-            // re-entered `terminate:` opens the native alert (review A's note), and `terminate:` still arrives outside
-            // any Tauri callback (H1).
+            // re-entered `terminate:` opens the native alert, and `terminate:` still arrives outside
+            // any Tauri callback.
             Effect::Terminate => {
                 let _ = app.run_on_main_thread(request_terminate);
             }
@@ -230,7 +230,7 @@ pub fn from_page(msg: PipeMsg) {
             }
             log(if proceed { "quit: Quit Anyway (in the window)" } else { "quit cancelled in the window: the app stays open" });
             if !proceed {
-                // L5.16d: Install and Restart's question cancelled: the update waits for the next click.
+                // Install and Restart's question cancelled: the update waits for the next click.
                 crate::update::cancelled(app);
             }
             run(app, fx);
@@ -240,7 +240,7 @@ pub fn from_page(msg: PipeMsg) {
 }
 
 /// The page question up now is dropped (the server gone, a signal, another question of the shell): its sheet closes —
-/// L5.16d: and Install and Restart's quit, when it was that question's, is cancelled (the update back to Available).
+/// And Install and Restart's quit, when it was that question's, is cancelled (the update back to Available).
 pub fn drop_page_question(app: &AppHandle) {
     let fx = crate::lock(&FLOW).drop_asked();
     if !fx.is_empty() {
@@ -250,7 +250,7 @@ pub fn drop_page_question(app: &AppHandle) {
     crate::update::cancelled(app);
 }
 
-/// L5.16d: a quit question is up in the page (update.rs does not arm its own quit meanwhile: an answer to that question
+/// A quit question is up in the page (update.rs does not arm its own quit meanwhile: an answer to that question
 /// would install).
 pub fn page_question_up() -> bool {
     crate::lock(&FLOW).asked_id().is_some()
@@ -314,14 +314,14 @@ pub fn confirm_open_other(app: &AppHandle) -> bool {
     if GUARD_OPEN.load(Ordering::SeqCst) || QUIT_NOW.load(Ordering::SeqCst) || crate::macos::modal_up() {
         return false;
     }
-    // One question at a time (H1): a quit question in the window ends before this one.
+    // One question at a time: a quit question in the window ends before this one.
     drop_page_question(app);
     let Some(pending) = crate::current_pending(app) else { return true };
     let Some(q) = guard_question(&pending, Action::OpenWorkspace, app_name()) else { return true };
     matches!(ask(app, &q), Answer::Proceed)
 }
 
-/// `[NSApp terminate:nil]` from any thread but a Tauri / tao callback's (H1): queued on the main run loop, it arrives
+/// `[NSApp terminate:nil]` from any thread but a Tauri / tao callback's: queued on the main run loop, it arrives
 /// like a real ⌘Q. The gated test's way to Quit (test mode: SIGUSR2).
 pub fn request_terminate() {
     // SAFETY: NSApp exists (the event loop runs); performSelectorOnMainThread: may be sent from any thread.

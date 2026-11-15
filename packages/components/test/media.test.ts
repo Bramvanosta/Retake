@@ -1,5 +1,5 @@
 /**
- * Your own files (L2.12, R-OWN-01/02/03): the kit helpers behind studio/media and studio/lottie (Lottie recolouring by
+ * Your own files (R-OWN-01/02/03): the kit helpers behind studio/media and studio/lottie (Lottie recolouring by
  * theme colours, backgrounds, lengths), components usable as several kinds (manifest `kinds`, registry, `props.as`),
  * and the two components rendered as a card and as an overlay (react-dom/server, remotion's video elements mocked).
  */

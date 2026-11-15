@@ -1,12 +1,12 @@
 /**
- * L4.3 part 3: the step's form and the palette, end to end in headless Chromium (the installed browser, no download)
+ * The step's form and the palette, end to end in headless Chromium (the installed browser, no download)
  * against an in-process Studio server on a scratch workspace. The file on disk is checked after each action with facts
- * independent of the edit code (critique B11): its parsed value against the change applied to the value before, the
+ * independent of the edit code: its parsed value against the change applied to the value before, the
  * lines that changed, its bytes after undo. The form: a typed text saved (exactly its line), said as a filmed change; a
- * caption as an edit change (L5.5); ⌘Z back to the original bytes; the schema's rules at the field before any request
+ * caption as an edit change; ⌘Z back to the original bytes; the schema's rules at the field before any request
  * (a negative cps); a `{{env:…}}` typed in refused by the server with the reason at the field; markup typed in saved as
  * text, inert. The palette: a click with a target text and `in: dialog` after the selected step (one flow line), the
- * new row "New since this run". Critique B2: a caption changed outside while the screen showed the old version → 409 →
+ * new row "New since this run". A caption changed outside while the screen showed the old version → 409 →
  * "Apply it to the new version" applies the typed text and keeps the outside caption. Part 4: the inspector folds the
  * empty optional fields ("More: …", a set target's other keys) by the file's values; a hold step's seconds come first.
  * `RETAKE_UI_SHOTS=<folder>` saves screenshots.
@@ -165,7 +165,7 @@ describe("the step's form", () => {
       form()
         .locator('[data-field]:visible')
         .evaluateAll((els) => els.map((e) => e.getAttribute('data-field')));
-    // L5.10b: the modifiers are switches (on: their fields; off: emptied) — no "More:" fold for them.
+    // The modifiers are switches (on: their fields; off: emptied) — no "More:" fold for them.
     expect(await folds()).toEqual(['Other ways to find it (10)', 'More: clear, enter, fill']);
     expect(await visible()).toEqual(['type.into.label', 'type.text', 'type.cps', 'caption.text', 'caption.kicker']);
     expect(
@@ -245,7 +245,7 @@ describe("the step's form", () => {
     expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
     expect(await page.locator('[data-testid="blocks"] img[src="x"], [data-testid="inspector"] img[src="x"]').count()).toBe(0);
     // Its line as written (in the inspector's "As written", folded while the form shows the values): opened, the rendered
-    // text holds the markup as text (review B L8: innerText, not textContent — what the page shows).
+    // text holds the markup as text (innerText, not textContent — what the page shows).
     await page.getByTestId('inspector').locator('summary', { hasText: 'As written' }).click();
     await expect.poll(() => page.getByTestId('inspector').innerText(), POLL).toContain(markup);
     await writeFile(file('forms'), FORMS);
@@ -261,7 +261,7 @@ describe("the step's form", () => {
     // Hold the screen's reads so it keeps showing the version before the outside write.
     const held: Route[] = [];
     await page.route('**/v1/call/scenario_blocks', (r) => void held.push(r));
-    // L5.10b fixes (review B M3's lesson): the reads are let go whatever happens, so a failure here never holds the next tests'.
+    // The reads are let go whatever happens, so a failure here never holds the next tests'.
     const release = async () => {
       await page.unroute('**/v1/call/scenario_blocks').catch(() => undefined);
       for (const r of held.splice(0)) await r.continue().catch(() => undefined);
@@ -296,7 +296,7 @@ describe('the palette', () => {
     await page.getByTestId('palette-open').click();
     const pal = page.getByTestId('palette');
     await pal.waitFor(POLL);
-    expect(await pal.locator('[data-palette]').count()).toBe(16); // hook since L5.8
+    expect(await pal.locator('[data-palette]').count()).toBe(16); // hook among them
     await pal.locator('[data-palette="click"]').click();
     const pf = page.getByTestId('palette-form');
     await pf.waitFor(POLL);

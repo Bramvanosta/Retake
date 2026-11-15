@@ -1,11 +1,11 @@
 /**
- * L3.2 planRun with trust `mcp` (render/plan-run.ts): gate 1 refuses, before any file is read, what a render through
+ * planRun with trust `mcp` (render/plan-run.ts): gate 1 refuses, before any file is read, what a render through
  * MCP must not read — files outside the project (absolute, `..`, a symbolic link out), a Lottie file an agent can write,
  * the music bed outside (never "not found": no existence oracle), a theme named by folder (unless it is project.yaml's
  * own), a remote slot value; gate 2 refuses a plan that serves a file from outside the project, the run and the theme
- * folders (an extension-less image slot, a theme logo that leaves its folder) or a hard-linked file (review A N4). Trust
+ * folders (an extension-less image slot, a theme logo that leaves its folder) or a hard-linked file. Trust
  * `author` (the CLI) is unchanged.
- * The run itself (L7.6a): a run named through MCP that is reached through a symbolic link and lies outside the project is
+ * The run itself: a run named through MCP that is reached through a symbolic link and lies outside the project is
  * refused; a named run is refused in the sentences of core takeWords, in today's order (a missing film after gate 1).
  * No browser: planning only.
  */
@@ -280,8 +280,8 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     };
     const NOT_IN_FOLDER = `PlanTrustError: refused through MCP:\n- run ${RUN}: the film its timeline names is not a file of the run folder: through MCP a render reads only the film inside it`;
     const none = (file: string) => `RenderError: run ${RUN} has no capture video (${dir}/${file})`;
-    // [the timeline's capture.file, at a terminal (unchanged), through MCP]. Before L7.6a's close the two columns were
-    // the same: through MCP the film of ANOTHER run of the project was planned, and so were `..` and `.`.
+    // [the timeline's capture.file, at a terminal (unchanged), through MCP]. The columns differ on purpose: through
+    // MCP a film outside the run folder is never planned — not another run's, nor `..` or `.`.
     const rows: Array<[string, string, string]> = [
       ['../20260101-110000-other/capture.mp4', 'planned', NOT_IN_FOLDER],
       ['..\\20260101-110000-other\\capture.mp4', none('..\\20260101-110000-other\\capture.mp4'), NOT_IN_FOLDER],
@@ -331,8 +331,8 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     await symlink(real, join(p.dir, 'runs'));
     expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: RUN, root }))).toBe('planned');
     expect(await message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: 'latest', root }))).toBe('planned');
-    // Through MCP `latest` takes no run that lies outside the project either (before L7.6a's close: 'planned', while
-    // naming that very run was refused): it is passed over and counted, in the rule's fixed words.
+    // Through MCP `latest` takes no run that lies outside the project either: it is passed over and counted, in the
+    // rule's fixed words.
     expect(await message(mcp(p))).toMatch(/^RenderError: no capture run in .*`retake run p\d+ <scenario>` — 1 capture of it cannot be edited: it lies outside the project \(1\)$/);
     expect(await message(mcp(p, { scenario: 'synthetic' }))).toMatch(
       /^RenderError: no capture run of scenario "synthetic" in .* — 1 capture of it cannot be edited: it lies outside the project \(1\)$/,

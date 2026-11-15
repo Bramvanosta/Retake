@@ -1,5 +1,5 @@
 /**
- * The workspace's two line logs, one discipline (L7.26, U15 — finding P8): the journal (`.retake/journal.jsonl`) and the
+ * The workspace's two line logs, one discipline: the journal (`.retake/journal.jsonl`) and the
  * job history (`.retake/history.jsonl`) are appended by store/append-log.ts with the same guarantee — a line written
  * whole under the log's lock, a torn last line closed before the next one, synced before the append returns, never
  * through a symbolic link — and read by the same reader, each log's parser skipping a torn or foreign line. Real

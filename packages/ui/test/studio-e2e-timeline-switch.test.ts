@@ -1,6 +1,6 @@
 /**
- * L4.5 part D: the timeline inspector end to end in headless Chromium, against a real Studio server, its player origin
- * and the real preview bundle, on the self-numbering VP9 take of part C (test-support take.ts):
+ * The timeline inspector end to end in headless Chromium, against a real Studio server, its player origin
+ * and the real preview bundle, on the self-numbering VP9 take (test-support take.ts):
  * - a segment selected by a click and by ] (the inspector shows its switches); the radios sit in `role="radiogroup"`:
  *   arrows move the focus only — no seek, no write;
  * - one click switches scene a's layout to Laptop: the file gains exactly one line, the preview changes (the capture's
@@ -9,13 +9,13 @@
  *   preview shows exactly the plan's source frame again; Shift+⌘Z redoes; the buttons undo too;
  * - the caption component (the video's switch): the caption's pixels change, the capture's frame stays exact; undone;
  * - a speed chip, a transition and the default speed (`value: null`: no `to`, the line removed) on scene b, undone;
- * - critique B7: a card component the card cannot take is shown disabled with the engine's reason and writes nothing;
+ * - a card component the card cannot take is shown disabled with the engine's reason and writes nothing;
  * - another writer changes the file while the screen shows the old version: the switch is a 409 — "Your switch … was
  *   not applied" — the file keeps the other writer's bytes; Apply it to the new version writes it on them; a value the
  *   other writer changed is refused as stale (never overwritten).
- * - L5.12a (BL-122): ⌘Z pressed while a switch is still being written is queued and said, then undoes it once its view
- *   landed — never dropped; the selected segment is said in the inspector's own polite region. L5.12a fixes (review
- *   A-M2): behind a switch that fails, the queued ⌘Z is dropped and said — the switch before it stays.
+ * - BL-122: ⌘Z pressed while a switch is still being written is queued and said, then undoes it once its view
+ *   landed — never dropped; the selected segment is said in the inspector's own polite region. Behind a switch that
+ *   fails, the queued ⌘Z is dropped and said — the switch before it stays.
  * `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { execFileSync } from 'node:child_process';
@@ -59,7 +59,7 @@ function srcAt(frame: number): number | undefined {
 }
 
 const shown = async () => Number(await page.getByTestId('preview').getAttribute('data-frame'));
-/** The live region's words, without the file's warning count L4.3 adds ("1 warning in the file."). */
+/** The live region's words, without the file's warning count ("1 warning in the file."). */
 const live = async () => (await page.getByTestId('switch-live').innerText()).replace(/ \d+ warnings? in the file\.$/, '');
 const hashShown = () => page.getByTestId('timeline').getAttribute('data-hash');
 const sha = (s: string) => execFileSync('shasum', ['-a', '256'], { input: s }).toString().slice(0, 64);
@@ -68,7 +68,7 @@ const checked = (key: string) => page.locator(`[data-testid="switch"][data-key="
 const blur = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 /** timeline_view reads the page sent and not yet answered (a held one counts until it is let go). */
 let viewsInFlight = 0;
-/** Until every read sent before the hold is answered (L5.12a fixes: a read in flight while the test writes the file would show that write). */
+/** Until every read sent before the hold is answered (a read in flight while the test writes the file would show that write). */
 const readsSettled = (held: Route[]) => expect.poll(() => viewsInFlight - held.length, POLL).toBe(0);
 
 /** The preview settled at the frame shown: its picture (PNG) and the source frame it reads. */
@@ -418,8 +418,8 @@ describe.skipIf(!canRun)('the timeline inspector in Chromium', () => {
     await page.getByTestId('switch-conflict').waitFor(POLL);
     expect(await page.getByTestId('switch-conflict').innerText()).toBe('Your switch (Set the layout of scene a to Laptop) was not applied. The timeline now shows the new version.');
     expect(await readFile(file(), 'utf8')).toBe(outside);
-    // The offer is in sight, though the switches scrolled (the inspector's top stays). L5.12a: the inspector is the
-    // shell's pane (the scroller), taller than the old card — scrolled to its end here, the offer still in sight.
+    // The offer is in sight, though the switches scrolled (the inspector's top stays). The inspector is the
+    // shell's pane (the scroller) — scrolled to its end here, the offer still in sight.
     const pane = page.getByRole('complementary', { name: 'Inspector' });
     await pane.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
     expect(await pane.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);

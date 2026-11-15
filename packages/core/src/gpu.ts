@@ -1,5 +1,5 @@
 /**
- * Chromium's GPU status as CDP `SystemInfo.getInfo` reports it (L5.7 for the capture browser; L5.15: the render browser
+ * Chromium's GPU status as CDP `SystemInfo.getInfo` reports it (the capture browser; the render browser
  * reads it too, which is why it lives here — the editor does not depend on runner-web).
  */
 

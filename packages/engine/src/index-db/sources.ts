@@ -1,18 +1,18 @@
 /**
- * What the workspace index and the Studio's event stream watch (L4.1, critique C2): a bounded stat poll — never a
+ * What the workspace index and the Studio's event stream watch: a bounded stat poll — never a
  * recursive fs.watch (no FSEvents flood from a capture's frames, deterministic tests). One scan stats, per project,
  * project.yaml (+ sandbox.yaml) and the scenarios/ folder, README.md, the runs/, renders/ and review/ folders (+ the run.json
  * of the runs it was told are unfinished), and the workspace's history.jsonl: a few stats per project, nothing read.
  *
  * A source is a key (`project:<slug>`, `readme:<slug>`, `runs:<slug>`, `renders:<slug>`, `scenario:<slug>/<name>`,
  * `history`) and a signature (inode, size, mtime of each file or folder it covers); a key whose signature changed is a
- * change to re-read. Each scenario file is signed on its own (L4.2): an in-place save changes no folder, and the
- * scenario screen re-reads only its own file's changes (critique B1). The index reads nothing for a scenario key (the
+ * change to re-read. Each scenario file is signed on its own: an in-place save changes no folder, and the
+ * scenario screen re-reads only its own file's changes. The index reads nothing for a scenario key (the
  * project key covers the list of names).
  *
- * Comments (L4.6, plan D9): `comments:<slug>/<scenario>` per real scenario folder of comments/ (at most
+ * Comments: `comments:<slug>/<scenario>` per real scenario folder of comments/ (at most
  * COMMENT_SOURCE_MAX_FOLDERS per project), signed by the folder's own stat — the store writes a thread or an entry by a
- * temp file renamed into that folder, which moves its mtime (probe E4); an in-place edit by hand does not. Nothing is
+ * temp file renamed into that folder, which moves its mtime; an in-place edit by hand does not. Nothing is
  * read for it either: the Studio re-reads its own scenario's threads.
  */
 import { readdir, stat } from 'node:fs/promises';
@@ -110,7 +110,7 @@ export async function scanSources(ws: OpenedWorkspace, unfinished: ReadonlyMap<s
     const runs = [await runOutputs.signature(runsDirOf(dir), FOLLOW)];
     for (const id of unfinished.get(slug) ?? []) runs.push(`${id}=${await runOutputs.signature(join(runFolderOf(dir, id), 'run.json'), FOLLOW)}`);
     out.set(`runs:${slug}`, runs.join('|'));
-    // L5.10a fixes (review A-L4): review/ too — a review run from a terminal swaps review/<id> in by a rename (no job,
+    // review/ too — a review run from a terminal swaps review/<id> in by a rename (no job,
     // no renders/ change): a board or a render list re-reads its verdict.
     out.set(`renders:${slug}`, `${await renders.signature(renders.dirOf(dir), FOLLOW)}|${await reviews.signature(reviews.dirOf(dir), FOLLOW)}`);
     for (const [name, files] of await scenarioFiles(projectPath(dir, 'scenarios'))) {
@@ -172,7 +172,7 @@ export interface RunRow {
 }
 
 /**
- * A run that started, progressed, finished or went away (L4.2, critique B1): the `workspace` event names the run and
+ * A run that started, progressed, finished or went away: the `workspace` event names the run and
  * its scenario, so a scenario screen re-reads only for runs of its own scenario.
  */
 export interface RunChange {

@@ -1,5 +1,5 @@
 /**
- * L3.5 a site extraction against pages that attack the extraction itself (hostile.test of the brand-site fixture, over
+ * A site extraction against pages that attack the extraction itself (hostile.test of the brand-site fixture, over
  * self-signed https through the production path): a renderer busy loop ends at the call timeout or the deadline and a
  * cancel within seconds (the browser closed, the worker free); shared workers and fetchLater are removed by each of
  * the two layers alone; huge font names are cut; a top-level redirect to another host fails (the approval names one host); logos a

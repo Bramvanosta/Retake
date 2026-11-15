@@ -5,7 +5,7 @@
  * held to); the counts pinned (a new operation is a deliberate change of this file). The shells' own lists are held to
  * it by their own tests: packages/mcp/test/, packages/ui/test/ and packages/cli/test/operation-catalogue.test.ts. The
  * catalogue's entry imports nothing at run time (a page may import it). The use cases served under more than one name
- * (S2, L7.20: linked, nothing renamed) are counted and named here, one name per shell, the Studio's narrowings marked.
+ * (linked, nothing renamed) are counted and named here, one name per shell, the Studio's narrowings marked.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

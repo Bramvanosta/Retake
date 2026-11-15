@@ -1,5 +1,5 @@
 /**
- * L1.7 in the runner: the access of a run (a read-only run with writing hooks is refused before any browser opens,
+ * In the runner: the access of a run (a read-only run with writing hooks is refused before any browser opens,
  * `--allow-writes` on a read-only environment is refused before anything is recorded) and the environment blocks of
  * run.json and timeline.json (access, display table, clock).
  */
@@ -27,7 +27,7 @@ afterAll(async () => {
   if (dir) await rm(dir, { recursive: true, force: true });
 });
 
-/** A project whose environments use the L1.7 forms (normalised as loadProject does). */
+/** A project whose environments use the current forms (normalised as loadProject does). */
 function project(): LoadedProject {
   const base = makeProject(dir, {});
   return {

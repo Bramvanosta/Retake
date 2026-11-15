@@ -1,5 +1,5 @@
 /**
- * The encode tools of a render (L7.3): this machine's ffmpeg encoding the frames, the rendering library's own doing
+ * The encode tools of a render: this machine's ffmpeg encoding the frames, the rendering library's own doing
  * everything else.
  *
  * The library takes one folder of programs for a render (its compositor, ffmpeg, ffprobe and their libraries) and
@@ -34,7 +34,7 @@ export const LIBRARY_FRAME_FILTER = 'zscale=matrix=709:range=limited:primariesin
 /**
  * The same conversion with ffmpeg's own `colorspace` filter: the JPEG frames are full-range BT.601 (JFIF), the video is
  * limited-range BT.709, primaries and transfer stay BT.709 (no gamma round trip: `fast`). It tags the frames as the
- * library's filter does. Measured against the library's on real frames (L7.3): luma equal on 98–99 % of the pixels,
+ * library's filter does. Measured against the library's on real frames: luma equal on 98–99 % of the pixels,
  * never off by more than 2; chroma differs at hard colour edges (the library resamples chroma up and down again).
  */
 export const OWN_FRAME_FILTER = 'colorspace=space=bt709:ispace=bt470bg:range=tv:irange=pc:primaries=bt709:trc=bt709:iprimaries=bt709:itrc=bt709:fast=1:format=yuv420p';

@@ -1,8 +1,8 @@
 /**
- * `@retake/runner-web/types` (L7.12): the capture's vocabulary as types only — what the engine's CaptureRunner port and
+ * `@retake/runner-web/types`: the capture's vocabulary as types only — what the engine's CaptureRunner port and
  * the shells name (a run's options and record, the filming events, the live picture, the pause gate, an inspection's
  * report, a site's report, a recording's options and result, a sign-in's, a persona's session state, a js hook's page,
- * what a check of the machine learns of the capture browser, a raw export's options, progress and package — L7.22).
+ * what a check of the machine learns of the capture browser, a raw export's options, progress and package).
  * Every line is `export type … from`: the built entry loads nothing (no Playwright, no encoder, no kit), so it is a
  * domain entry (scripts/audit/lib.mjs DOMAIN_ENTRIES) and the engine may name it where the package root is an adapter.
  * The package root exports every one of these names too (packages/runner-web/test/types-entry.test.ts).

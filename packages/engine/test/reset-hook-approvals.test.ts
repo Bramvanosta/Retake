@@ -1,13 +1,13 @@
 /**
- * L7.8: a sandbox's shell `reset.hooks` steps are approval items, as its shell seed steps are (trust `mcp`: MCP and the
+ * A sandbox's shell `reset.hooks` steps are approval items, as its shell seed steps are (trust `mcp`: MCP and the
  * Studio's agent path). The sandbox checks a reset hook when it runs (sandbox seed.ts runSeed: phase `reset` in the
  * fingerprint, its position among the reset hooks, the sandbox's environment); the item is bound to exactly that, so
  * an approval of a reset hook is never a seed step's. An unapproved reset hook, or one changed since its approval, is
  * refused; an approved one runs; a person's own reset (no trust) runs it as before.
  *
  * A small process sandbox in a temp workspace (a node service answering /health); no worker, no browser. Each test
- * stands alone (any order, or alone with -t): it starts the sandbox when it needs it running (`running()`) and counts
- * what ran from its own start (`markers()`).
+ * stands alone (any order, or alone with -t): it starts the sandbox when it needs it running (`running`) and counts
+ * what ran from its own start (`markers`).
  */
 import { resolveSecretRef } from '@retake/core/io';
 import { createHash } from 'node:crypto';
@@ -264,7 +264,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
     }
   }, 60_000);
 
-  // L7.9: a reset hook of another kind than shell gets exactly what a seed step of its kind gets: an http or sql step
+  // A reset hook of another kind than shell gets exactly what a seed step of its kind gets: an http or sql step
   // rebuilds the sandbox's own data (its database checked at run time) and an exec step runs inside a sandbox container
   // — none is an approval item, none is asked about, under trust mcp too. A destructive http step pins it.
   it('an http reset hook, destructive (DELETE), is treated as an http seed step: no item, and under trust mcp it runs unasked', async () => {

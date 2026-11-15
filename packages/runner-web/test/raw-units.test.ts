@@ -1,5 +1,5 @@
 /**
- * L2.13 raw export, pure parts: loading cuts, the clip plan on real (frozen) timelines, markers and the interchange
+ * Raw export, pure parts: loading cuts, the clip plan on real (frozen) timelines, markers and the interchange
  * files (FCPXML 1.10, CMX 3600, OTIO, CSV / JSON), the cursor model (press scale, ripples, icons, clicks) and the
  * timing constants shared with the kit's cursor look.
  */
@@ -293,7 +293,7 @@ describe('held page loads (R-ISS-08)', () => {
     expect(rawMarkers(plan).find((m) => m.kind === 'cut')).toMatchObject({ step: 0, frame: 78 });
     // --no-cuts keeps it.
     expect(planRawExport(tl, { fps: 30, cuts: false }).clips[0].cuts).toEqual([]);
-    // A load the scene ends in (H7): cut up to the scene end, as the edit does, and noted.
+    // A load the scene ends in: cut up to the scene end, as the edit does, and noted.
     const ending = planRawExport({ ...tl, loading: [{ t_start: 9.6, t_end: 10.5, page: 'main', until: 'left', held_frames: 3 }] }, { fps: 30 });
     expect(ending.clips[0].cuts).toMatchObject([{ from: 9.6, to: 10, reason: 'navigation', after_step: 2, n0: 288, n1: 300 }]);
     expect(ending.notes).toContain('"s": 0.40 s of page loading cut (9.60–10.00 s of the capture: the scene ended before the new page painted)');
@@ -658,7 +658,7 @@ describe('URLs in the package (L1.7, R-ENV-01)', () => {
         environment_settings: { local: { display: { console: 'https://console.northfield.example' } } },
       },
     } as unknown as Parameters<typeof exportDisplayTable>[0];
-    // A run captured before L1.7 (no environment block): run.json's env and project.yaml's current display URLs.
+    // An older run (no environment block): run.json's env and project.yaml's current display URLs.
     const shown = shownTargets(tl, exportDisplayTable(project, tl, 'local'));
     const name = (t: Timeline) => rawMarkers(planRawExport(t, { fps: 30 })).find((m) => m.kind === 'step' && m.step === open.step)?.name;
     expect(name(shown)).toBe(`${open.step + 1}. open https://console.northfield.example/imports`);

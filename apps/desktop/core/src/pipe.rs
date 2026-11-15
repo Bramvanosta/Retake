@@ -1,21 +1,18 @@
-//! The supervised server's lines after the `ui` line (L5.2b, DESIGN §4j): `pending` — what Quit would leave behind,
-//! whole, on every change — and `job_end` — a job that ended. Read through a capped line reader (`LineReader`: a line
-//! longer than the cap is drained to its newline and reported, never kept), parsed by the strict JSON reader, then
-//! checked field by field: every field is an enum this module knows or a slug it checks again (`project_ok`,
-//! `scenario_ok`) — the shell's words (words.rs) are keyed by the enums, so neither the page nor the server can put
-//! prose in an alert or a notification. An item with an unknown enum is dropped from its list but still counted in its
-//! total (the question still asks); a bad slug drops the name, the item stays. Lists are cut to `LIST_MAX`.
-//!
-//! L5.12d: `answer` {id, answer: proceed | cancel} and `shown` {id, shown: true} — the window page's word on the quit
-//! question (guard_flow), the id checked here (22 base64url characters) and against the question up in the shell.
-//!
-//! L5.16c: `setup` {action: notifications | cli_folder} — the Set-up sheet's request (ui setup-ops.ts), strict fields.
-//! L5.16d: `update` {action: install | later} — the update sheet's click (ui desktop.ts `desktop_update`), strict fields.
-//!
-//! What is ignored (forward compatible, critique M4): a line that is no JSON object, a `type` this shell does not know,
-//! a `job_end` of an unknown kind or outcome. Only a `pending` that fails its checks is `BadPending` — the shell then
-//! asks with generic words until the next valid one. The server frames each line with a newline before it (review A
-//! L3: a stray partial write on its stdout becomes a line of its own): a blank line is `Blank`, ignored without a word.
+// ! The supervised server's lines after the `ui` line (DESIGN §4j): `pending` — what Quit would leave behind, ! whole,
+// on every change — and `job_end` — a job that ended. Read through a capped line reader (`LineReader`: a line ! longer
+// than the cap is drained to its newline and reported, never kept), parsed by the strict JSON reader, then ! checked
+// field by field: every field is an enum this module knows or a slug it checks again (`project_ok`, ! `scenario_ok`) —
+// the shell's words (words.rs) are keyed by the enums, so neither the page nor the server can put ! prose in an alert
+// or a notification. An item with an unknown enum is dropped from its list but still counted in its ! total (the
+// question still asks); a bad slug drops the name, the item stays. Lists are cut to `LIST_MAX`. ! ! `answer` {id,
+// answer: proceed | cancel} and `shown` {id, shown: true} — the window page's word on the quit ! question (guard_flow),
+// the id checked here (22 base64url characters) and against the question up in the shell. ! ! `setup` {action:
+// notifications | cli_folder} — the Set-up sheet's request (ui setup-ops.ts), strict fields. ! `update` {action:
+// install | later} — the update sheet's click (ui desktop.ts `desktop_update`), strict fields. ! ! What is ignored
+// (forward compatible): a line that is no JSON object, a `type` this shell does not know, ! a `job_end` of an unknown
+// kind or outcome. Only a `pending` that fails its checks is `BadPending` — the shell then ! asks with generic words
+// until the next valid one. The server frames each line with a newline before it (a ! stray partial write on its stdout
+// becomes a line of its own): a blank line is `Blank`, ignored without a word.
 
 use crate::json::{self, Json};
 use std::io::{BufRead, BufReader, ErrorKind, Read};
@@ -113,12 +110,12 @@ wire_enum!(
 );
 wire_enum!(JobState { Running = "running", Queued = "queued" });
 wire_enum!(
-    /// L5.16c: what the Set-up sheet asks the shell (ui desktop.ts SETUP_ACTIONS): the notification permission, the
+    /// What the Set-up sheet asks the shell (ui desktop.ts SETUP_ACTIONS): the notification permission, the
     /// native folder panel for the `retake` command.
     SetupAction { Notifications = "notifications", CliFolder = "cli_folder" }
 );
 wire_enum!(
-    /// L5.16d: what the Studio's update sheet asks the shell (ui desktop.ts UPDATE_ACTIONS): Install and Restart, or Later
+    /// What the Studio's update sheet asks the shell (ui desktop.ts UPDATE_ACTIONS): Install and Restart, or Later
     /// (stop waiting for jobs / drop a downloaded update until the next click).
     UpdateAction { Install = "install", Later = "later" }
 );
@@ -176,7 +173,7 @@ impl Pending {
         self.jobs_total == 0 && self.unsaved_total == 0 && !self.unknown
     }
 
-    /// The server is gone (critique L2): its jobs are history now; the unsaved text is still in the window.
+    /// The server is gone: its jobs are history now; the unsaved text is still in the window.
     pub fn server_gone(&mut self) {
         self.jobs.clear();
         self.jobs_total = 0;
@@ -198,17 +195,17 @@ pub enum PipeMsg {
     JobEnd(JobEnd),
     /// A `pending` that failed its checks (why).
     BadPending(String),
-    /// L5.12d: the window's page answered the quit question `id` (Quit Anyway: `proceed`) — through `desktop_answer`.
+    /// The window's page answered the quit question `id` (Quit Anyway: `proceed`) — through `desktop_answer`.
     Answer { id: String, proceed: bool },
-    /// L5.12d: the window's page shows the quit question `id`.
+    /// The window's page shows the quit question `id`.
     Shown { id: String },
-    /// L5.16c: the Set-up sheet asks the shell to act (through the server's setup ops: the person's click).
+    /// The Set-up sheet asks the shell to act (through the server's setup ops: the person's click).
     Setup(SetupAction),
-    /// L5.16d: the update sheet's click (through the server's `desktop_update` op: the person's).
+    /// The update sheet's click (through the server's `desktop_update` op: the person's).
     Update(UpdateAction),
     /// Not for this shell (why): no JSON object, an unknown type, a job_end it cannot word.
     Ignored(&'static str),
-    /// An empty line (the server's framing newline: review A L3) — nothing to say.
+    /// An empty line (the server's framing newline) — nothing to say.
     Blank,
 }
 
@@ -263,7 +260,7 @@ pub fn parse_pipe_line(line: &str) -> PipeMsg {
             PipeMsg::JobEnd(JobEnd { kind, outcome, reason, project, scenario })
         }
         Some(t @ ("answer" | "shown")) => {
-            // Strict (review A-L6): exactly `type`, `id` and its own field — the server writes these two fixed shapes.
+            // Strict: exactly `type`, `id` and its own field — the server writes these two fixed shapes.
             let Json::Obj(fields) = &v else { return PipeMsg::Ignored("not JSON") };
             let own = if t == "shown" { "shown" } else { "answer" };
             if fields.len() != 3 || !fields.iter().all(|(k, _)| k == "type" || k == "id" || k == own) {
@@ -410,7 +407,7 @@ mod tests {
         }
     }
 
-    /// L5.12d: the page's answer and ack — strict fields, the id's shape checked; anything else ignored.
+    /// The page's answer and ack — strict fields, the id's shape checked; anything else ignored.
     #[test]
     fn answer_and_shown_lines_are_strict() {
         const ID: &str = "AAAAAAAAAAAAAAAAAAAAAA";
@@ -425,7 +422,7 @@ mod tests {
             format!(r#"{{"type":"shown","id":"{ID}","shown":false}}"#),
             format!(r#"{{"type":"shown","id":"{ID}"}}"#),
             r#"{"type":"shown","id":7,"shown":true}"#.to_string(),
-            // Review A-L6: no other field, not even one of the other line's.
+            // No other field, not even one of the other line's.
             format!(r#"{{"type":"answer","id":"{ID}","answer":"proceed","shown":true}}"#),
             format!(r#"{{"type":"shown","id":"{ID}","shown":true,"answer":"cancel"}}"#),
             format!(r#"{{"type":"answer","id":"{ID}","answer":"proceed","text":"x"}}"#),
@@ -435,7 +432,7 @@ mod tests {
         }
     }
 
-    /// L5.16c: the Set-up sheet's requests — exactly `type` and a known `action`.
+    /// The Set-up sheet's requests — exactly `type` and a known `action`.
     #[test]
     fn setup_lines_are_strict() {
         assert_eq!(parse_pipe_line(r#"{"type":"setup","action":"notifications"}"#), PipeMsg::Setup(SetupAction::Notifications));
@@ -450,7 +447,7 @@ mod tests {
         }
     }
 
-    /// L5.16d: the update sheet's clicks — exactly `type` and a known `action` (no version, no URL from the page).
+    /// The update sheet's clicks — exactly `type` and a known `action` (no version, no URL from the page).
     #[test]
     fn update_lines_are_strict() {
         assert_eq!(parse_pipe_line(r#"{"type":"update","action":"install"}"#), PipeMsg::Update(UpdateAction::Install));
@@ -467,7 +464,7 @@ mod tests {
         }
     }
 
-    /// Review A L3: the server writes "\n" + line + "\n"; a partial write before it is a line of its own, ignored, and
+    /// The server writes "\n" + line + "\n"; a partial write before it is a line of its own, ignored, and
     /// the framing's blank lines are Blank (said nothing about) — the next state still reads.
     #[test]
     fn a_partial_write_before_a_framed_line_stays_apart_and_blank_lines_are_blank() {

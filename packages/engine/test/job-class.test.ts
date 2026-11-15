@@ -1,5 +1,5 @@
 /**
- * L5.14 (captures first, BL-116): every job kind has a class — captures (a take, what prepares one, a sign-in, a
+ * Captures first (BL-116): every job kind has a class — captures (a take, what prepares one, a sign-in, a
  * recording, an inspection) and heavy jobs (renders and what re-renders, reviews, previews, site extractions) — and only
  * a capture take films (what holds heavy work).
  */

@@ -1,5 +1,5 @@
 /**
- * L2.10 runner: `capture_text` (the visible text of an element, or the part a pattern selects, as a `text` artefact),
+ * Runner: `capture_text` (the visible text of an element, or the part a pattern selects, as a `text` artefact),
  * what the tutorial overlays need on the timeline (typing span and the focused field of a `type` without `into`, the
  * keys of a `press`) and the tutorial switches copied into the timeline (scenario, scene, step).
  */

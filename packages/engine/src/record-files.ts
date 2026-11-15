@@ -1,5 +1,5 @@
 /**
- * A recording folder's own files beside the runner's events (L4.8): meta.json, written once by the code that creates
+ * A recording folder's own files beside the runner's events: meta.json, written once by the code that creates
  * the folder (record.ts, the CLI and the worker alike), and studio.json, the Studio's annotations (core
  * record-annotations.ts), written only by the engine (record-studio.ts) under the recording's lock
  * (`<project>/.retake/locks/record-<id>.lock`). Everything under `.retake/` is agent-writable: both files are
@@ -24,7 +24,7 @@ import { z } from 'zod';
 export const RECORD_META_FILE = 'meta.json';
 export const RECORD_STUDIO_FILE = 'studio.json';
 export const RECORD_META_MAX_BYTES = 16 * 1024;
-/** An unsaved Studio recording is kept this long even beyond the newest RECORD_KEEP (ms: 7 days, critique B12). */
+/** An unsaved Studio recording is kept this long even beyond the newest RECORD_KEEP (ms: 7 days). */
 export const RECORD_UNSAVED_KEEP_MS = 7 * 24 * 3600_000;
 
 /** What the folder's creator knew when it made the folder: the draft's context, who started it, and its process. */

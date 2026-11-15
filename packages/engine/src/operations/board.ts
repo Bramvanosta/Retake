@@ -1,12 +1,12 @@
 /**
- * The Studio's Projects and Project screens' reads (moved from the Studio server's ops.ts in L7.14):
+ * The Studio's Projects and Project screens' reads:
  * - `projects_overview`: what the Projects screen's cards show beyond project_list — every project's environment flags
- *   (project_get's) and last run (run_list's) — in one call (review B L2: a card per project made two calls each, at
- *   every focus and reconnection).
- * - `project_board` (L5.10a): the Project screen's poster grid, smart groups and inspector in one read — engine
+ *   (project_get's) and last run (run_list's) — in one call (a card per project made two calls each, at every focus and
+ *   reconnection).
+ * - `project_board`: the Project screen's poster grid, smart groups and inspector in one read — engine
  *   projects.board (every scenario's file facts, takes, capture "current", render and review, render job, length,
  *   poster), path-free, the video titles under `untrusted`. Its memos are the board's own: reading it never evicts the
- *   open scenario screen's view (critique H1).
+ *   open scenario screen's view.
  */
 import { z } from 'zod';
 import type { RunListItem } from '../facade/types.js';

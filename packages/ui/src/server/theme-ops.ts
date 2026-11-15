@@ -1,9 +1,9 @@
 /**
- * The Studio's theme ops (L4.7, R-UI-07 / R-DEC-04; critique B1, B7, B9–B11, B14, B15). Not MCP tools: MCP never edits a
+ * The Studio's theme ops (R-UI-07 / R-DEC-04). Not MCP tools: MCP never edits a
  * theme (template_list's wording stays true); Claude makes new ones with template_create_from_brand.
  *
  * theme_list, theme_view, theme_edit, theme_copy, theme_create, brand_files and site_list are the engine's operations
- * (L7.17: packages/engine/src/operations/themes.ts, with theme_edit's caller rule and the writes' one-at-a-time key);
+ * (packages/engine/src/operations/themes.ts, with theme_edit's caller rule and the writes' one-at-a-time key);
  * this file keeps the theme editor's live preview, which needs this server's player origin and leases, and names the
  * answer types the app reads.
  *
@@ -14,7 +14,7 @@
  *   published here as a `component-preview` (the `forbid` scan of every string); `draft` colours apply in memory, never
  *   written. A workspace component the spec renders is held out of the frame's bundle until the person allows it
  *   (`preview_held`, the timeline's Allow card: preview_allow). A theme whose intro / outro is its own video, image or
- *   Lottie (B10) is not previewed here — said. The page's lease is one of the timeline's (timeline_leave ends it).
+ *   Lottie is not previewed here — said. The page's lease is one of the timeline's (timeline_leave ends it).
  */
 import { homedir } from 'node:os';
 import { z } from 'zod';
@@ -27,7 +27,7 @@ import type { PlayerServer } from './player.js';
 import type { PreviewAllowList } from './preview-allow.js';
 import { errorMessage } from '@retake/core/base';
 
-/** The answers of the engine's theme operations the app reads (L7.17: defined with them). */
+/** The answers of the engine's theme operations the app reads (defined with them). */
 export type { SiteListAnswer, ThemeListAnswer } from '@retake/engine/contract';
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -46,7 +46,7 @@ const PreviewInput = z.strictObject({
     .strictObject({ colors: draftColors.optional(), background: background.optional() })
     .optional()
     .describe('Colours being changed (in memory only, never written): the page sends at most 5 a second.'),
-  // Required (review A N2): a scope no lease holds would lose its URLs when the last timeline page leaves.
+  // Required: a scope no lease holds would lose its URLs when the last timeline page leaves.
   lease: lease.describe("The page's lease (timeline_leave ends it): the project's preview URLs are revoked once no page holds one."),
 });
 

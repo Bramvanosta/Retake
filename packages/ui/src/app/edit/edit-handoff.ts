@@ -1,10 +1,10 @@
 /**
- * L5.12a: the Review report's "Show in Edit" hand-off — one pending seek per tab (module memory, like proposal-focus):
+ * The Review report's "Show in Edit" hand-off — one pending seek per tab (module memory, like proposal-focus):
  * the report sets it (the render a finding is on, its frame, its step) and opens Edit on that render's capture; Edit takes
  * it once, when its view and its renders are read, and seeks to the frame only when the render shows the version on
  * screen (versionNote(…).same: the same plan and theme files) — else to the step, with a note that the render was made
  * from another version. Never a write, never a URL: the frame does not travel in the address.
- * L5.12a fixes (review A-L6): the ask lives only as long as the way to that Edit — a route change anywhere else drops it,
+ * The ask lives only as long as the way to that Edit — a route change anywhere else drops it,
  * and so does an Edit that cannot show the take (an error, a blocked take): never a stale seek on a later visit.
  */
 import { parseRoute } from '../route.js';

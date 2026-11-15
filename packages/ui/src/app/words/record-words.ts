@@ -1,5 +1,5 @@
 /**
- * The Record screen's words and rules (L4.8, R-UI-20 / 21 / 22) — pure, no React: states, who started a recording,
+ * The Record screen's words and rules (R-UI-20 / 21 / 22) — pure, no React: states, who started a recording,
  * the window note, the check, the target flags, the inserts, the secret placeholders, the time left, the preflight
  * refusal that a Sign in answers, and the insert values the Studio sends. Every function takes enums, numbers and the
  * Studio's own values: none of them puts page text into a sentence (the screen renders page text through `Txt` only).
@@ -48,7 +48,7 @@ export const STATE_WORDS: Record<RecordState, [string, RecordTone]> = {
   missing: ['not found', 'neutral'],
 };
 
-/** Said before Start: what opens, and why full size (B17: never "side by side" — a narrow window lays the site out for a tablet). */
+/** Said before Start: what opens, and why full size (never "side by side" — a narrow window lays the site out for a tablet). */
 export const WINDOW_NOTE = 'A browser window opens full size on this Mac: the desktop layout is what the video films, so keep it that size.';
 
 /** While the window is open. */
@@ -103,7 +103,7 @@ export function startedByWords(c: JobClient | null): string {
   }
 }
 
-/** Why a recording is shown read-only (Q5: a recording Claude or a terminal started; its job saved it). */
+/** Why a recording is shown read-only (a recording Claude or a terminal started; its job saved it). */
 export function readOnlyWords(c: JobClient | null): string {
   return `Started by ${startedByWords(c)}: shown read-only here. Its job saves the draft itself; arrange it in the scenario screen once saved.`;
 }
@@ -185,8 +185,8 @@ const CHECK_SKIPPED: Record<string, string> = {
 };
 
 /**
- * The check replay's result. It replayed the RECORDED draft — the recorder's own steps, without your picks and inserts
- * (B7; review B-M4): its counts are recorded steps, never the rows on screen. `title` and `tone` for its notice,
+ * The check replay's result. It replayed the RECORDED draft — the recorder's own steps, without your picks and inserts:
+ * its counts are recorded steps, never the rows on screen. `title` and `tone` for its notice,
  * `detail` the sentence under it.
  */
 export function checkWords(c: RecordCheckView): { title: string; tone: 'info' | 'warning' | 'danger'; detail: string } {
@@ -216,7 +216,7 @@ export function checkWords(c: RecordCheckView): { title: string; tone: 'info' | 
   }
 }
 
-/** What the check covers, said under it (B7; review B-M4). */
+/** What the check covers, said under it. */
 export const CHECK_SCOPE_NOTE =
   'The check replays the draft as it was recorded, without your picks and inserts — none of them is checked, whenever you made it. Targets you pick were verified when you pressed them; save, then rehearse the scenario to replay everything.';
 
@@ -234,7 +234,7 @@ export function checkFailedAt(
 }
 
 /**
- * A preflight refusal that a Sign in answers (L3.4: a persona with no valid session and no `login:` steps): the job's
+ * A preflight refusal that a Sign in answers (a persona with no valid session and no `login:` steps): the job's
  * error is `refused`, saying the persona is not signed in (on an environment) or could not be. The persona and the
  * environment are the view's, else the engine's message names them (a refusal before the folder exists: no meta.json).
  * Null for anything else.
@@ -275,7 +275,7 @@ export function holdSeconds(text: string): number | string {
   return Math.round(n * 10) / 10;
 }
 
-/** The writes the window sent, in a sentence, with L3.4's reset advice when the draft would write again. */
+/** The writes the window sent, in a sentence, with the reset advice when the draft would write again. */
 export function writesWords(w: { total: number; by_steps: number; ambient: number }, access: 'read-only' | 'read-write' | null): string | null {
   if (w.total === 0) return null;
   const n = `${w.total} write${w.total === 1 ? '' : 's'}`;
@@ -284,7 +284,7 @@ export function writesWords(w: { total: number; by_steps: number; ambient: numbe
 }
 
 /**
- * Why Save waits, or null when it can go (L5.11b fixes, review B-M2): while the window is open (or about to), after
+ * Why Save waits, or null when it can go: while the window is open (or about to), after
  * Stop; while the draft is made and checked, once the check is over; else the recording cannot be saved, the name needs
  * fixing, or there is no draft. `name` is the Studio's own field (a slug: nameProblem rejects anything else).
  */
@@ -318,7 +318,7 @@ export function statusLine(state: RecordState, saved: boolean): string {
 }
 
 /**
- * Where the next insert goes when the cursor is on this row (by its identity, never its index — review B-H1): right
+ * Where the next insert goes when the cursor is on this row (by its identity, never its index): right
  * after an insert row, right after the recorder's wait (between it and its action), else after the row's last event (an
  * action, or the recorder's scroll: after the scroll, before its action).
  */
@@ -344,7 +344,7 @@ export function annotatedWords(change: { op: 'choose' | 'insert' | 'remove'; ins
 }
 
 /**
- * Why Start is refused for a persona before anything is queued (review B-L5), or null: a persona whose session is not
+ * Why Start is refused for a persona before anything is queued, or null: a persona whose session is not
  * valid, with no `login:` steps and no sandbox — the recording's preflight would refuse it. The answer is Sign in.
  */
 export function personaProblem(p: { status: string | null; login_steps: boolean; sandbox: boolean } | undefined): string | null {

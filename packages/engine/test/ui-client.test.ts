@@ -1,8 +1,8 @@
 /**
- * L4.1 (critique B5): the engine client `ui` (the Studio web app) runs under the agent's trust, with no approver — the
+ * The engine client `ui` (the Studio web app) runs under the agent's trust, with no approver — the
  * same refusals as `mcp`: a scenario naming a secret is refused at validate / save, work that needs a human is
  * `needs_approval`; what it submits is recorded as `submitted_by: ui`. The predicate is fail-safe: only `cli` and `test`
- * are not agents. Comments (L4.6): the Studio is a person channel (`studio`) that creates and reopens threads — on the
+ * are not agents. Comments: the Studio is a person channel (`studio`) that creates and reopens threads — on the
  * render and the thread version it showed (render_created_at, if_match); resolving needs if_match.
  */
 import { mkdtemp, rm } from 'node:fs/promises';

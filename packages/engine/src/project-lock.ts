@@ -1,9 +1,9 @@
 /**
- * Locks of a project's files (L3.6 comment threads; L4.3 critique B1: every `if_match` write of `writeText`): a lock
- * file under `<project>/.retake/locks/`, core/io's TakeLock (L7.25: was the sandbox package's) — created whole, stale
+ * Locks of a project's files (comment threads; every `if_match` write of `writeText`): a lock
+ * file under `<project>/.retake/locks/`, core/io's TakeLock — created whole, stale
  * only when its process is gone (never by age) —, retried while a live process holds it, for at most `waitMs`. One process and
- * several (the Studio, `retake mcp`, a terminal) share it: two writers that read the same version can no longer both
- * pass their `if_match` check and rename one after the other (the last rename silently won).
+ * several (the Studio, `retake mcp`, a terminal) share it: two writers that read the same version cannot both
+ * pass their `if_match` check and rename one after the other (the last rename would silently win).
  */
 import { mkdir, realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';

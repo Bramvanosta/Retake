@@ -1,18 +1,18 @@
 /**
- * The app bundle (L5.16, DESIGN §4p): where Retake finds its own tools when it runs from a staged tree or from
+ * The app bundle (DESIGN §4p): where Retake finds its own tools when it runs from a staged tree or from
  * `Retake.app/Contents/Resources` — Node.js, the engine, the browsers, ffmpeg, the starter themes and the Claude plugin —
  * and the rules every resolver follows:
  *
  * - **Order:** an explicit setting (retake.yaml `ffmpeg`, `browser.executable`) → an explicit variable
  *   (`$RETAKE_FFMPEG`, `$RETAKE_FFPROBE`, `$RETAKE_CHROMIUM`, `$RETAKE_CHROMIUM_HEADLESS_SHELL`) → the bundle's own →
- *   the system's (PATH, Playwright's cache). In a repository checkout there is no bundle: every resolver answers what it
- *   answered before L5.16.
+ *   the system's (PATH, Playwright's cache). In a repository checkout there is no bundle: every resolver skips the
+ *   bundle's own step.
  * - **Discovery:** `bundle.json` (the stage step writes it) in exactly one folder, the one core's dist sits five
  *   folders below (`<root>/engine/node_modules/@retake/core/dist`; this module is in its `io/` folder), and only when its `paths.engine` holds this module
  *   at `node_modules/@retake/core/` — never a folder above the app, never a stray `bundle.json` above a checkout. A
- *   damaged manifest of this engine never throws at import: `bundleProblems()` names it (doctor), and every resolver
+ *   damaged manifest of this engine never throws at import: `bundleProblems` names it (doctor), and every resolver
  *   that needs the bundle throws it (a damaged app says so instead of falling back to the system's tools).
- * - **Browsers:** playwright-core reads PLAYWRIGHT_BROWSERS_PATH once, when it loads. `prepareBundle()` (first thing in
+ * - **Browsers:** playwright-core reads PLAYWRIGHT_BROWSERS_PATH once, when it loads. `prepareBundle` (first thing in
  *   both entry points: the CLI's bin and the jobs worker's main) sets it to the bundle's browsers, loads playwright-core,
  *   and restores the inherited value — so it never reaches hooks, sandbox services, shells or workers.
  * - **Nothing writes inside the bundle** at run time (its signature seals every file): `assertOutsideBundle`.
@@ -187,7 +187,7 @@ export function bundleInfoOrNull(): BundleInfo | null {
 }
 
 /**
- * Which copy of Retake this engine is (L5.16c, critique M6): the `.app` it runs from (the sealed folder of its bundle),
+ * Which copy of Retake this engine is: the `.app` it runs from (the sealed folder of its bundle),
  * else the repository checkout holding it (the first folder up with `pnpm-workspace.yaml`), else core's package folder.
  * The worker lock records it: a workspace's worker started by another copy (the app and a checkout, two apps) is said.
  */

@@ -1,30 +1,30 @@
 /**
- * The supervised server's lines to the desktop shell (L5.2b, DESIGN §4j): after the `ui` line, `retake ui --supervised`
+ * The supervised server's lines to the desktop shell (DESIGN §4j): after the `ui` line, `retake ui --supervised`
  * writes on stdout, one JSON object per line, at most PIPE_LINE_MAX bytes each, each line framed by a newline before
- * and after (review A L3: a stray partial write of another module on stdout becomes a line of its own, which the shell
- * ignores, never glued to the next state):
+ * and after (a stray partial write of another module on stdout becomes a line of its own, which the shell ignores,
+ * never glued to the next state):
  *
  * - `{"type":"pending","jobs":[{kind,state,project,scenario?}…],"jobs_total","unsaved":[{kind,project?,scenario?}…],
  *   "unsaved_total"}` — what Quit would leave behind, whole, at start and on every change: coalesced (at most one write
  *   per PENDING_GAP_MS, the last state always written), latest-wins while stdout is full (nothing queues);
  * - `{"type":"job_end","kind","outcome","reason"?,"project","scenario"?}` — once per job that ends while the server
  *   runs (at most JOB_END_PER_MIN a minute; more are counted on stderr);
- * - L5.12d: `{"type":"shown","id","shown":true}` / `{"type":"answer","id","answer"}` — the window page's word on the
+ * - `{"type":"shown","id","shown":true}` / `{"type":"answer","id","answer"}` — the window page's word on the
  *   quit question (desktop.ts `desktop_answer`), written as the op runs.
  *
  * Words live in the shell: every field is an enum it knows or a slug it checks again — never a path, a message, a URL
  * or page text. A hand-edited job.json is data: its project and scenario are named only when they pass the slug rules
- * AND exist (`<projects>/<project>/project.yaml`, `scenarios/<scenario>.yaml`: review A L1), as the unsaved board does —
+ * AND exist (`<projects>/<project>/project.yaml`, `scenarios/<scenario>.yaml`), as the unsaved board does —
  * slugs are still words a person or an agent chose, so the shell also cuts a long one when it shows it.
  * The job watch (engine JobsWatch, polled every PIPE_POLL_MS for the server's life, nudged after a Studio write op)
  * takes stock first: jobs finished before the server started never give a `job_end`. Jobs of the workspace's queue
- * count — the guard and the notifications alike — whoever queued them: the Studio (any window or tab on this server)
- * or Claude through MCP. A terminal's `retake run` / `render` / `export` / `record` runs in-process, writes no job and
- * is neither asked about nor notified (review B L1). Kinds that count: captures and dry runs, renders, reviews,
- * exports, recordings (`studio_recording` when the Studio started it: its controls are on the Record screen, review B
- * L5), sandbox starts and resets, environment resets and hooks that are not dry. A queued job with no live worker is
- * left out (critique M2: nothing runs it until the next submit starts one — it would hold Quit for nothing).
- * The watch reads each live job once per poll (its record is reused: review B L15); the event stream's own watch
+ * count — the guard and the notifications alike — whoever queued them: the Studio (any window or tab on this server) or
+ * Claude through MCP. A terminal's `retake run` / `render` / `export` / `record` runs in-process, writes no job and is
+ * neither asked about nor notified. Kinds that count: captures and dry runs, renders, reviews, exports, recordings
+ * (`studio_recording` when the Studio started it: its controls are on the Record screen), sandbox starts and resets,
+ * environment resets and hooks that are not dry. A queued job with no live worker is left out (nothing runs it until
+ * the next submit starts one — it would hold Quit for nothing).
+ * The watch reads each live job once per poll (its record is reused); the event stream's own watch
  * (live.ts) is a second reader while a page is open — one shared watch is BL-125.
  */
 import { access } from 'node:fs/promises';
@@ -89,7 +89,7 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : und
 /**
  * A job's kind on the pipe; undefined for a kind that never counts — `preview` (the library's posters and loops),
  * `auth_login` (the person is at its window), `inspect` and `site` (Claude's quick tools), dry hooks and dry
- * environment resets. One explicit table (critique L6): `sandbox_up` is `sandbox_start` on the pipe.
+ * environment resets. One explicit table: `sandbox_up` is `sandbox_start` on the pipe.
  */
 export function pipeKind(job: Pick<JobRecord, 'kind' | 'input'>): PipeKind | undefined {
   const i = (job.input ?? {}) as Input;
@@ -303,7 +303,7 @@ export class Supervisor {
       }
     }
     for (const id of changed) {
-      // The record the watch read in this poll (review B L15: no second read — no second `ps` per live job).
+      // The record the watch read in this poll (no second read — no second `ps` per live job).
       const job = this.watch.record(id);
       if (!job) {
         this.forget(id);
@@ -323,7 +323,7 @@ export class Supervisor {
     this.schedulePush();
   }
 
-  /** `job`'s names that pass the slug rules and exist in the workspace (review A L1). */
+  /** `job`'s names that pass the slug rules and exist in the workspace. */
   private async checkedNames(job: JobRecord): Promise<{ project?: string; scenario?: string }> {
     const n = jobNames(job);
     if (n.project === undefined) return {};
@@ -380,7 +380,7 @@ export class Supervisor {
 
   private write(line: string): boolean {
     this.written++;
-    // Framed (review A L3): a partial write of another module before it ends as a line of its own.
+    // Framed: a partial write of another module before it ends as a line of its own.
     const ok = this.o.out.write(`\n${line}\n`);
     if (!ok && !this.blocked) {
       this.blocked = true;
@@ -408,9 +408,9 @@ export class Supervisor {
   }
 
   /**
-   * A line of the window's page (L5.12d desktop.ts: `shown` / `answer`): framed like the others and written even while
+   * A line of the window's page (desktop.ts: `shown` / `answer`): framed like the others and written even while
    * stdout is full (Node keeps it: an answer is never dropped); not counted in `written`. False once stopped: nothing
-   * written (review B-L6: `desktop_answer` then says so).
+   * written (`desktop_answer` then says so).
    */
   pageLine(line: string): boolean {
     if (this.stopped) return false;
@@ -452,7 +452,7 @@ export function startSupervisor(o: {
     ...(o.log ? { log: o.log } : {}),
   });
   const off = o.server.onWrite(() => void sup.nudge());
-  // L5.12d: the window page's ack and answer to the quit question go out on the same pipe.
+  // The window page's ack and answer to the quit question go out on the same pipe.
   o.server.desktop?.attach((line) => sup.pageLine(line));
   const close = o.server.close;
   o.server.close = () => {

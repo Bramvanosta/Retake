@@ -1,5 +1,5 @@
 /**
- * L4.1 (critique B8): the engine's HTTP listener binds 127.0.0.1 only; the discovery file `.retake/ui.json` is
+ * The engine's HTTP listener binds 127.0.0.1 only; the discovery file `.retake/ui.json` is
  * claimed exclusively (two claims at once: one wins, the other gets the holder), created 0600 whatever the umask,
  * read only when it is a regular file of this user without group / other bits, replaced when its holder is dead or
  * it is broken, and removed on release only when it is still ours (whatever its mode by then); an unwritable state

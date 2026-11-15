@@ -1,5 +1,5 @@
 /**
- * `retake jobs [list] | status <id> | cancel <id>` (L3.1): what a Claude session started through the MCP server — dry
+ * `retake jobs [list] | status <id> | cancel <id>`: what a Claude session started through the MCP server — dry
  * runs, captures, hooks, environment resets, sign-ins, sandbox up / reset —, for the human at the terminal, also once
  * that session is gone. `retake run` and the other commands run inline and are not jobs.
  */
@@ -82,7 +82,7 @@ export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsL
     const progress = j.state === 'running' && p ? ` · ${jobProgress(p)}` : '';
     const outcome = j.result ? jobOutcome(j.result, 'full') : '';
     const cancel = j.cancel_requested_at && (j.state === 'running' || j.state === 'queued') ? c.yellow(' · cancel requested') : '';
-    // L5.14: a heavy job a filming take holds (waiting to start, or slowed while it runs).
+    // A heavy job a filming take holds (waiting to start, or slowed while it runs).
     const held = j.yield ? c.yellow(` · ${yieldWords(j.yield)}`) : '';
     ui.result(
       `${c.dim(j.id)}  ${stateText(ui, j.state)} ${jobProject(j.input) ?? 'workspace'} · ${jobWhat(j.input)}${held}${progress}${outcome ? ` · ${outcome}` : ''}${cancel} ${c.dim(`(${ago(j.created_at, now)}, by ${j.input.submitted_by})`)}`,

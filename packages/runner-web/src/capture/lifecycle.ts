@@ -44,7 +44,7 @@ import type { FilmingEvent, FilmingReport, RunOptions } from './options.js';
 
 /**
  * SIGINT/SIGTERM abort the run (teardown still runs); a second signal kills the process — after the driver's cleanup
- * (the browser's: removing the session copies it made, which hold a persona's cookies; L1.6) and killing the shell hooks
+ * (the browser's: removing the session copies it made, which hold a persona's cookies) and killing the shell hooks
  * still running (`groups`: their process groups, which a signal to this process alone would leave running).
  */
 function installSignalHandlers(onSignal: (sig: NodeJS.Signals) => void, groups: ReadonlySet<number>, cleanupSync: () => void): () => void {
@@ -87,7 +87,7 @@ function tell(f: (state: FilmingEvent) => void | FilmingReport, state: FilmingEv
 }
 
 /**
- * The environment block of the timeline (L1.7): name, production, the run's access, the display table, the clock.
+ * The environment block of the timeline: name, production, the run's access, the display table, the clock.
  * The read-only guard adds `writes` while the run goes.
  */
 function timelineEnvironment(env: ResolvedEnvironment, access: RunAccess, runClock: ResolvedClock | undefined): TimelineEnvironment {
@@ -140,7 +140,7 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
   const { project, scenario: loaded, mode } = opts;
   const sc = loaded.scenario;
   const env = resolveEnvironment(project, opts.env ?? sc.env);
-  // L1.7: the run's access (a read-only run refuses writing hooks) and the product's clock, settled before anything
+  // The run's access (a read-only run refuses writing hooks) and the product's clock, settled before anything
   // is recorded — a refused --allow-writes or an unusable clock fails here, like --until.
   const access = resolveRunAccess(env, { allowWrites: opts.allowWrites === true, project });
   const runClock = resolveClock(sc.clock, project.config.clock, { timezone: projectBrowser(project, opts.browser).timezone });
@@ -173,7 +173,7 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
   // The steps this run executes (all, or up to --until).
   const toRun = until ? listed.filter((s) => s.sceneIndex < until!.sceneIndex || (s.sceneIndex === until!.sceneIndex && s.step.index <= until!.stepIndex)) : listed;
   const total = toRun.length;
-  // L1.8: the sandbox of a sandbox environment, with the reset made before the take when there was one (--sandbox).
+  // The sandbox of a sandbox environment, with the reset made before the take when there was one (--sandbox).
   const sandbox: RunSandbox | undefined = env.sandbox ? (opts.sandbox?.name === env.name ? { ...opts.sandbox } : { name: env.name, provider: env.sandbox.provider }) : undefined;
   // The run's record while it is in flight; its end makes another one (finishRun), which is what the last save writes.
   const record: RunningRun = startedRun({
@@ -237,10 +237,10 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     hooks: {},
     secrets: secrets.resolver,
   };
-  // The environment's mailbox (L1.8: a sandbox's own, else the project's).
+  // The environment's mailbox (a sandbox's own, else the project's).
   const mailbox = mailboxFor(project, env.name);
   const readsMail = mailbox !== undefined && toRun.some((l) => l.step.action === 'wait_for_email');
-  /** Captures first (L5.14): onFilming said `start` and not yet `stop`. */
+  /** Captures first: onFilming said `start` and not yet `stop`. */
   let filming = false;
   const onFilming = mode === 'capture' ? opts.onFilming : undefined;
   const run: CaptureRun = {
@@ -301,14 +301,14 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
 
   try {
     throwIfAborted(signal);
-    // Work submitted through MCP or from the Studio (L3.1, core agent-trust): the scenario names no secret, its files
+    // Work submitted through MCP or from the Studio (core agent-trust): the scenario names no secret, its files
     // stay in the project (code never from a file an agent can write) and the URLs it opens are on the environment's
     // origins — refused before anything runs.
     if (opts.hookTrust === 'mcp') {
       const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? AGENT_CONFINEMENT, env, files: nodeFileFacts });
       if (problems.length) throw new RunnerError(`refused (work submitted ${confinementWords(opts.hookVia)}): ${problems.join('; ')}`);
     }
-    // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.
+    // A read-only run refuses hooks that write before anything runs: no browser, no session copy, no hook.
     if (access.mode === 'read-only' && hooksMode === 'run') {
       const writing = writingHooks(
         { setup: sc.setup, teardown: sc.teardown, step: stepHookList(sc, project) },
@@ -321,9 +321,9 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     // capture, and a missing one fails the run up front.
     await prefetchSecrets(secrets, sc, until, readsMail ? (mailbox ?? null) : null);
     driver.identify();
-    // The steps this run executes (L4.4: the Studio's step list), described as step_start will describe them — once
+    // The steps this run executes (the Studio's step list), described as step_start will describe them — once
     // every secret is known (the prefetched ones, the sandbox accounts' passwords), so a value written as is in a step
-    // is masked here too (review A).
+    // is masked here too.
     emit({
       type: 'outline',
       steps: toRun.map((l) => ({
@@ -336,7 +336,7 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     });
     await driver.open();
 
-    // `hook:` steps (L5.8) run named hooks during the take, in the same context as the setup's (journal, saved results).
+    // `hook:` steps run named hooks during the take, in the same context as the setup's (journal, saved results).
     const hookSteps = hookStepNames(sc).length > 0;
     if (hookSteps) record.hooks.steps = hooksMode === 'skip' ? 'skipped' : 'ok';
     const hasHooks = (sc.setup?.length ?? 0) + (sc.teardown?.length ?? 0) > 0 || hookSteps;
@@ -377,7 +377,7 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     }
     // The video's title, intro, outro and tutorial switches are templated once the setup hooks saved their results.
     const meta = timeline.meta;
-    // All of it is text the video shows: `{{page}}` reads the page's display URL (L1.7).
+    // All of it is text the video shows: `{{page}}` reads the page's display URL.
     if (meta.video) meta.video = templated(() => templateVideo(meta.video!, { ...template, pages: displayPages(env) }), record);
 
     await driver.film();

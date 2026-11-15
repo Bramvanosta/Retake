@@ -97,7 +97,7 @@ export interface RenderBase<P, O> {
   template_sha256?: string;
   /**
    * The theme's folder as the editor loaded it (core io templateFolderId: `/starter:<name>`, or relative to the
-   * workspace root): what tells two folders of one name apart. Written since L7.9; an older record has none.
+   * workspace root): what tells two folders of one name apart. An older record has none.
    */
   template_folder?: string;
   overrides: O;
@@ -696,7 +696,7 @@ export function latestNamedRender(entries: readonly RenderEntry[], o: { scenario
 }
 
 /**
- * A render's identity (L7.6c): its id and its creation time — a render id is reused after a render is deleted or
+ * A render's identity: its id and its creation time — a render id is reused after a render is deleted or
  * replaced, so the same id made at another time is another render. `a` is the render as it is now (a record of its own
  * file), `b` the render as someone read it then (a comment's `render_id` and `render_created_at`, the page's
  * `created_at`). A record without its creation time (`''`) is the same render as nothing a caller read.

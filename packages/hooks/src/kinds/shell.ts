@@ -40,7 +40,7 @@ interface ShellCommand {
   /** A sandbox environment's variables (sandboxEnv), under `env`. */
   base?: Record<string, string>;
   /**
-   * L5.14: a rollback Retake did not sign — the terminal's environment is not passed on, only core childEnv's base of
+   * A rollback Retake did not sign — the terminal's environment is not passed on, only core childEnv's base of
    * it (the shell's own variables; no `pass_env:`).
    */
   bare?: boolean;
@@ -183,7 +183,7 @@ function hookEnv(ctx: HookContext, cmd: ShellCommand): NodeJS.ProcessEnv {
 }
 
 /**
- * What a shell command on a sandbox environment (L1.8) gets on top of Retake's own environment: the `env` of the
+ * What a shell command on a sandbox environment gets on top of Retake's own environment: the `env` of the
  * sandbox's process services (templated like theirs) and RETAKE_SANDBOX=<env> — a seed's `npm run db:reset`
  * reaches the sandbox's database, never the one the developer's shell or `.env` file points at. The command's own
  * `env` wins; a variable two services set differently must be set there. Nothing on other environments.
@@ -315,7 +315,7 @@ async function checkAgentShell(ctx: HookContext, cmd: Pick<ShellCommand, 'run' |
 }
 
 /**
- * `declared`: the hook's `writes` field (L1.7). A shell command writes unless the hook declares `writes: false`; even
+ * `declared`: the hook's `writes` field. A shell command writes unless the hook declares `writes: false`; even
  * then a destructive command (rm, dropdb, destructive SQL given to psql) and a rollback write.
  */
 export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, declared?: { writes?: boolean }): Promise<PreparedHook> {

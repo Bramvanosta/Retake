@@ -69,7 +69,7 @@ export const ComponentRefSchema: z.ZodType<ComponentRef> = z
     description: 'A component id "namespace/name" (e.g. studio/intro-stack), or {id, params}.',
   });
 
-// ── User media (L2.12) ───────────────────────────────────────────────────────
+// ── User media ───────────────────────────────────────────────────────
 
 /**
  * The fields of a user file (video, image or Lottie) on an intro, an outro, a card, an interstitial — and, without

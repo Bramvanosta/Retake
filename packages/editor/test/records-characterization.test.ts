@@ -1,5 +1,5 @@
 /**
- * The run records and takes as the editor answers them (L7.6a), state by state: which run `latest` names, what a named
+ * The run records and takes as the editor answers them, state by state: which run `latest` names, what a named
  * run answers at a terminal and under trust `mcp`, and what the plan of each says. The states are those of
  * test-support/src/records/states.json (OLD: a good capture of `quote`; NEW: the state named), one project per state
  * in a temp workspace; nothing is rendered.
@@ -100,7 +100,7 @@ const LINKED = 'PlanTrustError: refused through MCP:\n- run NEW is a link to a f
 /**
  * Per state: the run `latest` names (findRun) with what it passed over, what planning `latest` says, then NEW named by
  * its folder at a terminal and under trust `mcp`. `=`: the same as the cell on its left. The comment names the decision
- * or the fix that moved the row (L7.6a part B); a row without one did not move. The first column is the one of
+ * or the fix that moved the row; a row without one did not move. The first column is the one of
  * core/test/run-folder.test.ts, state for state.
  */
 const TABLE: Record<string, [latest: string, latestPlan: string, named: string, namedMcp: string]> = {
@@ -240,10 +240,10 @@ describe('the editor, state by state: the run `latest` names and a run named by 
   });
 });
 
-// ── The render records (L7.6b), state by state ──────────────────────────────
+// ── The render records, state by state ──────────────────────────────
 //
 // The states are those of test-support/src/records/render-states.json: two good captures (OLD, NEW), a good render
-// `quote-v1` and the file(s) the state names. The cells were written before the lot (its P0) and flipped by its editor
+// `quote-v1` and the file(s) the state names. The cells were written before the lot and flipped by its editor
 // part on purpose: a cell that changed is marked `moved: <row>` with the row of the lot's table of visible changes (the
 // lead's plan §4, and §1b's rows 21–29) and says what it held before. A state without a mark did not move: a thing a
 // person NAMES keeps working. Since the lot the listing is the complete records of their own file (D-10); a terminal's

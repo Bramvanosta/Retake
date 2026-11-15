@@ -1,16 +1,15 @@
 /**
- * L5.9: cards — `FrameCard` (a scene's frame: 16:9 picture, its number, a title and a meta line) and `PosterCard` (a
+ * Cards — `FrameCard` (a scene's frame: 16:9 picture, its number, a title and a meta line) and `PosterCard` (a
  * production's poster, larger, the title under it). The picture comes from Thumb.tsx (the app's one image source); the
  * card is ONE control — a `<button aria-pressed>` when it selects, an `<a href>` when it goes somewhere. Selected: the
- * selection fill and a 2 px ring (more than colour).
- * L5.10a: `PosterGrid` — the productions as ONE listbox (critique M6: one tab stop, `aria-activedescendant`): the arrows
- * move the selection (← → one, ↑ ↓ a row), Home / End, Enter opens the selected one, Space selects, Escape clears the
- * selection; a click selects, a double-click opens. Nothing is selected until the person picks (the inspector then
- * shows the project). Selected: the selection fill and a 2 px ring.
- * L5.10a fixes (review B-M2): the grid has as many columns as fit (CSS auto-fill); ↑ ↓ move by the row the browser laid
- * out (its computed columns). Nothing selected: no `aria-activedescendant` at all (review A-L6: never an empty one).
- * L5.12c fixes: a selecting card can be one stop of a roving grid (`tabIndex`) and be named by its title alone
- * (`labelledBy` / `describedBy`: the picture's alt is not said before the name — the Library, review A-L7).
+ * selection fill and a 2 px ring (more than colour). `PosterGrid` — the productions as ONE listbox (one tab stop,
+ * `aria-activedescendant`): the arrows move the selection (← → one, ↑ ↓ a row), Home / End, Enter opens the selected
+ * one, Space selects, Escape clears the selection; a click selects, a double-click opens. Nothing is selected until the
+ * person picks (the inspector then shows the project). Selected: the selection fill and a 2 px ring.
+ * The grid has as many columns as fit (CSS auto-fill); ↑ ↓ move by the row the browser laid
+ * out (its computed columns). Nothing selected: no `aria-activedescendant` at all (never an empty one).
+ * A selecting card can be one stop of a roving grid (`tabIndex`) and be named by its title alone
+ * (`labelledBy` / `describedBy`: the picture's alt is not said before the name — the Library).
  */
 import { useEffect, useId, useRef } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
@@ -28,9 +27,9 @@ interface CardProps {
   onSelect?: () => void;
   /** … or goes to a place (a link). */
   to?: Route;
-  /** L5.12c: a roving grid's stop (0) or not (-1). */
+  /** A roving grid's stop (0) or not (-1). */
   tabIndex?: number;
-  /** L5.12c: the ids naming and describing the selecting button (its title, its meta). */
+  /** The ids naming and describing the selecting button (its title, its meta). */
   labelledBy?: string;
   describedBy?: string;
 }

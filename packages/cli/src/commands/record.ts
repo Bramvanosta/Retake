@@ -29,11 +29,11 @@ export type RecordTestHooks = Pick<RecordPorts, 'drive' | 'headless' | 'windowSi
 const ACTIONS = new Set(['pointer', 'type', 'key', 'select_native', 'file']);
 
 /**
- * `retake record <project> [name] [--env] [--persona] [--page] [--path | --url] [--allow-writes] [--no-check] [--json]`
- * (L3.4): a browser window opens on the environment's page; the person performs the flow and closes the window (or
- * presses Ctrl-C: stop and keep); a draft scenario is made from it, saved as scenarios/<name>.yaml when the name is free
- * (default recorded-YYYYMMDD-HHMM), then checked by a headless dry replay (a second Ctrl-C stops the check). Typed text
- * goes only to the draft and the recording's folder; this command prints counts, step references and write labels.
+ * `retake record <project> [name] [--env] [--persona] [--page] [--path | --url] [--allow-writes] [--no-check]
+ * [--json]`: a browser window opens on the environment's page; the person performs the flow and closes the window (or
+ * presses Ctrl-C: stop and keep); a draft scenario is made from it, saved as scenarios/<name>.yaml when the name is
+ * free (default recorded-YYYYMMDD-HHMM), then checked by a headless dry replay (a second Ctrl-C stops the check). Typed
+ * text goes only to the draft and the recording's folder; this command prints counts, step references and write labels.
  * Exit 1 when nothing was recorded, the draft was not valid, or the check replay failed.
  */
 export async function recordCommand(ui: Ui, global: GlobalOptions, projectArg: string, name: string | undefined, opts: RecordCommandOptions, hooks: RecordTestHooks = {}): Promise<ExitCode> {

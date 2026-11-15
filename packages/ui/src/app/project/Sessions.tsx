@@ -1,5 +1,5 @@
 /**
- * Sessions (L4.4, R-AUTH-10; L5.11a: on the kit — the Cast and Prepare's "Sessions this run signs in with"): the
+ * Sessions (R-AUTH-10; on the kit — the Cast and Prepare's "Sessions this run signs in with"): the
  * personas' saved sign-ins, each with its stored state as a shape and a word (no browser is opened to read it), its last
  * check (the page's own text in a "From the page" box), what a run does with it (signs it in by itself, no check, a
  * sandbox account, in use) and "Sign in": a headed `auth_login` job, a browser window on this computer where the PERSON
@@ -169,7 +169,7 @@ export type SessionRowData = AuthStatusItem & { auto?: boolean; has_check?: bool
 
 /**
  * What a run does with a persona's session, in words (empty: nothing to say). `issues`: the callouts shown beside the
- * table (Prepare) — a note one of them already says is left out (review B-H1 of L5.11a).
+ * table (Prepare) — a note one of them already says is left out.
  */
 function runNotes(p: SessionRowData, issues: readonly string[]): string[] {
   const out: string[] = [];
@@ -190,9 +190,9 @@ function signedInBy(p: SessionRowData): string | null {
 
 /**
  * One table of personas (a `<table>` of kit cells): name (and location), stored state, last check, Sign in — what a run
- * does with it on its own full-width line under the row (review B-H1 of L5.11a: the Session column takes the free width,
- * no cell squeezed to a letter; below 520 px of pane the rows stack). A sandbox account or a persona its login steps sign
- * in offers no "Sign in…": the run does it (review B-L1). Test ids kept from L4.4: sessions-table, session-row
+ * does with it on its own full-width line under the row (the Session column takes the free width, no cell squeezed to a
+ * letter; below 520 px of pane the rows stack). A sandbox account or a persona its login steps sign
+ * in offers no "Sign in…": the run does it. Test ids: sessions-table, session-row
  * (data-persona, data-status).
  */
 export function SessionRows({

@@ -1,6 +1,6 @@
 /**
- * The review read of the MCP server (moved from its tools/review.ts in L7.14): review_get, and the review's summary and
- * answer it shares with the MCP server's review.
+ * The review read of the MCP server: review_get, and the review's summary and answer it shares with the MCP server's
+ * review.
  */
 import { z } from 'zod';
 import type { Engine } from '../engine.js';

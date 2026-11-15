@@ -1,5 +1,5 @@
 /**
- * @retake/core — every entry of core at once (L7.35, audit 2026-11-10 D1): the contexts' entries, kept as one namespace
+ * @retake/core — every entry of core at once: the contexts' entries, kept as one namespace
  * for tests, scripts and anything outside the packages' sources. A package's sources import the entry of what they use
  * (`@retake/core/<context>`; the ratchet's `core-root` check), and the machine's side is `@retake/core/io`.
  */

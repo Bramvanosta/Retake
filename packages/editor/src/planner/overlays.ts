@@ -1,6 +1,6 @@
 /**
  * The step overlays of `planEdit` (a step's `overlay` modifier): each resolved once, when it starts and how long it
- * shows, the box a box-filling overlay fills (L2.12), what the reframe of a vertical / square clip keeps in view for
+ * shows, the box a box-filling overlay fills, what the reframe of a vertical / square clip keeps in view for
  * it, and where a file placed at a position of the screen goes so it keeps clear of the steps' targets.
  */
 import { MEDIA_COMPONENTS } from '@retake/core/model';
@@ -35,7 +35,7 @@ export interface StepOverlays {
   placeScreenOverlay: (entry: ClipEntry, seg: ClipSegment, use: OverlayUse, rel: (t: number) => number) => void;
 }
 
-/** The natural length (s) of a use's file (L2.12): a video's part, a Lottie animation; undefined otherwise. */
+/** The natural length (s) of a use's file: a video's part, a Lottie animation; undefined otherwise. */
 export function fileLength(rc: ResolvedComponent | null | undefined, outFps: number): number | undefined {
   const m = rc?.media?.file;
   if (!m) return undefined;
@@ -49,7 +49,7 @@ export function fileLength(rc: ResolvedComponent | null | undefined, outFps: num
 export function planStepOverlays(s: PlanScope, runOf: RunOf): StepOverlays {
   const { notes, warnings, timeline, resolver, kindOverride, themeAndBuiltin, slotBase, findArtefact, trackSources, mainSource, outFps, srcFps, fr, planShape, variant } = s;
   /**
-   * The box of a box-filling overlay (L2.12) in its page: `rect` as written; a target / cursor anchor: the file's own
+   * The box of a box-filling overlay in its page: `rect` as written; a target / cursor anchor: the file's own
    * size (its pixels / the page's device scale, × `scale`) centred on the step's target / the cursor; a position of the
    * screen: that size, placed by the composition; `screen`: the visible capture.
    */
@@ -85,14 +85,15 @@ export function planStepOverlays(s: PlanScope, runOf: RunOf): StepOverlays {
     let out: StepOverlay | null = null;
     if (o && ev.step >= 0) {
       const where = `scene "${entry.scene.id}" step ${ev.step} overlay`;
-      // Your own file (L2.12) stays yours: a kind-wide override restyles the provided overlays, not the files.
+      // Your own file stays yours: a kind-wide override restyles the provided overlays, not the files.
       const userFile = o.component === MEDIA_COMPONENTS.media || o.component === MEDIA_COMPONENTS.lottie;
       const kindWide = kindOverride('overlay');
       if (userFile && kindWide.length > 0) notes.add(`${where}: your file is kept (overrides.components.overlay replaces the provided overlays, not your own files)`);
       const chain: Candidate[] = [...(userFile ? [] : kindWide), { ref: { id: o.component, params: o.params }, source: 'scenario', label: 'the step overlay' }, ...themeAndBuiltin('overlay')];
       const rc = resolver.resolve('overlay', chain, where, { explicit: o.slots, ctx: { ...slotBase, scene: { caption: entry.scene.caption } } });
       if (rc) {
-        // When it starts (L2.12 `at`): the end of the step (default), its start, its click, a mark, or seconds after it starts.
+        // When it starts (`at`): the end of the step (default), its start, its click, a mark, or seconds after it
+        // starts.
         const start = overlayStartAt(ev, timeline.markers, entry);
         if (start.fallback === 'no-click') notes.add(`${where}: the step recorded no click: it starts at the end of the step`);
         else if (start.fallback === 'no-mark') warnings.add(`${where}: ${String(o.at)} is not a mark of run ${timeline.run_id}: it starts at the end of the step`);

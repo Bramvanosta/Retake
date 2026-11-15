@@ -224,7 +224,7 @@ describe('core loaders and disk probes (characterization)', () => {
     // Runs.
     write('ws/projects/p/runs/r1/run.json', '{"version": 99}');
     write('ws/projects/p/runs/r2/run.json', '{"version": 1}');
-    // The refusal of a run.json a newer Retake wrote, as the one reader of run folders says it (L7.6a: readRunRecord).
+    // The refusal of a run.json a newer Retake wrote, as the one reader of run folders says it (readRunRecord).
     const newerRunMessage = async (dir: string) => {
       const r = await readRunRecord(join(dir, 'run.json'));
       return !r.ok && r.problem === 'newer-format' ? r.message : null;

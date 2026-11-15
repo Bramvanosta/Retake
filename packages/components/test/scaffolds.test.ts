@@ -396,7 +396,7 @@ describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer st
       .filter((f) => moduleSpecifiers(readFileSync(join(kitDir, f), 'utf8')).some((s) => s === 'remotion' || s.startsWith('remotion/') || s.startsWith('@remotion/')));
     expect(naming).toEqual(['renderer.ts']);
     const index = stripComments(readFileSync(join(kitDir, 'index.ts'), 'utf8'));
-    // L7.34 (finding C4): the primitives held by what the kit hands, not by its export statement — the very objects of
+    // The primitives held by what the kit hands, not by its export statement — the very objects of
     // the renderer seam (one copy of the library), and only these six of it.
     const kit = (await import('../src/kit/index.js')) as unknown as Record<string, unknown>;
     const seam = (await import('../src/kit/renderer.js')) as unknown as Record<string, unknown>;

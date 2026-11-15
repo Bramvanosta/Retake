@@ -1,11 +1,11 @@
 /**
- * L4.1 (critique B6): reads through LocalStorage never follow a symbolic link out of the project. A README.md or a
+ * Reads through LocalStorage never follow a symbolic link out of the project. A README.md or a
  * scenario file that links to a file outside the project was returned by project_get / scenario_get (and hashed by
  * scenario_save / project_update_readme); now refused like `writableDir` refuses a write through such a folder — and
- * the refusal never names the outside target (review A). Links inside the project, and a project folder that is
- * itself a link, still read; a write goes through an inside link to its target (review B M3), never through one
+ * the refusal never names the outside target. Links inside the project, and a project folder that is
+ * itself a link, still read; a write goes through an inside link to its target, never through one
  * leading out. project_get keeps opening a project whose README cannot be read (readme_error), and refuses a
- * project.yaml that leads out (review B M5); a README that is not UTF-8 is flagged (review B M1).
+ * project.yaml that leads out; a README that is not UTF-8 is flagged.
  */
 import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

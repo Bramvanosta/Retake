@@ -1,5 +1,5 @@
 /**
- * Sandbox mode (L1.8), the core model: sandbox.yaml (version 1) — schema and positioned checks (provider keys, paths
+ * Sandbox mode, the core model: sandbox.yaml (version 1) — schema and positioned checks (provider keys, paths
  * relative to the manifest, loopback-only URLs, pages, seed steps, reset strategy, accounts and their {{account.*}}
  * tokens, weak plain passwords) — and the project merge: project.yaml `sandboxes:` → one environment per sandbox
  * (pages, display URLs, personas from its accounts, mailbox, databases), helpers mailboxFor / databasesFor, the seed
@@ -595,7 +595,7 @@ sandboxes:
     expect(e2.issues.map((i) => i.message)).toEqual([
       'page console (localhost:4503) is also a page of environment production, which is production: a sandbox is reset — its data dropped — before every take; give it a port of its own',
     ]);
-    // Every loopback host is the same server (I8): 127.0.0.1, [::1] and *.localhost against localhost.
+    // Every loopback host is the same server: 127.0.0.1, [::1] and *.localhost against localhost.
     for (const host of ['127.0.0.1', '[::1]', 'app.localhost']) {
       const other = PROJECT.replace('pages: {console: https://console.example.com, shop: https://shop.example.com}', `pages: {console: "http://${host}:4503"}`);
       const e4 = (await loadProject(await workspace(other, SANDBOX_FILES)).catch((x: unknown) => x)) as SandboxConfigError;

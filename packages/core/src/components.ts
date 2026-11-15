@@ -15,7 +15,7 @@ export interface ThemeComponent {
    */
   source: 'theme' | 'legacy' | 'default';
   /**
-   * L2.12: the theme's own file for this kind (`components.intro: {video: assets/intro.mp4}`) — the use is studio/media or
+   * The theme's own file for this kind (`components.intro: {video: assets/intro.mp4}`) — the use is studio/media or
    * studio/lottie with the file in its `file` slot; `path` is relative to the template folder.
    */
   file?: { kind: MediaFileKind; path: string };
@@ -25,7 +25,7 @@ export interface ThemeComponent {
   duration?: number;
 }
 
-/** A `components` entry that is a file of the theme (L2.12) rather than a component reference. */
+/** A `components` entry that is a file of the theme rather than a component reference. */
 export function isTemplateMediaRef(ref: ComponentRef | TemplateMediaRef | null | undefined): ref is TemplateMediaRef {
   return typeof ref === 'object' && ref !== null && !('id' in ref) && mediaFileOf(ref) !== undefined;
 }

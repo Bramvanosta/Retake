@@ -1,7 +1,6 @@
 /**
- * Who a process is (jobs and the worker lock): a pid AND its start time (`ps -o lstart`, core/io proc.ts — L7.25: was
- * the sandbox package's, loaded lazily for it pulls pg), so a pid the system reused for another program never passes
- * for a worker.
+ * Who a process is (jobs and the worker lock): a pid AND its start time (`ps -o lstart`, core/io proc.ts), so a pid the
+ * system reused for another program never passes for a worker.
  */
 import { START_TOLERANCE_MS, processStart as psStart, signalState } from '@retake/core/io';
 

@@ -1,5 +1,5 @@
 /**
- * L7.2 a workspace component keeps importing the renderer library directly, and it is the same library the kit
+ * A workspace component keeps importing the renderer library directly, and it is the same library the kit
  * re-exports: one component reads the frame from `remotion` and from `@retake/components/kit` and paints what it
  * found — green when both give the same frame and it is not frame 0, red when they differ, blue at frame 0. A real
  * preview (validated, compiled, bundled, rendered), one pixel read. Needs ffmpeg/ffprobe and a headless shell.

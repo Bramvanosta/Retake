@@ -1,9 +1,9 @@
 /**
- * The CaptureRunner port (L7.12, U6's last slice): what drives a real browser for the engine — a scenario's run
+ * The CaptureRunner port: what drives a real browser for the engine — a scenario's run
  * (capture, dry, inspection), a recording's window, a persona's session (its check, its sign-in, its lock and last
- * status), the browsers js hooks run in outside a capture, a site's facts, a run's raw package (L7.22) — and the two
+ * status), the browsers js hooks run in outside a capture, a site's facts, a run's raw package — and the two
  * things a signal handler needs synchronously: the cancel's error and the removal of a persona's session copies. The composition roots choose it
- * (ports.ts `EnginePorts.capture`): the runner package (`runnerWebCapture()`), or an in-memory one in tests
+ * (ports.ts `EnginePorts.capture`): the runner package (`runnerWebCapture`), or an in-memory one in tests
  * (memory-capture.ts).
  *
  * Its vocabulary is the runner's own, named through its type-only domain entry `@retake/runner-web/types` (as the
@@ -116,7 +116,7 @@ export interface HookPages {
 }
 
 /**
- * A run's raw package for another editing tool (L7.22, U8e): the runner package's encoder (its ffmpeg) over the run's
+ * A run's raw package for another editing tool: the runner package's encoder (its ffmpeg) over the run's
  * screencast frames or film. Each refusal of the export is an EngineError of `not_found` or `invalid` (core
  * missingOrInvalid of its sentence: the run it refuses, the settings it cannot give); any other failure is thrown as
  * the package threw it.

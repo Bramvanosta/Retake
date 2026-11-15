@@ -1,19 +1,21 @@
 /**
- * L5.11a: the status bar's actions (DESIGN §4m; B32-Projet / B32-Scenario footers) for the scenario in context, on every
+ * The status bar's actions (DESIGN §4m; B32-Projet / B32-Scenario footers) for the scenario in context, on every
  * screen that has one — its state in a NON-live span ("Rehearsing · step 12 of 25 · Watch", "Capture paused", "Last take
- * succeeded · 2 h ago", "Idle"; its name first off its own routes; the location when the tab chose one: critique M2),
+ * succeeded · 2 h ago", "Idle"; its name first off its own routes; the location when the tab chose one),
  * then Rehearse, Capture (the record variant) and Render, with Pause and Stop while a run of it is queued or running.
  * A disabled action says why in its description; one blocker line shows at a time (Capture's first, else Rehearse's) in
- * the gate's own short words (shoot-words.ts, critique H3) with its one action: Copy command, Open the YAML.
+ * the gate's own short words (shoot-words.ts) with its one action: Copy command, Open the YAML.
  *
  * It is the default owner (priority 0) of the Scenario menu's commands (command-bus.ts): ⌘R / ⇧⌘R / ⌘B / ⌘. in the app,
- * the palette's Scenario group in a browser tab (critique M3). A command that cannot act says why in the polite line and
- * sends nothing; it never acts before the project is read (critique M2). Starts stay where they are (the status bar
- * follows the run); Stop and Pause reach the run's job — a terminal's run has none: "press Ctrl-C there" (critique M4).
+ * the palette's Scenario group in a browser tab. A command that cannot act says why in the polite line and
+ * sends nothing; it never acts before the project is read. Starts stay where they are (the status bar
+ * follows the run); Stop and Pause reach the run's job — a terminal's run has none: "press Ctrl-C there".
  * A screen may claim the actions slot (Prepare, the live screen, a live recording): the buttons then hide, the commands
  * stay (the screen's own outrank them where it registers some); on a run or Record route the claim also takes the
- * scenario's state line (L5.11b: a live recording's status bar is the recording's, not the remembered scenario's; L5.12a: Edit's and the Review report's too — they say the take, the edit and the review; L5.12c: the Library's and the themes' — they say the previews, the theme's writes). On the Scenario screen the screen feeds what it read
- * (no second read: critique H2); on the Project screen a selection is read once it settled for 300 ms. The one
+ * scenario's state line (a live recording's status bar is the recording's, not the remembered scenario's; Edit's and
+ * the Review report's too — they say the take, the edit and the review; the Library's and the themes' — they say the
+ * previews, the theme's writes). On the Scenario screen the screen feeds what it read
+ * (no second read); on the Project screen a selection is read once it settled for 300 ms. The one
  * confirmation sheet of a capture with sessions to confirm lives here (`SessionsSheet`).
  */
 import { useEffect, useRef, useState } from 'react';
@@ -50,7 +52,7 @@ import { PRIORITY, useShellCommand } from './command-bus.js';
 import type { ScenarioContext } from './modes.js';
 import { runEnded } from '../run-ended.js';
 
-/** The Project screen's routes: a selection there is read once it settled (critique H2). */
+/** The Project screen's routes: a selection there is read once it settled. */
 const SETTLE_ROUTES = new Set<Route['name']>(['project', 'group', 'location']);
 const SETTLE_MS = 300;
 
@@ -112,7 +114,7 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   const live: LiveRun | null = onScenario ? (fed?.live ?? null) : prog;
   const runLive = live && running && live.id === running.id && !live.finished ? live : null;
 
-  // A remembered location dropped on a route whose screen does not say so: said here, once (critique M2).
+  // A remembered location dropped on a route whose screen does not say so: said here, once.
   const dropped = slug && name ? droppedLocation(slug, name) : undefined;
   useEffect(() => {
     if (!slug || !name || dropped === undefined || onScenario || onRun) return;
@@ -134,7 +136,7 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   const renderRun = route.name === 'timeline' && route.run && route.scenario === name ? route.run : slug && name ? (shownFile(slug, name)?.run ?? data?.capture?.id) : undefined;
   const renderWhy = (): string | null => {
     if (!ctx) return 'no scenario';
-    // L5.12a fixes (review A-M1): a proposal's preview never renders the file on disk — in every state of Edit (loading,
+    // A proposal's preview never renders the file on disk — in every state of Edit (loading,
     // an error, blocked), not only once its view is read (Edit then owns Render and says the same).
     if (route.name === 'proposal') return PROPOSAL_RENDER;
     if (!loc.ready || !data) return 'loading the scenario';
@@ -159,7 +161,7 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
       ...(loc.sent ? { env: loc.sent } : {}),
       say,
       // From Shoot (Prepare, a run's live screen — its outcome's Rehearse again / Start capture): the new run's live screen
-      // opens (review B-L4 of L5.11a), its title focused.
+      // opens, its title focused.
       ...(onRun
         ? {
             onStarted: (id: string) => {
@@ -204,11 +206,11 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
         : ''
     : '';
   // On the run routes the screen's own status bar says the state (Prepare, the live screen): not twice. In a narrow
-  // window whole segments go, by priority (review A-L1 of L5.11a: never a word cut in half) — the last take's time
+  // window whole segments go, by priority (never a word cut in half) — the last take's time
   // first, then the scenario's name and the last take itself (shell.css `data-drop`); a run going, the location and
   // the blocker's words stay.
   // Review's two views (the report, the comments) have their own line and Render (ReviewChrome): Shoot's never show there
-  // (L5.12b fixes, review B-M3), not even before the screen claims the slot.
+  //, not even before the screen claims the slot.
   const inReview = route.name === 'review' || route.name === 'comments';
   const markNode = <StatusMark state={SHOOT_STATES[state].mark} word={<Txt text={`${word}${detail}`} />} />;
   const info: ReactNode =
@@ -315,12 +317,12 @@ function ShortBlocker({ b, slug, name, testId, mode }: { b: RunBlocker; slug: st
 }
 
 /**
- * The capture's confirmation (B10 of L4.4) on the kit's sheet: the personas with their state and what the capture does
+ * The capture's confirmation on the kit's sheet: the personas with their state and what the capture does
  * with each (checked first → it stops before filming; no check → its saved session is used as it is and the take fails
  * only at a sign-in page, after its setup hooks ran). Cancel (Escape) · "Sign in <persona> first…" — the default, and
- * the focus (critique Q4: the canvas put Return on Capture anyway; a known-bad session would run the hooks) · Capture
+ * the focus (the canvas put Return on Capture anyway; a known-bad session would run the hooks) · Capture
  * anyway (sends `sessions_ack` once). "Sign in first" opens Prepare and focuses that persona's Sign in; the sheet opens
- * no window. A page `<dialog>`, not a native sheet: it is the page's own question (DESIGN §4m, critique L7).
+ * no window. A page `<dialog>`, not a native sheet: it is the page's own question (DESIGN §4m).
  */
 function SessionsSheet({ say, route }: { say: (s: string) => void; route: Route }) {
   const ask = useSheet();

@@ -1,5 +1,5 @@
 /**
- * L2.11 planner: multi-page clips. Two real fixture timelines (projects/northfield-fixture): live-quote (two laptop
+ * Planner: multi-page clips. Two real fixture timelines (projects/northfield-fixture): live-quote (two laptop
  * pages side by side, studio/layout-split) and phone-and-desktop (a desktop page and a phone, studio/layout-pip). Each
  * page of a scene plays from the same source time on its own track, in its own pane; the acting page follows the steps
  * (`on:`); tutorial overlays sit on the pane of their event's page; the picture-in-picture inset never covers what the
@@ -83,7 +83,7 @@ describe('multi-page clips: split screen (live-quote)', () => {
       // The layout receives both panes per frame, labels and URLs included.
       const rects = layoutPaneRectsAt(p, c, 0);
       expect(rects.map((r) => r.page)).toEqual(['buyer', 'supplier']);
-      // A run without display URLs (L1.7): the pane's URL is kept (marked hidden), never handed to the layout.
+      // A run without display URLs: the pane's URL is kept (marked hidden), never handed to the layout.
       expect(c.panes![1].urls[0]).toMatchObject({ url: expect.stringMatching(/^http:\/\/localhost:4401\/quotes/), hidden: true });
       expect(rects[1].url).toBeUndefined();
     }

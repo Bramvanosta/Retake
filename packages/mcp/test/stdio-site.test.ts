@@ -1,5 +1,5 @@
 /**
- * L3.5 template_from_site through `retake mcp` (spawned from the sources over stdio, R-MCP-12): the brand-site fixture
+ * template_from_site through `retake mcp` (spawned from the sources over stdio, R-MCP-12): the brand-site fixture
  * (self-signed https on invented `.test` names) reached through the unsafe test resolver set in the server's
  * environment (its worker inherits it). A client that approves: the question shows the canonical URL and the host;
  * the colours by role, the logo candidates (`site:<id>/logo-<n>`), the screenshot and logos as images, the page's

@@ -1,5 +1,5 @@
 /**
- * Run records as the runner writes them and as the raw export's gate reads them (L7.6a). The gate: state by state
+ * Run records as the runner writes them and as the raw export's gate reads them. The gate: state by state
  * (test-support/src/records/states.json; OLD: a good capture of `quote`; NEW: the state named), the refusal of
  * `exportCapture` or "passes the gate" (the export stops at its first progress event: nothing is encoded). The
  * writer: the members of the record a real dry run ends with, per outcome.
@@ -147,7 +147,7 @@ describe("the raw export's gate: the reader's stricter answers and the rule's or
       const r = await read(state);
       return r === undefined ? 'none' : `${r.status}/${r.env}`;
     };
-    // The manifest's `run.status` and `run.env` (and the display table's environment for a run of before L1.7).
+    // The manifest's `run.status` and `run.env` (and the display table's environment for an older run).
     expect([await said('ctl'), await said('c'), await said('e'), await said('t7'), await said('i')]).toEqual([
       'succeeded/local',
       'failed/local',

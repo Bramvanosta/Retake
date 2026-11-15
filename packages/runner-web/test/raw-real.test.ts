@@ -1,5 +1,5 @@
 /**
- * L2.13 raw export, for real: a tiny product (a button, a link to a page that shows a yellow loading screen for 1.2 s
+ * Raw export, for real: a tiny product (a button, a link to a page that shows a yellow loading screen for 1.2 s
  * before a green "Loaded" one) captured twice with the debug cursor (a magenta dot at its point) — once with the
  * cursor in the pictures, once without it (`hideCursor`, R-RAW-02) — then exported: clips with the load cut (no
  * yellow frame anywhere — the capture itself holds the start page until "Loaded" paints, R-ISS-08 —, the first frame
@@ -185,7 +185,7 @@ describe('raw export (R-RAW-01…04)', () => {
     const lay = decodeRgba(join(bakedLayer.dir, c.layer!.file), 800, 600);
     expect(lay.length).toBe(c.frames);
     // Frames where the cursor rests (its samples did not move for 0.3 s before — but for the 1 px probes after a
-    // scroll, L1.3): the dots coincide.
+    // scroll): the dots coincide.
     const cursor = JSON.parse(await readFile(join(bakedLayer.dir, 'cursor', 'cursor.json'), 'utf8')) as { clips: Array<{ samples: Array<{ f: number; x: number; y: number; visible: boolean }> }> };
     const samples = cursor.clips[0].samples;
     let compared = 0;

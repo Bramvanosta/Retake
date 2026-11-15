@@ -31,12 +31,12 @@ export type { ComponentId, ComponentKind, ComponentRef } from '@retake/core/mode
 export type OutputVariant = 'landscape' | 'vertical' | 'square';
 
 /**
- * Slot types. `email`, `document` and `notification` slots name a run artefact (L2.9): the scenario writes the
+ * Slot types. `email`, `document` and `notification` slots name a run artefact: the scenario writes the
  * artefact's name (`email: welcome`, `document: quote` or a project file `assets/terms.pdf`, `notification: 1` or a
- * name) and the planner hands the component the captured data as `props.media[<slot>]`. L2.10: `capture` names a text
+ * name) and the planner hands the component the captured data as `props.media[<slot>]`. `capture` names a text
  * read by `capture_text` (→ `TextMedia`), `frame` a frame of the capture (a mark, `start:` / `end:` a scene, `12.5s`)
  * or an image file (→ `PictureMedia`), `data` a CSV / TSV file of the project (→ `TableMedia`). An `image` slot may
- * name an image file of the project: the planner serves it and the slot holds its URL. L2.12: `media` names a video or
+ * name an image file of the project: the planner serves it and the slot holds its URL. `media` names a video or
  * an image file of the project (→ `VideoMedia` / `PictureMedia`), `lottie` a Lottie JSON file (→ `LottieMedia`).
  */
 export type SlotType = 'text' | 'image' | 'url' | 'color' | 'screen' | 'email' | 'document' | 'notification' | 'capture' | 'frame' | 'data' | 'media' | 'lottie';
@@ -46,7 +46,7 @@ export const ARTEFACT_SLOT_TYPES = ['email', 'document', 'notification', 'captur
 export type ArtefactSlotType = (typeof ARTEFACT_SLOT_TYPES)[number];
 /** Every slot type the planner resolves into `ComponentProps.media`. */
 export const MEDIA_SLOT_TYPES = ['email', 'document', 'notification', 'capture', 'frame', 'data', 'media', 'lottie'] as const;
-/** User-file slot types (L2.12): a video or image file, a Lottie file. */
+/** User-file slot types: a video or image file, a Lottie file. */
 export const FILE_SLOT_TYPES = ['media', 'lottie'] as const;
 export type MediaSlotType = (typeof MEDIA_SLOT_TYPES)[number];
 
@@ -96,13 +96,13 @@ export interface LayoutGeometrySpec {
   brandmark?: RectSpec1920;
   radius?: number | string;
   /**
-   * Multi-page layouts (L2.11): one screen per page of a multi-page scene, side by side (studio/layout-split) — the
+   * Multi-page layouts: one screen per page of a multi-page scene, side by side (studio/layout-split) — the
    * capture of page i is fitted inside `panes[i]`; `screen` is the area of the panes. Expressions may use `aspect` (page
    * 1) and `aspect2` (page 2).
    */
   panes?: RectSpec1920[];
   /**
-   * Picture in picture (L2.11): the second page's screen floating over `screen` (the first page's), at its default
+   * Picture in picture: the second page's screen floating over `screen` (the first page's), at its default
    * corner; the planner moves it to another corner of `screen` (same margins) so it never covers what the pages act on.
    */
   inset?: RectSpec1920;
@@ -150,7 +150,7 @@ export interface ComponentManifest {
   version: string;
   kind: ComponentKind;
   /**
-   * Other kinds the component can be used as (L2.12), e.g. studio/lottie: a card that also plays as an intro, an outro,
+   * Other kinds the component can be used as, e.g. studio/lottie: a card that also plays as an intro, an outro,
    * an interstitial or an overlay. The component reads `props.as` to know how it is used.
    */
   kinds?: ComponentKind[];
@@ -162,7 +162,7 @@ export interface ComponentManifest {
   tags?: string[];
   /** Implementation file relative to the component dir (default "index.tsx"). */
   entry?: string;
-  /** The kit API major it was written for (L4.5): "1" or "^1" (absent: 1). See KIT_API_VERSION. */
+  /** The kit API major it was written for: "1" or "^1" (absent: 1). See KIT_API_VERSION. */
   engines?: { kit: string };
   slots: Record<string, SlotSpec>;
   /** JSON Schema (object) of the params, with defaults. */
@@ -181,7 +181,6 @@ export interface ComponentManifest {
   anchor_vertical?: AnchorSpec;
   anchor_square?: AnchorSpec;
   variants?: Array<OutputVariant>;
-  /** Sample values used to render previews with any theme. */
   /**
    * Sample values used to render previews with any theme: slots, params, the seconds at which stills are taken (the
    * committed preview.png shows the last one) and the sample screen layouts show (default desktop).
@@ -191,7 +190,7 @@ export interface ComponentManifest {
     params?: Record<string, unknown>;
     at?: number[];
     screen?: 'desktop' | 'tablet' | 'phone';
-    /** Multi-page layouts (L2.11): the sample screen of each page. */
+    /** Multi-page layouts: the sample screen of each page. */
     screens?: Array<'desktop' | 'tablet' | 'phone'>;
     target?: 'button' | 'field';
   };
@@ -292,7 +291,7 @@ export interface NotificationMedia {
   tag?: string;
 }
 
-/** A text read from the page by `capture_text` (L2.10). */
+/** A text read from the page by `capture_text`. */
 export interface TextMedia {
   kind: 'text';
   name: string;
@@ -303,7 +302,7 @@ export interface TextMedia {
 }
 
 /**
- * An image for a card (L2.10): a frame of the capture — `url` is then the capture VIDEO, shown at `video.time_s` (the
+ * An image for a card: a frame of the capture — `url` is then the capture VIDEO, shown at `video.time_s` (the
  * kit's `<Picture>` freezes it) — or an image file of the project.
  */
 export interface PictureMedia {
@@ -318,7 +317,7 @@ export interface PictureMedia {
   label: string;
 }
 
-/** A table (a CSV / TSV file of the project, L2.10): the header row and the rows, as strings. */
+/** A table (a CSV / TSV file of the project): the header row and the rows, as strings. */
 export interface TableMedia {
   kind: 'table';
   name: string;
@@ -327,7 +326,7 @@ export interface TableMedia {
 }
 
 /**
- * A video file of the project or the theme (L2.12, `media` slots: a user intro, an alpha overlay…), served by the
+ * A video file of the project or the theme (`media` slots: a user intro, an alpha overlay…), served by the
  * renderer, with what ffprobe said about it.
  */
 export interface VideoMedia {
@@ -346,7 +345,7 @@ export interface VideoMedia {
   codec: string;
 }
 
-/** A Lottie animation of the project or the theme (L2.12, `lottie` slots), served by the renderer (`url`: its JSON). */
+/** A Lottie animation of the project or the theme (`lottie` slots), served by the renderer (`url`: its JSON). */
 export interface LottieMedia {
   kind: 'lottie';
   name: string;
@@ -361,7 +360,7 @@ export interface LottieMedia {
 
 export type MediaValue = EmailMedia | DocumentMedia | NotificationMedia | TextMedia | PictureMedia | TableMedia | VideoMedia | LottieMedia;
 
-/** A chapter of the progress bar (L2.10), in frames relative to the progress overlay. */
+/** A chapter of the progress bar, in frames relative to the progress overlay. */
 export interface ProgressChapter {
   /** Segment id (scene, card). */
   id: string;
@@ -371,7 +370,7 @@ export interface ProgressChapter {
 }
 
 /**
- * One page of a multi-page clip as a layout draws it (L2.11, `LayoutRects.panes`), output px at the current frame (the
+ * One page of a multi-page clip as a layout draws it (`LayoutRects.panes`), output px at the current frame (the
  * inset of a picture in picture glides between corners and grows while its page acts).
  */
 export interface LayoutPaneRects {
@@ -392,7 +391,7 @@ export interface LayoutPaneRects {
   inset?: boolean;
   /** A phone or tablet viewport (mobile emulation): layouts may draw a device around it. */
   mobile?: boolean;
-  /** The page's URL at this frame (browser bar): its display URL; absent for a local URL without one (L1.7). */
+  /** The page's URL at this frame (browser bar): its display URL; absent for a local URL without one. */
   url?: string;
 }
 
@@ -413,7 +412,7 @@ export interface LayoutRects {
   brandmark?: { x: number; y: number; w: number; h: number };
   radius: number;
   /**
-   * Multi-page layouts (L2.11): each page's rects at this frame, in the layout's order (`screens[i]` is page i's
+   * Multi-page layouts: each page's rects at this frame, in the layout's order (`screens[i]` is page i's
    * capture). Caption and overlay components get them too; an overlay of a page gets that page's capture as `screen`.
    */
   panes?: LayoutPaneRects[];
@@ -422,7 +421,7 @@ export interface LayoutRects {
 /** Props received by every component implementation (default export of its entry). */
 export interface ComponentProps<P extends Record<string, unknown> = Record<string, unknown>> {
   /**
-   * The kind this use is (L2.12): the manifest's `kind`, or one of its `kinds` — a component usable as a card and as an
+   * The kind this use is: the manifest's `kind`, or one of its `kinds` — a component usable as a card and as an
    * overlay draws full frame or in its box accordingly. Absent outside a plan (unit tests): the manifest's kind.
    */
   as?: ComponentKind;
@@ -445,9 +444,9 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
    * React types).
    */
   screen?: unknown;
-  /** Multi-page layouts (L2.11): the capture of each page (React nodes), in the order of `rects.panes`. */
+  /** Multi-page layouts: the capture of each page (React nodes), in the order of `rects.panes`. */
   screens?: unknown[];
-  /** layout with chrome: the URL to show — the page's display URL (L1.7); absent for a local URL without one. */
+  /** layout with chrome: the URL to show — the page's display URL; absent for a local URL without one. */
   url?: string;
   /**
    * layout: where to draw, in output px — the manifest geometry evaluated by the planner with this use's params and
@@ -468,7 +467,7 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
   area?: { x: number; y: number; w: number; h: number };
   /**
    * overlay: the box it points at, in output px (a point is a 0×0 box), when the step recorded one. A box-filling overlay
-   * (a user file, L2.12 — the step's `anchor` / `rect` / `scale`): the box it fills, this frame.
+   * (a user file — the step's `anchor` / `rect` / `scale`): the box it fills, this frame.
    * transition: the box it opens from (the outgoing segment's tap target — a notification banner, an app icon — from
    * that component's manifest `anchor`), when there is one.
    */
@@ -481,19 +480,19 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
   media?: Record<string, MediaValue>;
   /**
    * overlay: the frame (relative to the overlay) of the moment it shows — a key press (studio/overlay-shortcut), a click
-   * (studio/overlay-steps) — when the planner timed it on one (L2.10).
+   * (studio/overlay-steps) — when the planner timed it on one.
    */
   moment?: number;
   /**
-   * overlay with a capture region (studio/overlay-loupe, L2.10): the rect of the capture (source CSS px) that `screen`
+   * overlay with a capture region (studio/overlay-loupe): the rect of the capture (source CSS px) that `screen`
    * renders — `screen` fills its parent box with exactly that region, so a box of the region's aspect shows it undistorted.
    */
   region?: { x: number; y: number; w: number; h: number };
-  /** The video-wide progress overlay (studio/overlay-progress, L2.10): its chapters. */
+  /** The video-wide progress overlay (studio/overlay-progress): its chapters. */
   chapters?: ProgressChapter[];
   /**
    * overlay: boxes (output px) already drawn over the capture while the overlay shows — the caption band of a caption
-   * over the screen (studio/caption-overlay) — that a free-standing overlay (key caps, a loupe) keeps clear of (L2.10).
+   * over the screen (studio/caption-overlay) — that a free-standing overlay (key caps, a loupe) keeps clear of.
    */
   avoid?: Array<{ x: number; y: number; w: number; h: number; kind?: 'band' | 'target' }>;
   /**

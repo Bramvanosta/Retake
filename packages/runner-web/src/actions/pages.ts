@@ -123,7 +123,7 @@ export async function switchPage(ctx: StepContext, args: SwitchPageArgs): Promis
   await rt.activate(to);
   if (args.close_current && prev && prev !== to) {
     const closing = rt.session.pages.get(prev);
-    // Through about:blank on a read-only run: its unload writes meet the guard (L1.7).
+    // Through about:blank on a read-only run: its unload writes meet the guard.
     if (closing) await closePage(closing);
   }
   return { data: { page: to, url: rt.page.url() } };

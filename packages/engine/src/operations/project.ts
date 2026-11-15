@@ -22,12 +22,12 @@ export const engineInfo = defineOperation({
     const info = engine.info();
     const projects = await engine.projects.list();
     const w = await engine.jobs.worker();
-    // L5.16c (critique M6): a worker of another copy of Retake (the app and a checkout, two apps) runs this client's jobs.
+    // A worker of another copy of Retake (the app and a checkout, two apps) runs this client's jobs.
     const other = workerOfAnotherCopy(w, info.version);
-    // Its folder is the lock's text (review c A-L4): under `untrusted`; the summary says the version's shape only.
+    // Its folder is the lock's text: under `untrusted`; the summary says the version's shape only.
     const worker = w ? { pid: w.pid, since: w.since, build: w.build, ...(w.started_by ? { started_by: w.started_by } : {}), ...(other ? { other_copy: true } : {}) } : null;
     const usage = await engine.usage();
-    // L5.14: what a filming take holds of this workspace's jobs (fixed words and a kind: no other workspace named).
+    // What a filming take holds of this workspace's jobs (fixed words and a kind: no other workspace named).
     const held = heldWork(await engine.jobs.list({ states: ['queued', 'running'], limit: 50 }));
     const elsewhere = outsideWorkspace(startedIn, info.root);
     // Hotfix v0.2.5 (field point 20): an engine updated under this process (the app updated, the checkout rebuilt).
@@ -105,7 +105,7 @@ export const projectGet = defineOperation({
             ]
           : []),
         ...(p.warnings.length ? [`project.yaml: ${plural(p.warnings.length, 'warning')}`] : []),
-        // L5.8 (R-FLD-30): a local environment holding state and no sandbox — never reset it by hand between takes.
+        // R-FLD-30: a local environment holding state and no sandbox — never reset it by hand between takes.
         ...(advice
           ? [
               `sandbox: ${advice.detail}. Instead of resetting it by hand (SQL, the mailbox's API), ask the user for a sandbox — ${advice.hint}; then run_capture {sandbox: true} resets it before every take. sandbox.yaml is the user's file (never written through this server).`,

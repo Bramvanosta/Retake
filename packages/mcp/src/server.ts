@@ -3,7 +3,7 @@
  * file alone. The low-level `Server` is used (not `McpServer.registerTool`): tool input schemas are our own JSON
  * Schemas, generated from zod, and argument errors keep our positioned wording. Two transports serve the same tools
  * through one wiring (`wireServer`): stdio (`serveStdio`) and Streamable HTTP with stateful sessions
- * (`mcpHttpHandler`, L4.1) — a session keeps its server, so an approval form (elicitation) goes out on the session's
+ * (`mcpHttpHandler`) — a session keeps its server, so an approval form (elicitation) goes out on the session's
  * stream and its answer comes back to the call that asked. The SDK's own Host / Origin options are deprecated and
  * left off: the engine's gate runs before any request reaches the handler (http.ts).
  */

@@ -1,12 +1,12 @@
 /**
- * L4.5 part B: the preview protocol (src/player/protocol.ts) and the Studio page's side of it (src/player/parent.ts),
+ * The preview protocol (src/player/protocol.ts) and the Studio page's side of it (src/player/parent.ts),
  * without a browser: strict message shapes both ways, the flood budget, and connectPreview on a fake window / iframe
  * with Node's own MessageChannel —
  * - ⚑ a message from another window is ignored; the first message from the frame disarms the window listener: a hello
- *   with a port connects, anything else stops the preview (critique B2);
+ *   with a port connects, anything else stops the preview;
  * - ⚑ over the port, an invalid message or one over the budget stops it: the port is closed, the frame removed;
  * - frames are bounded by the last `loaded`; a reloaded frame re-arms the listener and its new hello replaces the port;
- * - ⚑ L5.2: the frame's store of what the Player shows (src/player/frame-store.ts) keeps a value set before anything
+ * - ⚑ The frame's store of what the Player shows (src/player/frame-store.ts) keeps a value set before anything
  *   subscribed (the frame side of the race the Chromium test in player-preview.test.ts forces).
  */
 import { MessageChannel } from 'node:worker_threads';

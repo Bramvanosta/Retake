@@ -1,11 +1,11 @@
 /**
- * The player origin (L4.5, DESIGN §4g; critiques B4, B6, B15, B16): a second loopback listener of the Studio process,
+ * The player origin (DESIGN §4g): a second loopback listener of the Studio process,
  * `http://127.0.0.1:<Q>`, that serves the sandboxed preview frame and nothing else — no `/v1`, no op, no event.
  *
- * A capability `<cap>` (32 random bytes) is in every path, one per SCOPE (review A L3: the Studio scopes by project):
+ * A capability `<cap>` (32 random bytes) is in every path, one per SCOPE (the Studio scopes by project):
  * a scope's capability reaches only the files registered in that scope; it is created on the scope's first use,
- * replaced by `rotate()`, dropped by `release(scope)` (the Studio releases a project when its last timeline page left)
- * and revoked by `close()` — every older URL then answers 404. It is never logged (errors name the route family only),
+ * replaced by `rotate`, dropped by `release(scope)` (the Studio releases a project when its last timeline page left)
+ * and revoked by `close` — every older URL then answers 404. It is never logged (errors name the route family only),
  * never in a Referer (`no-referrer` everywhere), and the page that holds it is the Studio page that framed it.
  *
  * - `GET /s/<cap>/frame` — the frame document: no inline script, its first script `boot.<hash>.js` (WebRTC removed), the
@@ -13,25 +13,25 @@
  *   as a header, with `sandbox allow-scripts` (sandboxed even when opened on its own). Never cached.
  * - `GET /s/<cap>/boot.<hash>.js`, `/s/<cap>/b.<hash>.js` — the scripts (immutable: the hash names the build).
  * - `GET /m/<cap>/plan/<id>.json` — a preview plan (editor previewPlan: capability URLs, no path, no product URL hidden
- *   from the bar, no display table, notes or warnings), served from memory (critique B4: never in a JSON op).
- *   L4.7: or a component preview, `{format: 'component-preview', spec}` (publishPreview: the editor's
+ *   from the bar, no display table, notes or warnings), served from memory (never in a JSON op).
+ *   Or a component preview, `{format: 'component-preview', spec}` (publishPreview: the editor's
  *   ComponentPreviewSpec, every URL a capability URL of the same scope — the same `forbid` scan of every string), which
  *   the frame plays with the ComponentPreview composition, looping.
  * - `GET|HEAD /m/<cap>/<file id>/<name>` — a registered file: the capture, page tracks, fonts, logo, music, card media
  *   and artefact pages of a plan, i.e. the files planRun's trust gate 2 put inside the project, the run or the theme —
- *   registered only when its real path lies in one of those folders, the path is no link and the file has one name
- *   (a hard link may be a file outside the folders: review A N4); ids are random and stable per (device, inode,
- *   size, mtime) for the scope (critique B6: a switch keeps every media URL, so no `<video>`
- *   reloads), and each read opens the file without following a link and checks it is still that regular file (a file
- *   swapped for a link or a FIFO since → 404). Range requests; `immutable` caching (the id changes with the file).
+ *   registered only when its real path lies in one of those folders, the path is no link and the file has one name (a
+ *   hard link may be a file outside the folders); ids are random and stable per (device, inode, size, mtime) for the
+ *   scope (a switch keeps every media URL, so no `<video>` reloads), and each read opens the file without following a
+ *   link and checks it is still that regular file (a file swapped for a link or a FIFO since → 404). Range requests;
+ *   `immutable` caching (the id changes with the file).
  *
  * Gate: engine checkRequest with `allowNullOrigin` (the frame's fetches carry `Origin: null`): Host exactly
  * `127.0.0.1:Q` / `localhost:Q` (421), GET / HEAD only (405), Origin absent, `null` or this origin (403). CORS
  * (`Access-Control-Allow-Origin: null`) only on `/m/` — fonts, the plan and Lottie JSON are CORS fetches of the frame's
- * opaque origin, the one origin allowed to read them (review A L3: no page of a real origin reads a capability URL);
+ * opaque origin, the one origin allowed to read them (no page of a real origin reads a capability URL);
  * the Studio port itself never sends an `Access-Control-*` header.
  *
- * The frame CSP also requires Trusted Types with no policy (review A H1 b): no string reaches an HTML parser
+ * The frame CSP also requires Trusted Types with no policy: no string reaches an HTML parser
  * (innerHTML, insertAdjacentHTML, document.write, DOMParser, srcdoc…), so markup a component writes cannot add
  * elements the frame's first script (boot.ts) does not see being made.
  */
@@ -58,7 +58,7 @@ export const PLAYER_SCOPES_MAX = 32;
 export const DEFAULT_SCOPE = '';
 /** Largest preview plan served. */
 export const PLAYER_PLAN_MAX = 16 * 1024 * 1024;
-/** The `format` of a served component preview (L4.7): `{format, spec}` instead of a preview plan. */
+/** The `format` of a served component preview: `{format, spec}` instead of a preview plan. */
 export const COMPONENT_PREVIEW_FORMAT = 'component-preview';
 
 /** A POSIX absolute path or a Windows one ("C:\…"), not a URL. */
@@ -67,7 +67,7 @@ const ABSOLUTE = /^(?:\/(?!\/)|[A-Za-z]:[\\/])/;
 const URL_LIKE = /^(?:[a-z][a-z0-9+.-]*:\/\/|\/\/|(?:file|blob|data|javascript|about|filesystem|mailto):)/i;
 
 /**
- * The `forbid` scan of a component preview spec (pure; L4.7): every string checked — no `file:` URL, no absolute path,
+ * The `forbid` scan of a component preview spec (pure): every string checked — no `file:` URL, no absolute path,
  * none holding a folder of `forbid`, and any URL one under `media` (the scope's `/m/<cap>/`) — but the display text of
  * protocol.ts `isPreviewDisplayText` (a fixed list of paths, the frame applies the same). Throws PreviewPlanError.
  */
@@ -132,7 +132,7 @@ export function frameCsp(origin: string, cap: string, studioPort: number): strin
     "form-action 'none'",
     `frame-ancestors http://127.0.0.1:${studioPort} http://localhost:${studioPort}`,
     'sandbox allow-scripts',
-    // Review A H1 (b): no HTML parsing from a string anywhere in the frame (no policy can be created).
+    // No HTML parsing from a string anywhere in the frame (no policy can be created).
     "require-trusted-types-for 'script'",
     "trusted-types 'none'",
   ].join('; ');
@@ -203,7 +203,7 @@ export interface PlayerServer {
    */
   publish(view: { plan: EditPlan; folders: { project: string; run: string; theme: string } }, o?: { forbid?: readonly string[]; scope?: string }): Promise<PublishedPreview>;
   /**
-   * L4.7: serve a component preview spec (editor buildComponentPreview, its URLs registered in `scope` by the caller)
+   * Serve a component preview spec (editor buildComponentPreview, its URLs registered in `scope` by the caller)
    * as `{format: 'component-preview', spec}` — after checkPreviewSpec (`forbid`: folders no string may name; every URL
    * one of this scope's). Throws PreviewPlanError otherwise.
    */
@@ -216,10 +216,10 @@ export interface PlayerServer {
   readonly scopes: number;
   /** Requests received (tests). */
   readonly requests: number;
-  /** Bytes of registered files read to answer GET requests (L5.2: the desktop shell's acceptance proves the frame
+  /** Bytes of registered files read to answer GET requests (the desktop shell's acceptance proves the frame
    * requested its media; a response the client aborts still counts its read-ahead; no secret). */
   readonly mediaBytesRead: number;
-  /** GET range requests of registered files answered 206 (L5.2: a media element streamed them; a HEAD is not one). */
+  /** GET range requests of registered files answered 206 (a media element streamed them; a HEAD is not one). */
   readonly rangeRequests: number;
   /** Revoke the capability and stop listening. */
   close(): Promise<void>;
@@ -324,7 +324,7 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     try {
       fd = openSync(real, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
       const st = fstatSync(fd);
-      // One name only: a hard link inside the folders may be a file that lies outside them too (review A N4).
+      // One name only: a hard link inside the folders may be a file that lies outside them too.
       if (!st.isFile() || st.nlink > 1) return undefined;
       key = `${st.dev}:${st.ino}:${st.size}:${st.mtimeMs}`;
       rec = { real, name: servedName(real), ext: extname(real).toLowerCase(), dev: st.dev, ino: st.ino, size: st.size, mtimeMs: st.mtimeMs };
@@ -371,8 +371,8 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     if (range) rangeRequests++;
     const stream = createReadStream('', { fd, start, end, autoClose: true });
     stream.on('error', () => res.destroy());
-    // Bytes read for the response (review B L9: not "sent" — the read-ahead of a response the frame aborts counts too;
-    // counting completed writes instead gave 0 under WKWebView, whose media requests never saw a write complete).
+    // Bytes read for the response (not "sent" — the read-ahead of a response the frame aborts counts too; counting
+    // completed writes instead gave 0 under WKWebView, whose media requests never saw a write complete).
     stream.on('data', (c) => (mediaBytesRead += c.length));
     res.on('close', () => stream.destroy());
     stream.pipe(res);
@@ -447,7 +447,7 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
 
   const server: Server = createServer((req, res) => {
     handle(req, res).catch((e: unknown) => {
-      // The route family only: a path here holds the capability (critique B16).
+      // The route family only: a path here holds the capability.
       const family = (req.url ?? '').startsWith('/s/') ? 'frame' : (req.url ?? '').startsWith('/m/') ? 'media' : 'other';
       log(`retake player: a ${family} request failed: ${e instanceof Error ? e.name : 'error'}`);
       if (!res.headersSent) {

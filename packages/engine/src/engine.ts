@@ -1,5 +1,5 @@
 /**
- * The engine facade (L3.1 part A, read side): one typed, in-process API over a workspace for clients other than the
+ * The engine facade (read side): one typed, in-process API over a workspace for clients other than the
  * CLI's own commands — the MCP server now, the jobs worker and the local HTTP API later. Inputs are slugs and ids, never
  * paths; results carry project refs + local paths; text the filmed site controls is kept under `untrusted`.
  * Nothing here opens a browser or starts a capture: long tasks (runs, hooks, resets, sign-ins, sandboxes) become jobs the
@@ -91,7 +91,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     sandbox: sandboxApi(ctx),
   };
   // Who drives this engine: the context's frozen caller, a read-only member (not writable, not configurable); and its
-  // clock (L7.18: the Clock port its composition root chose), read-only the same way.
+  // clock (the Clock port its composition root chose), read-only the same way.
   Object.defineProperty(engine, 'caller', { value: ctx.caller, enumerable: true, writable: false, configurable: false });
   Object.defineProperty(engine, 'envVars', { value: ports.env, enumerable: true, writable: false, configurable: false });
   return Object.defineProperty(engine, 'clock', { value: ports.clock, enumerable: true, writable: false, configurable: false }) as Engine;

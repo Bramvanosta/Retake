@@ -111,7 +111,7 @@ export async function renderTimeline(project: LoadedProject, record: Pick<Stored
 }
 
 /**
- * The run.json of a render's run (L5.7: what the take cost, its slow transitions), when it reads as a record — a
+ * The run.json of a render's run (what the take cost, its slow transitions), when it reads as a record — a
  * status Retake never writes included; a record a newer Retake wrote, or a file that is no record, is not read.
  */
 export async function renderRun(project: LoadedProject, record: Pick<StoredRender, 'run_dir' | 'run_id'>): Promise<StoredRunRecord | UnknownStatusRun | undefined> {

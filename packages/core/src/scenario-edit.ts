@@ -1,10 +1,10 @@
 /**
- * Scenario edits from the Studio (L4.3, R-UI-11 / R-UI-12): the rules every write of a scenario the Studio makes goes
+ * Scenario edits from the Studio (R-UI-11 / R-UI-12): the rules every write of a scenario the Studio makes goes
  * through, pure and shared by the engine's write path (engine scenarios.edit) and its tests: the YAML view
  * (`replace_text`), undo / redo (`restore`) and the Blocks tab's step edits (step-edits.ts), all on the same rules.
  *
  * - Size: a scenario the Studio writes holds at most SCENARIO_EDIT_MAX_CHARS characters (MCP scenario_save's cap).
- * - Input rules (critique B9; review A L2 / M2): what the Studio writes adds no character that reads as nothing or as a
+ * - Input rules: what the Studio writes adds no character that reads as nothing or as a
  *   line break in an editor — C0 / C1 controls (NEL included) but tab and line breaks, a carriage return not followed
  *   by a line feed (an editor shows a line break where YAML reads none), DEL, U+2028 / U+2029, the direction controls
  *   (a Trojan-source line), every format and default-ignorable character (zero-width, soft hyphen, variation
@@ -13,7 +13,7 @@
  *   than the file it replaces, or with one on a line the file does not have (moved from a comment into a value), is
  *   refused, naming the character and where. A zero-width joiner between two pictographs and a variation selector
  *   after an emoji (emoji sequences) are fine.
- * - Hooks unchanged (critique B3; review A H1): a scenario's `setup`, `teardown` and `mocks` run on this Mac, so a save
+ * - Hooks unchanged: a scenario's `setup`, `teardown` and `mocks` run on this Mac, so a save
  *   from the Studio — where script in a page cannot be told from a click — must leave them exactly as they were
  *   (canonical JSON); while the file has any, what they read from the scenario — its `vars` (templated into a shell
  *   line, a SQL text, an HTTP body) and its `env` (where they run) — must stay as they were too. They are edited in an
@@ -34,7 +34,7 @@ export const SCENARIO_EDIT_MAX_CHARS = 500_000;
 /**
  * The kinds of `scenario_edit`: the YAML view's text, undo / redo's byte-exact restore, the Blocks tab's step edits
  * (step-edits.ts STEP_EDIT_KINDS — written out here: step-edits imports this module's input rules) and the timeline's
- * field edits (L4.5, field-edits.ts `set_field`). The edit itself is the engine's ScenarioEdit (engine scenarios.ts: these
+ * field edits (field-edits.ts `set_field`). The edit itself is the engine's ScenarioEdit (engine scenarios.ts: these
  * kinds, with step-edits.ts StepEdit and field-edits.ts FieldEdit).
  */
 export const SCENARIO_EDIT_KINDS = ['replace_text', 'restore', 'move_step', 'delete_step', 'duplicate_step', 'set_step', 'insert_step', 'set_field'] as const;
@@ -116,7 +116,7 @@ function linesOf(text: string, offsets: readonly number[]): number[] {
 }
 
 /**
- * Why `text` may not be written in place of `base` (critique B9, review A L2), or null: a hidden character on a line
+ * Why `text` may not be written in place of `base`, or null: a hidden character on a line
  * `base` does not have word for word (a new one, or one moved — from a comment into a value), else one it holds more
  * of than `base` does (a copied line) — the first such occurrence named with its line and column.
  */
@@ -148,7 +148,7 @@ export function newHiddenCharProblem(text: string, base: string): string | null 
 }
 
 /**
- * Why a single value typed in a Studio form is refused (critique B9; the forms of a later part), or null: any hidden
+ * Why a single value typed in a Studio form is refused (the forms of a later part), or null: any hidden
  * character (a tab is fine), a line break in a single-line field, more than 10,000 characters. `field` names it.
  */
 export function editValueProblem(value: string, o: { field: IssuePath | string; multiline?: boolean }): string | null {
@@ -175,12 +175,12 @@ export function changedHookSections(base: unknown, next: unknown): string[] {
   return HOOK_SECTIONS.filter((k) => (base === undefined ? section(next, k) !== '' : section(base, k) !== section(next, k)));
 }
 
-/** What hooks and mocks read from the scenario (review A H1): its vars (templated into them) and its environment. */
+/** What hooks and mocks read from the scenario: its vars (templated into them) and its environment. */
 export const HOOK_INPUTS = ['vars', 'env'] as const;
 
 /**
- * The hook inputs (HOOK_INPUTS) of `next` that differ from `base`'s, when `base` has any hook or mock (review A H1: a
- * var templated into a shell hook is a command; another env runs the hooks against another product) — else none. An
+ * The hook inputs (HOOK_INPUTS) of `next` that differ from `base`'s, when `base` has any hook or mock (a var
+ * templated into a shell hook is a command; another env runs the hooks against another product) — else none. An
  * absent section and an empty one are the same. `base` undefined (it does not parse): none (changedHookSections then
  * refuses any hook `next` has).
  */
@@ -193,12 +193,12 @@ export function changedHookInputs(base: unknown, next: unknown): string[] {
   return HOOK_INPUTS.filter((k) => field(base, k) !== field(next, k));
 }
 
-/** The refusal of a Studio save that changes what the file's hooks read (review A H1). */
+/** The refusal of a Studio save that changes what the file's hooks read. */
 export function hookInputsChangedMessage(fields: readonly string[]): string {
   return `${fields.join(' and ')} changed: this scenario has hooks or mocks, which read its vars and its environment and run on this Mac, so the Studio saves it only with vars and env unchanged — change them in your editor`;
 }
 
-/** The refusal of a Studio save that changes hooks (critique B3). */
+/** The refusal of a Studio save that changes hooks. */
 export function hooksChangedMessage(sections: readonly string[]): string {
   return `${sections.join(', ')} changed: hooks and mocks run on this Mac, so the Studio saves a scenario only with them unchanged — edit them in your editor`;
 }

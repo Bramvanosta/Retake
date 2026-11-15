@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Regenerates docs/REQUIREMENTS.md from docs/requirements.json (the source of truth) and prints a summary.
 // Usage: node scripts/requirements.mjs                  → rewrite the Markdown + summary
-//        node scripts/requirements.mjs --lot L2.3       → list the requirements of one lot
+//        node scripts/requirements.mjs --lot <lot id>   → list the requirements of one lot
 //        node scripts/requirements.mjs --untested [1]   → list the items no test exercises (of one phase), exit 1 if any
 //        node scripts/requirements.mjs --check-cites [file] → list the quoted test titles no test file has, exit 1 if any
 // A rewrite also checks the quoted test titles and exits 1 when one is stale.
@@ -33,7 +33,7 @@ const items = data.items;
  * Known limits: (1) the possessive after a cite (`'… > a title' holds the reviewers' notes.`) is reported as above —
  * reword the prose; (2) a wrong tail that holds a quoted word (`… the files' wrong, a 'quoted' word'`) is checked only
  * up to the apostrophe before it, the quote that opens in between stopping the read; (3) an apostrophe a space and "("
- * follow (`… signed files' (review B M3)'`) plainly closes the quote: such a title is checked up to it.
+ * follow (`… signed files''`) plainly closes the quote: such a title is checked up to it.
  */
 const CITE_START = /'((?:packages|scripts|fixtures)\/[^' ]+\.test\.tsx?) > /g;
 /** Positions (in `s`, from `from` to `to`) of the apostrophes that may end a quote: a separator or the end follows. */

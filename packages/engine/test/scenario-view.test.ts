@@ -1,16 +1,16 @@
 /**
- * L4.2 part 2: the scenario screen's read (engine scenarios.view, scenario-view.ts) on synthetic runs, and the events
+ * The scenario screen's read (engine scenarios.view, scenario-view.ts) on synthetic runs, and the events
  * that tell it what changed.
  *
- * - Source run (critique B8): the newest complete run with pictures, newer partial runs named, a running run reported
+ * - Source run: the newest complete run with pictures, newer partial runs named, a running run reported
  *   and never a source; a run asked for; refusals (another scenario's run, an unfinished one, a bad id).
- * - Binding (critique B4): unchanged → by position; changed → by step identity (an inserted step is new and the
+ * - Binding: unchanged → by position; changed → by step identity (an inserted step is new and the
  *   others keep their pictures; an argument change is changed; a caption-only change keeps the picture; a scene's
  *   `open` change → scene_changed); no snapshot → by position, "cannot tell". Not reached (failed, until), the steps a
  *   dry run skipped after an irreversible step, a skipped scene; page text only under `untrusted`, URL userinfo out.
- * - Memo (critique B1): a repeat recomputes nothing; a running run's run.json rewritten 20 times recomputes no text
+ * - Memo: a repeat recomputes nothing; a running run's run.json rewritten 20 times recomputes no text
  *   layer and no binding; an edit of the file recomputes both.
- * - Events (critique B1): an in-place save is a `scenario:` key of its own; run changes carry the run's scenario
+ * - Events: an in-place save is a `scenario:` key of its own; run changes carry the run's scenario
  *   (new, progress, status, removed).
  */
 import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
@@ -208,7 +208,7 @@ describe('steps a run did not picture', () => {
     const v = await engine.scenarios.view(P, 'irr');
     expect(v.source?.run).toBe('20261019-120000-irr');
     expect(v.steps['one.1']).toEqual({ run_key: 'one.1', status: 'dry', ms: 1000, picture: 'screenshot' });
-    // 1-based like every step a person reads (review B M2).
+    // 1-based like every step a person reads.
     expect(v.steps['one.2']).toEqual({ run_key: 'one.2', status: 'skipped', ms: 0, picture: null, why: 'after step 2 of one, irreversible: a dry run stops the scene there' });
     expect(v.steps['two.0']).toEqual({ missing: 'scene_skipped', run_key: 'two.0' });
   });
@@ -433,7 +433,7 @@ describe('memo (B1)', () => {
     });
     const a = await views.view(P, 'blocks');
     const reads = runs.reads;
-    // L7.6a: whether a run is a take is read once per succeeded capture, then held (a repeat reads no run folder).
+    // Whether a run is a take is read once per succeeded capture, then held (a repeat reads no run folder).
     const takes = views.stats.takes;
     // (These captures kept their frames and no film: none is a take.)
     expect([takes > 0, a.runs.filter((r) => r.take).length, a.runs.filter((r) => r.mode === 'capture' && r.status === 'succeeded').length]).toEqual([true, 0, takes]);

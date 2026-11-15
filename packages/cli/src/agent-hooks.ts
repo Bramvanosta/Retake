@@ -1,13 +1,13 @@
 /**
- * L7.27, L7.33: before a person's command runs the shell and sql hooks of a scenario whose hooks an agent wrote — or whose writer
+ * Before a person's command runs the shell and sql hooks of a scenario whose hooks an agent wrote — or whose writer
  * cannot be known (engine agent-written.ts) — it lists each one as it will run: the command rendered with the run's
  * template context (vars, pages, the run), its working folder, each of its environment entries, its rollback; a secret
  * token kept as a token, a value filled from an earlier hook's response said to be unknown until the run, every hidden
- * character written out; an sql hook's statements as they will run (a file's text), its database key and its
- * rollback. The same when a person marked them as theirs (`retake hooks trust`) and a file they read changed since, is
- * newly read, or cannot be read (L7.39): the header names each file. Then it asks. `--yes` accepts; a terminal asks (default no: nothing runs); without a terminal
- * and without `--yes`, one sentence naming the hooks and the flag, and nothing runs. When the hooks are not going to
- * run (a dry run without them, `--hooks skip`), they are listed and nothing is asked.
+ * character written out; an sql hook's statements as they will run (a file's text), its database key and its rollback.
+ * The same when a person marked them as theirs (`retake hooks trust`) and a file they read changed since, is newly
+ * read, or cannot be read: the header names each file. Then it asks. `--yes` accepts; a terminal asks (default no:
+ * nothing runs); without a terminal and without `--yes`, one sentence naming the hooks and the flag, and nothing runs.
+ * When the hooks are not going to run (a dry run without them, `--hooks skip`), they are listed and nothing is asked.
  */
 import { showHiddenChars, showHiddenCharsLine } from '@retake/core/base';
 import type { AgentWrittenShellHooks, RenderedText, ScenarioShellHook } from '@retake/engine';
@@ -24,7 +24,7 @@ export function shellHookLabel(h: ScenarioShellHook): string {
 /** "shell hook(s)", "sql hook(s)" or "shell and sql hooks": the kinds a listing holds. */
 export function hooksNoun(hooks: readonly ScenarioShellHook[], one = hooks.length === 1): string {
   const kinds = [...new Set(hooks.map((h) => h.kind))];
-  // None listed (L7.39: a trust's files changed under hooks that are neither shell nor sql).
+  // None listed (a trust's files changed under hooks that are neither shell nor sql).
   if (!kinds.length) return 'hooks';
   if (kinds.length === 2) return 'shell and sql hooks';
   return `${kinds[0] ?? 'shell'} hook${one ? '' : 's'}`;

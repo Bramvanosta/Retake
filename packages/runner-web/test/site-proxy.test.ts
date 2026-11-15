@@ -1,5 +1,5 @@
 /**
- * L3.5 the site extraction's CONNECT proxy (R-MCP-12), with an injected resolver and classifier (127.0.0.1 plays a
+ * The site extraction's CONNECT proxy (R-MCP-12), with an injected resolver and classifier (127.0.0.1 plays a
  * public address) and an upstream echo server: only `CONNECT <name>:443` of an announced host is tunnelled; every
  * address of the name must be public; the connection goes to the address that was checked (a resolver that answers
  * public then private is asked once and connected to its first answer); caps close tunnels.

@@ -1,5 +1,5 @@
 /**
- * L5.8 acceptance cases on the fixture product (R-FLD-30, R-FLD-31, R-FLD-33): the committed `off-camera` scenario and
+ * Acceptance cases on the fixture product (R-FLD-30, R-FLD-31, R-FLD-33): the committed `off-camera` scenario and
  * variants of it, run through the `retake` CLI against the fixture on free ports (environment `local`) —
  *
  * - a capture: the `hook:` step mid-take makes a café's quote request arrive (an http entry, then a shell one) during

@@ -1,6 +1,6 @@
 /**
- * The versions of a renders folder, on the Outputs port's renders (engine render/versions.ts; moved from the editor
- * with the render use case): which files of renders/ take a version, the next free one and its lock, and the bound —
+ * The versions of a renders folder, on the Outputs port's renders (engine render/versions.ts): which
+ * files of renders/ take a version, the next free one and its lock, and the bound —
  * a version is at most RENDER_VERSION_MAX: when a file already claims that version or more, a new render of that
  * scenario is refused with the file's name and nothing is reserved; two renders never get the same id. Files in a
  * temp folder through the disk's outputs; nothing is rendered (the render use case is refused before it plans).
@@ -289,7 +289,7 @@ describe('the versions taken in renders/', () => {
 
   it('two renders in a row get two versions, each one above every file of the folder, up to version 999999', async () => {
     expect(await twoRenders('quote-v999997.json')).toEqual({ versions: ['999998', '999999'], locks: ['.quote-v999998.lock', '.quote-v999999.lock'] });
-    // L7.5 G (the version bound): 999999 is the last version handed out; a file that claims it or more is named by the
+    // G (the version bound): 999999 is the last version handed out; a file that claims it or more is named by the
     // refusal, and no lock is written.
     expect(await twoRenders('quote-v999998.json')).toEqual({ versions: ['999999', 'refused: quote-v999999.mp4 999999'], locks: ['.quote-v999999.lock'] }); // G
     expect(await twoRenders('quote-v999999.mp4')).toEqual({ versions: ['refused: quote-v999999.mp4 999999', 'refused: quote-v999999.mp4 999999'], locks: [] }); // G
@@ -301,7 +301,7 @@ describe('the versions taken in renders/', () => {
   });
 
   it('a file that claims a version past what a number holds is named with its digits as written, and nothing is reserved', async () => {
-    // L7.5 G (the version bound): two renders never get the same version.
+    // G (the version bound): two renders never get the same version.
     expect(await twoRenders('quote-v9007199254740992.json')).toEqual({
       versions: ['refused: quote-v9007199254740992.json 9007199254740992', 'refused: quote-v9007199254740992.json 9007199254740992'],
       locks: [],

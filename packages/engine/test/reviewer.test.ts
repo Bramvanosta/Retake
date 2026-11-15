@@ -1,5 +1,5 @@
 /**
- * The Reviewer port (L7.11): its contract (reviewer-contract.ts) on the review package — synthetic renders drawn with
+ * The Reviewer port: its contract (reviewer-contract.ts) on the review package — synthetic renders drawn with
  * ffmpeg (the review tests' helpers), skipped without ffmpeg / ffprobe — and on the in-memory reviewer (renders whose
  * files are empty: no tool runs). Then the façade's use of the reviewer it is handed (createEngine `ports.reviewer`):
  * a run's thumbnails, a render's frame, a review's image and a workspace thumbnail all come from that reviewer's

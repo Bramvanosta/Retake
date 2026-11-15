@@ -20,7 +20,7 @@ export interface KitConfig {
     size: number;
     ripple_color: string;
     /**
-     * Raw capture without the cursor (L2.13, `retake run --raw --cursor none|layer`): the cursor and its ripples are
+     * Raw capture without the cursor (`retake run --raw --cursor none|layer`): the cursor and its ripples are
      * not drawn; real input, icon, presses and ripples are still reported (binding `__retakeCursor`).
      */
     hidden?: boolean;
@@ -28,7 +28,7 @@ export interface KitConfig {
   /** sessionStorage key holding the last cursor position (restored after a full navigation). */
   storage_key: string;
   /**
-   * The recorder's copy (L3.4, in an isolated world): no cursor overlay, no listener, no patched API — only the
+   * The recorder's copy (in an isolated world): no cursor overlay, no listener, no patched API — only the
    * resolver and the inspection functions. Nothing of it is visible to the page.
    */
   passive?: boolean;
@@ -197,7 +197,7 @@ export interface DropOutcome {
   target: string;
 }
 
-/** What the kit reports to the runner about its cursor (binding `__retakeCursor`, L2.13). */
+/** What the kit reports to the runner about its cursor (binding `__retakeCursor`). */
 export interface CursorEffectPayload {
   type: 'icon' | 'press' | 'release' | 'ripple';
   /** Wall-clock epoch ms. */
@@ -239,7 +239,7 @@ export interface KitFileDragApi {
   cancel(): void;
 }
 
-// ───────────────────────────── inspection (L3.3) ─────────────────────────────
+// ───────────────────────────── inspection ─────────────────────────────
 
 export interface InventoryOptions {
   /** Ref of the element to inventory (the `within` target, resolved by the runner); the whole page when absent. */
@@ -249,7 +249,7 @@ export interface InventoryOptions {
   /** In-page time budget for the suggestions (default 2500 ms); past it the rest is listed without one (`partial`). */
   budget_ms?: number;
   /**
-   * The recorder only (L4.8): up to this many other verified targets per element (at most 3; default none, so
+   * The recorder only: up to this many other verified targets per element (at most 3; default none, so
    * `page_inspect`'s inventory is unchanged) — never `nth`, never a key the indexes know is shared, each verified to
    * resolve once to the element. Skipped (`alternatives_partial`) when the suggestion took over 20 ms or the page is large.
    */
@@ -469,28 +469,28 @@ export interface KitApi {
    */
   focused(): { desc: string; bbox: BBox; input_type: string } | null;
   /**
-   * Inspection (L3.3): the visible interactive elements with a suggested target each, verified once with `find` (one
+   * Inspection: the visible interactive elements with a suggested target each, verified once with `find` (one
    * synchronous call with the per-call memo), plus headings, popups and scroll containers. Reads only.
    */
   inventory(opts?: InventoryOptions): KitInventory;
   /** `find` for each target (already normalised by the runner), with the per-call memo. */
   checkTargets(targets: TargetObject[]): KitTargetChecks;
   /**
-   * Recorder (L3.4): the inventory's entry (`inventory({within, limit: 1})`) for the interactive element holding
+   * Recorder: the inventory's entry (`inventory({within, limit: 1})`) for the interactive element holding
    * `target` — the element a person acted on, or a ref — or null when nothing interactive holds it.
    */
   suggestFor(target: Element | string, opts?: { budget_ms?: number; alternatives?: number; alternatives_budget_ms?: number }): InventoryElement | null;
-  /** `find` for each target, without acting (L5.6): its visible count and, when none, the closest visible elements. */
+  /** `find` for each target, without acting: its visible count and, when none, the closest visible elements. */
   closest(targets: TargetObject[]): Array<{ count: number; near: NearElement[] }>;
   /** Whether the focused element is `ref` (or inside it, or the control of a label `ref`), and what has the focus. */
   focusCheck(ref: string): { ok: boolean; desc: string | null; field: string | null };
-  /** An input's or textarea's value, a contenteditable's text (`ref`, else the focused element); null for any other element (L5.6). */
+  /** An input's or textarea's value, a contenteditable's text (`ref`, else the focused element); null for any other element. */
   fieldValue(ref: string | null): string | null;
   /** Start counting what changes on the page (DOM in every tree, input / change / submit / scroll… events): R-FLD-12. */
   effectWatch(): void;
   /** What changed since effectWatch (watching false: a new document, or not started). */
   effectSeen(): { watching: boolean; dom: number; first: string; events: string[] };
   effectStop(): void;
-  /** Recorder (L3.4): the kind of secret a field holds (null: not a secret-class field). Never reads a value. */
+  /** Recorder: the kind of secret a field holds (null: not a secret-class field). Never reads a value. */
   secretField(target: Element | string): SecretFieldKind | null;
 }

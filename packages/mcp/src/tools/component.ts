@@ -1,5 +1,5 @@
 /**
- * The component tools (L3.2): the engine's operations (L7.17: component_list, component_get, component_validate,
+ * The component tools: the engine's operations (component_list, component_get, component_validate,
  * component_preview and component_create are defined in packages/engine/src/operations/components.ts), in
  * tools/list's order.
  */

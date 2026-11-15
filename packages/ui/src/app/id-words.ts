@@ -1,5 +1,5 @@
 /**
- * The ids of the domain as the app reads them (L7.5): the one mirror of core's id grammar (core `id-grammar.ts`).
+ * The ids of the domain as the app reads them: the one mirror of core's id grammar (core `id-grammar.ts`).
  * The app imports types only from the workspace's packages, so the patterns and caps it needs are written again here
  * — and nowhere else in the app; `test/id-words.test.ts` holds each of them equal to core's, source for source and
  * cap for cap, and the two readings equal on a table of strings.

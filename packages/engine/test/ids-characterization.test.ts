@@ -1,10 +1,13 @@
 /**
- * The ids of the domain as the engine accepts, refuses, lists and matches them (L7.5), site by site: run ids (a folder
+ * The ids of the domain as the engine accepts, refuses, lists and matches them, site by site: run ids (a folder
  * name of runs/), render ids (`<scenario>-v<N>[-vertical|-square]`), job and site ids, theme names. Hand-made folders
  * and records in a temp workspace; nothing is rendered, no browser is opened, no job runs.
  *
- * A row marked `D-<n>` is an outcome a decision of the lot changed; the mark names the decision. A row marked `N-<x>`
- * is an outcome a fix made on the way changed, never a decision: stricter only.
+ * A row marked `D-<n>` is an outcome changed on purpose when the id rules were made one, and the mark names the rule:
+ * D-1 a run id of at most 200 characters; D-2 an id or a name past its length cap is none; D-3 a new theme's name of at
+ * most 60 characters; D-5 a render id of its scenario exactly, not by its start; D-6 a version of at most 999999; D-8
+ * an empty or dot-led id names no render's files; D-10 a render is the record of its own file. A row marked `N-<x>` is
+ * an outcome a fix made on the way changed, never a decision: stricter only.
  */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -105,7 +108,7 @@ async function run(dir: string, id: string, o: { scenario?: string; mode?: 'capt
   );
 }
 
-/** renders/<file>.json, written by hand: a record of `id` (the file's base name unless `file` says otherwise), with a plan (L7.6b: a record without its plan is in no list). */
+/** renders/<file>.json, written by hand: a record of `id` (the file's base name unless `file` says otherwise), with a plan (a record without its plan is in no list). */
 async function record(dir: string, id: string, o: Partial<RenderRecord> & { file_name?: string } = {}): Promise<void> {
   const { file_name, ...rest } = o;
   const scenario = id.replace(/-v\d+(-vertical|-square)?$/, '');
@@ -252,7 +255,7 @@ describe("the checks a client's names go through", () => {
       }
     };
     const not = (id: string, scenario: string) => `render id ${id} is not a render of scenario ${scenario}`;
-    // L7.5 D-6: a version is at most 999999. N-b: the id is a render id (a scenario name, then -v<N>).
+    // D-6: A version is at most 999999. N-b: the id is a render id (a scenario name, then -v<N>).
     const rows: Array<[string, string, string]> = [
       ['quote-v3', 'quote', '3 landscape'],
       ['quote-v3-vertical', 'quote', '3 vertical'],
@@ -425,7 +428,7 @@ describe('the project board', () => {
     expect(short((await s())?.last_run?.id ?? '')).toBe('<200 y>');
     await run(p.dir, a(201, 'z'));
     expect(short((await s())?.last_run?.id ?? '')).toBe('<200 y>'); // D-1: 201 characters
-    // L7.6a (one order of runs): a dated run is before a folder named by hand, whatever that name sorts as.
+    // One order of runs: a dated run is before a folder named by hand, whatever that name sorts as.
     await run(p.dir, `${STAMP}quote`);
     expect((await s())?.last_run?.id).toBe(`${STAMP}quote`);
   });
@@ -445,8 +448,8 @@ describe('the project board', () => {
     // loads and renders, and its name is shown on neither side — the row holds no theme, the render's says unknown —;
     // the board compares it by its identity (the folder's name the record holds), so the render of today's theme is
     // the one in the row.
-    expect([s?.render?.render_id, s?.render_current]).toEqual(['quote-v1', true]); // L7.8 (BL-164): was quote-v2, the newest render of today's file and take, of another theme
-    expect([short(s?.theme ?? '(none)'), short(s?.render?.theme ?? '')]).toEqual(['(none)', 'unknown']); // D-2: 101 characters; L7.8 (BL-164): the render in the row is quote-v1, whose theme says unknown (was quote-v2's editorial)
+    expect([s?.render?.render_id, s?.render_current]).toEqual(['quote-v1', true]); // BL-164: not quote-v2, the newest render of today's file and take, of another theme
+    expect([short(s?.theme ?? '(none)'), short(s?.render?.theme ?? '')]).toEqual(['(none)', 'unknown']); // D-2: 101 characters; BL-164: the render in the row is quote-v1, whose theme says unknown (not quote-v2's editorial)
     expect((await engine.renders.ofScenario('board-theme', 'quote')).renders.map((r) => [r.render_id, r.theme])).toEqual([
       ['quote-v2', 'editorial'],
       ['quote-v1', 'unknown'],
@@ -476,7 +479,7 @@ describe('the project board', () => {
     const renders = async (slug: string) => Object.fromEntries((await engine.projects.board(slug)).scenarios.map((s) => [s.name, s.render?.render_id ?? null]));
     expect(await renders('files-a')).toEqual({ quote: 'quote-v3' });
     expect(await renders('files-b')).toEqual({ quote: 'quote-v3', 'quote-v2': 'quote-v2-v1' });
-    // L7.5 D-6: a record whose version is above 999999 is not a render.
+    // D-6: A record whose version is above 999999 is not a render.
     const big = await project('files-c', { quote: SCENARIO_YAML });
     await files(big.dir);
     await record(big.dir, 'quote-v1000000', { created_at: '2026-10-20T14:00:00.000Z' });
@@ -504,7 +507,8 @@ describe('render records', () => {
   });
 
   it('a file of renders/ is a render record when its id is its file name, a render id', async () => {
-    // L7.6b: read by the one reader of renders/, and a render by core's rule (a complete record of its own file whose id is one of its scenario).
+    // Read by the one reader of renders/, and a render by core's rule (a complete record of its own file whose id is
+    // one of its scenario).
     const read = async (file: string): Promise<string | null> => projectRenderOf(await readListedRecord(diskOutputs.renders, p.dir, file))?.id ?? null;
     expect(
       (await Promise.all(['quote-v3', 'quote-v1-vertical', 'quote-v2-v1', 'Quote-v1', 'quote-v999999', `${a(197)}-v1`, 'final', 'quote-v8', 'quote-v9', 'missing-v1'].map(read))).map(
@@ -557,7 +561,8 @@ describe('render records', () => {
   it('a record whose fields a message may quote: a render id, a scenario name, a date, a variant', () => {
     const ok = (extra: Record<string, unknown>) =>
       recordShapeOk({ id: 'quote-v3', scenario: 'quote', created_at: '2026-10-20T11:00:00.000Z', variant: 'landscape', ...extra } as unknown as RenderRecord);
-    // L7.6b: the rule is core's quotableRender — the id is one of the scenario the record says (a render id of another scenario is not quoted).
+    // The rule is core's quotableRender — the id is one of the scenario the record says (a render id of another
+    // scenario is not quoted).
     expect([ok({}), ok({ id: 'final' }), ok({ id: 7 }), ok({ id: `${a(197)}-v1`, scenario: a(197) }), ok({ scenario: 'a.b' }), ok({ variant: 'tall' })]).toEqual([
       true,
       false,
@@ -580,7 +585,7 @@ describe('render records', () => {
     }
     expect(await work('quote-v5')).toBe('not_found: render "quote-v5" not found in records (no renders/quote-v5.json): render_status says whether it is still running');
     expect(await status('quote-v5')).toBe('not_found: render "quote-v5" not found in records (no job, no renders/quote-v5.json): render starts one');
-    // L7.5 D-6: a version above 999999 is not a render id.
+    // D-6: A version above 999999 is not a render id.
     expect(await work('quote-v2000000')).toBe(invalid('quote-v2000000')); // D-6
     expect(await status('quote-v2000000')).toBe(invalid('quote-v2000000')); // D-6
   });
@@ -661,7 +666,7 @@ describe("a render's review, comments and frames", () => {
     const submit = (previous: unknown) => outcome(engine.reviews.submit({ project: 'demo', render_id: 'quote-v1', previous: previous as string }));
     expect(await submit('final')).toBe('invalid: invalid previous "final": a render id, or false for no comparison');
     expect(await submit(7)).toBe('invalid: invalid previous "7": a render id, or false for no comparison');
-    // L7.5 D-2, D-6: a previous past 200 characters, or of a version above 999999, is not a render id.
+    // D-2, D-6: A previous past 200 characters, or of a version above 999999, is not a render id.
     expect(short(await submit(`${a(198)}-v1`))).toBe('invalid: invalid previous "<198 a>-v1": a render id, or false for no comparison'); // D-2: 201 characters
     expect(await submit('quote-v2000000')).toBe('invalid: invalid previous "quote-v2000000": a render id, or false for no comparison'); // D-6
     expect(await engine.jobs.list({ project: 'demo' })).toEqual([]);
@@ -707,7 +712,7 @@ describe("a render's review, comments and frames", () => {
     for (const other of ['notes.json', `c_${BODY.slice(0, 25)}.json`, `j_${BODY}.json`, `c_${BODY}.json.tmp`]) await writeFile(join(dir, other), JSON.stringify(thread('quote')));
     expect(await listed('quote')).toBe('1 listed, 0 reported');
     expect(await listed('a.b')).toBe('0 listed, 1 reported');
-    // L7.5 N-c (row of part A): the scenario of a thread file is compared as text.
+    // N-c: the scenario of a thread file is compared as text.
     expect(await listed('a(')).toBe('0 listed, 1 reported'); // N-c
     await rm(join(ws.project.dir, 'comments'), { recursive: true, force: true });
   });
@@ -730,7 +735,7 @@ describe("a render's review, comments and frames", () => {
         ),
       );
     const frame = (render: string) => outcome(engine.renders.frame('demo', { render_id: render, created_at: demo.record.created_at, frame: 0 }));
-    // L7.5 D-5: the id is the scenario's exactly, not by its start.
+    // D-5: the id is the scenario's exactly, not by its start.
     expect(await add('quote-v2-v1')).toBe('invalid: render quote-v2-v1 has no <scenario>-v<N> id (written with --out?): only renders of renders/ take comments'); // D-5
     expect(await frame('quote-v2-v1')).toBe('refused: renders/quote-v2-v1.json has an id, scenario, created_at or variant the tool never writes: not used'); // D-5
     // (The videos here are empty files: a frame request that passed the checks of the record stops at the video.)
@@ -819,8 +824,8 @@ describe('pruning: the files of a render that goes', () => {
     await record(p.dir, 'quote-v7', { ...failed, file_name: 'quote-v8' });
     await writeFile(join(p.dir, 'renders', 'quote-v7.mp4'), 'x');
     await writeFile(join(p.dir, 'renders', 'quote-v8.mp4'), 'x');
-    // L7.6b (D-10, R-1): a render is the record of its own file — this one is left alone, and no path of an item
-    // comes from the id a file says (before: an item `quote-v7` whose one path was another file's video).
+    // D-10, R-1: a render is the record of its own file — this one is left alone, and no path of an item comes
+    // from the id a file says (never an item `quote-v7` whose one path is another file's video).
     expect(await renderItems(p)).toEqual([]);
   });
 
@@ -832,11 +837,12 @@ describe('pruning: the files of a render that goes', () => {
       for (const f of files) await writeFile(join(p.dir, 'renders', f), 'x');
       return renderItems(p);
     };
-    // L7.5 D-8: an id that is empty or starts with a dot names no render's files — its record is no item.
+    // D-8: an id that is empty or starts with a dot names no render's files — its record is no item.
     expect(await of('prune-empty', '')).toEqual([]); // D-8
     expect(await of('prune-dot', '.quote-v3')).toEqual([]); // D-8
     expect(await of('prune-up', '..')).toEqual([]); // D-8
-    // An id that holds a separator is the name of no file of renders/: its record is left alone (L7.6b; before: an item without a path).
+    // An id that holds a separator is the name of no file of renders/: its record is left alone (before: an item
+    // without a path).
     expect(await of('prune-sep', 'a/b')).toEqual([]);
   });
 });
@@ -856,7 +862,7 @@ describe("a new theme's name, and a theme that exists under a long one", () => {
     expect(await copy(7)).toBe(invalid('7'));
     expect(await copy(a(65))).toBe(invalid(a(65)));
     expect(await copy(a(101))).toBe(invalid(a(101)));
-    // L7.5 D-3: a new theme's name holds at most 60 characters, whatever creates it.
+    // D-3: A new theme's name holds at most 60 characters, whatever creates it.
     expect(await copy(a(61, 'b'))).toBe(invalid(a(61, 'b'))); // D-3
     expect(await copy(a(64, 'c'))).toBe(invalid(a(64, 'c'))); // D-3
     expect(existsSync(join(themes, 'templates'))).toBe(false);

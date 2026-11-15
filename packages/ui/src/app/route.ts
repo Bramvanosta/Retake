@@ -1,20 +1,20 @@
 /**
  * Hash routes of the Studio (one document; the server never sees the fragment): `#/` projects, `#/p/<slug>` a project,
  * `#/p/<slug>/readme` its README editor, `#/p/<slug>/s/<name>` a scenario as blocks and `#/p/<slug>/s/<name>/yaml`
- * its YAML (L4.2), `#/p/<slug>/s/<name>/run` its Run screen (the preflight, then Start) and
- * `#/p/<slug>/s/<name>/run/<run_id>` one run of it watched live (L4.4), `#/p/<slug>/s/<name>/timeline` the timeline of
+ * its YAML, `#/p/<slug>/s/<name>/run` its Run screen (the preflight, then Start) and
+ * `#/p/<slug>/s/<name>/run/<run_id>` one run of it watched live, `#/p/<slug>/s/<name>/timeline` the timeline of
  * its latest capture and `#/p/<slug>/s/<name>/timeline/<run_id>[/<step key>]` of one capture, at one of its steps
- * (L4.5), `#/p/<slug>/s/<name>/comments` its frame comments (L4.6: the list and a render's frames),
+ *, `#/p/<slug>/s/<name>/comments` its frame comments (the list and a render's frames),
  * `…/comments/<comment id>` one thread open and `…/comments/at/<render id>/<frame>` a render's frame, ready to comment,
  * `#/p/<slug>/s/<name>/proposal/<comment id>/<entry id>` the timeline previewing the change Claude proposed on a thread
- * (L4.6 part D2: planned in memory, nothing written), `#/p/<slug>/library[/<theme>[/<namespace>/<name>]]` the component
- * library in the project's theme or another, and one component's detail (L4.7 part D1), `#/p/<slug>/themes[/<theme>]` the
- * theme list and one theme's editor (L4.7 part D2), `#/p/<slug>/record[/<rec_id>]` the Record screen: its start form and
- * recent recordings, or one recording, live then reviewed (L4.8). `#/ui` the design system's gallery (L5.9).
- * L5.16c: `#/setup` the projects with the installed app's Set-up sheet open over them (shell/SetupSheet.tsx).
- * L5.10a: `#/p/<slug>/g/<ready|shoot|failed>` a smart group of the Project screen, `#/p/<slug>/loc/<env>` the Project
+ * (planned in memory, nothing written), `#/p/<slug>/library[/<theme>[/<namespace>/<name>]]` the component
+ * library in the project's theme or another, and one component's detail, `#/p/<slug>/themes[/<theme>]` the
+ * theme list and one theme's editor, `#/p/<slug>/record[/<rec_id>]` the Record screen: its start form and
+ * recent recordings, or one recording, live then reviewed. `#/ui` the design system's gallery.
+ * `#/setup` the projects with the installed app's Set-up sheet open over them (shell/SetupSheet.tsx).
+ * `#/p/<slug>/g/<ready|shoot|failed>` a smart group of the Project screen, `#/p/<slug>/loc/<env>` the Project
  * screen with a location in its inspector, `#/p/<slug>/cast` the Cast (the personas' sessions).
- * L5.12a: `#/p/<slug>/s/<name>/review[/<render id>]` the Review report of a scenario's newest render or of one — the
+ * `#/p/<slug>/s/<name>/review[/<render id>]` the Review report of a scenario's newest render or of one — the
  * render id must have a render id's shape (RENDER_ID: `<scenario>-v<n>[-vertical|-square]`, core's RENDER_ID_RE) or the
  * address is not found (never read with it).
  * A slug, a scenario name, a run id, a comment or render id is whatever
@@ -24,7 +24,7 @@
 import { RENDER_ID, okRenderIdShape } from './id-words.js';
 
 export type ScenarioTab = 'blocks' | 'yaml';
-/** L5.10a: the Project screen's smart groups. */
+/** The Project screen's smart groups. */
 export type ProductionGroup = 'ready' | 'shoot' | 'failed';
 const GROUPS: readonly string[] = ['ready', 'shoot', 'failed'];
 
@@ -71,7 +71,7 @@ export function parseRoute(hash: string): Route {
   const m = /^\/p\/([^/]+)(\/readme)?\/?$/.exec(path);
   const slug = m ? decode(m[1]) : null;
   if (m && slug !== null) return m[2] ? { name: 'readme', slug } : { name: 'project', slug };
-  // L5.10a: a smart group of the Project screen, a location (the Project screen with it in the inspector), the Cast.
+  // A smart group of the Project screen, a location (the Project screen with it in the inspector), the Cast.
   const g = /^\/p\/([^/]+)\/(?:g\/([^/]+)|loc\/([^/]+)|(cast))\/?$/.exec(path);
   const gSlug = g ? decode(g[1]) : null;
   if (g && gSlug !== null) {

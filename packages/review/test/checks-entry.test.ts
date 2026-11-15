@@ -29,7 +29,7 @@ const ts = createRequire(import.meta.url)('typescript') as typeof import('typesc
 const PURE = (rules.REVIEW_PURE as string[]).map((n) => `${n}.ts`).sort();
 /** The review's side that reads files, runs ffmpeg or draws images: never reached. */
 const IO_SIDE = ['index.ts', 'pixels.ts', 'ffmpeg.ts', 'fonts.ts', 'report.ts', 'review.ts', 'load.ts', 'sheets.ts', 'still.ts', 'thumbs.ts'];
-/** The packages the entry's modules import (each is a domain entry: pure; core by its entries since L7.35). */
+/** The packages the entry's modules import (each is a domain entry: pure; core by its entries). */
 const PACKAGES = [
   '@retake/components/geometry',
   '@retake/core/base',

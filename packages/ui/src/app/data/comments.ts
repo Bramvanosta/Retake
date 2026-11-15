@@ -1,5 +1,5 @@
 /**
- * L6.13: Review › Comments: the threads, a frame's anchor and a thread's picture, the thread writes, Claude's proposal
+ * Review › Comments: the threads, a frame's anchor and a thread's picture, the thread writes, Claude's proposal
  * applied (a render's frames and outline, which the comments' viewer shows too, are renders.ts').
  * Each op once, typed by StudioOps (data/ops.ts).
  */

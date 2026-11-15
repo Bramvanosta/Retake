@@ -1,5 +1,5 @@
 /**
- * L2.10 planner: tutorial overlays fed by the timeline (R-TUT-01…05) and the media of story cards (R-STO-01…06) — on
+ * Planner: tutorial overlays fed by the timeline (R-TUT-01…05) and the media of story cards (R-STO-01…06) — on
  * the real timelines of the fixture's `signup` (tutorial switches on: run 20261012-034207-signup) and `highlights`
  * (capture_text, frames by mark / scene, a CSV: run 20261012-034247-highlights) scenarios, with the built-in library.
  */
@@ -220,7 +220,7 @@ describe('tutorial overlays from the timeline (signup)', () => {
     const [loupe] = uses(signup, 'loupe');
     const row = shortcutRow(motion, signup, uses(signup, 'shortcuts')[0])!;
     expect(row.y + row.h).toBeLessThanOrEqual(band.y);
-    // L2.11: the second Tab's caps would cover the next click target (the submit button, just above the band): they
+    // The second Tab's caps would cover the next click target (the submit button, just above the band): they
     // take the top row of the capture instead, and the loupe keeps clear of both rows.
     const caps = uses(signup, 'shortcuts');
     expect(caps.map((o) => shortcutSlot(motion, signup, o))).toEqual(['bottom', 'top']);

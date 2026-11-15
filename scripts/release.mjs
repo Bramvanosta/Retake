@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The release workflow's helpers (L5.16e: .github/workflows/release.yml, docs/RELEASING.md) — plain Node, no
+ * The release workflow's helpers (.github/workflows/release.yml, docs/RELEASING.md) — plain Node, no
  * dependency, no network, nothing written:
  *
  *   node scripts/release.mjs tag <tag>        the tag is the repository's version: every version file agrees
@@ -10,11 +10,11 @@
  *                                             the GitHub release's notes (Markdown): the CHANGELOG paragraph
  *                                             (publish-update's extractNotes), how to install, what this build is
  *   node scripts/release.mjs feed <version>   the feed an app of <version> reads, as publish-update.mjs expects it
- *                                             (L5.16f: a GitHub release of this repository):
+ *                                             (a GitHub release of this repository):
  *                                             <GITHUB_SERVER_URL>/<GITHUB_REPOSITORY>/releases/download/update-feed/
  *                                             <latest.json | rc.json> — from the workflow's own context, never committed
  *   node scripts/release.mjs preflight <version> --output <file>
- *                                             what this release is made with (review e B-M1): each set of secrets
+ *                                             what this release is made with: each set of secrets
  *                                             and variables all or nothing (CONFIG_SETS) — appends signed, updates
  *                                             (+ feed, pubkey) to <file> ($GITHUB_OUTPUT), says each part that is off,
  *                                             fails naming what a partial set lacks
@@ -35,9 +35,9 @@ export const dmgName = (version) => `${PRODUCT}_${version}_aarch64.dmg`;
 export const releaseFiles = (version) => ({ dmg: dmgName(version), archive: UPDATE_ARCHIVE, signature: `${UPDATE_ARCHIVE}.sig` });
 
 /**
- * What a release can be made with (review e B-M1), as two sets — each all or nothing: none of a set → that part is
+ * What a release can be made with, as two sets — each all or nothing: none of a set → that part is
  * off (said); some → the run fails before anything is built, naming what is missing. Each name is a secret (of the
- * `release` environment) or a variable. The update's publication needs nothing more (L5.16f): the feed is a release of
+ * `release` environment) or a variable. The update's publication needs nothing more: the feed is a release of
  * this repository, written with the workflow's own job token.
  */
 export const CONFIG_SETS = {
@@ -66,7 +66,7 @@ export const CONFIG_SETS = {
  * (`secrets.<NAME> != ''`: never its value), a variable's value as <NAME>; and each name in the other store
  * (HAS_VAR_<NAME> for a secret's name, HAS_SECRET_<NAME> for a variable's) — "a variable, not a secret" is said; with the
  * updater, REPO_PRIVATE / REPO_VISIBILITY (the repository as the API describes it, read with the job token): an app that
- * updates itself needs a public repository (review f A-L3) — refused here, not after the release is public.
+ * updates itself needs a public repository — refused here, not after the release is public.
  * Returns `{ outputs, warnings, errors }`.
  */
 export function preflight(version, env = process.env) {

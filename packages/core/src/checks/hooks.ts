@@ -16,7 +16,7 @@ export interface HookCheckOptions {
   /** The project whose allow-list shell hooks are checked against (undefined → not checked). */
   project?: Pick<LoadedProject, 'config'>;
   /**
-   * Destructive hooks need no `confirm: true` (sandbox seeds, L1.8: they rebuild a local, disposable copy). Their files
+   * Destructive hooks need no `confirm: true` (sandbox seeds: they rebuild a local, disposable copy). Their files
    * are read from the check context's directory (the sandbox folder) either way.
    */
   destructiveOk?: boolean;
@@ -50,7 +50,7 @@ export function checkHooks(list: unknown, base: IssuePath, ctx: CheckContext, op
   list.forEach((raw, i) => checkHook(raw, [...base, i], ctx, opts));
 }
 
-/** Semantic checks of named hooks (L5.8, `hooks:` of a scenario or project.yaml): each name's entry, or each entry of its list. */
+/** Semantic checks of named hooks (`hooks:` of a scenario or project.yaml): each name's entry, or each entry of its list. */
 export function checkNamedHooks(map: unknown, base: IssuePath, ctx: CheckContext, opts: HookCheckOptions): void {
   if (!isObj(map)) return;
   for (const [name, v] of Object.entries(map)) {

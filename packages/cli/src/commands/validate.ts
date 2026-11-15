@@ -20,7 +20,7 @@ export function printIssues(ui: Ui, issues: readonly ValidationIssue[], file?: s
 }
 
 /**
- * `retake validate <project> [scenario|file]`: project.yaml, its sandboxes' sandbox.yaml (L1.8), the project template
+ * `retake validate <project> [scenario|file]`: project.yaml, its sandboxes' sandbox.yaml, the project template
  * and the scenario (or every scenario when none is given). Prints `file:line:col severity path: message`; exit 1 when
  * any error.
  */

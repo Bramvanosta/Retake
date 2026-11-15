@@ -41,7 +41,7 @@ export interface RunOptions {
   /** ffmpeg binary (default: core `ffmpegBin()` — retake.yaml, $RETAKE_FFMPEG, the app's, PATH). */
   ffmpeg?: string;
   /**
-   * Capture without the in-page cursor (raw export for editors, L2.13: `retake run --raw --cursor none|layer`). The
+   * Capture without the in-page cursor (raw export for editors: `retake run --raw --cursor none|layer`). The
    * pointer still drives real input and the cursor track, icon, presses and ripples are recorded; nothing of the
    * cursor is drawn in the pictures. The timeline says so (`capture.cursor: hidden`).
    */
@@ -51,25 +51,25 @@ export interface RunOptions {
   /** The command that signs a persona in again, as messages print it (default `retake login <project> --env … --persona …`). */
   loginCommand?: (p: { project: string; env: string; persona?: string }) => string;
   /**
-   * `--allow-writes` (L1.7): lets a run on a production environment whose project.yaml sets `access: read-write` write.
+   * `--allow-writes`: lets a run on a production environment whose project.yaml sets `access: read-write` write.
    * On a read-only environment it is refused (core AccessError, thrown before anything is recorded).
    */
   allowWrites?: boolean;
   /**
-   * The sandbox reset made before this take (L1.8, `retake run --sandbox`: @retake/sandbox prepareTake), recorded as
+   * The sandbox reset made before this take (`retake run --sandbox`: @retake/sandbox prepareTake), recorded as
    * run.json / timeline.json `environment.sandbox`. A run on a sandbox environment without it records the sandbox
    * without a reset.
    */
   sandbox?: RunSandbox;
   /**
-   * Who stands behind the trust flags of the scenario's hooks (L3.1, core HookTrust; default `author`). `mcp` (a job
+   * Who stands behind the trust flags of the scenario's hooks (core HookTrust; default `author`). `mcp` (a job
    * submitted through the MCP server): `confirm: true` does not count, every shell hook needs an approval
    * (`confirmHook`) and always counts as writing — a read-only run refuses it before anything runs.
    */
   hookTrust?: HookTrust;
   /**
-   * What runs the scenario's setup, teardown and hook steps (L7.12: the engine's HookRunner, its composition root's;
-   * the runner never loads the hooks package itself). Loaded when the run's hooks are opened (a failed load fails the
+   * What runs the scenario's setup, teardown and hook steps (the engine's HookRunner, its composition root's; the
+   * runner never loads the hooks package itself). Loaded when the run's hooks are opened (a failed load fails the
    * run, as before); a run whose hooks run without one is refused before anything runs.
    */
   hookRunner?: CaptureHookRunner;
@@ -79,48 +79,48 @@ export interface RunOptions {
    */
   recordHookRun?: (result: HookResult, runId: string) => Promise<void>;
   /**
-   * The channel a trust-`mcp` run came through, for the wording of its refusals (L4.2): `studio` (a Studio user is told
+   * The channel a trust-`mcp` run came through, for the wording of its refusals: `studio` (a Studio user is told
    * "from the Studio", never about MCP) or `mcp` (default).
    */
   hookVia?: Confinement;
   /**
-   * L7.39: the files a person checked before the run (their trust in an agent's hooks, or their yes): a hook whose files
+   * The files a person checked before the run (their trust in an agent's hooks, or their yes): a hook whose files
    * are no longer those is refused (HookContext.trustedFiles). Absent: none checked.
    */
   trustedHookFiles?: TrustedHookFiles;
   /**
-   * Approves a hook that needs a human (L3.1: the jobs worker checks the hook's fingerprint against its job's
+   * Approves a hook that needs a human (the jobs worker checks the hook's fingerprint against its job's
    * approvals). Without it such hooks are refused, as before.
    */
   confirmHook?: ConfirmHook;
   /**
-   * Inspect the page at the end (L3.3, inspect.ts): after the last step (or `until`), or at the step that failed — never
+   * Inspect the page at the end (inspect.ts): after the last step (or `until`), or at the step that failed — never
    * after a sign-in landing. Needs `mode: 'dry'` (the environment's own access, as `run_dry`); hooks are skipped, the
    * replay runs at INSPECT_PACING without per-step screenshots. With `runsDir` / `runId` the run folder (and the
    * report's files) go where the caller keeps inspections, out of `runs/`.
    */
   inspect?: InspectRequest;
   /**
-   * The live picture (L4.4, live-preview.ts): frames of the page the run acts on, from capture time 0 to the end of the
+   * The live picture (live-preview.ts): frames of the page the run acts on, from capture time 0 to the end of the
    * scenes, while the sink says someone watches. Memory only.
    */
   live?: LiveSink;
-  /** Pauses between steps (L4.4, pause.ts): a dry run waits while the gate asks; a capture says it does not pause. */
+  /** Pauses between steps (pause.ts): a dry run waits while the gate asks; a capture says it does not pause. */
   pause?: PauseGate;
   /**
-   * Captures first (L5.14): told when a capture starts filming (capture time 0), pauses and resumes (L4.4: the pause is
-   * not filmed; `resume` comes before the recorders film again) and stops filming (its recorders stopped, before the
+   * Captures first: told when a capture starts filming (capture time 0), pauses and resumes (the pause is not
+   * filmed; `resume` comes before the recorders film again) and stops filming (its recorders stopped, before the
    * teardown). Setup and teardown hooks, prewarm and the encode's end are not filming. Never called for a dry run.
    * Its answer to `stop` is what the take saw beside it (run.json `perf.machine`).
    */
   onFilming?: (state: FilmingEvent) => void | FilmingReport;
 }
 
-/** What onFilming says (L5.14). */
+/** What onFilming says. */
 export type FilmingEvent = 'start' | 'pause' | 'resume' | 'stop';
 
 /**
- * What a take saw beside it while it filmed (L5.14, the caller's captures sampler): the most other takes filming at once
+ * What a take saw beside it while it filmed (the caller's captures sampler): the most other takes filming at once
  * on this Mac, and whether a heavy job of its workspace ran slowed (background priority) during it.
  */
 export interface FilmingReport {

@@ -1,6 +1,6 @@
 /**
- * The MCP server's project tools: the engine's operations (L7.13: engine_info, project_list, project_get,
- * project_update_readme; L7.18: project_create, project_prune — the approver is handed through by invoke), in the
+ * The MCP server's project tools: the engine's operations (engine_info, project_list, project_get,
+ * project_update_readme, project_create, project_prune — the approver is handed through by invoke), in the
  * order tools/list gives them. `projectPrune` is named for the tests that call it directly.
  */
 import { OPERATIONS_BY_NAME } from '@retake/engine/contract';

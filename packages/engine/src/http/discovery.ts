@@ -1,11 +1,11 @@
 /**
- * Where a workspace's Studio server is found (L4.1; BACKLOG guard-rail "/v1 + capabilities + discovery file"), in two
+ * Where a workspace's Studio server is found (BACKLOG guard-rail "/v1 + capabilities + discovery file"), in two
  * files, so that a second `retake ui` reopens the running server instead of starting another (the macOS app's
  * `retake ui --supervised` too):
  *
  * - The discovery record `<workspace>/.retake/ui.json` says which process serves the workspace and on which port —
  *   pid, start time, port, URL, nothing secret. It is the workspace's lock: claimed after the server is bound,
- *   exclusively (critique B8) — a 0600 temporary file (chmod: the umask never widens it) hard-linked into place, so two
+ *   exclusively — a 0600 temporary file (chmod: the umask never widens it) hard-linked into place, so two
  *   servers starting together never both win; on EEXIST the holder is checked (pid AND start time, as the worker lock)
  *   and reused when alive, replaced once when stale. A reader trusts the file only when it is a regular file of this
  *   user with no group or other permission bits; anything else is refused, never followed.
@@ -137,7 +137,7 @@ export async function claimDiscovery(file: string, record: DiscoveryRecord): Pro
     await writeFile(tmp, recordText(record), { mode: 0o600, flag: 'wx' });
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
-    // A workspace state folder this user cannot write (review B L3): a refusal that says what to do, not a stack.
+    // A workspace state folder this user cannot write: a refusal that says what to do, not a stack.
     if (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') {
       throw new EngineError('refused', `${dirname(file)} is not writable (${code}): retake ui records the server it starts there`, {
         fix: code === 'EROFS' ? 'run retake ui on a workspace on a writable disk' : `make it writable for you (chmod u+w ${dirname(file)}), or run retake ui as the user who owns the workspace`,
@@ -172,8 +172,8 @@ function sameServing(a: Pick<DiscoveryRecord, 'pid' | 'started_at' | 'port'> & {
 }
 
 /**
- * Remove the discovery file when it is still `record`'s (never a successor's) — whatever its mode now (review B L8: a
- * file made 0644 while the server ran would otherwise stay, and refuse every later start). Only a regular file of this
+ * Remove the discovery file when it is still `record`'s (never a successor's) — whatever its mode now (a file made
+ * 0644 while the server ran would otherwise stay, and refuse every later start). Only a regular file of this
  * user holding exactly this record (pid, start time, port and since) is removed.
  */
 export async function releaseDiscovery(file: string, record: DiscoveryRecord): Promise<void> {

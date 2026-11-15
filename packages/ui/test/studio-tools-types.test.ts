@@ -1,7 +1,7 @@
 /**
  * The types the app's StudioOps (src/app/data/ops.ts) is derived from, held exactly for a few of the operations the
- * Studio shares with MCP (L7.13: they became the engine's operations; written on the commit before the move) and for
- * the Studio's read-only queries of runs, renders, reviews and scenarios (L7.14, the same way): each
+ * Studio shares with MCP (they became the engine's operations; written on the commit before the move) and for
+ * the Studio's read-only queries of runs, renders, reviews and scenarios (the same way): each
  * op's arguments as a page sends them (`ToolArgs`, the Studio's pinned arguments applied) and its answer (`ToolData`)
  * of `StudioTools` (server/studio.ts). A type that widens or narrows fails `pnpm typecheck` (tsconfig.test.json), not
  * this file's run: the run only says the file is part of the suite.
@@ -23,8 +23,8 @@ type Holds<T extends true> = T;
 type Args<K extends keyof StudioTools> = ToolArgs<StudioTools[K]>;
 
 /**
- * Two answers the Studio's ops themselves declared (ops.ts ProjectOverview and RenderReviewAnswer, moved with them in
- * L7.14): written out as they were on the commit before the move, so the check is not of a type against itself.
+ * Two answers the Studio's ops themselves declared (ops.ts ProjectOverview and RenderReviewAnswer): written out
+ * here by hand, so the check is not of a type against itself.
  */
 type OverviewShape = {
   slug: string;
@@ -89,7 +89,7 @@ export type Checks = [
   Holds<Exact<Data<'auth_login'>, JobRecord>>,
   // scenario_validate.
   Holds<Exact<Args<'scenario_validate'>, { project: string; yaml: string; env?: string | undefined; until?: string | undefined; name?: string | undefined }>>,
-  // L7.14: the Studio's read-only queries.
+  // The Studio's read-only queries.
   Holds<Exact<Args<'projects_overview'>, Record<string, never>>>,
   Holds<Exact<Data<'projects_overview'>, { projects: OverviewShape[] }>>,
   Holds<Exact<Data<'projects_overview'>['projects'][number], OverviewShape>>,

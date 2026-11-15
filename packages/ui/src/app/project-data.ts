@@ -1,21 +1,21 @@
 /**
- * L5.10a: the open project's shared reads — `project_get` (its environments, README, warnings), `project_board` (the
+ * The open project's shared reads — `project_get` (its environments, README, warnings), `project_board` (the
  * poster grid, the smart groups' counts, the inspector) and `auth_status` (the Cast) — one module-level entry per op
  * and project (one call in flight; a reload asked meanwhile runs once after it), read by the shell's browser and the
  * screens alike through `useSyncExternalStore`: opening a project costs one read of each.
- * L5.10a fixes (reviews A-H1, B-H1): the store's `subscribe` is stable per entry (an inline one made React unsubscribe
+ * The store's `subscribe` is stable per entry (an inline one made React unsubscribe
  * and resubscribe at every render — the "first reader" rule then re-read all three ops at every re-render of the shell:
- * a read per step of a take, a read loop on an error). Reading is no longer the subscription's business: the first
+ * a read per step of a take, a read loop on an error). Reading is not the subscription's business: the first
  * reader of an entry (or one coming back to the project) reads it in an effect; a re-render reads nothing. An entry in
  * error is read again on an event, a focus, a Retry or after ERROR_RETRY_MS (doubling, at most ERROR_RETRY_MAX_MS)
  * while someone reads it — never in a loop.
  *
- * What re-reads them (critique M2, `boardEventAction`): a reconnection (all); a run of the project that appeared,
+ * What re-reads them (`boardEventAction`): a reconnection (all); a run of the project that appeared,
  * changed status or went away, a scenario file, a render file (the board); README (the project); the project's own
  * files otherwise (all three). A run that only progressed re-reads nothing here — the Project screen asks `run_status`
  * for the takes it shows running (ProductionsScreen). A `jobs` event re-reads the board (at most every 2 s) only for a
  * job it shows (a render's progress) or a job it never saw (a new render or take); the Cast at most every 10 s. A
- * window focus re-reads each once. A job event naming its projects (`projects`, L5.10a fixes) re-reads only theirs.
+ * window focus re-reads each once. A job event naming its projects (`projects`) re-reads only theirs.
  * Nothing re-reads the board on every step of a capture (studio-e2e-board-reads counts the calls).
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
@@ -97,7 +97,7 @@ function load(e: Entry): void {
       },
       (err: unknown) => {
         if (err instanceof SessionEnded) return;
-        // Read again later, not now (reviews A-H1 / B-H1: an error re-read at once looped hundreds of times a second).
+        // Read again later, not now (an error re-read at once looped hundreds of times a second).
         e.backoff = e.backoff === 0 ? ERROR_RETRY_MS : Math.min(e.backoff * 2, ERROR_RETRY_MAX_MS);
         set(e, { state: 'error', error: errorText(err), ...(err instanceof CallError ? { code: err.error.code } : {}) });
       },
@@ -184,7 +184,7 @@ const NONE: BoardEventAction = { view: false, board: null, cast: null };
 export function boardEventAction(e: StudioEvent, slug: string, shownJobs: ReadonlySet<string>, seen: Set<string>): BoardEventAction {
   if (e.type === 'resync') return { view: true, board: 'now', cast: 'now' };
   if (e.type === 'jobs') {
-    // A job event that names its projects and not this one is another project's (review A-L7).
+    // A job event that names its projects and not this one is another project's.
     const other = Array.isArray(e.projects) && !e.projects.includes(slug);
     let board = false;
     for (const id of e.changed) {
@@ -200,7 +200,7 @@ export function boardEventAction(e: StudioEvent, slug: string, shownJobs: Readon
   const board = runChanged || mine(e.scenarios) || mine(e.renders);
   const view = mine(e.readme);
   const named = runs.length > 0 || mine(e.scenarios) || mine(e.renders) || mine(e.readme) || mine(e.comments) || mine(e.themes) || mine(e.components) || mine(e.records) || e.site === true;
-  // L5.10a fixes: a server that names the projects whose project.yaml (sandbox.yaml, scenario list) changed — those
+  // A server that names the projects whose project.yaml (sandbox.yaml, scenario list) changed — those
   // re-read everything; anything else of the project no list names is its runs folder before a run is told: the board.
   if (Array.isArray(e.files)) {
     if (e.files.includes(slug)) return { view: true, board: 'now', cast: 'now' };

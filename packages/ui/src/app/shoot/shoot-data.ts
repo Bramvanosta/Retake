@@ -1,5 +1,5 @@
 /**
- * L5.11a: Shoot's shared state — what the status bar, Prepare, the live screen and the Scenario screen read and do for a
+ * Shoot's shared state — what the status bar, Prepare, the live screen and the Scenario screen read and do for a
  * scenario's runs.
  *
  * - `scenario_actions` entries (one per scenario × location: one call in flight, a reload asked meanwhile runs once
@@ -7,17 +7,17 @@
  *   (`shootEventAction`): the scenario's file, a run of it appearing / changing status / going away, the project's own
  *   files, a reconnection, a focus; a render they show (its progress: at most every RENDER_JOBS_THROTTLE_MS) or a job of
  *   the project they never saw (at most every JOBS_THROTTLE_MS). A step's progress — its run's job rewritten — never
- *   re-reads them (review A-M1): the status bar's progress line is `run_status` (useRunProgress), and on the Scenario
- *   screen the screen feeds the store from its own view (`feedActions`, critique H2: no second read, no second
+ *   re-reads them: the status bar's progress line is `run_status` (useRunProgress), and on the Scenario
+ *   screen the screen feeds the store from its own view (`feedActions`: no second read, no second
  *   validation per save).
  * - Starts (`startRun`, `startRender`): one store function per kind, so a held ⌘R, a click and a menu command in the same
  *   tick queue ONE run — the scenario is marked `sending` synchronously before the call and a second ask is ignored
  *   (the server's one-run-per-scenario 409 stays the authority). The run just queued counts as running until a read
- *   shows it (critique L3). A capture refused for sessions to confirm opens the shell's one confirmation sheet.
+ *   shows it. A capture refused for sessions to confirm opens the shell's one confirmation sheet.
  * - What the last start of a scenario came to (`useLastStart`): the Scenario screen's take strip shows it whoever
- *   started it (review B H1 of L5.10b).
- * - The file a screen shows (`useShownFile`): Rehearse / Capture / Render send the hash of the file on screen (review A
- *   #6 of L4.2: a changed file is a 409, then the screen reads it again), else the actions' hash.
+ *   started it.
+ * - The file a screen shows (`useShownFile`): Rehearse / Capture / Render send the hash of the file on screen (a
+ *   changed file is a 409, then the screen reads it again), else the actions' hash.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { ScenarioActions } from '@retake/engine';
@@ -33,11 +33,11 @@ import { otherCopyOf, submitNotice } from '../other-copy.js';
 
 /** Job-driven re-reads: at most one per this (a job of the project the entry never saw). */
 export const JOBS_THROTTLE_MS = 2000;
-/** A render the entry shows, while it progresses: at most one re-read per this (critique H2: ~36 reads for a 3-minute render). */
+/** A render the entry shows, while it progresses: at most one re-read per this (~36 reads for a 3-minute render). */
 export const RENDER_JOBS_THROTTLE_MS = 5000;
 const ERROR_RETRY_MS = 2000;
 const ERROR_RETRY_MAX_MS = 60_000;
-/** A run just queued counts as running until a read shows it, at most this long (critique L3). */
+/** A run just queued counts as running until a read shows it, at most this long. */
 const PENDING_MS = 15_000;
 
 type Mode = 'dry' | 'capture';
@@ -187,7 +187,7 @@ const runChanged = new Set<{ slug: string; name: string; fn: { current: () => vo
 /**
  * Re-read every entry of a scenario now (after a start, a stop, a refusal) — and tell the screens that read the
  * scenario's runs themselves (the Scenario screen's view): a queued run stopped is cancelled at once, but its run.json
- * only changes once a worker takes it, so no file event would say so (L5.10b's Cancel read the view again the same way).
+ * only changes once a worker takes it, so no file event would say so.
  */
 export function reloadActions(slug: string, name: string): void {
   for (const e of entries.values()) if (e.slug === slug && e.name === name && e.users > 0) load(e);
@@ -216,7 +216,7 @@ export function shootEventAction(e: StudioEvent, entry: { slug: string; name: st
       for (const id of e.changed) seen.add(id);
       return null;
     }
-    // A run's job is rewritten at every step (its progress): never a re-read (review A-M1 of L5.11a). Its end is caught by
+    // A run's job is rewritten at every step (its progress): never a re-read. Its end is caught by
     // run.json's status change (a workspace event), by useRunProgress's `onEnded` and by Stop's own reload.
     const render = entry.data?.render_job?.job;
     let out: 'jobs' | 'render' | null = null;
@@ -257,7 +257,7 @@ export function useShootEvents(): void {
   }, []);
 }
 
-// ── the Scenario screen's own view, fed to the status bar (critique H2) ───────────────────────────────────────────────
+// ── the Scenario screen's own view, fed to the status bar ───────────────────────────────────────────────
 
 /** A run's progress as `run_status` tells it (the status bar's line, the Scenario screen's Running callout). */
 export interface LiveRun {
@@ -364,7 +364,7 @@ function settlePending(slug: string, name: string, data: Pick<ScenarioActions, '
 }
 
 /**
- * A run of the scenario this tab just queued and no read shows yet (critique L3), or null. `runs`: what the caller read
+ * A run of the scenario this tab just queued and no read shows yet, or null. `runs`: what the caller read
  * (a read that already lists it — it may come before scenario_run's answer — ends the wait).
  */
 export function usePendingRun(slug: string | null, name: string | null, runs: ReadonlyArray<{ id: string }> | undefined): { id: string; mode: Mode } | null {
@@ -496,7 +496,7 @@ export function pauseRun(o: { slug: string; name: string; run: string; paused: b
 // ── the live screen's arrival after a start ───────────────────────────────────────────────────────────────────────────
 
 let liveFocus: string | null = null;
-/** A start from this tab opens run `id`'s live screen: its title takes the focus there (review A-M2: never <body>). */
+/** A start from this tab opens run `id`'s live screen: its title takes the focus there (never <body>). */
 export function focusLiveOnArrival(id: string): void {
   liveFocus = id;
 }

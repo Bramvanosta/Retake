@@ -1,12 +1,12 @@
 /**
- * L5.2b — the supervised server's lines to the desktop shell (supervise.ts), on a scratch workspace whose job files the
+ * The supervised server's lines to the desktop shell (supervise.ts), on a scratch workspace whose job files the
  * test writes itself (as a worker or a hand edit would): the job watch takes stock first (finished history gives no
  * `job_end`), each job that ends while it watches gives exactly one `job_end` of enums and checked slugs, the outcome
- * table, the kinds that count and the one pipe-kind table, a queued job with no live worker left out (critique M2),
+ * table, the kinds that count and the one pipe-kind table, a queued job with no live worker left out,
  * a hand-edited job.json's bad names left out, `pending` coalesced (one write per gap, the last state always written),
- * latest-wins while stdout is full, the line caps and the job_end rate cap. Review fixes: each line framed by newlines
- * (A L3), names only of a project and a scenario that exist (A L1), a Studio recording its own kind (B L5), an
- * environment reset's own reason (B L14), one read of each live job per poll (B L15).
+ * latest-wins while stdout is full, the line caps and the job_end rate cap. Review fixes: each line framed by newlines,
+ * names only of a project and a scenario that exist, a Studio recording its own kind, an
+ * environment reset's own reason, one read of each live job per poll.
  */
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -333,7 +333,7 @@ describe('the tables', () => {
       site: undefined,
     });
     expect(k('run', { mode: 'dry' })).toBe('dry_run');
-    // A recording the Studio started (its controls are on the Record screen: review B L5).
+    // A recording the Studio started (its controls are on the Record screen).
     expect(k('record', { submitted_by: 'ui' })).toBe('studio_recording');
     expect(k('record', { submitted_by: 'mcp' })).toBe('recording');
     expect(k('hooks', { dry: true })).toBeUndefined();

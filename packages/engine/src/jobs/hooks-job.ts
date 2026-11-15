@@ -1,6 +1,6 @@
 /**
- * `hooks` and `env_reset` jobs (L3.1): `retake hooks run` and `retake env reset` submitted by a client outside the CLI
- * (the MCP server) and executed by the jobs worker with the CLI's own orchestration (hooks-work.ts, L7.23) — trust
+ * `hooks` and `env_reset` jobs: `retake hooks run` and `retake env reset` submitted by a client outside the CLI
+ * (the MCP server) and executed by the jobs worker with the CLI's own orchestration (hooks-work.ts) — trust
  * `mcp`: the hook files' `confirm: true` does not count, every shell hook needs a human approval and always counts as
  * writing.
  *

@@ -1,5 +1,5 @@
 /**
- * L3.3 scenario_from_script's parser (R-MCP-22): one GFM table, English and French headers, M:SS times and ranges,
+ * The parser of scenario_from_script (R-MCP-22): one GFM table, English and French headers, M:SS times and ranges,
  * durations, the type column (interstitial, title, outro), pages mapped to environment keys (a URL never reaches the
  * draft), positioned issues, timing warnings, and a draft that parses as a scenario. Pure: no project, no files.
  */

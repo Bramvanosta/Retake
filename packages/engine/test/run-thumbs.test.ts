@@ -1,15 +1,15 @@
 /**
- * L4.2 part 2: thumbnails of a run's steps (engine runs.thumbs, run-thumbs.ts) on synthetic runs — exact colours.
+ * Thumbnails of a run's steps (engine runs.thumbs, run-thumbs.ts) on synthetic runs — exact colours.
  *
- * - Which picture (critique B3): a dry run's step screenshot, a failed step's error screenshot, a capture step's frame
+ * - Which picture: a dry run's step screenshot, a failed step's error screenshot, a capture step's frame
  *   on screen at its end after its hold on the CFR grid — kept frames and the video give the same colour, the last
  *   step included (its hold ends at the end of the capture), a step end on a frame boundary and one mid-interval (a
  *   frame stamped between the grid tick and the step end is NOT shown: the video does not show it either).
  * - Multi-page scenes: the track of the page the step acted on; frames deleted → each track's video.
- * - Reads (critique B6): symlinked capture.mp4 / frames folder / screenshot / run folder refused (ffmpeg never started
+ * - Reads: symlinked capture.mp4 / frames folder / screenshot / run folder refused (ffmpeg never started
  *   on a link), frame names and track files validated, a FIFO frame index does not hold the call, a decompression-bomb
  *   PNG refused.
- * - Cost (critique B7): one ffmpeg per batch, ≤ 1 per run, ≤ 2 at once, abort kills it; the memory cache serves a
+ * - Cost: one ffmpeg per batch, ≤ 1 per run, ≤ 2 at once, abort kills it; the memory cache serves a
  *   repeat and stays within its byte bound; the thumbnail path never imports the review package's root (Remotion).
  */
 import { execFileSync } from 'node:child_process';
@@ -580,17 +580,17 @@ describe('cost (B7): ffmpeg processes, abort, no Remotion', () => {
   it('the thumbnail path imports the review package’s ./thumbs entry only (never its root: editor, Remotion)', async () => {
     const thumbs = await readFile(join(REPO, 'packages/review/src/thumbs.ts'), 'utf8');
     const imports = [...thumbs.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
-    // @retake/core/io only for ffmpegBin (the bundled ffmpeg, L5.16) and startMediaTool (L7.31: the media tools are
+    // @retake/core/io only for ffmpegBin (the bundled ffmpeg) and startMediaTool (the media tools are
     // started there), @retake/core/policy for the policy's type: core never imports the editor or Remotion
     expect(imports.sort()).toEqual(['@retake/core/io', '@retake/core/policy', 'node:stream', 'sharp']);
     for (const f of ['run-thumbs.ts', 'run-data.ts', 'outputs/run-files.ts', 'views/scenario-view.ts']) {
       const src = await readFile(join(REPO, 'packages/engine/src', f), 'utf8');
       expect(src, f).not.toMatch(/['"]@retake\/(review|editor)['"]/);
     }
-    // L7.11: the thumbnails are drawn by the reviewer's frames (run-thumbs.ts names no review entry at all), and the
+    // The thumbnails are drawn by the reviewer's frames (run-thumbs.ts names no review entry at all), and the
     // product's frames load the light entry (lazy.ts `thumbs`; ports.test asserts which loader each member calls).
     expect(await readFile(join(REPO, 'packages/engine/src/run-thumbs.ts'), 'utf8')).not.toMatch(/@retake\/review/);
-    // L7.34 (finding C4): the loader held by what it loads, not by its statement — the light entry's own module, which
+    // The loader held by what it loads, not by its statement — the light entry's own module, which
     // holds the frames and the thumbnails and nothing of the package root; that the reviewer's `at` and `thumb` go
     // through this loader (and the rest through the root's) is ports.test's "the reviewer's frames come from the
     // thumbnail entry" (each member's loader recorded).

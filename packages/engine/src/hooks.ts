@@ -1,9 +1,9 @@
 /**
- * Hooks outside a capture (L3.1, moved from the CLI's hooks commands): pick a hooks source, build the context hooks run
- * in (access, js hook browsers per persona, write guard, approvals), run the project's reset. `retake hooks run`,
- * `retake env reset` and `retake hooks rollback` call these with their native options and errors; the jobs worker calls
- * them for `hooks` and `env_reset` jobs (trust `mcp`, approvals from the job). Nothing here prints or installs signal
- * handlers: the caller logs through `log` and handles interrupts.
+ * Hooks outside a capture: pick a hooks source, build the context hooks run in (access, js hook browsers per persona,
+ * write guard, approvals), run the project's reset. `retake hooks run`, `retake env reset` and `retake hooks rollback`
+ * call these with their native options and errors; the jobs worker calls them for `hooks` and `env_reset` jobs (trust
+ * `mcp`, approvals from the job). Nothing here prints or installs signal handlers: the caller logs through `log` and
+ * handles interrupts.
  */
 import type { Secrets } from './secrets/secrets.js';
 import { existsSync } from 'node:fs';
@@ -149,7 +149,7 @@ export async function selectHooks(
 }
 
 /**
- * The access of a hooks command (L1.7): its environment's, with `allowWrites` (core AccessError on a read-only
+ * The access of a hooks command: its environment's, with `allowWrites` (core AccessError on a read-only
  * environment), and the hosts of the project's read-only environments it must not write to. Journal replays judge each
  * entry by its own environment (`accessOf`).
  */
@@ -191,7 +191,7 @@ export interface HookContextOptions {
   loginCommand: LoginCommandOf;
   /** Stops the hooks (a running shell command, the next hooks): a job's cancel. */
   signal?: AbortSignal;
-  /** L5.14, CLI only: asks about each rollback whose journal entry Retake did not sign for its journal (hooks journal.ts). */
+  /** CLI only: asks about each rollback whose journal entry Retake did not sign for its journal (hooks journal.ts). */
   replayUnsigned?: HookContext['replayUnsigned'];
   /** Who runs these hooks: each hook and rollback run is a line of the workspace journal, as this caller's (absent: none). */
   recordAs?: JournalAs;
@@ -201,7 +201,7 @@ export interface HookContextOptions {
 
 /**
  * A hook context for hooks outside a capture; js hooks get a headless browser opened on first use — signed in as the
- * persona of their page (L1.6: a copy of its session, as in a run; a tab landing on its sign-in page fails the hook),
+ * persona of their page (a copy of its session, as in a run; a tab landing on its sign-in page fails the hook),
  * one browser per persona. A scenario's hooks bind their tabs as its run does (core planPersonas: the persona its
  * scenes film the page with, `none` included). `closeSessions` closes those browsers (their copies hold a persona's
  * cookies). Throws core AccessError for `allowWrites` on a read-only environment, before anything is opened.
@@ -215,7 +215,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
   const command = o.loginCommand;
   const runId = o.runId ?? newRunId('hooks');
   const planned = o.scenario ? planPersonas(o.scenario, { env: env.name, envPages: env.pages, personas, hooks: true }).hookPages : undefined;
-  // A read-only command (L1.7): a js hook's tab stops its writes (never mocked); its browser is guarded like a run's.
+  // A read-only command: a js hook's tab stops its writes (never mocked); its browser is guarded like a run's.
   // Any command: writes to the hosts of the project's read-only environments (production) are stopped too.
   const policy = compileWritePolicy(env, { access });
   const writes = guardsWrites(policy) ? { policy, onWrite: (w: { label: string; outcome: string }) => ctx.log('debug', `js hook tab: ${w.label} ${w.outcome}`) } : undefined;

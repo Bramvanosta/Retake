@@ -1,4 +1,4 @@
-//! Retake's desktop shell (L5.2, DESIGN §4j): a macOS window on the workspace's own Studio server — nothing in
+//! Retake's desktop shell (DESIGN §4j): a macOS window on the workspace's own Studio server — nothing in
 //! Rust but OS glue. It runs `node <cli> --root <workspace> ui --supervised` (the Node.js and CLI pinned by
 //! `pnpm desktop:build` in launch.json), opens a WKWebView window on the one-time URL that prints, and holds no token:
 //! the page redeems its code and keeps its token in its own sessionStorage, as in a browser.
@@ -16,11 +16,11 @@
 //!   retake.yaml, else the folder picker; File › Open Workspace… switches (a folder that is no workspace changes
 //!   nothing; the owned server stops first; a start that fails reopens the previous workspace — never a quit).
 //! - Printed: origins only — never the one-time URL, a capability path or the token (log filter, desktop_core::redact).
-//! - L5.2b: job notifications (notify.rs) and the quit guard (guard.rs) from the owned server's pipe lines (child.rs):
+//! - Job notifications (notify.rs) and the quit guard (guard.rs) from the owned server's pipe lines (child.rs):
 //!   Quit / Open Workspace… with jobs running or unsaved text in the Studio asks first (nothing pending: instant);
 //!   the restart alert names the unsaved text still in the window (Not Now its default). An attached server has no
 //!   pipe: neither (said once). SIGTERM / SIGINT / SIGHUP end any question of the shell (macos::end_modals).
-//! - L5.16d: the updater (update.rs; a build with the `updater` feature and a feed only): the check at launch (at most
+//! - The updater (update.rs; a build with the `updater` feature and a feed only): the check at launch (at most
 //!   once a day) and Help › Check for Updates…, the Studio's update sheet through the pipe, Install and Restart as a quit
 //!   through the guard, the swap and the restart at RunEvent::Exit.
 
@@ -43,7 +43,7 @@ use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, Wind
 
 const WINDOW: &str = "main";
 
-/// The binary's name (Cargo.toml `name`): the prefix of every line the shell prints, in one place (review B L12).
+/// The binary's name (Cargo.toml `name`): the prefix of every line the shell prints, in one place.
 pub const BIN: &str = env!("CARGO_PKG_NAME");
 
 /// The app's name: tauri.conf.json `productName`, its one place (the bundle id is its `identifier`; desktop.mjs reads
@@ -59,12 +59,12 @@ fn pick_message() -> String {
 
 /// RETAKE_DESKTOP_TEST=1: no modal dialog ever (tests), `--route` is honoured in a release build, SIGUSR1 is
 /// File › Open Workspace… (the picker answers RETAKE_DESKTOP_TEST_PICK once: macos.rs), SIGUSR2 is Quit (a real
-/// `terminate:`, L5.2b) and notifications are logged, never posted (notify.rs). Review A L2: honoured only when the
-/// process was started by another one (a test, a terminal) — never by launchd (`getppid() == 1`: a Finder or Dock
+/// `terminate:`) and notifications are logged, never posted (notify.rs). Honoured only when the
+/// process was started by another one (a test, a terminal) — never by launchd (`getppid == 1`: a Finder or Dock
 /// launch, which a `launchctl setenv` could otherwise arm). Decided once, at launch (a parent that dies later makes
-/// launchd the parent: the mode does not change mid-run). L5.12d: the quit question's id is logged (the gated test
+/// launchd the parent: the mode does not change mid-run). The quit question's id is logged (the gated test
 /// answers with it through `desktop_answer`, as the page would) and RETAKE_DESKTOP_TEST_QUIT=native keeps the
-/// native alert (the L5.2b tests that answer it with RETAKE_DESKTOP_TEST_ANSWERS / MODAL_MS).
+/// native alert (the tests that answer it with RETAKE_DESKTOP_TEST_ANSWERS / MODAL_MS).
 pub fn test_mode() -> bool {
     static MODE: OnceLock<bool> = OnceLock::new();
     *MODE.get_or_init(|| dc::test_mode_allowed(std::env::var("RETAKE_DESKTOP_TEST").ok().as_deref(), unsafe { libc::getppid() }))
@@ -198,7 +198,7 @@ fn show(app: &AppHandle, shell: &Arc<Shell>, session: Session) {
             let (allowed, h) = (shell.allowed.clone(), app.clone());
             // No theme set: the window is the system's appearance (DarkAqua in Dark mode: alerts, the picker, menus)
             // and WebKit gives the page its `prefers-color-scheme`, but the standard title bar takes the colour of the
-            // page's top (WKWebView, macOS 26: review B M2) — since L5.9 the page follows the system (dark by default,
+            // page's top (WKWebView, macOS 26) — the page follows the system (dark by default,
             // its `color-scheme` declared) and its title bar zone is the same pane colour in both. The title bar's
             // style is menu::TITLE_BAR; the main-frame init script tells the page which one it is under
             // (menu::SHELL_FLAG_JS, a constant: no data from anywhere).
@@ -207,9 +207,9 @@ fn show(app: &AppHandle, shell: &Arc<Shell>, session: Session) {
                 .title(&title)
                 .inner_size(1280.0, 820.0)
                 .min_inner_size(900.0, 600.0)
-                // An ephemeral WebKit store (critique H2): no cache of capture media, no per-port storage in ~/Library.
+                // An ephemeral WebKit store: no cache of capture media, no per-port storage in ~/Library.
                 .incognito(true)
-                // WebKit's own drag & drop (critique H1): Tauri's handler would swallow the Studio's block drags.
+                // WebKit's own drag & drop: Tauri's handler would swallow the Studio's block drags.
                 .disable_drag_drop_handler()
                 .on_navigation(move |u| {
                     let mut a = lock(&allowed);
@@ -220,7 +220,7 @@ fn show(app: &AppHandle, shell: &Arc<Shell>, session: Session) {
                             false
                         }
                         dc::Navigation::ServerGone => {
-                            // Review A L3: the attached server is gone; its port is nobody's now.
+                            // The attached server is gone; its port is nobody's now.
                             let pid = a.attached.unwrap_or(0);
                             *a = dc::Allowed::NONE;
                             log(&format!("refused a navigation to {}: the attached Studio server (pid {pid}) is gone", dc::redact(u.as_str())));
@@ -230,7 +230,7 @@ fn show(app: &AppHandle, shell: &Arc<Shell>, session: Session) {
                         }
                     }
                 })
-                // Review A M1: wry answers Allow to a response WebKit cannot show when no download handler is set, and
+                // Wry answers Allow to a response WebKit cannot show when no download handler is set, and
                 // WebKit then saves it in ~/Downloads; with this handler every download (main frame or frame) is
                 // routed to wry's download delegate and cancelled.
                 .on_download(|_, event| {
@@ -239,7 +239,7 @@ fn show(app: &AppHandle, shell: &Arc<Shell>, session: Session) {
                     }
                     false
                 })
-                // Review A L2: wry grants every media-capture request when no handler is set; none is ever granted.
+                // Wry grants every media-capture request when no handler is set; none is ever granted.
                 .on_permission_request(|_, _| PermissionResponse::Deny)
                 .build();
             match built {
@@ -265,7 +265,7 @@ fn show(app: &AppHandle, shell: &Arc<Shell>, session: Session) {
         set_route(w, line.port, route);
     }
     *lock(&shell.session) = Some(session);
-    // L5.16d: a new owned server learns the update's state.
+    // A new owned server learns the update's state.
     update::server_ready(app);
 }
 
@@ -300,9 +300,9 @@ fn pid_alive(pid: u32) -> bool {
     pid > 0 && (unsafe { libc::kill(pid as libc::pid_t, 0) } == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM))
 }
 
-/// Restart (a server this app owns, on the same workspace) or Quit. `note` (L5.2b): the unsaved text still in the
+/// Restart (a server this app owns, on the same workspace) or Quit. `note`: the unsaved text still in the
 /// window — then Not Now leaves the window as it is (copy the text first; Quit asks again later), and it is the default
-/// button: Restart and Quit lose the text, so neither takes Return (review B M4, desktop_core::restart_buttons).
+/// button: Restart and Quit lose the text, so neither takes Return (desktop_core::restart_buttons).
 fn restart_or_quit(app: &AppHandle, shell: &Arc<Shell>, title: &str, text: &str, note: Option<String>, ws: PathBuf, source: dc::Source) {
     let b = dc::restart_buttons(note.is_some());
     let text = match &note {
@@ -329,8 +329,8 @@ fn restart_or_quit(app: &AppHandle, shell: &Arc<Shell>, title: &str, text: &str,
     }
 }
 
-/// While a question of the quit guard is up, a restart alert waits (critique H2: no alert inside its alert, no new
-/// server while it decides): true when `f` was put off — run again on the main thread in 250 ms.
+/// While a question of the quit guard is up, a restart alert waits (no alert inside its alert, no new server while
+/// it decides): true when `f` was put off — run again on the main thread in 250 ms.
 fn later_while_guard_open(app: &AppHandle, f: impl FnOnce(&AppHandle) + Send + 'static) -> bool {
     if !guard::GUARD_OPEN.load(Ordering::SeqCst) {
         return false;
@@ -344,12 +344,12 @@ fn later_while_guard_open(app: &AppHandle, f: impl FnOnce(&AppHandle) + Send + '
     true
 }
 
-/// A navigation found the attached server gone (review A L3).
+/// A navigation found the attached server gone.
 fn server_gone(app: &AppHandle, pid: u32) {
     if later_while_guard_open(app, move |h| server_gone(h, pid)) {
         return;
     }
-    // No answer can come any more (H1): the page's quit question closes.
+    // No answer can come any more: the page's quit question closes.
     guard::drop_page_question(app);
     let shell = app.state::<Arc<Shell>>().inner().clone();
     let current = match &*lock(&shell.session) {
@@ -372,10 +372,10 @@ fn server_exited(app: &AppHandle, pid: u32, status: std::process::ExitStatus, ta
         }
     };
     let Some((ws, source, pending)) = current else { return };
-    // Review A L3: its ports are nobody's now — no reload reaches them while the alert waits; set before the alert is
-    // put off for an open question too (review B L11).
+    // Its ports are nobody's now — no reload reaches them while the alert waits; set before the alert is
+    // put off for an open question too.
     *lock(&shell.allowed) = dc::Allowed::NONE;
-    // No answer can come any more (H1): the page's quit question closes.
+    // No answer can come any more: the page's quit question closes.
     guard::drop_page_question(app);
     let again = tail.clone();
     if later_while_guard_open(app, move |h| server_exited(h, pid, status, again)) {
@@ -383,7 +383,7 @@ fn server_exited(app: &AppHandle, pid: u32, status: std::process::ExitStatus, ta
     }
     log(&format!("the Studio server (pid {pid}) stopped: {status}"));
     let text = format!("It exited ({status}). Its last words:\n\n{}", if tail.is_empty() { "(none)".into() } else { tail });
-    // Its jobs are history now (critique L2); the unsaved text is still in the window.
+    // Its jobs are history now; the unsaved text is still in the window.
     let note = pending.map(|mut p| {
         p.server_gone();
         p
@@ -391,15 +391,15 @@ fn server_exited(app: &AppHandle, pid: u32, status: std::process::ExitStatus, ta
     restart_or_quit(app, &shell, "The Studio server stopped", &text, note.as_ref().and_then(dc::restart_note), ws, source);
 }
 
-/// The owned server's last `pending` snapshot (L5.2b: the quit guard's facts); None with no session or an attached one.
+/// The owned server's last `pending` snapshot (the quit guard's facts); None with no session or an attached one.
 pub(crate) fn current_pending(app: &AppHandle) -> Option<dc::Pending> {
     let shell = app.try_state::<Arc<Shell>>()?.inner().clone();
     let s = lock(&shell.session);
     s.as_ref().and_then(|x| x.server.pending())
 }
 
-/// The window's page is on the Studio's own origin now (L5.12d: the quit question's script goes there only — the player
-/// origin is allowed for navigations too).
+/// The window's page is on the Studio's own origin now (the quit question's script goes there only — the player origin
+/// is allowed for navigations too).
 pub(crate) fn window_on_studio(app: &AppHandle) -> bool {
     let Some(shell) = app.try_state::<Arc<Shell>>().map(|s| s.inner().clone()) else { return false };
     let studio = lock(&shell.allowed).studio;
@@ -424,11 +424,11 @@ pub(crate) fn show_window(app: &AppHandle) {
     }
 }
 
-/// File › Open Workspace…: pick a folder. One that is no workspace changes nothing (review B M1); otherwise the owned
+/// File › Open Workspace…: pick a folder. One that is no workspace changes nothing; otherwise the owned
 /// server stops before the next one starts (never two), and a start that fails or is cancelled reopens the previous
 /// workspace. Never a quit.
 fn open_other(app: &AppHandle) {
-    // Review B L10: never the picker inside another question of the shell (the quit question, a restart alert).
+    // Never the picker inside another question of the shell (the quit question, a restart alert).
     if guard::GUARD_OPEN.load(Ordering::SeqCst) || macos::modal_up() {
         log("Open Workspace…: another question is open — answer it first");
         return;
@@ -442,7 +442,7 @@ fn open_other(app: &AppHandle) {
         macos::alert(&format!("Not a {} workspace", app_name()), &text, &["OK"]);
         return;
     }
-    // L5.2b: jobs running or unsaved text in the window — ask before the owned server stops.
+    // Jobs running or unsaved text in the window — ask before the owned server stops.
     if !guard::confirm_open_other(app) {
         if !guard::QUIT_NOW.load(Ordering::SeqCst) {
             log("Open Workspace… cancelled: the current workspace stays open");
@@ -486,9 +486,9 @@ extern "C" fn on_signal(sig: libc::c_int) {
     }
 }
 
-/// SIGTERM / SIGINT / SIGHUP quit through the event loop (critique M4): the owned server is stopped like on ⌘Q — and
-/// with no question (L5.2b: `app.exit` never reaches the quit guard; whichever modal of the shell is up is ended —
-/// review B M1 — so a callback waiting on it returns and the queued exit runs). Under RETAKE_DESKTOP_TEST=1,
+/// SIGTERM / SIGINT / SIGHUP quit through the event loop: the owned server is stopped like on ⌘Q — and
+/// with no question (`app.exit` never reaches the quit guard; whichever modal of the shell is up is ended — review
+/// B M1 — so a callback waiting on it returns and the queued exit runs). Under RETAKE_DESKTOP_TEST=1,
 /// SIGUSR1 is File › Open Workspace… (the gated test's way to the menu) and SIGUSR2 is Quit through `terminate:`, the
 /// path of ⌘Q (sent from this thread, never from a Tauri callback: guard.rs), ignored while a question is up.
 fn install_signals(app: AppHandle) {
@@ -539,7 +539,7 @@ fn install_signals(app: AppHandle) {
                 log("quit: ending the open question");
             }
             macos::end_modals();
-            // H1: a quit question in the window closes too.
+            // A quit question in the window closes too.
             guard::drop_page_question(&app);
             return;
         }
@@ -548,7 +548,7 @@ fn install_signals(app: AppHandle) {
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
 
-/// Where this app runs from (critique H1): its `.app` folder and statfs's MNT_RDONLY; Ok for a bare binary.
+/// Where this app runs from: its `.app` folder and statfs's MNT_RDONLY; Ok for a bare binary.
 fn app_location() -> dc::InstallLocation {
     let exe = std::env::current_exe().ok().and_then(|e| std::fs::canonicalize(e).ok());
     let Some(app) = exe.as_deref().and_then(dc::app_of_exe) else { return dc::InstallLocation::Ok };
@@ -562,8 +562,8 @@ fn read_only_volume(p: &Path) -> bool {
     unsafe { libc::statfs(c.as_ptr(), &mut st) == 0 && (st.f_flags & libc::MNT_RDONLY as u32) != 0 }
 }
 
-/// L5.16c: one line for the owned server's stdin (the Set-up sheet's answers; L5.16d: the update's state); false without
-/// an owned server, or for a line the server would drop (over SHELL_LINE_MAX bytes: review d B-L4).
+/// One line for the owned server's stdin (the Set-up sheet's answers, the update's state); false without
+/// an owned server, or for a line the server would drop (over SHELL_LINE_MAX bytes).
 pub(crate) fn send_to_server(line: &str) -> bool {
     if !dc::setup::fits_shell_line(line) {
         log("a line for the Studio server was longer than its stdin takes: not sent");
@@ -575,7 +575,7 @@ pub(crate) fn send_to_server(line: &str) -> bool {
     s.as_ref().is_some_and(|x| x.server.send_line(line))
 }
 
-/// L5.16c: the Set-up sheet asks (a pipe line of the owned server, from the person's click in the page): the
+/// The Set-up sheet asks (a pipe line of the owned server, from the person's click in the page): the
 /// notification permission, or the native folder panel for the `retake` command — its answer goes back on the
 /// server's stdin (desktop_core::setup's lines: the page never sends a path).
 pub(crate) fn setup_request(a: dc::SetupAction) {
@@ -589,7 +589,7 @@ pub(crate) fn setup_request(a: dc::SetupAction) {
                 send_to_server(dc::setup::CLI_FOLDER_CANCELLED_LINE);
                 return;
             }
-            // The sheet says "choose in the panel" only once the panel is really up (review c A-L7).
+            // The sheet says "choose in the panel" only once the panel is really up.
             send_to_server(dc::setup::CLI_FOLDER_OPEN_LINE);
             let picked = macos::pick_folder_with("The folder of the retake command", &format!("{} links its retake command in the folder you choose (one of yours, on your PATH).", app_name()), "Choose");
             let line = picked.as_deref().and_then(dc::setup::cli_folder_line).unwrap_or_else(|| dc::setup::CLI_FOLDER_CANCELLED_LINE.to_string());
@@ -600,14 +600,14 @@ pub(crate) fn setup_request(a: dc::SetupAction) {
     });
 }
 
-/// L5.16d: the update sheet's click (a pipe line of the owned server, from the person's click in the page).
+/// The update sheet's click (a pipe line of the owned server, from the person's click in the page).
 pub(crate) fn update_request(a: dc::UpdateAction) {
     let Some(app) = APP.get() else { return };
     let h = app.clone();
     let _ = app.run_on_main_thread(move || update::from_page(&h, a));
 }
 
-/// L5.16c: Help › Set Up …, Install / Uninstall the retake Command…: the page's Set-up sheet (the command's section for
+/// Help › Set Up …, Install / Uninstall the retake Command…: the page's Set-up sheet (the command's section for
 /// the two last) — after a "move the app" alert when it runs from a translocated copy, its disk image or /Volumes.
 fn setup_menu(app: &AppHandle, id: &str) {
     let section = match id {
@@ -633,7 +633,7 @@ fn setup_menu(app: &AppHandle, id: &str) {
     }
 }
 
-/// L5.16c, the first run (a bundled app, no workspace yet): Create ~/Retake (`retake init`), Choose a Folder… (a
+/// The first run (a bundled app, no workspace yet): Create ~/Retake (`retake init`), Choose a Folder… (a
 /// workspace, or an empty folder made one), Quit. None: quit.
 fn first_run(shell: &Shell) -> Option<(PathBuf, dc::Source)> {
     let home = std::env::var_os("HOME").map(PathBuf::from).filter(|h| h.is_absolute())?;
@@ -678,7 +678,7 @@ fn fatal(text: &str) -> ! {
 
 fn main() {
     logfilter::install();
-    // Decided now (review A L2): the parent at launch.
+    // Decided now: the parent at launch.
     let _ = test_mode();
     let args = parse_args();
     let env = |k: &str| std::env::var(k).ok();
@@ -691,7 +691,7 @@ fn main() {
     let context = tauri::generate_context!();
     let _ = APP_NAME.set(context.package_info().name.clone());
     let version = context.package_info().version.to_string();
-    // L5.16d: the updater plugin, in a build that has it and a feed in its config only.
+    // The updater plugin, in a build that has it and a feed in its config only.
     let app = update::register(tauri::Builder::default(), &context)
         .menu(|app| menu::build(app, app_name()))
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -699,7 +699,7 @@ fn main() {
             menu::SHOW_WINDOW => show_window(app),
             id @ (menu::SET_UP | menu::CLI_INSTALL | menu::CLI_REMOVE) => setup_menu(app, id),
             menu::CHECK_UPDATES => update::check_menu(app),
-            // L5.9: a page command (View: ⌘K, ⌘1 – ⌘4, ⌥⌘I) → a `studio:command` event in the page; ids of MENUS only.
+            // A page command (View: ⌘K, ⌘1 – ⌘4, ⌥⌘I) → a `studio:command` event in the page; ids of MENUS only.
             id => {
                 if let Some(js) = menu::page_command_js(id) {
                     eval_in_window(app, js);
@@ -726,14 +726,14 @@ fn main() {
             let bundled = cfg.bundled;
             let shell = Arc::new(Shell { cfg, home, session: Mutex::new(None), allowed: Arc::new(Mutex::new(dc::Allowed::NONE)), route: Mutex::new(route) });
             app.manage(shell.clone());
-            // L5.16c: where the installed app runs from (the Set-up sheet and the command say it too).
+            // Where the installed app runs from (the Set-up sheet and the command say it too).
             let loc = app_location();
             if bundled && loc != dc::InstallLocation::Ok {
                 log(&format!("{}: {}", dc::setup::location_words(loc), dc::setup::MOVE_TO_APPLICATIONS));
             }
-            // L5.16d: the version and whether it updates itself (the gated update test reads this line).
+            // The version and whether it updates itself (the gated update test reads this line).
             log(&format!("{} version {version} ({})", app_name(), update::summary(loc)));
-            // L5.16c: the installed app's first run — no workspace yet: create ~/Retake, choose a folder, or quit.
+            // The installed app's first run — no workspace yet: create ~/Retake, choose a folder, or quit.
             let first = match first {
                 None if bundled => match first_run(&shell) {
                     Some(c) => Some(c),
@@ -753,7 +753,7 @@ fn main() {
                     return Ok(());
                 }
             }
-            // L5.16d: the update's state and the launch check, once the first workspace is served (its server learns
+            // The update's state and the launch check, once the first workspace is served (its server learns
             // the state; an install never races the start).
             update::start(&h, shell.home.clone(), loc);
             Ok(())
@@ -776,7 +776,7 @@ fn main() {
                 Some(s) => log(&format!("quit: the attached Studio server (pid {}) keeps running", s.server.line.pid)),
                 None => log("quit"),
             }
-            // L5.16d: Install and Restart approved by the guard — the swap, then the restart (else nothing).
+            // Install and Restart approved by the guard — the swap, then the restart (else nothing).
             update::finish(h);
             logfilter::finish();
         }

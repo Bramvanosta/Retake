@@ -1,8 +1,8 @@
 /**
- * The fingerprints human approvals are bound to (L3.1, R-MCP-35; a signed approval names one), through the HookRunner
- * port (L7.11): the hooks package behind it gives every fingerprint, and the files it binds, exactly as before the port.
- * The table's values were computed on the build before the port (2537130: .private/l7/L7.11-differential/fp.mjs), for
- * the same project files: a changed formula, field or order fails here, whichever side moved.
+ * The fingerprints human approvals are bound to (R-MCP-35; a signed approval names one), through the HookRunner
+ * port: the hooks package behind it gives every fingerprint, and the files it binds, exactly as before the port.
+ * The table's values were computed on the build before the port, for the same project files: a changed formula, field
+ * or order fails here, whichever side moved.
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

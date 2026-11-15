@@ -1,7 +1,7 @@
 /**
- * What the engine's `latest` of renders passed over, as the MCP tools say it (L7.6b): a count in the text, the file
+ * What the engine's `latest` of renders passed over, as the MCP tools say it: a count in the text, the file
  * names under "untrusted" only — render_status, review, export, comments_list and comment_resolve's lines come from one
- * helper. The project is the lot's state "a record renamed by hand, newer than the newest render of its own file"
+ * helper. The project is the state "a record renamed by hand, newer than the newest render of its own file"
  * (test-support/src/records/render-states.json), in a temp workspace; no job runs.
  */
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -87,6 +87,6 @@ describe('the render `latest` picked, and what it passed over', () => {
     expect(r.summary.split('\n')[0]).toBe('render quote-v2 of quote: unknown');
     expect(r.data.status).toBe('unknown');
     expect(r.summary).not.toMatch(/IGNORE|\u001b/);
-    // By its id too since L7.8: render-status-by-id.test.ts.
+    // By its id too: render-status-by-id.test.ts.
   });
 });

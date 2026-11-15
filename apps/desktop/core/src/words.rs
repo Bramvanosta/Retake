@@ -1,7 +1,7 @@
-//! The shell's own words for the quit question, the restart alert and the notifications (L5.2b, DESIGN §4j). Every
+//! The shell's own words for the quit question, the restart alert and the notifications (DESIGN §4j). Every
 //! character of an alert or a notification comes from the tables below, from the app's name (tauri.conf.json
 //! `productName`), or from a name that passed the slug rules (`pipe::project_ok` / `scenario_ok`) — and that the server
-//! found in the workspace. Such a name is still words a person or an agent chose (review A L1): it is shown cut to
+//! found in the workspace. Such a name is still words a person or an agent chose: it is shown cut to
 //! `NAME_SHOWN_MAX` characters, never as a sentence of the shell. Nothing of the page or the server's prose reaches
 //! here (there is none on the pipe). An empty `Pending` gives no question at all: Quit stays instant.
 
@@ -17,11 +17,11 @@ pub enum Action {
     Quit,
     /// File › Open Workspace… (the owned server stops before the next one starts).
     OpenWorkspace,
-    /// Logout (review B M2): the jobs worker, a process of the session, ends with it — the jobs stop.
+    /// Logout: the jobs worker, a process of the session, ends with it — the jobs stop.
     LogOut,
-    /// A restart or shut down of the Mac (review B M2): the jobs stop; jobs alone never hold it (no question).
+    /// A restart or shut down of the Mac: the jobs stop; jobs alone never hold it (no question).
     SystemRestart,
-    /// L5.16d: Install and Restart (update_flow) — a quit that installs the downloaded update, then restarts.
+    /// Install and Restart (update_flow) — a quit that installs the downloaded update, then restarts.
     Update,
 }
 
@@ -52,7 +52,7 @@ pub struct Question {
     pub proceed: usize,
     /// The index of the button that keeps everything as it is (also what test mode answers).
     pub cancel: usize,
-    /// The proceed button loses unsaved text: shown as destructive, never the default (critique M3).
+    /// The proceed button loses unsaved text: shown as destructive, never the default.
     pub destructive: bool,
 }
 
@@ -84,7 +84,7 @@ pub fn reason_words(r: Reason) -> &'static str {
     }
 }
 
-/// A checked name as shown: at most NAME_SHOWN_MAX characters (review A L1).
+/// A checked name as shown: at most NAME_SHOWN_MAX characters.
 fn shown(name: &str) -> String {
     if name.chars().count() <= NAME_SHOWN_MAX {
         return name.to_string();
@@ -152,7 +152,7 @@ fn bullets(items: Vec<String>, total: u32, one: &str, many: &str) -> String {
     out
 }
 
-/// Review B L6: the board holds every tab on the server — the app's window and a browser tab alike; the text stays on
+/// The board holds every tab on the server — the app's window and a browser tab alike; the text stays on
 /// screen in a browser tab, but nothing saves it once the server stops.
 const UNSAVED_LEAD: &str = "Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:";
 
@@ -161,8 +161,8 @@ fn unsaved_part(p: &Pending, lead: &str) -> Option<String> {
 }
 
 /// The question before quitting or opening another workspace; None when nothing is pending (no question: instant) —
-/// and, at a restart or shut down of the Mac, when only jobs are pending (review B M2: jobs alone never hold an
-/// unattended restart; they stop with it either way).
+/// and, at a restart or shut down of the Mac, when only jobs are pending (jobs alone never hold an unattended
+/// restart; they stop with it either way).
 pub fn guard_question(p: &Pending, action: Action, app: &str) -> Option<Question> {
     if p.is_empty() {
         return None;
@@ -184,7 +184,7 @@ pub fn guard_question(p: &Pending, action: Action, app: &str) -> Option<Question
             Action::Update => "These jobs keep running; they may fail once the app is replaced:",
         };
         parts.push(format!("{lead}\n{}", bullets(p.jobs.iter().map(job_line).collect(), p.jobs_total, "job", "jobs")));
-        // Review B L5: a recording the Studio started is ended and saved from its Record screen only.
+        // A recording the Studio started is ended and saved from its Record screen only.
         if p.jobs.iter().any(|j| j.kind == JobKind::StudioRecording) {
             parts.push(
                 match action {
@@ -205,7 +205,7 @@ pub fn guard_question(p: &Pending, action: Action, app: &str) -> Option<Question
         Action::OpenWorkspace => ("Open another workspace?".to_string(), "Open Anyway"),
         Action::Update => (format!("Install the update and restart {app}?"), "Install and Restart"),
     };
-    // Critique M3: losing text is never the default button (Return); jobs only keep running, so going on is.
+    // Losing text is never the default button (Return); jobs only keep running, so going on is.
     let destructive = text_at_stake;
     let (buttons, proceed, cancel) = if destructive { (["Cancel", go], 1, 0) } else { ([go, "Cancel"], 0, 1) };
     Some(Question { title, text: parts.join("\n\n"), buttons, proceed, cancel, destructive })
@@ -217,7 +217,7 @@ pub fn restart_note(p: &Pending) -> Option<String> {
         .map(|u| format!("{u}\n\nCopy it first: Not Now keeps the window as it is."))
 }
 
-/// The restart alert's buttons (review B M4): with unsaved text, Not Now first — the default, Return — and Restart and
+/// The restart alert's buttons: with unsaved text, Not Now first — the default, Return — and Restart and
 /// Quit, which lose it, destructive with no key; without, Restart (Return) and Quit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestartButtons {
@@ -238,7 +238,7 @@ pub fn restart_buttons(note: bool) -> RestartButtons {
     }
 }
 
-/// A notification's title for one job end (review B L14: "Sandbox started", not "Sandbox start finished").
+/// A notification's title for one job end ("Sandbox started", not "Sandbox start finished").
 fn end_title(kind: JobKind, outcome: Outcome) -> String {
     match (kind, outcome) {
         (JobKind::SandboxStart, Outcome::Succeeded) => "Sandbox started".into(),
@@ -304,7 +304,7 @@ mod tests {
         }
     }
 
-    /// Review A-L1 / B-L1: the longest question these words can build fits the page's bound (guard_flow QUIT_TEXT_MAX,
+    /// The longest question these words can build fits the page's bound (guard_flow QUIT_TEXT_MAX,
     /// the page's QUIT_TEXT_MAX): eight lines of the longest kind on each side, names of 100 characters (cut where
     /// shown), the largest totals ("…and 999992 more"), a Studio recording's note and the unknown state's note.
     #[test]
@@ -361,13 +361,13 @@ mod tests {
         assert_eq!(o.title, "Open another workspace?");
         assert_eq!(o.buttons, ["Open Anyway", "Cancel"]);
         assert!(o.text.starts_with("These jobs keep running; this window stops following them:\n"));
-        // L5.16d: Install and Restart asks like Quit (unsaved text: Cancel is the default), in its own words.
+        // Install and Restart asks like Quit (unsaved text: Cancel is the default), in its own words.
         let u = guard_question(&p, Action::Update, APP).unwrap();
         assert_eq!(u.title, "Install the update and restart Retake?");
         assert_eq!((u.buttons, u.proceed, u.cancel, u.destructive), (["Cancel", "Install and Restart"], 1, 0, true));
         assert!(u.text.contains("These jobs keep running; they may fail once the app is replaced:\n"));
         assert_eq!(guard_question(&Pending::default(), Action::Update, APP), None);
-        // The server died: jobs gone, the unsaved text still named (critique L2).
+        // The server died: jobs gone, the unsaved text still named.
         let mut gone = p.clone();
         gone.server_gone();
         let q = guard_question(&gone, Action::Quit, APP).unwrap();
@@ -423,7 +423,7 @@ mod tests {
         crate::json::quote(s)
     }
 
-    /// Review A L1: a slug is still words someone chose — shown cut to 40 characters, in questions and notifications.
+    /// A slug is still words someone chose — shown cut to 40 characters, in questions and notifications.
     #[test]
     fn long_names_are_cut_where_they_are_shown() {
         let long = format!("your-session-expired-reenter-the-password-{}", "x".repeat(50));
@@ -440,7 +440,7 @@ mod tests {
         assert_eq!(shown(&"a".repeat(40)), "a".repeat(40));
     }
 
-    /// Review B M2: logout, restart and shut down say what really happens to the jobs; jobs alone never hold a restart.
+    /// Logout, restart and shut down say what really happens to the jobs; jobs alone never hold a restart.
     #[test]
     fn logout_and_restart_have_their_own_words_and_jobs_alone_never_hold_a_restart() {
         let code = |b: &[u8; 4]| Some(u32::from_be_bytes(*b));
@@ -464,7 +464,7 @@ mod tests {
         assert!(guard_question(&Pending { unknown: true, ..Pending::default() }, Action::SystemRestart, APP).is_some());
     }
 
-    /// Review B M4: with unsaved text, Not Now is the default; Restart and Quit lose it — destructive, no Return.
+    /// With unsaved text, Not Now is the default; Restart and Quit lose it — destructive, no Return.
     #[test]
     fn the_restart_alert_puts_not_now_first_when_text_would_be_lost() {
         let b = restart_buttons(true);
@@ -476,7 +476,7 @@ mod tests {
         assert_eq!((b.restart, b.quit, b.not_now, b.cancel, b.destructive.len()), (0, 1, None, 1, 0));
     }
 
-    /// Review B L5 / L7 / L14: a Studio recording's own line, the editors that report too, the words fixed.
+    /// A Studio recording's own line, the editors that report too, the words fixed.
     #[test]
     fn studio_recordings_new_editors_and_fixed_words() {
         let rec = pending(r#"{"type":"pending","jobs":[{"kind":"studio_recording","state":"running","project":"shop"}],"jobs_total":1,"unsaved":[{"kind":"component_brief","project":"shop"},{"kind":"new_theme"},{"kind":"theme_draft","project":"shop"}],"unsaved_total":3}"#);

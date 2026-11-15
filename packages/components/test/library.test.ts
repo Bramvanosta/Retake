@@ -1,7 +1,7 @@
 /**
  * The built-in library (packages/components/library/studio/*): a component for every id the starter templates and the
- * legacy template fields refer to, plus studio/layout-tablet — the six reference-look components (L2.5: intro-stack,
- * outro-stack, layout-card, caption-below, interstitial-clock, transition-crossfade) and the thirteen of L2.7 in the
+ * legacy template fields refer to, plus studio/layout-tablet — the six reference-look components (intro-stack,
+ * outro-stack, layout-card, caption-below, interstitial-clock, transition-crossfade) and thirteen more in the
  * same family (layouts browser / laptop / phone / tablet / raw, caption-overlay, card-title, intro- / outro-minimal,
  * interstitial-plain, overlay-callout / -lower-third, transition-fade-black). Each one validates (manifest + compile),
  * accepts the params the themes pass, renders with any theme (react-dom/server, remotion's frame hook mocked) and —
@@ -40,7 +40,7 @@ vi.mock('remotion', async (importOriginal) => {
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 
-/** Every id referenced by the starter templates and the legacy field mapping (DESIGN-phase2 §1.2, §1.4), and the L2.9 and L2.10 families. */
+/** Every id referenced by the starter templates and the legacy field mapping (DESIGN-phase2 §1.2, §1.4), and the notification and tutorial / story-card families. */
 const IDS = [
   'studio/intro-stack',
   'studio/intro-minimal',
@@ -61,7 +61,7 @@ const IDS = [
   'studio/overlay-lower-third',
   'studio/transition-crossfade',
   'studio/transition-fade-black',
-  // L2.9: mails, notifications and documents.
+  // Mails, notifications and documents.
   'studio/notification',
   'studio/mail-notification',
   'studio/mail-view',
@@ -69,7 +69,7 @@ const IDS = [
   'studio/phone-lockscreen',
   'studio/phone-home-badge',
   'studio/transition-tap-open',
-  // L2.10: tutorial overlays and story cards.
+  // Tutorial overlays and story cards.
   'studio/overlay-shortcut',
   'studio/overlay-spotlight',
   'studio/overlay-steps',
@@ -81,15 +81,15 @@ const IDS = [
   'studio/card-testimonial',
   'studio/card-cta',
   'studio/card-chart',
-  // L2.11: two pages at once.
+  // Two pages at once.
   'studio/layout-split',
   'studio/layout-pip',
-  // L2.12: your own files (video, image, Lottie).
+  // Your own files (video, image, Lottie).
   'studio/media',
   'studio/lottie',
 ];
 
-/** The reference-look components (docs/reference/look.md), final since L2.5. */
+/** The reference-look components (docs/reference/look.md). */
 const REFERENCE_LOOK = ['studio/caption-below', 'studio/interstitial-clock', 'studio/intro-stack', 'studio/layout-card', 'studio/outro-stack', 'studio/transition-crossfade'];
 
 const dirOf = (id: string) => join(LIBRARY_DIR, ...id.split('/'));
@@ -142,7 +142,7 @@ function render(
 const px = (v: number) => (v === 0 ? '0' : `${v}px`);
 const rectCss = (r: { x: number; y: number; w: number; h: number }) => `left:${px(r.x)};top:${px(r.y)};width:${px(r.w)};height:${px(r.h)}`;
 
-/** The components that show the user's own files (L2.12). */
+/** The components that show the user's own files. */
 const USER_FILES = ['studio/media', 'studio/lottie'];
 
 describe('built-in library: a component for every referenced id', () => {
@@ -160,7 +160,7 @@ describe('built-in library: a component for every referenced id', () => {
       expect(manifests[id].version, id).toBe('1.0.0');
       if (REFERENCE_LOOK.includes(id)) expect(manifests[id].tags, id).toContain('reference-look');
       // style_bias is read (R-TPL-04) — except by layouts, static at every bias by design (a frame never moves on its
-      // own; camera and transitions do), and by the user-file components (L2.12): the motion is the user's own.
+      // own; camera and transitions do), and by the user-file components: the motion is the user's own.
       if (manifests[id].kind !== 'layout' && !USER_FILES.includes(id)) expect(manifests[id].tokens, id).toContain('style_bias');
     }
   });

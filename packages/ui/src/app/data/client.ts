@@ -1,5 +1,5 @@
 /**
- * L6.12–L6.13: the app's typed operation client — the one door of the app's data modules to `POST /v1/call/<op>`.
+ * The app's typed operation client — the one door of the app's data modules to `POST /v1/call/<op>`.
  * Each data module (data/<feature>.ts) names its ops once: `op('theme_edit')` is the function a screen calls with that
  * op's arguments and that resolves to its result (StudioOps: both derived from the Studio's op table);
  * `readHook('theme_list')` is the matching `useCall` read. Nothing outside data/ imports `call` / `useCall`

@@ -1,8 +1,8 @@
 /**
- * A run of a scenario, as `retake run` and the jobs worker both start it (L3.1, moved from the CLI's run command):
- * prepare (project, sandbox pick, scenario validated against the environment it runs on, template), then execute (the
- * scenario's warnings and notes, the sandbox take or check, the capture runner's run). Native options and native errors: the CLI keeps
- * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
+ * A run of a scenario, as `retake run` and the jobs worker both start it: prepare (project, sandbox pick, scenario
+ * validated against the environment it runs on, template), then execute (the scenario's warnings and notes, the sandbox
+ * take or check, the capture runner's run). Native options and native errors: the CLI keeps its messages, output and
+ * exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
 import type { Secrets } from './secrets/secrets.js';
 import { noDisplay } from './env.js';
@@ -77,7 +77,7 @@ export interface RunRequest {
   hooks?: 'run' | 'skip';
   env?: string;
   headed?: boolean;
-  /** Reset the sandbox environment to its seed before the take (L1.8): up if needed, health, reset. */
+  /** Reset the sandbox environment to its seed before the take: up if needed, health, reset. */
   sandbox?: boolean;
   /** sha256 the scenario file's bytes must have (a job's): core ScenarioChangedError otherwise, before they are parsed. */
   expectSha256?: string;
@@ -185,7 +185,7 @@ export interface ExecuteRunOptions {
    * reservation to make once the sandbox take or check is done (runInProcess's: nothing is reserved before them).
    */
   runId: string | (() => Promise<string>);
-  /** `--allow-writes` (L1.7): checked by the caller first (checkAllowWrites). */
+  /** `--allow-writes`: checked by the caller first (checkAllowWrites). */
   allowWrites?: boolean;
   /** Capture without the in-page cursor (`run --raw --cursor none|layer`). */
   hideCursor?: boolean;
@@ -199,17 +199,17 @@ export interface ExecuteRunOptions {
   /** The channel a trust-`mcp` job came through, for the wording of refusals (`studio`: the Studio; default `mcp`). */
   hookVia?: AgentChannel;
   /**
-   * L7.39: the files a person checked before the run (their trust in an agent's hooks, or their yes): a hook whose files
+   * The files a person checked before the run (their trust in an agent's hooks, or their yes): a hook whose files
    * are no longer those is refused (HookContext.trustedFiles). Absent: none checked.
    */
   trustedHookFiles?: TrustedHookFiles;
   /** Approves a hook that needs a human (the worker: the job's approvals). */
   confirmHook?: ConfirmHook;
-  /** The live picture's sink (L4.4, the worker's live channel): memory only, from capture time 0 to the scenes' end. */
+  /** The live picture's sink (the worker's live channel): memory only, from capture time 0 to the scenes' end. */
   live?: LiveSink;
-  /** Pauses between steps (L4.4, the worker's `pause` marker): a dry run waits; a capture says it does not pause. */
+  /** Pauses between steps (the worker's `pause` marker): a dry run waits; a capture says it does not pause. */
   pause?: PauseGate;
-  /** Captures first (L5.14): when a capture films (runner onFilming) — the caller writes the filming marker. */
+  /** Captures first: when a capture films (runner onFilming) — the caller writes the filming marker. */
   onFilming?: (state: FilmingEvent) => void | FilmingReport;
 }
 
@@ -262,7 +262,7 @@ export async function checkSandboxEnv(project: LoadedProject, env: string, note:
  */
 export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteRunOptions, ports: RunPorts): Promise<RunRecord> {
   const { ws, project, scenario, template, sandboxEnv } = p;
-  // sandbox (L1.8): the run is on the sandbox environment pickSandboxEnv chose.
+  // sandbox: the run is on the sandbox environment pickSandboxEnv chose.
   const runEnv = sandboxEnv ?? req.env;
   const notes = p.templateWarning ? [p.templateWarning] : [];
   if (req.dry && req.hooks === undefined && (scenario.scenario.setup?.length ?? 0) > 0) {
@@ -271,7 +271,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
   ports.issues(scenario.issues, scenario.file);
   for (const n of notes) ports.note('warn', n);
 
-  // L1.8: `sandbox` resets the sandbox before the take (it stays up after); a sandbox environment without it is filmed
+  // `sandbox` resets the sandbox before the take (it stays up after); a sandbox environment without it is filmed
   // as it is, and must be up.
   let take: Take | undefined;
   if (sandboxEnv) take = await prepareSandboxTake(project, sandboxEnv, scenario.name, ports, opts);

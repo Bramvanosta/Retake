@@ -1,10 +1,10 @@
 /**
- * L5.9: the UI gallery (`#/ui`) — every component of the design system (ui-kit/) in its states, in both appearances side
+ * The UI gallery (`#/ui`) — every component of the design system (ui-kit/) in its states, in both appearances side
  * by side (`data-appearance` scopes: the top layer of a sheet, a menu or the palette opened in a column inherits its
  * tokens), plus the shell's own panes filled (the inspector and the status bar's actions). Built from the kit only (a
  * lint); the accessibility checker tours it (studio-e2e-a11y.test.ts) and the kit's behaviours are tested on it
  * (studio-e2e-kit.test.ts). Its text fields are no one's work: `unsaved={null}`. A second toolbar holds a menu, a
- * segmented control and a URL field (review A-M2: the arrows stay theirs).
+ * segmented control and a URL field (the arrows stay theirs).
  */
 import { useState } from 'react';
 import type { ReactNode } from 'react';
@@ -71,7 +71,7 @@ import type { MarkVariant } from '../../mark.js';
 const FRAME_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAACAAAAASCAIAAAC1qksFAAABtklEQVR42q3TVW4cURSE4bMcx05MM2YaZmZmZmaP2U7MJK839dRq9b2PdwOfSr9UtLKp+bWlXVPp/+wYN/bMWwdW1ZF958S5d+be13gOdb5jQ+DUFNJYIjpbzOBImFwpsztt9Wbt/rwzWHSHy95o1R+vB5PNUKoVyXRiuV6iMEiVRpnKJFebEfTVbd1vtWF917S5b9k+tKmPHbunLugHWu+R3n9iDJ6Zw1prVG+PG51J6BZPxubLOQIFV6jkiVR8sVog0YAeTrej2W48308Wh+nyOFud5utzwnauju1cHdu5OrazerF5TijD1VGGq6MMV0cZVi+3Lwi6Ir1URpFeKqNIL5WRpy80FqXWstK5JGzn6tjO1bGdq2M7q9d614QyXB1luDrKcHWUYfXG4JagK9JLZRTppTKK9FIZefpq96rev2kO7wjbuTq2c3Vs5+rYzurt8QOJOhTKsHp3+o9EHQq6PH1rdN+Z/O3NHknUobCd1QeLZxJ1KJRh9dHylUQdCro8fX/+NDx/GV+8kahDYTurT68+SNShUIbV5zdfJOpQ0OXpJ5fvs+vPxe03iToUtrP68v7nP8P2dLcYjGN9AAAAAElFTkSuQmCC';
 
-/** The app mark's variants at the sizes they are seen at (L5.13b), each named in a visible caption (the marks are aria-hidden). */
+/** The app mark's variants at the sizes they are seen at, each named in a visible caption (the marks are aria-hidden). */
 const APP_MARKS: Array<[MarkVariant, number]> = [
   ['full', 128],
   ['full', 64],
@@ -128,7 +128,7 @@ function Column({ appearance }: { appearance: Appearance }) {
   const [speed, setSpeed] = useState('1.5');
   const [colour, setColour] = useState(SAMPLE_ACCENT);
   const [dragged, setDragged] = useState<string | null>(null);
-  // L5.12c fixes: what the colour fields wrote (the kit's ColorField behaviours are tested on it: studio-e2e-kit).
+  // What the colour fields wrote (the kit's ColorField behaviours are tested on it: studio-e2e-kit).
   const [writes, setWrites] = useState<string[]>([]);
   const [dark, setDark] = useState('');
   const commands: Command[] = [

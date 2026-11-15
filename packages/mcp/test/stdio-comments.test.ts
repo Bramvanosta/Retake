@@ -1,5 +1,5 @@
 /**
- * L3.6 frame comments through `retake mcp` (spawned from the sources over stdio, driven by the SDK client) on synthetic
+ * Frame comments through `retake mcp` (spawned from the sources over stdio, driven by the SDK client) on synthetic
  * renders (the review tests' helpers; drawn with ffmpeg when it is installed, else empty files — only the test of the
  * stills needs it): a person comments a frame with `retake comment add` (the CLI,
  * spawned from the sources); comments_list returns the thread with its anchor (the marked 2 ms wait, its marker) and
@@ -7,11 +7,11 @@
  * author name) only under `untrusted`, never in prose. Forgery refusals: no tool creates or reopens a thread, no input
  * takes an author, every entry of these tools is written as `mcp` / agent, comment_resolve needs if_match (stale →
  * conflict naming the current hash); a hand-edited anchor reaches neither the summary nor the labels.
- * L4.6 part B (T10): comment_reply {proposal} on a thread written in the Studio (an in-process engine of client `ui`):
+ * comment_reply {proposal} on a thread written in the Studio (an in-process engine of client `ui`):
  * strict inputs, stored as a pending line diff with the scenario untouched, the state in summaries, read back with
  * comments_list {comment_id}; the refusals (stale hash, filmed change, hooks, invalid YAML, resolved thread) are tool
- * errors that write nothing; no apply tool; the INSTRUCTIONS' loop rule and the Studio rule (critique B6). Fixes after
- * the reviews: a proposal's rows fit the result budget (review A L7), a theme change is refused (review A L3).
+ * errors that write nothing; no apply tool; the INSTRUCTIONS' loop rule and the Studio rule. Also: a
+ * proposal's rows fit the result budget, a theme change is refused.
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -129,7 +129,7 @@ describe('retake mcp: frame comments', { shuffle: false }, () => {
     expect(instructions).toContain('never run hooks, sign in, change project.yaml or environments, open URLs, touch files outside scenarios/');
     expect(instructions).toContain('Only people create and reopen threads');
     for (const n of ['comment_create', 'comment_add', 'comment_reopen', 'comment_apply', 'comment_proposal_apply']) await expect(call(n, { project: 'demo' }), n).rejects.toThrow(/unknown tool/);
-    // L4.6: the proposal is a strict object of two keys, no author / channel inside either.
+    // The proposal is a strict object of two keys, no author / channel inside either.
     const proposal = (by.get('comment_reply')?.inputSchema.properties as Record<string, { properties?: Record<string, unknown>; additionalProperties?: unknown; required?: string[] }>).proposal;
     expect(Object.keys(proposal.properties ?? {})).toEqual(['scenario_yaml', 'scenario_hash']);
     expect(proposal.additionalProperties).toBe(false);
@@ -164,7 +164,7 @@ describe('retake mcp: frame comments', { shuffle: false }, () => {
       expect(r.content[0].text).toContain('step s2.1 (wait_for)');
       expect(r.content[0].text).toContain('marker proposal');
       expect(r.content[0].text).toContain('comment_resolve {comment_id, note, render_id: the new render, if_match: its hash}');
-      // L3.8: a render shows the run as captured — the hint says a scenario change needs a new capture first.
+      // A render shows the run as captured — the hint says a scenario change needs a new capture first.
       expect(r.content[0].text).toContain(
         'A change to the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: run_capture {project, scenario}, then render; a theme or a render override needs only a render.',
       );
@@ -406,7 +406,7 @@ describe('retake mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
       expect(stored.author.via).toBe('studio');
       expect(stored.entries.at(-1)).toMatchObject({ id: d.entry, kind: 'reply', author: { via: 'mcp', name: 'agent' }, proposal: { base_sha256: hash, result_sha256: sha(SHORTER), delta: 'edit' } });
       expect(d.thread.entries.at(-1)?.proposal).toMatchObject({ state: 'pending', actionable: true, added: 1, removed: 1, hunks: 1 });
-      // Read back at once (critique B15): the engine's rows, the texts only under untrusted.
+      // Read back at once: the engine's rows, the texts only under untrusted.
       expect(d.proposal).toMatchObject({ comment_id: studioId, entry: d.entry, state: 'pending', actionable: true, verified: true, added: 1, removed: 1 });
       const del = d.proposal.rows.findIndex((x) => x.kind === 'del');
       const add = d.proposal.rows.findIndex((x) => x.kind === 'add');

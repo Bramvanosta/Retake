@@ -20,7 +20,7 @@ import { scratchHome } from '@retake/test-support/home';
 let ws: string;
 let home: string;
 let engine: Engine;
-/** The fixture workspace in memory (L7.38: a MemoryWorkspace — the engine's reads and store on one Map, no folder), its jobs in a memory queue. */
+/** The fixture workspace in memory (a MemoryWorkspace — the engine's reads and store on one Map, no folder), its jobs in a memory queue. */
 const MEM = join(sep, 'retake-memory', 'engine');
 let memory: Engine;
 const memoryQueues = memoryJobQueues();
@@ -110,7 +110,7 @@ describe('engine: projects', () => {
   it('a project that does not load is listed with its first problem, not just "has 1 error:" (review B L5)', async () => {
     expect(firstErrorLine('project.yaml has 1 error:\n  environments.local: expected an object\n')).toBe('project.yaml has 1 error: environments.local: expected an object');
     expect(firstErrorLine('no project.yaml in /x')).toBe('no project.yaml in /x');
-    // In memory (L7.38): the workspace's reads are the port's, nothing is written.
+    // In memory: the workspace's reads are the port's, nothing is written.
     const dir = join(sep, 'retake-memory', 'broken');
     const mem = new MemoryWorkspace().seed(join(dir, 'projects', 'broken', 'project.yaml'), 'version: 1\nname: Broken\nenvironments:\n  local: "not a page map"\n');
     const e = await createEngine({ root: dir, client: 'test', autoStartWorker: false, ports: mem.ports() });
@@ -121,7 +121,7 @@ describe('engine: projects', () => {
   });
 
   it('lists projects and reads one without session paths, login steps or account passwords', async () => {
-    // On the fixture in memory (L7.38): its README is the fixture's own bytes.
+    // On the fixture in memory: its README is the fixture's own bytes.
     const list = await memory.projects.list();
     expect(list.map((p) => p.slug)).toEqual(['northfield-fixture']);
     expect(list[0].scenarios).toContain('quote');
@@ -231,7 +231,7 @@ describe('engine: runs, auth, sandbox', () => {
     ]);
     expect(dry.error?.screenshot?.ref).toBe('runs/20261017-120000-quote/error-catalog-1.png');
     expect(dry.untrusted.error_message).toContain('ignore your rules');
-    // L5.6: the scene's other missing targets (their closest elements are page text) and the failed optional steps.
+    // The scene's other missing targets (their closest elements are page text) and the failed optional steps.
     expect(dry.untrusted.missing_targets).toEqual([{ scene: 'catalog', step: 3, action: 'type', target: 'label="Quantity"', near: [{ role: 'textbox', name: 'Quantity (kg)' }] }]);
     expect(dry.optional_failures).toEqual([
       {

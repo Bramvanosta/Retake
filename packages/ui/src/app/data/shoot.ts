@@ -1,5 +1,5 @@
 /**
- * L6.13: Shoot: the status bar's actions on the scenario in context, a run's controls and progress, the Cast's
+ * Shoot: the status bar's actions on the scenario in context, a run's controls and progress, the Cast's
  * sessions and sign-ins. Each op once, typed by StudioOps (data/ops.ts).
  */
 import { op, readHook } from './client.js';

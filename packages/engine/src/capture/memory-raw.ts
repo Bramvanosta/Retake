@@ -1,5 +1,5 @@
 /**
- * The capture port's raw export in memory, for tests (L7.22): no ffmpeg, no frames. The gate is the package's rule
+ * The capture port's raw export in memory, for tests: no ffmpeg, no frames. The gate is the package's rule
  * (the one reader, core namedRunProblem, in the export's words — a missing film is not the gate's), refused as the
  * port says (an EngineError of the sentence). The export writes a small package — a stand-in file per clip (one per
  * capture scene), the marker and cursor data names, manifest.json and README.md — into `out`, else the package's

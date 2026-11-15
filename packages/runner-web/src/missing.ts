@@ -1,5 +1,5 @@
 /**
- * All missing targets of a scene in one take (L5.6, R-FLD-10): when a step's target is not found, the targets of the
+ * All missing targets of a scene in one take (R-FLD-10): when a step's target is not found, the targets of the
  * scene's later steps are looked up on the same page, without acting, and those that do not resolve either are listed
  * with the visible elements closest to each — five renamed labels show in one failed take, not in five.
  */

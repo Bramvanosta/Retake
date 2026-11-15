@@ -1,5 +1,5 @@
 /**
- * L1.7 end to end on the fixture product (R-ENV-01/03/05): the committed `read-only` scenario (holds removed, quick
+ * End to end on the fixture product (R-ENV-01/03/05): the committed `read-only` scenario (holds removed, quick
  * pacing) dry-run through the `retake` CLI on a production environment pointing at the fixture on free ports. The
  * request's POST is answered by the scenario's mock and never reaches the server (`/api/health` → `mutations`
  * unchanged), the caption's `{{shop}}` reads the display URL, and two takes read the same "Prices as of" line from

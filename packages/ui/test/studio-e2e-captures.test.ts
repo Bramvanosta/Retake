@@ -1,5 +1,5 @@
 /**
- * L5.14 (captures first) in the Studio, in headless Chromium against a real Studio server (no worker: the states are
+ * Captures first in the Studio, in headless Chromium against a real Studio server (no worker: the states are
  * set by the test) — a render job's row on the Review report and the status bar say what a filming take does to it:
  * - queued while a take films elsewhere on this Mac (a filming marker of another workspace): "waiting for a take to
  *   finish (elsewhere on this Mac)", the status bar "a render waits for a take to finish (…)";
@@ -145,7 +145,7 @@ describe.skipIf(!canRun)('captures first in the Studio (L5.14)', () => {
       await expect.poll(() => held.innerText().catch(() => ''), LIVE).toContain('a render is slowed during a take (elsewhere on this Mac)');
       expect(await held.getAttribute('data-held')).toBe('background');
       await audited('captures-2-slowed');
-      // Review B L6: a narrow window keeps it, in its short form, on one line of the status bar.
+      // A narrow window keeps it, in its short form, on one line of the status bar.
       await page.setViewportSize({ width: 960, height: 900 });
       await expect.poll(() => held.innerText().catch(() => ''), LIVE).toContain('a render slowed by a take');
       expect(await held.innerText()).not.toContain('elsewhere on this Mac');

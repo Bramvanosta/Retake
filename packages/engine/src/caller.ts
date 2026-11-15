@@ -5,12 +5,12 @@
  * the trust its work gets (`author`: a person at a terminal, whose files' trust flags count; `mcp`: an agent or a page,
  * whose they do not). The vocabularies of the layers below are this one caller seen from there:
  *
- * - `EngineClient` (here) is `JobClient` (jobs/job-input.ts; core's until L7.35): the `submitted_by` of a job; what
+ * - `EngineClient` (here) is `JobClient` (jobs/job-input.ts): the `submitted_by` of a job; what
  *   is decided from a job's submitter (its refusals' wording `submitterChannel`, a Studio recording
  *   `submittedInStudio`) is decided here too.
- * - `AgentChannel` (here; core's until L7.35) is the channel of a caller that is not the CLI's (the CLI's refusals are
+ * - `AgentChannel` (here) is the channel of a caller that is not the CLI's (the CLI's refusals are
  *   worded as MCP's). Core and the adapters are handed its words only, as a `Confinement` (`confinementOf`): the domain
- *   names no channel (audit 2026-11-10 D6).
+ *   names no channel.
  * - `CallerTrust` is defined here; core's `HookTrust`, the editor's `PlanTrust` and the brand files' `BrandTrust` are
  *   held to it. The engine holds every job and a theme made from a brand to `mcp` whoever calls it (ENGINE_TRUST, used
  *   by every job module): a queued job is never a person at a terminal.
@@ -30,7 +30,7 @@ import type { PlanTrust } from '@retake/editor/plan';
 export type EngineClient = JobClient;
 /**
  * The channel agent work comes through, for the wording of a refusal: `mcp` (the MCP server: "through MCP"), `studio`
- * (the Studio web app, L4.2: "from the Studio"). The rules are the same. Handed down as its `Confinement`.
+ * (the Studio web app: "from the Studio"). The rules are the same. Handed down as its `Confinement`.
  */
 export type AgentChannel = 'mcp' | 'studio';
 
@@ -69,7 +69,7 @@ void VOCABULARIES_AGREE;
 
 /**
  * The caller of a client: the CLI is a person at a terminal (`author`), the Studio a page (`studio`), every other an
- * agent. Frozen (L7.13 review): the engine hands this one object to its operations, its store scope and its worker's
+ * agent. Frozen: the engine hands this one object to its operations, its store scope and its worker's
  * environment, so nobody may change who drives it.
  */
 export function callerOf(client: EngineClient): Caller {

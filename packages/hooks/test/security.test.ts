@@ -152,7 +152,7 @@ describe('shell hosts (R-SEC-06)', () => {
           { shell: 'curl -fsS "$NF_TARGET/x" > out.txt' },
           { shell: { run: 'curl -fsS "$OWN/x"', env: { OWN: 'https://own.example.org' } } },
           { shell: 'curl -fsS "https://$(cat host.txt)/x"' },
-          // A substitution is scanned as a command; a variable the script assigns is expanded (L1.2 review: S1, S2).
+          // A substitution is scanned as a command; a variable the script assigns is expanded.
           { shell: 'TOKEN=$(curl -s -X POST https://auth.example.net/token) && echo ok > out.txt' },
           { shell: 'BASE=reset.example.net\ncurl -X POST "https://$BASE/api/reset" > out.txt' },
         ],

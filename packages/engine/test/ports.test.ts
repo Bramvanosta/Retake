@@ -1,9 +1,9 @@
 /**
- * The ports bag's L7.11 and L7.12 members, HookRunner, Reviewer and CaptureRunner: the product's adapters are the
+ * The ports bag's HookRunner, Reviewer and CaptureRunner members: the product's adapters are the
  * default (each member loading its package on its call, through the loader of its home), a handed one is kept, and the
  * package adapters hand the package's answers on unchanged — a review's frames and thumbnails through the light
  * thumbnail entry, never the package root (the editor behind it); the capture runner's cancel is the runner's own error,
- * and its two synchronous members work once it is loaded only. And L7.25's Sandboxes: the sandbox package through its
+ * and its two synchronous members work once it is loaded only. And Sandboxes: the sandbox package through its
  * loader, on a call.
  */
 import { existsSync } from 'node:fs';

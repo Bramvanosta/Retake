@@ -24,10 +24,10 @@ export function inspectApi(ctx: EngineContext): Engine['inspect'] {
 /** engine.record: the Record screen's operations are the Studio's (and tests'). */
 export function recordApi(ctx: EngineContext): Engine['record'] {
   const { opts, caller, ws, scope, project, queue, submitCtx, startWorker } = ctx;
-  // L4.8: the Record screen's operations are the Studio's (and tests'): an agent starts a recording, never arranges one.
+  // The Record screen's operations are the Studio's (and tests'): an agent starts a recording, never arranges one.
   const recordCtx = { queue, client: opts.client, scope, files: ctx.files, reads: ctx.ws.reads, seen: ctx.caches.scenarioVersions };
   let recordChain: Promise<unknown> = Promise.resolve();
-  // The operations hold the same rule as their `callers` (L7.18, operations/record.ts); this copy stays for the
+  // The operations hold the same rule as their `callers` (operations/record.ts); this copy stays for the
   // façade's direct callers (the engine's tests; the CLI calls none of these).
   const studioOnly = (what: string) => {
     const refused = recordScreenRefused(caller, what);
@@ -36,7 +36,7 @@ export function recordApi(ctx: EngineContext): Engine['record'] {
   return {
     submit: async (req) => {
       // The Studio opens one window at a time in the workspace: checked and queued in one chain, so two tabs cannot
-      // both pass the check (record_start, the engine's operation since L7.18, relies on this chain: it declares no key).
+      // both pass the check (record_start, the engine's operation, relies on this chain: it declares no key).
       const once = async () => {
         const busy = (await queue.list({ kinds: ['record'], states: ['queued', 'running'], limit: 1 }))[0];
         if (busy && busy.input.kind === 'record') {

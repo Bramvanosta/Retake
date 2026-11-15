@@ -1,20 +1,20 @@
 /**
- * The scenario's YAML view (L4.3, R-UI-11; L5.10b: R4-Source on the kit, its File in the inspector): the file read-only
+ * The scenario's YAML view (R-UI-11; R4-Source on the kit, its File in the inspector): the file read-only
  * (YamlView) until the person presses Edit, then the kit's text area (no highlighting: no dependency, no HTML from data;
- * its unsaved mark is the draft's, drafts.ts — never twice: critique M5) saved through `scenario_edit` `replace_text` — the
+ * its unsaved mark is the draft's, drafts.ts — never twice) saved through `scenario_edit` `replace_text` — the
  * Studio's one write path: the hash the text was based on as if_match, validated by the server (errors refuse the save
  * and come back with their lines, the draft kept; warnings save), worded "from the Studio".
  *
  * - Draft: kept per scenario while the person moves around the app (drafts.ts `scenario:<slug>/<name>`), with the
  *   file's own line breaks (CR LF stays CR LF) and a final line break added on save (as scenario_save); closing the
  *   tab asks first; the session-ended page keeps it to copy. While it holds unsaved text the Blocks tab says block
- *   editing is off (critique B7: a block edit would make the draft's base stale).
+ *   editing is off (a block edit would make the draft's base stale).
  * - Live issues: `scenario_validate` 400 ms after typing stops, one call in flight at a time.
  * - Changed on disk: the screen re-reads its view when the file changes (events, focus); a new version with no
  *   unsaved text is loaded and announced, with unsaved text a banner offers to load it. A view showing a version this
  *   tab already replaced (a re-read that started before its save ended) is ignored. A save answered 409 opens the
  *   conflict panel (TextEditing.tsx) with the version on disk.
- * - Read-only with why (critique B3) when the Studio may not save the file (the view's `edit.yaml`): not UTF-8, too
+ * - Read-only with why when the Studio may not save the file (the view's `edit.yaml`): not UTF-8, too
  *   large, a carriage return without a line feed (the textarea would show a line break YAML does not read), a link out
  *   of scenarios/, or holding a secret reference / an outside file — each problem with its line; any unsaved text stays
  *   to copy. The draft turns only CR LF into LF (drafts.ts `crlfToLf`).
@@ -45,7 +45,7 @@ const diskOf = (v: Pick<View, 'text' | 'hash'>): Disk => ({ text: crlfToLf(v.tex
 /** What a save writes: the text with a final line break and the file's own line breaks. */
 const fileText = (text: string, eol: Disk['eol']) => toEol(text.endsWith('\n') || text === '' ? text : `${text}\n`, eol);
 
-// The class of core's input rules (hidden-chars.ts HIDDEN_CHARS, review A L2), a tab left out: controls, format and
+// The class of core's input rules (hidden-chars.ts HIDDEN_CHARS), a tab left out: controls, format and
 // default-ignorable characters (direction controls, zero-width, soft hyphen, variation selectors, tags…), line /
 // paragraph separators, the Hangul fillers and the braille blank.
 const HIDDEN = new RegExp(`(?!\\t)[${HIDDEN_CHARS}]`, 'u');
@@ -331,7 +331,7 @@ function Editor({
           spellCheck={false}
           autoCorrect={false}
           describedBy="yaml-count yaml-state"
-          // The draft's mark is drafts.ts's (scenario:<slug>/<name>): the quit question lists it once (critique M5).
+          // The draft's mark is drafts.ts's (scenario:<slug>/<name>): the quit question lists it once.
           unsaved={null}
           onChange={(text) => {
             setError(null);

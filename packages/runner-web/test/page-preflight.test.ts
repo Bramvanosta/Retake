@@ -1,5 +1,5 @@
 /**
- * The page pre-flight before a take (L5.8, R-FLD-33): one GET per distinct page URL, any HTTP answer but a gateway
+ * The page pre-flight before a take (R-FLD-33): one GET per distinct page URL, any HTTP answer but a gateway
  * error counts, a refused connection or a timeout does not, and the refusal names each page and its URL.
  */
 import { createServer } from 'node:http';

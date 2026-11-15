@@ -1,5 +1,5 @@
 /**
- * L4.7 library preview keys and cache (engine library.ts), no render: the key changes with an imported PNG's bytes (where
+ * Library preview keys and cache (engine library.ts), no render: the key changes with an imported PNG's bytes (where
  * componentSourceHash does not), an unimported JSON, a context component's file (the theme's layout), a theme font, the
  * sample screens, the kind and the composition — and with nothing else (an unrelated component, a fresh context); the
  * cache folder's segments are real folders (a linked `cache` is refused, nothing written through it); entries are read

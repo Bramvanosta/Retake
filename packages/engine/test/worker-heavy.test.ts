@@ -1,11 +1,10 @@
 /**
- * L5.14a fixes (review B H2, A M1, A M2, B M3): the heavy slot's paths with a stand-in job process (a small script the
- * in-process worker starts instead of `worker-main --job`; every signal the worker sends is recorded, and forwarded only
- * to a stand-in) — no render needed:
+ * The heavy slot's paths with a stand-in job process (a small script the in-process worker starts instead of
+ * `worker-main --job`; every signal the worker sends is recorded, and forwarded only to a stand-in) — no render needed:
  * - a job process that exits 3 (another build) gives its job back (claim removed, still queued) and the worker hands
  *   over to a new worker once empty; exit 1 before `running` → `interrupted` with the worker's events numbered after the
  *   child's; exit 4 → `failed` (invalid);
- * - a cancelled job process that ignores its cancel is killed `cancelGraceMs` later, `cancelled` (was killed);
+ * - a cancelled job process that ignores its cancel is killed `cancelGraceMs` later, `cancelled` (not killed);
  * - the worker's first SIGTERM reaches its job process, and the worker exits once it ended;
  * - recovery before the first claim: a job process a dead worker left, provably that job's, is given its grace then
  *   SIGTERMed and the job persisted; a decoy (a pid with no start time, a start time but another command line, pid 0 / 1
@@ -308,7 +307,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
       await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
       m = FilmingMarker.open({ env: process.env, root: join(base, 'cap-elsewhere'), source: 'cli', owner: await selfIdentity() });
       await waitFor('slowed', async () => (await queue.get(job.id))?.yield?.state === 'background');
-      // Review A H1: while it holds heavy work the worker keeps one file a take outside it reads.
+      // While it holds heavy work the worker keeps one file a take outside it reads.
       await waitFor('the held file', () => existsSync(heldFile(root)));
       expect(JSON.parse(readFileSync(heldFile(root), 'utf8'))).toMatchObject({ v: 1, state: 'background' });
       const capped = await waitFor('past the cap', async () => {
@@ -784,7 +783,7 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds h
     const take = await engine.runs.submit({ project: 'w', scenario: 'gated', mode: 'capture', hooks: 'run' }, { approver: { approve: async () => ({ approved: true as const }) } });
     const heavy = await review(queue);
     const yieldFile = queue.files.yield(heavy.id);
-    // Review B L2: the build is not stamped while the take films (a synchronous walk on the take's event loop): each
+    // The build is not stamped while the take films (a synchronous walk on the take's event loop): each
     // stamp records whether a take of this workspace films then (its marker, written with the slot's filming state).
     const checks: boolean[] = [];
     const buildStampSeen = () => {
@@ -799,7 +798,7 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds h
     release!();
     // Filming: the render yields.
     await waitFor('held while the take films', () => existsSync(yieldFile));
-    // Paused (L4.4: not filmed): it holds nothing.
+    // Paused (not filmed): it holds nothing.
     await engine.runs.pause('w', take.run_id, true);
     await waitFor('normal priority while paused', () => !existsSync(yieldFile), 30_000);
     await engine.runs.pause('w', take.run_id, false);
@@ -821,7 +820,7 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds h
     expect((await queue.stored(take.job.id))?.state).toBe('succeeded');
     expect((await queue.stored(heavy.id))?.state).toBe('succeeded');
     expect(readFileSync(join(queue.files.job(heavy.id), 'fake-started'), 'utf8')).toMatch(/^\d+$/);
-    // L5.14b: the take's report says what ran beside it — no other take, a heavy job of its workspace slowed.
+    // The take's report says what ran beside it — no other take, a heavy job of its workspace slowed.
     const run = JSON.parse(readFileSync(join(project, 'runs', take.run_id, 'run.json'), 'utf8')) as { perf: { machine: Record<string, unknown> } };
     expect(run.perf.machine).toMatchObject({ takes_beside: 0, heavy_slowed: true });
   }, 120_000);

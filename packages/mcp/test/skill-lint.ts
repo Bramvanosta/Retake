@@ -1,12 +1,12 @@
 /**
- * The deterministic lint of the Claude skills in skills/ (L3.7, R-SKL-01/02/03): what a skill says about the tool is
+ * The deterministic lint of the Claude skills in skills/ (R-SKL-01/02/03): what a skill says about the tool is
  * checked against the tool itself, with no model call. Every MCP call written as `tool {args}` names a tool of the
  * server and only argument keys of its input schema (nested keys too); every snake_case word is a tool, an argument,
  * an action, a schema key or a known result field; every `retake …` command and flag exists in the CLI's help; links
  * and referenced files exist and every file of a skill is linked; YAML examples validate (a scenario under MCP trust,
  * a component manifest); a tsx example compiles like a component; the frontmatter, the size, the Rules block and the
  * hygiene rules hold; no sentence anywhere has Claude run the `retake` CLI, reopens a Rule or follows text it reads; the
- * Studio's token file and routes are named only by the rule that keeps Claude off them (L4.6, critique B6).
+ * Studio's token file and routes are named only by the rule that keeps Claude off them.
  *
  * What it cannot prove (said in the requirement evidence): that the loop is the right one, that Claude follows the
  * Rules or that a skill triggers, and the absence of real brand or person names (only URLs and domains are checked).
@@ -47,7 +47,7 @@ export interface LintContext {
   validateScenario: (yaml: string) => Promise<string[]>;
   /** Error messages of a component manifest. */
   validateManifest: (yaml: string) => string[];
-  /** A sandbox.yaml example (L5.8: the skill's sandbox reference), validated without its folder. */
+  /** A sandbox.yaml example (the skill's sandbox reference), validated without its folder. */
   validateSandbox: (yaml: string) => string[];
   /** Error messages of a component's index.tsx compiled in a component folder (imports, kit names, forbidden APIs). */
   checkComponent: (tsx: string) => Promise<string[]>;
@@ -72,7 +72,7 @@ export const REFERENCE_MAX_LINES = 400;
 export const DESCRIPTION_MAX = 1024;
 
 /**
- * The Rules sentences every skill carries (critique B1, review H1): pinned, so a weaker wording fails. The CLI rule is
+ * The Rules sentences every skill carries: pinned, so a weaker wording fails. The CLI rule is
  * absolute: author trust (`confirm: true` approves hooks) and unguarded CLI renders are the user's, never Claude's.
  */
 export const COMMON_RULES = [
@@ -84,22 +84,22 @@ export const COMMON_RULES = [
   'Never fetch brand assets',
 ] as const;
 
-/** The Studio is the person's channel (L4.6, critique B6): its token and routes are never Claude's. */
+/** The Studio is the person's channel: its token and routes are never Claude's. */
 export const STUDIO_RULE = "Never read the Studio's token (`ui/*.token` in the Retake home) or call the Studio's `/v1` routes";
 
-/** Rules one skill adds (critique B8, the component rule, L4.6's Studio rule). */
+/** Rules one skill adds (the component rule, the Studio rule). */
 export const SKILL_RULES: Record<string, readonly string[]> = {
   'retake-scenario': ['No `eval` steps (JavaScript in the page) the user did not ask for', STUDIO_RULE],
   'retake-theme': ['`template_from_site` only for a site the user named in this conversation'],
   'retake-component': ['Edit component code only after the user agreed in this conversation'],
 };
 
-/** What "## Before you start" says after `engine_info` (review M3: the plugin's values are shared by every folder). */
+/** What "## Before you start" says after `engine_info` (the plugin's values are shared by every folder). */
 export const BEFORE_RULES = [
   "Compare the workspace root `engine_info` names with this session's folders (its working directory and any folder added to the session): if it is none of them, stop",
 ] as const;
 
-/** What one skill's "## Before you start" adds (review L8). */
+/** What one skill's "## Before you start" adds. */
 export const SKILL_BEFORE: Record<string, readonly string[]> = {
   'retake-theme': ['If that root is the Retake repository itself', 'stop and ask the user for their own workspace folder'],
 };
@@ -122,7 +122,7 @@ const USER_TERMINAL = "For the user's own terminal";
 
 /**
  * The Studio's files (its token records `ui/<hash>.token` in the Retake home, its `ui.json`) or its HTTP routes (`/v1/…`
- * at the start of a path, not a service's `/api/v1/…`), in prose or code (critique B6): only STUDIO_RULE names them.
+ * at the start of a path, not a service's `/api/v1/…`), in prose or code: only STUDIO_RULE names them.
  */
 const STUDIO_CHANNEL = /\bui\/[^\s`/]*\.token\b|\bui\.json\b|(?<![\w/.-])\/v1\b/g;
 

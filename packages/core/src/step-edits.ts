@@ -1,12 +1,12 @@
 /**
- * Step structure edits from the Studio's Blocks tab (L4.3 part 2, R-UI-11 / R-UI-12): move a step (within its scene or
+ * Step structure edits from the Studio's Blocks tab (R-UI-11 / R-UI-12): move a step (within its scene or
  * to another one, an empty one included), delete it, duplicate it — as splices of the file's text, never a
  * re-serialisation: every byte outside the lines an edit touches stays as it was (comments, quoting, blank lines, line
  * breaks, a missing final line break). Pure; the engine (scenarios.edit) re-parses the result and refuses it unless its
  * value is exactly `intended` (core verifyEditText) — the splice model may refuse an unusual file, never corrupt it.
  *
  * - A step's span: its dash line to the end of its last content line (an inline comment on it included), plus the
- *   comment lines that belong to it (critique B6, by column, never a line regex alone): the contiguous `#` lines just
+ *   comment lines that belong to it (by column, never a line regex alone): the contiguous `#` lines just
  *   above the dash line at the dash's own column (not past the previous step's end or the `steps:` line), and the
  *   contiguous `#` lines just after it indented deeper than the dash (a commented-out modifier). A comment at another
  *   column (a section header at column 0) and blank lines stay where they are.
@@ -17,12 +17,12 @@
  *   steps written as a non-empty flow list (`steps: [a, b]`), the steps of a scene with a dash item not written plainly
  *   (stepsDashWhy: an anchor, a tag or a comment after the dash is fine), a duplicate of a step holding an anchor (`&x`
  *   would be defined twice), removing a key of a flow map written over several lines or holding comments.
- * - Duplicate (critique B8): the copy (without the comments around the original) drops `id` (ids are unique) and
+ * - Duplicate: the copy (without the comments around the original) drops `id` (ids are unique) and
  *   `mark` (a mark names one moment), and a capture's `as` (capture_text, download, wait_for_email: names are unique)
  *   gets the first free `-2`, `-3`… suffix; each change is a notice.
- * - Steps are addressed by scene id + index + `guard` (critique B2: stepGuard, the canonical JSON of the step as
- *   written, modifiers included): an edit re-sent on a newer version ("Apply it to the new version") is refused as
- *   stale when that place now holds another step, instead of moving a neighbour.
+ * - Steps are addressed by scene id + index + `guard` (stepGuard, the canonical JSON of the step as written, modifiers
+ *   included): an edit re-sent on a newer version ("Apply it to the new version") is refused as stale when that place
+ *   now holds another step, instead of moving a neighbour.
  */
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -45,7 +45,7 @@ export interface StepAt {
 }
 
 /**
- * One field of a step changed (critique B2: a patch, never the whole step): `path` is the field's key in object form
+ * One field of a step changed (a patch, never the whole step): `path` is the field's key in object form
  * (step-forms.ts: "type.text", "click.in", "caption.text", "hold"); `from` the value the form showed (absent: none),
  * `to` the new one (absent: removed). Applied only while the step still holds `from` there — a field changed meanwhile
  * is never reverted.
@@ -95,7 +95,7 @@ export class StepEditError extends Error {
   }
 }
 
-/** A step's guard (critique B2): the first 16 hex characters of the sha256 of its canonical JSON as written. */
+/** A step's guard: the first 16 hex characters of the sha256 of its canonical JSON as written. */
 export function stepGuard(raw: unknown): string {
   return createHash('sha256').update(canonicalJson(raw)).digest('hex').slice(0, 16);
 }
@@ -138,8 +138,8 @@ function eolOf(text: string): string {
 
 /**
  * Where the dash of a block sequence's item is (offset of the `-`), else why it is not a "- " item: the dash may be
- * followed by the value's anchor or tag and by a comment (review B L4: `- &s` or `- # note`, then the keys on the next
- * lines — the value's range starts after them), which travel with the dash line.
+ * followed by the value's anchor or tag and by a comment (`- &s` or `- # note`, then the keys on the next lines — the
+ * value's range starts after them), which travel with the dash line.
  */
 function dashOf(text: string, node: Node): { at: number } | { why: string } {
   let p = node.range![0] - 1;
@@ -155,7 +155,7 @@ function dashOf(text: string, node: Node): { at: number } | { why: string } {
 }
 
 /**
- * Why the steps of a block list take no block edit because of how one of them is written (dashOf; review B L4), or
+ * Why the steps of a block list take no block edit because of how one of them is written (dashOf), or
  * undefined: an edit of a step also needs where its neighbours are, so one such step locks its scene's steps.
  */
 export function stepsDashWhy(text: string, stepsNode: unknown): string | undefined {
@@ -452,7 +452,7 @@ function pairRemoval(text: string, map: YAMLMap, pair: Pair<Node, Node | null>, 
   const keyStart = pair.key.range![0];
   if (map.flow) {
     const cut: [number, number] = k < items.length - 1 ? [keyStart, items[k + 1].key.range![0]] : [endOf(items[k - 1]), endOf(pair)];
-    // Review B M3: what lies between the tokens (a scalar value's own characters left out) must hold no comment and no
+    // What lies between the tokens (a scalar value's own characters left out) must hold no comment and no
     // line break — a comment there would go with the cut, though it belongs to the keys that stay.
     const v = pair.value;
     const between = isScalar(v) && v.range ? text.slice(cut[0], v.range[0]) + text.slice(v.range[1], cut[1]) : text.slice(cut[0], cut[1]);
@@ -528,7 +528,7 @@ function duplicateStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'duplicate_step
     }
   }
   // The copy: the step's own lines (not the comments around it, nor a comment line after its last value that the node's
-  // range takes in: review B), with the cuts above, inserted after the original's span.
+  // range takes in), with the cuts above, inserted after the original's span.
   const base = span.dashLine;
   const own = ctx.text.slice(base, Math.min(span.contentEnd, lineEndOf(ctx.text, Math.max(lastValueEnd(node), base + 1) - 1)));
   const copied = applySplices(
@@ -548,7 +548,7 @@ function duplicateStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'duplicate_step
 
 // ── Value edits (part 3: the inspector's form, the palette) ────────────────
 //
-// A field change becomes one raw operation on the step as written (critique B4: no step-local document, no re-render):
+// A field change becomes one raw operation on the step as written (no step-local document, no re-render):
 // - `scalar`: an existing scalar takes the new value through yaml's CST.setScalarValue — only its own characters
 //   change, its quoting kept; when the re-parsed value is not the intended one (a plain `123`, `yes`, `a, b` in a flow
 //   map…), it is written again double-quoted (a number or yes / no: plain);
@@ -806,7 +806,7 @@ function setStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'set_step' }>): StepE
     if (form.locked[key]) throw new StepEditError('not_editable', `${key} ${form.locked[key]}`, key);
     const now = readField(raw, action, key);
     const current = 'value' in now ? now.value : undefined;
-    // Critique B2: applied only while the step still holds what the form showed — a value changed meanwhile is kept.
+    // Applied only while the step still holds what the form showed — a value changed meanwhile is kept.
     if (!isDeepStrictEqual(current, c.from)) {
       throw new StepEditError('stale', `${key} of ${what} changed meanwhile (it is now ${current === undefined ? 'not set' : JSON.stringify(current)}): read the file again`, key);
     }
@@ -962,8 +962,8 @@ export function stepsLockedWhy(stepsNode: unknown, aliased: boolean): string | u
 }
 
 /**
- * The low-level text helpers of this module, shared by field-edits.ts (L4.5, `set_field`: critique B10 — reused by
- * export only, nothing here changed). Not meant for other callers.
+ * The low-level text helpers of this module, shared by field-edits.ts (`set_field`), by
+ * export only. Not meant for other callers.
  */
 export const stepEditText = Object.freeze({
   lineStartOf,
