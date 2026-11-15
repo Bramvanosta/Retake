@@ -9,6 +9,7 @@
     "./capture": "./src/capture.ts",
     "./child-env": "./src/child-env.ts",
     "./confinement": "./src/confinement.ts",
+    "./fontsource": "./src/fontsource.ts",
     "./golden": "./src/golden.ts",
     "./home": "./src/home.ts",
     "./http": "./src/http.ts",

@@ -22,6 +22,7 @@ import {
   rendersCheck,
   secretsCheck,
   unsafeTestResolveCheck,
+  npmTestRegistryCheck,
 } from './machine-checks.js';
 import { composeSandboxOf, projectChecks } from './project-checks.js';
 import type { DoctorCheck, DoctorProbes } from './types.js';
@@ -61,6 +62,8 @@ export async function doctorChecks(probes: DoctorProbes, ws: OpenedWorkspace, po
   out.push(displayCheck(probes), secretsCheck(probes), notifyCheck(probes));
   const resolve = unsafeTestResolveCheck(probes);
   if (resolve) out.push(resolve);
+  const registry = npmTestRegistryCheck(probes);
+  if (registry) out.push(registry);
   // Docker: a failure only when the --project's default sandbox is a docker-compose one.
   const need = req.project ? await composeSandboxOf(ws, req.project) : null;
   out.push(await dockerCheck(probes, (home) => ports.sandboxes.dockerPlaces(home), need));

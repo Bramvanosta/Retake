@@ -61,6 +61,7 @@
       "@retake/test-support/capture": ["./packages/test-support/src/capture.ts"],
       "@retake/test-support/child-env": ["./packages/test-support/src/child-env.ts"],
       "@retake/test-support/confinement": ["./packages/test-support/src/confinement.ts"],
+      "@retake/test-support/fontsource": ["./packages/test-support/src/fontsource.ts"],
       "@retake/test-support/golden": ["./packages/test-support/src/golden.ts"],
       "@retake/test-support/home": ["./packages/test-support/src/home.ts"],
       "@retake/test-support/http": ["./packages/test-support/src/http.ts"],

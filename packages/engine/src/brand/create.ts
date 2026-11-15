@@ -20,7 +20,7 @@ import { dirname, join } from 'node:path';
 import { RETAKE_VERSION, canonicalJson, parseYaml } from '@retake/core/base';
 import { NEW_THEME_NAME_RE } from '@retake/core/ids';
 import { insideFolder } from '@retake/core/scenario';
-import { AuthorBrandInputSchema, BrandInputSchema, TEMPLATE_FILE, aspectOf, parseTemplateYaml, siteRef } from '@retake/core/theme';
+import { AuthorBrandInputSchema, BrandInputSchema, TEMPLATE_FILE, aspectOf, formatFontsourceRef, fontsourcePackage, isFontsourceRef, parseFontsourceRef, parseTemplateYaml, siteRef } from '@retake/core/theme';
 import { STARTER_TEMPLATES_DIR, nodeFileFacts } from '@retake/core/io';
 import type { NewThemeName } from '@retake/core/ids';
 import type { BrandInput, TemplateFile, LoadedTemplate } from '@retake/core/theme';
@@ -34,6 +34,8 @@ import { dateOf } from '../clock.js';
 import { checkNewThemeName, checkTemplateName, themeAssetProblems } from '../templates.js';
 import { BRAND_TOTAL_MAX_BYTES, checkImage, readBrandFile } from './files.js';
 import type { BrandTrust, FontInfo, ImageInfo, ResolvedBrandFile } from './files.js';
+import { pinStoreRefs, readStoreFont, storeLicence } from './fontsource-store.js';
+import type { FontsourceLicence, StoreFont, StoreReader } from './fontsource-store.js';
 import { licencesMarkdown } from './licences.js';
 import { planThemeFonts, readOwnThemeFile } from './theme-fonts.js';
 import type { FontPlan, ThemeFontView } from './theme-fonts.js';
@@ -93,6 +95,8 @@ export interface ThemeReuse {
   base(source: string): Buffer | undefined;
   /** The base theme's LICENSES.md as the theme's own LICENSES.md holds it, when it does. */
   baseLicences?: string;
+  /** The fontsource packages its own LICENSES.md cites (`<package>@<version>` → the citation): a reused store font's licence. */
+  fontsource?: Map<string, FontsourceLicence>;
   created_at: string;
   changed: string[];
 }
@@ -502,6 +506,7 @@ async function licencesOf(o: {
 }): Promise<string> {
   const baseLicences = await baseLicencesOf(o.fonts, { base: o.base, baseName: o.baseName, warnings: o.warnings, ...(o.reuse?.baseLicences !== undefined ? { own: o.reuse.baseLicences } : {}) });
   const names = new Map(o.fonts.filter((f) => f.names).map((f) => [f.view.file, f.names!]));
+  const packages = [...new Map(o.fonts.filter((f) => f.fontsource).map((f) => [`${f.fontsource!.package}@${f.fontsource!.version}`, f.fontsource!])).values()];
   return licencesMarkdown({
     name: o.name,
     base: o.baseName,
@@ -511,7 +516,30 @@ async function licencesOf(o: {
     fonts: o.fonts.map((f) => f.view),
     names,
     ...(baseLicences !== undefined ? { baseLicences } : {}),
+    ...(packages.length ? { packages } : {}),
   });
+}
+
+/**
+ * The input with each `fontsource:` font pinned to the version the font store holds (the unpinned ones of a family: the
+ * newest version stored with every face asked of it — one version per family), so the provenance records what was
+ * copied; a note for each one pinned here.
+ */
+async function pinFontsourceFonts(ws: OpenedWorkspace, input: BrandInput, notes: string[], reader: StoreReader): Promise<BrandInput> {
+  if (!input.fonts) return input;
+  const refs = [input.fonts.display, ...(input.fonts.body ?? [])].filter((r): r is string => typeof r === 'string' && isFontsourceRef(r));
+  if (!refs.length) return input;
+  const pins = await pinStoreRefs(ws, refs, reader);
+  const pin = <T>(ref: T): T => {
+    if (typeof ref !== 'string' || !isFontsourceRef(ref)) return ref;
+    const pinned = formatFontsourceRef(pins.get(ref)!);
+    if (parseFontsourceRef(ref)?.version === undefined) notes.push(`${ref} is ${pinned} (the newest version the font store holds with every face asked of that family)`);
+    return pinned as T;
+  };
+  const fonts = { ...input.fonts };
+  if (fonts.display !== undefined) fonts.display = pin(fonts.display);
+  if (fonts.body !== undefined) fonts.body = fonts.body.map(pin);
+  return { ...input, fonts };
 }
 
 /** The new theme's template.yaml (components generateThemeFile), checked; what it kept or removed of the base said. */
@@ -569,15 +597,38 @@ function copySources(input: BrandInput, o: { logoName: string; wordmarkName?: st
   return sources;
 }
 
+/**
+ * How a create reads a brand file: a `fontsource:` font from the font store (any trust; never a logo), any other from
+ * its reference (files.ts readBrandFile) — or, for template_update, the theme's own copy of a file its patch does not
+ * name (never the original reference again), counted against the brand budget as the file it was copied from was; a
+ * reused store font's licence read from the store's record.
+ */
+function brandReader(ws: OpenedWorkspace, o: ThemeCreateOptions, budget: { left: number }) {
+  return async (ref: string, kind: 'logo' | 'wordmark' | 'font'): Promise<ResolvedBrandFile & { fontsource?: StoreFont['fontsource'] }> => {
+    const store = isFontsourceRef(ref);
+    if (store && kind !== 'font') throw new EngineError('refused', `${kind}: ${ref} is a font of the font store: a ${kind} is an image file (e.g. brand/logo.svg)`);
+    const own = o.reuse?.file(ref, kind);
+    const reader: StoreReader = o.trust === 'author' ? 'cli' : 'agent';
+    if (!own) return store ? readStoreFont(ws, ref, budget, reader) : readBrandFile(ws, ref, kind, { trust: o.trust, ...(o.cwd ? { cwd: o.cwd } : {}), budget });
+    if (own.bytes.length > budget.left) throw new EngineError('invalid', `the brand files are more than ${BRAND_TOTAL_MAX_BYTES} bytes together`);
+    budget.left -= own.bytes.length;
+    if (!store) return own;
+    // Its licence as the theme's own LICENSES.md cites it (hash-checked by update.ts); the store only when it does not.
+    const r = parseFontsourceRef(ref)!;
+    const licence = o.reuse?.fontsource?.get(`${fontsourcePackage(r.id)}@${r.version}`) ?? (await storeLicence(ws, { ...r, version: r.version! }, reader));
+    return { ...own, fontsource: { ...licence, ref, weight: r.weight, italic: r.italic } };
+  };
+}
+
 /** Create a theme from brand inputs (see the module comment). Throws EngineError: invalid, refused, conflict, not_found. */
 export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o: ThemeCreateOptions): Promise<ThemeCreated> {
-  const input = parseInput(raw, o.trust);
+  const parsed = parseInput(raw, o.trust);
   // Stamped by the scope's clock (its date and provenance), which also dates the stale stages swept.
   const now = dateOf(o.scope.clock);
   const date = now.toISOString().slice(0, 10);
   // The input schema holds the same rule: the check gives the name its type.
-  const name = checkNewThemeName(input.name);
-  const replace = input.replace === true;
+  const name = checkNewThemeName(parsed.name);
+  const replace = parsed.replace === true;
   const templatesDir = ws.templatesDir;
   if (insideFolder(PACKAGE_ROOT, templatesDir, nodeFileFacts)) {
     throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Retake folder (${PACKAGE_ROOT}): a new theme would land among its starter themes`, {
@@ -587,7 +638,7 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   await mkdir(templatesDir, { recursive: true });
   await removeStale(templatesDir, now.getTime());
   await checkNewName(templatesDir, name, replace, o.trust, { update: o.reuse !== undefined });
-  const baseName = input.base ?? DEFAULT_BRAND_BASE;
+  const baseName = parsed.base ?? DEFAULT_BRAND_BASE;
   checkTemplateName(baseName);
   if (baseName.toLowerCase() === name.toLowerCase()) throw new EngineError('invalid', `the base theme cannot be the theme being created (${name})`);
 
@@ -597,16 +648,10 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   const lib = await componentCalls();
   const warnings: string[] = [];
   const notes: string[] = [];
+  // fontsource: fonts come from the workspace's font store only (offline), each pinned to the version it holds.
+  const input = await pinFontsourceFonts(ws, parsed, notes, o.trust === 'author' ? 'cli' : 'agent');
   const budget = { left: BRAND_TOTAL_MAX_BYTES };
-  // template_update: the theme's own copy of a file its patch does not name (never the original reference again).
-  const read = async (ref: string, kind: 'logo' | 'wordmark' | 'font') => {
-    const own = o.reuse?.file(ref, kind);
-    if (!own) return readBrandFile(ws, ref, kind, { trust: o.trust, ...(o.cwd ? { cwd: o.cwd } : {}), budget });
-    // A reused copy counts against the brand budget as the file it was copied from did.
-    if (own.bytes.length > budget.left) throw new EngineError('invalid', `the brand files are more than ${BRAND_TOTAL_MAX_BYTES} bytes together`);
-    budget.left -= own.bytes.length;
-    return own;
-  };
+  const read = brandReader(ws, o, budget);
 
   // Logo and wordmark.
   const { logoFile, logoInfo, logoName, logoKind, writtenKind, wordmarkFile, wordmarkInfo, wordmarkName } = await readArtwork(input, read, { lib, warnings, notes });

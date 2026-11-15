@@ -64,13 +64,15 @@ const QUERIES_STUDIO = [
   'render_review',
   'review_image',
 ];
-/** The theme, component and library family (MCP's ten, the Studio's eleven). */
+/** The theme, component and library family (MCP's twelve, the Studio's eleven). */
 const THEMES_MCP = [
   'template_list',
   'template_preview',
   'template_from_site',
+  'template_from_tokens',
   'template_create_from_brand',
   'template_update',
+  'font_fetch',
   'component_list',
   'component_get',
   'component_validate',

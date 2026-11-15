@@ -15,4 +15,6 @@ export * from '../theme-edits.js';
 export * from '../brand.js';
 export * from '../site.js';
 export * from '../image-size.js';
+export * from '../fontsource-ref.js';
+export * from '../brand-tokens.js';
 export { TemplateFileSchema, TemplateSchema } from '../schemas/template.js';

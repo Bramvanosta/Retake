@@ -287,3 +287,9 @@ export function isThemeName(v: unknown): v is ThemeName {
 export function isNewThemeName(v: unknown): v is NewThemeName {
   return typeof v === 'string' && v.length <= NEW_THEME_NAME_MAX && NEW_THEME_NAME_RE.test(v);
 }
+
+/**
+ * A fontsource id (core fontsource-ref.ts): the family's slug on the npm registry, `@fontsource/<id>` — lower-case
+ * letters, digits and "-", at most 64 characters.
+ */
+export const FONTSOURCE_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;

@@ -3038,13 +3038,13 @@
       "type": "object",
       "properties": {
        "display": {
-        "description": "Display font (titles): .ttf, .otf, .woff or .woff2 (default the base theme's).",
+        "description": "Display font (titles): .ttf, .otf, .woff or .woff2, or a fontsource:<id>[@<version>][:<weight>[italic]] font_fetch stored (default the base theme's).",
         "anyOf": [
          {
           "type": "string",
           "minLength": 1,
           "maxLength": 300,
-          "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+          "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
          },
          {
           "type": "object",
@@ -3053,7 +3053,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 300,
-            "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+            "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
            },
            "weight": {
             "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
@@ -3092,7 +3092,7 @@
            "type": "string",
            "minLength": 1,
            "maxLength": 300,
-           "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+           "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
           },
           {
            "type": "object",
@@ -3101,7 +3101,7 @@
              "type": "string",
              "minLength": 1,
              "maxLength": 300,
-             "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
+             "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
             },
             "weight": {
              "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",

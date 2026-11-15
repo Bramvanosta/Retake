@@ -62,7 +62,7 @@ describe('the job handlers and the worker ports', () => {
         .filter(([, v]) => !v)
         .map(([k]) => k)
         .sort(),
-    ).toEqual(['env', 'processes', 'recordWindow']);
+    ).toEqual(['env', 'fontRegistry', 'processes', 'recordWindow']);
   });
 
   it('heavy jobs run in the worker when its root says so: a port a heavy job reads handed without it is refused, the window and the job processes are not such ports', () => {

@@ -341,3 +341,48 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   services' `env` (`DATABASE_URL`…), not your shell's. Its plain demo passwords are masked like secrets (see
   [Sandbox mode](sandbox.md#sandbox-mode)).
 - **Dry runs** never execute steps marked `irreversible`.
+
+### Open-licence fonts by reference
+
+`font_fetch` and `retake theme fetch-font` are the only code that downloads a font, and the only writer of the
+workspace's font store (`.retake/fonts/fontsource/`); a theme's create, update and the Studio read the store, offline,
+and never fetch (see [Themes from your brand](themes-and-components.md#themes-from-your-brand)).
+
+- **One host**: `https://registry.npmjs.org`, fixed in the code. Requests go through an HTTPS agent of their own:
+  no redirect is followed (a 3xx fails the fetch), no proxy variable (`HTTPS_PROXY`, `NODE_USE_ENV_PROXY`) reroutes
+  them, a body is not re-encoded, only a 200 is read. TLS authenticates the host; a root certificate you added
+  (`NODE_EXTRA_CA_CERTS`) or an intercepting proxy of your own network is trusted like any HTTPS client on this
+  machine would trust it — out of Retake's reach.
+- **What a person approves**: through MCP, a form shows the registry, each package (`@fontsource/<id>`) and the version
+  asked — or "latest, resolved now and recorded" —, the faces, and says nothing else is fetched; it is asked **before
+  any network contact**. A decline or a client that cannot ask downloads nothing and gets the command to run in a
+  terminal (checked ids, versions and weights only: never text an agent wrote). The command is your own act: no form.
+  An agent with a shell could run that command itself, as it could run `retake theme from-site`.
+- **What is checked**, in this order: the version's manifest (at most 1 MB) names the package, gives an exact version
+  (the one asked when pinned), a licence that is exactly `OFL-1.1` or `Apache-2.0` — *as the publisher declares it*: a
+  declaration, not a verification; its LICENSE text is copied with the fonts — and a tarball URL that is exactly the
+  registry's own for that version (compared as text, never followed as given); then the tarball (at most 30 MB) is
+  compared with the manifest's sha512 integrity **before a byte of it is read** as an archive. That integrity comes
+  from the same registry in the same call: it proves the archive is the one the registry lists, not who made it
+  (npm's package signatures are not checked). Its lasting value is the store's record: the same version fetched again
+  must have the same integrity, or the fetch is refused and the store left as it was.
+- **The archive** is read in memory by Retake's own reader (no dependency): gunzip as a stream cut at 200 MB unpacked,
+  at most 20 000 entries, every header's checksum verified, sizes in plain octal only, a link, an absolute name, a
+  `..` or a backslash refusing the whole archive, a wanted name seen twice refusing it too; only `package/package.json`
+  (its name, version and licence must agree with the manifest), `package/LICENSE` (required) and the latin WOFF2 of each
+  face asked are kept — nothing is ever written from the archive itself. Each WOFF2 is checked as a font, then the
+  package's folder is written whole (a new folder renamed into place) with `record.json`: the package, the resolved
+  version, the licence, the registry, the tarball's URL and integrity, the sha256 of every file (only the LICENSE and
+  face files are named) and of the record. Those hashes catch an accidental change — an edit, a half-copied folder —
+  not a program that writes the workspace (it can rewrite a file and the record together): the store is as trusted as
+  the workspace folder. A theme reads a face only through a path built from its checked id, version and weight, every
+  folder and file plain (no link; the store's folders are checked level by level before one is made), the record's
+  hash and the file's sha256 checked. A package stored from another registry (a test one) never stands for this one's:
+  it is fetched again, its integrity compared. Certificate checks are on whatever `NODE_TLS_REJECT_UNAUTHORIZED` says.
+- **Caps** per call: at most 3 packages, 60 MB downloaded, one 120 s deadline; a pinned version stored with every face
+  asked is answered from the store (no download, no question).
+- **Tests** never reach the registry: the suite sets `RETAKE_TEST_NO_FONT_FETCH=1`, which refuses every fetch before
+  a socket opens; a test serves its own registry on loopback through `RETAKE_UNSAFE_TEST_NPM_REGISTRY` —
+  `http://127.0.0.1:<port>` or `http://[::1]:<port>` exactly (anything else refuses every fetch, never falls back to the
+  real registry). `retake doctor` warns while it is set; the form, the answer, the store's record and a theme's
+  `LICENSES.md` name it as a TEST registry.

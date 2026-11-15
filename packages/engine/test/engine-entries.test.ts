@@ -84,7 +84,8 @@ describe("the engine's entries", () => {
     const unused = types.filter((n) => !reached.includes(n) && namedOutside([...SRC, ...TESTS], 'engine', '@retake/engine', n).length === 0);
     expect(unused).toEqual([]);
     for (const n of reached) expect(types, n).toContain(n);
-    expect(types.length).toBeLessThanOrEqual(143);
+    // 145: FontFetched, TokensDraft (the CLI's fetch-font and from-tokens print them) and FontsApprovalRequest (the MCP form).
+    expect(types.length).toBeLessThanOrEqual(145);
   });
 
   it('@retake/engine/shell holds values a shell source imports from it, and nothing else', () => {
@@ -95,8 +96,10 @@ describe("the engine's entries", () => {
     const unused = values.filter((n) => namedOutside(shells, 'engine', '@retake/engine/shell', n).length === 0);
     expect(unused).toEqual([]);
     // The count only goes down: a shell's new in-process value is a reason to look for an operation first (151: the
-    // Studio's player making — its bundler and its file server are the shell's own machinery, no operation hands them).
-    expect(values.length).toBeLessThanOrEqual(151);
+    // Studio's player making — its bundler and its file server are the shell's own machinery, no operation hands them;
+    // 152: fetchFonts and tokensDraft, which `retake theme fetch-font` / `from-tokens` run in process as `theme create`
+    // runs createThemeFromBrand — the person's own act, without a form).
+    expect(values.length).toBeLessThanOrEqual(152);
   });
 
   it('@retake/engine/testing holds values other packages’ tests import from it, and no product source imports a testing entry', () => {

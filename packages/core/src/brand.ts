@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { SITE_ID_RE } from './id-grammar.js';
 import { zNewThemeName, zThemeName } from './ids.js';
+import { fontsourceRefProblem, isFontsourceRef } from './fontsource-ref.js';
 import { LOGO_KINDS } from './image-size.js';
 import { componentIdSchema } from './schemas/primitives.js';
 import { COMPONENT_KINDS } from './types/model.js';
@@ -52,6 +53,8 @@ export function brandRefSyntaxProblem(ref: string): string | null {
   if (typeof ref !== 'string' || ref.length === 0) return 'an empty file reference';
   if (ref.length > BRAND_REF_MAX) return `a file reference longer than ${BRAND_REF_MAX} characters`;
   if (ref.includes('\0')) return 'a file reference with a NUL character';
+  // A font of the workspace's font store (font_fetch / `retake theme fetch-font`): its grammar, never a path.
+  if (isFontsourceRef(ref)) return fontsourceRefProblem(ref);
   const site = siteRef(ref);
   if (site) {
     if (!SITE_ID_RE.test(site.site_id) || !SITE_CANDIDATE_RE.test(site.candidate)) {
@@ -77,7 +80,7 @@ export const brandFileRefSchema = z
     const p = brandRefSyntaxProblem(v);
     if (p) ctx.addIssue({ code: 'custom', message: p });
   })
-  .describe('A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site.');
+  .describe('A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it.');
 
 export const hexColorSchema = z.string().regex(HEX_COLOR_RE, 'a hex colour: #rgb or #rrggbb (no names, rgb() or hsl())');
 
@@ -101,11 +104,15 @@ const fontWeightSchema = z.union([
     .refine((v) => fontWeightRange(v) !== null, 'a weight range is "<min> <max>", each from 100 to 900 and min below max (e.g. "200 800")'),
 ]);
 
+/** The `{file, weight}` form names a file: a fontsource reference has its face in it (fontsource:<id>@<version>:600italic). */
+const plainFileOf = (ref: z.ZodType<string, string>) =>
+  ref.refine((v) => !isFontsourceRef(v), 'a fontsource: reference is given as a plain string, its weight and style in it (e.g. fontsource:inter@5.2.1:600italic)');
+
 const fontRefOf = (ref: z.ZodType<string, string>) =>
   z.union([
     ref,
     z.strictObject({
-      file: ref,
+      file: plainFileOf(ref),
       weight: fontWeightSchema
         .optional()
         .describe(
@@ -186,7 +193,9 @@ function brandInputSchema(ref: z.ZodType<string, string>) {
     wordmark: ref.optional().describe('Wordmark image of the outro (default none: the brand name is drawn as text).'),
     fonts: z
       .strictObject({
-        display: fontRef.optional().describe("Display font (titles): .ttf, .otf, .woff or .woff2 (default the base theme's)."),
+        display: fontRef
+          .optional()
+          .describe("Display font (titles): .ttf, .otf, .woff or .woff2, or a fontsource:<id>[@<version>][:<weight>[italic]] font_fetch stored (default the base theme's)."),
         body: z
           .array(fontRef)
           .min(1)

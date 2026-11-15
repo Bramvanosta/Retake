@@ -9,6 +9,7 @@ import type { componentCalls } from '../registries/component-calls.js';
 import { EngineError } from '../errors.js';
 import { fontCopyName, sniffFont, standardWeight } from './files.js';
 import type { FontInfo, ResolvedBrandFile } from './files.js';
+import type { FontsourceLicence, StoreFont } from './fontsource-store.js';
 
 export interface ThemeFontView {
   /** The copy in the theme folder (relative). */
@@ -23,6 +24,8 @@ export interface ThemeFontView {
   /** Where the weight came from. */
   weight_from: 'input' | 'font' | 'file name' | 'base';
   licence_notes: string[];
+  /** A `fontsource:` font: its package and version as the font store holds it (`@fontsource/inter@5.2.1`). */
+  package?: string;
 }
 
 /**
@@ -42,6 +45,8 @@ export interface FontPlan {
   names?: FontInfo['names'];
   /** template_update: a base font taken from the theme's own copy. */
   reused?: boolean;
+  /** A `fontsource:` font: its package's licence, as the font store recorded it (LICENSES.md cites it). */
+  fontsource?: FontsourceLicence;
 }
 
 /** A weight in words: "600", or a range "200–800". */
@@ -131,6 +136,35 @@ function fontFace(info: FontInfo, ref: BrandFontRef): { weight: FontWeight; ital
   };
 }
 
+/** A brand font of a new theme: read, sniffed, its face (a fontsource font's from its reference), its copy's name. */
+async function planBrandFont(ref: BrandFontRef, role: 'display' | 'body', read: Parameters<typeof planThemeFonts>[0]['read'], warnings: string[]): Promise<FontPlan> {
+  const f = await read(fontRefFile(ref), 'font');
+  const info = sniffFont(f, `${role} font`);
+  // A fontsource font's face is in its reference (fontsource:<id>@<version>:600italic), never in a file name.
+  const face = f.fontsource ? { weight: f.fontsource.weight, italic: f.fontsource.italic, from: 'input' as const } : fontFace(info, ref);
+  if ('warning' in face && face.warning) warnings.push(`${role} font ${face.warning}`);
+  const file = fontCopyName(role, face.weight, face.italic, f.ext);
+  for (const note of info.licence_notes) warnings.push(`${role} font ${fontRefFile(ref)}: ${note} — check its licence before using it in videos`);
+  const fs = f.fontsource;
+  if (fs?.test_registry) warnings.push(`${role} font ${fs.ref} was fetched from a TEST registry (${fs.registry}): never use it outside tests`);
+  return {
+    view: {
+      file,
+      role,
+      source: fontRefFile(ref),
+      format: info.format,
+      weight: face.weight,
+      italic: face.italic,
+      weight_from: face.from,
+      licence_notes: info.licence_notes,
+      ...(fs ? { package: `${fs.package}@${fs.version}` } : {}),
+    },
+    bytes: f.bytes,
+    names: info.names,
+    ...(fs ? { fontsource: { package: fs.package, version: fs.version, licence: fs.licence, registry: fs.registry, test_registry: fs.test_registry, tarball: fs.tarball, integrity: fs.integrity, text: fs.text } } : {}),
+  };
+}
+
 /**
  * The fonts of a new theme: the brand's (sniffed, renamed by role and weight), else the base's (copied as they are);
  * two body fonts of one face refused; a caption weight no body file has warned.
@@ -140,26 +174,15 @@ export async function planThemeFonts(o: {
   base: LoadedTemplate;
   baseName: string;
   lib: Awaited<ReturnType<typeof componentCalls>>;
-  read: (ref: string, kind: 'font') => Promise<ResolvedBrandFile>;
+  /** A font of the font store (a `fontsource:` reference) comes with its face and its package's licence. */
+  read: (ref: string, kind: 'font') => Promise<ResolvedBrandFile & { fontsource?: StoreFont['fontsource'] }>;
   warnings: string[];
   /** template_update: the theme's own copy of a base font (`base:<theme>/<file>`), else undefined. */
   reuseBase?: (source: string) => Buffer | undefined;
 }): Promise<{ fonts: FontPlan[]; display: FontPlan; body: FontPlan[] }> {
   const { input, base, baseName, lib, read, warnings } = o;
   const fonts: FontPlan[] = [];
-  const planFont = async (ref: BrandFontRef, role: 'display' | 'body'): Promise<FontPlan> => {
-    const f = await read(fontRefFile(ref), 'font');
-    const info = sniffFont(f, `${role} font`);
-    const face = fontFace(info, ref);
-    if (face.warning) warnings.push(`${role} font ${face.warning}`);
-    const file = fontCopyName(role, face.weight, face.italic, f.ext);
-    for (const note of info.licence_notes) warnings.push(`${role} font ${fontRefFile(ref)}: ${note} — check its licence before using it in videos`);
-    return {
-      view: { file, role, source: fontRefFile(ref), format: info.format, weight: face.weight, italic: face.italic, weight_from: face.from, licence_notes: info.licence_notes },
-      bytes: f.bytes,
-      names: info.names,
-    };
-  };
+  const planFont = (ref: BrandFontRef, role: 'display' | 'body') => planBrandFont(ref, role, read, warnings);
   const baseFont = async (abs: string, role: 'display' | 'body'): Promise<FontPlan> => {
     const source = `base:${baseName}/${relative(base.dir, abs).split(sep).join('/')}`;
     const own = o.reuseBase?.(source);

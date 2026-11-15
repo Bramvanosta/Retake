@@ -32,6 +32,8 @@ import { diskProjectStores } from './store/project-store.js';
 import type { ProjectStores } from './store/store.js';
 import { systemHosts } from './host-lookup.js';
 import type { HostResolver } from './host-lookup.js';
+import type { FontRegistry } from './fonts/font-registry.js';
+import { npmFontRegistry } from './fonts/npm-registry.js';
 import { diskWorkspaceReads } from './workspace-reads/disk-reads.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';
 
@@ -64,6 +66,8 @@ export interface EnginePorts {
   hosts: HostResolver;
   /** What loads a workspace's component registry, the one the engine hands a plan, a render and a review (registries/registries.ts). */
   registries: ComponentRegistries;
+  /** Where a font fetch downloads a fontsource package (fonts/font-registry.ts): the npm registry, for the product. */
+  fontRegistry: FontRegistry;
 }
 
 /** The product's queue: the file queue of the workspace's `.retake/jobs` (jobs/queue.ts). */
@@ -146,6 +150,7 @@ export function enginePorts(given: Partial<EnginePorts> = {}): EnginePorts {
     outputs: given.outputs ?? diskOutputs,
     hosts: given.hosts ?? systemHosts(),
     registries: given.registries ?? adapters.registries,
+    fontRegistry: given.fontRegistry ?? npmFontRegistry(env),
   };
 }
 
@@ -166,5 +171,6 @@ export function portsOf(from: EnginePorts): EnginePorts {
     outputs: from.outputs,
     hosts: from.hosts,
     registries: from.registries,
+    fontRegistry: from.fontRegistry,
   };
 }

@@ -1,12 +1,13 @@
 /**
  * Human approval of hooks through MCP elicitation (R-MCP-35). The engine's preflight lists the hooks of the work
  * submitted that need a human (destructive ones whatever `confirm: true` says, every shell hook); this asks the client's
- * user once, in form mode, with an explicit timeout — and so are a site extraction's URL and an agent's prune. Only `accept` with `approve: true` approves. A decline, a dismissed
+ * user once, in form mode, with an explicit timeout — and so are a site extraction's URL, an agent's prune and an agent's font fetch. Only `accept` with `approve: true` approves. A decline, a dismissed
  * form, no answer in time or a failed question refuse the submit; a client without form elicitation cannot ask anyone
  * (the engine then refuses with the `retake` command a human runs in a terminal).
  */
 import { approvalFormText, pruneApprovalFormText } from '@retake/engine/shell';
-import type { ApprovalOutcome, ApprovalRequest, Approver, PruneApprovalRequest, SiteApprovalRequest } from '@retake/engine';
+import { FONTSOURCE_LICENCES } from '@retake/core/theme';
+import type { ApprovalOutcome, ApprovalRequest, Approver, FontsApprovalRequest, PruneApprovalRequest, SiteApprovalRequest } from '@retake/engine';
 import { isTimeoutError } from './server.js';
 import type { CallContext, ElicitForm } from './server.js';
 import { errorMessage } from '@retake/core/base';
@@ -84,6 +85,36 @@ export function pruneApprovalForm(req: PruneApprovalRequest): ElicitForm {
   };
 }
 
+/**
+ * The question of an agent's font fetch, asked before any network contact: the registry as it is (the test hatch's
+ * loopback one said to be a test registry), each package and the version asked, the faces, the latin subset, the
+ * licence rule, that nothing else is fetched, and the command the person runs instead.
+ */
+export function fontsApprovalMessage(req: FontsApprovalRequest): string {
+  const host = new URL(req.registry).host;
+  return [
+    `Retake: the agent asks to download ${req.packages.length === 1 ? 'one open-licence font package' : `${req.packages.length} open-licence font packages`} into this workspace's font store (.retake/fonts/).`,
+    `From: ${req.registry}${req.test_registry ? ' — a TEST registry (RETAKE_UNSAFE_TEST_NPM_REGISTRY), never set outside tests' : ''}`,
+    ...req.packages.map((p) => `- ${p.package} ${p.version ?? 'latest (resolved now, and recorded)'}: ${p.faces.join(', ')}`),
+    `Only these: each package's manifest and its archive from ${host} (no redirect followed), checked against the integrity the registry lists; the latin WOFF2 files of the faces above and the LICENSE are kept, nothing else of the archive. A package is kept only if its publisher declares ${FONTSOURCE_LICENCES.join(' or ')} (the package's own declaration). No theme is written: a theme names these fonts afterwards.`,
+    'Approve to download exactly these. Decline to refuse: nothing is downloaded.',
+    `Instead, you can run it yourself in a terminal: ${req.fix}`,
+  ].join('\n');
+}
+
+export function fontsApprovalForm(req: FontsApprovalRequest): ElicitForm {
+  return {
+    message: fontsApprovalMessage(req),
+    requestedSchema: {
+      type: 'object',
+      properties: {
+        approve: { type: 'boolean', title: 'Download these fonts', description: 'Check to let this one fetch download the packages listed above, nothing else.', default: false },
+      },
+      required: ['approve'],
+    },
+  };
+}
+
 async function ask(elicit: NonNullable<CallContext['elicit']>, form: ElicitForm, timeoutMs: number): Promise<ApprovalOutcome> {
   try {
     const answer = await elicit(form, { timeoutMs });
@@ -102,5 +133,6 @@ export function elicitationApprover(elicit: CallContext['elicit'], timeoutMs = a
     approve: (req: ApprovalRequest) => ask(elicit, approvalForm(req), timeoutMs),
     approveSite: (req: SiteApprovalRequest) => ask(elicit, siteApprovalForm(req), timeoutMs),
     approvePrune: (req: PruneApprovalRequest) => ask(elicit, pruneApprovalForm(req), timeoutMs),
+    approveFonts: (req: FontsApprovalRequest) => ask(elicit, fontsApprovalForm(req), timeoutMs),
   };
 }

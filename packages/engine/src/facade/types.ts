@@ -40,6 +40,8 @@ import type { BrandFileList } from '../brand/file-list.js';
 import type { SiteList } from '../views/site-list.js';
 import type { SiteSubmitted } from '../jobs/site-job.js';
 import type { ThemeCreated } from '../brand/create.js';
+import type { FontFetched } from '../brand/fontsource-fetch.js';
+import type { TokensDraft } from '../brand/tokens.js';
 import type { TemplateDetail, TemplateListView } from '../templates.js';
 import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import type { PlanPreviewView, RenderStatusView, ScenarioRendersView } from '../renders.js';
@@ -469,6 +471,17 @@ export interface Engine {
      * for an environment page or a protected host; needs_approval when the client cannot ask anyone.
      */
     fromSite(req: { url: string }, o?: { approver?: Approver }): Promise<SiteSubmitted & { worker?: { pid?: number; spawned: boolean } }>;
+    /**
+     * template_from_tokens (R-FLD-47): a design-token file of the workspace (brand-file rules, trust `mcp`) read into
+     * a proposed role per theme colour and a draft brand input; nothing written; token names under `untrusted`.
+     */
+    fromTokens(req: unknown): Promise<TokensDraft>;
+    /**
+     * font_fetch (R-FLD-45): fontsource packages into the workspace's font store, after the person approves through
+     * `approver` (an agent's call: no approver → needs_approval, declined → refused, both before any network contact);
+     * a pinned version stored with every face asked is answered from the store.
+     */
+    fetchFonts(req: unknown, o?: { approver?: Approver }): Promise<FontFetched>;
     /** A site extraction read back (site.json as a file of the workspace) with its draft; null view before it is written. */
     site(siteId: string, url: string): Promise<{ dir: string; view: SiteJobResult | null }>;
     /**

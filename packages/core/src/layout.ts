@@ -58,6 +58,8 @@ export const STATE_DIRS = {
   site: 'site',
   /** A workspace's: caches (the Library's previews). */
   cache: 'cache',
+  /** A workspace's: the font store (fontsource packages fetched by font_fetch / `retake theme fetch-font`). */
+  fonts: 'fonts',
 } as const;
 export type StateDir = keyof typeof STATE_DIRS;
 

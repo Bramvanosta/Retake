@@ -1932,6 +1932,33 @@ its GPU History (Window → GPU History).
    Note the memory pressure and whether anything swaps; the GPU path's tree sums ≈ 2.7 GB of RSS on a 1080p render
    (today's ≈ 4.1 GB; an upper bound, shared pages counted per process) — say if it fails or crawls.
 
+## 20. Open-licence fonts by reference: one real fetch, on purpose (L8.1b)
+
+The tests never reach the npm registry (a fake registry in process, a loopback one for the child processes). What a
+fontsource package looks like is an **assumption** written in one table, `packages/engine/src/fonts/fontsource-layout.ts`;
+check it once against the real registry, with a family a starter already ships (Inter: no new family on your Mac). In a
+scratch workspace (`RETAKE_ROOT` and `RETAKE_HOME` in a temp folder), with the network on:
+
+1. **The fetch.** `retake theme fetch-font fontsource:inter:400 fontsource:inter:600`: it prints
+   `fetched @fontsource/inter <version> (OFL-1.1, as its publisher declares it) from https://registry.npmjs.org into
+   .retake/fonts/fontsource/inter@<version>`, the integrity, and the two pinned refs. If it fails, note the message:
+   it names which assumption broke — the manifest's address (`/@fontsource%2finter/latest`), a field (`name`,
+   `version`, `license`, `dist.tarball`, `dist.integrity`), the tarball's URL (`…/@fontsource/inter/-/inter-<version>.tgz`),
+   `package/package.json`, `package/LICENSE`, or the face files `package/files/inter-latin-<weight>-normal.woff2`
+   (an "its latin faces are …" list empty means the file names differ).
+2. **The store.** `.retake/fonts/fontsource/inter@<version>/` holds `latin-400-normal.woff2`, `latin-600-normal.woff2`,
+   `LICENSE` (the SIL Open Font License text) and `record.json` (registry, tarball, integrity, a sha256 per file). Run
+   the same command with the version pinned: "stored already", nothing downloaded.
+3. **A theme with them.** `retake theme create inter-check --accent '#0e7c66' --logo <a logo> --display-font
+   fontsource:inter@<version>:600 --body-font fontsource:inter@<version>:400`, then `retake components preview
+   studio/intro-stack --theme inter-check --out <scratch>`: the title is Inter SemiBold. `LICENSES.md` has "Fonts from
+   fontsource" with the package, version, integrity and the licence text.
+4. **Through Claude.** Ask Claude to fetch a family by name: the form shows `From: https://registry.npmjs.org` and
+   `@fontsource/<id> latest …`; decline once (nothing downloaded, the command shown), then accept.
+5. **Refusals worth seeing once.** `retake theme fetch-font fontsource:inter@1.0.0:400` (a version that may not exist,
+   or without latin files) is refused with the reason; a family whose licence is neither OFL-1.1 nor Apache-2.0 is
+   refused naming its licence. Delete the scratch workspace afterwards.
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

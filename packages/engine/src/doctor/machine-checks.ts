@@ -13,6 +13,7 @@ import type { BrowserConfig, WorkspaceConfig } from '@retake/core/project';
 import type { BundleInfo, MediaToolSource, MediaTools } from '@retake/core/io';
 import type { ChromiumProbe } from '@retake/runner-web/types';
 import { formatMs } from '../format.js';
+import { NPM_TEST_REGISTRY_ENV, npmTestRegistry } from '../fonts/npm-registry.js';
 import type { Sandboxes } from '../sandboxes/sandboxes.js';
 import { firstLine } from './types.js';
 import type { DockerNeed, DoctorCheck, DoctorProbes, RendersProbe } from './types.js';
@@ -343,6 +344,21 @@ export function unsafeTestResolveCheck(p: DoctorProbes): DoctorCheck | null {
     name: 'Site extraction',
     detail: `${UNSAFE_TEST_RESOLVE_ENV} is set: ${[...map.keys()].join(', ') || 'no valid entry'} reach loopback ports and their self-signed certificates are accepted${ignored.length ? ` (${ignored.length} entries ignored)` : ''}`,
     hint: `unset ${UNSAFE_TEST_RESOLVE_ENV}: it is for the test suite only (an MCP server and its worker started with it keep it)`,
+  };
+}
+
+/** The font fetch's test registry (tests only): a warning whenever it is set — a loopback registry, or refused. */
+export function npmTestRegistryCheck(p: DoctorProbes): DoctorCheck | null {
+  if (!p.env[NPM_TEST_REGISTRY_ENV]) return null;
+  const hatch = npmTestRegistry(p.env as Record<string, string | undefined>);
+  return {
+    status: 'warn',
+    name: 'Font fetch',
+    detail:
+      hatch === 'invalid'
+        ? `${NPM_TEST_REGISTRY_ENV} is set but is not http://127.0.0.1:<port> or http://[::1]:<port>: every font fetch is refused`
+        : `${NPM_TEST_REGISTRY_ENV} is set: font_fetch and \`retake theme fetch-font\` download from the TEST registry ${hatch?.url}, not registry.npmjs.org`,
+    hint: `unset ${NPM_TEST_REGISTRY_ENV}: it is for the test suite only (an MCP server started with it keeps it)`,
   };
 }
 

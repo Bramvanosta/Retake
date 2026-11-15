@@ -4,7 +4,8 @@
  * BRAND_LIST_MAX_DEPTH folders deep) that leaves out exactly what brand/files.ts refuses as a source under trust `mcp`
  * — hidden folders and files, the components folder, the folders an agent writes in a project (scenarios, runs,
  * renders, review, exports) — plus node_modules; symbolic links are never followed nor listed (counted). Names and
- * sizes only: the bytes are checked when a create reads them (readBrandFile).
+ * sizes only: the bytes are checked when a create reads them (readBrandFile). Fonts also list the faces of the workspace's
+ * font store (fontsource-store.ts), as the `fontsource:<id>@<version>:<weight>[italic]` references a create takes.
  */
 import { lstat, readdir } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
@@ -13,6 +14,7 @@ import { realPathOf } from '@retake/core/policy';
 import { nodeFileFacts } from '@retake/core/io';
 import { EngineError } from '../errors.js';
 import { FONT_EXTENSIONS, FONT_MAX_BYTES, IMAGE_MAX_BYTES, LOGO_EXTENSIONS, SVG_MAX_BYTES, brandSourceProblem } from './files.js';
+import { storeFaces } from './fontsource-store.js';
 import type { OpenedWorkspace } from '../workspace.js';
 
 export const BRAND_LIST_MAX_ENTRIES = 5_000;
@@ -22,7 +24,7 @@ export const BRAND_LIST_MAX_FILES = 500;
 
 export interface BrandFileList {
   kind: 'image' | 'font';
-  /** Workspace-relative paths (`/`), what a brand input names, with their sizes. */
+  /** Workspace-relative paths (`/`), what a brand input names, with their sizes (fonts: then the font store's faces). */
   files: Array<{ ref: string; bytes: number }>;
   /** The walk stopped at a bound (entries, files): not every file is listed. */
   truncated: boolean;
@@ -73,5 +75,14 @@ export async function brandFileList(ws: OpenedWorkspace, kind: 'image' | 'font')
     }
   };
   await walk(root, 1);
+  if (kind === 'font') {
+    for (const f of await storeFaces(ws)) {
+      if (out.files.length >= BRAND_LIST_MAX_FILES) {
+        out.truncated = true;
+        break;
+      }
+      out.files.push(f);
+    }
+  }
   return out;
 }

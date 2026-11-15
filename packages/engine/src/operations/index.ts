@@ -27,7 +27,7 @@ import { scenarioEdit } from './scenario-edit.js';
 import { runThumbs, scenarioActions, scenarioBlocks, scenarioForms, scenarioSessions } from './scenario-screen.js';
 import { renderCancel, reviewExport, runPause, scenarioRender, scenarioRun, signInCancel } from './studio-jobs.js';
 import { exportRender, render, review, runCapture, runDry } from './submit.js';
-import { brandFiles, siteList, templateCreateFromBrand, templateFromSite, templateList, templatePreview, templateUpdate, themeCopy, themeCreate, themeEdit, themeList, themeView } from './themes.js';
+import { brandFiles, fontFetch, siteList, templateCreateFromBrand, templateFromSite, templateFromTokens, templateList, templatePreview, templateUpdate, themeCopy, themeCreate, themeEdit, themeList, themeView } from './themes.js';
 
 /**
  * Every engine operation, in catalogue order: the eleven MCP and the Studio share; MCP's reads of scenarios,
@@ -65,8 +65,10 @@ export const OPERATIONS = [
   templateList,
   templatePreview,
   templateFromSite,
+  templateFromTokens,
   templateCreateFromBrand,
   templateUpdate,
+  fontFetch,
   componentList,
   componentGet,
   componentValidate,

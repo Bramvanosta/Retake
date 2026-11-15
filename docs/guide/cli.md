@@ -27,11 +27,13 @@ retake components validate [id|dir] [--json]         # manifest, params, preview
 retake components create <namespace/name> --kind K [--description D] [--name N] [--theme T] [--no-preview] [--json]
 retake components preview [id|dir] [--all] [--stale] [--workspace] [--theme T] [--out DIR] [--json]   # preview.png + README
 retake theme create <name> --accent HEX --logo FILE [--text|--paper|--muted|--dark HEX] [--background SPEC] [--base T]
-              [--wordmark FILE] [--display-font FILE] [--body-font FILE]… [--brand-name N] [--brand-url U]
+              [--wordmark FILE] [--display-font FILE|REF] [--body-font FILE|REF]… [--brand-name N] [--brand-url U]
               [--logo-kind mark|wordmark] [--cursor arrow-dark|arrow-light] [--cursor-size PX]
               [--component KIND=ID]… [--param KIND.NAME=VALUE]…
               [--no-adjust] [--replace] [--json]   # a new workspace theme from brand files (Themes from your brand)
 retake theme from-site <url> [--json]              # colours, font names, logo PNGs and a screenshot of a public page (Themes from a site)
+retake theme from-tokens <file> [--map ROLE=TOKEN]… [--base T] [--name N] [--json]   # proposed colour roles and a draft from a design-token file; writes nothing (Themes from design tokens)
+retake theme fetch-font <fontsource:id[@version][:weight[italic]]>… [--json]   # open-licence fonts from registry.npmjs.org into the font store; REF above names them (Themes from your brand)
 retake plan <project> <run-id|latest> [--scenario S] [--theme T] [--frame F] [--vertical|--square] [--json] [--out FILE]
 retake render <project> <scenario> [--run ID|latest] [--theme T] [--frame F] [--vertical|--square] [--scale N]
               [--music FILE|--no-music] [--tutorial|--no-tutorial] [--no-intro] [--no-outro] [--out FILE] [--concurrency N]

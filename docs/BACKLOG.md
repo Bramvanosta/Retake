@@ -2766,3 +2766,28 @@ A logo's kind (mark / wordmark, 3:1) and a wordmark's width come from the size t
 height or viewBox, a raster's pixels). A wordmark exported with wide transparent margins is drawn narrower than
 `wordmark_width`, and a square canvas around a wide name reads as a mark. Measuring the drawn content (a raster's alpha
 bounding box, an SVG's path bounds) would size it by what shows. *From:* L8.1.
+
+### BL-180 — Variable fonts from fontsource
+`font_fetch` (L8.1b) fetches the static faces of a `@fontsource/<id>` package; a family's `@fontsource-variable/<id>`
+package holds one WOFF2 for its whole weight range. Its range would come from the package's CSS (or BL-175's WOFF2
+`fvar` reading) and the copy be named `fonts/body-wght<min>-<max>.woff2`. *From:* L8.1b.
+
+### BL-181 — Font subsets other than latin
+A fetch keeps the latin WOFF2 of each face only (L8.1b). A `subset` option (latin-ext, cyrillic, greek, vietnamese…)
+would keep those files too — the renderer would then need one `@font-face` per subset with its `unicode-range`. *From:*
+L8.1b.
+
+### BL-182 — Pruning the font store
+`.retake/fonts/fontsource/` keeps every package version fetched (L8.1b); `retake prune` does not look at it. A prune of
+the versions no theme cites (a theme's `.retake-theme.json` sources name them) would free it. *From:* L8.1b.
+
+### BL-183 — Logos and fonts from a design-system export
+`template_from_tokens` (L8.1b) reads colours and font family names from a token file; a design-system export often
+ships its logo files and font files beside it. Reading those (as brand files, under the same checks) would draft the
+whole theme. *From:* L8.1b.
+
+### BL-184 — npm's package signatures for a font fetch
+A font fetch checks the tarball against the integrity the registry lists in the same call (L8.1b): the archive is the
+registry's, not proven to be its publisher's. npm's registry signatures (`dist.signatures`, ECDSA over
+`<name>@<version>:<integrity>`, keys from the registry's keys endpoint) — or provenance attestations — would
+authenticate it; the keys would have to be pinned in Retake to be worth more than the same TLS connection. *From:* L8.1b.

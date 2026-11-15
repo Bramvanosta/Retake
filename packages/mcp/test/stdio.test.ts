@@ -71,6 +71,21 @@ afterAll(async () => {
   await rm(ws, { recursive: true, force: true });
 });
 
+/**
+ * A tool's input schema as the "no credential" check reads it. template_from_tokens's design tokens set aside narrowly:
+ * a property (and a `required` entry) named exactly `tokens`, and the words token(s) / design-token(s) inside
+ * `description` strings — any other name or value matching /token/ still fails the check.
+ */
+function credentialText(tool: string, schema: unknown): string {
+  if (tool !== 'template_from_tokens') return JSON.stringify(schema);
+  const walk = (v: unknown, key?: string): unknown => {
+    if (Array.isArray(v)) return v.map((x) => (key === 'required' && x === 'tokens' ? 'design_file' : walk(x)));
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k === 'tokens' ? 'design_file' : k, walk(x, k)]));
+    return key === 'description' && typeof v === 'string' ? v.replace(/\b(?:design-)?tokens?\b/gi, 'design words') : v;
+  };
+  return JSON.stringify(walk(schema));
+}
+
 describe('retake mcp over stdio', () => {
   it('initializes with instructions and lists the tools with JSON Schemas from zod (input mode, no extra keys)', async () => {
     expect(client.getServerVersion()?.name).toBe('retake');
@@ -106,8 +121,10 @@ describe('retake mcp over stdio', () => {
       'template_list',
       'template_preview',
       'template_from_site',
+      'template_from_tokens',
       'template_create_from_brand',
       'template_update',
+      'font_fetch',
       'component_list',
       'component_get',
       'component_validate',
@@ -148,6 +165,7 @@ describe('retake mcp over stdio', () => {
           'template_from_site',
           'template_create_from_brand',
           'template_update',
+          'font_fetch',
           'component_preview',
           'component_create',
           'job_cancel',
@@ -158,12 +176,13 @@ describe('retake mcp over stdio', () => {
           'sandbox_reset',
         ].includes(t.name),
       );
-      expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site'].includes(t.name));
+      expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site', 'font_fetch'].includes(t.name));
       expect(t.annotations?.destructiveHint, t.name).toBe(
         ['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand', 'template_update', 'project_prune', 'job_cancel'].includes(t.name),
       );
-      // No tool takes a credential.
-      expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/password|secret|token|cookie/i);
+      // No tool takes a credential (template_from_tokens's "tokens" are design tokens — colours in a file: only its
+      // property named exactly `tokens` and the word in description strings are set aside, nothing else).
+      expect(credentialText(t.name, t.inputSchema), t.name).not.toMatch(/password|secret|token|cookie/i);
       expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/allow_writes/);
       // No file path: page_inspect's and scenario_record's `path` is a URL path under an environment page (no host, no template), checked by core;
       // template_create_from_brand's files are references relative to the workspace root, checked by the engine (brand/files.ts).
@@ -459,7 +478,7 @@ describe('retake mcp: lifecycle and registration', () => {
   });
 
   it('every tool has a zod schema that publishes as an object schema', () => {
-    expect(TOOLS).toHaveLength(46);
+    expect(TOOLS).toHaveLength(48);
     for (const t of TOOLS) expect(t.input.safeParse({ __nope: 1 }).success, t.name).toBe(false);
   });
 });

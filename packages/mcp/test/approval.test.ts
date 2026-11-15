@@ -1,4 +1,4 @@
-/** The elicitation approver (R-MCP-35): only `accept` with `approve: true` approves; everything else refuses. */
+/** The elicitation approver (R-MCP-35): only `accept` with `approve: true` approves; everything else refuses (hooks, a site, a prune, a font fetch). */
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,7 +10,8 @@ import { packageHookRunner, runnerWebCapture } from '@retake/compose';
 import { PRUNE_FORM_MAX_LINES, preflightHooks, pruneApprovalRequest } from '@retake/engine/testing';
 import { productPorts } from '@retake/compose';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
-import type { ApprovalRequest, PruneItem, PruneResult, SiteApprovalRequest } from '@retake/engine';
+import type { ApprovalRequest, FontsApprovalRequest, PruneItem, PruneResult, SiteApprovalRequest } from '@retake/engine';
+import { fontsApprovalForm } from '../src/approval.js';
 import { APPROVAL_TIMEOUT_MS, approvalMessage, approvalTimeoutMs, elicitationApprover, pruneApprovalForm, pruneApprovalMessage, siteApprovalMessage } from '../src/index.js';
 import type { ElicitAnswer } from '../src/server.js';
 
@@ -291,5 +292,45 @@ describe("the prune approval (an agent's project_prune {dry_run: false})", () =>
     expect(await outcome({ action: 'decline' })).toEqual({ approved: false, reason: 'declined' });
     expect(await outcome({ action: 'cancel' })).toEqual({ approved: false, reason: 'cancelled' });
     expect(await outcome(new McpError(ErrorCode.RequestTimeout, 'Request timed out'))).toEqual({ approved: false, reason: 'timeout' });
+  });
+});
+
+describe("the fonts approval (an agent's font_fetch)", () => {
+  const req: FontsApprovalRequest = {
+    what: 'fonts',
+    registry: 'https://registry.npmjs.org',
+    test_registry: false,
+    packages: [
+      { package: '@fontsource/test-sans', version: '5.2.1', faces: ['400', '600 italic'] },
+      { package: '@fontsource/test-serif', version: null, faces: ['400'] },
+    ],
+    fix: 'retake -C /ws theme fetch-font fontsource:test-sans@5.2.1:400 fontsource:test-sans@5.2.1:600italic fontsource:test-serif:400',
+  };
+
+  it('the fonts form names the registry, each package and version, the faces, the subset and the licence rule', () => {
+    const msg = fontsApprovalForm(req).message;
+    expect(msg).toContain('download 2 open-licence font packages');
+    expect(msg).toMatch(/^From: https:\/\/registry\.npmjs\.org$/m);
+    expect(msg).toMatch(/^- @fontsource\/test-sans 5\.2\.1: 400, 600 italic$/m);
+    expect(msg).toMatch(/^- @fontsource\/test-serif latest \(resolved now, and recorded\): 400$/m);
+    expect(msg).toContain('Only these: each package');
+    expect(msg).toContain('no redirect followed');
+    expect(msg).toContain('the latin WOFF2 files of the faces above and the LICENSE are kept, nothing else of the archive');
+    expect(msg).toContain("its publisher declares OFL-1.1 or Apache-2.0 (the package's own declaration)");
+    expect(msg).toContain('Decline to refuse: nothing is downloaded.');
+    expect(msg).toMatch(/Instead, you can run it yourself in a terminal: retake -C \/ws theme fetch-font fontsource:test-sans@5\.2\.1:400 .*$/);
+    expect(msg).not.toContain('TEST registry');
+    // The hatch's loopback registry is said to be a test one, never shown as the npm registry.
+    const test = fontsApprovalForm({ ...req, registry: 'http://127.0.0.1:4519', test_registry: true }).message;
+    expect(test).toMatch(/^From: http:\/\/127\.0\.0\.1:4519 — a TEST registry \(RETAKE_UNSAFE_TEST_NPM_REGISTRY\), never set outside tests$/m);
+    expect(test).not.toContain('registry.npmjs.org');
+  });
+
+  it('only accept with approve: true approves a font fetch', async () => {
+    const outcome = (a: ElicitAnswer | Error) => elicitationApprover(answering(a), 1000)!.approveFonts!(req);
+    expect(await outcome({ action: 'accept', content: { approve: true } })).toEqual({ approved: true });
+    expect(await outcome({ action: 'accept', content: { approve: false } })).toEqual({ approved: false, reason: 'declined' });
+    expect(await outcome({ action: 'decline' })).toEqual({ approved: false, reason: 'declined' });
+    expect(await outcome({ action: 'cancel' })).toEqual({ approved: false, reason: 'cancelled' });
   });
 });
