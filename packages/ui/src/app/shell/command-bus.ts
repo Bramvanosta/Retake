@@ -25,6 +25,44 @@ interface Registration {
 
 const registry = new Set<Registration>();
 let order = 0;
+/** What the status bar's defaults can run now (its buttons' state): the desktop app's menu greys out the rest. */
+const available = new Map<ShellCommand, boolean>();
+const listeners = new Set<() => void>();
+let version = 0;
+const changed = () => {
+  version++;
+  for (const f of listeners) f();
+};
+
+/** The defaults' state of `id` (the status bar's button enabled or not); `undefined` forgets it. */
+export function setAvailable(id: ShellCommand, on: boolean | undefined): void {
+  if (available.get(id) === on) return;
+  if (on === undefined) available.delete(id);
+  else available.set(id, on);
+  changed();
+}
+
+/**
+ * Whether `id` can act now, for the menu: an owner above the defaults (a screen, a live recording) always acts (it says
+ * why when it cannot); the defaults as their button says — no button (no scenario in context): no; nobody: no.
+ */
+export function commandEnabled(id: ShellCommand): boolean {
+  const o = owner(id);
+  if (!o) return false;
+  if (o.priority > PRIORITY.defaults) return true;
+  return available.get(id) ?? false;
+}
+
+/** Subscribe to owners and states changing (useSyncExternalStore's pair). */
+export const commandsWatch = {
+  subscribe(f: () => void): () => void {
+    listeners.add(f);
+    return () => {
+      listeners.delete(f);
+    };
+  },
+  version: () => version,
+};
 
 export function isShellCommand(id: unknown): id is ShellCommand {
   return typeof id === 'string' && (SHELL_COMMANDS as readonly string[]).includes(id);
@@ -57,8 +95,10 @@ export function runShellCommand(id: ShellCommand): boolean {
 export function registerShellCommand(id: ShellCommand, handler: { current: () => void }, priority: number): () => void {
   const r: Registration = { id, priority, order: ++order, handler };
   registry.add(r);
+  changed();
   return () => {
     registry.delete(r);
+    changed();
   };
 }
 

@@ -738,6 +738,25 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expectClean(a.err(), r.token);
   }, 60_000);
 
+  it("⚑ the menu follows the page: a scenario's Hooks view sends its state through desktop_menu — its mode and view checked, Welcome's commands on, the pipe line read (test mode logs it)", async () => {
+    const a = launch(['--route', '#/p/northfield-fixture/s/quote/hooks']);
+    const r = await until(() => record(), 20_000, 'ui.json');
+    const line = () =>
+      a
+        .err()
+        .split('\n')
+        .filter((l) => l.includes('(test mode) menu:'))
+        .at(-1) ?? '';
+    await until(() => line().includes('checked: mode-script, view-hooks;'), 20_000, 'the menu state of the Hooks view');
+    expect(line()).toMatch(/\(test mode\) menu: 25 items; checked: mode-script, view-hooks; disabled: /);
+    // The scenario's and project's pages are on there; the history and the palette always.
+    expect(line().split('disabled: ')[1]).not.toMatch(/\b(?:palette|go-back|go-welcome|go-report|go-settings|view-yaml|mode-edit|new-scenario)\b/);
+    expect(a.err()).not.toMatch(/ignored a line from the Studio server/);
+    a.child.kill('SIGTERM');
+    expect((await a.exit).code).toBe(0);
+    expectClean(a.err(), r.token);
+  }, 60_000);
+
   it('job ends become notifications by the no-storm rule (test mode logs them) — not in front: one at once, one summary; in front: none; SIGTERM with a job running quits without a question', async () => {
     for (const front of ['0', '1']) {
       const a = launch([], { env: { RETAKE_DESKTOP_TEST_FRONT: front } });

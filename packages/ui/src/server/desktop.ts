@@ -14,6 +14,10 @@
  * - `shown` lines: at most SHOWN_PER_MIN a minute (a page looping on acks cannot flood the pipe); an `answer` is never
  *   capped nor dropped (it is the person's).
  * - Not read-only (a line is written) but never nudges the job watch (studio.ts NO_NUDGE, like unsaved_report).
+ * - `desktop_menu`: the window page's state of the menu's page commands — each id (a command id's shape: the shell
+ *   applies the ids its menu holds), enabled, checked (a check item: the mode or view shown), variant (0 / 1: which of a
+ *   toggle's two fixed labels) — one `{"type":"menu","items":[…]}` line (desktop_core pipe.rs reads it strictly). No
+ *   text of the page reaches the menu. At most MENU_PER_MIN lines a minute (the page sends a state when it changes).
  * - Honest: once the supervisor has stopped (the server is closing) no line can be written — the op
  *   answers `unavailable` (503, reason `stopped`), never "answered"; the page's sheet says the answer did not arrive.
  */
@@ -32,6 +36,30 @@ export const DesktopAnswerInput = z.union([
   z.strictObject({ id, answer: z.enum(['proceed', 'cancel']).describe('Quit Anyway (proceed) or Cancel.') }),
 ]);
 
+/** Menu lines a minute at most (the page sends a state only when it changed). */
+export const MENU_PER_MIN = 240;
+/** A page command id's shape (desktop_core `menu_id_ok`). */
+export const MENU_ID_RE = /^[a-z](?:[a-z-]{0,30}[a-z])?$/;
+/** Items of one state at most (desktop_core MENU_ITEMS_MAX). */
+export const MENU_ITEMS_MAX = 64;
+
+const menuItem = z.strictObject({
+  id: z.string().regex(MENU_ID_RE, "a page command's id"),
+  enabled: z.boolean(),
+  checked: z.boolean().optional().describe('A check item (the mode or view shown): checked.'),
+  variant: z
+    .union([z.literal(0), z.literal(1)])
+    .optional()
+    .describe('A toggle: which of its two fixed labels (Show / Hide).'),
+});
+export const DesktopMenuInput = z.strictObject({
+  items: z
+    .array(menuItem)
+    .max(MENU_ITEMS_MAX)
+    .refine((xs) => new Set(xs.map((x) => x.id)).size === xs.length, 'each id once'),
+});
+export type MenuItemState = z.infer<typeof menuItem>;
+
 /** What the server may ask the shell to do for the Set-up sheet (desktop_core pipe.rs SetupAction). */
 export const SETUP_ACTIONS = ['notifications', 'cli_folder'] as const;
 export type SetupAction = (typeof SETUP_ACTIONS)[number];
@@ -40,6 +68,7 @@ export type SetupAction = (typeof SETUP_ACTIONS)[number];
 export class DesktopPipe {
   private write: ((line: string) => boolean) | undefined;
   private window = { start: 0, count: 0 };
+  private menuWindow = { start: 0, count: 0 };
   /** Lines written: tests. */
   written = 0;
 
@@ -79,6 +108,18 @@ export class DesktopPipe {
     this.send(this.need(), JSON.stringify({ type: 'setup', action }));
   }
 
+  /** The page's state of the menu's page commands; false when the minute's cap is reached (nothing written). */
+  menu(items: readonly MenuItemState[]): boolean {
+    const w = this.need();
+    const t = this.now();
+    if (t - this.menuWindow.start >= 60_000) this.menuWindow = { start: t, count: 0 };
+    if (this.menuWindow.count >= MENU_PER_MIN) return false;
+    const line = items.map((i) => ({ id: i.id, enabled: i.enabled, ...(i.checked !== undefined ? { checked: i.checked } : {}), ...(i.variant !== undefined ? { variant: i.variant } : {}) }));
+    this.send(w, JSON.stringify({ type: 'menu', items: line }));
+    this.menuWindow.count++;
+    return true;
+  }
+
   /** The update sheet's click for the shell (update-ops.ts `desktop_update`): Install and Restart, or Later. */
   update(action: 'install' | 'later'): void {
     this.send(this.need(), JSON.stringify({ type: 'update', action }));
@@ -95,7 +136,7 @@ export class DesktopPipe {
   }
 }
 
-/** The own op `desktop_answer` on `pipe`. */
+/** The own ops `desktop_answer` and `desktop_menu` on `pipe`. */
 export function desktopOps(pipe: DesktopPipe) {
   const op = defineTool({
     name: 'desktop_answer',
@@ -112,7 +153,18 @@ export function desktopOps(pipe: DesktopPipe) {
       return { summary: sent ? 'shown' : 'shown (not sent: too many this minute)', data: { ok: true } };
     },
   });
-  return [op];
+  const menu = defineTool({
+    name: 'desktop_menu',
+    title: "The desktop app's menu",
+    description: "The window page's state of the menu's page commands (enabled, checked, a toggle's label). The desktop app's own server only.",
+    input: DesktopMenuInput,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    async run(a) {
+      const sent = pipe.menu(a.items);
+      return { summary: sent ? 'menu state sent' : 'menu state not sent: too many this minute', data: { ok: true, sent } };
+    },
+  });
+  return [op, menu];
 }
 
-export const DESKTOP_OPS = ['desktop_answer'] as const;
+export const DESKTOP_OPS = ['desktop_answer', 'desktop_menu'] as const;

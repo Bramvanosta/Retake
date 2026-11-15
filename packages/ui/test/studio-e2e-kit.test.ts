@@ -934,7 +934,7 @@ describe('⚑ the overlay title bar contract (DESIGN §4j)', () => {
       const menu = await readFile(join(REPO, 'apps', 'desktop', 'src', 'menu.rs'), 'utf8');
       const CAP: Record<string, string> = { CmdOrCtrl: '⌘', Shift: '⇧', Alt: '⌥' };
       const accelerators = new Set(
-        [...menu.matchAll(/accelerator: Some\("([^"]+)"\)/g)].map((m) =>
+        [...menu.matchAll(/Some\("((?:Shift\+|Alt\+)?CmdOrCtrl\+[^"]+)"\)/g)].map((m) =>
           m[1]
             .split('+')
             .map((k) => CAP[k] ?? k)

@@ -7,7 +7,33 @@
  * Scenario menu's Rehearse, Capture, Render and Stop (⌘R, ⇧⌘R, ⌘B, ⌘. in the app; never bound in a browser tab, where
  * the palette offers them) go through the shell's command bus (shell/command-bus.ts) to whoever owns them.
  */
-export const MENU_COMMANDS = ['palette', 'mode-script', 'mode-shoot', 'mode-edit', 'mode-review', 'inspector', 'rehearse', 'capture', 'render', 'stop'] as const;
+export const MENU_COMMANDS = [
+  'new-scenario',
+  'palette',
+  'mode-script',
+  'mode-shoot',
+  'mode-edit',
+  'mode-review',
+  'view-board',
+  'view-hooks',
+  'view-yaml',
+  'inspector',
+  'go-back',
+  'go-forward',
+  'go-welcome',
+  'go-productions',
+  'go-cast',
+  'go-settings',
+  'go-readme',
+  'go-library',
+  'go-themes',
+  'go-report',
+  'go-comments',
+  'rehearse',
+  'capture',
+  'render',
+  'stop',
+] as const;
 export type MenuCommand = (typeof MENU_COMMANDS)[number];
 
 export const COMMAND_EVENT = 'studio:command';

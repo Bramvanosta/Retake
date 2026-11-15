@@ -118,7 +118,8 @@ beforeAll(async () => {
   writeFileSync(desktopConfig, JSON.stringify({ theme: 'dark', mcpServers: { files: { command: 'x' }, retake: { command: 'node', args: ['<b>old</b>\u202ebin.js'] } } }));
   ctx = machine();
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false, setup: () => ctx });
-  studio.desktop.attach((l) => (lines.push(l), true));
+  // The menu's state lines (desktop_menu: the page's state, sent as it loads and changes) are not a click: left out.
+  studio.desktop.attach((l) => (l.startsWith('{"type":"menu",') || lines.push(l), true));
   const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1280, height: 900 } });

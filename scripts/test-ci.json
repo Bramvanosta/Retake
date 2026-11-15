@@ -354,6 +354,7 @@
     "packages/ui/test/library-app.test.ts",
     "packages/ui/test/library-ops.test.ts",
     "packages/ui/test/mark.test.ts",
+    "packages/ui/test/native-menu.test.ts",
     "packages/ui/test/op-table-snapshot.test.ts",
     "packages/ui/test/operation-catalogue.test.ts",
     "packages/ui/test/other-copy.test.ts",

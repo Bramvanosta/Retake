@@ -70,6 +70,7 @@ const ROUTES: Record<string, RouteSpec> = {
 const NO_NUDGE = new Set<string>([
   'unsaved_report',
   'desktop_answer',
+  'desktop_menu',
   'setup_status',
   'setup_cli_install',
   'setup_cli_choose',
