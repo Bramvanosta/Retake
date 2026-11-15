@@ -758,8 +758,34 @@ describe('the overlays', () => {
   });
 
   it('the menu commands: an allow-list of ids (the desktop menu sends nothing else)', () => {
-    // The Scenario menu's four (Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘.) now act.
-    expect([...MENU_COMMANDS]).toEqual(['palette', 'mode-script', 'mode-shoot', 'mode-edit', 'mode-review', 'inspector', 'rehearse', 'capture', 'render', 'stop']);
+    // File's New Scenario; View's palette, modes, views and inspector; Go's history and pages; the Scenario menu's four.
+    expect([...MENU_COMMANDS]).toEqual([
+      'new-scenario',
+      'palette',
+      'mode-script',
+      'mode-shoot',
+      'mode-edit',
+      'mode-review',
+      'view-board',
+      'view-hooks',
+      'view-yaml',
+      'inspector',
+      'go-back',
+      'go-forward',
+      'go-welcome',
+      'go-productions',
+      'go-cast',
+      'go-settings',
+      'go-readme',
+      'go-library',
+      'go-themes',
+      'go-report',
+      'go-comments',
+      'rehearse',
+      'capture',
+      'render',
+      'stop',
+    ]);
     for (const id of MENU_COMMANDS) expect(isMenuCommand(id)).toBe(true);
     for (const id of ['reload', 'record', 'pause', '', 'PALETTE', 'Rehearse', null, 1, { id: 'palette' }]) expect(isMenuCommand(id)).toBe(false);
   });

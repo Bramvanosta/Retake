@@ -4885,7 +4885,18 @@ rename (L5.13) changes the bundle id → one new prompt.
   that only opened a screen would lie); until then the shell binds none of them.
 - *Menu state* (review B L10) — **decided in L5.9: static.** Every page command is always enabled; a command the page
   cannot run answers in the page's status bar ("Open a scenario first", "This screen has no inspector"). State flowing
-  to the shell (server→shell `state` lines or a narrow page→shell request) is BL-126.
+  to the shell (server→shell `state` lines or a narrow page→shell request) is BL-126. **Superseded on 2026-11-15
+  (the native menu, on Ranch's model):** the menu follows the page. The window page computes every page command's state
+  (shell/native-menu.ts: enabled; checked for the modes and views; a toggle's variant for Show / Hide Inspector; the
+  Scenario menu's runs as the status bar's buttons say) and sends it, when it changes, through the own op
+  `desktop_menu` (supervised only; strict: ids, bools, a 0 / 1 variant — never text); the server writes one
+  `{"type":"menu","items":[…]}` pipe line; desktop_core reads it strictly and menu.rs `apply` greys out, checks or
+  relabels the items it holds (a check item clicked gets the page's check back). A command run anyway (a key) still
+  answers in the status bar. The bar is laid out as macOS apps do: the app menu (About, Check for Updates…, Set Up…,
+  Services, Hide, Quit), File (New Scenario… ⌘N, Open Workspace… ⌘O), Edit, View (palette, modes ⌘1 – 4 and views
+  ⌥⌘1 – 3 as check items, the inspector's toggle), Go (Back ⌘[, Forward ⌘], Welcome ⇧⌘H, the project's pages, the
+  scenario's report and comments), Scenario, Window (the app's windows menu: macOS lists the windows) and Help (its
+  help menu: macOS adds the search field).
 - *Native confirmation sheets* (BL-106 amended; one message shape, the same there): the server asks through the
   supervised pipe — `{"type":"confirm","id","text","buttons"}` on the child's stdout (`buttons`: the labels, the first
   the default, the last the cancel); the shell shows a sheet on the window (NSAlert `beginSheetModalForWindow`, the

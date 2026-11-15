@@ -1,14 +1,19 @@
-/** The shell's commands (AppShell.tsx): the desktop app's menu, or ⌘K / Ctrl+K in a browser tab, and the palette's open state. */
+/**
+ * The shell's commands (AppShell.tsx): the desktop app's menu (File's New Scenario, View's palette, modes, views and
+ * inspector, Go's pages and history, Scenario's runs), or ⌘K / Ctrl+K in a browser tab, and the palette's open state.
+ */
 import { useCallback, useEffect, useState } from 'react';
 import { hrefTo } from '../route.js';
+import type { Route, ScenarioTab } from '../route.js';
 import { COMMAND_EVENT, isMenuCommand, modalOpen } from '../ui-kit/index.js';
 import type { MenuCommand } from '../ui-kit/index.js';
 import { isShellCommand, runShellCommand } from './command-bus.js';
 import { modeTarget } from './modes.js';
+import { useNativeMenu } from './native-menu.js';
+import { PROJECT_PAGE, SCENARIO_PAGE, VIEW_COMMAND } from './menu-table.js';
 import type { Mode, ScenarioContext } from './modes.js';
 
 const MODE_COMMAND: Record<Mode, MenuCommand> = { script: 'mode-script', shoot: 'mode-shoot', edit: 'mode-edit', review: 'mode-review' };
-
 /** A Mac (its shortcuts use ⌘; Ctrl+K edits text there). */
 export const MAC = typeof navigator !== 'undefined' && /^(?:mac|iphone|ipad)/i.test((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform);
 
@@ -23,15 +28,19 @@ function inTextField(t: EventTarget | null): boolean {
 
 export interface CommandInput {
   ctx: ScenarioContext | null;
+  /** The open project, or null (Welcome, the gallery). */
+  slug: string | null;
   hasInspector: boolean;
   say: (s: string) => void;
   toggleInspector: () => void;
   inApp: boolean;
 }
 
-/** The palette's open state and the shell's commands: the desktop app's menu, or ⌘K / Ctrl+K in a browser tab. */
-export function useMenuCommands({ ctx, hasInspector, say, toggleInspector, inApp }: CommandInput) {
+/** The palette's open state and the shell's commands: the desktop app's menu (and its state), or ⌘K / Ctrl+K in a browser tab. */
+export function useMenuCommands({ ctx, slug, hasInspector, say, toggleInspector, inApp }: CommandInput, shown: { route: Route; mode: Mode | null; inspectorShown: boolean }) {
   const [palette, setPalette] = useState(false);
+  // The desktop app's menu follows what this screen shows and can run (native-menu.ts).
+  useNativeMenu(inApp, { route: shown.route, slug, ctx, mode: shown.mode, hasInspector, inspectorShown: shown.inspectorShown });
 
   const run = useCallback(
     (id: MenuCommand) => {
@@ -49,14 +58,29 @@ export function useMenuCommands({ ctx, hasInspector, say, toggleInspector, inApp
       } else if (id === 'inspector') {
         if (hasInspector) toggleInspector();
         else say('This screen has no inspector');
+      } else if (id === 'go-back') history.back();
+      else if (id === 'go-forward') history.forward();
+      else if (id === 'go-welcome') location.hash = hrefTo({ name: 'projects' });
+      else if (PROJECT_PAGE[id]) {
+        if (slug) location.hash = hrefTo(PROJECT_PAGE[id](slug));
+        else say('Open a project first');
+      } else if (SCENARIO_PAGE[id]) {
+        if (ctx) location.hash = hrefTo(SCENARIO_PAGE[id](ctx));
+        else say('Open a scenario first');
       } else {
+        const tab = (Object.keys(VIEW_COMMAND) as ScenarioTab[]).find((k) => VIEW_COMMAND[k] === id);
+        if (tab) {
+          if (ctx) location.hash = hrefTo({ name: 'scenario', slug: ctx.slug, scenario: ctx.scenario, tab });
+          else say('Open a scenario first');
+          return;
+        }
         const m = (Object.keys(MODE_COMMAND) as Mode[]).find((k) => MODE_COMMAND[k] === id);
         if (!m) return;
         if (ctx) location.hash = hrefTo(modeTarget(m, ctx));
         else say('Open a scenario first');
       }
     },
-    [ctx, hasInspector, palette, say, toggleInspector],
+    [ctx, slug, hasInspector, palette, say, toggleInspector],
   );
 
   // The desktop app's menu sends commands; a browser tab binds ⌘K / Ctrl+K only.

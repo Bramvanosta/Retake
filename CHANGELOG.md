@@ -17,6 +17,10 @@ release — for the person about to click Install and Restart.
   height the tracks leave (it shrank to a strip when no note sat above it). Welcome is rebuilt: a greeting and the
   search, your projects as cards with a picture of their last take, a New project card, then Lately beside Set up
   (Claude, the workspace). The browser's foot keeps the version and the UI gallery only.
+- The app's menu bar follows the screen: what cannot run now is greyed out, the mode and view shown are checked, the
+  inspector item says Show or Hide. New: File › New Scenario… (⌘N), the views Board / Hooks / YAML (⌥⌘1 – 3), a Go
+  menu (Back ⌘[, Forward ⌘], Welcome ⇧⌘H, Productions ⇧⌘P, the project's pages, the report and comments), Services
+  and macOS's own Window list and Help search; Check for Updates… and Set Up moved to the app menu.
 - New Studio pages: Locations and cast (every location with its pages and its personas' sessions), a page per location
   (a sandbox's services, data and files, read only), the project's Settings (project.yaml, read only) and a scenario's
   Hooks view (before, during and after the take; Board · Hooks · YAML). A search in the title bar opens the palette

@@ -1,5 +1,5 @@
 /**
- * The desktop app's own ops: the quit question's answer, the update, the Set-up sheet, the tabs' unsaved
+ * The desktop app's own ops: the quit question's answer, the menu's state, the update, the Set-up sheet, the tabs' unsaved
  * reports. Each op once, typed by StudioOps (data/ops.ts).
  */
 import { op } from './client.js';
@@ -16,3 +16,4 @@ export const setupClaudeCodeRun = op('setup_claude_code_run');
 export const setupClaudeDesktopAdd = op('setup_claude_desktop_add');
 export const setupNotifications = op('setup_notifications');
 export const unsavedReport = op('unsaved_report');
+export const desktopMenu = op('desktop_menu');

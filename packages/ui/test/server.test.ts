@@ -220,6 +220,7 @@ describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
       'record_save',
       'unsaved_report',
       'desktop_answer',
+      'desktop_menu',
       'setup_status',
       'setup_cli_install',
       'setup_cli_choose',

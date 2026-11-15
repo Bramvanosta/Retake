@@ -35,6 +35,6 @@ describe("the Studio's operation table (snapshot)", () => {
     const text = opTableText();
     recordGolden(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
-    expect(UI_OPS).toHaveLength(77);
+    expect(UI_OPS).toHaveLength(78);
   });
 });

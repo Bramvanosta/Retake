@@ -1975,8 +1975,8 @@ and `job_end` lines); what remains:
   empty bar zooms as macOS does, never on a control; menu, sheets and full screen (the inset following it) unaffected.
   Any criterion failing keeps the standard bar. L5.9 did not run it: every criterion needs a real window drag, which an
   unattended run cannot post (Accessibility permission).
-- **Menu state from the page**: Capture / Render greyed when the page cannot run them (server→shell `state` lines on
-  the supervised pipe, or a narrow page→shell request); L5.9 keeps every item enabled and answers in the page.
+- ~~**Menu state from the page**~~ — done 2026-11-15 (the native menu review, on Ranch's model): the page sends its
+  commands' state through `desktop_menu`, the shell greys out, checks and relabels (DESIGN §4j "Menu state").
 - **The Scenario menu** — Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘. — and the status bar's actions: L5.11, when
   they act (critique M6), through the same `Item::Page` table and `MENU_COMMANDS`.
 - The inset following full screen (the buttons hidden: the 80 px could go), and native confirmation sheets through the

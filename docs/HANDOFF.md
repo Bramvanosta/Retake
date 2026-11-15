@@ -75,6 +75,30 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after the native menu review)
+- **Native menu review done (2026-11-15; branch `claude/native-menu`, stacked on `claude/studio-design`)** — the
+  desktop app's menu bar on Ranch's model: it follows the screen. Not a ROADMAP lot.
+  - Layout as macOS apps: the app menu (About, Check for Updates…, Set Up…, Services, Hide, Quit), File (New Scenario…
+    ⌘N, Open Workspace… ⌘O), Edit, View (palette ⌘K, modes ⌘1 – 4 and views Board / Hooks / YAML ⌥⌘1 – 3 as check
+    items, Show / Hide Inspector ⌥⌘I), a new Go menu (Back ⌘[, Forward ⌘], Welcome ⇧⌘H, Productions ⇧⌘P, the project's
+    pages, the scenario's report and comments), Scenario, Window (the app's windows menu) and Help (its help menu: the
+    search field). 25 page commands (ui-kit MENU_COMMANDS, compared with menu.rs by desktop-config.test.ts).
+  - State: the page computes it (shell/native-menu.ts; command-bus.ts now carries what the status bar's buttons can
+    run) and sends it through the own op `desktop_menu` (Studio only, supervised only, strict, 240 lines a minute); the
+    server writes a `menu` pipe line; desktop_core `parse_pipe_line` reads it strictly (ids, bools, a 0 / 1 variant);
+    menu.rs `apply` greys out, checks, relabels (a clicked check item gets the page's check back). Unlike Ranch the
+    page never builds the menu (no IPC for a page served from 127.0.0.1): the shell keeps the table.
+  - Tests: desktop-core `menu_lines_strict`; desktop-answer.test.ts (desktop_menu: allow-list, pipe line, cap, strict
+    input, 409 unsupervised); native-menu.test.ts (the state per screen); desktop-config's menu assertions rewritten;
+    the black box gains "⚑ the menu follows the page" (a Hooks view's state reaches the shell, test mode logs it); op
+    counts 125 / 78 Studio; goldens re-recorded (the op table, the "this Studio allows" lists).
+  - Gates: build, typecheck, lint, rules (desktop.ts's shell-op count 1 → 2 in its group), `--check-cites`, the Rust
+    tests (85) and the black box (each case green alone). Full suite: first run 8 failures fixed (one real: the runs
+    were enabled on Welcome — an unreported command is now off), last run 6953 passed, 4 failed in the timeline e2e (the
+    known load flake: both files 29/29 alone, twice).
+  - Still open: the Help menu's and the update's state (BL-142, BL-143: the shell's own Cmd items, not page commands);
+    the black box's "the real question" case fails here on this Mac's session (a window listing), the same on main.
+
 ## State (after the Studio large-screen pass)
 - **Studio large-screen pass done (2026-11-15; branch `claude/studio-design`, a pull request on `main`)** — the
   Studio's layout follows the window instead of a 1200 px column, from the person's review of the Studio and the

@@ -48,7 +48,7 @@ import type { LiveRun, SheetAsk } from '../shoot/shoot-data.js';
 import { PROPOSAL_RENDER } from '../words/render-words.js';
 import { SHOOT_STATES, blockerShort, modeWord, shootState } from '../words/shoot-words.js';
 import { Blocker, Button, LinkButton, Sheet, StatusMark } from '../ui-kit/index.js';
-import { PRIORITY, useShellCommand } from './command-bus.js';
+import { PRIORITY, SHELL_COMMANDS, setAvailable, useShellCommand } from './command-bus.js';
 import type { ScenarioContext } from './modes.js';
 import { runEnded } from '../run-ended.js';
 
@@ -324,6 +324,20 @@ function ScenarioButtons({
   const ids = { dry: 'sh-why-dry', capture: 'sh-why-capture', render: 'sh-why-render', stop: 'sh-why-stop' };
   const paused = Boolean(runLive?.paused || runLive?.pausing);
   const terminal = running?.job === null;
+  // The desktop app's menu follows these buttons (Scenario: Rehearse, Capture, Render, Stop).
+  const canStop = Boolean(running) && !terminal && !runLive?.stopping;
+  useEffect(() => {
+    setAvailable('rehearse', dryWhy === null);
+    setAvailable('capture', capWhy === null);
+    setAvailable('render', rWhy === null);
+    setAvailable('stop', canStop);
+  }, [dryWhy, capWhy, rWhy, canStop]);
+  useEffect(
+    () => () => {
+      for (const id of SHELL_COMMANDS) setAvailable(id, undefined);
+    },
+    [],
+  );
   return (
     // biome-ignore lint/a11y/useSemanticElements: the status bar's row of actions; <fieldset> would bring its own border, padding and min-width
     <div className="sh-actions" role="group" aria-label={`Actions for ${name}`} data-testid="status-actions">

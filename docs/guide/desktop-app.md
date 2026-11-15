@@ -263,10 +263,14 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   the current folder's `retake.yaml`, else a folder picker; File › Open Workspace… (⌘O) switches (the server of the
   first one stops before the next starts). A folder that is not a workspace changes nothing, and if the new one cannot
   start, the previous one opens again.
-- **The menu bar (L5.9).** View › Command Palette… (⌘K), Script ⌘1, Shoot ⌘2, Edit ⌘3, Review ⌘4 (the scenario in
-  context; with none, the status bar says so), Show or Hide Inspector (⌥⌘I), Enter Full Screen. The window follows the
-  system's appearance (dark or light) with the Studio. ⌘R, ⇧⌘R and ⌘B (Rehearse, Capture, Render) arrive with the Shoot
-  screens (L5.11). The title bar is the standard macOS one for now (an integrated one: BACKLOG BL-126).
+- **The menu bar.** Laid out as macOS apps do, and it follows the screen: an item that cannot run now is greyed out,
+  the mode and view shown are checked. File › New Scenario… (⌘N), Open Workspace… (⌘O); View › Command Palette… (⌘K),
+  Script ⌘1, Shoot ⌘2, Edit ⌘3, Review ⌘4, Board ⌥⌘1, Hooks ⌥⌘2, YAML ⌥⌘3, Show / Hide Inspector (⌥⌘I), Enter Full
+  Screen; Go › Back (⌘[), Forward (⌘]), Welcome (⇧⌘H), Productions (⇧⌘P), Locations and Cast, Project Settings,
+  README, Components, Themes, Review Report, Comments; Scenario › Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘.;
+  Window lists the windows; Help has macOS's search field (type any item's name). Check for Updates… and Set Up are in
+  the app menu. The window follows the system's appearance (dark or light) with the Studio. The title bar is the
+  standard macOS one for now (an integrated one: BACKLOG BL-126).
 - **One server per workspace, as `retake ui`.** When no server serves the workspace, the app's server is its own:
   Quit (⌘Q, or SIGTERM / Ctrl-C under `pnpm desktop:dev`) stops it, and if the app crashes the server sees its pipe
   close and stops too — no server is left holding `ui.json`. When one already serves it (a terminal's `retake ui`),

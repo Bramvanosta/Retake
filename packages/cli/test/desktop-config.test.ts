@@ -134,7 +134,7 @@ describe('desktop shell configuration (static)', () => {
     expect(src.match(/\.eval\(/g)).toHaveLength(2);
     // The second eval is eval_in_window's — called with a menu table's page command or the quit flow's scripts only.
     expect(src).toMatch(/pub\(crate\) fn eval_in_window\(app: &AppHandle, js: String\) \{\n\s*if let Some\(w\) = app\.get_webview_window\(WINDOW\) \{\n\s*let _ = w\.eval\(js\);/);
-    expect(src).toContain('if let Some(js) = menu::page_command_js(id) {\n                    eval_in_window(app, js);');
+    expect(src).toContain('if let Some(js) = menu::page_command_js(id) {\n                    menu::clicked(id);\n                    eval_in_window(app, js);');
     // And the Help menu's Set-up sheet (desktop_core setup_page_js: a constant shape).
     // And Help › Check for Updates…'s `studio:update` (update_flow update_page_js: a constant).
     expect(src.match(/eval_in_window\(/g)).toHaveLength(6);
@@ -435,39 +435,54 @@ describe('desktop shell configuration (static)', () => {
 
   it("prepared for the redesign: one command table, the Scenario menu's keys as page commands only, ⌘S and ⌘Enter left free, one title-bar switch, no forced theme, name and id in one place", () => {
     const menu = read('src/menu.rs');
-    const accelerators = [...menu.matchAll(/accelerator: Some\("([^"]+)"\)/g)].map((m) => m[1]);
-    // The View menu's page commands (⌘K, ⌘1 – ⌘4, ⌥⌘I); the Scenario menu's Rehearse ⌘R, Capture ⇧⌘R,
-    // Render ⌘B and Stop ⌘. (page commands: the page's bus gives them to their owner).
+    const accelerators = [...menu.matchAll(/Some\("((?:Shift\+|Alt\+)?CmdOrCtrl\+[^"]+)"\)/g)].map((m) => m[1]);
+    // File (New Scenario ⌘N, Open Workspace… ⌘O); View (⌘K, the modes ⌘1 – ⌘4, the views ⌥⌘1 – ⌥⌘3, ⌥⌘I); Go (⌘[ ⌘],
+    // Welcome ⇧⌘H, Productions ⇧⌘P); Scenario (Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘.: page commands, the page's
+    // bus gives them to their owner); Window (⌘0).
     expect(accelerators).toEqual([
+      'CmdOrCtrl+N',
       'CmdOrCtrl+O',
       'CmdOrCtrl+K',
       'CmdOrCtrl+1',
       'CmdOrCtrl+2',
       'CmdOrCtrl+3',
       'CmdOrCtrl+4',
+      'Alt+CmdOrCtrl+1',
+      'Alt+CmdOrCtrl+2',
+      'Alt+CmdOrCtrl+3',
       'Alt+CmdOrCtrl+I',
+      'CmdOrCtrl+[',
+      'CmdOrCtrl+]',
+      'Shift+CmdOrCtrl+H',
+      'Shift+CmdOrCtrl+P',
       'CmdOrCtrl+R',
       'Shift+CmdOrCtrl+R',
       'CmdOrCtrl+B',
       'CmdOrCtrl+.',
       'CmdOrCtrl+0',
     ]);
+    expect(new Set(accelerators).size).toBe(accelerators.length);
     const scenario = /\(\s*"Scenario",\s*&\[([\s\S]*?)\],\s*\),/.exec(menu)?.[1] ?? '';
-    expect([...scenario.matchAll(/Item::Page \{ id: "([^"]+)", label: "([^"]+)", accelerator: Some\("([^"]+)"\) \}/g)].map((m) => [m[1], m[2], m[3]])).toEqual([
+    expect([...scenario.matchAll(/page\("([^"]+)", "([^"]+)", Some\("([^"]+)"\)\)/g)].map((m) => [m[1], m[2], m[3]])).toEqual([
       ['rehearse', 'Rehearse', 'CmdOrCtrl+R'],
       ['capture', 'Capture', 'Shift+CmdOrCtrl+R'],
       ['render', 'Render', 'CmdOrCtrl+B'],
       ['stop', 'Stop', 'CmdOrCtrl+.'],
     ]);
-    // Between View and Window.
-    expect(menu.indexOf('"View",')).toBeLessThan(menu.indexOf('"Scenario",'));
-    expect(menu.indexOf('"Scenario",')).toBeLessThan(menu.indexOf('("Window"'));
+    // File, Edit, View, Go, Scenario, Window, Help: as macOS apps order them.
+    const order = ['"File",', '"Edit",', '"View",', '"Go",', '"Scenario",', '"Window",', '"Help",'].map((t) => menu.indexOf(t));
+    expect(order.every((x) => x > 0)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    // Window is the app's windows menu, Help its help menu (macOS's window list and search field).
+    expect(menu).toContain('sub.set_as_windows_menu_for_nsapp()?;');
+    expect(menu).toContain('sub.set_as_help_menu_for_nsapp()?;');
     const src = rustSources();
-    expect(src.match(/MenuItem::with_id\(/g)).toHaveLength(2);
+    expect(src.match(/MenuItem::with_id\(/g)).toHaveLength(3);
+    expect(src.match(/CheckMenuItem::with_id\(/g)).toHaveLength(1);
     expect(src).toContain('menu::SHOW_WINDOW => show_window(app),');
     // No Reload item, nothing bound to ⌘S or ⌘Enter (the page's own); the Scenario keys only as page commands.
     expect(src).not.toMatch(/\.reload\(|"reload"|CmdOrCtrl\+(?:Shift\+)?(?:S|Enter)"/);
-    expect(src.replace(/Item::Page \{[^}]*\}/g, '')).not.toMatch(/CmdOrCtrl\+(?:R|B|Period|\.)"/);
+    expect(src.replace(/(?:page|check)\("[^"]+", "[^"]+", Some\("[^"]+"\)\)/g, '')).not.toMatch(/CmdOrCtrl\+(?:R|B|Period|\.)"/);
     expect(menu).toMatch(/^pub const TITLE_BAR: TitleBar = TitleBar::Standard;$/m);
     expect(src.match(/title_bar_style\(/g)).toHaveLength(1);
     expect(src).not.toMatch(/\.theme\(/);
@@ -485,7 +500,7 @@ describe('desktop shell configuration (static)', () => {
 
   it("⚑ the menu's page commands are the page's MENU_COMMANDS (one list each side, compared); the flag script is a constant", () => {
     const menu = read('src/menu.rs');
-    const page = [...menu.matchAll(/Item::Page \{ id: "([^"]+)", label: "[^"]+", accelerator: Some\("[^"]+"\) \}/g)].map((m) => m[1]);
+    const page = [...menu.matchAll(/(?:page|check)\("([^"]+)", "[^"]+", (?:Some\("[^"]+"\)|None)\)|Item::Page \{ id: "([^"]+)"/g)].map((m) => m[1] ?? m[2]);
     expect(page.sort()).toEqual([...MENU_COMMANDS].sort());
     expect(page).toHaveLength(MENU_COMMANDS.length);
     // The dispatch: only a Page id of MENUS, JSON-quoted into one constant shape.
@@ -500,16 +515,21 @@ describe('desktop shell configuration (static)', () => {
 });
 
 describe("the installed app's first run and Set-up sheet, shell side (static)", () => {
-  it("the Help menu: Set Up …, Install / Uninstall the retake Command…, no keys, through the page's Set-up sheet", () => {
+  it("the app menu's Check for Updates… and Set Up …, the Help menu's Install / Uninstall the retake Command…, no keys, through the page's Set-up sheet", () => {
     const menu = read('src/menu.rs');
-    const help = /\(\s*"Help",\s*&\[([\s\S]*?)\],\s*\),/.exec(menu)?.[1] ?? '';
-    expect([...help.matchAll(/Item::Cmd \{ id: ([A-Z_]+), label: "([^"]+)", accelerator: None, enabled: true \}/g)].map((m) => [m[1], m[2]])).toEqual([
-      ['SET_UP', 'Set Up {app}…'],
+    const cmds = (title: string) => {
+      const body = new RegExp(`\\(\\s*"${title}",\\s*&\\[([\\s\\S]*?)\\],\\s*\\),`).exec(menu)?.[1] ?? '';
+      return [...body.matchAll(/Item::Cmd \{ id: ([A-Z_]+), label: "([^"]+)", accelerator: None, enabled: true \}/g)].map((m) => [m[1], m[2]]);
+    };
+    expect(cmds('')).toEqual([
       ['CHECK_UPDATES', 'Check for Updates…'],
+      ['SET_UP', 'Set Up {app}…'],
+    ]);
+    expect(cmds('Help')).toEqual([
       ['CLI_INSTALL', 'Install the retake Command…'],
       ['CLI_REMOVE', 'Uninstall the retake Command…'],
     ]);
-    expect(menu.indexOf('("Window"')).toBeLessThan(menu.indexOf('"Help",'));
+    expect(menu.indexOf('"Window",')).toBeLessThan(menu.indexOf('"Help",'));
     expect(menu).toContain('label.replace("{app}", name)');
     const main = read('src/main.rs');
     expect(main).toContain('id @ (menu::SET_UP | menu::CLI_INSTALL | menu::CLI_REMOVE) => setup_menu(app, id),');

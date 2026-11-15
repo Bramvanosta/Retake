@@ -97,9 +97,9 @@
   },
   {
    "rule": "shell-op",
-   "reason": "The Studio's own ops (18 in 6 files on 2026-11-12): every use case the engine serves is its operation now; these hold the server's own state (its index, player, leases, set-up and update state, unsaved tabs, the desktop pipe) and stay here.",
+   "reason": "The Studio's own ops (18 in 6 files on 2026-11-12; 19 since desktop_menu, 2026-11-15): every use case the engine serves is its operation now; these hold the server's own state (its index, player, leases, set-up and update state, unsaved tabs, the desktop pipe) and stay here.",
    "entries": [
-    "packages/ui/src/server/desktop.ts → 1 operation defined",
+    "packages/ui/src/server/desktop.ts → 2 operations defined",
     "packages/ui/src/server/ops.ts → 5 operations defined",
     "packages/ui/src/server/setup-ops.ts → 8 operations defined",
     "packages/ui/src/server/theme-ops.ts → 1 operation defined",
