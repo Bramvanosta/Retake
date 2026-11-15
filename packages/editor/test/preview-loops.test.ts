@@ -282,7 +282,7 @@ describe('preview sessions (injected backend)', () => {
   }
 
   for (const mode of ['load', 'syntax'] as const) {
-    it(`⚑ review A M3 / B H1, ${mode === 'load' ? 'a module-load throw' : 'a syntax error'} in one component of the registry bundle: the others are written, only it fails`, async () => {
+    it(`⚑ ${mode === 'load' ? 'a module-load throw' : 'a syntax error'} in one component of the registry bundle: the others are written, only it fails`, async () => {
       const broken = 'studio/overlay-callout';
       const ids = ['studio/intro-stack', 'studio/card-title', broken, 'studio/outro-stack'];
       const f = pageFake({ broken, mode, poison: true });
@@ -314,7 +314,7 @@ describe('preview sessions (injected backend)', () => {
     });
   }
 
-  it('⚑ review B M1: after an item fails, the next one runs in a freshly opened renderer (a leaked port fails nothing else)', async () => {
+  it('⚑ after an item fails, the next one runs in a freshly opened renderer (a leaked port fails nothing else)', async () => {
     const f = pageFake({ failOnce: 'studio/card-title', poison: true });
     const r = await renderComponentLoops({
       workPolicy: PERSON_POLICY,

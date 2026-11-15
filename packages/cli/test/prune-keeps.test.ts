@@ -218,7 +218,7 @@ describe('retake prune: the takes kept beyond the list', () => {
     expect((JSON.parse(io.stdout()) as { kept_takes: unknown[] }).kept_takes.length).toBe(6);
   });
 
-  it('the files of renders/ left alone (L7.6b): a line each in the columns of the list, the name printable, per reason the first five and then a count', async () => {
+  it('the files of renders/ left alone: a line each in the columns of the list, the name printable, per reason the first five and then a count', async () => {
     // C1 (a record renamed by hand) with seven files that do not read beside it, one of them named with an escape character.
     const b = buildLayout(root, 'C1', { slug: 'd-alone-cli' });
     built.set('d-alone', b);

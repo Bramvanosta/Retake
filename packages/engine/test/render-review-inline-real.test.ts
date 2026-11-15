@@ -95,7 +95,7 @@ afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-describe.skipIf(!can)('a render reviewed inline by the review package, through the worker (L7.11 fix pass)', () => {
+describe.skipIf(!can)('a render reviewed inline by the review package, through the worker', () => {
   it('the job renders, then the real review writes its report and sheets next to the render', async () => {
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, run_id: RUN, overrides: { scale: 0.5 }, review: { fps: 1 }, expect_edit_sha256: sha(TEXT) });
     expect(await worker(packageReviewer())).toBe(0);

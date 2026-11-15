@@ -107,8 +107,8 @@ describe('the run of a render, state by state', () => {
 // ── The render records: the render a review works on, state by state ─
 //
 // The states are those of test-support/src/records/render-states.json. The cells were written before the lot (its
-// P0) and flipped by its editor part on purpose: a cell that changed is marked `moved: <row>` (the lead's plan §4 and
-// §1b) and says what it held before. Since the lot `latest` takes the newest succeeded complete record whatever its
+// P0) and flipped by its editor part on purpose: a cell that changed is marked `moved: <row>` and
+// says what it held before. Since the lot `latest` takes the newest succeeded complete record whatever its
 // file is called and works on THAT FILE (ruling 2); the render compared with is one of the complete records of their
 // own file (D-10), by core's previousRender.
 

@@ -79,7 +79,7 @@ describe('retake jobs', () => {
     expect(again.err).toContain('is already cancelled: nothing to cancel');
   });
 
-  it('L5.14a fixes (review B M4): a review a queued take holds says "waiting for a take to finish", not "next"', async () => {
+  it('a review a queued take holds says "waiting for a take to finish", not "next"', async () => {
     const q = new FileJobQueue(ws);
     const take = await q.enqueue({
       version: 1,
@@ -100,7 +100,7 @@ describe('retake jobs', () => {
     await q.cancel(review.id, 'test');
   });
 
-  it('L5.14b: the list says what a take does to a heavy job — waiting (where), slowed while it runs (status: since when)', async () => {
+  it('the list says what a take does to a heavy job — waiting (where), slowed while it runs (status: since when)', async () => {
     const { FilmingMarker, selfIdentity } = await import('@retake/engine/shell');
     const { hostname } = await import('node:os');
     const q = new FileJobQueue(ws);

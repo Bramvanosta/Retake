@@ -453,7 +453,7 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       expect((await own.enqueue(RUN_INPUT)).created_at).toBe('2027-01-01T00:00:00.000Z');
     });
 
-    it('exclusive (L7.26): one holder at a time per key, its queues with their own memory too; other keys are not held; a throw releases it', async () => {
+    it('exclusive: one holder at a time per key, its queues with their own memory too; other keys are not held; a throw releases it', async () => {
       const { queue: q } = await make('exclusive');
       const own = q.withOwnMemory();
       const tick = () => new Promise((r) => setTimeout(r, 5));

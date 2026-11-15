@@ -18,7 +18,7 @@ import type { ComponentPreviewSpec } from '../src/remotion/preview-types.js';
 const plan = { variant: 'landscape', durationInFrames: 3 } as unknown as EditPlan;
 const spec = { frame: 2, durationInFrames: 3 } as unknown as ComponentPreviewSpec;
 
-describe('L7.2 the versioned props of a render bundle', () => {
+describe('the versioned props of a render bundle', () => {
   it('the builders stamp the version and the readers give the payload back, the same object', () => {
     expect(PROPS_VERSION).toBe(1);
     expect(videoProps(plan)).toEqual({ v: PROPS_VERSION, plan });

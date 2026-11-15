@@ -487,7 +487,7 @@ describe('approvals are signed with the Retake home key, for their job', () => {
   });
 });
 
-describe("a claim takes its job's approvals once (L5.14, review B M1)", () => {
+describe("a claim takes its job's approvals once", () => {
   const approvals = [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation' as const, at: '2026-10-17T12:00:00.000Z' }];
   const rec = (id: string, withApprovals = true) => ({
     id,

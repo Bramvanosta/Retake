@@ -40,7 +40,7 @@ describe('validateComponent (R-REG-05..09, R-CMP-06)', () => {
     expect(r.text).toBe('');
   });
 
-  it('renderer primitives imported from the kit compile; a misspelt one is named with the kit export (L3.7)', async () => {
+  it('renderer primitives imported from the kit compile; a misspelt one is named with the kit export', async () => {
     const tsx = `import { AbsoluteFill, Img, Sequence, random, useCurrentFrame, useVideoConfig } from '${KIT_MODULE}';
 export default function X() {
   const f = useCurrentFrame();
@@ -115,7 +115,7 @@ export default function X() {
     expect(ALLOWED_IMPORTS).toEqual(['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'remotion', KIT_MODULE]);
   });
 
-  it('⚑ L4.7 review A H1: an import through a dot folder, node_modules, previews or dist inside the folder is refused', async () => {
+  it('⚑ an import through a dot folder, node_modules, previews or dist inside the folder is refused', async () => {
     // The folder's content hash skips them (editor componentHashedFiles): an import there would change what renders
     // under an unchanged hash. Caught by the words of the import, and by the file actually loaded (a package.json).
     const tsx = `import { a } from './.impl/code';

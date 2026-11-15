@@ -601,7 +601,7 @@ function ann(choices: Record<number, number>, ...inserts: Array<Record<string, u
 }
 const alts = (...targets: Array<Record<string, unknown>>) => targets.map((target) => ({ target, fragile: [] as Array<'broader'> }));
 
-describe('draftFromRecording: target picks (L4.8)', () => {
+describe('draftFromRecording: target picks', () => {
   const field = { target: { label: 'Customer' }, label: 'Customer', role: 'textbox', action: { kind: 'type' as const }, alternatives: alts({ placeholder: 'Acme Ltd' }, { testid: 'customer' }) };
   const events = rec(start(), press(500, field), typing(900, field, { text: 'Acme' }), press(1300, { target: { text: 'Save' } }), stop(2000));
 
@@ -684,7 +684,7 @@ describe('draftFromRecording: target picks (L4.8)', () => {
   });
 });
 
-describe('draftFromRecording: quick inserts (L4.8)', () => {
+describe('draftFromRecording: quick inserts', () => {
   const field = { target: { label: 'Note' }, label: 'Note', action: { kind: 'type' as const } };
   // 1 press A · 2 press the field · 3 typing · 4 press Save
   const events = rec(start(), press(400, { target: { text: 'New quote' } }), press(800, field), typing(1200, field, { text: 'Two bags' }), press(1600, { target: { text: 'Save' } }), stop(2000));
@@ -815,7 +815,7 @@ describe('draftFromRecording: quick inserts (L4.8)', () => {
   });
 });
 
-describe('draftFromRecording: typing split by a visit to the Studio (L4.8)', () => {
+describe('draftFromRecording: typing split by a visit to the Studio', () => {
   const field = { target: { label: 'Message' }, action: { kind: 'type' as const } };
   const split = (second: Record<string, unknown>) =>
     rec(start(), press(400, field), typing(900, field, { text: 'Two b' }), typing(5000, field, second), press(5600, { target: { text: 'Send' } }), stop(6000));
@@ -840,7 +840,7 @@ describe('draftFromRecording: typing split by a visit to the Studio (L4.8)', () 
   });
 });
 
-describe('draftFromRecording: placeholders (L4.8)', () => {
+describe('draftFromRecording: placeholders', () => {
   it('each secret placeholder with its kind and step, never a value; a project var of that name is said so', () => {
     const pw = { target: { label: 'Password' }, secret: true };
     const d = draft(
@@ -868,7 +868,7 @@ const RLO = String.fromCharCode(0x202e);
 const ZWSP = String.fromCharCode(0x200b);
 const LSEP = String.fromCharCode(0x2028);
 
-describe('draftFromRecording: hidden characters never reach a draft (review A-M3)', () => {
+describe('draftFromRecording: hidden characters never reach a draft', () => {
   it('a press on a name holding a direction control, typed text with a zero-width or line-separator character, a choice with one: left out, said so, never quoted', () => {
     const cancel = `Cancel${RLO}lecnac`;
     const field = { target: { label: 'Note' }, label: 'Note', action: { kind: 'type' as const } };
@@ -913,7 +913,7 @@ describe('draftFromRecording: hidden characters never reach a draft (review A-M3
   });
 });
 
-describe('draftFromRecording: inserts placed after the row they were made on (review B-H1)', () => {
+describe('draftFromRecording: inserts placed after the row they were made on', () => {
   const far = { target: { text: 'Far away' } };
   // 1 press A · 2 scroll · 3 press B (the scroll leads to it)
   const scrolled = rec(start(), press(400, { target: { text: 'Coffees' } }), { kind: 'scroll', t: 1500, container: 'document', el: null, dx: 0, dy: 900 }, press(2500, far), stop(3000));
@@ -980,7 +980,7 @@ describe('draftFromRecording: inserts placed after the row they were made on (re
   });
 });
 
-describe('draftFromRecording: a wait for the next target before a select by field (review B-L3)', () => {
+describe('draftFromRecording: a wait for the next target before a select by field', () => {
   it('waits for the field by its label (never the page idle)', () => {
     const trigger = { target: { label: 'Bag size' }, role: 'combobox', label: 'Bag size', in: 'dialog' as const, action: { kind: 'select' as const, field: 'Bag size' } };
     const ev = rec(start(), press(300, { target: { text: 'Order' } }), press(400, trigger), press(800, { target: { text: '5 kg' }, in: 'listbox', role: 'option', name: '5 kg' }), stop(2500));
@@ -990,7 +990,7 @@ describe('draftFromRecording: a wait for the next target before a select by fiel
   });
 });
 
-describe('draftFromRecording: a Studio draft has no YAML alias (review B-M2)', () => {
+describe('draftFromRecording: a Studio draft has no YAML alias', () => {
   it("`aliases: false`: a target shared by the recorder's wait, its scroll and its action is written each time; the block editor can delete or duplicate the helper", () => {
     const late = { target: { label: 'Customer' }, label: 'Customer', role: 'textbox', appeared: true, action: { kind: 'type' as const } };
     const ev = rec(
@@ -1022,7 +1022,7 @@ describe('draftFromRecording: a Studio draft has no YAML alias (review B-M2)', (
   });
 });
 
-describe('draftFromRecording: more of the typing merge (review A-L2, A-N6, B-L6)', () => {
+describe('draftFromRecording: more of the typing merge', () => {
   const field = { target: { label: 'Message' }, action: { kind: 'type' as const } };
   const pw = { target: { label: 'Password' }, secret: true, action: { kind: 'type' as const } };
   const secretPart = (t: number) => typing(t, pw, { secret: true, field_kind: 'password', text: undefined });
@@ -1054,7 +1054,7 @@ describe('draftFromRecording: more of the typing merge (review A-L2, A-N6, B-L6)
   });
 });
 
-describe("shownStep: the check's failing step on screen (review B-M4)", () => {
+describe("shownStep: the check's failing step on screen", () => {
   it("the row of the recorded draft's step in the arranged draft: an insert before it moves it; a step that is gone is null", () => {
     const late = { target: { text: 'Delayed control' }, appeared: true };
     const ev = rec(start(), press(400, { target: { text: 'Unlock the last step' } }), press(3000, late), press(3500, { target: { text: 'Save' } }), stop(4000));
@@ -1068,7 +1068,7 @@ describe("shownStep: the check's failing step on screen (review B-M4)", () => {
   });
 });
 
-describe("L3.4's drafts, byte for byte (review B-N1)", () => {
+describe('the drafts of an earlier generator, byte for byte', () => {
   // Real recordings of the fixture product (headless, trusted input; alternatives on) and the drafts an earlier
   // generator made of them (core at an earlier commit, compiled apart): today's generator, without annotations or with
   // empty ones, gives the same YAML, issues, writes, check bound and stats.
@@ -1082,7 +1082,7 @@ describe("L3.4's drafts, byte for byte (review B-N1)", () => {
   });
 
   for (const name of names) {
-    it(`${name}: the same draft as L3.4`, () => {
+    it(`${name}: the same draft as the earlier generator`, () => {
       const events = readFileSync(new URL(`${name}.events.jsonl`, dir), 'utf8')
         .trim()
         .split('\n')

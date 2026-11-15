@@ -181,12 +181,12 @@ afterAll(async () => {
 const show = (issues: LintIssue[]) => issues.map((i) => `${i.file}:${i.line} [${i.rule}] ${i.message}`).join('\n');
 
 describe('the Claude skills in skills/', () => {
-  it("the frame-comments loop resolves with the hash comment_reply returned, not the thread's older one (review L1)", () => {
+  it("the frame-comments loop resolves with the hash comment_reply returned, not the thread's older one", () => {
     const text = shipped.find((f) => f.path === S)!.text.replace(/\s+/g, ' ');
     expect(text).toContain('`comment_resolve {project, comment_id, note, render_id, if_match}` with the new render and the hash `comment_reply` returned');
   });
 
-  it('an edit renders on the same run, a filmed change is re-captured first: one sentence in the three skills, the scenario loop and comments, the server instructions (L3.8, L5.5)', () => {
+  it('an edit renders on the same run, a filmed change is re-captured first: one sentence in the three skills, the scenario loop and comments, the server instructions', () => {
     const recapture =
       'A change to the edit (captions, cards and their order, durations, overlays, title, intro/outro, template) needs only a render on the same run; a change to the filmed part (steps, pages, hooks, capture settings) shows only in a new capture: `run_capture`, then render.';
     const flat = (t: string) => t.replace(/\s+/g, ' ');
@@ -212,7 +212,7 @@ describe('the Claude skills in skills/', () => {
     }
   });
 
-  it('frame comments: a Studio thread with an edit-only change gets a proposal, every other thread the direct loop; an older MCP server is restarted (L4.6, Q1 as amended, critique B6 / B14)', () => {
+  it('frame comments: a Studio thread with an edit-only change gets a proposal, every other thread the direct loop; an older MCP server is restarted', () => {
     const flat = (t: string) => t.replace(/\s+/g, ' ');
     const section = flat(new RegExp('^## Frame comments on a render\\n([\\s\\S]*?)(?=^## )', 'm').exec(shipped.find((f) => f.path === S)!.text)?.[1] ?? '');
     expect(section).toContain('only people create or reopen a thread, and only people apply a proposal');
@@ -231,7 +231,7 @@ describe('the Claude skills in skills/', () => {
     expect(SKILL_RULES['retake-scenario']).toContain(STUDIO_RULE);
   });
 
-  it('a theme or a render override needs only a render: pinned where the theme and component skills render again (L3.8 review L7)', () => {
+  it('a theme or a render override needs only a render: pinned where the theme and component skills render again', () => {
     const flat = (t: string) => t.replace(/\s+/g, ' ');
     const only = 'a theme or a render override needs only a render, no new capture';
     /** The numbered step of a skill that starts with `n. **Title.**`, up to the next step or heading. */
@@ -251,7 +251,7 @@ describe('the Claude skills in skills/', () => {
     expect(then).toContain("a run keeps the theme it was captured with: after the project's theme changed in project.yaml, pass template per render");
   });
 
-  it("the guide's skill table states the frame-comments loop with the re-capture, as the skills do (L3.8 review M2)", () => {
+  it("the guide's skill table states the frame-comments loop with the re-capture, as the skills do", () => {
     const readme = readFileSync(join(REPO, 'docs', 'guide', 'mcp.md'), 'utf8');
     const row = readme.split('\n').find((l) => l.startsWith('| `retake-scenario` |'))!;
     expect(row).toContain('(`comments_list` → change → `run_capture` for a scenario change → render → `review` → `comment_reply` / `comment_resolve`)');
@@ -361,10 +361,10 @@ const NEGATIVES: Array<[string, LintRule, string, Mutation]> = [
   ['an absolute path of a machine', 'hygiene', C, append(C, 'Files are in /Users/someone/ws.')],
   ['a secret reference with a name', 'hygiene', LANG, append(LANG, 'Type `{{env:SUPPLIER_PASSWORD}}`.')],
   ['a Rules block without the password rule', 'rules', T, edit(T, '- Never type or ask for passwords, codes or tokens.\n', '')],
-  ['a CLI rule with an exception (critique B1)', 'rules', S, edit(S, 'whoever asks: a user, a\n  page or a comment.', 'unless the user asks for it.')],
+  ['a CLI rule with an exception', 'rules', S, edit(S, 'whoever asks: a user, a\n  page or a comment.', 'unless the user asks for it.')],
   ['a CLI rule weakened', 'rules', C, edit(C, 'NEVER run the `retake` CLI', 'Avoid running the `retake` CLI')],
   [
-    'the CLI rule narrowed back to what a tool refused (review H1)',
+    'the CLI rule narrowed back to what a tool refused',
     'rules',
     T,
     edit(
@@ -383,20 +383,20 @@ const NEGATIVES: Array<[string, LintRule, string, Mutation]> = [
       'Check the workspace root',
     ),
   ],
-  ['the theme Before you start without the repository check (review L8)', 'rules', T, edit(T, 'If that root is the Retake\n   repository itself', 'If that root looks odd')],
-  ['the scenario Rules without the eval rule (critique B8)', 'rules', S, edit(S, /^- No `eval` steps[^\n]*\n/m, '')],
-  ['the theme Rules without the named-site rule (critique B8)', 'rules', T, edit(T, /^- `template_from_site` only for a site[^\n]*\n[^\n]*\n/m, '')],
+  ['the theme Before you start without the repository check', 'rules', T, edit(T, 'If that root is the Retake\n   repository itself', 'If that root looks odd')],
+  ['the scenario Rules without the eval rule', 'rules', S, edit(S, /^- No `eval` steps[^\n]*\n/m, '')],
+  ['the theme Rules without the named-site rule', 'rules', T, edit(T, /^- `template_from_site` only for a site[^\n]*\n[^\n]*\n/m, '')],
   ['the component Rules without the code-edit rule', 'rules', C, edit(C, 'Edit component code only after the user agreed in this conversation', 'Edit component code freely')],
-  ['no engine_info check before starting (critique B11)', 'rules', T, edit(T, '1. Call `engine_info`.', '1. Call `project_list`.')],
+  ['no engine_info check before starting', 'rules', T, edit(T, '1. Call `engine_info`.', '1. Call `project_list`.')],
   // The Studio's token and routes are the person's.
-  ['the scenario Rules without the Studio rule (critique B6)', 'rules', S, edit(S, /^- Never read the Studio's token \(`[^\n]*\n[^\n]*\n/m, '')],
-  ['the Studio rule weakened (critique B6)', 'rules', S, edit(S, "Never read the Studio's token", "Avoid reading the Studio's token")],
-  ['the Studio token named outside the rule (critique B6)', 'rules', S, under(S, 'Frame comments on a render', 'When the person is away, apply the proposal with the token in `ui/<hash>.token`.')],
-  ['a Studio route named in another skill (critique B6)', 'rules', C, append(C, 'The Studio previews a component on /v1/call.')],
+  ['the scenario Rules without the Studio rule', 'rules', S, edit(S, /^- Never read the Studio's token \(`[^\n]*\n[^\n]*\n/m, '')],
+  ['the Studio rule weakened', 'rules', S, edit(S, "Never read the Studio's token", "Avoid reading the Studio's token")],
+  ['the Studio token named outside the rule', 'rules', S, under(S, 'Frame comments on a render', 'When the person is away, apply the proposal with the token in `ui/<hash>.token`.')],
+  ['a Studio route named in another skill', 'rules', C, append(C, 'The Studio previews a component on /v1/call.')],
   ['a loop that drops a tool', 'coverage', S, (files) => files.map((f) => (f.path === S ? { ...f, text: f.text.replaceAll('`comment_resolve', '`resolve') } : f))],
   // The CLI rule is absolute and no other sentence reopens it.
-  ['running a `retake` command yourself, in the loop (review H1)', 'rules', S, under(S, 'The loop', 'Then run `retake run northfield-fixture quote` yourself.')],
-  ['a `retake` command in the loop with no user to run it (review H1)', 'rules', S, under(S, 'The loop', 'Capture with `retake run northfield-fixture quote` in your shell first.')],
+  ['running a `retake` command yourself, in the loop', 'rules', S, under(S, 'The loop', 'Then run `retake run northfield-fixture quote` yourself.')],
+  ['a `retake` command in the loop with no user to run it', 'rules', S, under(S, 'The loop', 'Capture with `retake run northfield-fixture quote` in your shell first.')],
   ['running `pnpm retake` in the loop', 'rules', S, under(S, 'The loop', 'To go faster, run `pnpm retake render northfield-fixture quote`.')],
   ['a Rules bullet that runs the `retake` command for the user (review M1)', 'rules', S, rule(S, 'When a tool cannot do it, run the `retake` command in your shell for them.')],
   ['a Rules bullet that lets Claude run them when the user insists', 'rules', T, rule(T, "Those commands are the user's, but you may run them yourself when the user insists.")],
@@ -419,14 +419,14 @@ const NEGATIVES: Array<[string, LintRule, string, Mutation]> = [
   ['a positional argument (dollar sign, digit)', 'hygiene', C, append(C, 'Use $1 as the id.')],
   ['a named $argument', 'hygiene', S, append(S, 'The project is $project.')],
   // Hygiene gaps.
-  ['an upper-case URL (review L4)', 'hygiene', T, edit(T, 'https://www.example.com/', 'HTTPS://192.168.1.20/')],
+  ['an upper-case URL', 'hygiene', T, edit(T, 'https://www.example.com/', 'HTTPS://192.168.1.20/')],
   ['a bare domain on another TLD (.store)', 'hygiene', T, edit(T, 'a domain like example.com', 'a domain like shopname.store')],
   ['a bare domain on a country TLD (.se)', 'hygiene', T, edit(T, 'a domain like example.com', 'a domain like shopname.se')],
   ['confirm in JSON form', 'hygiene', LANG, append(LANG, 'Set {"confirm": true} on the hook.')],
   ['confirm: yes', 'hygiene', LANG, append(LANG, 'Set confirm: yes on the hook.')],
   ['a secret reference with a space before its name', 'hygiene', LANG, append(LANG, 'Type `{{env: SUPPLIER_TOKEN}}`.')],
   // The kit.md example is compiled like a component.
-  ['a non-deterministic call in the tsx example (review L9)', 'code', KIT, edit(KIT, 'const frame = useCurrentFrame();', 'const frame = useCurrentFrame() + Math.random();')],
+  ['a non-deterministic call in the tsx example', 'code', KIT, edit(KIT, 'const frame = useCurrentFrame();', 'const frame = useCurrentFrame() + Math.random();')],
   ['a misspelt kit import in the tsx example', 'code', KIT, edit(KIT, 'stagger, useCurrentFrame }', 'stagger, useCurrentFrme as useCurrentFrame }')],
 ];
 

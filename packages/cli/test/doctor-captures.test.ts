@@ -47,7 +47,7 @@ async function markerOwner(file: string, root: string): Promise<ChildProcess> {
 const probe = (o: Partial<CapturesProbe> = {}): CapturesProbe => ({ dir: '/scratch/retake-captures', override: false, exists: true, takes: [], qos: true, capMin: 60, ...o });
 const take = (o: Partial<CapturesProbe['takes'][number]> = {}) => ({ here: false, paused: false, capped: false, retake: true, ...o });
 
-describe('doctor: Captures first (L5.14b)', () => {
+describe('doctor: Captures first', () => {
   it('nothing filming: ok, the folder (per user), background priority, the cap', () => {
     expect(capturesCheck(probe())).toEqual({
       status: 'ok',
@@ -79,7 +79,7 @@ describe('doctor: Captures first (L5.14b)', () => {
     });
   });
 
-  it("review A L3: a marker's owner is a Retake one only when its command line is a jobs worker or `retake run`", () => {
+  it("a marker's owner is a Retake one only when its command line is a jobs worker or `retake run`", () => {
     for (const cmd of [
       '/usr/local/bin/node /Applications/Retake.app/Contents/Resources/app/packages/engine/dist/worker-main.js --root /w',
       'node /w/packages/engine/dist/worker-main.js',

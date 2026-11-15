@@ -135,7 +135,7 @@ describe.skipIf(!built)('retake ui (built CLI)', () => {
     expect((await first.exit).code).toBe(0);
   });
 
-  it('--port naming another port than the running server: reused, with a warning on stderr (review B L4)', async () => {
+  it('--port naming another port than the running server: reused, with a warning on stderr', async () => {
     const first = retake(['--root', ws, 'ui', '--no-open', '--json']);
     const info = JSON.parse(await first.line) as { port: number };
     const other = info.port === 65000 ? 65001 : 65000;
@@ -150,7 +150,7 @@ describe.skipIf(!built)('retake ui (built CLI)', () => {
     expect((await first.exit).code).toBe(0);
   });
 
-  it('a state folder it cannot write: exit 1 with what to do, no stack (review B L3)', async () => {
+  it('a state folder it cannot write: exit 1 with what to do, no stack', async () => {
     const dir = join(base, 'ro');
     await mkdir(join(dir, 'projects'), { recursive: true });
     await writeFile(join(dir, 'retake.yaml'), 'projects_dir: projects\n');
@@ -208,7 +208,7 @@ describe.skipIf(!built)('retake ui (built CLI)', () => {
     expect((await first.exit).code).toBe(0);
   });
 
-  it("L5.16c fixes (review c B-L8): the shell's stdin lines — whole lines out, the cap counted in bytes, a long line dropped whole", () => {
+  it("the shell's stdin lines — whole lines out, the cap counted in bytes, a long line dropped whole", () => {
     const got: string[] = [];
     const read = shellLineReader((l) => got.push(l), 16);
     // A three-byte character split between two chunks; a line of 6 such characters is 18 bytes (6 UTF-16 units): dropped.
@@ -222,7 +222,7 @@ describe.skipIf(!built)('retake ui (built CLI)', () => {
     expect(got).toEqual(['ab\u20acc', 'ok', 'next']);
   });
 
-  describe('--supervised (L5.2)', () => {
+  describe('--supervised', () => {
     const alive = (pid: number) => {
       try {
         process.kill(pid, 0);
@@ -338,7 +338,7 @@ setInterval(() => undefined, 1000);`;
       expect(await gone(pid, ui()), 'the supervised server outlived its parent').toBe(true);
     });
 
-    it('the parent killed 50 ms after spawning it (during the start, critique M3): no listener and no ui.json left', async () => {
+    it('the parent killed 50 ms after spawning it (during the start): no listener and no ui.json left', async () => {
       const { p, seen } = parent();
       const pid = Number((await seen(/P(\d+)\n/))[1]);
       await new Promise((r) => setTimeout(r, 50));

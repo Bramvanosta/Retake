@@ -35,7 +35,7 @@ function env() {
   return makeContext(project, { runId: '20261026-120000-demo' });
 }
 
-describe('runHooks: step (L5.8)', () => {
+describe('runHooks: step', () => {
   it("journals rollbacks like setup, stops at the first failure and rolls nothing back itself; the run's rollback undoes it", async () => {
     expect(journalsRollback('step')).toBe(true);
     expect(journalsRollback('teardown')).toBe(false);

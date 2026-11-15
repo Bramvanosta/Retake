@@ -61,7 +61,7 @@ async function written(file: string, names: string[]): Promise<Journal> {
   return journal;
 }
 
-describe('rollback journal entries are signed (L5.14)', () => {
+describe('rollback journal entries are signed', () => {
   it('each entry is signed when written and again when it changes; read back, it is signed and replayed with trust mcp', async () => {
     await written(runFile('20261104-090000-a'), ['a', 'b']);
     const onDisk = JSON.parse(await readFile(runFile('20261104-090000-a'), 'utf8')) as { entries: Array<{ sig?: string }> };

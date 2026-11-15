@@ -151,7 +151,7 @@ describe('hook steps and named hooks (R-FLD-31)', () => {
   });
 });
 
-describe('the filmed part and the edit (L5.5) with hook steps and offscreen scenes', () => {
+describe('the filmed part and the edit with hook steps and offscreen scenes', () => {
   it('a hook step and a named hook are filmed; `offscreen` is edit', () => {
     expect(filmedChanges(SCENARIO.replace('      - hook: request\n', ''), SCENARIO)).toEqual([expect.stringMatching(/list/)]);
     expect(filmedChanges(SCENARIO.replace('json: {bags: 1}', 'json: {bags: 2}'), SCENARIO)).toEqual(['the named hooks (hooks)']);
@@ -179,7 +179,7 @@ describe('the filmed part and the edit (L5.5) with hook steps and offscreen scen
   });
 });
 
-describe('the Studio (L4.3) with hook steps and named hooks', () => {
+describe('the Studio with hook steps and named hooks', () => {
   it('blocks: a hook step has its badge and words, named hooks show by name, an offscreen scene says so', () => {
     const b = scenarioBlocks(SCENARIO);
     const list = b.entries.find((e) => e.type === 'scene' && e.id === 'list');

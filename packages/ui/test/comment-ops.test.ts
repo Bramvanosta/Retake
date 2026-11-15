@@ -129,7 +129,7 @@ afterAll(async () => {
   await ws?.cleanup();
 });
 
-describe.skipIf(!canRun)('the comment ops (T11)', () => {
+describe.skipIf(!canRun)('the comment ops', () => {
   it("are the Studio's own ops on the allow-list; the MCP comment tools stay out", () => {
     expect(UI_OPS).toEqual(expect.arrayContaining([...COMMENT_OPS]));
     for (const op of ['comments_list', 'comment_reply', 'comment_resolve']) expect(UI_OPS).not.toContain(op);
@@ -257,7 +257,7 @@ describe.skipIf(!canRun)('the comment ops (T11)', () => {
   );
 
   it(
-    "⚑ the offer (critique B3): Apply and re-render only for a landscape thread rendered with the files' theme and no override",
+    "⚑ the offer: Apply and re-render only for a landscape thread rendered with the files' theme and no override",
     async () => {
       const t = await add();
       await propose(t.id, SHORTER);
@@ -411,7 +411,7 @@ describe.skipIf(!canRun)('the comment ops (T11)', () => {
   );
 
   it(
-    '⚑ errors are path-free too (review A L1): a missing video, an apply the Studio rules refuse; ⚑ thread_get offers nothing Apply would refuse (review A L4)',
+    '⚑ errors are path-free too: a missing video, an apply the Studio rules refuse; ⚑ thread_get offers nothing Apply would refuse',
     async () => {
       const roots = [ws.root, realpathSync(ws.root), dir, homedir()];
       const clean = (body: string) => {
@@ -477,7 +477,7 @@ describe.skipIf(!canRun)('the comment ops (T11)', () => {
   });
 });
 
-describe.skipIf(!canRun)('timeline_view {proposal} (T11, critique B9 c)', () => {
+describe.skipIf(!canRun)('timeline_view {proposal} (c)', () => {
   it(
     "⚑ the proposal's plan goes through the workspace component hold: a proposal adding an unallowed component is preview_held",
     async () => {

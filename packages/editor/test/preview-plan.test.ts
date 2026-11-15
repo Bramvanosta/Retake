@@ -42,7 +42,7 @@ beforeAll(async () => {
   registry = await loadComponentRegistry({ root: REPO });
 });
 
-describe('previewPlan (critique B4)', () => {
+describe('previewPlan', () => {
   it("quote: every asset URL swapped for the player's, no file, path, display table, note or warning left", async () => {
     const p = await plan('quote');
     expect(Object.keys(p.assets).length).toBeGreaterThan(3);

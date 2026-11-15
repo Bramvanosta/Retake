@@ -84,7 +84,7 @@ const KIT = join(REPO, 'packages', 'ui', 'src', 'app', 'ui-kit');
 const html = (el: ReactElement) => renderToStaticMarkup(el).replace(/<bdi>([^<]*)<\/bdi>/g, '$1');
 const noop = () => undefined;
 
-describe('the kit renders native, named elements (L5.9 part B)', () => {
+describe('the kit renders native, named elements', () => {
   it('buttons: a typed <button> (never a submit unless asked, never a destructive submit), a link built by hrefTo, an icon button named by its label, key caps', () => {
     expect(html(createElement(Button, { variant: 'primary', onClick: noop, children: 'Save' }))).toMatch(
       /^<button type="button" class="k-btn k-btn-primary k-btn-md"><span class="k-btn-label">Save<\/span><\/button>$/,
@@ -155,7 +155,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     for (const x of ids) expect(some, x).toContain(`id="${x}"`);
   });
 
-  it('L5.11b: a radio group — a fieldset of native radios named by its legend (one name), the checked one native, a value that matches none leaves all unchecked; a compact row card is a pressed button with its word on the right', () => {
+  it('a radio group — a fieldset of native radios named by its legend (one name), the checked one native, a value that matches none leaves all unchecked; a compact row card is a pressed button with its word on the right', () => {
     const opts = [
       { value: '0', label: 'Text', aside: 'Suggested', testId: 'alt' },
       { value: '1', label: 'Role', detail: 'a CSS selector', disabled: true },
@@ -301,7 +301,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(b).toContain('role="status"');
   });
 
-  it('L5.11a: a compact blocker — the status bar\'s one line: its words in the mark, its command SHOWN in full in a popover beside its Copy (fixes A-M3: never copied unseen), "Copied" visible; a link form; a checklist of headed items, each with its state word', () => {
+  it('a compact blocker — the status bar\'s one line: its words in the mark, its command SHOWN in full in a popover beside its Copy (never copied unseen), "Copied" visible; a link form; a checklist of headed items, each with its state word', () => {
     const c = html(createElement(Blocker, { compact: true, word: '1 hook to approve', fix: { copy: 'retake run p quote' }, testId: 'sb' }));
     expect(c).toMatch(/^<span class="k-blocker is-compact" data-testid="sb">/);
     expect(c).toContain('1 hook to approve');
@@ -345,7 +345,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     );
   });
 
-  it('L5.10a: the productions listbox — one tab stop, options with aria-selected, the active one named by aria-activedescendant; none selected: no aria-activedescendant at all (review A-L6)', () => {
+  it('the productions listbox — one tab stop, options with aria-selected, the active one named by aria-activedescendant; none selected: no aria-activedescendant at all', () => {
     const items = [
       { id: 'quote', picture: 'p1', title: 'Quote', meta: createElement(StatusMark, { state: 'warn', word: 'Render outdated' }) },
       { id: 'catalogue', picture: 'p2', title: 'Catalogue' },
@@ -364,7 +364,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(sel).not.toMatch(/tabindex="0"[^>]*role="option"|role="option"[^>]*tabindex/);
   });
 
-  it('L5.10a: facts (a dl of rows), a disclosure (a native details, closed), source rows with an icon, a lead, a value, a quiet tone and a test id', () => {
+  it('facts (a dl of rows), a disclosure (a native details, closed), source rows with an icon, a lead, a value, a quiet tone and a test id', () => {
     expect(html(createElement(Facts, { rows: [{ key: 'l', label: 'Length', value: '1:00.0' }] }))).toBe(
       '<dl class="k-facts"><div class="k-facts-row"><dt class="k-facts-label">Length</dt><dd class="k-facts-value">1:00.0</dd></div></dl>',
     );
@@ -386,7 +386,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     for (const name of ['film', 'components', 'location', 'person'] as const) expect(ICON_NAMES).toContain(name);
   });
 
-  it('L5.10a fixes: a source row with a second line that wraps (review B-L1); a search keeps maxLength, no autocomplete, no spell check, its label visually hidden with an icon (B-L4, B-L6)', () => {
+  it('a source row with a second line that wraps; a search keeps maxLength, no autocomplete, no spell check, its label visually hidden with an icon', () => {
     const row = html(
       createElement(SourceList, { label: 'Studio', groups: [{ key: 'g', items: [{ key: 'a', to: { name: 'cast', slug: 'n' }, label: 'supplier', detail: 'signed-in', current: false }] }] }),
     );
@@ -400,7 +400,7 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
   });
 });
 
-describe("L5.12c: the Library's and the theme editor's kit pieces", () => {
+describe("the Library's and the theme editor's kit pieces", () => {
   it('a data table: its caption (hidden, still its name), column headers th scope=col, each row headed by its first cell (th scope=row), an empty cell a dash', () => {
     const t = html(
       createElement(DataTable, {
@@ -436,7 +436,7 @@ describe("L5.12c: the Library's and the theme editor's kit pieces", () => {
     expect(src.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/#[0-9a-f]{3,8}\b/i);
   });
 
-  it('⚑ L5.12c fixes: the colour field\'s swatch dot draws only a hex value and only while a colour is dragged (A-L5, B-L1); an unset colour says "not set" in words for a screen reader, removable or not (A-L3)', () => {
+  it('⚑ the colour field\'s swatch dot draws only a hex value and only while a colour is dragged; an unset colour says "not set" in words for a screen reader, removable or not', () => {
     const base = { label: 'Accent', value: '#225588', picker: '#225588', onDraft: noop, onCommit: noop };
     // While dragged: the written colour's dot (a hex: it reaches the style).
     expect(html(createElement(ColorField, { ...base, swatch: '#225588', draft: '#00c000' }))).toContain('<span class="k-color-swatch" style="background:#225588" aria-hidden="true"></span>');
@@ -476,8 +476,8 @@ describe("L5.12c: the Library's and the theme editor's kit pieces", () => {
   });
 });
 
-describe('the overlays (L5.9 part C)', () => {
-  it('L5.10b: a scene\'s frames — one listbox (tab stop, horizontal, aria-activedescendant only when given), options with aria-selected and a name; the empty drop zone; a row card is a pressed button; a callout says its state in words; a source row that acts is a button with aria-current="true"; a switch row', () => {
+describe('the overlays', () => {
+  it('a scene\'s frames — one listbox (tab stop, horizontal, aria-activedescendant only when given), options with aria-selected and a name; the empty drop zone; a row card is a pressed button; a callout says its state in words; a source row that acts is a button with aria-current="true"; a switch row', () => {
     const go = () => undefined;
     const grid = renderToStaticMarkup(
       createElement(FrameGrid, {
@@ -553,7 +553,7 @@ describe('the overlays (L5.9 part C)', () => {
     expect(renderToStaticMarkup(createElement(TerminalCommands, {}))).toBe('');
   });
 
-  it("⚑ L5.12a fixes: a contact sheet's toggle keeps one name (A-L4); a row that opens a screen is a link (A-L5); ticks keep 24 px apart where the lane has room (A-L3)", () => {
+  it("⚑ a contact sheet's toggle keeps one name; a row that opens a screen is a link; ticks keep 24 px apart where the lane has room", () => {
     const go = () => undefined;
     const sheet = renderToStaticMarkup(createElement(ContactSheet, { items: [{ key: 'a', name: 'contact sheet (1 fps)', label: 'contact sheet (1 fps)', picture: createElement('i'), state: 'ok' }] }));
     expect(sheet).toContain('aria-pressed="false" aria-label="contact sheet (1 fps), larger"');
@@ -573,7 +573,7 @@ describe('the overlays (L5.9 part C)', () => {
     expect(spaceTicks([50], 300)).toEqual([50]);
   });
 
-  it("⚑ L5.12b: a diff table — every row, a sign and its word (hidden), the code cell left to right in byte order, the marks; a region over a frame hidden from assistive technology; a tick that is a link; a segmented option's test id; the palette's icons and legend", () => {
+  it("⚑ a diff table — every row, a sign and its word (hidden), the code cell left to right in byte order, the marks; a region over a frame hidden from assistive technology; a tick that is a link; a segmented option's test id; the palette's icons and legend", () => {
     const go = () => undefined;
     const diff = renderToStaticMarkup(
       createElement(DiffTable, {
@@ -668,7 +668,7 @@ describe('the overlays (L5.9 part C)', () => {
     expect(none).toContain('aria-expanded="false"');
   });
 
-  it('L5.10b: the drop slot comes from the pointer (critique M7) — the nearest row by Y, the half by X, the trailing cells the end; the bar on one side', () => {
+  it('the drop slot comes from the pointer — the nearest row by Y, the half by X, the trailing cells the end; the bar on one side', () => {
     // Two rows of three 100 × 60 frames, 24 px gaps; the second row holds two.
     const r = (col: number, row: number) => ({ left: col * 124, right: col * 124 + 100, top: row * 84, bottom: row * 84 + 60 });
     const rects = [r(0, 0), r(1, 0), r(2, 0), r(0, 1), r(1, 1)];
@@ -765,7 +765,7 @@ describe('the overlays (L5.9 part C)', () => {
   });
 });
 
-describe("⚑ the kit's text inputs carry the unsaved mark (L5.2b useUnsavedMark, L5.9)", () => {
+describe("⚑ the kit's text inputs carry the unsaved mark (useUnsavedMark)", () => {
   it('unsavedFor: the item only while the value differs from its baseline and an item is given', () => {
     const item = { kind: 'step_form', project: 'p', scenario: 's' } as const;
     expect(unsavedFor('a', 'a', item)).toBeNull();
@@ -814,7 +814,7 @@ function markedInputs(text: string): string[] {
   return out.sort();
 }
 
-describe("the shell's scenario in context (L5.9, review B-L8)", () => {
+describe("the shell's scenario in context", () => {
   it('a project page offers the scenario opened last in it — forgotten once the project no longer lists it', () => {
     const memory = new Map<string, string>();
     expect(scenarioInContext({ name: 'scenario', slug: 'p', scenario: 'quote', tab: 'blocks' }, memory, ['quote', 'tour'])).toEqual({ slug: 'p', scenario: 'quote' });

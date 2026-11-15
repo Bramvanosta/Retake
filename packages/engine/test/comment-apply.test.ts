@@ -129,8 +129,8 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('Apply (T5)', () => {
-  it('⚑ writes exactly the result bytes through the Studio write path and appends the apply entry; Undo gives the base back, the proposal reads undone and applies again (critique B4)', async () => {
+describe('Apply', () => {
+  it('⚑ writes exactly the result bytes through the Studio write path and appends the apply entry; Undo gives the base back, the proposal reads undone and applies again', async () => {
     const id = await setup('quote', TEXT);
     const p = await proposed('quote', id, SHORTER);
     const a = await ui.comments.apply('w', id, { entry_id: p.entry, if_match: p.hash });
@@ -184,7 +184,7 @@ describe('Apply (T5)', () => {
     expect((await ui.comments.proposal('w', okId)).blocked).toBeUndefined();
   });
 
-  it('⚑ a full thread refuses before the scenario is written (review A L5 / B M3): the entry cap and the file-size cap, nothing written', async () => {
+  it('⚑ a full thread refuses before the scenario is written: the entry cap and the file-size cap, nothing written', async () => {
     const filler = (i: number) => ({ id: `r_01JQ2${String(i).padStart(21, '0')}`, kind: 'reply', author: { via: 'cli', name: 'Reviewer' }, text: 'More.', created_at: '2026-10-27T09:07:00.000Z' });
     // 499 entries + the proposal = 500: the apply entry would be the 501st.
     const full = await setup('full', TEXT, [...Array.from({ length: 499 }, (_, i) => filler(i)), planted(TEXT, SHORTER)]);
@@ -215,7 +215,7 @@ describe('Apply (T5)', () => {
     expect(await state('heavy', heavy)).toEqual(b2);
   });
 
-  it('⚑ a tampered result hash and ⚑ non-canonical hunks (critique B1) are refused: the bytes Apply writes are the bytes the diff shows', async () => {
+  it('⚑ a tampered result hash and ⚑ non-canonical hunks are refused: the bytes Apply writes are the bytes the diff shows', async () => {
     const tamperedId = await setup('tampered', TEXT, [planted(TEXT, SHORTER, { proposal: { result_sha256: sha('another text') } })]);
     let before = await state('tampered', tamperedId);
     let e = await failure(ui.comments.apply('w', tamperedId, { entry_id: 'r_01JQ1000000000000000000PR1', if_match: sha(before[0]) }));
@@ -283,7 +283,7 @@ describe('Apply (T5)', () => {
     expect((await readThread('channel', id)).entries.at(-1)?.author.via).toBe('cli');
   });
 
-  it('⚑ critique B5: the thread lock is held across the scenario write and the apply entry — a reply arriving meanwhile waits and lands after', async () => {
+  it('⚑ the thread lock is held across the scenario write and the apply entry — a reply arriving meanwhile waits and lands after', async () => {
     for (let round = 0; round < 3; round++) {
       const scenario = `locked${round}`;
       const id = await setup(scenario, TEXT);

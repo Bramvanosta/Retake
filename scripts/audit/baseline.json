@@ -48,7 +48,7 @@
   },
   {
    "rule": "core-context",
-   "reason": "Two imports of a later context, measured when the contexts were drawn (L7.35): the scenario's checks read the default theme's component names (template-defaults, theme) to check a scenario's components, and a script's draft checks its page paths with the inspection's grammar (inspectPathProblem, run). Each goes when that value moves below the scenario context (a follow-up of U10).",
+   "reason": "Two imports of a later context, measured when the contexts were drawn: the scenario's checks read the default theme's component names (template-defaults, theme) to check a scenario's components, and a script's draft checks its page paths with the inspection's grammar (inspectPathProblem, run). Each goes when that value moves below the scenario context.",
    "entries": [
     "packages/core/src/checks/scenario.ts → packages/core/src/template-defaults.ts",
     "packages/core/src/script-draft.ts → packages/core/src/inspect.ts"
@@ -95,7 +95,7 @@
   },
   {
    "rule": "workspace-read",
-   "reason": "agent-written.ts reads the workspaces of an agent's write and a scenario's hooks for `retake hooks trust` on core io's loaders: the file belongs to the lot in flight beside this one (L7.39), switched onto the port after it lands",
+   "reason": "agent-written.ts reads the workspaces of an agent's write and a scenario's hooks for `retake hooks trust` on core io's loaders: the file is not on the port yet and goes onto it in a later change",
    "entries": [
     "packages/engine/src/agent-written.ts → findWorkspaceUpward",
     "packages/engine/src/agent-written.ts → loadScenario",
@@ -104,7 +104,7 @@
   },
   {
    "rule": "shell-op",
-   "reason": "The Studio's own ops (18 in 6 files on 2026-11-12, after L7.14 moved its ten read-only queries, L7.17 its eleven theme and library ops, L7.15 its six submits and job controls, L7.16 its twelve comment ops and L7.18 scenario_edit and its seven record ops): every use case the engine serves is its operation now; these hold the server's own state (its index, player, leases, set-up and update state, unsaved tabs, the desktop pipe) and stay here.",
+   "reason": "The Studio's own ops (18 in 6 files on 2026-11-12): every use case the engine serves is its operation now; these hold the server's own state (its index, player, leases, set-up and update state, unsaved tabs, the desktop pipe) and stay here.",
    "entries": [
     "packages/ui/src/server/desktop.ts → 1 operation defined",
     "packages/ui/src/server/ops.ts → 5 operations defined",
@@ -179,7 +179,7 @@
   },
   {
    "rule": "record-read",
-   "reason": "Prune reads the run folders through the reader (L7.7) and keeps its lenient read for one case: a run.json the reader does not take as a record (a finished run without its end, a failed one without its error, a linked file) is still read as any object with a text id and status, so that a take prune could delete before the lot can still be deleted — leaving such a take alone is a change nobody decided. Where this read is stricter than before it only keeps: a file of a newer format is left alone, one that is no regular file or is over the reader's cap is not read. Its second read (L7.6b) is of renders/: a record file that is a link is not opened by the one reader of renders/, and is read through the link for the id, the take, the scenario and the creation time it says — never taken as a record — so that a linked record keeps the render and the take it kept before the lot.",
+   "reason": "Prune reads the run folders through the reader and keeps its lenient read for one case: a run.json the reader does not take as a record (a finished run without its end, a failed one without its error, a linked file) is still read as any object with a text id and status, so that a take prune could delete with its earlier rules can still be deleted — leaving such a take alone is a change nobody decided. Where this read is stricter than before it only keeps: a file of a newer format is left alone, one that is no regular file or is over the reader's cap is not read. Its second read is of renders/: a record file that is a link is not opened by the one reader of renders/, and is read through the link for the id, the take, the scenario and the creation time it says — never taken as a record — so that a linked record keeps the render and the take it kept with the earlier rules.",
    "entries": [
     "packages/engine/src/prune.ts → 2 own reads of a run folder's or renders/'s file"
    ]

@@ -111,7 +111,7 @@ function work(drive: (w: RecordPage) => Promise<void>): Promise<number> {
   });
 }
 
-describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9 part C)', () => {
+describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record', () => {
   it('the Record start form; a recording live with its draft; done; the Discard dialog (focus in, Escape, focus back)', async () => {
     const { page } = t;
     let r = await station(t, 'record-start', () => go(page, at(`/p/${N}/record`), '[data-testid="record-start-form"]'), { schemes: RECORD_SCHEMES });
@@ -250,7 +250,7 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
   }, 180_000);
 });
 
-describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
+describe.skipIf(!canRun)('⚑ the keyboard-only path', () => {
   it('Skip to content → demo → bits → select and move a step, undo → timeline → a layout switch, undo → Comments → a reply', async () => {
     const { page } = t;
     const file = join(t.dir, 'scenarios', 'bits.yaml');

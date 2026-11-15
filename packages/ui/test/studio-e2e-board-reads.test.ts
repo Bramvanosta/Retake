@@ -129,7 +129,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('the open project reads by events, never by steps (reviews A-H1, B-H1)', () => {
+describe('the open project reads by events, never by steps', () => {
   it('⚑ a take from a terminal with the Project screen and the Cast open: project_board / project_get / auth_status bounded by its changes, not its steps', async () => {
     const proj = await tab(`/p/${P}`);
     await proj.locator('[role="option"]').first().waitFor(POLL);
@@ -236,7 +236,7 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
     await page.context().close();
   });
 
-  it("⚑ L5.11a (critique H2): 10 quick arrow keys read the status bar's scenario ≤ 2 times; on the Scenario screen a change of the file is one scenario_blocks and no scenario_actions", async () => {
+  it("⚑ 10 quick arrow keys read the status bar's scenario ≤ 2 times; on the Scenario screen a change of the file is one scenario_blocks and no scenario_actions", async () => {
     const page = await tab(`/p/${P}`);
     const grid = page.getByRole('listbox');
     await page.locator('[role="option"]').first().waitFor(POLL);
@@ -292,7 +292,7 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
   });
 });
 
-describe("the Project screen's homes and widths (reviews B-M1, B-M2)", () => {
+describe("the Project screen's homes and widths", () => {
   it('the inspector hidden: the selected production, then the project, then a location show in the centre pane, under a heading', async () => {
     const page = await tab(`/p/${P}`);
     await page.locator('[role="option"]').first().click();
@@ -335,7 +335,7 @@ describe("the Project screen's homes and widths (reviews B-M1, B-M2)", () => {
     await page.context().close();
   });
 
-  it('A-L1: a production the search hides is no longer selected — the inspector shows the project; B-L4: the search keeps its limits', async () => {
+  it('a production the search hides is no longer selected — the inspector shows the project; the search keeps its limits', async () => {
     const page = await tab(`/p/${P}`);
     await page.locator('[role="option"][data-id="quote"]').click();
     const inspector = page.getByRole('complementary', { name: 'Inspector' });
@@ -355,7 +355,7 @@ describe("the Project screen's homes and widths (reviews B-M1, B-M2)", () => {
     await page.context().close();
   });
 
-  it("A-L6, B-L6, B-L1: the warnings' disclosure says what it shows; the README preview a tab stop; the folder its full path in a tooltip; a persona's location on its own line", async () => {
+  it("the warnings' disclosure says what it shows; the README preview a tab stop; the folder its full path in a tooltip; a persona's location on its own line", async () => {
     const page = await tab('/p/warned');
     await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor(POLL);
     expect(await page.locator('main summary').innerText()).toBe('Show the warning');

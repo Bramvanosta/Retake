@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { JOB_CLASS, JOB_KINDS, isFilming, jobClass } from '../src/jobs/job-input.js';
 
-describe('job classes (L5.14)', () => {
+describe('job classes', () => {
   it('every kind has a class: the captures and the heavy jobs of BL-116, nothing else', () => {
     expect(Object.keys(JOB_CLASS).sort()).toEqual([...JOB_KINDS].sort());
     const of = (c: string) => JOB_KINDS.filter((k) => JOB_CLASS[k] === c).sort();

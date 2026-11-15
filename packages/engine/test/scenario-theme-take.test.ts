@@ -94,7 +94,7 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe("a scenario's theme on an existing take (critique B1)", () => {
+describe("a scenario's theme on an existing take", () => {
   it("set_field template → the take's next plan uses the new theme and its hash; a theme edit changes the hash; removing it restores the project's", async () => {
     engine.timeline.forget();
     const before = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
@@ -125,7 +125,7 @@ describe("a scenario's theme on an existing take (critique B1)", () => {
     expect(await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }))).toMatchObject({ theme: 'editorial', theme_sha256: before.theme_sha256 });
   });
 
-  it('review B L4: a listed theme whose components do not resolve is offered disabled, with why (path-free)', async () => {
+  it('a listed theme whose components do not resolve is offered disabled, with why (path-free)', async () => {
     const broken = join(root, 'templates', 'broken');
     await cp(join(root, 'templates', 'brand'), broken, { recursive: true });
     const tpl = join(broken, 'template.yaml');

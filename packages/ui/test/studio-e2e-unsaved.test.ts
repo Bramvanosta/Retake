@@ -70,7 +70,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('the unsaved-text report (L5.2b, M6)', () => {
+describe('the unsaved-text report', () => {
   it('nothing typed: no report at all', async () => {
     await page.goto(`${studio.url}#/p/${P}/readme`);
     await page.getByRole('heading', { level: 1, name: 'README.md' }).waitFor(POLL);
@@ -115,7 +115,7 @@ describe('the unsaved-text report (L5.2b, M6)', () => {
     expect(bodies.at(-1)).toMatch(/"hidden":true,"items":\[\]\}$/);
   });
 
-  it('review B L7: the Library component words, a changed new-theme form and a colour draft are named; leaving each clears it', async () => {
+  it('the Library component words, a changed new-theme form and a colour draft are named; leaving each clears it', async () => {
     await page.goto(`${studio.url}#/p/${P}/library`);
     await page.getByTestId('lib-create-open').click();
     await page.getByTestId('lib-create-words').fill('A split intro with the logo left');

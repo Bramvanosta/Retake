@@ -419,7 +419,7 @@ describe('template_create_from_brand (engine)', () => {
     expect(await refusal(engine.templates.create(input({ name: 'self', base: 'self' })))).toMatchObject({ code: 'invalid' });
   });
 
-  it('⚑ L4.7 review A M1: a base theme font held by a hard link is refused (never copied into the new theme)', async () => {
+  it('⚑ a base theme font held by a hard link is refused (never copied into the new theme)', async () => {
     const base = join(root, 'templates', 'hard-base');
     await cp(join(T, 'motion'), base, { recursive: true });
     await writeFile(join(base, 'template.yaml'), (await readFile(join(T, 'motion', 'template.yaml'), 'utf8')).replace('name: motion', 'name: hard-base'));

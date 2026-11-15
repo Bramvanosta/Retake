@@ -63,7 +63,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe('the component use cases a shell calls (L7.24)', () => {
+describe('the component use cases a shell calls', () => {
   it("create: a shell may scaffold over a built-in id (overrides names the built-in), the MCP form refuses it; a bad id is the scaffold's own words", async () => {
     await expect(componentCreate(ws, { id: 'studio/intro-stack', kind: 'intro', description: 'Mine.' }, scope())).rejects.toMatchObject({ code: 'refused' });
     const created = await componentCreateShell(ws, { id: 'studio/intro-stack', kind: 'intro', description: 'Mine.' }, scope());

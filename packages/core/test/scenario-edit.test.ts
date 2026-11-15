@@ -84,7 +84,7 @@ describe('changedHookSections', () => {
   });
 });
 
-describe('agentTrustProblemsAt (critique B11)', () => {
+describe('agentTrustProblemsAt', () => {
   it('places each secret reference, file reference and template folder at its line; the same problems as agentTrustProblems', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ds-trust-at-'));
     writeFileSync(join(dir, 'x.txt'), 'x');
@@ -120,8 +120,8 @@ describe('agentTrustProblemsAt (critique B11)', () => {
   });
 });
 
-describe('review fixes (L4.3 review A)', () => {
-  it('H1: while the base has a hook or a mock, its vars and env are frozen too; without one they are free', () => {
+describe('frozen fields, hidden characters and line breaks', () => {
+  it('while the base has a hook or a mock, its vars and env are frozen too; without one they are free', () => {
     const v = (t: string) => parseYaml(t).value;
     const hooked = v('vars: {customer: Acme}\nsetup:\n  - shell: "echo {{vars.customer}}"\nscenes: []\n');
     expect(changedHookInputs(hooked, v('vars: {customer: "x; cat ~/.ssh/k"}\nsetup:\n  - shell: "echo {{vars.customer}}"\nscenes: []\n'))).toEqual(['vars']);
@@ -136,7 +136,7 @@ describe('review fixes (L4.3 review A)', () => {
     );
   });
 
-  it('M2: a carriage return without a line feed is a hidden character (a CR LF is not)', () => {
+  it('a carriage return without a line feed is a hidden character (a CR LF is not)', () => {
     const base = 'a: 1\nb: 2\n';
     expect(newHiddenCharProblem('a: 1  # x\r  b: 3\nb: 2\n', base)).toBe(
       'line 1, column 10 holds U+000D (a carriage return without a line feed): the Studio never writes one (it reads as nothing, or as a line break, in an editor) — remove it',
@@ -146,7 +146,7 @@ describe('review fixes (L4.3 review A)', () => {
     expect(editValueProblem('one\r\ntwo', { field: 'note', multiline: true })).toBeNull();
   });
 
-  it('L2: a hidden character the file has may not move to another line; the class covers default-ignorable characters and fillers', () => {
+  it('a hidden character the file has may not move to another line; the class covers default-ignorable characters and fillers', () => {
     const rlo = cp(0x202e);
     const base = `video: v\n# note ${rlo}x\nscenes: []\n`;
     // Moved from a comment into a value: the count is the same, the line is new.

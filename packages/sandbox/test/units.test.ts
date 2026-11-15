@@ -190,7 +190,7 @@ describe('take lock', () => {
     ]);
   });
 
-  it.skipIf(!posix)('two commands finding the same stale lock never both take it (P1): created whole, broken under a breaker', async () => {
+  it.skipIf(!posix)('two commands finding the same stale lock never both take it: created whole, broken under a breaker', async () => {
     const file = join(tmp, 'lock3', 'take.lock');
     await mkdir(join(tmp, 'lock3'), { recursive: true });
     const script = [

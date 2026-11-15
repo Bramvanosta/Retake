@@ -116,7 +116,7 @@ function shellMark(source: string): { marks: number; props: Record<string, unkno
   return { marks: found.length, props, inHeader, first: kids[0] === mark, nameNext: next !== undefined && /\{APP_NAME\}/.test(next.getText(file)) };
 }
 
-describe('the "two takes" mark: one drawing, three variants (L5.13b, R-REN-03)', () => {
+describe('the "two takes" mark: one drawing, three variants (R-REN-03)', () => {
   it('« Nette » as validated: the full mark keeps the play triangle at its size; the small and tiny ones drop it; the variant follows the size', () => {
     expect(shapes(markSvg('full', MARK_INK))).toEqual([
       'rect x=2 y=2 width=96 height=96 rx=22',

@@ -118,7 +118,7 @@ describe('FileJobQueue', () => {
     expect((await q.list({ states: ['cancelled'] })).map((j) => j.id)).toEqual([a.id]);
   });
 
-  it('L5.14a fixes (review B M4): position per lane (captures before heavy jobs); a heavy job a take holds says held_by "take", never "next"', async () => {
+  it('position per lane (captures before heavy jobs); a heavy job a take holds says held_by "take", never "next"', async () => {
     const { FilmingMarker } = await import('../src/jobs/captures.js');
     const { selfIdentity } = await import('../src/jobs/proc.js');
     const root = join(ws, 'q-lanes');
@@ -150,7 +150,7 @@ describe('FileJobQueue', () => {
     expect(await q.position(r1.id)).toEqual({ ahead: 0 });
   });
 
-  it('L5.14a fixes: a running job whose recorded worker pid is 0, 1 or -1 is derived interrupted (never a live worker)', async () => {
+  it('a running job whose recorded worker pid is 0, 1 or -1 is derived interrupted (never a live worker)', async () => {
     const q = new FileJobQueue(join(ws, 'q-badpid'));
     for (const pid of [0, 1, -1]) {
       const rec = await q.enqueue({ ...INPUT, run_id: `20261017-16000${pid + 1}-quote` });
@@ -221,7 +221,7 @@ describe('the worker lock', () => {
     b!.release();
   });
 
-  it('started_by (L4.2): the client that started it, a client name only — anything else is dropped, written or read', async () => {
+  it('started_by: the client that started it, a client name only — anything else is dropped, written or read', async () => {
     const root = join(ws, 'lock-started-by');
     const a = await WorkerLock.acquire(root, 'b1', systemClock, undefined, 'ui');
     expect(readWorkerLock(root)).toMatchObject({ pid: process.pid, started_by: 'ui' });
@@ -239,7 +239,7 @@ describe('the worker lock', () => {
     expect(read?.started_by).toBeUndefined();
   });
 
-  it('a lock without its start time naming a live pid is stale (review A #7: a forged lock kept every worker off)', async () => {
+  it('a lock without its start time naming a live pid is stale (a forged lock kept every worker off)', async () => {
     const root = join(ws, 'lock-forged');
     const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: 'ignore' });
     try {
@@ -431,7 +431,7 @@ describe('a job runs the scenario bytes it was submitted with', () => {
   });
 });
 
-describe('captures first in the job views (L5.14b)', () => {
+describe('captures first in the job views', () => {
   it('a heavy job held by a take reads `yield`: waiting (queued), background or past the cap (running, from yield.json); words fixed; never written back', async () => {
     const { FilmingMarker } = await import('../src/jobs/captures.js');
     const { JobsWatch } = await import('../src/index-db/jobs-watch.js');

@@ -245,7 +245,7 @@ describe('typed fields (R-CHO-14, R-CHO-15)', () => {
   });
 });
 
-describe('review fixes K9, K11, K12', () => {
+describe('text tiers, date bounds and large re-renders', () => {
   beforeAll(async () => {
     await page.goto(`${server.url}/widget.html`);
     await page.frameLocator('#w').locator('#fr-save').waitFor();

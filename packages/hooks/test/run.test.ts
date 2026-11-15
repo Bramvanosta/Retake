@@ -61,7 +61,7 @@ describe('runHooks: setup', () => {
     expect(logText()).toContain('info setup hook 1/2: a: shell "echo a >> order.log"');
   });
 
-  it('templates {{run.id}} and {{run.dir}}: a capture has a run folder, `retake hooks run` none (L1.2 review: D4)', async () => {
+  it('templates {{run.id}} and {{run.dir}}: a capture has a run folder, `retake hooks run` none', async () => {
     const project = makeProject(tmp.dir, { console: api.base });
     const runDir = join(tmp.dir, 'runs/20261011-142233-catalogue');
     const { ctx } = makeContext(project, { runId: '20261011-142233-catalogue', runDir });

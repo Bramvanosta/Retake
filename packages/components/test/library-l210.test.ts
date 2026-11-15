@@ -69,7 +69,7 @@ function render(
   return renderToString(createElement(modules[id].default as ComponentType<ComponentProps>, props));
 }
 
-describe('the L2.10 components are valid, versioned and declare every format', () => {
+describe('the tutorial overlays and story cards are valid, versioned and declare every format', () => {
   it.each(IDS)('%s', async (id) => {
     const issues = await validateComponent(dirOf(id));
     expect(issues.filter((i) => i.severity === 'error')).toEqual([]);

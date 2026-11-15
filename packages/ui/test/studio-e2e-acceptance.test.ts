@@ -189,7 +189,7 @@ afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the installed Google Chrome (L4.9 part D)', () => {
+describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the installed Google Chrome', () => {
   it('projects → highlights; a hold changed in the form (one line); a dry run watched live; a capture', async () => {
     await page.goto(studio.launchUrl());
     await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);

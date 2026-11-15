@@ -100,7 +100,7 @@ describe('catalogue (real timeline)', () => {
     expect(p.notes.some((x) => /"import": waiting .* played at up to 4×/.test(x))).toBe(true);
   });
 
-  it('plays the loading of the new product page faster (L2.12: the root cause of the `long-wait`), the reveal at 1×', () => {
+  it('plays the loading of the new product page faster (the root cause of the `long-wait`), the reveal at 1×', () => {
     const ap = clip(p, 'add-product');
     const evs = events(tl, 'add-product');
     const click = evs.find((e) => e.step === 2)!;
@@ -285,7 +285,7 @@ describe('quote (real timeline)', () => {
     expect(d.slice(1).every((f, i) => f - d[i] === 1)).toBe(true);
   });
 
-  it('names the marked step on its marker, though the satisfied wait owns no frame of the clip (L3.6)', () => {
+  it('names the marked step on its marker, though the satisfied wait owns no frame of the clip', () => {
     const mk = p.markers.find((m) => m.name === 'proposal')!;
     const tm = tl.markers.find((m) => m.name === 'proposal')!;
     const ev = events(tl, 'proposal').find((e) => e.step === tm.step)!;

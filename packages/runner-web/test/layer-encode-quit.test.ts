@@ -14,7 +14,7 @@ import type { CursorFrame } from '../src/raw/cursor.js';
 const dir = mkdtempSync(join(tmpdir(), 'rw-layer-quit-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-describe('a cursor layer whose ffmpeg quits early (L7.31)', () => {
+describe('a cursor layer whose ffmpeg quits early', () => {
   it('fails with "exited with code 1 (cursor layer)" and the process survives the closed pipe', async () => {
     // Reads a few bytes of the first frame, says why on stderr and quits: the frames still to come meet a closed pipe.
     const tool = join(dir, 'quits');

@@ -176,7 +176,7 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe('the timeline previews a proposal (T8, critique B9)', () => {
+describe('the timeline previews a proposal', () => {
   it('⚑ plans the proposed caption on the commented take, writes nothing and ⚑ never makes the proposed text a restorable version; the memo keeps the two views apart', async () => {
     ui.timeline.forget();
     await writeFile(scenarioFile(), TEXT);
@@ -268,7 +268,7 @@ describe('the timeline previews a proposal (T8, critique B9)', () => {
     });
   }, 120_000);
 
-  it("the plan carries the workspace components the proposal uses: what the Studio's preview hold reads (part C)", async () => {
+  it("the plan carries the workspace components the proposal uses: what the Studio's preview hold reads", async () => {
     ui.timeline.forget();
     await writeFile(scenarioFile(), TEXT);
     const id = await thread();

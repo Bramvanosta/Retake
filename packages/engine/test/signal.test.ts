@@ -16,7 +16,7 @@ function recorder() {
   return { calls, kill: (target: number, sig: NodeJS.Signals) => void calls.push([target, sig]) };
 }
 
-describe('signalTree (L5.14a fixes)', () => {
+describe('signalTree', () => {
   it('never signals -1, 0, 1, a non-integer, this process or its own group — alone or as a tree', async () => {
     const group = ownProcessGroup();
     expect(group).toBeGreaterThan(1);

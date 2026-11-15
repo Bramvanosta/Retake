@@ -300,7 +300,7 @@ describe('held page loads (R-ISS-08)', () => {
   });
 });
 
-describe('off camera in the raw export (L5.8, R-FLD-31)', () => {
+describe('off camera in the raw export (R-FLD-31)', () => {
   it('a hook step is cut from its clip (with or without the loading cuts), an offscreen scene has no clip', () => {
     const tl = {
       run_id: 'r',
@@ -646,7 +646,7 @@ describe('markers and interchange files (R-RAW-03)', () => {
   });
 });
 
-describe('URLs in the package (L1.7, R-ENV-01)', () => {
+describe('URLs in the package (R-ENV-01)', () => {
   it('step markers and click targets name a URL as the video shows it: the display URL, else its path — never a local host', () => {
     const tl = fixture('catalogue');
     const step = tl.events.find((e) => e.step >= 0 && e.action === 'click')!;
@@ -715,7 +715,7 @@ describe('cursor model (R-RAW-02)', () => {
     expect(frames[0].icon).toBe('arrow');
   });
 
-  it('runs before L2.13: presses and ripples from the button samples, hand over a clicked button', () => {
+  it('older runs: presses and ripples from the button samples, hand over a clicked button', () => {
     const fx = approximateEffects(
       [
         { t: 1, x: 5, y: 5, visible: true },

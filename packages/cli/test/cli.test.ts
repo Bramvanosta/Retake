@@ -195,7 +195,7 @@ describe('parseEnvOptions', () => {
   });
 });
 
-describe('sandboxes in validate, schema and env reset (L1.8)', () => {
+describe('sandboxes in validate, schema and env reset', () => {
   // A workspace of their own: the first describe's list holds the demo project alone.
   let sws: string;
   const retake = (...args: string[]) => retakeIn(sws, ...args);

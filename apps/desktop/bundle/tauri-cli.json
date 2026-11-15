@@ -1,6 +1,6 @@
 {
  "v": 1,
- "about": "The Tauri CLI bundle.mjs lays the app out with (tauriCli), rebuilt offline from the pnpm store: every file of both packages with the sha512 recorded when it was pinned (review A M2). A store whose index or files differ is refused. Upgrading: fetch the new version once with a network (pnpm dlx @tauri-apps/cli@<version> --version), check it against the npm registry, then record its files here; its major.minor must stay the tauri crate's (a test).",
+ "about": "The Tauri CLI bundle.mjs lays the app out with (tauriCli), rebuilt offline from the pnpm store: every file of both packages with the sha512 recorded when it was pinned. A store whose index or files differ is refused. Upgrading: fetch the new version once with a network (pnpm dlx @tauri-apps/cli@<version> --version), check it against the npm registry, then record its files here; its major.minor must stay the tauri crate's (a test).",
  "version": "2.12.4",
  "packages": {
   "@tauri-apps/cli": {

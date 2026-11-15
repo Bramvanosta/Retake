@@ -180,7 +180,7 @@ describe('preview job input', () => {
     expect(ok({ at_s: 601 })).toBe(false);
   });
 
-  it('a library target (L4.7): 1–12 registry ids once each, each with the keys it asks for (32 hex), never a path or a slot', () => {
+  it('a library target: 1–12 registry ids once each, each with the keys it asks for (32 hex), never a path or a slot', () => {
     const k = 'a'.repeat(32);
     const ok = (t: Record<string, unknown>) => PreviewJobInputSchema.safeParse(preview({ target: { kind: 'library', ...t } })).success;
     expect(
@@ -213,7 +213,7 @@ describe('preview job input', () => {
   });
 });
 
-describe('inspect job input (L3.3)', () => {
+describe('inspect job input', () => {
   const inspect = (extra: Record<string, unknown> = {}) => ({
     version: JOB_INPUT_VERSION,
     kind: 'inspect',
@@ -259,7 +259,7 @@ describe('inspect job input (L3.3)', () => {
   });
 });
 
-describe('record job input (L3.4)', () => {
+describe('record job input', () => {
   const record = (extra: Record<string, unknown> = {}) => ({
     version: JOB_INPUT_VERSION,
     kind: 'record',

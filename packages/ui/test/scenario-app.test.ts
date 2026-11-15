@@ -196,7 +196,7 @@ describe('ThumbLoader', () => {
   });
 });
 
-describe('scenario screen events (critique B1)', () => {
+describe('scenario screen events', () => {
   const ws = (e: Partial<Extract<StudioEvent, { type: 'workspace' }>>): StudioEvent => ({ type: 'workspace', projects: ['p'], readme: [], ...e });
   const run = (change: 'new' | 'status' | 'progress' | 'removed', o: { project?: string; scenario?: string | null; run?: string } = {}) => ({
     project: o.project ?? 'p',
@@ -230,23 +230,23 @@ describe('scenario screen events (critique B1)', () => {
     }
   });
 
-  it('a jobs event: no re-read, only a check of the run shown running (review B M4: a dead worker writes no run.json)', () => {
+  it('a jobs event: no re-read, only a check of the run shown running (a dead worker writes no run.json)', () => {
     expect(act({ type: 'jobs', changed: ['job-1'] } as StudioEvent)).toEqual({ reread: false, progress: [], jobs: true });
   });
 });
 
-describe('scenario screen words (review fixes)', () => {
-  it('a run error leads with the screen’s 1-based step (review B M2); anything else is left as it is', () => {
+describe('scenario screen words: errors, actions and layouts', () => {
+  it('a run error leads with the screen’s 1-based step; anything else is left as it is', () => {
     expect(runErrorWords('scene proposal, step 2 (click “Send”): timeout')).toBe('step 3 of proposal (click “Send”): timeout');
     expect(runErrorWords('scene a, step 0: unknown page "x"')).toBe('step 1 of a: unknown page "x"');
     expect(runErrorWords('page.goto: net::ERR_CONNECTION_REFUSED (scene a, step 0)')).toBe('page.goto: net::ERR_CONNECTION_REFUSED (scene a, step 0)');
   });
 
-  it('a step with no single action says so (review B M3)', () => {
+  it('a step with no single action says so', () => {
     expect(missingWords({ missing: 'unreadable', why: 'this step has no single action (fix it in the file)' })).toBe('Cannot tell: this step has no single action (fix it in the file)');
   });
 
-  it('a scene’s layout: its frame, else the video’s, else the render’s choice for several pages (review B M1)', () => {
+  it('a scene’s layout: its frame, else the video’s, else the render’s choice for several pages', () => {
     expect(layoutWords(undefined, 'pip', 2)).toBe('2 pages, picture in picture (pip) — the video’s frame');
     expect(layoutWords('split', 'pip', 2)).toBe('2 pages, side by side (split)');
     expect(layoutWords(undefined, undefined, 2)).toMatch(/^2 pages: chosen at render — side by side \(split\), or picture in picture \(pip\)/);

@@ -373,7 +373,7 @@ describe('mocks, allow entries, GraphQL (R-ENV-03)', () => {
   });
 });
 
-describe('writes sent while a page unloads never leak (D3)', () => {
+describe('writes sent while a page unloads never leak', () => {
   it('sendBeacon and keepalive fetches in pagehide / visibilitychange: on a navigation, a tab closed by the runner, the session closed — 3 times each', async () => {
     // The guard turns them into ordinary fetches: one the unloading document cancels before it reaches the network is
     // never seen at all (nothing leaks either) — some round may see none, the three rounds together see some.
@@ -400,7 +400,7 @@ describe('writes sent while a page unloads never leak (D3)', () => {
   });
 });
 
-describe('service workers (D10): what a service worker sends meets the guard', () => {
+describe('service workers: what a service worker sends meets the guard', () => {
   it('a write a service worker sends to answer the page, or in the background, is stopped', async () => {
     const s = await guarded();
     try {

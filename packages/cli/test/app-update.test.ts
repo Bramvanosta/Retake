@@ -131,7 +131,7 @@ function miniApp(): string {
   return app;
 }
 
-describe.skipIf(!MAC)('the update archive (critique H3)', () => {
+describe.skipIf(!MAC)('the update archive', () => {
   it('made with /usr/bin/tar and COPYFILE_DISABLE: every link kept, no AppleDouble entry, everything under Retake.app/; extracted as the plugin does it equals the app', async () => {
     const { makeUpdateArchive, linkCount, treeDigest } = await bundle();
     const app = miniApp();

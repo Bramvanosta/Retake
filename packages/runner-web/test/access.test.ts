@@ -88,7 +88,7 @@ describe('a read-only run refuses its writing hooks before anything runs (R-ENV-
     expect(saved.environment).toEqual(rec.environment);
   });
 
-  it('an sql hook whose statements are in a project file: the file is read and its write listed (L7.34: the run hands the check its FileFacts)', async () => {
+  it('an sql hook whose statements are in a project file: the file is read and its write listed (the run hands the check its FileFacts)', async () => {
     const p = project();
     await mkdir(join(p.dir, 'sql'), { recursive: true });
     await writeFile(join(p.dir, 'sql', 'reset.sql'), 'DELETE FROM quotes;\n');

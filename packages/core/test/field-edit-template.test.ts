@@ -29,7 +29,7 @@ function refusal(t: string, edit: Parameters<typeof applyFieldEdit>[1]): StepEdi
   throw new Error('not refused');
 }
 
-describe('set_field template (L4.7, critique B1)', () => {
+describe('set_field template', () => {
   it('is a top-level field of kind theme', () => {
     expect(FIELD_PATHS.top).toContain('template');
     expect(fieldKindOf('template')).toBe('theme');

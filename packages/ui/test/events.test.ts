@@ -211,7 +211,7 @@ describe('/v1/events', () => {
   });
 });
 
-describe('comment events (L4.6, T12)', () => {
+describe('comment events', () => {
   /** A thread file written as the store writes it: a temp file in the folder, renamed over its name. */
   const writeThread = async (scenario: string, id: string, body: string) => {
     const folder = join(ws, 'projects', P, 'comments', scenario);
@@ -256,7 +256,7 @@ describe('comment events (L4.6, T12)', () => {
   });
 });
 
-describe('library events (L4.7, critique B5)', () => {
+describe('library events', () => {
   const posterKey = async (id: string) => {
     const r = await call(studio, 'library_view', { project: P });
     expect(r.status, r.body.slice(0, 300)).toBe(200);

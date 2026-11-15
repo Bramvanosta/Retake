@@ -136,9 +136,9 @@ afterAll(async () => {
   await ws?.cleanup();
 });
 
-describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
+describe.skipIf(!can)('render frames for the comment viewer', () => {
   it.skipIf(process.platform !== 'darwin')(
-    'L5.15: a VideoToolbox render (no B-frames, a key frame every 2 s) — the frame shown is the frame asked, both sides of keyframes',
+    'a VideoToolbox render (no B-frames, a key frame every 2 s) — the frame shown is the frame asked, both sides of keyframes',
     async () => {
       const file = v1.record.file;
       const saved = await readFile(file);
@@ -185,13 +185,13 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
     LONG,
   );
 
-  it('frames that cannot be loaded fail the call with their own error, not as a frame that could not be read (L7.11 fix pass)', async () => {
+  it('frames that cannot be loaded fail the call with their own error, not as a frame that could not be read', async () => {
     const broken = new Error('the thumbnail entry cannot be loaded');
     await expect(ask(frames({ frames: { ...FRAMES, load: () => Promise.reject(broken) } }), 1)).rejects.toBe(broken);
   });
 
   it(
-    'the frame shown is the frame asked — both sides of keyframes, the last — and a thread still on it shows the same (T7)',
+    'the frame shown is the frame asked — both sides of keyframes, the last — and a thread still on it shows the same',
     async () => {
       const rf = frames();
       const last = v1.record.frames - 1;
@@ -398,7 +398,7 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
   );
 
   it(
-    '⚑ newest wins at arrival: an older request whose file opens later never drops the newer one (review A L2)',
+    '⚑ newest wins at arrival: an older request whose file opens later never drops the newer one',
     async () => {
       const rf = frames();
       // The first request's open() is slowed: before the fix, it superseded the newer request once its file was open.
@@ -428,7 +428,7 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
   );
 
   it(
-    '⚑ the bound is checked before the file is opened, outlines included; a busy refusal drops nothing (review A L2 / N4)',
+    '⚑ the bound is checked before the file is opened, outlines included; a busy refusal drops nothing',
     async () => {
       const slots = new Semaphore(1);
       const held = await slots.acquire();
@@ -471,7 +471,7 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
   );
 
   it(
-    '⚑ a video that does not start at 0, or whose frame rate varies, is refused (review B L4)',
+    '⚑ a video that does not start at 0, or whose frame rate varies, is refused',
     async () => {
       const video = v1.record.file;
       const saved = join(project.dir, 'renders', 'quote-v1.saved.mp4');

@@ -169,7 +169,7 @@ describe('every client but the CLI starts its worker with it', () => {
     return seen[0];
   }
 
-  it('an MCP client: clean (review A #3: its worker serves the Studio’s later jobs too)', async () => {
+  it('an MCP client: clean (its worker serves the Studio’s later jobs too)', async () => {
     const env = await spawned('mcp');
     expect(env.OPENAI_API_KEY).toBeUndefined();
     expect((env.PATH ?? '').split(delimiter)).not.toContain(join(ws, 'bin'));

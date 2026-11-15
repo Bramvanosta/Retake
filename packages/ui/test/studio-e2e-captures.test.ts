@@ -107,7 +107,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe.skipIf(!canRun)('captures first in the Studio (L5.14)', () => {
+describe.skipIf(!canRun)('captures first in the Studio', () => {
   it('a render held by a take: "waiting for a take to finish", then "slowed during a take", in its row and the status bar; dark and light', async () => {
     await expect.poll(() => page.getByTestId('render-status').innerText(), POLL).toBe('renders this capture with the theme of the files, then reviews it');
     await page.getByTestId('render').click();

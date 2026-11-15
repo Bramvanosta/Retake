@@ -86,7 +86,7 @@ describe('interpolate', () => {
     expect(redact('ab abc a&c', ['ab', 'abc', 'a&c'])).toBe('ab *** ***');
   });
 
-  it('secretForms: as Chrome writes a URL path and query, and as a GET form submits it (L1.2 review: S6)', () => {
+  it('secretForms: as Chrome writes a URL path and query, and as a GET form submits it', () => {
     // Measured in Chromium: the path encodes `^ | { } \`` and spaces, keeps `'`; the query encodes `'` and spaces, keeps
     // `{ | ^ \``; a GET form encodes everything but `*-._` and writes spaces as `+`.
     const forms = secretForms("it's x|y^`{ ü!~");

@@ -77,7 +77,7 @@ afterAll(async () => {
   await rm(ws, { recursive: true, force: true });
 });
 
-describe('set_field through scenarios.edit (L4.5)', () => {
+describe('set_field through scenarios.edit', () => {
   it('a layout switch writes one line, is an edit change, and undoes to the exact bytes (a file with setup hooks: they stay)', async () => {
     const before = await read('quote');
     const edit: ScenarioEdit = { kind: 'set_field', at: atOf(before, 'scene', 'request'), field: 'frame', to: 'laptop' };
@@ -132,7 +132,7 @@ describe('set_field through scenarios.edit (L4.5)', () => {
     expect(one.message).toMatch(/laptop shows one page: this scene films 2/);
   });
 
-  it("review B: the video's frame offers split / pip when a scene films several pages; on an all-multi-page video a one-page layout says it changes none", async () => {
+  it("the video's frame offers split / pip when a scene films several pages; on an all-multi-page video a one-page layout says it changes none", async () => {
     const live = parseYaml(await read('live-quote')).value as { scenes: Obj[] };
     const registry = await ui.components.registry();
     const fit = (await import('@retake/components')).componentFit;
@@ -154,7 +154,7 @@ describe('set_field through scenarios.edit (L4.5)', () => {
     expect(both).toContainEqual(['laptop', true]);
   });
 
-  it('the L4.3 rules: a stale hash or value is a conflict, an allow-list path refused, the file untouched', async () => {
+  it('the write rules: a stale hash or value is a conflict, an allow-list path refused, the file untouched', async () => {
     const before = await read('quote');
     const at = atOf(before, 'scene', 'request');
     const stale = await failure(ui.scenarios.edit(P, 'quote', { hash: sha('other'), edit: { kind: 'set_field', at, field: 'frame', to: 'laptop' } }));

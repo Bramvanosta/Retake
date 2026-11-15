@@ -15,7 +15,7 @@ import type { PreviewComponentTarget } from '../src/render/preview.js';
 const manifestOf = (dir: string): ComponentManifest => parseManifest(readFileSync(join(dir, MANIFEST_FILE), 'utf8'), MANIFEST_FILE).manifest!;
 const noRegistry = {} as ComponentRegistry;
 
-describe("the previews' bundle and the package scaffolds (review B M3)", () => {
+describe("the previews' bundle and the package scaffolds", () => {
   it('a scaffold shown as a target is bundled once, flagged as the scaffold', async () => {
     const dir = scaffoldDir('layout');
     const manifest = manifestOf(dir);

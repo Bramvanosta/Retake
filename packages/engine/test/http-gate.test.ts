@@ -300,7 +300,7 @@ describe('security headers and error statuses', () => {
   });
 });
 
-describe('the player origin (L4.5)', () => {
+describe('the player origin', () => {
   const ASSET: RouteSpec = { methods: ['GET', 'HEAD'], token: false, api: false };
   const o = { port: 4000, token: TOKEN, route: () => ASSET };
   const get = (headers: Record<string, string>, opts: Partial<Parameters<typeof checkRequest>[1]> = {}) =>
@@ -329,7 +329,7 @@ describe('the player origin (L4.5)', () => {
   });
 });
 
-describe('bootstrap codes (B9)', () => {
+describe('bootstrap codes', () => {
   it('single use, valid 60 s, at most 16 waiting', () => {
     let t = 1_000_000;
     const codes = new BootstrapCodes(60_000, () => t);

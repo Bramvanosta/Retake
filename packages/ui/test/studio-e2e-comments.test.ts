@@ -264,7 +264,7 @@ afterAll(async () => {
 let id = '';
 let at = 0;
 
-describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)', () => {
+describe.skipIf(!canRun)('the Comments screen in Chromium', () => {
   it("timeline Comment → the exact frame; a dragged region and the chips; Post writes studio under the Studio's name; viewer = still = thread", async () => {
     // The scenario screen: its open comments (a link in the take strip).
     await page.goto(`${studio.url}#/p/demo/s/bits`);
@@ -486,7 +486,7 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
     await page.getByTestId('thread').waitFor(POLL);
   });
 
-  it('⚑ L5.12b fixes: a frame step re-renders neither the shell, the list nor the thread (A-L1 / A-L2); the alt names the frame shown, one status line (A-L5); no arrow behind a modal (A-L9); Comment this frame brings the text and Post into view at 1440×900 (B-L4); a cancelled pointer draws nothing (A-L4); the palette rows on Comments, the report and Edit write nothing (B-M2)', async () => {
+  it('⚑ a frame step re-renders neither the shell, the list nor the thread; the alt names the frame shown, one status line; no arrow behind a modal; Comment this frame brings the text and Post into view at 1440×900; a cancelled pointer draws nothing; the palette rows on Comments, the report and Edit write nothing', async () => {
     const ops: string[] = [];
     const onOp = (r: { url(): string; method(): string }) => {
       const m = /\/v1\/call\/([a-z_]+)$/.exec(r.url());
@@ -694,7 +694,7 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
 });
 
 // ── Claude's proposal, previewed, applied, undone, applied and re-rendered, resolved ─────────────────────────────
-describe.skipIf(!canRun)("Claude's proposal in Chromium (L4.6 part D2, T14b)", () => {
+describe.skipIf(!canRun)("Claude's proposal in Chromium", () => {
   const scenarioFile = () => join(dir, 'scenarios', 'bits.yaml');
   const HOSTILE = '# <img src=x onerror=alert(1)> עברית: a';
   const PROPOSED = BITS_TEXT.replace('title: {text: Bits}\n', 'title: {text: Bits} \n')

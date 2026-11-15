@@ -108,7 +108,7 @@ describe('RunSecrets (R-RUN-17)', () => {
     }
   });
 
-  it('keeps strings only at the known positions of a run file: never in targets, camera targets, emit data or transition params (L1.2 review: D1, S4)', async () => {
+  it('keeps strings only at the known positions of a run file: never in targets, camera targets, emit data or transition params', async () => {
     const secret = 'ACCT-99812-secret';
     const secrets = new RunSecrets(async () => secret);
     await secrets.prefetch('{{env:X}}');
@@ -153,7 +153,7 @@ describe('RunSecrets (R-RUN-17)', () => {
     expect(JSON.stringify(secrets.redactProgress({ type: 'log', level: 'info', message: `typed ${secret}` }))).not.toContain(secret);
   });
 
-  it('a short secret never corrupts timestamps, enums, ids or files (L1.2 review: S7)', async () => {
+  it('a short secret never corrupts timestamps, enums, ids or files', async () => {
     const pin = new RunSecrets(async () => '2026');
     await pin.prefetch('{{env:PIN}}');
     const rec = {
@@ -328,7 +328,7 @@ describe('templating and secrets in a run (R-RUN-16, R-RUN-17)', () => {
     expect(texts['log.jsonl']).toContain('"desc":"\\"***\\" into label=');
   });
 
-  it('a text read by capture_text is kept as captured; the description of its target is not (L1.2 review: S4)', async () => {
+  it('a text read by capture_text is kept as captured; the description of its target is not', async () => {
     const { rec } = await run('capture-who', {
       scenes: [
         {

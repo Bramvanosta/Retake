@@ -184,7 +184,7 @@ describe('scenario_edit', () => {
   });
 });
 
-describe('step edits over HTTP (part 2)', () => {
+describe('step edits over HTTP', () => {
   const KEYS = 'video: keys\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - click: A1\n      - click: A2\n      - click: A3\n';
   const guardOf = (step: unknown) => createHash('sha256').update(JSON.stringify(step)).digest('hex').slice(0, 16);
 
@@ -243,7 +243,7 @@ describe('step edits over HTTP (part 2)', () => {
   });
 });
 
-describe('forms and the palette over HTTP (part 3)', () => {
+describe('forms and the palette over HTTP', () => {
   const FORM = 'video: form\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - click: {aria: Increase, in: dialog}\n      - hold: 0.5\n';
   const guardOf = (step: unknown) => createHash('sha256').update(JSON.stringify(step)).digest('hex').slice(0, 16);
   const g0 = guardOf({ click: { aria: 'Increase', in: 'dialog' } });
@@ -337,7 +337,7 @@ describe('forms and the palette over HTTP (part 3)', () => {
   });
 });
 
-describe('timeline switches over HTTP (L4.5 part D)', () => {
+describe('timeline switches over HTTP', () => {
   const FIELD = 'video: field\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n  - card: {slots: {title: Two}}\n    id: c1\n';
   const guard = (text: string, i: number) => stepGuard((parseYaml(text).value as { scenes: unknown[] }).scenes[i]);
 
@@ -406,7 +406,7 @@ describe('timeline switches over HTTP (L4.5 part D)', () => {
     expect(await readFile(file('field'), 'utf8')).toBe(FIELD);
   });
 
-  it('review B H2: the outro switch over an outro with its own tagline is refused — the tagline survives, nothing written', async () => {
+  it('the outro switch over an outro with its own tagline is refused — the tagline survives, nothing written', async () => {
     const text = FIELD.replace('video: field\n', 'video: field\noutro:\n  tagline: Order in two clicks\n');
     await writeFile(file('field'), text);
     for (const edit of [

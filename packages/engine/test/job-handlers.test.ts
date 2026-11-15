@@ -56,7 +56,7 @@ function jobRun(over: Partial<JobRun> = {}, aborted = false): JobRun {
 
 const handle = (input: Record<string, unknown>, run = jobRun()) => handleJob(input as never, run);
 
-describe('one handler per job kind (L7.29): the state each kind ends with, as the switch had it', () => {
+describe('one handler per job kind: the state each kind ends with, as the switch had it', () => {
   it('a run: succeeded, or cancelled with its untrusted message (else "run cancelled"); its progress kept; the live picture and the pause gate handed on', async () => {
     answers.run = { status: 'succeeded' };
     expect(await handle({ kind: 'run', run_id: 'r', mode: 'dry' })).toEqual({ result: { status: 'succeeded' }, state: 'succeeded', progress: true });

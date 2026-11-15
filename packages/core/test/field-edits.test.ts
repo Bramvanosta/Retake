@@ -254,7 +254,7 @@ describe('set_field: placement and forms', () => {
     expect(changedLines(off.text, theme.text)).toEqual({ removed: ['intro: false'], added: [] });
   });
 
-  it("review B H2: the intro / outro switch never drops the map's own text or files (refused: the YAML tab)", () => {
+  it("the intro / outro switch never drops the map's own text or files (refused: the YAML tab)", () => {
     const t = BASE.replace(
       'intro:\n  component: studio/intro-stack\n  duration: 3\n',
       'intro:\n  component: studio/intro-stack\n  duration: 3\noutro:\n  tagline: Order in two clicks\n  image: assets/logo.png\n',
@@ -417,7 +417,7 @@ describe('set_field on the fixture scenarios (goldens)', () => {
   }, 120_000);
 });
 
-describe('caption_component (L4.5): a scenario key of the edit part', () => {
+describe('caption_component: a scenario key of the edit part', () => {
   it('validates as a component id, goes to the timeline video, and is an edit change', () => {
     const ok = parseScenario('video: x\ncaption_component: studio/caption-overlay\nscenes:\n  - id: a\n    steps:\n      - hold: 1\n');
     expect(ok.scenario?.caption_component).toBe('studio/caption-overlay');

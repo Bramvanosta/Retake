@@ -50,13 +50,13 @@ describe('quoted test titles in docs/requirements.json', () => {
     ]);
   });
 
-  it("a title's apostrophes are read whole (L7.24): the files' names, a 'quoted' word; two quotes side by side stay two", async () => {
+  it("a title's apostrophes are read whole: the files' names, a 'quoted' word; two quotes side by side stay two", async () => {
     // this file: the good title is this test's own; the bad ones are joined at run time, so the source never holds them
     const file = 'packages/core/test/requirements-cites.test.ts';
     const d = 'quoted test titles in docs/requirements.json';
-    const own = "a title's apostrophes are read whole (L7.24): the files' names, a 'quoted' word; two quotes side by side stay two";
-    const wrongTail = ["a title's apostrophes are read whole (L7.24): the files'", 'wrong words'].join(' ');
-    const wrongAfterQuote = ["a title's apostrophes are read whole (L7.24): the files' names, a 'quoted'", 'phrase'].join(' ');
+    const own = "a title's apostrophes are read whole: the files' names, a 'quoted' word; two quotes side by side stay two";
+    const wrongTail = ["a title's apostrophes are read whole: the files'", 'wrong words'].join(' ');
+    const wrongAfterQuote = ["a title's apostrophes are read whole: the files' names, a 'quoted'", 'phrase'].join(' ');
     const items = [
       { id: 'R-OK-01', evidence: `Test '${file} > ${d} > ${own}'.` },
       { id: 'R-OK-02', evidence: `Tests '${file} > ${d} > ${own}' and '${file} > ${d} > every quoted title names a test of its file' (both).` },
@@ -81,7 +81,7 @@ describe('quoted test titles in docs/requirements.json', () => {
     const d = 'quoted test titles in docs/requirements.json';
     const good = 'every quoted title names a test of its file';
     // limit 2: the wrong words come before a quoted one, so the read stops at the files' apostrophe — and passes
-    const hidden = ["a title's apostrophes are read whole (L7.24): the files'", 'wrong, a', "'quoted' word"].join(' ');
+    const hidden = ["a title's apostrophes are read whole: the files'", 'wrong, a', "'quoted' word"].join(' ');
     const items = [
       { id: 'R-PAST-01', evidence: `Test '${file} > ${d} > ${good}' holds the reviewers'.` },
       { id: 'R-LIMIT-02', evidence: `Test '${file} > ${d} > ${hidden}'.` },

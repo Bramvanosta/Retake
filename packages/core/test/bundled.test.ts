@@ -62,7 +62,7 @@ describe('bundled fixture project', () => {
     }
   });
 
-  it('env signed-in (L1.6): every scenario films each page as the persona of its environment page, env local as none', async () => {
+  it('env signed-in: every scenario films each page as the persona of its environment page, env local as none', async () => {
     const project = await loadProject('northfield-fixture', ROOT);
     const personas = resolvePersonas(project, 'signed-in', { home: '/nonexistent-home' });
     expect(personas.map((p) => [p.name, p.pages, p.loginPatterns])).toEqual([
@@ -81,7 +81,7 @@ describe('bundled fixture project', () => {
     expect(used).toMatchObject({ catalogue: 'supplier', reports: 'supplier', quote: 'supplier,buyer', 'live-quote': 'supplier,buyer', signup: 'buyer', 'phone-and-desktop': 'buyer' });
   });
 
-  it('its process sandbox (L1.8) is environment sandbox: the signed-in side on 4503 / 4504, the supplier and buyer accounts, its own mailbox', async () => {
+  it('its process sandbox is environment sandbox: the signed-in side on 4503 / 4504, the supplier and buyer accounts, its own mailbox', async () => {
     const project = await loadProject('northfield-fixture', ROOT);
     const sandbox = project.sandboxes?.sandbox;
     expect(sandbox?.issues).toEqual([]);
@@ -105,7 +105,7 @@ describe('bundled fixture project', () => {
     expect(planPersonas(scenario, { env: 'sandbox', envPages: project.config.environments.sandbox, personas, hooks: true }).used).toEqual(['buyer']);
   });
 
-  it('its Docker sandbox (L1.8) is environment sandbox-docker: the fixture image on 4511–4514, a real Mailpit on 4525, the same accounts', async () => {
+  it('its Docker sandbox is environment sandbox-docker: the fixture image on 4511–4514, a real Mailpit on 4525, the same accounts', async () => {
     const project = await loadProject('northfield-fixture', ROOT);
     const sandbox = project.sandboxes?.['sandbox-docker'];
     expect(sandbox?.issues).toEqual([]);

@@ -201,7 +201,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
+describe.skipIf(!canRun)('the Review report in Chromium', () => {
   it('⚑ the report: the View, the counts in words (never "passed"), the sheets one at a time, the checks by family and their keys, the frame of a check', async () => {
     await page.goto(`${studio.url}#/p/demo/s/bits/review/bits-v1`);
     await page.getByTestId('review-report').waitFor(POLL);
@@ -359,7 +359,7 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     await check('review-check');
   }, 120_000);
 
-  it("⚑ H2: Render — the report's and Edit's own (the menu's ⌘B is their button); on a proposal ⌘B renders nothing; a changed file is refused and read again", async () => {
+  it("⚑ Render — the report's and Edit's own (the menu's ⌘B is their button); on a proposal ⌘B renders nothing; a changed file is refused and read again", async () => {
     // The report: Render renders the scenario's latest capture with the file on disk.
     await page.goto(`${studio.url}#/p/demo/s/other/review`);
     await page.getByTestId('review-empty').waitFor(POLL);
@@ -419,7 +419,7 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     expect(consoleErrors).toEqual([]);
   }, 120_000);
 
-  it("⚑ A-M1: on a proposal's preview Render is refused before the view is read and on an error — ⌘B and the status bar's Render queue nothing", async () => {
+  it("⚑ on a proposal's preview Render is refused before the view is read and on an error — ⌘B and the status bar's Render queue nothing", async () => {
     // The view held back: Edit is still loading (not mounted), the status bar's own Render shows.
     const held: Route[] = [];
     await page.route('**/v1/call/timeline_view', (r) => void held.push(r));
@@ -443,7 +443,7 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     expect(await openJobs('render')).toEqual([]);
   }, 60_000);
 
-  it('⚑ B-M1 / A-L6 / A-L7: Show in Edit — no "another version" for a finding without a frame on this version; the note and the step for v4 (another version); a pending one dropped by an Edit that cannot show the take (its browser pane collapsed)', async () => {
+  it('⚑ Show in Edit — no "another version" for a finding without a frame on this version; the note and the step for v4 (another version); a pending one dropped by an Edit that cannot show the take (its browser pane collapsed)', async () => {
     // bits-v1, the video's length (no frame): Edit opens, says nothing about another version, stays at the start.
     await page.goto(`${studio.url}#/p/demo/s/bits/review/bits-v1`);
     await page.getByRole('listbox').focus();
@@ -483,7 +483,7 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     expect(await page.getByTestId('edit-seek-note').count()).toBe(0);
   }, 90_000);
 
-  it("Edit: the status line in plain words (B-L3); the inspector's general hint last, no blank band (B-L4); ⚑ the transport leaves the arrows to the playhead after a click (B-L5); [ ] and Shift+← → on the scrubber (A-L2); every track item a 24 px target (A-L3)", async () => {
+  it("Edit: the status line in plain words; the inspector's general hint last, no blank band; ⚑ the transport leaves the arrows to the playhead after a click; [ ] and Shift+← → on the scrubber; every track item a 24 px target", async () => {
     await page.goto(`${studio.url}#/p/demo/s/bits/timeline`);
     await page.getByTestId('tracks').waitFor(POLL);
     const frame = async () => Number(await page.getByTestId('preview').getAttribute('data-frame'));

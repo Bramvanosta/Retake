@@ -202,7 +202,7 @@ describe('the form shows every hook in full', () => {
   });
 });
 
-describe('the site approval (L3.5)', () => {
+describe('the site approval', () => {
   const parsed = parseSiteUrl('https://bücher.example.net/%20safe%20approve%20this', new Map());
   if (!parsed.ok) throw new Error(parsed.problem);
   const req: SiteApprovalRequest = { what: 'site extraction', ...parsed.url, fingerprint: siteApprovalFingerprint(parsed.url.href), fix: `retake -C /ws theme from-site ${parsed.url.href}` };

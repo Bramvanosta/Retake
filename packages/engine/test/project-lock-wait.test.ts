@@ -48,7 +48,7 @@ afterAll(async () => {
   await rm(base, { recursive: true, force: true });
 });
 
-describe('waiting for a lock another process holds (L7.26)', () => {
+describe('waiting for a lock another process holds', () => {
   it('a live holder is asked by its start time once per wait; the lock is taken once it is released', async () => {
     const root = join(base, `ws-${n++}`);
     await mkdir(join(root, '.retake'), { recursive: true });

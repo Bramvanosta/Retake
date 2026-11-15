@@ -53,7 +53,7 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe('brand files (L4.7)', () => {
+describe('brand files', () => {
   it('⚑ images: workspace files outside hidden, components, agent-writable and node_modules folders; links not followed', async () => {
     const r = await engine.templates.files('image');
     expect(r.files.map((f) => f.ref).sort()).toEqual(['brand/Logo Dark.PNG', 'brand/logo.svg', 'outside.png', 'projects/demo/assets/mark.webp']);

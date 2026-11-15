@@ -251,7 +251,7 @@ describe("the step's form", () => {
     await writeFile(file('forms'), FORMS);
   });
 
-  it('critique B2: a caption changed outside while the screen showed the old version → 409 → "Apply it to the new version" saves the typed text and keeps the outside caption', async () => {
+  it('a caption changed outside while the screen showed the old version → 409 → "Apply it to the new version" saves the typed text and keeps the outside caption', async () => {
     await writeFile(file('forms'), FORMS);
     await openBlocks('forms');
     const t0 = await settled('forms');
@@ -324,8 +324,8 @@ describe('the palette', () => {
   });
 });
 
-describe('review fixes (L4.3 review B)', () => {
-  it('M2: an untouched "" is never sent as a removal; a required text holding "" needs no value; typed text dropped by an outside change is listed', async () => {
+describe('empty values in the forms', () => {
+  it('an untouched "" is never sent as a removal; a required text holding "" needs no value; typed text dropped by an outside change is listed', async () => {
     const EMPTIES =
       'video: empties\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - click: Save\n        caption: {kicker: "", text: Saved}\n      - type: {into: {label: Name}, text: "", clear: true}\n';
     await writeFile(file('empties'), EMPTIES);
@@ -354,7 +354,7 @@ describe('review fixes (L4.3 review B)', () => {
   });
 });
 
-describe('L5.10b fixes B-L4: the step inspector as B32 lays it out', () => {
+describe('the step inspector as B32 lays it out', () => {
   it('at 1440 × 900: the picture, the title, then the form — the Action fields and the Modifiers on the first screen of the inspector, unscrolled; field labels in words', async () => {
     await writeFile(file('forms'), FORMS);
     await page.setViewportSize({ width: 1440, height: 900 });

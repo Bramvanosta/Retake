@@ -253,7 +253,7 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     expect(protocolErrors).toEqual([]);
   });
 
-  it("run_dry {hooks: 'run'} and run_capture: the client's user is asked once and the run is queued with the approval; a decline queues nothing (L7.15; last: its run folder would count for project_prune)", async () => {
+  it("run_dry {hooks: 'run'} and run_capture: the client's user is asked once and the run is queued with the approval; a decline queues nothing (last: its run folder would count for project_prune)", async () => {
     const yes = await connect('accept');
     const r = await call(yes.client, 'run_dry', { project: 'northfield-fixture', scenario: 'say-accept', hooks: 'run', wait_s: 0 });
     expect(r.isError, JSON.stringify(r)).toBeFalsy();

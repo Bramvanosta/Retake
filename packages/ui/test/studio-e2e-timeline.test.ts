@@ -184,7 +184,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     expect(await csp()).toBe(0);
   }, 120_000);
 
-  it('⚑ L5.9 (review B-M1): inside the shell, at 1440 × 900 and 1280 × 800, as many track rows show on load as before it (the preview sizes from the centre pane)', async () => {
+  it('⚑ inside the shell, at 1440 × 900 and 1280 × 800, as many track rows show on load as before it (the preview sizes from the centre pane)', async () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     for (const [width, height] of [
       [1440, 900],
@@ -343,7 +343,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     await expectExact('Show in timeline (step a.1)');
   }, 120_000);
 
-  it('critique B14: an H.264 take in a browser without H.264 — the message, no frame; the tracks, the scrubber, the codec and GOP note', async () => {
+  it('an H.264 take in a browser without H.264 — the message, no frame; the tracks, the scrubber, the codec and GOP note', async () => {
     await page.goto(`${studio.url}#/p/demo/s/h264/timeline`);
     await page.getByTestId('tracks').waitFor();
     await expect.poll(() => page.getByTestId('cannot-play').count(), POLL).toBe(1);

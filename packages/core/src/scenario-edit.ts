@@ -18,7 +18,7 @@
  *   (canonical JSON); while the file has any, what they read from the scenario — its `vars` (templated into a shell
  *   line, a SQL text, an HTTP body) and its `env` (where they run) — must stay as they were too. They are edited in an
  *   editor.
- * - Verify (plan §3.1): an edit that builds text from a value is refused unless the text, re-parsed with parseYaml (the
+ * - Verify: an edit that builds text from a value is refused unless the text, re-parsed with parseYaml (the
  *   alias checks included: a bare parseDocument misses an alias before its anchor), has exactly the intended value.
  */
 import { isDeepStrictEqual } from 'node:util';
@@ -204,7 +204,7 @@ export function hooksChangedMessage(sections: readonly string[]): string {
 }
 
 /**
- * The verify of an edit built from a value (plan §3.1.4): `text` re-parsed with parseYaml (syntax, recursive aliases,
+ * The verify of an edit built from a value: `text` re-parsed with parseYaml (syntax, recursive aliases,
  * an alias before its anchor) must give exactly `intended`. Null when it does, else why not.
  */
 export function verifyEditText(text: string, intended: unknown): string | null {

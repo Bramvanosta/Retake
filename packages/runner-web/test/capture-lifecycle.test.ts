@@ -105,7 +105,7 @@ function opts(name: string, scenario: Omit<Scenario, 'video'>, extra: Partial<Ru
   });
 }
 
-describe('the capture lifecycle over a driver (L7.31)', () => {
+describe('the capture lifecycle over a driver', () => {
   it("runs the driver's phases in order around the hooks, tells the filming, and writes run.json and the timeline of its take", async () => {
     const marks = join(dir, 'marks');
     const file = (p: string) => existsSync(`${marks}-${p}`);

@@ -100,7 +100,7 @@ describe('the Record screen words', () => {
     expect(insertText(ins({ kind: 'hold', seconds: 2 }))).toBeNull();
   });
 
-  it('the check: passed, until the first write, failed, skipped, and the events changed after it (B7 / B8) — recorded steps, without the picks and inserts (B-M4)', () => {
+  it('the check: passed, until the first write, failed, skipped, and the events changed after it — recorded steps, without the picks and inserts', () => {
     const c = (x: Partial<RecordCheckView>): RecordCheckView => ({ status: 'passed', scope: 'all', steps_passed: 3, steps_total: 3, events_changed: false, ...x });
     expect(checkWords(c({}))).toMatchObject({ title: 'Check passed', tone: 'info', detail: '3 of 3 recorded steps replayed on a fresh page, without your picks and inserts.' });
     expect(checkWords(c({ status: 'failed', steps_passed: 1 })).detail).toMatch(/^1 of 3 recorded steps replayed \(without your picks and inserts\)/);
@@ -167,7 +167,7 @@ describe('the Record screen words', () => {
 });
 
 describe('after the reviews (the screen)', () => {
-  it("B-L1: a poll answer older than the screen's revision never replaces a newer annotate answer", () => {
+  it("a poll answer older than the screen's revision never replaces a newer annotate answer", () => {
     expect(newerView(null, { rev: 0 })).toBe(true);
     expect(newerView({ rev: 3 }, { rev: 3 })).toBe(true);
     expect(newerView({ rev: 3 }, { rev: 4 })).toBe(true);
@@ -175,14 +175,14 @@ describe('after the reviews (the screen)', () => {
     expect(newerView({ rev: 3 }, { rev: 5, unchanged: true })).toBe(false);
   });
 
-  it("B-H1: where an insert goes from the cursor's row — after an action or the recorder's scroll, right after its wait, right after an insert", () => {
+  it("where an insert goes from the cursor's row — after an action or the recorder's scroll, right after its wait, right after an insert", () => {
     expect(insertAnchor({ role: 'action', seqs: [3, 5] })).toEqual({ after_step_seq: 5 });
     expect(insertAnchor({ role: 'helper', helper: 'scroll', seqs: [2, 4] })).toEqual({ after_step_seq: 4 });
     expect(insertAnchor({ role: 'helper', helper: 'wait', seqs: [6, 6] })).toEqual({ after_step_seq: 6, row: 'wait' });
     expect(insertAnchor({ role: 'insert', seqs: [6, 6], insert: 'i3' })).toEqual({ after_insert: 'i3' });
   });
 
-  it("B-M1: the cursor is keyed by its row's identity — an insert before it moves the row, the cursor and its words follow; a row that is gone has none", () => {
+  it("the cursor is keyed by its row's identity — an insert before it moves the row, the cursor and its words follow; a row that is gone has none", () => {
     const view = (sources: unknown[], steps: number) =>
       ({
         blocks: { entries: [{ type: 'scene', id: 'lab', steps: Array.from({ length: steps }, (_, i) => ({ key: `lab.${i}`, index: i })) }] },
@@ -215,7 +215,7 @@ describe('after the reviews (the screen)', () => {
     expect(cursorRow(after, { at: 'end' })).toBeNull();
   });
 
-  it('B-L4 / B-L5: what a done change says; Start refused for a persona that cannot sign in by itself', () => {
+  it('what a done change says; Start refused for a persona that cannot sign in by itself', () => {
     expect(annotatedWords({ op: 'insert', insert: { kind: 'hold' } }, 'step 2 of products')).toBe('Hold added after step 2 of products.');
     expect(annotatedWords({ op: 'insert', insert: { kind: 'camera' } }, null)).toBe('Zoom added at the end.');
     expect(annotatedWords({ op: 'choose' }, null)).toBe('Target picked.');
@@ -277,7 +277,7 @@ describe('the draft rows and the events', () => {
   });
 });
 
-describe("L5.11b: a recording's state beside its mark (Shoot's browser, the screen)", () => {
+describe("a recording's state beside its mark (Shoot's browser, the screen)", () => {
   const STATES = Object.keys(STATE_WORDS) as RecordState[];
   /** The a11y checker's vocabulary a status mark needs beside it (a11y.ts saysState), as far as these words go. */
   const SAYS = /\b(waiting|pending|recording|draft|recorded|interrupted|invalid|failed|cancelled|discarded|missing|ended|done|saved)\b/i;
@@ -307,7 +307,7 @@ describe("L5.11b: a recording's state beside its mark (Shoot's browser, the scre
     expect(recordingWords({ ...r, state: 'done', env: 'local', steps: 1 })).toBe('Recorded · 1 step · local · not saved');
   });
 
-  it('⚑ the Recordings group: a saved recording links its scenario (a row under it); its words through Txt (B-L6)', () => {
+  it('⚑ the Recordings group: a saved recording links its scenario (a row under it); its words through Txt', () => {
     const item = (rec_id: string, saved: { name: string; file: string } | null) => ({
       rec_id,
       state: 'done' as const,
@@ -340,7 +340,7 @@ describe("L5.11b: a recording's state beside its mark (Shoot's browser, the scre
   });
 });
 
-describe('L5.11b fixes: why Save waits, in the words of each state (review B-M2)', () => {
+describe('why Save waits, in the words of each state', () => {
   const v = (state: RecordState, save = false, draft: string | null = null) => ({ state, can: { save }, draft_sha256: draft });
   it('after Stop while the window is open; once the check is over while it runs; enabled when done', () => {
     for (const s of ['queued', 'preflight', 'recording'] as const) expect(saveWhyWords(v(s), 'quote-v2', null), s).toBe('Saving opens after Stop. It writes a new file, scenarios/quote-v2.yaml.');

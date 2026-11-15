@@ -73,7 +73,7 @@ afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-describe('the cost of a take beside a long history (review A H1, A M1, B L8)', () => {
+describe('the cost of a take beside a long history', () => {
   it("a take's sampler reads no job folder: the worker's own hold, else its one held file", async () => {
     let asked = 0;
     const inWorker = new TakeBeside({ env: process.env, root, own: () => undefined, slowed: () => (asked++, true) });

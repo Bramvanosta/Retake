@@ -189,7 +189,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     expect((await refusal(mcp(p))).problems).toEqual([expect.stringMatching(/^the plan serves image-.* from .*outside\/logo, outside the project, the run and the theme folders/)]);
   });
 
-  it('gate 2 (review A N4): a hard link in the project — the same file as one outside — is never served', async () => {
+  it('gate 2: a hard link in the project — the same file as one outside — is never served', async () => {
     const p = await project(timeline({ component: 'studio/card-testimonial', slots: { quote: 'Fast.', name: 'A. Buyer', logo: 'assets/logo.svg' } }));
     await link(join(outside, 'logo.svg'), join(p.dir, 'assets', 'logo.svg'));
     // Every check on paths passes (inside assets/, no symbolic link): only its link count tells.
@@ -219,7 +219,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
       (e: unknown) => `${e instanceof PlanTrustError ? 'PlanTrustError' : e instanceof RenderError ? 'RenderError' : (e as Error).name}: ${(e as Error).message}`,
     );
 
-  it('a named run that cannot be planned: one sentence each, the same at a terminal and through MCP (L7.6a, F-4)', async () => {
+  it('a named run that cannot be planned: one sentence each, the same at a terminal and through MCP (F-4)', async () => {
     const by = (p: LoadedProject, trust: 'author' | 'mcp', o: Partial<PlanRunOptions> = {}) =>
       message(planRun({ registry: (root: string) => loadComponentRegistry({ root }), workPolicy: PERSON_POLICY, project: p, run: RUN, root, trust, ...o }));
     const both = async (p: LoadedProject, o: Partial<PlanRunOptions> = {}) => {
@@ -266,7 +266,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     );
   });
 
-  it('the film of a named run is a file of its own folder through MCP: one path segment; at a terminal the name is taken as the timeline gives it (L7.6a)', async () => {
+  it('the film of a named run is a file of its own folder through MCP: one path segment; at a terminal the name is taken as the timeline gives it', async () => {
     const p = await project(timeline());
     const dir = join(p.dir, 'runs', RUN);
     const whole = JSON.parse(await readFile(join(dir, 'timeline.json'), 'utf8')) as Timeline;
@@ -304,7 +304,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     expect(NOT_IN_FOLDER).not.toContain('other');
   });
 
-  it('a run folder that is a link out of the project: never `latest`; named, refused through MCP and planned at a terminal (L7.6a D-7)', async () => {
+  it('a run folder that is a link out of the project: never `latest`; named, refused through MCP and planned at a terminal (D-7)', async () => {
     const p = await project(timeline());
     const real = join(outside, `run-${n}`);
     await rename(join(p.dir, 'runs', RUN), real);
@@ -324,7 +324,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     expect(await message(mcp(q, { run: RUN }))).toBe('planned');
   });
 
-  it('runs/ itself a link to another disk: the terminal works, by name and for `latest`; through MCP neither a named run nor `latest` reads a run outside the project (L7.6a, small point 3.2)', async () => {
+  it('runs/ itself a link to another disk: the terminal works, by name and for `latest`; through MCP neither a named run nor `latest` reads a run outside the project', async () => {
     const p = await project(timeline());
     const real = join(outside, `runs-${n}`);
     await rename(join(p.dir, 'runs'), real);

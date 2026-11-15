@@ -134,7 +134,7 @@ function miniApp({ version = '0.2.0', updates = 'off' } = {}) {
   return { appDir, app };
 }
 
-describe('the pins: the Node.js binary and the browsers the stage copies (review e A-M3)', () => {
+describe('the pins: the Node.js binary and the browsers the stage copies', () => {
   it('checkNode: the pinned version and binary pass; another version, another binary or another platform is refused in one sentence that says what to do', async () => {
     const { checkNode, NODE_PIN } = await bundleModule();
     const bin = join(dir('node'), 'node');
@@ -229,7 +229,7 @@ const pinsFor = (files: Record<string, Record<string, string>>) => {
   return { v: 1, version: '2.12.4', packages };
 };
 
-describe('the Tauri CLI folder the sign job runs: every file its pinned sha512, nothing else (review e A-H1)', () => {
+describe('the Tauri CLI folder the sign job runs: every file its pinned sha512, nothing else', () => {
   const FILES = { '@tauri-apps/cli': { 'tauri.js': 'console.log(1)', 'package.json': '{}' }, '@tauri-apps/cli-darwin-arm64': { 'cli.darwin-arm64.node': 'native' } };
   const layOut = () => {
     const d = dir('tauri-cli');
@@ -575,7 +575,7 @@ describe.runIf(MAC)("unpackBuild: the build job's archive, only its two parts (r
   });
 });
 
-describe('hdiutil, tried again on "Resource busy" only (review e B-M4)', () => {
+describe('hdiutil, tried again on "Resource busy" only', () => {
   const fake = (failures: number, message: string) => {
     const bin = dir('fake-hdiutil');
     const count = join(bin, 'count');
@@ -614,7 +614,7 @@ describe('hdiutil, tried again on "Resource busy" only (review e B-M4)', () => {
 
 describe.runIf(MAC)('finishApp: from the ad hoc app to what a release ships (apps/desktop/scripts/release.mjs)', () => {
   const env = { PATH: '/usr/bin:/bin', HOME: tmp };
-  it('the version the app must carry (review e B-L7: a pre-release, Info.plist = --app-version), or nothing is signed', async () => {
+  it('the version the app must carry (a pre-release, Info.plist = --app-version), or nothing is signed', async () => {
     const { finishApp } = await releaseModule();
     const { app } = miniApp({ version: '0.3.0-rc.1' });
     const ok = finishApp({ app, out: dir('out'), mode: 'dry', env, entries: NODE_ENTRY, dmg: false, verified: true, appVersion: '0.3.0-rc.1' });
@@ -702,7 +702,7 @@ describe.runIf(MAC)('finishApp: from the ad hoc app to what a release ships (app
     expect(tools.calls()).toEqual([]);
   });
 
-  it('the update archive: none from an app without the updater, unsigned (and said) without a key — never a stale file of an earlier run (review e B-L6); a key needs the public key and the pinned CLI', async () => {
+  it('the update archive: none from an app without the updater, unsigned (and said) without a key — never a stale file of an earlier run; a key needs the public key and the pinned CLI', async () => {
     const { finishApp } = await releaseModule();
     const out = dir('out');
     for (const f of ['Retake.app.tar.gz', 'Retake.app.tar.gz.sig']) writeFileSync(join(out, f), 'stale');

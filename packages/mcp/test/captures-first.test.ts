@@ -42,7 +42,7 @@ afterAll(async () => {
   for (const d of [root, other]) if (d) await rm(d, { recursive: true, force: true });
 });
 
-describe('captures first through MCP (L5.14b)', () => {
+describe('captures first through MCP', () => {
   it("waiting, then slowed: words and an enum, never another workspace's names", async () => {
     const job = await queue.enqueue({
       version: 1,

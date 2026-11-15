@@ -204,7 +204,7 @@ function appSources(): Array<[string, string]> {
     .map((f) => [f, readFileSync(join(APP, f), 'utf8')]);
 }
 
-describe("L6.13: the Studio app's feature boundaries", () => {
+describe("the Studio app's feature boundaries", () => {
   it("only data/ imports the API's call / useCall (request is api.ts's own); data/ holds a module per feature, each importing only api.ts and data/", () => {
     const files = appSources();
     const data = files.filter(([f]) => f.startsWith('data/')).map(([f]) => f);
@@ -313,7 +313,7 @@ describe("L6.13: the Studio app's feature boundaries", () => {
     expect(Object.keys(EXCEPTIONS).filter((x) => !without.includes(x))).toEqual(['ui-kit/fields.tsx -> drafts']);
   });
 
-  it('L7.32: the screens are grouped by feature — a folder each, reached from outside only through its public modules; the root holds the shared foundations and words/ the shared words, neither importing a feature', () => {
+  it('the screens are grouped by feature — a folder each, reached from outside only through its public modules; the root holds the shared foundations and words/ the shared words, neither importing a feature', () => {
     const files = appSources();
     // Every folder is a part the model knows; the root holds the foundations and the entry only.
     const folders = [

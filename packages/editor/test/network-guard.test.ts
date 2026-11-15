@@ -273,7 +273,7 @@ describe.skipIf(!canRender)('a guarded render loads only the files of its plan',
   );
 
   it(
-    'L5.15 fixes: a page of a guarded render fails — the render fails plainly; Remotion opens no browser of its own (B gets nothing, none outlives it)',
+    'a page of a guarded render fails — the render fails plainly; Remotion opens no browser of its own (B gets nothing, none outlives it)',
     async () => {
       const plan = await introPlan('acme/closing');
       const before = renderBrowsers();
@@ -306,7 +306,7 @@ describe.skipIf(!canRender)('a guarded render loads only the files of its plan',
   );
 
   it(
-    'L5.15 fixes: the same in a guarded preview loop — that item fails plainly, B gets nothing, no browser outlives it',
+    'the same in a guarded preview loop — that item fails plainly, B gets nothing, no browser outlives it',
     async () => {
       const registry = await loadComponentRegistry({ root: ws.root });
       const template = await loadTemplate('editorial', ws.root, { files: fileFacts(PERSON_POLICY) });

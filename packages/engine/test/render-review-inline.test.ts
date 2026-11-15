@@ -79,7 +79,7 @@ afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-describe('a render reviewed inline, through the worker (L4.5 part E)', () => {
+describe('a render reviewed inline, through the worker', () => {
   it('renders the shown version, reviews it in the same job; the render list and a contact sheet, path-free', async () => {
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, run_id: RUN, overrides: { scale: 0.5 }, review: { fps: 1 }, expect_edit_sha256: sha(TEXT) });
     expect(sub).toMatchObject({ render_id: `${SCENARIO}-v1`, edit: 'scenario' });

@@ -119,7 +119,7 @@ const ROWS: Array<[string, BoardScenario, string, string, string | null]> = [
   ['nothing', base(), 'idle', 'Draft · not shot yet', 'shoot'],
 ];
 
-describe('productionState (L5.10a): every row a shape and a word', () => {
+describe('productionState: every row a shape and a word', () => {
   for (const [what, s, state, word, group] of ROWS) {
     it(what, () => {
       expect(productionState(s)).toEqual({ state, word, group });
@@ -186,7 +186,7 @@ describe('the inspector words', () => {
   });
 });
 
-describe("the open project's reads: what an event re-reads (project-data boardEventAction, critique M2)", () => {
+describe("the open project's reads: what an event re-reads (project-data boardEventAction)", () => {
   const P = 'northfield-fixture';
   const run = (change: 'new' | 'status' | 'progress' | 'removed', project = P) => ({ project, run: '20261020-100000-quote', scenario: 'quote', status: 'running', finished: false, change });
   const ws = (o: Record<string, unknown>) => ({ type: 'workspace' as const, projects: [P], readme: [], ...o });
@@ -210,7 +210,7 @@ describe("the open project's reads: what an event re-reads (project-data boardEv
     // A render job the board shows: its progress re-reads the board (throttled by the store).
     expect(boardEventAction({ type: 'jobs', changed: ['j_render'] }, P, new Set(['j_render']), seen).board).toBe('throttled');
   });
-  it('L5.10a fixes (review A-L7): a job of another project (the event names its projects) re-reads neither the board nor the Cast; one of this project does', () => {
+  it('a job of another project (the event names its projects) re-reads neither the board nor the Cast; one of this project does', () => {
     const seen = new Set<string>();
     expect(boardEventAction({ type: 'jobs', changed: ['j_other'], projects: ['other'] }, P, new Set(), seen)).toEqual({ view: false, board: null, cast: null });
     expect(seen.has('j_other')).toBe(true);
@@ -220,7 +220,7 @@ describe("the open project's reads: what an event re-reads (project-data boardEv
     // A job the board shows re-reads it whatever the event says.
     expect(boardEventAction({ type: 'jobs', changed: ['j_shown'], projects: ['other'] }, P, new Set(['j_shown']), seen).board).toBe('throttled');
   });
-  it('L5.10a fixes: a server that names the project-file changes (`files`) — project.yaml re-reads all; a runs folder told no run re-reads the board only', () => {
+  it('a server that names the project-file changes (`files`) — project.yaml re-reads all; a runs folder told no run re-reads the board only', () => {
     expect(boardEventAction(ws({ files: [P] }), P, new Set(), new Set())).toEqual({ view: true, board: 'now', cast: 'now' });
     expect(boardEventAction(ws({ files: [] }), P, new Set(), new Set())).toEqual({ view: false, board: 'now', cast: null });
     expect(boardEventAction(ws({ files: ['other'], runs: [run('progress')] }), P, new Set(), new Set())).toEqual({ view: false, board: null, cast: null });
@@ -228,7 +228,7 @@ describe("the open project's reads: what an event re-reads (project-data boardEv
     expect(onlyRunProgress(ws({ files: [P], runs: [run('progress')] }))).toBe(false);
     expect(onlyRunProgress(ws({ files: [], runs: [run('progress')] }))).toBe(true);
   });
-  it('L5.10a fixes (review A-L5): onlyRunProgress — a step of a take, nothing else; a run that started, a file or a list named: not only progress', () => {
+  it('onlyRunProgress — a step of a take, nothing else; a run that started, a file or a list named: not only progress', () => {
     const ev = (o: Record<string, unknown>) => ({ type: 'workspace' as const, projects: [P], readme: [], ...o });
     expect(onlyRunProgress(ev({ runs: [run('progress')] }))).toBe(true);
     expect(onlyRunProgress(ev({ runs: [run('progress'), run('status')] }))).toBe(false);
@@ -250,7 +250,7 @@ describe("the open project's reads: what an event re-reads (project-data boardEv
   });
 });
 
-describe('envFlagWords (L5.10b fixes A-L7)', () => {
+describe('envFlagWords', () => {
   it('beside its name, a flag word that repeats it is left out — "production · read-only", not "production · production · read-only"', () => {
     const prod = { production: true, access: 'read-only' as const, sandbox: false };
     expect(envFlagWords(prod, false)).toBe('production · read-only');

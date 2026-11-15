@@ -171,7 +171,7 @@ describe('the encoder choice', () => {
     expect(await chooseEncoder(mac({ env: { RETAKE_RENDER_ENCODER: 'libx264' } }), 'angle', hd, ok)).toEqual({ encoder: 'libx264' });
   });
 
-  it('review A L1: a cancel ends the wait for the probe at once (a probe that never answers)', async () => {
+  it('a cancel ends the wait for the probe at once (a probe that never answers)', async () => {
     const stop = new AbortController();
     const hanging = () => new Promise<never>(() => undefined);
     const t0 = Date.now();
@@ -345,7 +345,7 @@ describe("the fallback's classifier", () => {
   });
 });
 
-describe('what an export passes on of a re-render (review B L5)', () => {
+describe('what an export passes on of a re-render', () => {
   it("the policy's words — no GPU, VideoToolbox's limit or probe, the fallback — and the file warnings (upscaled, missing, blocked); nothing else", async () => {
     const big = await chooseEncoder(mac(), 'angle', { width: 5760, height: 3240, fps: 30 }, async () => ({ ok: true }));
     const probe = await chooseEncoder(mac(), 'angle', { width: 1920, height: 1080, fps: 30 }, async () => ({ ok: false, error: 'cannot create compression session: -12903' }));
@@ -378,7 +378,7 @@ describe("the encoder pipe's guard (a process with no handler of its own)", () =
   }, 120_000);
 });
 
-describe('the encode ffmpeg (L7.3)', () => {
+describe('the encode ffmpeg', () => {
   const hd = { width: 1920, height: 1080, fps: 30 };
   const vtOk = async () => ({ ok: true });
   const vtNo = async () => ({ ok: false, error: 'cannot create compression session: -12903' });

@@ -92,7 +92,7 @@ describe('records of their own file: judged as ever', () => {
     expect([failed.items, failed.runs]).toEqual([[], ['NEW', 'OLD']]);
   });
 
-  it('a record whose variant is no text (5, null, [], {}) is kept and never counted: it joins no group and pushes no render out of a window (L7.6b fix pass)', () => {
+  it('a record whose variant is no text (5, null, [], {}) is kept and never counted: it joins no group and pushes no render out of a window', () => {
     // Before the lot the file's own value was the group's key (`quote 5`): the record without a variant stayed the
     // last of its own group. Read as absent, a non-text variant would have joined that group and pushed it out.
     for (const variant of [5, null, [], {}]) {

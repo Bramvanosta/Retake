@@ -452,7 +452,7 @@ describe("an agent's prune asks the person first (projects.prune under agent tru
   });
 });
 
-describe('comment threads that cannot be listed (L7.5)', () => {
+describe('comment threads that cannot be listed', () => {
   it('every render and every take stays, the result says why, and nothing of them is deleted', async () => {
     const d = await mkdtemp(join(tmpdir(), 'ds-prune-threads-'));
     const comments = join(d, 'comments');
@@ -512,7 +512,7 @@ describe('comment threads that cannot be listed (L7.5)', () => {
   });
 });
 
-describe('comment threads that do not read as threads (L7.5)', () => {
+describe('comment threads that do not read as threads', () => {
   const ID = 'c_01K8AB1CDE2FGH3JKM4NPQ5RST';
   const OTHER = 'c_01K8AB1CDE2FGH3JKM4NPQ5RSV';
   const SOME = 'some comment threads of p cannot be read (the comment list says which): every render and take ';
@@ -712,7 +712,7 @@ describe('comment threads that do not read as threads (L7.5)', () => {
   });
 });
 
-describe('the last renders of a scenario are counted among its renders only (L7.5)', () => {
+describe('the last renders of a scenario are counted among its renders only', () => {
   const p0 = (d: string) => ({ slug: 'p', dir: d, root: d, config: { name: 'P', environments: {} }, readme: null, scenarios: [], file: join(d, 'project.yaml') }) as unknown as LoadedProject;
   const ids = (r: Awaited<ReturnType<typeof pruneProject>>) => r.items.map((i) => `${i.kind} ${i.id} — ${i.reason}`).sort();
   const LONG = `${'q'.repeat(198)}-v1`; // 201 characters: one more than a render id holds
@@ -792,7 +792,7 @@ describe('the last renders of a scenario are counted among its renders only (L7.
   });
 });
 
-describe('the files of renders/ that are no render of their own name (L7.6b, R-1)', () => {
+describe('the files of renders/ that are no render of their own name (R-1)', () => {
   /** A project with two good captures of `quote` (OLD, NEW), four renders made on NEW (the oldest, quote-v1, goes with keep 3) and a failed render. */
   async function projectOf(): Promise<{ d: string; p: LoadedProject; old: string; young: string; list: (r: Awaited<ReturnType<typeof pruneProject>>) => string[] }> {
     const d = await mkdtemp(join(tmpdir(), 'ds-prune-r1-'));

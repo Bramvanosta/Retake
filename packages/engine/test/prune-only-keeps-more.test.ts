@@ -90,7 +90,7 @@ const NO_LINKED_RECORD = new Set(['k', 'k1', 'k1f', 'k2']);
 const LAYOUTS = 300;
 const SEED = 20261111;
 
-describe('prune only keeps more than it did before L7.7', () => {
+describe('prune only keeps more than the earlier prune', () => {
   it('generated layouts (a fixed seed): no take is listed that the frozen rule kept, and a take both list has the same reason', async () => {
     const rnd = random(SEED);
     const pick = <T>(a: readonly T[]): T => a[Math.floor(rnd() * a.length)] as T;
@@ -246,7 +246,7 @@ async function oldRenders(projectDir: string, o: { keep: number; threadRenders: 
 }
 // ── end of the frozen copy ──
 
-describe('prune only keeps more than it did before L7.6b: the renders', () => {
+describe('prune only keeps more than the earlier prune: the renders', () => {
   const RENDER_LAYOUTS = 300;
   const RENDER_SEED = 20261112;
 

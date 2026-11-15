@@ -189,7 +189,7 @@ describe('composite widgets and the other actions', () => {
  * Every option of the scenario language not exercised elsewhere, in one dry run of four scenes. Each check fails
  * when the option is ignored. The run ends on a failing assert (its screenshot and DOM snippet are checked too).
  */
-describe('options of the scenario language (L1.4)', () => {
+describe('options of the scenario language', () => {
   let rec: RunRecord;
   let tl: Timeline;
   let ev: TimelineEvent[];

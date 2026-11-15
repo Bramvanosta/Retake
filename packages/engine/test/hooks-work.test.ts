@@ -109,7 +109,7 @@ describe('hooksRunWork: select → context → journal → run, for the CLI and 
     expect(job.calls.find((c) => c.op === 'run')).toMatchObject({ agentWritten: false, journal: join(p.dir, '.retake', 'journals', 'hooks-in-1.json') });
   });
 
-  it('L7.39: the files onSelected returns (a person’s check) hold the hooks’ context (HookContext.trustedFiles); none, none', async () => {
+  it('the files onSelected returns (a person’s check) hold the hooks’ context (HookContext.trustedFiles); none, none', async () => {
     const p = await project();
     const trustedFiles = { code: { 'tools/x.sh': 'abc' }, data: {} };
     const seen: unknown[] = [];

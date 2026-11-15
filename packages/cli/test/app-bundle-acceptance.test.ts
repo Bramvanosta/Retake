@@ -195,7 +195,7 @@ function retake(args: string[], o: { timeout?: number; via?: string } = {}) {
   return { status: r.status, out: `${r.stdout}\n${r.stderr}`, stdout: r.stdout, ms: Date.now() - t0 };
 }
 
-describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, gated: RETAKE_TEST_BUNDLE=1)', () => {
+describe.skipIf(!ENABLED)('the bundled app, built and run from itself (gated: RETAKE_TEST_BUNDLE=1)', () => {
   beforeAll(async () => {
     base = realpathSync(mkdtempSync(join(tmpdir(), 'retake-bundle-acc-')));
     const t0 = Date.now();
@@ -405,7 +405,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
   );
 
   it(
-    "L5.16c: the first run (no workspace: test mode answers Create ~/Retake), then the Set-up sheet's ops on the app's own server: the command linked into the scratch HOME and run through the link, the folder panel and the notification request through the pipe",
+    "the first run (no workspace: test mode answers Create ~/Retake), then the Set-up sheet's ops on the app's own server: the command linked into the scratch HOME and run through the link, the folder panel and the notification request through the pipe",
     async () => {
       const t0 = Date.now();
       let out = '';
@@ -482,7 +482,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
   );
 
   it(
-    "L5.16c fixes (review c B-L5): the first run's Choose a Folder… — a folder that is not empty is refused by retake init and the question comes back with the reason; then an empty folder becomes the workspace",
+    "the first run's Choose a Folder… — a folder that is not empty is refused by retake init and the question comes back with the reason; then an empty folder becomes the workspace",
     async () => {
       const t0 = Date.now();
       let out = '';
@@ -537,7 +537,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     rmSync(join(base, 'clone'), { recursive: true, force: true });
   });
 
-  it("bundle.json's sha256 values are the app's signed files' (review B M3)", () => {
+  it("bundle.json's sha256 values are the app's signed files'", () => {
     const res = join(app, 'Contents', 'Resources');
     const m = JSON.parse(readFileSync(join(res, 'bundle.json'), 'utf8')) as {
       paths: { node: string; ffmpeg: string | null };

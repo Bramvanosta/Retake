@@ -172,7 +172,7 @@ describe('zod schemas', () => {
     expect(TimelineSchema.safeParse({ ...base, tracks: [{ ...track, loading: [{ t_start: 1, t_end: 2, until: 'paint', held_frames: -1 }] }] }).success).toBe(false);
   });
 
-  it('L5.7: timeline stalls and busy spans, run.json perf, the capture encoder and prewarm', () => {
+  it('timeline stalls and busy spans, run.json perf, the capture encoder and prewarm', () => {
     const base = {
       version: 1 as const,
       run_id: 'r',

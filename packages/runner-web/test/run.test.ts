@@ -147,7 +147,7 @@ describe('new_tab', () => {
   });
 });
 
-describe('device scale 2 (4K-class captures, L2.8)', () => {
+describe('device scale 2 (4K-class captures)', () => {
   it('scaleArgs forces the browser scale factor for headless scale ≠ 1 only', () => {
     expect(scaleArgs(2, false)).toEqual(['--force-device-scale-factor=2']);
     expect(scaleArgs(1, false)).toEqual([]);
@@ -305,7 +305,7 @@ describe('scroll', () => {
   });
 });
 
-describe('phase-2 contracts: cards, overlays, camera at the end of the step, video block (L2.1)', () => {
+describe('phase-2 contracts: cards, overlays, camera at the end of the step, video block', () => {
   it('records card scenes and overlay anchors; overlay and camera targets are measured after the scroll', async () => {
     const rec = await run('phase2', {
       title: { kicker: 'For suppliers', text: 'Availability' },
@@ -568,7 +568,7 @@ describe('dry-run, --until, failures, cancellation', () => {
     expect(journal.entries.map((e) => e.status)).toEqual(['rolled_back', 'rolled_back', 'ok']);
   });
 
-  it('the hooks run through the hook runner handed in (L7.12): none handed is refused before anything runs; one whose load fails fails the run as a hooks package that could not be loaded did', async () => {
+  it('the hooks run through the hook runner handed in: none handed is refused before anything runs; one whose load fails fails the run as a hooks package that could not be loaded did', async () => {
     const from = server.hits.length;
     const sc = { pacing: FAST, setup: [{ name: 'arm', http: { method: 'POST' as const, url: '{{app}}/arm' } }], scenes: [{ id: 'one', open: '/dry.html', steps: [{ wait: 0.1 }] }] };
     const project = makeProject(dir, { app: server.url });

@@ -5,8 +5,16 @@
 // code (letters, a dash, a letter and a number), a bare finding code as a parenthesis' item, an id of the private
 // action or test plan. Requirement ids (`R-UI-07`) resolve in docs/requirements.json and are not hits. Only comment
 // ranges are read — the trivia of TypeScript's syntax tree for TS / JS files, a small lexer for Rust, CSS, shell, TOML
-// and Python — never a string, a test title or runtime text; a comment with the old-name tag is left out (it names
-// the old spellings on purpose). import-rules.test.ts holds one fixture per form.
+// and Python — never another string or runtime text; a comment with the old-name tag is left out (it names the old
+// spellings on purpose). The test titles of packages/*/test (the first argument of `it`, `describe`, `test` and
+// `suite`, a template's text parts included) hold none either, nor a bare finding code before a title's colon, a list of
+// codes, a parenthesis of a bare code, number or section ("(C1)", "(9)", "(§4)") nor a review's fix or a plan's part
+// (titleRefHits). Look-alikes accepted (never hits): the import rules' `R<n>`, the codecs VP8 / VP9, MP4, PS4, the C0 /
+// C1 control sets (outside a title's lone parenthesis), D1 / D2 in a comment's parenthesis, the SPEC's version 2.
+// Look-alikes that ARE hits, so a comment or title spells them another way: an SVG path command (`L` and a number),
+// an ISO time (`T` and the hour), a heading or track label before a title's colon ("H1:", "V1:"), a count alone in a
+// parenthesis ("(45)").
+// import-rules.test.ts holds one fixture per form.
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -27,7 +35,7 @@ export const LOT_ID = /\bL\d+(?:\.\d+[a-z]?)?\b/g;
  * an audit by its date, a finding, a plan item or a probe with its code, a path into the private notes folder.
  */
 export const NOTE_REF =
-  /\b(?:reviews? [a-zA-Z](?:[ -][A-Z]{1,2}-?[A-Z]?\d+[a-z]?\b|(?=[\s]*(?:[.,;:)/—–]|$)))|critiques?\b|audit 20\d\d-\d\d-\d\d|findings? [A-Z]{1,3}\d+[a-z]?\b|plan [A-Z]{1,2}\d+[a-z]?\b|probes? [A-Z]{1,2}\d+\b)|\.private\//gi;
+  /\b(?:reviews? [a-zA-Z](?:[ -][A-Z]{1,2}-?[A-Z]?\d+[a-z]?\b|(?=[\s]*(?:[.,;:)/—–]|$)))|critiques?\b|audit 20\d\d-\d\d-\d\d|findings? [A-Z]{1,3}\d+[a-z]?\b|plan [A-Z]{1,2}\d+[a-z]?\b|plan §\d|probes? [A-Z]{1,2}\d+\b|reviews? [A-Z]{1,2}\d+[a-z]?\b)|\.private\//gi;
 /** A finding code: two letters, a dash, a letter and a number (the audit's); a letter, a dash, a severity and a number (a review's); `T-` and a number (the test plan's). */
 export const FINDING_CODE = /(?<![\w-])(?:[A-Z]{2}-[A-Z]\d+[a-z]?|[A-Z]-[A-Z]{1,2}\d+[a-z]?|T-\d+[a-z]?)(?![\w-])/g;
 /**
@@ -192,6 +200,73 @@ export function commentRefHits(root, files) {
   const hits = [];
   for (const { rel, text } of list) {
     const refs = commentRefsOf(ts, rel, text);
+    if (refs.length) hits.push({ rule: 'comment-ref', file: rel, count: refs.length, refs });
+  }
+  return hits;
+}
+
+/** A bare finding code (maybe after a review's letter) or a list of them before a title's colon, at its start. */
+export const LEAD_CODE = /^(?:⚑ )?(?:(?:[A-D] )?(?!R\d|V2\b|VP[89]\b|MP4\b|PS4\b|C[01]\b|D[12]\b)[A-Z]{1,2}\d{1,2}[a-z]?(?:\s*[,/]\s*|\s+and\s+)?)+(?=:\s)/g;
+/**
+ * A review's fix or its numbered point ("review fixes", "review fix K1", "review A #4", "small point 3.2", "fix pass"), a
+ * ruling by its number, a plan's part or point as a parenthesis of its own ("(part D)", "(#6)").
+ */
+export const REVIEW_FIX = /\breviews? (?:[A-Za-z] )?(?:fix(?:es)?\b|#\d+)|\b(?:small point \d+(?:\.\d+)?|ruling \d+|fix pass)\b|\((?:part [A-Z0-9]+|#\d+)\)/gi;
+/** A list of finding codes anywhere in a title, slashes or commas between them: "B16 / B5", "A1, A2". */
+export const CODE_LIST = /(?<![\w-])(?:(?!R\d|VP[89]\b|MP4\b|PS4\b|C[01]\b)[A-Z]{1,2}\d{1,2}[a-z]?)(?:\s*[,/]\s*(?!R\d|VP[89]\b|MP4\b|PS4\b|C[01]\b)[A-Z]{1,2}\d{1,2}[a-z]?)+(?![\w-])/g;
+/** A parenthesis of a title holding a bare code, number or section only: "(C1)", "(9)", "(§4.2)". */
+export const BARE_PAREN = /\((?:(?!R\d|VP[89]\)|MP4\)|PS4\))[A-Z]{1,2}\d{1,2}[a-z]?|\d{1,2}|§\d+(?:\.\d+)*)\)/g;
+/** Every pattern a test title may not hold. */
+export const TITLE_REF_PATTERNS = [...COMMENT_REF_PATTERNS, LEAD_CODE, REVIEW_FIX, CODE_LIST, BARE_PAREN];
+
+const TEST_FNS = new Set(['it', 'describe', 'test', 'suite']);
+
+/** The test titles of a TS / JS file: `[{ line, text }]`, a template's text parts joined (its `${…}` left out). */
+export function testTitles(ts, rel, text) {
+  const kind = /\.tsx$/.test(rel) ? ts.ScriptKind.TSX : /\.jsx$/.test(rel) ? ts.ScriptKind.JSX : /\.[cm]?js$/.test(rel) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+  const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, kind);
+  /** The name a call's callee starts from: `it` of `it.skipIf(…)(…)`, `describe.each(…)(…)`. */
+  const rootName = (e) => {
+    while (ts.isPropertyAccessExpression(e) || ts.isCallExpression(e)) e = e.expression;
+    return ts.isIdentifier(e) ? e.text : null;
+  };
+  const out = [];
+  (function visit(n) {
+    if (ts.isCallExpression(n) && n.arguments.length && TEST_FNS.has(rootName(n.expression) ?? '')) {
+      // A string or template first argument (the table of `it.each(table)` and the condition of `it.skipIf(cond)` are
+      // neither; the title is the first argument of the call they return).
+      const a = n.arguments[0];
+      const line = sf.getLineAndCharacterOfPosition(a.getStart(sf)).line + 1;
+      if (ts.isStringLiteralLike(a)) out.push({ line, text: a.text });
+      else if (ts.isTemplateExpression(a)) out.push({ line, text: [a.head.text, ...a.templateSpans.map((s) => s.literal.text)].join(' ') });
+    }
+    ts.forEachChild(n, visit);
+  })(sf);
+  return out;
+}
+
+/** The lot ids and note references of one test file's titles: `[{ line, ref }]`. */
+export function titleRefsOf(ts, rel, text) {
+  const out = [];
+  for (const t of testTitles(ts, rel, text)) {
+    if (t.text.includes(OLD_NAME_TAG)) continue;
+    for (const re of TITLE_REF_PATTERNS) for (const m of t.text.matchAll(re)) out.push({ line: t.line, ref: m[0] });
+  }
+  return out.sort((a, b) => a.line - b.line);
+}
+
+/** comment-ref hits of the test titles (every packages/<pkg>/test, or `files`): one per file, with its count. `{ rule, file, count, refs }`. */
+export function titleRefHits(root, files) {
+  const ts = loadTs(root);
+  const list =
+    files ??
+    commentFiles(root)
+      .filter((rel) => /^packages\/[^/]+\/test\//.test(rel) && TS_EXT.test(rel))
+      .map((rel) => ({ rel, text: fs.readFileSync(path.join(root, rel), 'utf8') }));
+  const hits = [];
+  for (const { rel, text } of list) {
+    if (!TS_EXT.test(rel)) continue;
+    const refs = titleRefsOf(ts, rel, text);
     if (refs.length) hits.push({ rule: 'comment-ref', file: rel, count: refs.length, refs });
   }
   return hits;

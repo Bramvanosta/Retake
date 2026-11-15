@@ -92,7 +92,7 @@ function diff(a: Buffer, b: Buffer): number {
   return n / a.length;
 }
 
-describe('capture performance and disk (L5.7)', () => {
+describe('capture performance and disk', () => {
   let rec: RunRecord;
   let tl: Timeline;
 

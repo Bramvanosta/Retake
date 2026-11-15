@@ -146,7 +146,7 @@ describe('retake login (R-AUTH-06): signIn', () => {
     expect((await checkSavedSession({ policy: PERSON_POLICY, project, env: env(), persona: persona('buyer') })).status).toBe('expired');
   });
 
-  it('over a saved session (U3): --auto keeps a session-cookie persona without a step; the window opens signed in; closing it signed out keeps the valid snapshot', async () => {
+  it('over a saved session: --auto keeps a session-cookie persona without a step; the window opens signed in; closing it signed out keeps the valid snapshot', async () => {
     const { project, persona } = await setup();
     let asked = 0;
     const resolveSecret = async () => {
@@ -205,7 +205,7 @@ describe('retake login (R-AUTH-06): signIn', () => {
     expect(await readStatus(persona('supplier').statusFile)).toMatchObject({ status: 'expired', by: 'login' });
   });
 
-  it('a first login that fails leaves no profile behind (U7); a cancelled one saves nothing (U4)', async () => {
+  it('a first login that fails leaves no profile behind; a cancelled one saves nothing', async () => {
     const { project, persona } = await setup();
     const f = persona('supplier');
     await expect(signIn({ policy: PERSON_POLICY, project, env: env(), persona: f, mode: 'auto', resolveSecret: async () => 'wrong-secret-12' })).rejects.toThrow(/automated login of persona supplier/);

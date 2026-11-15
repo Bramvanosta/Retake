@@ -156,7 +156,7 @@ describe('library preview keys', () => {
     expect(changed(before, comp)).toEqual(Object.keys(before).sort());
   });
 
-  it('review A L3: the render browser is in the key (a browser update is a new picture)', async () => {
+  it('the render browser is in the key (a browser update is a new picture)', async () => {
     const tpl = await loadTemplate('brandx', root, { files: fileFacts(policy) });
     const reg = await loadComponentRegistry({ root });
     const a = await keysOf(await libraryKeyContext(tpl, reg, { browser: 'playwright /x/chromium_headless_shell-1187/headless_shell 100 1', policy }));
@@ -168,7 +168,7 @@ describe('library preview keys', () => {
     expect((await context()).browser).toMatch(/^((playwright|env) \/.+ \d+ \d+|remotion \S+) gl=software$/);
   });
 
-  it('L5.15 (critique M1): the GL is in the key — the resolved policy (retake.yaml render: over the environment), never what a job found', async () => {
+  it('the GL is in the key — the resolved policy (retake.yaml render: over the environment), never what a job found', async () => {
     const soft = await keysOf(await context());
     const yaml = await readFile(join(root, 'retake.yaml'), 'utf8');
     try {
@@ -193,7 +193,7 @@ describe('library preview keys', () => {
     }
   });
 
-  it("L5.15 fixes (review B L3): the Studio and its worker compute one key — the worker gets the Studio's RETAKE_RENDER_* (cleanWorkerEnv keeps them), and both read retake.yaml render:", async () => {
+  it("the Studio and its worker compute one key — the worker gets the Studio's RETAKE_RENDER_* (cleanWorkerEnv keeps them), and both read retake.yaml render:", async () => {
     const fixture = join(REPO, 'packages', 'engine', 'test', 'fixtures', 'library-key.mts');
     // A process of its own, as the worker the Studio starts (the Studio hands it cleanWorkerEnv of its own environment).
     const keyIn = (env: NodeJS.ProcessEnv): string =>

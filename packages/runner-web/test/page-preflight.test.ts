@@ -41,7 +41,7 @@ afterAll(() => {
   for (const s of servers) s.close();
 });
 
-describe('page pre-flight (L5.8)', () => {
+describe('page pre-flight', () => {
   it('any answer counts (a 404 at the root, a sign-in redirect not followed), a gateway error, a refused connection or a timeout does not', async () => {
     const probes = await probePages({ console: ok, shop: ok, admin: redirect, api: gateway, app: dead, slow }, { timeoutMs: 400 });
     const byKey = Object.fromEntries(probes.map((p) => [p.keys.join('/'), { ok: p.ok, status: p.status, error: p.error }]));

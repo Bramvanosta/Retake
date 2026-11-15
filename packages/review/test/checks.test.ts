@@ -324,11 +324,11 @@ describe('plan checks on the fixture plans', () => {
   });
 });
 
-describe('environment (L1.7): the report line, stopped writes, hidden and local URLs', () => {
+describe('environment: the report line, stopped writes, hidden and local URLs', () => {
   const SHOP = { page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' };
   const withEnv = (env: TimelineEnvironment): Timeline => ({ ...realTimeline('quote'), environment: env });
 
-  it('a run before L1.7 (no environment block): no line, nothing to say on a card frame', () => {
+  it('an older run (no environment block): no line, nothing to say on a card frame', () => {
     expect(reviewEnvironment(plans.quote.timeline)).toBeUndefined();
     expect(checkEnvironment(ctxOf('quote'))).toEqual([]);
   });
@@ -594,7 +594,7 @@ describe('helpers', () => {
   });
 });
 
-describe('L5.5 review rules: target length, cards too short for their text, a mail or document before its step', () => {
+describe('the length and order rules: target length, cards too short for their text, a mail or document before its step', () => {
   it("the scenario's target_length replaces the reference 60–120 s unless the caller set the rule (R-FLD-05)", () => {
     expect(reviewRules({})).toEqual({ ...DEFAULT_RULES });
     expect(reviewRules({ target_length: { min_s: 30, max_s: 45 } })).toMatchObject({ video_min_s: 30, video_max_s: 45, video_target: 'scenario' });

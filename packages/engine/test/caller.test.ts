@@ -155,7 +155,7 @@ describe('the caller policy', () => {
     });
   }
 
-  it("hands core and the adapters each channel's words as a confinement value, never the channel (L7.35, finding D6)", () => {
+  it("hands core and the adapters each channel's words as a confinement value, never the channel", () => {
     // The MCP server's words are core's default (what core says when it is given none); the Studio's name no MCP tool.
     expect(CONFINEMENTS.mcp).toBe(AGENT_CONFINEMENT);
     expect({ ...CONFINEMENTS.mcp }).toEqual({

@@ -115,7 +115,7 @@ describe('the take the timeline plans and Render edits, state by state', () => {
 //
 // The states are those of test-support/src/records/render-states.json. Every row was first pinned on the code before
 // the lot: the op's status, its summary, the renders it lists and the members of its answer; the thirteen rows
-// the lot's engine part changed are marked `moved: <row>` (the lead's plan §4) — each flipped on purpose, no other moved.
+// the lot's engine part changed are marked `moved: <row>` — each flipped on purpose, no other moved.
 
 describe("the Studio's list of renders, state by state", () => {
   let studio: StudioServer;

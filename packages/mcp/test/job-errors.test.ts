@@ -80,7 +80,7 @@ describe('job error messages', () => {
     }
   });
 
-  it('an interrupted job and a hooks failure keep their message (written by the engine, L3.1)', async () => {
+  it('an interrupted job and a hooks failure keep their message (written by the engine)', async () => {
     const jobs = [job('review', 'interrupted', 'the worker stopped while the review ran'), job('hooks', 'failed', 'hooks file not found')];
     const ctx = stub(jobs);
     for (const j of jobs) {

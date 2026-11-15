@@ -75,6 +75,52 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.55b)
+- **L7.55b done (2026-11-15; branch `claude/arch-l7`)** — test titles, `why:` strings, assertion messages and
+  template literals of the tests name no lot or phase id, no private-note reference (review / critique / finding /
+  plan / probe codes, `.private/` paths, "review fixes", a ruling or small point by its number, a plan's part) and no
+  history tag ("L5.15 fixes", "fix pass") any more; the meaning kept in plain words; requirement ids, backlog ids
+  (`BL-*`), mockup ids (`B32`, `R4-*`), table labels (`D-<n>`) and the import rules' `R<n>` kept. Counts (the
+  comment-ref patterns plus the title-only forms below, HEAD → now): test-title hits 1,670 in 302 files → 0
+  (960 titles renamed); test strings that are not data or check fixtures 38 → 0; dev-tool strings (the ratchet's
+  rule titles in scripts/audit/lib.mjs) 16 → 0; the `about` of three apps/desktop/bundle JSON files 3 → 0. Left on
+  purpose: data that only looks like an id (SVG path commands `L12`, ISO times `T10:24`, a codec string `L93`, the
+  hold tests' `L1` labels, YAML line labels `L5`, a scenario kicker "Before L2.1" of the golden plan), the
+  comment-ref fixtures of import-rules.test.ts, and old-name.test.ts's names of the docs' sections ("the L5.13
+  section": the docs keep lot ids).
+  - Code: no behaviour change — 302 files touched; 299 equal to HEAD with every string and template part blanked
+    (parse-tree leaves and comments compared); import-rules.test.ts differs by an insertion only (2 new tests);
+    scripts/audit/comment-refs.mjs and lib.mjs are the check. The `comment-ref` check now reads test titles too:
+    `titleRefHits` / `titleRefsOf` / `testTitles` (the first string or template argument of `it`, `describe`, `test`,
+    `suite`, any `.skip` / `.each(…)(…)` / `.skipIf(…)(…)` form) with the comment patterns plus two title-only ones —
+    `LEAD_CODE` (a bare finding code, maybe after a review letter, before the title's colon: "A M2:", "⚑ B5, S1:";
+    `R<n>`, MP4 and the look-alikes excepted) and `REVIEW_FIX` ("review fixes", "review fix K1", "review A #4",
+    "small point 3.2", "ruling 27", "fix pass", "(part D)", "(#8)"); wired into ratchetEntries under the same
+    check id (entries say "in its test titles"); the CHECKS title says so. No baseline group (the tree holds 0).
+    The ratchet's rule titles in lib.mjs and the three bundle JSON `about` texts lost their lot / plan / finding ids
+    (dev-facing only; the JSON objects equal HEAD's outside `about`).
+  - Tests: import-rules.test.ts +2 in `comment-ref: comments a reader can follow` (title fixtures: hits, title-only
+    forms, non-hits; the tree holds today). Run alone (fresh RETAKE_HOME, RETAKE_DISK_WARN=off): import-rules
+    129/129, old-name 4/4, and blocks, recording, core scenario-edit, record-annotations, render-folder,
+    engine scenario-view, run-thumbs, live-channel, timeline-view, records-characterization, comment-proposals,
+    editor plan-run, ui forms-app, run-live, scenario-app, app-source, kit-static, scenario-edit-ops, mcp skills,
+    render-latest-said, cli publish-update, operations-cli, desktop-config, app-bundle-build — green.
+    requirements-cites.test.ts fails on the tree as it stands (it reads docs/requirements.json, which still quotes the
+    old titles) and passes once L7.55b-requirements-edits.json is applied (`--check-cites` 0 on that copy).
+  - Mutations: 8 — titles not read, LEAD_CODE dropped, REVIEW_FIX dropped, its note / part forms dropped, template
+    titles skipped, the old-name skip removed, LEAD_CODE's look-alike exclusions removed (each red in import-rules),
+    a lot-id title added to sandbox's process.test.ts (`rules.mjs --check` names the new entry, the holds-today test
+    red); each restored, green.
+  - Gates: clean build (every packages/*/dist and *.tsbuildinfo outside node_modules removed) `npx tsc -b` 0,
+    `pnpm typecheck` 0, `pnpm lint` 0 (lint baseline unchanged), `pnpm format:check` 0, `rules.mjs --check` 0
+    (64 entries), test-guard: no decrease (300 files, every test and expect count equal or higher; it lists 598
+    missing titles: the renames below), `requirements.mjs --check-cites` 0 on a scratch copy with the edits applied
+    (164 requirements' `evidence`, 1,285 cites moved).
+  - Not done: the reasons of four ratchet groups in scripts/audit/baseline.json still name lot ids (JSON, outside
+    the check); docs keep their lot ids, and docs/HANDOFF.md quotes one old title as history ("the tests' shared
+    helpers never ship (L7.37)", app-bundle.test.ts); `S<n>`-style safety labels that sit inside a title (not before
+    its colon) and the word "probe" are not read as references.
+
 ## State (after L7.55)
 - **L7.55 done (2026-11-15; branch `claude/arch-l7`)** — comments under packages/*/src, packages/*/test, apps/ and
   scripts/ name no lot id and no private-note reference any more, and the history they told is gone; reasons kept in

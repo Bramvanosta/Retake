@@ -28,7 +28,7 @@ import { MemoryOutputs } from '../src/outputs/memory-outputs.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 
-describe('the job handlers and the worker ports (L7.29)', () => {
+describe('the job handlers and the worker ports', () => {
   it('one handler per job kind, and none of another: the table is typed by the kind (no default branch)', () => {
     expect(Object.keys(JOB_HANDLERS).sort()).toEqual([...JOB_KINDS].sort());
     for (const kind of JOB_KINDS) expect(typeof JOB_HANDLERS[kind]).toBe('function');

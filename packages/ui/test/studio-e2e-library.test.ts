@@ -331,7 +331,7 @@ describe('the component library in Chromium', () => {
     expect(await readFile(file, 'utf8')).toBe(original);
   });
 
-  it("⚑ L5.12c: in the shell — the browser's Library group and themes, the Theme select, the selected card's inspector, the status bar; targets ≥ 24 px; the set-default sheets: Escape cancels, Return sets", async () => {
+  it("⚑ in the shell — the browser's Library group and themes, the Theme select, the selected card's inspector, the status bar; targets ≥ 24 px; the set-default sheets: Escape cancels, Return sets", async () => {
     // A scenario in context first (the status bar's scenario line follows the tab): the Library's line replaces it.
     await page.goto(`${studio.url}#/p/${P}/s/quote`);
     await page.getByTestId('status-scenario').waitFor(POLL);
@@ -431,7 +431,7 @@ describe('the component library in Chromium', () => {
     expect(dialogs).toEqual([]);
   });
 
-  it("⚑ L5.12c fixes (review B-H1): Set as default on a starter from the GRID's inspector — Return in the copy's name field copies, the Library moves to the copy's page and keeps the result, Undo and the next step; Undo → the exact bytes", async () => {
+  it("⚑ Set as default on a starter from the GRID's inspector — Return in the copy's name field copies, the Library moves to the copy's page and keeps the result, Undo and the next step; Undo → the exact bytes", async () => {
     await page.goto(`${studio.url}#/p/${P}/library/motion`);
     await expect.poll(() => page.getByTestId('library').getAttribute('data-theme'), POLL).toBe('motion');
     const h = card('acme/hostile');
@@ -454,7 +454,7 @@ describe('the component library in Chromium', () => {
     expect(await readFile(file, 'utf8')).toBe((await readFile(join(REPO, 'templates', 'motion', 'template.yaml'), 'utf8')).replace(/^name: motion$/m, 'name: motion-set'));
   });
 
-  it("⚑ L5.12c fixes (review A-M3, A-L7, B-M1, A-L6): the grid is one tab stop — arrows, Home / End, Escape, Enter to the inspector; a card named by its name; its frame holds Play; Play pressed is not the ring's look", async () => {
+  it("⚑ the grid is one tab stop — arrows, Home / End, Escape, Enter to the inspector; a card named by its name; its frame holds Play; Play pressed is not the ring's look", async () => {
     await page.goto(`${studio.url}#/p/${P}`);
     await page.goto(`${studio.url}#/p/${P}/library`);
     await expect.poll(() => page.getByTestId('library').getAttribute('data-theme'), POLL).toBe('editorial');
@@ -548,7 +548,7 @@ describe('the component library in Chromium', () => {
     for (const j of await libraryJobs()) if (j.state === 'queued') await studio.engine.jobs.cancel(j.id);
   });
 
-  it('⚑ L5.12c fixes (review A-L1, B-L3): the Create sheet opens on its Id field (never a chip that is not a tab stop); with the inspector hidden the selected card links to its page and Enter brings its facts in place', async () => {
+  it('⚑ the Create sheet opens on its Id field (never a chip that is not a tab stop); with the inspector hidden the selected card links to its page and Enter brings its facts in place', async () => {
     await page.goto(`${studio.url}#/p/${P}`);
     await page.goto(`${studio.url}#/p/${P}/library`);
     await page.getByTestId('lib-create-open').click();
@@ -575,7 +575,7 @@ describe('the component library in Chromium', () => {
     expect(await cta.getByTestId('lib-card-open').count()).toBe(0);
   });
 
-  it('L5.12c fixes (review B gaps): set as default — already the default, or why not (said); a refused queue says so until Try again; Retry the poster → retry: true', async () => {
+  it('set as default — already the default, or why not (said); a refused queue says so until Try again; Retry the poster → retry: true', async () => {
     for (const j of await libraryJobs()) if (j.state === 'queued') await studio.engine.jobs.cancel(j.id);
     await page.goto(`${studio.url}#/p/${P}`);
     await page.goto(`${studio.url}#/p/${P}/library`);
@@ -685,7 +685,7 @@ describe('the component library in Chromium', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  it('⚑ review B H1: a library job that failed as a whole shows its error on the page, as text', async () => {
+  it('⚑ a library job that failed as a whole shows its error on the page, as text', async () => {
     const id = 'studio/intro-minimal';
     const it0 = (await view()).find((i) => i.component === id)!;
     const sub = await studio.engine.components.libraryRender({ project: P, template: 'editorial', items: [{ component: id, loop: it0.loop.key }] });

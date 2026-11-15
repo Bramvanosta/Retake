@@ -244,8 +244,8 @@ describe('the editor, state by state: the run `latest` names and a run named by 
 //
 // The states are those of test-support/src/records/render-states.json: two good captures (OLD, NEW), a good render
 // `quote-v1` and the file(s) the state names. The cells were written before the lot and flipped by its editor
-// part on purpose: a cell that changed is marked `moved: <row>` with the row of the lot's table of visible changes (the
-// lead's plan §4, and §1b's rows 21–29) and says what it held before. A state without a mark did not move: a thing a
+// part on purpose: a cell that changed is marked `moved: <row>` with the row of the lot's table of visible changes (rows
+// 21–29 among them) and says what it held before. A state without a mark did not move: a thing a
 // person NAMES keeps working. Since the lot the listing is the complete records of their own file (D-10); a terminal's
 // `latest` takes the newest succeeded complete record whatever its file is called, and acts on THAT FILE (ruling 2).
 
@@ -612,7 +612,7 @@ describe('the render records as the editor answers them, state by state', () => 
     expect((await findRenderRecord(project, 'latest', 'quote')).id).toBe('quote-v4');
   });
 
-  it('a video that is missing is said with the path the record names made printable, or — no `file` in the record — in fixed words; through MCP never with the path (L7.6b fix pass)', async () => {
+  it('a video that is missing is said with the path the record names made printable, or — no `file` in the record — in fixed words; through MCP never with the path', async () => {
     const b = buildRenderState(root, 'v2', { ...films, slug: 'r-file-words' });
     const file = join(b.renders, 'quote-v2.json');
     const v = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;

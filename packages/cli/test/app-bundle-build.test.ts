@@ -85,7 +85,7 @@ function fakePayload(): string {
   return root;
 }
 
-describe('the Tauri overlay is generated; tauri.conf.json keeps no bundle section (M8)', () => {
+describe('the Tauri overlay is generated; tauri.conf.json keeps no bundle section', () => {
   it('the committed config: the bundle off, the png icon only, no plugin — the developer app is unchanged', () => {
     const conf = JSON.parse(readFileSync(join(APP, 'tauri.conf.json'), 'utf8'));
     expect(conf.bundle).toEqual({ active: false, icon: ['icons/icon.png'] });
@@ -223,7 +223,7 @@ function fakeStage(marks: Record<string, Record<string, number>>): string {
 }
 const NODE_ENTRY = [{ id: 'node', kind: 'file', path: 'node/bin/node', entitlements: 'node', dryDLV: false }];
 
-describe('one allow-listed environment for every child of the build (critique M1, review A M1)', () => {
+describe('one allow-listed environment for every child of the build', () => {
   it('buildEnv keeps the system, toolchain and pnpm variables, drops every credential — APPLE_*, updater keys (legacy names too), tokens', async () => {
     const { buildEnv } = await bundleModule();
     const keep = {
@@ -361,7 +361,7 @@ describe('one allow-listed environment for every child of the build (critique M1
 });
 
 describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
-  it('release entitlements: the least the probe proved (review A L1) — allow-jit for Node.js, the Renderer / GPU helpers and the headless shell; DLV only for Node and the Plugin helper; no library carries any; no get-task-allow', async () => {
+  it('release entitlements: the least the probe proved — allow-jit for Node.js, the Renderer / GPU helpers and the headless shell; DLV only for Node and the Plugin helper; no library carries any; no get-task-allow', async () => {
     const { readTable, entitlementsFor, entitlementKeys, DLV, ENTITLEMENTS_DIR } = await signModule();
     const entries = readTable();
     const release = Object.fromEntries(entries.map((e: any) => [e.id, entitlementsFor(e, 'release')]));
@@ -682,7 +682,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     expect(() => verifyRelease(app, dmg, signer('dry'))).toThrow(/release run only/);
   });
 
-  it.runIf(MAC)("notarize (review e B-L3): Accepted passes; Invalid says Apple's status and the first issues of its log (same credentials, none printed); no answer: notarytool's words", async () => {
+  it.runIf(MAC)("notarize: Accepted passes; Invalid says Apple's status and the first issues of its log (same credentials, none printed); no answer: notarytool's words", async () => {
     const { notarize, signer } = await signModule();
     const { buildEnv } = await bundleModule();
     const log = join(dir('notarize-log'), 'calls');
@@ -746,7 +746,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
   });
 });
 
-describe('the folders a build writes (review A M3, review B L5)', () => {
+describe('the folders a build writes', () => {
   it('checkFolder: by real path — never the checkout (through a link too), /Applications, ~/Applications, ~/Library, the home folder or a folder holding it, the Desktop / Documents / Downloads roots', async () => {
     const { checkFolder } = await bundleModule();
     const link = join(dir('links'), 'to-checkout');
@@ -898,7 +898,7 @@ describe('launch.json version 2 and the launcher', () => {
   });
 });
 
-describe("the module lookup guard: the app's code never loads a module from a node_modules folder above the app (review A H1)", () => {
+describe("the module lookup guard: the app's code never loads a module from a node_modules folder above the app", () => {
   /**
    * A mini tree: canaries in a node_modules folder above the app, above Resources (inside the .app) and in
    * $HOME/.node_modules; a package inside the engine; a workspace file outside the app with its own node_modules and one
@@ -1065,7 +1065,7 @@ async function miniApp(name = 'Retake'): Promise<string> {
   return app;
 }
 
-describe.runIf(MAC)("the app's checks beyond its signatures, and the DMG's (review B M2, review A L6)", () => {
+describe.runIf(MAC)("the app's checks beyond its signatures, and the DMG's", () => {
   it("appProblems: Contents/Resources equals the signed payload byte for byte (links, files, nothing more); no AppleDouble file, no foreign attribute; Info.plist's minimum macOS and local network words", async () => {
     const { appProblems, treeDigest } = await bundleModule();
     const base = await miniApp();
@@ -1130,7 +1130,7 @@ describe.runIf(MAC)("the app's checks beyond its signatures, and the DMG's (revi
   });
 });
 
-describe('the Tauri CLI from the pnpm store: every file pinned (review A M2)', () => {
+describe('the Tauri CLI from the pnpm store: every file pinned', () => {
   const blobOf = (store: string, data: string, exec = false) => {
     const hex = createHash('sha512').update(data).digest('hex');
     put(store, `files/${hex.slice(0, 2)}/${hex.slice(2)}${exec ? '-exec' : ''}`, data);
@@ -1176,7 +1176,7 @@ describe('the Tauri CLI from the pnpm store: every file pinned (review A M2)', (
     expect(() => tauriCli(dest, dir('empty-store'), pins)).toThrow(/not in the pnpm store/);
   });
 
-  it("the committed pins: both packages, every file a sha512 (the native binary and the JS entries among them); the CLI's major.minor is the tauri crate's (review B L4)", async () => {
+  it("the committed pins: both packages, every file a sha512 (the native binary and the JS entries among them); the CLI's major.minor is the tauri crate's", async () => {
     const { TAURI_CLI_PINS, TAURI_CLI_VERSION } = await bundleModule();
     expect(TAURI_CLI_PINS.v).toBe(1);
     expect(Object.keys(TAURI_CLI_PINS.packages).sort()).toEqual(['@tauri-apps/cli', '@tauri-apps/cli-darwin-arm64']);
@@ -1190,7 +1190,7 @@ describe('the Tauri CLI from the pnpm store: every file pinned (review A M2)', (
 });
 
 describe('the manifest, the pruned installers, the generated folder of the checkout', () => {
-  it("refreshManifestHashes: bundle.json's sha256 values are the signed files' (review B M3)", async () => {
+  it("refreshManifestHashes: bundle.json's sha256 values are the signed files'", async () => {
     const { refreshManifestHashes } = await bundleModule();
     const d = dir('manifest');
     put(d, 'node/bin/node', 'signed node');
@@ -1219,7 +1219,7 @@ describe('the manifest, the pruned installers, the generated folder of the check
     expect(refreshManifestHashes(d)).toMatchObject({ ffmpeg: null, sha256: { node: sha('signed node') } });
   });
 
-  it("the installer scripts nothing runs (playwright-core's sudo installers, the framework's install.sh) are pruned, and the layout check fails on them (review A L7)", async () => {
+  it("the installer scripts nothing runs (playwright-core's sudo installers, the framework's install.sh) are pruned, and the layout check fails on them", async () => {
     const { prunedIn, checkStage, PRUNED } = await bundleModule();
     expect(PRUNED).toEqual(['engine/node_modules/playwright-core/bin', 'browsers/*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Resources/install.sh']);
     const d = dir('pruned');
@@ -1236,7 +1236,7 @@ describe('the manifest, the pruned installers, the generated folder of the check
     expect(problems).toMatch(/Resources\/install\.sh: an installer script the payload must not carry/);
   });
 
-  it('apps/desktop/gen (tauri-build writes it, git ignores it): the snapshot covers it, and the build puts it back as it was (review A L2)', async () => {
+  it('apps/desktop/gen (tauri-build writes it, git ignores it): the snapshot covers it, and the build puts it back as it was', async () => {
     const { repoSnapshot, saveGenerated, restoreGenerated, GENERATED } = await bundleModule();
     expect(GENERATED).toEqual(['apps/desktop/gen']);
     const repo = dir('fake-checkout');

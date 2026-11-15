@@ -132,7 +132,7 @@ describe("a control's set_field", () => {
   });
 });
 
-describe('⚑ compound edits (critique B7)', () => {
+describe('⚑ compound edits', () => {
   it('a background type switch writes type and colours in one edit, from the background as written', () => {
     const v = view();
     const b = backgroundOf(v).value;
@@ -247,7 +247,7 @@ describe('⚑ the draft throttle', () => {
   });
 });
 
-describe('Use in this scenario (critique B1)', () => {
+describe('Use in this scenario', () => {
   const facts = (template?: string, ok = true) => ({
     hash: 'h',
     text: 't',

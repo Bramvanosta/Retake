@@ -257,7 +257,7 @@ describe('kit style helpers', () => {
   });
 });
 
-describe('kit frame helpers (L2.7)', () => {
+describe('kit frame helpers', () => {
   it('liftToContrast keeps a theme hue readable on a dark surface', () => {
     const wine = '#8a2332';
     const night = '#1f1413';
@@ -328,7 +328,7 @@ describe('kit React elements (render-tested)', () => {
   });
 });
 
-describe('kit renderer primitives (BACKLOG L3.7: components import the renderer through the kit)', () => {
+describe('kit renderer primitives (components import the renderer through the kit)', () => {
   it('re-exports useCurrentFrame, useVideoConfig, Img, AbsoluteFill, Sequence and random from remotion itself', async () => {
     const kit = (await import('@retake/components/kit')) as Record<string, unknown>;
     const remotion = (await import('remotion')) as Record<string, unknown>;

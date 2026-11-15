@@ -167,7 +167,7 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe('timeline view (L4.5)', () => {
+describe('timeline view', () => {
   it("tracks, edit source and the inspector's choices, each option usable or disabled with why", async () => {
     engine.timeline.forget();
     const r = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
@@ -217,7 +217,7 @@ describe('timeline view (L4.5)', () => {
     expect(plan.meta).toMatchObject({ run_id: RUN, scenario: SCENARIO });
   });
 
-  it('memo (critique B13): a second read and the event after a write plan once; a switch shows in the next view; the switch time measured', async () => {
+  it('memo: a second read and the event after a write plan once; a switch shows in the next view; the switch time measured', async () => {
     engine.timeline.forget();
     const t0 = performance.now();
     const first = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
@@ -279,7 +279,7 @@ describe('timeline view (L4.5)', () => {
     await writeFile(scenarioFile(), TEXT);
   });
 
-  it('review B H2: an intro / outro with its own text is not switched from the timeline (disabled with why)', async () => {
+  it('an intro / outro with its own text is not switched from the timeline (disabled with why)', async () => {
     await writeFile(scenarioFile(), TEXT.replace('outro: false', 'outro: {tagline: Order in two clicks}'));
     const { view: v } = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     const outro = v.choices.segments.outro;
@@ -292,7 +292,7 @@ describe('timeline view (L4.5)', () => {
     await writeFile(scenarioFile(), TEXT);
   });
 
-  it('review B M4 / mutation M4: a thread added after a view is pinned in the next one (the comments folder is in the key)', async () => {
+  it('a thread added after a view is pinned in the next one (the comments folder is in the key)', async () => {
     engine.timeline.forget();
     const before = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     expect(before.view.pins).toEqual({ placed: [], elsewhere: [] });
@@ -303,7 +303,7 @@ describe('timeline view (L4.5)', () => {
     await rm(join(dir, 'comments'), { recursive: true, force: true });
   });
 
-  it('review B M5 / H1: plan and theme signatures; a thread made on a render of this very version is pinned at its own frame', async () => {
+  it('plan and theme signatures; a thread made on a render of this very version is pinned at its own frame', async () => {
     engine.timeline.forget();
     const r = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     expect(r.view.plan_sha256).toBe(planSignature(r.plan));
@@ -400,7 +400,7 @@ describe('timeline view (L4.5)', () => {
     await rm(join(dir, 'renders'), { recursive: true, force: true });
   });
 
-  it('review B H3 / A N6: a theme file, a served file or project.yaml changed since a view plans again', async () => {
+  it('a theme file, a served file or project.yaml changed since a view plans again', async () => {
     // A project with its own theme folder (a copy: the repository's templates are never touched).
     const own = join(root, 'projects', 'own');
     await mkdir(join(own, 'scenarios'), { recursive: true });
@@ -446,7 +446,7 @@ describe('timeline view (L4.5)', () => {
   });
 });
 
-describe("timeline view of the fixture's quote (critique B13: measured)", () => {
+describe("timeline view of the fixture's quote (measured)", () => {
   it("plans the real take's timeline cold, then from the memo", async () => {
     const ws = await mkdtemp(join(tmpdir(), 'ds-timeline-quote-'));
     try {
@@ -500,7 +500,7 @@ describe("timeline view of the fixture's quote (critique B13: measured)", () => 
   }, 60_000);
 });
 
-describe('timeline view of a 4-minute take (critique B13: measured)', () => {
+describe('timeline view of a 4-minute take (measured)', () => {
   it('8 scenes of 30 s, 96 steps: planned cold, then each switch re-planned once', async () => {
     const id = '20260101-130000-long';
     const runDir = join(dir, 'runs', id);
@@ -549,7 +549,7 @@ describe('timeline view of a 4-minute take (critique B13: measured)', () => {
   }, 60_000);
 });
 
-describe.skipIf(!canProbe)("the capture's codec and keyframes (critique B14)", () => {
+describe.skipIf(!canProbe)("the capture's codec and keyframes", () => {
   it('libx264 defaults: keyframes seconds apart, B-frames (slow scrub); a 12-frame GOP: fast; a link is not followed', async () => {
     const d = await mkdtemp(join(tmpdir(), 'ds-gop-'));
     try {

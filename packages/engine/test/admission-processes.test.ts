@@ -149,7 +149,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('the admission rules hold across processes: two processes submitting at once queue one job (L7.26)', () => {
+describe('the admission rules hold across processes: two processes submitting at once queue one job', () => {
   it('one_run_per_scenario: an MCP server and the Studio start a run of one scenario at the same moment — one run queued, the other refused naming it, no run folder for it', async () => {
     const runs = join(ws, 'projects', P, 'runs');
     for (let i = 0; i < ROUNDS; i++) {

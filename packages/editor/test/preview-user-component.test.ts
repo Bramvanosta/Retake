@@ -48,7 +48,7 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe.skipIf(!canRender)('L7.2 a workspace component importing the renderer library directly', () => {
+describe.skipIf(!canRender)('a workspace component importing the renderer library directly', () => {
   it(
     'validates, bundles and renders; the frame it reads from `remotion` is the frame the kit gives (one library in the bundle)',
     async () => {

@@ -92,7 +92,7 @@ describe('agentTrustProblems', () => {
     expect(problems[3]).toMatch(/^setup hook 3 \(js file\): \/etc\/hosts is an absolute path/);
   });
 
-  it('L4.2: the same refusals worded for the Studio (via studio) never say MCP; the default stays the MCP wording', () => {
+  it('the same refusals worded for the Studio (via studio) never say MCP; the default stays the MCP wording', () => {
     const sc = scenario({
       template: '../themes/x',
       vars: { k: '{{env:TOKEN}}' },
@@ -125,7 +125,7 @@ describe('rollbackApprovalReason', () => {
   });
 });
 
-describe('render trust rules (L3.2)', () => {
+describe('render trust rules', () => {
   it("a theme is named; a folder only when it is project.yaml's own template", () => {
     for (const ref of ['./template', '../x', '/abs/t', 'a/b', '~/t', '.hidden']) expect(isTemplatePath(ref), ref).toBe(true);
     for (const ref of ['editorial', 'Motion_2']) expect(isTemplatePath(ref), ref).toBe(false);

@@ -69,7 +69,7 @@ describe('static app from memory', () => {
     expect(Object.keys(index.headers).filter((k) => k.startsWith('access-control-'))).toEqual([]);
   });
 
-  it("L5.9: the bundled Geist pair at /fonts/<file> (font/woff2, the files' bytes, from memory); the stylesheet names those two URLs only; the document preloads them and names its colour schemes", async () => {
+  it("the bundled Geist pair at /fonts/<file> (font/woff2, the files' bytes, from memory); the stylesheet names those two URLs only; the document preloads them and names its colour schemes", async () => {
     for (const file of ['Geist-Variable.woff2', 'GeistMono-Variable.woff2']) {
       const r = await raw(studio.port, 'GET', `/fonts/${file}`);
       expect(r.status, file).toBe(200);
@@ -116,7 +116,7 @@ describe('/v1/info and the session', () => {
     expect((await raw(studio.port, 'GET', '/v1/info')).status).toBe(401);
   });
 
-  it('/v1/info counters (L5.2, critique H3): sessions redeemed, streams open, player media — numbers only, a redeemed code counts once', async () => {
+  it('/v1/info counters: sessions redeemed, streams open, player media — numbers only, a redeemed code counts once', async () => {
     type Counters = { sessions: number; streams: number; player_media_bytes_read: number; player_range_requests: number };
     const counters = async () => (await raw(studio.port, 'GET', '/v1/info', auth())).json<{ data: { counters: Counters } }>().data.counters;
     const before = await counters();
@@ -299,7 +299,7 @@ describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
     expect((await raw(studio.port, 'POST', '/v1/call/project_update_readme', { ...auth(), ...json }, over)).status).toBe(413);
   });
 
-  it('the README cap holds for the file as written, its final line break included (review B L6)', async () => {
+  it('the README cap holds for the file as written, its final line break included', async () => {
     const hash = sha256Hex(await readFile(README()));
     // 200,000 characters without a final line break would be written as 200,001 and could not be sent back unchanged.
     const r = await call('project_update_readme', { project: 'northfield-fixture', markdown: 'x'.repeat(200_000), if_match: hash });
@@ -313,7 +313,7 @@ describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
     expect(back.status).toBe(200);
   });
 
-  it('projects_overview: the environment flags and last run of every card in one call (review B L2)', async () => {
+  it('projects_overview: the environment flags and last run of every card in one call', async () => {
     const before = studio.calls;
     const r = await call('projects_overview');
     expect(r.status).toBe(200);
@@ -329,7 +329,7 @@ describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
     expect((await call('projects_overview', { project: 'x' })).status).toBe(400);
   });
 
-  it('hostile requests holding the valid token run no op and leave the README as it is (B3)', async () => {
+  it('hostile requests holding the valid token run no op and leave the README as it is', async () => {
     const file = await readFile(README());
     const hash = sha256Hex(file);
     const args = { project: 'northfield-fixture', markdown: '# pwned', if_match: hash };

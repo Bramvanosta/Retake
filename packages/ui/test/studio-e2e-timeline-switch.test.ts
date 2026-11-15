@@ -328,7 +328,7 @@ describe.skipIf(!canRun)('the timeline inspector in Chromium', () => {
     await expect.poll(async () => Buffer.compare(await readFile(file()), Buffer.from(BITS_TEXT)), POLL).toBe(0);
   }, 120_000);
 
-  it('critique B7: a card component the card cannot take is disabled with the reason, and writes nothing', async () => {
+  it('a card component the card cannot take is disabled with the reason, and writes nothing', async () => {
     await page.locator('[data-testid="tl-segment"][data-id="c1"]').click();
     expect(await page.locator('#tl-insp-seg').innerText()).toBe('card c1');
     const key = 'card:c1:card.component';
@@ -353,7 +353,7 @@ describe.skipIf(!canRun)('the timeline inspector in Chromium', () => {
     await shot('switch-5-disabled');
   }, 60_000);
 
-  it('⚑ L5.12a (BL-122): ⌘Z while a switch is in flight is queued and said, then undoes it; the selected segment is said', async () => {
+  it('⚑ BL-122: ⌘Z while a switch is in flight is queued and said, then undoes it; the selected segment is said', async () => {
     await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
     await expect.poll(() => page.getByTestId('inspector-selected').innerText(), POLL).toMatch(/^Selected scene a: \d+:\d\d\.\d\d – \d+:\d\d\.\d\d · \d+ steps?\.$/);
     await expect.poll(() => hashShown(), POLL).toBe(sha(BITS_TEXT));
@@ -373,7 +373,7 @@ describe.skipIf(!canRun)('the timeline inspector in Chromium', () => {
     await expect.poll(() => checked('scene:a:frame'), POLL).toBe('');
   }, 60_000);
 
-  it('⚑ L5.12a fixes (review A-M2 / B-M2): a ⌘Z queued behind a switch that fails is dropped and said once — the switch before it stays', async () => {
+  it('⚑ a ⌘Z queued behind a switch that fails is dropped and said once — the switch before it stays', async () => {
     await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
     await expect.poll(() => hashShown(), POLL).toBe(sha(BITS_TEXT));
     // Switch A lands: Laptop.

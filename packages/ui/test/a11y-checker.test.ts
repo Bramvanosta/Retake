@@ -43,7 +43,7 @@ afterAll(async () => {
   await browser?.close();
 });
 
-describe('the checker (L4.9 part A)', () => {
+describe('the checker', () => {
   it('its contrast maths is contrastRatio’s on a dozen pairs', async () => {
     const pairs: Array<[string, string]> = [
       ['#565d69', '#ffffff'],
@@ -202,7 +202,7 @@ describe('the checker (L4.9 part A)', () => {
     expect(of(r.findings, 'colour-only').map((f) => f.el)).toEqual(['span#lone']);
   });
 
-  it("⚑ L5.9 (critique H1): colour-only sees the kit's status tokens wherever they are declared — a dark default rule, a light @media block, a scope, a cascade layer — resolved on the element's own scope", async () => {
+  it("⚑ colour-only sees the kit's status tokens wherever they are declared — a dark default rule, a light @media block, a scope, a cascade layer — resolved on the element's own scope", async () => {
     const TOKENS =
       "<style>:root,[data-appearance='dark']{--ui-fail:#ff7b72;--ui-ok:#4cd27a}@media (prefers-color-scheme: light){:root{--ui-fail:#d93a30;--ui-ok:#1a8d4c}}[data-appearance='light']{--ui-fail:#d93a30;--ui-ok:#1a8d4c}@layer legacy{:root{--ui-warn:#f2b84b}}</style>";
     const dot = (id: string, token: string) => `<span id="${id}" style="display:inline-block;width:8px;height:8px;background:var(${token})"></span>`;
@@ -243,7 +243,7 @@ describe('the checker (L4.9 part A)', () => {
     await page.emulateMedia({ colorScheme: 'light' });
   });
 
-  it('L5.10a fixes (review A-L6): reachable — a focusable listbox with nothing selected and no aria-activedescendant is its own tab stop; with a selection it needs the attribute; unfocusable, never', async () => {
+  it('reachable — a focusable listbox with nothing selected and no aria-activedescendant is its own tab stop; with a selection it needs the attribute; unfocusable, never', async () => {
     const grid = (attrs: string, sel = 'false') =>
       `<ul role="listbox" aria-label="Productions" ${attrs}><li role="option" id="p1" aria-selected="${sel}">One</li><li role="option" id="p2" aria-selected="false">Two</li></ul>`;
     expect(of((await audit(grid('tabindex="0"'))).findings, 'reachable')).toEqual([]);
@@ -252,7 +252,7 @@ describe('the checker (L4.9 part A)', () => {
     expect(of((await audit(grid(''))).findings, 'reachable').map((f) => f.el)).toEqual(['li#p1', 'li#p2']);
   });
 
-  it('⚑ L5.9 (critique M1): reachable — the options of a listbox a focusable combobox controls with aria-activedescendant are reached (the palette); without it they are not', async () => {
+  it('⚑ reachable — the options of a listbox a focusable combobox controls with aria-activedescendant are reached (the palette); without it they are not', async () => {
     const palette = (attrs: string) =>
       `<label>Command <input role="combobox" aria-expanded="true" aria-controls="lb" ${attrs}></label><ul id="lb" role="listbox" aria-label="Commands"><li role="option" id="o1" aria-selected="true">One</li><li role="option" id="o2" aria-selected="false">Two</li></ul>`;
     expect(of((await audit(palette('aria-activedescendant="o1"'))).findings, 'reachable')).toEqual([]);
@@ -444,7 +444,7 @@ describe('the checker (L4.9 part A)', () => {
     expect(await familyWalk(page, r.stats.families[0])).toEqual([]);
   });
 
-  it("⚑ L5.12b fixes (review B-L6): behind an open modal dialog the page is inert — the reachable rule and the families' walk skip it; closed, the same page is found again", async () => {
+  it("⚑ behind an open modal dialog the page is inert — the reachable rule and the families' walk skip it; closed, the same page is found again", async () => {
     const page_ =
       '<div role="button" id="dead">Go</div><ul role="listbox" class="steps" tabindex="0" aria-label="a" aria-activedescendant="a1"><li role="option" id="a1">A1</li></ul><ul role="listbox" class="steps" tabindex="-1" aria-label="b" aria-activedescendant="b1"><li role="option" id="b1">B1</li></ul>';
     const modal = '<dialog id="m" aria-label="Palette"><input aria-label="Command"><div role="button" id="inside">Lost inside</div></dialog><script>document.getElementById("m").showModal()</script>';

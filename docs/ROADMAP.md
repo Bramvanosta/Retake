@@ -165,6 +165,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.51b | The Studio player's entries; the engine's types (final audit A-S10; the registry port left) | done in part | The Studio's player and server take what they need of the editor and the components from the engine (`playerMaking` on `@retake/engine/shell`: held components, preview plan, bundle set, hash, entries, import rules, content types, Range); who may fetch what pinned first by `player-characterization.test.ts`, unchanged; the engine's main entry holds the types another package names (477 → 143), the MCP tool tables annotated. Baseline 72 → 68 |
 | L7.51c | The ComponentRegistry port (final audit A-R11's last entry; left by L7.51b) | done | `ComponentRegistries` in the ports bag (package and memory adapters, one contract), carried by the opened workspace; the engine hands the registry or its loader to the editor's plan and render and to the review, which load none and refuse work handed none; the components package reaches the engine through its loader in `registries/` only. Baseline 68 → 64 |
 | L7.55 | CC-S4: comments a reader can follow — no lot id, no private-note reference, no history in the comments of src, test, apps and scripts (widened check 7,159 → 0; reasons kept, requirement ids kept), held by the ratchet's `comment-ref` check (scripts/audit/comment-refs.mjs) | M | **done** (15 mutations; test-guard no decrease) |
+| L7.55b | Strings a reader can follow — test titles, why / message strings and template literals of the tests name no lot id, private-note reference or history tag (title hits 1,670 → 0, 960 titles renamed with their 1,295 requirement cites; other test strings 38 → 0), held by the `comment-ref` check reading test titles (titleRefHits) | M | **done** (16 mutations; test-guard no decrease) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1368,6 +1369,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.55 — Comments a reader can follow (M; decided 2026-11-13)
 - **Goal:** code comments name no private note, lot or plan id and tell no history: they say what the code does and why
 - **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.55)". 7,159 references in 1,159 files removed from comments (lot and phase ids, note references, finding codes, plan ids), the reasons kept in plain words, only comments changed (token-checked), the comment-ref check holding it at 0; final audit CC-S4 closed (strings with L7.55b)
+
+### L7.55b — Strings a reader can follow (M; decided 2026-11-15)
+- **Goal:** test titles and test strings name no private note, lot or plan id; the requirements cite the new titles
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.55b)". 960 test titles and their strings rewritten (1,670 references → 0), no assertion or compared string changed (checked), 164 requirements' evidence moved to the new titles, the comment-ref check reading test titles too
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

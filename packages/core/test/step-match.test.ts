@@ -60,7 +60,7 @@ describe('matchRunSteps', () => {
     expect(m['request.2']).toEqual({ run_index: 2 });
   });
 
-  it('a changed step is paired with the run step of the same action between its neighbours, not the one before it (review B L1)', () => {
+  it('a changed step is paired with the run step of the same action between its neighbours, not the one before it', () => {
     const run = yaml([['a', 'page: shop\n    open: /', ['{click: Start}', '{wait_for: Ready}', '{click: Go}', '{hold: 1}']]]);
     const m = match(run, run.replace('      - {wait_for: Ready}\n', '').replace('{click: Go}', '{click: Go now}'));
     expect(m['a.1']).toEqual({ missing: 'changed', run_index: 2 });

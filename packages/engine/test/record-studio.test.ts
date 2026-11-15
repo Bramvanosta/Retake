@@ -397,7 +397,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       expect(keep(await ui.record.view(PROJECT, sub.rec_id, { since: v.version }))).toMatchObject({ unchanged: true, state: 'done' });
     }, 180_000);
 
-    it('its events edited after the check: Save refused, the view says so, a crafted line dropped (B8)', async () => {
+    it('its events edited after the check: Save refused, the view says so, a crafted line dropped', async () => {
       const id = await cloneRecording(lab.rec);
       const dir = await recDir(id);
       const text = await readFile(join(dir, 'events.jsonl'), 'utf8');
@@ -517,8 +517,8 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
     }, 120_000);
   });
 
-  describe('discard, cancel and one window at a time (in memory): B16 / B5 / B9', () => {
-    it('B16 / B5 while queued; Discard during the check removes the folder once the job is over (B9)', async () => {
+  describe('discard, cancel and one window at a time (in memory)', () => {
+    it("Claude's cancel and a second window refused while queued; Discard during the check removes the folder once the job is over", async () => {
       const events = await labEvents();
       const sub = keep(await ui.record.submit({ project: PROJECT, page: 'shop', scenario: 'to-discard' }));
       // Claude's job_cancel never discards the person's open recording.
@@ -555,7 +555,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
   });
 
   describe('discard, cancel and one window at a time', () => {
-    it('an interrupted Studio recording (B6): unchecked, annotated, saved from its events', async () => {
+    it('an interrupted Studio recording: unchecked, annotated, saved from its events', async () => {
       const q = new FileJobQueue(root, 'retake');
       const id = newRecordId();
       const job = await q.enqueue({ version: 1, kind: 'record', project: PROJECT, rec_id: id, source: { page: 'shop', path: '/record-lab' }, check: true, submitted_by: 'ui' });
@@ -592,7 +592,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       expect((await ui.jobs.get(sub.job.id)).state).toBe('cancelled');
     }, 60_000);
 
-    it('B-L8: Stop once the worker has the job, before the window: the stop marker, a clean cancel — never a discard race', async () => {
+    it('Stop once the worker has the job, before the window: the stop marker, a clean cancel — never a discard race', async () => {
       // Stop on a job the worker runs but whose window is not open yet: the stop marker only (no cancel marker).
       const pre = newRecordId();
       const q = new FileJobQueue(root, 'retake');
@@ -620,8 +620,8 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
     }, 60_000);
   });
 
-  describe('discard, cancel and one window at a time (in memory): B-M5', () => {
-    it('B-M5: Discard while the window is open ends "discarded" (not "cancelled")', async () => {
+  describe('discard, cancel and one window at a time (in memory)', () => {
+    it('Discard while the window is open ends "discarded" (not "cancelled")', async () => {
       const events = (await labEvents()).slice(0, 3);
       const sub = keep(await ui.record.submit({ project: PROJECT, page: 'shop', path: '/record-lab' }));
       let d: unknown;
@@ -651,7 +651,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
   const FINISHED = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
 
   describe('after the reviews (trust)', () => {
-    it('A-M1: Save writes only the draft the person saw — an events line or a project.yaml var changed since is a conflict, no file', async () => {
+    it('Save writes only the draft the person saw — an events line or a project.yaml var changed since is a conflict, no file', async () => {
       const p = await project();
       const id = await interruptedCopy(lab.rec, 'studio-seen');
       const dir = await recDir(id);
@@ -686,7 +686,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       }
     });
 
-    it('A-M2: fail closed — a spoiled events checksum or a removed record.json is "tampered": no "check passed", no Save', async () => {
+    it('fail closed — a spoiled events checksum or a removed record.json is "tampered": no "check passed", no Save', async () => {
       const p = await project();
       const spoiled = await cloneRecording(lab.rec);
       const rj = join(await recDir(spoiled), 'record.json');
@@ -710,7 +710,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       expect((await ui.record.list(PROJECT, { limit: 50 })).find((x) => x.rec_id === gone)).toMatchObject({ state: 'tampered', studio: false });
     });
 
-    it('A-M3: Save never writes a hidden character — refused with its scene and step, no file', async () => {
+    it('Save never writes a hidden character — refused with its scene and step, no file', async () => {
       const p = await project();
       const rlo = String.fromCharCode(0x202e);
       const yaml = `version: 1\nvideo: hidden-check\nscenes:\n  - id: lab\n    page: shop\n    open: /record-lab\n    steps:\n      - click: Save\n      - click: "Cancel${rlo}lecnac"\n`;
@@ -721,7 +721,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       expect(existsSync(join(p.dir, 'scenarios', 'hidden-check.yaml'))).toBe(false);
     });
 
-    it("A-L1: a recording is the person's only when its job (the Studio's) is the one meta.json names — else read-only", async () => {
+    it("a recording is the person's only when its job (the Studio's) is the one meta.json names — else read-only", async () => {
       const p = await project();
       // meta.json says ui, with no job.
       const orphan = await cloneRecording(lab.rec, { job: false });
@@ -747,7 +747,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       expect((await readdir(join(p.dir, 'scenarios'))).filter((f) => f.startsWith('forged-'))).toEqual([]);
     });
 
-    it('A-L3: reads never follow a link — a records folder (or .retake) that is one: no draft, no list item, the reason said', async () => {
+    it('reads never follow a link — a records folder (or .retake) that is one: no draft, no list item, the reason said', async () => {
       const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
       for (const which of ['records', '.retake'] as const) {
         const slug = which === 'records' ? 'linky-read' : 'linky-read-2';
@@ -795,7 +795,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
   });
 
   describe('after the reviews (the screen)', () => {
-    it("B-M3: the zoom under the project theme's max_zoom — the default saved draws no validation warning; above it refused", async () => {
+    it("the zoom under the project theme's max_zoom — the default saved draws no validation warning; above it refused", async () => {
       const id = await interruptedCopy(lab.rec, 'studio-zoom');
       const v = keep(await ui.record.view(PROJECT, id));
       expect(v.zoom).toEqual({ max: 1.4, options: [1.25, 1.4], default: 1.4 });
@@ -810,7 +810,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       expect(checked.issues.filter((i) => /max_zoom|clamp/.test(i.message))).toEqual([]);
     });
 
-    it("B-M4: the check's failing step is shown on its row — an insert before it moves it; a step that is gone is not on screen", async () => {
+    it("the check's failing step is shown on its row — an insert before it moves it; a step that is gone is not on screen", async () => {
       const id = await cloneRecording(lab.rec);
       await rm(join(await recDir(id), 'studio.json'));
       const rj = join(await recDir(id), 'record.json');
@@ -827,7 +827,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       expect(a.view.untrusted!.check).toMatchObject({ failed_at: { scene, step: 1 }, failed_row: { scene, step: 2 } });
     });
 
-    it('B-L2: a Discard marked during the check whose job is over is settled by the recent list (no view needed)', async () => {
+    it('a Discard marked during the check whose job is over is settled by the recent list (no view needed)', async () => {
       const id = await cloneRecording(lab.rec);
       const sj = join(await recDir(id), 'studio.json');
       const ann = JSON.parse(await readFile(sj, 'utf8')) as Record<string, unknown>;
@@ -839,7 +839,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
   });
 
   describe('folders', () => {
-    it('prune keeps a folder whose lock is held and an unsaved Studio recording younger than 7 days (B12)', async () => {
+    it('prune keeps a folder whose lock is held and an unsaved Studio recording younger than 7 days', async () => {
       const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
       const other = join(root, 'projects', 'prune-me');
       await mkdir(other, { recursive: true });

@@ -59,7 +59,7 @@ describe('client ui: agent trust, no approver', () => {
     expect(e?.message).toContain('the scenario uses {{env:HOME}}');
   });
 
-  it('comments: create needs the render shown, reopen and resolve need if_match (L4.6: the studio channel)', async () => {
+  it('comments: create needs the render shown, reopen and resolve need if_match (the studio channel)', async () => {
     expect((await refusal(ui.comments.add('northfield-fixture', { scenario: 'quote', text: 'x' } as never))).details?.argument).toBe('render_created_at');
     expect((await refusal(ui.comments.reopen('northfield-fixture', 'c_01JAAAAAAAAAAAAAAAAAAAAAAA', 'x'))).details?.argument).toBe('if_match');
     expect((await refusal(ui.comments.resolve('northfield-fixture', 'c_01JAAAAAAAAAAAAAAAAAAAAAAA', { note: 'done' }))).code).toBe('invalid');

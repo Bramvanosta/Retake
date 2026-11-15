@@ -120,7 +120,7 @@ describe('retake mcp: the plugin registration and the serving PATH', () => {
     );
   });
 
-  it('clientPath drops the entries inside the workspace (the agent writes files there), under any spelling of it (review M4)', async () => {
+  it('clientPath drops the entries inside the workspace (the agent writes files there), under any spelling of it', async () => {
     const has = (set: string[]) => (p: string) => set.includes(p);
     const current = ['/w/ws/bin', '/w/ws', '/w/ws-other/bin', '/w/ws/node_modules/.bin', '/usr/bin'].join(delimiter);
     expect(clientPath('/n/bin/node', current, has([]), '/w/ws')).toBe(['/n/bin', '/w/ws-other/bin', '/usr/bin'].join(delimiter));
@@ -136,7 +136,7 @@ describe('retake mcp: the plugin registration and the serving PATH', () => {
     expect(entry.env.PATH.split(delimiter)).not.toContain(join(ws, 'bin'));
   });
 
-  it('the `claude mcp add` route prints an absolute RETAKE_HOME, like the plugin route (review L7)', () => {
+  it('the `claude mcp add` route prints an absolute RETAKE_HOME, like the plugin route', () => {
     const o = { root: '/w/ws', bin: '/r/packages/cli/dist/bin.js', node: '/n/22/bin/node' };
     for (const v of ['rel/home', '~/scratch-home']) {
       const abs = v.startsWith('~') ? join(homedir(), v.slice(2)) : resolve(v);

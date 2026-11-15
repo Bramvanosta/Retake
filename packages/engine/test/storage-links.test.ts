@@ -73,7 +73,7 @@ afterAll(async () => {
   if (base) await rm(base, { recursive: true, force: true });
 });
 
-describe('LocalStorage.readText: symbolic links out of the project (B6)', () => {
+describe('LocalStorage.readText: symbolic links out of the project', () => {
   it('refuses a file link and a folder link leading out; reads a link inside; a missing or dangling file is undefined', async () => {
     const s = new LocalStorage(join(ws, 'projects', 'linked'));
     const e = await refusal(s.readText('README.md'));
@@ -107,7 +107,7 @@ describe('LocalStorage.readText: symbolic links out of the project (B6)', () => 
     expect(await readFile(join(outside, 'secret.md'), 'utf8')).toBe(SECRET);
   });
 
-  it('a write through a link to another file of the project lands in that file; the link stays (review B M3)', async () => {
+  it('a write through a link to another file of the project lands in that file; the link stays', async () => {
     const dir = join(ws, 'projects', 'linked');
     await mkdir(join(dir, 'docs'), { recursive: true });
     await writeFile(join(dir, 'docs', 'product.md'), '# Product doc\n');
@@ -125,7 +125,7 @@ describe('LocalStorage.readText: symbolic links out of the project (B6)', () => 
     expect((await lstat(join(dir, 'GONE.md'))).isSymbolicLink()).toBe(true);
   });
 
-  it('readText flags bytes that are not UTF-8 (review B M1)', async () => {
+  it('readText flags bytes that are not UTF-8', async () => {
     const dir = join(ws, 'projects', 'folder');
     await writeFile(join(dir, 'latin.md'), Buffer.from('# Caf\xe9\n', 'latin1'));
     const s = new LocalStorage(dir);
@@ -134,7 +134,7 @@ describe('LocalStorage.readText: symbolic links out of the project (B6)', () => 
   });
 });
 
-describe('engine reads of README and scenarios through links (B6)', () => {
+describe('engine reads of README and scenarios through links', () => {
   it('project_get opens the project without the README (readme_error); project_update_readme, scenario_get and scenario_save refuse the outside link; the outside file is untouched', async () => {
     const view = await engine.projects.get('linked');
     expect(view).toMatchObject({ slug: 'linked', readme: null, readme_hash: null, readme_error: expect.stringContaining('symbolic link leading out of the project folder') });
@@ -147,7 +147,7 @@ describe('engine reads of README and scenarios through links (B6)', () => {
     expect(await readFile(join(outside, 'secret.md'), 'utf8')).toBe(SECRET);
   });
 
-  it('a project.yaml leading out of the project is never read through the engine (review B M5)', async () => {
+  it('a project.yaml leading out of the project is never read through the engine', async () => {
     const dir = join(ws, 'projects', 'yamlout');
     await mkdir(dir, { recursive: true });
     await writeFile(join(outside, 'p.yaml'), 'version: 1\nname: "OUTSIDE YAML"\nenvironments:\n  prod: {app: {url: "https://internal.example.com/secret-path"}}\n');

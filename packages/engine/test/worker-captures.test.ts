@@ -143,7 +143,7 @@ afterAll(async () => {
 
 let unheld: string[] = [];
 
-describe.skipIf(!canRender)('captures first with a real render job (L5.14a)', () => {
+describe.skipIf(!canRender)('captures first with a real render job', () => {
   it(
     "a render waits while a take films, then runs in a job process of the worker's build (no refusal, no hand-over)",
     async () => {
@@ -249,7 +249,7 @@ describe.skipIf(!canRender)('captures first with a real render job (L5.14a)', ()
   );
 });
 
-describe('a job process (L5.14a)', () => {
+describe('a job process', () => {
   let ws: string;
   beforeAll(async () => {
     ws = await mkdtemp(join(tmpdir(), 'retake-job-process-'));

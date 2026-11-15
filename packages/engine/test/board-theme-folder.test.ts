@@ -108,7 +108,7 @@ afterAll(async () => {
   await ws?.cleanup();
 });
 
-describe("a theme's identity is its folder (BL-164, L7.9)", () => {
+describe("a theme's identity is its folder (BL-164)", () => {
   it('the folder as an id: relative to the workspace root, `/`-separated; a starter outside the workspace by its name', async () => {
     expect(templateFolderId(join(project.dir, 'themes', 'brand'), ws.root)).toBe('projects/demo/themes/brand');
     expect(templateFolderId(join(ws.root, 'shared', 'brand'), ws.root)).toBe('shared/brand');
@@ -168,7 +168,7 @@ describe("a theme's identity is its folder (BL-164, L7.9)", () => {
     expect(await row()).toEqual(['quote-v2', false, 'brand']);
   });
 
-  it("a record of before L7.9 holds no folder: compared by its folder's name, as before", async () => {
+  it("a record that holds no folder is compared by its folder's name", async () => {
     await clearRenders();
     await record('quote-v1', '2026-10-20T11:00:00.000Z', undefined);
     expect(await row()).toEqual(['quote-v1', true, 'brand']);
@@ -197,7 +197,7 @@ describe("a theme's identity is its folder (BL-164, L7.9)", () => {
 // An export's re-render (vertical, square) plans with the master's theme folder, named as the project can
 // name it (editor exportThemeRef) — before, with the record's theme name, so a project on `./themes/brand` re-rendered
 // with the workspace's `brand` or failed "not found". Through MCP never a path the record holds.
-describe("an export's re-render plans with the master's theme folder (L7.9 fix pass)", () => {
+describe("an export's re-render plans with the master's theme folder", () => {
   const p = () => loadProject('demo', ws.root);
   const outcome = async (x: Promise<unknown>) =>
     x.then(
@@ -205,7 +205,7 @@ describe("an export's re-render plans with the master's theme folder (L7.9 fix p
       (e: unknown) => (e instanceof EngineError ? `${e.code}: ${e.message}` : `${(e as Error).name}: ${(e as Error).message}`),
     );
 
-  it('the folder named as the project names it: its own template:, a theme name, a starter; a record of before L7.9 by its name', async () => {
+  it('the folder named as the project names it: its own template:, a theme name, a starter; a record without a folder by its name', async () => {
     const project = await p();
     for (const trust of ['author', 'mcp'] as const) {
       expect(await exportThemeRef(project, { template: 'brand', template_folder: 'projects/demo/themes/brand' }, { trust })).toBe(OWN);

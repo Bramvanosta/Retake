@@ -685,7 +685,7 @@ describe('the lists and the default take', () => {
     ]);
   }, 60_000);
 
-  it('runs/ itself a link to another disk (small point 3.2): through the engine neither `latest` nor a named run reads a run outside the project', async () => {
+  it('runs/ itself a link to another disk: through the engine neither `latest` nor a named run reads a run outside the project', async () => {
     const b = buildState(root, 'ctl', { film, slug: 'l-linked-runs' });
     const elsewhere = join(root, 'outside', 'l-linked-runs-runs');
     mkdirSync(join(root, 'outside'), { recursive: true });
@@ -943,7 +943,7 @@ describe('the records the engine writes', () => {
 // The states are those of test-support/src/records/render-states.json: two good captures (OLD, NEW), a good render
 // `quote-v1` and the file(s) the state names. Every cell was first pinned on the code before the lot; the
 // cells its engine and prune parts changed are marked `// moved: <row>` with the row of the lot's table of visible
-// changes (the lead's plan §4, and the rulings added to it: rows 21–29) — each flipped on purpose, none other moved —,
+// changes (rows 21–29 among them) — each flipped on purpose, none other moved —,
 // a raw TypeError is pinned as what it is. The three readers staged to the next lot (the search index, the timeline's
 // version matcher, the frame service) are not marked: they do not move here.
 
@@ -1629,7 +1629,7 @@ describe('the render records, state by state and site by site', () => {
     },
   };
 
-  it("a record whose plan is nested deeper than a signature can be written is listed without its plan's signature, never a failed list (L7.6c fix pass; before: the Studio's list of the scenario threw)", async () => {
+  it("a record whose plan is nested deeper than a signature can be written is listed without its plan's signature, never a failed list (before: the Studio's list of the scenario threw)", async () => {
     const b = buildRenderState(root, 'v2', { film, runFilm: film, slug: 'r-deep-plan' });
     const file = join(b.renders, 'quote-v2.json');
     const rec = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
@@ -1699,7 +1699,7 @@ describe('the render records, state by state and site by site', () => {
     expect(words(b, e2)).toBe('invalid: render quote-v2: its record says a variant this Retake does not export (landscape, vertical or square)');
   });
 
-  it('a render named by its id whose record is bigger than a listing\'s cap is read whole by the comment list, as by every by-id read (L7.6b fix pass; before the fix: refused as "too big to read")', async () => {
+  it('a render named by its id whose record is bigger than a listing\'s cap is read whole by the comment list, as by every by-id read (before the fix: refused as "too big to read")', async () => {
     const b = buildRenderState(root, 'v2', { slug: 'r-big-by-id', film, runFilm: film });
     const record = join(b.dir, 'renders', 'quote-v2.json');
     const v = JSON.parse(readFileSync(record, 'utf8')) as Record<string, unknown>;

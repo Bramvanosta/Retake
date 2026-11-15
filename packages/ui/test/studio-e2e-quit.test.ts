@@ -235,7 +235,7 @@ describe("the quit sheet (the desktop app's question in its page)", () => {
     await expect.poll(() => page.locator('dialog.k-palette[open]').count(), POLL).toBe(0);
   });
 
-  it('⚑ an answer keeps the sheet open and busy until it settles; a failed one (a held 409) is said in the sheet, which stays answerable (review A-L3)', async () => {
+  it('⚑ an answer keeps the sheet open and busy until it settles; a failed one (a held 409) is said in the sheet, which stays answerable', async () => {
     bodies.length = 0;
     let release = () => undefined as void;
     held = { status: 409, gate: new Promise<void>((r) => (release = r)) };

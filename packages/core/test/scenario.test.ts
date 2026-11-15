@@ -516,7 +516,7 @@ describe('semantic checks', () => {
   });
 });
 
-describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', () => {
+describe('scenarioChangedSinceRun (a render shows the run as captured)', () => {
   it("compares scenarios/<name>.yaml, else .yml, with the run's snapshot; undefined when either is missing", async () => {
     const { dir, cleanup } = await tempDir();
     try {
@@ -542,7 +542,7 @@ describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', (
     }
   });
 
-  it('compares the data: a comment, blank lines, quoting, indentation or key order is no change; the text when either does not parse (L3.8 review L6)', async () => {
+  it('compares the data: a comment, blank lines, quoting, indentation or key order is no change; the text when either does not parse', async () => {
     const { dir, cleanup } = await tempDir();
     try {
       const run = `${dir}/runs/20260101-120000-quote`;
@@ -570,7 +570,7 @@ describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', (
     }
   });
 
-  it('reads only small regular files: a link, a FIFO, a device or a huge file is unknown, never read (L3.8 review L5)', { timeout: 10_000 }, async () => {
+  it('reads only small regular files: a link, a FIFO, a device or a huge file is unknown, never read', { timeout: 10_000 }, async () => {
     const { dir, cleanup } = await tempDir();
     try {
       const run = `${dir}/runs/20260101-120000-quote`;
@@ -603,7 +603,7 @@ describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', (
     }
   });
 
-  it('the message names the scenario, the run, the filmed parts that changed and what films them (L5.5)', () => {
+  it('the message names the scenario, the run, the filmed parts that changed and what films them', () => {
     expect(scenarioChangedMessage('quote', '20260101-120000-quote', '`retake run demo quote`', ['scene a: step a.2 changed'])).toBe(
       'the filmed part of scenario quote changed since run 20260101-120000-quote was captured (scene a: step a.2 changed): a render shows that take as it was captured, its edit included — a change to what the browser does (steps, pages, hooks, capture settings) shows only in a new capture: `retake run demo quote`, then render; a change to the edit alone (captions, cards, overlays, durations, title, intro/outro, template) renders on the existing take',
     );

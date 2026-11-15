@@ -200,7 +200,7 @@ describe('the ports bag: the capture runner', () => {
   });
 });
 
-describe('the ports bag: the sandboxes (L7.25)', () => {
+describe('the ports bag: the sandboxes', () => {
   it('the package adapter loads the sandbox package through its loader on a call, and hands its refusal on as it is', async () => {
     const sb = packageSandboxes(enginePorts().secrets, enginePorts().hooks);
     expect(calls).toEqual([]);

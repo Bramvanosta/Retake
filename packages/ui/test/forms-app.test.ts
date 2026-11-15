@@ -46,7 +46,7 @@ describe('readInput: the schema rules in the form', () => {
   });
 });
 
-describe('formChanges: field patches with the value the form showed (critique B2)', () => {
+describe('formChanges: field patches with the value the form showed', () => {
   it('only the changed fields, each with `from` (absent: none) and `to` (absent: removed); locked fields left out', () => {
     const before = { 'type.text': 'Light roast', 'type.cps': 18, 'caption.text': 'Note' };
     const after = { 'type.text': 'Dark roast', 'type.cps': 18, 'type.clear': true };
@@ -100,11 +100,11 @@ describe('editAgain: an edit on a newer version ("Apply it to the new version")'
   });
 });
 
-describe('review fixes (L4.3 reviews A and B)', () => {
+describe("empty values and a form's step found again", () => {
   const view = (text: string) => ({ blocks: scenarioBlocks(text) }) as unknown as View;
   const scene = (v: View) => v.blocks.entries.find((e) => e.type === 'scene') as SceneBlock;
 
-  it('B M2: an untouched "" is no change (no removal sent); a required text that holds "" reads as ""; a typed field still changes', () => {
+  it('an untouched "" is no change (no removal sent); a required text that holds "" reads as ""; a typed field still changes', () => {
     const captionFields = fieldsOf(forms, 'click');
     const before = { 'click.text': 'Save', 'caption.kicker': '', 'caption.text': 'Saved' };
     const shown = { 'click.text': 'Save', 'caption.kicker': '', 'caption.text': 'Saved' };
@@ -130,7 +130,7 @@ describe('review fixes (L4.3 reviews A and B)', () => {
     expect(formChanges(captionFields, before, c.values, new Set(), { inputs: cleared, shown })).toEqual([{ path: ['caption', 'text'], from: 'Saved' }]);
   });
 
-  it("A L5: Apply finds a form's step again only while its scene has as many steps like it (a deleted twin no longer moves the edit to the next one)", () => {
+  it("Apply finds a form's step again only while its scene has as many steps like it (a deleted twin no longer moves the edit to the next one)", () => {
     const T = 'video: v\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - click: Save\n        caption: First\n      - hold: 1\n      - click: Save\n        caption: Second\n';
     const v0 = view(T);
     const st = scene(v0).steps[0];

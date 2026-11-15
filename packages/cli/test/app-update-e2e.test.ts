@@ -118,7 +118,7 @@ async function stopAll(): Promise<void> {
   for (const pid of pids) if (alive(pid)) process.kill(pid, 'SIGKILL');
 }
 
-describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_UPDATE=1)', () => {
+describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)', () => {
   beforeAll(async () => {
     base = reuse ? realpathSync(reuse) : realpathSync(mkdtempSync(join(tmpdir(), 'retake-update-e2e-')));
     const t0 = Date.now();

@@ -215,7 +215,7 @@ describe('connectPreview (the Studio page side)', () => {
   });
 });
 
-describe('the frame store (L5.2)', () => {
+describe('the frame store', () => {
   it('⚑ a value set before any subscriber is kept; subscribers hear each set until they unsubscribe', () => {
     const shown = latest<{ gen: number } | null>(null);
     const plan = { gen: 1 };

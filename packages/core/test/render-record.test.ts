@@ -279,7 +279,7 @@ describe('the two transitions', () => {
     expect(Object.keys(renderAttempt(fields(), { status: 'failed', error: 'x' })).slice(-2)).toEqual(['plan', 'error']);
   });
 
-  it('a state is never made from another state: an attempt handed to `finishedRender` (or a finished render to `renderAttempt`) does not compile, and throws an internal error — never a "finished" record that failed (L7.6b fix pass)', () => {
+  it('a state is never made from another state: an attempt handed to `finishedRender` (or a finished render to `renderAttempt`) does not compile, and throws an internal error — never a "finished" record that failed', () => {
     const failed = renderAttempt(fields(), { status: 'failed', error: 'boom' });
     const finished = finishedRender(fields());
     const withPolicy = { ...fields(), policy: (value({ file: 'quote-v1', at: at(1) }) as { policy: RenderPolicy }).policy };
@@ -503,7 +503,7 @@ describe('the two `latest` (D-11: two rules, on purpose)', () => {
   });
 });
 
-describe("a render's identity (sameRender, L7.6c)", () => {
+describe("a render's identity (sameRender)", () => {
   it('its id and its creation time: the same id made at another time is another render; a record without its creation time is none a caller read', () => {
     const now = { id: 'quote-v2', created_at: '2026-10-02T09:02:00.000Z' };
     expect(sameRender(now, { id: 'quote-v2', created_at: '2026-10-02T09:02:00.000Z' })).toBe(true);

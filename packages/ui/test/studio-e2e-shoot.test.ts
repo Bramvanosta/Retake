@@ -276,7 +276,7 @@ describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => 
     expect(ops('scenario_render', t0)).toEqual([]);
   });
 
-  it("⚑ Stop's owner after a reload (critique H1): a terminal's run says Ctrl-C and sends nothing; a Studio run's live screen stops its own run; the status bar's Stop is off for a terminal's run (M4)", async () => {
+  it("⚑ Stop's owner after a reload: a terminal's run says Ctrl-C and sends nothing; a Studio run's live screen stops its own run; the status bar's Stop is off for a terminal's run", async () => {
     const term = '20261102-100000-free';
     await writeRun(project(), { id: term, scenario: 'free', mode: 'dry', status: 'running', noTimeline: true, steps_total: 8, events: [] });
     await appendFile(

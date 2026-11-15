@@ -150,7 +150,7 @@ describe('retry_click and capture.step_shots (R-FLD-12, R-FLD-16)', () => {
   });
 });
 
-describe('the filmed part (L5.5) and the L5.6 options', () => {
+describe('the filmed part and the reliability options', () => {
   it('retry_click is filmed (a second click); defaults.timeout_s and capture.step_shots are not', () => {
     const base = 'video: v\nscenes:\n  - id: a\n    open: /\n    steps:\n      - click: Preview\n';
     expect(filmedChanges(base.replace('      - click: Preview\n', '      - {click: Preview, retry_click: true}\n'), base)).toEqual(['scene a: step a.0 changed']);

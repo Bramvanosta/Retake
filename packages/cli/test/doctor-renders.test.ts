@@ -59,7 +59,7 @@ describe('the Renders line', () => {
     expect(forced.detail).toMatch(/^ANGLE without a GPU \(SwiftShader\)/);
   });
 
-  it("L7.3 the ffmpeg that encodes the frames: ours named with its version; the library's with the reason when ours was wanted — a WARN only when own was asked by name; nothing more on a line where the library's is the choice", () => {
+  it("the ffmpeg that encodes the frames: ours named with its version; the library's with the reason when ours was wanted — a WARN only when own was asked by name; nothing more on a line where the library's is the choice", () => {
     const base = { gpu: metal, gl: 'angle' as const, videotoolbox: { ok: true }, encoder: 'h264_videotoolbox' as const, concurrency: 3 };
     const own = rendersCheck({ ...base, policy: mac({ workspace: { ffmpeg: 'own' } }), ffmpeg: { used: 'own', version: '7.1.1' } });
     expect(own).toEqual({
@@ -125,7 +125,7 @@ describe('the Renders line', () => {
 });
 
 describe.skipIf(process.platform !== 'darwin')('the real probe on this Mac', () => {
-  it("L7.3 the probe says which ffmpeg would encode, as a render chooses it and without writing its folder: ours when asked and usable, the library's with the reason otherwise", async () => {
+  it("the probe says which ffmpeg would encode, as a render chooses it and without writing its folder: ours when asked and usable, the library's with the reason otherwise", async () => {
     const saved = process.env.RETAKE_RENDER_FFMPEG;
     const facts = { version: '7.1.1', libx264: true, videotoolbox: true, filter: true };
     try {

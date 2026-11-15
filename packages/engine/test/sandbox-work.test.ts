@@ -140,7 +140,7 @@ function recordingHandle(o: { refuse?: boolean } = {}) {
 
 const log = () => undefined;
 
-describe('sandboxWork (L7.28)', () => {
+describe('sandboxWork', () => {
   it('up, reset and down hold one interrupt scope each: the message, killStartedSync on quit, disposed after an answer and after a refusal', async () => {
     for (const refuse of [false, true]) {
       const h = recordingHandle({ refuse });

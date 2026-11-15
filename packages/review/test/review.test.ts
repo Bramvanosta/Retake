@@ -138,7 +138,7 @@ describe.skipIf(!can)('reviewRender', () => {
   );
 
   it(
-    "a report never names a local host: hidden addresses, the plan's warning about them, a caption naming one (V4)",
+    "a report never names a local host: hidden addresses, the plan's warning about them, a caption naming one",
     async () => {
       const timeline = scenesTimeline([19, 19, 21], { captions: ['Open localhost:4499/admin to start.'] });
       timeline.pages = [{ id: 'app', t_start: 0, t_end: 59, url: 'http://localhost:4499/start' }];
@@ -472,7 +472,7 @@ describe.skipIf(!can)('reviewRender', () => {
   );
 
   it(
-    "a record renamed by hand is reviewed; one whose id names no folder goes into review/<its file's name>, never review/ itself (L7.6b)",
+    "a record renamed by hand is reviewed; one whose id names no folder goes into review/<its file's name>, never review/ itself",
     async () => {
       await cleanReviewed();
       const reviews = join(ws.project.dir, 'review');

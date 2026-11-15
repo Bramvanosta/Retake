@@ -51,7 +51,7 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe('copy a theme (L4.7)', () => {
+describe('copy a theme', () => {
   it('a starter copied: its files verbatim, the name spliced, the provenance file; editable at once', async () => {
     const r = await engine.templates.copy({ from: 'editorial', name: 'mine' });
     const dir = join(root, 'templates', 'mine');
@@ -114,7 +114,7 @@ describe('copy a theme (L4.7)', () => {
     expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }, { scope: personScope(repoWs.root, enginePorts()) }))).message).toMatch(/lies inside the Retake folder/);
   });
 
-  it('⚑ L4.7 review A M1: a source holding a hard link is refused whole, nothing written', async () => {
+  it('⚑ a source holding a hard link is refused whole, nothing written', async () => {
     // A hard link is another name of a file kept anywhere: copied, it would become the new theme's own file (nlink 1).
     const src = join(root, 'templates', 'hardy');
     await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), src, { recursive: true });

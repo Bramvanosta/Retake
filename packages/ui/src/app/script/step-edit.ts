@@ -3,7 +3,7 @@
  * the words of an edit (a form's changes and the palette's new step included), and the undo / redo history. The screen (ScenarioScreen.tsx) sends each edit through
  * `scenario_edit` (the server splices the file and verifies it) and re-reads the view; nothing here builds YAML.
  *
- * - Undo / redo (plan §3.7): per screen, in memory, at most 50 entries and 16 MiB of text. Each entry keeps
+ * - Undo / redo: per screen, in memory, at most 50 entries and 16 MiB of text. Each entry keeps
  *   the file's text before the edit and the hashes before / after; undo sends `restore` of the text before (byte-exact,
  *   the server checks its sha256) on the version the edit made, redo `restore`s the text after on the version before.
  *   A version this screen did not make (Claude, an editor, the YAML view) clears the history.

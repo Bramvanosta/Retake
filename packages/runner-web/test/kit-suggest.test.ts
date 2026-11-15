@@ -201,7 +201,7 @@ describe('alternative targets (kit 1.6.0, the recorder only)', () => {
     expect(r.after).toContainEqual({ css: '#x' });
   });
 
-  it('a noisy text is never offered — mostly digits (a price) or pieces run together — and the good ones still are (review B-L7)', async () => {
+  it('a noisy text is never offered — mostly digits (a price) or pieces run together — and the good ones still are', async () => {
     const r = await page.evaluate(() => {
       const kit = (window as unknown as { __retake: Kit }).__retake;
       const box = document.createElement('div');

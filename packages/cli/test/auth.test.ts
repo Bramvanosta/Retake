@@ -369,7 +369,7 @@ describe.skipIf(!chromiumAvailable())('sessions & personas on the command line (
   );
 
   it(
-    'retake new: a persona when every page has one already (U1); the workspace browser for its sign-in (U2); no answer = later (U11)',
+    'retake new: a persona when every page has one already; the workspace browser for its sign-in; no answer = later',
     async () => {
       const io = memoryIo({
         answers: [
@@ -409,7 +409,7 @@ describe.skipIf(!chromiumAvailable())('sessions & personas on the command line (
   );
 
   it.skipIf(process.platform === 'linux' && !process.env.DISPLAY)(
-    'retake new signs in with the browser of retake.yaml (U2)',
+    'retake new signs in with the browser of retake.yaml',
     async () => {
       const ws2 = await mkdtemp(join(tmpdir(), 'studio-auth-ws2-'));
       const before = process.env.RETAKE_CHROMIUM;
@@ -496,7 +496,7 @@ describe.skipIf(!chromiumAvailable())('sessions & personas on the command line (
     });
 
     it.skipIf(process.platform === 'win32' || !existsSync(BIN))(
-      'Ctrl-C in retake login, auth status --check and js hooks (U4): the browser closes, no session copy is left, exit 130',
+      'Ctrl-C in retake login, auth status --check and js hooks: the browser closes, no session copy is left, exit 130',
       async () => {
         // retake login --auto, interrupted while it checks the saved session: nothing saved, no profile left (a first login).
         const login = await interrupted(['login', EDGE, '--env', 'slow', '--auto'], 1);
@@ -524,7 +524,7 @@ describe.skipIf(!chromiumAvailable())('sessions & personas on the command line (
     );
 
     it(
-      'a profile a browser holds: --check says so without a stale check, the js hooks say why (U8, U9); the older storage_state form is exported again (U5)',
+      'a profile a browser holds: --check says so without a stale check, the js hooks say why; the older storage_state form is exported again',
       async () => {
         await mkdir(waiter().profileDir, { recursive: true, mode: 0o700 });
         await writeFile(join(waiter().profileDir, 'Local State'), '{}');

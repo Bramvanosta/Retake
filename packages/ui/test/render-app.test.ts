@@ -79,7 +79,7 @@ describe('versions and words', () => {
     expect(jobVersionNote({ run_id: 'r1' }, { run: 'r1', hash: H })).toBe('the take as captured');
   });
 
-  it('review B H1: on the timeline, only the same plan and theme files are "this version" (options, variant, fps, theme files differ)', () => {
+  it('on the timeline, only the same plan and theme files are "this version" (options, variant, fps, theme files differ)', () => {
     const P = 'p'.repeat(24);
     const T = '0123456789abcdef';
     const shown = { run: 'r1', hash: H, theme: 'editorial', plan_sha256: P, theme_sha256: T };
@@ -143,7 +143,7 @@ describe('versions and words', () => {
   });
 });
 
-describe('the files of renders/ the list does not show (L7.6b)', () => {
+describe('the files of renders/ the list does not show', () => {
   it("one line per reason, counts and fixed words only; the words are core's", () => {
     expect(notShownWords(undefined)).toEqual([]);
     expect(

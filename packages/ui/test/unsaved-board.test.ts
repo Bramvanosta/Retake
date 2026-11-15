@@ -39,7 +39,7 @@ afterAll(async () => {
 
 const board = () => new UnsavedBoard(join(ws, 'projects'));
 
-describe('the board (L5.2b)', () => {
+describe('the board', () => {
   it('a report is kept until its tab sends an empty one — visible or hidden, no expiry by time', async () => {
     const b = board();
     let changes = 0;
@@ -77,7 +77,7 @@ describe('the board (L5.2b)', () => {
     expect(b.items()).toEqual([{ kind: 'comment' }, { kind: 'readme', project: P }, { kind: 'step_form', project: P }, { kind: 'yaml_draft', project: P, scenario: 'quote' }]);
   });
 
-  it('reports of one tab apply in call order: a report still checking its names when the empty one (pagehide) comes never re-adds the tab (A M1 / B M3)', async () => {
+  it('reports of one tab apply in call order: a report still checking its names when the empty one (pagehide) comes never re-adds the tab', async () => {
     const b = board();
     // Not awaited: the first one waits on its existence checks while the empty one is handled.
     const first = b.report(tab(1), true, [{ kind: 'readme', project: P }]);
@@ -98,7 +98,7 @@ describe('the board (L5.2b)', () => {
     expect(b.tabCount).toBe(2);
   });
 
-  it('a name that is no slug or too long drops that name only — the item and the rest of the report stay (review A L4)', async () => {
+  it('a name that is no slug or too long drops that name only — the item and the rest of the report stay', async () => {
     const b = board();
     // A project folder whose name is a slug of 101 characters: too long to be named, even though it exists.
     const long = 'a'.repeat(101);
@@ -113,7 +113,7 @@ describe('the board (L5.2b)', () => {
     expect(b.items()).toEqual([{ kind: 'comment', project: P }, { kind: 'readme' }, { kind: 'step_form' }, { kind: 'yaml_draft', project: P, scenario: 'quote' }]);
   });
 
-  it(`a new tab beyond ${UNSAVED_TABS_MAX} is refused; the tabs already there keep reporting (critique L3)`, async () => {
+  it(`a new tab beyond ${UNSAVED_TABS_MAX} is refused; the tabs already there keep reporting`, async () => {
     const b = board();
     for (let n = 0; n < UNSAVED_TABS_MAX; n++) await b.report(tab(n), n === 0, [{ kind: 'readme', project: P }]);
     await expect(b.report(tab(99), false, [{ kind: 'comment' }])).rejects.toThrow(/16 tabs already report unsaved text/);

@@ -54,7 +54,7 @@ const apply = (n: number, applies: number, extra: Record<string, unknown> = {}) 
 const ok = (v: unknown) => CommentThreadSchema.safeParse(v).success;
 const why = (v: unknown) => JSON.stringify(CommentThreadSchema.safeParse(v).error?.issues ?? []);
 
-describe('the thread schema in L4.6 (T2)', () => {
+describe('the thread schema', () => {
   it('accepts the studio channel on the thread and on entries (core comments.ts COMMENT_VIAS)', () => {
     expect(ok(thread()), why(thread())).toBe(true);
     expect(ok(thread([{ ...reply(1), author: { via: 'studio', name: 'Reviewer' } }]))).toBe(true);
@@ -137,7 +137,7 @@ describe('the thread schema in L4.6 (T2)', () => {
     expect(proposalLineProblem('😀'.repeat(1001))).toMatch(/2002 characters \(UTF-16 units\)/);
   });
 
-  it('⚑ caps (critique B13): 200 changed lines (removed + added), 30,000 characters', () => {
+  it('⚑ caps: 200 changed lines (removed + added), 30,000 characters', () => {
     const adds = (n: number, len = 10) => [{ at: 1, del: [], add: Array.from({ length: n }, (_, i) => `l${i}`.padEnd(len, 'x')) }];
     expect(proposalHunksProblem(adds(PROPOSAL_CHANGED_LINES_MAX))).toBeNull();
     expect(proposalHunksProblem(adds(PROPOSAL_CHANGED_LINES_MAX + 1))).toMatch(/201 changed lines/);
@@ -149,7 +149,7 @@ describe('the thread schema in L4.6 (T2)', () => {
   });
 });
 
-describe('proposalStates (critique B4)', () => {
+describe('proposalStates', () => {
   const p1 = proposal({ base_sha256: H('a'), result_sha256: H('b') });
   const p2 = proposal({ base_sha256: H('a'), result_sha256: H('c') });
   const entries = (...e: unknown[]) => e as CommentEntry[];

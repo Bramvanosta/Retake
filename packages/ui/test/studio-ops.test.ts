@@ -151,7 +151,7 @@ function typeErrors(checks: string, data = CHECKS_DATA): string[] {
     .map((d) => `${d.file!.fileName === file ? '' : 'data: '}${d.file!.getLineAndCharacterOfPosition(d.start ?? 0).line + 1}: ${ts.flattenDiagnosticMessageText(d.messageText, ' ')}`);
 }
 
-describe('L6.12: the typed operation client', () => {
+describe('the typed operation client', () => {
   it('StudioOps is derived from the op table, types only: data/ops.ts imports nothing at run time, holds no generated file and no hand-written result but the NARROWED ones (each with its reason)', () => {
     const text = readFileSync(OPS, 'utf8');
     const src = ts.createSourceFile(OPS, text, ts.ScriptTarget.Latest, true);

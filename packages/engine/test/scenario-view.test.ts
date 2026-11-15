@@ -72,7 +72,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('the source run (B8)', () => {
+describe('the source run', () => {
   it('default: the newest complete run with pictures; the newer until-run named; the running run reported, never the source', async () => {
     const v = await engine.scenarios.view(P, 'blocks');
     expect([v.project, v.name, v.file, v.ok, v.text]).toEqual([P, 'blocks', 'scenarios/blocks.yaml', true, BLOCKS_YAML]);
@@ -131,7 +131,7 @@ describe('the source run (B8)', () => {
   });
 });
 
-describe('binding a changed file (B4)', () => {
+describe('binding a changed file', () => {
   const view = async (yaml: string, run?: string): Promise<ScenarioView> => {
     await writeFile(join(projectDir, 'scenarios', 'edited.yaml'), yaml);
     await writeRun(projectDir, capture('20261019-100000-edited', { scenario: 'edited', video: false }));
@@ -162,7 +162,7 @@ describe('binding a changed file (B4)', () => {
     expect(w.source).toMatchObject({ changed: false, binding: 'position' });
   });
 
-  it('only the edit changed (a caption): notice edit_changed, every picture kept (L5.5)', async () => {
+  it('only the edit changed (a caption): notice edit_changed, every picture kept', async () => {
     const v = await view(BLOCKS_YAML.replace('      - click: Second\n', '      - click: Second\n        caption: Now the second\n'));
     expect(v.source).toMatchObject({ changed: true, notice: 'edit_changed' });
     expect(v.source).not.toHaveProperty('filmed_changes');
@@ -251,7 +251,7 @@ describe('steps a run did not picture', () => {
     }
   });
 
-  it('a person’s scenario with {{env:…}}: valid on the screen (no agent trust), both runs blocked with Studio wording (#6, B2)', async () => {
+  it('a person’s scenario with {{env:…}}: valid on the screen (no agent trust), both runs blocked with Studio wording', async () => {
     await writeFile(
       join(projectDir, 'scenarios', 'person.yaml'),
       'video: person\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - type: {into: {label: Token}, text: "{{env:API_KEY}}"}\n',
@@ -272,8 +272,8 @@ describe('steps a run did not picture', () => {
   });
 });
 
-describe('review fixes (L4.2)', () => {
-  it('a run.json status or scene the runner never writes: `unknown`, no name (review A #4)', async () => {
+describe("the view's edge cases", () => {
+  it('a run.json status or scene the runner never writes: `unknown`, no name', async () => {
     await writeFile(join(projectDir, 'scenarios', 'hostile.yaml'), BLOCKS_YAML);
     await writeRun(projectDir, capture('20261018-100000-hostile', { scenario: 'hostile', video: false }));
     await writeRun(projectDir, { id: '20261018-100100-hostile', scenario: 'hostile', mode: 'dry', status: 'failed', error: { scene: '\u202Egnp.exe', step: 0, message: 'x' } });
@@ -289,7 +289,7 @@ describe('review fixes (L4.2)', () => {
     expect(JSON.stringify(v.runs)).not.toMatch(/\u202E|gnp|deeccus/);
   });
 
-  it('a newer run that failed before its first step (no picture) is named over the pictures (review B H1)', async () => {
+  it('a newer run that failed before its first step (no picture) is named over the pictures', async () => {
     await writeFile(join(projectDir, 'scenarios', 'down.yaml'), BLOCKS_YAML);
     await writeRun(projectDir, capture('20261018-110000-down', { scenario: 'down', video: false }));
     await writeRun(projectDir, {
@@ -309,7 +309,7 @@ describe('review fixes (L4.2)', () => {
     ]);
   });
 
-  it('the default source prefers a complete run it can match over a newer one without a snapshot (review B L6)', async () => {
+  it('the default source prefers a complete run it can match over a newer one without a snapshot', async () => {
     await writeFile(join(projectDir, 'scenarios', 'snap.yaml'), BLOCKS_YAML);
     await writeRun(projectDir, capture('20261018-120000-snap', { scenario: 'snap', video: false }));
     await writeRun(projectDir, capture('20261018-120100-snap', { scenario: 'snap', snapshot: undefined, video: false }));
@@ -322,7 +322,7 @@ describe('review fixes (L4.2)', () => {
     expect(v.source?.notice).toBeUndefined();
   });
 
-  it('a step with two actions: why in words, not "the timeline cannot be read" (review B M3)', async () => {
+  it('a step with two actions: why in words, not "the timeline cannot be read"', async () => {
     const yaml = BLOCKS_YAML.replace('      - click: Second\n', '      - {click: Second, hover: Elsewhere}\n');
     await writeFile(join(projectDir, 'scenarios', 'two-actions.yaml'), yaml);
     await writeRun(projectDir, capture('20261018-130000-two-actions', { scenario: 'two-actions', snapshot: yaml, video: false }));
@@ -335,7 +335,7 @@ describe('review fixes (L4.2)', () => {
     expect(w.steps['one.1']).toEqual({ missing: 'unreadable', why: 'this step has no single action (fix it in the file)' });
   });
 
-  it('a multi-page scene: each page with its environment page and full URL, or the scene it continues from (review B M1)', async () => {
+  it('a multi-page scene: each page with its environment page and full URL, or the scene it continues from', async () => {
     const v = await engine.scenarios.view(P, 'phone-and-desktop');
     expect(v.scenes.phone.pages).toEqual([
       { id: 'desk', page: 'shop', url: 'http://localhost:4402/quotes', display: expect.stringMatching(/\/quotes$/) },
@@ -348,7 +348,7 @@ describe('review fixes (L4.2)', () => {
     expect(v.scenes.phone.url).toBeUndefined();
   });
 
-  it('a file with errors: one blocker per mode, "fix the file first", no command (review B M6); paths in words, the node command (M2, L6)', async () => {
+  it('a file with errors: one blocker per mode, "fix the file first", no command; paths in words, the node command', async () => {
     await writeFile(join(projectDir, 'scenarios', 'broken.yaml'), 'video: broken\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - clik: A\n      - click: B\n');
     const v = await engine.scenarios.view(P, 'broken');
     expect(v.ok).toBe(false);
@@ -380,7 +380,7 @@ describe('review fixes (L4.2)', () => {
     expect(w.run_blockers.dry[0].fix_node?.startsWith(process.execPath)).toBe(true);
   });
 
-  it('a file of more steps than the view returns: the first VIEW_STEPS_MAX, and how many there are (review A #8)', async () => {
+  it('a file of more steps than the view returns: the first VIEW_STEPS_MAX, and how many there are', async () => {
     const yaml = `video: huge\nscenes:\n${Array.from({ length: 3 }, (_s, i) => `  - id: s${i}\n    page: console\n    open: /\n    steps:\n${Array.from({ length: 800 }, (_x, j) => `      - click: B${i}-${j}\n`).join('')}`).join('')}`;
     await writeFile(join(projectDir, 'scenarios', 'huge.yaml'), yaml);
     await writeRun(projectDir, {
@@ -415,7 +415,7 @@ describe('review fixes (L4.2)', () => {
   });
 });
 
-describe('memo (B1)', () => {
+describe('memo', () => {
   it('a repeat recomputes nothing; 20 run.json rewrites of a running run recompute no text and no binding; an edit recomputes both', async () => {
     let blockers = 0;
     const runs = new RunDataCache();
@@ -486,7 +486,7 @@ describe('memo (B1)', () => {
   });
 });
 
-describe('events (B1): scenario files and runs named', () => {
+describe('events: scenario files and runs named', () => {
   it('runChanges: new, progress (an unfinished run’s run.json signature), status, removed — each with its scenario', () => {
     const before = [
       { id: 'r1', scenario: 'a', status: 'running' },

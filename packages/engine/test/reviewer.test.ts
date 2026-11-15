@@ -191,7 +191,7 @@ describe("a review image: the engine's caps around the reviewer's thumb (reviews
     await expect(engine.reviews.image('demo', c.record.id, 'sheet_1fps.jpg')).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(/stays too large once scaled/) });
   });
 
-  it('frames that cannot be loaded fail the call with their own error, never as an image that cannot be decoded (L7.11 fix pass)', async () => {
+  it('frames that cannot be loaded fail the call with their own error, never as an image that cannot be decoded', async () => {
     const { ws, c } = await memory();
     const fake = new MemoryReviewer({ outputs: diskOutputs });
     await fake.review({ registry: (root: string) => loadComponentRegistry({ root }), policy: PERSON_POLICY, project: ws.project, render: c.record.id, thumbnails: false });

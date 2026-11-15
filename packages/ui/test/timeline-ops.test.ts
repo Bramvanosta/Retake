@@ -180,7 +180,7 @@ describe.skipIf(!canRun)('timeline_view', () => {
     expect(out.body).not.toContain(studio.player.origin);
   });
 
-  it("⚑ review A H1 c: a workspace component is held — not in the frame's bundle — until the person allows it (by hash, this session)", async () => {
+  it("⚑ a workspace component is held — not in the frame's bundle — until the person allows it (by hash, this session)", async () => {
     const frameBundle = async (frameUrl: string) => {
       const doc = await raw(studio.player.port, 'GET', new URL(frameUrl).pathname);
       expect(doc.status).toBe(200);
@@ -218,7 +218,7 @@ describe.skipIf(!canRun)('timeline_view', () => {
     expect(await frameBundle(b.frame_url)).toContain(MARK);
   }, 180_000);
 
-  it("⚑ review A L3: the project's preview URLs live while a page holds a lease; the last one leaving revokes them, a re-read gets new ones", async () => {
+  it("⚑ the project's preview URLs live while a page holds a lease; the last one leaving revokes them, a re-read gets new ones", async () => {
     const plain = async (u: string) => (await raw(studio.player.port, 'GET', new URL(u).pathname, { range: 'bytes=0-15' })).status;
     const a = await viewOf({ project: 'demo', name: 'tl', lease: LEASE_A });
     const media = (await raw(studio.player.port, 'GET', new URL(a.plan_url).pathname)).json<{ source: { url: string } }>().source.url;

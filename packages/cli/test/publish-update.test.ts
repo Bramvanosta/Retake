@@ -605,7 +605,7 @@ describe("publishing to a stand-in of GitHub's REST API", () => {
   });
 });
 
-describe('the feed under races and failures (review f)', () => {
+describe('the feed under races and failures', () => {
   /** The update-feed release after a publication of `version`: both channels at it. */
   async function feedAt(version: string) {
     attached(version);
@@ -617,7 +617,7 @@ describe('the feed under races and failures (review f)', () => {
   const feedNames = () => names('update-feed');
   const isTmp = (n: string) => /\.tmp-[0-9a-f]{8}$/.test(n);
 
-  it('a newer feed another publication writes between the check and the delete is kept — before the first delete, or after it (the rename refused); an older one is replaced (A-M1)', async () => {
+  it('a newer feed another publication writes between the check and the delete is kept — before the first delete, or after it (the rename refused); an older one is replaced', async () => {
     await feedAt('0.2.0');
     attached('0.2.1');
     attached('0.3.0-rc.1');
@@ -666,7 +666,7 @@ describe('the feed under races and failures (review f)', () => {
     expect((await run(files('0.2.1'))).channels).toEqual({ 'rc.json': 'written', 'latest.json': 'kept 0.2.1' });
   });
 
-  it('the rename window survives a server error, a rate limit (Retry-After, capped), a network error; a permission error is not asked again (A-M2)', async () => {
+  it('the rename window survives a server error, a rate limit (Retry-After, capped), a network error; a permission error is not asked again', async () => {
     await feedAt('0.2.0');
     attached('0.2.1');
     // A 502 on the first rename, a 429 (Retry-After: 3) on a DELETE, a 403 rate limit with no request left.
@@ -723,7 +723,7 @@ describe('the feed under races and failures (review f)', () => {
     expect(gh.logs.join('\n')).toMatch(/DELETE .*: no answer — asked again in 1 s/);
   });
 
-  it('a rename that never succeeds: the temporary file is kept and the error says the channel is MISSING and what to re-run; a re-run heals and removes it (A-M2, B-L3, B-L6)', async () => {
+  it('a rename that never succeeds: the temporary file is kept and the error says the channel is MISSING and what to re-run; a re-run heals and removes it', async () => {
     await feedAt('0.2.0');
     attached('0.2.1');
     // GitHub's list lags: every rename is refused though nothing holds the name.
@@ -767,7 +767,7 @@ describe('the feed under races and failures (review f)', () => {
     expect(feedNames().filter(isTmp)).toHaveLength(1);
   });
 
-  it("this version's feed entry is the one checked: its platform file read back must equal it (A-L1); a platform file raced at upload passes when the same, fails when not (B-L3)", async () => {
+  it("this version's feed entry is the one checked: its platform file read back must equal it; a platform file raced at upload passes when the same, fails when not", async () => {
     attached('0.2.1');
     // Read back with another signature (a concurrent writer): nothing written to the feed.
     gh.before = (q) => {
@@ -813,7 +813,7 @@ describe('the feed under races and failures (review f)', () => {
     expect(releaseOf('update-feed')).toBeUndefined();
   });
 
-  it("a half-uploaded file (GitHub's `starter` state) on the version's release is deleted and uploaded again; another one is left alone (A-L7)", async () => {
+  it("a half-uploaded file (GitHub's `starter` state) on the version's release is deleted and uploaded again; another one is left alone", async () => {
     addRelease('v0.2.1');
     const half = addAsset('v0.2.1', 'Retake.app.tar.gz', 'half an archi', 'application/octet-stream', 'starter');
     addAsset('v0.2.1', 'notes.txt', 'half', 'text/plain', 'starter');
@@ -825,7 +825,7 @@ describe('the feed under races and failures (review f)', () => {
     expect(gh.logs.join('\n')).toMatch(/removed v0\.2\.1\/Retake\.app\.tar\.gz: a half-uploaded file \(an interrupted upload, never downloadable\) — uploaded again/);
   });
 
-  it("reading a file follows up to three redirects, https only, never with the token; the release's upload address must be the API's upload host (B-L1, A-L4)", async () => {
+  it("reading a file follows up to three redirects, https only, never with the token; the release's upload address must be the API's upload host", async () => {
     attached('0.2.1');
     gh.hops = 2;
     await run(files('0.2.1'));
@@ -848,7 +848,7 @@ describe('the feed under races and failures (review f)', () => {
     expect(gh.requests.filter((q) => q.host === 'elsewhere')).toEqual([]);
   });
 
-  it('creating update-feed: a 422 is "exists" only when GitHub says already_exists (then a draft is said), any other is the error (B-L2); a feed release that is not a pre-release is warned about', async () => {
+  it('creating update-feed: a 422 is "exists" only when GitHub says already_exists (then a draft is said), any other is the error; a feed release that is not a pre-release is warned about', async () => {
     attached('0.2.1');
     gh.before = (q) =>
       q.method === 'POST' && q.path === `/repos/${REPOSITORY}/releases`
@@ -867,7 +867,7 @@ describe('the feed under races and failures (review f)', () => {
     expect(gh.logs.join('\n')).toMatch(/warning: the update-feed release is not a pre-release — GitHub may show it as the latest release/);
   });
 
-  it('assets past the first hundred are seen (pagination); a file read back over 1 MiB is refused, announced or not (B-L3)', async () => {
+  it('assets past the first hundred are seen (pagination); a file read back over 1 MiB is refused, announced or not', async () => {
     addRelease('v0.2.1');
     for (let i = 0; i < 120; i++) addAsset('v0.2.1', `extra-${i}.txt`, 'x', 'text/plain');
     const f = files('0.2.1');
@@ -886,7 +886,7 @@ describe('the feed under races and failures (review f)', () => {
     expect(writes()).toEqual([]);
   });
 
-  it('a channel kept at a version with no published release (a feed that freezes every app) is a ::warning:: of a green run; a real newer version is not (A-L2)', async () => {
+  it('a channel kept at a version with no published release (a feed that freezes every app) is a ::warning:: of a green run; a real newer version is not', async () => {
     attached('0.2.1');
     addRelease('update-feed', { prerelease: true });
     addAsset('update-feed', 'rc.json', '{"version":"999.0.0","platforms":{}}', 'application/json');

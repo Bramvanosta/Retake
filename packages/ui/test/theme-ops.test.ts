@@ -160,7 +160,7 @@ describe('theme_copy, theme_view, theme_edit', () => {
     expect(libraryChanges(before, await libraryWatchScan(o))).toEqual({ themes: ['mine'] });
   });
 
-  it('⚑ review A L4: one entry budget per scan; past it, folders get a coarse signature (their own stat), nothing walked', async () => {
+  it('⚑ one entry budget per scan; past it, folders get a coarse signature (their own stat), nothing walked', async () => {
     const comps = join(ws, 'watch-budget', 'components');
     for (const ns of ['aa', 'bb', 'cc']) {
       for (let i = 0; i < 4; i++) {
@@ -266,7 +266,7 @@ describe('theme_preview', () => {
     expect((await call('theme_preview', { project: P, theme: 'mine', target: 'intro' })).status).toBe(400);
   });
 
-  it('⚑ B10: a theme whose intro is its own image is not previewed (no sample stands for it)', async () => {
+  it('⚑ a theme whose intro is its own image is not previewed (no sample stands for it)', async () => {
     await ok('theme_copy', { from: 'editorial', name: 'media' });
     const dir = join(ws, 'templates', 'media');
     await cp(join(LIBRARY_DIR, 'studio', 'card-title', 'preview.png'), join(dir, 'intro.png'));
@@ -301,7 +301,7 @@ describe('theme_preview', () => {
   });
 });
 
-describe('theme_list (part D2)', () => {
+describe('theme_list', () => {
   it("⚑ editable by real path: starters read-only with why, a workspace theme editable, the project's own folder theme read-only; path-free", async () => {
     await mine();
     // A second project whose theme is its own folder (a path in project.yaml).

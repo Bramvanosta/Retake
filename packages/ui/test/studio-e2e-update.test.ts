@@ -220,7 +220,7 @@ describe('the update in the status bar and its sheet', () => {
     await p.close();
   }, 120_000);
 
-  it('review d: a refusal stays in the sheet in words (not writable → the disk image); the badge stays live while downloading', async () => {
+  it('a refusal stays in the sheet in words (not writable → the disk image); the badge stays live while downloading', async () => {
     lines.length = 0;
     shell(available);
     const p = await open(true);

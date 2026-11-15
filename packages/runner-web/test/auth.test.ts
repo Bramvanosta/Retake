@@ -216,7 +216,7 @@ describe('preflight (R-AUTH-03) and per-run copies (R-AUTH-07)', () => {
     expect(logs(signedOut.events)).toContain('warn: persona default (env test): no saved session yet (auth.profile): the run starts signed out');
   });
 
-  it('a missing legacy auth.storage_state file fails the run before anything runs (as before L1.6)', async () => {
+  it('a missing legacy auth.storage_state file fails the run before anything runs', async () => {
     const file = join(home, 'typo.json');
     const { rec } = await run(await project({ storage_state: file }), 'legacy-state', { scenes: [{ id: 'a', page: 'store', open: '/public', steps: [{ wait: 0.1 }] }] }, { mode: 'capture' });
     expect(rec.status).toBe('failed');
@@ -326,7 +326,7 @@ describe('automated login (R-AUTH-05)', () => {
     expect(missing.rec.error?.message).toContain('persona supplier (env test): never signed in; its automated login cannot run: environment variable RETAKE_TEST_UNSET_PW is not set');
   });
 
-  it('a sandbox account (L1.8): its plain password is a secret once its login runs (masked everywhere); signing in is info, not a warning', async () => {
+  it('a sandbox account: its plain password is a secret once its login runs (masked everywhere); signing in is info, not a warning', async () => {
     // As loadProject builds it from a sandbox.yaml: the password substituted into the login steps, listed as a secret.
     const p = await project({ test: authConfig({ supplier: login(ACCOUNTS.supplier.password) }) } as unknown as AuthConfig);
     p.sandboxes = {
@@ -353,7 +353,7 @@ describe('automated login (R-AUTH-05)', () => {
     for (const f of ['run.json', 'log.jsonl']) expect(await readFile(join(dir, f), 'utf8')).not.toContain(ACCOUNTS.supplier.password);
   });
 
-  it('nothing a run writes or emits holds a secret (L4.4: outline, session, pause events included) — a sandbox account signed in by the run or by a saved session, and a secret written as is in a step', async () => {
+  it('nothing a run writes or emits holds a secret (outline, session, pause events included) — a sandbox account signed in by the run or by a saved session, and a secret written as is in a step', async () => {
     const VAR = 'RETAKE_TEST_L44_SECRET';
     const literal = 'l44-literal-secret-5531';
     process.env[VAR] = literal;
@@ -432,7 +432,7 @@ describe('automated login (R-AUTH-05)', () => {
   });
 });
 
-describe('read-only environments and the product clock with personas (L1.7)', () => {
+describe('read-only environments and the product clock with personas', () => {
   const login = {
     login: [
       { open: 'app:/sign-in' },
@@ -475,7 +475,7 @@ describe('read-only environments and the product clock with personas (L1.7)', ()
     expect(logs(events).some((l) => /a write was stopped \(PUT app:\/api\/last-seen, the automated sign-in, before the capture started\)/.test(l))).toBe(true);
   });
 
-  it('the preflight checks on the real clock; the capture reads the clock (installed after the preflight, D8)', async () => {
+  it('the preflight checks on the real clock; the capture reads the clock (installed after the preflight)', async () => {
     await master('supplier');
     const year = new Date().getFullYear();
     const p = await project(authConfig({ supplier: { check: { url: 'app:/clock', expect_text: `Year ${year}` } } }));
@@ -488,7 +488,7 @@ describe('read-only environments and the product clock with personas (L1.7)', ()
     expect(rec.environment?.clock).toEqual({ at: '2020-01-01T09:00:00Z' });
   });
 
-  it('the session check after a failed step runs on the real time, not the product clock (T5)', async () => {
+  it('the session check after a failed step runs on the real time, not the product clock', async () => {
     await master('supplier');
     const year = new Date().getFullYear();
     const p = await project(authConfig({ supplier: { check: { url: 'app:/clock', expect_text: `Year ${year}`, timeout: 2 } } }));

@@ -147,7 +147,7 @@ describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
     expect(st.status).toBe('cancelled');
   });
 
-  it('the file as the screen showed it (`hash`): another file → 409, nothing queued (review A #6)', async () => {
+  it('the file as the screen showed it (`hash`): another file → 409, nothing queued', async () => {
     const view = (await call('scenario_blocks', { project: P, name: 'highlights' })).json<{ data: { hash: string } }>().data;
     const jobs = await jobFiles();
     const runs = await runDirs();
@@ -162,7 +162,7 @@ describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
     expect((await call('run_cancel', { project: P, run_id: ok.json<Queued>().data.run_id })).status).toBe(200);
   });
 
-  it('one run of a scenario at a time: a second click (another tab, at once or later) → 409 naming the run (review B L2)', async () => {
+  it('one run of a scenario at a time: a second click (another tab, at once or later) → 409 naming the run', async () => {
     const both = await Promise.all([call('scenario_run', { project: P, name: 'highlights', mode: 'dry' }), call('scenario_run', { project: P, name: 'highlights', mode: 'capture' })]);
     expect(both.map((r) => r.status).sort()).toEqual([200, 409]);
     const first = both.find((r) => r.status === 200)!.json<Queued>().data;
@@ -193,7 +193,7 @@ describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
   });
 });
 
-describe('the worker the Studio starts (critique B5)', () => {
+describe('the worker the Studio starts', () => {
   it('studioWorkerEnv: PATH like retake mcp’s, no package-manager / LLM / MCP-token variables, RETAKE_HOME absolute, the rest kept', () => {
     const root = '/work/space';
     const env = studioWorkerEnv(

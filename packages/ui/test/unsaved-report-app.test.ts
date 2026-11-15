@@ -127,7 +127,7 @@ describe('the reporter (fake page)', () => {
     expect(f.sent).toHaveLength(4);
   });
 
-  it('a name that fails the rule (no slug, past 100 characters) is left out before sending; the item and the other items stay (review A L4)', async () => {
+  it('a name that fails the rule (no slug, past 100 characters) is left out before sending; the item and the other items stay', async () => {
     const f = fake();
     startUnsavedReport(f.deps);
     f.set([{ kind: 'readme', project: 'a'.repeat(101) }, { kind: 'comment', project: 'shop', scenario: 'Not a name' }, { kind: 'theme_draft', project: 'Shop' }, README]);

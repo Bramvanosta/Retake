@@ -259,7 +259,7 @@ describe('the player origin', () => {
     }
   });
 
-  it("⚑ review A L3: a capability per scope (project) — one scope never reaches another's files; release revokes its URLs", async () => {
+  it("⚑ a capability per scope (project) — one scope never reaches another's files; release revokes its URLs", async () => {
     const a = player.register(join(dirs.run, 'capture.mp4'), [dirs.run], 'proj-a')!;
     const b = player.register(join(dirs.theme, 'Display Font (1).ttf'), [dirs.theme], 'proj-b')!;
     expect(capOf(a)).not.toBe(capOf(b));

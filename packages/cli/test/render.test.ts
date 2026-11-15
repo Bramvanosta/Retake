@@ -33,7 +33,7 @@ afterAll(async () => {
   await ws?.cleanup();
 });
 
-describe("the summary's words for the render path (L5.15, review B L6)", () => {
+describe("the summary's words for the render path", () => {
   const encoding = { codec: 'h264', pixel_format: 'yuv420p', faststart: true, audio: 'silent' } as const;
   const policy = (used: 'angle' | 'software', fallback?: string) =>
     ({
@@ -54,7 +54,7 @@ describe("the summary's words for the render path (L5.15, review B L6)", () => {
     expect(encodingWords({ encoding: { ...encoding } })).toBe('h264 crf 16');
   });
 
-  it("L7.3: a render rendered again after this machine's ffmpeg failed at the encode says so (never the failure's words); one it encoded reads as any other", () => {
+  it("a render rendered again after this machine's ffmpeg failed at the encode says so (never the failure's words); one it encoded reads as any other", () => {
     const ffmpeg = { asked: 'auto', source: 'default' } as const;
     expect(glWords({ policy: { ...policy('software'), ffmpeg: { ...ffmpeg, used: 'library', version: '7.1.1', failed: 'Unrecognized option — said by a file name' } } })).toBe(
       "in software after this machine's ffmpeg failed at the encode",
@@ -132,7 +132,7 @@ describe.skipIf(!canRender)('retake render / still', () => {
   );
 
   it(
-    '--json prints the record without the plan; the next render takes the next version; a filmed part changed since the capture is warned about first (L3.8, L5.5)',
+    '--json prints the record without the plan; the next render takes the next version; a filmed part changed since the capture is warned about first',
     async () => {
       // The run's snapshot and a scenario file edited since: the render shows the run as captured, and says so on stderr.
       const snapshot = 'video: Synthetic\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n';
@@ -152,7 +152,7 @@ describe.skipIf(!canRender)('retake render / still', () => {
   );
 
   it.skipIf(process.platform !== 'darwin')(
-    'L5.15: on the GPU path (this Mac, opted in), the summary says VideoToolbox and the GPU',
+    'on the GPU path (this Mac, opted in), the summary says VideoToolbox and the GPU',
     async () => {
       const saved = { gl: process.env.RETAKE_RENDER_GL, enc: process.env.RETAKE_RENDER_ENCODER };
       try {

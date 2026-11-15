@@ -57,7 +57,7 @@ async function everyComponent(): Promise<BundleComponent[]> {
 
 const rel = (dir: string, f: string) => relative(dir, f).split(sep).join('/');
 
-describe('the content hash covers what the bundler loads (L4.7 review A H1)', () => {
+describe('the content hash covers what the bundler loads', () => {
   it('every built-in, scaffold and a crafted workspace component: each loaded file is hashed, and a change of it is a new hash', async () => {
     const components = await everyComponent();
     expect(components.map((c) => c.id)).toContain('acme/crafted');

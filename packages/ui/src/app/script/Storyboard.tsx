@@ -7,7 +7,7 @@
  * none, its number, its verb and target, its length, its state in that run as a shape and words, its modifiers in words,
  * what it types or scrolls (`summary`) and its issues.
  *
- * Keyboard (plan §4.2): each scene's frames are a `listbox` (one tab stop for all the scenes: the list
+ * Keyboard: each scene's frames are a `listbox` (one tab stop for all the scenes: the list
  * holding the selection, `aria-activedescendant`); ← / → the step before / after, ↑ / ↓ the frame above / below (across
  * scenes), Home / End, Page Up / Page Down three rows; Alt+↑ / Alt+← move the selected step one place earlier, Alt+↓ /
  * Alt+→ later; Delete / Backspace delete it (undoable); a held key repeats no edit. The inspector follows.

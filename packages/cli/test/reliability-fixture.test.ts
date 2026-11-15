@@ -59,7 +59,7 @@ async function variant(name: string, edit: (yaml: string) => string): Promise<{ 
   return { run, tl, out: r.out };
 }
 
-describe.skipIf(!chromiumAvailable())('capture reliability on the fixture (L5.6)', () => {
+describe.skipIf(!chromiumAvailable())('capture reliability on the fixture', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
       startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture>;

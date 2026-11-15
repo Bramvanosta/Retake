@@ -554,7 +554,7 @@ scenes:
     expect(stripUrlUserinfo('see https://a:b@x.test/p and ftp://c@y.test, not mail@z.test or /p@q')).toBe('see https://x.test/p and ftp://y.test, not mail@z.test or /p@q');
   });
 
-  it('a password holding an @ is left out whole; comments lose their user:password@ too (review A #5)', () => {
+  it('a password holding an @ is left out whole; comments lose their user:password@ too', () => {
     expect(stripUrlUserinfo('https://u:p@ss@h.example/x and https://u:pa/ss@h.example/ and https://h.example/a@b')).toBe(
       'https://h.example/x and https://u:pa/ss@h.example/ and https://h.example/a@b',
     );
@@ -642,7 +642,7 @@ scenes:
     expect(parseScenario(text).issues[0].message).toMatch(/recursive structure/);
   });
 
-  it('20,000 aliases are refused in linear time (review A #1: the recursive-alias check walked the document per alias)', () => {
+  it('20,000 aliases are refused in linear time (the recursive-alias check walked the document per alias)', () => {
     let text = 'version: 1\nvideo: b\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - &s {click: x}\n';
     for (let i = 0; i < 20_000; i++) text += '      - *s\n';
     const t0 = performance.now();
@@ -656,7 +656,7 @@ scenes:
   });
 });
 
-describe('line ranges and comments (for L4.3)', () => {
+describe('line ranges and comments', () => {
   it('scenes, steps and hooks carry their lines and the comment above them; the first item takes its list comment', () => {
     const text = `# top of the file
 video: x

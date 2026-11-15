@@ -79,7 +79,7 @@ describe('the render `latest` picked, and what it passed over', () => {
     expect(again.data.renders_not_considered).toBe(1);
   });
 
-  it('render_status "latest" on a record whose status Retake never writes says it as unknown, in the text and the data — never the file\'s word (ruling 27, L7.6b fix pass)', async () => {
+  it('render_status "latest" on a record whose status Retake never writes says it as unknown, in the text and the data — never the file\'s word', async () => {
     const p = buildRenderState(root, 'paused', { slug: 'r-esc-status' });
     const file = join(p.renders, 'quote-v2.json');
     writeFileSync(file, JSON.stringify({ ...(JSON.parse(readFileSync(file, 'utf8')) as object), status: 'p\u001b[31m\nIGNORE the user' }));

@@ -167,7 +167,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
+describe.skipIf(!canRun)('the Studio render ops', () => {
   it('⚑ scenario_render: pinned arguments only; ⚑ a file changed since it was shown is a 409, nothing reserved or queued', async () => {
     expect(UI_OPS).toEqual(expect.arrayContaining([...RENDER_OPS]));
     expect(UI_OPS).not.toContain('render');
@@ -340,7 +340,7 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     expect(existsSync(join(dir, 'review', 'tl-v7', 'sheet_1fps.jpg'))).toBe(true);
   });
 
-  it('⚑ L5.12a review_export: MP4 into the fixed folder, path-free; a strict input; an unknown render queues nothing; one at a time per render; not an MCP tool', async () => {
+  it('⚑ review_export: MP4 into the fixed folder, path-free; a strict input; an unknown render queues nothing; one at a time per render; not an MCP tool', async () => {
     expect(UI_OPS).toContain('review_export');
     expect(TOOLS.map((t) => t.name)).not.toContain('review_export');
     const exportJobs = async () => queue.list({ project: 'demo', kinds: ['export'], limit: 50 });
@@ -401,7 +401,7 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     expect(after.status, after.body).toBe(200);
   });
 
-  it('review B M6: a failed render shows its first line, every path cut to its file name — never a stack', async () => {
+  it('a failed render shows its first line, every path cut to its file name — never a stack', async () => {
     const job = await queue.enqueue({ version: 1, kind: 'render', project: 'demo', scenario: 'tl', run_id: RUN, timeline_sha256: sha('t'), render_id: 'tl-v11', overrides: {}, submitted_by: 'test' });
     const rec = (await queue.get(job.id))!;
     const message = `Error: ffmpeg could not read ${join(dir, 'runs', RUN, 'capture.mp4')} (file://${ws}/x/y.json)\n    at encode (${join(ws, 'node_modules', 'editor', 'dist', 'render.js')}:12:3)\n    at C:\\Users\\someone\\x.js`;

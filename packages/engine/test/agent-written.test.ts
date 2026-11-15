@@ -98,7 +98,7 @@ describe('the shell hooks a run executes, rendered as they will run', () => {
   const project = { config: { hooks: { shared: [{ shell: 'touch p1' }, { http: { url: 'http://y.example.test' } }], skipped: { shell: 'touch never' } } } } as never;
   const t = (written: string, shown = written, unknown: string[] = []) => ({ written, shown, unknown });
 
-  it('setup, teardown and the named hooks of its steps (the scenario’s, then project.yaml’s; a skipped scene’s left out), shell and sql (L7.33), with cwd, env and rollback', () => {
+  it('setup, teardown and the named hooks of its steps (the scenario’s, then project.yaml’s; a skipped scene’s left out), shell and sql, with cwd, env and rollback', () => {
     expect(scenarioShellHooks(sc, project, TPL)).toEqual([
       {
         kind: 'shell',
@@ -129,7 +129,7 @@ describe('the shell hooks a run executes, rendered as they will run', () => {
     expect(scenarioShellHooks(sc, project, TPL, ['teardown']).map((h) => h.run.written)).toEqual(['touch t', 'delete from t']);
   });
 
-  it('an sql hook (L7.33): its statements as they will run — a file read from the project folder —, its database key, its rollback', async () => {
+  it('an sql hook: its statements as they will run — a file read from the project folder —, its database key, its rollback', async () => {
     await mkdir(join(projectDir, 'hooks'), { recursive: true });
     await writeFile(join(projectDir, 'hooks', 'list.sql'), 'SELECT * FROM {{vars.who}};\n');
     const withSql = { setup: [{ name: 'q', sql: { file: 'hooks/list.sql', db: 'main', rollback: { file: 'hooks/none.sql' } } }, { sql: 'hooks/list.sql' }] } as never;
@@ -354,7 +354,7 @@ describe('a person’s trust (retake hooks trust)', () => {
   });
 });
 
-describe('a person’s trust binds the files its hooks read (L7.39)', () => {
+describe('a person’s trust binds the files its hooks read', () => {
   /** Setup runs a script (one in a folder an agent can write, too) and an sql file with its rollback's; teardown a js file and a script that does not exist yet. */
   const BOUND = (v: string) =>
     [

@@ -353,7 +353,7 @@ const KIT_PUBLIC_NAMES = [
   'wrapText',
 ];
 
-describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer stays replaceable)', () => {
+describe('scaffolds import only react and the kit (the renderer stays replaceable)', () => {
   it('no scaffold file imports remotion (or anything but react and the kit): renderer primitives come from the kit', () => {
     expect(moduleSpecifiers("import { useCurrentFrame } from 'remotion';\nimport type { X } from \"remotion\";\n// import 'y'\nexport * from 'z';")).toEqual(['remotion', 'remotion', 'z']);
     for (const kind of COMPONENT_KINDS) {
@@ -371,7 +371,7 @@ describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer st
     }
   });
 
-  it('L7.2: no built-in component imports the renderer library either — every file of the library imports react and the kit only', () => {
+  it('no built-in component imports the renderer library either — every file of the library imports react and the kit only', () => {
     const ids = readdirSync(join(LIBRARY_DIR, 'studio')).filter((n) => !n.startsWith('.'));
     expect(ids.length).toBe(41);
     for (const id of ids) {
@@ -389,7 +389,7 @@ describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer st
     }
   });
 
-  it("L7.2: the kit names the renderer library in one file (kit/renderer.ts), and its public names are the same as before: that file's own list is not re-exported", async () => {
+  it("the kit names the renderer library in one file (kit/renderer.ts), and its public names are the same as before: that file's own list is not re-exported", async () => {
     const kitDir = join(PACKAGE_DIR, 'src', 'kit');
     const naming = readdirSync(kitDir)
       .filter((f) => ['.ts', '.tsx'].includes(extname(f)))

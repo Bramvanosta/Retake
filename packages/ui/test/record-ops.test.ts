@@ -332,7 +332,7 @@ describe('the start form, one window at a time, path-free answers', () => {
     expect(v.job!.error!.fix).toMatch(/^retake -C \. record northfield-fixture ops-first/);
   });
 
-  it('the records watch never looks through a link (review A-L3): a project whose records or .retake folder is one is skipped', async () => {
+  it('the records watch never looks through a link: a project whose records or .retake folder is one is skipped', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-record-watch-'));
     try {
       const id = newRecordId();

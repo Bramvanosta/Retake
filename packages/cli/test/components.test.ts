@@ -24,7 +24,7 @@ afterAll(async () => {
 });
 
 describe('retake components', () => {
-  it('list: an empty workspace lists the built-in library (41 components since L2.12, each with its preview)', async () => {
+  it('list: an empty workspace lists the built-in library (41 components, each with its preview)', async () => {
     const r = await retake('components', 'list');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.out).not.toContain('none yet');

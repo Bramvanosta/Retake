@@ -260,7 +260,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
     expect(reset.err).toMatch(/northfield-sbx sandbox sandbox reset: reseed \d+ ms · seed 1 step \(\d+ ms\) · mailbox emptied/);
   });
 
-  it('auth status: a sandbox account signs in automatically — never a "retake login" hint, never a failure (I9)', async () => {
+  it('auth status: a sandbox account signs in automatically — never a "retake login" hint, never a failure', async () => {
     const st = await retake(['auth', 'status', '--project', PROJECT]);
     expect(st.code).toBe(EXIT.ok);
     expect(st.out).toMatch(/ {2}supplier {2}auto {6}sandbox account: a take signs it in automatically whenever its session is missing \(its login steps, off camera\)\n/);
@@ -317,7 +317,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
   });
 });
 
-describe('retake sandbox init and the docker-compose flags (L1.8 part C, no Docker needed)', () => {
+describe('retake sandbox init and the docker-compose flags (no Docker needed)', () => {
   let iws = '';
 
   async function cli(args: string[]) {

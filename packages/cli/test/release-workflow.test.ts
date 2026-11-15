@@ -158,7 +158,7 @@ function importGraph(entry: string) {
   return { files: [...files].map((f) => relative(REPO, f)).sort(), bare, dynamic };
 }
 
-describe('release.yml: triggers, permissions, environments, pinned actions (L5.16e)', () => {
+describe('release.yml: triggers, permissions, environments, pinned actions', () => {
   it('runs on a pushed v* tag only — no pull request (least of all pull_request_target), no other event', () => {
     expect(Object.keys(wf.on)).toEqual(['push']);
     expect(wf.on.push).toEqual({ tags: ['v*'] });
@@ -395,7 +395,7 @@ describe('release.yml: every job installs the pinned Node.js tarball, checked in
   });
 });
 
-describe('release.yml: the keys never share a runner with dependency code (review e A-H1)', () => {
+describe('release.yml: the keys never share a runner with dependency code', () => {
   it('the build job runs the dependency code and holds no secret, no variable, no token, no environment', () => {
     const b = jobs.build!;
     expect(b.steps.filter((s) => BUILD_TOOL.test(s.run ?? '')).length).toBeGreaterThanOrEqual(6);
@@ -550,7 +550,7 @@ describe('release.yml: secrets and the job token go only where they are used', (
     expect(jobs.sign!.steps.findIndex((s) => s.name === 'Signing material')).toBe(4);
   });
 
-  it('the job token only in the steps that call gh and in publish › Publish the update (publish-update.mjs, no build tool), holding no secret; no update-host setting anywhere (L5.16f)', () => {
+  it('the job token only in the steps that call gh and in publish › Publish the update (publish-update.mjs, no build tool), holding no secret; no update-host setting anywhere', () => {
     const withToken = allSteps.filter(usesToken);
     expect(withToken.map(label)).toEqual([
       "release › The repository's visibility",
@@ -596,7 +596,7 @@ describe('release.yml: secrets and the job token go only where they are used', (
     expect(sign.run).toMatch(/--app "\$RUNNER_TEMP\/adhoc\/app\/Retake\.app" --tauri-cli "\$RUNNER_TEMP\/adhoc\/tauri-cli" \\\n\s+--out "\$RUNNER_TEMP\/out" --app-version "\$VERSION"/);
   });
 
-  it("the temporary keychain is removed in an always() step at the sign job's end; its files go even when security fails (review e A-L2)", () => {
+  it("the temporary keychain is removed in an always() step at the sign job's end; its files go even when security fails", () => {
     const steps = jobs.sign!.steps;
     const del = steps.findIndex((s) => /ci-keychain\.sh delete/.test(s.run ?? ''));
     expect(del).toBe(steps.length - 1);
@@ -713,7 +713,7 @@ describe('release.yml: what it runs', () => {
     expect(s.run).toBe('set -eu\nnode scripts/release.mjs preflight "$VERSION" --output "$GITHUB_OUTPUT"\nnode scripts/release.mjs files "$VERSION" >> "$GITHUB_OUTPUT"\n');
   });
 
-  it("the repository's visibility, run (review f A-L3): read with the job token through gh api, handed to the preflight as private= / visibility=", () => {
+  it("the repository's visibility, run: read with the job token through gh api, handed to the preflight as private= / visibility=", () => {
     const s = step('release', "The repository's visibility");
     expect(s.id).toBe('repository');
     expect(s.env).toEqual({ GH_TOKEN: '${{ github.token }}' });
@@ -846,7 +846,7 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
     expect(nopass.stdout).toMatch(/lacks TAURI_SIGNING_PRIVATE_KEY_PASSWORD/);
   });
 
-  it('attach, run: a public release is refused before anything is uploaded (review e A-M4, B-M2); a draft loses the files this build does not make, then gets its own', () => {
+  it('attach, run: a public release is refused before anything is uploaded; a draft loses the files this build does not make, then gets its own', () => {
     const s = step('attach', 'Attach to the draft release');
     const gh = fakeGh();
     const temp = dir('attach');
@@ -869,7 +869,7 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
     expect(readFileSync(join(temp, 'notes.md'), 'utf8')).toMatch(/Not notarised[\s\S]*Updates are off/);
   });
 
-  it("the fetch, run (review e B-M3): with updates on, the archive and its .sig come from the release — a missing one fails the job; the publish step builds the feed of the version's channel on this repository and hands it to publish-update.mjs", () => {
+  it("the fetch, run: with updates on, the archive and its .sig come from the release — a missing one fails the job; the publish step builds the feed of the version's channel on this repository and hands it to publish-update.mjs", () => {
     const s = step('publish', 'Fetch the signed update archive');
     expect(s.if).toBe("needs.release.outputs.updates == 'on'");
     const gh = fakeGh();
@@ -1010,7 +1010,7 @@ describe('scripts/release.mjs', () => {
     for (const bad of [['0.2.0', '--signed', 'yes'], ['0.2.0', '--updates', 'maybe'], ['0.2.0', '--other', 'x'], ['v0.2.0']]) expect(run(...bad).status, bad.join(' ')).toBe(1);
   });
 
-  it('preflight (review e B-M1): each set all or nothing — none: off and said; all: on (the feed of the channel on this repository, the key checked); some: an error naming each missing name and its store', async () => {
+  it('preflight: each set all or nothing — none: off and said; all: on (the feed of the channel on this repository, the key checked); some: an error naming each missing name and its store', async () => {
     const { preflight, CONFIG_SETS } = await releaseModule();
     const { generateKeyPairSync } = await import('node:crypto');
     // A minisign public key as `tauri signer generate` writes it: base64 of its text file (algorithm Ed, key id, key).
@@ -1224,7 +1224,7 @@ describe('ci-keychain.sh: a temporary keychain, the search list put back (a reco
   });
 
   it.runIf(OPENSSL)(
-    'import: the list saved first, a keychain of its own (random password, locked after 6 h), the identity re-wrapped and imported non-extractable for codesign, the keychain first on the list; no password on any command line (review e A-L1)',
+    'import: the list saved first, a keychain of its own (random password, locked after 6 h), the identity re-wrapped and imported non-extractable for codesign, the keychain first on the list; no password on any command line',
     () => {
       const sec = fakeSecurity(IDENTITY);
       const d = join(dir('kc'), 'signing');
@@ -1304,7 +1304,7 @@ describe('ci-keychain.sh: a temporary keychain, the search list put back (a reco
     expect(spaced.calls()).toEqual([]);
   });
 
-  it('delete removes every file of the folder even when security fails, then says so (review e A-L2)', () => {
+  it('delete removes every file of the folder even when security fails, then says so', () => {
     const sec = fakeSecurity(IDENTITY, { fail: 'delete-keychain' });
     const d = join(dir('kc'), 'signing');
     mkdirSync(d);

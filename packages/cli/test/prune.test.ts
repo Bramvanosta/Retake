@@ -105,7 +105,7 @@ describe('retake prune', () => {
     expect((await retake('prune', 'northfield-fixture', '--keep-renders', '0')).code).toBe(EXIT.usage);
   });
 
-  it('comment threads that cannot be read: what they may name stays, and a warning says so, with or without something to prune (L7.5)', async () => {
+  it('comment threads that cannot be read: what they may name stays, and a warning says so, with or without something to prune', async () => {
     const project = join(ws, 'projects', 'northfield-fixture');
     const dry = join(runs, '20261018-090000-quote');
     await mkdir(dry, { recursive: true });

@@ -123,7 +123,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('the Library with 240 cards (L5.12c)', () => {
+describe('the Library with 240 cards', () => {
   it('⚑ the first paint within the budget; a selection renders two cards, Play one, a re-read with the same values none', async () => {
     const t0 = Date.now();
     await page.goto(`${studio.url}#/p/${P}/library`);
@@ -168,7 +168,7 @@ describe('the Library with 240 cards (L5.12c)', () => {
     expect(await renders()).toEqual([]);
   }, 120_000);
 
-  it('⚑ L5.12c fixes (review A-M3): with 240 cards the grid is one tab stop — from the selected card, its Play and the inspector in at most 5 Tabs; Enter takes the focus to the inspector', async () => {
+  it('⚑ with 240 cards the grid is one tab stop — from the selected card, its Play and the inspector in at most 5 Tabs; Enter takes the focus to the inspector', async () => {
     const sel = page.locator('[data-testid="lib-card"][data-component="acme/budget-120"] .k-card').first();
     expect(await sel.getAttribute('aria-pressed')).toBe('true');
     // One card's controls are stops: every other card's are not.

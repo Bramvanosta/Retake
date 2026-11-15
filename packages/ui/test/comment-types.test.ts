@@ -49,7 +49,7 @@ export type Checks = [
   Holds<Exact<Data<'thread_apply'>, ThreadApplyAnswer>>,
 ];
 
-describe("the Studio's comment operations' types (L7.16)", () => {
+describe("the Studio's comment operations' types", () => {
   it('are held by pnpm typecheck (this run only says the file is in the suite)', () => {
     expect(true).toBe(true);
   });

@@ -90,7 +90,7 @@ const until = async (what: string, fn: () => boolean, ms = 5000): Promise<void> 
 };
 
 describe('the live channel of a run job', () => {
-  it('S2: live.json is created 0600, names the job, its run and the claiming worker; removed when the channel closes', async () => {
+  it('live.json is created 0600, names the job, its run and the claiming worker; removed when the channel closes', async () => {
     const id = await claimedJob();
     const ch = await openLiveChannel({ files: queue.files, jobId: id, runId: '20261026-120000-quote', worker: await selfIdentity() });
     try {
@@ -109,7 +109,7 @@ describe('the live channel of a run job', () => {
     expect(await readLiveChannel(queue, id)).toBeNull();
   });
 
-  it('S1: the gate — wrong Host 421, any Origin or Sec-Fetch-* header 403, no or a wrong token 401, another route 404 / method 405; nothing streams', async () => {
+  it('the gate — wrong Host 421, any Origin or Sec-Fetch-* header 403, no or a wrong token 401, another route 404 / method 405; nothing streams', async () => {
     const id = await claimedJob();
     const ch = await openLiveChannel({ files: queue.files, jobId: id, runId: 'r1', worker: await selfIdentity() });
     try {
@@ -137,7 +137,7 @@ describe('the live channel of a run job', () => {
     }
   });
 
-  it('S1: at most 2 streams (503 beyond); wanted while one is open; a new stream gets the latest frame at once', async () => {
+  it('at most 2 streams (503 beyond); wanted while one is open; a new stream gets the latest frame at once', async () => {
     const id = await claimedJob();
     const ch = await openLiveChannel({ files: queue.files, jobId: id, runId: 'r2', worker: await selfIdentity() });
     const ac = new AbortController();
@@ -174,7 +174,7 @@ describe('the live channel of a run job', () => {
     }
   });
 
-  it('S1: idle sockets never lock the channel: a valid feed connects at once past 8 of them; they close by themselves; a stream is never dropped for a newcomer', async () => {
+  it('idle sockets never lock the channel: a valid feed connects at once past 8 of them; they close by themselves; a stream is never dropped for a newcomer', async () => {
     const id = await claimedJob();
     const ch = await openLiveChannel({ files: queue.files, jobId: id, runId: 'r6', worker: await selfIdentity() });
     const ac = new AbortController();
@@ -224,7 +224,7 @@ describe('the live channel of a run job', () => {
     }
   });
 
-  it('S10: a reader that never reads holds one waiting frame at most (latest-only), whatever the run sends', async () => {
+  it('a reader that never reads holds one waiting frame at most (latest-only), whatever the run sends', async () => {
     const id = await claimedJob();
     const ch = await openLiveChannel({ files: queue.files, jobId: id, runId: 'r3', worker: await selfIdentity() });
     let sock: Socket | undefined;
@@ -250,7 +250,7 @@ describe('the live channel of a run job', () => {
     }
   });
 
-  it('S2: live.json is not trusted unless private, a regular file, of this job, and its worker holds the claim and lives', async () => {
+  it('live.json is not trusted unless private, a regular file, of this job, and its worker holds the claim and lives', async () => {
     const id = await claimedJob();
     const ch = await openLiveChannel({ files: queue.files, jobId: id, runId: 'r4', worker: await selfIdentity() });
     const file = queue.files.live(id);

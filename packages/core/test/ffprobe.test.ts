@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { clipProbeArgs, clipProbeFromJson, ffprobePackets, openVideoArgs, openVideoFromJson, packetsArgs, pictureSizeArgs, pictureSizeFromJson, readFfprobeJson, videoFileArgs } from '@retake/core';
 
-describe('ffprobe answers (L7.31)', () => {
+describe('ffprobe answers', () => {
   it('every probe answers JSON, read by readFfprobeJson (a text that is no JSON throws its SyntaxError)', () => {
     for (const args of [videoFileArgs('/v.mp4'), clipProbeArgs('/c.mov'), clipProbeArgs('/c.webm', true), openVideoArgs(), pictureSizeArgs('/p.png'), packetsArgs(30)])
       expect(args.slice(args.indexOf('-of'), args.indexOf('-of') + 2)).toEqual(['-of', 'json']);

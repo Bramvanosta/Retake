@@ -10,7 +10,7 @@ import { REHEARSE_MAPPING, SHOOT_STATES, blockerShort, modeWord, shootState } fr
 import type { ShootState } from '../src/app/words/shoot-words.js';
 import { PRIORITY, ownerOf, registerShellCommand, runShellCommand } from '../src/app/shell/command-bus.js';
 
-describe('blocker words by kind (critique H3)', () => {
+describe('blocker words by kind', () => {
   it('⚑ each gate its own words and action: hooks to approve (counted), a protected location, agent trust, refused hooks, a read-only location, the file, and an honest fallback', () => {
     const fix = 'retake run p quote';
     expect(blockerShort({ kind: 'needs_approval', count: 1, fix })).toEqual({ words: '1 hook to approve', action: 'copy' });
@@ -34,7 +34,7 @@ describe('blocker words by kind (critique H3)', () => {
   });
 });
 
-describe("the status bar's states (M15)", () => {
+describe("the status bar's states", () => {
   it('⚑ every state has a shape of the kit and a word that says it', () => {
     const states = Object.keys(SHOOT_STATES) as ShootState[];
     expect(states.sort()).toEqual(['cancelled', 'failed', 'idle', 'interrupted', 'paused', 'queued', 'running', 'stopping', 'succeeded', 'unknown']);
@@ -66,7 +66,7 @@ describe("the status bar's states (M15)", () => {
   });
 });
 
-describe('⚑ the command bus (critique H1)', () => {
+describe('⚑ the command bus', () => {
   it('the owner is the highest priority whatever the order of registration; a tie goes to the latest; one owner acts', () => {
     const calls: string[] = [];
     const h = (name: string) => ({ current: () => void calls.push(name) });

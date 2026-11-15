@@ -58,7 +58,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('scenarios.check: own issues and run blockers (B2)', () => {
+describe('scenarios.check: own issues and run blockers', () => {
   it('the fixture from the Studio: every scenario valid; dry runs unblocked; captures of catalogue, off-camera and quote need the terminal — worded for the Studio', async () => {
     const names = (await ui.projects.get(P)).scenarios;
     expect(names.length).toBe(15);

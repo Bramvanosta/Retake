@@ -110,7 +110,7 @@ describe('the forbid scan of a component preview (checkPreviewSpec)', () => {
     for (const [what, extra] of bad) await expect(checkPreviewSpec(spec(extra), MEDIA, forbid), what).rejects.toMatchObject({ name: 'PreviewPlanError' });
   });
 
-  it("⚑ L4.7 review A M2: display text is a fixed list (panes[*].url, the theme's brand url, a slot equal to it); nothing else", async () => {
+  it("⚑ display text is a fixed list (panes[*].url, the theme's brand url, a slot equal to it); nothing else", async () => {
     const panes = { scene: { url: 'https://shop.northfield.example/', rects: { panes: [{ url: 'https://shop.northfield.example/a' }, { url: 'https://shop.northfield.example/b' }] } } };
     await expect(checkPreviewSpec(spec(panes), MEDIA, forbid)).resolves.toBeUndefined();
     const brand = { theme: { name: 't', brand: { url: 'https://example.com' } } };
@@ -270,7 +270,7 @@ describe.skipIf(!canRun)('the preview frame plays a component preview (Chromium)
     expect(r > 200 && g < 80 && b > 200).toBe(false);
   });
 
-  it("⚑ L5.2: a load answered before the frame's first React effects still mounts the Player and settles", async () => {
+  it("⚑ a load answered before the frame's first React effects still mounts the Player and settles", async () => {
     // WebKit fires the frame's load event — hence its hello — before React's first render of the frame, and the Studio
     // answers `load` at once: the plan could mount after that render but before its effects (frame-store.ts). Forced
     // here: the frame's React scheduler (its MessageChannel pings, `postMessage(null)`) is slowed by 500 ms a ping for

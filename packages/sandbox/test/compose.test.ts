@@ -255,7 +255,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     console.log(`[compose scaffold] ${times.join(' · ')}`);
   });
 
-  it('an interrupted restore — the database dropped, or its connections blocked — is repaired by up and by a take (K4)', async () => {
+  it('an interrupted restore — the database dropped, or its connections blocked — is repaired by up and by a take', async () => {
     const name = `${PREFIX}repair-${rand()}`;
     const dir = await newProject('repair');
     const res = await initSandbox(await loadProject(dir), { write: plainWrite, basePort: await freeBase(3) });
@@ -292,7 +292,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     expect(labelled('container', name)).toEqual([]);
   });
 
-  it('an exec seed step interrupted or past its timeout is stopped inside its container, not only the docker client (K6)', async () => {
+  it('an exec seed step interrupted or past its timeout is stopped inside its container, not only the docker client', async () => {
     const name = `${PREFIX}exec-${rand()}`;
     const port = await freeBase(1);
     const web = await webSandbox('exec', name, port, ['test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/hostname"]', 'interval: 1s', 'timeout: 2s', 'retries: 30'], 60);
@@ -385,7 +385,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     expect(labelled('container', name)).toEqual([]);
   });
 
-  it('another checkout sharing the compose project name is refused by every command; another container publishing the port on [::1] is refused by up (K2, K3)', async () => {
+  it('another checkout sharing the compose project name is refused by every command; another container publishing the port on [::1] is refused by up', async () => {
     const name = `${PREFIX}shared-${rand()}`;
     const port = await freeBase(1);
     const health = ['test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/hostname"]', 'interval: 1s', 'timeout: 2s', 'retries: 30'];

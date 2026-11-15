@@ -414,7 +414,7 @@ describe('retake hooks trust: the person marks an agent’s hooks as theirs', ()
     await mcp.scenarios.save('demo', 'trustme', AGENT('trustme').replace('touch cleaned.txt', 'touch changed.txt'), { ifMatch: createHash('sha256').update(text).digest('hex') });
     expect((await retake(['run', 'demo', 'trustme'])).code).toBe(EXIT.failure);
   });
-  it('L7.39: the trust binds the files the hooks read — one changed since, newly read, or unreadable asks again at run and hooks run, naming it; unchanged does not', async () => {
+  it('the trust binds the files the hooks read — one changed since, newly read, or unreadable asks again at run and hooks run, naming it; unchanged does not', async () => {
     await mkdir(join(projectDir, 'tools'), { recursive: true });
     const script = join(projectDir, 'tools', 'prep.sh');
     await writeFile(script, 'touch prepped.txt\n');
@@ -473,7 +473,7 @@ describe('retake hooks trust: the person marks an agent’s hooks as theirs', ()
     expect((await retake(['run', 'demo', 'files'])).code).toBe(EXIT.ok);
   });
 
-  it('L7.39: files the hooks generate (a plain redirect) and read again — a script, a data file — run after run; the teardown alone is checked against the trust', async () => {
+  it('files the hooks generate (a plain redirect) and read again — a script, a data file — run after run; the teardown alone is checked against the trust', async () => {
     await mkdir(join(projectDir, 'tools'), { recursive: true });
     // Reads the dump on its stdin (`<`: a code position), as a restore does.
     await writeFile(join(projectDir, 'tools', 'restore.sh'), 'cat >> restored.log\n');
@@ -504,7 +504,7 @@ describe('retake hooks trust: the person marks an agent’s hooks as theirs', ()
     expect(held['dump.sql']).toBe(createHash('sha256').update('the dump as trusted\n').digest('hex'));
   });
 
-  it('L7.39: a quoted redirect sign writes nothing — the file it names stays bound: changed, asked; nothing runs', async () => {
+  it('a quoted redirect sign writes nothing — the file it names stays bound: changed, asked; nothing runs', async () => {
     await mkdir(join(projectDir, 'tools'), { recursive: true });
     await writeFile(join(projectDir, 'tools', 'prep2.sh'), 'echo prep\n');
     await mcp.scenarios.save('demo', 'quoted', `video: quoted\nsetup:\n  - shell: "echo '>' tools/prep2.sh"\n  - shell: "sh tools/prep2.sh"\n${SCENES}`);
@@ -517,7 +517,7 @@ describe('retake hooks trust: the person marks an agent’s hooks as theirs', ()
     expect(existsSync(join(projectDir, 'pwned-quoted.txt'))).toBe(false);
   });
 
-  it('L7.39: a writer behind a condition that writes nothing over a planted file — the reader is refused; nothing runs', async () => {
+  it('a writer behind a condition that writes nothing over a planted file — the reader is refused; nothing runs', async () => {
     await mcp.scenarios.save('demo', 'cond', `video: cond\nsetup:\n  - shell: "test -f gen2.sh || echo 'echo hi' > gen2.sh"\n  - shell: "sh gen2.sh"\n${SCENES}`);
     await rm(join(projectDir, 'gen2.sh'), { force: true });
     expect((await retake(['hooks', 'trust', 'demo', 'cond', '--yes'])).code).toBe(EXIT.ok);
@@ -531,7 +531,7 @@ describe('retake hooks trust: the person marks an agent’s hooks as theirs', ()
     expect(existsSync(join(projectDir, 'pwned-cond.txt'))).toBe(false);
   });
 
-  it('L7.39: an input that appears after the trust, carried to code through a chain of two or three writers, is refused; nothing runs', async () => {
+  it('an input that appears after the trust, carried to code through a chain of two or three writers, is refused; nothing runs', async () => {
     const chain = (n: number) =>
       [`cat in-${n}.txt > s1-${n}.txt`, ...Array.from({ length: n - 1 }, (_, k) => `cat s${k + 1}-${n}.txt > s${k + 2}-${n}.txt`), `sh s${n}-${n}.txt`].map((c) => `  - shell: "${c}"`).join('\n');
     for (const n of [2, 3]) {

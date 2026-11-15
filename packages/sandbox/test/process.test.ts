@@ -341,7 +341,7 @@ for (const p of now.split(',').filter(Boolean)) createServer(handler).listen(Num
 if (late) setTimeout(() => createServer(handler).listen(Number(late)), Number(lateMs));
 `;
 
-describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, identity (L1.8 review)', () => {
+describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, identity', () => {
   let dir = '';
   const opened: Sandbox[] = [];
   const lines: string[] = [];
@@ -366,7 +366,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
   const svc = (...args: Array<number | string>) => `[node, ${JSON.stringify(join(dir, 'svc.mjs'))}, ${args.map((a) => JSON.stringify(String(a))).join(', ')}]`;
   const count = async (port: number) => (await fetch(`http://localhost:${port}/`)).json() as Promise<{ seeds: number; deletes: number }>;
 
-  it('health: false still probes the pages, and a port bound late is waited for — never blamed on another program (P5)', async () => {
+  it('health: false still probes the pages, and a port bound late is waited for — never blamed on another program', async () => {
     const [a, b] = await freePorts(2);
     const { sb, project } = await svcSandbox('late', svc(a, b, 1200), [`url: http://localhost:${b}`, 'health: false', `pages: {app: "http://localhost:${a}"}`]);
     const t0 = Date.now();
@@ -387,7 +387,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     expect(e.message).not.toContain("another user's program");
   });
 
-  it('a restarted process service drops the seed record: up --no-seed, then up seeds again (P7)', async () => {
+  it('a restarted process service drops the seed record: up --no-seed, then up seeds again', async () => {
     const [a] = await freePorts(1);
     const { sb, project } = await svcSandbox('noseed', svc(a), [`url: http://localhost:${a}`, `pages: {app: "http://localhost:${a}"}`], ['seed:', '  - http: {method: POST, url: "{{app}}/seed"}']);
     await sb.up({ log: say });
@@ -407,7 +407,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     expect((await count(a)).seeds).toBe(1);
   });
 
-  it("the mailbox a reset empties must be the sandbox's own — or `external: true` (I4)", async () => {
+  it("the mailbox a reset empties must be the sandbox's own — or `external: true`", async () => {
     let deleted = 0;
     const other = createHttpServer((req, res) => {
       if (req.method === 'DELETE') deleted++;
@@ -443,7 +443,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     }
   });
 
-  it("a sql seed step's database must be served by the sandbox — or `external: true` (I4)", async () => {
+  it("a sql seed step's database must be served by the sandbox — or `external: true`", async () => {
     const [a, db] = await freePorts(2);
     const svcLines = [`url: http://localhost:${a}`, `pages: {app: "http://localhost:${a}"}`];
     const seed = ['seed:', '  - http: {method: POST, url: "{{app}}/seed"}', '  - sql: {query: "TRUNCATE quotes"}'];
@@ -495,7 +495,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     expect(await count(a)).toEqual({ seeds: 1, deletes: 1 });
   });
 
-  it('the pending rollbacks are superseded as soon as the seed ran, even when the reset fails after it (P9)', async () => {
+  it('the pending rollbacks are superseded as soon as the seed ran, even when the reset fails after it', async () => {
     const [a, mail] = await freePorts(2);
     const { sb, project } = await svcSandbox(
       'supersede',
@@ -522,7 +522,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     expect((await Journal.open(journal.file)).entries[0].superseded?.by).toBe('p9 reset');
   });
 
-  it('Ctrl-C stops a running shell seed step and its group (exit 130); a second one kills it at once (P4)', async () => {
+  it('Ctrl-C stops a running shell seed step and its group (exit 130); a second one kills it at once', async () => {
     const [a] = await freePorts(1);
     const svcLines = [`url: http://localhost:${a}`, `pages: {app: "http://localhost:${a}"}`];
     const { sb, project } = await svcSandbox('shellseed', svc(a), svcLines, ['seed:', "  - shell: 'sleep 30 & echo $! > child.pid; wait'"]);
@@ -557,7 +557,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     expect(await again).toMatchObject({ code: 'seed' });
   });
 
-  it('the state entry is on disk before anything is awaited after the spawn: a crash then still leaves the service tracked (P6)', async () => {
+  it('the state entry is on disk before anything is awaited after the spawn: a crash then still leaves the service tracked', async () => {
     const [a] = await freePorts(1);
     const { project } = await svcSandbox('early', svc(a), [`url: http://localhost:${a}`, `pages: {app: "http://localhost:${a}"}`]);
     // A ps that takes 3 s to give a start time (the window the entry used to wait in), then leaves a marker named after

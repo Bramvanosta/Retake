@@ -87,7 +87,7 @@ const ui = () => {
   return { io, ui: new Ui(io) };
 };
 
-describe('heavyGate (L5.14a)', () => {
+describe('heavyGate', () => {
   it('nothing filming: no line, no delay', async () => {
     const { io, ui: u } = ui();
     const t0 = Date.now();
@@ -111,7 +111,7 @@ describe('heavyGate (L5.14a)', () => {
     await gate.dispose();
   });
 
-  it('L5.14b: a take past the cap (RETAKE_CAPTURE_HOLD_MAX_MIN) holds no more, and that is said: the command starts', async () => {
+  it('a take past the cap (RETAKE_CAPTURE_HOLD_MAX_MIN) holds no more, and that is said: the command starts', async () => {
     const take = FilmingMarker.open({ env: process.env, root: ws, source: 'job', owner: me })!;
     try {
       const { io, ui: u } = ui();
@@ -171,7 +171,7 @@ describe('heavyGate (L5.14a)', () => {
   });
 });
 
-describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () => {
+describe.skipIf(!existsSync(BIN))('the built CLI waits for a take', () => {
   /** A take of another process (not an ancestor of the CLI): a sleeping sibling owns the marker. */
   async function siblingTake(): Promise<{ name: string; stop: () => void }> {
     const sib = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
@@ -228,7 +228,7 @@ describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () 
   }
 
   it.skipIf(!canEncode)(
-    'review B L6: Ctrl-C while waiting writes nothing; --no-wait starts at once and writes the package (exit 0)',
+    'Ctrl-C while waiting writes nothing; --no-wait starts at once and writes the package (exit 0)',
     async () => {
       const take = await siblingTake();
       const exports = join(ws, 'projects', 'real', 'exports');
@@ -251,7 +251,7 @@ describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () 
     120_000,
   );
 
-  it('review B H2: render, export and review wait too, and run on the "latest" named before the wait (critique M10)', async () => {
+  it('render, export and review wait too, and run on the "latest" named before the wait', async () => {
     const latest = join(ws, 'projects', 'latest');
     for (const [args, line, newer] of [
       [

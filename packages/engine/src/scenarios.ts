@@ -456,7 +456,7 @@ export async function prepareScenarioEdit(
         if (e.code === 'stale') throw new EngineError('conflict', `not saved: ${e.message}`, { details: { current: base.hash, stale: true, ...field } });
         throw new EngineError(e.code === 'invalid' ? 'invalid' : 'refused', `not saved: ${e.message}`, e.field !== undefined ? { details: field } : {});
       }
-      // The verify (plan §3.1.4): the spliced text, re-parsed, must be exactly the edit applied to the file's value.
+      // The verify: the spliced text, re-parsed, must be exactly the edit applied to the file's value.
       const wrong = verifyEditText(applied.text, applied.intended);
       if (wrong) throw new EngineError('refused', `not saved: ${wrong}`);
       ({ text, label, select, notices } = applied);

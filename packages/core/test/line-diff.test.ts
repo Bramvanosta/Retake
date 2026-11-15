@@ -58,7 +58,7 @@ function mutate(r: () => number, base: string[]): string[] {
   return out;
 }
 
-describe('diffLines / applyHunks (T9)', () => {
+describe('diffLines / applyHunks', () => {
   it('fuzz: 5,000 random line edits — exact rebuild, well-formed, minimal, canonical, invertible (CR LF, empty, no final line break)', () => {
     const r = rng(46);
     for (let i = 0; i < 5000; i++) {

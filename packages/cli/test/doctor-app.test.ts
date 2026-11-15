@@ -134,7 +134,7 @@ describe('doctor: App location and the retake command', () => {
     expect(appChecks(probes({ bundle: null, env: {} }))).toEqual([]);
   });
 
-  it('critique H1: a translocated copy, its disk image or /Volumes — warn with "Move Retake to Applications"', () => {
+  it('a translocated copy, its disk image or /Volumes — warn with "Move Retake to Applications"', () => {
     const { home } = setup();
     for (const [sealed, ro, words] of [
       ['/private/var/folders/xy/T/AppTranslocation/0A1B/d/Retake.app', false, 'temporary copy'],
@@ -151,7 +151,7 @@ describe('doctor: App location and the retake command', () => {
   });
 });
 
-describe("doctor: the workspace's worker of another copy of Retake (critique M6)", () => {
+describe("doctor: the workspace's worker of another copy of Retake", () => {
   const ws = {
     root: join(base, 'ws'),
     projectsDir: join(base, 'ws', 'projects'),
@@ -192,7 +192,7 @@ describe("doctor: the workspace's worker of another copy of Retake (critique M6)
     expect(version.detail).toContain("this workspace's worker runs another copy of Retake (0.1.0, /Applications/Retake.app)");
   });
 
-  it("review c A-L4: the lock's text reaches this terminal without control or hidden characters", async () => {
+  it("the lock's text reaches this terminal without control or hidden characters", async () => {
     const odd = await mcpLine({ pid: 42, since: '2026-11-03T00:00:00Z', version: '0.1.0\u001b[2J', engine: '/Apps/\u202eppa.ekateR', started_by: 'mcp\u0007' });
     expect(odd.detail).not.toMatch(/[\u0000-\u001f\u202e]/);
     expect(odd.detail).toContain('0.1.0?[2J');
@@ -200,7 +200,7 @@ describe("doctor: the workspace's worker of another copy of Retake (critique M6)
   });
 });
 
-describe('doctor: App updates (L5.16d, critique L7)', () => {
+describe('doctor: App updates', () => {
   const now = Date.UTC(2026, 10, 10, 12, 0);
   const write = (dir: string, text: string) => {
     mkdirSync(dir, { recursive: true });
@@ -228,7 +228,7 @@ describe('doctor: App updates (L5.16d, critique L7)', () => {
     expect(appChecks(probes({ env: { ...env, PATH: '/usr/bin' } })).map((c) => c.name)).not.toContain('App updates');
   });
 
-  it('review d A-L9: a build made without an update feed says so (its launch.json), whatever the remembered checks say', () => {
+  it('a build made without an update feed says so (its launch.json), whatever the remembered checks say', () => {
     const { home, app } = setup();
     const rh = join(home, '.retake-scratch');
     const env = { HOME: home, RETAKE_HOME: rh, PATH: '/usr/bin' };

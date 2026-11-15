@@ -59,7 +59,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('a terminal replay lists before it replays (L5.14)', () => {
+describe('a terminal replay lists before it replays', () => {
   it('lists each pending rollback, shows the unsigned one in full, replays only the signed one; --replay-unsigned asks about it (y/N) in a terminal only', async () => {
     const run = await retake('hooks', 'run', 'demo', 'hooks/mark.yaml');
     expect(run.code, run.err).toBe(EXIT.ok);

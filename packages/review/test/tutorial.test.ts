@@ -130,7 +130,7 @@ describe('tutorial overlays in the review', () => {
     expect(stillFromSource(off.plan, offSpan.segment as ClipSegment, offPair[0], offPair[1])).toBe(false);
   });
 
-  it('a scene-start glide: the opening still is compared from its end on (L5.1)', async () => {
+  it('a scene-start glide: the opening still is compared from its end on', async () => {
     const t = load('signup-tutorial');
     const still = t.events.find((e) => e.scene === 'signup' && e.action === 'scene_still')!;
     const base = await ctxOf(t);
@@ -180,7 +180,7 @@ describe('story cards in the review', () => {
     expect(f[0].at?.scene).toBe('chart');
   });
 
-  it('your own file (L2.12) that could not be read is an error: nothing is shown', async () => {
+  it('your own file that could not be read is an error: nothing is shown', async () => {
     const t = load('highlights');
     t.scenes.find((s) => s.id === 'figure')!.card = { video: 'assets/gone.mp4' };
     const ctx = await ctxOf(t, {}, { ...CSV, 'assets/gone.mp4': { file: '/p/assets/gone.mp4', missing: true } });
@@ -201,7 +201,7 @@ describe('story cards in the review', () => {
   });
 });
 
-describe('your own overlay files in the review (L2.12)', () => {
+describe('your own overlay files in the review', () => {
   const CHECK: Record<string, PlanInputFile> = {
     'assets/check.json': { file: '/p/assets/check.json', width: 240, height: 240, lottie: { version: '5.7.4', width: 240, height: 240, fps: 30, frames: 60, duration_s: 2, external_images: 0 } },
   };

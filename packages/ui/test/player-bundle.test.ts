@@ -109,7 +109,7 @@ describe('the preview bundle', () => {
     expect(bundles.builds).toBe(2);
   }, 120_000);
 
-  it('⚑ review A H1 c: a workspace component not allowed is not in the bundle at all (held); allowed by its content hash, it is', async () => {
+  it('⚑ a workspace component not allowed is not in the bundle at all (held); allowed by its content hash, it is', async () => {
     const registry = await loadComponentRegistry({ root: ws });
     const listed = await workspaceComponents(registry);
     const good = listed.find((c) => c.id === 'acme/good')!;
@@ -135,7 +135,7 @@ describe('the preview bundle', () => {
     expect(modulesSource('0123456789abcdef', [], ['acme/x'])).toContain('export const held = ["acme/x"];');
   }, 180_000);
 
-  it('⚑ L4.7 review A H1: an import through a dot folder, node_modules, previews or dist (words or package.json) is excluded, even allowed', async () => {
+  it('⚑ an import through a dot folder, node_modules, previews or dist (words or package.json) is excluded, even allowed', async () => {
     // The folder content hash (allow-list, library keys, render bundle cache) skips those folders: code there must never
     // run, or an edit of it would run under a hash the person allowed for other code.
     const ws2 = await mkdtemp(join(tmpdir(), 'ds-player-hidden-'));
@@ -184,7 +184,7 @@ describe('the preview bundle', () => {
     }
   }, 120_000);
 
-  it('L7.2: a workspace component importing the renderer library directly, beside the kit, still bundles for the player', async () => {
+  it('a workspace component importing the renderer library directly, beside the kit, still bundles for the player', async () => {
     await addCard(
       'two-frames',
       `import { AbsoluteFill, useCurrentFrame } from 'remotion';

@@ -95,7 +95,7 @@ afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-describe('rollback journal entries are signed (L5.14)', () => {
+describe('rollback journal entries are signed', () => {
   it('an environment reset replays what Retake recorded and never a hand-placed journal (runs/<id>/, .retake/journals/): refused, and said', async () => {
     // The journals and logs other cases left are not this case's: the reset replays only what it finds here.
     for (const rel of ['runs', '.retake/journals', 'marks.log', 'undo.log', 'placed.log']) await rm(join(project, rel), { recursive: true, force: true });
@@ -160,7 +160,7 @@ function chromiumAvailable(): boolean {
 }
 const hasFfmpeg = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
 
-describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('a run replays only its own rollbacks (L5.14, real dry run)', () => {
+describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('a run replays only its own rollbacks (real dry run)', () => {
   it('a journal placed in its reserved run folder between submit and start is not replayed (refused, and said)', async () => {
     const sub = await engine.runs.submit({ project: 'w', scenario: 'short', mode: 'dry', hooks: 'run' }, accept);
     await place(`runs/${sub.run_id}/hooks-journal.json`, placed('printf reserved >> placed.log'));
@@ -176,7 +176,7 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('a run replays only its own 
  * the in-memory hook runner, whose executions stand for marks.log. An approved shell hook that really runs is the
  * environment reset case above.
  */
-describe('approvals are bound to their job (L5.14), on the in-memory hook runner', () => {
+describe('approvals are bound to their job, on the in-memory hook runner', () => {
   const hooks = new MemoryHookRunner();
   let mengine: Engine;
   /** How many times the mark hook ran (marks.log's length on the hooks package). */
@@ -212,7 +212,7 @@ describe('approvals are bound to their job (L5.14), on the in-memory hook runner
     expect(JSON.parse(await readFile(join(root, '.home', 'approvals-used', sub.job.id), 'utf8'))).toMatchObject({ digest: expect.stringMatching(/^[0-9a-f]{64}$/) });
   }, 60_000);
 
-  it('review B L4: a record of taken approvals that cannot be written fails the job with that reason, not as approvals taken before', async () => {
+  it('a record of taken approvals that cannot be written fails the job with that reason, not as approvals taken before', async () => {
     const before = marks();
     const sub = await mengine.hooks.submit({ project: 'w', source: 'hooks/mark.yaml', dry: false }, accept);
     const used = join(root, '.home', 'approvals-used');
@@ -230,7 +230,7 @@ describe('approvals are bound to their job (L5.14), on the in-memory hook runner
     expect(marks()).toBe(before);
   }, 60_000);
 
-  it('review A L1: a queued job folder copied into another workspace of the same home runs no approved hook there', async () => {
+  it('a queued job folder copied into another workspace of the same home runs no approved hook there', async () => {
     const before = marks();
     const sub = await mengine.hooks.submit({ project: 'w', source: 'hooks/mark.yaml', dry: false }, accept);
     // Another workspace with a project of the same name and the same hook (the same fingerprint).

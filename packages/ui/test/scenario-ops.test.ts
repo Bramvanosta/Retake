@@ -179,7 +179,7 @@ function watch(port: number, token: string) {
 const runsOf = (id: string) => (e: { event: string; data: Record<string, unknown> }) =>
   e.event === 'workspace' && Array.isArray(e.data.runs) && (e.data.runs as Array<{ run: string }>).some((x) => x.run === id);
 
-describe('the workspace event names scenario files and runs (B1)', () => {
+describe('the workspace event names scenario files and runs', () => {
   it('an in-place save → scenarios ["<slug>/<name>"]; a run that starts → runs [{run, scenario, change: new}]', async () => {
     const w = watch(studio.port, studio.token);
     try {

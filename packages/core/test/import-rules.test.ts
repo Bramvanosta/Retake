@@ -529,7 +529,7 @@ describe('the import-rules ratchet', () => {
       for (const f of lib.PORT_FILES as string[]) expect(statSync(join(ROOT, f)).isFile(), f).toBe(true);
     });
 
-    it('the Sandboxes port (L7.25): its loader in sandboxes/ only, its adapter named at its roots only, its port file on the types entry of the sandbox package', () => {
+    it('the Sandboxes port: its loader in sandboxes/ only, its adapter named at its roots only, its port file on the types entry of the sandbox package', () => {
       expect(lib.LOADER_HOMES.sandbox).toBe('packages/engine/src/sandboxes/');
       expect(loaders('packages/engine/src/sandboxes/package-sandboxes.ts', "import { sandbox } from '../lazy.js';\nawait sandbox();")).toEqual([]);
       expect(loaders('packages/engine/src/jobs/sandbox-job.ts', "import { sandbox } from '../lazy.js';\nawait sandbox();")).toEqual(['loader-use packages/engine/src/jobs/sandbox-job.ts → sandbox']);
@@ -591,7 +591,7 @@ describe('the import-rules ratchet', () => {
     });
   });
 
-  describe('workspace-read: the engine reads a workspace through its WorkspaceReads port (L7.38)', () => {
+  describe('workspace-read: the engine reads a workspace through its WorkspaceReads port', () => {
     const reads = (rel: string, text: string): string[] => lib.workspaceReadHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
     const ports = (rel: string, text: string): string[] => lib.portHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).hits.map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
 
@@ -854,7 +854,7 @@ describe('the import-rules ratchet', () => {
     });
   });
 
-  describe('browser-registry: one browser-discovery module (L7.25, finding X9)', () => {
+  describe('browser-registry: one browser-discovery module', () => {
     const at = (rel: string, text: string): string[] =>
       (lib.browserRegistryHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
 
@@ -877,7 +877,7 @@ describe('the import-rules ratchet', () => {
     });
   });
 
-  describe("test-reach and home-restore: the tests' shared helpers in one package (L7.37, finding C5)", () => {
+  describe("test-reach and home-restore: the tests' shared helpers in one package", () => {
     const reach = (rel: string, text: string): string[] => (lib.testReachHits(ROOT, [{ rel, text }]) as Hit[]).map((h) => `${h.file} → ${h.spec}`);
     const homes = (rel: string, text: string): string[] => (lib.homeRestoreHits(ROOT, [{ rel, text }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
 
@@ -965,7 +965,7 @@ describe('the import-rules ratchet', () => {
     });
   });
 
-  describe("core-context and core-root: core's entries per context, and the packages on them (L7.35, finding D1)", () => {
+  describe("core-context and core-root: core's entries per context, and the packages on them", () => {
     type Found = { rule: string; file: string; spec: string };
     const ctx = (rel: string, text: string): string[] => (lib.coreContextHits(ROOT, [{ rel, pkg: 'core', text, specs: [] }]) as Found[]).map((h) => `${h.file} → ${h.spec}`);
     const rootHits = (rel: string, text: string): string[] => (lib.coreRootHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Found[]).map((h) => `${h.file} → ${h.spec}`);
@@ -1132,7 +1132,7 @@ describe('the import-rules ratchet', () => {
     });
   });
 
-  describe('media-call: the media tools started in one module (L7.31, finding X3)', () => {
+  describe('media-call: the media tools started in one module', () => {
     const at = (rel: string, text: string): string[] =>
       (lib.mediaCallHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
     const ed = 'packages/editor/src/render/a.ts';
@@ -1181,7 +1181,7 @@ describe('the import-rules ratchet', () => {
     });
   });
 
-  describe('shell-op: operations defined in the engine, counted where a shell still defines one (L7.13)', () => {
+  describe('shell-op: operations defined in the engine, counted where a shell still defines one', () => {
     const at = (rel: string, text: string): string[] =>
       (lib.shellOpHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
     const mcp = 'packages/mcp/src/tools/a.ts';
@@ -1232,7 +1232,7 @@ describe('the import-rules ratchet', () => {
     });
   });
 
-  describe('hook-call: the hooks use cases orchestrated in the engine only (L7.23, U8b)', () => {
+  describe('hook-call: the hooks use cases orchestrated in the engine only', () => {
     const at = (rel: string, text: string): string[] =>
       (lib.hookCallHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
     const cli = 'packages/cli/src/commands/a.ts';
@@ -1282,7 +1282,7 @@ describe('the import-rules ratchet', () => {
       expect(at('packages/cli/test/a.test.ts', 'await createHookContext(p, o);')).toEqual([]);
     });
 
-    it("holds today: no file outside the engine orchestrates hooks (L7.23: the CLI's hooks.ts had 6 — 5 of the plan's list and one rollbackAll)", () => {
+    it("holds today: no file outside the engine orchestrates hooks (the CLI's hooks.ts had 6 — 5 of the plan's list and one rollbackAll)", () => {
       expect(ratchetOfRepo().filter((e) => e.startsWith('hook-call '))).toEqual([]);
       expect(at('packages/cli/src/commands/hooks.ts', readFileSync(join(ROOT, 'packages/cli/src/commands/hooks.ts'), 'utf8'))).toEqual([]);
     });
@@ -2597,7 +2597,7 @@ describe('the import-rules ratchet', () => {
       expect(kinds(['const r = JSON.parse(text) as RunRecord;'], lib.RECORD_READ_OWN[0])).toEqual([1]);
     });
 
-    it("the search index, the timeline's version matcher and the frame service read renders/ through the one reader only (L7.6c)", () => {
+    it("the search index, the timeline's version matcher and the frame service read renders/ through the one reader only", () => {
       const src = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
       /** The names of the functions (declared, methods, or an arrow given to a variable) that hold each JSON.parse of `text`. */
       const parsesIn = (text: string): string[] => {
@@ -2706,7 +2706,7 @@ describe('the import-rules ratchet', () => {
         expect(title, word).toContain(word);
     });
 
-    it('the shared lenient read and the file seam of the readers are in no index: imported by path by the parse boundaries and the reader of renders/ only (L7.6b)', () => {
+    it('the shared lenient read and the file seam of the readers are in no index: imported by path by the parse boundaries and the reader of renders/ only', () => {
       // The root, core's entries (the render record is the render context's) and the io side.
       const entries = readdirSync(join(ROOT, 'packages/core/src/entries')).map((f) => [`entries/${f}`, readFileSync(join(ROOT, 'packages/core/src/entries', f), 'utf8')] as const);
       const index = readFileSync(join(ROOT, 'packages/core/src/entries/render.ts'), 'utf8');
@@ -2923,7 +2923,7 @@ describe('comment-ref: comments a reader can follow', () => {
     expect(refs(f, `// ${['old-name', ':'].join('')} ${LOT} names the old spellings\nconst g = 6;`)).toEqual([]);
   });
 
-  it('the wider forms are hits too: any case and review letter, any critique, a private path, finding codes, bare codes in a parenthesis, plan ids, phase ids', () => {
+  it("the wider forms are hits too: any case and review letter, a critic's note, a private path, finding codes, bare codes in a parenthesis, plan ids, phase ids", () => {
     const f = 'packages/core/src/x.ts';
     const one = (comment: string): string[] =>
       refs(f, `${comment}\nconst a = 1;`)
@@ -2941,6 +2941,7 @@ describe('comment-ref: comments a reader can follow', () => {
     expect(one('// untrusted words (B16), the gate (untrusted, H1), the fix (A M3 / B H1: alone)')).toEqual(['B16', 'H1', 'H1', 'M3']);
     expect(one('// the Sandboxes port (U14), checked by T13 and U8e')).toEqual(['T13', 'U14', 'U14', 'U8e']);
     expect(one('// as is, since L1')).toEqual(['L1']);
+    expect(one('// the spelling of it (review M4), the keys (plan §4.2)')).toEqual(['plan §4', 'review M4']);
     // Not hits: the import rules' R-numbers, look-alike names, a code that is not an item's start, backlog and table
     // labels.
     expect(one('// the rule (R6), the codecs (VP8 / VP9), the sets (C0, DEL, C1), at twice A4 size, on an M4 Mac')).toEqual([]);
@@ -2952,5 +2953,42 @@ describe('comment-ref: comments a reader can follow', () => {
     expect((lib.commentRefHits(ROOT) as Ref[]).map((h) => `${h.file} → ${h.count}`)).toEqual([]);
     const pinned = (lib.readBaseline(ROOT) as { groups: Array<{ rule: string }> }).groups.filter((g) => g.rule === 'comment-ref');
     expect(pinned).toEqual([]);
+  });
+
+  it('a test title holds none either: the first argument of it, describe, test or suite, a template title included', () => {
+    const titles = (rel: string, text: string): string[] => (lib.titleRefHits(ROOT, [{ rel, text }]) as Ref[]).flatMap((h) => h.refs.map((r) => `${r.line} ${r.ref}`));
+    const f = 'packages/core/test/x.test.ts';
+    expect(titles(f, `describe('the quit (${NOTE})', () => {\n  it('${LOT}: the slots', () => {});\n});`)).toEqual([`1 ${NOTE}`, `2 ${LOT}`]);
+    expect(titles(f, `it.skipIf(x)('the bound (critique B7c)', () => {});\ntest.each([1])(\`%s, \${'x'} (U14)\`, () => {});`)).toEqual(['1 critique', '2 U14', '2 U14', '2 (U14)']);
+    // A finding code before a title's colon, a review's fix or numbered point (title-only forms).
+    expect(titles(f, `it('A M2: an untouched value', () => {});\nit('⚑ B5, S1: a key', () => {});\ndescribe('review fixes', () => {});\nit('no name (review A #4)', () => {});`)).toEqual([
+      '1 A M2',
+      '2 ⚑ B5, S1',
+      '2 B5, S1',
+      '3 review fixes',
+      '4 review A #4',
+    ]);
+    expect(titles(f, `it('a link (small point 3.2), the word (ruling 27)', () => {});\nit('a capture (part D), a cap (#8), a frame (fix pass)', () => {});`)).toEqual([
+      '1 small point 3.2',
+      '1 ruling 27',
+      '2 (part D)',
+      '2 (#8)',
+      '2 fix pass',
+    ]);
+    expect(titles(f, `it('a link (review M4)', () => {});\nit('library_component (part D1)', () => {});\nit('the keys (plan §4)', () => {});`)).toEqual(['1 review M4', '2 (part D1)', '3 plan §4']);
+    expect(titles(f, `it('the window: B16 / B5 while queued', () => {});\nit('the pump (C1), a sandbox (9), the keys (§4.2)', () => {});`)).toEqual(['1 B16 / B5', '2 (C1)', '2 (9)', '2 (§4.2)']);
+    // Not hits: other strings, an it.each table, comments (comment-ref reads those), requirement and import-rule ids,
+    // a tagged title, files outside the test folders' TS.
+    expect(
+      titles(
+        f,
+        `const s = '${LOT}';\nit.each(['${NOTE}'])('%s', () => {});\n// ${LOT}\nit('R-UI-07 and R10: a rule; MP4: a format; VP8 / VP9, C0 / C1 (R6) (MP4)', () => {});\nit('${['old-name', ':'].join('')} ${LOT}', () => {});`,
+      ),
+    ).toEqual([]);
+    expect(titles('packages/core/test/x.rs', `it('${LOT}')`)).toEqual([]);
+  });
+
+  it('holds today: no lot id, phase id or note reference left in any test title', () => {
+    expect((lib.titleRefHits(ROOT) as Ref[]).map((h) => `${h.file} → ${h.count}`)).toEqual([]);
   });
 });

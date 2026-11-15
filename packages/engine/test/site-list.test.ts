@@ -68,7 +68,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe('site list (L4.7)', () => {
+describe('site list', () => {
   it('no site folder: an empty list', async () => {
     expect(await engine.templates.sites()).toEqual({ sites: [] });
   });

@@ -369,7 +369,7 @@ describe('recordSession: secrets', () => {
     expect(r.events.some((e) => e.kind === 'pointer' && e.redacted)).toBe(false);
   }, 60_000);
 
-  it('a known secret retyped in a plain field, its typing split by a blur (a visit to the Studio): no part of it is sent, one placeholder (review A-L2)', async () => {
+  it('a known secret retyped in a plain field, its typing split by a blur (a visit to the Studio): no part of it is sent, one placeholder', async () => {
     // Letters only, none of them a vowel: no 4-character run of it is in an event by chance.
     const letters = 'BCDFGHJKLMNPQRSTVWXZ';
     const secret = `Q${Array.from(randomBytes(15), (b) => letters[b % letters.length]).join('')}`;

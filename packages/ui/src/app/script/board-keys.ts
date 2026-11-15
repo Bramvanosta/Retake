@@ -1,7 +1,7 @@
 /**
  * The storyboard's pure parts (unit-tested) — the keys of the frame grids and a scene's intrinsic height.
  *
- * Keys (plan §4.2): the frames of every scene are one sequence the arrows walk; ← / → the step before /
+ * Keys: the frames of every scene are one sequence the arrows walk; ← / → the step before /
  * after (across scenes), ↑ / ↓ the frame in the same column of the row above / below — into the scene before's last
  * row or the next scene's first row, the column clamped —, Home / End the first / last step, Page Up / Page Down three
  * rows. Pure index arithmetic on the scenes' step counts and the grid's columns: never a measure of a frame on screen

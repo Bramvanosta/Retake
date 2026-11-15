@@ -109,7 +109,7 @@ async function renderUntilStage(job: JobRecord, snapshot: boolean): Promise<Erro
   return e;
 }
 
-describe('render job snapshot (critique B5)', () => {
+describe('render job snapshot', () => {
   it("submit writes edit.yaml (0600) before job.json: the planned text, its sha256 the job's edit_sha256; the review option is carried", async () => {
     // The scenario as planned (the switch case leaves its caption switched; the cases run in any order).
     await writeFile(scenarioFile(), TEXT);
@@ -207,7 +207,7 @@ describe('render job snapshot (critique B5)', () => {
   });
 });
 
-describe('the inline review of a render (critique B12)', () => {
+describe('the inline review of a render', () => {
   const ctx = (signal: AbortSignal, log: unknown[]) => ({
     ...enginePorts(),
     ws: engine.workspace,

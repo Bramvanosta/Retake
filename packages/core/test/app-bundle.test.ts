@@ -151,7 +151,7 @@ console.log(JSON.stringify({ problems: m.bundleProblems(), threw, templates, env
     expect(bundleProblems()).toEqual([expect.stringMatching(/playwright-core does not load \(Cannot find module playwright-core\).*reinstall Retake/)]);
   });
 
-  it("prepareBundle loads the bundle's module lookup guard before playwright-core (a process started without --require: review A H1); a missing guard is remembered for doctor", () => {
+  it("prepareBundle loads the bundle's module lookup guard before playwright-core (a process started without --require); a missing guard is remembered for doctor", () => {
     overrideBundleInfo(undefined);
     const bundle = readBundleManifest(fakeBundle().root);
     const order: string[] = [];
@@ -199,7 +199,7 @@ console.log(JSON.stringify({ problems: m.bundleProblems(), threw, templates, env
   });
 });
 
-describe('ffmpeg / ffprobe: explicit config → explicit env → bundled → system (D4)', () => {
+describe('ffmpeg / ffprobe: explicit config → explicit env → bundled → system', () => {
   const bundle = readBundleManifest(fakeBundle().root);
   const noFfmpeg: BundleInfo = { ...bundle, paths: { ...bundle.paths, ffmpeg: null } };
   const env = { RETAKE_FFMPEG: '/env/bin/ffmpeg' };
@@ -279,7 +279,7 @@ describe('ffmpeg / ffprobe: explicit config → explicit env → bundled → sys
   });
 });
 
-describe('nothing writes inside the bundle (M3)', () => {
+describe('nothing writes inside the bundle', () => {
   it('assertOutsideBundle refuses a path inside (even one not created yet), allows one outside', () => {
     const bundle = readBundleManifest(fakeBundle().root);
     expect(() => assertOutsideBundle(join(bundle.paths.engine, 'node_modules/@retake/components/library/x/preview.png'), 'the preview of x', bundle)).toThrow(
@@ -324,7 +324,7 @@ describe('nothing writes inside the bundle (M3)', () => {
   });
 });
 
-describe('prepareBundle: the browsers path for playwright-core only (M2)', () => {
+describe('prepareBundle: the browsers path for playwright-core only', () => {
   const bundle = readBundleManifest(fakeBundle().root);
 
   it('set while playwright-core loads, then the inherited value is back (absent or set)', () => {

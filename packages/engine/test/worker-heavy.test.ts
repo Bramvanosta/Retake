@@ -190,7 +190,7 @@ afterAll(async () => {
   if (base) await rm(base, { recursive: true, force: true });
 });
 
-describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)', () => {
+describe('the heavy slot with a stand-in job process', () => {
   beforeAll(() => {
     baseline = process.listeners('SIGTERM') as never;
   });
@@ -216,7 +216,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     await waitFor('the new worker gone', async () => (await readWorkerLock(root)) === null || undefined, 30_000);
   }, 120_000);
 
-  it("review B M1: the approvals a claim took are given back with the job (exit 3): the next worker's claim takes them, the job is not refused", async () => {
+  it("the approvals a claim took are given back with the job (exit 3): the next worker's claim takes them, the job is not refused", async () => {
     const { root, queue } = await workspace('exit3-approvals');
     const job = await review(queue, 'approved-v1');
     // A job carrying a signed approval (as a submit writes it), so that its claim takes it.
@@ -261,7 +261,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     }
   }, 120_000);
 
-  it('critique L4: after a build change the worker claims nothing more — a capture included — and hands over once its running job ended', async () => {
+  it('after a build change the worker claims nothing more — a capture included — and hands over once its running job ended', async () => {
     const { root, queue } = await workspace('l4');
     const job = await review(queue);
     let changed = false;
@@ -387,7 +387,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     expect((await queue.stored(job.id))?.state).toBe('cancelled');
   }, 30_000);
 
-  it('review A L4: the first signal SIGTERMs the job process at once, even while a walk of its tree is slow (QoS released after)', async () => {
+  it('the first signal SIGTERMs the job process at once, even while a walk of its tree is slow (QoS released after)', async () => {
     const { FilmingMarker } = await import('../src/jobs/captures.js');
     const { selfIdentity } = await import('../src/jobs/proc.js');
     const { root, queue } = await workspace('slow-walk');
@@ -414,7 +414,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     }
   }, 60_000);
 
-  it('review B L1: a job process that cannot start (no pid yet) is never signalled, even by a first signal right then; its job ends interrupted', async () => {
+  it('a job process that cannot start (no pid yet) is never signalled, even by a first signal right then; its job ends interrupted', async () => {
     const { root, queue } = await workspace('no-spawn');
     const job = await review(queue);
     const before = process.listeners('SIGTERM');
@@ -430,7 +430,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     expect((await queue.stored(job.id))?.state).toBe('interrupted');
   }, 30_000);
 
-  it("review A M1: recovery signals only a job process provably that job's (before any claim); decoys and pids 0 / 1 / -1 are left alone, their jobs interrupted", async () => {
+  it("recovery signals only a job process provably that job's (before any claim); decoys and pids 0 / 1 / -1 are left alone, their jobs interrupted", async () => {
     const { root, queue } = await workspace('recover');
     const dead = deadPid();
     const supervisor = { pid: dead, started_at: new Date(Date.now() - 60_000).toISOString(), host: hostname() };
@@ -483,7 +483,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     expect((await queue.stored(later.id))?.state).toBe('succeeded');
   }, 60_000);
 
-  it("review A M2: a record whose kind is not its input's ends failed on its first claim; the honest job behind it runs; the worker idles out", async () => {
+  it("a record whose kind is not its input's ends failed on its first claim; the honest job behind it runs; the worker idles out", async () => {
     const { root, queue } = await workspace('mismatch');
     const forged = await review(queue, 'forged-v1');
     await queue.write({ ...forged, kind: 'run' });
@@ -677,7 +677,7 @@ function chromiumAvailable(): boolean {
 }
 const hasFfmpeg = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
 
-describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds heavy work while it films only (real capture)', () => {
+describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('a take holds heavy work while it films only (real capture)', () => {
   let server: Server;
   let release: (() => void) | undefined;
   let releaseBusy: (() => void) | undefined;
@@ -706,7 +706,7 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds h
     await new Promise<void>((r) => server.close(() => r()));
   });
 
-  it('review B L7: a cancelled queued take holds nothing — a render runs while the capture slot is busy (hooks), the take is closed after', async () => {
+  it('a cancelled queued take holds nothing — a render runs while the capture slot is busy (hooks), the take is closed after', async () => {
     const { root, queue } = await workspace('cancelled-take');
     const port = (server.address() as { port: number }).port;
     const project = join(root, 'projects', 'w');

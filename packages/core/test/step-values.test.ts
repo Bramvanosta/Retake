@@ -99,7 +99,7 @@ function newValue(f: FormField, cur: FormValue | undefined, n: number): FormValu
 
 describe('forms derived from the schemas', () => {
   const forms = stepForms();
-  it('every action has a form (eval, emit and cursor: none — the YAML tab); the palette holds 16 actions (hook since L5.8)', () => {
+  it('every action has a form (eval, emit and cursor: none — the YAML tab); the palette holds 16 actions (hook included)', () => {
     expect(forms.actions.map((a) => a.action)).toEqual([...ACTION_NAMES]);
     for (const a of ['eval', 'emit', 'cursor'] as const) expect(forms.actions.find((f) => f.action === a)!.fields).toEqual([]);
     expect(forms.palette).toEqual([...PALETTE_ACTIONS]);
@@ -275,7 +275,7 @@ scenes:
       - scroll: 300
 `;
 
-describe('values written in place, shorthands kept (critique B4)', () => {
+describe('values written in place, shorthands kept', () => {
   it('a shorthand stays a shorthand when only its own value changes; another value turns it into a flow map with the same meaning', () => {
     const r1 = applied(FILE, { kind: 'set_step', at: at(FILE, 'a', 0), changes: [change('click.text', 'Selowa Ridge', 'Mountfern AA')] });
     expect(changedLines(FILE, r1.text).map((i) => lines(r1.text)[i])).toEqual(['      - click: Mountfern AA']);
@@ -381,7 +381,7 @@ describe('values written in place, shorthands kept (critique B4)', () => {
     }
   });
 
-  it('a line break, a hidden character (critique B9) and a value of the wrong kind are refused, naming the field; nothing else is written', () => {
+  it('a line break, a hidden character and a value of the wrong kind are refused, naming the field; nothing else is written', () => {
     const refusals: Array<[FormValue, RegExp]> = [
       ['a\nb', /one line only/],
       ['a\r\n  - eval: x', /one line only/],
@@ -426,7 +426,7 @@ describe('values written in place, shorthands kept (critique B4)', () => {
   });
 });
 
-describe('field patches (critique B2): a field changed meanwhile is never reverted', () => {
+describe('field patches: a field changed meanwhile is never reverted', () => {
   it('a change whose `from` is not what the step holds is stale (naming the field); others still apply on top of a concurrent change', () => {
     // Claude changed the caption meanwhile: the person's change of the typed text still applies, the caption stays.
     const theirs = FILE.replace('caption: {kicker: K, text: "Caption text"}', 'caption: {kicker: K, text: "Claude\'s caption"}');
@@ -502,7 +502,7 @@ describe('layouts', () => {
     expect(() => set(t, 'a', 1, [change('open.url', undefined, '/y')])).toThrow(/sign-in details/);
   });
 
-  it('review A: a field holding a hidden character is locked (an input would show it as nothing), with the character named', () => {
+  it('a field holding a hidden character is locked (an input would show it as nothing), with the character named', () => {
     const zw = String.fromCodePoint(0x200b);
     const t = `video: x\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - type: {into: Name, text: "a${zw}b"}\n`;
     const f = stepFormValues(stepsOf(t, 'a')[0])!;
@@ -511,7 +511,7 @@ describe('layouts', () => {
     expect(() => set(t, 'a', 0, [change('type.text', undefined, 'ab')])).toThrow(/type\.text holds U\+200B/);
   });
 
-  it('review B M3: removing a key of a {…} map written over several lines or holding a comment is refused; on one line it is cut', () => {
+  it('removing a key of a {…} map written over several lines or holding a comment is refused; on one line it is cut', () => {
     const head = 'video: x\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n';
     const multi = `${head}      - click: {role: button,  # the role\n          name: Save}\n`;
     expect(() => set(multi, 'a', 0, [change('click.name', 'Save', undefined)])).toThrow(/written over several lines or holds comments/);

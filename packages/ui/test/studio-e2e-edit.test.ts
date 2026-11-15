@@ -361,7 +361,7 @@ describe('the keyboard path and undo / redo', () => {
     expect(await readFile(file('keys'), 'utf8')).toBe(k1);
   });
 
-  it('the input lock (critique B7): keys pressed while an edit is on its way send nothing; a held key (repeat) never edits', async () => {
+  it('the input lock: keys pressed while an edit is on its way send nothing; a held key (repeat) never edits', async () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     await settled('keys');
@@ -388,7 +388,7 @@ describe('the keyboard path and undo / redo', () => {
     await writeFile(file('keys'), KEYS);
   });
 
-  it("an edit's selection applies once: a step picked after it stays picked when the same version is read again (part 4)", async () => {
+  it("an edit's selection applies once: a step picked after it stays picked when the same version is read again", async () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     await settled('keys');
@@ -547,7 +547,7 @@ describe('conflicts and outside changes', () => {
 });
 
 describe('when block editing is off', () => {
-  it('a YAML draft is open (critique B7): no grip, Alt+↓ and Delete send nothing, the reason is said', async () => {
+  it('a YAML draft is open: no grip, Alt+↓ and Delete send nothing, the reason is said', async () => {
     await page.goto(`${studio.url}#/p/${P}/s/keys/yaml`);
     await page.getByTestId('yaml-edit').click(POLL);
     await page.locator('#yaml-text').click();
@@ -590,7 +590,7 @@ describe('when block editing is off', () => {
   });
 });
 
-describe('L5.10b: the storyboard grid', () => {
+describe('the storyboard grid', () => {
   /** A step's drag from the page itself: dragstart on a frame, dragover / drop on a scene's list at (x, y), dragend — each its own task (the screen re-renders between them, as with a real drag). */
   async function dropAt(from: string, list: string, at: (r: { left: number; right: number; top: number; bottom: number }[]) => { x: number; y: number }): Promise<void> {
     await page.evaluate((key) => {
@@ -620,7 +620,7 @@ describe('L5.10b: the storyboard grid', () => {
     await page.evaluate((key) => document.querySelector(`[data-testid="step"][data-key="${key}"]`)?.dispatchEvent(new DragEvent('dragend', { bubbles: true })), from);
   }
 
-  it('⚑ the drop slot comes from the pointer over the whole list (critique M7): a drop in the gap between two frames and one in a trailing empty cell give the exact place', async () => {
+  it('⚑ the drop slot comes from the pointer over the whole list: a drop in the gap between two frames and one in a trailing empty cell give the exact place', async () => {
     await writeFile(file('blocks'), BLOCKS_YAML);
     await openBlocks('blocks');
     const b0 = await settled('blocks');
@@ -690,8 +690,8 @@ describe('L5.10b: the storyboard grid', () => {
   });
 });
 
-describe('review fixes (L4.3 review B)', () => {
-  it('L5: the insertion line goes away while dragging over what is not a place to drop', async () => {
+describe('dragging, moving and saving', () => {
+  it('the insertion line goes away while dragging over what is not a place to drop', async () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     await settled('keys');
@@ -705,7 +705,7 @@ describe('review fixes (L4.3 review B)', () => {
     await row('a.0').dispatchEvent('dragend', { dataTransfer: dt });
   });
 
-  it('L6: Alt+↑ on the first step and Alt+↓ on the last say they cannot move (nothing sent)', async () => {
+  it('Alt+↑ on the first step and Alt+↓ on the last say they cannot move (nothing sent)', async () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     await settled('keys');
@@ -719,7 +719,7 @@ describe('review fixes (L4.3 review B)', () => {
     expect(ops('scenario_edit', t0)).toEqual([]);
   });
 
-  it("L7: a save from this screen's own YAML tab clears the undo history in its own words", async () => {
+  it("a save from this screen's own YAML tab clears the undo history in its own words", async () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     await settled('keys');
@@ -742,7 +742,7 @@ describe('review fixes (L4.3 review B)', () => {
     await writeFile(file('keys'), KEYS);
   });
 
-  it('L9: after a 409, Apply is off with why when the new version turns block editing off (invalid YAML)', async () => {
+  it('after a 409, Apply is off with why when the new version turns block editing off (invalid YAML)', async () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     const k0 = await settled('keys');
@@ -759,8 +759,8 @@ describe('review fixes (L4.3 review B)', () => {
   });
 });
 
-describe('L5.10b fixes: the selection and the focus', () => {
-  it('B-M2: the selected step deleted from outside — nothing is selected in its place: no step inspector, no enabled Delete (the key does nothing), the scene shown instead', async () => {
+describe('the selection and the focus', () => {
+  it('the selected step deleted from outside — nothing is selected in its place: no step inspector, no enabled Delete (the key does nothing), the scene shown instead', async () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     await settled('keys');
@@ -784,7 +784,7 @@ describe('L5.10b fixes: the selection and the focus', () => {
     await writeFile(file('keys'), KEYS);
   });
 
-  it('A-L1, A-L2: an inspector button keeps the focus after its edit (a second Enter moves the step again); its buttons promise no key that does nothing on them', async () => {
+  it('an inspector button keeps the focus after its edit (a second Enter moves the step again); its buttons promise no key that does nothing on them', async () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     await settled('keys');

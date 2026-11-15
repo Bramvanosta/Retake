@@ -221,7 +221,7 @@ describe('multi-page clips: picture in picture (phone-and-desktop)', () => {
     expect(clipOf(pd, 'desk').caption?.params.position).toBe('over');
   });
 
-  it('browser bars on the panes (motion themes) never draw a local URL: hidden, one plan warning per page (L1.7)', async () => {
+  it('browser bars on the panes (motion themes) never draw a local URL: hidden, one plan warning per page', async () => {
     const lq = await plan(load('live-quote'), {}, 'motion');
     const c = clipOf(lq, 'request');
     expect(c.component.params.chrome).toBe(true);

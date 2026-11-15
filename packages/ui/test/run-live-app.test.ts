@@ -93,7 +93,7 @@ describe('the Run screen state (applyEvent)', () => {
   });
 });
 
-describe('the step rows after review (stepStatus, stepCounts) and the other review fixes', () => {
+describe('the step rows (stepStatus, stepCounts), the log order and the SSE lines', () => {
   const ts = (s: number) => `2026-10-26T12:00:${String(s).padStart(2, '0')}.000Z`;
   const rows = [
     { scene: 'a', step: 0, action: 'click' },
@@ -110,7 +110,7 @@ describe('the step rows after review (stepStatus, stepCounts) and the other revi
     { type: 'step_start', scene: 'a', step: 2, action: 'hook', desc: 'hook reset', ts: ts(5) },
   ]);
 
-  it('a stop: only the step it interrupted says "stopped here"; an optional step that failed before stays failed (B M2)', () => {
+  it('a stop: only the step it interrupted says "stopped here"; an optional step that failed before stays failed', () => {
     const s = fold(
       [
         { type: 'step_end', scene: 'a', step: 2, action: 'hook', status: 'failed', ms: 5, ts: ts(6) },
@@ -130,7 +130,7 @@ describe('the step rows after review (stepStatus, stepCounts) and the other revi
     expect(rows.map((r) => stepStatus(between, r, true))).not.toContain('stopped');
   });
 
-  it('a run whose worker was killed (no run_end): the running step says interrupted; the clock ends at the last event (B M1)', () => {
+  it('a run whose worker was killed (no run_end): the running step says interrupted; the clock ends at the last event', () => {
     expect(stepStatus(started, rows[2], false)).toBe('running');
     expect(stepStatus(started, rows[2], true)).toBe('interrupted');
     expect(stepStatus(started, rows[3], true)).toBe('not_reached');
@@ -138,7 +138,7 @@ describe('the step rows after review (stepStatus, stepCounts) and the other revi
     expect(started.end).toBeNull();
   });
 
-  it('a skipped hook: step says so; its entries are on its row, not after the scenes (B L8); done counts no failure (B L9)', () => {
+  it('a skipped hook: step says so; its entries are on its row, not after the scenes; done counts no failure', () => {
     const s = fold([{ type: 'step_end', scene: 'a', step: 2, action: 'hook', status: 'dry', ms: 1 }], started);
     expect(stepStatus(s, rows[2], false)).toBe('hook_skipped');
     expect(stepCounts(s, rows, false)).toEqual({ done: 1, skipped: 1 });
@@ -159,7 +159,7 @@ describe('the step rows after review (stepStatus, stepCounts) and the other revi
     expect(stepCounts(run, rows, true)).toEqual({ done: 1, skipped: 0 });
   });
 
-  it("the log in time order whatever file a line came from; the job's state is never the run's outcome; the pause's maximum (B L5, L7, L9)", () => {
+  it("the log in time order whatever file a line came from; the job's state is never the run's outcome; the pause's maximum", () => {
     const s = fold([
       { type: 'log', level: 'info', untrusted: { message: 'run 1' }, ts: ts(1) },
       { type: 'log', level: 'info', untrusted: { message: 'run 3' }, ts: ts(3) },
@@ -173,7 +173,7 @@ describe('the step rows after review (stepStatus, stepCounts) and the other revi
     expect(pauseMaxWords(30 * 60_000)).toBe('30 min');
   });
 
-  it('an SSE block is split on \\n only: U+2028 / U+2029 inside the data never end a line (A M1)', () => {
+  it('an SSE block is split on \\n only: U+2028 / U+2029 inside the data never end a line', () => {
     const data = JSON.stringify({ message: 'Total\u2028due\u2029now' });
     expect(parseSseBlock(`event: progress\ndata: ${data}`)).toEqual({ type: 'progress', data });
     expect(parseSseBlock(': keepalive')).toBeNull();

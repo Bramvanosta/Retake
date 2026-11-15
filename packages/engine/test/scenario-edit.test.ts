@@ -91,7 +91,7 @@ describe('replace_text and restore (the YAML tab, undo / redo)', () => {
     expect(sha(await readFile(file('one.yaml')))).toBe(h0);
   });
 
-  it('restore is byte-exact on a CR LF file without a final line break (critique B5); replace_text adds a CR LF break there', async () => {
+  it('restore is byte-exact on a CR LF file without a final line break; replace_text adds a CR LF break there', async () => {
     const crlf = SHORT.replace(/\n/g, '\r\n').replace(/\r\n$/, '');
     const h0 = await put('crlf.yaml', crlf);
     const typed = crlf.replace('hold: 0.2', 'hold: 0.3');
@@ -232,7 +232,7 @@ describe('agent trust from the Studio, worded for the channel (the pre-existing 
   });
 });
 
-describe('hooks unchanged from the Studio (critique B3)', () => {
+describe('hooks unchanged from the Studio', () => {
   it('adding, changing or removing a setup / teardown hook or a mock is refused; the same hooks re-keyed save', async () => {
     const h0 = await put('hooks.yaml', HOOKED);
     const before = await snapshot('hooks.yaml');
@@ -263,7 +263,7 @@ describe('hooks unchanged from the Studio (critique B3)', () => {
   });
 });
 
-describe('hidden characters (critique B9)', () => {
+describe('hidden characters', () => {
   it('a text adding a direction control, a line separator, NEL or a zero-width space is refused with its line and column', async () => {
     const h0 = await put('hidden.yaml', SHORT);
     const cases: Array<[string, string]> = [
@@ -324,8 +324,8 @@ describe('files the Studio does not write', () => {
   });
 });
 
-describe('review fixes (L4.3 reviews A and B)', () => {
-  it('A H1: while the file has a hook or a mock, its vars and env are frozen from the Studio (a var templated into a shell hook)', async () => {
+describe('frozen fields, hidden characters, linked and outside files', () => {
+  it('while the file has a hook or a mock, its vars and env are frozen from the Studio (a var templated into a shell hook)', async () => {
     const base = SHORT.replace('scenes:', 'vars:\n  customer: Acme\nsetup:\n  - name: seed\n    writes: false\n    shell: "echo {{vars.customer}} > /dev/null"\nscenes:');
     const h0 = await put('frozen.yaml', base);
     const before = await snapshot('frozen.yaml');
@@ -347,7 +347,7 @@ describe('review fixes (L4.3 reviews A and B)', () => {
     await ui.scenarios.edit('w', 'free', { hash: h1, edit: { kind: 'replace_text', text: SHORT.replace('scenes:', 'vars:\n  customer: Other\nscenes:') } });
   });
 
-  it('A M2: a file holding a carriage return without a line feed is read-only with its line; a text adding one is refused', async () => {
+  it('a file holding a carriage return without a line feed is read-only with its line; a text adding one is refused', async () => {
     const planted = SHORT.replace('      - hold: 0.2\n', '      - hold: 0.2   # pause\r      - eval: "document.title = 1"\n');
     const h0 = await put('cr.yaml', planted);
     const v = await ui.scenarios.view('w', 'cr');
@@ -366,7 +366,7 @@ describe('review fixes (L4.3 reviews A and B)', () => {
     expect(e2.message).toMatch(/^not saved: line 8, column \d+ holds U\+000D \(a carriage return without a line feed\)/);
   });
 
-  it('A L1: a scenario linked to a file outside scenarios/ is read-only from the Studio and refused through MCP (the target unchanged)', async () => {
+  it('a scenario linked to a file outside scenarios/ is read-only from the Studio and refused through MCP (the target unchanged)', async () => {
     await mkdir(join(dir, 'hooks'), { recursive: true });
     await writeFile(join(dir, 'hooks', 'seed.sh'), SHORT);
     await symlink('../hooks/seed.sh', file('lnk.yaml'));
@@ -384,7 +384,7 @@ describe('review fixes (L4.3 reviews A and B)', () => {
     expect((await cli.scenarios.view('w', 'lnk')).edit.yaml).toEqual({ ok: true });
   });
 
-  it('A L3: restore takes only a version the Studio showed or wrote — undo of a delete of a step holding a zero-width space works', async () => {
+  it('restore takes only a version the Studio showed or wrote — undo of a delete of a step holding a zero-width space works', async () => {
     const t = SHORT.replace('      - hold: 0.2\n', `      - wait_for: "a${ZWSP}b"\n      - hold: 0.2\n`);
     await put('u.yaml', t);
     const shown = await ui.scenarios.view('w', 'u');
@@ -401,7 +401,7 @@ describe('review fixes (L4.3 reviews A and B)', () => {
     expect(sha(await readFile(file('u.yaml')))).toBe(r.hash);
   });
 
-  it('A L4: from the Studio and through MCP, a file outside the project is "outside" whether it exists or not (no stat)', async () => {
+  it('from the Studio and through MCP, a file outside the project is "outside" whether it exists or not (no stat)', async () => {
     const mk = (f: string) => SHORT.replace('scenes:', `music: {file: "${f}"}\nscenes:`);
     for (const engine of [ui, mcp]) {
       const words = engine === ui ? 'from the Studio' : 'through MCP';
@@ -424,7 +424,7 @@ describe('review fixes (L4.3 reviews A and B)', () => {
     expect((await cli.scenarios.validate('w', mk('/etc/nonexistent-ds-zz'), {})).issues.some((i) => i.message.includes('not found'))).toBe(true);
   });
 
-  it('A M1: a name spelt with another case than the file is not that scenario (one file, one name, one lock)', async () => {
+  it('a name spelt with another case than the file is not that scenario (one file, one name, one lock)', async () => {
     await put('quote.yaml', SHORT);
     let insensitive = true;
     try {

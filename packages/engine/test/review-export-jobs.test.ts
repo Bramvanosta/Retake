@@ -267,7 +267,7 @@ describe.skipIf(!can)('export jobs on the in-memory renderer: the engine around 
   );
 });
 
-describe('a review job on the in-memory reviewer: the engine around it (L7.11)', () => {
+describe('a review job on the in-memory reviewer: the engine around it', () => {
   let mws: Workspace;
   let mengine: Engine;
   let mqueue: FileJobQueue;

@@ -117,7 +117,7 @@ describe('the form and the palette through scenarios.edit', () => {
     expect(await readFile(file('forms'), 'utf8')).toBe(t0);
   });
 
-  it("L5.5's rule: a caption, speed or mark change is an edit change (a render of the same run); a hold or an argument is filmed (a new capture)", async () => {
+  it('the edit or capture rule: a caption, speed or mark change is an edit change (a render of the same run); a hold or an argument is filmed (a new capture)', async () => {
     const t0 = await readFile(file('forms'), 'utf8');
     const edit = (changes: Array<{ path: string[]; from?: string | number; to?: string | number }>, t: string) =>
       ui.scenarios.edit(P, 'forms', { hash: sha(t), edit: { kind: 'set_step', at: at(t, 'a', 1), changes } });
@@ -137,7 +137,7 @@ describe('the form and the palette through scenarios.edit', () => {
     expect(r3.change).toBeUndefined();
   });
 
-  it("critique B2: after Claude's caption change the old hash is a 409 (nothing written); re-sent on the new version with the step's new guard, the typed text changes and Claude's caption stays; a change of the caption itself is stale, naming the field", async () => {
+  it("after Claude's caption change the old hash is a 409 (nothing written); re-sent on the new version with the step's new guard, the typed text changes and Claude's caption stays; a change of the caption itself is stale, naming the field", async () => {
     const t0 = await readFile(file('forms'), 'utf8');
     const mine = { kind: 'set_step' as const, at: at(t0, 'a', 1), changes: [{ path: ['type', 'text'], from: 'Light roast', to: 'Mine' }] };
     // Claude saves a new caption for that step through MCP meanwhile.
@@ -187,7 +187,7 @@ describe('the form and the palette through scenarios.edit', () => {
     }
   });
 
-  it('critique B9 and the schema: a hidden character or a line break is refused naming the field (details.field); a negative cps is a validation issue at its path; nothing written', async () => {
+  it('the value checks and the schema: a hidden character or a line break is refused naming the field (details.field); a negative cps is a validation issue at its path; nothing written', async () => {
     const t0 = await readFile(file('forms'), 'utf8');
     const before = await snapshot('forms');
     const send = (to: string | number, path = ['type', 'text'], from: string | number = 'Light roast') =>

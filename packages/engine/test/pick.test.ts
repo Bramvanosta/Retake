@@ -12,7 +12,7 @@ const rec = (kind: string, extra: Partial<PickRecord> & { mode?: string } = {}):
   return { id: id(), state: 'queued', kind, input: { kind, ...(mode ? { mode } : {}) }, claimed: false, ...rest };
 };
 
-describe('pick (L5.14)', () => {
+describe('pick', () => {
   it('a capture goes before an older heavy job; each slot takes the oldest of its class', () => {
     const render = rec('render');
     const review = rec('review');
@@ -40,7 +40,7 @@ describe('pick (L5.14)', () => {
     expect(takeWaiting(take)).toBe(true);
   });
 
-  it("review B M3 / L7: a claimed or running take holds by its live filming state only (the worker's filmingLive), a cancelled queued take holds nothing", () => {
+  it("a claimed or running take holds by its live filming state only (the worker's filmingLive), a cancelled queued take holds nothing", () => {
     const render = rec('render');
     // Claimed by the capture slot (its setup hooks run) or running (setup, teardown, paused): the worker says whether it films.
     const claimed = rec('run', { mode: 'capture', claimed: true });

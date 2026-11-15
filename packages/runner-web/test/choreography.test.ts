@@ -324,7 +324,7 @@ describe('date pickers (R-CHO-24)', () => {
   }, 60_000);
 });
 
-describe('popovers holding a pick (review fix K1)', () => {
+describe('popovers holding a pick', () => {
   it('a pick inside a floating popover closes its listbox only; click outside closes the innermost layer first', async () => {
     const { rec, ev } = await run('popover', [
       {

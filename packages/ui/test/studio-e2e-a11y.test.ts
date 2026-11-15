@@ -42,7 +42,7 @@ afterAll(async () => {
 
 const at = (hash: string) => `${t.studio.url}#${hash}`;
 
-describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 part C)', () => {
+describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios', () => {
   it("projects, a project with its Sessions panel, the README's conflict panel", async () => {
     const { page } = t;
     // Welcome; the Project screen with nothing selected (the project inspector), a production selected, a
@@ -102,7 +102,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(r.findings, r.report).toEqual([]);
   }, 180_000);
 
-  it('⚑ L5.9 (review A-L2): the steps while a write is in flight — the text keeps its contrast (a dashed edge, no fade)', async () => {
+  it('⚑ the steps while a write is in flight — the text keeps its contrast (a dashed edge, no fade)', async () => {
     const { page } = t;
     // The write is held until the audits are done (then it goes through: the step moves back on the next station's reload).
     await go(page, at(`/p/${N}/s/quote`), '[data-testid="step"]');
@@ -353,7 +353,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(t.consoleErrors).toEqual([]);
   }, 180_000);
 
-  it("⚑ L5.12d: the desktop app's quit sheet (its event dispatched in a page with the app's flag) and the not-found screen, in dark and light", async () => {
+  it("⚑ the desktop app's quit sheet (its event dispatched in a page with the app's flag) and the not-found screen, in dark and light", async () => {
     const tab = t.page;
     // An app page: the shell's init-script flag, desktop_answer answered here (this server is not supervised).
     const app = await tab.context().newPage();
@@ -421,7 +421,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     }
   }, 180_000);
 
-  it('⚑ L5.9: the UI gallery in dark and light at both widths; its sheet, menu and palette open in each scope', async () => {
+  it('⚑ the UI gallery in dark and light at both widths; its sheet, menu and palette open in each scope', async () => {
     const { page } = t;
     const both = [
       { scheme: 'dark' as const, widths: WIDTHS },

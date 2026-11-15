@@ -873,7 +873,7 @@ describe('frame comment store', () => {
   );
 });
 
-describe("step_now: the anchored step in today's scenario file (L4.3, critique B10)", () => {
+describe("step_now: the anchored step in today's scenario file", () => {
   it(
     'follows a step moved since the render, is null when it is gone or the file is missing, and absent for a frame without a step',
     async () => {

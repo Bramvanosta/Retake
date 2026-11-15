@@ -287,7 +287,7 @@ describe('built-in library renders with any theme', () => {
     }
   });
 
-  it("multi-page layouts (L2.11): panes / inset in every format, clear of the caption and the brand mark; drawn at the planner's rects", () => {
+  it("multi-page layouts: panes / inset in every format, clear of the caption and the brand mark; drawn at the planner's rects", () => {
     const overlaps = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
     const inside = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
       a.x >= b.x - 0.5 && a.y >= b.y - 0.5 && a.x + a.w <= b.x + b.w + 0.5 && a.y + a.h <= b.y + b.h + 0.5;

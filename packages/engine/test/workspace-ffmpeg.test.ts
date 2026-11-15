@@ -84,7 +84,7 @@ describe('the worker a client starts: no relative tool variable', () => {
   });
 });
 
-describe('the raw package names the encoder its MP4 clips were made with (review B M2)', () => {
+describe('the raw package names the encoder its MP4 clips were made with', () => {
   it('an ffmpeg without libx264: VideoToolbox clips, and the manifest and selects say so (never CRF 14)', async () => {
     const real = execFileSync('/bin/sh', ['-c', 'command -v ffmpeg'], { encoding: 'utf8' }).trim();
     // The real ffmpeg, minus libx264 in its encoder list (what an ffmpeg built without it says).

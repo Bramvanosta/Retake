@@ -96,7 +96,7 @@ async function take(job: string): Promise<void> {
 }
 
 describe('the Sessions panel: auth_status, auth_login (headed only, no wait), sign_in_cancel', () => {
-  it('S6: auth_login from the Studio opens only the headed window, never waits; anything else 400 and nothing queued', async () => {
+  it('auth_login from the Studio opens only the headed window, never waits; anything else 400 and nothing queued', async () => {
     expect(UI_OPS).toEqual(expect.arrayContaining(['auth_status', 'auth_login', ...LIVE_OPS]));
     const before = await jobIds();
     for (const extra of [{ mode: 'auto' }, { wait_s: 5 }, { wait_s: 0, mode: 'auto' }, { password: 'x' }]) {
@@ -176,7 +176,7 @@ describe('run_pause', () => {
   });
 });
 
-describe('S7: the session acknowledgement of a capture', () => {
+describe('the session acknowledgement of a capture', () => {
   it('scenario_sessions names the personas to confirm; a capture without them 409 with details, nothing queued; with them queued; a dry run needs none', async () => {
     const s = await call('scenario_sessions', { project: P, name: 'signed-a' });
     expect(s.status, s.body).toBe(200);
@@ -219,7 +219,7 @@ describe('S7: the session acknowledgement of a capture', () => {
     expect(ok.json<{ data: { mode: string; state: string } }>().data).toMatchObject({ mode: 'capture', state: 'queued' });
   });
 
-  it('a persona without a check is never said to be checked first: its saved session is used as it is (A M2)', async () => {
+  it('a persona without a check is never said to be checked first: its saved session is used as it is', async () => {
     const yaml = await readFile(join(project(), 'project.yaml'), 'utf8');
     const check = '        check: {url: "console:/products", expect_text: Maja Lindqvist}\n';
     expect(yaml).toContain(check);

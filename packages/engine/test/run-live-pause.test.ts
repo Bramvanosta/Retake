@@ -164,7 +164,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     if (ws) await rm(ws, { recursive: true, force: true });
   });
 
-  it('pause → paused before the next step (run.json, job progress), resume → every step ran; live frames reach a reader and are written nowhere (B6)', async () => {
+  it('pause → paused before the next step (run.json, job progress), resume → every step ran; live frames reach a reader and are written nowhere', async () => {
     const sub = await engine.runs.submit({ project: 'w', scenario: 'steps', mode: 'dry' });
     const worker = work();
     await waitFor('running', running(sub.job.id));
@@ -319,7 +319,7 @@ describe('a run job paused through the worker, on the in-memory runner', () => {
     }
   });
 
-  it('runs.pause refuses a terminal run, a queued or a finished run — and writes no marker; a capture is no exception (part D)', async () => {
+  it('runs.pause refuses a terminal run, a queued or a finished run — and writes no marker; a capture is no exception', async () => {
     // A run of the CLI (no job).
     const cli = join(ws, 'projects', 'w', 'runs', '20261026-100000-steps');
     await mkdir(cli, { recursive: true });

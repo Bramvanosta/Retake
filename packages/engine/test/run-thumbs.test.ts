@@ -75,7 +75,7 @@ afterAll(async () => {
   if (tools) await rm(tools, { recursive: true, force: true });
 });
 
-describe('the frame of a step (B3: floor on the CFR grid, clamped)', () => {
+describe('the frame of a step (floor on the CFR grid, clamped)', () => {
   it('gridFrame / frameAt / seekTime: floor, the last frame for an end past it, the earlier frame mid-interval', () => {
     expect(gridFrame(0.95, 10, 50)).toBe(9);
     expect(gridFrame(1.0, 10, 50)).toBe(10);
@@ -121,7 +121,7 @@ describe('thumbnails of a capture: kept frames and the video agree', () => {
     expect(colours(v)).toEqual(colours(await engine.runs.thumbs(P, '20261020-100000-blocks', KEYS)));
   });
 
-  it('frames that cannot be loaded fail the call with their own error, never as missing thumbnails (L7.11 fix pass)', async () => {
+  it('frames that cannot be loaded fail the call with their own error, never as missing thumbnails', async () => {
     const broken = new Error('the thumbnail entry cannot be loaded');
     const svc = new RunThumbs({ policy: PERSON_POLICY, frames: { ...FRAMES, load: () => Promise.reject(broken) } });
     await expect(svc.thumbs(projectDir, P, '20261020-100100-blocks', KEYS)).rejects.toBe(broken);
@@ -244,7 +244,7 @@ describe('dry runs, failed steps, multi-page tracks', () => {
     expect(svc.stats.ffmpeg).toBe(2);
   });
 
-  it('a track file that changes is read again (review A #8: the tracks are part of the run’s signature)', async () => {
+  it('a track file that changes is read again (the tracks are part of the run’s signature)', async () => {
     const run: SynthRun = {
       id: '20261020-130100-multi',
       scenario: 'multi',
@@ -278,7 +278,7 @@ describe('dry runs, failed steps, multi-page tracks', () => {
   });
 });
 
-describe('reads (B6): links, names, FIFOs, bombs', () => {
+describe('reads: links, names, FIFOs, bombs', () => {
   const outside = () => join(ws, 'outside');
 
   beforeAll(async () => {
@@ -385,7 +385,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     expect((e as EngineError).code).toBe('not_found');
   });
 
-  it('a run folder swapped for a link once opened: every read and the video refused (review A #7: checked once open)', async () => {
+  it('a run folder swapped for a link once opened: every read and the video refused (checked once open)', async () => {
     const run = capture('20261020-230500-blocks');
     const dir = await writeRun(projectDir, run);
     const folder = await RunFolder.open(projectDir, run.id);
@@ -425,7 +425,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     expect(args.some((a) => a === 'file')).toBe(false);
   });
 
-  it('sources are read inside the sharp slots: at most 2 held at once (review A #2), a screenshot over 16 MiB never read', async () => {
+  it('sources are read inside the sharp slots: at most 2 held at once, a screenshot over 16 MiB never read', async () => {
     const events: SynthRun['events'] = [];
     for (let i = 0; i < RUN_THUMBS_MAX_KEYS; i++) events.push({ scene: 'one', step: i, action: 'click', t_start: i, t_end: i + 1 });
     const dir = await writeRun(projectDir, { id: '20261020-240100-big', scenario: 'big', mode: 'dry', scenes: [{ id: 'one' }], events });
@@ -523,7 +523,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
   });
 });
 
-describe('cost (B7): ffmpeg processes, abort, no Remotion', () => {
+describe('cost: ffmpeg processes, abort, no Remotion', () => {
   /** An ffmpeg wrapper that waits `s` seconds first and records its pid. */
   async function slowFfmpeg(s: number): Promise<string> {
     const real = execFileSync('sh', ['-c', 'command -v ffmpeg'], { encoding: 'utf8' }).trim();

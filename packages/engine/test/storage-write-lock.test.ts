@@ -37,7 +37,7 @@ afterAll(async () => {
   if (dir) await rm(dir, { recursive: true, force: true });
 });
 
-describe('two writers of one version (critique B1)', () => {
+describe('two writers of one version', () => {
   it(
     'in one process: of two concurrent if_match writes exactly one succeeds, the other is a conflict, 100 times out of 100',
     async () => {
@@ -63,7 +63,7 @@ describe('two writers of one version (critique B1)', () => {
   );
 
   it(
-    'review A M1: two spellings of one file on a case-insensitive disk share one lock — exactly one succeeds, 50 times',
+    'two spellings of one file on a case-insensitive disk share one lock — exactly one succeeds, 50 times',
     async () => {
       const ref = 'scenarios/case.yaml';
       let current = (await storage.writeText(ref, 'v: 0\n', { ifMatch: null })).sha256;
@@ -135,7 +135,7 @@ describe('two writers of one version (critique B1)', () => {
   );
 });
 
-describe("a save keeps the replaced file's permissions (critique B11)", () => {
+describe("a save keeps the replaced file's permissions", () => {
   it('0600 stays 0600 and 0664 stays 0664 whatever the umask; a new file takes the default; through a link the target keeps its own', async () => {
     const secret = 'scenarios/private.yaml';
     const first = await storage.writeText(secret, 'a: 1\n', { ifMatch: null });

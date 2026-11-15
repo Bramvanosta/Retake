@@ -55,7 +55,7 @@ function seedContext(project: LoadedProject, over: Parameters<typeof makeContext
 
 const journalFile = () => join(tmp.dir, '.retake', 'sandbox', 'sandbox', 'seed-journal.json');
 
-describe('runHooks: seed (L1.8)', () => {
+describe('runHooks: seed', () => {
   it('stops at the first failure, rolls nothing back, journals phase seed (and the journal reopens)', async () => {
     await writeFiles(tmp.dir, { 'sandbox/.keep': '' });
     const { ctx, logText } = seedContext(sandboxProject('postgres://u@localhost:1/app'));
@@ -142,7 +142,7 @@ describe('runHooks: seed (L1.8)', () => {
   });
 });
 
-describe('shell commands on a sandbox and interrupts (L1.8 review)', () => {
+describe('shell commands on a sandbox and interrupts', () => {
   /** The sandbox project, with its manifest's process services (their `env`) loaded as core would. */
   function withServices(services: Record<string, Record<string, string>>): LoadedProject {
     const p = sandboxProject('postgres://u@localhost:1/app');
@@ -159,7 +159,7 @@ describe('shell commands on a sandbox and interrupts (L1.8 review)', () => {
     return p;
   }
 
-  it("a shell step gets the env of the sandbox's process services and RETAKE_SANDBOX over the CLI's own; its own env wins (I3)", async () => {
+  it("a shell step gets the env of the sandbox's process services and RETAKE_SANDBOX over the CLI's own; its own env wins", async () => {
     await writeFiles(tmp.dir, { 'sandbox/.keep': '' });
     const before = process.env.DATABASE_URL;
     process.env.DATABASE_URL = 'postgres://me@localhost:5432/my_own_dev_db';
@@ -195,7 +195,7 @@ describe('shell commands on a sandbox and interrupts (L1.8 review)', () => {
     }
   });
 
-  it('an interrupt stops a running shell step and its whole process group; nothing after it runs; the group is listed while it runs (P4)', async () => {
+  it('an interrupt stops a running shell step and its whole process group; nothing after it runs; the group is listed while it runs', async () => {
     await writeFiles(tmp.dir, { 'sandbox/.keep': '' });
     const ac = new AbortController();
     const running = new Set<number>();
@@ -224,7 +224,7 @@ describe('shell commands on a sandbox and interrupts (L1.8 review)', () => {
     expect(existsSync(join(tmp.dir, 'sandbox', 'after.txt'))).toBe(false);
   });
 
-  it('a sandbox database whose URL would connect elsewhere (?port=, ?host=, a socket) is refused before connecting (K1)', async () => {
+  it('a sandbox database whose URL would connect elsewhere (?port=, ?host=, a socket) is refused before connecting', async () => {
     const journal = await Journal.open(journalFile());
     for (const [url, why] of [
       ['postgres://demo:sandbox-db-4632@localhost:4632/app?port=5432', /would connect to localhost:5432\/app, not to the localhost:4632 its URL names/],
@@ -239,7 +239,7 @@ describe('shell commands on a sandbox and interrupts (L1.8 review)', () => {
   });
 });
 
-describe("a docker-compose sandbox's database on the address Docker publishes it on (K3)", () => {
+describe("a docker-compose sandbox's database on the address Docker publishes it on", () => {
   it('a sql step connects to ctx.connectAddress (127.0.0.1), never where localhost resolves first (::1: another container may publish the same port there)', async () => {
     const hits: string[] = [];
     const listen = (host: string, port: number) =>
@@ -276,7 +276,7 @@ describe("a docker-compose sandbox's database on the address Docker publishes it
   });
 });
 
-describe('journal replays after sandboxes (L1.8, critique 9)', () => {
+describe('journal replays after sandboxes', () => {
   it("a sql rollback reaches the databases of the environment its entry ran in, not the command's", async () => {
     const sandboxPort = await closedPort();
     const project = sandboxProject(`postgres://u@127.0.0.1:${sandboxPort}/app`, 'postgres://u@127.0.0.1:1/staging');

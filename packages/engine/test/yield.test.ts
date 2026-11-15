@@ -42,7 +42,7 @@ function fake() {
   };
 }
 
-describe('the background hold of a job process tree (L5.14a)', () => {
+describe('the background hold of a job process tree', () => {
   it('the tree: its group and every descendant by parent pid, not a stranger', () => {
     const f = fake();
     expect(
@@ -52,7 +52,7 @@ describe('the background hold of a job process tree (L5.14a)', () => {
     ).toEqual([100, 101, 102]);
   });
 
-  it('hold: -b on every pid; walked again when due, -b on the new pids only (review A L5); release: -B per pid', async () => {
+  it('hold: -b on every pid; walked again when due, -b on the new pids only; release: -B per pid', async () => {
     const f = fake();
     const q = new QosYield(100, { group: true, rewalkMs: 2000, deps: f.deps });
     await q.hold();
@@ -73,7 +73,7 @@ describe('the background hold of a job process tree (L5.14a)', () => {
     expect(f.calls).toHaveLength(3);
   });
 
-  it('review A L3: a pid at background QoS before the hold keeps it (never -B), its children forked during the hold too; a child of a held pid gets -B', async () => {
+  it('a pid at background QoS before the hold keeps it (never -B), its children forked during the hold too; a child of a held pid gets -B', async () => {
     const f = fake();
     // The person started the job process under `taskpolicy -b`: 100 and 101 are background already; 102 is not.
     f.set(f.table.map((p) => (p.pid === 100 || p.pid === 101 ? { ...p, background: true } : p)));
@@ -91,7 +91,7 @@ describe('the background hold of a job process tree (L5.14a)', () => {
     expect(f.calls[2]).toEqual({ pids: [102, 105, 106], background: false });
   });
 
-  it('review A L4: a hung ps never holds a walk (nor the sandbox process table) longer than its time limit', async () => {
+  it('a hung ps never holds a walk (nor the sandbox process table) longer than its time limit', async () => {
     const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');

@@ -103,7 +103,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('the README editor keeps the bytes it was given (review B M1, M3, L6, L7)', () => {
+describe('the README editor keeps the bytes it was given', () => {
   it('CR LF: loading is no change, typing and deleting leaves none, a save keeps CR LF on every line', async () => {
     await openEditor('crlf');
     expect(await textarea().inputValue()).toBe(CRLF.replace(/\r\n/g, '\n'));
@@ -189,7 +189,7 @@ describe('the README editor keeps the bytes it was given (review B M1, M3, L6, L
   });
 });
 
-describe('the Projects screen (review B L2)', () => {
+describe('the Projects screen', () => {
   it('a focus re-reads every card in one call: no project_get or run_list per card', async () => {
     await page.goto(`${studio.url}#/`);
     const cards = page.getByTestId('project-card');
@@ -218,7 +218,7 @@ describe('the Projects screen (review B L2)', () => {
     expect(ops.length).toBeLessThanOrEqual(6);
   });
 
-  it('L5.10a: opening a project reads it once — one project_get, one project_board, one auth_status (the browser and the screen share them); a focus re-reads each once', async () => {
+  it('opening a project reads it once — one project_get, one project_board, one auth_status (the browser and the screen share them); a focus re-reads each once', async () => {
     await page.goto(`${studio.url}#/`);
     await page.getByTestId('project-card').first().waitFor(POLL);
     await sleep(500);
@@ -242,7 +242,7 @@ describe('the Projects screen (review B L2)', () => {
   });
 });
 
-describe('the editor and the live updates when things go wrong (review B M4)', () => {
+describe('the editor and the live updates when things go wrong', () => {
   it('a re-read that started before a save and answers after it is ignored (the epoch guard)', async () => {
     await openEditor(FIXTURE);
     await expect.poll(() => state(), POLL).toBe('No changes');
@@ -328,7 +328,7 @@ describe('the editor and the live updates when things go wrong (review B M4)', (
     await expect.poll(() => page.getByTestId('connection').getAttribute('data-updates'), POLL).toBe('stream');
   });
 
-  it('the session ends (the server restarted on its port) with unsaved text: the text stays on screen to copy (review B H1)', async () => {
+  it('the session ends (the server restarted on its port) with unsaved text: the text stays on screen to copy', async () => {
     await openEditor(FIXTURE);
     const mine = '# My long unsaved text\n\nthat I typed for ten minutes';
     await textarea().fill(mine);

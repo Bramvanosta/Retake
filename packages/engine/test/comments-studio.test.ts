@@ -125,7 +125,7 @@ async function ownWorkspace() {
   return { ws: own, project, ui, mcp, uiAdd, threadFile, readThreadFile };
 }
 
-describe('the Studio channel (T1)', () => {
+describe('the Studio channel', () => {
   it(
     "ui creates, replies, resolves and reopens as studio, named by the Studio process's $RETAKE_AUTHOR (never by the page)",
     async () => {
@@ -242,7 +242,7 @@ describe('the Studio channel (T1)', () => {
   );
 
   it(
-    'the thread is written before its still: a still stuck on its video does not hold the thread back (B12)',
+    'the thread is written before its still: a still stuck on its video does not hold the thread back',
     async () => {
       // The render's video is a FIFO: the still's ffprobe blocks on it until a writer opens and closes it.
       const fifoCase = await makeCase(ws, 'slow', scenesTimeline([5]), { noVideo: true });
@@ -276,7 +276,7 @@ describe('the Studio channel (T1)', () => {
   );
 });
 
-describe('counts from the thread files alone (B8)', () => {
+describe('counts from the thread files alone', () => {
   it(
     'open / resolved per scenario, one file re-read after a reply, a broken file counted as a problem, never a render record',
     async () => {
@@ -328,7 +328,7 @@ describe('counts from the thread files alone (B8)', () => {
   );
 });
 
-describe('comments: event sources (D9)', () => {
+describe('comments: event sources', () => {
   it(
     'one source per real scenario folder; a reply changes only its own; a linked folder is not one',
     async () => {

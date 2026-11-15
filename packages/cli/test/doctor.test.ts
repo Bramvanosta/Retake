@@ -143,7 +143,7 @@ describe('retake doctor (mocked environment)', () => {
     expect(r.err).not.toMatch(/FAIL|WARN/);
   });
 
-  it('a capture browser without its GPU, an ffmpeg without VideoToolbox: warnings with the fix (L5.7, R-FLD-24)', async () => {
+  it('a capture browser without its GPU, an ffmpeg without VideoToolbox: warnings with the fix (R-FLD-24)', async () => {
     const software = { accelerated: false, renderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device))', software: ['gpu_compositing', 'rasterization'] };
     const probe = async (): Promise<ChromiumProbe> => ({ path: '/c/Chromium', source: 'playwright', exists: true, launched: true, version: '141', ms: 500, gpu: software });
     const { code, checks: list } = await checks(
@@ -242,7 +242,7 @@ describe('retake doctor (mocked environment)', () => {
     expect(byName(missing.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringContaining('playwright-core install chromium') });
   });
 
-  it("Docker (L1.8): missing, too old or stopped is a warning — a failure only when the --project's default sandbox is a docker-compose one (I6)", async () => {
+  it("Docker: missing, too old or stopped is a warning — a failure only when the --project's default sandbox is a docker-compose one", async () => {
     const noDocker = macProbes({ which: (c) => (c === 'docker' ? null : `/usr/bin/${c}`), exists: () => false });
     // Not on PATH: the places the sandbox package looks in too — OrbStack's xbin among them.
     const xbin = '/Applications/OrbStack.app/Contents/MacOS/xbin/docker';
@@ -322,7 +322,7 @@ describe('retake doctor (mocked environment)', () => {
     expect(byName(unknown.checks, 'Project nope')).toMatchObject({ status: 'fail' });
   });
 
-  it('the lines come in display order, one check each (L7.29): the machine, the workspace and its themes, then the project, its browser, its profiles, its hosts', async () => {
+  it('the lines come in display order, one check each: the machine, the workspace and its themes, then the project, its browser, its profiles, its hosts', async () => {
     const dir = join(ws, 'projects', 'ordered');
     await mkdir(join(dir, 'scenarios'), { recursive: true });
     await writeFile(
@@ -456,7 +456,7 @@ describe('retake doctor: what jobs of the Studio, the desktop app or an MCP clie
   });
 });
 
-describe('retake doctor from an app bundle (L5.16a): every tool line names its source, no pnpm / brew hint', () => {
+describe('retake doctor from an app bundle: every tool line names its source, no pnpm / brew hint', () => {
   const bundle: BundleInfo = {
     root: '/Applications/Retake.app/Contents/Resources',
     sealed: '/Applications/Retake.app',
@@ -581,7 +581,7 @@ describe('retake doctor from an app bundle (L5.16a): every tool line names its s
 });
 
 describe('retake doctor (this machine)', () => {
-  it('MCP (L3.1): the Node.js a registration names (a stable alias), the worker, .retake/ git-ignored', async () => {
+  it('MCP: the Node.js a registration names (a stable alias), the worker, .retake/ git-ignored', async () => {
     // A mise install with its major alias: the alias is what --print-config registers.
     const versioned = '/Users/me/.local/share/mise/installs/node/22.16.0/bin/node';
     const alias = '/Users/me/.local/share/mise/installs/node/22/bin/node';

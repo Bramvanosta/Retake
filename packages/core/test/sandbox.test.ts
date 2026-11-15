@@ -143,7 +143,7 @@ describe('sandbox.yaml: schema and checks (R-SBX-01)', () => {
     expect(msgs(none.issues)).toEqual(['error 1:1 version: expected 1, got nothing']);
   });
 
-  it('loopback only: private addresses, names without a dot, *.internal and remote hosts are refused (critique 1)', () => {
+  it('loopback only: private addresses, names without a dot, *.internal and remote hosts are refused', () => {
     for (const host of ['10.0.0.5', '192.168.1.20', '100.100.1.1', 'prod-db', 'db.corp.internal', 'db.example.com']) {
       const text = `version: 1\nprovider: process\nservices:\n  app:\n    command: x\n    pages: {app: http://localhost:4600}\ndatabases:\n  main: {url: "postgres://u:{{env:PW}}@${host}:5432/app"}\n`;
       expect(msgs(parseSandboxYaml(text).issues), host).toEqual([
@@ -263,7 +263,7 @@ reset: {strategy: snapshot}
     ]);
   });
 
-  it('a database URL connects where it says: no host / port / hostaddr / service / dbname parameter, no templated query (K1)', () => {
+  it('a database URL connects where it says: no host / port / hostaddr / service / dbname parameter, no templated query', () => {
     const db = (url: string) => `version: 1\nprovider: process\nservices:\n  app: {command: x, pages: {app: http://localhost:4600}}\ndatabases:\n  main: {url: "${url}"}\n`;
     for (const q of ['host=prod-db.example.com', 'host=/tmp', 'port=5432', 'Port=5432', 'hostaddr=10.0.0.5', 'service=prod', 'dbname=other', 'sslmode=disable&host=%2Ftmp']) {
       const issues = msgs(parseSandboxYaml(db(`postgres://demo:sandbox-db-4632@localhost:4632/app?${q}`)).issues);
@@ -281,7 +281,7 @@ reset: {strategy: snapshot}
     expect(msgs(parseSandboxYaml(db('postgres://demo:sandbox-db-4632@localhost:4632/app?sslmode=disable&application_name=demo')).issues)).toEqual([]);
   });
 
-  it('a health path stays on the service\'s url: "//host" and backslashes are refused (P8)', () => {
+  it('a health path stays on the service\'s url: "//host" and backslashes are refused', () => {
     const svc = (health: string) =>
       `version: 1\nprovider: process\nservices:\n  app:\n    command: x\n    url: http://localhost:4600\n    health: ${health}\n    pages: {app: http://localhost:4600}\n`;
     expect(msgs(parseSandboxYaml(svc('"//evil.example/up"')).issues)).toEqual([
@@ -292,7 +292,7 @@ reset: {strategy: snapshot}
     expect(msgs(parseSandboxYaml(svc('/api/health')).issues)).toEqual([]);
   });
 
-  it('a plain password shorter than 3 characters is refused: it would never be masked (P10)', () => {
+  it('a plain password shorter than 3 characters is refused: it would never be masked', () => {
     expect(unmaskedPasswordReason('ab')).toMatch(/^a plain password shorter than 3 characters is never masked in the logs/);
     expect(unmaskedPasswordReason('abc')).toBeNull();
     const text = `version: 1
@@ -307,7 +307,7 @@ accounts:
     expect(msgs(parseSandboxYaml(text).issues).map((m) => m.split(': a plain')[0])).toEqual(['error 6:15 databases.main.url', 'error 8:87 accounts.admin.password']);
   });
 
-  it("a shell seed step gets the env of the process services: a variable two of them set differently is the step's to set (I3)", () => {
+  it("a shell seed step gets the env of the process services: a variable two of them set differently is the step's to set", () => {
     const text = (stepEnv: string) => `version: 1
 provider: process
 services:
@@ -322,7 +322,7 @@ seed:
     expect(msgs(parseSandboxYaml(text(', env: {DATABASE_URL: "postgres://demo:sandbox-db-4702@localhost:4702/app"}')).issues)).toEqual([]);
   });
 
-  it('`external: true` acknowledges a database or mailbox the sandbox does not start (I4); project.yaml never sees it', async () => {
+  it('`external: true` acknowledges a database or mailbox the sandbox does not start; project.yaml never sees it', async () => {
     const text = `version: 1
 provider: process
 services:
@@ -341,7 +341,7 @@ mailbox: {provider: mailpit, url: http://localhost:4625, external: true}
     expect(mailboxFor(project, 'sandbox')).toEqual({ provider: 'mailpit', url: 'http://localhost:4625' });
   });
 
-  it('a compose service under `profiles:` never starts in a sandbox: naming it (a service, an exec step) is an error (K7)', async () => {
+  it('a compose service under `profiles:` never starts in a sandbox: naming it (a service, an exec step) is an error', async () => {
     const dir = await sandboxDir({ 'compose.yaml': `${COMPOSE_YAML}  tools: {image: busybox:1.38.0, profiles: [debug]}\n` });
     const text = `version: 1
 provider: docker-compose
@@ -366,7 +366,7 @@ seed:
     ).toEqual([]);
   });
 
-  it("the loopback hosts of a sandbox's mailbox and databases are allowed hosts at run time (db.localhost, 127.0.0.2: I7)", async () => {
+  it("the loopback hosts of a sandbox's mailbox and databases are allowed hosts at run time (db.localhost, 127.0.0.2)", async () => {
     const text = `version: 1
 provider: process
 services:
@@ -385,7 +385,7 @@ mailbox: {provider: mailpit, url: http://127.0.0.2:4625}
     expect(isHostAllowed('other.localhost', project)).toBe(false);
   });
 
-  it('weak plain passwords (short, or one word) are warned: their text is masked everywhere (critique §3)', () => {
+  it('weak plain passwords (short, or one word) are warned: their text is masked everywhere', () => {
     expect(weakPasswordReason('demo')).toMatch(/^a plain password shorter than 8 characters or made of one word/);
     expect(weakPasswordReason('password')).not.toBeNull();
     expect(weakPasswordReason('sandbox-db-4632')).toBeNull();

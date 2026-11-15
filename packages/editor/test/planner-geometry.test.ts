@@ -133,7 +133,7 @@ describe('caption cues land in the layout caption area', () => {
   });
 });
 
-describe('device and window layouts through the planner (L2.7)', () => {
+describe('device and window layouts through the planner', () => {
   const sized = (w: number, h: number): Timeline => {
     const t = realTimeline('quote');
     t.capture = { ...t.capture, width: w, height: h };
@@ -171,7 +171,7 @@ describe('device and window layouts through the planner (L2.7)', () => {
     expect(plan(realTimeline('quote'), { frame: 'browser', components: { layout: { id: 'studio/layout-browser', params: { show_url: false, tabs: true } } } }).warnings).toHaveLength(1);
   });
 
-  it("display URLs are edit-time data: a run captured before them gets the project's current ones (V2)", () => {
+  it("display URLs are edit-time data: a run captured before them gets the project's current ones", () => {
     const edit = (timeline: Timeline, env?: string, proj: LoadedProject = project) =>
       planEdit({ timeline, template: editorial, project: proj, registry, captureFile: '/captures/capture.mp4', overrides: { frame: 'browser' }, ...(env ? { env } : {}) });
     // A timeline without an environment block (an older one) and run.json's env: the fixture's display URLs apply.

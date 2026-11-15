@@ -88,7 +88,7 @@ function sup(o: PipeOut, x: { board?: UnsavedBoard; worker?: boolean; gapMs?: nu
 
 const capture = { project: P, scenario: 'quote', mode: 'capture', scenario_sha256: '0'.repeat(64), run_id: '20261029-120000-quote' };
 
-describe('stock, then one job_end per job that ends (L5.2b)', () => {
+describe('stock, then one job_end per job that ends', () => {
   it('finished history gives nothing; unfinished jobs are in the first pending; one transition → exactly one job_end of enums and slugs', async () => {
     await job({ kind: 'render', input: { project: P, scenario: 'quote', render_id: 'quote-v1' }, state: 'succeeded', result: { kind: 'render' } as never });
     await job({ kind: 'run', input: capture, state: 'failed' });
@@ -160,7 +160,7 @@ describe('stock, then one job_end per job that ends (L5.2b)', () => {
     s.stop();
   });
 
-  it('names only of a project and a scenario that exist — a slug-shaped name of nothing is left out (review A L1)', async () => {
+  it('names only of a project and a scenario that exist — a slug-shaped name of nothing is left out', async () => {
     const w = out();
     const s = sup(w.o);
     await s.nudge();
@@ -186,7 +186,7 @@ describe('stock, then one job_end per job that ends (L5.2b)', () => {
     s.stop();
   });
 
-  it('each line is framed by newlines: a partial write of another module before it stays a line of its own (review A L3)', async () => {
+  it('each line is framed by newlines: a partial write of another module before it stays a line of its own', async () => {
     const stream: string[] = [];
     const o: PipeOut = { write: (t) => (stream.push(t), true), once: () => undefined };
     const s = sup(o);
@@ -200,7 +200,7 @@ describe('stock, then one job_end per job that ends (L5.2b)', () => {
     s.stop();
   });
 
-  it("one read of each live job per poll: the watch's record is reused (review B L15)", async () => {
+  it("one read of each live job per poll: the watch's record is reused", async () => {
     const w = out();
     const s = sup(w.o);
     await s.nudge();
@@ -220,7 +220,7 @@ describe('stock, then one job_end per job that ends (L5.2b)', () => {
     }
   });
 
-  it('a queued job with no live worker is left out (critique M2); with a worker it holds Quit', async () => {
+  it('a queued job with no live worker is left out; with a worker it holds Quit', async () => {
     await job({ kind: 'render', input: { project: P, scenario: 'quote', render_id: 'quote-v4' }, state: 'queued' });
     const none = out();
     const a = sup(none.o, { worker: false });

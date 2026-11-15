@@ -299,7 +299,7 @@ describe('overlays that are your own files (R-OWN-02, R-OWN-03)', () => {
   });
 });
 
-describe('your own overlays in a vertical / square framing (R-OWN-02, review fixes)', () => {
+describe('your own overlays in a vertical / square framing (R-OWN-02)', () => {
   /** Box of an overlay frame by frame: its share inside the visible capture. */
   const visibleShare = (p: EditPlan, c: ClipSegment, o: ClipSegment['overlays'][number]) =>
     Array.from({ length: o.durationInFrames }, (_, k) => {

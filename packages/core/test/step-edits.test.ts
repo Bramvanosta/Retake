@@ -120,7 +120,7 @@ describe('step edits on every step of the fixture scenarios (goldens)', () => {
   );
 });
 
-describe('comment ownership by the dash column (critique B6)', () => {
+describe('comment ownership by the dash column', () => {
   const T = [
     'scenes:',
     '  - id: a',
@@ -200,7 +200,7 @@ describe('what the splices refuse rather than corrupt', () => {
     expect(() => applyStepEdit('scenes: [\n', { kind: 'delete_step', at: { scene: 'a', index: 0, guard: '0'.repeat(16) } })).toThrow(/not valid YAML/);
   });
 
-  it('a stale guard, a step or position no longer there, a move to where it is (critique B2)', () => {
+  it('a stale guard, a step or position no longer there, a move to where it is', () => {
     const t = 'scenes:\n  - id: a\n    steps:\n      - click: A\n      - click: B\n';
     const wrong = { scene: 'a', index: 0, guard: stepGuard({ click: 'B' }) };
     const err = (f: () => unknown) => {
@@ -288,7 +288,7 @@ describe('layouts the splices handle', () => {
   });
 });
 
-describe('duplicate (critique B8)', () => {
+describe('duplicate', () => {
   it('drops id (on the dash line) and mark, renames a capture `as` to the first free suffix, each with a notice; the original keeps them', () => {
     const t = [
       'scenes:',
@@ -320,7 +320,7 @@ describe('duplicate (critique B8)', () => {
   });
 });
 
-describe("pictures after edits: moved (LIS) and where a comment's step is today (critique B10)", () => {
+describe("pictures after edits: moved (LIS) and where a comment's step is today", () => {
   const RUN = 'scenes:\n  - id: a\n    steps:\n      - click: A\n      - click: B\n      - click: C\n      - click: D\n';
   it('a step moved to the top is the only one marked moved; an unchanged file has none', () => {
     const run = sceneStepFingerprints(RUN)!;
@@ -343,7 +343,7 @@ describe("pictures after edits: moved (LIS) and where a comment's step is today 
     expect(locateAnchorStep('scenes: [', { scene: 'a', step: 0, step_fp: fp })).toBeNull();
   });
 
-  it('review B M1: a step dragged to another scene is found there, by its id or by its single fingerprint; two candidates: null', () => {
+  it('a step dragged to another scene is found there, by its id or by its single fingerprint; two candidates: null', () => {
     const two = 'scenes:\n  - id: a\n    steps:\n      - click: A\n      - id: k\n        click: B\n  - id: delivery\n    steps:\n      - click: C\n';
     const fp = stepFingerprint({ click: 'B' })!;
     const moved = move(two, 'a', 1, 'delivery', 0).text;
@@ -357,8 +357,8 @@ describe("pictures after edits: moved (LIS) and where a comment's step is today 
   });
 });
 
-describe('review B fixes', () => {
-  it("L4: an anchor, a tag or a comment on a step's dash line travels with it (edits verified); a dash item not written plainly locks its scene with why", () => {
+describe("the comments and anchors of a step's lines", () => {
+  it("an anchor, a tag or a comment on a step's dash line travels with it (edits verified); a dash item not written plainly locks its scene with why", () => {
     for (const dash of ['- &s', '- !!map', '- # the save', '- &s # note', '- !!map &t']) {
       const t = `video: x\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - click: A\n      ${dash}\n        id: s\n        click: Save\n  - id: b\n    page: shop\n    open: /\n    steps:\n      - click: C\n`;
       const scene = scenarioBlocks(t).entries.find((e) => e.type === 'scene' && e.id === 'a');

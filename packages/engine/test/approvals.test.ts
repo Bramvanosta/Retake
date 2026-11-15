@@ -142,7 +142,7 @@ describe('approvals at submit', () => {
     await engine.runs.cancel('northfield-fixture', sub.run_id);
   });
 
-  it("a capture with a `hook:` step (L5.8): the named hook's shell entry is asked about once, bound to the step phase and its position; no approver: needs_approval", async () => {
+  it("a capture with a `hook:` step: the named hook's shell entry is asked about once, bound to the step phase and its position; no approver: needs_approval", async () => {
     const a = accept();
     const sub = await engine.runs.submit({ project: 'northfield-fixture', scenario: 'off-camera', mode: 'capture' }, { approver: a });
     expect(a.asked).toHaveLength(1);

@@ -159,7 +159,7 @@ describe('retake run on read-only environments', () => {
     expect(record).toMatchObject({ status: 'failed', env: 'production', environment: { production: true, access: 'read-only' } });
   });
 
-  it('the header and run.json say a frozen clock and its zone (T4)', async () => {
+  it('the header and run.json say a frozen clock and its zone', async () => {
     const r = await retake('run', 'shop', 'frozen', '--env', 'production');
     expect(r.code).toBe(EXIT.failure); // its setup hook writes: refused before any browser opens
     expect(r.err).toContain('capture  env production · hooks run · production · read-only · clock 2026-11-02T10:24:00 Europe/Paris (frozen)');

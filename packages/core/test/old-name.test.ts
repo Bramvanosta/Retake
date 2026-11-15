@@ -161,7 +161,7 @@ function scannedFiles(): string[] {
   return [...new Set([...tracked, ...untracked])].filter((f) => !BINARY.test(f)).sort();
 }
 
-describe('the old name is gone (L5.13)', () => {
+describe('the old name is gone', () => {
   it('the scanner: every spelling and form of the old name and command; never the kept namespace, channel, events or "the Studio"', () => {
     for (const planted of [
       'Demo Studio',
@@ -245,7 +245,7 @@ describe('the old name is gone (L5.13)', () => {
       expect(oldNameHits(kept, false), kept).toEqual([]);
   });
 
-  it('no legacy module is allowed any more (v0.2.1); a path of the old name is a hit (reviews B L2, B L4)', () => {
+  it('no legacy module is allowed any more (v0.2.1); a path of the old name is a hit', () => {
     for (const f of ['packages/core/src/legacy.ts', 'packages/engine/src/legacy.ts', 'packages/ui/src/legacy.ts', 'scripts/rename-l513.mjs'])
       expect(
         WHOLE.some((re) => re.test(f)),

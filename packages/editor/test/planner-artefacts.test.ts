@@ -49,7 +49,7 @@ describe('artefact slots → media', () => {
     expect(p.warnings).toEqual([]);
   });
 
-  it('the persona a mail was waited for in (to: persona:<name>, L5.6) reaches the mail card', async () => {
+  it('the persona a mail was waited for in (to: persona:<name>) reaches the mail card', async () => {
     const tl = load('signup');
     for (const a of tl.artefacts ?? []) if (a.kind === 'email') a.persona = 'buyer';
     const e = card(await plan(tl), 'inbox').component.media?.email as EmailMedia;

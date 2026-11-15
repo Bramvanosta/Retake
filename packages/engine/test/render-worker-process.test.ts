@@ -182,7 +182,7 @@ describe.skipIf(!canRender)('a render job whose worker is killed', () => {
   );
 
   it(
-    'L5.14: SIGKILL of the worker alone: its job process ends the render itself — interrupted, its browser closed, the lock and the partial video removed, no submit needed',
+    'SIGKILL of the worker alone: its job process ends the render itself — interrupted, its browser closed, the lock and the partial video removed, no submit needed',
     async () => {
       const renders = join(root, 'projects', 'demo', 'renders');
       const before = await listing(renders);

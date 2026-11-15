@@ -225,7 +225,7 @@ describe('control: the same navigation recorded without the hold (R-ISS-08)', ()
   );
 });
 
-describe('blank tabs, non-click navigations and cancelling a held load (R-ISS-08, L1.2 review)', () => {
+describe('blank tabs, non-click navigations and cancelling a held load (R-ISS-08)', () => {
   let tl2: Timeline;
   let dir2: string;
   let ms: number;

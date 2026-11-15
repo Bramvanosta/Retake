@@ -136,7 +136,7 @@ describe.skipIf(!GATED)('looping previews rendered with Remotion (RETAKE_TEST_SL
   );
 
   it(
-    '⚑ review A M3 / B H1: a component throwing at module load, then one that does not compile — the others render, each fails alone; ⚑ A H1: the bundler refuses a hidden import',
+    '⚑ a component throwing at module load, then one that does not compile — the others render, each fails alone; ⚑ the bundler refuses a hidden import',
     async () => {
       const ws = join(root, 'broken-ws');
       await mkdir(ws, { recursive: true });

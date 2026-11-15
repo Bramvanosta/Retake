@@ -125,7 +125,7 @@ describe('the words (channels, status, entries, proposals)', () => {
   });
 });
 
-describe('regions (critique B11)', () => {
+describe('regions', () => {
   it('⚑ rounded to 4 decimals, then clamped inside the frame: an edge never gives x + w > 1', () => {
     // x rounds up, w rounds up: 0.33336 + 0.66666 → 0.3334 + 0.6667 = 1.0001 without the clamp.
     const r = clampRegion({ x: 0.33336, y: 0.5, w: 0.66666, h: 0.5 })!;
@@ -418,7 +418,7 @@ describe('the frame requests (FrameRequests)', () => {
     expect(f.results[1]).toMatchObject({ ok: false, error: { status: 0, code: 'failed', message: 'network' } });
   });
 
-  it('⚑ a frame that keeps failing is said (review B L3): a 429 after FRAME_RETRIES.busy waits, a 503 timeout after one', async () => {
+  it('⚑ a frame that keeps failing is said: a 429 after FRAME_RETRIES.busy waits, a 503 timeout after one', async () => {
     expect(FRAME_RETRIES).toEqual({ busy: 4, timeout: 1 });
     const f = fakeFrames();
     f.r.want(ask(11));
@@ -517,7 +517,7 @@ describe('the comments routes', () => {
   });
 });
 
-describe('the proposal (L4.6 part D2, T13)', () => {
+describe('the proposal', () => {
   it('⚑ a line is drawn code-safe: edge spaces ·, tabs →, the spaces inside kept — indentation and trailing spaces are visible', () => {
     // An indentation-only change (a key moved into a mapping) and a trailing-space change: two different rows.
     expect(lineShown('  speed: 2')).toBe('··speed: 2');
@@ -597,7 +597,7 @@ describe('the proposal (L4.6 part D2, T13)', () => {
     expect(v.every((r) => r.rtl === false)).toBe(true);
   });
 
-  it('⚑ a line drawn as its bytes say (review A L6): right-to-left text marked, combining marks past the third shown as [U+…]', () => {
+  it('⚑ a line drawn as its bytes say: right-to-left text marked, combining marks past the third shown as [U+…]', () => {
     // A line holding right-to-left letters is flagged: the cell draws it in byte order and says so.
     expect(hasRtl('caption: "ע 10 20"')).toBe(true);
     expect(hasRtl('caption: مرحبا')).toBe(true);
@@ -625,7 +625,7 @@ describe('the proposal (L4.6 part D2, T13)', () => {
     expect(lineShown('👩‍💻 ❤️ 1️⃣')).toBe('👩‍💻 ❤️ 1️⃣');
   });
 
-  it("⚑ what an apply says beside its write: its problems and the scenario's warnings (review B M2)", () => {
+  it("⚑ what an apply says beside its write: its problems and the scenario's warnings", () => {
     expect(appliedWords({ warnings: [], problems: [] })).toBeNull();
     expect(appliedWords({})).toBeNull();
     expect(appliedWords({ warnings: [], problems: ['the apply was written to scenarios/q.yaml but not recorded in the thread'] })).toEqual({
@@ -693,7 +693,7 @@ describe('the proposal (L4.6 part D2, T13)', () => {
   });
 });
 
-describe('the proposal focus hand-off (L5.12b)', () => {
+describe('the proposal focus hand-off', () => {
   it('⚑ Back to the comment: taken once by that thread; dropped by a route anywhere else or a thread that cannot be read', () => {
     const at = (slug: string, scenario: string, thread?: string) => hrefTo({ name: 'comments', slug, scenario, ...(thread ? { thread } : {}) });
     focusProposalOf('demo', 'c_1');

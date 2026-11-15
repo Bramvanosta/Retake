@@ -504,7 +504,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
   }, 60_000);
 
-  it('L5.2b: nothing pending — Quit (SIGUSR2, the terminate: path of ⌘Q) is instant: no question, the server stopped gracefully', async () => {
+  it('nothing pending — Quit (SIGUSR2, the terminate: path of ⌘Q) is instant: no question, the server stopped gracefully', async () => {
     const a = launch([]);
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(async () => (await counters(r)).streams >= 1, 20_000, 'the page');
@@ -523,7 +523,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expectClean(a.err(), r.token);
   }, 60_000);
 
-  it('L5.2b: a running job holds Quit and Open Workspace… (answered Cancel: app and server stay); once it ended, Quit is instant', async () => {
+  it('a running job holds Quit and Open Workspace… (answered Cancel: app and server stay); once it ended, Quit is instant', async () => {
     const other = join(base, 'other-ws');
     await mkdir(join(other, 'projects'), { recursive: true });
     const a = launch([], { env: { RETAKE_DESKTOP_TEST_PICK: other, RETAKE_DESKTOP_TEST_QUIT: 'native' } });
@@ -557,7 +557,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
   }, 90_000);
 
-  it('L5.2b: unsaved text a tab reports is named in the question (names that exist only; the op strict); an empty report clears it', async () => {
+  it('unsaved text a tab reports is named in the question (names that exist only; the op strict); an empty report clears it', async () => {
     const a = launch([], { env: { RETAKE_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
@@ -588,7 +588,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expectClean(a.err(), r.token);
   }, 60_000);
 
-  it('⚑ L5.12d: the page asks first — Cancel, then a second Quit re-dispatches the same id, a replayed old id is ignored, Quit Anyway through desktop_answer quits (the server stopped gracefully); no native alert', async () => {
+  it('⚑ the page asks first — Cancel, then a second Quit re-dispatches the same id, a replayed old id is ignored, Quit Anyway through desktop_answer quits (the server stopped gracefully); no native alert', async () => {
     const a = launch([]);
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(async () => (await counters(r)).streams >= 1, 20_000, 'the page');
@@ -639,7 +639,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expectClean(a.err(), r.token);
   }, 90_000);
 
-  it('⚑ L5.12d: a page that cannot ack (its server SIGSTOPped) — the native alert after 1.5 s, the page question closed; its late ack is ignored', async () => {
+  it('⚑ a page that cannot ack (its server SIGSTOPped) — the native alert after 1.5 s, the page question closed; its late ack is ignored', async () => {
     const a = launch([]);
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(async () => (await counters(r)).streams >= 1, 20_000, 'the page');
@@ -691,7 +691,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     return { a, r, id };
   }
 
-  it('⚑ L5.12d fixes (review B-M2): SIGTERM while the page sheet is up — the app quits now, the question in the window dropped (its close script harmless), the server stopped gracefully; no alert', async () => {
+  it('⚑ SIGTERM while the page sheet is up — the app quits now, the question in the window dropped (its close script harmless), the server stopped gracefully; no alert', async () => {
     const up = await pageSheetUp();
     if (!up) {
       shots.page_sigterm = 'skipped: the screen is locked (the page acks only while it is visible)';
@@ -711,7 +711,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expectClean(a.err(), r.token);
   }, 60_000);
 
-  it("⚑ L5.12d fixes (review B-M2): the owned server dies while the page sheet is up — the question in the window dropped before the restart alert takes over (Not Now), a later Quit asks with the alert (its ports are nobody's)", async () => {
+  it("⚑ the owned server dies while the page sheet is up — the question in the window dropped before the restart alert takes over (Not Now), a later Quit asks with the alert (its ports are nobody's)", async () => {
     const up = await pageSheetUp({ RETAKE_DESKTOP_TEST_ANSWERS: '0' });
     if (!up) {
       shots.page_server_died = 'skipped: the screen is locked (the page acks only while it is visible)';
@@ -738,7 +738,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     expectClean(a.err(), r.token);
   }, 60_000);
 
-  it('L5.2b: job ends become notifications by the no-storm rule (test mode logs them) — not in front: one at once, one summary; in front: none; SIGTERM with a job running quits without a question', async () => {
+  it('job ends become notifications by the no-storm rule (test mode logs them) — not in front: one at once, one summary; in front: none; SIGTERM with a job running quits without a question', async () => {
     for (const front of ['0', '1']) {
       const a = launch([], { env: { RETAKE_DESKTOP_TEST_FRONT: front } });
       const r = await until(() => record(), 20_000, 'ui.json');
@@ -774,7 +774,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     }
   }, 90_000);
 
-  it('L5.2b: the real question (MODAL_MS, the native alert: RETAKE_DESKTOP_TEST_QUIT=native): a second window while it is up, gone after; a second Quit meanwhile ignored (H2 — the page question re-dispatches instead: L5.12d); no picker inside it (B L10); SIGTERM while it is up quits (M1)', async () => {
+  it('the real question (MODAL_MS, the native alert: RETAKE_DESKTOP_TEST_QUIT=native): a second window while it is up, gone after; a second Quit meanwhile ignored (the page question re-dispatches instead); no picker inside it; SIGTERM while it is up quits', async () => {
     const other = join(base, 'other-ws-l10');
     await mkdir(join(other, 'projects'), { recursive: true });
     const a = launch([], { env: { RETAKE_DESKTOP_TEST_MODAL_MS: '3000', RETAKE_DESKTOP_TEST_PICK: other, RETAKE_DESKTOP_TEST_QUIT: 'native' } });
@@ -836,7 +836,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
   }, 90_000);
 
-  it('L5.2b: the owned server dies with unsaved text in the window — the restart alert names it, Not Now (its default) keeps the window, Quit then asks about the text only (its jobs are history)', async () => {
+  it('the owned server dies with unsaved text in the window — the restart alert names it, Not Now (its default) keeps the window, Quit then asks about the text only (its jobs are history)', async () => {
     const a = launch([], { env: { RETAKE_DESKTOP_TEST_ANSWERS: '0', RETAKE_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
@@ -866,7 +866,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
   }, 60_000);
 
-  it('review B M5: Open Anyway and Quit Anyway end to end — the owned server stopped gracefully, the picked workspace served, the app exits 0, the jobs left running', async () => {
+  it('Open Anyway and Quit Anyway end to end — the owned server stopped gracefully, the picked workspace served, the app exits 0, the jobs left running', async () => {
     const other = join(base, 'other-ws-m5');
     await mkdir(join(other, 'projects'), { recursive: true });
     const a = launch([], { env: { RETAKE_DESKTOP_TEST_PICK: other, RETAKE_DESKTOP_TEST_ANSWERS: '0,0', RETAKE_DESKTOP_TEST_QUIT: 'native' } });
@@ -902,7 +902,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
     await rm(other, { recursive: true, force: true });
   }, 90_000);
 
-  it('review B M1 / L13: SIGTERM ends every question of the shell — Open Workspace…, "not a workspace", the restart alert (each up for real) — well before its abort; a Quit during the restart alert is never a nested question', async () => {
+  it('SIGTERM ends every question of the shell — Open Workspace…, "not a workspace", the restart alert (each up for real) — well before its abort; a Quit during the restart alert is never a nested question', async () => {
     const notWs = join(base, 'not-a-workspace-m1');
     const other = join(base, 'other-ws-m1');
     await mkdir(notWs, { recursive: true });

@@ -501,7 +501,7 @@ describe('held page loads (R-ISS-08)', () => {
   });
 });
 
-describe('freezes of the capture and waits after a click (L5.7, R-FLD-20, R-FLD-26)', () => {
+describe('freezes of the capture and waits after a click (R-FLD-20, R-FLD-26)', () => {
   const marked: TimelineEvent[] = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
   const run = (more: {
     frozen?: Array<{ t_start: number; t_end: number }>;
@@ -716,7 +716,7 @@ describe('captions', () => {
     expect(clip(q, 'k').caption).toBeNull();
   });
 
-  it('warns when the text the video shows still holds {{tokens}} (a run captured before scenario templating, L1.2)', () => {
+  it('warns when the text the video shows still holds {{tokens}} (a run captured before scenario templating)', () => {
     const literal = (p: EditPlan) => p.warnings.filter((w) => w.includes('{{…}} tokens'));
     expect(literal(plan(ctx, synthTimeline({ entries, duration: 10 })))).toEqual([]);
     const old: EntrySpec[] = [{ ...entries[0], caption: { text: 'Hello {{vars.customer}}' } }];
@@ -1019,7 +1019,7 @@ describe('music, overrides, errors', () => {
   });
 });
 
-describe('raw captures (L2.13)', () => {
+describe('raw captures', () => {
   it('a run captured without its cursor (run --raw --cursor none|layer) plans with a warning: the video shows no cursor', () => {
     const tl = synthTimeline({ entries: [{ id: 'a', t_start: 0, t_end: 4 }], duration: 4 });
     expect(plan(ctx, tl).warnings.some((w) => w.includes('without its in-page cursor'))).toBe(false);
@@ -1031,7 +1031,7 @@ describe('raw captures (L2.13)', () => {
 /** Narrowing helper kept for type-checking ClipSegment imports. */
 export type _Clip = ClipSegment;
 
-describe('off camera: hook steps and offscreen scenes (L5.8, R-FLD-31)', () => {
+describe('off camera: hook steps and offscreen scenes (R-FLD-31)', () => {
   const marked: TimelineEvent[] = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
   const run = (offcamera: Array<{ t_start: number; t_end: number }>, more: { trimIdle?: boolean; loading?: Array<{ t_start: number; t_end: number }> } = {}) =>
     planRunTiming({

@@ -10,7 +10,7 @@ import { fieldLabel } from '../src/app/script/forms.js';
 
 const at = (scene: number, index: number) => ({ scene, index });
 
-describe('the storyboard keys (L5.10b, plan §4.2, critique L3)', () => {
+describe('the storyboard keys', () => {
   // Scenes of 5, 0 (empty), 7 and 1 steps, three columns.
   const counts = [5, 0, 7, 1];
   it('← / → walk the steps across scenes (the empty one skipped), clamped at both ends', () => {
@@ -49,14 +49,14 @@ describe('the storyboard keys (L5.10b, plan §4.2, critique L3)', () => {
   });
 });
 
-describe("L5.10b fixes: the board's and the inspector's words", () => {
-  it("A-L4: a skipped scene's height uses the board's measured columns and row height (two columns at 1100, one at 900)", () => {
+describe("the board's and the inspector's words", () => {
+  it("a skipped scene's height uses the board's measured columns and row height (two columns at 1100, one at 900)", () => {
     expect(sceneIntrinsicPx(100, 2, 200)).toBe(120 + 50 * 200);
     expect(sceneIntrinsicPx(100, 1, 300)).toBe(120 + 100 * 300);
     expect(sceneIntrinsicPx(7, 3, 250)).toBe(120 + 3 * 250);
     expect(sceneIntrinsicPx(5, 0, 0)).toBe(120 + 5 * 1);
   });
-  it('B-L7: a frame\'s title — "Wait for", never "Wait wait for"; the summary in the title when there is no target ("Wait 1.6 s"); the note only beside a target', () => {
+  it('a frame\'s title — "Wait for", never "Wait wait for"; the summary in the title when there is no target ("Wait 1.6 s"); the note only beside a target', () => {
     expect(frameTitle({ category: 'wait', label: 'wait for', target: 'button “Send”', summary: 'visible' })).toEqual({ verb: 'Wait for', rest: 'button “Send”', note: 'visible' });
     expect(frameTitle({ category: 'wait', label: 'wait for', summary: 'text “Done”' })).toEqual({ verb: 'Wait for', rest: 'text “Done”' });
     expect(frameTitle({ category: 'wait', label: 'wait', summary: '1.6 s' })).toEqual({ verb: 'Wait', rest: '1.6 s' });
@@ -64,13 +64,13 @@ describe("L5.10b fixes: the board's and the inspector's words", () => {
     expect(frameTitle({ category: 'hold', label: 'hold' })).toEqual({ verb: 'Hold' });
     expect(frameTitle({ category: 'unknown', label: 'no action' })).toEqual({ verb: 'Unknown', rest: 'no action' });
   });
-  it('A-L5: a scene\'s length words — a capture\'s seconds; a dry run\'s pictures are "no capture yet", never "not shot yet"', () => {
+  it('a scene\'s length words — a capture\'s seconds; a dry run\'s pictures are "no capture yet", never "not shot yet"', () => {
     expect(sceneLengthWords(9.25, 'capture')).toBe('9.3 s');
     expect(sceneLengthWords(undefined, 'dry')).toBe('no capture yet');
     expect(sceneLengthWords(undefined, 'capture')).toBe('not captured');
     expect(sceneLengthWords(undefined, undefined)).toBe('not shot yet');
   });
-  it("B-L4: a form field's label is words, not the schema's key", () => {
+  it("a form field's label is words, not the schema's key", () => {
     expect(fieldLabel('text')).toBe('Text');
     expect(fieldLabel('ms')).toBe('Milliseconds');
     expect(fieldLabel('move ms')).toBe('Move time (ms)');

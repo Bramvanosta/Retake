@@ -175,7 +175,7 @@ describe('the YAML tab saves through scenario_edit', () => {
     expect(after.replace(/\r\n/g, '').includes('\n')).toBe(false);
   });
 
-  it('while a YAML draft is open the Blocks tab says block editing is off (critique B7); the draft survives the tab switch', async () => {
+  it('while a YAML draft is open the Blocks tab says block editing is off; the draft survives the tab switch', async () => {
     await openEditor('short');
     const draft = (await textarea().inputValue()).replace('hold: 0.4', 'hold: 0.9');
     await retype(draft);
@@ -192,7 +192,7 @@ describe('the YAML tab saves through scenario_edit', () => {
   });
 });
 
-describe('a file the Studio does not write (critique B3, B11)', () => {
+describe('a file the Studio does not write', () => {
   it('opens read-only with why and the line of the secret reference; no Edit button, no editor, nothing sent', async () => {
     const h0 = sha(await readFile(file('owned')));
     await page.goto(`${studio.url}#/p/${P}/s/owned/yaml`);
@@ -206,7 +206,7 @@ describe('a file the Studio does not write (critique B3, B11)', () => {
   });
 });
 
-describe('L5.10b: the YAML source (R4-Source)', () => {
+describe('the YAML source (R4-Source)', () => {
   it('the File inspector says valid or how many errors in words; a browser row brings its lines into view (outlined); a file that is not valid YAML says so on the board and in the File', async () => {
     const TWO = `${SHORT}  - id: b\n    steps:\n      - hold: 0.1\n`;
     await writeFile(file('two-scenes'), TWO);
@@ -232,7 +232,7 @@ describe('L5.10b: the YAML source (R4-Source)', () => {
     await shot('yaml-6-invalid');
   });
 
-  it('L5.10b fixes B-M1: a run of this scenario queued or running shows on the YAML view too — its progress and Cancel', async () => {
+  it('a run of this scenario queued or running shows on the YAML view too — its progress and Cancel', async () => {
     await writeFile(file('runs-yaml'), SHORT);
     await page.goto(`${studio.url}#/p/${P}/s/runs-yaml`);
     await page.getByRole('heading', { level: 1, name: 'runs-yaml' }).waitFor(POLL);

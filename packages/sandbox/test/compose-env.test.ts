@@ -67,7 +67,7 @@ function ctxOf(p: LoadedProject): ProviderContext {
   };
 }
 
-describe('env file of a docker-compose sandbox (L5.8)', () => {
+describe('env file of a docker-compose sandbox', () => {
   it('reads the names an env file sets, export and comments included', () => {
     expect(envFileKeys('# versions\nAPP_TAG=1.38.0\nexport GREETING="hi there"\n\n  DB_PASS = x\nnot a line\nAPP_TAG=again\n')).toEqual(['APP_TAG', 'GREETING', 'DB_PASS']);
   });

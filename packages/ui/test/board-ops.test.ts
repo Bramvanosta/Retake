@@ -176,7 +176,7 @@ describe('project_board: the op', () => {
   });
 });
 
-describe('project_board: cost (critique H1)', () => {
+describe('project_board: cost', () => {
   it('budgets: the fixture and a 40-scenario copy with 30 runs, cold then warm (numbers in the log; pinned loosely)', async () => {
     const big1 = await board(BIG);
     const big2 = await board(BIG);
@@ -212,7 +212,7 @@ describe('project_board: cost (critique H1)', () => {
   });
 });
 
-describe('project_board: L5.10a fixes (reviews A and B), on the board and its counters', () => {
+describe('project_board: on the board and its counters', () => {
   let wsc: OpenedWorkspace;
   let boards: ProjectBoards;
   let overlays = 0;
@@ -243,7 +243,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     fresh();
   });
 
-  it('A-M1: a removed asset shows at once (the files its checks looked for are re-statted); anything else within the TTL', async () => {
+  it('a removed asset shows at once (the files its checks looked for are re-statted); anything else within the TTL', async () => {
     const dir = await copy('media');
     const own = async () => of(await boards.board('media'), 'own-media');
     expect((await own()).file).toMatchObject({ ok: true, errors: 0 });
@@ -270,7 +270,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     expect(boards.stats.files - before).toBe((await boards.board('media')).scenarios.length);
   });
 
-  it('A-M2: an environment the file names is the location only when the project has it; else under untrusted, capped', async () => {
+  it('an environment the file names is the location only when the project has it; else under untrusted, capped', async () => {
     const dir = await copy('envs');
     const quote = await readFile(join(dir, 'scenarios', 'quote.yaml'), 'utf8');
     const planted = `\u202ezzz<script>alert(1)</script>${'e'.repeat(3000)}`;
@@ -294,7 +294,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     expect(b.capture?.finished_at).toBeUndefined();
   });
 
-  it('A-M3: one pass over a 3000-job queue (each job.json read once), warm ≤ 20 ms measured; a take from a terminal costs no second pass', async () => {
+  it('one pass over a 3000-job queue (each job.json read once), warm ≤ 20 ms measured; a take from a terminal costs no second pass', async () => {
     const dir = await copy('queue');
     const jobsDir = join(ws, '.retake', 'jobs');
     const ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -337,7 +337,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     await rm(jobsDir, { recursive: true, force: true });
   }, 60_000);
 
-  it('A-L2: older runs (past the window) are summed up once; a new run adds itself, not a walk of the folder', async () => {
+  it('older runs (past the window) are summed up once; a new run adds itself, not a walk of the folder', async () => {
     const dir = await copy('many');
     await writeFile(join(dir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
     const write = async (id: string, scenario: string) => {
@@ -393,7 +393,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     expect(of(after, 'catalogue').last_run).toBeUndefined();
   });
 
-  it("A-L3, B-L2, B-L5: report.json read once; the render of today's file wins over a newer override; today's theme counts; a failed take shows its error screenshot", async () => {
+  it("report.json read once; the render of today's file wins over a newer override; today's theme counts; a failed take shows its error screenshot", async () => {
     const dir = await copy('renders');
     const A1 = '20261020-100000-blocks';
     await writeFile(join(dir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
@@ -464,7 +464,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     expect(s.poster).toEqual({ run: '20261022-100000-blocks', key: 'two.1' });
   });
 
-  it('A-L4: review/ is a watched source — a review swapped in from a terminal changes the renders key (a board re-reads)', async () => {
+  it('review/ is a watched source — a review swapped in from a terminal changes the renders key (a board re-reads)', async () => {
     const dir = await copy('watched');
     const key = async () => (await scanSources(wsc)).get('renders:watched');
     const before = await key();

@@ -593,7 +593,7 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
     expect(await page.evaluate(() => (globalThis as { __pwned?: unknown }).__pwned)).toBeUndefined();
   }, 240_000);
 
-  it('Discard while the window is open: a neutral "discarded" — no danger notice, the note gone (review B-M5)', async () => {
+  it('Discard while the window is open: a neutral "discarded" — no danger notice, the note gone', async () => {
     const rec = await startRecording({ path: '/record-lab', name: 'e2e-discard' });
     await work(async (w) => {
       await w.getByRole('heading', { name: 'Recording lab' }).waitFor();

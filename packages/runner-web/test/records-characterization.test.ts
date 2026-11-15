@@ -96,7 +96,7 @@ describe("the raw export's gate, state by state", () => {
   });
 });
 
-describe("the raw export's gate: the reader's stricter answers and the rule's order (L7.6a)", () => {
+describe("the raw export's gate: the reader's stricter answers and the rule's order", () => {
   /** NEW of a control state with its files rewritten, through the gate. */
   async function gateOf(slug: string, files: { record?: (r: Record<string, unknown>) => unknown; timeline?: (t: Record<string, unknown>) => unknown }): Promise<string> {
     const b = buildState(root, 'ctl', { slug });
@@ -200,7 +200,7 @@ describe('the record a run ends with (a real dry run per outcome)', () => {
     return [lines[0].type, lines[0].run?.status, lines[lines.length - 1].type, lines[lines.length - 1].run?.status];
   };
 
-  it('a pre-assigned run id that is no run id is refused before any folder is made (L7.6a)', async () => {
+  it('a pre-assigned run id that is no run id is refused before any folder is made', async () => {
     // Before the lot any text was taken as the folder's name, a path included.
     for (const id of ['../elsewhere', 'a/b', '.hidden', '', 'a'.repeat(201)]) {
       await expect(run('never', { scenes: [{ id: 'one', open: '/dry.html', steps: [{ click: 'Other' }] }] }, { runId: id }), id).rejects.toThrow(

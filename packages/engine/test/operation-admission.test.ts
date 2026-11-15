@@ -150,7 +150,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe.skipIf(!canRun)('admission stays inside the submits: once per call, before the job (L7.15)', () => {
+describe.skipIf(!canRun)('admission stays inside the submits: once per call, before the job', () => {
   it('every operation the catalogue holds to admission rules is an engine operation, with a case here', () => {
     const admitted = CATALOGUE.filter((o) => o.admission?.length).map((o) => o.name);
     expect([...admitted].sort()).toEqual(Object.keys(CASES).sort());

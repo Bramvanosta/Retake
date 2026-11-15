@@ -306,7 +306,7 @@ describe('the Set-up sheet', () => {
     await again.close();
   }, 120_000);
 
-  it('critique H1: from a translocated copy — "Move Retake to Applications", the command and Claude off (its a11y tour)', async () => {
+  it('from a translocated copy — "Move Retake to Applications", the command and Claude off (its a11y tour)', async () => {
     ctx = machine({ bundle: moved });
     const p = await open(true, '#/setup');
     await expect.poll(() => isOpen(p), POLL).toBe(true);

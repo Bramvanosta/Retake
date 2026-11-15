@@ -61,7 +61,7 @@ beforeAll(async () => {
   registry = await loadComponentRegistry({ root: REPO });
 });
 
-describe('multi-page clips in the review (L2.11)', () => {
+describe('multi-page clips in the review', () => {
   it('each click lands on its page’s pane; the fixture split and pip pass the cursor, tutorial and cover checks', async () => {
     for (const [name, variant, theme] of [
       ['live-quote', 'landscape', 'editorial'],

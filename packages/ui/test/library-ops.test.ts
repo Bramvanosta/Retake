@@ -112,7 +112,7 @@ describe('library_view', () => {
     expect((await call('library_view', { project: P, theme: '../../templates/editorial' })).status).toBe(400);
   });
 
-  it('⚑ B5: a component file rewritten in place is a new key at once; an unrelated re-read keeps it', async () => {
+  it('⚑ a component file rewritten in place is a new key at once; an unrelated re-read keeps it', async () => {
     const before = item((await viewOf()).data, 'acme/marked').poster.key;
     expect(item((await viewOf()).data, 'acme/marked').poster.key).toBe(before);
     // In place: the folder's mtime does not move — only the file's.
@@ -125,7 +125,7 @@ describe('library_view', () => {
 });
 
 describe('library_images', () => {
-  it('cached posters and loops by key (magic-checked); ⚑ committed posters of built-ins only (B15); the largest committed poster fits (B6)', async () => {
+  it('cached posters and loops by key (magic-checked); ⚑ committed posters of built-ins only; the largest committed poster fits', async () => {
     const v = (await viewOf()).data;
     const m = item(v, 'acme/marked');
     const other = item(v, 'studio/card-title');
@@ -171,7 +171,7 @@ describe('library_images', () => {
 });
 
 describe('library_render', () => {
-  it('⚑ queues at most 12 components; keys already queued are skipped and nothing left queues no job (C1); the view says queued', async () => {
+  it('⚑ queues at most 12 components; keys already queued are skipped and nothing left queues no job; the view says queued', async () => {
     // Nothing else queued (another case's jobs cancelled), and the preview jobs there before this case set aside.
     for (const j of await studio.engine.jobs.list({ project: P, kinds: ['preview'], states: ['queued'] })) await studio.engine.jobs.cancel(j.id);
     const before = new Set((await studio.engine.jobs.list({ project: P, kinds: ['preview'] })).map((j) => j.id));
@@ -218,7 +218,7 @@ describe('library_render', () => {
   });
 });
 
-describe('library_component (part D1)', () => {
+describe('library_component', () => {
   it('⚑ the detail: kit, slots, params; every manifest word only under untrusted; path-free', async () => {
     const dir = join(ws, 'components', 'acme', 'marked');
     await writeFile(join(dir, 'README.md'), `# Marked\n\nIts code is ${dir}/index.tsx — ${HOSTILE}\n`);
@@ -265,7 +265,7 @@ async function workUntil(id: string, test: { backend?: PreviewBackend; freeBytes
   }
 }
 
-describe('failures on the page (L4.7 review A L2 / B H1)', () => {
+describe('failures on the page', () => {
   it("⚑ a failure's reason is path-free under untrusted; a library job that failed as a whole shows its error until one succeeds", async () => {
     // Nothing else queued: earlier tests' jobs cancelled.
     for (const j of await studio.engine.jobs.list({ project: P, kinds: ['preview'], states: ['queued'] })) await studio.engine.jobs.cancel(j.id);

@@ -287,7 +287,7 @@ describe('the Studio in Chromium', () => {
     expect(await page.getByTestId('save-state').innerText()).toBe('No changes');
   });
 
-  it('seven more tabs: one event stream for the browser, every call answers at once, a change reaches a follower; the stream passes on (B1)', async () => {
+  it('seven more tabs: one event stream for the browser, every call answers at once, a change reaches a follower; the stream passes on', async () => {
     expect(studio.streams).toBe(1);
     const tabs: Page[] = [];
     for (let i = 0; i < 7; i++) {

@@ -116,7 +116,7 @@ describe('templateSceneEntry (R-RUN-16)', () => {
   });
 });
 
-describe('display URLs in edit text (L1.7, R-ENV-01)', () => {
+describe('display URLs in edit text (R-ENV-01)', () => {
   const env = { pages: { shop: 'http://localhost:4402', console: 'http://localhost:4401/app' }, display: { shop: 'https://shop.example.com' } };
   const edit: TemplateContext = { ...ctx, pages: displayPages(env) };
 

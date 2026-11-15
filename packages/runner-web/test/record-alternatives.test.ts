@@ -103,7 +103,7 @@ const quantile = (xs: number[], q: number) => {
 };
 const pressMs = (r: RecordSessionResult) => r.events.filter((e): e is Pointer => e.kind === 'pointer' && e.via === 'pointer').map((e) => e.ms);
 
-describe('recordSession: alternative targets (L4.8)', () => {
+describe('recordSession: alternative targets', () => {
   it('up to three per action, each resolving once to the pressed element in the window; never positional; none for a secret field', async () => {
     let checks: Array<{ seq: number; ok: boolean[] }> = [];
     const { r, bytes } = await record(async (page, seen) => {

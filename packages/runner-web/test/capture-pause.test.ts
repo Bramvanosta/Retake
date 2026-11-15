@@ -120,7 +120,7 @@ describe('the capture clock with pauses', () => {
     expect(c.now() - at).toBeLessThan(0.5);
   });
 
-  it('the pause closes at the paint time of the first fresh frame after the recorders re-attach: a slow re-attach leaves no gap (B3)', async () => {
+  it('the pause closes at the paint time of the first fresh frame after the recorders re-attach: a slow re-attach leaves no gap', async () => {
     const wall = () => performance.timeOrigin + performance.now();
     /** A recorder whose re-attach takes `attachMs`, then sends its first frame 5 ms later. */
     const fake = (attachMs: number) => {
@@ -408,7 +408,7 @@ describe('a capture paused between steps (real Chromium, an animated board)', ()
     expect(Math.max(0, ...near.map(([, n]) => n)), JSON.stringify(near)).toBeLessThan(4);
   });
 
-  it('the click ripple played out before the pause, and the motion check reports no freeze there (B3)', () => {
+  it('the click ripple played out before the pause, and the motion check reports no freeze there', () => {
     const presses = (paused.tl.cursor_effects ?? []).filter((e) => (e.type === 'press' || e.type === 'ripple') && e.t <= P);
     expect(presses.length).toBeGreaterThan(0);
     expect(P - Math.max(...presses.map((e) => e.t))).toBeGreaterThanOrEqual(0.55);
@@ -418,7 +418,7 @@ describe('a capture paused between steps (real Chromium, an animated board)', ()
     expect(paused.tl.warnings.filter((w) => /froze|choppy/.test(w))).toEqual([]);
   });
 
-  it.skipIf(!MAC_TIMING)('the page loads held before and after the pause are where the frames show them (B1)', () => {
+  it.skipIf(!MAC_TIMING)('the page loads held before and after the pause are where the frames show them', () => {
     const loads = heldLoads(paused.tl);
     expect(loads, JSON.stringify(paused.tl.loading)).toHaveLength(2);
     const ev = (step: number) => paused.tl.events.find((e) => e.scene === 'board' && e.step === step)!;

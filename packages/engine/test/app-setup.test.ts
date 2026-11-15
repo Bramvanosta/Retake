@@ -1,7 +1,7 @@
 /**
  * The installed app's first run and integrations (@retake/engine/integrations, app-setup.ts), on scratch
  * folders only (a scratch HOME, fake apps, a fake `claude`, scratch Claude Desktop configs — never the person's): where
- * the app runs from, the `retake` command's link (plan §4), `<home>/app.json`, the Claude
+ * the app runs from, the `retake` command's link, `<home>/app.json`, the Claude
  * Desktop merge and the Claude Code runner (argv, no shell, a small environment, the time limit), and
  * which copy of Retake an engine is. And: the runner answers on its process's exit (a helper
  * holding the pipes never keeps it waiting), another copy's launcher is told by its app's identifier (look-alikes are
@@ -74,7 +74,7 @@ function fakeApp(dir: string, name = 'Retake', id: string | null = APP_BUNDLE_ID
   return { app: join(dir, `${name}.app`), launcher };
 }
 
-describe('where the app runs from (critique H1)', () => {
+describe('where the app runs from', () => {
   it('a translocated copy, a read-only volume and /Volumes are told apart from an installed app — the same cases as desktop_core', () => {
     expect(installLocation('/private/var/folders/xy/T/AppTranslocation/0A1B-2C3D/d/Retake.app', { readOnly: false })).toBe('translocated');
     expect(installLocation('/private/var/folders/xy/T/AppTranslocation/0A1B-2C3D/d/Retake.app', { readOnly: true })).toBe('translocated');
@@ -104,7 +104,7 @@ describe('where the app runs from (critique H1)', () => {
   });
 });
 
-describe('the retake command (plan §4)', () => {
+describe('the retake command', () => {
   it('links the default folder (created), keeps its own link, runs the app through the link, removes only its own', () => {
     const home = scratch('home');
     const { launcher } = fakeApp(scratch('apps'));
@@ -169,7 +169,7 @@ describe('the retake command (plan §4)', () => {
     expect(removeCliLink(link, launcher)).toBe('removed');
   });
 
-  it("review c B-M3: a look-alike of an app launcher is the person's file — the exact layout AND Retake's identifier make another copy", () => {
+  it("a look-alike of an app launcher is the person's file — the exact layout AND Retake's identifier make another copy", () => {
     const home = scratch('home');
     const dir = defaultCliDir(home);
     mkdirSync(dir, { recursive: true });
@@ -227,7 +227,7 @@ describe('the retake command (plan §4)', () => {
     expect(zshPathLine("/opt/it's", '/Users/me')).toBe(`export PATH='/opt/it'\\''s'":$PATH"`);
   });
 
-  it('review c A-L1 / B-L6: the zsh line, evaluated by zsh, puts the folder first and runs nothing — $(cmd), backticks, quotes, a backslash, a space', () => {
+  it('the zsh line, evaluated by zsh, puts the folder first and runs nothing — $(cmd), backticks, quotes, a backslash, a space', () => {
     const home = scratch('zhome');
     const marker = join(home, 'PWNED');
     const names = ['tools/$(touch PWNED)', 'a`touch PWNED`b', "it's", 'my "bin"', 'back\\slash', 'with space', 'a$b', '${HOME}x', 'plain/bin'];
@@ -299,7 +299,7 @@ const ENTRY = {
   env: { PATH: '/usr/bin:/bin' },
 };
 
-describe('Claude Desktop (critique M7)', () => {
+describe('Claude Desktop', () => {
   it('plans the change: created, added beside every other key, the same, a different entry — refusing unparsable JSON and a non-object mcpServers', () => {
     expect(planDesktopEntry(null, ENTRY).kind).toBe('create');
     expect(JSON.parse(planDesktopEntry(null, ENTRY).text)).toEqual({ mcpServers: { retake: ENTRY } });
@@ -412,7 +412,7 @@ describe('Claude Desktop (critique M7)', () => {
   });
 });
 
-describe('Claude Code (plan §4, critique L4)', () => {
+describe('Claude Code', () => {
   it('finds claude in the fixed list only, in order', () => {
     const home = '/Users/me';
     expect(claudeCandidates(home)).toEqual(['/Users/me/.local/bin/claude', '/opt/homebrew/bin/claude', '/usr/local/bin/claude', '/Users/me/.claude/local/claude']);
@@ -476,7 +476,7 @@ describe('Claude Code (plan §4, critique L4)', () => {
   });
 });
 
-describe('Claude Code: a helper that holds the pipes (review c A-M1)', () => {
+describe('Claude Code: a helper that holds the pipes', () => {
   /** A fake claude that leaves a helper in a session of its own holding stdout and stderr; `then`: the script's end. */
   function withHelper(dir: string, then: string): { claude: string; pidFile: string } {
     const pidFile = join(dir, 'helper.pid');
@@ -551,7 +551,7 @@ describe('Claude Code: a helper that holds the pipes (review c A-M1)', () => {
   });
 });
 
-describe('which copy of Retake an engine is (critique M6)', () => {
+describe('which copy of Retake an engine is', () => {
   it('the app it runs from, else the checkout holding it', () => {
     const b = { sealed: '/Applications/Retake.app' } as BundleInfo;
     expect(engineLocation(b)).toBe('/Applications/Retake.app');

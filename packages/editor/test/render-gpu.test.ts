@@ -517,7 +517,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
   );
 
   it(
-    'review B L1: a render failing on the GPU path and again in software keeps the GPU story in its record',
+    'a render failing on the GPU path and again in software keeps the GPU story in its record',
     async () => {
       const err = await renderRun({
         workPolicy: PERSON_POLICY,
@@ -552,7 +552,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
   );
 
   it(
-    "L7.2: the driver's failure says what it tried as `renderPath`, never as `path` (the name a system error gives a file)",
+    "the driver's failure says what it tried as `renderPath`, never as `path` (the name a system error gives a file)",
     async () => {
       const failed = await createRenderer({
         cacheDir: SHARED_CACHE,
@@ -630,7 +630,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
   );
 
   it(
-    "review B M4: the Library's preview backend on the GPU path — no GPU: reopened in software before it is reported or guarded; with one: drawn with ANGLE",
+    "the Library's preview backend on the GPU path — no GPU: reopened in software before it is reported or guarded; with one: drawn with ANGLE",
     async () => {
       const registry = await loadComponentRegistry({ root: ws.root });
       const template = await loadTemplate('editorial', ws.root, { files: fileFacts(PERSON_POLICY) });

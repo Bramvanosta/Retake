@@ -177,7 +177,7 @@ describe('what the result says, and what a deletion leaves', () => {
     for (const id of ['ctl', 'rendered', 'commented', 'unread', 'none']) expect(await engine.projects.prune(built.get(id)!.slug), id).not.toHaveProperty('kept_takes');
   });
 
-  it('a deletion keeps the take that can be edited (A1, A2), the complete one (A3) and what it leaves alone; what it lists still goes', async () => {
+  it('a deletion keeps the take that can be edited, the complete one and what it leaves alone; what it lists still goes', async () => {
     for (const id of ['A1', 'A2', 'A3', 'B1', 'B2', 'B2f']) {
       const b = fresh(id, 'yes');
       const r = await engine.projects.prune(b.slug, { dry_run: false });

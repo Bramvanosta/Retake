@@ -80,7 +80,7 @@ function section(toml: string, name: string): Map<string, string> {
   return entries;
 }
 
-describe('desktop shell configuration (L5.2, static)', () => {
+describe('desktop shell configuration (static)', () => {
   it('tauri.conf.json: no window, no dev URL or frontend folder, no inline capability, no asset protocol, no plugin config; generic id', () => {
     const conf = JSON.parse(read('tauri.conf.json')) as Record<string, any>;
     expect(conf.identifier).toBe('local.retake.desktop');
@@ -212,7 +212,7 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect([...read('Cargo.lock').matchAll(/name = "(tauri-plugin-[a-z-]+)"/g)].map((m) => m[1])).toEqual(['tauri-plugin-updater']);
   });
 
-  it('L5.2b: the quit guard and notifications — the hook added, UN behind the bundle check and never in test mode, no terminate from a Tauri closure', () => {
+  it('the quit guard and notifications — the hook added, UN behind the bundle check and never in test mode, no terminate from a Tauri closure', () => {
     const src = rustSources();
     const guard = read('src/guard.rs');
     const notify = read('src/notify.rs');
@@ -291,7 +291,7 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(read('src/child.rs')).toContain('self.proc.as_ref().map(|_| lock(&self.pending).clone())');
   });
 
-  it("⚑ L5.12d: the quit question in the page — the detail's keys, events and id rule the same in Rust and the page; no TerminateLater; the page only for a plain Quit on the Studio's origin; every exit closes it", () => {
+  it("⚑ the quit question in the page — the detail's keys, events and id rule the same in Rust and the page; no TerminateLater; the page only for a plain Quit on the Studio's origin; every exit closes it", () => {
     const flow = read('core/src/guard_flow.rs');
     const guard = read('src/guard.rs');
     const main = read('src/main.rs');
@@ -336,7 +336,7 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(guard).toMatch(/pub fn confirm_open_other\([\s\S]{0,400}drop_page_question\(app\);/);
   });
 
-  it('L5.2b review B L8: the pipe enum lists are the same in TypeScript (server, page) and Rust (desktop_core pipe.rs)', () => {
+  it('the pipe enum lists are the same in TypeScript (server, page) and Rust (desktop_core pipe.rs)', () => {
     const ui = (f: string) => readFileSync(join(REPO, 'packages', 'ui', 'src', f), 'utf8');
     const tsList = (src: string, name: string) => {
       const m = new RegExp(`export const ${name} = \\[([^\\]]*)\\] as const;`).exec(src);
@@ -402,7 +402,7 @@ describe('desktop shell configuration (L5.2, static)', () => {
     for (const p of ['apps/desktop/target/', 'apps/desktop/core/target/', 'apps/desktop/gen/']) expect(ignore).toContain(p);
   });
 
-  it("⚑ L5.13b: the icns's 16 and 32 pt slots are the drawn icons — all four required, each a PNG of its slot's size (no silent sips fallback)", async () => {
+  it("⚑ the icns's 16 and 32 pt slots are the drawn icons — all four required, each a PNG of its slot's size (no silent sips fallback)", async () => {
     type Drawn = { DRAWN_ICONS: Record<string, number>; drawnIconProblems: (dir?: string) => string[] };
     const { DRAWN_ICONS, drawnIconProblems } = (await import(join(APP, 'scripts', 'desktop.mjs'))) as Drawn;
     expect(DRAWN_ICONS).toEqual({ 'icon_16x16.png': 16, 'icon_16x16@2x.png': 32, 'icon_32x32.png': 32, 'icon_32x32@2x.png': 64 });
@@ -480,7 +480,7 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(read('src/main.rs')).toContain('pub const BIN: &str = env!("CARGO_PKG_NAME");');
   });
 
-  it("⚑ L5.9: the menu's page commands are the page's MENU_COMMANDS (one list each side, compared); the flag script is a constant", () => {
+  it("⚑ the menu's page commands are the page's MENU_COMMANDS (one list each side, compared); the flag script is a constant", () => {
     const menu = read('src/menu.rs');
     const page = [...menu.matchAll(/Item::Page \{ id: "([^"]+)", label: "[^"]+", accelerator: Some\("[^"]+"\) \}/g)].map((m) => m[1]);
     expect(page.sort()).toEqual([...MENU_COMMANDS].sort());
@@ -496,7 +496,7 @@ describe('desktop shell configuration (L5.2, static)', () => {
   });
 });
 
-describe("L5.16c: the installed app's first run and Set-up sheet, shell side (static)", () => {
+describe("the installed app's first run and Set-up sheet, shell side (static)", () => {
   it("the Help menu: Set Up …, Install / Uninstall the retake Command…, no keys, through the page's Set-up sheet", () => {
     const menu = read('src/menu.rs');
     const help = /\(\s*"Help",\s*&\[([\s\S]*?)\],\s*\),/.exec(menu)?.[1] ?? '';
@@ -535,7 +535,7 @@ describe("L5.16c: the installed app's first run and Set-up sheet, shell side (st
   });
 });
 
-describe('L5.16d: the updater, shell side (static)', () => {
+describe('the updater, shell side (static)', () => {
   it('Help › Check for Updates…, the update click from the pipe, Install and Restart through the quit guard, the swap at the exit', () => {
     const main = read('src/main.rs');
     expect(main).toContain('menu::CHECK_UPDATES => update::check_menu(app),');

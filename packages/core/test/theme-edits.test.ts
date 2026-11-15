@@ -282,7 +282,7 @@ describe('theme set_field: the allow-list and value checks (⚑ nothing else is 
   });
 });
 
-describe('theme set_background (critique B7a: type and colours in one write)', () => {
+describe('theme set_background (type and colours in one write)', () => {
   it('radial → solid → linear on the starters: one line, comments kept, the theme valid', () => {
     const t = starter('editorial');
     const solid = applied(t, { kind: 'set_background', from: { type: 'radial', from: '#f8f4ef', to: '#ebe4dc' }, to: { type: 'solid', color: '#FFFFFF' } });
@@ -325,7 +325,7 @@ describe('theme set_background (critique B7a: type and colours in one write)', (
   });
 });
 
-describe('theme set_component (critique B7b / B7c)', () => {
+describe('theme set_component', () => {
   it('a changed component removes the legacy fields it now contradicts, named; no warning is left', () => {
     const e = starter('editorial');
     expect(warningsOf(e)).toEqual([]);

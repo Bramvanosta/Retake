@@ -84,7 +84,7 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe('theme view (L4.7)', () => {
+describe('theme view', () => {
   it('fields, components, fonts and images checked, palette checks, used by — path-free', async () => {
     const v = await engine.templates.view('brand');
     expect(v).toMatchObject({ name: 'brand', source: 'workspace', editable: true, sha256: sha(ORIGINAL), yaml: ORIGINAL, issues: [], warnings: [] });
@@ -121,7 +121,7 @@ describe('theme view (L4.7)', () => {
     for (const bad of [root, themeDir(), '/Users/', tmpdir()]) expect(json, bad).not.toContain(bad);
   });
 
-  it("review B L6: used_by is memoised on the projects' file-level signature (no re-parse while nothing moved)", async () => {
+  it("used_by is memoised on the projects' file-level signature (no re-parse while nothing moved)", async () => {
     await engine.templates.view('brand');
     const n = THEME_USES_STATS.computed;
     await engine.templates.view('brand');
@@ -139,7 +139,7 @@ describe('theme view (L4.7)', () => {
     expect((await engine.templates.view('brand')).used_by).toEqual({ projects: ['demo'], scenarios: [{ project: 'demo', scenario: 'q' }] });
   });
 
-  it("⚑ editable by real path (critique B15): starters, the repository's starters, links and hard links are read-only with why", async () => {
+  it("⚑ editable by real path: starters, the repository's starters, links and hard links are read-only with why", async () => {
     expect((await engine.templates.view('motion')).editable).toEqual({ why: expect.stringMatching(/starter theme shipped with Retake: copy it to edit it/) });
     // The repository as a workspace lists its starters as `workspace` (templates_dir: templates): still not editable.
     const repoWs = await openWorkspace({ root: REPO, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
@@ -172,7 +172,7 @@ describe('theme view (L4.7)', () => {
   });
 });
 
-describe('theme edit (L4.7)', () => {
+describe('theme edit', () => {
   it('a field written: the file spliced, the new hash, the label; the next edit takes the new hash', async () => {
     const hash = await reset();
     const r = await engine.templates.edit('brand', { if_match: hash, edit: { kind: 'set_field', field: 'colors.accent', from: '#8a2332', to: '#123456', ripple: true } });
@@ -271,7 +271,7 @@ describe('theme edit (L4.7)', () => {
     expect(ok.sha256).not.toBe(hash);
   });
 
-  it('⚑ restore (critique B14): only a version shown or written, byte-exact; made-up text refused', async () => {
+  it('⚑ restore: only a version shown or written, byte-exact; made-up text refused', async () => {
     const hash = await reset();
     const r = await engine.templates.edit('brand', { if_match: hash, edit: { kind: 'set_field', field: 'brand.name', from: 'Atelier', to: 'Northfield' } });
     const back = await engine.templates.edit('brand', { if_match: r.sha256, edit: { kind: 'restore', text: ORIGINAL, text_hash: sha(ORIGINAL) } });
@@ -300,7 +300,7 @@ describe('theme edit (L4.7)', () => {
   });
 });
 
-describe("a scenario's theme (critique B1)", () => {
+describe("a scenario's theme", () => {
   it('set_field template takes a theme the workspace lists, never another name', async () => {
     const s = await engine.scenarios.get('demo', 'other');
     const e = await failure(engine.scenarios.edit('demo', 'other', { hash: s.hash, edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', to: 'nope' } }));

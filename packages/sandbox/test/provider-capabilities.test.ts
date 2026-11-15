@@ -37,7 +37,7 @@ const ctxOf = (s: LoadedSandbox): ProviderContext => ({
   hookRunner: packageHooks,
 });
 
-describe('the providers declare their capabilities (X8)', () => {
+describe('the providers declare their capabilities', () => {
   it('the process provider has none, the docker-compose provider all; providerFor picks by kind', () => {
     expect(Object.keys(PROCESS_CAPABILITIES).sort()).toEqual([...NAMES].sort());
     expect(Object.keys(COMPOSE_CAPABILITIES).sort()).toEqual([...NAMES].sort());

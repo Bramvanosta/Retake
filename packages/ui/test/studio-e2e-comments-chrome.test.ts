@@ -199,7 +199,7 @@ afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-describe.skipIf(!gated)('frame comments on the fixture product in the installed Google Chrome (L4.6 part E)', () => {
+describe.skipIf(!gated)('frame comments on the fixture product in the installed Google Chrome', () => {
   it("capture highlights, Render from its timeline; Comment at the total; a region; Post → a studio thread at the viewer's frame", async () => {
     // The capture (the worker in this process), then Render from the timeline: the files' theme, reviewed inline.
     const sub = await studio.engine.runs.submit({ project: P, scenario: S, mode: 'capture' });

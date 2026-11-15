@@ -116,7 +116,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('a proposal written (T3)', () => {
+describe('a proposal written', () => {
   it('stored as the canonical diff of the exact bytes Apply writes (final line break added), the scenario untouched; the view says pending', async () => {
     const id = await setup('quote', TEXT);
     const before = await bytes('quote', id);
@@ -141,7 +141,7 @@ describe('a proposal written (T3)', () => {
     expect(JSON.stringify(listed)).not.toContain('A short caption');
   });
 
-  it('the view (critique B1 / B15): rows computed from the file with context, verified; same take; lines only under untrusted', async () => {
+  it('the view: rows computed from the file with context, verified; same take; lines only under untrusted', async () => {
     const id = await setup('view', TEXT);
     await propose('view', id, SHORTER, sha(TEXT));
     const v = await mcp.comments.proposal('w', id);
@@ -156,7 +156,7 @@ describe('a proposal written (T3)', () => {
     expect(v.rewrites_pct).toBe(8);
   });
 
-  it('⚑ the rows read like the files (L4.6 part D2): close changes share their context, no line twice — context and removed rows (and gaps) are the base in order, context and added rows the result', async () => {
+  it('⚑ the rows read like the files: close changes share their context, no line twice — context and removed rows (and gaps) are the base in order, context and added rows the result', async () => {
     const id = await setup('rows', TEXT);
     const next = TEXT.replace('title: {text: Quote}\n', 'title: {text: Quote} \n')
       .replace('outro: false\n', 'outro: false\n# a note\n')
@@ -190,7 +190,7 @@ describe('a proposal written (T3)', () => {
     expect(after).toEqual(result);
   });
 
-  it('⚑ a file without its final line break: once applied the proposal still reads verified, with its context (review B L1)', async () => {
+  it('⚑ a file without its final line break: once applied the proposal still reads verified, with its context', async () => {
     const bare = TEXT.trimEnd();
     const id = await setup('bare', bare);
     const w = await propose('bare', id, SHORTER, sha(bare));
@@ -218,7 +218,7 @@ describe('a proposal written (T3)', () => {
   });
 });
 
-describe('⚑ write-time refusals: nothing written (T3)', () => {
+describe('⚑ write-time refusals: nothing written', () => {
   const refused = async (scenario: string, base: string, yaml: string, check: (e: Error) => void, o: { hash?: string; engine?: Engine; resolved?: boolean } = {}) => {
     const id = await setup(scenario, base, o.resolved ? { resolved: true } : {});
     const before = await bytes(scenario, id);
@@ -262,7 +262,7 @@ describe('⚑ write-time refusals: nothing written (T3)', () => {
     });
   });
 
-  it('⚑ edit-only (critique B2): a change of what a capture films is refused with its filmed changes — the direct loop', async () => {
+  it('⚑ edit-only: a change of what a capture films is refused with its filmed changes — the direct loop', async () => {
     await refused('filmed', TEXT, TEXT.replace('      - hold: 1', '      - hold: 2'), (e) => {
       expect(e).toMatchObject({ code: 'refused', details: { filmed_changes: ['scene a: step a.0 changed'] } });
       expect(e.message).toMatch(/^not proposed: this changes what a capture films .*save a filmed change with scenario_save, capture again/);
@@ -283,7 +283,7 @@ describe('⚑ write-time refusals: nothing written (T3)', () => {
     expect(await failure(propose('gone', id, SHORTER, sha(TEXT)))).toMatchObject({ code: 'not_found' });
   });
 
-  it('⚑ caps (critique B13): a line over 2,000 UTF-16 units, 30,000 characters, 200 changed lines; a hidden character added; line breaks', async () => {
+  it('⚑ caps: a line over 2,000 UTF-16 units, 30,000 characters, 200 changed lines; a hidden character added; line breaks', async () => {
     await refused('long', TEXT, TEXT.replace('A very long caption that says too much', 'x'.repeat(1990)), (e) =>
       expect(e).toMatchObject({ code: 'invalid', message: expect.stringMatching(/a line of 2003 characters \(UTF-16 units\): at most 2000/) }),
     );
@@ -303,7 +303,7 @@ describe('⚑ write-time refusals: nothing written (T3)', () => {
     );
   });
 
-  it('⚑ critique B10: a line holding a hidden character is never removed or changed by a proposal', async () => {
+  it('⚑ a line holding a hidden character is never removed or changed by a proposal', async () => {
     const hidden = TEXT.replace('A very long caption that says too much', 'A very long⁠ caption');
     await refused('hiddenline', hidden, SHORTER, (e) => {
       expect(e).toMatchObject({ code: 'refused', details: { line: 9 } });
@@ -311,7 +311,7 @@ describe('⚑ write-time refusals: nothing written (T3)', () => {
     });
   });
 
-  it('⚑ fixes after the reviews: a diff of more than 600 rows (review A M1), a theme change (review A L3), half a character (review A L6) are refused', async () => {
+  it('⚑ the limits of a proposal: a diff of more than 600 rows, a theme change, half a character are refused', async () => {
     // 100 one-line changes spread through a long file: within 200 changed lines, but 800 rows with their context.
     const notes = Array.from({ length: 100 }, (_, i) => `# note ${i}\n# keep a\n# keep b\n# keep c\n# keep d\n# keep e\n# keep f\n# keep g`).join('\n');
     const long = `${TEXT}${notes}\n`;
@@ -337,7 +337,7 @@ describe('⚑ write-time refusals: nothing written (T3)', () => {
     );
   });
 
-  it('⚑ critique B10: only the MCP proposes — the Studio and a terminal are refused (a person changes the file)', async () => {
+  it('⚑ only the MCP proposes — the Studio and a terminal are refused (a person changes the file)', async () => {
     for (const engine of [ui, cli]) {
       await refused('person', TEXT, SHORTER, (e) => expect(e).toMatchObject({ code: 'refused', message: expect.stringMatching(/a proposal comes from Claude \(comment_reply over MCP\)/) }), {
         engine,

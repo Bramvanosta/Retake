@@ -188,7 +188,7 @@ describe('applyRecordChange', () => {
   });
 });
 
-describe('after the reviews of L4.8', () => {
+describe("the annotations' edge cases", () => {
   const el = (alternatives?: unknown) => ({
     target: { label: 'Customer' },
     matches: 1,
@@ -232,12 +232,12 @@ describe('after the reviews of L4.8', () => {
   ].map((e) => RecordedEventSchema.parse(e));
   const apply = (a: RecordAnnotations, change: unknown) => applyRecordChange(a, RecordAnnotationChangeSchema.parse(change), events);
 
-  it('A-M3: an alternative holding a hidden character is never offered, so never chosen', () => {
+  it('an alternative holding a hidden character is never offered, so never chosen', () => {
     expect(apply(emptyRecordAnnotations(), { op: 'choose', seq: 1, index: 1 })).toMatchObject({ error: { code: 'invalid' } });
     expect(apply(emptyRecordAnnotations(), { op: 'choose', seq: 1, index: 2 })).toMatchObject({ annotations: { choices: { '1': 2 } } });
   });
 
-  it("B-H1: an insert after the recorder's wait row keeps `row: wait`; after an insert row, that insert's anchor and `after_insert`", () => {
+  it("an insert after the recorder's wait row keeps `row: wait`; after an insert row, that insert's anchor and `after_insert`", () => {
     let a = emptyRecordAnnotations();
     const r1 = apply(a, { op: 'insert', at: { after_step_seq: 2, row: 'wait' }, insert: { kind: 'hold', seconds: 2 } });
     a = (r1 as { annotations: RecordAnnotations }).annotations;
@@ -251,7 +251,7 @@ describe('after the reviews of L4.8', () => {
     expect(RecordAnnotationChangeSchema.safeParse({ op: 'insert', at: { after_step: 3 }, insert: { kind: 'hold', seconds: 2 } }).success).toBe(false);
   });
 
-  it("B-M3: the zoom factors and default under a theme's max_zoom", () => {
+  it("the zoom factors and default under a theme's max_zoom", () => {
     expect(recordZoomOptions(1.4)).toEqual({ options: [1.25, 1.4], default: 1.4 });
     expect(recordZoomOptions(1.6)).toEqual({ options: [1.25, 1.5, 1.6], default: 1.5 });
     expect(recordZoomOptions(3)).toEqual({ options: [1.25, 1.5, 2], default: 1.5 });
@@ -261,7 +261,7 @@ describe('after the reviews of L4.8', () => {
     for (const zoom of recordZoomOptions(1.333)!.options) expect(okValues({ kind: 'camera', zoom, until: 'step_end' }), String(zoom)).toBe(true);
   });
 
-  it('A-N2: a saved scenario in studio.json is a slug and its own scenarios/<name>.yaml', () => {
+  it('a saved scenario in studio.json is a slug and its own scenarios/<name>.yaml', () => {
     const saved = (name: string, file: string) =>
       RecordAnnotationsSchema.safeParse({ v: 1, rev: 1, choices: {}, inserts: [], saved: { name, file, hash: 'a'.repeat(64), at: '2026-10-28T10:00:00.000Z' } }).success;
     expect(saved('quote', 'scenarios/quote.yaml')).toBe(true);

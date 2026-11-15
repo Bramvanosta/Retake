@@ -250,7 +250,7 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
     expect(typed[1].data).toMatchObject({ clear: 'setter', rate: 'search', cps: 10 });
   });
 
-  it('L5.14: a capture holds one filming marker while it films — none while its setup or teardown hooks run (sampled inside them), none after; a dry run writes none', async () => {
+  it('a capture holds one filming marker while it films — none while its setup or teardown hooks run (sampled inside them), none after; a dry run writes none', async () => {
     const dir = process.env.RETAKE_CAPTURES_DIR!;
     expect(dir).toBeTruthy();
     const markers = async () => (await readdir(dir).catch(() => [] as string[])).filter((n) => /^k_.*\.json$/.test(n));
@@ -296,7 +296,7 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
     }
   });
 
-  it('L5.14a fixes (review B H2): run --raw waits for another take before its raw export, then exports', async () => {
+  it('run --raw waits for another take before its raw export, then exports', async () => {
     // Another take: a marker of a live sibling process (not an ancestor of this one), beating from here.
     const dir = process.env.RETAKE_CAPTURES_DIR!;
     const sib = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });

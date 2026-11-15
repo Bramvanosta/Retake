@@ -179,7 +179,7 @@ describe('render jobs on the renderer the worker was handed', () => {
 });
 
 describe('one renderer, and nothing beside it', () => {
-  it('a worker is handed one renderer (L7.29): with a preview backend made a renderer of its own (withPreviewBackend), a library preview draws on the backend while a render draws its video on the base renderer', async () => {
+  it('a worker is handed one renderer: with a preview backend made a renderer of its own (withPreviewBackend), a library preview draws on the backend while a render draws its video on the base renderer', async () => {
     const fake = new MemoryRenderer();
     const drawn: string[] = [];
     // A stand-in for the editor's preview driver (Remotion): bundle folders, small PNG / GIF files.

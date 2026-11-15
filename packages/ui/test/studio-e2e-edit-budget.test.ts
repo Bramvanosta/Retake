@@ -104,7 +104,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe.skipIf(!canRun)('Edit with 1,200 steps (L5.12a)', () => {
+describe.skipIf(!canRun)('Edit with 1,200 steps', () => {
   it('⚑ the first paint within the budget; ten playhead moves render no track item and change nothing in the tracks', async () => {
     const t0 = Date.now();
     await page.goto(`${studio.url}#/p/demo/s/bits/timeline`);

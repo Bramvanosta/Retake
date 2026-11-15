@@ -113,7 +113,7 @@ async function agentReset(approvals: readonly JobApproval[]): Promise<string> {
   }
 }
 
-describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust mcp (L7.8)', () => {
+describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust mcp', () => {
   beforeAll(async () => {
     ws = await mkdtemp(join(tmpdir(), 'retake-reset-hook-approvals-'));
     retakeHome.use(join(ws, '.home'));

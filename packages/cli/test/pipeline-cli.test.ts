@@ -507,7 +507,7 @@ describe('the pipeline commands, held against fixtures/pipeline-cli.json', { shu
     expect(after.length).toBe(INSPECT_KEEP);
   });
 
-  it('render and still say what `latest` passed over and where a capture stopped by --until ends — on stderr, never with --json (L7.6a)', async () => {
+  it('render and still say what `latest` passed over and where a capture stopped by --until ends — on stderr, never with --json', async () => {
     // Not a case of the fixture: its own workspace state, removed after.
     const said = async (...args: string[]) => {
       fakes.calls.length = 0;
@@ -577,7 +577,7 @@ describe('the pipeline commands, held against fixtures/pipeline-cli.json', { shu
     for (const cmd of ['render', 'still', 'export', 'review', 'run', 'inspect']) expect((await retake(`${cmd} --help`, cmd, '--help')).code).toBe(EXIT.ok);
   });
 
-  it("every run and inspection was handed the CLI's hook runner (L7.12)", () => {
+  it("every run and inspection was handed the CLI's hook runner", () => {
     expect(fakes.hookRunners.length).toBeGreaterThan(0);
     for (const h of fakes.hookRunners) expect(h).toBe(cliPorts.hooks);
     // Each run's secrets are resolved through the CLI's Secrets port: its resolver asks the CLI ports' secrets, nothing

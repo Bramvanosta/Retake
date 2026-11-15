@@ -138,7 +138,7 @@ describe("the engine's operations: one definition, served by the shells as it is
     for (const o of OPERATIONS) expect(OPERATIONS_BY_NAME[o.name as keyof typeof OPERATIONS_BY_NAME]).toBe(o);
   });
 
-  it("names the read-only queries too (L7.14): MCP's four, then the Studio's ten, each a read served by one shell only", () => {
+  it("names the read-only queries too: MCP's four, then the Studio's ten, each a read served by one shell only", () => {
     const names = OPERATIONS.map((o) => o.name);
     // In catalogue order among the others (the theme family, the jobs and the hooks left out: the test above holds
     // them).
@@ -368,14 +368,14 @@ describe('invoke', () => {
     expect(toEngineError(bare).message).toBe('a value that cannot be shown as text was thrown');
   });
 
-  it('callTool is gone (L7.21): the contract and @retake/mcp export invoke as the one call', () => {
+  it('callTool is gone: the contract and @retake/mcp export invoke as the one call', () => {
     expect(contract).not.toHaveProperty('callTool');
     expect(mcp).not.toHaveProperty('callTool');
     expect(mcp.invoke).toBe(contract.invoke);
   });
 });
 
-describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
+describe('serialize: one call of a key at a time, per engine', () => {
   const engineA = { caller: callerOf('ui') } as unknown as Engine;
   const engineB = { caller: callerOf('ui') } as unknown as Engine;
   /** A probe on library_render's name (served by the Studio) whose run waits until released. */
@@ -445,7 +445,7 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
     expect(operationChain(engineA)).not.toBe(operationChain(engineB));
   });
 
-  it("theme_edit as defined runs on its theme's key through invoke: two calls of a theme serialise, another theme does not wait (L7.21: callTool's test, on invoke)", async () => {
+  it("theme_edit as defined runs on its theme's key through invoke: two calls of a theme serialise, another theme does not wait (callTool's test, on invoke)", async () => {
     const log: string[] = [];
     const gates = new Map<string, () => void>();
     // theme_edit as defined (its input and serialize), its handler a probe that waits until released.
@@ -512,7 +512,7 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
   });
 });
 
-describe("theme_edit's caller rule (L7.17: editsThemes as the operation's callers)", () => {
+describe("theme_edit's caller rule (editsThemes as the operation's callers)", () => {
   it('refuses the MCP client, after the parse and before the theme is read; every other caller passes', async () => {
     const op = OPERATIONS_BY_NAME.theme_edit;
     expect(op.callers!(callerOf('mcp'), {} as never)).toEqual(
@@ -532,7 +532,7 @@ describe("theme_edit's caller rule (L7.17: editsThemes as the operation's caller
   });
 });
 
-describe("the comment operations (L7.16: the comments façade's caller rules as their callers; the thread chain)", () => {
+describe("the comment operations (the comments façade's caller rules as their callers; the thread chain)", () => {
   const ops = OPERATIONS_BY_NAME;
   const H = 'a'.repeat(64);
   const words = (e: EngineError | undefined) => e && [e.code, e.message, e.details];
@@ -641,7 +641,7 @@ describe("the comment operations (L7.16: the comments façade's caller rules as 
   });
 });
 
-describe("the hooks, environment-reset and sandbox operations (L7.19: MCP's five, with the approver)", () => {
+describe("the hooks, environment-reset and sandbox operations (MCP's five, with the approver)", () => {
   it("are MCP's only, MCP's TOOLS holds them as these objects, with the hints of their facets and no caller rule or key", () => {
     const byName = OPERATIONS_BY_NAME as unknown as Record<string, ToolDef>;
     for (const n of HOOKS_MCP) {
@@ -736,7 +736,7 @@ describe('Engine.caller', () => {
   });
 });
 
-describe("the authoring, recording and project writes (L7.18: the Record screen's caller rule, the approver, the keys)", () => {
+describe("the authoring, recording and project writes (the Record screen's caller rule, the approver, the keys)", () => {
   /** What each Record screen operation refuses, in the façade's words (facade/record-api.ts studioOnly). */
   const SCREEN: Record<string, string> = {
     record_options: 'the recent recordings list',

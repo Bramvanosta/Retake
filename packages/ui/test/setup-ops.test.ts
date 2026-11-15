@@ -193,7 +193,7 @@ describe('the setup ops on one server, case after case', { shuffle: false }, () 
       ctx = machine();
     });
 
-    it('critique H1: from a translocated copy, its disk image or /Volumes, the command and Claude are refused; notifications and Done are not', async () => {
+    it('from a translocated copy, its disk image or /Volumes, the command and Claude are refused; notifications and Done are not', async () => {
       freshWindow();
       const trans = fakeApp(join(base, 'AppTranslocation', '0A1B', 'd'));
       for (const [bundle, ro, loc] of [
@@ -287,7 +287,7 @@ describe('the setup ops on one server, case after case', { shuffle: false }, () 
     });
   });
 
-  describe('the command after a restart (review c B-M1) and the other fixes', () => {
+  describe('the command after a restart, a misplaced app, the process list and Claude Code', () => {
     it('the link the app made in a chosen folder survives a restart: shown as installed, no second link elsewhere, Uninstall takes the recorded one', async () => {
       freshWindow();
       const tools = join(home, 'tools');
@@ -319,7 +319,7 @@ describe('the setup ops on one server, case after case', { shuffle: false }, () 
       expect(existsSync(fallback)).toBe(false);
     });
 
-    it('a folder inside the app is refused when it arrives; the panel is said only once the shell opened it (review c A-L7)', async () => {
+    it('a folder inside the app is refused when it arrives; the panel is said only once the shell opened it', async () => {
       freshWindow();
       await call('setup_cli_choose');
       expect((await call('setup_status')).body.data.cli.panel).toBeUndefined();
@@ -351,7 +351,7 @@ describe('the setup ops on one server, case after case', { shuffle: false }, () 
       ctx = machine();
     });
 
-    it('the process list: read only when asked, at most every PS_EVERY_MS (review c A-L8)', async () => {
+    it('the process list: read only when asked, at most every PS_EVERY_MS', async () => {
       freshPs();
       const before = psCalls;
       await call('setup_status');

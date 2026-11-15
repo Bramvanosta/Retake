@@ -144,7 +144,7 @@ describe('the clock in a session (R-ENV-05)', () => {
     }
   });
 
-  it.skipIf(!MAC_TIMING)("the product's own timers, animation frames and performance stay real (T1: a faked rAF / timer slowed them down)", async () => {
+  it.skipIf(!MAC_TIMING)("the product's own timers, animation frames and performance stay real (a faked rAF / timer slowed them down)", async () => {
     const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const page = await session.page('main');
@@ -214,7 +214,7 @@ describe('the clock in a session (R-ENV-05)', () => {
     }
   });
 
-  it('a page kept on the real time (session check, sign-in) never gets the clock: its documents and frames included (T5)', async () => {
+  it('a page kept on the real time (session check, sign-in) never gets the clock: its documents and frames included', async () => {
     const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const real = await session.page('check');
@@ -241,7 +241,7 @@ describe('the clock in a session (R-ENV-05)', () => {
   });
 });
 
-describe('the kit keeps its own time sources (L1.7 hardening)', () => {
+describe('the kit keeps its own time sources', () => {
   it('a page that breaks its timers and frames, under a clock: cursor effects carry the real time, scrollAnimate lasts its real duration, afterPaint resolves', async () => {
     const effects: CursorEffectPayload[] = [];
     const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });

@@ -256,7 +256,7 @@ describe('timeline helpers', () => {
     expect(motionCapture(dense, sparse, 18)).toMatchObject({ moves: 1, slow: 1 });
   });
 
-  it('reports stalls: frame gaps ≥ 150 ms (STALL_MIN_S) while the cursor moves or a click ripple plays, not while it rests (L1.3)', () => {
+  it('reports stalls: frame gaps ≥ 150 ms (STALL_MIN_S) while the cursor moves or a click ripple plays, not while it rests', () => {
     // A 0.6 s move sampled at 60 Hz, then a rest, then a press / release at the same point and its ripple at 3.0 s.
     const move = Array.from({ length: 37 }, (_, i) => ({ t: 1 + i / 60, x: 100 + i * 10, y: 100, visible: true }));
     // A click right after the move (same group: < 0.25 s apart), then a second click at 3.0 s.
@@ -341,7 +341,7 @@ describe('timeline helpers', () => {
     expect(TimelineSchema.safeParse(tl).success).toBe(true);
   });
 
-  it("keeps Chromium's frame rate limiter unless the project turns it off (L1.3)", () => {
+  it("keeps Chromium's frame rate limiter unless the project turns it off", () => {
     expect(frameRateArgs()).toEqual([]);
     expect(frameRateArgs({ frame_rate_limit: true })).toEqual([]);
     expect(frameRateArgs({ frame_rate_limit: false })).toEqual(['--disable-frame-rate-limit']);

@@ -136,7 +136,7 @@ describe("the Studio's per-scenario chain (scenario_edit, scenario_render, threa
     expect(log.filter((l) => !l.includes('edit3'))).toEqual(['start render3', 'end render3', 'start edit2', 'end edit2', 'start render4', 'end render4']);
   });
 
-  it("a thread's writes one at a time on its key; an apply held behind its scenario's edit does not hold its thread, once running it does (L7.16)", async () => {
+  it("a thread's writes one at a time on its key; an apply held behind its scenario's edit does not hold its thread, once running it does", async () => {
     log.length = 0;
     const answers = [edit('quote', 'edit5')];
     await tick();

@@ -41,7 +41,7 @@ function testFiles(): string[] {
 }
 
 describe('the test environment (vitest.config.ts)', () => {
-  it("L5.14: every test file films its takes in a marker folder of its own (0700, under the run's scratch parent), which its children inherit", () => {
+  it("every test file films its takes in a marker folder of its own (0700, under the run's scratch parent), which its children inherit", () => {
     const dir = process.env.RETAKE_CAPTURES_DIR?.trim();
     const parent = process.env.RETAKE_TEST_CAPTURES?.trim();
     expect(dir).toBeTruthy();
@@ -57,7 +57,7 @@ describe('the test environment (vitest.config.ts)', () => {
     expect(retakeHome()).not.toBe(join(homedir(), '.retake'));
   });
 
-  it("L7.37: the shared home helper points RETAKE_HOME at a test's folder and puts back what it found (the run's scratch home), the other variables named with it too, an unset one deleted again", async () => {
+  it("the shared home helper points RETAKE_HOME at a test's folder and puts back what it found (the run's scratch home), the other variables named with it too, an unset one deleted again", async () => {
     // Kept by hand here, the one place (the ratchet's home-restore entry): a broken helper must not leave its own test's home behind.
     const run = process.env.RETAKE_HOME;
     expect(run?.trim()).toBeTruthy();
@@ -93,7 +93,7 @@ describe('the test environment (vitest.config.ts)', () => {
     }
   });
 
-  it('vitest refuses a RETAKE_HOME that is a real home: ~/.retake, or a link to it (review A M3)', () => {
+  it('vitest refuses a RETAKE_HOME that is a real home: ~/.retake, or a link to it', () => {
     const home = mkdtempSync(join(tmpdir(), 'retake-canary-home-'));
     try {
       mkdirSync(join(home, '.retake'));
@@ -114,7 +114,7 @@ describe('the test environment (vitest.config.ts)', () => {
     }
   });
 
-  it('no test file deletes RETAKE_HOME without restoring a saved value (review A M2)', () => {
+  it('no test file deletes RETAKE_HOME without restoring a saved value', () => {
     const files = testFiles();
     expect(files.length).toBeGreaterThan(100);
     // Allowed: a delete under `if (<saved> === undefined)`, or on a line saying HOME is a scratch folder there (the
@@ -130,7 +130,7 @@ describe('the test environment (vitest.config.ts)', () => {
     expect(bare).toEqual([]);
   });
 
-  it('every MCP server a test starts over stdio gets CFFIXED_USER_HOME, a scratch one (L5.16 Library hygiene)', () => {
+  it('every MCP server a test starts over stdio gets CFFIXED_USER_HOME, a scratch one (Library hygiene)', () => {
     expect(process.env.CFFIXED_USER_HOME?.trim()).toBeTruthy();
     expect(process.env.CFFIXED_USER_HOME).not.toBe(userInfo().homedir);
     const starts = testFiles().flatMap((f) => {
@@ -145,7 +145,7 @@ describe('the test environment (vitest.config.ts)', () => {
     expect(starts.filter((s) => !/CFFIXED_USER_HOME: process\.env\.CFFIXED_USER_HOME|\.\.\.process\.env\b|^testChildEnv$/.test(s.env)).map((s) => `${s.at}: ${s.env}`)).toEqual([]);
   });
 
-  it("L5.14a fixes (review B M2): every process environment a test builds by hand carries RETAKE_CAPTURES_DIR (a take there never writes the person's markers folder)", () => {
+  it("every process environment a test builds by hand carries RETAKE_CAPTURES_DIR (a take there never writes the person's markers folder)", () => {
     // A process started with an explicit environment (spawn / spawnSync / execFile / an MCP transport): an `env` literal
     // that names RETAKE_HOME (a scratch home) without spreading process.env must name RETAKE_CAPTURES_DIR too — directly, or
     // through the object it spreads (a file's `env` / `runEnv` set once and spread per start).
@@ -171,7 +171,7 @@ describe('the test environment (vitest.config.ts)', () => {
     expect(missing).toEqual([]);
   });
 
-  it('L5.15 fixes (review B M3): the render pin reaches every process a test starts with its own environment (MCP servers, CLI commands): testChildEnv carries it', () => {
+  it('the render pin reaches every process a test starts with its own environment (MCP servers, CLI commands): testChildEnv carries it', () => {
     // The helper carries the pin of vitest.setup.ts (and the rules above) — whatever this run pinned.
     const env = testChildEnv({ RETAKE_HOME: '/scratch/h' });
     expect(process.env.RETAKE_RENDER_GL?.trim()).toBeTruthy();
@@ -206,7 +206,7 @@ describe('the test environment (vitest.config.ts)', () => {
     expect(unpinned).toEqual([]);
   });
 
-  it("L7.3: the render pin names the ffmpeg of the frames too — the rendering library's — in this process and in every process started through testChildEnv", () => {
+  it("the render pin names the ffmpeg of the frames too — the rendering library's — in this process and in every process started through testChildEnv", () => {
     if (process.env.RETAKE_TEST_RENDER_POLICY === 'keep') return;
     expect(process.env.RETAKE_RENDER_FFMPEG).toBe('library');
     expect(testChildEnv({ RETAKE_HOME: '/scratch/h' })).toMatchObject({ RETAKE_RENDER_FFMPEG: 'library', RETAKE_RENDER_GL: 'software', RETAKE_RENDER_ENCODER: 'libx264' });

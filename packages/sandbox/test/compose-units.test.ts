@@ -408,7 +408,7 @@ describe('the compose provider on a fake docker', () => {
     expect(calls.some((c) => c.includes('--rmi'))).toBe(false);
   });
 
-  it('a renamed compose.project: up refuses while the old name runs, status names what it left, down takes it down from its folder and forgets it once its volumes are gone (K9)', async () => {
+  it('a renamed compose.project: up refuses while the old name runs, status names what it left, down takes it down from its folder and forgets it once its volumes are gone', async () => {
     const project = await composeProjectDir('renamed', ['compose: {project: retake-test-new}', 'services:', '  app: {url: "http://localhost:47408", pages: {app: "http://localhost:47408"}}']);
     const ref = composeProject(project, project.sandboxes!.sandbox);
     let oldPs = psLine({ service: 'app', ports: [47408], wd: ref.dir });
@@ -447,7 +447,7 @@ describe('the compose provider on a fake docker', () => {
     expect(ctx.state.provider_state?.compose).toBeUndefined();
   });
 
-  it('every command reads the project first: status, publishedBy, exec, restart and logs refuse a compose project of the same name made from another folder (K2)', async () => {
+  it('every command reads the project first: status, publishedBy, exec, restart and logs refuse a compose project of the same name made from another folder', async () => {
     const project = await composeProjectDir('other-dir-all', [
       'compose: {project: retake-test-shared2}',
       'services:',
@@ -477,7 +477,7 @@ describe('the compose provider on a fake docker', () => {
     });
   });
 
-  it('another container publishing a port of the sandbox (on [::1] / [::], next to its 127.0.0.1) is refused before up, after up and by publishedBy (K3)', async () => {
+  it('another container publishing a port of the sandbox (on [::1] / [::], next to its 127.0.0.1) is refused before up, after up and by publishedBy', async () => {
     const project = await composeProjectDir('intruder', ['services:', '  app: {url: "http://localhost:47406", pages: {app: "http://localhost:47406"}}']);
     const ref = composeProject(project, project.sandboxes!.sandbox);
     const intruder = JSON.stringify({
@@ -514,7 +514,7 @@ describe('the compose provider on a fake docker', () => {
     expect(await provider.publishedBy(ctxOf(project), 47407)).toBe('db');
   });
 
-  it('parses docker ps and picks the address to connect to: 127.0.0.1 for 0.0.0.0, ::1 for ::, IPv4 first (K3)', () => {
+  it('parses docker ps and picks the address to connect to: 127.0.0.1 for 0.0.0.0, ::1 for ::, IPv4 first', () => {
     const text = [
       JSON.stringify({
         Names: 'a',
@@ -545,7 +545,7 @@ describe('the compose provider on a fake docker', () => {
     expect(connectAddress([])).toBeUndefined();
   });
 
-  it('health checks, a mailbox clear and the snapshot reach the address Docker publishes on, never where localhost resolves first (K3)', async () => {
+  it('health checks, a mailbox clear and the snapshot reach the address Docker publishes on, never where localhost resolves first', async () => {
     // localhost:<port> on ::1 is another program answering 503; the sandbox's own service is on 127.0.0.1:<port>.
     const v4 = createServer((req, res) => {
       seen.push(`v4 ${req.method} ${req.url} host=${req.headers.host}`);
@@ -654,7 +654,7 @@ describe('the compose provider on a fake docker', () => {
     expect(log).not.toContain('from-env-token-7');
   });
 
-  it("exec: the hosts a step names are checked like a shell hook's — a compose service, localhost or an allowed host; never a production one (I5)", async () => {
+  it("exec: the hosts a step names are checked like a shell hook's — a compose service, localhost or an allowed host; never a production one", async () => {
     const project = await composeProjectDir('exechosts', ['services:', '  app: {url: "http://localhost:47402", pages: {app: "http://localhost:47402"}}']);
     project.config.environments.production = { app: 'https://app.example.com' };
     project.config.environment_settings = { ...project.config.environment_settings, production: { production: true } };
@@ -672,7 +672,7 @@ describe('the compose provider on a fake docker', () => {
     expect(calls.filter((c) => c.includes('exec') && c.join(' ').includes('curl')).length).toBe(1);
   });
 
-  it("exec: an interrupt or a timeout stops the step's processes inside the container too, and stays an interrupt (K6)", async () => {
+  it("exec: an interrupt or a timeout stops the step's processes inside the container too, and stays an interrupt", async () => {
     const project = await composeProjectDir('execkill', [
       'services:',
       '  app: {url: "http://localhost:47403", pages: {app: "http://localhost:47403"}}',
@@ -852,7 +852,7 @@ describe('snapshot helpers', () => {
     }
   });
 
-  it("where pg connects is read with pg's own parser: a host / port query parameter or a unix socket is refused (K1)", () => {
+  it("where pg connects is read with pg's own parser: a host / port query parameter or a unix socket is refused", () => {
     expect(pgEndpoint('postgres://demo:pw-4632@localhost:4632/app', 'db')).toEqual({ host: 'localhost', port: 4632, database: 'app', user: 'demo', password: 'pw-4632' });
     expect(pgEndpoint('postgresql://u@[::1]:4632/app', 'db')).toMatchObject({ host: '::1', port: 4632 });
     expect(() => pgEndpoint('postgres://demo:pw@localhost:4882/app?port=5432', 'database main')).toThrow(
@@ -915,7 +915,7 @@ describe('retake sandbox init', () => {
     expect(again.ports).toEqual({ app: 4601, db: 4605, mailpit: 4606 });
   });
 
-  it('never writes over a file the scaffold would write (compose.yaml, README.md, seed/…) without --force (K5)', async () => {
+  it('never writes over a file the scaffold would write (compose.yaml, README.md, seed/…) without --force', async () => {
     const project = await bareProject('init-existing', 'name: Init existing\nenvironments:\n  local: {app: "http://localhost:9"}\n');
     await mkdir(join(project.dir, 'sandbox', 'seed'), { recursive: true });
     await writeFile(join(project.dir, 'sandbox', 'compose.yaml'), 'services: {mine: {image: busybox:1.38.0}}\n');
@@ -935,7 +935,7 @@ describe('retake sandbox init', () => {
     expect(schemaRef('/private/tmp/ws/p/sandbox', '/Users/me/retake/packages/core/schema/sandbox.schema.json')).toBe('file:///Users/me/retake/packages/core/schema/sandbox.schema.json');
   });
 
-  it('core addSandboxEntry: appended, after the last entry of a block mapping, inside a one-line flow mapping — nothing else of the text changes (K8); refused when taken', () => {
+  it('core addSandboxEntry: appended, after the last entry of a block mapping, inside a one-line flow mapping — nothing else of the text changes; refused when taken', () => {
     expect(addSandboxEntry('name: X\n', 'sandbox', 'sandbox/sandbox.yaml')).toBe('name: X\nsandboxes:\n  sandbox: sandbox/sandbox.yaml\n');
     expect(addSandboxEntry('name: X', 'sandbox', 'a.yaml')).toBe('name: X\nsandboxes:\n  sandbox: a.yaml\n');
     const block = 'name: X\nsandboxes:   # ours\n    one: a.yaml\n\n    # comment\n    two: b.yaml\ndefault_env: one\n';

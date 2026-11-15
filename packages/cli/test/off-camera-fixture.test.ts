@@ -76,7 +76,7 @@ async function deadPort(): Promise<number> {
   return port;
 }
 
-describe.skipIf(!chromiumAvailable())('off camera on the fixture (L5.8)', () => {
+describe.skipIf(!chromiumAvailable())('off camera on the fixture', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
       startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture>;

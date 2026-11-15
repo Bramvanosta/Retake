@@ -311,7 +311,7 @@ describe('the workspace index', () => {
     expect(isCorruptionError({ code: 'ERR_SQLITE_ERROR', errcode: 1 })).toBe(false);
   });
 
-  it('an index file (or its -wal) that is a symbolic link is removed and rebuilt, never followed: the target is never created (review A L4)', async () => {
+  it('an index file (or its -wal) that is a symbolic link is removed and rebuilt, never followed: the target is never created', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-index-link-'));
     try {
       await fixtureWorkspace(dir);
@@ -343,7 +343,7 @@ describe('the workspace index', () => {
     }
   });
 
-  it('render records, run records and READMEs linked out of the project are never indexed; a FIFO is never opened (review A L3)', async () => {
+  it('render records, run records and READMEs linked out of the project are never indexed; a FIFO is never opened', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-index-out-'));
     try {
       await fixtureWorkspace(dir);
@@ -402,7 +402,7 @@ describe('the workspace index', () => {
     }
   });
 
-  it('a render is the record of its own file (D-10, L7.6c): a copy, a renamed record, a link, a record of a newer Retake or without a status is no row; an unknown status is `unknown`; renders/ outside the project is not read', async () => {
+  it('a render is the record of its own file (D-10): a copy, a renamed record, a link, a record of a newer Retake or without a status is no row; an unknown status is `unknown`; renders/ outside the project is not read', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-index-own-'));
     try {
       await fixtureWorkspace(dir);
@@ -540,7 +540,7 @@ describe('the workspace index', () => {
     }
   });
 
-  it('the loader swallows only the experimental notice of node:sqlite, matched by its message (B11)', async () => {
+  it('the loader swallows only the experimental notice of node:sqlite, matched by its message', async () => {
     const src = pathToFileURL(join(REPO, 'packages', 'engine', 'src', 'index-db', 'sqlite.ts')).href;
     const code = [
       `const { loadSqlite } = await import(${JSON.stringify(src)});`,
@@ -577,7 +577,7 @@ describe('the workspace index', () => {
   });
 });
 
-describe('the activity feed and the job watch (critique B2)', () => {
+describe('the activity feed and the job watch', () => {
   it('unfinished jobs live from the queue — a SIGKILLed worker reads interrupted at once — then history, newest first', async () => {
     const ix = await fresh();
     const queue = new FileJobQueue(ws);
@@ -630,7 +630,7 @@ describe('the activity feed and the job watch (critique B2)', () => {
     }
   });
 
-  it('a job folder listed before its job.json is looked at again: its later states are never missed (L5.10 flake fix)', async () => {
+  it('a job folder listed before its job.json is looked at again: its later states are never missed', async () => {
     // enqueue() makes the folder, then writes job.json atomically: a poll in between lists the id with nothing to read.
     const queue = new FileJobQueue(ws);
     const watch = new JobsWatch(queue);
@@ -663,7 +663,7 @@ describe('the activity feed and the job watch (critique B2)', () => {
   });
 });
 
-describe('the activity feed reads a finished job once (review B L1)', () => {
+describe('the activity feed reads a finished job once', () => {
   it('a second call reads only the files of unfinished jobs', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-index-jobs-'));
     try {

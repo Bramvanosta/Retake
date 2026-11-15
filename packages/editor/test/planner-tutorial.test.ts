@@ -55,7 +55,7 @@ beforeAll(async () => {
 });
 
 describe('tutorial overlays from the timeline (signup)', () => {
-  it('nothing without switches (the L2.9 signup timeline)', async () => {
+  it('nothing without switches (the signup timeline)', async () => {
     const p = await plan(load('signup'));
     expect(p.tutorial).toBeUndefined();
     expect(p.segments.flatMap((s) => (s.kind === 'clip' ? s.overlays : [])).every((o) => !o.tutorial)).toBe(true);

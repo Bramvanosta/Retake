@@ -359,7 +359,7 @@ function pixel(file: string): number[] {
 const near = (a: number[], hex: string, tol: number) => [1, 3, 5].every((o, i) => Math.abs(a[i] - parseInt(hex.slice(o, o + 2), 16)) <= tol);
 
 /** The rule checker bites on each broken rule, on synthetic call logs (runs without the slow gate). */
-describe('phase 3 acceptance: the rule checker (L3.8 review L8)', () => {
+describe('phase 3 acceptance: the rule checker', () => {
   const C = (name: string, args: Json = {}, d: Json = {}): Event => ({ phase: 'p', kind: 'call', name, args, data: d });
   const W = (file: string): Event => ({ phase: 'p', kind: 'write', file });
   const captured = (id: string) => [C('run_capture', {}, { id }), C('run_status', {}, { id, mode: 'capture', status: 'succeeded' })];
@@ -416,7 +416,7 @@ describe('phase 3 acceptance: the rule checker (L3.8 review L8)', () => {
     else expect(found.join('\n')).toContain(problem);
   });
 
-  it('a hold measured on the timeline passes within ±0.25 s, not beyond (review L10: ±0.05 s was brittle)', () => {
+  it('a hold measured on the timeline passes within ±0.25 s, not beyond (±0.05 s was brittle)', () => {
     for (const s of [0.76, 1, 1.06, 1.24]) expectAbout(s, 1);
     for (const s of [0.74, 1.26]) expect(() => expectAbout(s, 1)).toThrow();
   });

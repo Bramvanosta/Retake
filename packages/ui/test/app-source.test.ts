@@ -304,7 +304,7 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(visibleControls('Café — 東京 עברית')).toBe('Café — 東京 עברית');
   });
 
-  it('L4.3: the app builds no YAML — no yaml import, only types from core (the server alone writes scenario text)', async () => {
+  it('the app builds no YAML — no yaml import, only types from core (the server alone writes scenario text)', async () => {
     const files = await appSources();
     expect(files.map(([f]) => f)).toEqual(expect.arrayContaining(['script/YamlTab.tsx', 'script/TextEditing.tsx']));
     for (const [f, text] of files) {
@@ -346,7 +346,7 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(BANNED.some(([re]) => re.test(linted(THUMB_FILE, '<img alt="" src={url} />')))).toBe(true);
   });
 
-  it('L4.4: the one image decoder — ImageDecoder, else createImageBitmap of a JPEG Blob, in LiveView.tsx only; no blob: or object URL anywhere', async () => {
+  it('the one image decoder — ImageDecoder, else createImageBitmap of a JPEG Blob, in LiveView.tsx only; no blob: or object URL anywhere', async () => {
     const files = new Map(await appSources());
     const live = code(files.get(LIVE_FILE) ?? '');
     // What the decoder is handed, by behaviour — the frame's bytes as they are, as a JPEG: to ImageDecoder when
@@ -402,7 +402,7 @@ describe('the app builds no HTML from data (source lint)', () => {
       ).toBe(true);
   });
 
-  it('⚑ L4.5: the one frame — PreviewFrame.tsx, once, the literal sandboxed attributes, src={frameSrc} from a checked URL', async () => {
+  it('⚑ the one frame — PreviewFrame.tsx, once, the literal sandboxed attributes, src={frameSrc} from a checked URL', async () => {
     const files = new Map(await appSources());
     const frame = code(files.get(FRAME_FILE) ?? '');
     expect(frame.match(FRAME_TAG)?.length, 'one <iframe in PreviewFrame.tsx').toBe(1);
@@ -466,7 +466,7 @@ describe('the app builds no HTML from data (source lint)', () => {
     for (const line of ['<iframe sandbox="allow-scripts allow-same-origin" />', '<iframe sandbox={x} />', 'f.sandbox.add("allow-popups")']) expect(FRAME_LOOSE.test(line), line).toBe(true);
   });
 
-  it("L4.5: previewUrls takes only the player origin's frame and a plan of the same capability", () => {
+  it("previewUrls takes only the player origin's frame and a plan of the same capability", () => {
     const cap = 'A'.repeat(43);
     const frame = `http://127.0.0.1:4321/s/${cap}/frame`;
     const plan = `http://127.0.0.1:4321/m/${cap}/plan/${'b'.repeat(22)}.json`;
@@ -570,7 +570,7 @@ function threadCalls(src: string): Array<{ op: string; args: string }> {
     .map((c) => ({ op: c.op, args: c.list }));
 }
 
-describe('the comment writes name nobody (L4.6 part D1)', () => {
+describe('the comment writes name nobody', () => {
   it('⚑ no thread_* call of the app sends an author, a via, a proposal or a name', async () => {
     const calls = (await appSources()).flatMap(([f, text]) => threadCalls(code(text)).map((c) => ({ f, ...c })));
     const ops = new Set(calls.map((c) => c.op));
@@ -598,7 +598,7 @@ describe('the comment writes name nobody (L4.6 part D1)', () => {
   });
 });
 
-describe('the page makes no proposal (L4.6 part D2)', () => {
+describe('the page makes no proposal', () => {
   it("⚑ no source sends a scenario text as a proposal: the app's one `proposal` argument is timeline_view's {comment_id, entry_id}", async () => {
     const files = await appSources();
     let args = 0;
@@ -764,7 +764,7 @@ describe('jpegDataUrl: the only way to an image address', () => {
   });
 });
 
-describe('imageDataUrl: library posters and loops (L4.7 part D1, critique B6 / B9)', () => {
+describe('imageDataUrl: library posters and loops', () => {
   const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0]).toString('base64');
   const GIF = Buffer.from('GIF89a\x01\x00\x01\x00\x80\x00', 'latin1').toString('base64');
   const pad = (b64: string, n: number) => b64 + 'A'.repeat(n - b64.length);
@@ -992,7 +992,7 @@ const UI: RecordingUi = {
 };
 const ACT = { annotate: () => undefined, stop: () => undefined, discard: () => undefined, save: () => undefined, onSignedIn: () => undefined, confirm: () => undefined };
 
-describe('the Record screen shows page text only through Txt (L4.8 part 5)', () => {
+describe('the Record screen shows page text only through Txt', () => {
   it('⚑ a recording: every page string (rows, targets, alternatives, inserts, issues, placeholders, writes, the check, the YAML) in a <bdi>, its direction controls as visible marks', () => {
     const done = hostileView();
     const failed = { ...done, state: 'failed' } as RecordViewAnswer;
@@ -1066,7 +1066,7 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
     }
   });
 
-  it('B-L5: Start is refused for a persona that cannot sign in by itself — the reason said, Sign in offered', () => {
+  it('Start is refused for a persona that cannot sign in by itself — the reason said, Sign in offered', () => {
     const o = hostileOptions();
     const html = renderToStaticMarkup(createElement(StartForm, { slug: 'p', o: { ...o, open: null }, onStarted: () => undefined, onChanged: () => undefined }));
     expect(html).toMatch(/<button (?=[^>]*data-testid="record-start")(?=[^>]*type="submit")(?=[^>]*disabled="")/);
@@ -1279,28 +1279,28 @@ const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<
     tag: 'div',
     attrs: { 'data-testid': '"viewer-frame"', onPointerDown: '{onDown}' },
     line: '<div',
-    why: "the region drag on the frame (L5.12b: FrameViewer.tsx's FramePicture; RegionOverlay draws, presentational); its keyboard alternative is the composer's four % fields",
+    why: "the region drag on the frame (FrameViewer.tsx's FramePicture; RegionOverlay draws, presentational); its keyboard alternative is the composer's four % fields",
   },
   {
     file: 'ui-kit/frames.tsx',
     tag: 'li',
     attrs: { role: '"option"', 'data-key': '{dataKey}', id: '{id}' },
     line: '<li',
-    why: "L5.10b: an option of a scene's frames listbox (FrameGrid), which holds the tab stop (aria-activedescendant); its drag moves are Alt+arrows by keyboard",
+    why: "an option of a scene's frames listbox (FrameGrid), which holds the tab stop (aria-activedescendant); its drag moves are Alt+arrows by keyboard",
   },
   {
     file: 'ui-kit/frames.tsx',
     tag: 'p',
     attrs: { 'data-testid': '"drop-empty"', onDrop: '{dropped}' },
     line: '<p',
-    why: 'L5.10b: the drop target of a step dragged into an empty scene (FrameGrid); the keyboard moves steps with Alt+arrows',
+    why: 'the drop target of a step dragged into an empty scene (FrameGrid); the keyboard moves steps with Alt+arrows',
   },
   {
     file: 'ui-kit/ChoiceChips.tsx',
     tag: 'div',
     attrs: { role: '"radiogroup"', className: '"k-chips"', onKeyDown: '{rove}' },
     line: '<div className="k-chips" role="radiogroup"',
-    why: "L5.12a (was TimelineInspector.tsx's tl-radios): the roving arrow keys of the kit's choice chips; its checked chip holds the tab stop",
+    why: "the roving arrow keys of the kit's choice chips; its checked chip holds the tab stop",
   },
   {
     file: 'record/Inserts.tsx',
@@ -1314,42 +1314,42 @@ const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<
     tag: 'div',
     attrs: { role: '"toolbar"', onKeyDown: '{rove}' },
     line: '<div role="toolbar"',
-    why: 'L5.9: the roving arrow keys of a toolbar; its current control holds the tab stop',
+    why: 'the roving arrow keys of a toolbar; its current control holds the tab stop',
   },
   {
     file: 'ui-kit/CommandPalette.tsx',
     tag: 'div',
     attrs: { role: '"option"', id: '{optId(c)}' },
     line: 'role="option"',
-    why: "L5.9: an option of the palette's listbox, which its combobox drives (aria-activedescendant: the focus stays in the input); Enter runs it",
+    why: "an option of the palette's listbox, which its combobox drives (aria-activedescendant: the focus stays in the input); Enter runs it",
   },
   {
     file: 'ui-kit/cards.tsx',
     tag: 'li',
     attrs: { role: '"option"', 'data-index': '{n}' },
     line: '<li',
-    why: 'L5.10a: an option of the productions listbox (PosterGrid), which holds the tab stop (aria-activedescendant); Enter opens the selected one as a double-click does',
+    why: 'an option of the productions listbox (PosterGrid), which holds the tab stop (aria-activedescendant); Enter opens the selected one as a double-click does',
   },
   {
     file: 'ui-kit/frames.tsx',
     tag: 'div',
     attrs: { role: '"option"', id: '{option.id}' },
     line: 'role="option"',
-    why: "L5.11b fixes (review A-M2): a RowCard option of a RowList listbox (the Record screen's draft), which holds the tab stop (aria-activedescendant); Enter / Space select the active one as a click does",
+    why: "a RowCard option of a RowList listbox (the Record screen's draft), which holds the tab stop (aria-activedescendant); Enter / Space select the active one as a click does",
   },
   {
     file: 'library/LibraryScreen.tsx',
     tag: 'div',
     attrs: { className: '"lb-cards"', onKeyDown: '{gridKeys}' },
     line: '<div className="lb-cards"',
-    why: "L5.12c fixes (review A-M3): the roving keys of the Library's card grid (arrows, Home / End, Escape, Enter to the inspector); the cards' own buttons hold its one tab stop",
+    why: "the roving keys of the Library's card grid (arrows, Home / End, Escape, Enter to the inspector); the cards' own buttons hold its one tab stop",
   },
   {
     file: 'ui-kit/Sheet.tsx',
     tag: 'dialog',
     attrs: { onKeyDown: '{onKeyDown}' },
     line: '<dialog',
-    why: "L5.12c fixes (review A-L2 / B-L2): Return in a sheet's one-line text field chooses its default action; the dialog is no control (its fields and actions are)",
+    why: "Return in a sheet's one-line text field chooses its default action; the dialog is no control (its fields and actions are)",
   },
 ];
 const SPREAD_EXCEPTIONS: Array<{ file: string; tag: string; why: string }> = [{ file: 'bits.tsx', tag: 'bdi', why: 'Txt passes its typed aria-current only' }];
@@ -1461,7 +1461,7 @@ function focusLint(rules: CssRule[]): string[] {
 /** A var() reference: any custom-property character (an underscore or a capital is part of the name). */
 const VAR_REF = /var\((--[\w-]+)/g;
 
-describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: one token file, dark and light)', () => {
+describe('the closed palette, the fonts, contrast by token (one token file, dark and light)', () => {
   it('⚑ no colour literal outside tokens.css (hex, colour functions, named colours); no var() fallback; no font file or URL but its two @font-face', async () => {
     // (the legacy layer is gone; every stylesheet of the app is read.)
     await legacyGone();
@@ -1537,7 +1537,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     }
   });
 
-  it('⚑ every var(--x) of the stylesheets and the app sources is a token, every token is used; the stylesheets read --ui-* tokens only (L5.12d: there is no other)', async () => {
+  it('⚑ every var(--x) of the stylesheets and the app sources is a token, every token is used; the stylesheets read --ui-* tokens only (there is no other)', async () => {
     const tokens = tokensOf('dark');
     const used = new Set<string>();
     const kit = await kitCss();
@@ -1728,7 +1728,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
       expect(focusLint(cssRules(rule)), rule).toEqual([]);
   });
 
-  it("⚑ no opacity below 1 in any stylesheet (L5.12c: the unset colour well is hatched; L5.12d: the legacy layer's two faded states — a disabled legacy button, a dragged step — went with it)", async () => {
+  it("⚑ no opacity below 1 in any stylesheet (the unset colour well is hatched; the legacy layer's two faded states — a disabled legacy button, a dragged step — went with it)", async () => {
     await legacyGone();
     for (const [f, css] of await kitCss())
       expect(
@@ -1738,7 +1738,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
       ).toEqual([]);
   });
 
-  it("⚑ L5.9: heights follow the shell's centre pane (--main-h), never the viewport — no vh in a height, inside min() / max() / clamp() too (review B-M1)", async () => {
+  it("⚑ heights follow the shell's centre pane (--main-h), never the viewport — no vh in a height, inside min() / max() / clamp() too", async () => {
     const vh = (rules: CssRule[]) => rules.flatMap((r) => r.decls.filter(([k, v]) => /^(?:min-|max-)?height$/.test(k) && /\d(?:d|s|l)?vh\b/.test(v)).map(([k, v]) => `${r.selector} { ${k}: ${v} }`));
     for (const [f, css] of await kitCss()) expect(vh(cssRules(css)), f).toEqual([]);
     expect(
@@ -1751,7 +1751,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
   });
 });
 
-describe('real controls (L4.9 part B, a TypeScript-parser lint)', () => {
+describe('real controls (a TypeScript-parser lint)', () => {
   it('⚑ handlers only on native controls or a role with a tab stop; no spread onto a non-native element; <a> has href; no positive tabIndex', async () => {
     const files = (await appSources()).filter(([f]) => f.endsWith('.tsx'));
     expect(files.length).toBeGreaterThan(20);
@@ -2008,7 +2008,7 @@ function reducedMotionGaps(rules: Array<CssRule & { f: string }>): string[] {
   return out;
 }
 
-describe('⚑ L5.12d: the legacy layer is gone', () => {
+describe('⚑ the legacy layer is gone', () => {
   it('app.css deleted and imported by nothing, no cascade layer left; base.css holds element defaults only; bits.tsx keeps Txt and the small helpers (Badge, Notice, Loading gone)', async () => {
     await legacyGone();
     const files = await appSources();
@@ -2103,7 +2103,7 @@ function headTable(): Record<string, number> | null {
   }
 }
 
-describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint with a ratchet)', () => {
+describe('⚑ screens stay on the kit (a TypeScript-parser lint with a ratchet)', () => {
   it("no native control, widget role, kit class or legacy token outside ui-kit/ but the legacy screens' counted ones (each count ≤ its row; the rows only go down)", async () => {
     const table = await readTable();
     const found = await ratchetFindings();
@@ -2214,7 +2214,7 @@ const RLI = String.fromCharCode(0x2067);
 /** A hostile string for a kit slot: markup, a marker, an override and an isolate. */
 const K = (n: string) => `${H(n)}${RLI}x`;
 
-describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)', () => {
+describe('⚑ the kit shows text it did not write through Txt', () => {
   it('every slot of every kit component: a planted string lands in a <bdi> with its direction controls made visible (an <option> and key caps: visible marks)', () => {
     const go = () => undefined;
     const els = [
@@ -2532,7 +2532,7 @@ function opsCalled(text: string): string[] {
   return apiCalls(code(text)).map((c) => c.op);
 }
 
-describe('L5.10a: the project side', () => {
+describe('the project side', () => {
   it('the routes: a smart group, a location, the Cast; ids inert strings; hrefTo round-trips', () => {
     expect(parseRoute('#/p/northfield-fixture/g/ready')).toEqual({ name: 'group', slug: 'northfield-fixture', group: 'ready' });
     expect(parseRoute('#/p/n/g/shoot/')).toEqual({ name: 'group', slug: 'n', group: 'shoot' });
@@ -2633,7 +2633,7 @@ function editCalls(text: string): Array<{ at: number; hash: boolean }> {
     }));
 }
 
-describe('L5.10b: the scenario side', () => {
+describe('the scenario side', () => {
   it('⚑ every value from data is text: each JSX child of the scenario-side files goes through Txt / shown / a kit slot (a planted bare target fails it)', async () => {
     const files = (await appSources()).filter(([f]) => SCENARIO_SIDE.includes(f));
     expect(files.map(([f]) => f).sort()).toEqual([...SCENARIO_SIDE].sort());
@@ -2668,7 +2668,7 @@ describe('L5.10b: the scenario side', () => {
     expect(offKit('script/Storyboard.tsx', planted, ctx).length).toBeGreaterThan(offKit('script/Storyboard.tsx', board, ctx).length);
   });
 
-  it('⚑ the write path is unchanged: the scenario side calls only its reads and scenario_edit (L5.11a: runs start and stop in the status bar); every scenario_edit names the version shown (if_match)', async () => {
+  it('⚑ the write path is unchanged: the scenario side calls only its reads and scenario_edit (runs start and stop in the status bar); every scenario_edit names the version shown (if_match)', async () => {
     const files = (await appSources()).filter(([f]) => SCENARIO_SIDE.includes(f));
     const called = files.flatMap(([f, text]) => opsCalled(text).map((op) => [f, op] as const));
     expect(called.filter(([, op]) => !SCENARIO_SIDE_OPS.has(op))).toEqual([]);
@@ -2724,7 +2724,7 @@ function dryRunWords(file: string, text: string): string[] {
   return out;
 }
 
-describe('L5.11a: Shoot', () => {
+describe('Shoot', () => {
   it('⚑ every value from data is text: each JSX child of the Shoot files goes through Txt / shown / a kit slot (a planted bare blocker message fails it)', async () => {
     const files = (await appSources()).filter(([f]) => SHOOT_SIDE.includes(f));
     expect(files.map(([f]) => f).sort()).toEqual([...SHOOT_SIDE].sort());
@@ -2820,7 +2820,7 @@ async function recordSources(): Promise<Array<[string, string]>> {
 /** The ops the Record screen calls itself (the browser's and status bar's reads are the shared stores'). */
 const RECORD_OPS = new Set(['record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save']);
 
-describe('L5.11b: Record', () => {
+describe('Record', () => {
   it('⚑ every value from data is text: each JSX child of the Record screen goes through Txt / shown / a kit slot (a planted bare issue message fails it)', async () => {
     // The screen is the record/ folder's files (RecordScreen.tsx and its parts).
     const files = await recordSources();
@@ -2880,7 +2880,7 @@ const EDIT_REVIEW_SIDE = [
   'review/Renders.tsx',
 ];
 
-describe('L5.12a: Edit and the Review report', () => {
+describe('Edit and the Review report', () => {
   it("⚑ every value from data is text: each JSX child of Edit's and the Review report's files goes through Txt / shown / a kit slot (a planted bare scenario name or finding code fails it)", async () => {
     const files = (await appSources()).filter(([f]) => EDIT_REVIEW_SIDE.includes(f));
     expect(files.map(([f]) => f).sort()).toEqual([...EDIT_REVIEW_SIDE].sort());
@@ -3103,7 +3103,7 @@ function paletteGroupWriters(file: string, text: string): Array<{ slot: string; 
   return out;
 }
 
-describe('L5.12b: Comments, the proposal, the README, the palette', () => {
+describe('Comments, the proposal, the README, the palette', () => {
   it('⚑ every value from data is text: each JSX child of the Comments, proposal and README files goes through Txt / shown / a kit slot (a planted bare thread text, entry author or diff summary fails it)', async () => {
     const files = (await appSources()).filter(([f]) => COMMENTS_SIDE.includes(f));
     expect(files.map(([f]) => f).sort()).toEqual([...COMMENTS_SIDE].sort());
@@ -3148,7 +3148,7 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     expect(offKit('review/Composer.tsx', planted, ctx).length).toBeGreaterThan(offKit('review/Composer.tsx', text, ctx).length);
   });
 
-  it("⚑ the palette never writes (L5.12b fixes, reviews A-L3 / B-M2: structural): every screen group's handlers reach no writer — the identifiers its entries use are followed to their definitions in the file; the shell's builder calls engine_info only", async () => {
+  it("⚑ the palette never writes (structural): every screen group's handlers reach no writer — the identifiers its entries use are followed to their definitions in the file; the shell's builder calls engine_info only", async () => {
     const files = await appSources();
     const shell = code(files.find(([f]) => f === 'shell/AppShell.tsx')![1]);
     const bus = code(files.find(([f]) => f === 'shell/command-bus.ts')![1]);
@@ -3183,7 +3183,7 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     expect(paletteGroupWriters('review/CommentsScreen.tsx', imported)[0].writers).toEqual(["runShellCommand('render')"]);
   });
 
-  it("⚑ the comments side calls only its own ops (L5.12b fixes, reviews A-M1 / B-M1): an allow-list per file, like Shoot's and the scenario side's; the thread's writes through ThreadPanel's one helper", async () => {
+  it("⚑ the comments side calls only its own ops: an allow-list per file, like Shoot's and the scenario side's; the thread's writes through ThreadPanel's one helper", async () => {
     const files = await appSources();
     const found: Record<string, string[]> = {};
     for (const f of Object.keys(COMMENTS_OPS)) found[f] = [...new Set(opsCalled(files.find(([x]) => x === f)![1]))].sort();
@@ -3204,7 +3204,7 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     expect([...new Set(opsCalled(planted))].sort()).not.toEqual(want['review/ThreadList.tsx']);
   });
 
-  it("⚑ the proposal's writers stay with their owner (L5.12b fixes, reviews A-M1 / B-M1: an import graph) — ProposalCard.tsx exports only its card, imported by ThreadPanel.tsx alone; the timeline's banner imports nothing that writes", async () => {
+  it("⚑ the proposal's writers stay with their owner (an import graph) — ProposalCard.tsx exports only its card, imported by ThreadPanel.tsx alone; the timeline's banner imports nothing that writes", async () => {
     const files = await appSources();
     const exportsOf = (f: string) => valueExports(files.find(([x]) => x === f)![1]).sort();
     expect(exportsOf('review/ProposalCard.tsx')).toEqual(['ProposalCard']);
@@ -3241,7 +3241,7 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     expect(importsOf('review/ProposalBanner.tsx', applying).map((i) => i.module)).toContain('review/ProposalCard');
   });
 
-  it("⚑ every thread write the engine guards carries the version shown (L5.12b fixes, review A-M1: checked on each call's argument object) — thread_resolve / thread_reopen / thread_apply name if_match; thread_reply, whose input has no if_match, sends its text only", async () => {
+  it("⚑ every thread write the engine guards carries the version shown (checked on each call's argument object) — thread_resolve / thread_reopen / thread_apply name if_match; thread_reply, whose input has no if_match, sends its text only", async () => {
     const files = await appSources();
     const writes = files.flatMap(([f, text]) => threadWrites(text).map((w) => ({ f, ...w })));
     expect(writes.map((w) => `${w.f}:${w.op}`).sort()).toEqual([
@@ -3385,7 +3385,7 @@ function themeWordsImports(text: string): string[] | '*' {
   return out;
 }
 
-describe('L5.12c: the Library, the Themes list and the theme editor', () => {
+describe('the Library, the Themes list and the theme editor', () => {
   it("⚑ every value from data is text: each JSX child of the Library's and the themes' files goes through Txt / shown / a kit slot (a planted bare component name, page title or README fails it)", async () => {
     const files = (await appSources()).filter(([f]) => LIBRARY_SIDE.includes(f));
     expect(files.map(([f]) => f).sort()).toEqual([...LIBRARY_SIDE].sort());
@@ -3462,7 +3462,7 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect(opCalls("call('theme_edit', { theme: target, edit: plan.edit })", new Set(['theme_edit']))[0].keys).not.toContain('if_match');
   });
 
-  it("⚑ L5.12c fixes (review A-M2): every app file imports the api's call / useCall by their own names and only calls them — an alias, a namespace import or a call bound to another name fails (both of the review's dodges planted); the if_match lint sees `x.call(…)`", async () => {
+  it("⚑ every app file imports the api's call / useCall by their own names and only calls them — an alias, a namespace import or a call bound to another name fails (both of the review's dodges planted); the if_match lint sees `x.call(…)`", async () => {
     const files = (await appSources()).filter(([f]) => /\.tsx?$/.test(f) && f !== 'api.ts');
     expect(files.flatMap(([f, text]) => apiImportFindings(f, text))).toEqual([]);
     // The files that call the api at all (through a data module) are seen by the lint (it is not vacuous).
@@ -3492,7 +3492,7 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect(apiImportFindings('X.tsx', "import { call, useCall } from './api.js';\ncall<T>('theme_view', {});\nuseCall('x', {}, 'k');\nfn.call(null);\nconst o = { call: 1 };")).toEqual([]);
   });
 
-  it('⚑ L6.12–L6.13 fixes (L7): every value a data module exports is a data function the op lints know (DATA_FNS: `op(…)` / `readHook(…)` of its op, or a helper whose op is its argument) — none escapes them', () => {
+  it('⚑ every value a data module exports is a data function the op lints know (DATA_FNS: `op(…)` / `readHook(…)` of its op, or a helper whose op is its argument) — none escapes them', () => {
     const sources = dataSources();
     expect(sources.map(([f]) => f)).toEqual(expect.arrayContaining(['comments.ts', 'projects.ts', 'themes.ts']));
     const values = dataValueExports(sources);
@@ -3509,7 +3509,7 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect([...dataValueExports(planted).keys()].filter((n) => !DATA_FNS.has(n))).toEqual(['sneaky', '(re-export in planted.ts)', 'Client']);
   });
 
-  it("⚑ L5.12c fixes (review A-L5): the colour constants of theme-words.ts (an export whose value holds a colour literal) are imported only where theme data is shown — the gallery's sample, the New theme form, the colour fields' fallback", async () => {
+  it("⚑ the colour constants of theme-words.ts (an export whose value holds a colour literal) are imported only where theme data is shown — the gallery's sample, the New theme form, the colour fields' fallback", async () => {
     const files = (await appSources()).filter(([f]) => /\.tsx?$/.test(f));
     const colours = colourExports(files.find(([f]) => f === 'words/theme-words.ts')![1]);
     expect(colours.sort()).toEqual(['EMPTY_FORM', 'SAMPLE_ACCENT', 'pickerValue']);

@@ -354,7 +354,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(await page.getByTestId('theme-undo').isDisabled()).toBe(true);
   });
 
-  it('⚑ L5.12c fixes (review A-M1): a colour refused by a 409 is never written when its hex field is left — the field shows the written value of the new version', async () => {
+  it('⚑ a colour refused by a 409 is never written when its hex field is left — the field shows the written value of the new version', async () => {
     await expect.poll(() => page.getByTestId('color-accent-hex').isDisabled(), POLL).toBe(false);
     const accent = (await themeYaml()).colors.accent as string;
     expect(await page.getByTestId('color-accent-hex').inputValue()).toBe(accent);
@@ -386,7 +386,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     }
   });
 
-  it('⚑ L5.12c fixes (review A-L4): a colour drag renders the dragged field (and the frame), not the editor — about one commit per move, no other colour field, section or component pick rendered', async () => {
+  it('⚑ a colour drag renders the dragged field (and the frame), not the editor — about one commit per move, no other colour field, section or component pick rendered', async () => {
     // React's DevTools hook (before the bundle loads again): commits, and the fields whose props changed.
     await context.addInitScript(() => {
       const w = window as unknown as { __commits: number; __fields: string[]; __REACT_DEVTOOLS_GLOBAL_HOOK__: unknown };
@@ -495,7 +495,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     await expect.poll(async () => Buffer.compare(await readFile(file), before), POLL).toBe(0);
   });
 
-  it("⚑ L5.12c: the editor in the shell — the browser's sections bring the inspector's fields, its components go to the library; one live preview whatever the target; the status bar's Use in a scenario… brings the scenario", async () => {
+  it("⚑ the editor in the shell — the browser's sections bring the inspector's fields, its components go to the library; one live preview whatever the target; the status bar's Use in a scenario… brings the scenario", async () => {
     const pane = page.getByRole('complementary', { name: 'Browser' });
     await pane.getByRole('button', { name: 'Colours', exact: true }).click();
     await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-section')), POLL).toBe('colours');
@@ -522,7 +522,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('use-scenario');
   });
 
-  it("⚑ L5.12c: the list's Copy to edit… asks the name in a kit Sheet — Escape closes it, nothing copied", async () => {
+  it("⚑ the list's Copy to edit… asks the name in a kit Sheet — Escape closes it, nothing copied", async () => {
     await page.goto(`${studio.url}#/p/${P}/themes`);
     const row = page.locator('[data-testid="theme-row"][data-theme="motion"]');
     await row.waitFor();
@@ -537,7 +537,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(opsOf('theme_copy').filter((o) => JSON.parse(o.body).from === 'motion')).toHaveLength(0);
   });
 
-  it("⚑ L5.12c fixes (review A-L2 / B-L2): Return in the copy's name field copies — the name as edited — and opens the copy", async () => {
+  it("⚑ Return in the copy's name field copies — the name as edited — and opens the copy", async () => {
     await page.goto(`${studio.url}#/p/${P}/themes`);
     const row = page.locator('[data-testid="theme-row"][data-theme="motion"]');
     await row.waitFor();
@@ -550,7 +550,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(await page.locator('dialog[open]').count()).toBe(0);
   });
 
-  it('⚑ L5.12c fixes (review B-M2): the New theme form takes each keystroke of a colour — a value that is not a hex stays and the form says why (nothing made); "Make the theme" follows the typed accent', async () => {
+  it('⚑ the New theme form takes each keystroke of a colour — a value that is not a hex stays and the form says why (nothing made); "Make the theme" follows the typed accent', async () => {
     await page.goto(`${studio.url}#/p/${P}/themes`);
     await page.locator(`[data-testid="site-row"][data-site="${SITE}"]`).getByTestId('site-new-theme').click();
     await page.getByTestId('theme-new').waitFor();

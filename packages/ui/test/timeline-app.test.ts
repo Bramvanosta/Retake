@@ -35,7 +35,7 @@ const model = {
   ],
 } as unknown as Parameters<typeof targetFrame>[2] & Parameters<typeof frameWords>[1];
 
-describe('the timeline keys (plan D11, critique "smaller points")', () => {
+describe('the timeline keys', () => {
   it("⚑ never while typing or in a radio group; the scrubber keeps its arrows, Home and End; Space on a button is the button's", () => {
     const body = { tag: 'BODY' };
     expect(keyAction({ key: ' ' }, body)).toEqual({ kind: 'toggle' });
@@ -134,7 +134,7 @@ describe('the words of a frame', () => {
   });
 });
 
-describe('the codec check (plan D3, critique B14)', () => {
+describe('the codec check', () => {
   it("asks the browser about the capture's codec; an unknown codec or no way to ask is playable; the message names it", async () => {
     const size = { width: 1920, height: 1080, fps: 30 };
     const asked: string[] = [];

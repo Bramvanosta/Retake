@@ -313,7 +313,7 @@ describe('the operation catalogue', () => {
     expect([by(3), by(2), by(1)]).toEqual([5, 43, 76]);
   });
 
-  it('links 18 use cases served under two names (S2, L7.20: nothing renamed), one name per shell, and names each', () => {
+  it('links 18 use cases served under two names (nothing renamed), one name per shell, and names each', () => {
     expect(useCaseProblem()).toBeUndefined();
     const groups = useCaseGroups();
     expect(groups).toEqual({
@@ -446,7 +446,7 @@ describe('the operation contract', () => {
     expect(pinArguments(tool, []).input.parse({ project: 'p', wait_s: 25 })).toMatchObject({ wait_s: 25 });
   });
 
-  it('invoke: arguments named per problem as an invalid EngineError; a handler error typed; never throws (L7.21: was callTool)', async () => {
+  it('invoke: arguments named per problem as an invalid EngineError; a handler error typed; never throws (was callTool)', async () => {
     // The probe under a catalogue name the CLI serves (invoke refuses a name the catalogue does not hold).
     const probe = { ...tool, name: 'job_list' as const };
     const o = { shell: 'cli' as const, startedIn: process.cwd(), signal: new AbortController().signal };

@@ -80,7 +80,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('blocker kinds (critique H3)', () => {
+describe('blocker kinds', () => {
   it('⚑ blockerKind: each gate names its own kind; anything a gate did not word as its refusal is `prepare` (never a safety reason)', () => {
     const e = (code: ConstructorParameters<typeof EngineError>[0], details?: Record<string, unknown>) => new EngineError(code, 'x', details ? { details } : {});
     expect(blockerKind(e('invalid'), null)).toEqual({ kind: 'invalid' });
@@ -122,7 +122,7 @@ describe('blocker kinds (critique H3)', () => {
 });
 
 describe('scenarios.actions: the status bar’s read', () => {
-  it('the hash, the location, the counts, no run; a queued rehearsal is `running` with its job (critique M4), and it carries no path but the commands', async () => {
+  it('the hash, the location, the counts, no run; a queued rehearsal is `running` with its job, and it carries no path but the commands', async () => {
     // No run of the project yet: the runs other cases submitted (cancelled) are not this case's.
     await rm(join(ws, 'projects', 'w', 'runs'), { recursive: true, force: true });
     const check = await ui.scenarios.check('w', 'short');
@@ -178,7 +178,7 @@ describe('scenarios.actions: the status bar’s read', () => {
   });
 });
 
-describe('memo (critique H2)', () => {
+describe('memo', () => {
   const views = async () => {
     const wsc = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
     let blockers = 0;

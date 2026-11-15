@@ -32,7 +32,7 @@ const why = (id: string, use: Parameters<typeof componentFit>[2]) => {
   return r.ok ? true : r.why;
 };
 
-describe('componentFit (critique B7)', () => {
+describe('componentFit', () => {
   it('a card component that shows what the card writes fits; one that drops a slot or lacks a required one does not', () => {
     const use = { kind: 'card' as const, slots: { title: 'From quote to order', kicker: 'Chapter two' } };
     expect(why('studio/card-title', use)).toBe(true);

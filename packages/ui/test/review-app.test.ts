@@ -39,7 +39,7 @@ import { editSeekRouteChanged, seekInEdit, takeEditSeek } from '../src/app/edit/
 
 const APP = join(REPO, 'packages', 'ui', 'src', 'app');
 
-describe('the Review report (L5.12a)', () => {
+describe('the Review report', () => {
   it('⚑ the check families: total over FINDING_CODES, each code once, an unknown code is Other', () => {
     const all = CHECK_FAMILIES.flatMap((f) => f.codes);
     expect(new Set(all).size, 'each code in one family').toBe(all.length);
@@ -155,7 +155,7 @@ describe('the Review report (L5.12a)', () => {
     expect(agoWords('not a date', now)).toBe('not a date');
   });
 
-  it('⚑ L5.12a fixes (review B-L2): two renders that read the same "when" show their time of day; one alone does not', () => {
+  it('⚑ two renders that read the same "when" show their time of day; one alone does not', () => {
     const now = Date.parse('2026-11-02T12:00:00.000Z');
     const items = [
       { id: 'q-v3', at: '2026-01-01T12:30:00.000Z' },
@@ -170,7 +170,7 @@ describe('the Review report (L5.12a)', () => {
     expect(clockWords('not a date')).toBe('');
   });
 
-  it("⚑ L5.12a fixes (review A-L1): the export part reads the activity again on its own project's jobs only (and a reconnection)", () => {
+  it("⚑ the export part reads the activity again on its own project's jobs only (and a reconnection)", () => {
     expect(exportReadsOn({ type: 'resync' }, 'demo')).toBe(true);
     expect(exportReadsOn({ type: 'jobs', changed: ['j_1'], projects: ['demo'] }, 'demo')).toBe(true);
     expect(exportReadsOn({ type: 'jobs', changed: ['j_1'], projects: ['other', 'demo'] }, 'demo')).toBe(true);
@@ -179,7 +179,7 @@ describe('the Review report (L5.12a)', () => {
     expect(exportReadsOn({ type: 'jobs', changed: ['j_1'] }, 'demo')).toBe(true);
   });
 
-  it("⚑ L5.12a fixes (review A-L6): a pending Show in Edit lives only on the way to that scenario's Edit — a route elsewhere drops it", () => {
+  it("⚑ a pending Show in Edit lives only on the way to that scenario's Edit — a route elsewhere drops it", () => {
     const ask = { slug: 'demo', scenario: 'quote', render_id: 'quote-v2', frame: 30 };
     seekInEdit(ask);
     editSeekRouteChanged('#/p/demo/s/quote/timeline/20260101-120000-quote');

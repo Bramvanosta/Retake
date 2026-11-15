@@ -299,7 +299,7 @@ scenes:
 const SHORTER = TOUR.replace('The intro caption says far too much', 'A short intro');
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 
-describe('retake mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
+describe('retake mcp: proposals on a Studio thread', () => {
   let ui: Engine;
   let studioId: string;
   const scenarioFile = () => join(ws.project.dir, 'scenarios', 'quote.yaml');
@@ -330,7 +330,7 @@ describe('retake mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
     await tearDown();
   });
 
-  it("the INSTRUCTIONS: the proposal loop for an edit-only change on a Studio thread, the direct loop otherwise, the Studio never Claude's (Q1 as amended, critique B6)", () => {
+  it("the INSTRUCTIONS: the proposal loop for an edit-only change on a Studio thread, the direct loop otherwise, the Studio never Claude's", () => {
     const line = (client.getInstructions() ?? '').split('\n').find((l) => l.startsWith('Frame comments:'))!;
     expect(line).toContain('in the Studio (channel studio: written at the Studio page — someone at the Studio, a channel, never proof of who typed it)');
     expect(line).toContain('Which loop: an open thread by studio whose change only touches the edit of its own scenario file');
@@ -459,7 +459,7 @@ describe('retake mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
   );
 
   it(
-    "⚑ a proposal's rows fit the 60,000-character budget of one result: the changed rows first, the context left out and said (review A L7); a theme change is refused (review A L3)",
+    "⚑ a proposal's rows fit the 60,000-character budget of one result: the changed rows first, the context left out and said; a theme change is refused",
     async () => {
       // Twelve one-line changes, each between long unchanged comment lines (≈ 137,000 characters of context rows).
       const long = (c: string) => `# ${c.repeat(1900)}`;

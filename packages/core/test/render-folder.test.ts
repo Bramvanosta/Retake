@@ -99,7 +99,7 @@ describe('a listing of renders/', () => {
     expect(asked).toEqual([`${RENDER_RECORD_MAX} false`, `${RENDER_RECORD_MAX} true`, `${RENDER_RECORD_MAX} false`, 'Infinity true', 'Infinity false']);
   });
 
-  it('every read of a record a render named takes goes through the seam: by its id, by name, by a path, `latest`, the record beside its video, and the names another file has (L7.6b fix pass)', async () => {
+  it('every read of a record a render named takes goes through the seam: by its id, by name, by a path, `latest`, the record beside its video, and the names another file has', async () => {
     // A file system of the test's own: renders/ of a project that is nowhere on the disk.
     const files: Record<string, string> = {
       '/p/renders/quote-v1.json': record('quote-v1'),
@@ -264,7 +264,7 @@ describe('a render named at a terminal or by its id (findNamedRender)', () => {
     for (const f of ['x.json', 'y.json', 'quote-v1 copy.json', 'z.json']) rmSync(join(named, f));
   });
 
-  it("the folder of exports/ or review/ is never one another file of renders/ owns: an id another file has — as the file system compares names, case and Unicode normalisation included — names the folder after the record's own file; when that too is taken, one sentence (L7.6b fix pass)", async () => {
+  it("the folder of exports/ or review/ is never one another file of renders/ owns: an id another file has — as the file system compares names, case and Unicode normalisation included — names the folder after the record's own file; when that too is taken, one sentence", async () => {
     // The newest record, renamed by hand, says the id of a live render, its `file` corrected to its own video.
     const at = (m: number): string => `2026-10-02T09:${String(m).padStart(2, '0')}:00.000Z`;
     const renamed = (name: string, id: string): void => {

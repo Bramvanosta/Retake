@@ -105,7 +105,7 @@ const look = (p: Page, sel: string, prop: string) =>
     .first()
     .evaluate((el, pr) => getComputedStyle(el).getPropertyValue(pr).trim(), prop);
 
-describe('⚑ appearance (L5.9 part E)', () => {
+describe('⚑ appearance', () => {
   it("dark with no preference or dark, light when the system asks — live, no reload; a scope keeps its own; the kit's ring is --ui-ring", async () => {
     await gallery();
     const nav = await page.evaluate(() => performance.getEntriesByType('navigation').length);
@@ -151,7 +151,7 @@ describe('⚑ appearance (L5.9 part E)', () => {
   });
 });
 
-describe('⚑ L5.12d: reduced motion', () => {
+describe('⚑ reduced motion', () => {
   it("the gallery under prefers-reduced-motion: reduce — the busy spinner and the indeterminate progress stand still (animation-name none), the switch's knob jumps (transition 0s); without it they move", async () => {
     await gallery();
     const motion = () =>
@@ -185,7 +185,7 @@ describe('⚑ L5.12d: reduced motion', () => {
   });
 });
 
-describe("the kit's keys (L5.9 part E)", () => {
+describe("the kit's keys", () => {
   it('segmented: arrows move the choice and skip a disabled segment; switch: Space; toolbar: one stop, arrows / Home / End', async () => {
     await gallery();
     const col = page.getByTestId('scope-dark');
@@ -221,7 +221,7 @@ describe("the kit's keys (L5.9 part E)", () => {
     expect(await bar.evaluate((el) => el.contains(document.activeElement))).toBe(false);
   });
 
-  it("⚑ a toolbar holding a menu, a segmented control and a URL field: the arrows skip the closed menu's items, stay in the open menu, move the radios' choice and the field's caret (review A-M2)", async () => {
+  it("⚑ a toolbar holding a menu, a segmented control and a URL field: the arrows skip the closed menu's items, stay in the open menu, move the radios' choice and the field's caret", async () => {
     await gallery();
     const col = page.getByTestId('scope-dark');
     const bar = col.getByRole('toolbar', { name: 'Take tools (Dark)' });
@@ -382,7 +382,7 @@ describe("the kit's keys (L5.9 part E)", () => {
     await expect.poll(() => opener.evaluate((el) => el === document.activeElement), POLL).toBe(true);
   });
 
-  it('⚑ a sheet its owner keeps open (Escape refused) stays in step with it when the platform closes the dialog itself (review A-L1)', async () => {
+  it('⚑ a sheet its owner keeps open (Escape refused) stays in step with it when the platform closes the dialog itself', async () => {
     await gallery();
     const col = page.getByTestId('scope-dark');
     const opener = col.getByRole('button', { name: 'Render the take…' });
@@ -536,7 +536,7 @@ describe("the kit's keys (L5.9 part E)", () => {
     await expect.poll(() => page.locator('.sh-inspector').isVisible(), POLL).toBe(true);
   });
 
-  it('⚑ L5.12c fixes: the colour field writes a typed hex on Enter or when left — once (never again when left after Enter), never a text that is not a hex (it goes back), nothing on Escape or when unchanged; an empty removable field removes; the dot only while a colour is dragged', async () => {
+  it('⚑ the colour field writes a typed hex on Enter or when left — once (never again when left after Enter), never a text that is not a hex (it goes back), nothing on Escape or when unchanged; an empty removable field removes; the dot only while a colour is dragged', async () => {
     await gallery();
     const col = page.getByTestId('scope-dark');
     const hex = col.getByTestId('gl-colour-dark-hex');
@@ -594,7 +594,7 @@ describe("the kit's keys (L5.9 part E)", () => {
   });
 });
 
-describe('the shell (L5.9 part E)', () => {
+describe('the shell', () => {
   it('⌘K / Ctrl+K opens the palette in a browser tab and a command goes; ⚑ a modal dialog makes the commands wait', async () => {
     await gallery();
     await page.keyboard.press('ControlOrMeta+k');
@@ -654,7 +654,7 @@ describe('the shell (L5.9 part E)', () => {
     expect(page.url()).toMatch(/#\/ui$/);
   });
 
-  it("⚑ L5.12b: the palette (R4-Palette) — its groups in order, an icon per row, the legend; no entry writes (L5.12b fixes, review B-M2: EVERY row run on the Scenario screen — but the Scenario menu's Rehearse, Capture, Render and Stop, which act by design — the ops counted); a scene picked on the YAML view goes to its lines (B-L3)", async () => {
+  it("⚑ the palette (R4-Palette) — its groups in order, an icon per row, the legend; no entry writes (EVERY row run on the Scenario screen — but the Scenario menu's Rehearse, Capture, Render and Stop, which act by design — the ops counted); a scene picked on the YAML view goes to its lines", async () => {
     // A tab of its own (the earlier tests' pages hold sheets, palettes and sessions of theirs).
     const page = await open(context);
     const home = `#/p/${P}/s/quote`;
@@ -822,7 +822,7 @@ describe('the shell (L5.9 part E)', () => {
   });
 });
 
-describe('L5.10a: the productions listbox and the project shell', () => {
+describe('the productions listbox and the project shell', () => {
   it('⚑ the poster grid is ONE tab stop: arrows move the selection (a row is three), Home / End, Enter opens, Escape clears; a click selects, a double-click opens', async () => {
     // Wide enough for the gallery's half column to hold three posters (as many columns as fit).
     await page.setViewportSize({ width: 2200, height: 900 });
@@ -895,7 +895,7 @@ describe('L5.10a: the productions listbox and the project shell', () => {
   });
 });
 
-describe('⚑ the overlay title bar contract (L5.9, DESIGN §4j)', () => {
+describe('⚑ the overlay title bar contract (DESIGN §4j)', () => {
   it("under the desktop app's overlay bar: 80 px for the window buttons, no ⌘K of its own, commands from the menu; without it, inset 0", async () => {
     const app = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     await app.addInitScript(() => {

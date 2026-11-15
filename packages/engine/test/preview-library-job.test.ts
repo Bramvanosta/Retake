@@ -224,7 +224,7 @@ describe('library preview jobs (injected backend)', () => {
     expect([now.poster.state, now.loop.state]).toEqual(['cached', 'cached']);
   });
 
-  it('⚑ review A M3 / B H1: a component that throws at module load fails alone; fixed, its failure reads missing and renders without Retry', async () => {
+  it('⚑ a component that throws at module load fails alone; fixed, its failure reads missing and renders without Retry', async () => {
     await rm(cache(), { recursive: true, force: true });
     // A stand-in whose page loads every bundled module: a bundle holding acme/thrower throws on every render while broken.
     let broken = true;

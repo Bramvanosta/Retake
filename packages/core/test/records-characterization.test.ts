@@ -88,7 +88,7 @@ describe('the schema of what this version writes, over records of the past', () 
     });
   });
 
-  it('the schema of written records refuses the states no writer makes (L7.6a: one state per status)', () => {
+  it('the schema of written records refuses the states no writer makes (one state per status)', () => {
     // Before the lot the flat schema accepted each of these: it had no rule between `status` and the other members.
     const base = JSON.parse(recordText({ about: 'base' }, { id: STATES.new, dir: '/w/runs/x', project: 'p' })!) as Record<string, unknown>;
     expect(strict({ ...base, error: { message: 'x' } })).toBe('error: invalid_type');

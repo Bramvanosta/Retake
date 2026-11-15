@@ -142,7 +142,7 @@ describe('retake comment', () => {
   );
 
   it(
-    'prints the studio channel of a thread and an entry written from the Studio (L4.6)',
+    'prints the studio channel of a thread and an entry written from the Studio',
     async () => {
       process.env.RETAKE_AUTHOR = 'Studio Person';
       const retakeHome = scratchHome();

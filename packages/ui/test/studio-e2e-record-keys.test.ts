@@ -254,8 +254,8 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('the Record screen on a played recording (L5.11b fixes)', () => {
-  it("⚑ ⌘. is the recording's before its view is read; Rehearse / Capture / Render wait in every live state, ⌘. says what it does (B-L1)", async () => {
+describe('the Record screen on a played recording', () => {
+  it("⚑ ⌘. is the recording's before its view is read; Rehearse / Capture / Render wait in every live state, ⌘. says what it does", async () => {
     // A scenario in context (the status bar's defaults would act on it).
     await page.goto(`${studio.url}#/p/${P}/s/quote`);
     await page.getByTestId('run-dry').waitFor(POLL);
@@ -307,7 +307,7 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     ).toEqual([]);
   });
 
-  it('⚑ the draft is one tab stop: Stop a few Tabs from the title with 60 rows; ↑ ↓ cross scenes, Home / End, Enter selects; the cursor block is no option (A-M2 / A-L3)', async () => {
+  it('⚑ the draft is one tab stop: Stop a few Tabs from the title with 60 rows; ↑ ↓ cross scenes, Home / End, Enter selects; the cursor block is no option', async () => {
     await open({ scenes: [40, 20] });
     const lists = page.getByTestId('record-rows');
     expect(await lists.count()).toBe(2);
@@ -368,7 +368,7 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     await expect.poll(() => page.getByTestId('record-cursor-where').textContent(), POLL).toBe('Insert after step 5 of scene-1');
   });
 
-  it('⚑ ⌘K on a live recording: Stop recording and Discard… named after the recording, never the scenario in context (A-M2 / A-L1)', async () => {
+  it('⚑ ⌘K on a live recording: Stop recording and Discard… named after the recording, never the scenario in context', async () => {
     await page.goto(`${studio.url}#/p/${P}/s/quote`);
     await page.getByTestId('run-dry').waitFor(POLL);
     await open();
@@ -407,7 +407,7 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     await page.keyboard.press('Escape');
   });
 
-  it('⚑ the alternatives with a save held back: the radio follows each arrow press, one write in flight, the newest pick sent after it (A-M1)', async () => {
+  it('⚑ the alternatives with a save held back: the radio follows each arrow press, one write in flight, the newest pick sent after it', async () => {
     await open({ scenes: [6] });
     await page.locator('[role="option"]').first().click();
     const radios = page.getByTestId('record-alternative');
@@ -444,7 +444,7 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     expect(await page.locator('.sh-said').innerText()).not.toMatch(/try again/);
   });
 
-  it('⚑ Stop pressed while a change is written is sent right after it (A-L6)', async () => {
+  it('⚑ Stop pressed while a change is written is sent right after it', async () => {
     await open();
     const g = gate();
     stub.annotateGate = g.promise;
@@ -465,7 +465,7 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     expect(ops).toEqual(['record_annotate', 'record_stop']);
   });
 
-  it('⚑ an open Caption… keeps its text and its focus when the first row arrives and when a new scene starts (A-L7)', async () => {
+  it('⚑ an open Caption… keeps its text and its focus when the first row arrives and when a new scene starts', async () => {
     await open({ scenes: [0] });
     await page.getByTestId('record-no-steps').waitFor(POLL);
     await page.getByTestId('record-insert-caption').click();
@@ -494,7 +494,7 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     expect(await focusedTestId()).toBe('record-caption-text');
   });
 
-  it('⚑ hiding / showing the inspector keeps the Name typed; hidden, the one Stop is at the top of the centre (B-L4)', async () => {
+  it('⚑ hiding / showing the inspector keeps the Name typed; hidden, the one Stop is at the top of the centre', async () => {
     await open({ scenes: [30] });
     await page.locator('.sh-inspector').getByTestId('record-save-name').fill('kept-name');
     await command('inspector');
@@ -513,7 +513,7 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     expect(await page.getByTestId('record-stop').evaluate((el) => el.closest('.sh-inspector') !== null)).toBe(true);
   });
 
-  it('⚑ Save: disabled with its reason while recording and while the check runs, enabled when done; Enter in Name says why (B-M2 / A-L4)', async () => {
+  it('⚑ Save: disabled with its reason while recording and while the check runs, enabled when done; Enter in Name says why', async () => {
     await open();
     const save = page.getByTestId('record-save');
     const why = page.getByTestId('record-save-why');
@@ -532,7 +532,7 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     expect(await why.textContent()).toBe('It writes a new file, scenarios/stub-draft.yaml, then opens it.');
   });
 
-  it('⚑ Zoom… with a factor other than the default sends that factor (B-L7)', async () => {
+  it('⚑ Zoom… with a factor other than the default sends that factor', async () => {
     await open();
     await page.getByTestId('record-insert-zoom').click();
     expect(await page.getByRole('radio', { name: /^1\.25×/ }).isChecked()).toBe(true);
@@ -543,7 +543,7 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     expect((sent('record_annotate').at(-1)!.body.change as { insert: unknown }).insert).toEqual({ kind: 'camera', zoom: 1.5, until: 'scene_end' });
   });
 
-  it('⚑ an info note is a status, not an alert (A-L5)', async () => {
+  it('⚑ an info note is a status, not an alert', async () => {
     await open({ discardAnswer: 'discarding' });
     await page.getByTestId('record-discard').click();
     await page.getByTestId('record-discard-yes').click();
@@ -552,7 +552,7 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     expect(role).toBe('status');
   });
 
-  it("⚑ a narrow centre (900 px): a row's aside goes under its text, a word is never broken; the shots (A-L2)", async () => {
+  it("⚑ a narrow centre (900 px): a row's aside goes under its text, a word is never broken; the shots", async () => {
     await open({ scenes: [24] });
     await shot('record-live-1440-dark');
     await page.setViewportSize({ width: 900, height: 900 });

@@ -107,7 +107,7 @@ describe('toEngineError', () => {
 });
 
 describe('engine: projects', () => {
-  it('a project that does not load is listed with its first problem, not just "has 1 error:" (review B L5)', async () => {
+  it('a project that does not load is listed with its first problem, not just "has 1 error:"', async () => {
     expect(firstErrorLine('project.yaml has 1 error:\n  environments.local: expected an object\n')).toBe('project.yaml has 1 error: environments.local: expected an object');
     expect(firstErrorLine('no project.yaml in /x')).toBe('no project.yaml in /x');
     // In memory: the workspace's reads are the port's, nothing is written.

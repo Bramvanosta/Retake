@@ -176,7 +176,7 @@ describe('MCP over HTTP: the same server as stdio', () => {
   });
 });
 
-describe('MCP over HTTP: abandoned sessions make room (review A L1 / B M2)', () => {
+describe('MCP over HTTP: abandoned sessions make room', () => {
   it('at the cap, a new initialize closes the least recently seen session with no call running and no event stream', async () => {
     await closeAll();
     const auth = { authorization: `Bearer ${token}`, ...MCP_ACCEPT };
@@ -245,7 +245,7 @@ function holdStream(port: number, sid: string): Promise<{ status: number; close(
 }
 
 describe('MCP over HTTP: idle sessions', () => {
-  it('a session whose event stream is open never expires; once the stream closes it does (review A L2)', async () => {
+  it('a session whose event stream is open never expires; once the stream closes it does', async () => {
     const quick = await startMcpHttpServer({ root: ws, port: 0, token, idleMs: 300 });
     try {
       const auth = { authorization: `Bearer ${token}`, ...MCP_ACCEPT };

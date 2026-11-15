@@ -147,7 +147,7 @@ describe('cuts and their reasons (a synthetic take)', () => {
     expect(timelineOf(old).cuts.map((x) => x.reason)).toEqual(['gap', 'gap', 'gap', 'gap', 'gap']);
   });
 
-  it('review B M4: a page load the idle time overlaps is a page load, never idle (a jump the planner gave no reason)', () => {
+  it('a page load the idle time overlaps is a page load, never idle (a jump the planner gave no reason)', () => {
     const t = { idle: [{ t_start: 0, t_end: 10 }], loading: [{ t_start: 4, t_end: 5 }], stalls: [], busy: [], events: [] } as unknown as Parameters<typeof reasonOf>[2];
     // The idle span covers more of the skipped time than the load: the load still names it.
     expect(reasonOf(3, 6, t)).toBe('loading');
@@ -158,7 +158,7 @@ describe('cuts and their reasons (a synthetic take)', () => {
   });
 });
 
-describe('comment pins (read-only, plan D8)', () => {
+describe('comment pins (read-only)', () => {
   it("on the shown take: the anchored step, else its marker, else its segment; on today's edit: today's step; else beside the track", async () => {
     const p = await plan(load('quote'));
     const m = timelineOf(p);
@@ -191,7 +191,7 @@ describe('comment pins (read-only, plan D8)', () => {
     expect(placePins(m, [{ id: 'd', status: 'open', run_id: 'other', anchor: { segment: 'request' }, step_now: 'request.2' }], { run_id: run, edit: 'run' })).toEqual({ placed: [], elsewhere: ['d'] });
   });
 
-  it("review B M5: a thread whose render shows this version is pinned at its own frame, not its step's first frame", async () => {
+  it("a thread whose render shows this version is pinned at its own frame, not its step's first frame", async () => {
     const p = await plan(load('quote'));
     const m = timelineOf(p);
     const step = m.steps.find((s) => s.scene === 'request' && s.step === 2)!;
@@ -210,7 +210,7 @@ describe('comment pins (read-only, plan D8)', () => {
   });
 });
 
-describe('caption_component in the planner (L4.5)', () => {
+describe('caption_component in the planner', () => {
   it("the scenario's caption component wins over the theme, a render override over it; an unknown one falls back with a warning", async () => {
     const t = load('quote');
     const themeId = clips(await plan(t))[0].caption!.id;
@@ -230,7 +230,7 @@ describe('caption_component in the planner (L4.5)', () => {
   });
 });
 
-describe('a 4-minute plan (critique B13: measured)', () => {
+describe('a 4-minute plan (measured)', () => {
   /** A take of `scenes` 30-second scenes of 12 clicks each (8 scenes: 4 minutes). */
   const take = (scenes: number) => {
     const entries = Array.from({ length: scenes }, (_, k) => ({

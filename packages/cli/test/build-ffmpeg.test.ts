@@ -196,7 +196,7 @@ function engineArguments(): { codecs: Map<string, string>; formats: Map<string, 
   return { codecs, formats, filters, muxers };
 }
 
-describe('the build never writes into the checkout (review A L7)', () => {
+describe('the build never writes into the checkout', () => {
   it('--sources, --out and --work inside the repository are refused, links followed; outside folders pass', () => {
     const repo = join(tmp, 'repo');
     mkdirSync(join(repo, 'scripts'), { recursive: true });
@@ -228,7 +228,7 @@ describe("the engine's needs", () => {
     expect([...filters].filter(([c, f]) => !ENGINE_NEEDS.filters.includes(c) && !compositorOnly[f]?.includes(c))).toEqual([]);
   });
 
-  it("L7.3: what a render's frame encode asks of our ffmpeg — its colour filter, and what its probe makes and reads three frames with — is in ENGINE_NEEDS", () => {
+  it("what a render's frame encode asks of our ffmpeg — its colour filter, and what its probe makes and reads three frames with — is in ENGINE_NEEDS", () => {
     const tools = readFileSync(join(ROOT, 'packages/editor/src/render/encode-tools.ts'), 'utf8');
     const name = /export const OWN_FRAME_FILTER_NAME = '([a-z0-9_]+)';/.exec(tools)?.[1];
     expect(name).toBe('colorspace');

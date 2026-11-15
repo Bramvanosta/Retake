@@ -101,7 +101,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', () => {
+describe.skipIf(!canRun)('Render from the timeline in Chromium', () => {
   it('Render → queued → progress → the review status → the contact sheet; the scenario screen shows the same', async () => {
     await expect.poll(() => page.getByTestId('render-status').innerText(), POLL).toBe('renders this capture with the theme of the files, then reviews it');
 
@@ -193,7 +193,7 @@ describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', (
     expect(consoleErrors).toEqual([]);
   }, 240_000);
 
-  it('review B H1: a render with other options never seeks the preview; the same plan does; a newer failure shows in the Render bar', async () => {
+  it('a render with other options never seeks the preview; the same plan does; a newer failure shows in the Render bar', async () => {
     const dir = join(ws, 'projects', 'demo');
     const v1 = JSON.parse(await readFile(join(dir, 'renders', 'tiny-v1.json'), 'utf8')) as Record<string, unknown> & { plan: Record<string, unknown>; created_at: string };
     const later = (n: number) => new Date(Date.parse(v1.created_at) + n * 60_000).toISOString();

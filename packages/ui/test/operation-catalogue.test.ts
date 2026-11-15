@@ -15,7 +15,7 @@ import { stubTools } from '@retake/test-support/studio-tools';
 const sorted = (xs: Iterable<string>) => [...xs].sort();
 
 describe("the Studio's ops and the operation catalogue", () => {
-  it('the allow-list is what the catalogue gives the Studio (76), in its order: the MCP tools both serve and its own ops', () => {
+  it('the allow-list is what the catalogue gives the Studio (76 operations), in its order: the MCP tools both serve and its own ops', () => {
     expect([...UI_OPS]).toEqual(servedNames('studio'));
     expect(UI_OPS).toHaveLength(76);
     expect(Object.isFrozen(UI_OPS)).toBe(true);

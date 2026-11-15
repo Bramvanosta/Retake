@@ -279,7 +279,7 @@ describe('the scenario screen in Chromium', () => {
     await shot('10-scenario-quote');
   });
 
-  it("off camera (L5.8): a hook step's badge and words, the named hooks in the strip by name, an offscreen scene said so", async () => {
+  it("off camera: a hook step's badge and words, the named hooks in the strip by name, an offscreen scene said so", async () => {
     await page.goto(`${studio.url}#/p/${P}/s/off-camera`);
     await page.getByRole('heading', { level: 1, name: 'off-camera' }).waitFor();
     const hook = row('requests.2');
@@ -668,7 +668,7 @@ describe('the scenario screen in Chromium', () => {
     return runId!;
   }
 
-  it("⚑ the Location (critique M1): its options carry their flags; a choice reads the view and runs there (`env` sent), the file's own sends none; a reload goes back to the file's", async () => {
+  it("⚑ the Location: its options carry their flags; a choice reads the view and runs there (`env` sent), the file's own sends none; a reload goes back to the file's", async () => {
     await page.goto(`${studio.url}#/p/${P}/s/blocks`);
     await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
     const select = page.getByTestId('location-select');
@@ -717,7 +717,7 @@ describe('the scenario screen in Chromium', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  it('a Studio run that fails before its first step (the site down): its outcome and first error line, named over the pictures (review B H1)', async () => {
+  it('a Studio run that fails before its first step (the site down): its outcome and first error line, named over the pictures', async () => {
     await writeFile(join(project(), 'scenarios', 'down.yaml'), BLOCKS_YAML);
     await writeRun(project(), capture('20261020-090000-down', { scenario: 'down', video: false }));
     const runId = await startDry('down');
@@ -752,7 +752,7 @@ describe('the scenario screen in Chromium', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  it('a worker that dies mid-run: the banner goes without a focus or a reload, the run interrupted (review B M4)', async () => {
+  it('a worker that dies mid-run: the banner goes without a focus or a reload, the run interrupted', async () => {
     await writeFile(join(project(), 'scenarios', 'crash.yaml'), BLOCKS_YAML);
     const runId = await startDry('crash');
     // A worker takes the job and runs it (a stand-in process), then dies.
@@ -787,7 +787,7 @@ describe('the scenario screen in Chromium', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  it('a multi-page scene: each page’s full URL or the scene it continues from, the layout the video uses; filmed scenes numbered 1, 2, 3; notes from the file (review B M1, L3, M5)', async () => {
+  it('a multi-page scene: each page’s full URL or the scene it continues from, the layout the video uses; filmed scenes numbered 1, 2, 3; notes from the file', async () => {
     await page.goto(`${studio.url}#/p/${P}/s/phone-and-desktop`);
     await page.getByRole('heading', { level: 1, name: 'phone-and-desktop' }).waitFor();
     const phone = page.locator('[data-testid="scene"][data-scene="phone"]');
@@ -821,7 +821,7 @@ describe('the scenario screen in Chromium', () => {
     expect(await page.getByTestId('card').count()).toBeGreaterThan(0);
   });
 
-  it('a step with two actions says why it has no picture (review B M3); a file over the step cap shows the first 2,000 and says so (review A #8)', async () => {
+  it('a step with two actions says why it has no picture; a file over the step cap shows the first 2,000 and says so', async () => {
     const yaml = BLOCKS_YAML.replace('      - click: Second\n', '      - {click: Second, hover: Elsewhere}\n');
     await writeFile(join(project(), 'scenarios', 'two-actions.yaml'), yaml);
     await writeRun(project(), capture('20261020-080000-two-actions', { scenario: 'two-actions', snapshot: yaml, video: false }));
@@ -841,7 +841,7 @@ describe('the scenario screen in Chromium', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  it('L5.10b fixes A-M1: a location remembered in this tab that project.yaml no longer has is dropped once the project is read — never sent, said once, the select and the strip agree, the file not blamed', async () => {
+  it('a location remembered in this tab that project.yaml no longer has is dropped once the project is read — never sent, said once, the select and the strip agree, the file not blamed', async () => {
     const yamlPath = join(project(), 'project.yaml');
     const before = await readFile(yamlPath, 'utf8');
     try {
@@ -904,7 +904,7 @@ describe('the scenario screen in Chromium', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  it("L5.10b fixes A-M2: entering the frames by keyboard with a scene, a card, the hooks or the video selected lands on the first step of the tab stop's list (an active option); the next → goes to step 2; a mouse-down sets the active option", async () => {
+  it("entering the frames by keyboard with a scene, a card, the hooks or the video selected lands on the first step of the tab stop's list (an active option); the next → goes to step 2; a mouse-down sets the active option", async () => {
     await page.goto(`${studio.url}#/p/${P}/s/blocks`);
     await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
     const selected = () => page.locator('[role="option"][aria-selected="true"]').getAttribute('data-key');
@@ -942,7 +942,7 @@ describe('the scenario screen in Chromium', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  it('L5.10b fixes A-L3: a selection re-renders the two frames it changes, not the board (the source object is stable)', async () => {
+  it('a selection re-renders the two frames it changes, not the board (the source object is stable)', async () => {
     const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 } });
     // A React devtools hook (no extension): each commit, the frames whose option element got new props.
     await ctx.addInitScript(() => {
@@ -1003,7 +1003,7 @@ describe('the scenario screen in Chromium', () => {
     }
   });
 
-  it("L5.10b fixes A-L4, B-L6, B-L8: the columns of the frames follow the board's width (three, two at 1100, one in a 900 window with the inspector); a skipped scene's height uses them; the title bar keeps the scenario's name; the step count is on the board", async () => {
+  it("the columns of the frames follow the board's width (three, two at 1100, one in a 900 window with the inspector); a skipped scene's height uses them; the title bar keeps the scenario's name; the step count is on the board", async () => {
     const intrinsic = () =>
       page.evaluate(() => {
         const list = document.querySelector<HTMLElement>('.k-frames')!;

@@ -59,7 +59,7 @@ afterAll(async () => {
   await rm(base, { recursive: true, force: true });
 });
 
-describe('the journal and the history: one append discipline (L7.26)', () => {
+describe('the journal and the history: one append discipline', () => {
   it("a normal line's bytes are its writer's: the journal's journalLine, the history's JSON line; both created owner-only (an existing history keeps its mode)", async () => {
     const root = await workspace();
     const clock = new ManualClock('2026-03-04T05:06:07.008Z');

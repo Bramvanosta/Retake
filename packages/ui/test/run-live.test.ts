@@ -206,7 +206,7 @@ function jpeg(n: number, size = 4096): Buffer {
 const frame = (ch: LiveChannel, n: number, size?: number) => ch.sink.frame({ data: jpeg(n, size), width: 960, height: 540, at: Date.now(), page: 'console' });
 const channel = async (j: { run: string; job: string }) => openLiveChannel({ files: queue.files, jobId: j.job, runId: j.run, worker: await selfIdentity() });
 
-describe('POST /v1/live: the gate (S5)', () => {
+describe('POST /v1/live: the gate', () => {
   it('token, another page, method, content type, body cap and shape; an unknown run 404; at most 2 streams; never an op', async () => {
     const j = await runningJob('live-a');
     const body = JSON.stringify({ project: P, run_id: j.run, frames: false });
@@ -327,7 +327,7 @@ describe('POST /v1/live: steps and log from log.jsonl', () => {
     expect(r.events.filter((e) => e.event === 'progress').map((e) => (e.data.ev as { type: string }).type)).toEqual(['step_end', 'run_end']);
   });
 
-  it("S9: no path field or path in any text, the site's and hooks' text under untrusted, every text capped", async () => {
+  it("no path field or path in any text, the site's and hooks' text under untrusted, every text capped", async () => {
     const j = await runningJob('live-c');
     const long = 'L'.repeat(LIVE_TEXT_MAX * 3);
     await log(
@@ -365,7 +365,7 @@ describe('POST /v1/live: steps and log from log.jsonl', () => {
   });
 });
 
-describe('POST /v1/live: review fixes', () => {
+describe('POST /v1/live: escaping, scrubbing and order', () => {
   it('U+2028 / U+2029 in a text: escaped on the wire, every event reaches the page intact (snapshot and progress)', async () => {
     const j = await runningJob('live-g');
     const page = 'Expected "Total" but the page says: Total\u2028due\u2029now';
@@ -531,7 +531,7 @@ describe('POST /v1/live: the live picture', () => {
     expect(await t.next('end', 8000)).toMatchObject({ status: 'succeeded' });
   });
 
-  it('latest-only toward a page that never reads; S4 no frame lands on disk', async () => {
+  it('latest-only toward a page that never reads; no frame lands on disk', async () => {
     const j = await runningJob('live-f');
     const ch = await channel(j);
     let stalled: Socket | undefined;

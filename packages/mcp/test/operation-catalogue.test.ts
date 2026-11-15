@@ -8,7 +8,7 @@ import { annotationProblem, catalogueOperation, hintsOf, servedNames } from '@re
 import { TOOLS } from '../src/index.js';
 
 describe('the MCP tools and the operation catalogue', () => {
-  it('serves exactly the operations the catalogue gives MCP, in its order (45)', () => {
+  it('serves exactly the operations the catalogue gives MCP, in its order (45 operations)', () => {
     expect(TOOLS.map((t) => t.name)).toEqual(servedNames('mcp'));
     expect(TOOLS).toHaveLength(45);
   });

@@ -48,7 +48,7 @@ function child(at: number, files: string[]): Promise<string[]> {
   });
 }
 
-describe('the home key (review A L2)', () => {
+describe('the home key', () => {
   it('several processes making it at once all get the same whole key, round after round', async () => {
     const rounds = 40;
     const files = Array.from({ length: rounds }, (_, i) => join(base, `race-${i}`, 'approvals.key'));

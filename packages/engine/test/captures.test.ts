@@ -53,7 +53,7 @@ afterAll(async () => {
   await rm(base, { recursive: true, force: true });
 });
 
-describe('the captures folder (L5.14)', () => {
+describe('the captures folder', () => {
   it('RETAKE_CAPTURES_DIR names it (made 0700); a folder open to others, a link or a relative name is not used', async () => {
     // A folder of its own, so that this test sees it made (the shared one is made before every test).
     const made = join(base, 'made');
@@ -79,7 +79,7 @@ describe('the captures folder (L5.14)', () => {
     expect(loc.problem).toMatch(/not an absolute path/);
   });
 
-  it('review B M2: under a test run (VITEST, or a RETAKE_TEST_* variable) the per-user folder is never used without RETAKE_CAPTURES_DIR', () => {
+  it('under a test run (VITEST, or a RETAKE_TEST_* variable) the per-user folder is never used without RETAKE_CAPTURES_DIR', () => {
     const real = capturesLocation({}).dir;
     const existed = existsSync(real);
     for (const e of [{ VITEST: 'true' }, { RETAKE_TEST_ANYTHING: '1' }]) {
@@ -105,7 +105,7 @@ describe('the captures folder (L5.14)', () => {
   });
 });
 
-describe('filming markers (L5.14)', () => {
+describe('filming markers', () => {
   it('one file per take, 0600, written whole; it names no workspace (no path, slug, scenario, run or job id)', () => {
     clear();
     const m = FilmingMarker.open({ root: wsA, source: 'job', owner: me, env })!;
@@ -154,7 +154,7 @@ describe('filming markers (L5.14)', () => {
     old.closeSync();
   });
 
-  it('review A L1: a marker that is a FIFO, a link or larger than MARKER_MAX_BYTES is not read (never blocks, never read whole)', async () => {
+  it('a marker that is a FIFO, a link or larger than MARKER_MAX_BYTES is not read (never blocks, never read whole)', async () => {
     clear();
     const fifo = `k_${ulid()}.json`;
     expect(spawnSync('mkfifo', [join(dir, fifo)]).status).toBe(0);
@@ -171,7 +171,7 @@ describe('filming markers (L5.14)', () => {
     clear();
   });
 
-  it('review A L2: a marker whose time is in the future is stale too (removed, holds nothing)', async () => {
+  it('a marker whose time is in the future is stale too (removed, holds nothing)', async () => {
     clear();
     const m = FilmingMarker.open({ root: wsA, source: 'cli', owner: me, env, beatMs: 3_600_000 })!;
     const future = new Date(Date.now() + 365 * 24 * 3600_000);
@@ -192,7 +192,7 @@ describe('filming markers (L5.14)', () => {
     clear();
   });
 
-  it('a paused take holds nothing (L4.4 pause: not filmed); it holds again on resume', async () => {
+  it('a paused take holds nothing (pause: not filmed); it holds again on resume', async () => {
     clear();
     const m = FilmingMarker.open({ root: wsA, source: 'job', owner: me, env })!;
     const w = new FilmingWatch({ root: wsA, env });
@@ -226,7 +226,7 @@ describe('filming markers (L5.14)', () => {
     m.closeSync();
   });
 
-  it("review A L2 / B L4: the cap is the owner's — a renamed file, or one removed as stale and written again, does not restart it; a new take after a pause in its markers does", async () => {
+  it("the cap is the owner's — a renamed file, or one removed as stale and written again, does not restart it; a new take after a pause in its markers does", async () => {
     clear();
     let t = 2_000_000;
     const capEnv = { ...env, RETAKE_CAPTURE_HOLD_MAX_MIN: '0.2' }; // 12 s
@@ -264,7 +264,7 @@ describe('filming markers (L5.14)', () => {
   });
 });
 
-describe('the owner of a marker (L5.14)', () => {
+describe('the owner of a marker', () => {
   /** A process owning a marker (from the sources, through tsx), printing its name. */
   function owner(code: string): { child: ChildProcess; name: Promise<string> } {
     const mod = join(REPO, 'packages/engine/src/jobs/captures.ts');
@@ -315,7 +315,7 @@ describe('the owner of a marker (L5.14)', () => {
   });
 });
 
-describe('what a take saw beside it (L5.14b)', () => {
+describe('what a take saw beside it', () => {
   it('the most other unpaused takes at once (its own marker not counted), told once with where; a heavy job of its workspace slowed', async () => {
     const { TakeBeside } = await import('../src/jobs/captures.js');
     clear();

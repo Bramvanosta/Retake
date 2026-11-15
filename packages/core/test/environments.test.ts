@@ -116,7 +116,7 @@ describe('project.yaml environments: short form, long form, display URLs (R-ENV-
     });
   });
 
-  it('a short-form project has no environment_settings (configs as before L1.7)', () => {
+  it('a short-form project has no environment_settings (a config without environments)', () => {
     const { config } = parseProjectYaml('name: x\nenvironments:\n  local: {console: http://localhost:4401}\n');
     expect(config).toBeDefined();
     expect(Object.keys(config!)).not.toContain('environment_settings');
@@ -194,7 +194,7 @@ describe('project.yaml environments: short form, long form, display URLs (R-ENV-
     expect(msgs(warnings(issues)).join('\n')).not.toContain('no environments yet');
   });
 
-  it('a short-form page key named access or production stays a page (C8)', () => {
+  it('a short-form page key named access or production stays a page', () => {
     const { config, issues } = parseProjectYaml('name: x\nenvironments:\n  prod:\n    access: https://access.example.com\n    production: https://prod.example.com\n');
     expect(issues).toEqual([]);
     expect(config!.environments.prod).toEqual({ access: 'https://access.example.com', production: 'https://prod.example.com' });
@@ -380,7 +380,7 @@ describe('display URLs (R-ENV-01)', () => {
     expect(displayUrl(url, table)).toBe(shown);
   });
 
-  it('blob: and filesystem: URLs map the URL they wrap; file: URLs are local; other schemes are never mapped (V1)', () => {
+  it('blob: and filesystem: URLs map the URL they wrap; file: URLs are local; other schemes are never mapped', () => {
     expect(displayUrl('blob:http://localhost:4402/7f1c-uuid', table)).toBe('blob:https://shop.northfield.example/7f1c-uuid');
     expect(displayUrl('filesystem:http://localhost:4401/temporary/a.png', table)).toBe('filesystem:https://console.northfield.example/temporary/a.png');
     expect(displayUrl('file:///home/someone/report.pdf', table)).toBe('file:///home/someone/report.pdf');
@@ -393,7 +393,7 @@ describe('display URLs (R-ENV-01)', () => {
     expect(isLocalUrl('data:text/plain,hello')).toBe(false);
   });
 
-  it('a page without a display URL claims its URLs: they stay as they are (hidden when local); the origin fallback only takes URLs no page claims (V7)', () => {
+  it('a page without a display URL claims its URLs: they stay as they are (hidden when local); the origin fallback only takes URLs no page claims', () => {
     const rows = displayRows({ pages: { shop: 'http://localhost:4402', admin: 'http://localhost:4402/admin' }, display: { shop: 'shop.northfield.example' } });
     expect(rows).toEqual([
       { page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' },
@@ -409,7 +409,7 @@ describe('display URLs (R-ENV-01)', () => {
     expect(displayTable({ pages: { shop: 'http://localhost:4402', admin: 'http://localhost:4402/admin' }, display: { shop: 'shop.northfield.example' } })).toEqual([rows[0]]);
   });
 
-  it("editDisplayTable: the project's current pages first (a display URL added after the capture applies), recorded rows it no longer declares kept (V2)", () => {
+  it("editDisplayTable: the project's current pages first (a display URL added after the capture applies), recorded rows it no longer declares kept", () => {
     const recorded = [
       { page: 'shop', url: 'http://localhost:4402', display: 'https://old.northfield.example' },
       { page: 'legacy', url: 'http://localhost:4499', display: 'https://legacy.northfield.example' },
@@ -837,7 +837,7 @@ describe('clock (R-ENV-05)', () => {
     expect(clockError('0099-11-02T10:24:00Z')).toMatch(/1970 or later/);
   });
 
-  it('a wall time a DST change skips or shows twice names no instant: refused, with the offset to write (T3)', () => {
+  it('a wall time a DST change skips or shows twice names no instant: refused, with the offset to write', () => {
     expect(() => resolveClock('2026-03-29T02:30:00', undefined, { timezone: 'Europe/Paris' })).toThrow(
       'clock: 2026-03-29T02:30:00 does not exist in Europe/Paris (the clocks go forward then): give an offset, e.g. 2026-03-29T02:30:00+01:00',
     );
@@ -855,7 +855,7 @@ describe('clock (R-ENV-05)', () => {
     expect(resolveClock('2026-10-25T02:30:00+01:00', undefined, { timezone: 'Europe/Paris' })!.epoch_ms).toBe(Date.UTC(2026, 9, 25, 1, 30));
   });
 
-  it("records the zone a time without an offset was read in: browser.timezone, else the machine's (T4)", () => {
+  it("records the zone a time without an offset was read in: browser.timezone, else the machine's", () => {
     const machine = new Intl.DateTimeFormat().resolvedOptions().timeZone;
     expect(resolveClock('2026-11-02T10:24:00', undefined)).toEqual({ at: '2026-11-02T10:24:00', epoch_ms: new Date(2026, 10, 2, 10, 24).getTime(), timezone: machine });
     expect(resolveClock({ at: '2026-11-02T10:24:00', freeze: true }, undefined, { timezone: 'UTC' })).toEqual({

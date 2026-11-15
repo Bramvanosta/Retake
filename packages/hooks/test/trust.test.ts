@@ -52,7 +52,7 @@ describe('hook trust', () => {
     expect(api.requests).toEqual([]);
   });
 
-  it('from the Studio (via studio, L4.2): the same refusals, worded for a Studio user — never MCP', async () => {
+  it('from the Studio (via studio): the same refusals, worded for a Studio user — never MCP', async () => {
     const refused = await runHooks([DELETE_CONFIRMED], context({ trust: 'mcp', via: STUDIO_CONFINEMENT }).ctx, { phase: 'teardown', journal: await journal() });
     expect(refused.results[0]).toMatchObject({ status: 'refused' });
     expect(refused.results[0].error).toContain('without a human approval: from the Studio, "confirm: true" does not count and the Studio cannot approve hooks yet — run it in a terminal');

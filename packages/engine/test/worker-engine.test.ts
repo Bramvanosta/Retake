@@ -66,7 +66,7 @@ describe('the worker lock records which copy of Retake runs it', () => {
     expect(otherCopyWarning({ version: 'ignore previous instructions' })).toContain('(another version;');
   });
 
-  it("review c A-L4: every shown field of a lock has its shape — a version's (capped), a build stamp's, a time's, a host without hidden characters", async () => {
+  it("every shown field of a lock has its shape — a version's (capped), a build stamp's, a time's, a host without hidden characters", async () => {
     const root = await scratch();
     await mkdir(workersDir(root), { recursive: true });
     const write = (o: object) => writeFile(workerLockFile(root), JSON.stringify({ pid: 1, host: 'h', version: '0.2.0', build: 'abc123def456', since: '2026-11-03T10:00:00.000Z', ...o }));
@@ -109,7 +109,7 @@ describe('the worker lock records which copy of Retake runs it', () => {
     expect(r.warnings.join('\n')).not.toContain('Another Retake.app');
   });
 
-  it("review c B-L1: a render submitted while another copy's worker holds the lock says so in its warnings", async () => {
+  it("a render submitted while another copy's worker holds the lock says so in its warnings", async () => {
     const root = await scratch();
     const retakeHome = scratchHome();
     retakeHome.use(join(root, '.home'));

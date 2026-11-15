@@ -163,7 +163,7 @@ describe('frameAnchor on a synthetic plan', () => {
     expect(frameAnchor(p, mk.frame - 1)).toMatchObject({ step: 0, action: 'click' });
   });
 
-  it('a plan made before L3.6 (markers without a step): the marked step comes from the run timeline', () => {
+  it('an older plan (markers without a step): the marked step comes from the run timeline', () => {
     const old: EditPlan = { ...p, markers: p.markers.map(({ step: _s, step_id: _i, action: _a, ...m }) => m) };
     const mk = old.markers[0];
     expect(frameAnchor(old, mk.done!, { timeline: tl })).toMatchObject({ step: 1, action: 'wait_for', marker: 'ready' });

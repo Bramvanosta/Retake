@@ -86,7 +86,7 @@ describe('every ffmpeg / ffprobe spawn goes through the resolver (core mediaTool
   });
 });
 
-describe('the bundle setup runs first in both entry points (M2: before anything loads playwright-core)', () => {
+describe('the bundle setup runs first in both entry points (before anything loads playwright-core)', () => {
   it('bin.ts loads bundle-env.js before main.js; worker-main.ts imports it first', () => {
     const bin = readFileSync(join(REPO, 'packages', 'cli', 'src', 'bin.ts'), 'utf8');
     const code = bin
@@ -101,7 +101,7 @@ describe('the bundle setup runs first in both entry points (M2: before anything 
   });
 });
 
-describe('the render browser is checked before the asset server starts (review B L2: nothing left open on a refusal)', () => {
+describe('the render browser is checked before the asset server starts (nothing left open on a refusal)', () => {
   it('render.ts: renderBrowser / assertRenderBrowser come before startAssetServer() in openSession', () => {
     const code = readFileSync(join(REPO, 'packages', 'editor', 'src', 'render', 'render.ts'), 'utf8');
     const session = code.slice(code.indexOf('async function openSession('));
@@ -151,7 +151,7 @@ describe('the render browser is checked before the asset server starts (review B
   });
 });
 
-describe('one version number (L3)', () => {
+describe('one version number', () => {
   it('root package.json = RETAKE_VERSION = every package = tauri.conf.json = the plugin = Cargo.toml (+ its lock entry)', () => {
     const json = (p: string) => JSON.parse(readFileSync(join(REPO, p), 'utf8')) as { version: string };
     const v = json('package.json').version;
@@ -167,7 +167,7 @@ describe('one version number (L3)', () => {
   });
 });
 
-describe("the tests' shared helpers never ship (L7.37)", () => {
+describe("the tests' shared helpers never ship", () => {
   it('packages/test-support is private, builds nothing, is no reference of the build and no dependency of any package, so pnpm deploy of the CLI leaves it out', () => {
     const pkg = JSON.parse(readFileSync(join(REPO, 'packages/test-support/package.json'), 'utf8')) as Record<string, unknown>;
     expect(pkg.name).toBe('@retake/test-support');
@@ -358,7 +358,7 @@ const PNPM_ENV = {
 const PACKAGE_MANAGER = (JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')) as { packageManager: string }).packageManager;
 const hasPnpm = spawnSync('pnpm', ['--version'], { cwd: REPO, env: { ...process.env, ...PNPM_ENV }, stdio: 'ignore' }).status === 0;
 
-describe('the stage never writes the checkout (H1: pnpm deploy hard-links injected workspace packages)', () => {
+describe('the stage never writes the checkout (pnpm deploy hard-links injected workspace packages)', () => {
   /** A two-package workspace in git (a depends on b, workspace:*), offline: no external dependency. */
   function miniRepo(): string {
     const repo = join(tmp, `mini${Math.random().toString(36).slice(2, 8)}`);
@@ -571,7 +571,7 @@ describe('an app bundle: the plugin marketplace and the preview writes', () => {
     expect(pluginMarketplaceRoot(join(app.paths.engine, 'dist', 'bin.js'), undefined, app)).toBe(app.paths.plugin);
   });
 
-  it('a preview written next to a component inside the bundle is refused before any rendering (M3)', async () => {
+  it('a preview written next to a component inside the bundle is refused before any rendering', async () => {
     const app = appBundle();
     overrideBundleInfo(app);
     const dir = join(app.paths.engine, 'node_modules/@retake/components/library/studio/card');
@@ -598,7 +598,7 @@ describe('an app bundle: the plugin marketplace and the preview writes', () => {
     ).toThrow(/playwright-core install chromium-headless-shell/);
   });
 
-  it("every command's --out inside the app is refused before the command starts (review A L4)", async () => {
+  it("every command's --out inside the app is refused before the command starts", async () => {
     const app = appBundle();
     overrideBundleInfo(app);
     const io = memoryIo();
@@ -620,7 +620,7 @@ describe('an app bundle: the plugin marketplace and the preview writes', () => {
   });
 });
 
-describe("every Node.js started on the bundle's code loads its module lookup guard first (review A H1)", () => {
+describe("every Node.js started on the bundle's code loads its module lookup guard first", () => {
   it('bundleNodeArgs: --require <Resources>/node/guard.cjs from a bundle, nothing from a checkout; a bundle without it is damaged', () => {
     expect(BUNDLE_GUARD).toBe('node/guard.cjs');
     expect(bundleNodeArgs(null)).toEqual([]);
@@ -662,7 +662,7 @@ console.log(JSON.stringify([a, workerCommand('/w').args]));`;
   });
 });
 
-describe('the render bundle takes no module from above the app (review A H1, the render half)', () => {
+describe('the render bundle takes no module from above the app (the render half)', () => {
   it("renderBundleRestriction: webpack's resolver (the same enhanced-resolve) finds a planted package above the roots without it, never with it; inside the roots, resolution is unchanged", async () => {
     const base = mkdtempSync(join(tmp, 'restrict-'));
     const res = join(base, 'Retake.app', 'Contents', 'Resources');

@@ -299,7 +299,7 @@ describe('retake mcp over stdio', () => {
     expect(errorOf(await call('run_status', { project: 'northfield-fixture', run_id: '20990101-000000-none' })).code).toBe('not_found');
   });
 
-  it('project_prune lists what can go (a dry run by default) and deletes nothing (L5.7)', async () => {
+  it('project_prune lists what can go (a dry run by default) and deletes nothing', async () => {
     const r = await call('project_prune', { project: 'northfield-fixture' });
     expect(r.isError).toBeFalsy();
     expect(r.content[0].text).toMatch(/^1 item of northfield-fixture can go \(\d+ kB\); call again with dry_run: false/);

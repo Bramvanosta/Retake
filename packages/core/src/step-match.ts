@@ -158,7 +158,7 @@ export function matchRunSteps(current: ScenarioIdentity, run: ScenarioIdentity):
 }
 
 /**
- * The steps of today's file that kept their run picture but moved since the run (plan §3.9): in each scene, the
+ * The steps of today's file that kept their run picture but moved since the run: in each scene, the
  * bound steps (a `run_index` without `missing`) whose run index is not in the longest increasing run of the scene's
  * run indexes in today's order — the fewest steps that explain the new order. Their picture shows them at their old
  * place (what the page looked like then), so the screen says so. Keys "<scene>.<index>" of today's file.

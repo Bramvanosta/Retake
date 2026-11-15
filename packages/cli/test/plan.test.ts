@@ -128,7 +128,7 @@ describe('retake plan', () => {
     }
   });
 
-  it("warns when the filmed part of the scenario changed since the run was captured: the plan is the run's (L3.8, L5.5; stderr, --json too)", async () => {
+  it("warns when the filmed part of the scenario changed since the run was captured: the plan is the run's (stderr, --json too)", async () => {
     const run = '20261011-182706-quote';
     const snapshot = 'video: quote\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hold: 1\n';
     const file = join(ws, 'projects', 'demo', 'scenarios', 'quote.yaml');
@@ -158,7 +158,7 @@ describe('retake plan', () => {
     }
   });
 
-  it('takes a theme folder of the project by its ./path at the terminal (L7.22: trust author): the plan names the theme', async () => {
+  it('takes a theme folder of the project by its ./path at the terminal (trust author): the plan names the theme', async () => {
     const theme = join(ws, 'projects', 'demo', 'themes', 'house');
     await cp(join(TEMPLATES, 'motion'), theme, { recursive: true });
     await writeFile(join(theme, 'template.yaml'), (await readFile(join(theme, 'template.yaml'), 'utf8')).replace(/^name: motion$/m, 'name: house'));
@@ -175,7 +175,7 @@ describe('retake plan', () => {
     }
   });
 
-  it('--out writes the plan --json prints, with the note and warnings of where its edit came from (L7.22: the file was written before them)', async () => {
+  it('--out writes the plan --json prints, with the note and warnings of where its edit came from (the file was written before them)', async () => {
     const run = '20261011-182706-quote';
     // A snapshot whose scenes are not the ones the run filmed, and today's file the same but for a caption (no filmed
     // change): the edit is the run's as captured, and the plan says why in a warning.

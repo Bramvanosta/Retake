@@ -135,7 +135,7 @@ describe('discovery file', () => {
     await rm(file, { recursive: true });
   });
 
-  it('release removes our own file whatever its mode now (0644 while serving), never the file of a successor or a link (review B L8)', async () => {
+  it('release removes our own file whatever its mode now (0644 while serving), never the file of a successor or a link', async () => {
     const file = discoveryFile(ws);
     const r = await record(4110);
     expect(await claimDiscovery(file, r)).toEqual({ claimed: true });
@@ -158,7 +158,7 @@ describe('discovery file', () => {
     await rm(target);
   });
 
-  it('a state folder this user cannot write: refused with a fix, never a stack (review B L3)', async () => {
+  it('a state folder this user cannot write: refused with a fix, never a stack', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-discovery-ro-'));
     try {
       await mkdir(join(dir, '.retake'), { mode: 0o500 });
