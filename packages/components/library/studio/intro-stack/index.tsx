@@ -12,6 +12,7 @@ import {
   roundTo,
   formatMetrics,
   useCurrentFrame,
+  withLogo,
 } from '@retake/components/kit';
 import type { ComponentProps, ThemeTokens } from '@retake/components/kit';
 
@@ -24,6 +25,7 @@ type Params = { align: 'center' | 'left'; rule: boolean; stagger: number };
  * between visual bands (logo row, kicker caps, title caps → baseline, rule); the whole stack is centred, which puts
  * the logo row at y ≈ 417, the kicker at ≈ 529, the title at ≈ 612 and the rule at ≈ 694 on a 1080 frame.
  */
+const WORDMARK_LOGO_W = 520;
 const LOGO = 64;
 const WORDMARK = 33;
 const ROW_GAP = 18;
@@ -62,7 +64,9 @@ export default function IntroStack({ theme, slots, params, unit, width, height, 
   const { dark, light } = darkLight(theme);
   const ink = readableOn(bg, theme.colors.text, readableOn(bg, dark, light) === dark ? dark : light);
   const accent = readableOn(bg, theme.colors.accent, ink, 2.2);
-  const brand = slots.logo ? { ...theme, logo: { url: slots.logo } } : theme;
+  const brand = withLogo(theme, slots.logo);
+  // A wordmark logo (the name itself) is drawn alone, as wide as fits WORDMARK_LOGO_W × LOGO; a mark, LOGO high.
+  const logoMaxWidth = Math.min(WORDMARK_LOGO_W, column / u);
   const row = hasBrandRow(theme, slots.logo);
 
   const kicker = slots.kicker
@@ -127,8 +131,8 @@ export default function IntroStack({ theme, slots, params, unit, width, height, 
             ...rowIn.style,
           }}
         >
-          <Logo theme={brand} size={LOGO} unit={u} />
-          <Wordmark theme={theme} height={WORDMARK} unit={u} color={ink} />
+          <Logo theme={brand} size={LOGO} maxWidth={logoMaxWidth} unit={u} />
+          <Wordmark theme={brand} height={WORDMARK} unit={u} color={ink} />
         </div>
       ) : null}
       {kicker && kickerTop !== undefined ? (

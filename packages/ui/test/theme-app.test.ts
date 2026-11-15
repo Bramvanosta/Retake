@@ -14,7 +14,7 @@
  * - ⚑ no Studio op queues a site job (template_from_site is not a UI op), which events re-read what, the themes route.
  */
 import { describe, expect, it } from 'vitest';
-import { HEX_COLOR_RE, THEME_REMOVABLE_FIELDS, themeValueProblem } from '@retake/core';
+import { BRAND_BODY_FONTS_MAX, HEX_COLOR_RE, THEME_REMOVABLE_FIELDS, themeValueProblem } from '@retake/core';
 import type { ThemeEditView } from '@retake/engine';
 import { UI_OPS } from '../src/server/studio.js';
 import type { SiteListAnswer } from '../src/server/theme-ops.js';
@@ -24,6 +24,7 @@ import {
   DraftThrottle,
   EMPTY_FORM,
   HEX_RE,
+  BODY_FONTS_MAX,
   REMOVABLE,
   TEXT_MAX,
   ThemeHistory,
@@ -124,11 +125,21 @@ describe("a control's set_field", () => {
     expect(fieldEdit(view(), 'brand.name', 'a\nb')).toMatchObject({ why: expect.stringMatching(/one line/) });
   });
 
-  it("body fonts: 1 to 4 files in the folder's order", () => {
-    const order = ['fonts/a.ttf', 'fonts/b.ttf', 'fonts/c.ttf', 'fonts/d.ttf', 'fonts/e.ttf'];
+  it("body fonts: 1 to 8 files in the folder's order (core BRAND_BODY_FONTS_MAX)", () => {
+    const order = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((x) => `fonts/${x}.ttf`);
+    expect(BODY_FONTS_MAX).toBe(BRAND_BODY_FONTS_MAX);
     expect(bodyFonts(['fonts/b.ttf'], 'fonts/a.ttf', true, order)).toEqual(['fonts/a.ttf', 'fonts/b.ttf']);
     expect(bodyFonts(['fonts/a.ttf'], 'fonts/a.ttf', false, order)).toMatchObject({ why: expect.stringMatching(/at least one/) });
-    expect(bodyFonts(order.slice(0, 4), 'fonts/e.ttf', true, order)).toMatchObject({ why: expect.stringMatching(/at most four/) });
+    expect(bodyFonts(order.slice(0, 7), 'fonts/h.ttf', true, order)).toEqual(order.slice(0, 8));
+    expect(bodyFonts(order.slice(0, 8), 'fonts/i.ttf', true, order)).toMatchObject({ why: expect.stringMatching(/at most 8 body font files/) });
+  });
+
+  it('logo kind: mark or wordmark written, auto removes it (the shape rule)', () => {
+    const v = view();
+    expect(fieldEdit(v, 'logo_kind', 'wordmark')).toEqual({ edit: { kind: 'set_field', field: 'logo_kind', to: 'wordmark' } });
+    const set = view({ fields: { ...v.fields, logo_kind: 'wordmark' } } as never);
+    expect(fieldEdit(set, 'logo_kind', undefined)).toEqual({ edit: { kind: 'set_field', field: 'logo_kind', from: 'wordmark' } });
+    expect(fieldEdit(v, 'logo_kind', undefined)).toBeNull();
   });
 });
 

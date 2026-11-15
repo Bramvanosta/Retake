@@ -13,10 +13,13 @@ import {
   useCurrentFrame,
   withAlpha,
   formatMetrics,
+  logoBox,
+  logoKind,
+  withLogo,
 } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/kit';
 
-type Params = { logo_size: number; stagger: number };
+type Params = { logo_size: number; wordmark_width: number; stagger: number };
 
 /**
  * Reference values (docs/reference/look.md "Outro", design px): logo mark 150, wordmark (visual height 71: the brand
@@ -38,7 +41,7 @@ function appear(frame: number, fps: number, delay: number, duration: number, dis
 }
 
 /**
- * Big logo (fades in while scaling 0.92 → 1), the wordmark 0.2 s later, then the rule, the tagline and the url, each
+ * Big logo (fades in while scaling 0.92 → 1) — a wordmark logo alone, sized by its width —, the wordmark 0.2 s later, then the rule, the tagline and the url, each
  * `stagger` s after the previous one; centred, then held. style_bias balanced / motion: more rise and a softer pace.
  */
 export default function OutroStack({ theme, slots, params, unit, width, height, fps, variant }: ComponentProps<Params>) {
@@ -50,11 +53,15 @@ export default function OutroStack({ theme, slots, params, unit, width, height, 
   const ink = readableOn(bg, theme.colors.text, readableOn(bg, dark, light) === dark ? dark : light);
   const muted = readableOn(bg, theme.colors.muted, ink, 2.5);
   const accent = readableOn(bg, theme.colors.accent, ink, 2.2);
-  const brand = slots.logo ? { ...theme, logo: { url: slots.logo } } : theme;
+  const brand = withLogo(theme, slots.logo);
+  // A wordmark logo is the name already: drawn alone, `wordmark_width` wide at most (within the column), `logo_size`
+  // high at most; the Wordmark band goes.
+  const wordmarkLogo = logoKind(brand) === 'wordmark';
   const hasLogo = !!(brand.logo?.url || theme.brand.name);
-  const hasWordmark = !!(theme.wordmark?.url || theme.wordmark?.text || theme.brand.name);
+  const hasWordmark = !wordmarkLogo && !!(theme.wordmark?.url || theme.wordmark?.text || theme.brand.name);
   const column = Math.min(width - 2 * inset(160), 1300 * u);
-  const logo = params.logo_size;
+  const logoMaxWidth = wordmarkLogo ? Math.min(params.wordmark_width, column / u) : undefined;
+  const logo = logoBox(brand, params.logo_size, logoMaxWidth).height;
 
   const tagline = slots.tagline
     ? capTextLayout({ text: slots.tagline, width: column, maxFontSize: 30 * u, minFontSize: 20 * u, maxLines: 2, lineHeight: 1.3, fontFamily: theme.fonts.body, fontWeight: 400 })
@@ -117,12 +124,12 @@ export default function OutroStack({ theme, slots, params, unit, width, height, 
             transformOrigin: 'center',
           }}
         >
-          <Logo theme={brand} size={logo} unit={u} />
+          <Logo theme={brand} size={params.logo_size} maxWidth={logoMaxWidth} unit={u} />
         </div>
       ) : null}
       {wordmarkTop !== undefined ? (
         <div style={{ position: 'absolute', left: 0, width, top: top + wordmarkTop, height: WORDMARK * u, display: 'flex', justifyContent: 'center', ...wordmarkIn }}>
-          <Wordmark theme={theme} height={WORDMARK} unit={u} color={ink} />
+          <Wordmark theme={brand} height={WORDMARK} unit={u} color={ink} />
         </div>
       ) : null}
       <div

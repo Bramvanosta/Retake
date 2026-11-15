@@ -137,7 +137,7 @@ describe('the bytes of the authored writers', () => {
       { trust: 'author', cwd: root, scope: personScope(root, { ...enginePorts(), clock: new ManualClock(NOW.getTime()) }) },
     );
     expect(await tree(join(root, 'templates', 'acme'), noToolVersion)).toEqual({
-      '.retake-theme.json': '050793c9021eb9a558611cb3c1187e32b9f22ece37a194bfb3064bd7168ee9b4',
+      '.retake-theme.json': '94fa07d2f825de4b1b81f5132f6bc50b0e850c754a8fec8756a91390c9838252',
       'LICENSES.md': '1364d5cf15028b623067fdf8ce19410352d273fc429b1de54707f005e3aef87d',
       'fonts/InstrumentSerif-Regular.ttf': 'a99e3db50076202713812ed541feeb23ffeebb61db1fa6b1cf48fe590d37ef18',
       'fonts/Inter-Bold.ttf': 'b37284b5701b6b168dfc770aa1a4ac492106422fd3ba76bc7641e37434e8019c',
@@ -154,7 +154,7 @@ describe('the bytes of the authored writers', () => {
     expect(await tree(join(root, 'components', 'acme', 'intro-split'), noSchemaLine)).toEqual({
       'README.md': 'e8ecf52b5ad81b5ba5f49f31e2f22a394ad55c251df1b9bed8262c17df562f99',
       'component.yaml': '2e7b35c2d82c4280f71e578d759fc1c70633873342681b51f5476ee207aef292',
-      'index.tsx': 'b12fcacaa1486d65f5e00035a2977b72ea76fee5f824173c806aee6cc0389a26',
+      'index.tsx': '7df4dedbe4a56df83e2c51863b570b7cd9b1f09f605d1255bc65e76cce805313',
     });
   });
 

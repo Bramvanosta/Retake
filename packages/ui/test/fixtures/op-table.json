@@ -2644,6 +2644,7 @@
            "motion.max_zoom",
            "motion.default_zoom",
            "logo",
+           "logo_kind",
            "wordmark",
            "fonts.display",
            "fonts.body"
@@ -2661,7 +2662,7 @@
            },
            {
             "minItems": 1,
-            "maxItems": 4,
+            "maxItems": 8,
             "type": "array",
             "items": {
              "type": "string",
@@ -2682,7 +2683,7 @@
            },
            {
             "minItems": 1,
-            "maxItems": 4,
+            "maxItems": 8,
             "type": "array",
             "items": {
              "type": "string",
@@ -3019,6 +3020,14 @@
       "maxLength": 300,
       "description": "Logo: .svg, .png, .jpg or .webp."
      },
+     "logo_kind": {
+      "description": "mark (a pictogram: the brand name is drawn beside it) or wordmark (the name itself: drawn alone, sized by its width). Default: wordmark when the logo is 3:1 or wider.",
+      "type": "string",
+      "enum": [
+       "mark",
+       "wordmark"
+      ]
+     },
      "wordmark": {
       "description": "Wordmark image of the outro (default none: the brand name is drawn as text).",
       "type": "string",
@@ -3047,10 +3056,18 @@
             "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
            },
            "weight": {
-            "description": "Weight of this file (default: read from the font, else its file name).",
-            "type": "integer",
-            "minimum": 100,
-            "maximum": 900
+            "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
+            "anyOf": [
+             {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 900
+             },
+             {
+              "type": "string",
+              "maxLength": 16
+             }
+            ]
            },
            "italic": {
             "description": "An italic face (default: read from the font, else its file name).",
@@ -3065,9 +3082,9 @@
         ]
        },
        "body": {
-        "description": "Body font files, one per weight / style (default the base theme's).",
+        "description": "Body font files (up to 8), one per weight / style — or one variable font for a range of weights (default the base theme's).",
         "minItems": 1,
-        "maxItems": 4,
+        "maxItems": 8,
         "type": "array",
         "items": {
          "anyOf": [
@@ -3087,10 +3104,18 @@
              "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site."
             },
             "weight": {
-             "description": "Weight of this file (default: read from the font, else its file name).",
-             "type": "integer",
-             "minimum": 100,
-             "maximum": 900
+             "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
+             "anyOf": [
+              {
+               "type": "integer",
+               "minimum": 100,
+               "maximum": 900
+              },
+              {
+               "type": "string",
+               "maxLength": 16
+              }
+             ]
             },
             "italic": {
              "description": "An italic face (default: read from the font, else its file name).",
@@ -3122,6 +3147,202 @@
         "type": "string",
         "minLength": 1,
         "maxLength": 120
+       }
+      },
+      "additionalProperties": false
+     },
+     "components": {
+      "type": "object",
+      "properties": {
+       "intro": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+         },
+         "params": {
+          "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+          "type": "object",
+          "propertyNames": {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 64
+          },
+          "additionalProperties": {}
+         }
+        },
+        "additionalProperties": false
+       },
+       "outro": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+         },
+         "params": {
+          "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+          "type": "object",
+          "propertyNames": {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 64
+          },
+          "additionalProperties": {}
+         }
+        },
+        "additionalProperties": false
+       },
+       "card": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+         },
+         "params": {
+          "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+          "type": "object",
+          "propertyNames": {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 64
+          },
+          "additionalProperties": {}
+         }
+        },
+        "additionalProperties": false
+       },
+       "interstitial": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+         },
+         "params": {
+          "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+          "type": "object",
+          "propertyNames": {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 64
+          },
+          "additionalProperties": {}
+         }
+        },
+        "additionalProperties": false
+       },
+       "caption": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+         },
+         "params": {
+          "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+          "type": "object",
+          "propertyNames": {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 64
+          },
+          "additionalProperties": {}
+         }
+        },
+        "additionalProperties": false
+       },
+       "layout": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+         },
+         "params": {
+          "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+          "type": "object",
+          "propertyNames": {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 64
+          },
+          "additionalProperties": {}
+         }
+        },
+        "additionalProperties": false
+       },
+       "overlay": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+         },
+         "params": {
+          "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+          "type": "object",
+          "propertyNames": {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 64
+          },
+          "additionalProperties": {}
+         }
+        },
+        "additionalProperties": false
+       },
+       "transition": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "description": "Component id (default the base theme's for that kind; another id takes only the params given here).",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+         },
+         "params": {
+          "description": "Params of that component, merged over the base theme's (e.g. {logo_size: 72}); checked against the component's params.",
+          "type": "object",
+          "propertyNames": {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 64
+          },
+          "additionalProperties": {}
+         }
+        },
+        "additionalProperties": false
+       }
+      },
+      "additionalProperties": false,
+      "description": "Per kind (intro, outro, card, interstitial, caption, layout, overlay, transition): {id?, params?} — e.g. {outro: {params: {logo_size: 72}}}. Default the base theme's components."
+     },
+     "cursor": {
+      "description": "The filmed cursor (default the base theme's; arrow-light over a dark palette on a light base, arrow-dark the other way).",
+      "type": "object",
+      "properties": {
+       "style": {
+        "description": "arrow-dark (for a light app) or arrow-light (for a dark app). Filmed: the next capture.",
+        "type": "string",
+        "enum": [
+         "arrow-dark",
+         "arrow-light"
+        ]
+       },
+       "size": {
+        "description": "Cursor size in px (default the base theme's, else 26).",
+        "type": "number",
+        "minimum": 12,
+        "maximum": 64
        }
       },
       "additionalProperties": false

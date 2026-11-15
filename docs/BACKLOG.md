@@ -2743,3 +2743,26 @@ yet, from the job's `submitted_by`. Seen in the L7.18 characterization (fixtures
 - (L7.22) The raw export's dry-run sentence names the timeline's `run_id`, not the folder that was named.
 - A scaffolded `component.yaml` names its `$schema` by a path relative to the Retake checkout, which breaks when either
   folder moves.
+
+### BL-175 — A WOFF2 variable font's range from its own tables
+A TrueType / OpenType variable font gives its weight range to `template_create_from_brand` by its `fvar` table (L8.1);
+a WOFF2 keeps its tables Brotli-compressed (and `glyf` transformed), so its range must be given (`{file, weight:
+"200 800"}`), else it is read as one static weight. Reading `fvar` from a WOFF2 means decompressing its table stream
+(Node's `zlib` has Brotli) and finding the table in it. *From:* L8.1.
+
+### BL-176 — `retake theme update`
+`template_update` (L8.1) changes a theme made through MCP by naming only what changes; a person at a terminal edits
+`templates/<name>/template.yaml` or re-runs `retake theme create --replace` with every input. A CLI `retake theme update
+<name> --paper … --param outro.logo_size=72` over the same merge would spare them the restating (a theme made with the
+CLI, under trust author). *From:* L8.1.
+
+### BL-177 — The cursor of the palette's tone in the Studio's theme editor
+A new theme whose palette's tone differs from its base's gets the cursor of its tone (L8.1); the Studio's theme editor
+sets `colors.paper` alone and never re-derives the cursor, so a light theme turned dark there keeps `arrow-dark`. The
+editor could propose the other arrow when the paper's tone flips (an edit the person confirms). *From:* L8.1.
+
+### BL-178 — A logo's aspect from its drawn content
+A logo's kind (mark / wordmark, 3:1) and a wordmark's width come from the size the file declares (an SVG's width /
+height or viewBox, a raster's pixels). A wordmark exported with wide transparent margins is drawn narrower than
+`wordmark_width`, and a square canvas around a wide name reads as a mark. Measuring the drawn content (a raster's alpha
+bounding box, an SVG's path bounds) would size it by what shows. *From:* L8.1.

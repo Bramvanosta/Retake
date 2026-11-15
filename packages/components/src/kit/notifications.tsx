@@ -10,7 +10,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { Img } from './renderer.js';
 import type { LayoutRects, ThemeTokens } from '../types.js';
-import { Logo } from './elements.js';
+import { Logo, logoKind } from './elements.js';
 import { fitText } from './fit-text.js';
 import { clamp, progress, roundTo } from './motion.js';
 import { cssFontFamily, darkLight, isDarkBackground, mixColors, nightTone, readableOn, withAlpha } from './style.js';
@@ -188,12 +188,18 @@ export function notificationTones(style: NotificationStyle, theme: ThemeTokens, 
   return { bg, ink, muted: withAlpha(ink, 0.58), border: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)', accent: theme.colors.accent, shadow: withAlpha(night, 0.24) };
 }
 
-/** A rounded app icon: an image, a mail glyph on the accent, or the theme logo on the paper. */
+/**
+ * A rounded app icon: an image, a mail glyph on the accent, or the theme logo on the paper — of a wordmark logo
+ * (logoKind), the brand initial on the accent instead (a wide name does not fit a square), or without a brand name
+ * the logo contained in the icon.
+ */
 export function AppIcon(props: { theme: ThemeTokens; size: number; url?: string; glyph?: 'mail'; radius?: number; style?: CSSProperties }): ReactNode {
   const { theme, size, url, glyph } = props;
   const radius = props.radius ?? size * 0.225;
   const base: CSSProperties = { width: size, height: size, borderRadius: radius, overflow: 'hidden', flex: 'none', position: 'relative', ...props.style };
-  if (url) return <Img src={url} style={{ ...base, objectFit: 'cover', display: 'block' }} />;
+  // The theme's own wordmark logo as the slot's image (its default) is drawn as the theme logo, not cropped to a square.
+  const ownWordmark = url !== undefined && url === theme.logo?.url && logoKind(theme) === 'wordmark';
+  if (url && !ownWordmark) return <Img src={url} style={{ ...base, objectFit: 'cover', display: 'block' }} />;
   if (glyph === 'mail') {
     const a = theme.colors.accent;
     const top = mixColors(a, '#ffffff', 0.28);
@@ -207,9 +213,10 @@ export function AppIcon(props: { theme: ThemeTokens; size: number; url?: string;
     );
   }
   const { dark, light } = darkLight(theme);
+  if (logoKind(theme) === 'wordmark' && theme.brand.name?.trim()) return <Logo theme={theme} size={size} monogram style={{ ...base, borderRadius: radius }} />;
   return (
     <div style={{ ...base, background: light, boxShadow: `inset 0 0 0 ${Math.max(0.5, size * 0.02)}px ${withAlpha(dark, 0.1)}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Logo theme={theme} size={size * 0.62} />
+      <Logo theme={theme} size={size * 0.62} maxWidth={size * 0.84} />
     </div>
   );
 }

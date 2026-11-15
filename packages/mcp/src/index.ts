@@ -13,7 +13,7 @@
  * turns a timecoded script table into a skeleton), and recordings (scenario_record — a window where the USER
  * performs a flow, never driven by Claude; the draft comes back through job_status), and new themes
  * (template_create_from_brand
- * from the user's files; template_from_site — a draft read off a public page whose URL the user
+ * from the user's files, template_update of one it made that nobody changed; template_from_site — a draft read off a public page whose URL the user
  * approves, as a job), and frame comments (comments_list with each thread's anchor and still, comment_reply,
  * comment_resolve with if_match — people create and reopen threads with `retake comment` or in the Studio, never
  * through this

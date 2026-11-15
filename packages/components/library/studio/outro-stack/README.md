@@ -21,7 +21,8 @@ Big logo, wordmark, accent rule, tagline and url, centred and staggered in on th
 
 | param | type | default | description |
 |---|---|---|---|
-| `logo_size` | number (48–240) | 150 | Logo height in design px. |
+| `logo_size` | number (48–240) | 150 | Logo height in design px (a wordmark logo: its maximum height). |
+| `wordmark_width` | number (160–1300) | 520 | Width of a wordmark logo in design px (at most the column; the logo is then drawn alone). |
 | `stagger` | number (0–0.5) | 0.15 | Seconds between the rule, the tagline and the url entrances. |
 
 - duration 3 s (1.5–8 s)

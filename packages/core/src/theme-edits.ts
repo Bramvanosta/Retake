@@ -7,7 +7,7 @@
  * under the write lock. MCP never edits a theme.
  *
  * - `set_field`: one path of the allow-list (THEME_FIELD_PATHS) — colours, the background's colours of its own type, the
- *   cursor, brand name / URL, the outro's URL / tagline, style bias, zoom, the logo / wordmark / font files (relative
+ *   cursor, the logo kind, brand name / URL, the outro's URL / tagline, style bias, zoom, the logo / wordmark / font files (relative
  *   paths of the theme folder: the engine checks they are real files inside it). Removable only where the theme stays
  *   whole without it (THEME_REMOVABLE_FIELDS). `colors.accent` with `ripple` writes the cursor ripple too (same alpha).
  * - `set_background`: the type with its colours in one write (a solid background without `color` does not parse, so a
@@ -21,6 +21,7 @@
  *   lower-case, `rgba(r, g, b, a)`) before anything is written; text values take no hidden character, no line break.
  */
 import { isDeepStrictEqual } from 'node:util';
+import { BRAND_BODY_FONTS_MAX } from './brand.js';
 import { setMapPath } from './map-edits.js';
 import type { SetMapPathOptions } from './map-edits.js';
 import { editValueProblem, verifyEditText } from './scenario-edit.js';
@@ -51,6 +52,7 @@ export const THEME_FIELD_PATHS = [
   'motion.max_zoom',
   'motion.default_zoom',
   'logo',
+  'logo_kind',
   'wordmark',
   'fonts.display',
   'fonts.body',
@@ -58,7 +60,7 @@ export const THEME_FIELD_PATHS = [
 export type ThemeField = (typeof THEME_FIELD_PATHS)[number];
 
 /** The fields `set_field` may remove (`to` absent): the theme stays whole without them. */
-export const THEME_REMOVABLE_FIELDS: readonly ThemeField[] = ['colors.dark', 'wordmark', 'brand.name', 'brand.url', 'outro.url', 'outro.tagline', 'motion.default_zoom'];
+export const THEME_REMOVABLE_FIELDS: readonly ThemeField[] = ['colors.dark', 'logo_kind', 'wordmark', 'brand.name', 'brand.url', 'outro.url', 'outro.tagline', 'motion.default_zoom'];
 
 /** A value `set_field` writes: a scalar, or the body font files (a list). */
 export type ThemeFieldValue = string | number | string[];
@@ -67,7 +69,7 @@ export type ThemeFieldValue = string | number | string[];
 /** A string naming a resource by a scheme or scheme-relative (the ui preview scan's URL_LIKE). */
 const SCHEME_LIKE = /^(?:[a-z][a-z0-9+.-]*:\/\/|\/\/|(?:file|blob|data|javascript|about|filesystem|mailto):)/i;
 
-export type ThemeValueKind = 'color' | 'ripple' | 'cursor' | 'text' | 'url' | 'bias' | 'zoom' | 'default_zoom' | 'image' | 'font' | 'fonts';
+export type ThemeValueKind = 'color' | 'ripple' | 'cursor' | 'logo_kind' | 'text' | 'url' | 'bias' | 'zoom' | 'default_zoom' | 'image' | 'font' | 'fonts';
 
 export function themeFieldKind(field: ThemeField): ThemeValueKind {
   if (field.startsWith('colors.') || field.startsWith('background.')) return 'color';
@@ -76,6 +78,8 @@ export function themeFieldKind(field: ThemeField): ThemeValueKind {
       return 'ripple';
     case 'cursor.style':
       return 'cursor';
+    case 'logo_kind':
+      return 'logo_kind';
     case 'brand.name':
     case 'outro.tagline':
       return 'text';
@@ -158,7 +162,7 @@ const RGBA_RE = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(
 const THEME_PATH_RE = /^(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,99}\/){0,3}[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$/;
 const IMAGE_EXT_RE = /\.(svg|png|jpe?g|webp)$/i;
 const FONT_EXT_RE = /\.(ttf|otf|woff2?)$/i;
-const BODY_FONTS_MAX = 4;
+const BODY_FONTS_MAX = BRAND_BODY_FONTS_MAX;
 const ZOOM_STEP = 0.01;
 
 const LABELS: Record<ThemeField, string> = {
@@ -180,6 +184,7 @@ const LABELS: Record<ThemeField, string> = {
   'motion.max_zoom': 'the maximum zoom',
   'motion.default_zoom': 'the default zoom',
   logo: 'the logo',
+  logo_kind: 'the logo kind',
   wordmark: 'the wordmark',
   'fonts.display': 'the display font',
   'fonts.body': 'the body fonts',
@@ -238,6 +243,8 @@ export function themeValueProblem(field: ThemeField, to: unknown): string | null
       return rippleOf(to) ? null : `${name} takes a hex colour or rgba(r, g, b, a) with numbers only`;
     case 'cursor':
       return to === 'arrow-dark' || to === 'arrow-light' ? null : `${name} takes arrow-dark or arrow-light`;
+    case 'logo_kind':
+      return to === 'mark' || to === 'wordmark' ? null : `${name} takes mark or wordmark (removed: from the logo's shape)`;
     case 'bias':
       return to === 'real' || to === 'balanced' || to === 'motion' ? null : `${name} takes real, balanced or motion`;
     case 'zoom':

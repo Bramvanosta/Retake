@@ -13,7 +13,7 @@ import { loadProject, fileFacts } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import { validateScenarioText } from '@retake/engine/testing';
 import { diskWorkspaceReads } from '@retake/engine/testing';
-import { checkComponentEntry, parseManifest } from '@retake/components';
+import { LIBRARY_DIR, checkComponentEntry, parseManifest } from '@retake/components';
 import * as kit from '@retake/components/kit';
 import { main, memoryIo } from '../../cli/src/index.js';
 import { REPO as REPO_URL } from '@retake/test-support/repo';
@@ -138,6 +138,11 @@ beforeAll(async () => {
     ['components', 'schema', 'component.schema.json'],
   ]) {
     schemaWords(schemaFile(...s), vocabulary);
+  }
+  // The built-in components' params (component_get lists them; brand inputs and template_update name them).
+  for (const name of readdirSync(join(LIBRARY_DIR, 'studio'))) {
+    const m = parseManifest(readFileSync(join(LIBRARY_DIR, 'studio', name, 'component.yaml'), 'utf8'), 'component.yaml', { folderId: `studio/${name}` }).manifest;
+    for (const k of Object.keys((m?.params as { properties?: Record<string, unknown> } | undefined)?.properties ?? {})) vocabulary.add(k);
   }
   ctx = {
     tools,

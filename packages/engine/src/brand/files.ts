@@ -31,7 +31,7 @@ import { expandHome, printableText } from '@retake/core/base';
 import { agentWritable, realPathOf } from '@retake/core/policy';
 import { STATE_DIR, STATE_DIRS } from '@retake/core/project';
 import { insideFolder } from '@retake/core/scenario';
-import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, brandRefSyntaxProblem, siteRef } from '@retake/core/theme';
+import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, brandRefSyntaxProblem, rasterSize, siteRef, svgSize } from '@retake/core/theme';
 import { nodeFileFacts } from '@retake/core/io';
 import type { CallerTrust } from '../caller.js';
 import { EngineError } from '../errors.js';
@@ -170,44 +170,9 @@ export interface ImageInfo {
   height?: number;
 }
 
-/** Size of a PNG, JPEG or WebP from its header; undefined when the bytes are none of them. */
+/** Size of a PNG, JPEG or WebP from its header; undefined when the bytes are none of them (core image-size.ts, the one reader). */
 export function rasterInfo(b: Buffer): ImageInfo | undefined {
-  if (b.length >= 24 && b.readUInt32BE(0) === 0x89504e47 && b.readUInt32BE(4) === 0x0d0a1a0a && b.toString('latin1', 12, 16) === 'IHDR') {
-    return { format: 'png', width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
-  }
-  if (b.length >= 4 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) {
-    for (let i = 2; i + 9 < b.length; ) {
-      if (b[i] !== 0xff) return undefined;
-      const marker = b[i + 1];
-      if (marker === 0xff) {
-        i += 1;
-        continue;
-      }
-      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
-        i += 2;
-        continue;
-      }
-      const len = b.readUInt16BE(i + 2);
-      if (len < 2) return undefined;
-      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-        return { format: 'jpeg', height: b.readUInt16BE(i + 5), width: b.readUInt16BE(i + 7) };
-      }
-      i += 2 + len;
-    }
-    return undefined;
-  }
-  if (b.length >= 30 && b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP') {
-    const chunk = b.toString('latin1', 12, 16);
-    if (chunk === 'VP8 ' && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) {
-      return { format: 'webp', width: b.readUInt16LE(26) & 0x3fff, height: b.readUInt16LE(28) & 0x3fff };
-    }
-    if (chunk === 'VP8L' && b[20] === 0x2f) {
-      const bits = b.readUInt32LE(21);
-      return { format: 'webp', width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
-    }
-    if (chunk === 'VP8X') return { format: 'webp', width: b.readUIntLE(24, 3) + 1, height: b.readUIntLE(27, 3) + 1 };
-  }
-  return undefined;
+  return rasterSize(b);
 }
 
 const RASTER_EXT: Record<string, ImageInfo['format']> = { '.png': 'png', '.jpg': 'jpeg', '.jpeg': 'jpeg', '.webp': 'webp' };
@@ -366,18 +331,12 @@ export function scanSvg(bytes: Buffer): SvgScan {
   scanText(decoded.replace(/<!--[\s\S]*?-->/g, ''), problems);
   const root = /<\s*(?:[a-z_][\w.-]*:)?svg\b([^>]*)>/i.exec(decoded);
   if (!root) return { problems: [...problems, 'no <svg> element'] };
-  const attr = (name: string) => new RegExp(`[\\s"']${name}\\s*=\\s*["']([^"']*)["']`, 'i').exec(root[1])?.[1];
-  const num = (v: string | undefined) => (v !== undefined && /^\s*[\d.]+\s*(?:px)?\s*$/.test(v) ? Number.parseFloat(v) : undefined);
-  const vb = attr('viewBox')
-    ?.trim()
-    .split(/[\s,]+/)
-    .map(Number);
-  let width = num(attr('width'));
-  let height = num(attr('height'));
-  if (vb && vb.length === 4 && vb.every(Number.isFinite) && vb[2] > 0 && vb[3] > 0) {
-    width ??= vb[2];
-    height ??= vb[3];
-  } else if (width === undefined || height === undefined) problems.add('no viewBox and no width / height on <svg>');
+  // Its size: core svgSize on the text as written — the one reader, on the text the loader reads too (comments
+  // skipped; one side and a viewBox: the viewBox's proportions).
+  const size = svgSize(text);
+  if (!size) problems.add('no viewBox and no width / height on <svg>');
+  const width = size?.width;
+  const height = size?.height;
   return { problems: [...problems], ...(width !== undefined ? { width } : {}), ...(height !== undefined ? { height } : {}) };
 }
 
@@ -387,8 +346,10 @@ export type FontFormat = 'ttf' | 'otf' | 'woff' | 'woff2';
 
 export interface FontInfo {
   format: FontFormat;
-  /** OS/2 usWeightClass (TrueType / OpenType only). */
+  /** OS/2 usWeightClass (TrueType / OpenType only; a variable font's: its default instance's). */
   weight?: number;
+  /** A variable font's `wght` axis (its `fvar` table: min and max, TrueType / OpenType only). */
+  weight_range?: [number, number];
   /** OS/2 fsSelection bit 0 (TrueType / OpenType only). */
   italic?: boolean;
   /** OS/2 fsType (TrueType / OpenType only). */
@@ -499,6 +460,11 @@ export function sniffFont(f: Pick<ResolvedBrandFile, 'ref' | 'ext' | 'bytes'>, w
   if (!tables.has('glyf') && !tables.has('CFF ') && !tables.has('CFF2')) throw notFont('no glyph outlines (glyf / CFF)');
   const name = tables.get('name');
   if (name) info.names = readNames(b, name.off, name.len);
+  const fvar = tables.get('fvar');
+  if (fvar) {
+    const range = wghtAxis(b, fvar.off, fvar.len);
+    if (range) info.weight_range = range;
+  }
   const os2 = tables.get('OS/2');
   if (os2 && os2.len >= 64) {
     info.weight = b.readUInt16BE(os2.off + 4);
@@ -509,6 +475,27 @@ export function sniffFont(f: Pick<ResolvedBrandFile, 'ref' | 'ext' | 'bytes'>, w
   return info;
 }
 
+/**
+ * The `wght` axis of an `fvar` table (OpenType font variations): its min and max (16.16 fixed, rounded), or undefined
+ * when the table is short, holds no such axis or a range that is none (min ≥ max, outside 1–1000).
+ */
+export function wghtAxis(b: Buffer, off: number, len: number): [number, number] | undefined {
+  if (len < 16 || off + len > b.length) return undefined;
+  const axesOffset = b.readUInt16BE(off + 4);
+  const axisCount = b.readUInt16BE(off + 8);
+  const axisSize = b.readUInt16BE(off + 10);
+  if (axisSize < 20 || axisCount > 64) return undefined;
+  for (let i = 0; i < axisCount; i++) {
+    const rec = off + axesOffset + i * axisSize;
+    if (rec + 20 > off + len) return undefined;
+    if (b.toString('latin1', rec, rec + 4) !== 'wght') continue;
+    const min = Math.round(b.readInt32BE(rec + 4) / 65536);
+    const max = Math.round(b.readInt32BE(rec + 12) / 65536);
+    return min >= 1 && max <= 1000 && min < max ? [min, max] : undefined;
+  }
+  return undefined;
+}
+
 /** Names of the weights as fontFileFace (components theme.ts) reads them back from a file name. */
 export const WEIGHT_NAMES: Record<number, string> = { 100: 'Thin', 200: 'ExtraLight', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Black' };
 
@@ -517,9 +504,14 @@ export function standardWeight(w: number): number {
   return Math.min(900, Math.max(100, Math.round(w / 100) * 100));
 }
 
-/** The copy's file name: `fonts/<role>-<Weight>[Italic].<ext>` — the family never in it (its words would read as a weight). */
-export function fontCopyName(role: 'display' | 'body', weight: number, italic: boolean, ext: string): string {
-  return join('fonts', `${role}-${WEIGHT_NAMES[standardWeight(weight)]}${italic ? 'Italic' : ''}${ext}`)
+/**
+ * The copy's file name: `fonts/<role>-<Weight>[Italic].<ext>` — the family never in it (its words would read as a
+ * weight) —, a variable font's `fonts/<role>-wght<min>-<max>[Italic].<ext>` (what components fontFileFace reads back as
+ * its range; the weights already standard).
+ */
+export function fontCopyName(role: 'display' | 'body', weight: number | [number, number], italic: boolean, ext: string): string {
+  const w = typeof weight === 'number' ? WEIGHT_NAMES[standardWeight(weight)] : `wght${weight[0]}-${weight[1]}`;
+  return join('fonts', `${role}-${w}${italic ? 'Italic' : ''}${ext}`)
     .split(sep)
     .join('/');
 }

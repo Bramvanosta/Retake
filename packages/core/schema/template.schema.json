@@ -67,6 +67,14 @@
       "pattern": "\\.(svg|png|jpe?g|webp)$",
       "description": "Logo file relative to the template dir."
     },
+    "logo_kind": {
+      "type": "string",
+      "enum": [
+        "mark",
+        "wordmark"
+      ],
+      "description": "What the logo is: mark (a pictogram, drawn beside the brand name) or wordmark (the name itself, drawn alone and sized by its width). Absent: a wordmark when the logo is at least 3 times wider than high, else a mark."
+    },
     "wordmark": {
       "type": "string",
       "pattern": "\\.(svg|png|jpe?g|webp)$",

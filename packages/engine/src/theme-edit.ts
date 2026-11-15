@@ -211,7 +211,8 @@ export interface ThemeEditView {
   background?: unknown;
   components: Record<ComponentKind, ThemeComponentView>;
   /** The theme folder's font and image files (relative), checked; links named, never followed. */
-  fonts: Array<{ file: string; format?: string; weight?: number; italic?: boolean; problem?: string }>;
+  /** `weight`: one, or a variable font's range (its file name's `wght<min>-<max>`: what a render registers). */
+  fonts: Array<{ file: string; format?: string; weight?: number | [number, number]; italic?: boolean; problem?: string }>;
   images: Array<{ file: string; format?: string; width?: number; height?: number; bytes: number; problem?: string }>;
   links: string[];
   /** Contrast checks of the colours (core PALETTE_THRESHOLDS), when they are hex. */
@@ -365,7 +366,10 @@ function themeAssets(
       try {
         const info = sniffFont({ ref: file, ext: file.slice(file.lastIndexOf('.')).toLowerCase(), bytes: r.bytes });
         const face = lib.fontFileFace(join(dir, ...file.split('/')));
-        fonts.push({ file, format: info.format, weight: info.weight ?? face.weight, italic: info.italic ?? face.style === 'italic' });
+        // A range in the file name is what a render registers (components fontFileFace); a variable font's OS/2 weight
+        // is only its default instance's, so it never wins over the range.
+        const weight = typeof face.weight === 'number' ? (info.weight ?? face.weight) : face.weight;
+        fonts.push({ file, format: info.format, weight, italic: info.italic ?? face.style === 'italic' });
         if (info.names.family || info.names.subfamily)
           untrustedFonts.push({ file, ...(info.names.family ? { family: info.names.family.slice(0, 120) } : {}), ...(info.names.subfamily ? { subfamily: info.names.subfamily.slice(0, 120) } : {}) });
       } catch (e) {

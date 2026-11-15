@@ -53,7 +53,7 @@ export const ZOOM_STEP = 0.01;
 export const TEXT_MAX: Record<string, number> = { 'brand.name': 80, 'outro.tagline': 120, 'brand.url': 200, 'outro.url': 200 };
 
 /** The fields `set_field` may remove (core THEME_REMOVABLE_FIELDS, mirrored; pinned by a test). */
-export const REMOVABLE = ['colors.dark', 'wordmark', 'brand.name', 'brand.url', 'outro.url', 'outro.tagline', 'motion.default_zoom'] as const;
+export const REMOVABLE = ['colors.dark', 'logo_kind', 'wordmark', 'brand.name', 'brand.url', 'outro.url', 'outro.tagline', 'motion.default_zoom'] as const;
 export const isRemovable = (f: string): boolean => (REMOVABLE as readonly string[]).includes(f);
 
 export type ColorKey = 'accent' | 'text' | 'muted' | 'paper' | 'dark';
@@ -217,10 +217,13 @@ export function imageChoices(view: Pick<ThemeEditView, 'images'>): string[] {
 
 /** The font files of the type pair (the theme folder's own, checked), with their weight in words. */
 export function fontChoices(view: Pick<ThemeEditView, 'fonts'>): Array<{ file: string; words: string }> {
-  return view.fonts.filter((f) => !f.problem).map((f) => ({ file: f.file, words: `${f.weight ?? '?'}${f.italic ? ' italic' : ''}` }));
+  return view.fonts.filter((f) => !f.problem).map((f) => ({ file: f.file, words: `${Array.isArray(f.weight) ? f.weight.join('–') : (f.weight ?? '?')}${f.italic ? ' italic' : ''}` }));
 }
 
-/** The body files after one is ticked or unticked (1 to 4, in the theme folder's order), or why not. */
+/** core BRAND_BODY_FONTS_MAX (mirrored: the app imports no runtime code from core; a test pins them equal). */
+export const BODY_FONTS_MAX = 8;
+
+/** The body files after one is ticked or unticked (1 to BODY_FONTS_MAX, in the theme folder's order), or why not. */
 export function bodyFonts(current: readonly string[], file: string, on: boolean, order: readonly string[]): string[] | { why: string } {
   const set = new Set(current);
   if (on) set.add(file);
@@ -228,7 +231,7 @@ export function bodyFonts(current: readonly string[], file: string, on: boolean,
   const next = order.filter((f) => set.has(f));
   for (const f of current) if (set.has(f) && !next.includes(f)) next.push(f);
   if (next.length === 0) return { why: 'the body needs at least one font file' };
-  if (next.length > 4) return { why: 'at most four body font files (one per weight or style)' };
+  if (next.length > BODY_FONTS_MAX) return { why: `at most ${BODY_FONTS_MAX} body font files (one per weight or style)` };
   return next;
 }
 

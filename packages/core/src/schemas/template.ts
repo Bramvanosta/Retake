@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { COMPONENT_KINDS } from '../types/model.js';
 import { TEMPLATE_MEDIA_KINDS } from '../types/theme.js';
+import { LOGO_KINDS } from '../image-size.js';
 import type { ComponentKind, ComponentRef } from '../types/model.js';
 import type { Template, TemplateComponents, TemplateMediaRef, TextStyle } from '../types/theme.js';
 import { ComponentParamsSchema, ComponentRefSchema, fileVersion, mediaFileShape, nonEmpty, positiveSeconds, seconds } from './primitives.js';
@@ -8,6 +9,13 @@ import { FrameStyleSchema, TransitionSchema } from './language.js';
 
 const FONT_RE = /\.(ttf|otf|woff2?)$/i;
 const IMAGE_RE = /\.(svg|png|jpe?g|webp)$/i;
+
+const logoKind = () =>
+  z
+    .enum(LOGO_KINDS)
+    .describe(
+      'What the logo is: mark (a pictogram, drawn beside the brand name) or wordmark (the name itself, drawn alone and sized by its width). Absent: a wordmark when the logo is at least 3 times wider than high, else a mark.',
+    );
 
 const fontFile = () => z.string().regex(FONT_RE, { error: 'expected a font file (.ttf, .otf, .woff or .woff2) relative to the template dir' });
 const imageFile = () => z.string().regex(IMAGE_RE, { error: 'expected an image file (.svg, .png, .jpg or .webp) relative to the template dir' });
@@ -132,6 +140,7 @@ export const TemplateSchema = z.strictObject({
   colors: z.object(colorsShape).catchall(z.string()),
   fonts: sections.fonts,
   logo: imageFile(),
+  logo_kind: logoKind().optional(),
   wordmark: imageFile().optional(),
   background: sections.background,
   frame: sections.frame,
@@ -160,6 +169,7 @@ export const TemplateFileSchema = z
     colors: z.object(colorsShape).partial().catchall(z.string()).describe('Brand colours (extra keys allowed).').optional(),
     fonts: sections.fonts.partial().describe('Font files relative to the template dir.').optional(),
     logo: imageFile().describe('Logo file relative to the template dir.').optional(),
+    logo_kind: logoKind().optional(),
     wordmark: imageFile().describe('Wordmark image (outro).').optional(),
     background: sections.background.partial().optional(),
     frame: sections.frame.partial().optional(),

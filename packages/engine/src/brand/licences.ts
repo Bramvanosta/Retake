@@ -1,6 +1,7 @@
 /** A new theme's LICENSES.md (create.ts): its artwork, its fonts and what each declares, the base theme's licences. */
 import { printableText } from '@retake/core/base';
 import type { FontInfo } from './files.js';
+import { weightWords } from './theme-fonts.js';
 import type { ThemeFontView } from './theme-fonts.js';
 
 /** A file reference inside a code span of LICENSES.md (one line; no backtick, pipe or control). */
@@ -43,7 +44,8 @@ export function licencesMarkdown(o: {
     '| File | Supplied as | Face | Notes |',
     '| --- | --- | --- | --- |',
     ...o.fonts.map(
-      (f) => `| \`${f.file}\` | \`${mdCode(f.source)}\` | ${f.role}, ${f.weight}${f.italic ? ' italic' : ''} (${f.format}) | ${f.licence_notes.length ? mdText(f.licence_notes.join('; ')) : '—'} |`,
+      (f) =>
+        `| \`${f.file}\` | \`${mdCode(f.source)}\` | ${f.role}, ${weightWords(f.weight)}${f.italic ? ' italic' : ''} (${f.format}) | ${f.licence_notes.length ? mdText(f.licence_notes.join('; ')) : '—'} |`,
     ),
     '',
   ];

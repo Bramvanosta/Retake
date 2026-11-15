@@ -107,6 +107,7 @@ describe('retake mcp over stdio', () => {
       'template_preview',
       'template_from_site',
       'template_create_from_brand',
+      'template_update',
       'component_list',
       'component_get',
       'component_validate',
@@ -146,6 +147,7 @@ describe('retake mcp over stdio', () => {
           'template_preview',
           'template_from_site',
           'template_create_from_brand',
+          'template_update',
           'component_preview',
           'component_create',
           'job_cancel',
@@ -157,7 +159,9 @@ describe('retake mcp over stdio', () => {
         ].includes(t.name),
       );
       expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site'].includes(t.name));
-      expect(t.annotations?.destructiveHint, t.name).toBe(['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand', 'project_prune', 'job_cancel'].includes(t.name));
+      expect(t.annotations?.destructiveHint, t.name).toBe(
+        ['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand', 'template_update', 'project_prune', 'job_cancel'].includes(t.name),
+      );
       // No tool takes a credential.
       expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/password|secret|token|cookie/i);
       expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/allow_writes/);
@@ -455,7 +459,7 @@ describe('retake mcp: lifecycle and registration', () => {
   });
 
   it('every tool has a zod schema that publishes as an object schema', () => {
-    expect(TOOLS).toHaveLength(45);
+    expect(TOOLS).toHaveLength(46);
     for (const t of TOOLS) expect(t.input.safeParse({ __nope: 1 }).success, t.name).toBe(false);
   });
 });

@@ -147,10 +147,10 @@ export function loadFontFace(file: string): FontFace | null {
   return face;
 }
 
-/** A font face a measurer can use: CSS family + weight + style → file. */
+/** A font face a measurer can use: CSS family + weight (a variable font's: its range) + style → file. */
 export interface FaceFile {
   family: string;
-  weight: number;
+  weight: number | [number, number];
   style?: 'normal' | 'italic';
   file: string;
 }
@@ -166,7 +166,10 @@ export function fontFileMeasurer(files: FaceFile[]): TextMeasurer & { measured: 
     const cands = files.filter((f) => f.family === family);
     const styled = cands.filter((f) => (f.style ?? 'normal') === (font.style ?? 'normal'));
     const pool = styled.length ? styled : cands;
-    const best = [...pool].sort((a, b) => Math.abs(a.weight - weight) - Math.abs(b.weight - weight))[0];
+    // How far a face is from the weight asked: a variable font's range holds every weight between its ends (the
+    // advances read are its default instance's).
+    const away = (w: FaceFile['weight']) => (typeof w === 'number' ? Math.abs(w - weight) : weight < w[0] ? w[0] - weight : weight > w[1] ? weight - w[1] : 0);
+    const best = [...pool].sort((a, b) => away(a.weight) - away(b.weight))[0];
     return best ? loadFontFace(best.file) : null;
   };
   const measure = ((text: string, font: TextFont) => {

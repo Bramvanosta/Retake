@@ -81,6 +81,41 @@ function patchName(font: Buffer, ids: number[], text: string): Buffer {
   return b;
 }
 
+/**
+ * A copy of a TrueType file with an `fvar` table whose axes are `axes` ([tag, min, max], 16.16 fixed): a synthetic
+ * variable font (the outlines stay the static font's; only the sniff reads it). The table directory grows by one
+ * record, every table moves 16 bytes; checksums are not checked by the sniff.
+ */
+function withFvar(font: Buffer, axes: Array<[string, number, number]>): Buffer {
+  const n = font.readUInt16BE(4);
+  const head = Buffer.from(font.subarray(0, 12));
+  head.writeUInt16BE(n + 1, 4);
+  const dir = Buffer.alloc((n + 1) * 16);
+  for (let i = 0; i < n; i++) {
+    font.copy(dir, i * 16, 12 + i * 16, 28 + i * 16);
+    dir.writeUInt32BE(font.readUInt32BE(12 + i * 16 + 8) + 16, i * 16 + 8);
+  }
+  const fvar = Buffer.alloc(16 + axes.length * 20);
+  fvar.writeUInt16BE(1, 0);
+  fvar.writeUInt16BE(16, 4);
+  fvar.writeUInt16BE(2, 6);
+  fvar.writeUInt16BE(axes.length, 8);
+  fvar.writeUInt16BE(20, 10);
+  axes.forEach(([tag, min, max], i) => {
+    const r = 16 + i * 20;
+    fvar.write(tag, r, 'latin1');
+    fvar.writeInt32BE(min * 65536, r + 4);
+    fvar.writeInt32BE(min * 65536, r + 8);
+    fvar.writeInt32BE(max * 65536, r + 12);
+  });
+  const body = Buffer.from(font.subarray(12 + n * 16));
+  const fvarAt = 12 + (n + 1) * 16 + body.length;
+  dir.write('fvar', n * 16, 'latin1');
+  dir.writeUInt32BE(fvarAt, n * 16 + 8);
+  dir.writeUInt32BE(fvar.length, n * 16 + 12);
+  return Buffer.concat([head, dir, body, fvar]);
+}
+
 const WOFF2 = (() => {
   const w = Buffer.alloc(60);
   w.write('wOF2', 0, 'latin1');
@@ -310,14 +345,223 @@ describe('template_create_from_brand (engine)', () => {
     expect(await readFile(join(c.dir, 'LICENSES.md'), 'utf8')).toMatch(/Embedding: restricted licence embedding/);
   });
 
-  it('a dark paper over a light base is a warning; the accent that fails is suggested, never changed', async () => {
+  it('a dark paper over a light base gets the light cursor and a note (no warning); the accent that fails is suggested, never changed', async () => {
     const c = await engine.templates.create(input({ name: 'night', colors: { accent: '#ffdd00', paper: '#11131c' } }));
     expect(c.palette.tone).toBe('dark');
-    expect(c.warnings.join('\n')).toMatch(/makes a dark theme over editorial, a light one.*consider base motion/);
+    expect(c.warnings.join('\n')).not.toMatch(/consider base|makes a dark theme/);
+    expect(c.notes?.join('\n')).toMatch(/dark paper over editorial \(a light theme\): cursor arrow-light chosen.*set cursor.style if your app's UI is light/);
+    expect((await loadTemplate('night', root, { files: fileFacts(PERSON_POLICY) })).template.cursor).toMatchObject({ style: 'arrow-light' });
     const y = await engine.templates.create(input({ name: 'yellow', colors: { accent: '#ffdd00' } }));
     expect(y.palette.colors.accent).toBe('#ffdd00');
     expect(y.palette.suggestions.accent).toMatch(/^#/);
     expect((await loadTemplate('yellow', root, { files: fileFacts(PERSON_POLICY) })).template.colors.accent).toBe('#ffdd00');
+  });
+
+  it("the cursor: a given cursor.style wins over the tone; the same tone keeps the base's; a light paper over motion gets arrow-dark", async () => {
+    const given = await engine.templates.create(input({ name: 'given', colors: { accent: '#ffdd00', paper: '#11131c' }, cursor: { style: 'arrow-dark', size: 30 } }));
+    expect(given.notes ?? []).toEqual([]);
+    expect((await loadTemplate('given', root, { files: fileFacts(PERSON_POLICY) })).template.cursor).toMatchObject({ style: 'arrow-dark', size: 30 });
+    const same = await engine.templates.create(input({ name: 'same', colors: { accent: '#0e7c66', paper: '#fbfaf7' } }));
+    expect(same.notes).toBeUndefined();
+    expect((await loadTemplate('same', root, { files: fileFacts(PERSON_POLICY) })).template.cursor.style).toBe('arrow-dark');
+    const motionDark = await engine.templates.create(input({ name: 'night2', base: 'motion', colors: { accent: '#ff5c38', paper: '#101218' } }));
+    expect(motionDark.notes).toBeUndefined();
+    expect((await loadTemplate('night2', root, { files: fileFacts(PERSON_POLICY) })).template.cursor).toMatchObject({ style: 'arrow-dark', size: 28 });
+    const light = await engine.templates.create(input({ name: 'day', base: 'motion', colors: { accent: '#0e7c66', paper: '#fbfaf7' } }));
+    expect(light.notes?.join('\n')).toMatch(/light paper over motion \(a dark theme\): cursor arrow-dark chosen/);
+    expect((await loadTemplate('day', root, { files: fileFacts(PERSON_POLICY) })).template.cursor.style).toBe('arrow-dark');
+    expect(await refusal(engine.templates.create(input({ name: 'big', cursor: { style: 'debug' } })))).toMatchObject({ code: 'invalid' });
+    expect(await refusal(engine.templates.create(input({ name: 'big', cursor: { size: 200 } })))).toMatchObject({ code: 'invalid' });
+  });
+
+  it('a wide logo (3:1 and wider) is written as logo_kind: wordmark and said in a note; logo_kind: mark keeps it a mark', async () => {
+    const png = (w: number, h: number) => {
+      const b = Buffer.alloc(33);
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b, 0);
+      b.writeUInt32BE(13, 8);
+      b.write('IHDR', 12, 'latin1');
+      b.writeUInt32BE(w, 16);
+      b.writeUInt32BE(h, 20);
+      return b;
+    };
+    await writeFile(join(root, 'brand', 'wide.png'), png(2048, 181));
+    await writeFile(join(root, 'brand', 'almost.png'), png(299, 100));
+    await writeFile(join(root, 'brand', 'three.png'), png(300, 100));
+    const wide = await engine.templates.create(input({ name: 'wide', logo: 'brand/wide.png', brand: { name: 'Northfield' } }));
+    expect(wide.logo_kind).toBe('wordmark');
+    expect(wide.notes?.join('\n')).toMatch(/the logo is wide \(11\.3:1\): drawn as a wordmark/);
+    expect(wide.template_yaml).toMatch(/^logo: logo\.png\nlogo_kind: wordmark$/m);
+    const loaded = await loadTemplate('wide', root, { files: fileFacts(PERSON_POLICY) });
+    expect(loaded.template.logo_kind).toBe('wordmark');
+    expect(loaded.assets.logo_aspect).toBe(11.3149);
+    // 3:1 exactly is a wordmark, 2.99:1 a mark (nothing written).
+    expect((await engine.templates.create(input({ name: 'three', logo: 'brand/three.png' }))).logo_kind).toBe('wordmark');
+    const almost = await engine.templates.create(input({ name: 'almost', logo: 'brand/almost.png' }));
+    expect(almost.logo_kind).toBe('mark');
+    expect(almost.template_yaml).not.toContain('logo_kind');
+    // Explicit wins: a mark stays a mark (written), no note; a wordmark image next to a wordmark logo is warned.
+    const mark = await engine.templates.create(input({ name: 'markwide', logo: 'brand/wide.png', logo_kind: 'mark' }));
+    expect(mark.logo_kind).toBe('mark');
+    expect(mark.notes ?? []).toEqual([]);
+    expect(mark.template_yaml).toMatch(/^logo_kind: mark$/m);
+    const both = await engine.templates.create(input({ name: 'both', logo: 'brand/wide.png', wordmark: 'brand/wordmark.svg' }));
+    expect(both.warnings.join('\n')).toMatch(/wordmark image is kept in the theme folder but not drawn .* while logo_kind is wordmark/);
+    // No brand name and no wordmark: the outro "logo alone" warning is a mark's only.
+    expect(wide.warnings.join('\n')).not.toMatch(/logo alone/);
+    expect(almost.warnings.join('\n')).toMatch(/no wordmark and no brand.name: the outro shows the logo alone/);
+  });
+
+  it("an SVG with one side and a viewBox: the viewBox's proportions (a square mark stays a mark), as the loader reads it; a degenerate size is a mark", async () => {
+    await writeFile(join(root, 'brand', 'square.svg'), '<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 100 100"><rect width="100" height="100"/></svg>');
+    await writeFile(join(root, 'brand', 'dash.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="1100" viewBox="0 0 110 10"><rect width="110" height="10"/></svg>');
+    await writeFile(join(root, 'brand', 'huge.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="20000" height="0.00001"><rect width="1" height="1"/></svg>');
+    const square = await engine.templates.create(input({ name: 'square', logo: 'brand/square.svg', brand: { name: 'Northfield' } }));
+    expect(square.logo).toMatchObject({ width: 24, height: 24 });
+    expect(square.logo_kind).toBe('mark');
+    expect(square.notes ?? []).toEqual([]);
+    expect((await loadTemplate('square', root, { files: fileFacts(PERSON_POLICY) })).assets.logo_aspect).toBe(1);
+    const dash = await engine.templates.create(input({ name: 'dash', logo: 'brand/dash.svg' }));
+    expect(dash.logo_kind).toBe('wordmark');
+    expect(dash.notes?.join('\n')).toMatch(/the logo is wide \(11\.0:1\)/);
+    expect((await loadTemplate('dash', root, { files: fileFacts(PERSON_POLICY) })).assets.logo_aspect).toBe(11);
+    const huge = await engine.templates.create(input({ name: 'huge', logo: 'brand/huge.svg' }));
+    expect(huge.logo_kind).toBe('mark');
+    expect(JSON.stringify(huge)).not.toMatch(/Infinity/);
+  });
+
+  it('create and the loader read one kind: a fake wide root in a comment longer than the head the loader reads is never read', async () => {
+    // The fake root lies in the head, the comment's end beyond it.
+    const note = `<!-- <svg width="1100" height="100"> ${'n'.repeat(300 * 1024)} -->`;
+    await writeFile(join(root, 'brand', 'noted.svg'), `<?xml version="1.0"?>${note}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100"/></svg>`);
+    const c = await engine.templates.create(input({ name: 'noted', logo: 'brand/noted.svg' }));
+    expect(c.logo_kind).toBe('mark');
+    const loaded = await loadTemplate('noted', root, { files: fileFacts(PERSON_POLICY) });
+    expect(loaded.assets.logo_aspect).toBeUndefined();
+    const { resolveLogoKind } = await import('@retake/components');
+    expect(resolveLogoKind(loaded.template.logo_kind, loaded.assets.logo_aspect)).toBe(c.logo_kind);
+  });
+
+  it("components: params merge over the base's entry, another id takes only its own params, a bad id or param is invalid and nothing is written", async () => {
+    const c = await engine.templates.create(input({ name: 'small', components: { outro: { params: { logo_size: 72 } }, layout: { params: { radius: 8 } } } }));
+    const t = (await loadTemplate('small', root, { files: fileFacts(PERSON_POLICY) })).template;
+    expect(t.components?.outro).toEqual({ id: 'studio/outro-stack', params: { logo_size: 72 } });
+    expect(t.components?.layout).toEqual({ id: 'studio/layout-card', params: { width: 1560, radius: 8, shadow: 'soft' } });
+    expect(t.components?.intro).toBe('studio/intro-stack');
+    expect(c.template_yaml).toMatch(/^ {2}outro: \{id: studio\/outro-stack, params: \{logo_size: 72\}\}$/m);
+    const other = await engine.templates.create(
+      input({ name: 'other', components: { transition: { id: 'studio/transition-fade-black' }, intro: { id: 'studio/intro-minimal', params: { logo_only: true } } } }),
+    );
+    const o = (await loadTemplate('other', root, { files: fileFacts(PERSON_POLICY) })).template;
+    expect(o.components?.transition).toBe('studio/transition-fade-black');
+    expect(o.components?.intro).toEqual({ id: 'studio/intro-minimal', params: { logo_only: true } });
+    expect(other.files).toContain('template.yaml');
+    const before = await readdir(join(root, 'templates'));
+    for (const bad of [{ outro: { id: 'studio/no-such' } }, { outro: { params: { logo_size: 9999 } } }, { outro: { params: { colour: 'red' } } }]) {
+      const e = await refusal(engine.templates.create(input({ name: 'bad', components: bad })));
+      expect(e.code, JSON.stringify(bad)).toBe('invalid');
+    }
+    expect(await refusal(engine.templates.create(input({ name: 'bad', components: { outro: { id: 'Not An Id' } } })))).toMatchObject({ code: 'invalid' });
+    expect(await refusal(engine.templates.create(input({ name: 'bad', components: { sidebar: { id: 'studio/outro-stack' } } })))).toMatchObject({ code: 'invalid' });
+    expect(await readdir(join(root, 'templates'))).toEqual(before);
+  });
+
+  it('a component entry removes the legacy field it contradicts (intro.layout with another intro), a string base entry is expanded', async () => {
+    const c = await engine.templates.create(input({ name: 'quiet', components: { intro: { id: 'studio/intro-minimal' } } }));
+    const loaded = await loadTemplate('quiet', root, { files: fileFacts(PERSON_POLICY) });
+    expect(loaded.template.components?.intro).toBe('studio/intro-minimal');
+    expect(c.template_yaml).not.toMatch(/layout: logo-kicker-title/);
+    expect(c.template_yaml).toMatch(/^intro: \{duration: 3\.2\}$/m);
+    expect(c.notes?.join('\n')).toMatch(/legacy fields of editorial the components given replace, removed: intro\.layout/);
+    const { parseTemplateYaml } = await import('@retake/core');
+    expect(parseTemplateYaml(c.template_yaml).issues).toEqual([]);
+  });
+
+  it('up to 8 body files; a 9th is invalid', async () => {
+    const body = Array.from({ length: 8 }, (_, i) => ({ file: 'brand/Body-A.ttf', weight: (i + 1) * 100 }));
+    await writeFile(join(root, 'brand', 'Body-9.woff2'), WOFF2);
+    const c = await engine.templates.create(input({ name: 'eight', fonts: { body } }));
+    expect(c.fonts.filter((f) => f.role === 'body')).toHaveLength(8);
+    expect(await refusal(engine.templates.create(input({ name: 'nine', fonts: { body: [...body, 'brand/Body-9.woff2'] } })))).toMatchObject({
+      code: 'invalid',
+      message: expect.stringMatching(/fonts\.body/),
+    });
+  });
+
+  it('a variable body font: {file, weight: "200 800"} is one face for the range, copied as fonts/body-wght200-800', async () => {
+    await writeFile(join(root, 'brand', 'Sans-Variable.woff2'), WOFF2);
+    const c = await engine.templates.create(input({ name: 'vary', fonts: { body: [{ file: 'brand/Sans-Variable.woff2', weight: '200 800' }] } }));
+    const body = c.fonts.filter((f) => f.role === 'body');
+    expect(body.map((f) => [f.file, f.weight, f.weight_from])).toEqual([['fonts/body-wght200-800.woff2', [200, 800], 'input']]);
+    // The caption kicker of editorial (body 600) lies inside the range: no warning.
+    expect(c.warnings.join('\n')).not.toMatch(/captions\.kicker/);
+    const t = await loadTemplate('vary', root, { files: fileFacts(PERSON_POLICY) });
+    expect(t.template.fonts.body).toEqual(['fonts/body-wght200-800.woff2']);
+    expect(fontFileFace(t.assets.body[0])).toEqual({ weight: [200, 800], style: 'normal' });
+    expect(await readFile(join(c.dir, 'LICENSES.md'), 'utf8')).toMatch(/body, 200–800 \(woff2\)/);
+    expect(await refusal(engine.templates.create(input({ name: 'flat', fonts: { body: [{ file: 'brand/Sans-Variable.woff2', weight: '420 440' }] } })))).toMatchObject({
+      code: 'invalid',
+      message: expect.stringMatching(/one weight once rounded/),
+    });
+    for (const w of ['800 200', '200-800', '50 900', '200 1000'])
+      expect((await refusal(engine.templates.create(input({ name: 'bad', fonts: { body: [{ file: 'brand/Sans-Variable.woff2', weight: w }] } })))).code, w).toBe('invalid');
+  });
+
+  it("a TTF's fvar gives the range when the input gives none; another axis alone leaves it static", async () => {
+    const ttf = await readFile(join(root, 'brand', 'Body-A.ttf'));
+    await writeFile(
+      join(root, 'brand', 'Var.ttf'),
+      withFvar(ttf, [
+        ['wdth', 75, 100],
+        ['wght', 300, 700],
+      ]),
+    );
+    await writeFile(join(root, 'brand', 'Wide.ttf'), withFvar(ttf, [['wdth', 75, 100]]));
+    const c = await engine.templates.create(input({ name: 'fvar', fonts: { display: 'brand/Var.ttf', body: ['brand/Wide.ttf'] } }));
+    expect(c.fonts.map((f) => [f.file, f.weight, f.weight_from])).toEqual([
+      ['fonts/display-wght300-700.ttf', [300, 700], 'font'],
+      ['fonts/body-Regular.ttf', 400, 'font'],
+    ]);
+  });
+
+  it('two body faces that serve one weight are invalid: a static weight inside a range of its style, two ranges that meet', async () => {
+    await writeFile(join(root, 'brand', 'V.woff2'), WOFF2);
+    await writeFile(join(root, 'brand', 'W.woff2'), WOFF2);
+    const inside = await refusal(engine.templates.create(input({ name: 'inside', fonts: { body: [{ file: 'brand/V.woff2', weight: '200 800' }, 'brand/Body-B.ttf'] } })));
+    expect(inside).toMatchObject({ code: 'invalid', message: expect.stringMatching(/two body fonts serve the same weight \(200–800 and 600\)/) });
+    const meet = await refusal(
+      engine.templates.create(
+        input({
+          name: 'meet',
+          fonts: {
+            body: [
+              { file: 'brand/V.woff2', weight: '200 500' },
+              { file: 'brand/W.woff2', weight: '500 800' },
+            ],
+          },
+        }),
+      ),
+    );
+    expect(meet).toMatchObject({ code: 'invalid', message: expect.stringMatching(/200–500 and 500–800/) });
+    // Ranges side by side, and an italic beside the upright range, are fine.
+    const ok = await engine.templates.create(
+      input({
+        name: 'apart',
+        fonts: {
+          body: [
+            { file: 'brand/V.woff2', weight: '200 400' },
+            { file: 'brand/W.woff2', weight: '500 800' },
+            { file: 'brand/Body-B.ttf', italic: true },
+          ],
+        },
+      }),
+    );
+    expect(ok.fonts.filter((f) => f.role === 'body').map((f) => f.file)).toEqual(['fonts/body-wght200-400.woff2', 'fonts/body-wght500-800.woff2', 'fonts/body-SemiBoldItalic.ttf']);
+  });
+
+  it("fileNameFace reads a copy's wght<min>-<max> as its range, never as its max", () => {
+    expect(fileNameFace('fonts/body-wght200-800.woff2')).toEqual({ weight: [200, 800], italic: false });
+    expect(fileNameFace('fonts/body-wght200-800Italic.woff2')).toEqual({ weight: [200, 800], italic: true });
+    expect(fileNameFace('Brand-SemiBold.woff2')).toEqual({ weight: 600, italic: false });
   });
 
   it('WOFF / WOFF2 weights come from the style token after the last "-" or "_": a family word never reads as a weight', async () => {

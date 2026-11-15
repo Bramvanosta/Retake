@@ -1,4 +1,4 @@
-import { Background, FitText, Logo, Wordmark, cssFontFamily, rise, stagger, useCurrentFrame } from '@retake/components/kit';
+import { Background, FitText, Logo, Wordmark, cssFontFamily, rise, stagger, useCurrentFrame, withLogo } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { align: 'center' | 'left'; rule: boolean; stagger: number };
@@ -10,7 +10,8 @@ export default function Intro({ theme, slots, params, unit, width, fps }: Compon
   const margin = 160 * unit;
   const column = Math.min(width - 2 * margin, 1400 * unit);
   const enter = (i: number) => rise(frame, fps, { delay: stagger(i, { start: 0.2, step: params.stagger }), unit });
-  const brand = slots.logo ? { ...theme, logo: { url: slots.logo } } : theme;
+  // The slot's logo: the theme's own keeps its kind (a wordmark logo is drawn alone, sized by its width).
+  const brand = withLogo(theme, slots.logo);
   return (
     <Background theme={theme}>
       <div
@@ -25,8 +26,8 @@ export default function Intro({ theme, slots, params, unit, width, fps }: Compon
         }}
       >
         <div style={{ ...enter(0), display: 'flex', alignItems: 'center', gap: 20 * unit, marginBottom: 44 * unit }}>
-          <Logo theme={brand} size={64} unit={unit} />
-          <Wordmark theme={theme} height={40} unit={unit} />
+          <Logo theme={brand} size={64} maxWidth={520} unit={unit} />
+          <Wordmark theme={brand} height={40} unit={unit} />
         </div>
         {slots.kicker ? (
           <div

@@ -4,7 +4,19 @@
  * drive letter, a backslash, `..`, an empty / `.` segment or a hidden one; `site:` references well formed.
  */
 import { describe, expect, it } from 'vitest';
-import { AuthorBrandInputSchema, BrandInputSchema, brandRefSyntaxProblem, normalizeHex, printableText, showHiddenChars, showHiddenCharsLine, siteRef } from '../src/index.js';
+import {
+  AuthorBrandInputSchema,
+  BrandInputSchema,
+  BrandPatchSchema,
+  brandRefSyntaxProblem,
+  changedBrandKeys,
+  mergeBrandPatch,
+  normalizeHex,
+  printableText,
+  showHiddenChars,
+  showHiddenCharsLine,
+  siteRef,
+} from '../src/index.js';
 
 const ok = { name: 'acme', colors: { accent: '#0e7c66' }, logo: 'brand/logo.svg' };
 
@@ -60,9 +72,15 @@ describe('BrandInputSchema', () => {
       wordmark: 'brand/wordmark.svg',
       fonts: { display: 'brand/Display.ttf', body: ['brand/Body-Regular.ttf', { file: 'brand/Body.woff2', weight: 600, italic: false }] },
       brand: { name: 'Acme', url: 'acme.test' },
+      logo_kind: 'wordmark',
+      components: { outro: { params: { logo_size: 72 } }, intro: { id: 'studio/intro-minimal', params: { logo_only: true } } },
+      cursor: { style: 'arrow-light', size: 30 },
       replace: true,
     };
     expect(BrandInputSchema.safeParse(full).success).toBe(true);
+    // Up to eight body files (one per weight or style).
+    const eight = Array.from({ length: 8 }, (_, i) => `brand/Body-${i}.ttf`);
+    expect(BrandInputSchema.safeParse({ ...ok, fonts: { body: eight } }).success).toBe(true);
   });
 
   it.each([
@@ -79,12 +97,69 @@ describe('BrandInputSchema', () => {
     [{ name: 'acme', colors: { accent: '#0e7c66' } }, 'no logo'],
     [{ ...ok, base: '../templates/x' }, 'a base path'],
     [{ ...ok, fonts: { body: [] } }, 'empty body list'],
-    [{ ...ok, fonts: { body: ['a.ttf', 'b.ttf', 'c.ttf', 'd.ttf', 'e.ttf'] } }, 'five body fonts'],
+    [{ ...ok, fonts: { body: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((x) => `${x}.ttf`) } }, 'nine body fonts'],
+    [{ ...ok, logo_kind: 'banner' }, 'another logo kind'],
+    [{ ...ok, cursor: { style: 'debug' } }, 'the debug cursor'],
+    [{ ...ok, cursor: { size: 8 } }, 'a cursor under 12 px'],
+    [{ ...ok, cursor: { colour: 'red' } }, 'an unknown cursor key'],
+    [{ ...ok, components: { outro: { id: 'Studio/Outro' } } }, 'a component id of another grammar'],
+    [{ ...ok, components: { sidebar: { id: 'studio/x' } } }, 'an unknown kind'],
+    [{ ...ok, components: { outro: { video: 'clip.mp4' } } }, "a theme's own file (not a brand input)"],
+    [{ ...ok, components: { outro: { params: Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`p${i}`, i])) } } }, '33 params'],
+    [{ ...ok, components: { outro: { params: { text: 'x'.repeat(5000) } } } }, 'params over 4 KB'],
     [{ ...ok, fonts: { display: { file: 'brand/a.ttf', weight: 950 } } }, 'weight above 900'],
-    [{ ...ok, components: { intro: 'studio/intro-stack' } }, 'components override (cut)'],
+    [{ ...ok, components: { intro: 'studio/intro-stack' } }, 'a bare id (an entry is {id?, params?})'],
     [{ ...ok, tone: 'dark' }, 'tone (cut)'],
   ])('refuses %j (%s)', (input, why) => {
     expect(BrandInputSchema.safeParse(input).success, why).toBe(false);
+  });
+
+  it('mergeBrandPatch: scalars replaced, null removes; colours, brand, fonts, cursor per key; components per kind, params per key', () => {
+    const made = {
+      name: 'acme',
+      colors: { accent: '#0e7c66', text: '#101010' },
+      logo: 'brand/logo.svg',
+      wordmark: 'brand/w.svg',
+      brand: { name: 'Northfield', url: 'example.com' },
+      components: { outro: { params: { logo_size: 72, stagger: 0.2 } }, intro: { id: 'studio/intro-minimal' } },
+      cursor: { style: 'arrow-light' },
+    };
+    const m = mergeBrandPatch(made, {
+      name: 'acme',
+      colors: { paper: '#fbfaf7', text: null },
+      wordmark: null,
+      brand: { name: null },
+      components: { outro: { params: { logo_size: null, wordmark_width: 600 } }, intro: null, layout: { params: { radius: 4 } } },
+      cursor: { style: null },
+    });
+    expect(m).toEqual({
+      name: 'acme',
+      colors: { accent: '#0e7c66', paper: '#fbfaf7' },
+      logo: 'brand/logo.svg',
+      brand: { url: 'example.com' },
+      components: { outro: { params: { stagger: 0.2, wordmark_width: 600 } }, layout: { params: { radius: 4 } } },
+    });
+    // The inputs as made are untouched; the keys that changed, sorted.
+    expect(made.colors.text).toBe('#101010');
+    expect(changedBrandKeys(made, m)).toEqual(['brand.name', 'colors.paper', 'colors.text', 'components.intro', 'components.layout', 'components.outro', 'cursor.style', 'wordmark']);
+    expect(changedBrandKeys(made, mergeBrandPatch(made, { name: 'acme', colors: { accent: '#0e7c66' } }))).toEqual([]);
+    // Emptied sections go.
+    expect(mergeBrandPatch({ name: 'a', brand: { name: 'x' } }, { name: 'a', brand: { name: null } })).toEqual({ name: 'a' });
+  });
+
+  it('BrandPatchSchema: every key optional, null only where an input may be removed, never replace or the accent', () => {
+    expect(BrandPatchSchema.safeParse({ name: 'acme' }).success).toBe(true);
+    expect(BrandPatchSchema.safeParse({ name: 'acme', colors: { paper: null }, wordmark: null, logo_kind: null, components: { outro: { params: { logo_size: 72 } } } }).success).toBe(true);
+    for (const bad of [
+      { name: 'Acme' },
+      { name: 'acme', replace: true },
+      { name: 'acme', colors: { accent: null } },
+      { name: 'acme', logo: null },
+      { name: 'acme', components: { sidebar: null } },
+      { colors: { paper: '#fff' } },
+    ]) {
+      expect(BrandPatchSchema.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    }
   });
 
   it('printableText: C0 / C1 controls, DEL and bidirectional formatting characters out, one line', () => {

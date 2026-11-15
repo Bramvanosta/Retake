@@ -7,6 +7,7 @@
  */
 import type { FrameStyle, TransitionKind } from './language.js';
 import type { ComponentKind, ComponentRef, MediaFileFields } from './model.js';
+import type { LogoKind } from '../image-size.js';
 
 export interface TextStyle {
   font: 'display' | 'body';
@@ -24,6 +25,11 @@ export interface Template {
   fonts: { display: string; body: string[] };
   /** Logo file relative to the template dir. */
   logo: string;
+  /**
+   * What the logo is (core image-size.ts): `mark` (drawn beside the brand name) or `wordmark` (the name itself: drawn
+   * alone, sized by its width). Absent: a wordmark when the logo is at least LOGO_WORDMARK_ASPECT times wider than high.
+   */
+  logo_kind?: LogoKind;
   /** Optional wordmark image (used by outro layouts). */
   wordmark?: string;
   background: { type: 'solid' | 'radial' | 'linear'; from?: string; to?: string; color?: string };
@@ -77,5 +83,12 @@ export interface LoadedTemplate {
   dir: string;
   template: Template;
   /** Absolute paths of the assets. */
-  assets: { logo: string; wordmark?: string; display: string; body: string[] };
+  assets: {
+    logo: string;
+    /** The logo's width / height as its file declares it (core image-size.ts); absent when the file gives no size. */
+    logo_aspect?: number;
+    wordmark?: string;
+    display: string;
+    body: string[];
+  };
 }

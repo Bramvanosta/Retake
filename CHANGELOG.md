@@ -7,11 +7,34 @@ release — for the person about to click Install and Restart.
 ## [Unreleased]
 
 ### Added
+- `template_update`: Claude changes a theme it made by naming only what changes (`{name, components: {outro: {params:
+  {logo_size: 72}}}}`, a colour, `wordmark: null`…) — the rest stays as made and the files it does not name are the
+  theme's own copies. Only for a theme made through MCP that nobody edited.
+- Brand inputs take `components` (per kind, an id and params over the base theme's, checked against each component),
+  `cursor` (style, size) and `logo_kind` — through MCP and `retake theme create` (`--component`, `--param`, `--cursor`,
+  `--cursor-size`, `--logo-kind`); the Studio's theme editor has a Logo kind choice.
+- Variable fonts: `{file, weight: "200 800"}` (or a TrueType / OpenType font's own `wght` axis) is one face for the
+  whole range, copied as `fonts/body-wght200-800.<ext>`.
 - The workspace journal, `.retake/journal.jsonl`: every file Retake writes for you (a scenario, the README, a comment
   thread, a theme, a component, a new project, a sandbox scaffold) and every hook it runs, with who did it (you in a
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
+- A wide logo (3:1 or wider) is drawn once: the intro, the outro and the brand mark show it alone, sized by its width
+  (the outro's new `wordmark_width`, 520 px by default), no longer followed by the brand name in text; an app icon shows
+  the brand's initial instead of a cropped strip. This changes how an existing theme with such a logo looks — and a
+  tuned outro `logo_size` becomes the logo's maximum height: add `logo_kind: mark` to its template.yaml to get the old
+  drawing back.
+- For component authors (kit API 1, unchanged): `Wordmark` draws nothing beside a wordmark logo (`force` draws it);
+  `Logo` takes `maxWidth` (a wordmark logo's width cap) and `monogram`; new `withLogo` (a `logo` slot that keeps the
+  theme logo's kind), `logoBox`, `logoKind` and `BrandLockup`. A component that draws `<Logo>` without `maxWidth` draws
+  a wide logo by its height, as before.
+- Up to eight body font files instead of four (brand inputs and the Studio's theme editor).
+- A dark brand over a light base (or a light one over `motion`) no longer warns "consider another base": the theme
+  gets the cursor of its palette's tone, said in a note (set `cursor.style` if your app's own UI is the other tone).
+- Fixed: an agent could replace a theme a person made in the Studio's New theme sheet (`replace: true`). A theme now
+  records who made it; through MCP only one made through MCP is replaced or updated. A theme made before this version
+  is no longer replaced through MCP: make a new one, or replace it yourself with `retake theme create --replace`.
 - The Studio uses a large screen: no screen is held to a 1200 px column any more, the browser and the inspector grow
   with the window (up to 300 and 480 px), a wide storyboard shows more frames a row, and Edit's preview takes the
   height the tracks leave (it shrank to a strip when no note sat above it). Welcome is rebuilt: a greeting and the

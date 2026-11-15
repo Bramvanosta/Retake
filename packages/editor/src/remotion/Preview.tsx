@@ -7,7 +7,7 @@
  */
 import type { CSSProperties, ReactNode } from 'react';
 import { AbsoluteFill, Img, Sequence, useCurrentFrame } from './host.js';
-import { Logo, Wordmark, backgroundCss } from '@retake/components/kit';
+import { BrandLockup, backgroundCss } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/geometry';
 import type { PreviewProps } from './contract.js';
 import { useThemeFonts } from './fonts.js';
@@ -60,8 +60,7 @@ function Brandmark({ spec, scene }: { spec: ComponentPreviewSpec; scene: Preview
         opacity: b.opacity,
       }}
     >
-      <Logo theme={spec.theme} size={b.size} unit={unit} />
-      <Wordmark theme={spec.theme} height={b.size * 0.8} unit={unit} />
+      <BrandLockup theme={spec.theme} size={b.size} maxWidth={b.rect.w / unit} unit={unit} />
     </div>
   );
 }

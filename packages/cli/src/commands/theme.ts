@@ -22,6 +22,11 @@ export interface ThemeCreateOptions {
   bodyFont?: string[];
   brandName?: string;
   brandUrl?: string;
+  logoKind?: string;
+  cursor?: string;
+  cursorSize?: string;
+  component?: string[];
+  param?: string[];
   adjust?: boolean;
   replace?: boolean;
   json?: boolean;
@@ -33,6 +38,47 @@ function background(v: string): unknown {
   if (m) return { type: m[1].toLowerCase(), from: m[2], to: m[3] };
   if (/^#/.test(v)) return v;
   throw new UsageError(`--background ${v}: a hex colour (#f8f4ef) or radial:<from>:<to> / linear:<from>:<to>`);
+}
+
+/** `--cursor-size <px>`: a number from 12 to 64, said plainly when it is not (the schema's words would be zod's). */
+export function cursorSizeOption(v: string): number {
+  const n = Number(v);
+  if (v.trim() === '' || !Number.isFinite(n) || n < 12 || n > 64) throw new UsageError(`--cursor-size ${v}: a cursor size in px, a number from 12 to 64 (e.g. 30)`);
+  return n;
+}
+
+const KINDS = ['intro', 'outro', 'card', 'interstitial', 'caption', 'layout', 'overlay', 'transition'];
+
+/**
+ * `--component <kind>=<id>` and `--param <kind>.<name>=<json>` (each repeatable) → the brand input's `components`
+ * (a param value is JSON — 72, true, "left" — else taken as text); the engine checks ids and params against the
+ * registry.
+ */
+export function componentsOption(components: readonly string[] = [], params: readonly string[] = []): Record<string, { id?: string; params?: Record<string, unknown> }> | undefined {
+  const out: Record<string, { id?: string; params?: Record<string, unknown> }> = {};
+  const entry = (kind: string, flag: string) => {
+    if (!KINDS.includes(kind)) throw new UsageError(`${flag}: ${kind} is not a component kind (${KINDS.join(', ')})`);
+    out[kind] ??= {};
+    return out[kind];
+  };
+  for (const c of components) {
+    const m = /^([a-z]+)=(.+)$/.exec(c);
+    if (!m) throw new UsageError(`--component ${c}: <kind>=<namespace/name>, e.g. outro=studio/outro-minimal`);
+    entry(m[1], '--component').id = m[2];
+  }
+  for (const p of params) {
+    const m = /^([a-z]+)\.([A-Za-z0-9_-]+)=(.*)$/s.exec(p);
+    if (!m) throw new UsageError(`--param ${p}: <kind>.<name>=<value>, e.g. outro.logo_size=72`);
+    let value: unknown;
+    try {
+      value = JSON.parse(m[3]);
+    } catch {
+      value = m[3];
+    }
+    const e = entry(m[1], '--param');
+    e.params = { ...(e.params ?? {}), [m[2]]: value };
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 function printCreated(ui: Ui, c: ThemeCreated): void {
@@ -47,8 +93,9 @@ function printCreated(ui: Ui, c: ThemeCreated): void {
   ui.line(`  contrast: ${c.palette.checks.map((x) => `${x.check} ${x.ratio}${x.ok ? '' : ` (< ${x.min})`}`).join(', ')}`);
   for (const a of c.palette.adjusted) ui.line(`  adjusted ${a.key}${a.given ? ' (given)' : ''} ${a.from} → ${a.to} (${a.check} ${a.ratio_before} → ${a.ratio_after})`);
   if (c.palette.suggestions.accent) ui.line(`  suggested accent (not applied): ${c.palette.suggestions.accent}`);
-  ui.line(`  fonts: ${c.fonts.map((f) => `${f.file} (${f.role} ${f.weight}${f.italic ? ' italic' : ''})`).join(', ')}`);
+  ui.line(`  fonts: ${c.fonts.map((f) => `${f.file} (${f.role} ${Array.isArray(f.weight) ? f.weight.join('–') : f.weight}${f.italic ? ' italic' : ''})`).join(', ')}`);
   for (const f of c.untrusted.fonts) ui.line(k.dim(`  ${f.file}: ${f.family ?? '?'}${f.licence_url ? `, ${f.licence_url}` : ''}`));
+  for (const n of c.notes ?? []) ui.line(`  note: ${n}`);
   for (const w of c.warnings) ui.warn(w);
   ui.line(`next: ${k.bold(`retake render <project> <scenario> --theme ${c.name}`)} (or template_preview through MCP); change it with --replace while nobody edited it`);
 }
@@ -56,6 +103,7 @@ function printCreated(ui: Ui, c: ThemeCreated): void {
 /** `retake theme create <name> --accent <hex> --logo <file> …`: a new workspace theme from brand files (trust author). */
 export async function themeCreateCommand(ui: Ui, global: GlobalOptions, name: string, opts: ThemeCreateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
+  const components = componentsOption(opts.component, opts.param);
   const input = {
     name,
     ...(opts.base ? { base: opts.base } : {}),
@@ -72,6 +120,11 @@ export async function themeCreateCommand(ui: Ui, global: GlobalOptions, name: st
     ...(opts.wordmark ? { wordmark: opts.wordmark } : {}),
     ...(opts.displayFont || opts.bodyFont?.length ? { fonts: { ...(opts.displayFont ? { display: opts.displayFont } : {}), ...(opts.bodyFont?.length ? { body: opts.bodyFont } : {}) } } : {}),
     ...(opts.brandName || opts.brandUrl ? { brand: { ...(opts.brandName ? { name: opts.brandName } : {}), ...(opts.brandUrl ? { url: opts.brandUrl } : {}) } } : {}),
+    ...(opts.logoKind ? { logo_kind: opts.logoKind } : {}),
+    ...(opts.cursor || opts.cursorSize !== undefined
+      ? { cursor: { ...(opts.cursor ? { style: opts.cursor } : {}), ...(opts.cursorSize !== undefined ? { size: cursorSizeOption(opts.cursorSize) } : {}) } }
+      : {}),
+    ...(components ? { components } : {}),
     ...(opts.replace ? { replace: true } : {}),
   };
   let created: ThemeCreated;

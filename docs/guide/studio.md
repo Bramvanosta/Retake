@@ -459,7 +459,9 @@ running: the MCP server keeps working without it.
   (Undo puts the file back): every existing take of it uses the theme at its next render, no new capture — the cursor
   style is filmed, existing takes keep theirs; the same choice is the timeline inspector's *Theme (this scenario)*. The
   project's own theme stays a hand edit of project.yaml. **New theme…** makes one from your brand (colours, a logo and
-  fonts among the workspace's files, over a base theme) as Claude's template_create_from_brand does. **From a
+  fonts among the workspace's files, over a base theme) as Claude's template_create_from_brand does. Under **Logo**,
+  *Logo kind* says how the logo is drawn: from its shape (3:1 and wider: a wordmark, drawn alone), a mark (the brand
+  name beside it) or a wordmark; the body takes one to eight font files. **From a
   website**: the extractions already made (`retake theme from-site`, or Claude's template_from_site — the page's title
   shown as text) with **New theme from this**; for a new URL the Studio shows the command to copy — it never fetches a
   site itself (the extraction needs your approval of the URL).

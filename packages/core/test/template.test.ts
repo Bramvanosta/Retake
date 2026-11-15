@@ -54,6 +54,43 @@ describe('loadTemplate', () => {
     });
   });
 
+  it("a theme's logo aspect is read at load (a wide PNG 2048×181 → 11.3149); a size it cannot read leaves it out and the theme loads", async () => {
+    const png = Buffer.alloc(33);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png, 0);
+    png.writeUInt32BE(13, 8);
+    png.write('IHDR', 12, 'latin1');
+    png.writeUInt32BE(2048, 16);
+    png.writeUInt32BE(181, 20);
+    await writeFiles(ws.dir, { ...withPrefix('templates/wide', { ...ASSETS, 'logo.png': '' }), ...withPrefix('templates/blank', { ...ASSETS, 'logo.png': 'not a png' }) });
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(join(ws.dir, 'templates/wide/logo.png'), png);
+    await writeFiles(ws.dir, { 'templates/wide/template.yaml': 'logo: logo.png\n', 'templates/blank/template.yaml': 'logo: logo.png\nlogo_kind: wordmark\n' });
+    const files = fileFacts(PERSON_POLICY);
+    const wide = await loadTemplate('wide', ws.dir, { files });
+    expect(wide.assets.logo_aspect).toBe(11.3149);
+    expect(wide.template.logo_kind).toBeUndefined();
+    const blank = await loadTemplate('blank', ws.dir, { files });
+    expect(blank.assets).not.toHaveProperty('logo_aspect');
+    expect(blank.template.logo_kind).toBe('wordmark');
+    // A viewBox-only SVG logo gives its size; the starters' logos are square.
+    await writeFiles(ws.dir, { 'templates/vb/template.yaml': '', ...withPrefix('templates/vb', { ...ASSETS, 'logo.svg': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 100"/>' }) });
+    expect((await loadTemplate('vb', ws.dir, { files })).assets.logo_aspect).toBe(9);
+    for (const n of ['default', 'editorial', 'motion']) expect((await loadTemplate(n, ws.dir, { files })).assets.logo_aspect, n).toBe(1);
+  });
+
+  it('logo_kind takes mark or wordmark, nothing else', () => {
+    expect(parseTemplateYaml('logo_kind: mark\n').template?.logo_kind).toBe('mark');
+    expect(parseTemplateYaml('logo_kind: wordmark\n').template?.logo_kind).toBe('wordmark');
+    for (const bad of ['banner', 'auto', '3', 'Wordmark']) {
+      const r = parseTemplateYaml(`logo_kind: ${bad}\n`);
+      expect(r.template, bad).toBeUndefined();
+      expect(
+        r.issues.map((i) => i.path.join('.')),
+        bad,
+      ).toContain('logo_kind');
+    }
+  });
+
   it('merges objects deeply, replaces arrays and scalars', async () => {
     await writeFiles(ws.dir, {
       ...withPrefix('templates/editorial', { 'brand/mark.png': 'x', 'f/Serif.otf': 'x', 'f/Sans.woff2': 'x', 'brand/word.svg': 'x' }),

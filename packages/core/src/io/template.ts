@@ -2,7 +2,8 @@
  * The theme readers: the workspace's themes and the starter ones (the app bundle's, else the repository's), a theme
  * folder loaded and its asset files checked.
  */
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { IMAGE_SIZE_HEAD_BYTES, imageAspect } from '../image-size.js';
 import { ConfigError, issuesMessage } from '../issues.js';
 import { TEMPLATE_FILE, parseTemplateYaml } from '../template.js';
 import type { TemplateEntry } from '../template.js';
@@ -186,6 +187,8 @@ async function loadTemplateDir(disk: WorkspaceDisk, dir: string, files: WorkFile
       file,
     );
   }
+  const aspect = imageAspect(disk.facts.readHead(assets.logo, IMAGE_SIZE_HEAD_BYTES), extname(assets.logo));
+  if (aspect !== undefined) assets.logo_aspect = aspect;
   return { name, dir, template, assets };
 }
 

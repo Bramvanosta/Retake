@@ -41,6 +41,9 @@ elements (logo, wordmark, colours, fonts) always come from the template — noth
   ≈ 0.14 em, muted at 70 % opacity, at y ≈ 737.
 - Motion: logo fades + scales in (0.92 → 1), wordmark follows (~0.2 s later), then rule / tagline / url staggered by
   ~0.15 s. The wordmark is the brand name set in the display font when the template has no wordmark image.
+- A wordmark logo (`logo_kind: wordmark`, or a logo 3:1 and wider) is the name already: drawn alone, ≈ 520 px wide
+  (40 % of the 1300 px column; at most 150 px high), no wordmark band; the intro row and the brand mark draw it alone
+  too, sized by their width.
 
 ## Cursor & UI choreography (as seen in the captures)
 - macOS-style dark arrow with a white outline and a soft shadow, ~26 px; ripple in the accent colour (alpha ≈ .45).

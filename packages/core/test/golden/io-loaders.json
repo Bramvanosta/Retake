@@ -232,7 +232,8 @@
       "<repo>/templates/default/fonts/Inter-SemiBold.ttf",
       "<repo>/templates/default/fonts/Inter-Bold.ttf"
      ],
-     "wordmark": "<repo>/templates/default/wordmark.svg"
+     "wordmark": "<repo>/templates/default/wordmark.svg",
+     "logo_aspect": 1
     }
    }
   },
@@ -248,7 +249,8 @@
       "<repo>/templates/editorial/fonts/Inter-SemiBold.ttf",
       "<repo>/templates/editorial/fonts/Inter-Bold.ttf"
      ],
-     "wordmark": "<repo>/templates/editorial/wordmark.svg"
+     "wordmark": "<repo>/templates/editorial/wordmark.svg",
+     "logo_aspect": 1
     }
    }
   },
@@ -264,7 +266,8 @@
       "<repo>/templates/motion/fonts/Inter-SemiBold.ttf",
       "<repo>/templates/motion/fonts/Inter-Bold.ttf"
      ],
-     "wordmark": "<repo>/templates/motion/wordmark.svg"
+     "wordmark": "<repo>/templates/motion/wordmark.svg",
+     "logo_aspect": 1
     }
    }
   }

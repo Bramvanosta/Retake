@@ -27,7 +27,7 @@ export type { Bezier, EasingFn } from './kit/easing.js';
 export { ANCHOR_KEYS, GEOMETRY_KEYS, evalAnchor, evalLayoutGeometry, isMultiPaneGeometry, paramEnums } from './geometry.js';
 export { fillSlots } from './slots.js';
 export type { SlotContext } from './slots.js';
-export { fontFileFace, themeTokens } from './theme.js';
+export { LOGO_WORDMARK_ASPECT, fontFileFace, fontFileRange, fontWeightDescriptor, resolveLogoKind, themeTokens, weightCovers } from './theme.js';
 export { parseCsv } from './data.js';
 export { ARTEFACT_SLOT_TYPES, NO_REGISTRY_HANDED } from './types.js';
 export type {
@@ -43,6 +43,7 @@ export type {
   PictureMedia,
   ProgressChapter,
   ResolvedComponentRef,
+  FontWeight,
   ThemeFontFace,
   ThemeTokens,
 } from './types.js';

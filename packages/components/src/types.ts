@@ -196,12 +196,15 @@ export interface ComponentManifest {
   };
 }
 
+/** A font face's weight: one (400) or, for a variable font, its range ([200, 800]: `font-weight: 200 800`). */
+export type FontWeight = number | [number, number];
+
 /** A font file the host composition registers (`@font-face`) under a theme font family. */
 export interface ThemeFontFace {
   family: string;
   url: string;
-  /** CSS font-weight (inferred from the file name: Regular 400, SemiBold 600, Bold 700…). */
-  weight: number;
+  /** CSS font-weight (from the file name: Regular 400, SemiBold 600, Bold 700…; `wght200-800` a variable font's range). */
+  weight: FontWeight;
   style: 'normal' | 'italic';
 }
 
@@ -229,8 +232,16 @@ export interface ThemeTokens {
   fonts: { display: string; body: string };
   /** The font files behind `fonts`, for the host composition to register (when font URLs were given). */
   font_faces?: ThemeFontFace[];
-  logo?: { url: string };
-  /** Wordmark image, and/or the brand name to draw as text (always set when the brand has a name). */
+  /**
+   * The logo image: its width / height as its file declares it (absent: unknown) and its kind — a `mark` drawn beside
+   * the wordmark, or a `wordmark` (the brand name as an image) drawn alone and sized by its width (kit `Logo`,
+   * `Wordmark`). A token without `kind` is a mark (themeTokens writes `kind` and `aspect` for a wordmark only).
+   */
+  logo?: { url: string; aspect?: number; kind?: 'mark' | 'wordmark' };
+  /**
+   * Wordmark image, and/or the brand name to draw as text (always set when the brand has a name: the logo's alt text
+   * too). The kit's `Wordmark` draws nothing beside a wordmark logo.
+   */
   wordmark?: { url?: string; text?: string };
   brand: { name?: string; url?: string };
   cursor?: { ripple_color: string };

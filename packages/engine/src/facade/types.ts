@@ -458,6 +458,12 @@ export interface Engine {
      */
     create(input: unknown): Promise<ThemeCreated>;
     /**
+     * template_update (core BrandPatchSchema): a theme this tool made through MCP that nobody changed, re-made with only
+     * the inputs given changed — the files not named are its own copies. Refused for a theme a person made (CLI,
+     * Studio), changed, added to, or recorded before `made_via`; `invalid` when nothing changes.
+     */
+    update(input: unknown): Promise<ThemeCreated>;
+    /**
      * Queue a site extraction (R-MCP-12) after asking the human (through `approver`) to approve the exact URL:
      * colours, font names, logo PNGs and a screenshot into .retake/site/<id>/, and a draft brand input. Refused
      * for an environment page or a protected host; needs_approval when the client cannot ask anyone.

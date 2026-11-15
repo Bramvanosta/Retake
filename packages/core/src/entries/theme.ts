@@ -14,4 +14,5 @@ export * from '../components.js';
 export * from '../theme-edits.js';
 export * from '../brand.js';
 export * from '../site.js';
+export * from '../image-size.js';
 export { TemplateFileSchema, TemplateSchema } from '../schemas/template.js';

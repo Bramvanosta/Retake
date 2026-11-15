@@ -29,9 +29,13 @@ when those instructions or a tool's description say something else, they win.
 
 1. Ask the user to put the files in the workspace's `brand/` folder, files they are allowed to use:
    - a logo: SVG (plain: no script, links or external files), PNG, JPEG or WebP; optionally a wordmark image for the
-     outro (without one, the brand name is drawn as text);
-   - fonts, optional: TTF, OTF, WOFF or WOFF2, one display face (titles) and one to four body files (one per weight or
-     style), with a licence that allows embedding them in videos. Without fonts the base theme's stay.
+     outro (without one, the brand name is drawn as text). A logo 3:1 or wider is the brand name itself (a wordmark):
+     it is drawn alone, sized by its width, never followed by the name in text — `logo_kind: mark` keeps a wide
+     pictogram a mark, `logo_kind: wordmark` makes a narrower logo one;
+   - fonts, optional: TTF, OTF, WOFF or WOFF2, one display face (titles) and one to eight body files (one per weight
+     or style) — or one variable font for a range of weights (`{file, weight: "200 800"}`; a TTF / OTF with a `wght`
+     axis gives its range itself), with a licence that allows embedding them in videos. Without fonts the base
+     theme's stay.
 2. Ask for the brand colours as hex: the **accent** (required: kicker, rules, the cursor ripple), and optionally the
    text, paper (background; a dark paper makes a dark theme), muted and dark (the night tone of dark cards) colours,
    or a background gradient. Ask for the brand name and the address the outro shows (a domain like example.com).
@@ -39,10 +43,14 @@ when those instructions or a tool's description say something else, they win.
    `template_create_from_brand {name: acme, colors: {accent: "#1f6feb"}, logo: brand/logo.svg, fonts: {display:
    brand/display-bold.woff2, body: [brand/body-regular.woff2, brand/body-semibold.woff2]}, brand: {name: Acme,
    url: example.com}}`. Paths are relative to the workspace root. `base` keeps another starter's components, frame,
-   captions and motion (default `editorial`); `background` takes a hex or `{type: radial, from, to}`.
+   captions and motion (default `editorial`); `background` takes a hex or `{type: radial, from, to}`;
+   `components: {outro: {params: {logo_size: 72}}}` sets a component's params (per kind `{id?, params?}`, checked
+   against the component: `component_get` lists its params); `cursor: {style: arrow-light}` the filmed cursor (a dark
+   paper over a light base gets `arrow-light` by itself: ask whether the user's app is light or dark).
 4. Read the result and tell the user: the palette with every contrast ratio, each colour lifted to reach its
    threshold (text 7:1, muted 4.5:1, accent 3:1 on the paper), the accent suggestion when the accent itself misses
-   it (the accent is never changed), the copied files and the warnings (a font licence that restricts embedding).
+   it (the accent is never changed), the copied files, the notes (a wide logo drawn as a wordmark, the cursor chosen
+   for the palette's tone) and the warnings (a font licence that restricts embedding).
 
 ## Entry B: a site the user named
 
@@ -62,10 +70,12 @@ when those instructions or a tool's description say something else, they win.
 1. **Preview.** `template_preview {project, template: acme}`: five stills (intro, a layout with its caption, a card,
    an interstitial, the outro). Look at each: is the logo legible and not too big, does the text read on the paper,
    are the fonts the brand's, does the accent show on the rules and the kicker?
-2. **Adjust.** Call `template_create_from_brand` again with the changes and `replace: true`. That replaces only a
-   theme this tool made that nobody edited since; once the user edited it, use a new name. For small changes to an
-   existing theme (a colour, the background, a component per kind) point the user to the Studio's theme editor
-   (Themes in a project's pages): they change it there with a live preview and undo; you do not edit it.
+2. **Adjust.** `template_update` with the theme's `name` and only the inputs that change — e.g. `{name: acme, components: {outro: {params:
+   {logo_size: 72}}}}`, `{name: acme, colors: {paper: "#1c1c1c"}}`, `{name: acme, wordmark: null}` (null removes an
+   input). It re-makes only a theme this tool made through MCP that nobody edited since (never one the user made with
+   the CLI or in the Studio); once the user edited it, use a new name. For small changes to a theme the user made or
+   edited (a colour, the background, a component per kind) point the user to the Studio's theme editor (Themes in a
+   project's pages): they change it there with a live preview and undo; you do not edit it.
 3. **Render with it.** A theme is switched per render, by name: `render {project, scenario, template: acme}` (it
    needs a capture of the scenario: `run_list {project, scenario}`; none yet, film one first, see the
    retake-scenario skill). Follow `render_status {project, render_id, wait_s: 25}` until it is finished.

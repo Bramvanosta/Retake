@@ -150,7 +150,9 @@ const PREVIEW_FRAME = no("the Studio's sandboxed preview frame: a terminal rende
 const RECORD_PANEL = no("the Record screen's control panel of the window the Studio opened: Claude asks for a recording with scenario_record and follows it with job_status");
 const RECORD_CLI = no('`retake record` runs the whole recording in the terminal: its window, its draft and its check');
 const LIBRARY_MCP = no('Claude reads components with component_list and component_get and sees them through component_preview');
-const THEME_EDIT_MCP = no('MCP never edits a theme: Claude makes a new one with template_create_from_brand, the person edits theirs');
+const THEME_EDIT_MCP = no(
+  "MCP never edits a person's theme: Claude makes a new one with template_create_from_brand (and re-makes only one it made, unchanged, with template_update), the person edits theirs",
+);
 const THREAD_CLI_READ = no('`retake comment list` shows the threads and their entries');
 const AGENT_ONLY = no('an aid for Claude, who writes the scenario: no Studio screen');
 const TERMINAL_ONLY_MCP = no('a command a person runs in a terminal');
@@ -260,6 +262,13 @@ const ENTRIES = [
     cli: ['theme create'],
     mcp: true,
     studio: no('the theme editor makes a new theme through theme_create, never replacing one'),
+  },
+  {
+    name: 'template_update',
+    ...D('the theme of that name it made through MCP that nobody edited (re-made with the inputs given changed)'),
+    cli: no('a person edits templates/<name>/template.yaml, or runs retake theme create --replace'),
+    mcp: true,
+    studio: no('the theme editor edits a theme field by field (theme_edit)'),
   },
   { name: 'component_list', useCase: 'components.list', ...R, cli: ['components list'], mcp: true, studio: no('the library screen lists components through library_view') },
   {

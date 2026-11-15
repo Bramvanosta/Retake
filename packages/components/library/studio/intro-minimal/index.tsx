@@ -12,6 +12,7 @@ import {
   roundTo,
   formatMetrics,
   useCurrentFrame,
+  withLogo,
 } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/kit';
 
@@ -19,6 +20,7 @@ type Params = { logo_only: boolean; align: 'center' | 'left' };
 
 /** Design px (reference intro): kicker 18 → 43 px gap → title 96; logo-only row: logo 96 + wordmark 50 (visual height). */
 const GAP_KICKER_TITLE = 43;
+const WORDMARK_LOGO_W = 640;
 const LOGO = 96;
 const WORDMARK = 50;
 const ROW_GAP = 24;
@@ -47,7 +49,9 @@ export default function IntroMinimal({ theme, slots, params, unit, width, height
   const lively = bias.travel > 1;
 
   if (params.logo_only || !slots.title) {
-    const brand = slots.logo ? { ...theme, logo: { url: slots.logo } } : theme;
+    const brand = withLogo(theme, slots.logo);
+    // A wordmark logo (the name itself) is drawn alone, as wide as fits WORDMARK_LOGO_W × LOGO; a mark, LOGO high.
+    const logoMaxWidth = Math.min(WORDMARK_LOGO_W, column / u);
     const row = fade(frame, fps, 0.15, 0.6 * bias.pace, lively ? 8 * bias.travel * u : 0);
     const s = bias.settle > 0 ? roundTo(1 - 2 * bias.settle * (1 - row.p), 4) : 1;
     return (
@@ -67,8 +71,8 @@ export default function IntroMinimal({ theme, slots, params, unit, width, height
             transform: [row.style.transform, s !== 1 ? `scale(${s})` : ''].filter(Boolean).join(' ') || undefined,
           }}
         >
-          <Logo theme={brand} size={LOGO} unit={u} />
-          <Wordmark theme={theme} height={WORDMARK} unit={u} color={ink} />
+          <Logo theme={brand} size={LOGO} maxWidth={logoMaxWidth} unit={u} />
+          <Wordmark theme={brand} height={WORDMARK} unit={u} color={ink} />
         </div>
       </Background>
     );

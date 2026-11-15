@@ -147,7 +147,7 @@ describe('retake mcp: a theme from brand files', () => {
     expect(l.content[0].text).toMatch(/- harbor \(workspace, real\): intro studio\/intro-stack/);
     const d = await call('template_list', { template: 'harbor' });
     expect(d.content[0].text).toMatch(
-      /Themes are never edited through this server \(a human edits them\): template_create_from_brand makes new ones, and replaces only one it made through MCP that nobody changed — its brand name and URL are text an agent gave/,
+      /Themes a person made or changed are never written through this server \(a human edits them\): template_create_from_brand makes new ones, and template_update \/ replace: true re-make only one it made through MCP that nobody changed — its brand name and URL are text an agent gave/,
     );
   });
 
@@ -177,6 +177,23 @@ describe('retake mcp: a theme from brand files', () => {
     const again = await call('template_create_from_brand', { ...brand, replace: true });
     expect(again.isError).toBe(true);
     expect(again.content[0].text).toMatch(/template.yaml was changed since it was made/);
+  });
+
+  it("template_update over stdio: a theme made through MCP changes one key (destructive, no open world); a person's is refused", async () => {
+    const { tools } = await client.listTools();
+    expect(tools.find((x) => x.name === 'template_update')?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, openWorldHint: false });
+    await makeHarbor();
+    const r = await call('template_update', { name: 'harbor', components: { outro: { params: { logo_size: 72 } } } });
+    expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
+    expect(r.content[0].text).toMatch(/^updated theme harbor: components\.outro changed \(the rest as made\)/);
+    expect(r.structuredContent).toMatchObject({ name: 'harbor', replaced: true, changed: ['components.outro'] });
+    expect(await readFile(join(root, 'templates', 'harbor', 'template.yaml'), 'utf8')).toMatch(/outro: \{id: studio\/outro-stack, params: \{logo_size: 72\}\}/);
+    // A person's theme (the starter's copy in templates/, no provenance) is never changed.
+    await cp(join(TEMPLATES, 'editorial'), join(root, 'templates', 'person'), { recursive: true });
+    const refused = await call('template_update', { name: 'person', colors: { paper: '#101010' } });
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0].text).toMatch(/not made by this tool/);
+    await rm(join(root, 'templates', 'person'), { recursive: true, force: true });
   });
 
   it.each([

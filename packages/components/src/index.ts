@@ -79,7 +79,7 @@ export { validateComponent, validateComponentDir } from './validate.js';
 export type { ComponentValidation, ValidateComponentOptions } from './validate.js';
 export { BUILTIN_NAMESPACE, createComponent, componentDisplayName } from './create.js';
 export type { CreateComponentOptions, CreatedComponent } from './create.js';
-export { themeTokens, themeFontFamilies, fontFileFace } from './theme.js';
+export { LOGO_WORDMARK_ASPECT, themeTokens, themeFontFamilies, fontFileFace, fontFileRange, fontWeightDescriptor, resolveLogoKind, weightCovers } from './theme.js';
 export type { ThemeUrls } from './theme.js';
 export { COMPONENT_SCHEMA_FILE, GEOMETRY_MODULE, KIT_API_VERSION, KIT_MODULE, LIBRARY_DIR, PACKAGE_DIR, SCAFFOLDS_DIR, geometryEntry, kitEntry, scaffoldDir } from './paths.js';
 export { fillSlots, slotSource } from './slots.js';
@@ -118,5 +118,5 @@ export type { PreviewMeta, PreviewStatus } from './preview.js';
 /** Themes from brand inputs: the deterministic palette and the generated template.yaml. */
 export { DARK_PAPER_LUMINANCE, PALETTE_THRESHOLDS, derivePalette, paletteTone } from './brand/palette.js';
 export type { Palette, PaletteAdjustment, PaletteBackground, PaletteCheck, PaletteColors, PaletteInput, PaletteTone } from './brand/palette.js';
-export { generateThemeFile } from './brand/template-file.js';
+export { ThemeComponentsError, generateThemeFile } from './brand/template-file.js';
 export type { ThemeFile, ThemeFileInput } from './brand/template-file.js';

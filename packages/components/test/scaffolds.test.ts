@@ -216,6 +216,7 @@ const KIT_PUBLIC_NAMES = [
   'AppIcon',
   'BUTTON_LABEL_MIN',
   'Background',
+  'BrandLockup',
   'CAMERA_EASINGS',
   'CAPTION_BAND_INSET',
   'CAPTION_BAND_MAX_WIDTH',
@@ -301,6 +302,8 @@ const KIT_PUBLIC_NAMES = [
   'layoutNotification',
   'lerp',
   'liftToContrast',
+  'logoBox',
+  'logoKind',
   'lottieFrames',
   'loupeLens',
   'luminance',
@@ -350,6 +353,7 @@ const KIT_PUBLIC_NAMES = [
   'videoPartFrames',
   'wallpaperCss',
   'withAlpha',
+  'withLogo',
   'wrapText',
 ];
 
