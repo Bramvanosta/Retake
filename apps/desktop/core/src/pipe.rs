@@ -11,7 +11,11 @@
 // install | later} — the update sheet's click (ui desktop.ts `desktop_update`), strict fields. ! ! `menu` {items:
 // [{id, enabled, checked?, variant?}]} — the window page's state of the menu's page commands (ui desktop.ts
 // `desktop_menu`): each id a command id's shape (the shell applies the ids its menu holds and ignores the rest),
-// `checked` a bool, `variant` 0 or 1 (which of a toggle's two fixed labels) — no text of the page reaches the menu. ! !
+// `checked` a bool, `variant` 0 or 1 (which of a toggle's two fixed labels) — no text of the page reaches the menu.
+// `context` {menu} — the window page asks for one of the shell's context menus (ui desktop.ts `desktop_menu` {popup}):
+// an id only, strict fields (the shell shows it only right after a real secondary click: menu.rs's gate).
+// `cli` {state: absent | ours | other_app | foreign} — the server's word on the `retake` command's link (ui
+// setup-status.ts cliMenuState, read from the disk: never the page's): Help's Install / Uninstall follow it. ! !
 // What is ignored
 // (forward compatible): a line that is no JSON object, a `type` this shell does not know, ! a `job_end` of an unknown
 // kind or outcome. Only a `pending` that fails its checks is `BadPending` — the shell then ! asks with generic words
@@ -124,6 +128,11 @@ wire_enum!(
     /// What the Studio's update sheet asks the shell (ui desktop.ts UPDATE_ACTIONS): Install and Restart, or Later
     /// (stop waiting for jobs / drop a downloaded update until the next click).
     UpdateAction { Install = "install", Later = "later" }
+);
+wire_enum!(
+    /// The `retake` command's link as the server reads it (ui desktop.ts CLI_STATES): none, this app's, another copy's,
+    /// something else.
+    CliState { Absent = "absent", Ours = "ours", OtherApp = "other_app", Foreign = "foreign" }
 );
 wire_enum!(Outcome { Succeeded = "succeeded", Failed = "failed", Attention = "attention" });
 wire_enum!(
@@ -258,6 +267,10 @@ pub enum PipeMsg {
     Update(UpdateAction),
     /// The window page's state of the menu's page commands (through the server's `desktop_menu` op).
     Menu(Vec<MenuItemState>),
+    /// The window page asks for a context menu of the shell's (an id's shape; the shell's table decides).
+    Context { menu: String },
+    /// The server's word on the `retake` command's link (Help's Install / Uninstall).
+    Cli(CliState),
     /// Not for this shell (why): no JSON object, an unknown type, a job_end it cannot word.
     Ignored(&'static str),
     /// An empty line (the server's framing newline) — nothing to say.
@@ -359,6 +372,25 @@ pub fn parse_pipe_line(line: &str) -> PipeMsg {
             Some(items) => PipeMsg::Menu(items),
             None => PipeMsg::Ignored("a menu line this app cannot read"),
         },
+        Some(t @ ("context" | "cli")) => {
+            // Strict: exactly `type` and its own field, a string.
+            let Json::Obj(fields) = &v else { return PipeMsg::Ignored("not JSON") };
+            let own = if t == "context" { "menu" } else { "state" };
+            if fields.len() != 2 || !fields.iter().all(|(k, _)| k == "type" || k == own) {
+                return PipeMsg::Ignored("a context or cli line with other fields");
+            }
+            let value = v.get(own).and_then(Json::as_str);
+            if t == "context" {
+                return match value.filter(|m| menu_id_ok(m)) {
+                    Some(m) => PipeMsg::Context { menu: m.to_string() },
+                    None => PipeMsg::Ignored("a context line without a menu id"),
+                };
+            }
+            match value.and_then(CliState::parse) {
+                Some(c) => PipeMsg::Cli(c),
+                None => PipeMsg::Ignored("a cli state this app does not know"),
+            }
+        }
         Some(_) => PipeMsg::Ignored("a line type this app does not know"),
         None => PipeMsg::Ignored("no line type"),
     }
@@ -572,5 +604,38 @@ mod tests {
             assert!(matches!(parse_pipe_line(&bad), PipeMsg::Ignored(_)), "{bad}");
         }
         assert!(menu_id_ok("go-back") && !menu_id_ok("-x") && !menu_id_ok("x-") && !menu_id_ok(&"a".repeat(33)));
+    }
+
+    #[test]
+    fn cli_lines_strict() {
+        for c in CliState::ALL {
+            assert_eq!(parse_pipe_line(&format!(r#"{{"type":"cli","state":"{}"}}"#, c.wire())), PipeMsg::Cli(*c));
+        }
+        assert_eq!(CliState::ALL.iter().map(|c| c.wire()).collect::<Vec<_>>(), ["absent", "ours", "other_app", "foreign"]);
+        for bad in [
+            r#"{"type":"cli","state":"ours","path":"/tmp/x"}"#,
+            r#"{"type":"cli","state":"installed"}"#,
+            r#"{"type":"cli","state":1}"#,
+            r#"{"type":"cli"}"#,
+            r#"{"type":"cli","label":"Install"}"#,
+        ] {
+            assert!(matches!(parse_pipe_line(bad), PipeMsg::Ignored(_)), "{bad}");
+        }
+    }
+
+    #[test]
+    fn context_lines_strict() {
+        assert_eq!(parse_pipe_line(r#"{"type":"context","menu":"scenario"}"#), PipeMsg::Context { menu: "scenario".into() });
+        for bad in [
+            r#"{"type":"context","menu":"scenario","items":["mode-script"]}"#,
+            r#"{"type":"context","menu":"scenario","label":"Open"}"#,
+            r#"{"type":"context","menu":"Scenario"}"#,
+            r#"{"type":"context","menu":"a b"}"#,
+            r#"{"type":"context","menu":""}"#,
+            r#"{"type":"context","menu":["scenario"]}"#,
+            r#"{"type":"context"}"#,
+        ] {
+            assert!(matches!(parse_pipe_line(bad), PipeMsg::Ignored(_)), "{bad}");
+        }
     }
 }

@@ -4897,6 +4897,50 @@ rename (L5.13) changes the bundle id → one new prompt.
   ⌥⌘1 – 3 as check items, the inspector's toggle), Go (Back ⌘[, Forward ⌘], Welcome ⇧⌘H, the project's pages, the
   scenario's report and comments), Scenario, Window (the app's windows menu: macOS lists the windows) and Help (its
   help menu: macOS adds the search field).
+- *The menus, the rest* (L8.3). **The shell's own items follow the shell**: Check for Updates… by the update's state
+  (update.rs `set`, only on a change; desktop_core update_flow `menu_item`: fixed words, no version — Checking… and
+  Installing… greyed; Update Available…, Downloading…, Waiting to Install… open the update sheet; a failed install
+  offered again is an update available); Install / Uninstall the retake Command… by what is installed — the server
+  writes one enum line `{"type":"cli","state":"absent"|"ours"|"other_app"|"foreign"}` (setup-context.ts
+  `cliMenuState`, read from the disk, the recorded link first; written when it changed: at start, after setup_status,
+  install and uninstall, done or refused, and on the shell's `{"type":"cli_refresh"}` stdin line when its window
+  becomes key, at most every 2 s), never a value of the page's; desktop_core setup `cli_items` decides (a developer
+  build: both greyed; this app's command: Uninstall only; another copy's: "Replace the retake Command…", no Uninstall;
+  none or something else: Install). A new session forgets the last server's word (an attached server says none: both
+  on, the sheet says). **One command table each side**: the page's registry (ui-kit/commands.ts `COMMANDS`, ids,
+  menus, Title Case labels, Tauri accelerators, kinds) is compared item by item with menu.rs `MENUS` by a static test
+  whose parser fails on any form it does not read; every key cap the page shows derives from it (no literal cap
+  elsewhere: a lint). **The audit**: the keys are unique, none of macOS's (⌘Q ⌘W ⌘H ⌘M ⌘` ⇧⌘/ ⌃⌘F, the edit keys, ⌘T,
+  ⌘Tab, the screenshot keys…) nor the page's own (⌘S, ⌘Enter, ⌘Z / ⇧⌘Z / ⌘Y outside fields: `PAGE_KEYS`); Set Up {app}…
+  takes ⌘, (macOS's Settings key); File › Show Workspace in Finder (the session's own folder); Help › Keyboard
+  Shortcuts (a page sheet from the registry: the menu's keys by menu, the shell's, the page's own). **One window per
+  workspace, no tabs**: one window label, Close hides it, one server per workspace; Tauri turns automatic tabbing off
+  without a `tabbing_identifier` (no Show Tab Bar, no ⌘T) — pinned. **Threads**: every native item and every menu
+  lock is the main thread's — the pipe reader and the update threads queue a closure (`run_on_main_thread`,
+  fire-and-forget) and never wait (before, `apply` held its lock across setters that waited for the main thread while
+  a click took the same lock there: a freeze). **Native context menus**: the page asks for one of the shell's menus by
+  id only (`desktop_menu` `{popup: "scenario"}`, its own cap of 30 a minute; one strict `{"type":"context","menu"}`
+  line); menu.rs `CONTEXT_MENUS` holds the items (page commands with MENUS's labels, built once) and shows one only
+  through the gate: an NSEvent local monitor records each secondary click (the right button or ⌃-click) in the main
+  window's content, and a request takes the last one within 1.5 s, once (desktop_core::menu `ContextGate`), at that
+  click's place — never while a question of the shell is up, off the Studio's origin or once quitting; the popup is a
+  counted shell modal (`end_modals` cancels its tracking on a signal). A pick comes back as `studio:command` with the
+  menu's id (`context_command_js`: a pair of the table only); the page runs it on what was right-clicked (held once,
+  60 s), never on the scenario in context. First surface: a scenario's poster in Productions and its groups (selected
+  first, as Finder does — in a browser tab too, where the browser keeps its own menu and nothing is asked; the
+  palette's Keyboard shortcuts is there as well). In the app the page suppresses WebKit's own menu outside text (a
+  capture-phase listener: text fields, contenteditable and the selected text itself — the point inside the
+  selection's rectangles — keep it; a debug build's ⌥-right-click keeps Inspect Element) — no Reload. Each right-click
+  forgets the last target (only the one it sets may receive a pick), and a menu of WebKit's or the menu bar's opening
+  on a click uses that click up in the shell's gate (ours never stacks on WebKit's). Images, links and videos keep the
+  suppression too: WebKit's menu for them (Open Link, Copy Image, Download…) was not shown to be free of Reload or of
+  navigations the shell refuses anyway, so it is not widened (the player frame, another origin, keeps WebKit's menu:
+  its Reload reloads only that frame). Known limits: VoiceOver's "show menu" gets no native menu (no mouse click: every
+  item is reachable from the keys and the menu bar); where the Studio's script is not running WebKit's menu stays (a
+  native filter: BACKLOG). The shortcuts sheet lists the key of every menu-bar item that has one — the Studio's, the
+  app's and macOS's standard items (Hide, Quit, Close Window, the Edit menu, Enter Full Screen, Minimize: ui-kit
+  STD_KEYS, pinned against menu.rs's Std items) — and the page's own; not the keys macOS adds itself.
+  The overlay title bar, its inset and native sheets stay BL-126.
 - *Native confirmation sheets* (BL-106 amended; one message shape, the same there): the server asks through the
   supervised pipe — `{"type":"confirm","id","text","buttons"}` on the child's stdout (`buttons`: the labels, the first
   the default, the last the cancel); the shell shows a sheet on the window (NSAlert `beginSheetModalForWindow`, the

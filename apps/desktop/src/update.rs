@@ -133,11 +133,21 @@ pub fn summary(location: dc::InstallLocation) -> String {
 
 /// The Dock badge shown now (BL-167: set only when it changes).
 static DOCK: Mutex<Option<String>> = Mutex::new(None);
+/// Help's update item shown now (sent to the menu only when it changes — never per download tick).
+static ITEM: Mutex<Option<(uf::UpdateItem, bool)>> = Mutex::new(None);
 
-/// Set the state, tell the owned server (when there is one) and show the download's percent on the Dock icon.
+/// Set the state, tell the owned server (when there is one), show the download's percent on the Dock icon and the
+/// state in Help's Check for Updates… item.
 fn set(app: &AppHandle, state: State) {
     let line = uf::state_line(&current(app), &state);
     let label = uf::dock_label(&state);
+    let item = uf::menu_item(&state);
+    // Under ITEM's lock: two threads setting states store the menu's value in the order they changed it.
+    let mut shown = lock(&ITEM);
+    if shown.replace(item) != Some(item) {
+        crate::menu::update_item(item.0, item.1);
+    }
+    drop(shown);
     if let Some(u) = lock(&UPD).as_mut() {
         u.state = state;
     }
@@ -227,8 +237,28 @@ pub fn start(app: &AppHandle, home: Option<PathBuf>, location: dc::InstallLocati
     }
 }
 
-/// Help › Check for Updates….
+/// Help › Check for Updates… (its label says the state: update_flow `menu_item`): an update known — available,
+/// downloading, waiting for jobs, or a failed install offered again — opens the Studio's update sheet (Install and
+/// Restart, Later; the native alert when the window shows no Studio page); otherwise a check.
 pub fn check_menu(app: &AppHandle) {
+    if let Some(s) = state_now().filter(|s| uf::menu_item(s).0.opens_sheet()) {
+        match &s {
+            State::Available { version, .. } | State::Failed { version: Some(version), retry: true, .. } => offer(app, version),
+            _ => {
+                let h = app.clone();
+                let why = uf::check_refused(&s, app_name()).unwrap_or_default();
+                let _ = app.run_on_main_thread(move || {
+                    if crate::window_on_studio(&h) && crate::current_pending(&h).is_some() {
+                        crate::show_window(&h);
+                        crate::eval_in_window(&h, uf::update_page_js());
+                    } else {
+                        say(&h, "An update is under way", why);
+                    }
+                });
+            }
+        }
+        return;
+    }
     if let Some(o) = off_now() {
         let checked = lock(&UPD).as_ref().and_then(|u| u.remembered.checked);
         say(app, "Updates are off", format!("{}\n\n{}", o.words(app_name()), uf::last_check_words(checked)));

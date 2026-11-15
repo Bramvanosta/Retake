@@ -38,5 +38,21 @@ export { Sheet, defaultAction } from './Sheet.js';
 export type { SheetAction } from './Sheet.js';
 export { CommandPalette, filterCommands } from './CommandPalette.js';
 export type { Command } from './CommandPalette.js';
-export { COMMAND_EVENT, MENU_COMMANDS, isMenuCommand, modalOpen, studioShell } from './commands.js';
-export type { MenuCommand, StudioShellFlag } from './commands.js';
+export {
+  COMMANDS,
+  COMMAND_EVENT,
+  CONTEXT_MENUS,
+  MENU_COMMANDS,
+  PAGE_KEYS,
+  SHELL_KEYS,
+  STD_KEYS,
+  commandKeys,
+  commandLabel,
+  isContextMenu,
+  isMenuCommand,
+  keyCaps,
+  modalOpen,
+  pageKeys,
+  studioShell,
+} from './commands.js';
+export type { CommandMenu, CommandSpec, ContextMenu, MenuCommand, StudioShellFlag } from './commands.js';

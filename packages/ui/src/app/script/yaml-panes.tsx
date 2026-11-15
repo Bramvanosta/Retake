@@ -9,7 +9,7 @@ import { isDirty, scenarioKey, useDirty } from '../drafts.js';
 import type { Draft } from '../drafts.js';
 import type { View } from '../words/scenario-words.js';
 import { IssueLines } from './StepEditing.js';
-import { Button, Callout, InspectorSection, Kbd, StatusMark, TextArea } from '../ui-kit/index.js';
+import { Button, Callout, InspectorSection, Kbd, StatusMark, TextArea, pageKeys } from '../ui-kit/index.js';
 import { HIDDEN_CHARS } from '../hidden-chars.js';
 
 /** The largest scenario the Studio writes (core SCENARIO_EDIT_MAX_CHARS: MCP scenario_save's cap), final line break included. */
@@ -141,7 +141,7 @@ export function EditPane({
         <span id="yaml-count" className={draft.text.length >= YAML_MAX ? 'yv-count is-full' : 'yv-count'}>
           {shown(`${draft.text.length.toLocaleString('en')} / ${YAML_MAX.toLocaleString('en')} characters`)}
         </span>
-        <Kbd keys={['⌘S', 'Ctrl+S']} />
+        <Kbd keys={[pageKeys('save').join(''), 'Ctrl+S']} />
       </div>
       {shownIssues !== null && (
         <div className="yv-live" aria-live="polite" data-testid="yaml-live">

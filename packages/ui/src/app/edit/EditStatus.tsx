@@ -19,7 +19,7 @@ import type { RenderTarget, RendersState } from '../review/Renders.js';
 import { hasReport, jobWords, reviewBadge, versionNote, versionWords } from '../words/render-words.js';
 import type { ShownVersion } from '../words/render-words.js';
 import type { SwitchEditor } from './TimelineInspector.js';
-import { Button, LinkButton, Progress } from '../ui-kit/index.js';
+import { Button, LinkButton, Progress, commandKeys } from '../ui-kit/index.js';
 
 export interface EditSource {
   proposal: boolean;
@@ -192,7 +192,7 @@ export function EditStatus({
         data-testid="render"
         disabled={off !== null || r.sending}
         aria-describedby="ed-render-why"
-        kbd={inApp ? ['⌘', 'B'] : undefined}
+        kbd={inApp ? commandKeys('render') : undefined}
         onClick={() => !('why' in target) && r.render(target)}
       >
         <Txt text={label} />

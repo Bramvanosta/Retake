@@ -48,6 +48,11 @@ release — for the person about to click Install and Restart.
   height the tracks leave (it shrank to a strip when no note sat above it). Welcome is rebuilt: a greeting and the
   search, your projects as cards with a picture of their last take, a New project card, then Lately beside Set up
   (Claude, the workspace). The browser's foot keeps the version and the UI gallery only.
+- The app's menus, the rest: Check for Updates… says where an update is (Checking…, Update Available…,
+  Downloading…), Install / Uninstall the retake Command… follow what is installed (Replace… for another copy's), a
+  right-click on a scenario's poster opens a native menu (its modes, report and comments) and the page's WebKit menu
+  shows only in text (no Reload); Help › Keyboard Shortcuts, Set Up… on ⌘, and File › Show Workspace in Finder are
+  new. Also fixed: the app could freeze when a mode key was pressed while the menu applied the page's last state.
 - The app's menu bar follows the screen: what cannot run now is greyed out, the mode and view shown are checked, the
   inspector item says Show or Hide. New: File › New Scenario… (⌘N), the views Board / Hooks / YAML (⌥⌘1 – 3), a Go
   menu (Back ⌘[, Forward ⌘], Welcome ⇧⌘H, Productions ⇧⌘P, the project's pages, the report and comments), Services

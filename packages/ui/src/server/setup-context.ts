@@ -10,6 +10,7 @@ import type { UpdateState } from './update-ops.js';
 import { EngineError } from '@retake/engine';
 import {
   CLI_NAME,
+  LAUNCHER_REL,
   MOVE_TO_APPLICATIONS,
   SetupError,
   checkCliFolder,
@@ -23,7 +24,7 @@ import {
 } from '@retake/engine/integrations';
 import type { InstallLocation } from '@retake/engine/integrations';
 import { parseShellLine } from './shell-line.js';
-import type { DesktopPipe } from './desktop.js';
+import type { CliState, DesktopPipe } from './desktop.js';
 
 /** Setup writes a minute at most (every op but setup_status). */
 export const SETUP_WRITES_PER_MIN = 12;
@@ -90,9 +91,14 @@ export class SetupState {
  * One line the desktop shell wrote on the supervised server's stdin (cli ui.ts → here): the folder picked in its
  * native panel (checked now: SetupState.chose), the notification state; anything else is dropped. True when taken.
  */
-export function applyShellLine(setup: { state: SetupState; context(): SetupContext }, workspace: string, line: string, update?: UpdateState): boolean {
+export function applyShellLine(setup: { state: SetupState; context(): SetupContext; pipe?: DesktopPipe }, workspace: string, line: string, update?: UpdateState): boolean {
   const m = parseShellLine(line);
   if (!m) return false;
+  // The shell's window became key: the command's link read again (the shell's Help items; a change is written).
+  if (m.type === 'cli_refresh') {
+    if (setup.pipe) writeCliState(setup.pipe, setup.context());
+    return setup.pipe !== undefined;
+  }
   // The update's state (update-ops.ts), kept for desktop_update_status.
   if (m.type === 'update') {
     update?.apply(m);
@@ -159,6 +165,38 @@ export function recordedLink(home: string, launcher: string): string | null {
 export function installedLink(ctx: SetupContext, home: string, launcher: string): string | null {
   const fallback = join(defaultCliDir(ctx.home), CLI_NAME);
   return recordedLink(home, launcher) ?? (cliLinkState(fallback, launcher).state === 'ours' ? fallback : null);
+}
+
+/**
+ * The command's link for the shell's Help items (desktop.ts CLI_STATES), read now from the disk: this app's (`ours`:
+ * the recorded link, else the default folder's), else the state of the link the app recorded, else the default
+ * folder's.
+ */
+export function cliMenuState(ctx: SetupContext, b: BundleInfo, home: string): CliState {
+  const launcher = join(b.root, LAUNCHER_REL);
+  if (installedLink(ctx, home, launcher)) return 'ours';
+  return cliLinkState(readAppSettings(home).cli?.path ?? join(defaultCliDir(ctx.home), CLI_NAME), launcher).state;
+}
+
+let saidCliUnread = false;
+
+/**
+ * Tell the shell the command's link as read now — the installed app's supervised server only (nothing otherwise),
+ * written when it changed (DesktopPipe.cli). Truly best effort: whatever goes wrong (a pipe that closed, a link that
+ * cannot be read) writes nothing, throws nothing — it runs from the shell's stdin listener, at start and in the
+ * `finally` of install / uninstall, none of which it may fail — and says so once on stderr (`log`).
+ */
+export function writeCliState(pipe: DesktopPipe, ctx: SetupContext, log: (m: string) => void = (m) => void process.stderr.write(`${m}\n`)): void {
+  try {
+    if (!pipe.supervised) return;
+    const b = appBundle(ctx);
+    if (!b) return;
+    pipe.cli(cliMenuState(ctx, b, retakeHome(ctx.env)));
+  } catch (e) {
+    if (e instanceof EngineError) return;
+    if (!saidCliUnread) log("retake ui: the command's link could not be read: the app's Help items keep their last state");
+    saidCliUnread = true;
+  }
 }
 
 /** Is Claude Desktop running: true / false, null when `ps` could not tell (a fresh read, remembered). */

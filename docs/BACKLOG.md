@@ -1974,13 +1974,20 @@ and `job_end` lines); what remains:
   one only outside the webview's bounds); the next click works; a `<select>` in the bar opens; a double-click on the
   empty bar zooms as macOS does, never on a control; menu, sheets and full screen (the inset following it) unaffected.
   Any criterion failing keeps the standard bar. L5.9 did not run it: every criterion needs a real window drag, which an
-  unattended run cannot post (Accessibility permission).
+  unattended run cannot post (Accessibility permission). L8.3 kept it cut and left a recipe for an unattended probe:
+  test mode synthesises `NSEvent mouseEventWithType:` down / dragged / up at a point of the band and sends them to the
+  window (`[window sendEvent:]`: the app's own process, no Accessibility), logs the window's frame before and after,
+  and the page reports `:active` / its selection through an existing op path — whether synthetic events stand for
+  AppKit's tracking loop and WebKit's mouse-up is itself what the probe must show. (L8.3's context-menu probe showed
+  that an event posted with `postEvent:atStart:` reaches a local monitor and WebKit.)
 - ~~**Menu state from the page**~~ — done 2026-11-15 (the native menu review, on Ranch's model): the page sends its
   commands' state through `desktop_menu`, the shell greys out, checks and relabels (DESIGN §4j "Menu state").
 - **The Scenario menu** — Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘. — and the status bar's actions: L5.11, when
   they act (critique M6), through the same `Item::Page` table and `MENU_COMMANDS`.
-- The inset following full screen (the buttons hidden: the 80 px could go), and native confirmation sheets through the
-  pipe (BL-106 amended, unchanged). L5.12d: the quit question is a page Sheet answered through the server's pipe
+- The inset following full screen (the buttons hidden: the 80 px could go; it exists only under the overlay), and
+  native confirmation sheets through the pipe (BL-106 amended, unchanged: an asynchronous sheet against the
+  `runModal`-based guard, `end_modals` and the MODAL_MS black-box cases — a rewrite of the question plumbing for a
+  cosmetic gain; L8.3 kept both cut). L5.12d: the quit question is a page Sheet answered through the server's pipe
   (DESIGN §4j), the native alert its fallback; Open Workspace… through the page is BL-135.
 
 ### BL-127 — Design-system extras cut from L5.9
@@ -2259,8 +2266,8 @@ and `job_end` lines); what remains:
   runs): the sheet refuses while it runs and reads the file back, doctor does not read Claude Desktop's config yet.
 - **`/usr/local/bin` without ownership**: no admin escalation — the sheet offers folders the person owns; a privileged
   helper (or the `sudo ln -s …` line to copy) for a root-owned folder.
-- **The Help menu's state**: Install / Uninstall the retake Command… are always enabled (the page's sheet says what
-  applies); a menu that reflects the link's state needs the server to tell the shell.
+- ~~**The Help menu's state**~~ — done in L8.3: Install / Uninstall the retake Command… follow the link's state (the
+  server's enum on the pipe; Replace… for another copy's; DESIGN §4j "The menus, the rest").
 - **Uninstall another copy's link from the sheet**: the op removes a link to another copy of Retake (a dangling one
   too), but the sheet offers Uninstall only for this app's link (review c B-L4); doctor gives the `rm` line meanwhile.
 - **A remembered workspace on a disk that is not mounted**: the first-run alert greets it as a new start ("Welcome to
@@ -2275,8 +2282,9 @@ and `job_end` lines); what remains:
 - **An admin install** for an app in a folder this account may not write (a root-owned /Applications): today the sheet
   says to install from the disk image; the plugin's privileged path (an administrator prompt from AppleScript) is never
   reached from the background flow.
-- **The Help menu's state**: Check for Updates… is always enabled; an "Update available" item or a menu badge needs the
-  shell to keep a menu in sync with the update's state.
+- ~~**The Help menu's state**~~ — done in L8.3: Check for Updates… follows the update's state (Checking…, Update
+  Available…, Downloading…, Waiting to Install…, Installing…). Left: a menu badge (NSMenuItem's badge is macOS 14+ and
+  muda does not expose it) — BL-190.
 - **Other running copies told before the swap**: processes started from the old bundle (another workspace's worker, an
   MCP server Claude started) keep their loaded code; a count of them in the sheet (libproc, plan §7) was not built — an
   idle worker hands over by itself (critique M6).
@@ -2504,18 +2512,24 @@ a time stalled after 62 files and ran past two hours. So `ci.yml` runs the build
 The menu bar (`apps/desktop/src/menu.rs`) is a fixed table: every page command is always enabled and answers in the
 status bar when it cannot act, the page has no right-click menu, and the shortcuts live in two places (the menu's
 accelerators, the page's MENU_COMMANDS). Other desktop apps built on the same shell now do it this way:
-- **One command registry** feeding the menu bar, the command palette, the window's shortcuts and a Help › Keyboard
-  Shortcuts list, always with the same chord. The component that owns an action registers it with whether it applies
+- ~~**One command registry**~~ — done in L8.3 as one table each side compared item by item (the page has no IPC:
+  menu.rs keeps the native copy; ui-kit/commands.ts COMMANDS feeds the palette's caps and Help › Keyboard Shortcuts).
+  Left: per-context labels ("Render 2 Scenarios") and per-item state in context menus — BL-190. As asked: one
+  registry feeding the menu bar, the command palette, the window's shortcuts and a Help › Keyboard Shortcuts list,
+  always with the same chord. The component that owns an action registers it with whether it applies
   now and a label for the context ("Capture 'quote'", "Render 2 Scenarios"); the menu greys out and relabels as they
   come and go. This absorbs BL-126's "menu state from the page" (the page's state reaching the shell: the supervised
   pipe, or a narrow page→shell request).
-- **Native context menus**: a right-click on a scenario, a step, a take, a render, a comment or a library item opens
+- **Native context menus** — first slice done in L8.3 (a scenario's poster in Productions and its groups; WebKit's
+  own menu suppressed outside text); the rest is BL-190. As asked: a right-click on a scenario, a step, a take, a render, a comment or a library item opens
   a native menu in the app and an in-window menu in a browser, from the same list of actions; on a selection it acts on
   all of it and says so first.
-- **A menu audit**: what each menu should hold — File (New Scenario, Open Recent Workspace, Reveal in Finder), the
+- ~~**A menu audit**~~ — done in L8.3 (keys unique and clear of macOS's and the page's own, pinned; ⌘, Set Up, File ›
+  Show Workspace in Finder, Help › Keyboard Shortcuts); the items it cut are BL-190. As asked: what each menu should hold — File (New Scenario, Open Recent Workspace, Reveal in Finder), the
   app menu (Settings… ⌘,), Scenario (Validate, Review), Help (the guide, Keyboard Shortcuts, Report an Issue) — with
   the standard macOS items kept the platform's own, and no chord that collides with a field's editing keys.
-- **Open question: windows and tabs.** File › New Window ⌘N / New Tab ⌘T (system tabs) to open a scenario or a run
+- ~~**Open question: windows and tabs.**~~ — decided in L8.3: one window per workspace, no tabs (BL-191).
+  As asked: File › New Window ⌘N / New Tab ⌘T (system tabs) to open a scenario or a run
   beside another; today the Studio is one window per workspace, and a second window on the same server needs its
   state (selection, live recording) per window.
 
@@ -2791,3 +2805,38 @@ A font fetch checks the tarball against the integrity the registry lists in the 
 registry's, not proven to be its publisher's. npm's registry signatures (`dist.signatures`, ECDSA over
 `<name>@<version>:<integrity>`, keys from the registry's keys endpoint) — or provenance attestations — would
 authenticate it; the keys would have to be pinned in Retake to be worth more than the same TLS connection. *From:* L8.1b.
+
+### BL-190 — The app's menus: what L8.3 left
+*S–M each · from L8.3 (BL-142, BL-143, BL-166) · builds on: L8.3*
+
+- **Context menus on the other surfaces**: steps, takes, renders, comments, library items, the Welcome screen's project
+  cards (a `project` menu of the PROJECT_PAGE commands: one table more), and a selection ("act on all of it and say so
+  first"). Each needs page commands that act on a target; L8.3 built the machinery (the gate, the table, the held
+  target) and one surface.
+- **Context items with live state or labels** ("Render 2 Scenarios", greyed items): the page may send no text — ids and
+  bools beside `{popup}`, as the menu's state does.
+- **An in-window menu in a browser tab**: a third copy of the labels; the browser's own menu stays.
+- **WebKit's menu where the Studio's script is not running** (an error page, a blank window after a failed Open
+  Workspace…): Reload stays reachable there; the full fix is a native filter (`willOpenMenu:withEvent:` on the web
+  view's class) rather than the page's listener.
+- **Edit › Undo / Redo clicked** send `undo:` to WKWebView, not to the board's or Edit's own undo (StepEditing.tsx,
+  switch-loop.ts listen to the keys only; ⌘Z typed works): route the standard items to the page when no field has the
+  focus.
+- **A badge on Check for Updates…** once an update is found (NSMenuItem's badge: macOS 14+, not exposed by muda).
+- **Items the audit cut**: File › Open Recent Workspace (desktop.json keeps one workspace), Scenario › Validate /
+  Review (no owner in the page acts on them yet), Help › the guide / Report an Issue (no in-app docs, no real URL in
+  the repository).
+- **Help's command items while the window is closed**: they refresh when the window becomes key; an app activation
+  with the window hidden (⌘W) does not refresh them (the next ⌘0 does).
+- **VoiceOver's "show menu"** on a poster opens no native menu (the gate needs a mouse click): an accessibility
+  action on the poster's listbox option could ask the shell through a gate of its own.
+
+### BL-191 — New Window / New Tab: decided no (L8.3)
+*decision · from BL-166's open question*
+
+The Studio stays one window per workspace: one window label reused by `show`, Close hides it, one server per
+workspace (Open Workspace… stops it before the next starts), and the page's state is per page and module-global (the
+command bus's registry and availability, a live recording's owner, the quit question's id) — a second window on the
+same server would need that state per window. Tauri turns automatic window tabbing off when no `tabbing_identifier`
+is given, so macOS shows no tab items and ⌘T does nothing (desktop-config.test.ts pins one builder and no tabbing
+identifier). Reopen only with a reason a second window gives that a second workspace or a browser tab does not.

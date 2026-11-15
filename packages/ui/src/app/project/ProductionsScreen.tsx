@@ -22,6 +22,7 @@ import { useEvents } from '../events.js';
 import { useBoard, useProjectView } from '../project-data.js';
 import { hrefTo } from '../route.js';
 import type { ProductionGroup, Route } from '../route.js';
+import { requestContextMenu } from '../shell/context-menu.js';
 import { rememberScenario } from '../shell/modes.js';
 import { ShellSlot } from '../shell/slots.js';
 import { ThumbsProvider } from '../Thumb.js';
@@ -116,6 +117,8 @@ export function ProductionsScreen({ slug, group }: { slug: string; group?: Produ
             selected={current ? current.name : null}
             onSelect={select}
             onOpen={open}
+            // In the app: the scenario's native menu (its modes, its report, its comments) — only the menu's id goes out.
+            onContext={(name, e) => requestContextMenu('scenario', { slug, scenario: name }, e)}
             describedBy="pr-keys"
             items={shownList.map((s) => {
               const st = productionState(s);

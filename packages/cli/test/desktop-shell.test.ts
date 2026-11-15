@@ -300,6 +300,15 @@ async function pageSays(r: Record_, body: Record<string, unknown>): Promise<numb
   });
   return res.status;
 }
+/** `desktop_menu` as the window's page sends it (its state, or a context menu by id). */
+async function menuSays(r: Record_, body: Record<string, unknown>): Promise<number> {
+  const res = await fetch(`http://127.0.0.1:${r.port}/v1/call/desktop_menu`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${r.token}`, 'content-type': 'application/json', origin: `http://127.0.0.1:${r.port}` },
+    body: JSON.stringify(body),
+  });
+  return res.status;
+}
 /** The ids of the page questions the shell dispatched so far (test mode logs them). */
 const pageQuestions = (out: string) => [...out.matchAll(/\(test mode\) page question ([A-Za-z0-9_-]{22})/g)].map((m) => m[1]!);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
@@ -748,14 +757,71 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)'
         .filter((l) => l.includes('(test mode) menu:'))
         .at(-1) ?? '';
     await until(() => line().includes('checked: mode-script, view-hooks;'), 20_000, 'the menu state of the Hooks view');
-    expect(line()).toMatch(/\(test mode\) menu: 25 items; checked: mode-script, view-hooks; disabled: /);
+    expect(line()).toMatch(/\(test mode\) menu: 26 items; checked: mode-script, view-hooks; disabled: /);
     // The scenario's and project's pages are on there; the history and the palette always.
-    expect(line().split('disabled: ')[1]).not.toMatch(/\b(?:palette|go-back|go-welcome|go-report|go-settings|view-yaml|mode-edit|new-scenario)\b/);
+    expect(line().split('disabled: ')[1]).not.toMatch(/\b(?:palette|go-back|go-welcome|go-report|go-settings|view-yaml|mode-edit|new-scenario|help-shortcuts)\b/);
     expect(a.err()).not.toMatch(/ignored a line from the Studio server/);
+    // Applied on the main thread, never off it (the reader thread only queues).
+    expect(a.err()).not.toMatch(/menu: [a-z_]+ off the main thread/);
     a.child.kill('SIGTERM');
     expect((await a.exit).code).toBe(0);
     expectClean(a.err(), r.token);
   }, 60_000);
+
+  it("⚑ the shell's own items: a developer build greys out Install / Uninstall the retake Command…, Check for Updates… stays (updates off) — test mode logs them; File › Show Workspace in Finder reveals the workspace", async () => {
+    const a = launch([], { env: { RETAKE_DESKTOP_TEST_MENU: 'show-in-finder' } });
+    const r = await until(() => record(), 20_000, 'ui.json');
+    await until(() => a.err().includes('(test mode) reveal: '), 20_000, 'the menu click once the page is up');
+    const shell = a
+      .err()
+      .split('\n')
+      .filter((l) => l.includes('(test mode) shell menu:'));
+    expect(shell.at(-1)).toContain('(test mode) shell menu: check-updates "Check for Updates…" on; cli-install "Install the retake Command…" off; cli-remove off');
+    expect(a.err()).toContain('(test mode) menu click: show-in-finder');
+    expect(a.err()).toMatch(new RegExp(`\\(test mode\\) reveal: .*${ws.split('/').at(-1)}\\n`));
+    expect(count(a.err(), '(test mode) menu click:')).toBe(1);
+    a.child.kill('SIGTERM');
+    expect((await a.exit).code).toBe(0);
+    expectClean(a.err(), r.token);
+  }, 60_000);
+
+  it('⚑ a context menu only after a right-click: refused without one; with an armed right-click shown for real, once, closed by test mode; its pick back as a context command; SIGTERM while one is up quits at once', async () => {
+    const a = launch(['--route', '#/p/northfield-fixture'], { env: { RETAKE_DESKTOP_TEST_RIGHT_CLICKS: '2', RETAKE_DESKTOP_TEST_CONTEXT_PICK: 'mode-edit', RETAKE_DESKTOP_TEST_POPUP_MS: '300' } });
+    const r = await until(() => record(), 20_000, 'ui.json');
+    await until(() => a.err().includes('(test mode) menu: 26 items'), 20_000, 'the page up');
+    // Armed: the first request shows the menu (MENUS's labels), picked by test mode through the native item.
+    expect(await menuSays(r, { popup: 'scenario' })).toBe(200);
+    await until(() => a.err().includes('(test mode) context pick: ctx:scenario:mode-edit'), 10_000, 'the pick');
+    expect(a.err()).toContain('(test mode) context menu: scenario (Script, Shoot, Edit, Review, Review Report, Comments)');
+    // A menu that is not the shell's never reaches it (the op refuses it).
+    expect(await menuSays(r, { popup: 'project' })).toBe(400);
+    // The second armed click, then none left: refused, said once in the log (then only in test mode's lines).
+    expect(await menuSays(r, { popup: 'scenario' })).toBe(200);
+    await until(() => count(a.err(), '(test mode) context menu: scenario') === 2, 10_000, 'the second menu');
+    expect(await menuSays(r, { popup: 'scenario' })).toBe(200);
+    await until(() => a.err().includes('context menu refused: no right-click in the window'), 10_000, 'the refusal');
+    expect(count(a.err(), '(test mode) context menu: scenario')).toBe(2);
+    expect(count(a.err(), '(test mode) context pick:')).toBe(2);
+    // The menu's state still applies after the menus (the main thread was never held for good).
+    expect(await menuSays(r, { items: [{ id: 'render', enabled: false }] })).toBe(200);
+    await until(() => a.err().includes('(test mode) menu: 1 items; checked: ; disabled: render'), 10_000, 'a state after the menus');
+    a.child.kill('SIGTERM');
+    expect((await a.exit).code).toBe(0);
+    expectClean(a.err(), r.token);
+    // A menu up for 8 s: SIGTERM ends it (end_modals) and the app quits well before.
+    const b = launch([], { env: { RETAKE_DESKTOP_TEST_RIGHT_CLICKS: '1', RETAKE_DESKTOP_TEST_POPUP_MS: '8000' } });
+    const r2 = await until(() => record(), 20_000, 'ui.json');
+    await until(() => b.err().includes('(test mode) menu: 26 items'), 20_000, 'the page up');
+    expect(await menuSays(r2, { popup: 'scenario' })).toBe(200);
+    await until(() => b.err().includes('(test mode) context menu: scenario'), 10_000, 'the menu up');
+    await sleep(300);
+    const t0 = Date.now();
+    b.child.kill('SIGTERM');
+    expect((await b.exit).code).toBe(0);
+    expect(Date.now() - t0).toBeLessThan(3000);
+    expect(b.err()).toContain('quit: ending the open question');
+    expect(b.err()).not.toContain('(test mode) context pick:');
+  }, 90_000);
 
   it('job ends become notifications by the no-storm rule (test mode logs them) — not in front: one at once, one summary; in front: none; SIGTERM with a job running quits without a question', async () => {
     for (const front of ['0', '1']) {

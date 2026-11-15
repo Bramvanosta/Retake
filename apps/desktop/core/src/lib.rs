@@ -6,11 +6,13 @@
 //! and Set-up sheet — where it runs from, the first-run alert, the `studio:setup` event, the lines for the server (setup);
 //! the updater's rules — which build updates itself, when it checks, what an install waits for, the lines for
 //! the server and the remembered checks (update_flow); BL-168: the restart after an update, once this process is gone
-//! (relaunch).
+//! (relaunch); the menu's rules — when a context menu may show, the shell's own items' state (menu, setup,
+//! update_flow).
 
 pub mod config;
 pub mod guard_flow;
 pub mod json;
+pub mod menu;
 pub mod notify;
 pub mod pipe;
 pub mod relaunch;
@@ -24,7 +26,7 @@ pub use config::{child_env_dropped, choose_workspace, launch_json_path, CHILD_EN
 pub use rules::{is_ipc_noise, loopback_port, navigation_allowed, navigation_decision, origin, parse_ui_line, redact, route_ok, sanitize, Admit, Allowed, LineError, Navigation, RateLimit, UiLine};
 pub use guard_flow::{Ask, Effect, Flow, Reply};
 pub use notify::{Auth, AuthAnswer, AuthStep, Decision, Notifier, Permission};
-pub use pipe::{menu_id_ok, parse_pipe_line, JobEnd, JobKind, Line, LineReader, MenuItemState, Pending, PipeMsg, Reason, SetupAction, UnsavedKind, UpdateAction, PIPE_LINE_MAX};
+pub use pipe::{menu_id_ok, parse_pipe_line, CliState, JobEnd, JobKind, Line, LineReader, MenuItemState, Pending, PipeMsg, Reason, SetupAction, UnsavedKind, UpdateAction, PIPE_LINE_MAX};
 pub use setup::{app_of_exe, install_location, FirstRun, InstallLocation};
 pub use stop::{stop_child, Stopped};
 pub use words::{guard_question, notification_text, quit_action, restart_buttons, restart_note, Action, Question, RestartButtons};

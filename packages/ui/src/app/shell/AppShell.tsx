@@ -33,11 +33,11 @@ import type { EventMode } from '../events.js';
 import { heldShortWords, heldWords } from '../words/render-words.js';
 import { hrefTo } from '../route.js';
 import type { Route } from '../route.js';
-import { AppMark, Button, CommandPalette, IconButton, Menu, SearchTrigger, SegmentedLinks, StatusBar, StatusMark, studioShell } from '../ui-kit/index.js';
+import { AppMark, Button, CommandPalette, IconButton, Menu, SearchTrigger, SegmentedLinks, StatusBar, StatusMark, commandKeys, commandLabel, studioShell } from '../ui-kit/index.js';
 import type { Command, IconName, MarkState } from '../ui-kit/index.js';
 import { BOARD_GROUPS, GROUP_LABEL } from '../words/board-words.js';
 import { useBoard, useCast, useProjectDataEvents, useProjectView } from '../project-data.js';
-import { paletteGroup, runShellCommand } from './command-bus.js';
+import { SHELL_COMMANDS, paletteGroup, runShellCommand } from './command-bus.js';
 import type { PaletteSlot } from './command-bus.js';
 import type { ShellCommand } from './command-bus.js';
 import { MODES, contextWatch, modeOf, modeTarget, noteReviewView, scenarioInContext, screenKey, slugOf } from './modes.js';
@@ -46,6 +46,7 @@ import { SlotContext } from './slots.js';
 import { useStatusActions } from './StatusActions.js';
 import { QuitSheet } from './QuitSheet.js';
 import { SetupSheet } from './SetupSheet.js';
+import { ShortcutsSheet } from './ShortcutsSheet.js';
 import { UpdateControl } from './UpdateSheet.js';
 import { BrowserPane } from './browser-pane.js';
 import type { OpenProject } from './browser-pane.js';
@@ -61,13 +62,20 @@ const CONNECTION: Record<Connection, { word: string; state: MarkState }> = {
 };
 const UPDATES: Record<EventMode, string> = { connecting: '', stream: 'live updates', relay: 'live updates', polling: 'updates every 3 s', off: '' };
 const MODE_ICON: Record<Mode, IconName> = { script: 'report', shoot: 'record', edit: 'film', review: 'check' };
-/** The Scenario menu's commands in the palette (a browser tab binds none of their keys). */
-const SCENARIO_COMMANDS: Array<{ id: ShellCommand; label: string; kbd: string[]; icon: IconName }> = [
-  { id: 'rehearse', label: 'Rehearse', kbd: ['⌘', 'R'], icon: 'play' },
-  { id: 'capture', label: 'Capture', kbd: ['⇧', '⌘', 'R'], icon: 'record' },
-  { id: 'render', label: 'Render', kbd: ['⌘', 'B'], icon: 'export' },
-  { id: 'stop', label: 'Stop', kbd: ['⌘', '.'], icon: 'stop' },
-];
+const SCENARIO_ICON: Record<ShellCommand, IconName> = { rehearse: 'play', capture: 'record', render: 'export', stop: 'stop' };
+/** The Scenario menu's commands in the palette (a browser tab binds none of their keys): labels and keys from the registry. */
+const SCENARIO_COMMANDS = SHELL_COMMANDS.map((id) => ({ id, label: commandLabel(id), kbd: commandKeys(id) ?? [], icon: SCENARIO_ICON[id] }));
+/** The shell's sheets: Help › Keyboard Shortcuts (a browser tab too); in the app, the quit question and the Set-up sheet. */
+function ShellSheets({ route, inApp, shortcuts, closeShortcuts }: { route: Route; inApp: boolean; shortcuts: boolean; closeShortcuts: () => void }) {
+  return (
+    <>
+      <ShortcutsSheet open={shortcuts} onClose={closeShortcuts} inApp={inApp} />
+      {inApp && <QuitSheet />}
+      {inApp && <SetupSheet route={route} />}
+    </>
+  );
+}
+
 /**
  * The palette's groups, in this order — Commands (the Scenario menu's, or a live recording's own;
  * Review's "Comment at this frame"; the inspector), Go to (the modes, the Review report, the project's pages, the
@@ -134,22 +142,24 @@ interface PaletteInput extends Omit<CommandInput, 'slug'> {
   projects: ProjectSummary[];
   inspectorOff: boolean;
   view: Loaded<ProjectView>;
+  /** Help › Keyboard Shortcuts's sheet. */
+  showShortcuts: (on: boolean) => void;
 }
 
 /** The palette's entries, rebuilt when a screen adds or removes commands. */
-function usePaletteCommands({ ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, view, say }: PaletteInput): Command[] {
+function usePaletteCommands({ ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, view, say, showShortcuts }: PaletteInput): Command[] {
   useSyncExternalStore(paletteGroup.subscribe, paletteGroup.version);
   const slotVersion = paletteGroup.version();
   // biome-ignore lint/correctness/useExhaustiveDependencies: the palette group's version is the trigger to rebuild the list when a screen adds or removes commands
   return useMemo<Command[]>(
-    () => paletteCommands({ ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, view, say }),
+    () => paletteCommands({ ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, view, say, showShortcuts }),
     // slotVersion: a screen's group changed (the entries are read from the registry).
-    [ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, view, say, slotVersion],
+    [ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, view, say, showShortcuts, slotVersion],
   );
 }
 
 /** The palette's entries, in PALETTE_GROUPS order: the screens' groups read from the registry, the rest from the context. */
-function paletteCommands({ ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, view, say }: PaletteInput): Command[] {
+function paletteCommands({ ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, view, say, showShortcuts }: PaletteInput): Command[] {
   const go = (r: Route) => () => {
     location.hash = hrefTo(r);
   };
@@ -161,14 +171,23 @@ function paletteCommands({ ctx, project, projects, hasInspector, inspectorOff, i
   const recording = screen('scenario');
   if (recording)
     for (const c of recording)
-      add('Commands', { id: c.id, label: c.label, ...(c.hint ? { hint: c.hint } : {}), icon: c.icon ?? 'record', ...(inApp && c.id === 'record-stop' ? { kbd: ['⌘', '.'] } : {}), run: c.run });
+      add('Commands', {
+        id: c.id,
+        label: c.label,
+        ...(c.hint ? { hint: c.hint } : {}),
+        icon: c.icon ?? 'record',
+        ...(inApp && c.id === 'record-stop' ? { kbd: commandKeys('stop') } : {}),
+        run: c.run,
+      });
   // The Scenario menu (the palette closes as it runs: the bus, not the modal-waiting `run`).
   else if (ctx)
     for (const c of SCENARIO_COMMANDS)
       add('Commands', { id: c.id, label: c.label, hint: ctx.scenario, icon: c.icon, ...(inApp ? { kbd: c.kbd } : {}), run: () => void (runShellCommand(c.id) || say('Open a scenario first')) });
   for (const c of screen('review') ?? []) add('Commands', { id: c.id, label: c.label, ...(c.hint ? { hint: c.hint } : {}), icon: c.icon ?? 'plus', run: c.run });
+  // Help › Keyboard Shortcuts (the palette closes, then the sheet opens: two modals never at once).
+  add('Commands', { id: 'help-shortcuts', label: 'Keyboard shortcuts', icon: 'command', run: () => window.setTimeout(() => showShortcuts(true), 0) });
   if (hasInspector)
-    add('Commands', { id: 'inspector', label: inspectorOff ? 'Show inspector' : 'Hide inspector', icon: 'inspector', ...(inApp ? { kbd: ['⌥', '⌘', 'I'] } : {}), run: toggleInspector });
+    add('Commands', { id: 'inspector', label: inspectorOff ? 'Show inspector' : 'Hide inspector', icon: 'inspector', ...(inApp ? { kbd: commandKeys('inspector') } : {}), run: toggleInspector });
   // Go to: the modes, the Review report, the project's pages, the workspace.
   if (ctx)
     for (const m of MODES)
@@ -177,7 +196,7 @@ function paletteCommands({ ctx, project, projects, hasInspector, inspectorOff, i
         label: m.label,
         hint: ctx.scenario,
         icon: MODE_ICON[m.mode],
-        ...(inApp ? { kbd: ['⌘', String(MODES.indexOf(m) + 1)] } : {}),
+        ...(inApp ? { kbd: commandKeys(`mode-${m.mode}`) } : {}),
         run: go(modeTarget(m.mode, ctx)),
       });
   if (ctx) {
@@ -357,8 +376,8 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   useScreenTop(main, key);
   const { claims, slotRefs, collapsed, hasInspector, inspectorOff, inspectorShown, host, inspector, toggleInspector } = useSlots(main);
   const { said, say } = useSaid(keyNow, saidKey);
-  const { palette, setPalette } = useMenuCommands({ ctx, slug: openSlug, hasInspector, say, toggleInspector, inApp }, { route, mode, inspectorShown });
-  const commands = usePaletteCommands({ ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, view: open.view, say });
+  const { palette, setPalette, shortcuts, setShortcuts } = useMenuCommands({ ctx, slug: openSlug, hasInspector, say, toggleInspector, inApp }, { route, mode, inspectorShown });
+  const commands = usePaletteCommands({ ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, view: open.view, say, showShortcuts: setShortcuts });
   // The scenario in context's state and actions (the buttons hide while a screen claims the slot).
   const shoot = useStatusActions({ route, ctx, say, claimed: claims.actions > 0, inApp });
   return (
@@ -380,7 +399,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
           inspectorShown={inspectorShown}
           toggleInspector={toggleInspector}
           onSearch={() => setPalette(true)}
-          searchKeys={MAC ? ['⌘', 'K'] : ['Ctrl', 'K']}
+          searchKeys={MAC ? (commandKeys('palette') ?? []) : ['Ctrl', 'K']}
         />
         <BrowserPane
           route={route}
@@ -421,8 +440,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
         </div>
         {shoot.overlay}
         <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} {...(inApp ? { footnote: 'Commands with a key are also in the menu bar' } : {})} />
-        {inApp && <QuitSheet />}
-        {inApp && <SetupSheet route={route} />}
+        <ShellSheets route={route} inApp={inApp} shortcuts={shortcuts} closeShortcuts={() => setShortcuts(false)} />
       </div>
     </SlotContext.Provider>
   );

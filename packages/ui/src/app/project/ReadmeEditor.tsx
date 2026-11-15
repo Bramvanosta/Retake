@@ -31,7 +31,7 @@ import { detectEol, getDraft, isDirty, normalizeEol, readmeKey, setDraft, toEol 
 import type { Draft } from '../drafts.js';
 import { SessionEnded } from '../session.js';
 import { DiskBanner, KeptText, TextConflict } from '../script/TextEditing.js';
-import { Button, Callout, Kbd, TextArea } from '../ui-kit/index.js';
+import { Button, Callout, Kbd, TextArea, pageKeys } from '../ui-kit/index.js';
 
 /** project_update_readme's cap: README.md's characters, its final line break included. */
 export const README_MAX = 200_000;
@@ -358,7 +358,7 @@ function EditArea({
           <Txt text={`${draft.text.length.toLocaleString('en')} / ${README_MAX.toLocaleString('en')} characters`} />
         </span>
         <span className="rd-keys">
-          <Kbd keys={['⌘', 'S']} />
+          <Kbd keys={pageKeys('save')} />
           {' / '}
           <Kbd keys={['Ctrl', 'S']} />
         </span>

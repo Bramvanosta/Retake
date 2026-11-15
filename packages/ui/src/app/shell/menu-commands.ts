@@ -1,13 +1,15 @@
 /**
  * The shell's commands (AppShell.tsx): the desktop app's menu (File's New Scenario, View's palette, modes, views and
- * inspector, Go's pages and history, Scenario's runs), or ⌘K / Ctrl+K in a browser tab, and the palette's open state.
+ * inspector, Go's pages and history, Scenario's runs, Help's Keyboard Shortcuts), or ⌘K / Ctrl+K in a browser tab, and
+ * the palette's and the shortcuts sheet's open state.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { hrefTo } from '../route.js';
 import type { Route, ScenarioTab } from '../route.js';
-import { COMMAND_EVENT, isMenuCommand, modalOpen } from '../ui-kit/index.js';
+import { COMMAND_EVENT, CONTEXT_MENUS, isContextMenu, isMenuCommand, modalOpen } from '../ui-kit/index.js';
 import type { MenuCommand } from '../ui-kit/index.js';
 import { isShellCommand, runShellCommand } from './command-bus.js';
+import { installContextMenus, takeContextTarget } from './context-menu.js';
 import { modeTarget } from './modes.js';
 import { useNativeMenu } from './native-menu.js';
 import { PROJECT_PAGE, SCENARIO_PAGE, VIEW_COMMAND } from './menu-table.js';
@@ -39,6 +41,10 @@ export interface CommandInput {
 /** The palette's open state and the shell's commands: the desktop app's menu (and its state), or ⌘K / Ctrl+K in a browser tab. */
 export function useMenuCommands({ ctx, slug, hasInspector, say, toggleInspector, inApp }: CommandInput, shown: { route: Route; mode: Mode | null; inspectorShown: boolean }) {
   const [palette, setPalette] = useState(false);
+  // Help › Keyboard Shortcuts (ShortcutsSheet.tsx).
+  const [shortcuts, setShortcuts] = useState(false);
+  // In the app's window: WebKit's own menu only in text; the screens may ask for the shell's context menus.
+  useEffect(() => installContextMenus(), []);
   // The desktop app's menu follows what this screen shows and can run (native-menu.ts).
   useNativeMenu(inApp, { route: shown.route, slug, ctx, mode: shown.mode, hasInspector, inspectorShown: shown.inspectorShown });
 
@@ -52,6 +58,7 @@ export function useMenuCommands({ ctx, slug, hasInspector, say, toggleInspector,
         if (palette) setPalette(false);
       }
       if (id === 'palette') setPalette(true);
+      else if (id === 'help-shortcuts') setShortcuts(true);
       else if (isShellCommand(id)) {
         // Whoever owns it acts (the status bar's defaults are always there; they say why when they cannot).
         if (!runShellCommand(id)) say('Open a scenario first');
@@ -84,10 +91,23 @@ export function useMenuCommands({ ctx, slug, hasInspector, say, toggleInspector,
   );
 
   // The desktop app's menu sends commands; a browser tab binds ⌘K / Ctrl+K only.
+  const runOnTarget = useCallback((id: MenuCommand, target: ScenarioContext | null) => {
+    if (!target || modalOpen()) return;
+    const m = (Object.keys(MODE_COMMAND) as Mode[]).find((k) => MODE_COMMAND[k] === id);
+    if (m) location.hash = hrefTo(modeTarget(m, target));
+    else if (SCENARIO_PAGE[id]) location.hash = hrefTo(SCENARIO_PAGE[id](target));
+  }, []);
   useEffect(() => {
     const onCommand = (e: Event) => {
-      const id = (e as CustomEvent<{ id?: unknown } | null>).detail?.id;
-      if (isMenuCommand(id)) run(id);
+      const d = (e as CustomEvent<{ id?: unknown; context?: unknown } | null>).detail;
+      const id = d?.id;
+      if (!isMenuCommand(id)) return;
+      // A context menu's pick: on what was right-clicked (once, while fresh), never on the scenario in context.
+      if (d && 'context' in d) {
+        if (isContextMenu(d.context) && (CONTEXT_MENUS[d.context] as readonly string[]).includes(id)) runOnTarget(id, takeContextTarget(d.context));
+        return;
+      }
+      run(id);
     };
     window.addEventListener(COMMAND_EVENT, onCommand);
     const onKey = (e: KeyboardEvent) => {
@@ -105,6 +125,6 @@ export function useMenuCommands({ ctx, slug, hasInspector, say, toggleInspector,
       window.removeEventListener(COMMAND_EVENT, onCommand);
       window.removeEventListener('keydown', onKey);
     };
-  }, [run, inApp]);
-  return { palette, setPalette };
+  }, [run, runOnTarget, inApp]);
+  return { palette, setPalette, shortcuts, setShortcuts };
 }

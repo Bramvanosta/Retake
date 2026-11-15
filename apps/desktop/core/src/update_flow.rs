@@ -667,6 +667,62 @@ pub fn percent(received: u64, total: Option<u64>) -> Option<u8> {
     Some((u128::from(received.min(t)) * 100 / u128::from(t)) as u8)
 }
 
+/// Help › Check for Updates…, by the update's state: fixed words — no version, nothing of the feed (the sheet
+/// shows the version).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum UpdateItem {
+    Check,
+    Checking,
+    Available,
+    Downloading,
+    Waiting,
+    Installing,
+}
+
+impl UpdateItem {
+    pub const ALL: [UpdateItem; 6] = [UpdateItem::Check, UpdateItem::Checking, UpdateItem::Available, UpdateItem::Downloading, UpdateItem::Waiting, UpdateItem::Installing];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            UpdateItem::Check => "Check for Updates…",
+            UpdateItem::Checking => "Checking for Updates…",
+            UpdateItem::Available => "Update Available…",
+            UpdateItem::Downloading => "Downloading the Update…",
+            UpdateItem::Waiting => "Waiting to Install the Update…",
+            UpdateItem::Installing => "Installing the Update…",
+        }
+    }
+
+    /// The item and its enabled bit in one byte (the shell keeps the latest in an atomic: the newest wins).
+    pub const fn code(self, enabled: bool) -> u8 {
+        ((self as u8) << 1) | enabled as u8
+    }
+
+    /// `code`'s inverse; an unknown byte is the plain Check, enabled.
+    pub fn from_code(c: u8) -> (UpdateItem, bool) {
+        UpdateItem::ALL.get(usize::from(c >> 1)).map_or((UpdateItem::Check, true), |i| (*i, c & 1 == 1))
+    }
+
+    /// Its click opens the Studio's update sheet (Install and Restart, Later); otherwise it checks.
+    pub fn opens_sheet(self) -> bool {
+        matches!(self, UpdateItem::Available | UpdateItem::Downloading | UpdateItem::Waiting)
+    }
+}
+
+/// The item and whether it can be clicked: greyed only while it checks and while it installs. Off stays clickable
+/// (its alert says why updates are off); a failed install offered again (`retry`) is an update available.
+pub fn menu_item(s: &State) -> (UpdateItem, bool) {
+    match s {
+        State::Off(_) | State::Idle { .. } | State::Updated { .. } | State::Failed { retry: false, .. } => (UpdateItem::Check, true),
+        State::Checking => (UpdateItem::Checking, false),
+        State::Available { .. } | State::Failed { retry: true, .. } => (UpdateItem::Available, true),
+        State::Downloading { .. } => (UpdateItem::Downloading, true),
+        State::Waiting { .. } => (UpdateItem::Waiting, true),
+        State::Installing { .. } => (UpdateItem::Installing, false),
+    }
+}
+
 /// The Dock icon's badge for a state (BL-167: the update moves while the window is closed or another app is in
 /// front): the download's percent ("42%"), "…" while it has no size, nothing otherwise.
 pub fn dock_label(s: &State) -> Option<String> {
@@ -1130,5 +1186,39 @@ mod tests {
         assert!(!p.exists() && cache.join("updates").join("update-7.tar.gz").exists() && cache.join("updates").join("notes.txt").exists());
         assert_eq!(remove_stale_archives(&cache.join("none"), 1, |_| false), 0);
         let _ = fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn the_menu_item_follows_every_state() {
+        let v = || "9.9.9".to_string();
+        let cases = [
+            (State::Off(Off::Build), UpdateItem::Check, true),
+            (State::Idle { checked: None }, UpdateItem::Check, true),
+            (State::Updated { checked: Some(1) }, UpdateItem::Check, true),
+            (State::Failed { failure: Failure::Check, version: None, checked: None, retry: false }, UpdateItem::Check, true),
+            (State::Failed { failure: Failure::Install, version: Some(v()), checked: Some(1), retry: true }, UpdateItem::Available, true),
+            (State::Checking, UpdateItem::Checking, false),
+            (State::Available { version: v(), notes: "notes".into(), checked: Some(1) }, UpdateItem::Available, true),
+            (State::Downloading { version: v(), received: 1, total: Some(2) }, UpdateItem::Downloading, true),
+            (State::Waiting { version: v(), jobs: 2 }, UpdateItem::Waiting, true),
+            (State::Installing { version: v() }, UpdateItem::Installing, false),
+        ];
+        for (s, item, enabled) in cases {
+            assert_eq!(menu_item(&s), (item, enabled), "{s:?}");
+        }
+        // Fixed words: no version, no number in any label; the sheet's three open it, the rest check.
+        for i in UpdateItem::ALL {
+            assert!(!i.label().chars().any(|c| c.is_ascii_digit()), "{}", i.label());
+            assert!(i.label().ends_with('…'));
+        }
+        assert_eq!(UpdateItem::ALL.iter().filter(|i| i.opens_sheet()).copied().collect::<Vec<_>>(), [UpdateItem::Available, UpdateItem::Downloading, UpdateItem::Waiting]);
+        assert_eq!(UpdateItem::Check.label(), "Check for Updates…");
+        // One byte each way, every item and both bits.
+        for i in UpdateItem::ALL {
+            for on in [false, true] {
+                assert_eq!(UpdateItem::from_code(i.code(on)), (i, on));
+            }
+        }
+        assert_eq!(UpdateItem::from_code(250), (UpdateItem::Check, true));
     }
 }
