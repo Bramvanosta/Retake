@@ -15,7 +15,6 @@ export { ENGINE_ERROR_CODES, EngineError, toEngineError } from './errors.js';
 export type { EngineErrorCode } from './errors.js';
 export type { WorkspaceReads } from './workspace-reads/reads.js';
 export type { Outputs } from './outputs/outputs.js';
-export type { Clock } from './clock.js';
 export type { EnginePorts } from './ports.js';
 export type { HookJournal, HookJournalRollback, PendingHookJournal } from './hook-run/runner.js';
 export type { SandboxHandle, Sandboxes } from './sandboxes/sandboxes.js';
