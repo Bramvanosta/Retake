@@ -1,6 +1,6 @@
 /**
  * L4.8 part 5: the Record screen end to end — the built-in Studio server on a scratch workspace and home, headless
- * Chromium on the Studio app, the fixture product on this test's own ports (4551–4554), and the `record` job run by a
+ * Chromium on the Studio app, the fixture product on free ports, and the `record` job run by a
  * worker IN THIS PROCESS with Playwright playing the person in the recording window (`ports.recordWindow.drive`: a worker
  * process cannot receive it — the real headed window with a person switching to the Studio is MACOS-CHECKLIST 13i).
  * While the window is open, the test works the Studio page as the person would. Covered:
@@ -177,7 +177,7 @@ async function startRecording(o: { path: string; name: string; env?: string }): 
 
 beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: Record<string, unknown>): Promise<Fixture> };
-  fixture = await mod.startFixture({ consolePort: 4551, shopPort: 4552, host: '127.0.0.1', auth: { consolePort: 4553, shopPort: 4554 } });
+  fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-record-e2e-'));
   retakeHome.use(join(ws, '.home'));
   delete process.env.RETAKE_RECORD_MAX_MIN;

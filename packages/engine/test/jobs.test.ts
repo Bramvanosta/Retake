@@ -21,6 +21,7 @@ import {
   WorkerLock,
   createEngine,
   executeRunJob,
+  memoryJobQueues,
   liveWorker,
   newJobId,
   openProjectBySlug,
@@ -282,7 +283,9 @@ describe('reserveRunId', () => {
 
 describe('engine.runs.submit (no worker started)', () => {
   it('reserves the run id with a valid `queued` run.json and queues a contract-valid input with the scenario hash', async () => {
-    const sub = await engine.runs.submit({ project: 'northfield-fixture', scenario: 'quote', mode: 'dry', until: 'discover.1' });
+    // An engine of its own on a memory queue: no job another test left queued is ahead of this one (any order).
+    const own = await createEngine({ root: ws, client: 'test', autoStartWorker: false, ports: { queues: memoryJobQueues() } });
+    const sub = await own.runs.submit({ project: 'northfield-fixture', scenario: 'quote', mode: 'dry', until: 'discover.1' });
     expect(sub.worker).toBeUndefined();
     expect(sub.warnings.some((w) => w.includes('dry run without its setup hooks'))).toBe(true);
     const dir = join(ws, 'projects', 'northfield-fixture', 'runs', sub.run_id);
@@ -301,11 +304,11 @@ describe('engine.runs.submit (no worker started)', () => {
       run_id: sub.run_id,
       submitted_by: 'test',
     });
-    const st = await engine.runs.status('northfield-fixture', sub.run_id);
+    const st = await own.runs.status('northfield-fixture', sub.run_id);
     expect(st).toMatchObject({ status: 'queued', job: { id: sub.job.id, state: 'queued', queue: { ahead: 0 } } });
     // Cancelled before a worker came: the overlay says so at once.
-    await engine.runs.cancel('northfield-fixture', sub.run_id);
-    expect(await engine.runs.status('northfield-fixture', sub.run_id)).toMatchObject({ status: 'cancelled', finished: true, job: { state: 'cancelled' } });
+    await own.runs.cancel('northfield-fixture', sub.run_id);
+    expect(await own.runs.status('northfield-fixture', sub.run_id)).toMatchObject({ status: 'cancelled', finished: true, job: { state: 'cancelled' } });
   });
 
   it('hooks a human must approve (destructive whatever `confirm` says): without an approver, refused with the CLI command', async () => {

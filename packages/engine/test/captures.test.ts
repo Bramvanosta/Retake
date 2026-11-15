@@ -43,6 +43,8 @@ beforeAll(async () => {
   await mkdir(wsA, { recursive: true });
   await mkdir(wsB, { recursive: true });
   me = await selfIdentity();
+  // The shared folder, made the way every reader makes it: each test may run first, alone or in any order.
+  expect(capturesDir(env)).toEqual({ dir });
 });
 
 afterAll(async () => {
@@ -52,6 +54,11 @@ afterAll(async () => {
 
 describe('the captures folder (L5.14)', () => {
   it('RETAKE_CAPTURES_DIR names it (made 0700); a folder open to others, a link or a relative name is not used', async () => {
+    // A folder of its own, so that this test sees it made (the shared one is made before every test).
+    const made = join(base, 'made');
+    expect(existsSync(made)).toBe(false);
+    expect(capturesDir({ ...env, RETAKE_CAPTURES_DIR: made })).toEqual({ dir: made });
+    expect(statSync(made).mode & 0o777).toBe(0o700);
     expect(capturesDir(env)).toEqual({ dir });
     expect(statSync(dir).mode & 0o777).toBe(0o700);
     const open = join(base, 'open');

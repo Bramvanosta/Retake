@@ -96,7 +96,9 @@ async function finished(id: string): Promise<JobRecord> {
   }
 }
 
-describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', () => {
+// The cases run in order on purpose: one sandbox brought up, reset, then reset and brought up without approval, and the
+// history those jobs wrote counted last.
+describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', { shuffle: false }, () => {
   beforeAll(async () => {
     ws = await mkdtemp(join(tmpdir(), 'studio-jobs-d-'));
     home = join(ws, '.home');

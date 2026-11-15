@@ -10,7 +10,7 @@ import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { appendFile, mkdir, mkdtemp, open, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   JOURNAL_VERSION,
   appendJournal,
@@ -35,6 +35,7 @@ import { projectStoreContract } from './project-store-contract.js';
 import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
+let home: string;
 const retakeHome = scratchHome();
 const lines = (): JournalEntry[] =>
   readFileSync(journalFile(root), 'utf8')
@@ -53,14 +54,23 @@ async function failure(p: Promise<unknown>): Promise<EngineError> {
 }
 
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'retake-project-store-'));
-  retakeHome.use(join(root, '.home'));
-  await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
-  await mkdir(join(root, 'projects', 'acme'), { recursive: true });
+  home = await mkdtemp(join(tmpdir(), 'retake-project-store-home-'));
+  retakeHome.use(home);
 });
 
 afterAll(async () => {
   retakeHome.restore();
+  await rm(home, { recursive: true, force: true });
+});
+
+// Each case gets its own workspace (and journal): none reads what another wrote.
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), 'retake-project-store-'));
+  await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
+  await mkdir(join(root, 'projects', 'acme'), { recursive: true });
+});
+
+afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
@@ -238,6 +248,7 @@ describe('the project store', () => {
 
 describe('the workspace journal', () => {
   it('is append-only: lines already there are kept, each write adds one; one module writes it and has no delete path', async () => {
+    await appendJournal(root, { by: { client: 'cli', channel: 'cli', trust: 'author' }, op: 'write', what: 'scenario', path: 'first', outcome: 'ok' }, systemClock);
     const before = readFileSync(journalFile(root), 'utf8');
     await appendJournal(root, { by: { client: 'cli', channel: 'cli', trust: 'author' }, op: 'write', what: 'scenario', path: 'x', outcome: 'ok' }, systemClock);
     const after = readFileSync(journalFile(root), 'utf8');
@@ -305,6 +316,14 @@ describe('the workspace journal', () => {
   });
 
   it('reads by project and kind, the newest last, skipping torn and foreign lines', async () => {
+    // A write, a folder and a write of project acme before the torn and foreign lines.
+    const acme = diskProjectStores.of({ dir: join(root, 'projects', 'acme'), slug: 'acme' }, personScope(root, enginePorts()));
+    // Another project's write: the project filter must drop it.
+    const beta = diskProjectStores.of({ dir: join(root, 'projects', 'beta'), slug: 'beta' }, personScope(root, enginePorts()));
+    await beta.writeText('README.md', '# Beta\n', { ifMatch: null, what: 'readme' });
+    await acme.writeText('README.md', '# Acme\n', { ifMatch: null, what: 'readme' });
+    await acme.createFolder(join(root, 'projects', 'acme'), 'mine', { what: 'theme', build: async (st) => st.write('template.yaml', 'name: mine\n'), recheck: async () => ({ existing: false }) });
+    await acme.writeText('notes.md', 'x\n', { ifMatch: null, what: 'readme' });
     await writeFile(journalFile(root), `${readFileSync(journalFile(root), 'utf8')}{"torn\n{"v":99,"op":"write","at":"x"}\n`);
     await hookRunRecorder(
       root,
@@ -329,7 +348,13 @@ describe('the workspace journal', () => {
       },
     ]);
     expect((await readJournal(root, { op: 'write', limit: 2 })).map((e) => e.op)).toEqual(['folder', 'write']);
-    expect((await readJournal(root, { project: 'acme' })).every((e) => e.project === 'acme')).toBe(true);
+    const ofAcme = await readJournal(root, { project: 'acme' });
+    expect(ofAcme.length).toBeGreaterThan(0);
+    expect(ofAcme.every((e) => e.project === 'acme')).toBe(true);
+    expect(
+      (await readJournal(root)).some((e) => e.project === 'beta'),
+      'the other project is in the journal',
+    ).toBe(true);
     expect(await readJournal(join(root, 'nowhere'))).toEqual([]);
   });
 
@@ -486,7 +511,7 @@ describe('the workspace journal', () => {
 
 describe('the engine journals its writes as its caller', () => {
   let engine: Engine;
-  beforeAll(async () => {
+  beforeEach(async () => {
     engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
   });
 

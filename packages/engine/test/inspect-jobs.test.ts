@@ -37,9 +37,19 @@ let projectDir: string;
 const retakeHome = scratchHome('NORTHFIELD_SUPPLIER_PASSWORD', 'NORTHFIELD_BUYER_PASSWORD');
 
 const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined });
+/**
+ * One-job workers until no job is queued: a job another test cancelled before it started is settled by the next worker
+ * as its one job, so each test's own job is reached whatever ran before it.
+ */
+async function settle(worker: () => Promise<unknown>): Promise<void> {
+  for (let i = 0; i < 20; i++) {
+    await worker();
+    if (!(await engine.jobs.list()).some((j) => j.state === 'queued')) return;
+  }
+}
 /** The worker on the in-memory capture runner (L7.12): the engine's own logic, nothing replayed in a browser. */
 const workInMemory = async (capture = new MemoryCaptureRunner()) => {
-  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { capture } });
+  await settle(() => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { capture } }));
   return capture.calls.filter((c) => c.member === 'run');
 };
 
@@ -70,7 +80,7 @@ function trustedPart(v: unknown): unknown {
 }
 
 async function finished(id: string): Promise<JobRecord> {
-  await work();
+  await settle(work);
   return engine.jobs.get(id);
 }
 
@@ -106,6 +116,7 @@ afterAll(async () => {
 
 describe('inspect jobs: refusals at submit', () => {
   it('a URL is inspected only on the exact origin of an environment page: not a foreign host, another local port, file:', async () => {
+    const jobs = await engine.jobs.list();
     const otherPort = new URL(fixture.urls.signedIn!.console).port; // a page of another environment: another app here
     for (const url of ['http://elsewhere.example/', `http://localhost:${otherPort}/products`, 'file:///etc/hosts', 'javascript:alert(1)']) {
       const e = await refusal(engine.inspect.submit({ project: PROJECT, url }));
@@ -113,10 +124,11 @@ describe('inspect jobs: refusals at submit', () => {
     }
     const e = await refusal(engine.inspect.submit({ project: PROJECT, url: `${fixture.urls.shop.replace('localhost', 'user:pw@localhost')}/` }));
     expect(e.message).toMatch(/credentials/);
-    expect(await engine.jobs.list()).toEqual([]);
+    expect(await engine.jobs.list()).toEqual(jobs);
   });
 
   it('no {{…}} template anywhere; one source; the page must exist; paths stay under it; persona only with a page', async () => {
+    const jobs = await engine.jobs.list();
     expect((await refusal(engine.inspect.submit({ project: PROJECT, page: 'shop', path: '/{{env:HOME}}' }))).code).toBe('refused');
     expect((await refusal(engine.inspect.submit({ project: PROJECT, page: 'shop', targets: [{ text: '{{keychain:x}}' }] }))).code).toBe('refused');
     expect((await refusal(engine.inspect.submit({ project: PROJECT, page: 'shop', within: '{{env:X}}' }))).code).toBe('refused');
@@ -129,7 +141,7 @@ describe('inspect jobs: refusals at submit', () => {
     expect((await refusal(engine.inspect.submit({ project: PROJECT, page: 'shop', until: 'request.3' }))).code).toBe('invalid');
     const persona = await refusal(engine.inspect.submit({ project: PROJECT, page: 'shop', persona: 'nobody' }));
     expect(persona.code).toBe('invalid');
-    expect(await engine.jobs.list()).toEqual([]);
+    expect(await engine.jobs.list()).toEqual(jobs);
   });
 
   it('a read-write environment pointing at a host another project protects is refused (as run_dry)', async () => {

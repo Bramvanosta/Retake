@@ -45,7 +45,11 @@ async function refusal(p: Promise<unknown>): Promise<{ code: string; message: st
   throw new Error('expected a SandboxError, got an answer');
 }
 
-/** The contract, on `subject()` (built in the caller's beforeAll). The cases run in order on one sandbox. */
+/**
+ * The contract, on `subject()` (built in the caller's beforeAll). The cases run in order on one sandbox: the chain
+ * (open, up, reset, the take lock, logs, down) is the point, so the suite is never shuffled (`shuffle: false`, kept
+ * under `--sequence.shuffle`); a case run alone (`-t`) has no sandbox.
+ */
 export function sandboxContract(subject: () => SandboxSubject, timeout = 120_000): void {
   let s: SandboxSubject;
   let sb: SandboxHandle;
@@ -53,7 +57,7 @@ export function sandboxContract(subject: () => SandboxSubject, timeout = 120_000
   const log: SandboxLog = (level, message) => logs.push(`${level} ${message}`);
   const it_ = (title: string, fn: () => Promise<void>) => it(title, fn, timeout);
 
-  describe('the Sandboxes contract', () => {
+  describe('the Sandboxes contract', { shuffle: false }, () => {
     it_('open refuses a project without a sandbox and an environment that is not one, in the words of the package', async () => {
       s = subject();
       expect(await refusal(s.sandboxes.open(s.bare, undefined, PERSON_POLICY))).toEqual({

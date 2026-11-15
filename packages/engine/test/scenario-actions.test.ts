@@ -114,6 +114,8 @@ describe('blocker kinds (critique H3)', () => {
 
 describe('scenarios.actions: the status bar’s read', () => {
   it('the hash, the location, the counts, no run; a queued rehearsal is `running` with its job (critique M4), and it carries no path but the commands', async () => {
+    // No run of the project yet: the runs other cases submitted (cancelled) are not this case's.
+    await rm(join(ws, 'projects', 'w', 'runs'), { recursive: true, force: true });
     const check = await ui.scenarios.check('w', 'short');
     const a = await ui.scenarios.actions('w', 'short');
     expect(a).toMatchObject({

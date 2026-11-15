@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { chmod, cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { initSandbox } from '@retake/sandbox';
 import {
@@ -56,12 +56,25 @@ const noToolVersion = (rel: string, b: Buffer) => (rel.endsWith('.retake-theme.j
 const noSchemaLine = (rel: string, b: Buffer) => (/\.ya?ml$/.test(rel) ? b.toString('utf8').replace(/^# yaml-language-server: \$schema=.*$/m, '# schema') : b);
 
 let root: string;
+let home: string;
 let engine: Engine;
 const retakeHome = scratchHome();
+/** The project `acme` the first case makes, made the same way for the cases that write into it. */
+const createAcme = () => engine.projects.create({ name: 'Acme Demo', slug: 'acme', environments: { staging: { app: 'https://app.staging.example.com' } } });
 
 beforeAll(async () => {
+  home = await mkdtemp(join(tmpdir(), 'retake-authored-writes-home-'));
+  retakeHome.use(home);
+});
+
+afterAll(async () => {
+  retakeHome.restore();
+  await rm(home, { recursive: true, force: true });
+});
+
+// Each case gets its own workspace: the bytes it pins are its writer's alone.
+beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-authored-writes-'));
-  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'projects'), { recursive: true });
   await mkdir(join(root, 'brand'), { recursive: true });
@@ -69,14 +82,13 @@ beforeAll(async () => {
   engine = await createEngine({ root, client: 'ui', autoStartWorker: false });
 }, 60_000);
 
-afterAll(async () => {
-  retakeHome.restore();
+afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
 describe('the bytes of the authored writers', () => {
   it('a new project: project.yaml, README.md, .gitignore and the .gitkeep of scenarios/, hooks/, assets/', async () => {
-    await engine.projects.create({ name: 'Acme Demo', slug: 'acme', environments: { staging: { app: 'https://app.staging.example.com' } } });
+    await createAcme();
     expect(await tree(join(root, 'projects', 'acme'))).toEqual({
       '.gitignore': 'aa5ebb76617eed63570587a7a141a93691f1a2708c9b2790bded5814446623e3',
       'README.md': '83eadcef7ab7fa9259b31f376df3f4d7cf76eca7c31320331676d928729cc9da',
@@ -88,6 +100,7 @@ describe('the bytes of the authored writers', () => {
   });
 
   it('the README (a final line break added) and a scenario saved then edited; a replaced file keeps its mode', async () => {
+    await createAcme();
     const view = await engine.projects.get('acme');
     const readme = await engine.projects.updateReadme('acme', '# Acme\n\nWhat it is.', view.readme_hash);
     expect(await readFile(join(root, 'projects', 'acme', 'README.md'), 'utf8')).toBe('# Acme\n\nWhat it is.\n');
@@ -149,6 +162,7 @@ describe('the bytes of the authored writers', () => {
   });
 
   it('a sandbox scaffold: its files and the line project.yaml gains', async () => {
+    await createAcme();
     const project = await openProjectBySlug(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs }), 'acme');
     const before = await readFile(project.file, 'utf8');
     await initSandbox(project, { isFree: async () => true, write: fileWriter(diskProjectStores.of(project, personScope(root, enginePorts())), 'sandbox') });

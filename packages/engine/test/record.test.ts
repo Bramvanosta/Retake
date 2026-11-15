@@ -19,7 +19,7 @@ import { parseScenario, PERSON_POLICY } from '@retake/core';
 import { loadScenario, fileFacts } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import { runScenario } from '@retake/runner-web';
-import { EngineError, FileJobQueue, historyFile, openProject, openWorkspace, recordScenario, recordsRoot, enginePorts, diskWorkspaceReads, diskOutputs } from '../src/index.js';
+import { EngineError, MemoryJobQueue, historyFile, openProject, openWorkspace, recordScenario, recordsRoot, enginePorts, diskWorkspaceReads, diskOutputs } from '../src/index.js';
 import type { OpenedWorkspace, RecordOutcome, RecordPorts, RecordRequest } from '../src/index.js';
 import { ManualClock } from '../src/clock.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
@@ -29,6 +29,7 @@ import { REPO } from '@retake/test-support/repo';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { oneButtonPress } from './recorded-events.js';
 import { scratchHome } from '@retake/test-support/home';
+import { FAST } from '@retake/test-support/capture';
 
 type Page = Parameters<NonNullable<RecordPorts['drive']>>[0];
 
@@ -61,7 +62,10 @@ beforeAll(async () => {
     .replaceAll('http://localhost:4402', strip(fixture.urls.shop))
     .replaceAll('http://localhost:4403', strip(fixture.urls.signedIn!.console))
     .replaceAll('http://localhost:4404', strip(fixture.urls.signedIn!.shop));
-  await writeFile(join(projectDir, 'project.yaml'), yaml);
+  // The functional tests' fast pacing for the check replays and the dry runs (a draft never names pacing): the same
+  // steps, less waiting.
+  expect(yaml).not.toMatch(/^pacing:/m);
+  await writeFile(join(projectDir, 'project.yaml'), `${yaml.trimEnd()}\npacing: ${JSON.stringify(FAST)}\n`);
   csv = join(root, 'prices.csv');
   await writeFile(csv, 'lot,price\nA,10\n');
   ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
@@ -84,7 +88,7 @@ async function record(req: RecordRequest, drive: (page: Page) => Promise<void>, 
   const logs: string[] = [];
   const o = await recordScenario(ws, await project(), req, {
     ...enginePorts(),
-    queue: new FileJobQueue(ws.root),
+    queue: new MemoryJobQueue(ws.root),
     headless: true,
     windowSize: { width: 1400, height: 1000 },
     log: (l, m) => logs.push(`${l} ${m}`),
@@ -114,7 +118,7 @@ async function recordInMemory(req: RecordRequest, m: MemoryRecordOptions & { ses
   // `drive` stands for the person (no display needed); the in-memory window never reads it.
   const o = await recordScenario(ws, await project(), req, {
     ...enginePorts({ capture }),
-    queue: new FileJobQueue(ws.root),
+    queue: new MemoryJobQueue(ws.root),
     drive: async () => undefined,
     log: (l, msg) => logs.push(`${l} ${msg}`),
     ...ports,
@@ -355,7 +359,7 @@ describe('recordScenario: names, stop, cancel, limits', () => {
       expect(o.counts.actions).toBe(1);
       expect(o.issues.map((i) => i.code)).toContain('max_duration');
       process.env.RETAKE_RECORD_MAX_MIN = 'soon';
-      const e = await recordScenario(ws, await project(), { page: 'shop' }, { ...enginePorts(), queue: new FileJobQueue(ws.root), headless: true, drive: async () => undefined }).then(
+      const e = await recordScenario(ws, await project(), { page: 'shop' }, { ...enginePorts(), queue: new MemoryJobQueue(ws.root), headless: true, drive: async () => undefined }).then(
         () => null,
         (x: unknown) => x as EngineError,
       );
@@ -415,7 +419,7 @@ describe('recordScenario: access, sign-in, secrets', () => {
       ws,
       await project(),
       { env: 'signed-in', page: 'shop', check: false },
-      { ...enginePorts({ capture }), queue: new FileJobQueue(ws.root), drive: async () => undefined, log: (l, m) => logs.push(`${l} ${m}`) },
+      { ...enginePorts({ capture }), queue: new MemoryJobQueue(ws.root), drive: async () => undefined, log: (l, m) => logs.push(`${l} ${m}`) },
     );
     expect(sessions.calls).toEqual([
       { member: 'check', persona: 'buyer' },

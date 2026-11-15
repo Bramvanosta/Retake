@@ -21,8 +21,11 @@ const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
  * The repository's ratchet entries, computed once for the file (L7.37): the tree does not change while it runs, and a
  * dozen whole scans (~4 s each, synchronous) ran past vitest's 60 s RPC timeout on a loaded machine.
  */
+let repoScan: { pkgs: string[]; files: Array<{ rel: string; pkg: string; text: string; specs: string[] }>; fileImports: Record<string, string[]> } | undefined;
 let repoEntries: string[] | undefined;
-const ratchetOfRepo = (): string[] => [...(repoEntries ??= lib.ratchetEntries(ROOT) as string[])];
+/** The repository's scan, made once for the file as its entries are (each test reads it, none changes it). */
+const scanOfRepo = () => (repoScan ??= lib.scan(ROOT));
+const ratchetOfRepo = (): string[] => [...(repoEntries ??= lib.ratchetEntries(ROOT, scanOfRepo()) as string[])];
 
 type Hit = { rule: string; file: string; spec: string };
 const hits = (fileImports: Record<string, readonly string[]>, root = ROOT): string[] => lib.ruleHits(root, fileImports).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
@@ -136,7 +139,7 @@ describe('the import-rules ratchet', () => {
   });
 
   it('core outside its io side reads the environment in two listed defaults only (docs/DESIGN.md §1): expandHome, unsafeTestResolve', () => {
-    const scanned = lib.scan(ROOT);
+    const scanned = scanOfRepo();
     const reads = scanned.files
       .filter((f: { rel: string }) => f.rel.startsWith('packages/core/src/') && !f.rel.startsWith(lib.CORE_IO_DIR))
       .flatMap((f: { rel: string; text: string }) => {
@@ -1731,7 +1734,7 @@ describe('the import-rules ratchet', () => {
       .filter((d) => statSync(join(ROOT, 'packages', d)).isDirectory() && d !== lib.TEST_SUPPORT)
       .sort();
     expect(Object.values(lib.LAYERS as Record<string, string[]>).flat()).not.toContain(lib.TEST_SUPPORT);
-    expect((lib.scan(ROOT) as { pkgs: string[] }).pkgs).not.toContain(lib.TEST_SUPPORT);
+    expect(scanOfRepo().pkgs).not.toContain(lib.TEST_SUPPORT);
     const layers = lib.LAYERS as Record<string, string[]>;
     expect(Object.keys(layers)).toEqual(['domain', 'adapters', 'application', 'shells']);
     expect(Object.values(layers).flat().sort()).toEqual(dirs);
@@ -2250,12 +2253,12 @@ describe('the import-rules ratchet', () => {
         ]),
       ).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0]);
       // …and nothing outside packages/*/src is scanned (tests, scripts, fixtures, the desktop shell).
-      expect(lib.scan(ROOT).files.every((f: { rel: string }) => /^packages\/[\w-]+\/src\//.test(f.rel))).toBe(true);
+      expect(scanOfRepo().files.every((f: { rel: string }) => /^packages\/[\w-]+\/src\//.test(f.rel))).toBe(true);
     });
 
     it('the repository: no stamp, suffix, alphabet or id template outside the homes; each file left has its count and a reason', () => {
-      const scanned = lib.scan(ROOT);
-      const today: string[] = lib.ratchetEntries(ROOT, scanned);
+      const scanned = scanOfRepo();
+      const today: string[] = ratchetOfRepo();
       const hits: IdHit[] = lib.idGrammarHits(ROOT, scanned.files);
       // Kinds 1, 2 and 4 are gone from every package; what is left spells another name's grammar (3: at its
       // definition, or mirrored in the Studio front end), the export formats' file suffixes (5) or one grammar used
@@ -2573,8 +2576,8 @@ describe('the import-rules ratchet', () => {
     });
 
     it('the repository: no record or timeline typed outside the reader; one more is a new entry', () => {
-      const scanned = lib.scan(ROOT);
-      const today: string[] = lib.ratchetEntries(ROOT, scanned);
+      const scanned = scanOfRepo();
+      const today: string[] = ratchetOfRepo();
       // No record or timeline is typed outside the reader. The own reads — prune's two (a run.json the reader does not
       // take; a linked record file of renders/, L7.6b) and the job's lenient close, each into a shape of its own, as
       // their comments say — are in sight: one entry per file, with its reason in the baseline (L7.6c: the readers of

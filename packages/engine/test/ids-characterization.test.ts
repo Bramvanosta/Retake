@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { LoadedProject, StoredRenderRecord } from '@retake/core';
 import { PERSON_POLICY, projectRenderOf, ulid } from '@retake/core';
 import { STARTER_TEMPLATES_DIR, loadProject } from '@retake/core/io';
@@ -851,6 +851,9 @@ describe('pruning: the files of a render that goes', () => {
 // ── Theme names ──────────────────────────────────────────────────────────────
 
 describe("a new theme's name, and a theme that exists under a long one", () => {
+  // Each case starts with no workspace theme: the themes it lists are the ones it made.
+  beforeEach(() => rm(join(themes, 'templates'), { recursive: true, force: true }));
+
   it('a copy takes a lower-case name of at most 60 characters', async () => {
     const copy = (name: unknown) => outcome(themeEngine.templates.copy({ from: 'editorial', name: name as string }));
     const invalid = (name: string) => `invalid: invalid theme name "${name.slice(0, 80)}": lower-case letters, digits and dashes (e.g. my-brand)`;

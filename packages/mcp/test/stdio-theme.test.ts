@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { LIBRARY_DIR } from '@retake/components';
@@ -104,7 +104,18 @@ const brand = {
   brand: { name: 'Harbor', url: 'harbor.test' },
 };
 
+/** The theme harbor made from the brand files, for a case about what follows its creation. */
+async function makeHarbor(): Promise<void> {
+  const r = await call('template_create_from_brand', brand);
+  expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
+}
+
 describe('retake mcp: a theme from brand files', () => {
+  // Each case starts without the theme harbor.
+  beforeEach(async () => {
+    await rm(join(root, 'templates', 'harbor'), { recursive: true, force: true });
+  });
+
   it('lists template_create_from_brand: writes files (a replace removes a folder: destructive), no open world, its input schema strict', async () => {
     const { tools } = await client.listTools();
     const t = tools.find((x) => x.name === 'template_create_from_brand');
@@ -131,6 +142,7 @@ describe('retake mcp: a theme from brand files', () => {
   });
 
   it('template_list shows it as a workspace theme; its detail says themes are never edited here and who wrote its brand text', async () => {
+    await makeHarbor();
     const l = await call('template_list', {});
     expect(l.content[0].text).toMatch(/- harbor \(workspace, real\): intro studio\/intro-stack/);
     const d = await call('template_list', { template: 'harbor' });
@@ -142,6 +154,7 @@ describe('retake mcp: a theme from brand files', () => {
   it.skipIf(!can)(
     'template_preview renders its stills through the preview job',
     async () => {
+      await makeHarbor();
       const r = await call('template_preview', { project: 'demo', template: 'harbor', wait_s: 25 });
       expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
       expect(r.structuredContent).toMatchObject({ theme: 'harbor', job: { state: 'succeeded' } });
@@ -155,6 +168,7 @@ describe('retake mcp: a theme from brand files', () => {
   );
 
   it('replace: true changes it while nobody edited it; after a human edit it is refused', async () => {
+    await makeHarbor();
     const r = await call('template_create_from_brand', { ...brand, colors: { accent: '#0e7c66' }, replace: true });
     expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
     expect(r.content[0].text).toMatch(/^replaced theme harbor/);

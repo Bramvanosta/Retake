@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { editReplannedMessage, scenarioChangedMessage } from '@retake/core';
@@ -37,7 +37,8 @@ async function call(name: string, args: Record<string, unknown>, onprogress?: (p
   return (await client.callTool({ name, arguments: args }, undefined, { timeout: 120_000, ...(onprogress ? { onprogress } : {}) })) as Result;
 }
 
-beforeAll(async () => {
+// Each case gets its own workspace and server: no render, job or scenario file of another case is seen.
+beforeEach(async () => {
   if (!canRender) return;
   ws = await mkdtemp(join(tmpdir(), 'studio-mcp-render-'));
   await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
@@ -76,7 +77,7 @@ beforeAll(async () => {
   await client.connect(transport);
 }, 120_000);
 
-afterAll(async () => {
+afterEach(async () => {
   await client?.close().catch(() => undefined);
   const w = ws ? readWorkerLock(ws) : null;
   if (w) {
@@ -87,7 +88,17 @@ afterAll(async () => {
     }
   }
   if (ws) await rm(ws, { recursive: true, force: true });
-});
+}, 60_000);
+
+const SNAPSHOT = 'video: Synthetic\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n  - id: b\n    steps:\n      - hold: 1\n';
+
+/** The capture's scenario snapshot, and the scenario file as `body` (the snapshot when left out). */
+async function writeScenario(body = SNAPSHOT): Promise<void> {
+  const project = join(ws, 'projects', 'demo');
+  await writeFile(join(project, 'runs', '20260101-120000-synthetic', 'scenario.yaml'), SNAPSHOT);
+  await mkdir(join(project, 'scenarios'), { recursive: true });
+  await writeFile(join(project, 'scenarios', 'synthetic.yaml'), body);
+}
 
 describe.skipIf(!canRender)('retake mcp: renders as jobs', () => {
   it('plan_preview: the plan in the summary, what the scenario says only under untrusted', async () => {
@@ -132,10 +143,8 @@ describe.skipIf(!canRender)('retake mcp: renders as jobs', () => {
 
   it('plan_preview says, in its summary (not under untrusted), when the scenario file changed since the capture (L3.8)', async () => {
     const project = join(ws, 'projects', 'demo');
-    const snapshot = 'video: Synthetic\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n  - id: b\n    steps:\n      - hold: 1\n';
-    await writeFile(join(project, 'runs', '20260101-120000-synthetic', 'scenario.yaml'), snapshot);
-    await mkdir(join(project, 'scenarios'), { recursive: true });
-    await writeFile(join(project, 'scenarios', 'synthetic.yaml'), snapshot);
+    const snapshot = SNAPSHOT;
+    await writeScenario();
     const same = await call('plan_preview', { project: 'demo', scenario: 'synthetic' });
     expect(same.structuredContent).toMatchObject({ scenario_changed: false });
     expect(same.content[0].text).not.toContain('changed since');
@@ -163,6 +172,8 @@ describe.skipIf(!canRender)('retake mcp: renders as jobs', () => {
   });
 
   it('render returns the reserved id at once (saying the scenario changed since the capture); the worker renders it; render_status long-polls it with percent progress', async () => {
+    // The filmed part changed since the capture.
+    await writeScenario(SNAPSHOT.replace('hold: 1', 'hold: 3'));
     const sub = await call('render', { project: 'demo', scenario: 'synthetic', template: 'motion', overrides: { scale: 0.5 } });
     expect(sub.isError, JSON.stringify(sub)).toBeFalsy();
     expect(sub.content[0].text).toMatch(/^render synthetic-v1 submitted \(job j_[0-9A-Z]{26}\): run 20260101-120000-synthetic, landscape/);

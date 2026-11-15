@@ -139,6 +139,8 @@ afterAll(async () => {
 
 describe('record jobs: refusals at submit', () => {
   it('another origin, a template, an unknown page or persona, a path as a name — nothing queued', async () => {
+    // The jobs other cases queued are there before and after: nothing is added.
+    const before = await engine.jobs.list();
     const otherPort = new URL(fixture.urls.signedIn!.console).port;
     for (const url of ['http://elsewhere.example/', `http://localhost:${otherPort}/`, 'file:///etc/hosts']) {
       expect((await refusal(engine.record.submit({ project: PROJECT, url }))).code, url).toBe('refused');
@@ -148,10 +150,11 @@ describe('record jobs: refusals at submit', () => {
     expect((await refusal(engine.record.submit({ project: PROJECT, page: 'shop', persona: 'nobody' }))).code).toBe('not_found');
     expect((await refusal(engine.record.submit({ project: PROJECT, page: 'shop', scenario: '../x' }))).code).toBe('invalid');
     expect((await refusal(engine.record.submit({ project: PROJECT, page: 'shop', path: 'products' }))).code).toBe('invalid');
-    expect(await engine.jobs.list()).toEqual([]);
+    expect(await engine.jobs.list()).toEqual(before);
   });
 
   it('a read-write environment pointing at a host another project protects is refused, with the `retake record` command', async () => {
+    const before = await engine.jobs.list();
     const other = join(root, 'projects', 'other');
     await mkdir(other, { recursive: true });
     await writeFile(join(other, 'project.yaml'), `name: Other\nenvironments:\n  live:\n    production: true\n    pages: {app: "${fixture.urls.shop}"}\n`);
@@ -162,7 +165,7 @@ describe('record jobs: refusals at submit', () => {
     } finally {
       await rm(other, { recursive: true, force: true });
     }
-    expect(await engine.jobs.list()).toEqual([]);
+    expect(await engine.jobs.list()).toEqual(before);
   });
 });
 
@@ -271,6 +274,9 @@ describe('record jobs: folders and interruptions', () => {
     // Once its job is cancelled, it is the oldest folder: pruned.
     await engine.jobs.cancel(sub.job.id);
     expect(await pruneRecords(p, systemClock, RECORD_KEEP, [], new FileJobQueue(root))).toContain(sub.rec_id);
+    // A worker settles the cancelled job here: the next worker of another case takes its own job, not this one.
+    await workInMemory(async () => undefined);
+    expect((await engine.jobs.get(sub.job.id)).state).toBe('cancelled');
   });
 
   it('an interrupted record job says the window closed with it and names `retake record`', async () => {

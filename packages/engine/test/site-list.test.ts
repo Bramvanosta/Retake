@@ -8,12 +8,13 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SITE_KEEP, createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
+let home: string;
 let engine: Engine;
 const retakeHome = scratchHome('RETAKE_UNSAFE_TEST_RESOLVE');
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 200, 0, 0, 0, 100]);
@@ -44,16 +45,25 @@ const report = (url: string, extra: Record<string, unknown> = {}) => ({
 });
 
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'ds-site-list-'));
-  retakeHome.use(join(root, '.home'));
+  home = await mkdtemp(join(tmpdir(), 'ds-site-list-home-'));
+  retakeHome.use(home);
   process.env.RETAKE_UNSAFE_TEST_RESOLVE = 'brand.test=127.0.0.1:9';
+});
+
+afterAll(async () => {
+  retakeHome.restore();
+  await rm(home, { recursive: true, force: true });
+});
+
+// Each case gets its own workspace: the extractions it lists are its own.
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), 'ds-site-list-'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'projects'), { recursive: true });
   engine = await createEngine({ root, client: 'ui', autoStartWorker: false });
 }, 60_000);
 
-afterAll(async () => {
-  retakeHome.restore();
+afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
@@ -89,6 +99,7 @@ describe('site list (L4.7)', () => {
   it('⚑ linked folders and files are never read; the newest SITE_KEEP', async () => {
     const elsewhere = join(root, 'elsewhere');
     await mkdir(elsewhere, { recursive: true });
+    await mkdir(join(root, '.retake', 'site'), { recursive: true });
     await writeFile(join(elsewhere, 'site.json'), JSON.stringify(report('https://brand.test/linked')));
     await symlink(elsewhere, join(root, '.retake', 'site', id(4)));
     const d5 = join(root, '.retake', 'site', id(5));
@@ -104,6 +115,8 @@ describe('site list (L4.7)', () => {
   });
 
   it('⚑ a linked .retake/site folder is never read', async () => {
+    await site(1, report('https://brand.test/about'), { png: true });
+    expect((await engine.templates.sites()).sites).toHaveLength(1);
     const r2 = await mkdtemp(join(tmpdir(), 'ds-site-list-link-'));
     try {
       await writeFile(join(r2, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');

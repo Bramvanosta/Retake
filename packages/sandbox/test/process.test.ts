@@ -100,7 +100,8 @@ const log = (level: string, msg: string) => logs.push(`${level} ${msg}`);
 const api = (path: string) => `http://localhost:${ports[0]}${path}`;
 const json = async (url: string, init?: RequestInit) => (await fetch(url, init)).json() as Promise<any>;
 
-describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
+// The cases run in order on purpose: one fixture sandbox goes up, is reset, taken, refused a twin, then brought down.
+describe.skipIf(!posix)('process provider: the fixture as a sandbox', { shuffle: false }, () => {
   beforeAll(async () => {
     // Build the fixture's bundle once (the sandboxes start it with --no-build: parallel forks would race on it).
     const build = (await import(join(REPO, 'fixtures/wholesale/build.mjs'))) as { bundleState(): Promise<{ fresh: boolean }>; build(): Promise<unknown> };
@@ -177,25 +178,30 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
 
   it('prepareTake holds the take lock: a reset or another take fails fast naming the run; released, they work', async () => {
     const take = await sb.prepareTake({ log, command: 'run sandbox-quote' });
-    take.note('20261014-101500-sandbox-quote');
-    expect(take.info).toEqual({
-      name: 'sandbox',
-      provider: 'process',
-      strategy: 'reseed',
-      restored: false,
-      reset_ms: expect.any(Number),
-      seed_hash: expect.stringMatching(/^[0-9a-f]{12}$/),
-      at: expect.any(String),
-    });
-    expect(take.up.kept).toEqual(['fixture']);
-    const busy = await sb.reset().catch((e) => e);
-    expect(busy).toBeInstanceOf(SandboxError);
-    expect(busy.code).toBe('busy');
-    expect(busy.message).toMatch(/^sandbox sandbox is in use: run 20261014-101500-sandbox-quote \(pid \d+\) since \d\d:\d\d:\d\d — wait for it/);
-    expect((await sb.status()).lock).toMatchObject({ run: '20261014-101500-sandbox-quote' });
-    await take.release();
-    await expect(sb.reset()).resolves.toMatchObject({ strategy: 'reseed' });
-    expect((await sb.status()).lock).toBeUndefined();
+    try {
+      take.note('20261014-101500-sandbox-quote');
+      expect(take.info).toEqual({
+        name: 'sandbox',
+        provider: 'process',
+        strategy: 'reseed',
+        restored: false,
+        reset_ms: expect.any(Number),
+        seed_hash: expect.stringMatching(/^[0-9a-f]{12}$/),
+        at: expect.any(String),
+      });
+      expect(take.up.kept).toEqual(['fixture']);
+      const busy = await sb.reset().catch((e) => e);
+      expect(busy).toBeInstanceOf(SandboxError);
+      expect(busy.code).toBe('busy');
+      expect(busy.message).toMatch(/^sandbox sandbox is in use: run 20261014-101500-sandbox-quote \(pid \d+\) since \d\d:\d\d:\d\d — wait for it/);
+      expect((await sb.status()).lock).toMatchObject({ run: '20261014-101500-sandbox-quote' });
+      await take.release();
+      await expect(sb.reset()).resolves.toMatchObject({ strategy: 'reseed' });
+      expect((await sb.status()).lock).toBeUndefined();
+    } finally {
+      // A failing case never leaves the lock held for the next ones.
+      await take.release();
+    }
   });
 
   it('a second sandbox on the same ports is refused before it starts, naming the program that holds them', async () => {

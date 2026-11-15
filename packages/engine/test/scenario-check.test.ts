@@ -14,7 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import { EngineError, READ_TEXT_MAX_BYTES, createEngine, sessionsToConfirm } from '../src/index.js';
 import type { Engine, RunBlocker } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
@@ -26,6 +26,13 @@ let mcp: Engine;
 const P = 'northfield-fixture';
 const retakeHome = scratchHome();
 const PERSON = 'video: person\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - type: {into: {label: Token}, text: "{{env:API_KEY}}"}\n';
+
+/** `rel` (under the fixture project) is removed once the case ends: the cases listing every scenario see the fixture's only. */
+const ownFile = (rel: string): string => {
+  const file = join(ws, 'projects', P, rel);
+  onTestFinished(() => rm(file, { force: true }));
+  return file;
+};
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
   const e = await p.then(
@@ -106,7 +113,7 @@ describe('scenarios.check: own issues and run blockers (B2)', () => {
   });
 
   it('a person’s scenario with {{env:…}}: valid for the screen (no agent trust), refused to run from the Studio — "from the Studio", never "MCP"', async () => {
-    await writeFile(join(ws, 'projects', P, 'scenarios', 'person.yaml'), PERSON);
+    await writeFile(ownFile('scenarios/person.yaml'), PERSON);
     const c = await ui.scenarios.check(P, 'person');
     expect([c.ok, c.issues.filter((i) => i.severity === 'error')]).toEqual([true, []]);
     for (const mode of ['dry', 'capture'] as const) {
@@ -121,7 +128,7 @@ describe('scenarios.check: own issues and run blockers (B2)', () => {
   });
 
   it('an invalid scenario: its issues, and the same refusal blocks both runs', async () => {
-    await writeFile(join(ws, 'projects', P, 'scenarios', 'broken.yaml'), 'video: broken\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - clik: Save\n');
+    await writeFile(ownFile('scenarios/broken.yaml'), 'video: broken\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - clik: Save\n');
     const c = await ui.scenarios.check(P, 'broken');
     expect(c.ok).toBe(false);
     expect(c.issues.map((i) => i.message)).toContain('unknown action "clik" (did you mean "click"?)');
@@ -133,7 +140,7 @@ describe('scenarios.check: own issues and run blockers (B2)', () => {
 
 describe('safe small-file reads (BL-79 residue): FIFO, size cap, links', () => {
   it('a FIFO named as a scenario: get, check and a run submit refuse it at once (never wait on it)', async () => {
-    execFileSync('mkfifo', [join(ws, 'projects', P, 'scenarios', 'pipe.yaml')]);
+    execFileSync('mkfifo', [ownFile('scenarios/pipe.yaml')]);
     const t0 = Date.now();
     for (const call of [() => ui.scenarios.get(P, 'pipe'), () => ui.scenarios.check(P, 'pipe'), () => ui.runs.submit({ project: P, scenario: 'pipe', mode: 'dry' })]) {
       const e = await refusal(call());
@@ -144,7 +151,7 @@ describe('safe small-file reads (BL-79 residue): FIFO, size cap, links', () => {
 
   it('a scenario over 2 MiB is "too large" (invalid), not "not found"; at the cap it reads', async () => {
     const head = 'video: big\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 1\n';
-    await writeFile(join(ws, 'projects', P, 'scenarios', 'big.yaml'), `${head}#${'x'.repeat(READ_TEXT_MAX_BYTES)}\n`);
+    await writeFile(ownFile('scenarios/big.yaml'), `${head}#${'x'.repeat(READ_TEXT_MAX_BYTES)}\n`);
     const e = await refusal(ui.scenarios.get(P, 'big'));
     expect([e.code, e.message, e.details?.reason]).toEqual(['invalid', expect.stringMatching(/big\.yaml is too large: [\d,]+ bytes, at most 2,097,152 — not read$/), 'too_large']);
     await writeFile(join(ws, 'projects', P, 'scenarios', 'big.yaml'), `${head}#${'x'.repeat(READ_TEXT_MAX_BYTES - head.length - 2)}\n`);
@@ -169,7 +176,7 @@ describe('safe small-file reads (BL-79 residue): FIFO, size cap, links', () => {
   it('a scenario linked out of the project: check and a run submit refuse it (the submit used to follow it)', async () => {
     const outside = join(ws, 'outside.yaml');
     await writeFile(outside, 'video: out\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 1\n');
-    await symlink(outside, join(ws, 'projects', P, 'scenarios', 'out.yaml'));
+    await symlink(outside, ownFile('scenarios/out.yaml'));
     for (const call of [() => ui.scenarios.check(P, 'out'), () => ui.runs.submit({ project: P, scenario: 'out', mode: 'dry' }), () => mcp.runs.submit({ project: P, scenario: 'out', mode: 'dry' })]) {
       const e = await refusal(call());
       expect([e.code, e.message]).toEqual(['refused', expect.stringContaining('leads out of the project folder (a symbolic link): not read')]);

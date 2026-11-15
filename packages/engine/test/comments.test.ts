@@ -128,6 +128,8 @@ describe('frame comment store', () => {
     async () => {
       const mk = v1.plan.markers.find((m) => m.name === 'proposal')!;
       expect(mk).toMatchObject({ scene: 's2', step: 1, action: 'wait_for' });
+      // Other cases add threads of their own: this one adds exactly its own file.
+      const threadsBefore = await readdir(join(project.dir, 'comments', 'quote')).catch(() => [] as string[]);
       const { thread: t, warnings } = await add({ frame: undefined, marker: 'proposal', region: REGION, text: `Keep the total on screen longer.\r\n‮${INJECTION}` });
       expect(warnings).toEqual([]);
       expect(t.frame).toBe(mk.done ?? mk.frame);
@@ -177,7 +179,7 @@ describe('frame comment store', () => {
       // The still: a JPEG, machine-local (never next to the thread).
       expect(t.still).toBe(join(project.dir, '.retake', 'comments', `${t.id}.jpg`));
       expect((await readFile(t.still!)).subarray(0, 2).toString('hex')).toBe('ffd8');
-      expect(await readdir(join(project.dir, 'comments', 'quote'))).toEqual([`${t.id}.json`]);
+      expect((await readdir(join(project.dir, 'comments', 'quote'))).sort()).toEqual([...threadsBefore, `${t.id}.json`].sort());
       expect((await readdir(join(project.dir, '.retake', 'comments'))).filter((f) => f.includes('.tmp'))).toEqual([]);
     },
     LONG,
@@ -374,6 +376,8 @@ describe('frame comment store', () => {
     'lists by status, scenario and render as it is now: a thread on an earlier render of a reused id is not on it',
     async () => {
       const tour = await addComment(project, { render: 'tour-v1', frame: 5, text: 'Tour comment' }, HUMAN, authorScope(project, HUMAN), diskOutputs.renders, PERSON_POLICY, FRAMES);
+      // A resolved thread of its own beside the open ones.
+      await resolveComment(project, (await add()).thread.id, { note: 'Done.' }, HUMAN, { renders: diskOutputs.renders, scope: authorScope(project, HUMAN) });
       const onV2 = await add({ render: 'quote-v2' });
       const open = await listComments(diskOutputs.renders, project);
       expect(open.threads.every((t) => t.status === 'open')).toBe(true);

@@ -29,18 +29,18 @@ type Answer = 'accept' | 'decline' | 'never';
 
 let fixture: Fixture;
 let ws: string;
-let home: string;
+const workspaces: string[] = [];
 const sessions: Client[] = [];
 const protocolErrors: Error[] = [];
 
 /** A client; `answer` set: it declares form elicitation and answers every question so (recorded in `asked`). */
-async function connect(answer?: Answer): Promise<{ client: Client; asked: Array<{ message: string; requestedSchema: unknown }> }> {
+async function connect(answer?: Answer, root = ws): Promise<{ client: Client; asked: Array<{ message: string; requestedSchema: unknown }> }> {
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [...SOURCE_ARGS, '--root', ws, 'mcp'],
+    args: [...SOURCE_ARGS, '--root', root, 'mcp'],
     cwd: REPO,
     env: testChildEnv({
-      RETAKE_HOME: home,
+      RETAKE_HOME: join(root, '.home'),
       RETAKE_WORKER_IDLE_MS: '1500',
       // A human who never answers: refused after 1.5 s here (10 min by default).
       RETAKE_MCP_APPROVAL_TIMEOUT_MS: '1500',
@@ -72,27 +72,33 @@ function errorOf(r: Result): { code: string; message: string; fix?: string } {
   return (r.structuredContent as { error: { code: string; message: string; fix?: string } }).error;
 }
 
+/** A copy of the fixture workspace on the fixture's ports, with a shell hook and two dry runs whose setup runs a shell command. */
+async function makeWorkspace(): Promise<string> {
+  const ws = await mkdtemp(join(tmpdir(), 'studio-mcp-approvals-'));
+  workspaces.push(ws);
+  await fixtureWorkspace(ws);
+  const project = join(ws, 'projects', 'northfield-fixture');
+  const yaml = (await readFile(join(project, 'project.yaml'), 'utf8')).replaceAll('http://localhost:4401', fixture.urls.console).replaceAll('http://localhost:4402', fixture.urls.shop);
+  await writeFile(join(project, 'project.yaml'), yaml);
+  await mkdir(join(project, 'hooks'), { recursive: true });
+  await writeFile(join(project, 'hooks', 'post.yaml'), `- name: post\n  shell: {run: "curl -s -X POST ${fixture.urls.console}/api/reset"}\n  writes: false\n`);
+  // L7.15: a dry run whose setup hook runs a shell command (run_dry hooks: "run" needs a human for it), twice.
+  for (const n of ['say-accept', 'say-decline']) {
+    await writeFile(
+      join(project, 'scenarios', `${n}.yaml`),
+      `setup:\n  - name: say\n    shell: {run: "echo hello"}\nvideo: ${n}\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n`,
+    );
+  }
+  return ws;
+}
+
 describe('retake mcp: hooks need a human, asked through elicitation', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
       startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture>;
     };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
-    ws = await mkdtemp(join(tmpdir(), 'studio-mcp-approvals-'));
-    home = join(ws, '.home');
-    await fixtureWorkspace(ws);
-    const project = join(ws, 'projects', 'northfield-fixture');
-    const yaml = (await readFile(join(project, 'project.yaml'), 'utf8')).replaceAll('http://localhost:4401', fixture.urls.console).replaceAll('http://localhost:4402', fixture.urls.shop);
-    await writeFile(join(project, 'project.yaml'), yaml);
-    await mkdir(join(project, 'hooks'), { recursive: true });
-    await writeFile(join(project, 'hooks', 'post.yaml'), `- name: post\n  shell: {run: "curl -s -X POST ${fixture.urls.console}/api/reset"}\n  writes: false\n`);
-    // L7.15: a dry run whose setup hook runs a shell command (run_dry hooks: "run" needs a human for it), twice.
-    for (const n of ['say-accept', 'say-decline']) {
-      await writeFile(
-        join(project, 'scenarios', `${n}.yaml`),
-        `setup:\n  - name: say\n    shell: {run: "echo hello"}\nvideo: ${n}\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n`,
-      );
-    }
+    ws = await makeWorkspace();
   });
 
   afterAll(async () => {
@@ -106,7 +112,7 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
       }
     }
     await fixture?.close();
-    if (ws) await rm(ws, { recursive: true, force: true });
+    for (const w of workspaces) await rm(w, { recursive: true, force: true });
   });
 
   it('hooks_run dry (the default): nothing runs, nobody is asked; the hooks that would need approval are named', async () => {
@@ -182,6 +188,11 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
   });
 
   it('env_reset: replays the pending rollback, then the reset hooks (nothing there needs a human)', async () => {
+    // Its own pending rollback: what an earlier case left is replayed first, then the setup hooks run approved.
+    const setup = await connect('accept');
+    expect((await call(setup.client, 'env_reset', { project: 'northfield-fixture', dry: false, wait_s: 25 })).isError).toBeFalsy();
+    const pending = await call(setup.client, 'hooks_run', { project: 'northfield-fixture', source: 'catalogue:setup', dry: false, wait_s: 25 });
+    expect((pending.structuredContent as { result: { journal: { pending: number } } }).result.journal.pending, JSON.stringify(pending)).toBe(1);
     const { client, asked } = await connect('accept');
     const r = await call(client, 'env_reset', { project: 'northfield-fixture', dry: false, wait_s: 25 });
     expect(r.isError, JSON.stringify(r)).toBeFalsy();
@@ -196,6 +207,8 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
   });
 
   it('project_prune {dry_run: false}: the user is asked (count, size, each item); no form or a decline deletes nothing', async () => {
+    // Its own workspace: no take another case made counts here.
+    const ws = await makeWorkspace();
     const runs = join(ws, 'projects', 'northfield-fixture', 'runs');
     const take = join(runs, '20261018-080000-quote');
     await mkdir(take, { recursive: true });
@@ -222,17 +235,17 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     const left = async () => (await readdir(runs)).filter((n) => n.startsWith('2026')).sort();
     const before = await left();
     expect(before).toContain('20261018-080000-quote');
-    const none = errorOf(await call((await connect()).client, 'project_prune', { project: 'northfield-fixture', dry_run: false }));
+    const none = errorOf(await call((await connect(undefined, ws)).client, 'project_prune', { project: 'northfield-fixture', dry_run: false }));
     expect(none.code).toBe('needs_approval');
     expect(none.fix).toBe(`retake -C ${ws} prune northfield-fixture --yes`);
-    const no = await connect('decline');
+    const no = await connect('decline', ws);
     expect(errorOf(await call(no.client, 'project_prune', { project: 'northfield-fixture', dry_run: false })).code).toBe('refused');
     expect(await left()).toEqual(before);
     expect(no.asked).toHaveLength(1);
     expect(no.asked[0]!.message).toMatch(/the agent asks to delete 2 items from project northfield-fixture's runs\/, renders\/ and review\/, freeing \d+ kB: 2 takes/);
     expect(no.asked[0]!.message).toContain('\n- take 20261018-080000-quote — failed take, ');
     expect(no.asked[0]!.message).toContain(`run it yourself in a terminal: retake -C ${ws} prune northfield-fixture --yes`);
-    const yes = await connect('accept');
+    const yes = await connect('accept', ws);
     const r = await call(yes.client, 'project_prune', { project: 'northfield-fixture', dry_run: false });
     expect(r.isError, JSON.stringify(r)).toBeFalsy();
     expect(r.content[0].text).toMatch(/^2 items of northfield-fixture deleted \(\d+ kB freed\), as the user approved/);

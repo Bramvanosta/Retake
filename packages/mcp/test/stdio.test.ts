@@ -4,10 +4,10 @@
  */
 import { spawn, execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
@@ -59,6 +59,11 @@ beforeAll(async () => {
   client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
   client.onerror = (e) => protocolErrors.push(e);
   await client.connect(transport);
+});
+
+// A project a case created is gone before the next case: each one sees the fixture's projects only.
+afterEach(async () => {
+  for (const name of await readdir(join(ws, 'projects'))) if (name !== 'northfield-fixture') await rm(join(ws, 'projects', name), { recursive: true, force: true });
 });
 
 afterAll(async () => {

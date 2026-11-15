@@ -112,6 +112,7 @@ describe('secrets: a scenario written or run through MCP never names one', () =>
   });
 
   it('a run or hooks of such a scenario (written by hand) are refused at submit with the terminal command', async () => {
+    const before = (await mcp.jobs.list({ project: 'w' })).length;
     const run = await refusal(mcp.runs.submit({ project: 'w', scenario: 'leak', mode: 'dry' }));
     expect(run.code).toBe('refused');
     expect(run.message).toContain('{{env:HOME}}');
@@ -119,7 +120,8 @@ describe('secrets: a scenario written or run through MCP never names one', () =>
     const hooks = await refusal(mcp.hooks.submit({ project: 'w', source: 'leakhook:setup', dry: true }));
     expect(hooks.code).toBe('refused');
     expect(hooks.fix).toBe(`retake -C ${ws} hooks run w leakhook:setup --dry`);
-    expect((await mcp.jobs.list({ project: 'w' })).length).toBe(0);
+    // No job queued by either refusal (other cases may have left cancelled ones).
+    expect((await mcp.jobs.list({ project: 'w' })).length).toBe(before);
   });
 
   it('the worker checks again: hooks of a scenario changed after the submit are refused', async () => {
@@ -145,6 +147,7 @@ describe('secrets: a scenario written or run through MCP never names one', () =>
 describe("navigation: what a scenario opens (its scheme everywhere; agent work: the environment's origins)", () => {
   const FOREIGN = PLAIN_HOOK.replace('video: plain', 'video: foreign').replace('      - hold: 0.2', '      - open: "http://127.0.0.1:4998/admin"');
   const FILE = SHORT.replace('video: short', 'video: file').replace('    open: /', '    open: " file:///etc/hosts"');
+  const foreignFile = () => join(ws, 'projects', 'w', 'scenarios', 'foreign.yaml');
 
   it('save and validate: a file: URL is an error for every client; another origin is saved (save checks the scheme only)', async () => {
     for (const engine of [mcp, cli]) {
@@ -157,6 +160,7 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
       expect(v.ok).toBe(false);
       expect(v.issues.filter((i) => i.severity === 'error')).toEqual([expect.objectContaining({ path: ['scenes', 0, 'open'], line: 5 })]);
     }
+    await rm(foreignFile(), { force: true });
     expect((await mcp.scenarios.save('w', 'foreign', FOREIGN)).created).toBe(true);
     expect((await mcp.scenarios.validate('w', FOREIGN)).ok).toBe(true);
   });
@@ -173,6 +177,7 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
   });
 
   it('a run, an inspection or hooks of a scenario opening another origin are refused at submit, saying what to change', async () => {
+    await writeFile(foreignFile(), FOREIGN);
     const before = (await mcp.jobs.list({ project: 'w' })).length;
     const run = await refusal(mcp.runs.submit({ project: 'w', scenario: 'foreign', mode: 'dry' }));
     expect(run.code).toBe('refused');
@@ -188,6 +193,7 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
   });
 
   it('the Studio runs under the same trust: its run blockers say the same, from the Studio', async () => {
+    await writeFile(foreignFile(), FOREIGN);
     const ui = await createEngine({ root: ws, client: 'ui', autoStartWorker: false });
     const check = await ui.scenarios.check('w', 'foreign');
     expect(check.ok).toBe(true);
@@ -441,7 +447,7 @@ describe('approvals are signed with the Retake home key, for their job', () => {
   });
 
   it('a hooks job: the sha256 of its scenario bytes is signed with its approvals', async () => {
-    const keyFile = join(ws, 'sign-home', 'approvals.key');
+    const keyFile = join(ws, 'sign-home-hooks', 'approvals.key');
     const hooks: HooksJobInput = {
       version: 1,
       kind: 'hooks',
@@ -462,7 +468,7 @@ describe('approvals are signed with the Retake home key, for their job', () => {
   });
 
   it('a malformed signature (short, not hex) is rejected without throwing; the well-signed one beside it still counts', async () => {
-    const keyFile = join(ws, 'sign-home', 'approvals.key');
+    const keyFile = join(ws, 'sign-home-malformed', 'approvals.key');
     const two = { ...input, approvals: [input.approvals![0]!, { ...input.approvals![0]!, fingerprint: 'c'.repeat(64) }] };
     const signed = await signApprovals(two, { jobId, root: ws, keyFile });
     const [ok, other] = signed.approvals!;

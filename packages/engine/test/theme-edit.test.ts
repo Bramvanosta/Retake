@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { cp, link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { THEME_USES_STATS, createEngine, openWorkspace, templateView, diskWorkspaceReads, diskOutputs } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
@@ -68,6 +68,11 @@ beforeAll(async () => {
   engine = await createEngine({ root, client: 'ui', autoStartWorker: false });
   mcp = await createEngine({ root, client: 'mcp', autoStartWorker: false });
 }, 60_000);
+
+// Every case starts from the theme as copied: the edits of another case are not in it.
+beforeEach(async () => {
+  await writeFile(themeFile(), ORIGINAL);
+});
 
 afterAll(async () => {
   retakeHome.restore();

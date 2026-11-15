@@ -17,7 +17,7 @@ import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createComponent } from '@retake/components';
 import { bundleHash } from '@retake/editor';
 import type { ComponentPreviewSpec, PreviewBackend } from '@retake/editor';
@@ -132,6 +132,9 @@ async function renderLibrary(
 const cache = () => libraryCacheDir({ root });
 
 describe('library preview jobs (injected backend)', () => {
+  // Each case starts from an empty preview cache: the previews other cases rendered are not its own.
+  beforeEach(() => rm(cache(), { recursive: true, force: true }));
+
   it("the Studio's keys are the worker's for every component in three themes; committed posters by real path only", async () => {
     // A copy of the editorial starter (same files, so the same keys) is not the starter: no committed poster.
     await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');

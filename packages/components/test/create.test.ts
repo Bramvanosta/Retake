@@ -2,7 +2,7 @@ import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { COMPONENT_KINDS } from '@retake/core';
 import { COMPONENT_SCHEMA_FILE, ComponentError, componentDisplayName, createComponent, loadComponentRegistry, parseManifest } from '@retake/components';
 import { tempDir, writeFiles } from './helpers.js';
@@ -13,13 +13,14 @@ const plainWrite = async (file: string, text: string): Promise<void> => {
   nodeFs.writeFileSync(file, text);
 };
 
+/** A workspace of its own for each test: none sees what another one created (any order, or alone). */
 let ws: { dir: string; cleanup: () => Promise<void> };
 
-beforeAll(async () => {
+beforeEach(async () => {
   ws = await tempDir();
 });
 
-afterAll(async () => {
+afterEach(async () => {
   await ws.cleanup();
 });
 
@@ -67,6 +68,7 @@ describe('createComponent (R-REG-10, R-DEC-03)', () => {
     await expect(createComponent(ws.dir, { write: plainWrite, id: 'Acme/Intro', kind: 'intro' })).rejects.toThrow(/invalid component id "Acme\/Intro": use "namespace\/name"/);
     await expect(createComponent(ws.dir, { write: plainWrite, id: 'intro', kind: 'intro' })).rejects.toThrow(ComponentError);
     await expect(createComponent(ws.dir, { write: plainWrite, id: 'acme/x', kind: 'outr' as never })).rejects.toThrow(/unknown component kind "outr" \(did you mean "outro"\?\)/);
+    await createComponent(ws.dir, { write: plainWrite, id: 'acme/my-intro', kind: 'intro' });
     await expect(createComponent(ws.dir, { write: plainWrite, id: 'acme/my-intro', kind: 'intro' })).rejects.toThrow(/already exists/);
     expect(existsSync(join(ws.dir, 'components', 'acme', 'x'))).toBe(false);
   });

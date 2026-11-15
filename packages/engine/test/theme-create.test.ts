@@ -14,7 +14,7 @@ import { existsSync } from 'node:fs';
 import { cp, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR, listTemplates, loadTemplate, loadWorkspaceConfig, fileFacts } from '@retake/core/io';
 import { fontFileFace } from '@retake/components';
 import { THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, fileNameFace, personScope, enginePorts, diskWorkspaceReads, diskOutputs } from '../src/index.js';
@@ -84,7 +84,8 @@ const WOFF2 = (() => {
   return w;
 })();
 
-beforeAll(async () => {
+// Each case gets its own workspace and engine: none relies on what another left.
+beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-theme-create-'));
   await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'brand'), { recursive: true });
@@ -99,23 +100,24 @@ beforeAll(async () => {
   engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
 });
 
-afterAll(async () => {
+afterEach(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-describe('template_create_from_brand (engine)', () => {
-  let made: ThemeCreated;
-  let startersBefore: string;
+/** The theme `acme` with a wordmark, fonts and a brand, as the first case writes it. */
+const makeAcme = () =>
+  engine.templates.create(
+    input({
+      wordmark: 'brand/wordmark.svg',
+      fonts: { display: 'brand/Grotesk.ttf', body: ['brand/Body-A.ttf', 'brand/Body-B.ttf', { file: 'brand/Body-C.ttf' }] },
+      brand: { name: 'Acme', url: 'acme.test' },
+    }),
+  );
 
+describe('template_create_from_brand (engine)', () => {
   it('writes a new workspace theme: template.yaml, logo, wordmark, renamed fonts, LICENSES.md, provenance', async () => {
-    startersBefore = await folderHash(T);
-    made = await engine.templates.create(
-      input({
-        wordmark: 'brand/wordmark.svg',
-        fonts: { display: 'brand/Grotesk.ttf', body: ['brand/Body-A.ttf', 'brand/Body-B.ttf', { file: 'brand/Body-C.ttf' }] },
-        brand: { name: 'Acme', url: 'acme.test' },
-      }),
-    );
+    const startersBefore = await folderHash(T);
+    const made: ThemeCreated = await makeAcme();
     const dir = join(root, 'templates', 'acme');
     expect(made).toMatchObject({ name: 'acme', dir, base: 'editorial', replaced: false });
     expect(made.files).toEqual([
@@ -192,6 +194,7 @@ describe('template_create_from_brand (engine)', () => {
 
   it('refuses an existing folder of any kind: a theme, an empty folder, a file, a dangling link, another case', async () => {
     const tdir = join(root, 'templates');
+    await makeAcme();
     await mkdir(join(tdir, 'empty'));
     await writeFile(join(tdir, 'afile'), 'x');
     await symlink(join(root, 'nowhere'), join(tdir, 'dangle'));
@@ -235,7 +238,7 @@ describe('template_create_from_brand (engine)', () => {
   });
 
   it('replace: an unchanged tool-made theme is replaced; once changed, added to or emptied of a file, never', async () => {
-    const before = made;
+    const before = await makeAcme();
     const r = await engine.templates.create(input({ colors: { accent: '#3352b8' }, replace: true }));
     expect(r).toMatchObject({ replaced: true, name: 'acme' });
     expect((await loadTemplate('acme', root, { files: fileFacts(PERSON_POLICY) })).template.colors.accent).toBe('#3352b8');
@@ -262,6 +265,7 @@ describe('template_create_from_brand (engine)', () => {
     expect((await engine.templates.create(input({ replace: true }))).replaced).toBe(true);
     // A human's theme (no provenance) and an existing folder of another case are never replaced.
     await cp(join(T, 'editorial'), join(root, 'templates', 'human'), { recursive: true });
+    await mkdir(join(root, 'templates', 'Mixed'));
     expect(await refusal(engine.templates.create(input({ name: 'human', replace: true })))).toMatchObject({ code: 'refused', message: expect.stringMatching(/not made by this tool/) });
     expect(await refusal(engine.templates.create(input({ name: 'mixed', replace: true })))).toMatchObject({ code: 'refused', message: expect.stringMatching(/another case|not made by this tool/) });
     // replace with nothing there creates it.

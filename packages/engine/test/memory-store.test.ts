@@ -8,7 +8,7 @@
 import { readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { ManualClock, MemoryProjectStores, MemoryWorkspace, README_MAX_CHARS, callerOf, createEngine, sha256Hex } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { projectStoreContract } from './project-store-contract.js';
@@ -76,15 +76,18 @@ describe('the README on in-memory ports (engine.projects: updateReadme, get)', (
   const AT = '2026-05-06T07:08:09.000Z';
   const clock = new ManualClock(AT);
   // L7.38: the workspace is in memory too (a MemoryWorkspace: its reads and its store share one Map) — no folder of the disk.
-  const mem = new MemoryWorkspace();
-  const stores = mem.stores;
+  // A new one for each case: its README and journal lines are the case's own.
+  let mem: MemoryWorkspace;
+  let stores: MemoryWorkspace['stores'];
   const root = join(sep, 'retake-memory', 'readme');
   const dir = join(root, 'projects', 'acme');
   let engine: Engine;
   const readmeLine = (o: Record<string, unknown>) =>
     JSON.stringify({ v: 1, at: AT, by: { client: 'mcp', channel: 'mcp', trust: 'mcp' }, project: 'acme', op: 'write', what: 'readme', path: 'projects/acme/README.md', ...o });
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    mem = new MemoryWorkspace();
+    stores = mem.stores;
     mem.seed(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
     // The project loads from the Map (core loadProject on the memory disk), its README is written to it by the store.
     mem.seed(join(dir, 'project.yaml'), 'version: 1\nname: Acme\nenvironments:\n  local:\n    app: http://127.0.0.1:4999\n');
@@ -120,6 +123,8 @@ describe('the README on in-memory ports (engine.projects: updateReadme, get)', (
   });
 
   it('the cap holds for the file as written: README_MAX_CHARS with its final line break, refused before the store (no line)', async () => {
+    // A README there, replaced on its hash (as after the case above).
+    await engine.projects.updateReadme('acme', '# Acme', undefined);
     const current = (await engine.projects.get('acme')).readme_hash;
     const before = stores.journalLines(root).length;
     const over = await failure(engine.projects.updateReadme('acme', 'x'.repeat(README_MAX_CHARS), current));

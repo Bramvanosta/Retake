@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { COMPONENT_KINDS } from '@retake/core';
 import {
   componentCreate,
@@ -29,20 +29,36 @@ import type { OpenedWorkspace } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
+let home: string;
 let ws: OpenedWorkspace;
 const retakeHome = scratchHome();
 const scope = () => personScope(root, enginePorts());
+/** The workspace component acme/badge, and beside it acme/broken (a manifest that does not validate). */
+async function badgeAndBroken(): Promise<void> {
+  await componentCreateShell(ws, { id: 'acme/badge', kind: 'overlay', description: 'A badge.' }, scope());
+  await mkdir(join(ws.componentsDir, 'acme', 'broken'), { recursive: true });
+  await writeFile(join(ws.componentsDir, 'acme', 'broken', 'component.yaml'), 'id: acme/broken\nkind: nonsense\n');
+}
 
 beforeAll(async () => {
+  home = await mkdtemp(join(tmpdir(), 'retake-component-shell-home-'));
+  retakeHome.use(home);
+});
+
+afterAll(async () => {
+  retakeHome.restore();
+  await rm(home, { recursive: true, force: true });
+});
+
+// Each case gets its own workspace: the components it lists are the ones it made.
+beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-component-shell-'));
-  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
   await mkdir(join(root, 'projects'), { recursive: true });
   ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
 }, 60_000);
 
-afterAll(async () => {
-  retakeHome.restore();
+afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
@@ -64,10 +80,7 @@ describe('the component use cases a shell calls (L7.24)', () => {
   });
 
   it("validate by folder and by id; every workspace component, a broken one by its folder's id", async () => {
-    await componentCreateShell(ws, { id: 'acme/badge', kind: 'overlay', description: 'A badge.' }, scope());
-    const broken = join(ws.componentsDir, 'acme', 'broken');
-    await mkdir(broken, { recursive: true });
-    await writeFile(join(broken, 'component.yaml'), 'id: acme/broken\nkind: nonsense\n');
+    await badgeAndBroken();
     const byDir = await componentValidateShell(ws, { ref: 'here', dir: join(ws.componentsDir, 'acme', 'badge') });
     expect(byDir.components).toEqual([{ id: 'acme/badge', dir: join(ws.componentsDir, 'acme', 'badge'), ok: true, issues: [] }]);
     const all = await componentValidateShell(ws, { workspace: true });
@@ -81,6 +94,7 @@ describe('the component use cases a shell calls (L7.24)', () => {
   });
 
   it("preview targets: a kind's scaffold by name, a manifest that does not validate refused, --all with and without the scaffolds", async () => {
+    await badgeAndBroken();
     const card = await componentPreviewTargets(ws, { ref: { ref: 'scaffolds/card', dir: join(root, 'scaffolds', 'card') } });
     expect('targets' in card && card.targets.map((t) => t.dir)).toEqual([expect.stringMatching(/scaffolds[/\\]card$/)]);
     expect('theme' in card && card.theme).toBe('editorial');
@@ -103,6 +117,7 @@ describe('the component use cases a shell calls (L7.24)', () => {
   });
 
   it("the preview theme: the previews' own by default, by name; the README writer journals as its caller, under <components_dir> outside the workspace", async () => {
+    await badgeAndBroken();
     const t = await componentPreviewTheme(ws);
     expect([t.theme, t.template.name]).toEqual(['editorial', 'editorial']);
     expect((await componentPreviewTheme(ws, 'motion')).template.name).toBe('motion');

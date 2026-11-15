@@ -444,6 +444,9 @@ describe('site jobs on the in-memory capture runner', () => {
 
 describe.skipIf(!can)('site jobs on the brand-site fixture', () => {
   it('refuses at submit: the URL rules, an environment page, no way to ask, a decline', async () => {
+    // The approvals asked and the pages served for other cases are not this case's.
+    asked.length = 0;
+    const hitsBefore = site.hits.length;
     const before = (await engine.jobs.list({})).length;
     for (const [url, why] of [
       ['http://www.brand.test/', /only https/],
@@ -464,7 +467,7 @@ describe.skipIf(!can)('site jobs on the brand-site fixture', () => {
     const declined = await refusal(engine.templates.fromSite({ url: 'https://brand.test/' }, { approver: approver({ approved: false, reason: 'declined' }) }));
     expect(declined).toMatchObject({ code: 'refused', message: expect.stringMatching(/the user declined/), fix: expect.stringMatching(/theme from-site/) });
     expect((await engine.jobs.list({})).length).toBe(before);
-    expect(site.hits).toEqual([]);
+    expect(site.hits.slice(hitsBefore)).toEqual([]);
   });
 
   let result: SiteJobResult;

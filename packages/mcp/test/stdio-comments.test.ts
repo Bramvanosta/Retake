@@ -17,7 +17,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { CommentThread } from '@retake/core';
@@ -74,7 +74,8 @@ function retake(...args: string[]): string {
 
 const threadPath = (id: string) => join(ws.project.dir, 'comments', 'quote', `${id}.json`);
 
-beforeAll(async () => {
+/** Its own workspace (quote-v1, quote-v2, a marked and a plain thread by a person) and a server on it. */
+async function setUp(): Promise<void> {
   ws = await workspace();
   const v1 = await makeCase(ws, 'quote', scenesTimeline([6, 6], { steps: { 1: [{ action: 'wait_for', t_start: 9.11, t_end: 9.112, mark: 'proposal' }] } }), { noVideo: !can });
   await writeFile(
@@ -97,14 +98,18 @@ beforeAll(async () => {
   client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
   client.onerror = (e) => protocolErrors.push(e);
   await client.connect(transport);
-}, LONG);
+}
 
-afterAll(async () => {
+async function tearDown(): Promise<void> {
   await client?.close().catch(() => undefined);
   await ws?.cleanup();
-});
+}
 
-describe('retake mcp: frame comments', () => {
+// The cases run in order on purpose: one thread listed, replied to, then resolved.
+describe('retake mcp: frame comments', { shuffle: false }, () => {
+  beforeAll(setUp, LONG);
+  afterAll(tearDown);
+
   it('lists comments_list (read), comment_reply and comment_resolve (write files, never destructive): no create, no reopen, no author argument', async () => {
     const { tools } = await client.listTools();
     const by = new Map(tools.map((t) => [t.name, t]));
@@ -304,17 +309,25 @@ describe('retake mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
   const reply = (proposal: Record<string, unknown>, id = studioId) => call('comment_reply', { project: 'demo', comment_id: id, text: 'Proposed a shorter caption.', proposal });
 
   beforeAll(async () => {
-    await mkdir(join(ws.project.dir, 'scenarios'), { recursive: true });
-    await writeFile(scenarioFile(), TOUR);
+    await setUp();
+    // A person resolved the marked thread with the later render.
+    retake('resolve', 'demo', ids.marked!, '--note', 'Done.', '--render', 'quote-v2');
     // The person at the Studio: the Studio's own engine client writes the thread as `studio`.
     retakeHome.use(join(ws.root, '.home'));
     ui = await createEngine({ root: ws.root, client: 'ui', autoStartWorker: false });
-    const record = JSON.parse(await readFile(join(ws.project.dir, 'renders', 'quote-v1.json'), 'utf8')) as { created_at: string };
-    studioId = (await ui.comments.add('demo', { render: 'quote-v1', render_created_at: record.created_at, frame: 20, text: 'The intro caption says too much.' })).thread.id;
   }, LONG);
 
-  afterAll(() => {
+  // Each case starts from the tour and a new Studio thread on quote-v1.
+  beforeEach(async () => {
+    await mkdir(join(ws.project.dir, 'scenarios'), { recursive: true });
+    await writeFile(scenarioFile(), TOUR);
+    const record = JSON.parse(await readFile(join(ws.project.dir, 'renders', 'quote-v1.json'), 'utf8')) as { created_at: string };
+    studioId = (await ui.comments.add('demo', { render: 'quote-v1', render_created_at: record.created_at, frame: 20, text: 'The intro caption says too much.' })).thread.id;
+  });
+
+  afterAll(async () => {
     retakeHome.restore();
+    await tearDown();
   });
 
   it("the INSTRUCTIONS: the proposal loop for an edit-only change on a Studio thread, the direct loop otherwise, the Studio never Claude's (Q1 as amended, critique B6)", () => {
@@ -373,7 +386,7 @@ describe('retake mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
       expect(errorOf(await reply({ scenario_yaml: TOUR.replace('caption: The intro', 'caption: [The intro'), scenario_hash: sha(TOUR) })).code).toMatch(/invalid|refused/);
       expect(errorOf(await reply({ scenario_yaml: TOUR, scenario_hash: sha(TOUR) })).code).toBe('invalid');
       expect(await bytes()).toEqual(before);
-      // ids.marked was resolved above: a proposal answers an open thread.
+      // ids.marked was resolved by a person: a proposal answers an open thread.
       const resolved = errorOf(await reply({ scenario_yaml: SHORTER, scenario_hash: sha(TOUR) }, ids.marked));
       expect(resolved.code).toBe('conflict');
       expect(resolved.message).toContain('resolved');

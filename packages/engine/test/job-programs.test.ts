@@ -79,6 +79,8 @@ afterAll(async () => {
 
 describe('a program inside the workspace: refused for a job of the worker, run by the CLI', () => {
   it('the worker fails the run before browser.executable starts, saying to move it out of the workspace', async () => {
+    // The marker a terminal's run left (the CLI case) is not this case's.
+    await rm(marker, { force: true });
     const engine = await createEngine({ root: ws, client: 'test', autoStartWorker: false });
     const sub = await engine.runs.submit({ project: 'w', scenario: 'short', mode: 'dry' });
     // The submitting engine's own policy is not what refuses: the worker opens the workspace under it for itself.

@@ -302,6 +302,8 @@ describe('files the Studio does not write', () => {
     const h0 = await put('latin.yaml', latin);
     const s = await ui.scenarios.get('w', 'latin');
     expect(s.utf8).toBe(false);
+    // A UTF-8 scenario beside it, written here.
+    await put('one.yaml', SHORT);
     expect((await ui.scenarios.get('w', 'one')).utf8).toBe(true);
     const v = await ui.scenarios.view('w', 'latin');
     expect(v.edit.yaml).toMatchObject({ ok: false, why: expect.stringMatching(/^scenarios\/latin\.yaml is not UTF-8 text/) });

@@ -14,7 +14,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, open, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import type { CommentThread, LoadedProject } from '@retake/core';
 import { CommentIndex, EngineError, addComment, anchorAt, createEngine, diffSources, scanSources, workspaceChanges, packageReviewer } from '../src/index.js';
 import type { Engine } from '../src/index.js';
@@ -87,6 +87,40 @@ afterAll(async () => {
   retakeHome.restore();
   await ws?.cleanup();
 });
+
+/**
+ * A workspace of the case's own, as the shared one is made, with threads of its own: open and resolved ones on quote,
+ * one on slow. Its names shadow the shared ones', so a case reads only the threads it made.
+ */
+async function ownWorkspace() {
+  const own = await workspace();
+  onTestFinished(() => own.cleanup());
+  const project = own.project;
+  const tl = scenesTimeline([6, 6], { steps: { 1: [{ action: 'wait_for', t_start: 9.11, t_end: 9.112, mark: 'proposal' }] } });
+  const v1 = await makeCase(own, 'quote', tl, { noVideo: true });
+  await writeFile(join(v1.run.dir, 'scenario.yaml'), SCENARIO);
+  await mkdir(join(project.dir, 'scenarios'), { recursive: true });
+  await writeFile(join(project.dir, 'scenarios', 'quote.yaml'), `${SCENARIO}\n`);
+  await makeCase(own, 'slow', scenesTimeline([5]), { noVideo: true });
+  const ui = await createEngine({ root: own.root, client: 'ui', autoStartWorker: false });
+  const mcp = await createEngine({ root: own.root, client: 'mcp', autoStartWorker: false });
+  const uiAdd = (o: Record<string, unknown> = {}) => ui.comments.add('demo', { render: 'quote-v1', render_created_at: v1.record.created_at, frame: 10, text: 'From the Studio', ...o });
+  await uiAdd();
+  const done = (await uiAdd({ frame: 20 })).thread;
+  await ui.comments.resolve('demo', done.id, { note: 'Done.', if_match: done.hash });
+  await addComment(
+    project,
+    { render: 'slow-v1', frame: 5, text: 'Slow' },
+    { via: 'cli', name: 'Reviewer' },
+    authorScope(project, { via: 'cli', name: 'Reviewer' }),
+    diskOutputs.renders,
+    PERSON_POLICY,
+    FRAMES,
+  );
+  const threadFile = (id: string) => join(project.dir, 'comments', 'quote', `${id}.json`);
+  const readThreadFile = async (id: string) => JSON.parse(await readFile(threadFile(id), 'utf8')) as CommentThread;
+  return { ws: own, project, ui, mcp, uiAdd, threadFile, readThreadFile };
+}
 
 describe('the Studio channel (T1)', () => {
   it(
@@ -243,6 +277,7 @@ describe('counts from the thread files alone (B8)', () => {
   it(
     'open / resolved per scenario, one file re-read after a reply, a broken file counted as a problem, never a render record',
     async () => {
+      const { project, ui, threadFile, readThreadFile } = await ownWorkspace();
       const index = new CommentIndex();
       const counted = await index.counts(project);
       const listed = await ui.comments.list('demo', { status: 'all' });
@@ -294,6 +329,7 @@ describe('comments: event sources (D9)', () => {
   it(
     'one source per real scenario folder; a reply changes only its own; a linked folder is not one',
     async () => {
+      const { ws, project, ui, mcp, uiAdd } = await ownWorkspace();
       const a = await scanSources(ui.workspace);
       expect([...a.keys()].filter((k) => k.startsWith('comments:'))).toEqual(['comments:demo/quote', 'comments:demo/slow']);
       const { thread } = await uiAdd();

@@ -1,6 +1,6 @@
 /**
  * `retake sandbox …` and `retake run --sandbox` (L1.8) on the bundled fixture's own sandbox.yaml (the committed one,
- * moved to free ports and started with --no-build) and its `sandbox-quote` scenario (quick pacing): status / up /
+ * moved to free ports and started with --no-build) and its `sandbox-quote` scenario (fast pacing, no holds): status / up /
  * logs / down, a run on the sandbox environment without --sandbox while it is down (refused) and while it is up (no
  * reset), two takes with --sandbox showing the same data though the sandbox was changed between them, the take lock,
  * the usage errors of --sandbox, and doctor's line. The Retake home is a temp folder (RETAKE_HOME). Skipped when
@@ -22,6 +22,7 @@ import { packageHookRunner } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { PERSON_POLICY } from '@retake/core';
 import { scratchHome } from '@retake/test-support/home';
+import { FAST } from '@retake/test-support/capture';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const FIXTURE_PROJECT = join(REPO, 'projects/northfield-fixture');
@@ -84,7 +85,8 @@ async function lastRun(scenario: string): Promise<{ record: RunRecord; texts: Re
 
 const api = (path: string) => `http://localhost:${ports[0]}${path}`;
 
-describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fixture, process provider)', () => {
+// One sandbox through its life (down, up, takes, the lock, down): the cases run in order on purpose, never shuffled.
+describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fixture, process provider)', { shuffle: false }, () => {
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), 'studio-sandbox-home-'));
     retakeHome.use(home);
@@ -115,12 +117,12 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
     manifest = manifest.replace('command: [node, server.mjs,', `command: [node, ${JSON.stringify(join(REPO, 'fixtures/wholesale/server.mjs'))}, --no-build,`).replace(/\n\s+cwd: [^\n]+/, '');
     expect(manifest).toContain(`--no-build, --console-port, "${ports[0]}"`);
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), manifest);
-    // The committed scenario, quicker.
-    const scenario = (await readFile(join(FIXTURE_PROJECT, 'scenarios', 'sandbox-quote.yaml'), 'utf8')).replace(
-      /^pacing: .*$/m,
-      'pacing: {scene_start_still: 0.2, settle_ms: 300, hover_ms: 60, after_click_ms: 120, after_popup_ms: 250, after_navigation_ms: 300, move_min_ms: 120, move_max_ms: 300}',
-    );
-    expect(scenario).toContain('settle_ms: 300');
+    // The committed scenario, quicker: the functional tests' fast pacing, without its holds (the same steps and texts).
+    const scenario = (await readFile(join(FIXTURE_PROJECT, 'scenarios', 'sandbox-quote.yaml'), 'utf8'))
+      .replace(/^pacing: .*$/m, `pacing: ${JSON.stringify(FAST)}`)
+      .replace(/^\s+- hold: [\d.]+\n/gm, '');
+    expect(scenario).toContain('"settle_ms":300');
+    expect(scenario).not.toContain('hold:');
     await writeFile(join(dir, 'scenarios', 'sandbox-quote.yaml'), scenario);
   });
 

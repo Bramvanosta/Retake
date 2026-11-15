@@ -142,6 +142,9 @@ describe('retake mcp: scenario_record', () => {
   });
 
   it('refuses what it cannot record, queueing nothing: an unknown argument, another origin, a template, an unknown page', async () => {
+    // The jobs another case queued before this one.
+    const jobIds = async () => data<{ jobs: Array<{ id: string }> }>(await call('job_list', {})).jobs.map((j) => j.id);
+    const before = await jobIds();
     const extra = await call('scenario_record', { project: PROJECT, page: 'shop', allow_writes: true });
     expect(extra.isError).toBe(true);
     expect(summary(extra)).toMatch(/invalid arguments/);
@@ -152,7 +155,7 @@ describe('retake mcp: scenario_record', () => {
     expect(summary(template)).toMatch(/^refused:/);
     const unknown = await call('scenario_record', { project: PROJECT, page: 'nowhere' });
     expect(summary(unknown)).toMatch(/^not_found:/);
-    expect(data<{ jobs: unknown[] }>(await call('job_list', {})).jobs).toEqual([]);
+    expect(await jobIds()).toEqual(before);
   });
 
   it('returns at once with the job id and what to ask the user; job_cancel before the window opens cancels it, no draft', async () => {

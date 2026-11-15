@@ -5,9 +5,9 @@
  * threads out with a hint to narrow the listing; comment_reply returns its thread the same way. Tools run in-process
  * on a real engine (client mcp).
  */
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { newCommentEntryId, newCommentId } from '@retake/core';
 import { createEngine } from '@retake/engine';
 import type { CommentListView, CommentView, Engine } from '@retake/engine';
@@ -58,14 +58,20 @@ function thread(id: string, i: number) {
 beforeAll(async () => {
   ws = await workspace();
   retakeHome.use(join(ws.root, '.home'));
+  engine = await createEngine({ root: ws.root, client: 'mcp', autoStartWorker: false });
+}, LONG);
+
+// Each case gets the ten threads as planted: no reply of another case in them.
+beforeEach(async () => {
   const dir = join(ws.project.dir, 'comments', 'quote');
+  await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
+  ids.length = 0;
   for (let i = 0; i < 10; i++) {
     const id = newCommentId();
     ids.push(id);
     await writeFile(join(dir, `${id}.json`), `${JSON.stringify(thread(id, i), null, 2)}\n`);
   }
-  engine = await createEngine({ root: ws.root, client: 'mcp', autoStartWorker: false });
 }, LONG);
 
 afterAll(async () => {

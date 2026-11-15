@@ -95,6 +95,8 @@ afterAll(async () => {
 
 describe('rollback journal entries are signed (L5.14)', () => {
   it('an environment reset replays what Retake recorded and never a hand-placed journal (runs/<id>/, .retake/journals/): refused, and said', async () => {
+    // The journals and logs other cases left are not this case's: the reset replays only what it finds here.
+    for (const rel of ['runs', '.retake/journals', 'marks.log', 'undo.log', 'placed.log']) await rm(join(project, rel), { recursive: true, force: true });
     const hooks = await engine.hooks.submit({ project: 'w', source: 'hooks/mark.yaml', dry: false }, accept);
     expect(await work()).toBe(0);
     expect((await queue.stored(hooks.job.id))?.state).toBe('succeeded');

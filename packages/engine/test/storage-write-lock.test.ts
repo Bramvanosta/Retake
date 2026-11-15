@@ -163,6 +163,7 @@ describe("a save keeps the replaced file's permissions (critique B11)", () => {
   });
 
   it('a write through a link and one to its target share one lock: of the two, one conflicts', async () => {
+    for (const d of ['docs', 'scenarios']) await mkdir(join(dir, d), { recursive: true });
     await writeFile(join(dir, 'docs', 'shared.yaml'), 'd: 0\n');
     await symlink('../docs/shared.yaml', join(dir, 'scenarios', 'shared.yaml'));
     let current = sha256Hex('d: 0\n');

@@ -75,6 +75,62 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.53)
+- **L7.53 done (2026-11-15; branch `claude/arch-l7`)** — the order-dependent files of the audit pass in any order, and
+  the slowest incidental waits are gone: −84 s on the three slow files measured alone.
+  - Code: tests only. No production code, no test helper with a pin, no new file, no new dependency. No ratchet or
+    lint-baseline entry went stale (baseline 106, lint 457, unchanged).
+  - T-5, the order dependence: 39 of the audit's 50 order-dependent files were fixed. Each now passes alone with
+    `--sequence.shuffle`, seeds 7, 11 and 3 (record-studio: 7 and 11), and in the default order. Three fixes were used:
+    - Own state per test: a `beforeEach` workspace, its own engine or project, or a lazy fixture each test awaits.
+    - Counts from the test's own start: `before` and the deltas, or hits sliced from the start, instead of `[]` or an
+      absolute count on a shared queue or folder.
+    - `describe(…, { shuffle: false })` with a comment, only where a chain on one resource is the point: the Sandboxes
+      contract suite (`engine/test/sandbox-contract.ts`), the CLI sandbox life cycle (`cli/test/sandbox.test.ts`),
+      `sandbox/test/process.test.ts`, `engine/test/sign-in-sandbox-jobs.test.ts`, the "frame comments" chain of
+      `mcp/test/stdio-comments.test.ts` and `engine/test/record-studio.test.ts`. record-studio is wrapped in one outer
+      describe because its later cases build on the lab its first case records; the file was re-indented.
+    - Real causes, beyond leftovers:
+      - captures: the first test made the shared folder.
+      - reset-hook-approvals: "the items" compared a fingerprint without the files the hook names, which held only while
+        `reset-marker.txt` did not exist yet. It now passes the port's files, so the assertion says what the sandbox
+        checks.
+      - inspect-jobs: a one-job worker settles a job cancelled before it started as its one job. `settle()` now runs
+        workers until nothing is queued.
+      - process.test: a failed take left the lock held, so later cases failed; the take is now released in a `finally`.
+  - T-5, fixed ports: record-studio and ui studio-e2e-record both listened on 4551–4554, so they collided when run in
+    parallel. Both now take free ports.
+  - T-10, the slow files (each run alone, fresh RETAKE_HOME, before → after):
+    - engine record.test: 136.2 → 82.6 s. It keeps both real round trips; the project's pacing is the tests' `FAST`.
+    - cli sandbox.test: 51.4 → 31.2 s. It keeps three real takes, with `FAST` pacing and no holds.
+    - core import-rules: 17.8 → 7.7 s. The repository is scanned once per file, as the entries already were.
+    - Total for the three: 205.4 → 121.5 s.
+  - File queue → memory queue, where the queue is incidental:
+    - record.test: `MemoryJobQueue` in its RecordPorts.
+    - jobs.test: the submit/status case uses its own engine on `memoryJobQueues()`.
+    - Left on the file queue on purpose: the files that test the queue, the worker processes and the Studio e2e files,
+      since a child-process worker cannot share a memory queue.
+  - Tests: test-guard reports no decrease; no title was renamed. Expects added: captures +3, record-jobs +1,
+    site-list +1, stdio-approvals +2. Expects that changed form (none weakened):
+    - absolute → own-start: agent-safety job count, comments thread folder, record-jobs ×2, site-job hits, inspect-jobs
+      ×2, stdio-record job ids, stdio-site hits.
+    - reset-hook-approvals: marker counts as deltas.
+    - stdio-approvals: the prune `${ws}` is the case's own workspace.
+  - Mutations: the chains pinned with `{ shuffle: false }` were checked by running them shuffled. Before the option they
+    were red; with it they are green under the same seeds.
+  - Gates (exit 0): `npx tsc -b`, `pnpm typecheck`, `pnpm lint` (none new), `pnpm format:check`, `node scripts/audit/rules.mjs --check` (106),
+    `node scripts/test-guard.mjs` (no decrease), `node scripts/requirements.mjs --check-cites` (no edits).
+  - Not done:
+    - The weekly shuffled run of the CI tier (part of T-5): no workflow was added.
+    - The remaining T-10 items: stdio-inspect's handlers in-process; review-export-jobs' export and review.test, which
+      are L7.47d's area.
+    - The files left to L7.47d: index-db, render-jobs, prune and scenario-view (all order-dependent); review-export-jobs
+      and review.test were not checked.
+    - Not checked under shuffle: render-own-ffmpeg, render-real, worker-process and render-worker-process (slow, real
+      renderer or processes).
+    - captures-first-acceptance keeps its fixed ports 4941–4942 (gated, not run here).
+    - records-characterization: see Questions.
+
 ## State (after L7.47d)
 - **L7.47d done, partly (2026-11-15; branch `claude/arch-l7`)** — no engine module outside `outputs/` spells a path into runs/, renders/, review/, exports/ or .retake/inspect/ (the `output-read` check now holds it: `projectPath(…, 'runs'|'renders'|'review'|'exports')`, `statePath(…, 'inspect')`, any `runPath(…)`); the inspect folder's mkdir, render-job's timeline hash and partial removals, export cleanup (its partials and a manifest's leftover `manifest.json.<8 hex>.tmp`), index-db's realpath of renders/ and its signatures, project-board's signatures and renders/ listing, timeline-view's timeline key, reviews.ts's report read go through the port; a run's own files (pictures, frames, videos, scenario snapshot) are read by `outputs/run-files.ts` (moved, `RunFolder`), also for the threads' and proposals' scenario.yaml; `MemoryWorkspace.ports()` hands its `MemoryOutputs`; one handed-project guard for both reviewers; `retake run` releases its listed-run reservation when the run throws; `retake render --music` checks the file through the workspace's reads (CLI render.ts: no node:fs). Published surfaces unchanged (CLI / MCP output, file names, layouts, bytes).
   - Code: `outputs/outputs.ts` `runFolderOf(projectDir, id)`; OutputFolder `removeFile` (one file, a link removed never its target, a folder refused), `makeFolder`, `within(projectDir)` (the member's folder inside the project once links are followed), `signature(path, { follow })`; RunOutputs `readBytes(dir, file)`, `signature(path, { follow })`; OutputFs `readBytes` (disk readFile, memory). `run-files.ts` → `outputs/run-files.ts` (unchanged code; importers, index.ts, DESIGN.md). render-job `removePartials(folder, dir, prefix)` (names + removeFile), `timelineBytes` (runs.readBytes: the bytes as a read sees them, a link followed as readFile followed it). export-job `MANIFEST_TEMP_RE`. inspect-job `inspectRoot` = OUTPUT_DIRS.inspections, makeFolder / remove / `readInspectReport(inspections, file)`. index-db `renders.within`, sources' signatures through the port with `follow` (stat, as before). threads `runInputs` and proposals' snapshot through `RunFolder` (core `scenarioSinceRun(project, run | { then }, …)`: the snapshot handed as text). review `types.ts` `isHandedProject` / `NOT_HANDED_PROJECT` (checks entry and root), used by load.ts `handedProject` and the memory reviewer. cli run.ts: listed run released in the run's catch. cli render.ts: `ws.reads.disk.facts.kind`. Paths only, via the port's layout: hooks journal paths (package and memory hook runners), pipeline's default still, render-frames' renders/, renders.ts's video and report paths, review-job's review dir, memory reviewer's paths.

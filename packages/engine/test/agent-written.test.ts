@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PERSON_POLICY, parseScenario } from '@retake/core';
 import { fileFacts, loadProject } from '@retake/core/io';
 import type { Scenario } from '@retake/core';
@@ -282,7 +282,8 @@ describe('who wrote the hooks: before the record, and when it cannot be known', 
       await mcp.scenarios.save('demo', 'vialink', HOOKED('vialink'));
       expect(readFileSync(target, 'utf8')).toBe('');
       await rm(record);
-      await writeFile(record, saved);
+      // Back without the torn line: other cases read the record line by line.
+      await writeFile(record, saved.replace('{"v":1,"torn\n', ''));
     } finally {
       await rm(lonely, { recursive: true, force: true });
     }
@@ -369,7 +370,8 @@ describe('a person’s trust binds the files its hooks read (L7.39)', () => {
   const CODE = ['scenarios/helper.sh', 'sql/seed.sql', 'sql/undo.sql', 'tools/after.js', 'tools/seed.sh'];
   let project: Awaited<ReturnType<typeof loadProject>>;
 
-  beforeAll(async () => {
+  // Before each case: the files as the cases expect them, whatever an earlier case changed.
+  beforeEach(async () => {
     await mkdir(join(projectDir, 'tools'), { recursive: true });
     await mkdir(join(projectDir, 'sql'), { recursive: true });
     await writeFile(join(projectDir, 'tools', 'seed.sh'), 'echo seed\n');

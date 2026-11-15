@@ -98,6 +98,8 @@ afterAll(async () => {
 
 describe.skipIf(!can)('retake mcp: template_from_site', () => {
   it('a client without elicitation: needs_approval with the CLI command; a decline: refused; nothing opened', async () => {
+    // What another case fetched before this one.
+    const hitsBefore = site.hits.length;
     const { client } = await connect();
     const r = await call(client, 'template_from_site', { url: 'https://brand.test/' });
     expect(r.isError).toBe(true);
@@ -111,7 +113,7 @@ describe.skipIf(!can)('retake mcp: template_from_site', () => {
       fix: expect.stringMatching(/theme from-site/),
     });
     expect(d.asked).toHaveLength(1);
-    expect(site.hits).toEqual([]);
+    expect(site.hits.slice(hitsBefore)).toEqual([]);
     const refused = await call(client, 'template_from_site', { url: 'https://brand.test/?ref=agent' });
     expect((refused.structuredContent as { error: { code: string } }).error.code).toBe('refused');
   }, 120_000);

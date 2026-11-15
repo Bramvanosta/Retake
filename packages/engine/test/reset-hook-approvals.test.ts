@@ -5,7 +5,9 @@
  * an approval of a reset hook is never a seed step's. An unapproved reset hook, or one changed since its approval, is
  * refused; an approved one runs; a person's own reset (no trust) runs it as before.
  *
- * A small process sandbox in a temp workspace (a node service answering /health); no worker, no browser.
+ * A small process sandbox in a temp workspace (a node service answering /health); no worker, no browser. Each test
+ * stands alone (any order, or alone with -t): it starts the sandbox when it needs it running (`running()`) and counts
+ * what ran from its own start (`markers()`).
  */
 import { resolveSecretRef } from '@retake/core/io';
 import { existsSync } from 'node:fs';
@@ -88,7 +90,13 @@ const marker = async (name: string) => {
   const f = join(dir, 'sandbox', name);
   return existsSync(f) ? (await readFile(f, 'utf8')).trim().split('\n').length : 0;
 };
+const markers = async () => [await marker('seed-marker.txt'), await marker('reset-marker.txt')];
 const project = (): Promise<LoadedProject> => loadProject('s', ws);
+/** The sandbox running (a person's own up when it is not), for the tests of a reset on a running sandbox. */
+async function running(): Promise<void> {
+  const s = openSandbox(await project(), 'sandbox', PERSON_POLICY, resolveSecretRef, packageHookRunner());
+  if ((await s.status()).state !== 'up') await s.up();
+}
 const approvalsOf = (items: readonly ApprovalItem[]): JobApproval[] => items.map((i) => ({ fingerprint: i.fingerprint, by: 'human-elicitation', at: '2026-11-11T10:00:00.000Z' }) as JobApproval);
 /** A reset under trust `mcp` with `approvals`, as a sandbox job runs it (sandbox-job.ts executeSandboxJob). */
 async function agentReset(approvals: readonly JobApproval[]): Promise<string> {
@@ -136,7 +144,9 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
       ['reset', 1, 'clean', 'shell', 'a shell command (runs local code)'],
     ]);
     const hook = p.sandboxes!.sandbox.manifest.reset!.hooks![1] as never;
-    expect(items[1].fingerprint).toBe(hookFingerprint(hook, { phase: 'reset', index: 1, env: 'sandbox' }));
+    // With the files the hook names, as the sandbox reads them when it runs (reset-marker.txt, once a reset wrote it).
+    const { files } = await packageHookRunner().approval.files(hook, { projectDir: p.dir, baseDir: p.sandboxes!.sandbox.dir });
+    expect(items[1].fingerprint).toBe(hookFingerprint(hook, { phase: 'reset', index: 1, env: 'sandbox', files }));
     expect(items[1].lines.join('\n')).toContain(RESET);
   });
 
@@ -174,28 +184,36 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
 
   it("a person's own up and reset (no trust): the reset hook runs, as before", async () => {
     sb = openSandbox(await project(), 'sandbox', PERSON_POLICY, resolveSecretRef, packageHookRunner());
+    // From down, whatever ran before: an up seeds it and runs the reset hooks once.
+    await sb.down();
+    const [seeds, resets] = await markers();
     const up = await sb.up();
     expect(up.reset).toMatchObject({ hooks: { steps: 2 } });
-    expect([await marker('seed-marker.txt'), await marker('reset-marker.txt')]).toEqual([1, 1]);
+    expect(await markers()).toEqual([seeds + 1, resets + 1]);
     await sb.reset({ reseed: true });
-    expect([await marker('seed-marker.txt'), await marker('reset-marker.txt')]).toEqual([2, 2]);
+    expect(await markers()).toEqual([seeds + 2, resets + 2]);
   }, 60_000);
 
   it('approved (both items): the seed and the reset hook run under trust mcp', async () => {
+    await running();
+    const [seeds, resets] = await markers();
     const items = await seedApprovalItems(await project(), 'sandbox', packageHookRunner());
     expect(await agentReset(approvalsOf(items))).toBe('ran');
-    expect([await marker('seed-marker.txt'), await marker('reset-marker.txt')]).toEqual([3, 3]);
+    expect(await markers()).toEqual([seeds + 1, resets + 1]);
   }, 60_000);
 
   it("the reset hook not approved (only the seed's step): refused, it does not run", async () => {
+    await running();
+    const [seeds, resets] = await markers();
     const items = await seedApprovalItems(await project(), 'sandbox', packageHookRunner());
     const r = await agentReset(approvalsOf(items.filter((i) => i.phase === 'seed')));
     expect(r).toMatch(/^refused: sandbox sandbox: reset hook step 2\/2/);
     expect(r).toContain('without a human approval');
-    expect([await marker('seed-marker.txt'), await marker('reset-marker.txt')]).toEqual([4, 3]);
+    expect(await markers()).toEqual([seeds + 1, resets]);
   }, 60_000);
 
   it('the reset hook changed since its approval: refused, the new command does not run', async () => {
+    await running();
     const approved = approvalsOf(await seedApprovalItems(await project(), 'sandbox', packageHookRunner()));
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), manifest('echo changed >> changed-marker.txt'));
     try {
@@ -210,6 +228,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
   it('a seed step that is the same command as an approved reset hook, at the position its approval was once bound to, does not share it', async () => {
     // Approved: the seed's shell step and the reset hook `clean` (reset hook 2 of 2; under a seed-phase binding after the
     // seed's two steps it would have been index 3).
+    await running();
     const approved = approvalsOf(await seedApprovalItems(await project(), 'sandbox', packageHookRunner()));
     const grown = manifest(RESET)
       .replace(
@@ -237,6 +256,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
   // rebuilds the sandbox's own data (its database checked at run time) and an exec step runs inside a sandbox container
   // — none is an approval item, none is asked about, under trust mcp too. A destructive http step pins it.
   it('an http reset hook, destructive (DELETE), is treated as an http seed step: no item, and under trust mcp it runs unasked', async () => {
+    await running();
     const destructive = (m: string) => m.replaceAll('http: {url: "{{app}}/health"}', 'http: {method: DELETE, url: "{{app}}/health"}');
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), destructive(manifest(RESET)));
     try {
