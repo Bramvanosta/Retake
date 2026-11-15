@@ -5,8 +5,9 @@
  * a run's thumbnails, a render's frame, a review's image and a workspace thumbnail all come from that reviewer's
  * frames — both the run thumbnails and the render frames, never the product's default beside it.
  */
-import { diskOutputs } from '../src/index.js';
-import { mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
+import { MemoryOutputs, diskOutputs } from '../src/index.js';
+import { existsSync } from 'node:fs';
+import { mkdtemp, readFile, readdir, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -61,14 +62,43 @@ reviewerContract(
   'the review package (packageReviewer)',
   async () => {
     const { ws, c } = await real();
-    return { reviewer: packageReviewer(), project: ws.project, render: c.record.id, video: c.record.file, durationS: c.record.duration_s };
+    return { reviewer: packageReviewer(), project: ws.project, render: c.record.id, video: c.record.file, durationS: c.record.duration_s, outputs: diskOutputs };
   },
   { skip: !can, timeout: 300_000 },
 );
 
+/** A MemoryOutputs holding the renders/ of a disk workspace's project (its records and their empty videos). */
+async function rendersInMemory(ws: Workspace): Promise<MemoryOutputs> {
+  const m = new MemoryOutputs();
+  const renders = join(ws.project.dir, 'renders');
+  for (const name of await readdir(renders)) m.seed(join(renders, name), await readFile(join(renders, name)));
+  return m;
+}
+
+let memoryOutputs: Promise<MemoryOutputs> | undefined;
 reviewerContract('the in-memory reviewer (MemoryReviewer)', async () => {
   const { ws, c } = await memory();
-  return { reviewer: new MemoryReviewer({ videoS: c.record.duration_s }), project: ws.project, render: c.record.id, video: c.record.file, durationS: c.record.duration_s };
+  const outputs = await (memoryOutputs ??= rendersInMemory(ws));
+  return { reviewer: new MemoryReviewer({ outputs, videoS: c.record.duration_s }), project: ws.project, render: c.record.id, video: c.record.file, durationS: c.record.duration_s, outputs };
+});
+
+describe('the in-memory reviewer writes in the outputs it is handed', () => {
+  it('a MemoryOutputs: the review and its frames there, nothing in the project folder on the disk', async () => {
+    const ws = await workspace();
+    spaces.push(ws);
+    const c = await makeCase(ws, 'quote', scenesTimeline([2, 2]), { noVideo: true });
+    const outputs = await rendersInMemory(ws);
+    const fake = new MemoryReviewer({ outputs });
+    const r = await fake.review({ policy: PERSON_POLICY, project: ws.project, render: c.record.id, thumbnails: false });
+    expect(JSON.parse(outputs.file(r.files.report_json)!.toString('utf8'))).toMatchObject({ version: 1, render: { id: c.record.id } });
+    expect(outputs.file(r.files.sheets[0])).toEqual(MEMORY_JPEG);
+    const out = join(r.files.dir, 'marked.jpg');
+    await fake.frames.marks(Buffer.from(MEMORY_JPEG), [], out);
+    expect(outputs.file(out)).toEqual(MEMORY_JPEG);
+    expect(existsSync(join(ws.project.dir, 'review'))).toBe(false);
+    // A render that is only on the disk is not found in the outputs handed.
+    await expect(new MemoryReviewer({ outputs: new MemoryOutputs() }).review({ policy: PERSON_POLICY, project: ws.project, render: c.record.id })).rejects.toThrow(/not found/);
+  });
 });
 
 const ops = (calls: MemoryReviewerCall[]) => calls.map((x) => x.op);
@@ -89,7 +119,7 @@ describe('the façade draws with the reviewer it is handed (ports.reviewer)', ()
       events: [{ scene: 'one', step: 0, action: 'click', t_start: 0, t_end: 0.5 }],
       screenshots: { 'one-00-click.png': RED },
     });
-    const fake = new MemoryReviewer();
+    const fake = new MemoryReviewer({ outputs: diskOutputs });
     const engine = await createEngine({ root, client: 'ui', autoStartWorker: false, ports: { reviewer: fake } });
     const v = await engine.runs.thumbs('northfield-fixture', '20261020-110000-blocks', ['one.0']);
     expect(v.thumbs).toMatchObject([{ key: 'one.0', from: 'screenshot', width: 1, height: 1, base64: MEMORY_JPEG.toString('base64') }]);
@@ -106,7 +136,7 @@ describe('the façade draws with the reviewer it is handed (ports.reviewer)', ()
     'a render frame and a review image: the handed reviewer frames (the render probed by the engine)',
     async () => {
       const { ws, c } = await real();
-      const fake = new MemoryReviewer();
+      const fake = new MemoryReviewer({ outputs: diskOutputs });
       const engine = await createEngine({ root: ws.root, client: 'ui', autoStartWorker: false, ports: { reviewer: fake } });
       const f = await engine.renders.frame('demo', { render_id: c.record.id, created_at: c.record.created_at, frame: 3 });
       expect(f).toMatchObject({ render_id: c.record.id, frame: 3, width: 1, height: 1, base64: MEMORY_JPEG.toString('base64') });
@@ -126,7 +156,7 @@ describe('the façade draws with the reviewer it is handed (ports.reviewer)', ()
 describe("a review image: the engine's caps around the reviewer's thumb (reviews.image)", () => {
   it('a JPEG over REVIEW_IMAGE_BASE64_MAX is made again smaller (1100 px, quality 70); one still too large is refused', async () => {
     const { ws, c } = await memory();
-    const fake = new MemoryReviewer();
+    const fake = new MemoryReviewer({ outputs: diskOutputs });
     await fake.review({ policy: PERSON_POLICY, project: ws.project, render: c.record.id, thumbnails: false });
     const big = { data: Buffer.alloc(Math.ceil((REVIEW_IMAGE_BASE64_MAX * 3) / 4) + 3, 1), width: 1600, height: 900 };
     const small = { data: MEMORY_JPEG, width: 1100, height: 619 };
@@ -156,7 +186,7 @@ describe("a review image: the engine's caps around the reviewer's thumb (reviews
 
   it('frames that cannot be loaded fail the call with their own error, never as an image that cannot be decoded (L7.11 fix pass)', async () => {
     const { ws, c } = await memory();
-    const fake = new MemoryReviewer();
+    const fake = new MemoryReviewer({ outputs: diskOutputs });
     await fake.review({ policy: PERSON_POLICY, project: ws.project, render: c.record.id, thumbnails: false });
     const broken = new Error('the thumbnail entry cannot be loaded');
     const reviewer = {

@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
 import { personaPaths, PERSON_POLICY } from '@retake/core';
+import { reserveRunId } from '@retake/core/io';
 import type { AuthConfig, LoadedProject, RunProgress, RunRecord, Scenario } from '@retake/core';
 import {
   copyProfile,
@@ -30,7 +31,7 @@ import type { RunOptions } from '../src/index.js';
 import { ACCOUNTS, startAuthServer } from '@retake/test-support/auth';
 import { signInMaster } from './auth-server.js';
 import type { AuthServer } from '@retake/test-support/auth';
-import { FAST, makeScenario } from '@retake/test-support/capture';
+import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, tempDir, testHookRunner } from './helpers.js';
 
 let srv: AuthServer;
@@ -77,17 +78,19 @@ async function master(persona: 'supplier' | 'buyer', opts: { profile?: boolean }
 
 async function run(p: LoadedProject, name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<{ rec: RunRecord; events: RunProgress[]; dir: string }> {
   const events: RunProgress[] = [];
-  const rec = await runScenario({
-    policy: PERSON_POLICY,
-    project: p,
-    scenario: makeScenario(name, { pacing: FAST, ...scenario }),
-    mode: 'dry',
-    env: ENV,
-    runId: `${name}-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
-    onProgress: (e) => events.push(e),
-    hookRunner: testHookRunner(),
-    ...opts,
-  });
+  const rec = await runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project: p,
+      scenario: makeScenario(name, { pacing: FAST, ...scenario }),
+      mode: 'dry',
+      env: ENV,
+      runId: `${name}-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+      onProgress: (e) => events.push(e),
+      hookRunner: testHookRunner(),
+      ...opts,
+    }),
+  );
   return { rec, events, dir: rec.dir };
 }
 
@@ -179,8 +182,10 @@ describe('preflight (R-AUTH-03) and per-run copies (R-AUTH-07)', () => {
     const mtime = statSync(join(files('buyer').profileDir, 'Default', 'Cookies')).mtimeMs;
     const p = await project();
     const scenario = { scenes: [{ id: 'a', page: 'store', open: '/home', steps: [{ assert: { text: ACCOUNTS.buyer.name } }, { wait: 0.5 }] }] };
-    // No run id given: two runs of one scenario started in the same second get their own folders.
-    const [a, b] = await Promise.all([run(p, 'par', scenario, { runId: undefined }), run(p, 'par', scenario, { runId: undefined })]);
+    // Two run folders of one scenario reserved in the same second (core reserveRunId, as the engine reserves them): their own folders.
+    const at = new Date();
+    const [ra, rb] = await Promise.all([reserveRunId(join(p.dir, 'runs'), 'par', at), reserveRunId(join(p.dir, 'runs'), 'par', at)]);
+    const [a, b] = await Promise.all([run(p, 'par', scenario, { runId: ra.id }), run(p, 'par', scenario, { runId: rb.id })]);
     expect(a.rec.id).not.toBe(b.rec.id);
     expect([a.rec.status, b.rec.status, a.rec.error?.message, b.rec.error?.message]).toEqual(['succeeded', 'succeeded', undefined, undefined]);
     expect(existsSync(join(files('buyer').profileDir, 'SingletonLock'))).toBe(false);

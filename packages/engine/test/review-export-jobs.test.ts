@@ -206,7 +206,7 @@ describe.skipIf(!can)('export jobs on the in-memory renderer: the engine around 
   it(
     'a render record whose files lie outside the project is refused at submit, and by the worker for a job written by hand',
     async () => {
-      const reviewer = new MemoryReviewer();
+      const reviewer = new MemoryReviewer({ outputs: diskOutputs });
       const renderer = new MemoryRenderer();
       const mwork = () => runWorker({ root: ws.root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { reviewer, renderer } });
       const renders = join(ws.project.dir, 'renders');
@@ -255,6 +255,7 @@ describe('a review job on the in-memory reviewer: the engine around it (L7.11)',
   /** Waits in the review until its signal aborts (then the review stops as a cancelled one). */
   let hold = false;
   const reviewer = new MemoryReviewer({
+    outputs: diskOutputs,
     duringReview: (o) =>
       hold
         ? new Promise<void>((resolve) => {

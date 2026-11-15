@@ -12,7 +12,7 @@ import { HostRefusedError, PERSON_POLICY } from '@retake/core';
 import type { NotificationArtefact } from '@retake/core';
 import { evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { BrowserSession, HookPageOptions } from '../src/index.js';
-import { FAST, makeScenario } from '@retake/test-support/capture';
+import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir, testHookRunner } from './helpers.js';
 
 const RESOLVE = '--host-resolver-rules=MAP elsewhere.test 127.0.0.1';
@@ -300,26 +300,28 @@ describe('js setup hooks in a run', () => {
   it("prepare the capture tab's storage, and a hook tab left open keeps working: its notification is captured", async () => {
     pinged = false;
     const project = makeProject(dir, { app: A, notifier: `${A}/notifier.html` });
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      scenario: makeScenario('hook-tab', {
-        pacing: FAST,
-        setup: [{ js: { code: "localStorage.setItem('tour-done', '1')", page: 'app' } }, { name: 'open-notifier', js: { code: 'return document.title', page: 'notifier' } }],
-        scenes: [
-          {
-            id: 'main',
-            page: 'app',
-            open: '/storage.html',
-            steps: [{ assert: { text: 'tour-done=1' } }, { click: 'Ping' }, { wait_for: { text: 'pinged' } }, { wait: 1 }],
-          },
-        ],
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario: makeScenario('hook-tab', {
+          pacing: FAST,
+          setup: [{ js: { code: "localStorage.setItem('tour-done', '1')", page: 'app' } }, { name: 'open-notifier', js: { code: 'return document.title', page: 'notifier' } }],
+          scenes: [
+            {
+              id: 'main',
+              page: 'app',
+              open: '/storage.html',
+              steps: [{ assert: { text: 'tour-done=1' } }, { click: 'Ping' }, { wait_for: { text: 'pinged' } }, { wait: 1 }],
+            },
+          ],
+        }),
+        mode: 'dry',
+        hooks: 'run',
+        runId: `hook-tab-${Date.now()}`,
+        hookRunner: testHookRunner(),
       }),
-      mode: 'dry',
-      hooks: 'run',
-      runId: `hook-tab-${Date.now()}`,
-      hookRunner: testHookRunner(),
-    });
+    );
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     expect(rec.hooks.setup).toBe('ok');

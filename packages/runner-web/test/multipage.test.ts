@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_PACING, TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { RunRecord, Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
-import { FAST, makeScenario } from '@retake/test-support/capture';
+import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 
 const SHOP = `<!doctype html><html><head><title>Shop</title><meta name="viewport" content="width=device-width"></head>
@@ -67,35 +67,37 @@ beforeAll(async () => {
   const url = `http://127.0.0.1:${port}`;
   server = { url, close: () => new Promise<void>((r) => (srv.closeAllConnections(), srv.close(() => r()))) };
   dir = await tempDir('rw-multipage-');
-  rec = await runScenario({
-    policy: PERSON_POLICY,
-    project: makeProject(dir, { shop: url, console: url }),
-    scenario: makeScenario('two-pages', {
-      pacing: { ...FAST, page_switch_ms: 400 },
-      scenes: [
-        { id: 'intro', open: '/shop.html', steps: [{ hold: 0.3 }] },
-        {
-          id: 'both',
-          pages: {
-            buyer: { page: 'shop', open: '/shop.html', label: 'Buyer' },
-            seller: { page: 'console', open: '/console.html', viewport: { width: 360, height: 560, mobile: true, touch: true }, label: 'Seller' },
+  rec = await runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project: makeProject(dir, { shop: url, console: url }),
+      scenario: makeScenario('two-pages', {
+        pacing: { ...FAST, page_switch_ms: 400 },
+        scenes: [
+          { id: 'intro', open: '/shop.html', steps: [{ hold: 0.3 }] },
+          {
+            id: 'both',
+            pages: {
+              buyer: { page: 'shop', open: '/shop.html', label: 'Buyer' },
+              seller: { page: 'console', open: '/console.html', viewport: { width: 360, height: 560, mobile: true, touch: true }, label: 'Seller' },
+            },
+            steps: [
+              { assert: { text: 'shop width 800' } },
+              { on: 'seller', assert: { text: 'console width 360 touch true' } },
+              { click: { css: '#send' } },
+              { on: 'seller', wait_for: { text: 'Got it' } },
+              { on: 'seller', click: { css: '#ack' } },
+              { on: 'seller', assert: { text: 'Acknowledged' } },
+              { hold: 0.3 },
+            ],
           },
-          steps: [
-            { assert: { text: 'shop width 800' } },
-            { on: 'seller', assert: { text: 'console width 360 touch true' } },
-            { click: { css: '#send' } },
-            { on: 'seller', wait_for: { text: 'Got it' } },
-            { on: 'seller', click: { css: '#ack' } },
-            { on: 'seller', assert: { text: 'Acknowledged' } },
-            { hold: 0.3 },
-          ],
-        },
-        { id: 'after', steps: [{ assert: { text: 'Request sent' } }, { hold: 0.3 }] },
-      ],
+          { id: 'after', steps: [{ assert: { text: 'Request sent' } }, { hold: 0.3 }] },
+        ],
+      }),
+      mode: 'capture',
+      runId: `multipage-${Date.now()}`,
     }),
-    mode: 'capture',
-    runId: `multipage-${Date.now()}`,
-  });
+  );
   expect(rec.error?.message).toBeUndefined();
   tl = await readTimeline(rec.timeline!);
 }, 180_000);
@@ -199,34 +201,38 @@ describe('multi-page scenes (R-MPC-01)', () => {
 describe('multi-page scenes: errors', () => {
   it('a mobile page cannot be filmed by a single-page scene; a page keeps its viewport', async () => {
     const project = makeProject(dir, { shop: server.url, console: server.url });
-    const bad = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      scenario: makeScenario('bad-mobile', {
-        pacing: FAST,
-        scenes: [
-          { id: 'both', pages: { a: { page: 'shop', open: '/shop.html' }, b: { page: 'console', open: '/console.html', viewport: 'mobile' } }, steps: [{ hold: 0.1 }] },
-          { id: 'solo', page: 'b', steps: [{ hold: 0.1 }] },
-        ],
+    const bad = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario: makeScenario('bad-mobile', {
+          pacing: FAST,
+          scenes: [
+            { id: 'both', pages: { a: { page: 'shop', open: '/shop.html' }, b: { page: 'console', open: '/console.html', viewport: 'mobile' } }, steps: [{ hold: 0.1 }] },
+            { id: 'solo', page: 'b', steps: [{ hold: 0.1 }] },
+          ],
+        }),
+        mode: 'dry',
+        runId: `bad-mobile-${Date.now()}`,
       }),
-      mode: 'dry',
-      runId: `bad-mobile-${Date.now()}`,
-    });
+    );
     expect(bad.status).toBe('failed');
     expect(bad.error?.message).toMatch(/page "b" has a 390×844 viewport: a single-page scene films the capture size/);
-    const twice = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      scenario: makeScenario('bad-viewport', {
-        pacing: FAST,
-        scenes: [
-          { id: 'one', pages: { a: { page: 'shop', open: '/shop.html' }, b: { page: 'console', open: '/console.html' } }, steps: [{ hold: 0.1 }] },
-          { id: 'two', pages: { a: null, b: { viewport: 'mobile' } }, steps: [{ hold: 0.1 }] },
-        ],
+    const twice = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario: makeScenario('bad-viewport', {
+          pacing: FAST,
+          scenes: [
+            { id: 'one', pages: { a: { page: 'shop', open: '/shop.html' }, b: { page: 'console', open: '/console.html' } }, steps: [{ hold: 0.1 }] },
+            { id: 'two', pages: { a: null, b: { viewport: 'mobile' } }, steps: [{ hold: 0.1 }] },
+          ],
+        }),
+        mode: 'dry',
+        runId: `bad-viewport-${Date.now()}`,
       }),
-      mode: 'dry',
-      runId: `bad-viewport-${Date.now()}`,
-    });
+    );
     expect(twice.status).toBe('failed');
     expect(twice.error?.message).toMatch(/page "b" was filmed at 800×600 and is now asked at 390×844/);
   }, 120_000);
@@ -234,41 +240,45 @@ describe('multi-page scenes: errors', () => {
 
 describe('multi-page scenes: the main capture and page URLs', () => {
   it('a capture that films no scene (all skipped) fails clearly, as before multi-page scenes: no frame was recorded', async () => {
-    const r = await runScenario({
-      policy: PERSON_POLICY,
-      project: makeProject(dir, { shop: server.url, console: server.url }),
-      scenario: makeScenario('all-skipped', {
-        pacing: FAST,
-        scenes: [
-          { id: 'one', skip: true, open: '/shop.html', steps: [{ hold: 0.1 }] },
-          { id: 'two', skip: true, pages: { a: { page: 'shop', open: '/shop.html' }, b: { page: 'console', open: '/console.html' } }, steps: [{ hold: 0.1 }] },
-        ],
+    const r = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project: makeProject(dir, { shop: server.url, console: server.url }),
+        scenario: makeScenario('all-skipped', {
+          pacing: FAST,
+          scenes: [
+            { id: 'one', skip: true, open: '/shop.html', steps: [{ hold: 0.1 }] },
+            { id: 'two', skip: true, pages: { a: { page: 'shop', open: '/shop.html' }, b: { page: 'console', open: '/console.html' } }, steps: [{ hold: 0.1 }] },
+          ],
+        }),
+        mode: 'capture',
+        runId: `all-skipped-${Date.now()}`,
       }),
-      mode: 'capture',
-      runId: `all-skipped-${Date.now()}`,
-    });
+    );
     // Nothing navigates, nothing paints: the L2.7 rule (a capture without a frame is a failed capture) applies.
     expect(r.status).toBe('failed');
     expect(r.error?.message).toBe('the capture recorded no frame');
   }, 120_000);
 
   it('a relative `open` on a page id of `pages` resolves against its environment page (base path kept), like the page-level `open`', async () => {
-    const r = await runScenario({
-      policy: PERSON_POLICY,
-      project: makeProject(dir, { shop: `${server.url}/app`, console: server.url }),
-      scenario: makeScenario('base-path', {
-        pacing: FAST,
-        scenes: [
-          {
-            id: 'both',
-            pages: { buyer: { open: 'shop:/shop.html' }, seller: { page: 'console', open: '/console.html' } },
-            steps: [{ open: '/shop.html?again=1' }, { hold: 0.1 }],
-          },
-        ],
+    const r = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project: makeProject(dir, { shop: `${server.url}/app`, console: server.url }),
+        scenario: makeScenario('base-path', {
+          pacing: FAST,
+          scenes: [
+            {
+              id: 'both',
+              pages: { buyer: { open: 'shop:/shop.html' }, seller: { page: 'console', open: '/console.html' } },
+              steps: [{ open: '/shop.html?again=1' }, { hold: 0.1 }],
+            },
+          ],
+        }),
+        mode: 'dry',
+        runId: `base-path-${Date.now()}`,
       }),
-      mode: 'dry',
-      runId: `base-path-${Date.now()}`,
-    });
+    );
     expect(r.error?.message).toBeUndefined();
     const t = await readTimeline(r.timeline!);
     const urls = t.events.filter((e) => e.scene === 'both' && (e.action === 'scene_open' || e.action === 'open')).map((e) => [e.action, e.page, e.url]);

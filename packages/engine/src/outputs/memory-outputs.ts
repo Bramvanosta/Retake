@@ -18,6 +18,7 @@
  */
 import { dirname, normalize, sep } from 'node:path';
 import type { OutputFolder, Outputs, RenderOutputs, RunOutputs } from './outputs.js';
+import { plainFileVerdict } from '@retake/core/model';
 import { outputsOn, sha256Of } from './output-files.js';
 import type { OutputFs, OutputStat } from './output-files.js';
 
@@ -235,6 +236,45 @@ export class MemoryOutputs implements Outputs {
         if ([...this.#files.keys(), ...this.#folders].some((k) => k.startsWith(under))) throw fsError('ENOTEMPTY', 'rmdir', p);
         this.#folders.delete(p);
         this.#touch(dirname(p));
+      },
+      plain: async (path, max) => {
+        const p = normalize(path);
+        try {
+          this.#through(p, 'open');
+        } catch {
+          return { ok: false, reason: 'missing' };
+        }
+        const data = this.#files.get(p);
+        if (data === undefined && !this.#isFolder(p)) return { ok: false, reason: 'missing' };
+        // (No hard link here: every file has its one name, so `oneName` refuses nothing.)
+        const why = plainFileVerdict({ isFile: data !== undefined, size: data?.length ?? 0 }, max);
+        if (why) return why === 'too_large' ? { ok: false, reason: why, size: data!.length } : { ok: false, reason: why };
+        return { ok: true, bytes: Buffer.from(data!) };
+      },
+      rename: async (from, to) => {
+        const a = normalize(from);
+        const b = normalize(to);
+        this.#stat(a, 'rename');
+        this.#through(b, 'rename');
+        if (this.#files.has(b) || this.#isFolder(b)) throw fsError('EEXIST', 'rename', b);
+        const under = a + sep;
+        const moved = (k: string) => (k === a ? b : b + sep + k.slice(under.length));
+        for (const k of [...this.#files.keys()])
+          if (k === a || k.startsWith(under)) {
+            const data = this.#files.get(k)!;
+            this.#files.delete(k);
+            this.#mkdirs(dirname(moved(k)));
+            this.#files.set(moved(k), data);
+            this.#touch(moved(k));
+          }
+        for (const k of [...this.#folders])
+          if (k === a || k.startsWith(under)) {
+            this.#folders.delete(k);
+            this.#mkdirs(moved(k));
+          }
+        this.#mkdirs(dirname(b));
+        this.#touch(dirname(a));
+        this.#touch(dirname(b));
       },
       realpath: async (path) => {
         const p = normalize(path);

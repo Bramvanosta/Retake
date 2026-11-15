@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { TextArtefact, Timeline } from '@retake/core';
 import { captureValue, runScenario } from '../src/index.js';
-import { FAST, makeScenario } from '@retake/test-support/capture';
+import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 
 const APP = `<!doctype html><html><head><title>Form</title></head><body style="font-family:sans-serif;padding:40px">
@@ -36,31 +36,33 @@ beforeAll(async () => {
   const { port } = srv.address() as AddressInfo;
   server = { url: `http://127.0.0.1:${port}`, close: () => new Promise<void>((r) => (srv.closeAllConnections(), srv.close(() => r()))) };
   dir = await tempDir('rw-tutorial-');
-  const rec = await runScenario({
-    policy: PERSON_POLICY,
-    project: makeProject(dir, { app: server.url }),
-    scenario: makeScenario('tutorial', {
-      pacing: FAST,
-      tutorial: { shortcuts: true, spotlight: 'clicks', steps: true, loupe: true, progress: 'scenes' },
-      scenes: [
-        {
-          id: 'form',
-          open: '/form.html',
-          tutorial: { loupe: false },
-          steps: [
-            { type: { into: { css: '#name' }, text: 'Noa' } },
-            { press: { key: 'Tab', times: 1 }, tutorial: { shortcuts: { params: { platform: 'windows' } } } },
-            { type: { text: 'noa@cafe.example', enter: true } },
-            { capture_text: { target: { css: '#total' }, as: 'total', pattern: '/(€\\s?[\\d.,]+)/' } },
-            { capture_text: { target: { css: '#late' }, as: 'offers', pattern: '^\\d+' } },
-            { capture_text: { target: { css: '#total' }, as: 'whole' } },
-          ],
-        },
-      ],
+  const rec = await runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project: makeProject(dir, { app: server.url }),
+      scenario: makeScenario('tutorial', {
+        pacing: FAST,
+        tutorial: { shortcuts: true, spotlight: 'clicks', steps: true, loupe: true, progress: 'scenes' },
+        scenes: [
+          {
+            id: 'form',
+            open: '/form.html',
+            tutorial: { loupe: false },
+            steps: [
+              { type: { into: { css: '#name' }, text: 'Noa' } },
+              { press: { key: 'Tab', times: 1 }, tutorial: { shortcuts: { params: { platform: 'windows' } } } },
+              { type: { text: 'noa@cafe.example', enter: true } },
+              { capture_text: { target: { css: '#total' }, as: 'total', pattern: '/(€\\s?[\\d.,]+)/' } },
+              { capture_text: { target: { css: '#late' }, as: 'offers', pattern: '^\\d+' } },
+              { capture_text: { target: { css: '#total' }, as: 'whole' } },
+            ],
+          },
+        ],
+      }),
+      mode: 'dry',
+      runId: `tutorial-${Date.now()}`,
     }),
-    mode: 'dry',
-    runId: `tutorial-${Date.now()}`,
-  });
+  );
   expect(rec.status, JSON.stringify(rec.error)).toBe('succeeded');
   runDir = rec.dir;
   tl = await readTimeline(rec.timeline!);

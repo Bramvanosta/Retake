@@ -6,16 +6,15 @@
  * scenario controls (captions, display URLs, page titles quoted by warnings) is kept under `untrusted`.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { canonicalJson } from '@retake/core/base';
 import { SLUG_RE } from '@retake/core/model';
 import { formatRenderId, isRenderId, isRunId, isThemeName, renderIdOf } from '@retake/core/ids';
 import { projectRef } from '@retake/core/project';
 import { latestProjectRender, orderRenders, projectRenderOf, renderLackWords, renderNot, renderNotWords } from '@retake/core/render';
-import { readPlainFile } from '@retake/core/io';
 import { OUTPUT_DIRS } from './outputs/outputs.js';
-import type { RenderOutputs } from './outputs/outputs.js';
+import type { OutputFolder, RenderOutputs } from './outputs/outputs.js';
 import type { LoadedProject } from '@retake/core/model';
 import type { ProjectRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord, UnknownStatusRender } from '@retake/core/render';
 import type { StoredRender } from '@retake/editor/plan';
@@ -678,8 +677,9 @@ export const SCENARIO_RENDERS_MAX = 20;
 /** A render record or a review report read for the list, at most (bytes). */
 const LIST_FILE_MAX = 16 * 1024 * 1024;
 
-function readJsonPlain(file: string): Record<string, unknown> | undefined {
-  const r = readPlainFile(file, LIST_FILE_MAX);
+/** A JSON object read from a generated folder by the plain-file rule (no link followed, within the list's cap), or undefined. */
+async function readJsonPlain(folder: OutputFolder, file: string): Promise<Record<string, unknown> | undefined> {
+  const r = await folder.readPlain(file, { max: LIST_FILE_MAX });
   if (!r.ok) return undefined;
   try {
     const v = JSON.parse(r.bytes.toString('utf8')) as unknown;
@@ -697,18 +697,13 @@ const reportMemo = new Map<string, { sig: string; r: { counts: Record<string, un
 /** Counter for tests: report.json files read. */
 export const reportReads = { n: 0 };
 
-function reportOf(file: string): { counts: Record<string, unknown>; at: string } | undefined {
-  let sig = '-';
-  try {
-    const s = lstatSync(file);
-    sig = `${s.ino}:${s.size}:${s.mtimeMs}`;
-  } catch {
-    /* none */
-  }
+async function reportOf(reviews: OutputFolder, file: string): Promise<{ counts: Record<string, unknown>; at: string } | undefined> {
+  // Its signature as the file itself is (no link followed): the memo's key.
+  const sig = await reviews.signature(file);
   const held = reportMemo.get(file);
   if (held && held.sig === sig) return held.r;
   reportReads.n++;
-  const r = sig === '-' ? undefined : readJsonPlain(file);
+  const r = sig === '-' ? undefined : await readJsonPlain(reviews, file);
   const out =
     r && r.version === 1 && Array.isArray(r.findings)
       ? {
@@ -723,8 +718,8 @@ function reportOf(file: string): { counts: Record<string, unknown>; at: string }
 }
 
 /** The review verdict of review/<id>/report.json (written after the render: `since`), or undefined. */
-function reportSummary(projectDir: string, id: string, since: string): { summary: RenderReviewSummary; at: string } | undefined {
-  const r = reportOf(join(OUTPUT_DIRS.reviews(projectDir), id, 'report.json'));
+async function reportSummary(reviews: OutputFolder, projectDir: string, id: string, since: string): Promise<{ summary: RenderReviewSummary; at: string } | undefined> {
+  const r = await reportOf(reviews, join(reviews.dirOf(projectDir), id, 'report.json'));
   if (!r) return undefined;
   const at = r.at;
   // A review of an earlier render of the id (its record pruned, the id reused) is not this render's.
@@ -756,11 +751,11 @@ const OVERRIDE_KEY = /^[a-z][a-z_]{0,39}$/;
  * inline review, or review/<id>/report.json. `renderJobs`: the project's render jobs of this scenario (newest first);
  * `reviewJobs`: its queued or running review jobs. Shared by the render list and the project board (L5.10a).
  */
-export function renderView(projectDir: string, r: StoredRenderRecord, renderJobs: readonly JobRecord[], reviewJobs: readonly JobRecord[]): ScenarioRenderView {
+export async function renderView(reviews: OutputFolder, projectDir: string, r: StoredRenderRecord, renderJobs: readonly JobRecord[], reviewJobs: readonly JobRecord[]): Promise<ScenarioRenderView> {
   let review: RenderReviewSummary = { state: 'none' };
   const standalone = reviewJobs.find((j) => j.input.kind === 'review' && j.input.render_id === r.id);
   const job = renderJobs.find((j) => j.input.kind === 'render' && j.input.render_id === r.id && j.created_at <= r.created_at);
-  const report = r.status === 'succeeded' ? reportSummary(projectDir, r.id, r.created_at) : undefined;
+  const report = r.status === 'succeeded' ? await reportSummary(reviews, projectDir, r.id, r.created_at) : undefined;
   if (standalone) review = { state: standalone.state === 'running' ? 'running' : 'queued', job: standalone.id };
   else if (job && !FINISHED_JOB_STATES.has(job.state)) review = { state: 'running', job: job.id };
   else {
@@ -830,7 +825,8 @@ export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, 
   }
   // Newest first (the one order of renders, reversed).
   const records = orderRenders(found).reverse();
-  const renders: ScenarioRenderView[] = records.slice(0, SCENARIO_RENDERS_MAX).map((r) => renderView(project.dir, r, renderJobs, reviewJobs));
+  const renders: ScenarioRenderView[] = [];
+  for (const r of records.slice(0, SCENARIO_RENDERS_MAX)) renders.push(await renderView(ws.outputs.reviews, project.dir, r, renderJobs, reviewJobs));
 
   const jobs: ScenarioRenderJobView[] = [];
   for (const j of [...renderJobs].reverse()) {

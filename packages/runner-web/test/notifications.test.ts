@@ -16,7 +16,7 @@ import { runScenario } from '../src/index.js';
 import { iconRefusal, NOTIFICATION_ICON_MAX_BYTES, NOTIFICATION_ICON_RUN_MAX, NOTIFICATION_RUN_MAX } from '../src/notifications.js';
 import { NOTIFICATION_TEXT_MAX, readNotificationPayload } from '../src/session.js';
 import { CURSOR_EFFECTS_PER_SECOND } from '../src/runtime.js';
-import { FAST, makeScenario } from '@retake/test-support/capture';
+import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
@@ -173,13 +173,15 @@ addEventListener('message', () => {
 
   async function run(name: string, steps: unknown[]): Promise<{ tl: Timeline; runDir: string; ns: NotificationArtefact[] }> {
     const project = makeProject(dir, { app: app.url, assets: assets.url });
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      scenario: makeScenario(name, { pacing: FAST, scenes: [{ id: 'flow', open: '/app.html', steps: steps as never }] }),
-      mode: 'dry',
-      runId: `${name}-${Date.now()}`,
-    });
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario: makeScenario(name, { pacing: FAST, scenes: [{ id: 'flow', open: '/app.html', steps: steps as never }] }),
+        mode: 'dry',
+        runId: `${name}-${Date.now()}`,
+      }),
+    );
     expect(rec.status, JSON.stringify(rec.error)).toBe('succeeded');
     const tl = await readTimeline(rec.timeline!);
     const ns = (tl.artefacts ?? []).filter((a): a is NotificationArtefact => a.kind === 'notification').sort((a, b) => a.index - b.index);

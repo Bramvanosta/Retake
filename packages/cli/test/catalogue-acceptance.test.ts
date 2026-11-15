@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RunRecordSchema, TimelineSchema, PERSON_POLICY } from '@retake/core';
-import { loadProject, loadScenario, fileFacts } from '@retake/core/io';
+import { loadProject, loadScenario, fileFacts, reserveRunId } from '@retake/core/io';
 import type { BBox, LoadedProject, RunProgress, RunRecord, Timeline, TimelineEvent } from '@retake/core';
 import { runScenario } from '@retake/runner-web';
 import { debugTemplate, execFileP, ffprobeDuration, frameAt, magentaCentroid } from '@retake/test-support/capture';
@@ -101,7 +101,18 @@ describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug 
     project.config.environments = { ...project.config.environments, local: { console: fixture.urls.console, shop: fixture.urls.shop } };
     const scenario = await loadScenario(project, 'catalogue', { files: fileFacts(PERSON_POLICY) });
     expect(scenario.issues.filter((i) => i.severity === 'error')).toEqual([]);
-    rec = await runScenario({ policy: PERSON_POLICY, project, scenario, env: 'local', template: debugTemplate(), mode: 'capture', runsDir: join(tmp, 'runs'), onProgress: (e) => events.push(e) });
+    const { id: runId } = await reserveRunId(join(tmp, 'runs'), 'catalogue');
+    rec = await runScenario({
+      policy: PERSON_POLICY,
+      project,
+      scenario,
+      env: 'local',
+      template: debugTemplate(),
+      mode: 'capture',
+      runsDir: join(tmp, 'runs'),
+      runId,
+      onProgress: (e) => events.push(e),
+    });
     expect(rec.error?.message ?? '').toBe('');
     expect(rec.status).toBe('succeeded');
     expect(rec.hooks).toEqual({ setup: 'ok', teardown: 'ok' });

@@ -16,7 +16,7 @@ import { basename, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseScenario, PERSON_POLICY } from '@retake/core';
-import { loadScenario, fileFacts } from '@retake/core/io';
+import { loadScenario, fileFacts, reserveRunId } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import { runScenario } from '@retake/runner-web';
 import { EngineError, MemoryJobQueue, historyFile, openProject, openWorkspace, recordScenario, recordsRoot, enginePorts, diskWorkspaceReads, diskOutputs } from '../src/index.js';
@@ -130,7 +130,8 @@ async function recordInMemory(req: RecordRequest, m: MemoryRecordOptions & { ses
 async function dryRun(name: string): Promise<{ status: string; error?: string }> {
   await reset();
   const p = await project();
-  const r = await runScenario({ policy: PERSON_POLICY, project: p, scenario: await loadScenario(p, name, { files: fileFacts(PERSON_POLICY) }), mode: 'dry', runsDir: join(root, 'dry-runs') });
+  const { id: runId } = await reserveRunId(join(root, 'dry-runs'), name);
+  const r = await runScenario({ policy: PERSON_POLICY, project: p, scenario: await loadScenario(p, name, { files: fileFacts(PERSON_POLICY) }), mode: 'dry', runsDir: join(root, 'dry-runs'), runId });
   return { status: r.status, ...(r.error ? { error: r.error.message } : {}) };
 }
 

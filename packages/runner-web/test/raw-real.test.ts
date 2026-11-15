@@ -16,7 +16,7 @@ import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { RunRecord, Timeline } from '@retake/core';
 import { exportCapture, probeVideo, runScenario } from '../src/index.js';
 import type { RawExportResult } from '../src/index.js';
-import { FAST, debugTemplate, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, debugTemplate, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 
@@ -50,15 +50,17 @@ beforeAll(async () => {
   server = await startServer({ '/': HOME, '/next': NEXT });
   dir = await tempDir('rw-raw-');
   for (const mode of ['hidden', 'baked'] as const) {
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project: project(),
-      scenario: scenario(),
-      template: debugTemplate(),
-      mode: 'capture',
-      runId: `raw-${mode}-${Date.now()}`,
-      ...(mode === 'hidden' ? { hideCursor: true } : {}),
-    });
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project: project(),
+        scenario: scenario(),
+        template: debugTemplate(),
+        mode: 'capture',
+        runId: `raw-${mode}-${Date.now()}`,
+        ...(mode === 'hidden' ? { hideCursor: true } : {}),
+      }),
+    );
     expect(rec.error?.message).toBeUndefined();
     runs[mode] = { rec, tl: await readTimeline(rec.timeline!) };
   }

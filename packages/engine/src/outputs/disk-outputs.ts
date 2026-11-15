@@ -3,10 +3,10 @@
  * `enginePorts` (the import-rules ratchet's `output-read` check).
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { constants } from 'node:fs';
+import { constants, realpath as realpathCb } from 'node:fs';
 import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { NODE_RECORD_FS } from '@retake/core/io';
+import { NODE_RECORD_FS, readPlainFile } from '@retake/core/io';
 import type { Outputs } from './outputs.js';
 import { oneName } from './outputs.js';
 import { outputsOn } from './output-files.js';
@@ -64,6 +64,9 @@ export const nodeOutputFs: OutputFs = {
   createExclusive,
   hash: hashFile,
   realpath: (path) => realpath(path),
+  nativeRealpath: (path) => new Promise((done, fail) => realpathCb.native(path, (e, real) => (e ? fail(e) : done(real)))),
+  plain: async (path, max, o) => readPlainFile(path, max, o.oneName ? { verify: oneName } : {}),
+  rename: (from, to) => rename(from, to),
   remove: (path) => rm(path, { recursive: true, force: true }),
   rmdir: (path) => rmdir(path),
   removeFile: (path) => rm(path, { force: true }),

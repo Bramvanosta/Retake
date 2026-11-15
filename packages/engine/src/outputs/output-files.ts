@@ -5,12 +5,12 @@
  * bytes lie — never in a rule.
  */
 import { createHash } from 'node:crypto';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { pathInside } from '@retake/core/base';
 import { isRunId } from '@retake/core/ids';
 import { orderRuns } from '@retake/core/run';
 import { findNamedRender, readListedRender, readNamedRun, readRenderById, readRendersFolder, readRunFolder, readRunRecord, reserveRunId } from '@retake/core/io';
-import type { RecordFs, RunFolderFs, RunFolderStat } from '@retake/core/io';
+import type { PlainFileRead, RecordFs, RunFolderFs, RunFolderStat } from '@retake/core/io';
 import { EngineError } from '../errors.js';
 import type { OutputFolder, OutputKind, Outputs, RenderOutputs, RunOutputs } from './outputs.js';
 import { OUTPUT_DIRS, oneName, runsDirOf } from './outputs.js';
@@ -40,12 +40,18 @@ export interface OutputFs extends RunFolderFs, RecordFs {
   /** The sha256 of a file's bytes (streamed on a disk), never through a link (refused: ELOOP) nor of a file with another name (refused: EMLINK). */
   hash(path: string): Promise<string>;
   realpath(path: string): Promise<string>;
+  /** The real path as the operating system spells it (its case, on a disk that ignores case); the memory's is `realpath`. */
+  nativeRealpath?(path: string): Promise<string>;
   /** Remove a file or a folder and everything under it; nothing there is no failure. */
   remove(path: string): Promise<void>;
   /** Remove an empty folder (fails when it holds anything, as rmdir does). */
   rmdir(path: string): Promise<void>;
   /** Remove one file (a folder there fails); nothing there is no failure. */
   removeFile(path: string): Promise<void>;
+  /** A small regular file read whole by the plain-file rule (core readPlainFile; `oneName`: a hard link refused as `link`). Never throws. */
+  plain(path: string, max: number, o: { oneName?: boolean }): Promise<PlainFileRead>;
+  /** Move a file or a folder (rename). */
+  rename(from: string, to: string): Promise<void>;
 }
 
 const missing = (e: unknown): boolean => ['ENOENT', 'ENOTDIR'].includes((e as NodeJS.ErrnoException | null)?.code ?? '');
@@ -119,6 +125,22 @@ async function insideProject(fs: OutputFs, projectDir: string, path: string): Pr
   }
 }
 
+/** `p` with its links resolved, the part not there yet kept as spelt (core realPathOf, on this storage). */
+async function realPathKept(fs: OutputFs, p: string): Promise<string> {
+  try {
+    return await (fs.nativeRealpath ?? fs.realpath)(p);
+  } catch {
+    const parent = dirname(p);
+    return parent === p ? p : join(await realPathKept(fs, parent), basename(p));
+  }
+}
+
+/** Core insideFolder's rule on this storage: `path` in `dir` once both are resolved (`dir` itself counts). */
+async function holdsOf(fs: OutputFs, dir: string, path: string): Promise<boolean> {
+  const [real, root] = await Promise.all([realPathKept(fs, resolve(path)), realPathKept(fs, resolve(dir))]);
+  return pathInside(real, root);
+}
+
 /** A generated folder of the storage `fs`, at `dirOf` of a project. */
 function outputFolderOn(fs: OutputFs, dirOf: (projectDir: string) => string): OutputFolder {
   return {
@@ -156,6 +178,9 @@ function outputFolderOn(fs: OutputFs, dirOf: (projectDir: string) => string): Ou
     writeJson: (path, value) => fs.writeAtomic(path, JSON.stringify(value, null, 2) + '\n'),
     signature: (path, o) => signatureOf(fs, path, o),
     within: (projectDir, path = dirOf(projectDir)) => insideProject(fs, projectDir, path),
+    readPlain: (path, o) => fs.plain(path, o.max, o.oneName ? { oneName: true } : {}),
+    holds: (dir, path) => holdsOf(fs, dir, path),
+    move: (from, to) => fs.rename(from, to),
   };
 }
 

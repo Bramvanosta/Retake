@@ -4,7 +4,7 @@ import type { LoadedProject, Scenario, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { LATE_DIALOG_PAGE, NAV2_PAGE, NAV_PAGE, STRATEGY_PAGE, localePage } from './pages.js';
-import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
@@ -32,7 +32,7 @@ const stepEvents = (events: TimelineEvent[]) => events.filter((e) => e.step >= 0
 
 async function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> & { project?: LoadedProject } = {}) {
   const project = opts.project ?? makeProject(dir, { app: server.url });
-  const rec = await runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario(name, scenario), mode: 'dry', runId: `${name}-${Date.now()}`, ...opts });
+  const rec = await runScenario(inRunsOf({ policy: PERSON_POLICY, project, scenario: makeScenario(name, scenario), mode: 'dry', runId: `${name}-${Date.now()}`, ...opts }));
   expect(rec.error?.message).toBeUndefined();
   expect(rec.status).toBe('succeeded');
   return stepEvents((await readTimeline(rec.timeline!)).events);

@@ -18,7 +18,7 @@ import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { Timeline, TimelineEvent, TimelineLoading } from '@retake/core';
 import { CaptureClock, ScreencastRecorder, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { FrameIndexEntry } from '../src/index.js';
-import { FAST, debugTemplate, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, debugTemplate, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 import { NO_CONTENT_PAGE, latePaintPage, navHomePage } from './pages.js';
@@ -92,7 +92,7 @@ beforeAll(async () => {
       { id: 'spa', page: 'app', open: '/', steps: [{ click: { css: '#spa' } }, { hold: 0.3 }] },
     ],
   });
-  const rec = await runScenario({ policy: PERSON_POLICY, project, scenario, template: debugTemplate(), mode: 'capture', runId: `nav-${Date.now()}` });
+  const rec = await runScenario(inRunsOf({ policy: PERSON_POLICY, project, scenario, template: debugTemplate(), mode: 'capture', runId: `nav-${Date.now()}` }));
   expect(rec.error?.message).toBeUndefined();
   tl = await readTimeline(rec.timeline!);
   runDir = rec.dir;
@@ -240,7 +240,7 @@ describe('blank tabs, non-click navigations and cancelling a held load (R-ISS-08
       ],
     });
     const t0 = Date.now();
-    const rec = await runScenario({ policy: PERSON_POLICY, project, scenario, template: debugTemplate(), mode: 'capture', runId: `nav2-${Date.now()}` });
+    const rec = await runScenario(inRunsOf({ policy: PERSON_POLICY, project, scenario, template: debugTemplate(), mode: 'capture', runId: `nav2-${Date.now()}` }));
     ms = Date.now() - t0;
     expect(rec.error?.message).toBeUndefined();
     tl2 = await readTimeline(rec.timeline!);
@@ -279,18 +279,20 @@ describe('blank tabs, non-click navigations and cancelling a held load (R-ISS-08
     const scenario = makeScenario('busy', { pacing: FAST, scenes: [{ id: 'busy', page: 'app', open: '/', steps: [{ open: '/busy' }, { hold: 0.3 }] }] });
     const ac = new AbortController();
     let abortedAt = 0;
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      scenario,
-      mode: 'capture',
-      signal: ac.signal,
-      runId: `busy-${Date.now()}`,
-      onProgress: (e) => {
-        // The `open` step waits for the page's paint (it never comes before the 10 s limit): cancel meanwhile.
-        if (e.type === 'step_start' && e.step === 0) setTimeout(() => ((abortedAt = Date.now()), ac.abort()), 1500);
-      },
-    });
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario,
+        mode: 'capture',
+        signal: ac.signal,
+        runId: `busy-${Date.now()}`,
+        onProgress: (e) => {
+          // The `open` step waits for the page's paint (it never comes before the 10 s limit): cancel meanwhile.
+          if (e.type === 'step_start' && e.step === 0) setTimeout(() => ((abortedAt = Date.now()), ac.abort()), 1500);
+        },
+      }),
+    );
     expect(rec.status).toBe('cancelled');
     expect(abortedAt).toBeGreaterThan(0);
     expect(Date.now() - abortedAt).toBeLessThan(4000);
@@ -303,7 +305,7 @@ describe('blank tabs, non-click navigations and cancelling a held load (R-ISS-08
       pacing: FAST,
       scenes: [{ id: 'two', pages: { left: { page: 'app', open: '/redirect' }, right: { page: 'other', open: '/late' } }, steps }],
     });
-    const rec = await runScenario({ policy: PERSON_POLICY, project, scenario, mode: 'capture', runId: `two-${Date.now()}` });
+    const rec = await runScenario(inRunsOf({ policy: PERSON_POLICY, project, scenario, mode: 'capture', runId: `two-${Date.now()}` }));
     expect(rec.error?.message).toBeUndefined();
     const t = await readTimeline(rec.timeline!);
     // The left page's own navigation (the skeleton page, ≥ 1 s) happened during the right page's steps.

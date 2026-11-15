@@ -351,7 +351,8 @@ export class ProjectBoards {
       const mine = renderJobs.filter((j) => j.input.kind === 'render' && j.input.scenario === name);
       // The newest render that shows today's file (render-words sameVersion's rule, review B-L2), else the newest one.
       const landscape = recs.filter((r) => r.status !== 'failed' && r.status !== 'cancelled' && (r.variant ?? 'landscape') === 'landscape');
-      const views = landscape.map((r) => ({ r, v: renderView(p.dir, r, mine, reviewJobs) }));
+      const views: Array<{ r: StoredRenderRecord; v: ScenarioRenderView }> = [];
+      for (const r of landscape) views.push({ r, v: await renderView(this.ctx.ws.outputs.reviews, p.dir, r, mine, reviewJobs) });
       // The theme by its identity (BL-164): the record's folder against today's (two folders of one name are two
       // themes); a record of before L7.9, which holds no folder, by its folder's name — also when it is no theme name.
       const sameTheme = (r: StoredRenderRecord): boolean =>

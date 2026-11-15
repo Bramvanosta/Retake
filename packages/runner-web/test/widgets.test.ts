@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { ResolvedPersona, RunRecord, Timeline, TimelineEvent } from '@retake/core';
 import { RunSecrets, autoLogin, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import { DOC_PAGE, DRY_PAGE, OPTIONS_PAGE, SHOP_PAGE, STRATEGY_PAGE, WIDGETS_PAGE } from './pages.js';
-import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
@@ -38,49 +38,51 @@ const steps = (events: TimelineEvent[]) => events.filter((e) => e.step >= 0);
 describe('composite widgets and the other actions', () => {
   it('select (native + searchable listbox), menu with confirm (re-open quirk), pick in a dialog, and more', async () => {
     const project = makeProject(dir, { app: server.url });
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      mode: 'dry',
-      runId: 'widgets',
-      scenario: makeScenario('widgets', {
-        pacing: FAST,
-        scenes: [
-          {
-            id: 'availability',
-            open: '/widgets.html',
-            steps: [
-              { select: { field: 'Grind', option: 'Espresso' } },
-              { assert: { text: 'grind=Espresso' } },
-              { select: { field: 'Organisation', option: 'Northfield Imports', search: 'Imp' } },
-              { assert: { text: 'org=Northfield Imports' } },
-              { wait_for: { not_text: 'Enrichment in progress', timeout: 5 } },
-              { menu: { row: 'Iceland', item: 'Pause', confirm: 'Pause' } },
-              { assert: { text: 'Iceland paused', gone: { role: 'menu' } } },
-              { click: 'Edit Sweden' },
-              { pick: { field: 'Bag sizes', option: ['1 kg', '5 kg'], search: 'kg' } },
-              { assert: { text: '1 kg, 5 kg', not_text: 'dialog closed by Escape', target: { role: 'dialog', name: 'Edit Sweden' } } },
-              { click: { text: 'Save', in: 'dialog' } },
-              { assert: { text: 'saved bags=1 kg, 5 kg' } },
-              { double_click: { text: 'Double me' } },
-              { assert: { text: 'double clicked' } },
-              { drag: { from: '#drag-src', to: '#drag-dst', duration: 0.3 } },
-              { assert: { text: 'dropped on shelf' } },
-              { press: { key: 'Tab', times: 2 } },
-              { emit: { name: 'checkpoint', data: { n: 1 } } },
-              { eval: { js: 'return arg.a + 1;', arg: { a: 41 } } },
-              { cursor: { move: { x: 60, y: 60 }, duration: 0.2 } },
-              { cursor: 'hide' },
-              { cursor: 'show' },
-              { cursor: { set: { x: 100, y: 120 } } },
-              { screenshot: 'final' },
-              { notify: { title: 'Northfield', message: 'Capture done' } },
-              { hover: { text: 'Edit Sweden', ms: 100 }, camera: { zoom: 1.2 } },
-            ],
-          },
-        ],
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        mode: 'dry',
+        runId: 'widgets',
+        scenario: makeScenario('widgets', {
+          pacing: FAST,
+          scenes: [
+            {
+              id: 'availability',
+              open: '/widgets.html',
+              steps: [
+                { select: { field: 'Grind', option: 'Espresso' } },
+                { assert: { text: 'grind=Espresso' } },
+                { select: { field: 'Organisation', option: 'Northfield Imports', search: 'Imp' } },
+                { assert: { text: 'org=Northfield Imports' } },
+                { wait_for: { not_text: 'Enrichment in progress', timeout: 5 } },
+                { menu: { row: 'Iceland', item: 'Pause', confirm: 'Pause' } },
+                { assert: { text: 'Iceland paused', gone: { role: 'menu' } } },
+                { click: 'Edit Sweden' },
+                { pick: { field: 'Bag sizes', option: ['1 kg', '5 kg'], search: 'kg' } },
+                { assert: { text: '1 kg, 5 kg', not_text: 'dialog closed by Escape', target: { role: 'dialog', name: 'Edit Sweden' } } },
+                { click: { text: 'Save', in: 'dialog' } },
+                { assert: { text: 'saved bags=1 kg, 5 kg' } },
+                { double_click: { text: 'Double me' } },
+                { assert: { text: 'double clicked' } },
+                { drag: { from: '#drag-src', to: '#drag-dst', duration: 0.3 } },
+                { assert: { text: 'dropped on shelf' } },
+                { press: { key: 'Tab', times: 2 } },
+                { emit: { name: 'checkpoint', data: { n: 1 } } },
+                { eval: { js: 'return arg.a + 1;', arg: { a: 41 } } },
+                { cursor: { move: { x: 60, y: 60 }, duration: 0.2 } },
+                { cursor: 'hide' },
+                { cursor: 'show' },
+                { cursor: { set: { x: 100, y: 120 } } },
+                { screenshot: 'final' },
+                { notify: { title: 'Northfield', message: 'Capture done' } },
+                { hover: { text: 'Edit Sweden', ms: 100 }, camera: { zoom: 1.2 } },
+              ],
+            },
+          ],
+        }),
       }),
-    });
+    );
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     const tl = await readTimeline(rec.timeline!);
@@ -136,28 +138,30 @@ describe('composite widgets and the other actions', () => {
 
   it('switches pages per scene, interpolates templates, records interstitials and skipped scenes', async () => {
     const project = makeProject(dir, { app: server.url, shop: `${server.url}/s` });
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      mode: 'dry',
-      runId: 'pages',
-      scenario: makeScenario('pages', {
-        pacing: FAST,
-        vars: { buyer: 'Harbour Coffee Co.' },
-        scenes: [
-          { id: 'console', page: 'app', open: '/dry.html', caption: { kicker: 'Catalogue', text: 'Save a draft' }, steps: [{ click: 'Save draft', mark: 'saved' }] },
-          { interstitial: { text: 'A few hours later', duration: 2 } },
-          {
-            id: 'shop',
-            page: 'shop',
-            open: 'index.html?buyer={{vars.buyer}}',
-            steps: [{ click: 'Request a quote' }, { assert: { text: 'Welcome Harbour Coffee Co. — quote requested' } }],
-          },
-          { id: 'back', page: 'app', speed: 1.5, steps: [{ assert: { text: 'save' } }] },
-          { id: 'later', skip: true, steps: [{ click: 'Nothing' }] },
-        ],
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        mode: 'dry',
+        runId: 'pages',
+        scenario: makeScenario('pages', {
+          pacing: FAST,
+          vars: { buyer: 'Harbour Coffee Co.' },
+          scenes: [
+            { id: 'console', page: 'app', open: '/dry.html', caption: { kicker: 'Catalogue', text: 'Save a draft' }, steps: [{ click: 'Save draft', mark: 'saved' }] },
+            { interstitial: { text: 'A few hours later', duration: 2 } },
+            {
+              id: 'shop',
+              page: 'shop',
+              open: 'index.html?buyer={{vars.buyer}}',
+              steps: [{ click: 'Request a quote' }, { assert: { text: 'Welcome Harbour Coffee Co. — quote requested' } }],
+            },
+            { id: 'back', page: 'app', speed: 1.5, steps: [{ assert: { text: 'save' } }] },
+            { id: 'later', skip: true, steps: [{ click: 'Nothing' }] },
+          ],
+        }),
       }),
-    });
+    );
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     const tl = await readTimeline(rec.timeline!);
@@ -201,112 +205,114 @@ describe('options of the scenario language (L1.4)', () => {
 
   beforeAll(async () => {
     const project = makeProject(dir, { app: server.url, other: server.url });
-    rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      mode: 'dry',
-      runId: 'options',
-      scenario: makeScenario('options', {
-        pacing: FAST,
-        scenes: [
-          {
-            id: 'options',
-            open: '/options.html',
-            still: 0.6,
-            transition: 'fade-black',
-            note: 'Free-form note: ignored by the runner.',
-            steps: [
-              // Step modifiers (R-MOD-02/03) on a plain left click (the control of the click options below).
-              { id: 'plain', click: { css: '#probe' }, caption: { kicker: 'Labels', text: 'Probe the clicks' }, speed: 2 },
-              { id: 'log-plain', eval: probeLog },
-              { id: 'right', click: { css: '#probe', button: 'right' } },
-              { id: 'log-right', eval: probeLog },
-              { id: 'middle', click: { css: '#probe', button: 'middle' } },
-              { id: 'log-middle', eval: probeLog },
-              { id: 'shift', click: { css: '#probe', modifiers: ['Shift'] } },
-              { id: 'log-shift', eval: probeLog },
-              { id: 'alt-ctrl', click: { css: '#probe', modifiers: ['Alt', 'Control'] } },
-              { id: 'log-alt-ctrl', eval: probeLog },
-              { id: 'offset', click: { css: '#probe', offset: { x: 6, y: 5 } } },
-              { id: 'log-offset', eval: probeLog },
-              // Per-click durations (R-CLK-03), each from the same far point, then the same click without them.
-              { cursor: { set: { x: 700, y: 560 } } },
-              { id: 'slow', click: { css: '#probe', move_ms: 600, hover_ms: 400, after_ms: 500 } },
-              { cursor: { set: { x: 700, y: 560 } } },
-              { id: 'quick', click: { css: '#probe' } },
-              // wait_for (R-ACT-21) and assert (R-ACT-23).
-              { click: 'Refresh' },
-              { id: 'gone', wait_for: { gone: '#spinner', timeout: 3 } },
-              { id: 'gone-lag', eval: 'return Date.now() - window.spinnerGoneAt;' },
-              { click: 'Next step' },
-              { id: 'url-regex', wait_for: { url: '/step=\\d$/' } },
-              { id: 'url-substring', wait_for: { url: 'step=2' } },
-              { id: 'assert-title-url', assert: { title: 'STEP 2', url: '/step=2$/' } },
-              { id: 'assert-count', assert: { count: { target: { css: 'li.item' }, equals: 3 } } },
-              { id: 'assert-miss', assert: { title: 'Invoices', url: '/step=9$/' }, timeout: 0.2, optional: true },
-              { id: 'url-miss', wait_for: { url: 'nope', timeout: 0.3 }, optional: true },
-              { click: 'Load prices' },
-              { id: 'idle', wait_for: { network_idle: true, timeout: 5 } },
-              { id: 'prices', assert: { text: 'prices loaded' }, timeout: 0.1 },
-              { click: 'Start live feed' },
-              { id: 'idle-miss', wait_for: { network_idle: true, timeout: 0.6 }, optional: true },
-              // pick close: escape / none (R-ACT-12).
-              { id: 'pick-escape', pick: { field: 'Label languages', option: 'Swedish', close: 'escape' } },
-              { id: 'escaped', assert: { text: 'pop closed by Escape', gone: { role: 'listbox' } } },
-              { id: 'pick-none', pick: { field: 'Label languages', option: 'Danish', close: 'none' } },
-              { id: 'left-open', assert: { target: { role: 'option', name: 'Danish', in: 'listbox' } }, timeout: 0.1 },
-              { press: 'Escape' },
-              // A target-object scope on a step (R-TGT-07).
-              { id: 'add-aside', click: { text: 'Add', in: { css: 'aside' } } },
-              { id: 'add-nowhere', click: { text: 'Add', in: { css: '#nowhere' } }, timeout: 0.3, optional: true },
-              { id: 'log-add', eval: pageLog },
-              // open on another page (R-ACT-01), then switch_page main + close_current (R-ACT-26).
-              { id: 'open-other', open: { url: '/options.html?o=1&slow=1', page: 'other', wait_until: 'domcontentloaded' } },
-              { id: 'on-other', assert: { url: 'o=1' } },
-              { id: 'tab', new_tab: { href: '/doc.html?n=3', as: 'pdf' } },
-              { assert: { text: 'Quote 3' } },
-              { id: 'main', switch_page: { to: 'main', close_current: true } },
-              { id: 'pdf-closed', switch_page: 'pdf', optional: true },
-            ],
-          },
-          // Scene-level irreversible (R-SCN-04): the first step is hovered, not clicked; the scene stops there.
-          { id: 'danger', irreversible: true, steps: [{ click: 'Delete all labels' }, { click: { css: '#probe' } }] },
-          {
-            id: 'strategies',
-            steps: [
-              { id: 'log-danger', eval: pageLog },
-              { id: 'open-step', open: '/strategies.html' },
-              // Explicit strategies (R-CLK-01) and expect_popup (R-CLK-02); see the strategy page's widgets.
-              { id: 'dom', click: { css: '#b', strategy: 'dom' } },
-              { click: { outside: true } },
-              { id: 'pointer', click: { css: '#c', strategy: 'pointer' } },
-              { click: { outside: true } },
-              { id: 'real', click: { css: '#b', strategy: 'real' } },
-              { id: 'no-popup', click: { css: '#b', expect_popup: false } },
-              { id: 'log-popups', eval: pageLog },
-              { id: 'expect', click: { text: 'Plain button', expect_popup: true } },
-            ],
-          },
-          {
-            id: 'widgets',
-            open: '/widgets.html',
-            steps: [
-              // outside: <target> (R-ACT-04).
-              { id: 'org', click: { css: '#org' } },
-              { id: 'outside-h1', click: { outside: { text: 'Availability' } } },
-              { assert: { gone: { role: 'listbox' } } },
-              // menu trigger + confirm: true (R-ACT-14): the confirmation's first button is "Cancel".
-              { id: 'menu-trigger', menu: { trigger: { css: '[data-row=Sweden]' }, item: 'Pause', confirm: true } },
-              { assert: { text: 'Sweden paused' } },
-              { id: 'states', eval: "return [document.getElementById('swe-state').textContent, document.getElementById('ice-state').textContent];" },
-              { id: 'trigger-wins', menu: { row: 'Sweden', trigger: { css: '#nope' }, item: 'Edit' }, timeout: 0.3, optional: true },
-              // A failing assert ends the run (R-ACT-23).
-              { id: 'fails', assert: { count: { target: { css: '[aria-label="Row actions"]' }, equals: 3 } }, timeout: 0.3 },
-            ],
-          },
-        ],
+    rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        mode: 'dry',
+        runId: 'options',
+        scenario: makeScenario('options', {
+          pacing: FAST,
+          scenes: [
+            {
+              id: 'options',
+              open: '/options.html',
+              still: 0.6,
+              transition: 'fade-black',
+              note: 'Free-form note: ignored by the runner.',
+              steps: [
+                // Step modifiers (R-MOD-02/03) on a plain left click (the control of the click options below).
+                { id: 'plain', click: { css: '#probe' }, caption: { kicker: 'Labels', text: 'Probe the clicks' }, speed: 2 },
+                { id: 'log-plain', eval: probeLog },
+                { id: 'right', click: { css: '#probe', button: 'right' } },
+                { id: 'log-right', eval: probeLog },
+                { id: 'middle', click: { css: '#probe', button: 'middle' } },
+                { id: 'log-middle', eval: probeLog },
+                { id: 'shift', click: { css: '#probe', modifiers: ['Shift'] } },
+                { id: 'log-shift', eval: probeLog },
+                { id: 'alt-ctrl', click: { css: '#probe', modifiers: ['Alt', 'Control'] } },
+                { id: 'log-alt-ctrl', eval: probeLog },
+                { id: 'offset', click: { css: '#probe', offset: { x: 6, y: 5 } } },
+                { id: 'log-offset', eval: probeLog },
+                // Per-click durations (R-CLK-03), each from the same far point, then the same click without them.
+                { cursor: { set: { x: 700, y: 560 } } },
+                { id: 'slow', click: { css: '#probe', move_ms: 600, hover_ms: 400, after_ms: 500 } },
+                { cursor: { set: { x: 700, y: 560 } } },
+                { id: 'quick', click: { css: '#probe' } },
+                // wait_for (R-ACT-21) and assert (R-ACT-23).
+                { click: 'Refresh' },
+                { id: 'gone', wait_for: { gone: '#spinner', timeout: 3 } },
+                { id: 'gone-lag', eval: 'return Date.now() - window.spinnerGoneAt;' },
+                { click: 'Next step' },
+                { id: 'url-regex', wait_for: { url: '/step=\\d$/' } },
+                { id: 'url-substring', wait_for: { url: 'step=2' } },
+                { id: 'assert-title-url', assert: { title: 'STEP 2', url: '/step=2$/' } },
+                { id: 'assert-count', assert: { count: { target: { css: 'li.item' }, equals: 3 } } },
+                { id: 'assert-miss', assert: { title: 'Invoices', url: '/step=9$/' }, timeout: 0.2, optional: true },
+                { id: 'url-miss', wait_for: { url: 'nope', timeout: 0.3 }, optional: true },
+                { click: 'Load prices' },
+                { id: 'idle', wait_for: { network_idle: true, timeout: 5 } },
+                { id: 'prices', assert: { text: 'prices loaded' }, timeout: 0.1 },
+                { click: 'Start live feed' },
+                { id: 'idle-miss', wait_for: { network_idle: true, timeout: 0.6 }, optional: true },
+                // pick close: escape / none (R-ACT-12).
+                { id: 'pick-escape', pick: { field: 'Label languages', option: 'Swedish', close: 'escape' } },
+                { id: 'escaped', assert: { text: 'pop closed by Escape', gone: { role: 'listbox' } } },
+                { id: 'pick-none', pick: { field: 'Label languages', option: 'Danish', close: 'none' } },
+                { id: 'left-open', assert: { target: { role: 'option', name: 'Danish', in: 'listbox' } }, timeout: 0.1 },
+                { press: 'Escape' },
+                // A target-object scope on a step (R-TGT-07).
+                { id: 'add-aside', click: { text: 'Add', in: { css: 'aside' } } },
+                { id: 'add-nowhere', click: { text: 'Add', in: { css: '#nowhere' } }, timeout: 0.3, optional: true },
+                { id: 'log-add', eval: pageLog },
+                // open on another page (R-ACT-01), then switch_page main + close_current (R-ACT-26).
+                { id: 'open-other', open: { url: '/options.html?o=1&slow=1', page: 'other', wait_until: 'domcontentloaded' } },
+                { id: 'on-other', assert: { url: 'o=1' } },
+                { id: 'tab', new_tab: { href: '/doc.html?n=3', as: 'pdf' } },
+                { assert: { text: 'Quote 3' } },
+                { id: 'main', switch_page: { to: 'main', close_current: true } },
+                { id: 'pdf-closed', switch_page: 'pdf', optional: true },
+              ],
+            },
+            // Scene-level irreversible (R-SCN-04): the first step is hovered, not clicked; the scene stops there.
+            { id: 'danger', irreversible: true, steps: [{ click: 'Delete all labels' }, { click: { css: '#probe' } }] },
+            {
+              id: 'strategies',
+              steps: [
+                { id: 'log-danger', eval: pageLog },
+                { id: 'open-step', open: '/strategies.html' },
+                // Explicit strategies (R-CLK-01) and expect_popup (R-CLK-02); see the strategy page's widgets.
+                { id: 'dom', click: { css: '#b', strategy: 'dom' } },
+                { click: { outside: true } },
+                { id: 'pointer', click: { css: '#c', strategy: 'pointer' } },
+                { click: { outside: true } },
+                { id: 'real', click: { css: '#b', strategy: 'real' } },
+                { id: 'no-popup', click: { css: '#b', expect_popup: false } },
+                { id: 'log-popups', eval: pageLog },
+                { id: 'expect', click: { text: 'Plain button', expect_popup: true } },
+              ],
+            },
+            {
+              id: 'widgets',
+              open: '/widgets.html',
+              steps: [
+                // outside: <target> (R-ACT-04).
+                { id: 'org', click: { css: '#org' } },
+                { id: 'outside-h1', click: { outside: { text: 'Availability' } } },
+                { assert: { gone: { role: 'listbox' } } },
+                // menu trigger + confirm: true (R-ACT-14): the confirmation's first button is "Cancel".
+                { id: 'menu-trigger', menu: { trigger: { css: '[data-row=Sweden]' }, item: 'Pause', confirm: true } },
+                { assert: { text: 'Sweden paused' } },
+                { id: 'states', eval: "return [document.getElementById('swe-state').textContent, document.getElementById('ice-state').textContent];" },
+                { id: 'trigger-wins', menu: { row: 'Sweden', trigger: { css: '#nope' }, item: 'Edit' }, timeout: 0.3, optional: true },
+                // A failing assert ends the run (R-ACT-23).
+                { id: 'fails', assert: { count: { target: { css: '[aria-label="Row actions"]' }, equals: 3 } }, timeout: 0.3 },
+              ],
+            },
+          ],
+        }),
       }),
-    });
+    );
     tl = await readTimeline(rec.timeline!);
     ev = steps(tl.events);
   });

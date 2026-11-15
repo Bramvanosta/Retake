@@ -6,8 +6,10 @@ import { createServer } from 'node:http';
 import type { IncomingHttpHeaders } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { execFile } from 'node:child_process';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { LoadedScenario, LoadedTemplate, Pacing, Scenario } from '@retake/core';
+import type { RunOptions } from '@retake/runner-web';
 
 export const execFileP = promisify(execFile);
 
@@ -54,6 +56,14 @@ export async function startServer(pages: Record<string, ServerEntry>): Promise<T
         server.close(() => resolve());
       }),
   };
+}
+
+/**
+ * A capture's options with the folder of its run folders, which runner-web's runScenario requires (the engine hands it
+ * with the id it reserved): the project's runs/ unless the options give one. The id stays the options' own.
+ */
+export function inRunsOf(o: Omit<RunOptions, 'runsDir'> & { runsDir?: string | undefined }): RunOptions {
+  return { ...o, runsDir: o.runsDir ?? join(o.project.dir, 'runs') };
 }
 
 /** Fast pacing for functional tests (the acceptance test uses the real defaults). */

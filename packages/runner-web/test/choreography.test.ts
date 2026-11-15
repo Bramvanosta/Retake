@@ -9,7 +9,7 @@ import type { Pacing, Scene, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { cursorCovers } from '../src/scene-cursor.js';
 import { CALENDAR_PAGE, CHOREO_PAGE, DESIGN_FRAME, EDITOR_PAGE, PICKERS_PAGE, POPOVER_PAGE, RICH_FRAME } from './pages.js';
-import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
@@ -40,13 +40,15 @@ const clicksOf = (e: TimelineEvent) => (e.data as { clicks?: Click[] } | undefin
 const roles = (e: TimelineEvent) => clicksOf(e).map((c) => c.role);
 
 async function run(id: string, scenes: Scene[], pacing: Partial<Pacing> = FAST) {
-  const rec = await runScenario({
-    policy: PERSON_POLICY,
-    project: makeProject(dir, { app: server.url }, { width: 1000, height: 700 }),
-    mode: 'dry',
-    runId: id,
-    scenario: makeScenario(id, { pacing, scenes }),
-  });
+  const rec = await runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project: makeProject(dir, { app: server.url }, { width: 1000, height: 700 }),
+      mode: 'dry',
+      runId: id,
+      scenario: makeScenario(id, { pacing, scenes }),
+    }),
+  );
   const tl = await readTimeline(rec.timeline!);
   return { rec, tl, ev: tl.events.filter((e) => e.step >= 0) };
 }

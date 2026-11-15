@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { kitConfigFor, openSession, runScenario, keepRealTime } from '../src/index.js';
 import type { CursorEffectPayload } from '../src/index.js';
-import { FAST, makeScenario } from '@retake/test-support/capture';
+import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
@@ -293,18 +293,20 @@ describe('the kit keeps its own time sources (L1.7 hardening)', () => {
 describe('a run with a clock (R-ENV-05)', () => {
   it('the capture reads the clock from capture time 0; cursor effects stay on the capture clock; the clock is recorded', async () => {
     const project = makeProject(dir, { app: A });
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      scenario: makeScenario('clock-run', {
-        pacing: FAST,
-        clock: '2020-01-01T09:00:00Z',
-        scenes: [{ id: 'a', page: 'app', open: '/now.html', steps: [{ assert: { text: 'Now 2020-01-01T09:00:0' } }, { hover: 'Hover me' }, { click: 'Hover me' }] }],
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario: makeScenario('clock-run', {
+          pacing: FAST,
+          clock: '2020-01-01T09:00:00Z',
+          scenes: [{ id: 'a', page: 'app', open: '/now.html', steps: [{ assert: { text: 'Now 2020-01-01T09:00:0' } }, { hover: 'Hover me' }, { click: 'Hover me' }] }],
+        }),
+        mode: 'capture',
+        env: 'test',
+        runId: `clock-run-${Date.now()}`,
       }),
-      mode: 'capture',
-      env: 'test',
-      runId: `clock-run-${Date.now()}`,
-    });
+    );
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     expect(rec.environment).toEqual({ access: 'read-write', clock: { at: '2020-01-01T09:00:00Z' } });
@@ -322,18 +324,20 @@ describe('a run with a clock (R-ENV-05)', () => {
     const project = makeProject(dir, { app: A });
     project.config.browser = { timezone: 'Europe/Paris' };
     const take = async (n: number, clock: string | { at: string; freeze: true }) => {
-      const rec = await runScenario({
-        policy: PERSON_POLICY,
-        project,
-        scenario: makeScenario('clock-takes', {
-          pacing: FAST,
-          clock,
-          scenes: [{ id: 'a', page: 'app', open: '/minute.html', steps: [{ capture_text: { target: { css: '#asof' }, as: 'as-of' } }] }],
+      const rec = await runScenario(
+        inRunsOf({
+          policy: PERSON_POLICY,
+          project,
+          scenario: makeScenario('clock-takes', {
+            pacing: FAST,
+            clock,
+            scenes: [{ id: 'a', page: 'app', open: '/minute.html', steps: [{ capture_text: { target: { css: '#asof' }, as: 'as-of' } }] }],
+          }),
+          mode: 'dry',
+          env: 'test',
+          runId: `clock-take-${n}-${Date.now()}`,
         }),
-        mode: 'dry',
-        env: 'test',
-        runId: `clock-take-${n}-${Date.now()}`,
-      });
+      );
       expect(rec.status).toBe('succeeded');
       const tl = await readTimeline(rec.timeline!);
       return { rec, value: tl.artefacts?.find((a) => a.kind === 'text')?.value };

@@ -48,6 +48,38 @@ outputsContract('memory', async () => {
 });
 
 describe('what only the disk has: a link', () => {
+  it('a plain read never follows a link, and refuses a file of another name when asked; what a folder holds is judged once links are followed', async () => {
+    const project = join(temp, 'plain-links');
+    const review = join(project, 'review', 'quote-v1');
+    const away = join(temp, 'plain-away');
+    await mkdir(join(review, 'keyframes'), { recursive: true });
+    await mkdir(join(review, '..x'), { recursive: true });
+    await mkdir(away, { recursive: true });
+    await writeFile(join(away, 'secret.jpg'), 'secret');
+    await writeFile(join(review, 'sheet.jpg'), 'sheet');
+    await symlink(join(away, 'secret.jpg'), join(review, 'linked.jpg'));
+    await link(join(away, 'secret.jpg'), join(review, 'hard.jpg'));
+    await symlink(away, join(review, 'out'));
+    await writeFile(join(review, '..x', 'in.jpg'), 'in');
+    await symlink(join(review, 'sheet.jpg'), join(review, 'keyframes', 'in.png'));
+    const reviews = diskOutputs.reviews;
+    expect(await reviews.readPlain(join(review, 'sheet.jpg'), { max: 10, oneName: true })).toMatchObject({ ok: true });
+    expect(await reviews.readPlain(join(review, 'linked.jpg'), { max: 10 })).toEqual({ ok: false, reason: 'link' });
+    // A hard link is read as the file it is, unless asked for one name only.
+    const hard = await reviews.readPlain(join(review, 'hard.jpg'), { max: 10 });
+    expect(hard.ok && Buffer.from(hard.bytes).toString('utf8')).toBe('secret');
+    expect(await reviews.readPlain(join(review, 'hard.jpg'), { max: 10, oneName: true })).toEqual({ ok: false, reason: 'link' });
+    // Held: the folder's own files and links within it (a name that begins with `..` too); not a link out, nor what lies under it.
+    expect(await reviews.holds(review, join(review, 'sheet.jpg'))).toBe(true);
+    expect(await reviews.holds(review, join(review, '..x', 'in.jpg'))).toBe(true);
+    expect(await reviews.holds(join(review, 'keyframes'), join(review, 'keyframes', 'in.png'))).toBe(false);
+    expect(await reviews.holds(review, join(review, 'keyframes', 'in.png'))).toBe(true);
+    expect(await reviews.holds(review, join(review, 'linked.jpg'))).toBe(false);
+    expect(await reviews.holds(review, join(review, 'out'))).toBe(false);
+    expect(await reviews.holds(review, join(review, 'out', 'never.jpg'))).toBe(false);
+    expect(await reviews.holds(project, review)).toBe(true);
+  });
+
   it('a folder made is checked again once made: a .retake/inspect swapped for a link out between the look and the mkdir is refused', async () => {
     const project = join(temp, 'swapped-inspect');
     const elsewhere = join(temp, 'swapped-elsewhere');

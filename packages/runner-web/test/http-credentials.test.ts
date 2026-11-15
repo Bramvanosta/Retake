@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { resolveEnvironment, resolvePersonas, PERSON_POLICY } from '@retake/core';
 import { recordSession, runScenario, signIn } from '../src/index.js';
-import { FAST, makeScenario } from '@retake/test-support/capture';
+import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import { retakeHome } from '@retake/core/io';
 import { scratchHome } from '@retake/test-support/home';
@@ -84,14 +84,16 @@ describe('an environment page URL with sign-in details', () => {
   it('opens the page, signed in to its origin only; the details are nowhere in what the run writes', async () => {
     const project = makeProject(dir, { app: `http://${USER}:${PASSWORD}@127.0.0.1:${app.port}`, other: other.url });
     const events: unknown[] = [];
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      scenario: makeScenario('staging', { pacing: FAST, scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ wait_for: { text: 'Signed in to staging' } }, { wait: 0.8 }] as never }] }),
-      mode: 'dry',
-      runId: `staging-${Date.now()}`,
-      onProgress: (e) => events.push(e),
-    });
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario: makeScenario('staging', { pacing: FAST, scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ wait_for: { text: 'Signed in to staging' } }, { wait: 0.8 }] as never }] }),
+        mode: 'dry',
+        runId: `staging-${Date.now()}`,
+        onProgress: (e) => events.push(e),
+      }),
+    );
     expect(rec.status, JSON.stringify(rec.error)).toBe('succeeded');
     // The browser answered the page's challenge with them; the other origin's challenge (its iframe) got nothing.
     expect(app.auth).toContain(BASIC);
@@ -142,13 +144,15 @@ describe('an environment page URL with sign-in details', () => {
   it('details on two origins are refused before any browser opens, without showing them', async () => {
     const project = makeProject(dir, { app: `http://${USER}:${PASSWORD}@127.0.0.1:${app.port}`, other: `http://other-user:other-pass@127.0.0.1:${other.port}` });
     const before = app.auth.length + other.auth.length;
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      scenario: makeScenario('two', { pacing: FAST, scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ wait: 0.1 }] as never }] }),
-      mode: 'dry',
-      runId: `two-${Date.now()}`,
-    });
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario: makeScenario('two', { pacing: FAST, scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ wait: 0.1 }] as never }] }),
+        mode: 'dry',
+        runId: `two-${Date.now()}`,
+      }),
+    );
     expect(rec.status).toBe('failed');
     expect(rec.error?.message).toMatch(/environment test has sign-in details \(`user:password@`\) in page URLs of 2 origins .*sign in to the others with a persona/);
     expect(rec.error?.message).not.toMatch(new RegExp(`${PASSWORD}|other-pass`));

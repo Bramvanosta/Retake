@@ -9,7 +9,7 @@ import { RunnerError, runScenario, scaleArgs } from '../src/index.js';
 import { NO_HOOK_RUNNER } from '../src/hooks-bridge.js';
 import type { RunOptions } from '../src/index.js';
 import { DOC_PAGE, DROP_PAGE, DRY_PAGE, SCROLL_PAGE, STRATEGY_PAGE, TABS_PAGE } from './pages.js';
-import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir, testHookRunner } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
@@ -42,15 +42,17 @@ afterAll(async () => {
 
 function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<RunRecord> {
   const project = makeProject(dir, { app: server.url });
-  return runScenario({
-    policy: PERSON_POLICY,
-    project,
-    scenario: makeScenario(name, { pacing: FAST, ...scenario }),
-    mode: 'dry',
-    runId: `${name}-${Date.now()}`,
-    hookRunner: testHookRunner(),
-    ...opts,
-  });
+  return runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project,
+      scenario: makeScenario(name, { pacing: FAST, ...scenario }),
+      mode: 'dry',
+      runId: `${name}-${Date.now()}`,
+      hookRunner: testHookRunner(),
+      ...opts,
+    }),
+  );
 }
 
 const stepEvents = (events: TimelineEvent[]) => events.filter((e) => e.step >= 0);
@@ -154,13 +156,15 @@ describe('device scale 2 (4K-class captures, L2.8)', () => {
 
   it('captures real 2× frames: the screencast frames and capture.mp4 are width·2 × height·2', async () => {
     const project = makeProject(dir, { app: server.url }, { width: 640, height: 360 });
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      scenario: makeScenario('scale2', { pacing: FAST, capture: { scale: 2 }, scenes: [{ id: 'doc', open: '/doc.html', steps: [{ hold: 0.6 }] }] }),
-      mode: 'capture',
-      runId: `scale2-${Date.now()}`,
-    });
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario: makeScenario('scale2', { pacing: FAST, capture: { scale: 2 }, scenes: [{ id: 'doc', open: '/doc.html', steps: [{ hold: 0.6 }] }] }),
+        mode: 'capture',
+        runId: `scale2-${Date.now()}`,
+      }),
+    );
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     const tl = await readTimeline(rec.timeline!);
@@ -568,7 +572,7 @@ describe('dry-run, --until, failures, cancellation', () => {
     const sc = { pacing: FAST, setup: [{ name: 'arm', http: { method: 'POST' as const, url: '{{app}}/arm' } }], scenes: [{ id: 'one', open: '/dry.html', steps: [{ wait: 0.1 }] }] };
     const project = makeProject(dir, { app: server.url });
     const runId = `no-runner-${Date.now()}`;
-    const refused = await runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario('no-runner', sc), mode: 'capture', runId }).then(
+    const refused = await runScenario(inRunsOf({ policy: PERSON_POLICY, project, scenario: makeScenario('no-runner', sc), mode: 'capture', runId })).then(
       () => undefined,
       (e: unknown) => e,
     );
@@ -577,7 +581,7 @@ describe('dry-run, --until, failures, cancellation', () => {
     expect(NO_HOOK_RUNNER).toBe('this scenario has hooks (setup, teardown or hook steps) but no hook runner was handed to the runner (RunOptions.hookRunner)');
     expect(existsSync(join(dir, 'runs', runId))).toBe(false);
     // --hooks skip: nothing to run them with is needed.
-    const skipped = await runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario('no-runner-skip', sc), mode: 'dry', runId: `no-runner-skip-${Date.now()}` });
+    const skipped = await runScenario(inRunsOf({ policy: PERSON_POLICY, project, scenario: makeScenario('no-runner-skip', sc), mode: 'dry', runId: `no-runner-skip-${Date.now()}` }));
     expect(skipped.status).toBe('succeeded');
     expect(skipped.hooks.setup).toBe('skipped');
 

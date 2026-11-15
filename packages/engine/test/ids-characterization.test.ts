@@ -530,9 +530,10 @@ describe('render records', () => {
     expect((await engine.renders.ofScenario('records', 'quote-v2')).renders.map((r) => r.render_id)).toEqual(['quote-v2-v1']);
   });
 
-  it('a render as listed names its take and its theme, or says unknown', () => {
-    const view = (extra: Record<string, unknown>) => {
-      const v = renderView(
+  it('a render as listed names its take and its theme, or says unknown', async () => {
+    const view = async (extra: Record<string, unknown>) => {
+      const v = await renderView(
+        diskOutputs.reviews,
         p.dir,
         {
           version: 1,
@@ -550,15 +551,15 @@ describe('render records', () => {
       );
       return [short(v.run_id), short(v.theme)];
     };
-    expect(view({})).toEqual([`${STAMP}quote`, 'editorial']);
-    expect(view({ run_id: a(200), template: a(100) })).toEqual(['<200 a>', '<100 a>']);
-    expect(view({ run_id: 'a/b', template: 'a.b' })).toEqual(['unknown', 'unknown']);
-    expect(view({ run_id: 7, template: null })).toEqual(['unknown', 'unknown']);
-    expect(view({ run_id: '.tmp-quote', template: '../x' })).toEqual(['unknown', 'unknown']);
-    expect(view({ run_id: a(201) })[0]).toBe('unknown'); // D-1: 201 characters
+    expect(await view({})).toEqual([`${STAMP}quote`, 'editorial']);
+    expect(await view({ run_id: a(200), template: a(100) })).toEqual(['<200 a>', '<100 a>']);
+    expect(await view({ run_id: 'a/b', template: 'a.b' })).toEqual(['unknown', 'unknown']);
+    expect(await view({ run_id: 7, template: null })).toEqual(['unknown', 'unknown']);
+    expect(await view({ run_id: '.tmp-quote', template: '../x' })).toEqual(['unknown', 'unknown']);
+    expect((await view({ run_id: a(201) }))[0]).toBe('unknown'); // D-1: 201 characters
     // The theme is the name of a theme that exists: at most 100 characters, a listed theme's or a folder's alike.
-    expect(view({ template: a(100, 'T') })[1]).toBe('<100 T>');
-    expect(view({ template: a(101) })[1]).toBe('unknown'); // D-2: 101 characters
+    expect((await view({ template: a(100, 'T') }))[1]).toBe('<100 T>');
+    expect((await view({ template: a(101) }))[1]).toBe('unknown'); // D-2: 101 characters
   });
 
   it('a record whose fields a message may quote: a render id, a scenario name, a date, a variant', () => {

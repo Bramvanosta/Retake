@@ -288,6 +288,33 @@ export function outputsContract(name: string, make: () => Promise<OutputsFixture
       }
     });
 
+    it('reads a plain file whole within its cap (a folder, a missing file and a larger one refused), says what a folder holds, moves a folder', async () => {
+      const { o, dir } = await project();
+      for (const [kind, member] of members(o)) {
+        const at = member.dirOf(dir);
+        await member.write(join(at, 'r', 'a.json'), '{"a":1}');
+        await member.write(join(at, 'r', 'k', 'b.png'), 'png');
+        const read = await member.readPlain(join(at, 'r', 'a.json'), { max: 7 });
+        expect(read.ok && Buffer.from(read.bytes).toString('utf8'), kind).toBe('{"a":1}');
+        expect(await member.readPlain(join(at, 'r', 'a.json'), { max: 7, oneName: true }), kind).toMatchObject({ ok: true });
+        expect(await member.readPlain(join(at, 'r', 'a.json'), { max: 6 }), kind).toMatchObject({ ok: false, reason: 'too_large' });
+        expect(await member.readPlain(join(at, 'r', 'gone.json'), { max: 9 }), kind).toEqual({ ok: false, reason: 'missing' });
+        expect(await member.readPlain(join(at, 'r', 'a.json', 'x'), { max: 9 }), `${kind}: through a file`).toEqual({ ok: false, reason: 'missing' });
+        expect((await member.readPlain(join(at, 'r', 'k'), { max: 9 })).ok, `${kind}: a folder`).toBe(false);
+        // What a folder holds, by its path (its own path too; a path not there yet as spelt; never a climb out).
+        expect(await member.holds(join(at, 'r'), join(at, 'r', 'k', 'b.png')), kind).toBe(true);
+        expect(await member.holds(join(at, 'r'), join(at, 'r')), kind).toBe(true);
+        expect(await member.holds(join(at, 'r'), join(at, 'r', 'never', 'c.png')), kind).toBe(true);
+        expect(await member.holds(join(at, 'r'), join(at, 'r', '..', 'r2', 'c.png')), kind).toBe(false);
+        expect(await member.holds(join(at, 'r', 'k'), join(at, 'r', 'a.json')), kind).toBe(false);
+        // A move: the folder and its files under the new name, nothing left under the old one.
+        await member.move(join(at, 'r'), join(at, 's'));
+        expect(await member.kind(join(at, 'r')), kind).toBeUndefined();
+        expect(await member.readText(join(at, 's', 'k', 'b.png')), kind).toBe('png');
+        expect(await member.readText(join(at, 's', 'a.json')), kind).toBe('{"a":1}');
+      }
+    });
+
     it('reads renders/ through the one reader: the records of their own file, one by its id, a file too big for a listing', async () => {
       const { f, o, dir } = await project();
       const at = o.renders.dirOf(dir);

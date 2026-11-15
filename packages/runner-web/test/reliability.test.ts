@@ -17,7 +17,7 @@ import { chromium } from 'playwright-core';
 import type { EmailArtefact, LoadedProject, RunProgress, RunRecord, Scenario, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
-import { FAST, makeScenario } from '@retake/test-support/capture';
+import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
@@ -223,15 +223,17 @@ async function run(
 ): Promise<{ rec: RunRecord; events: TimelineEvent[]; progress: RunProgress[]; warnings: string[]; ms: number }> {
   const progress: RunProgress[] = [];
   const t0 = Date.now();
-  const rec = await runScenario({
-    policy: PERSON_POLICY,
-    project: opts.project ?? project(),
-    scenario: makeScenario(name, { pacing: FAST, ...scenario }),
-    mode: 'dry',
-    runId: `${name}-${Date.now()}`,
-    onProgress: (e) => progress.push(e),
-    ...opts,
-  });
+  const rec = await runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project: opts.project ?? project(),
+      scenario: makeScenario(name, { pacing: FAST, ...scenario }),
+      mode: 'dry',
+      runId: `${name}-${Date.now()}`,
+      onProgress: (e) => progress.push(e),
+      ...opts,
+    }),
+  );
   const ms = Date.now() - t0;
   const tl = rec.timeline ? await readTimeline(rec.timeline) : null;
   return { rec, events: (tl?.events ?? []).filter((e) => e.step >= 0), progress, warnings: tl?.warnings ?? rec.warnings, ms };

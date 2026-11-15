@@ -12,7 +12,7 @@ import { runScenario } from '../src/index.js';
 import { dropFile } from '../src/actions/drag.js';
 import { evalStep } from '../src/actions/misc.js';
 import type { StepContext } from '../src/runtime.js';
-import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, tempDir, testHookRunner } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
@@ -53,11 +53,11 @@ describe('runner, trust mcp', () => {
       scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ eval: { js: "throw new Error(btoa('{{env:HOME}}'))" } }, { drop_file: { zone: { css: 'body' }, path: join(outside, 'secret.txt') } }] }],
     };
     const base = { project: makeProject(dir, { app: 'http://127.0.0.1:9' }), scenario: makeScenario('leak', sc), mode: 'dry' as const, env: 'test', browser: { executable: '/nonexistent/chromium' } };
-    const rec = await runScenario({ policy: PERSON_POLICY, ...base, runId: `leak-${Date.now()}`, hookTrust: 'mcp' });
+    const rec = await runScenario(inRunsOf({ policy: PERSON_POLICY, ...base, runId: `leak-${Date.now()}`, hookTrust: 'mcp' }));
     expect(rec.status).toBe('failed');
     expect(rec.error?.message).toMatch(/^refused \(work submitted through MCP\): the scenario uses \{\{env:HOME\}\}.*; step home\.1 \(drop_file\.path\): .* is an absolute path/);
     // The CLI (trust author) goes on to the browser, which fails here.
-    const author = await runScenario({ policy: PERSON_POLICY, ...base, runId: `leak-author-${Date.now()}` });
+    const author = await runScenario(inRunsOf({ policy: PERSON_POLICY, ...base, runId: `leak-author-${Date.now()}` }));
     expect(author.error?.message).not.toContain('work submitted through MCP');
   });
 
@@ -73,14 +73,14 @@ describe('runner, trust mcp', () => {
       env: 'test',
       browser: { executable: '/nonexistent/chromium' },
     };
-    const rec = await runScenario({ policy: PERSON_POLICY, ...base, runId: `elsewhere-${Date.now()}`, hookTrust: 'mcp', hookVia: STUDIO_CONFINEMENT });
+    const rec = await runScenario(inRunsOf({ policy: PERSON_POLICY, ...base, runId: `elsewhere-${Date.now()}`, hookTrust: 'mcp', hookVia: STUDIO_CONFINEMENT }));
     expect(rec.status).toBe('failed');
     expect(rec.error?.message).toMatch(
       /^refused \(work submitted from the Studio\): scenes\[0\]\.steps\[0\]\.new_tab\.href: http:\/\/127\.0\.0\.1:10\/admin is on http:\/\/127\.0\.0\.1:10, not an origin of environment test's pages \(http:\/\/127\.0\.0\.1:9\)/,
     );
     expect(rec.error?.message).toContain('add its origin as a page of environment test in project.yaml');
     expect(rec.error?.message).not.toContain('steps[1]');
-    const author = await runScenario({ policy: PERSON_POLICY, ...base, runId: `elsewhere-author-${Date.now()}` });
+    const author = await runScenario(inRunsOf({ policy: PERSON_POLICY, ...base, runId: `elsewhere-author-${Date.now()}` }));
     expect(author.error?.message).not.toContain('work submitted');
   });
 
@@ -101,18 +101,20 @@ describe('runner, trust mcp', () => {
     try {
       const steps = [{ hook: 'warm' }, { hold: 0.1 }];
       const run = (name: string, sc: Omit<Scenario, 'video'>, project = makeProject(dir, { app: server.url })) =>
-        runScenario({
-          policy: PERSON_POLICY,
-          project,
-          scenario: makeScenario(name, { pacing: FAST, ...sc }),
-          mode: 'dry',
-          hooks: 'run',
-          env: 'test',
-          runId: `${name}-${Date.now()}`,
-          hookTrust: 'mcp',
-          confirmHook: () => true,
-          hookRunner: testHookRunner(),
-        });
+        runScenario(
+          inRunsOf({
+            policy: PERSON_POLICY,
+            project,
+            scenario: makeScenario(name, { pacing: FAST, ...sc }),
+            mode: 'dry',
+            hooks: 'run',
+            env: 'test',
+            runId: `${name}-${Date.now()}`,
+            hookTrust: 'mcp',
+            confirmHook: () => true,
+            hookRunner: testHookRunner(),
+          }),
+        );
       const shared = (vars?: Record<string, string>) => {
         const p = makeProject(dir, { app: server.url });
         p.config.hooks = { warm: { shell: { run: '{{vars.prefix}} true' } } };

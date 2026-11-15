@@ -3,7 +3,7 @@ import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS } from '@retak
 import { editReplannedMessage, scenarioChangedMessage } from '@retake/core/scenario';
 import { takeWords, untilStep } from '@retake/core/run';
 import { scenarioSinceRun } from '@retake/core/io';
-import type { LoadedProject } from '@retake/core/model';
+import type { FileFacts, LoadedProject } from '@retake/core/model';
 import { defaultStillFile, editorErrorOf, findRunOf, planWork, renderInProcess, stillInProcess } from '@retake/engine';
 import type { EditOverrides, RenderProgress, RenderRecord, RunRef } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
@@ -221,6 +221,15 @@ async function warnScenarioChanged(ui: Ui, project: LoadedProject, runArg: strin
 }
 
 /**
+ * `--music <file>` as the plan takes it: a path from the shell (cwd) when something is there once links are followed (a
+ * file, a folder: the plan then says what it is), else the text as given — relative to the project like the scenario's
+ * `music.file` (nothing there, a link that leads nowhere).
+ */
+export function musicOverride(facts: Pick<FileFacts, 'kind'>, arg: string): string {
+  return facts.kind(resolve(arg)) !== undefined ? resolve(arg) : arg;
+}
+
+/**
  * `retake render <project> <scenario>`: plan and render the latest capture of a scenario (or `--run`) into
  * renders/<scenario>-v<N>.mp4 + .json, with a progress bar and a summary.
  */
@@ -236,8 +245,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (variant) overrides.variant = variant;
   if (scale !== undefined) overrides.scale = scale;
   if (opts.music === false) overrides.music = false;
-  // A path from the shell (cwd) when it exists there, else relative to the project like the scenario's `music.file`.
-  else if (typeof opts.music === 'string') overrides.music = ws.reads.disk.facts.kind(resolve(opts.music)) !== undefined ? resolve(opts.music) : opts.music;
+  else if (typeof opts.music === 'string') overrides.music = musicOverride(ws.reads.disk.facts, opts.music);
   if (opts.intro === false) overrides.intro = false;
   if (opts.outro === false) overrides.outro = false;
   if (opts.tutorial !== undefined) overrides.tutorial = opts.tutorial;

@@ -3,12 +3,15 @@
  * the files, `--json`, and the usage / lookup errors. Needs ffmpeg and a Chromium headless shell.
  */
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { scenarioChangedMessage } from '@retake/core';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { encodingWords, glWords } from '../src/commands/render.js';
+import { encodingWords, glWords, musicOverride } from '../src/commands/render.js';
+import { diskWorkspaceReads } from '@retake/engine';
+import { memoryDisk } from '@retake/core/io';
 import { hasTool } from '@retake/test-support/repo';
 import { renderWorkspace } from '@retake/test-support/render';
 import type { RenderWorkspace } from '@retake/test-support/render';
@@ -60,6 +63,55 @@ describe("the summary's words for the render path (L5.15, review B L6)", () => {
     expect(glWords({ policy: { ...policy('software'), ffmpeg: { ...ffmpeg, used: 'library', note: 'no ffmpeg found on this machine' } } })).toBe('in software');
     // The GPU path's own failure keeps its words.
     expect(glWords({ policy: { ...policy('software', 'WebGL context lost'), ffmpeg: { ...ffmpeg, used: 'library' } } })).toBe('in software after a GPU failure');
+  });
+});
+
+describe('--music through the workspace reads: a path from here when something is there, else the text as given', () => {
+  it('on the disk: a file, a folder and a link to a file from here; nothing there and a link to nothing as given', async () => {
+    const here = await realpath(await mkdtemp(join(tmpdir(), 'retake-music-')));
+    try {
+      await writeFile(join(here, 'bed.mp3'), 'mp3');
+      await mkdir(join(here, 'beds'));
+      await symlink(join(here, 'bed.mp3'), join(here, 'linked.mp3'));
+      await symlink(join(here, 'gone.mp3'), join(here, 'broken.mp3'));
+      const facts = diskWorkspaceReads.disk.facts;
+      expect(musicOverride(facts, join(here, 'bed.mp3'))).toBe(join(here, 'bed.mp3'));
+      expect(musicOverride(facts, join(here, 'beds'))).toBe(join(here, 'beds'));
+      expect(musicOverride(facts, join(here, 'linked.mp3'))).toBe(join(here, 'linked.mp3'));
+      expect(musicOverride(facts, join(here, 'broken.mp3'))).toBe(join(here, 'broken.mp3'));
+      expect(musicOverride(facts, 'assets/never-here.mp3')).toBe('assets/never-here.mp3');
+      // Relative to the shell's folder when it is there.
+      const cwd = process.cwd();
+      process.chdir(here);
+      try {
+        expect(musicOverride(facts, 'bed.mp3')).toBe(join(here, 'bed.mp3'));
+        expect(musicOverride(facts, 'linked.mp3')).toBe(join(here, 'linked.mp3'));
+        expect(musicOverride(facts, 'broken.mp3')).toBe('broken.mp3');
+        expect(musicOverride(facts, 'beds')).toBe(join(here, 'beds'));
+      } finally {
+        process.chdir(cwd);
+      }
+    } finally {
+      await rm(here, { recursive: true, force: true });
+    }
+  });
+
+  it("in a workspace's memory reads: the same answers (links followed, one to nothing is nothing)", () => {
+    const facts = memoryDisk({
+      files: new Map([['/m/bed.mp3', Buffer.from('mp3')]]),
+      folders: new Set(['/m/beds']),
+      links: new Map([
+        ['/m/linked.mp3', '/m/bed.mp3'],
+        ['/m/broken.mp3', '/m/gone.mp3'],
+      ]),
+    }).facts;
+    expect(['/m/bed.mp3', '/m/beds', '/m/linked.mp3', '/m/broken.mp3', 'assets/never.mp3'].map((p) => musicOverride(facts, p))).toEqual([
+      '/m/bed.mp3',
+      '/m/beds',
+      '/m/linked.mp3',
+      '/m/broken.mp3',
+      'assets/never.mp3',
+    ]);
   });
 });
 

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { RunRecord, Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { SIZES_PAGE } from './pages.js';
-import { FAST, debugTemplate, execFileP, frameAt, magentaCentroid, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, debugTemplate, execFileP, frameAt, magentaCentroid, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { jpegSize, makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
@@ -51,30 +51,32 @@ const CASES: Case[] = [
 
 async function capture(c: Case): Promise<{ rec: RunRecord; tl: Timeline }> {
   const project = makeProject(dir, { app: server.url }, { width: c.width, height: c.height });
-  const rec = await runScenario({
-    policy: PERSON_POLICY,
-    project,
-    template: debugTemplate(),
-    mode: 'capture',
-    runId: `sizes-${c.name}`,
-    scenario: makeScenario(`sizes-${c.name}`, {
-      pacing: FAST,
-      capture: { scale: c.scale, ...(c.keepFrames === false ? { keep_frames: false } : {}) },
-      scenes: [
-        {
-          id: 'size',
-          open: '/sizes.html',
-          steps: [
-            // The page laid out at the virtual size, at the device scale (innerWidth / devicePixelRatio).
-            { assert: { text: `viewport ${c.width}x${c.height} @${c.scale}` }, timeout: 0 },
-            // A longer approach than FAST pacing gives: enough frames to measure the frame interval during a move.
-            { click: { text: c.button, move_ms: 600 } },
-            { hold: 0.3 },
-          ],
-        },
-      ],
+  const rec = await runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project,
+      template: debugTemplate(),
+      mode: 'capture',
+      runId: `sizes-${c.name}`,
+      scenario: makeScenario(`sizes-${c.name}`, {
+        pacing: FAST,
+        capture: { scale: c.scale, ...(c.keepFrames === false ? { keep_frames: false } : {}) },
+        scenes: [
+          {
+            id: 'size',
+            open: '/sizes.html',
+            steps: [
+              // The page laid out at the virtual size, at the device scale (innerWidth / devicePixelRatio).
+              { assert: { text: `viewport ${c.width}x${c.height} @${c.scale}` }, timeout: 0 },
+              // A longer approach than FAST pacing gives: enough frames to measure the frame interval during a move.
+              { click: { text: c.button, move_ms: 600 } },
+              { hold: 0.3 },
+            ],
+          },
+        ],
+      }),
     }),
-  });
+  );
   expect(rec.error?.message).toBeUndefined();
   expect(rec.status).toBe('succeeded');
   return { rec, tl: await readTimeline(rec.timeline!) };

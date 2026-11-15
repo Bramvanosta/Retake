@@ -27,6 +27,7 @@ import type { Read, RunFolderFacts, RunRead } from '@retake/core/run';
 import type { NamedRenderFind, NamedRenderVerb, RecordFileText } from '@retake/core/io';
 import type { Timeline } from '@retake/core/model';
 import type { RenderEntry } from '@retake/core/render';
+import type { PlainFileRead } from '@retake/core/io';
 
 /** What a listed run folder's read may be spared (core io readRunFolder's options). */
 export interface RunFolderReadOptions {
@@ -150,6 +151,19 @@ export interface OutputFolder {
    * read, written or cleaned as the project's.
    */
   within(projectDir: string, path?: string): Promise<boolean>;
+  /**
+   * A small regular file read whole, never through a link (core readPlainFile's rule: opened without following one and
+   * without blocking, judged on what was opened — a regular file of at most `max` bytes); `oneName`: a file that has
+   * another name (a hard link) is refused as `link` too. Never throws: what was not read says why.
+   */
+  readPlain(path: string, o: { max: number; oneName?: boolean }): Promise<PlainFileRead>;
+  /**
+   * Whether `path` lies in the folder `dir` once links are followed (core insideFolder's rule: both real paths, the part
+   * of a path not there yet kept as spelt; `dir` itself counts). Says nothing of whether `path` is there.
+   */
+  holds(dir: string, path: string): Promise<boolean>;
+  /** Move the file or folder `from` to `to` (a rename on a disk), where nothing is yet. */
+  move(from: string, to: string): Promise<void>;
 }
 
 /** renders/ of the projects: a generated folder, and its records through core's one reader of renders/. */
@@ -162,9 +176,10 @@ export interface RenderOutputs extends OutputFolder {
   byId(rendersDir: string, id: string): Promise<RenderEntry>;
   /**
    * The render someone named (core io findNamedRender: `latest` of a scenario, an id, or a .json / .mp4 path at a
-   * terminal; an id only through MCP), or why none is.
+   * terminal; an id only through MCP), or why none is. `videoAlone`: a video named without a record beside it is said as
+   * that (a review needs the plan).
    */
-  named(rendersDir: string, arg: string, o: { verb: NamedRenderVerb; slug: string; scenario?: string; trust?: 'author' | 'mcp' }): Promise<NamedRenderFind>;
+  named(rendersDir: string, arg: string, o: { verb: NamedRenderVerb; slug: string; scenario?: string; trust?: 'author' | 'mcp'; videoAlone?: boolean }): Promise<NamedRenderFind>;
   /**
    * Take the lock file `path` (a render version's, `.<scenario>-v<N>.lock`) holding `text`, its folder made: rejects
    * with code EEXIST when anything is already there (two renders never take one version).

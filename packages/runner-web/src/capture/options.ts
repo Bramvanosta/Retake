@@ -25,10 +25,10 @@ export interface RunOptions {
   /** Default: capture = run, dry = skip. */
   hooks?: 'run' | 'skip';
   headed?: boolean;
-  /** The run folder's id (the engine reserves it and always hands it); absent, a direct caller's run takes the next free one. */
-  runId?: string;
-  /** The folder of the run folders (the engine always hands it); default <project>/runs. */
-  runsDir?: string;
+  /** The run folder's id, reserved by the caller (the engine reserves it at submit: core reserveRunId): a folder name of `runsDir`. */
+  runId: string;
+  /** The folder of the run folders the caller keeps (the project's runs/, or an inspection's folder). */
+  runsDir: string;
   onProgress?: (e: RunProgress) => void;
   signal?: AbortSignal;
   /** Overrides project.config.browser. */

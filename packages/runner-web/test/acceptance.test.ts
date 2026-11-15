@@ -5,7 +5,7 @@ import { RunRecordSchema, TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { ACCEPT_PAGE } from './pages.js';
-import { debugTemplate, ffprobeDuration, frameAt, magentaCentroid, makeScenario, startServer } from '@retake/test-support/capture';
+import { debugTemplate, ffprobeDuration, frameAt, magentaCentroid, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { jpegSize, makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
@@ -35,32 +35,34 @@ describe('acceptance: 1920×1080 capture with the debug cursor', () => {
 
   it('captures a multi-step scenario to capture.mp4 + timeline.json', async () => {
     const project = makeProject(dir, { console: server.url }, { width: W, height: H });
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      template: debugTemplate(),
-      mode: 'capture',
-      runId: 'acceptance',
-      scenario: makeScenario('acceptance', {
-        // Field-tested default pacing, only the opening still is shortened.
-        pacing: { scene_start_still: 0.8 },
-        scenes: [
-          {
-            id: 'import',
-            open: '/console.html',
-            steps: [
-              { click: 'New import' },
-              { click: 'Choose an organisation' },
-              { click: { role: 'option', name: 'Northfield Roasters' } },
-              { type: { into: { label: 'Import name' }, text: 'Spring list', cps: 22 } },
-              { click: { label: 'Notify buyers' } },
-              { menu: { row: 'Iceland', item: 'Pause' }, mark: 'pause' },
-              { click: 'Save changes', hold: 0.6 },
-            ],
-          },
-        ],
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        template: debugTemplate(),
+        mode: 'capture',
+        runId: 'acceptance',
+        scenario: makeScenario('acceptance', {
+          // Field-tested default pacing, only the opening still is shortened.
+          pacing: { scene_start_still: 0.8 },
+          scenes: [
+            {
+              id: 'import',
+              open: '/console.html',
+              steps: [
+                { click: 'New import' },
+                { click: 'Choose an organisation' },
+                { click: { role: 'option', name: 'Northfield Roasters' } },
+                { type: { into: { label: 'Import name' }, text: 'Spring list', cps: 22 } },
+                { click: { label: 'Notify buyers' } },
+                { menu: { row: 'Iceland', item: 'Pause' }, mark: 'pause' },
+                { click: 'Save changes', hold: 0.6 },
+              ],
+            },
+          ],
+        }),
       }),
-    });
+    );
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     expect(() => RunRecordSchema.parse(rec)).not.toThrow();

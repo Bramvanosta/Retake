@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import type { Step, TimelineEvent } from '@retake/core';
 import { PERSON_POLICY } from '@retake/core';
 import { runScenario } from '../src/index.js';
-import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 
@@ -57,13 +57,15 @@ afterAll(async () => {
 
 async function run(runId: string, open: string, steps: Step[], timeout = 4) {
   const project = makeProject(dir, { app: server.url });
-  const rec = await runScenario({
-    policy: PERSON_POLICY,
-    project,
-    mode: 'dry',
-    runId,
-    scenario: makeScenario(runId, { pacing: FAST, defaults: { timeout_s: timeout }, scenes: [{ id: 'form', open, steps }] }),
-  });
+  const rec = await runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project,
+      mode: 'dry',
+      runId,
+      scenario: makeScenario(runId, { pacing: FAST, defaults: { timeout_s: timeout }, scenes: [{ id: 'form', open, steps }] }),
+    }),
+  );
   const events = (await readTimeline(join(rec.dir, 'timeline.json'))).events.filter((e: TimelineEvent) => e.step >= 0);
   return { rec, events };
 }

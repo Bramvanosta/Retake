@@ -14,11 +14,10 @@ import { parseRunId } from '@retake/core/ids';
 import { listSteps, resolveStepRef, sceneId, templateVideo, timelineVideo } from '@retake/core/language';
 import { displayPages, displayTable, resolveClock, resolveEnvironment, resolveRunAccess } from '@retake/core/environment';
 import { hookStepNames, stepHookList, writingHooks } from '@retake/core/hooks';
-import { projectPath } from '@retake/core/project';
 import { mailboxFor } from '@retake/core/sandbox';
 import { agentTrustProblems } from '@retake/core/scenario';
 import { finishRun, startedRun } from '@retake/core/run';
-import { nodeFileFacts, reserveRunId, writeJson } from '@retake/core/io';
+import { nodeFileFacts, writeJson } from '@retake/core/io';
 import type { TemplateContext } from '@retake/core/base';
 import type { MailboxConfig, ResolvedClock, ResolvedEnvironment, RunError, RunSandbox, Scenario, TimelineEnvironment } from '@retake/core/model';
 import type { RunAccess } from '@retake/core/environment';
@@ -154,13 +153,13 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
       throw new RunnerError(`--until "${opts.until}" matches no step (use <scene>.<step id|index>, a unique step id, or a scene id)`);
     }
   }
-  const runsDir = resolve(opts.runsDir ?? projectPath(project.dir, 'runs'));
-  // Two runs of one scenario started in the same second (concurrent runs, L1.6) never share a folder: the later one
-  // takes the next free second (core reserveRunId). A pre-assigned id (a job's, reserved at submit) reuses its folder.
-  // A pre-assigned id names a folder of runs/: one that is no run id is refused before any folder is made.
-  const given = opts.runId !== undefined ? parseRunId(opts.runId) : undefined;
-  if (given === null) throw new RunnerError(`run id ${JSON.stringify(String(opts.runId).slice(0, 60))} is not a run id (a folder name of runs/: letters, digits, ".", "_" and "-", never a path)`);
-  const { id: runId, dir } = given !== undefined ? { id: given, dir: join(runsDir, given) } : await reserveRunId(runsDir, loaded.name);
+  const runsDir = resolve(opts.runsDir);
+  // The run folder is the caller's, reserved before the run (the engine's at submit: core reserveRunId, so two runs of
+  // one scenario started in the same second never share one). Its id names a folder of runs/: one that is no run id is
+  // refused before any folder is made.
+  const runId = parseRunId(opts.runId);
+  if (runId === null) throw new RunnerError(`run id ${JSON.stringify(String(opts.runId).slice(0, 60))} is not a run id (a folder name of runs/: letters, digits, ".", "_" and "-", never a path)`);
+  const dir = join(runsDir, runId);
   const screenshotsDir = join(dir, 'screenshots');
   const framesDir = join(dir, 'frames');
   await mkdir(screenshotsDir, { recursive: true });

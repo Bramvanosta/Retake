@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import type { RunRecord, Timeline } from '@retake/core';
 import { cfrSchedule, runScenario } from '../src/index.js';
 import type { FrameIndexEntry } from '../src/index.js';
-import { FAST, execFileP, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, execFileP, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
@@ -52,23 +52,25 @@ afterAll(async () => {
 });
 
 function capture(runId: string, keepFrames: boolean): Promise<RunRecord> {
-  return runScenario({
-    policy: PERSON_POLICY,
-    project: makeProject(dir, { app: server.url }, { keepFrames }),
-    mode: 'capture',
-    runId,
-    scenario: makeScenario('orders', {
-      pacing: { ...FAST, scene_start_still: 0.4 },
-      capture: { step_shots: true },
-      scenes: [
-        {
-          id: 'orders',
-          open: '/orders.html',
-          steps: [{ click: 'Load orders' }, { wait_for: { text: 'Order 1044' } }, { click: 'Count 0' }, { click: 'Count 1' }, { click: 'Count 2', hold: 0.4 }],
-        },
-      ],
+  return runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project: makeProject(dir, { app: server.url }, { keepFrames }),
+      mode: 'capture',
+      runId,
+      scenario: makeScenario('orders', {
+        pacing: { ...FAST, scene_start_still: 0.4 },
+        capture: { step_shots: true },
+        scenes: [
+          {
+            id: 'orders',
+            open: '/orders.html',
+            steps: [{ click: 'Load orders' }, { wait_for: { text: 'Order 1044' } }, { click: 'Count 0' }, { click: 'Count 1' }, { click: 'Count 2', hold: 0.4 }],
+          },
+        ],
+      }),
     }),
-  });
+  );
 }
 
 /** Every frame of a video (or of an image sequence) as 160×90 grey pixels. */

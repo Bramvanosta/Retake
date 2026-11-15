@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import type { Timeline, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { FRAME_PAGE, deepPage } from './pages.js';
-import { FAST, debugTemplate, frameAt, magentaCentroid, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, debugTemplate, frameAt, magentaCentroid, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
@@ -39,36 +39,38 @@ describe('capture through web components and iframes (R-ISS-07)', () => {
 
   it('runs a scenario whose targets live in shadow roots and frames', async () => {
     const project = makeProject(dir, { app: server.url }, { width: W, height: H });
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      template: debugTemplate(),
-      mode: 'capture',
-      runId: 'deep',
-      scenario: makeScenario('deep', {
-        pacing: { ...FAST, hover_ms: 150, nudge_hover_ms: 120 },
-        scenes: [
-          {
-            id: 'deep',
-            open: '/deep.html',
-            steps: [
-              { click: 'Add bag' },
-              { assert: { text: '4 bags' } },
-              { type: { into: { label: 'Note' }, text: 'Washed' } },
-              { select: { field: 'Destination', option: 'Norway' } },
-              { assert: { text: 'dest=Norway' } },
-              { type: { into: { label: 'Bags' }, text: '12', clear: true } },
-              { click: 'Estimate' },
-              { assert: { text: '12 bags to Norway' } },
-              { click: 'Far in frame' },
-              { click: 'Nested frame button' },
-              { click: 'Embedded' },
-              { hover: { text: 'Low button', ms: 300 } },
-            ],
-          },
-        ],
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        template: debugTemplate(),
+        mode: 'capture',
+        runId: 'deep',
+        scenario: makeScenario('deep', {
+          pacing: { ...FAST, hover_ms: 150, nudge_hover_ms: 120 },
+          scenes: [
+            {
+              id: 'deep',
+              open: '/deep.html',
+              steps: [
+                { click: 'Add bag' },
+                { assert: { text: '4 bags' } },
+                { type: { into: { label: 'Note' }, text: 'Washed' } },
+                { select: { field: 'Destination', option: 'Norway' } },
+                { assert: { text: 'dest=Norway' } },
+                { type: { into: { label: 'Bags' }, text: '12', clear: true } },
+                { click: 'Estimate' },
+                { assert: { text: '12 bags to Norway' } },
+                { click: 'Far in frame' },
+                { click: 'Nested frame button' },
+                { click: 'Embedded' },
+                { hover: { text: 'Low button', ms: 300 } },
+              ],
+            },
+          ],
+        }),
       }),
-    });
+    );
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     tl = await readTimeline(rec.timeline!);

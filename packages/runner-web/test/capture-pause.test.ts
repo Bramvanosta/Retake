@@ -21,7 +21,7 @@ import type { Page } from 'playwright-core';
 import type { RunProgress, RunRecord, RunningRun, Timeline, TimelineLoading, TimelinePause } from '@retake/core';
 import { CaptureClock, PerfSampler, RunPauser, runScenario } from '../src/index.js';
 import type { FrameIndexEntry, RunOptions, ScreencastRecorder } from '../src/index.js';
-import { FAST, ffprobeDuration, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, ffprobeDuration, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
@@ -282,20 +282,22 @@ async function take(name: string, opts: Partial<RunOptions> & { pauseBefore?: nu
   const events: Take['events'] = [];
   const gate = { requested: false };
   const { pauseBefore, pauseMs, ...rest } = opts;
-  const rec = await runScenario({
-    policy: PERSON_POLICY,
-    project: makeProject(dir, { app: server.url }),
-    mode: 'capture',
-    runId: `${name}-${Date.now()}`,
-    scenario: makeScenario(name, { pacing: { ...FAST, scene_start_still: 0.3 }, scenes: [{ id: 'board', open: '/board.html', steps: STEPS }] }),
-    ...(pauseBefore !== undefined ? { pause: gate } : {}),
-    onProgress: (e) => {
-      events.push({ e, wall: Date.now() });
-      if (pauseBefore !== undefined && e.type === 'step_end' && e.step === pauseBefore - 1) gate.requested = true;
-      if (e.type === 'pause' && e.state === 'paused') setTimeout(() => (gate.requested = false), pauseMs ?? PAUSE_MS);
-    },
-    ...rest,
-  });
+  const rec = await runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project: makeProject(dir, { app: server.url }),
+      mode: 'capture',
+      runId: `${name}-${Date.now()}`,
+      scenario: makeScenario(name, { pacing: { ...FAST, scene_start_still: 0.3 }, scenes: [{ id: 'board', open: '/board.html', steps: STEPS }] }),
+      ...(pauseBefore !== undefined ? { pause: gate } : {}),
+      onProgress: (e) => {
+        events.push({ e, wall: Date.now() });
+        if (pauseBefore !== undefined && e.type === 'step_end' && e.step === pauseBefore - 1) gate.requested = true;
+        if (e.type === 'pause' && e.state === 'paused') setTimeout(() => (gate.requested = false), pauseMs ?? PAUSE_MS);
+      },
+      ...rest,
+    }),
+  );
   expect(rec.status, rec.error?.message).toBe('succeeded');
   return { rec, tl: await readTimeline(rec.timeline!), events };
 }
@@ -446,27 +448,29 @@ describe('other capture pauses', () => {
     'a multi-page scene pauses both tracks: each video as long as the take, no frame inside the pause',
     async () => {
       const gate = { requested: false };
-      const rec = await runScenario({
-        policy: PERSON_POLICY,
-        project: makeProject(dir, { app: server.url }),
-        mode: 'capture',
-        runId: `pages-${Date.now()}`,
-        scenario: makeScenario('pages', {
-          pacing: { ...FAST, scene_start_still: 0.3, page_switch_ms: 200 },
-          scenes: [
-            {
-              id: 'both',
-              pages: { left: { page: 'app', open: '/board.html' }, right: { page: 'app', open: '/board.html', viewport: { width: 400, height: 600 } } },
-              steps: [{ click: { css: '#count' } }, { hold: 0.5 }, { on: 'right', click: { css: '#count' } }, { hold: 0.5 }],
-            },
-          ],
+      const rec = await runScenario(
+        inRunsOf({
+          policy: PERSON_POLICY,
+          project: makeProject(dir, { app: server.url }),
+          mode: 'capture',
+          runId: `pages-${Date.now()}`,
+          scenario: makeScenario('pages', {
+            pacing: { ...FAST, scene_start_still: 0.3, page_switch_ms: 200 },
+            scenes: [
+              {
+                id: 'both',
+                pages: { left: { page: 'app', open: '/board.html' }, right: { page: 'app', open: '/board.html', viewport: { width: 400, height: 600 } } },
+                steps: [{ click: { css: '#count' } }, { hold: 0.5 }, { on: 'right', click: { css: '#count' } }, { hold: 0.5 }],
+              },
+            ],
+          }),
+          pause: gate,
+          onProgress: (e) => {
+            if (e.type === 'step_end' && e.step === 1) gate.requested = true;
+            if (e.type === 'pause' && e.state === 'paused') setTimeout(() => (gate.requested = false), 1500);
+          },
         }),
-        pause: gate,
-        onProgress: (e) => {
-          if (e.type === 'step_end' && e.step === 1) gate.requested = true;
-          if (e.type === 'pause' && e.state === 'paused') setTimeout(() => (gate.requested = false), 1500);
-        },
-      });
+      );
       expect(rec.status, rec.error?.message).toBe('succeeded');
       const tl = await readTimeline(rec.timeline!);
       const p = tl.pauses?.[0];
@@ -490,14 +494,16 @@ describe('other capture pauses', () => {
 
   it('a capture paused longer than its maximum stops (cancelled, with the reason)', async () => {
     const t0 = Date.now();
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project: makeProject(dir, { app: server.url }),
-      mode: 'capture',
-      runId: `max-${Date.now()}`,
-      scenario: makeScenario('max', { pacing: FAST, scenes: [{ id: 'board', open: '/board.html', steps: [{ hold: 0.2 }, { hold: 0.2 }] }] }),
-      pause: { requested: true, maxMs: 400 },
-    });
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project: makeProject(dir, { app: server.url }),
+        mode: 'capture',
+        runId: `max-${Date.now()}`,
+        scenario: makeScenario('max', { pacing: FAST, scenes: [{ id: 'board', open: '/board.html', steps: [{ hold: 0.2 }, { hold: 0.2 }] }] }),
+        pause: { requested: true, maxMs: 400 },
+      }),
+    );
     expect(Date.now() - t0).toBeLessThan(30_000);
     expect(rec.status).toBe('cancelled');
     expect(rec.error?.message).toMatch(/^paused longer than 0\.4 s before step board\.0: the run was stopped/);

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import type { TimelineEvent } from '@retake/core';
 import { PERSON_POLICY } from '@retake/core';
 import { runScenario } from '../src/index.js';
-import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 
@@ -40,22 +40,24 @@ afterAll(async () => {
 describe('type with fill (hotfix v0.2.6)', () => {
   it('fills the field at once: one input event, a change event, no key', async () => {
     const project = makeProject(dir, { app: server.url });
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      mode: 'dry',
-      runId: 'fill',
-      scenario: makeScenario('fill', {
-        pacing: FAST,
-        scenes: [
-          {
-            id: 'form',
-            open: '/form.html',
-            steps: [{ type: { into: { label: 'Email' }, text: 'buyer@example.com', fill: true } }, { assert: { text: 'input=1 change=1 keydown=0 email=buyer@example.com;' } }],
-          },
-        ],
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        mode: 'dry',
+        runId: 'fill',
+        scenario: makeScenario('fill', {
+          pacing: FAST,
+          scenes: [
+            {
+              id: 'form',
+              open: '/form.html',
+              steps: [{ type: { into: { label: 'Email' }, text: 'buyer@example.com', fill: true } }, { assert: { text: 'input=1 change=1 keydown=0 email=buyer@example.com;' } }],
+            },
+          ],
+        }),
       }),
-    });
+    );
     expect(rec.error?.message).toBeUndefined();
     const events = (await readTimeline(join(rec.dir, 'timeline.json'))).events.filter((e: TimelineEvent) => e.step === 0);
     expect(events[0].data).toMatchObject({ rate: 'fill', chars: 17 });

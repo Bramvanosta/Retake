@@ -3,27 +3,27 @@
  * imports this file). It lives under src, not test, because tests are not type-checked: here `implements Reviewer` is
  * compiled, so the port and its second adapter cannot drift apart unseen.
  *
- * What it writes: a review folder (review/<render id>/, or `out`) with report.json (the result without its
- * thumbnails), report.md, timeline.json and one contact sheet (a 1 × 1 JPEG), written aside and swapped in at the end
- * under the review package's names (`<id>.tmp-<pid>-<hex>`, `<id>.old-<pid>-<hex>`), so that either adapter's `recover`
- * puts the other's leftovers back in order. The render is found as a terminal names it (core/io findNamedRender, as the
- * review package does); its video must be there. What it honours of the port: the progress stages in order ending
- * `done`, the signal (ReviewCancelledError, before or between stages: the previous review kept), `thumbnails: false`,
- * `recover`. The frames answer 1 × 1 pictures: `at` a PNG per time within `videoS` (null past it), `thumb` /
- * `thumbnailOf` / `still` / `marks` a JPEG. Every call is kept in `calls`.
+ * Where: the Outputs port it is handed (`outputs`) — a MemoryOutputs keeps everything in memory, the disk's adapter
+ * writes the disk —, never node:fs. The render is found there as a terminal names it (the port's renders `named`: core
+ * findNamedRender, as the review package does); its video must be there. What it writes there: a review folder
+ * (review/<render id>/, or `out`) with report.json (the result without its thumbnails), report.md, timeline.json and one
+ * contact sheet (a 1 × 1 JPEG), written aside and swapped in at the end under the review package's names
+ * (`<id>.tmp-<pid>-<hex>`, `<id>.old-<pid>-<hex>`), so that either adapter's `recover` puts the other's leftovers back
+ * in order. What it honours of the port: the progress stages in order ending `done`, the signal (ReviewCancelledError,
+ * before or between stages: the previous review kept), `thumbnails: false`, `recover`. The frames answer 1 × 1
+ * pictures: `at` a PNG per time within `videoS` (null past it), `thumb` / `thumbnailOf` / `still` / `marks` a JPEG —
+ * the files they read and write lie in the same outputs. Every call is kept in `calls`.
  */
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { RENDER_VARIANT_SUFFIX } from '@retake/core/ids';
 import { isIsoUtcDate } from '@retake/core/comments';
 import type { RenderVariant } from '@retake/core/ids';
-import { findNamedRender, pidExists } from '@retake/core/io';
+import { pidExists } from '@retake/core/io';
 import { DEFAULT_RULES, NOT_HANDED_PROJECT, ReviewCancelledError, isHandedProject } from '@retake/review/checks';
 import type { Finding, ReviewOptions, ReviewProgress, ReviewResult } from '@retake/review/checks';
 import { MEMORY_PNG } from '../render/memory-renderer.js';
-import { OUTPUT_DIRS } from '../outputs/outputs.js';
+import type { OutputFolder, Outputs } from '../outputs/outputs.js';
 import type { FrameInput, FrameThumb, FrameThumbOptions, FrameTools, FramesAtOptions, MarkBox, MarksOptions, Reviewer, StillOptions } from './reviewer.js';
 import { bestEffort } from '@retake/core/base';
 
@@ -46,6 +46,8 @@ export type MemoryReviewerCall =
   | { op: 'frames.marks'; png: string | Buffer; boxes: readonly MarkBox[]; out: string; o?: MarksOptions };
 
 export interface MemoryReviewerOptions {
+  /** Where the renders are read and the reviews written (a MemoryOutputs: in memory). */
+  outputs: Outputs;
   /** The findings every review reports (none by default: a clean review). */
   findings?: Finding[];
   /** Runs while a review runs (after its `frames` progress, before anything is swapped in): wait, abort or throw here. */
@@ -74,9 +76,18 @@ function aside(name: string, id: string): { kind: 'tmp' | 'old'; pid: number } |
   return m ? { kind: m[1] as 'tmp' | 'old', pid: Number(m[2]) } : undefined;
 }
 
+/** A picture a frame tool reads, at most (bytes). */
+const IMAGE_READ_MAX = 64 * 1024 * 1024;
+
+/** Whether a file is at `path` of the outputs (links followed). */
+async function there(folder: OutputFolder, path: string): Promise<boolean> {
+  return (await folder.signature(path, { follow: true })) !== '-';
+}
+
 /** `out` written as the review package writes it: its folder must be there. */
-async function writeImage(out: string): Promise<{ width: number; height: number; bytes: number }> {
-  await writeFile(out, MEMORY_JPEG);
+async function writeImage(folder: OutputFolder, out: string): Promise<{ width: number; height: number; bytes: number }> {
+  if ((await folder.kind(dirname(out))) !== 'folder') throw Object.assign(new Error(`ENOENT: no such folder for '${basename(out)}'`), { code: 'ENOENT' });
+  await folder.write(out, MEMORY_JPEG);
   return { width: 1, height: 1, bytes: MEMORY_JPEG.length };
 }
 
@@ -85,9 +96,11 @@ export class MemoryReviewer implements Reviewer {
   readonly #o: MemoryReviewerOptions;
   readonly frames: FrameTools;
 
-  constructor(o: MemoryReviewerOptions = {}) {
+  constructor(o: MemoryReviewerOptions) {
     this.#o = o;
     const calls = this.calls;
+    const files = o.outputs.reviews;
+    const videos = o.outputs.renders;
     const videoS = o.videoS ?? 10;
     this.frames = {
       async load() {},
@@ -103,38 +116,35 @@ export class MemoryReviewer implements Reviewer {
       },
       async thumbnailOf(file, maxPx) {
         calls.push({ op: 'frames.thumbnailOf', file, maxPx });
-        if (!isImage(await readFile(file))) throw new Error(`${basename(file)}: unsupported image format`);
+        const read = await files.readPlain(file, { max: IMAGE_READ_MAX });
+        if (!read.ok) throw new Error(`${basename(file)}: cannot be read (${read.reason})`);
+        if (!isImage(read.bytes)) throw new Error(`${basename(file)}: unsupported image format`);
         return { base64: MEMORY_JPEG.toString('base64'), width: 1, height: 1, bytes: MEMORY_JPEG.length };
       },
       async still(video, frame, out, so) {
         calls.push({ op: 'frames.still', video, frame, out, o: so });
-        if (!existsSync(video)) throw new Error(`${basename(video)}: no such video`);
-        return writeImage(out);
+        if (!(await there(videos, video))) throw new Error(`${basename(video)}: no such video`);
+        return writeImage(files, out);
       },
       async marks(png, boxes, out, mo) {
         calls.push({ op: 'frames.marks', png, boxes, out, ...(mo ? { o: mo } : {}) });
-        if (typeof png === 'string' && !existsSync(png)) throw new Error(`${basename(png)}: no such image`);
-        return { ...(await writeImage(out)), marks: boxes.length };
+        if (typeof png === 'string' && !(await there(files, png))) throw new Error(`${basename(png)}: no such image`);
+        return { ...(await writeImage(files, out)), marks: boxes.length };
       },
     };
   }
 
   async recover(dir: string): Promise<void> {
     this.calls.push({ op: 'recover', dir });
+    const files = this.#o.outputs.reviews;
     const parent = dirname(dir);
     const id = basename(dir);
-    let names: string[];
-    try {
-      names = await readdir(parent);
-    } catch {
-      return;
-    }
-    for (const name of names.sort().reverse()) {
+    for (const name of (await files.names(parent)).sort().reverse()) {
       const a = aside(name, id);
       if (!a || pidExists(a.pid)) continue;
       const leftover = join(parent, name);
-      if (a.kind === 'old' && !existsSync(dir)) await bestEffort(rename(leftover, dir), 'the previous review stays where it was: the new one is written beside it');
-      else await rm(leftover, { recursive: true, force: true }).catch(() => undefined);
+      if (a.kind === 'old' && (await files.kind(dir)) === undefined) await bestEffort(files.move(leftover, dir), 'the previous review stays where it was: the new one is written beside it');
+      else await files.remove(leftover).catch(() => undefined);
     }
   }
 
@@ -152,7 +162,8 @@ export class MemoryReviewer implements Reviewer {
     stage('loading');
     const project: unknown = o.project;
     if (!isHandedProject(project)) throw new MemoryReviewError(NOT_HANDED_PROJECT);
-    const found = await findNamedRender(OUTPUT_DIRS.renders(project.dir), o.render, {
+    const { renders, reviews: files } = this.#o.outputs;
+    const found = await renders.named(renders.dirOf(project.dir), o.render, {
       verb: 'review',
       slug: project.slug,
       videoAlone: true,
@@ -161,13 +172,12 @@ export class MemoryReviewer implements Reviewer {
     if (!found.ok) throw new MemoryReviewError(found.message);
     const record = found.render.record;
     const name = found.render.output;
-    if (!existsSync(record.file)) throw new MemoryReviewError(`the video of render ${name} is missing: ${record.file}`);
+    if (!(await there(renders, record.file))) throw new MemoryReviewError(`the video of render ${name} is missing: ${record.file}`);
     const fps = o.fps ?? 1;
     if (fps !== 1 && fps !== 2) throw new MemoryReviewError(`fps ${String(fps)}: the contact sheet takes 1 or 2 frames per second`);
-    const finalDir = o.out ?? join(OUTPUT_DIRS.reviews(project.dir), name);
+    const finalDir = o.out ?? join(files.dirOf(project.dir), name);
     await this.recover(finalDir);
     const tmpDir = `${finalDir}.tmp-${process.pid}-${randomBytes(3).toString('hex')}`;
-    await mkdir(tmpDir, { recursive: true });
     try {
       stage('frames', 0);
       await this.#o.duringReview?.(o);
@@ -178,7 +188,7 @@ export class MemoryReviewer implements Reviewer {
       for (const f of findings) counts[f.severity]++;
       stage('sheets');
       const sheet = `sheet_${fps}fps.jpg`;
-      await writeFile(join(tmpDir, sheet), MEMORY_JPEG);
+      await files.write(join(tmpDir, sheet), MEMORY_JPEG);
       stage('writing');
       const variant: RenderVariant = typeof record.variant === 'string' && Object.hasOwn(RENDER_VARIANT_SUFFIX, record.variant) ? (record.variant as RenderVariant) : 'landscape';
       const at = (f: string) => join(finalDir, f);
@@ -206,23 +216,22 @@ export class MemoryReviewer implements Reviewer {
         files: { dir: finalDir, sheets: [at(sheet)], scene_sheets: {}, keyframes: {}, timeline: at('timeline.json'), report_json: at('report.json'), report_md: at('report.md') },
       };
       result.review.ms = Math.round(performance.now() - started);
-      await writeFile(join(tmpDir, 'timeline.json'), '{}\n');
-      await writeFile(join(tmpDir, 'report.json'), `${JSON.stringify(result, null, 2)}\n`);
-      await writeFile(join(tmpDir, 'report.md'), `# Review of ${name}\n\n${findings.length} findings\n`);
+      await files.write(join(tmpDir, 'timeline.json'), '{}\n');
+      await files.write(join(tmpDir, 'report.json'), `${JSON.stringify(result, null, 2)}\n`);
+      await files.write(join(tmpDir, 'report.md'), `# Review of ${name}\n\n${findings.length} findings\n`);
       // Swapped in as the review package does: the previous review set aside, then removed. Cancelled before: kept.
       check();
-      await mkdir(dirname(finalDir), { recursive: true });
       const old = `${finalDir}.old-${process.pid}-${randomBytes(3).toString('hex')}`;
-      const hadOld = existsSync(finalDir);
-      if (hadOld) await rename(finalDir, old);
-      await rename(tmpDir, finalDir);
-      if (hadOld) await rm(old, { recursive: true, force: true });
+      const hadOld = (await files.kind(finalDir)) !== undefined;
+      if (hadOld) await files.move(finalDir, old);
+      await files.move(tmpDir, finalDir);
+      if (hadOld) await files.remove(old);
       const thumbnails: ReviewResult['thumbnails'] =
         o.thumbnails === false ? [] : [{ name: `sheet_${fps}fps`, file: at(sheet), mime: 'image/jpeg', width: 1, height: 1, bytes: MEMORY_JPEG.length, base64: MEMORY_JPEG.toString('base64') }];
       emit({ stage: 'done', progress: 1 });
       return { ...result, thumbnails };
     } catch (e) {
-      await rm(tmpDir, { recursive: true, force: true });
+      await files.remove(tmpDir);
       if (o.signal?.aborted && !(e instanceof ReviewCancelledError)) throw new ReviewCancelledError();
       throw e;
     }

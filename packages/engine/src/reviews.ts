@@ -8,12 +8,11 @@
  * pattern, and a key frame or scene sheet is named after its file. Finding messages, the filmed environment, the diff's
  * per-segment changes and whatever did not pass quote the scenario and the filmed site: they are kept under `untrusted`.
  */
-import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { COMPONENT_ID_RE } from '@retake/core/model';
 import { isRenderId } from '@retake/core/ids';
 import { insideFolder } from '@retake/core/scenario';
-import { readPlainFile, nodeFileFacts } from '@retake/core/io';
+import { nodeFileFacts } from '@retake/core/io';
 import { EngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';
 import { checkProjectSlug, checkScenarioName } from './refs.js';
@@ -24,6 +23,7 @@ import type { JobQueueView } from './jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobProgress, JobRecord } from './jobs/types.js';
 import type { OpenedWorkspace } from './workspace.js';
+import type { OutputFolder } from './outputs/outputs.js';
 import { bestEffort } from '@retake/core/base';
 import { storedJson } from './stored-json.js';
 import { z } from 'zod';
@@ -84,13 +84,16 @@ const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(?:jpg|png|json|md)$/;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 const SEGMENT_KINDS = new Set(['intro', 'clip', 'card', 'interstitial', 'outro']);
 
-/** A file of the review folder named by `p`'s base name (`sub`: in that subfolder), when it is there; else undefined. */
-function rebuilt(dir: string, p: unknown, sub?: string): string | undefined {
+/**
+ * A file of the review folder `dir` named by `p`'s base name (`sub`: in that subfolder), when it is there (links
+ * followed) and lies in the folder once they are; else undefined.
+ */
+async function rebuilt(reviews: OutputFolder, dir: string, p: unknown, sub?: string): Promise<string | undefined> {
   if (typeof p !== 'string') return undefined;
   const name = basename(p);
   if (!FILE_NAME.test(name)) return undefined;
   const file = sub ? join(dir, sub, name) : join(dir, name);
-  return existsSync(file) && insideFolder(dir, file, nodeFileFacts) ? file : undefined;
+  return (await reviews.signature(file, { follow: true })) !== '-' && (await reviews.holds(dir, file)) ? file : undefined;
 }
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
@@ -111,7 +114,7 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   const job = (await queue.list({ project: slug, kinds: ['review'], renderId: id, limit: 1 }))[0];
   let report: Record<string, unknown> | undefined;
   const reportFile = join(dir, 'report.json');
-  if ((await reviews.signature(reportFile, { follow: true })) !== '-' && insideFolder(dir, reportFile, nodeFileFacts)) {
+  if ((await reviews.signature(reportFile, { follow: true })) !== '-' && (await reviews.holds(dir, reportFile))) {
     // A report of this version with its findings, else none (the job, if any, is shown).
     const text = await reviews.readText(reportFile).catch(() => undefined);
     report = text === undefined ? undefined : (storedJson(ReviewReportSchema, text) as Record<string, unknown> | undefined);
@@ -140,11 +143,19 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   if (!report) return view;
 
   const files = (report.files ?? {}) as Record<string, unknown>;
-  const list = (v: unknown, sub?: string): string[] => (Array.isArray(v) ? v.map((p) => rebuilt(dir, p, sub)).filter((p): p is string => p !== undefined) : []);
+  const list = async (v: unknown, sub?: string): Promise<string[]> => {
+    const out: string[] = [];
+    if (Array.isArray(v))
+      for (const p of v) {
+        const f = await rebuilt(reviews, dir, p, sub);
+        if (f !== undefined) out.push(f);
+      }
+    return out;
+  };
   const sceneSheets: Record<string, string[]> = {};
   // Keys are re-derived from the rebuilt file names (sheet_scene_<id>[_pN].jpg, keyframes/<name>.png), never copied.
   for (const v of Object.values((files.scene_sheets ?? {}) as Record<string, unknown>)) {
-    const l = list(v).filter((f) => /^sheet_scene_.+\.jpg$/.test(basename(f)));
+    const l = (await list(v)).filter((f) => /^sheet_scene_.+\.jpg$/.test(basename(f)));
     if (!l.length) continue;
     const k = basename(l[0])
       .replace(/^sheet_scene_/, '')
@@ -153,17 +164,20 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   }
   const keyframes: Record<string, string> = {};
   for (const v of Object.values((files.keyframes ?? {}) as Record<string, unknown>)) {
-    const f = rebuilt(dir, v, 'keyframes');
+    const f = await rebuilt(reviews, dir, v, 'keyframes');
     if (f && f.endsWith('.png')) keyframes[basename(f, '.png')] = f;
   }
-  const diffSheet = rebuilt(dir, files.diff_sheet);
+  const diffSheet = await rebuilt(reviews, dir, files.diff_sheet);
+  const sheets = await list(files.sheets);
+  const timeline = await rebuilt(reviews, dir, 'timeline.json');
+  const reportMd = await rebuilt(reviews, dir, 'report.md');
   view.files = {
-    sheets: list(files.sheets),
+    sheets,
     scene_sheets: sceneSheets,
     keyframes,
-    ...(rebuilt(dir, 'timeline.json') ? { timeline: join(dir, 'timeline.json') } : {}),
+    ...(timeline ? { timeline: join(dir, 'timeline.json') } : {}),
     report_json: reportFile,
-    ...(rebuilt(dir, 'report.md') ? { report_md: join(dir, 'report.md') } : {}),
+    ...(reportMd ? { report_md: join(dir, 'report.md') } : {}),
     ...(diffSheet ? { diff_sheet: diffSheet } : {}),
   };
   view.dir = dir;
@@ -312,11 +326,11 @@ export async function reviewImage(ws: OpenedWorkspace, frames: Pick<FrameTools, 
   const reviews = ws.outputs.reviews;
   const dir = join(reviews.dirOf(project.dir), renderId);
   if ((await reviews.signature(dir, { follow: true })) === '-') throw new EngineError('not_found', `render ${renderId} has no review yet`);
-  if (!insideFolder(project.dir, dir, nodeFileFacts)) throw new EngineError('refused', `the review folder of ${renderId} lies outside the project: not shown`);
+  if (!(await reviews.holds(project.dir, dir))) throw new EngineError('refused', `the review folder of ${renderId} lies outside the project: not shown`);
   const file = join(dir, image);
   // A key frame's folder too stays in the review folder once links are resolved (the file itself: O_NOFOLLOW below).
-  if (!insideFolder(dir, dirname(file), nodeFileFacts)) throw new EngineError('refused', `${image} of the review of ${renderId} lies outside its folder: not shown`);
-  const read = readPlainFile(file, REVIEW_IMAGE_SOURCE_MAX, { verify: (st) => st.nlink === 1 });
+  if (!(await reviews.holds(dir, dirname(file)))) throw new EngineError('refused', `${image} of the review of ${renderId} lies outside its folder: not shown`);
+  const read = await reviews.readPlain(file, { max: REVIEW_IMAGE_SOURCE_MAX, oneName: true });
   if (!read.ok) {
     if (read.reason === 'missing') throw new EngineError('not_found', `the review of ${renderId} has no ${image}`);
     if (read.reason === 'link') throw new EngineError('refused', `${image} of the review of ${renderId} is a link (symbolic or hard): not followed`);

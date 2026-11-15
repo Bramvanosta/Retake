@@ -20,7 +20,7 @@ import type { RunOptions } from '../src/index.js';
 import { buildState, stateIds, writeWorkspace } from '../../core/test/fixtures/records/build.js';
 import type { BuiltState } from '../../core/test/fixtures/records/build.js';
 import { DRY_PAGE } from './pages.js';
-import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 
@@ -175,14 +175,16 @@ describe('the record a run ends with (a real dry run per outcome)', () => {
   const START = ['version', 'id', 'project', 'scenario', 'mode', 'status', 'started_at', 'dir', 'env', 'options', 'steps_total', 'steps_done', 'screenshots', 'hooks', 'warnings', 'environment'];
   function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<RunRecord> {
     const dir = join(root, 'runner');
-    return runScenario({
-      policy: PERSON_POLICY,
-      project: makeProject(dir, { app: server.url }),
-      scenario: makeScenario(name, { pacing: FAST, ...scenario }),
-      mode: 'dry',
-      runId: `${name}-1`,
-      ...opts,
-    });
+    return runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project: makeProject(dir, { app: server.url }),
+        scenario: makeScenario(name, { pacing: FAST, ...scenario }),
+        mode: 'dry',
+        runId: `${name}-1`,
+        ...opts,
+      }),
+    );
   }
   /** run.json as written: a state of the written record (the schema refuses any other). */
   const onDisk = (rec: RunRecord) => {

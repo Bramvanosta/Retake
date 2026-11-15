@@ -14,7 +14,7 @@ import { chromium } from 'playwright-core';
 import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { DocumentArtefact, EmailArtefact, NotificationArtefact, Timeline } from '@retake/core';
 import { imageSize, mailMatches, parseAddress, runScenario, sandboxedEmail, sniffMime } from '../src/index.js';
-import { FAST, makeScenario } from '@retake/test-support/capture';
+import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 
 const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -162,32 +162,34 @@ describe('a run with a mailbox, downloads and notifications', () => {
     await writeFile(join(dir, 'assets', 'terms.pdf'), pdf);
     const project = makeProject(dir, { app: server.url });
     project.config.mailbox = { provider: 'mailpit', url: `${server.url}/mailpit`, poll_ms: 150 };
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project,
-      scenario: makeScenario('artefacts', {
-        pacing: FAST,
-        scenes: [
-          {
-            id: 'flow',
-            open: '/app.html',
-            steps: [
-              { click: { css: '#signup' } },
-              { wait_for_email: { to: 'buyer@cafe.example', subject: 'Confirm', timeout: 10, as: 'welcome' } },
-              { download: { click: { css: '#dl' }, as: 'quote' } },
-              { download: { click: { css: '#tab' }, as: 'terms' } },
-              { click: { css: '#notify' } },
-              { click: { css: '#sw' } },
-              { wait_for: { text: 'sent' } },
-              { wait: 0.3 },
-            ],
-          },
-          { card: { component: 'studio/document-pdf', slots: { document: 'assets/terms.pdf' } } },
-        ],
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario: makeScenario('artefacts', {
+          pacing: FAST,
+          scenes: [
+            {
+              id: 'flow',
+              open: '/app.html',
+              steps: [
+                { click: { css: '#signup' } },
+                { wait_for_email: { to: 'buyer@cafe.example', subject: 'Confirm', timeout: 10, as: 'welcome' } },
+                { download: { click: { css: '#dl' }, as: 'quote' } },
+                { download: { click: { css: '#tab' }, as: 'terms' } },
+                { click: { css: '#notify' } },
+                { click: { css: '#sw' } },
+                { wait_for: { text: 'sent' } },
+                { wait: 0.3 },
+              ],
+            },
+            { card: { component: 'studio/document-pdf', slots: { document: 'assets/terms.pdf' } } },
+          ],
+        }),
+        mode: 'dry',
+        runId: `artefacts-${Date.now()}`,
       }),
-      mode: 'dry',
-      runId: `artefacts-${Date.now()}`,
-    });
+    );
     expect(rec.status, JSON.stringify(rec.error)).toBe('succeeded');
     runDir = rec.dir;
     tl = await readTimeline(rec.timeline!);

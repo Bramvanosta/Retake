@@ -17,7 +17,7 @@ import { LoginPageError, StepError } from '../src/errors.js';
 import type { HookStepOutcome } from '../src/runtime.js';
 import { StepFailure } from '../src/scenes.js';
 import { makeProject, tempDir, testHookRunner } from './helpers.js';
-import { makeScenario } from '@retake/test-support/capture';
+import { inRunsOf, makeScenario } from '@retake/test-support/capture';
 
 let dir: string;
 beforeAll(async () => {
@@ -94,7 +94,7 @@ class FakeDriver implements CaptureDriver {
 }
 
 function opts(name: string, scenario: Omit<Scenario, 'video'>, extra: Partial<RunOptions> = {}): RunOptions {
-  return {
+  return inRunsOf({
     policy: PERSON_POLICY,
     project: makeProject(dir, { app: 'http://127.0.0.1:9' }),
     scenario: makeScenario(name, scenario),
@@ -102,7 +102,7 @@ function opts(name: string, scenario: Omit<Scenario, 'video'>, extra: Partial<Ru
     runId: `${name}-${Date.now()}`,
     hookRunner: testHookRunner(),
     ...extra,
-  };
+  });
 }
 
 describe('the capture lifecycle over a driver (L7.31)', () => {
@@ -215,5 +215,19 @@ describe('the capture lifecycle over a driver (L7.31)', () => {
     );
     expect(driver.calls).toEqual(['failed', 'stop', 'close', 'finish']);
     expect(rec.status).toBe('cancelled');
+  });
+
+  it("the run folder is the caller's: a run without its reserved id is refused, no folder made and no driver made", async () => {
+    const runsDir = join(dir, 'unreserved-runs');
+    let made = false;
+    for (const runId of [undefined, '', '../x']) {
+      const o = { ...opts('unreserved', { scenes: [{ id: 'one', steps: [{ wait: 10 }] }] }), runsDir, runId } as unknown as RunOptions;
+      await expect(
+        runCapture(o, (run) => ((made = true), new FakeDriver(run))),
+        String(runId),
+      ).rejects.toThrow(/is not a run id/);
+    }
+    expect(made).toBe(false);
+    expect(existsSync(runsDir)).toBe(false);
   });
 });

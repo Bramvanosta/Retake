@@ -17,7 +17,7 @@ import { WriteRefusedError, compileWritePolicy, PERSON_POLICY } from '@retake/co
 import type { LoadedProject, ResolvedEnvironment, RunProgress, Scenario, WriteMockSpec } from '@retake/core';
 import { closePage, evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { BrowserSession, GuardedWrite } from '../src/index.js';
-import { FAST, makeScenario } from '@retake/test-support/capture';
+import { FAST, makeScenario, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir, testHookRunner } from './helpers.js';
 
 let server: Server;
@@ -594,15 +594,17 @@ describe('a read-only run (R-ENV-03)', () => {
         },
       ],
     };
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project: project(),
-      scenario: makeScenario('ro-form', scenario),
-      mode: 'capture',
-      env: 'test',
-      runId: `ro-form-${Date.now()}`,
-      onProgress: (e) => events.push(e),
-    });
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project: project(),
+        scenario: makeScenario('ro-form', scenario),
+        mode: 'capture',
+        env: 'test',
+        runId: `ro-form-${Date.now()}`,
+        onProgress: (e) => events.push(e),
+      }),
+    );
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     const tl = await readTimeline(rec.timeline!);
@@ -629,21 +631,23 @@ describe('a read-only run (R-ENV-03)', () => {
   });
 
   it('a js setup hook whose write is stopped is refused (read-only), never mocked; nothing reached the server', async () => {
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project: project(),
-      scenario: makeScenario('ro-hook', {
-        pacing: FAST,
-        mocks: [{ request: 'POST app:/api/reset', status: 200 }],
-        setup: [{ name: 'reset', js: { code: `const r = await fetch('/api/reset', { method: 'POST' }); if (!r.ok) throw new Error('no');` } }],
-        scenes: [{ id: 'a', page: 'app', open: '/', steps: [{ wait: 0.1 }] }],
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project: project(),
+        scenario: makeScenario('ro-hook', {
+          pacing: FAST,
+          mocks: [{ request: 'POST app:/api/reset', status: 200 }],
+          setup: [{ name: 'reset', js: { code: `const r = await fetch('/api/reset', { method: 'POST' }); if (!r.ok) throw new Error('no');` } }],
+          scenes: [{ id: 'a', page: 'app', open: '/', steps: [{ wait: 0.1 }] }],
+        }),
+        mode: 'dry',
+        hooks: 'run',
+        env: 'test',
+        runId: `ro-hook-${Date.now()}`,
+        hookRunner: testHookRunner(),
       }),
-      mode: 'dry',
-      hooks: 'run',
-      env: 'test',
-      runId: `ro-hook-${Date.now()}`,
-      hookRunner: testHookRunner(),
-    });
+    );
     expect(rec.status).toBe('failed');
     expect(rec.hooks.setup).toBe('failed');
     expect(rec.error?.message).toContain('refusing a hook that writes (POST app:/api/reset, stopped in its tab) on read-only environment test');
@@ -658,33 +662,35 @@ describe('a read-only run (R-ENV-03)', () => {
     p.config.environments.production = { app: A };
     p.config.environment_settings = { production: { production: true } };
     const events: RunProgress[] = [];
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project: p,
-      scenario: makeScenario('rw-cross', {
-        pacing: FAST,
-        setup: [{ name: 'prod-reset', optional: true, js: { code: `await fetch('${A}/api/hook-reset', { method: 'POST', credentials: 'omit' }); return 'reset'` } }],
-        scenes: [
-          {
-            id: 'a',
-            page: 'app',
-            open: '/',
-            steps: [
-              {
-                eval: `const out = await Promise.all([fetch('/api/own', { method: 'POST', body: '{}' }), fetch('${A}/api/prod', { method: 'POST', body: '{}', credentials: 'omit' })].map((p) => p.then((r) => 'reached ' + r.status, () => 'blocked')));
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project: p,
+        scenario: makeScenario('rw-cross', {
+          pacing: FAST,
+          setup: [{ name: 'prod-reset', optional: true, js: { code: `await fetch('${A}/api/hook-reset', { method: 'POST', credentials: 'omit' }); return 'reset'` } }],
+          scenes: [
+            {
+              id: 'a',
+              page: 'app',
+              open: '/',
+              steps: [
+                {
+                  eval: `const out = await Promise.all([fetch('/api/own', { method: 'POST', body: '{}' }), fetch('${A}/api/prod', { method: 'POST', body: '{}', credentials: 'omit' })].map((p) => p.then((r) => 'reached ' + r.status, () => 'blocked')));
                   if (JSON.stringify(out) !== '["reached 200","blocked"]') throw new Error(JSON.stringify(out));`,
-              },
-            ],
-          },
-        ],
+                },
+              ],
+            },
+          ],
+        }),
+        mode: 'dry',
+        hooks: 'run',
+        env: 'test',
+        runId: `rw-cross-${Date.now()}`,
+        hookRunner: testHookRunner(),
+        onProgress: (e) => events.push(e),
       }),
-      mode: 'dry',
-      hooks: 'run',
-      env: 'test',
-      runId: `rw-cross-${Date.now()}`,
-      hookRunner: testHookRunner(),
-      onProgress: (e) => events.push(e),
-    });
+    );
     expect(rec.status).toBe('failed');
     // The js hook's write to production's host was refused (never tolerated by `optional`).
     expect(rec.error?.message).toContain(
@@ -693,30 +699,32 @@ describe('a read-only run (R-ENV-03)', () => {
     expect(hits).toEqual([]);
     // Without the hook: the page's write to its own host passes, the one to production's host is stopped.
     hits.length = 0;
-    const rec2 = await runScenario({
-      policy: PERSON_POLICY,
-      project: p,
-      scenario: makeScenario('rw-cross2', {
-        pacing: FAST,
-        scenes: [
-          {
-            id: 'a',
-            page: 'app',
-            open: '/',
-            steps: [
-              {
-                eval: `const out = await Promise.all([fetch('/api/own', { method: 'POST', body: '{}' }), fetch('${A}/api/prod', { method: 'POST', body: '{}', credentials: 'omit' })].map((p) => p.then((r) => 'reached ' + r.status, () => 'blocked')));
+    const rec2 = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project: p,
+        scenario: makeScenario('rw-cross2', {
+          pacing: FAST,
+          scenes: [
+            {
+              id: 'a',
+              page: 'app',
+              open: '/',
+              steps: [
+                {
+                  eval: `const out = await Promise.all([fetch('/api/own', { method: 'POST', body: '{}' }), fetch('${A}/api/prod', { method: 'POST', body: '{}', credentials: 'omit' })].map((p) => p.then((r) => 'reached ' + r.status, () => 'blocked')));
                   if (JSON.stringify(out) !== '["reached 200","blocked"]') throw new Error(JSON.stringify(out));`,
-              },
-            ],
-          },
-        ],
+                },
+              ],
+            },
+          ],
+        }),
+        mode: 'dry',
+        env: 'test',
+        runId: `rw-cross2-${Date.now()}`,
+        onProgress: (e) => events.push(e),
       }),
-      mode: 'dry',
-      env: 'test',
-      runId: `rw-cross2-${Date.now()}`,
-      onProgress: (e) => events.push(e),
-    });
+    );
     expect(rec2.error?.message).toBeUndefined();
     expect(rec2.status).toBe('succeeded');
     expect(hits).toEqual(['POST localhost /api/own']);
@@ -733,14 +741,16 @@ describe('a read-only run (R-ENV-03)', () => {
 
   it('a read-write run arms nothing: the same writes reach the server, no environment writes', async () => {
     const p = makeProject(dir, { app: A });
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project: p,
-      scenario: makeScenario('rw-form', { pacing: FAST, scenes: [{ id: 'a', page: 'app', open: '/', steps: [{ eval: `await fetch('/api/quotes', { method: 'POST', body: '{}' })` }] }] }),
-      mode: 'dry',
-      env: 'test',
-      runId: `rw-form-${Date.now()}`,
-    });
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project: p,
+        scenario: makeScenario('rw-form', { pacing: FAST, scenes: [{ id: 'a', page: 'app', open: '/', steps: [{ eval: `await fetch('/api/quotes', { method: 'POST', body: '{}' })` }] }] }),
+        mode: 'dry',
+        env: 'test',
+        runId: `rw-form-${Date.now()}`,
+      }),
+    );
     expect(rec.status).toBe('succeeded');
     expect(hits).toEqual(['POST 127.0.0.1 /api/quotes']);
     const tl = await readTimeline(rec.timeline!);

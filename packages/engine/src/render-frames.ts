@@ -13,6 +13,10 @@
  * Files: the video is `renders/<id>.mp4` built from the id (the record's `file` must name that same file), the renders/
  * folder a real folder of the project, the file opened without following a link and without blocking, a regular file
  * with one name (no hard link), checked again once open, handed to ffmpeg / ffprobe as a descriptor (fd protocol only).
+ * That open stays here, beside the Outputs port, not on it: what ffmpeg is handed is a descriptor of this machine's
+ * disk (a child's stdio slot), which no other storage of the port has and which the port's reads (bytes, texts, facts)
+ * cannot stand for; reading the video whole into memory to hand it over would not bound its size. The port gives its
+ * path (OUTPUT_DIRS); the record is read through it (renderForWork).
  *
  * Cost (critique B7): frames live in a byte-bounded memory LRU (never written); ffmpeg and ffprobe share the engine's
  * ffmpeg slots with the run thumbnails (2 at once); at most RENDER_FRAME_QUEUE_MAX frame requests wait or run at once

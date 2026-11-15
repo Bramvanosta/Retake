@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Scenario } from '@retake/core';
 import { LivePreview, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { LiveFrame, LiveSink, RunOptions } from '../src/index.js';
-import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir, testHookRunner } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
@@ -83,15 +83,17 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}) {
   const project = makeProject(dir, { app: server.url });
-  return runScenario({
-    policy: PERSON_POLICY,
-    project,
-    scenario: makeScenario(name, { pacing: FAST, ...scenario }),
-    mode: 'dry',
-    runId: `${name}-${Date.now()}`,
-    hookRunner: testHookRunner(),
-    ...opts,
-  });
+  return runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project,
+      scenario: makeScenario(name, { pacing: FAST, ...scenario }),
+      mode: 'dry',
+      runId: `${name}-${Date.now()}`,
+      hookRunner: testHookRunner(),
+      ...opts,
+    }),
+  );
 }
 
 describe('the live picture of a run', () => {

@@ -18,7 +18,7 @@ import { kitConfigFor, openSession, runScenario } from '../src/index.js';
 import { armFileGuard } from '../src/session.js';
 import { openProblem } from '../src/opens.js';
 import { prewarmTargets } from '../src/prewarm.js';
-import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 
@@ -62,15 +62,17 @@ type Trust = 'author' | 'mcp';
 async function run(name: string, sc: Omit<Scenario, 'video'>, o: { trust?: Trust; mode?: 'dry' | 'capture'; prewarm?: boolean } = {}): Promise<RunRecord> {
   const project = makeProject(dir, { app: app.url });
   if (o.prewarm) project.config.capture = { ...project.config.capture!, prewarm: true };
-  return runScenario({
-    policy: PERSON_POLICY,
-    project,
-    scenario: makeScenario(name, { pacing: FAST, ...sc }),
-    mode: o.mode ?? 'dry',
-    env: 'test',
-    runId: `${name}-${Date.now()}`,
-    ...(o.trust === 'mcp' ? { hookTrust: 'mcp' as const } : {}),
-  });
+  return runScenario(
+    inRunsOf({
+      policy: PERSON_POLICY,
+      project,
+      scenario: makeScenario(name, { pacing: FAST, ...sc }),
+      mode: o.mode ?? 'dry',
+      env: 'test',
+      runId: `${name}-${Date.now()}`,
+      ...(o.trust === 'mcp' ? { hookTrust: 'mcp' as const } : {}),
+    }),
+  );
 }
 
 /** Every text file a run wrote, joined (run.json, timeline, logs, DOM snapshots). */

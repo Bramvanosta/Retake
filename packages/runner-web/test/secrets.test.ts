@@ -5,7 +5,7 @@ import { normalizeStep, PERSON_POLICY } from '@retake/core';
 import type { RunProgress, RunRecord, Scenario } from '@retake/core';
 import { RunSecrets, TIMELINE_POLICY, describeStep, runScenario, trimSnippet } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
-import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { FAST, makeScenario, startServer, inRunsOf } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
 import type { TestServer } from '@retake/test-support/capture';
 
@@ -252,15 +252,17 @@ describe('templating and secrets in a run (R-RUN-16, R-RUN-17)', () => {
 
   async function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<{ rec: RunRecord; events: RunProgress[] }> {
     const events: RunProgress[] = [];
-    const rec = await runScenario({
-      policy: PERSON_POLICY,
-      project: makeProject(dir, { app: server.url }),
-      scenario: makeScenario(name, { pacing: FAST, vars: { customer: 'Harbour Coffee Co.' }, ...scenario }),
-      mode: 'dry',
-      runId: `${name}-${Date.now()}`,
-      onProgress: (e) => events.push(e),
-      ...opts,
-    });
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project: makeProject(dir, { app: server.url }),
+        scenario: makeScenario(name, { pacing: FAST, vars: { customer: 'Harbour Coffee Co.' }, ...scenario }),
+        mode: 'dry',
+        runId: `${name}-${Date.now()}`,
+        onProgress: (e) => events.push(e),
+        ...opts,
+      }),
+    );
     return { rec, events };
   }
 
