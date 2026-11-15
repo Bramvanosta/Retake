@@ -30,7 +30,7 @@ import { trustedFileChanges, UNREADABLE_FILE } from '@retake/core/hooks';
 import type { HookContext, HookFileChange, TrustFilesPlace, TrustedHookFiles } from '@retake/core/hooks';
 import { PROJECT_DIRS, STATE_DIR } from '@retake/core/project';
 import { hookFileRefs } from '@retake/core/scenario';
-import type { HookStep, ShellHookSpec } from '@retake/core/model';
+import type { HookStep, ShellHookSpec } from '@retake/core/hooks';
 
 const INTERPRETERS = new Set(['sh', 'bash', 'zsh', 'dash', 'node', 'deno', 'bun', 'tsx', 'python', 'python3', 'ruby', 'perl', 'php', 'source', '.']);
 /** An interpreter's option after which comes code text, not a script file. */

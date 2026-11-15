@@ -15,7 +15,7 @@
  */
 import { environmentAccess, hostMatches, normalizeAllowEntry, resolveEnvironment } from '@retake/core/environment';
 import { canonicalAddress, canonicalIp } from '@retake/core/policy';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { AgentChannel } from './caller.js';
 import { EngineError } from './errors.js';
 import { openProject } from './workspace.js';

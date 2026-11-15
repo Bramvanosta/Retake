@@ -12,7 +12,8 @@
 import { relativeInside } from '@retake/core/base';
 import { sandboxPaths, serviceLog } from '@retake/core/project';
 import { SandboxError, sandboxNames } from '@retake/core/sandbox';
-import type { LoadedProject, LoadedSandbox, SandboxResetStrategy } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoadedSandbox, SandboxResetStrategy } from '@retake/core/sandbox';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { SandboxPaths } from '@retake/core/project';
 import { describeLock, seedHash } from '@retake/core/io';

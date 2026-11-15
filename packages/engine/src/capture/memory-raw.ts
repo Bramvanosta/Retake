@@ -9,7 +9,7 @@
 import { basename, join, resolve } from 'node:path';
 import { missingOrInvalid } from '@retake/core/base';
 import { namedRunProblem, takeWords, timelineProblem } from '@retake/core/run';
-import type { Timeline } from '@retake/core/model';
+import type { Timeline } from '@retake/core/run';
 import type { ExportCaptureOptions, RawExportResult, RawManifest } from '@retake/runner-web/types';
 import { EngineError } from '../errors.js';
 import type { CaptureRaw } from './runner.js';

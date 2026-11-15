@@ -9,7 +9,7 @@ import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, ope
 import { delimiter, join } from 'node:path';
 import { errorMessage } from '@retake/core/base';
 import { bundleInfoOrNull, bundleProblems } from '@retake/core/io';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { EngineEnv } from '../env.js';
 import { FilmingWatch, capMinutes, capturesDir, capturesLocation, isTakeOwnerCommand } from '../jobs/captures.js';

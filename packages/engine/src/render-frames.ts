@@ -35,7 +35,7 @@ import { isRenderId } from '@retake/core/ids';
 import { PROJECT_DIRS, projectRef } from '@retake/core/project';
 import { openVideoArgs, openVideoFromJson, readFfprobeJson, sameRender } from '@retake/core/render';
 import { ffprobeBin, startMediaTool } from '@retake/core/io';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { RenderVariant } from '@retake/core/ids';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { OpenVideoProbe } from '@retake/core/render';

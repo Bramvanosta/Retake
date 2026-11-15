@@ -23,7 +23,11 @@ import {
   verifyEditText,
 } from '@retake/core/scenario';
 import { nodeFileFacts } from '@retake/core/io';
-import type { LoadedProject, Scenario, Template, ValidationIssue, WorkFileFacts } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { Scenario } from '@retake/core/scenario';
+import type { Template } from '@retake/core/theme';
+import type { ValidationIssue } from '@retake/core/base';
+import type { WorkFileFacts } from '@retake/core/model';
 import type { AgentTrustEnvironment, FieldEdit, PositionedTrustProblem, StepEdit } from '@retake/core/scenario';
 import type { AgentChannel } from './caller.js';
 import type { ComponentRegistry } from '@retake/components/geometry';

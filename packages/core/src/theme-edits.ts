@@ -27,8 +27,8 @@ import { editValueProblem, verifyEditText } from './scenario-edit.js';
 import { COMPONENT_ID_RE } from './schemas/primitives.js';
 import { StepEditError } from './step-edits.js';
 import { legacyContradictions } from './template.js';
-import { COMPONENT_KINDS } from './types.js';
-import type { ComponentKind } from './types.js';
+import { COMPONENT_KINDS } from './types/model.js';
+import type { ComponentKind } from './types/model.js';
 import { parseYaml } from './validation/yaml-source.js';
 
 /** The only paths `set_field` takes in a theme (each at most two keys deep). */

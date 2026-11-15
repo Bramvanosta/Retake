@@ -1,19 +1,25 @@
 /**
- * Compile-time guarantees that the schemas match the shared types of types.ts:
+ * Compile-time guarantees that the schemas match the shared types of types/<context>.ts:
  * whatever a schema accepts can be used as the corresponding type, and (where the type is not
  * looser than the language on purpose) every value of the type is accepted by the schema.
  */
 import type { z } from 'zod';
-import type { CameraHint, HookStep, ProjectConfig, SandboxManifest, Scenario, Step, TargetObject, Template, Timeline } from '../types.js';
+import type { CameraHint, Step, TargetObject } from '../types/language.js';
+import type { HookStep } from '../types/hooks.js';
+import type { ProjectConfig } from '../types/project.js';
+import type { SandboxManifest } from '../types/sandbox.js';
+import type { Scenario } from '../types/scenario.js';
+import type { Template } from '../types/theme.js';
+import type { Timeline } from '../types/run.js';
 import type { HookStepSchema } from './hooks.js';
-import type { CameraHintSchema, TargetObjectSchema } from './primitives.js';
+import type { CameraHintSchema, TargetObjectSchema } from './language.js';
 import type { ProjectConfigSchema } from './project.js';
 import type { SandboxFileSchema } from './sandbox.js';
 import type { ScenarioSchema } from './scenario.js';
 import type { StepSchema } from './steps.js';
 import type { TemplateSchema } from './template.js';
 import type { FailedRun, RunBase, RunRecord, StoredRunEngine, StoredRunPerf, StoredRunRecord, SucceededRun, UnknownStatusRun } from '../run-record.js';
-import type { RunError, RunStatus } from '../types.js';
+import type { RunError, RunStatus } from '../types/run.js';
 import type { FinishedRender, RenderAttempt, RenderBase, StoredPlan, StoredRenderBase, StoredRenderRecord, UnknownStatusRender } from '../render-record.js';
 import type { RenderAttemptSchema, RenderRecordSchema, StoredRenderRecordSchema, UnknownStatusRenderSchema } from './render.js';
 import type { RunRecordSchema, StoredRunEngineSchema, StoredRunPerfSchema, StoredRunRecordSchema, TimelineSchema, UnknownStatusRunSchema } from './timeline.js';

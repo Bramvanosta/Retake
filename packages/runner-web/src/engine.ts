@@ -8,7 +8,7 @@ import { readdirSync } from 'node:fs';
 import { homedir, platform, release, arch } from 'node:os';
 import { join } from 'node:path';
 import { RETAKE_VERSION } from '@retake/core/base';
-import type { RunEngine } from '@retake/core/model';
+import type { RunEngine } from '@retake/core/run';
 
 /** The folders fonts are installed in, per platform (the user's own last). */
 function fontDirs(): Array<{ label: string; dir: string }> {

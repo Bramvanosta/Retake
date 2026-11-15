@@ -10,7 +10,7 @@ import type { FileFacts } from '../file-facts.js';
 import type { IssuePath } from '../issues.js';
 import { MEDIA_EXTENSIONS, MediaProbeError, VIDEO_CODECS, fileExtension, mediaFileKinds, readLottieMeta } from '../media.js';
 import type { LottieMeta, VideoProbe } from '../media.js';
-import type { MediaFileKind } from '../types.js';
+import type { MediaFileKind } from '../types/model.js';
 import type { CheckContext } from './context.js';
 import { isObj } from './context.js';
 import { errorMessage } from '../util.js';

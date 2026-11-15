@@ -48,7 +48,7 @@
  * `takePruneApproval`).
  */
 import { join } from 'node:path';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { PruneAlone, PruneKeep, PruneNewer, PruneRenderFile, PruneSaid } from '@retake/core/run';
 import type { RenderNot, RenderSaid } from '@retake/core/render';
 import { RENDER_RECORD_MAX, RUN_RECORD_MAX } from '@retake/core/io';

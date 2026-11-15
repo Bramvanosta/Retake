@@ -9,7 +9,7 @@ import { request as httpsRequest } from 'node:https';
 import type { LookupFunction } from 'node:net';
 import { connect, isIP } from 'node:net';
 import { isLoopbackHost } from '@retake/core/environment';
-import type { SandboxService } from '@retake/core/model';
+import type { SandboxService } from '@retake/core/sandbox';
 import { SandboxError, interrupted } from './errors.js';
 import { bestEffort } from '@retake/core/base';
 

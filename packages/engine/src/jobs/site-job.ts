@@ -36,7 +36,7 @@ import { insideFolder } from '@retake/core/scenario';
 import { BRAND_IMAGE_MAX_BYTES, TEMPLATE_FILE, parseSiteUrl, siteApprovalFingerprint, siteThemeName, unsafeTestResolve } from '@retake/core/theme';
 import { JOB_INPUT_VERSION } from './job-input.js';
 import { nodeFileFacts } from '@retake/core/io';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { SiteUrl, TemplateFile } from '@retake/core/theme';
 import type { JobApproval, SiteJobInput } from './job-input.js';
 import type { SiteReport } from '@retake/runner-web/types';

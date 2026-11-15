@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
 import { gpuInfoOf } from '@retake/core/render';
-import type { BrowserConfig, ResolvedClock } from '@retake/core/model';
+import type { BrowserConfig } from '@retake/core/project';
+import type { ResolvedClock } from '@retake/core/environment';
 import type { PageHttpCredentials } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { GpuInfo, SystemInfoReply } from '@retake/core/render';
@@ -43,7 +44,9 @@ import type {
   ScrollInfo,
   ScrollOp,
 } from './kit/types.js';
-import type { BBox, NearElement, PointSpec, TargetObject } from '@retake/core/model';
+import type { BBox, PointSpec } from '@retake/core/model';
+import type { NearElement } from '@retake/core/run';
+import type { TargetObject } from '@retake/core/language';
 import { bestEffort, errorMessage } from '@retake/core/base';
 
 export interface SessionOptions {

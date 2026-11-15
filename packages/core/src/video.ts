@@ -1,4 +1,6 @@
-import type { ProjectConfig, Scenario, TimelineVideo } from './types.js';
+import type { ProjectConfig } from './types/project.js';
+import type { Scenario } from './types/scenario.js';
+import type { TimelineVideo } from './types/language.js';
 
 /**
  * The scenario's edit info as carried into timeline.json (`Timeline.video`), so the editor never re-reads the

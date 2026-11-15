@@ -1,4 +1,4 @@
-import type { Template } from './types.js';
+import type { Template } from './types/theme.js';
 
 /**
  * Neutral defaults every template.yaml is merged over (objects merge, arrays and scalars replace).

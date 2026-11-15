@@ -11,7 +11,7 @@ import type { ChildProcess } from 'node:child_process';
 import { rm } from 'node:fs/promises';
 import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffmpegEncoders, startMediaTool, stderrLines } from '@retake/core/io';
 import type { MediaProcess } from '@retake/core/io';
-import type { CaptureEncoder } from '@retake/core/model';
+import type { CaptureEncoder } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import { EncodeError } from './errors.js';
 

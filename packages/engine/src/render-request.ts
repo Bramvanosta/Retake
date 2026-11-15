@@ -5,7 +5,7 @@
  */
 import { isRunId, isThemeName } from '@retake/core/ids';
 import { untilStep } from '@retake/core/run';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { NotUsable } from '@retake/core/run';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { EditOverrides } from '@retake/editor/plan';

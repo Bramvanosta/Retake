@@ -3,7 +3,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import { canonicalJson, nestedShellScript, shellCommands, shellWords } from '@retake/core/base';
 import { hookFileRefs, projectFileProblem } from '@retake/core/scenario';
-import type { HookStep, ShellHookSpec } from '@retake/core/model';
+import type { HookStep, ShellHookSpec } from '@retake/core/hooks';
 import { nodeFileFacts } from '@retake/core/io';
 import type { HookPhase } from './types.js';
 

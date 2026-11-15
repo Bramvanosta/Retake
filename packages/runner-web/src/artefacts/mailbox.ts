@@ -12,7 +12,8 @@
 import { interpolate } from '@retake/core/base';
 import { allowedHosts, isHostAllowed } from '@retake/core/environment';
 import type { TemplateContext } from '@retake/core/base';
-import type { LoadedProject, MailboxConfig } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { MailboxConfig } from '@retake/core/environment';
 import { StepError, errorMessage } from '../errors.js';
 
 export interface MailAddress {

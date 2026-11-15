@@ -4,7 +4,7 @@ import { isAccessError } from '@retake/core/environment';
 import { perfSummary } from '@retake/core/run';
 import { readTimeline } from '@retake/core/io';
 import type { TrustedHookFiles } from '@retake/core/hooks';
-import type { Timeline } from '@retake/core/model';
+import type { Timeline } from '@retake/core/run';
 import type { RunProgress, RunRecord } from '@retake/core/run';
 import {
   FilmingMarker,

@@ -18,7 +18,7 @@ import { interpolateDeep } from '@retake/core/base';
 import { resolveEnvironment } from '@retake/core/environment';
 import { policyChildEnv } from '@retake/core/policy';
 import { prefetchSecrets, nodeFileFacts } from '@retake/core/io';
-import type { SandboxService } from '@retake/core/model';
+import type { SandboxService } from '@retake/core/sandbox';
 import { SandboxError, errorMessage, interrupted } from './errors.js';
 import { healthNow, serviceHealth, waitHealthy } from './health.js';
 import { serviceLog, shownPath } from './paths.js';

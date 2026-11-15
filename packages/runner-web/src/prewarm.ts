@@ -7,9 +7,10 @@
  * loads (marks something read) does it here too.
  */
 import { resolvePageUrl } from '@retake/core/base';
-import { isCaptureScene } from '@retake/core/model';
+import { isCaptureScene } from '@retake/core/language';
 import { resolveScenePages } from '@retake/core/language';
-import type { Scenario, SceneEntry } from '@retake/core/model';
+import type { Scenario } from '@retake/core/scenario';
+import type { SceneEntry } from '@retake/core/language';
 import { errorMessage, isCancelled } from './errors.js';
 import type { Runtime } from './runtime.js';
 import { wallNow } from './util.js';

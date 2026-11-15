@@ -5,7 +5,9 @@
  * All times are OUTPUT FRAMES unless the field name says seconds (`_s`) or source frames (`src`).
  * Layout rectangles are in output pixels.
  */
-import type { BBox, FrameSpec, OverlayAnchor, PointSpec, TransitionKind, Template, TutorialFeatureName, TutorialSwitch } from '@retake/core/model';
+import type { BBox, PointSpec } from '@retake/core/model';
+import type { FrameSpec, OverlayAnchor, TransitionKind, TutorialFeatureName, TutorialSwitch } from '@retake/core/language';
+import type { Template } from '@retake/core/theme';
 import type { DisplayEntry } from '@retake/core/environment';
 import type { CaptionCue, ComponentManifest, MediaValue, ProgressChapter, ThemeTokens } from '@retake/components/geometry';
 

@@ -1,5 +1,5 @@
 /** Words the operations' summaries share (moved from the MCP server in L7.13). */
-import type { ValidationIssue } from '@retake/core/model';
+import type { ValidationIssue } from '@retake/core/base';
 
 /** "3 scenarios" / "1 scenario". */
 export function plural(n: number, word: string): string {

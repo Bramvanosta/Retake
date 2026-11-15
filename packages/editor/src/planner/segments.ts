@@ -5,7 +5,9 @@
  */
 import { mediaSegmentUse } from '@retake/core/model';
 import { READING_PACE, readingSeconds, wordCount } from '@retake/core/language';
-import type { FrameSpec, MediaFileFields, TimelineScenePage } from '@retake/core/model';
+import type { FrameSpec } from '@retake/core/language';
+import type { MediaFileFields } from '@retake/core/model';
+import type { TimelineScenePage } from '@retake/core/run';
 import { GEOMETRY_KEYS, autoFit, isMultiPaneGeometry } from '@retake/components/geometry';
 import type { SlotContext } from '@retake/components/geometry';
 import { reframeTrack } from '../camera.js';

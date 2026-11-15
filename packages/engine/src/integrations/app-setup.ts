@@ -46,7 +46,8 @@ import {
 } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
-import { errorMessage, isUnder } from '@retake/core/base';
+import { errorMessage } from '@retake/core/base';
+import { isUnder } from '@retake/core/model';
 import { nodeFileFacts } from '@retake/core/io';
 import { storedJson } from '../stored-json.js';
 import { z } from 'zod';

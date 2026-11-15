@@ -1,6 +1,16 @@
-import type { ValidationIssue } from './types.js';
 import { GUIDE, missingOrInvalid } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
+
+/** A problem found in a document: its severity, its path and, when known, its place in the YAML source. */
+export interface ValidationIssue {
+  severity: 'error' | 'warning';
+  /** Path into the document, e.g. ["scenes", 1, "steps", 3, "click"]. */
+  path: Array<string | number>;
+  message: string;
+  /** 1-based line/column in the YAML source when known. */
+  line?: number;
+  col?: number;
+}
 
 export type IssuePath = Array<string | number>;
 

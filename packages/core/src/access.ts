@@ -5,7 +5,8 @@
  */
 import { environmentAccess, resolveEnvironment } from './env.js';
 import { hostMatches, networkHost, normalizeAllowEntry, normalizeHost } from './hosts.js';
-import type { EnvironmentAccess, LoadedProject, ResolvedEnvironment } from './types.js';
+import type { EnvironmentAccess, ResolvedEnvironment } from './types/environment.js';
+import type { LoadedProject } from './types/project.js';
 import { GUIDE } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
 

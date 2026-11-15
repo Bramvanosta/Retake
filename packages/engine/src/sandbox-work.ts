@@ -10,7 +10,8 @@
  */
 import { resolveEnvironment } from '@retake/core/environment';
 import { sandboxNames } from '@retake/core/sandbox';
-import type { LoadedProject, ValidationIssue } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { ValidationIssue } from '@retake/core/base';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { DownResult, InitSandboxOptions, InitSandboxResult, ResetResult, SandboxLog, SandboxLogs, SandboxProgress, SandboxStatus, SandboxUpResult, SeedTrust } from '@retake/sandbox/types';
 import type { ENGINE_TRUST } from './caller.js';

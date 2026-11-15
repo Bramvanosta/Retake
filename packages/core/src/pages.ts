@@ -2,8 +2,8 @@
  * Multi-page scenes (L2.11): the `pages:` of a scene normalised (ids, environment pages, `open`, viewports). Pure;
  * shared by the validation, the runner and the editor.
  */
-import { VIEWPORT_PRESETS, VIEWPORT_PRESET_NAMES } from './types.js';
-import type { Scene, SceneCursor, ScenePageSpec, ScenePages, Step, ViewportPreset, ViewportSpec } from './types.js';
+import { VIEWPORT_PRESETS, VIEWPORT_PRESET_NAMES } from './types/language.js';
+import type { Scene, SceneCursor, ScenePageSpec, ScenePages, Step, ViewportPreset, ViewportSpec } from './types/language.js';
 
 /** A viewport resolved to CSS px (`preset` when it came from one). */
 export type ResolvedViewport = Required<Pick<ViewportSpec, 'width' | 'height'>> & { mobile: boolean; touch: boolean; preset?: ViewportPreset };

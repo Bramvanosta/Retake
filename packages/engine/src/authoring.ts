@@ -6,7 +6,8 @@
  */
 import { resolveEnvironment } from '@retake/core/environment';
 import { draftScenarioFromScript } from '@retake/core/scenario';
-import type { LoadedProject, WorkFileFacts } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { WorkFileFacts } from '@retake/core/model';
 import type { ScriptIssue, ScriptOutline } from '@retake/core/scenario';
 import { checkScenarioName } from './refs.js';
 import { validateScenarioText } from './scenarios.js';

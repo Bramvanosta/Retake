@@ -35,7 +35,7 @@ import { statePath, STATE_DIR, STATE_DIRS } from '@retake/core/project';
 import { insideFolder } from '@retake/core/scenario';
 import { LIBRARY_PREVIEW_KEY_RE } from './jobs/job-input.js';
 import { STARTER_TEMPLATES_DIR, readPlainFile, nodeFileFacts } from '@retake/core/io';
-import type { LoadedTemplate } from '@retake/core/model';
+import type { LoadedTemplate } from '@retake/core/theme';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { ComponentRegistry, JsonSchemaNode } from '@retake/components/geometry';
 import type { PreviewSamples } from '@retake/editor/plan';

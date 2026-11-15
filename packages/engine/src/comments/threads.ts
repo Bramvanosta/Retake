@@ -5,7 +5,8 @@ import { RunFolder } from '../outputs/run-files.js';
 import { randomBytes } from 'node:crypto';
 import { rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';
+import { COMMENTS_DIR } from '@retake/core/comments';
+import { SLUG_RE } from '@retake/core/model';
 import { renderIdOf } from '@retake/core/ids';
 import { projectRef } from '@retake/core/project';
 import {
@@ -21,7 +22,10 @@ import {
   trustedAnchor,
 } from '@retake/core/comments';
 import { latestProjectRender } from '@retake/core/render';
-import type { FrameCommentAnchor, LoadedProject, Timeline, ValidationIssue } from '@retake/core/model';
+import type { FrameCommentAnchor } from '@retake/core/comments';
+import type { LoadedProject } from '@retake/core/project';
+import type { Timeline } from '@retake/core/run';
+import type { ValidationIssue } from '@retake/core/base';
 import type { RenderVariant } from '@retake/core/ids';
 import type { CommentAuthor, CommentEntry, CommentRegion, CommentThread } from '@retake/core/comments';
 import type { ProjectRender, RenderLatestPick } from '@retake/core/render';

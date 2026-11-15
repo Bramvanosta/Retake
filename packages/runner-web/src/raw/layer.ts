@@ -10,7 +10,8 @@
 import type { ChildProcessByStdio } from 'node:child_process';
 import type { Readable, Writable } from 'node:stream';
 import { chromium } from 'playwright-core';
-import type { BrowserConfig, CursorIcon, RawLayerFormat } from '@retake/core/model';
+import type { BrowserConfig, RawLayerFormat } from '@retake/core/project';
+import type { CursorIcon } from '@retake/core/run';
 import type { WorkPolicy } from '@retake/core/policy';
 import { ffmpegBin, runMediaTool, startMediaTool, stderrLines } from '@retake/core/io';
 import { EncodeError } from '../errors.js';

@@ -12,7 +12,7 @@
  */
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { ActionName } from '@retake/core/model';
+import type { ActionName } from '@retake/core/language';
 import type { FormField, SceneBlock, StepBlock, StepForms } from '@retake/core/scenario';
 import { Txt, shown, visibleControls } from '../bits.js';
 import { useUnsavedMark } from '../drafts.js';

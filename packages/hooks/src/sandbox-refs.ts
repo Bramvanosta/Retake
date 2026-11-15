@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { listTemplateTokens } from '@retake/core/base';
 import { composeEnvRef, envFileValues } from '@retake/core/sandbox';
 import { composeEnvFile, resolveSecretRef } from '@retake/core/io';
-import type { LoadedSandbox } from '@retake/core/model';
+import type { LoadedSandbox } from '@retake/core/sandbox';
 import { HookError, errorMessage } from './errors.js';
 import type { HookContext } from './types.js';
 

@@ -28,7 +28,8 @@
 import pg from 'pg';
 import { interpolateDeep } from '@retake/core/base';
 import { prefetchSecrets } from '@retake/core/io';
-import type { LoadedProject, LoadedSandbox } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoadedSandbox } from '@retake/core/sandbox';
 import { databaseTarget, sandboxDatabaseProblem } from '@retake/hooks/db-url';
 import { SandboxError, errorMessage } from './errors.js';
 

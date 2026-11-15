@@ -15,7 +15,7 @@
  */
 import { z } from 'zod';
 import { SCRIPT_MARKDOWN_MAX } from '@retake/core/scenario';
-import type { ValidationIssue } from '@retake/core/model';
+import type { ValidationIssue } from '@retake/core/base';
 import type { ScriptIssue } from '@retake/core/scenario';
 import type { Engine } from '../engine.js';
 import type { JobRecord, RecordJobResult } from '../jobs/types.js';

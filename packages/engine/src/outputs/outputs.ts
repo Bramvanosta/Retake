@@ -25,7 +25,7 @@ import { projectPath, statePath } from '@retake/core/project';
 import type { RunId } from '@retake/core/ids';
 import type { Read, RunFolderFacts, RunRead } from '@retake/core/run';
 import type { NamedRenderFind, NamedRenderVerb, RecordFileText } from '@retake/core/io';
-import type { Timeline } from '@retake/core/model';
+import type { Timeline } from '@retake/core/run';
 import type { RenderEntry } from '@retake/core/render';
 import type { PlainFileRead } from '@retake/core/io';
 

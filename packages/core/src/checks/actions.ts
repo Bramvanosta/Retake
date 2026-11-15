@@ -1,7 +1,7 @@
 import { parseDay } from '../dates.js';
 import type { IssuePath } from '../issues.js';
 import { hasLocator, isPoint, pickTarget } from '../targets.js';
-import type { NormalizedStep, TargetObject } from '../types.js';
+import type { NormalizedStep, TargetObject } from '../types/language.js';
 import type { CheckContext } from './context.js';
 import { isObj } from './context.js';
 import { errorMessage } from '../util.js';

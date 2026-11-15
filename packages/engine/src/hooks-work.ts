@@ -15,7 +15,9 @@
  *   it runs), `onRollbacks`, `onReset`, `onResults`. The jobs pass none and map the outcome returned.
  */
 import type { Secrets } from './secrets/secrets.js';
-import type { HookStep, LoadedProject, ResolvedEnvironment } from '@retake/core/model';
+import type { HookStep } from '@retake/core/hooks';
+import type { LoadedProject } from '@retake/core/project';
+import type { ResolvedEnvironment } from '@retake/core/environment';
 import type { RunAccess } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { HookContext, HookResult, HookTrust, TrustedHookFiles } from '@retake/core/hooks';

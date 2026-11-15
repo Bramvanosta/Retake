@@ -1,26 +1,9 @@
 import { z } from 'zod';
-import { ACTION_NAMES, OVERLAY_ANCHORS } from '../types.js';
-import type { ActionArgsMap, ActionName, OverlayAnchor, OverlayAt, OverlaySpec } from '../types.js';
+import { ACTION_NAMES, OVERLAY_ANCHORS } from '../types/language.js';
+import type { ActionArgsMap, ActionName, OverlayAnchor, OverlayAt, OverlaySpec } from '../types/language.js';
 import { keyedUnion } from './keyed.js';
-import {
-  CameraHintSchema,
-  CaptionSpecSchema,
-  ComponentParamsSchema,
-  PointSchema,
-  SlotsSchema,
-  TargetObjectSchema,
-  TargetSpecSchema,
-  TutorialSwitchSchema,
-  componentIdSchema,
-  keyString,
-  mediaFileShape,
-  millis,
-  nonEmpty,
-  positiveSeconds,
-  seconds,
-  slugString,
-  targetShape,
-} from './primitives.js';
+import { CameraHintSchema, CaptionSpecSchema, TargetObjectSchema, TargetSpecSchema, TutorialSwitchSchema, targetShape } from './language.js';
+import { ComponentParamsSchema, PointSchema, SlotsSchema, componentIdSchema, keyString, mediaFileShape, millis, nonEmpty, positiveSeconds, seconds, slugString } from './primitives.js';
 
 /** Edit-time playback speed: (0, 8]. */
 export const speedSchema = () => z.number().gt(0).lte(8);

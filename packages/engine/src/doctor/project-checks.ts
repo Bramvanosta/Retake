@@ -8,7 +8,7 @@ import { errorMessage } from '@retake/core/base';
 import { resolveAuth, resolveEnvironment } from '@retake/core/environment';
 import { sandboxAdvice, sandboxAdviceText, sandboxNames } from '@retake/core/sandbox';
 import { retakeHome } from '@retake/core/io';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import { checkedText, loginCommandAt, projectPersonaStates, tildePath } from '../auth.js';
 import type { PersonaState, PersonaStateReads } from '../auth.js';

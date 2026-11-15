@@ -58,7 +58,9 @@ import {
 } from '@retake/core/run';
 import { DEFAULT_TEMPLATE } from '@retake/core/theme';
 import { readPlainFile } from '@retake/core/io';
-import type { LoadedProject, TargetSpec, WorkFileFacts } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { TargetSpec } from '@retake/core/language';
+import type { WorkFileFacts } from '@retake/core/model';
 import type { ScenarioBlocks } from '@retake/core/scenario';
 import type { DraftIssue, DraftPlaceholder, DraftSource, DraftWrite, RecordAnnotationChange, RecordAnnotations, RecordInsert, RecordedEvent, RecordingDraft } from '@retake/core/run';
 import type { JobClient, JobState } from './jobs/job-input.js';

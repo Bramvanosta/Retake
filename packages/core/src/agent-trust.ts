@@ -40,7 +40,9 @@ import { formatPath } from './issues.js';
 import { pathInside, relativeInside } from './path-inside.js';
 import type { IssuePath } from './issues.js';
 import { locateOffset, parseYaml } from './validation/yaml-source.js';
-import type { HookStep, JsHookSpec, LoadedProject, Scenario, SqlHookSpec } from './types.js';
+import type { HookStep, JsHookSpec, SqlHookSpec } from './types/hooks.js';
+import type { LoadedProject } from './types/project.js';
+import type { Scenario } from './types/scenario.js';
 
 /** Whether `p` is `dir` or inside it, once symbolic links are followed on both (pathInside with `real`: realPathOf of each, resolved against the current folder). */
 export function insideFolder(dir: string, p: string, files: FileFacts): boolean {

@@ -1,9 +1,11 @@
 import { resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS } from '@retake/core/model';
+import { COMPONENT_ID_RE } from '@retake/core/model';
+import { FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS } from '@retake/core/language';
 import { editReplannedMessage, scenarioChangedMessage } from '@retake/core/scenario';
 import { takeWords, untilStep } from '@retake/core/run';
 import { scenarioSinceRun } from '@retake/core/io';
-import type { FileFacts, LoadedProject } from '@retake/core/model';
+import type { FileFacts } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import { defaultStillFile, editorErrorOf, findRunOf, planWork, renderInProcess, stillInProcess } from '@retake/engine/shell';
 import type { EditOverrides, RenderProgress, RenderRecord, RunRef } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';

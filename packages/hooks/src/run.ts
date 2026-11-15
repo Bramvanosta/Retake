@@ -1,7 +1,7 @@
 import { confinementOrDefault, confinementWords } from '@retake/core/model';
 import { readOnlyHookMessage } from '@retake/core/environment';
 import { AGENT_SQL_REASON, shellAlwaysWrites } from '@retake/core/hooks';
-import type { HookKind, HookStep, HttpHookSpec } from '@retake/core/model';
+import type { HookKind, HookStep, HttpHookSpec } from '@retake/core/hooks';
 import { checkWriteHosts } from './allow-list.js';
 import { hookFiles, hookFingerprint } from './approval.js';
 import { holdAfter, holdBefore, trustedFilesMessage, trustedFilesProblem } from './trusted-files.js';

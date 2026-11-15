@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import type { Browser } from 'playwright-core';
 import { environmentHttpCredentials } from '@retake/core/environment';
 import { policyArgsProblems, policyProgram, programProblem, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core/policy';
-import type { BrowserConfig, LoadedProject } from '@retake/core/model';
+import type { BrowserConfig, LoadedProject } from '@retake/core/project';
 import type { PageHttpCredentials } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import { playwrightBrowser, programLookup } from '@retake/core/io';

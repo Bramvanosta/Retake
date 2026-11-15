@@ -12,7 +12,7 @@
 import { RENDER_VARIANT_SUFFIX } from '@retake/core/ids';
 import { join } from 'node:path';
 import { OUTPUT_DIRS } from './outputs/outputs.js';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { EditOverrides, ExportProgress, RenderProgress, RenderRecord } from '@retake/editor/plan';
 import type { ExportFormat, ExportRenderOptions, ExportResult, FoundRender, PlannedRun, RenderStillOptions, RunRef } from './render/editor-calls.js';

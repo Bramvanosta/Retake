@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { clipProbeArgs, clipProbeFromJson, readFfprobeJson } from '@retake/core/render';
-import type { RawFormat } from '@retake/core/model';
+import type { RawFormat } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { ClipProbe } from '@retake/core/render';
 import type { H264Encoder } from '@retake/core/io';

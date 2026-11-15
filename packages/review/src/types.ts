@@ -3,7 +3,7 @@
  * (thresholds) of the checks.
  */
 import type { ErrorKind } from '@retake/core/base';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { NamedRender, PlanSegment } from '@retake/editor/plan';

@@ -11,7 +11,7 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { SANDBOX_SCHEMA_FILE, addSandboxEntry, sandboxNames } from '@retake/core/sandbox';
 import { bundleInfoOrNull, insideBundle } from '@retake/core/io';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { BundleInfo } from '@retake/core/io';
 import { SandboxError } from './errors.js';
 import { probePort, sandboxPorts } from './ports.js';

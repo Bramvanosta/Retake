@@ -8,7 +8,7 @@
 import { join } from 'node:path';
 import { resolveEnvironment } from '@retake/core/environment';
 import { SandboxError, sandboxNames } from '@retake/core/sandbox';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { RunRecord } from '@retake/core/run';
 import { describeLock } from '@retake/core/io';
 import type { ProviderCapabilities, ResetResult, SandboxLog, ServiceStatus } from '@retake/sandbox/types';

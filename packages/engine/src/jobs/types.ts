@@ -1,5 +1,6 @@
 /** Job records and events as stored under <workspace>/.retake/jobs/<id>/ (L3.1). */
-import type { ComponentKind, RunStatus } from '@retake/core/model';
+import type { ComponentKind } from '@retake/core/model';
+import type { RunStatus } from '@retake/core/run';
 import type { RunProgress, RunRecord } from '@retake/core/run';
 import type { JobInput, JobKind, JobState } from './job-input.js';
 import type { EngineErrorCode } from '../errors.js';

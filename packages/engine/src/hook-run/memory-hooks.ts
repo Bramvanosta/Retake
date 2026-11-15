@@ -31,7 +31,7 @@ import { canonicalJson, errorMessage, listTemplateTokens } from '@retake/core/ba
 import { AGENT_SQL_REASON, journalsRollback } from '@retake/core/hooks';
 import { statePath } from '@retake/core/project';
 import { runFolderOf, runsDirOf } from '../outputs/outputs.js';
-import type { HookKind, HookStep } from '@retake/core/model';
+import type { HookKind, HookStep } from '@retake/core/hooks';
 import type { HookContext, HookPhase, HookResult, JournalEntry, RollbackAction, TrustFilesPlace, TrustedHookFiles } from '@retake/core/hooks';
 import { describeHook, describeRollback, hookKindOf } from '@retake/hooks/describe';
 import { EngineError } from '../errors.js';

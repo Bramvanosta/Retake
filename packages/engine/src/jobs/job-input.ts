@@ -5,7 +5,8 @@
  * `{{keychain:…}}` references and persona sessions itself, from its own environment and ~/.retake.
  */
 import { z } from 'zod';
-import { COMPONENT_ID_RE, ComponentRefSchema, FrameSpecSchema, KEY_RE, SLUG_RE, TargetSpecSchema, TransitionSchema, TutorialSwitchSchema } from '@retake/core/model';
+import { COMPONENT_ID_RE, ComponentRefSchema, KEY_RE, SLUG_RE } from '@retake/core/model';
+import { FrameSpecSchema, TargetSpecSchema, TransitionSchema, TutorialSwitchSchema } from '@retake/core/language';
 import { INSPECT_ID_RE, PREVIEW_ID_RE, RECORD_ID_RE, SITE_ID_RE, zRenderId, zRunId, zThemeName } from '@retake/core/ids';
 import { PROJECT_SLUG_RE } from '@retake/core/project';
 import { INSPECT_PATH_MAX, inspectPathProblem } from '@retake/core/run';

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { SANDBOX_PROVIDERS, SANDBOX_RESET_STRATEGIES } from '../types.js';
-import type { ExecStepSpec, SeedStep } from '../types.js';
+import { SANDBOX_PROVIDERS } from '../types/environment.js';
+import { SANDBOX_RESET_STRATEGIES } from '../types/sandbox.js';
+import type { ExecStepSpec, SeedStep } from '../types/sandbox.js';
 import { HOOK_COMMON_KEYS, HttpHookSchema, ShellHookSchema, SqlHookSchema, hookBranch } from './hooks.js';
 import { keyedUnion } from './keyed.js';
 import { keyString, nonEmpty, positiveSeconds, slugString } from './primitives.js';

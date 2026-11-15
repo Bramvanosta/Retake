@@ -1,5 +1,5 @@
 import { sqlSource } from '@retake/core/hooks';
-import type { HookKind, HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from '@retake/core/model';
+import type { HookKind, HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from '@retake/core/hooks';
 import { HookError } from './errors.js';
 import { actionLines } from './shown.js';
 import type { ShownAction } from './shown.js';

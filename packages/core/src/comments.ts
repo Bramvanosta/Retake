@@ -22,8 +22,8 @@ import { firstHiddenChar, hiddenCharName } from './scenario-edit.js';
 import { COMPONENT_ID_RE, SLUG_RE } from './schemas/primitives.js';
 import { stepFingerprint } from './steps.js';
 import { parseYaml } from './validation/yaml-source.js';
-import { ACTION_NAMES } from './types.js';
-import type { FrameCommentAnchor } from './types.js';
+import { ACTION_NAMES } from './types/language.js';
+import type { FrameCommentAnchor } from './types/comments.js';
 
 export const COMMENT_THREAD_VERSION = 1;
 
@@ -234,7 +234,7 @@ export const FrameCommentAnchorSchema = z.strictObject({
   overlays: z.array(anchorString).max(50).optional(),
   transition: z.strictObject({ kind: z.enum(['crossfade', 'fade-black']), from: anchorString.optional(), to: anchorString.optional() }).optional(),
 });
-// The schema and the interface (types.ts) describe the same object.
+// The schema and the interface (types/comments.ts) describe the same object.
 const anchorSchemaMatches: z.ZodType<FrameCommentAnchor> = FrameCommentAnchorSchema;
 void anchorSchemaMatches;
 

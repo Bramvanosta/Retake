@@ -12,7 +12,8 @@ import { sqlSource } from '../destructive.js';
 import type { WorkspaceDisk } from '../file-facts.js';
 import { issuesMessage } from '../issues.js';
 import { SANDBOX_SEED_DIR, SandboxConfigError, parseSandboxYaml, sandboxAuth } from '../sandbox.js';
-import type { LoadedSandbox, ProjectConfig, SandboxManifest } from '../types.js';
+import type { LoadedSandbox, SandboxManifest } from '../types/sandbox.js';
+import type { ProjectConfig } from '../types/project.js';
 import { errorMessage } from '../util.js';
 
 /**

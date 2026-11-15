@@ -4,7 +4,7 @@
  * validation (project.yaml `mailbox`) and @retake/hooks (which re-exports them and adds the refusals).
  */
 import { environmentHosts } from './env.js';
-import type { LoadedProject } from './types.js';
+import type { LoadedProject } from './types/project.js';
 import { GUIDE } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
 

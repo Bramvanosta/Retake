@@ -2,12 +2,14 @@
 import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { hunkStats } from '@retake/core/base';
-import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';
+import { COMMENTS_DIR } from '@retake/core/comments';
+import { SLUG_RE } from '@retake/core/model';
 import { isRenderId, renderIdOf } from '@retake/core/ids';
 import { projectRef, statePath, scenarioRef } from '@retake/core/project';
 import { deriveStatus, locateAnchorStep, proposalStates, trustedAnchor } from '@retake/core/comments';
 import { latestProjectRender, orderRenders, projectRenderOf, quotableRender, renderNot, renderNotWords } from '@retake/core/render';
-import type { FrameCommentAnchor, LoadedProject } from '@retake/core/model';
+import type { FrameCommentAnchor } from '@retake/core/comments';
+import type { LoadedProject } from '@retake/core/project';
 import type { RenderVariant } from '@retake/core/ids';
 import type { CommentAuthor, CommentEntry, CommentProposal, CommentRegion, CommentThread, ProposalState } from '@retake/core/comments';
 import type { ProjectRender, RenderEntry, RenderLatestPick, StoredRenderRecord } from '@retake/core/render';

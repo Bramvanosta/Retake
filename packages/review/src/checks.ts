@@ -5,7 +5,8 @@
  */
 import { isPlanAssetUrl } from '@retake/core/base';
 import { displayUrl, findLocalUrls, isLocalUrl, shownUrl as namedUrl } from '@retake/core/environment';
-import type { Timeline, TimelineLoadingUi, TimelineWrite } from '@retake/core/model';
+import type { Timeline, TimelineLoadingUi } from '@retake/core/run';
+import type { TimelineWrite } from '@retake/core/environment';
 import type { DisplayEntry } from '@retake/core/environment';
 import type { StoredRunRecord, UnknownStatusRun } from '@retake/core/run';
 import { BUTTON_LABEL_MIN, CAPTION_BAND_PAD_X, buttonColors, captionMaxLines, captionOverBand, fitText, insetPhoneEdge } from '@retake/components/geometry';

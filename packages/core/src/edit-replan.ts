@@ -17,14 +17,18 @@
  * the end of the step (`end_point`, L5.5); a target the take never measured falls back to the step's with a warning.
  */
 import { canonicalJson } from './canonical-json.js';
-import { overlayUseOf } from './media.js';
+import { overlayUseOf } from './overlay-use.js';
 import { scenePageEntries } from './pages.js';
 import { sceneId } from './steps.js';
 import { describeTarget } from './targets.js';
 import { interpolateAt, TemplateError } from './templating.js';
 import type { TemplateContext } from './templating.js';
-import { isCaptureScene, isCard, isInterstitial } from './types.js';
-import type { BBox, CaptionSpec, CameraHint, OverlaySpec, ProjectConfig, Scenario, Scene, Step, TargetSpec, Timeline, TimelineEvent, TimelineMarker, TimelineScene, TimelineVideo } from './types.js';
+import { isCaptureScene, isCard, isInterstitial } from './types/language.js';
+import type { BBox } from './types/model.js';
+import type { CaptionSpec, CameraHint, OverlaySpec, Scene, Step, TargetSpec, TimelineVideo } from './types/language.js';
+import type { ProjectConfig } from './types/project.js';
+import type { Scenario } from './types/scenario.js';
+import type { Timeline, TimelineEvent, TimelineMarker, TimelineScene } from './types/run.js';
 import { timelineVideo } from './video.js';
 
 export interface ReplanEditInput {

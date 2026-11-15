@@ -521,8 +521,9 @@ export const BROWSER_REGISTRY_HOME = 'packages/core/src/io/browsers.ts';
 export const MEDIA_RUN_HOME = 'packages/core/src/io/media-run.ts';
 /**
  * Core's contexts (L7.35, audit 2026-11-10 D1), in order: the files of a context may import those of the contexts
- * before it, never after (core-context); a type-only import of `model` (the shared contracts: types.ts, the ports, the
- * checks' shared context) is free for every context. Each context is the entry `@retake/core/<name>`
+ * before it, never after (core-context), types and values alike; each context declares its own types
+ * (types/<name>.ts), and only the wholes of CORE_WHOLES may be named, as types, by an earlier context. Each context is
+ * the entry `@retake/core/<name>`
  * (packages/core/src/entries/<name>.ts, an `exports` key of core's package.json); core's io side (`@retake/core/io`,
  * R1) and the root `index.ts` (every entry at once) are in none. Files are named without `.ts`, relative to
  * packages/core/src.
@@ -542,7 +543,6 @@ export const CORE_CONTEXTS = [
       'dates',
       'line-diff',
       'path-inside',
-      'client-path',
       'templating',
       'sql-text',
       'shell-words',
@@ -555,23 +555,23 @@ export const CORE_CONTEXTS = [
       'plan-asset-url',
     ],
   },
-  { name: 'model', files: ['types', 'schemas/primitives', 'media', 'file-facts', 'render-settings', 'confinement', 'checks/context', 'checks/tokens', 'checks/media'] },
+  { name: 'model', files: ['types/model', 'schemas/primitives', 'media', 'file-facts', 'client-path', 'render-settings', 'confinement', 'checks/context', 'checks/tokens', 'checks/media'] },
   { name: 'ids', files: ['id-grammar', 'ids'] },
-  { name: 'language', files: ['steps', 'targets', 'pages', 'tutorial', 'video', 'scenario-template', 'schemas/steps', 'schemas/settings'] },
-  { name: 'environment', files: ['env', 'hosts', 'access', 'display', 'clock', 'writes', 'auth', 'checks/auth'] },
+  { name: 'language', files: ['types/language', 'steps', 'targets', 'pages', 'tutorial', 'video', 'scenario-template', 'overlay-use', 'schemas/language', 'schemas/steps'] },
+  { name: 'environment', files: ['types/environment', 'env', 'hosts', 'access', 'display', 'clock', 'writes', 'auth', 'checks/auth'] },
   { name: 'policy', files: ['agent-policy', 'ip-class'] },
-  { name: 'hooks', files: ['hookfile', 'hook-run', 'hook-writes', 'named-hooks', 'destructive', 'shell-hosts', 'shell-runs', 'checks/hooks', 'schemas/hooks'] },
-  { name: 'project', files: ['workspace', 'project', 'layout', 'checks/project', 'schemas/project'] },
-  { name: 'sandbox', files: ['sandbox', 'sandbox-error', 'checks/sandbox', 'schemas/sandbox'] },
+  { name: 'hooks', files: ['types/hooks', 'hookfile', 'hook-run', 'hook-writes', 'named-hooks', 'destructive', 'shell-hosts', 'shell-runs', 'checks/hooks', 'schemas/hooks'] },
+  { name: 'project', files: ['types/project', 'workspace', 'project', 'layout', 'checks/project', 'schemas/project', 'schemas/settings'] },
+  { name: 'sandbox', files: ['types/sandbox', 'sandbox', 'sandbox-error', 'checks/sandbox', 'schemas/sandbox'] },
   {
     name: 'scenario',
     files: [
+      'types/scenario',
       'scenario',
       'schemas/scenario',
       'checks/scenario',
       'checks/actions',
       'blocks',
-      'edit-replan',
       'scenario-edit',
       'step-edits',
       'field-edits',
@@ -583,14 +583,28 @@ export const CORE_CONTEXTS = [
       'agent-trust',
     ],
   },
-  { name: 'comments', files: ['comments'] },
-  { name: 'run', files: ['run-record', 'take', 'perf', 'record-read', 'schemas/timeline', 'recording', 'record-annotations', 'record-change', 'inspect', 'inspect-pacing'] },
+  { name: 'comments', files: ['types/comments', 'comments'] },
+  {
+    name: 'run',
+    files: ['types/run', 'run-record', 'take', 'perf', 'record-read', 'schemas/timeline', 'recording', 'record-annotations', 'record-change', 'inspect', 'inspect-pacing', 'edit-replan'],
+  },
   { name: 'render', files: ['render-record', 'schemas/render', 'ffprobe', 'gpu', 'export-formats'] },
-  { name: 'theme', files: ['template', 'template-defaults', 'components', 'theme-edits', 'brand', 'site', 'schemas/template'] },
+  { name: 'theme', files: ['types/theme', 'template', 'template-defaults', 'components', 'theme-edits', 'brand', 'site', 'schemas/template'] },
   { name: 'schema', files: ['schemas/json', 'schemas/type-checks'] },
 ];
-/** The context whose type-only imports are free for every context (CORE_CONTEXTS). */
-export const CORE_SHARED_CONTEXT = 'model';
+/**
+ * The wholes a context's logic is handed (core-context): the loaded project and its file, the loaded sandbox, the
+ * scenario and the theme, each with the earlier contexts that may name it. A type-only import that names only these,
+ * from the file that declares them, is free for those contexts (an environment's lookup reads the project it is
+ * given); every other name and every other context keeps the order (base and model name none). An indexed access of
+ * a whole (`ProjectConfig['pacing']`) reaches a part of it: a hit.
+ */
+export const CORE_WHOLES = {
+  'types/project': { names: ['LoadedProject', 'ProjectConfig'], contexts: ['language', 'environment', 'hooks'] },
+  'types/sandbox': { names: ['LoadedSandbox'], contexts: ['project'] },
+  'types/scenario': { names: ['Scenario'], contexts: ['language', 'environment', 'hooks'] },
+  'types/theme': { names: ['Template'], contexts: ['scenario'] },
+};
 const CORE_SRC = 'packages/core/src/';
 const CORE_ENTRIES_DIR = `${CORE_SRC}entries/`;
 export const PURE_BINDINGS = { 'node:net': ['isIP', 'isIPv4', 'isIPv6', 'BlockList'], net: ['isIP', 'isIPv4', 'isIPv6', 'BlockList'] };
@@ -700,7 +714,7 @@ export const CHECKS = [
   {
     id: 'core-context',
     title:
-      "core's contexts (CORE_CONTEXTS, L7.35) import only the contexts before them: in packages/core/src outside io/ and the root index.ts, an import, re-export or import() of a core file of a later context is a hit (entries: the file and the file it imports), a type-only import of `model` excepted; and so are a file of no context (`unassigned`: a new file gets its context on purpose), an entry (entries/<name>.ts) that re-exports a file outside its context, and a context file or an entry that imports an entry or the root — by a relative path or by core's own package name (`@retake/core`, `@retake/core/<x>`; `@retake/core/io` is R1's). Read: relative specifiers, resolved to their file, and core's package name. Not seen: a name a file re-exports from a file of its own context that took it from another (the entry then exports it under the wrong context: the generator's rule, a name exported by the entry of the file that declares it, is not checked)",
+      "core's contexts (CORE_CONTEXTS, L7.35) import only the contexts before them: in packages/core/src outside io/ and the root index.ts, an import, re-export or import() of a core file of a later context is a hit, a type as much as a value (entries: the file and the file it imports), a type-only named import of the wholes of CORE_WHOLES (the loaded project and its file, the loaded sandbox, the scenario, the theme) from their file, by the contexts listed for each, excepted (an indexed access of one, or an empty import, is a hit); and so are a file of no context (`unassigned`: a new file gets its context on purpose), an entry (entries/<name>.ts) that re-exports a file outside its context, and a context file or an entry that imports an entry or the root — by a relative path or by core's own package name (`@retake/core`, `@retake/core/<x>`; `@retake/core/io` is R1's). Read: relative specifiers, resolved to their file, and core's package name. Not seen: a name a file re-exports from a file of its own context that took it from another (the entry then exports it under the wrong context: the generator's rule, a name exported by the entry of the file that declares it, is not checked)",
   },
   {
     id: 'core-root',
@@ -1881,6 +1895,45 @@ export function coreContextOf(rel) {
   return CORE_CONTEXTS.find((c) => c.files.includes(f))?.name;
 }
 
+/**
+ * The names a file imports by specifier, for the specifiers it reaches by named imports only (CORE_WHOLES): another
+ * form (a namespace, a default, a re-export, an `import()` or an `import('…')` type) leaves the specifier out.
+ */
+function wholeImports(ts, rel, text) {
+  const names = new Map();
+  const other = new Set();
+  const statements = new Map();
+  const locals = new Map();
+  const sf = parse(ts, rel, text);
+  for (const st of sf.statements) {
+    if (!(ts.isImportDeclaration(st) || ts.isExportDeclaration(st)) || !st.moduleSpecifier || !ts.isStringLiteral(st.moduleSpecifier)) continue;
+    const s = st.moduleSpecifier.text;
+    const b = ts.isImportDeclaration(st) ? st.importClause?.namedBindings : undefined;
+    if (!b || !ts.isNamedImports(b) || st.importClause.name) {
+      other.add(s);
+      continue;
+    }
+    names.set(s, [...(names.get(s) ?? []), ...b.elements.map((e) => (e.propertyName ?? e.name).text)]);
+    for (const e of b.elements) locals.set(e.name.text, s);
+    statements.set(s, (statements.get(s) ?? 0) + 1);
+  }
+  // An indexed access of an imported name (`ProjectConfig['pacing']`) reaches a part of it: not a whole any more.
+  (function indexed(n) {
+    if (ts.isIndexedAccessTypeNode(n)) {
+      let o = n.objectType;
+      while (ts.isIndexedAccessTypeNode(o)) o = o.objectType;
+      if (ts.isTypeReferenceNode(o) && ts.isIdentifier(o.typeName) && locals.has(o.typeName.text)) other.add(locals.get(o.typeName.text));
+    }
+    n.forEachChild(indexed);
+  })(sf);
+  // import() and import('…') types name the specifier once more each: no longer named imports only.
+  const seen = new Map();
+  for (const s of specifiersOf(ts, rel, text)) seen.set(s, (seen.get(s) ?? 0) + 1);
+  for (const [s, n] of statements) if ((seen.get(s) ?? 0) > n) other.add(s);
+  for (const s of other) names.delete(s);
+  return names;
+}
+
 /** core-context hits (CORE_CONTEXTS): `[{ rule, file, spec }]`. */
 export function coreContextHits(root, files) {
   const ts = loadTs(root);
@@ -1899,6 +1952,7 @@ export function coreContextHits(root, files) {
       continue;
     }
     const values = moduleUses(ts, rel, text).values;
+    const wholesOnly = wholeImports(ts, rel, text);
     for (const s of new Set(specifiersOf(ts, rel, text))) {
       // Core's own package name: the root or an entry, never a context's file (the io side is R1's).
       if (s === '@retake/core' || (s.startsWith('@retake/core/') && s !== '@retake/core/io' && !s.startsWith('@retake/core/io/'))) {
@@ -1919,7 +1973,9 @@ export function coreContextHits(root, files) {
         continue;
       }
       if (rank.get(theirs) <= rank.get(own)) continue;
-      if (theirs === CORE_SHARED_CONTEXT && !values.has(s)) continue;
+      const wholes = CORE_WHOLES[to.slice(CORE_SRC.length, -3)];
+      const named = wholesOnly.get(s);
+      if (wholes?.contexts.includes(own) && !values.has(s) && named?.length && named.every((n) => wholes.names.includes(n))) continue;
       hits.push({ rule: 'core-context', file: rel, spec: to });
     }
   }

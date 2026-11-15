@@ -57,7 +57,7 @@ automatically with themeable components, and let Claude operate everything throu
 2. `docs/ROADMAP.md` — lots, sizes, status, working agreement. **Work one lot at a time; the user decides how many.**
 3. The lot's requirements: `node scripts/requirements.mjs --lot <id>` (source of truth: `docs/requirements.json`).
 4. Contracts: `docs/DESIGN.md` (phase 1 packages), `docs/DESIGN-phase2.md` (components, editor, review, comments),
-   `packages/core/src/types.ts`, `packages/components/src/types.ts`, `packages/editor/src/plan-types.ts`.
+   `packages/core/src/types/<context>.ts`, `packages/components/src/types.ts`, `packages/editor/src/plan-types.ts`.
 5. References: `docs/reference/look.md` (measured target look), `docs/reference/choreography.md` (field-tested
    cursor/click/typing rules), `docs/design-brief.md` + the mock-up canvas (Studio screens 1–7 and video frames in two
    themes): https://claude.ai/artifact/CEa9o9do5hr9AcLBajLRye (private to the owner).
@@ -74,6 +74,65 @@ automatically with themeable components, and let Claude operate everything throu
 Each lot adds its "State (after <lot>)" section here, above the previous one: newest first (the lead's register helper
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
+
+## State (after L7.52)
+- **L7.52 done (2026-11-15; branch `claude/arch-l7`)** — core's types are split by context: `packages/core/src/types.ts`
+  (2,488 lines, every name in `model`) is gone; each context declares its own types in
+  `packages/core/src/types/<context>.ts` (model, language, environment, hooks, project, sandbox, scenario, comments,
+  run, theme; `ValidationIssue` is base's, in `issues.ts`), exported by its entry. The ratchet's `core-context` now
+  orders types like values: the free pass of `model`'s types (`CORE_SHARED_CONTEXT`) is removed, and the one exception
+  is a named list, `CORE_WHOLES` (`scripts/audit/lib.mjs`): the wholes a context's logic is handed — `LoadedProject` /
+  `ProjectConfig` (by language, environment, hooks), `LoadedSandbox` (by project), `Scenario` (by language,
+  environment, hooks), `Template` (by scenario) — may be named as types, by a non-empty named import from their file,
+  by the contexts listed with each (base and model name none; an indexed access of a whole is a hit). The named
+  exception replaces the audit's "baseline" form on purpose: accepted by the lead (2026-11-15) over ~13 baseline
+  entries that could not shrink without changing signatures. Closes A-S9. Baseline unchanged (73 entries), lint baseline unchanged (456).
+  - Code: moves only. `schemas/primitives.ts` keeps the model's schemas (ids, keys, points, boxes, component refs, a
+    user file's fields); the language's (targets, scopes, captions, eases, camera hints, frames, transitions, tutorial
+    switches) are `schemas/language.ts`. Context moves: `schemas/settings.ts` language → project (it is the capture,
+    pacing, browser and auth settings), `edit-replan.ts` scenario → run (it reads the timeline), `client-path.ts` base →
+    model (it names the FileFacts port). `overlayUseOf` / `OverlayUseSpec` moved from `media.ts` (model) to the new
+    `overlay-use.ts` (language: it reads a step overlay); `MEDIA_COMPONENTS` is model's, `TimelineVideo` language's (the
+    video's edit info), `TimelineWrite` environment's (the writes a take saw). Entries follow: names moved between
+    `@retake/core/model`, `/language`, `/project`, `/run`, `/scenario`, `/base`… (each name is exported by the entry of
+    the file that declares it). 225 files of the other packages (sources, tests, scripts) and 64 of core rewritten by
+    script to the entry / file that declares each name — import and export lines only (in the editor, the Studio
+    player, sandbox and the engine: import lines only). Docs: DESIGN.md (contexts paragraph, first lines),
+    DESIGN-phase2.md (types' place), target-architecture.md (layers row), entry headers.
+  - Tests: import-rules (the free pass test rewritten to "types as much as values"; new "the wholes a context is
+    handed (CORE_WHOLES)…"; the contexts test pins which contexts have a types file and that the free pass is gone);
+    the entry walks updated (editor plan-entry gains `@retake/core/project`; review checks-entry trades `model` for
+    `project`; hooks describe-entry drops `model`). Characterization: the built JSON Schemas, the root's names (types
+    and values, by the compiler's API) and every entry's names compared before / after — identical but the moved names
+    listed above; MCP tool-list and Studio op-table snapshots unchanged. Run alone: import-rules, plan-entry,
+    describe-entry, checks-entry, engine-entries, engine-facade, tool-list-snapshot, op-table-snapshot, test-typecheck,
+    helpers, media, phase2, components scaffolds, core schema, sandbox schema-bundle, path-inside (all green).
+  - Mutations (7, all red): a later context's type imported in env.ts (rules --check), every type-only import free,
+    a whole's file with any name, an `import()` type not counted, a whole free for any earlier context, an indexed
+    access not counted, an empty import free.
+  - Gates: `npx tsc -b`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `rules.mjs --check`, `--check-cites` on a
+    scratch copy with the edits applied: green. `test-guard`: 1 item, the renamed import-rules title (below).
+  - Not done: the 2 `core-context` entries of L7.35 stay (they are values); the full suite not run.
+
+Test renamed (test-guard's one item): `packages/core/test/import-rules.test.ts` "a file imports its own context and the
+ones before it; a later one is a hit, a type-only import of model is free" → "… a later one is a hit, its types as much
+as its values" (the free pass it named is gone; its expects kept, two replaced by the new type cases, one added). Cited
+by R-ARCH-47: updated in the requirement edits.
+
+Paths cited in docs/requirements.json that moved (evidence strings not edited, old → new):
+- `core types.ts` → `packages/core/src/types/<context>.ts`: ClickOptions (R-ACT-04), SceneCursor (R-ISS-04), IntroSpec /
+  OutroSpec / InterstitialSpec / CardScene / isCard / isCaptureScene / FrameSpec / FRAME_STYLE_LAYOUTS / OverlaySpec
+  (R-SCN2-01…06) → `types/language.ts`; DEFAULT_CAPTURE (R-ARCH-04), DEFAULT_PACING (R-RUN-03, R-CHO-03, -06, -09,
+  -17) → `types/project.ts`; TemplateBrand / TemplateComponents (R-THM-01, -02) → `types/theme.ts`; ComponentKind /
+  COMPONENT_KINDS / ComponentRef (R-THM-02), MediaFileFields (R-OWN-01) → `types/model.ts`; FrameCommentAnchor
+  (R-CMT-01) → `types/comments.ts`; PersonaConfig / PersonaCheck / LoginPattern / LoginStep / AuthConfig (R-AUTH-01) →
+  `types/environment.ts`. The line numbers cited (`types.ts:104`, `:556`, `:590-605`, `:622-625`, `:596-599`, `:634`,
+  `:638`, `:401-413`) were already stale.
+- `schemas/primitives.ts` CameraHintSchema (R-VAL-08), FrameSpecSchema (R-SCN2-05) → `schemas/language.ts`;
+  `fileVersion()` (R-PRIN-13) and `mediaFileShape` (R-OWN-01) stay.
+- `core edit-replan.ts` (R-FLD-01): same file, now in the run context and exported by `@retake/core/run`.
+- R-SEC-13 "types.ts (agentVars)", R-RND-13 "RenderRecord.policy (types.ts)", R-ARCH-53, R-REV-01: other packages'
+  types.ts, not core's (R-RND-13's was already stale: RenderRecord was never in core types.ts).
 
 ## State (after L7.54b)
 - **L7.54b done (2026-11-15; branch `claude/arch-l7`)** — the old name's two-letter prefix is gone from generated

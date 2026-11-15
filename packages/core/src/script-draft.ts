@@ -12,7 +12,7 @@
  */
 import { Document, isMap, isPair, isScalar, visit } from 'yaml';
 import { inspectPathProblem } from './inspect.js';
-import type { ResolvedEnvironment } from './types.js';
+import type { ResolvedEnvironment } from './types/environment.js';
 import { didYouMean } from './validation/suggest.js';
 
 export type ScriptColumn = 'time' | 'end' | 'duration' | 'scene' | 'action' | 'caption' | 'kicker' | 'page' | 'type';

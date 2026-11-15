@@ -19,7 +19,6 @@ export * from '../path-inside.js';
 export * from '../templating.js';
 export { isoDay, parseDay } from '../dates.js';
 export { bestEffort } from '../best-effort.js';
-export { isUnder } from '../client-path.js';
 export { maskSql } from '../sql-text.js';
 export { SHELL_OPERATORS, commandName, heredocs, lexShell, nestedShellScript, shellCommands, shellInvocation, shellTokens, shellWords } from '../shell-words.js';
 export type { Heredoc, LexOptions, ShellCall, ShellCommand, ShellToken } from '../shell-words.js';

@@ -1,5 +1,6 @@
-import { ACTION_NAMES, isCaptureScene, isCard, isInterstitial } from './types.js';
-import type { ActionName, NormalizedArgsMap, NormalizedStep, Scenario, Scene, Step, StepCommon, TargetObject, TargetSpec } from './types.js';
+import { ACTION_NAMES, isCaptureScene, isCard, isInterstitial } from './types/language.js';
+import type { ActionName, NormalizedArgsMap, NormalizedStep, Scene, SceneEntry, Step, StepCommon, TargetObject, TargetSpec } from './types/language.js';
+import type { Scenario } from './types/scenario.js';
 import { isPoint, normalizeTarget } from './targets.js';
 import { createHash } from 'node:crypto';
 import { canonicalJson } from './canonical-json.js';
@@ -163,7 +164,7 @@ export function normalizeStep(step: Step, index: number): NormalizedStep {
 }
 
 /** Id of a scenario entry: its `id`, else "interstitial-<index>" / "card-<index>" for interstitials and cards. */
-export function sceneId(entry: Scenario['scenes'][number], index: number): string {
+export function sceneId(entry: SceneEntry, index: number): string {
   if (isInterstitial(entry)) return entry.id ?? `interstitial-${index}`;
   if (isCard(entry)) return entry.id ?? `card-${index}`;
   return entry.id;

@@ -8,7 +8,9 @@ import type { HookAccess } from './access.js';
 import type { WorkPolicy } from './agent-policy.js';
 import type { Confinement } from './confinement.js';
 import type { HookTrust } from './hook-writes.js';
-import type { HookKind, HookStep, HttpHookSpec, LoadedProject, ResolvedEnvironment } from './types.js';
+import type { HookKind, HookStep, HttpHookSpec } from './types/hooks.js';
+import type { LoadedProject } from './types/project.js';
+import type { ResolvedEnvironment } from './types/environment.js';
 
 /**
  * Which list of hooks is being run. Only `setup` and `step` hooks journal a rollback action. `seed` (L1.8): the steps

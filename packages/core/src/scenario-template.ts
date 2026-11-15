@@ -1,7 +1,7 @@
 import type { IssuePath } from './issues.js';
 import { interpolateAt } from './templating.js';
 import type { TemplateContext } from './templating.js';
-import type { SceneEntry, TimelineVideo } from './types.js';
+import type { SceneEntry, TimelineVideo } from './types/language.js';
 
 /*
  * Scenario templating (R-RUN-16): every string of a scene entry is interpolated when the runner reaches it — step

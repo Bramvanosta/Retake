@@ -1,5 +1,5 @@
 /** A sandbox's status for clients outside the CLI (the MCP `sandbox_status` tool): read-only, starts nothing. */
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import { sandboxWork } from './sandbox-work.js';
 import type { ProjectFolder } from './store/store.js';

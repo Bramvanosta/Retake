@@ -10,7 +10,9 @@
 import { basename, extname, join, resolve } from 'node:path';
 import { errorKindOf, errorMessage } from '@retake/core/base';
 import { formatRenderId } from '@retake/core/ids';
-import type { LoadedProject, LoadedTemplate, RenderSettings } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoadedTemplate } from '@retake/core/theme';
+import type { RenderSettings } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import { finishedRender, renderAttempt } from '@retake/core/render';
 import type { RenderFields } from '@retake/core/render';

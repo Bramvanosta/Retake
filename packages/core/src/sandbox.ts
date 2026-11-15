@@ -17,20 +17,11 @@ import { isGlobalAuth } from './auth.js';
 import type { FileFacts } from './file-facts.js';
 import { ConfigError, hasErrors } from './issues.js';
 import { SandboxFileSchema } from './schemas/sandbox.js';
-import { SANDBOX_VERSION } from './types.js';
-import type {
-  AuthConfig,
-  DatabaseConfig,
-  EnvironmentSandbox,
-  EnvironmentSettings,
-  LoadedProject,
-  LoadedSandbox,
-  MailboxConfig,
-  PersonaConfig,
-  ProjectConfig,
-  SandboxManifest,
-  ValidationIssue,
-} from './types.js';
+import { SANDBOX_VERSION } from './types/sandbox.js';
+import type { AuthConfig, DatabaseConfig, EnvironmentSandbox, EnvironmentSettings, MailboxConfig, PersonaConfig } from './types/environment.js';
+import type { LoadedProject, ProjectConfig } from './types/project.js';
+import type { LoadedSandbox, SandboxManifest } from './types/sandbox.js';
+import type { ValidationIssue } from './issues.js';
 import { checkYamlDocument } from './validation/document.js';
 import { GUIDE } from './error-kind.js';
 

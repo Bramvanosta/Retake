@@ -1,7 +1,7 @@
 import { collectSecretRefs, redact, secretForms } from '@retake/core/base';
 import { resolveSecretRef } from '@retake/core/io';
 import type { SecretResolver } from '@retake/core/base';
-import type { Timeline } from '@retake/core/model';
+import type { Timeline } from '@retake/core/run';
 import type { RunProgress, RunRecord } from '@retake/core/run';
 
 /**

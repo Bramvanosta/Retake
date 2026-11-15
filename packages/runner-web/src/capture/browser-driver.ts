@@ -9,12 +9,13 @@
 import { copyFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Page } from 'playwright-core';
-import { AGENT_CONFINEMENT, isCaptureScene } from '@retake/core/model';
+import { AGENT_CONFINEMENT } from '@retake/core/model';
+import { isCaptureScene } from '@retake/core/language';
 import { templateSceneEntry } from '@retake/core/language';
 import { compileWritePolicy, guardsWrites, loginCommand as defaultLoginCommand, planPersonas, resolvePersonas } from '@retake/core/environment';
 import { pageOrigins } from '@retake/core/run';
 import { ffmpegBin, retakeHome } from '@retake/core/io';
-import type { RunPerf, RunPerfCpu, TimelineEvent } from '@retake/core/model';
+import type { RunPerf, RunPerfCpu, TimelineEvent } from '@retake/core/run';
 import type { PersonaPlan, ResolvedPersona } from '@retake/core/environment';
 import { snapshotMailbox } from '../actions/artefacts.js';
 import { settleEffectChecks } from '../actions/effects.js';

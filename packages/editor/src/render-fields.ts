@@ -4,7 +4,8 @@
  * Pure (the file facts are handed in): the planner entry exports them, so the engine's render use case builds and
  * checks a record without loading the renderer.
  */
-import type { FileFacts, Timeline } from '@retake/core/model';
+import type { FileFacts } from '@retake/core/model';
+import type { Timeline } from '@retake/core/run';
 import { insideFolder } from '@retake/core/scenario';
 import type { EditPlan } from './plan-types.js';
 import type { RenderRecord } from './render-record.js';

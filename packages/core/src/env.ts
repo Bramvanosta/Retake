@@ -1,5 +1,6 @@
 import { normalizeDisplay } from './display.js';
-import type { EnvironmentAccess, EnvironmentSettings, LoadedProject, ResolvedEnvironment } from './types.js';
+import type { EnvironmentAccess, EnvironmentSettings, ResolvedEnvironment } from './types/environment.js';
+import type { LoadedProject } from './types/project.js';
 import { GUIDE, missingOrInvalid } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
 import { decodeOrKeep } from './util.js';

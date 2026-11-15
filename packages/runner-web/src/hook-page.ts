@@ -21,7 +21,7 @@
  */
 import type { CDPSession, Page } from 'playwright-core';
 import { HostRefusedError, WriteRefusedError, classifyRequest, describeWriteRequest, isHostAllowed, networkHost } from '@retake/core/environment';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { WritePolicy } from '@retake/core/environment';
 import { evalInPage } from './actions/misc.js';
 import { LoginPageError, RunnerError, errorMessage } from './errors.js';

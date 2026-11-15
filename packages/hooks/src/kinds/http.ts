@@ -2,7 +2,7 @@ import { STATUS_CODES } from 'node:http';
 import { resolvePersonas } from '@retake/core/environment';
 import { httpWriteReason } from '@retake/core/hooks';
 import { personaAuthOriginProblem, personaPageOrigins } from '@retake/core/scenario';
-import type { HttpHookSpec } from '@retake/core/model';
+import type { HttpHookSpec } from '@retake/core/hooks';
 import { checkHostAllowed, checkWriteHosts } from '../allow-list.js';
 import { describeHttp } from '../describe.js';
 import { HookError, HookSecurityError, errorMessage } from '../errors.js';

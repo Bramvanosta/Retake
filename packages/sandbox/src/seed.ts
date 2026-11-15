@@ -16,7 +16,9 @@ import { isHostAllowed, normalizeHost, protectedBy, protectedHostMessage, resolv
 import { shellHostRefs } from '@retake/core/hooks';
 import type { HookContext, HookResult, SandboxHookRunner } from '@retake/core/hooks';
 import { prefetchSecrets } from '@retake/core/io';
-import type { HookStep, LoadedProject, LoadedSandbox, SeedStep } from '@retake/core/model';
+import type { HookStep } from '@retake/core/hooks';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoadedSandbox, SeedStep } from '@retake/core/sandbox';
 import { databaseTarget } from '@retake/hooks/db-url';
 import { SandboxError, errorMessage, interrupted } from './errors.js';
 import { pinnedAddress, pinnedRequest } from './health.js';

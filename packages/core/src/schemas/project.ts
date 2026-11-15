@@ -2,12 +2,14 @@ import { z } from 'zod';
 import { clockError } from '../clock.js';
 import { displayError } from '../display.js';
 import { hostPatternError } from '../hosts.js';
-import { ENVIRONMENT_ACCESS, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, SANDBOX_PROVIDERS } from '../types.js';
+import { ENVIRONMENT_ACCESS, SANDBOX_PROVIDERS } from '../types/environment.js';
+import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '../types/project.js';
 import { RENDER_CONCURRENCY_MAX, RENDER_ENCODER_SETTINGS, RENDER_FFMPEG_SETTINGS, RENDER_GL_SETTINGS } from '../render-settings.js';
 import { requestPatternError } from '../writes.js';
 import { HookStepSchema, NamedHooksSchema } from './hooks.js';
 import { keyedUnion } from './keyed.js';
-import { FrameSpecSchema, fileVersion, nonEmpty } from './primitives.js';
+import { FrameSpecSchema } from './language.js';
+import { fileVersion, nonEmpty } from './primitives.js';
 import { AuthConfigSchema, BrowserConfigSchema, CapturePartialSchema, CaptureSettingsSchema, PacingPartialSchema, RunDefaultsSchema } from './settings.js';
 
 export const httpUrl = () => z.url({ protocol: /^https?$/, error: 'expected an absolute http(s) URL, e.g. "https://app.staging.example.com"' });

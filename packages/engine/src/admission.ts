@@ -26,7 +26,8 @@
  * The refusals are worded per channel (`AdmissionDeps.channel`): the Studio's as its screens say them, MCP's in the
  * glossary's words with the tools that follow up. A queue lock another process holds past its wait: `busy`.
  */
-import type { LoadedProject, LoadedScenario } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoadedScenario } from '@retake/core/scenario';
 import type { AgentChannel } from './caller.js';
 import type { AdmissionRule } from './catalogue.js';
 import { EngineError } from './errors.js';

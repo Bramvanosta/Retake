@@ -1,8 +1,10 @@
 import { z } from 'zod';
-import { CAPTURE_ENCODERS } from '../types.js';
-import type { AuthConfig, BrowserConfig, CaptureSettings, LoginPattern, LoginStep, Pacing, PersonaCheck, PersonaConfig } from '../types.js';
+import { CAPTURE_ENCODERS } from '../types/project.js';
+import type { AuthConfig, LoginPattern, LoginStep, PersonaCheck, PersonaConfig } from '../types/environment.js';
+import type { BrowserConfig, CaptureSettings, Pacing } from '../types/project.js';
 import { keyedUnion } from './keyed.js';
-import { TargetSpecSchema, keyString, millis, nonEmpty, positiveSeconds, seconds, slugString } from './primitives.js';
+import { TargetSpecSchema } from './language.js';
+import { keyString, millis, nonEmpty, positiveSeconds, seconds, slugString } from './primitives.js';
 import { ACTION_ARG_SCHEMAS } from './steps.js';
 
 export const CaptureSettingsSchema = z

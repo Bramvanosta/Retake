@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import { newerFormatMessage } from '../formats.js';
 import type { FormatVersion } from '../formats.js';
 import { hasErrors } from '../issues.js';
-import type { ValidationIssue } from '../types.js';
+import type { ValidationIssue } from '../issues.js';
 import { finalizeIssues } from './located.js';
 import type { LocatedIssue } from './located.js';
 import { attachPositions, parseYaml } from './yaml-source.js';

@@ -33,8 +33,8 @@ import { editValueProblem, verifyEditText } from './scenario-edit.js';
 import { actionFormOf, expandShorthand, fieldKindProblem, fieldOf, readField, shorthandOf, stepFormValues } from './step-forms.js';
 import type { FormValue } from './step-forms.js';
 import { stepActionKeys } from './steps.js';
-import { ACTION_NAMES } from './types.js';
-import type { ActionName } from './types.js';
+import { ACTION_NAMES } from './types/language.js';
+import type { ActionName } from './types/language.js';
 import { parseYaml } from './validation/yaml-source.js';
 
 /** Where a step is: its scene's id, its index in that scene, and its guard (stepGuard of the step the client showed). */

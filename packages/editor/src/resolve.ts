@@ -6,9 +6,11 @@
  * renderer draws a stand-in of the kind). Slots are filled with `fillSlots` (given values, then `default_from`).
  */
 import { resolve as resolvePath } from 'node:path';
-import { FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS } from '@retake/core/model';
+import { FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS } from '@retake/core/language';
 import { normalizeComponentRef, resolveThemeComponents } from '@retake/core/theme';
-import type { ComponentKind, ComponentRef, FrameSpec, FrameStyle, LoadedTemplate, MultiPageFrame, SceneTransition, TransitionKind } from '@retake/core/model';
+import type { ComponentKind, ComponentRef } from '@retake/core/model';
+import type { FrameSpec, FrameStyle, MultiPageFrame, SceneTransition, TransitionKind } from '@retake/core/language';
+import type { LoadedTemplate } from '@retake/core/theme';
 import { fillSlots } from '@retake/components/geometry';
 import type { ComponentManifest, ComponentRegistry, MediaValue, ResolvedComponentRef, SlotContext } from '@retake/components/geometry';
 import type { ResolvedComponent } from './plan-types.js';

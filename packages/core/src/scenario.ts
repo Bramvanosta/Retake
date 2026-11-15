@@ -5,7 +5,9 @@ import type { ScenarioCheckFields, ScenarioCheckOptions } from './checks/scenari
 import type { CheckFiles } from './file-facts.js';
 import { hasErrors, issuesMessage } from './issues.js';
 import { ScenarioSchema } from './schemas/scenario.js';
-import type { LoadedProject, LoadedScenario, Scenario, ValidationIssue } from './types.js';
+import type { LoadedProject } from './types/project.js';
+import type { LoadedScenario, Scenario } from './types/scenario.js';
+import type { ValidationIssue } from './issues.js';
 import { checkYamlDocument } from './validation/document.js';
 import { finalizeIssues } from './validation/located.js';
 import { zodIssues } from './validation/zod-issues.js';

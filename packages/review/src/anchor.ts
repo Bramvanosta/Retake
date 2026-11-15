@@ -11,7 +11,8 @@
  * marked step, which may own no frame at all (a `mark:` on a `wait_for` that was already satisfied: the fixture's).
  */
 import { scenarioStepFingerprint } from '@retake/core/comments';
-import type { FrameCommentAnchor, Timeline } from '@retake/core/model';
+import type { FrameCommentAnchor } from '@retake/core/comments';
+import type { Timeline } from '@retake/core/run';
 import type { CommentRegion } from '@retake/core/comments';
 import { brandmarkRect } from '@retake/editor/plan';
 import type { ClipSegment, EditPlan, Rect } from '@retake/editor/plan';

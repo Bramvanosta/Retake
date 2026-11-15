@@ -15,7 +15,7 @@ import { projectRef } from '@retake/core/project';
 import { latestProjectRender, orderRenders, projectRenderOf, renderLackWords, renderNot, renderNotWords } from '@retake/core/render';
 import { OUTPUT_DIRS } from './outputs/outputs.js';
 import type { OutputFolder, RenderOutputs } from './outputs/outputs.js';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { ProjectRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord, UnknownStatusRender } from '@retake/core/render';
 import type { StoredRender } from '@retake/editor/plan';
 import { EngineError } from './errors.js';

@@ -6,11 +6,15 @@
  */
 import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
-import { ARTEFACTS_DIR, isCaptureScene, isCard } from '@retake/core/model';
+import { ARTEFACTS_DIR } from '@retake/core/run';
+import { isCaptureScene, isCard } from '@retake/core/language';
 import { normalizeStep } from '@retake/core/language';
 import { isDocumentPath } from '@retake/core/scenario';
 import { writeJson } from '@retake/core/io';
-import type { BBox, BrowserConfig, DocumentArtefact, EmailArtefact, LoadedProject, NotificationArtefact, Scenario, TextArtefact, TimelineArtefact } from '@retake/core/model';
+import type { BBox } from '@retake/core/model';
+import type { BrowserConfig, LoadedProject } from '@retake/core/project';
+import type { DocumentArtefact, EmailArtefact, NotificationArtefact, TextArtefact, TimelineArtefact } from '@retake/core/run';
+import type { Scenario } from '@retake/core/scenario';
 import type { WorkPolicy } from '@retake/core/policy';
 import { errorMessage } from '../errors.js';
 import type { MailboxClient, MailMessage } from './mailbox.js';

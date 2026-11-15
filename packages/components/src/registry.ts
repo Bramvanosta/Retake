@@ -12,7 +12,8 @@ import { errorMessage, errorsOf, formatPath, suggestion } from '@retake/core/bas
 import { COMPONENT_ID_RE, COMPONENT_KINDS } from '@retake/core/model';
 import { normalizeComponentRef, resolveThemeComponents } from '@retake/core/theme';
 import { loadWorkspaceConfig } from '@retake/core/io';
-import type { ComponentKind, ComponentRef, Template } from '@retake/core/model';
+import type { ComponentKind, ComponentRef } from '@retake/core/model';
+import type { Template } from '@retake/core/theme';
 import { ComponentError, formatComponentIssues } from './errors.js';
 import { applyParamDefaults, validateParamValue } from './json-schema.js';
 import type { JsonSchemaNode } from './json-schema.js';

@@ -3,7 +3,7 @@
  * (`{url: http://localhost:4402, display: shop.example.com}`). The runner navigates the real URL; what the video shows
  * (address bars, captions, notification apps) maps it through the run's display table. Pure helpers.
  */
-import type { ResolvedEnvironment } from './types.js';
+import type { ResolvedEnvironment } from './types/environment.js';
 
 /**
  * One row of a display table: a page's real base URL and the base the video shows instead. A page without a display

@@ -8,7 +8,7 @@ import type { WorkspaceDisk } from '../file-facts.js';
 import { FORMAT_VERSIONS } from '../formats.js';
 import { ConfigError, hasErrors, issuesMessage } from '../issues.js';
 import { WorkspaceFileSchema } from '../schemas/project.js';
-import type { WorkspaceConfig } from '../types.js';
+import type { WorkspaceConfig } from '../types/project.js';
 import { errorMessage, expandHome } from '../util.js';
 import { checkYamlDocument } from '../validation/document.js';
 import { WORKSPACE_FILE } from '../workspace.js';

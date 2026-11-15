@@ -1,6 +1,6 @@
 import { LOCAL_HOSTS, allowedHosts, hostRefusalMessage, isHostAllowed, normalizeAllowEntry, normalizeHost, protectedBy, protectedHostMessage } from '@retake/core/environment';
 import { shellHostRefs } from '@retake/core/hooks';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { HookAccess } from '@retake/core/environment';
 
 /** The pure allow-list helpers live in @retake/core (project validation uses them too). */

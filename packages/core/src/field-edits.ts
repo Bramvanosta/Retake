@@ -26,7 +26,7 @@ import { editValueProblem } from './scenario-edit.js';
 import { StepEditError, stepGuard } from './step-edits.js';
 import { COMPONENT_ID_RE } from './schemas/primitives.js';
 import { sceneId } from './steps.js';
-import type { Scenario } from './types.js';
+import type { Scenario } from './types/scenario.js';
 import { parseYaml } from './validation/yaml-source.js';
 
 /** A value `set_field` writes: a scalar (a map such as `{component, params}` is changed in the YAML view). */

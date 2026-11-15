@@ -14,7 +14,7 @@ import type { BrowserContext, Page } from 'playwright-core';
 import { resolvePageUrl, bestEffort } from '@retake/core/base';
 import { loginCommand, resolveCheckUrl } from '@retake/core/environment';
 import type { TemplateContext } from '@retake/core/base';
-import type { BrowserConfig, LoadedProject } from '@retake/core/model';
+import type { BrowserConfig, LoadedProject } from '@retake/core/project';
 import type { ResolvedPersona } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import { writeTextAtomic } from '@retake/core/io';

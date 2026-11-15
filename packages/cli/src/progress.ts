@@ -1,4 +1,4 @@
-import type { TimelineEvent } from '@retake/core/model';
+import type { TimelineEvent } from '@retake/core/run';
 import type { RunProgress, RunRecord } from '@retake/core/run';
 import type { Ui } from './ui.js';
 import { formatMs, truncate } from './ui.js';

@@ -13,8 +13,11 @@ import { formatPath } from './issues.js';
 import type { IssuePath } from './issues.js';
 import { isAbsoluteUrl, scenePageEntries, splitPageOpen } from './pages.js';
 import { resolvePageUrl } from './templating.js';
-import { isCaptureScene } from './types.js';
-import type { AuthConfig, LoadedProject, LoginPattern, LoginStep, PersonaCheck, PersonaConfig, ProjectConfig, Scenario, Scene } from './types.js';
+import { isCaptureScene } from './types/language.js';
+import type { AuthConfig, LoginPattern, LoginStep, PersonaCheck, PersonaConfig } from './types/environment.js';
+import type { LoadedProject, ProjectConfig } from './types/project.js';
+import type { Scenario } from './types/scenario.js';
+import type { Scene } from './types/language.js';
 import { expandHome } from './util.js';
 
 /** `persona: none` — a page filmed without any persona (a fresh browser, never guarded). */

@@ -35,8 +35,8 @@ const PACKAGES = [
   '@retake/core/base',
   '@retake/core/comments',
   '@retake/core/environment',
-  '@retake/core/model',
   '@retake/core/policy',
+  '@retake/core/project',
   '@retake/core/run',
   '@retake/editor/plan',
 ];

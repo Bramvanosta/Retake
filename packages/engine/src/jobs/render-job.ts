@@ -23,7 +23,7 @@ import { projectRef } from '@retake/core/project';
 import { SCENARIO_EDIT_MAX_CHARS } from '@retake/core/scenario';
 import { JOB_INPUT_VERSION } from './job-input.js';
 import type { RenderVariant } from '@retake/core/ids';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { RenderJobInput } from './job-input.js';
 import type { ProjectStores } from '../store/store.js';
 import type { BrowserProcessInfo, EditOverrides, RenderProgress } from '@retake/editor/plan';

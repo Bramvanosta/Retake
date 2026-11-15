@@ -9,7 +9,7 @@
  * is the adapter's. An approval's fingerprint is too: it hashes the project files a hook references, so it is never
  * re-derived on this side (signed approvals are bound to it).
  */
-import type { HookStep } from '@retake/core/model';
+import type { HookStep } from '@retake/core/hooks';
 import type { HookContext, HookJournal, HookPlace, HookResult, HookRunOptions, SandboxHookRunner, TrustFilesPlace, TrustedHookFiles } from '@retake/core/hooks';
 
 // L7.25: a journal's handle, a run's options and the capture's part of the port are core's (hook-run.ts), shared with

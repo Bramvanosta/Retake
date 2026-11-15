@@ -14,9 +14,9 @@ import { z } from 'zod';
 import { sameTarget, targetValue } from './inspect.js';
 import { parseScenario } from './scenario.js';
 import { firstHiddenChar } from './scenario-edit.js';
-import { TargetObjectSchema } from './schemas/primitives.js';
+import { TargetObjectSchema } from './schemas/language.js';
 import { normalizeTarget } from './targets.js';
-import type { TargetObject, TargetSpec } from './types.js';
+import type { TargetObject, TargetSpec } from './types/language.js';
 import type { RecordAnnotations, RecordInsert } from './record-annotations.js';
 import { decodeOrKeep } from './util.js';
 

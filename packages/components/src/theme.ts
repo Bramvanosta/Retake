@@ -1,4 +1,4 @@
-import type { LoadedTemplate, Template, TextStyle } from '@retake/core/model';
+import type { LoadedTemplate, Template, TextStyle } from '@retake/core/theme';
 import type { ThemeFontFace, ThemeTextStyle, ThemeTokens } from './types.js';
 
 /** URLs of the template assets as served to the renderer / UI (file paths are not usable in a browser page). */

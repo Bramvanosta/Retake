@@ -3,7 +3,8 @@
  * return. engine.ts re-exports each of them (createEngine builds the façade from src/facade/*-api.ts).
  */
 import type { EngineEnv } from '../env.js';
-import type { ComponentKind, RunMode } from '@retake/core/model';
+import type { ComponentKind } from '@retake/core/model';
+import type { RunMode } from '@retake/core/run';
 import type { RecordAnnotationChange, RunViewStatus, UnknownRunStatus } from '@retake/core/run';
 import type { InspectJobInput } from '../jobs/job-input.js';
 import type { PersonaStateView } from '../auth.js';

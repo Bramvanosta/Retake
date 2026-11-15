@@ -1,7 +1,10 @@
 import { z } from 'zod';
-import { COMPONENT_KINDS, TEMPLATE_MEDIA_KINDS } from '../types.js';
-import type { ComponentKind, ComponentRef, Template, TemplateComponents, TemplateMediaRef, TextStyle } from '../types.js';
-import { ComponentParamsSchema, ComponentRefSchema, FrameStyleSchema, TransitionSchema, fileVersion, mediaFileShape, nonEmpty, positiveSeconds, seconds } from './primitives.js';
+import { COMPONENT_KINDS } from '../types/model.js';
+import { TEMPLATE_MEDIA_KINDS } from '../types/theme.js';
+import type { ComponentKind, ComponentRef } from '../types/model.js';
+import type { Template, TemplateComponents, TemplateMediaRef, TextStyle } from '../types/theme.js';
+import { ComponentParamsSchema, ComponentRefSchema, fileVersion, mediaFileShape, nonEmpty, positiveSeconds, seconds } from './primitives.js';
+import { FrameStyleSchema, TransitionSchema } from './language.js';
 
 const FONT_RE = /\.(ttf|otf|woff2?)$/i;
 const IMAGE_RE = /\.(svg|png|jpe?g|webp)$/i;

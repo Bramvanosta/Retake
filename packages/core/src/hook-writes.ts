@@ -8,7 +8,7 @@ import type { DestructiveOptions } from './destructive.js';
 import { confinementWords } from './confinement.js';
 import type { Confinement } from './confinement.js';
 import { maskSql } from './sql-text.js';
-import type { HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from './types.js';
+import type { HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from './types/hooks.js';
 import { graphqlOf, graphqlReadsOnly, graphqlWriteName, isWriteMethod } from './writes.js';
 
 /**

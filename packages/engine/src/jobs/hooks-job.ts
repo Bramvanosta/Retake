@@ -13,7 +13,7 @@ import { newRunId } from '@retake/core/ids';
 import { resolveEnvironment } from '@retake/core/environment';
 import { projectRef } from '@retake/core/project';
 import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION } from './job-input.js';
-import type { HookStep } from '@retake/core/model';
+import type { HookStep } from '@retake/core/hooks';
 import type { HookResult } from '@retake/core/hooks';
 import type { EnvResetJobInput, HooksJobInput, JobApproval } from './job-input.js';
 import { describeHook } from '@retake/hooks/describe';

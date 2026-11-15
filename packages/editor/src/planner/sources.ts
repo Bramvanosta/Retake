@@ -1,7 +1,7 @@
 /** Steps of `planEdit`: the display addresses of the browser bars, then the plan's assets, sources and theme tokens. */
 import { dirname, extname, join, relative } from 'node:path';
 import { displayRows, displayUrl as displayedUrl, editDisplayTable, isLocalUrl, resolveEnvironment } from '@retake/core/environment';
-import type { TimelineTrack } from '@retake/core/model';
+import type { TimelineTrack } from '@retake/core/run';
 import type { DisplayEntry } from '@retake/core/environment';
 import { themeTokens } from '@retake/components/geometry';
 import { PLAN_ASSET_SCHEME } from '../plan-types.js';

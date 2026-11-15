@@ -15,7 +15,7 @@ import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import { pruneInspections } from '../src/jobs/inspect-job.js';
 import { runWorker } from '../src/jobs/worker.js';
 import { runsDirOf } from '../src/outputs/outputs.js';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';

@@ -6,6 +6,7 @@
  * CORE_CONTEXTS). Each name is exported by the entry of the file that declares it; the root `@retake/core` is every
  * entry at once, for tests and scripts (the packages' sources import an entry: the `core-root` check).
  */
+export * from '../types/sandbox.js';
 export * from '../sandbox.js';
 export { SandboxError } from '../sandbox-error.js';
 export type { SandboxErrorCode } from '../sandbox-error.js';

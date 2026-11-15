@@ -30,7 +30,8 @@ const FORBIDDEN =
 /**
  * The packages the planner's modules import (each is the planner's own decision; core by its entries since L7.35): core's
  * scenario entry for a render's paths checked against its project, node:crypto for the theme hashes (on the file layer
- * they are handed), and the types of core's policy and run entries (the options and the answer of planning a run).
+ * they are handed), the types of core's policy and run entries (the options and the answer of planning a run), and the
+ * loaded project a plan is made for (core's project entry, its types).
  */
 const PACKAGES = [
   '@retake/components/geometry',
@@ -39,6 +40,7 @@ const PACKAGES = [
   '@retake/core/language',
   '@retake/core/model',
   '@retake/core/policy',
+  '@retake/core/project',
   '@retake/core/render',
   '@retake/core/run',
   '@retake/core/scenario',

@@ -2,15 +2,15 @@
  * User media (L2.12, R-OWN-*): the video, image and Lottie files a scenario or a theme shows instead of a provided
  * component — a segment (intro, outro, card, interstitial) or an overlay over the capture. The scenario writes them as
  * sugar (`intro: {video: assets/intro.mp4}`, `overlay: {video: assets/burst.webm, anchor: target}`); everything below
- * turns that sugar into an ordinary component use (studio/media, studio/lottie) so the rest of the pipeline — planner,
+ * (and a step overlay's use: overlay-use.ts) turns that sugar into an ordinary component use (studio/media, studio/lottie) so the rest of the pipeline — planner,
  * composition, review, component switching — treats a user file like any other component.
  *
  * Also here: the file checks shared by validation and planning — container by extension, what ffprobe's answer says of
  * a video (codec, size, length, sound, alpha; read by ffprobe.ts videoProbeFromJson, the probe itself: `@retake/core/io` probeVideoFile) and the metadata of
  * a Lottie file.
  */
-import { MEDIA_COMPONENTS, MEDIA_FILE_KINDS } from './types.js';
-import type { BBox, MediaFileFields, MediaFileKind, OverlayAnchor, OverlaySpec } from './types.js';
+import { MEDIA_COMPONENTS, MEDIA_FILE_KINDS } from './types/model.js';
+import type { MediaFileFields, MediaFileKind } from './types/model.js';
 import { errorMessage } from './util.js';
 
 /** Video containers the renderer reads. */
@@ -82,34 +82,6 @@ export function mediaSegmentUse(spec: Partial<MediaFileFields> & { params?: Reco
     if (spec.volume !== undefined) params.volume = spec.volume;
   }
   return { id: MEDIA_COMPONENTS.media, params, slots: { file: f.path } };
-}
-
-/** A step overlay as the runner records it: the component use, and the box of a box-filling overlay. */
-export interface OverlayUseSpec {
-  component: string;
-  slots: Record<string, string>;
-  params: Record<string, unknown>;
-  box?: { anchor?: OverlayAnchor; rect?: BBox; scale?: number };
-}
-
-/**
- * The component use of a step `overlay`: its component as written, or — for a user file (`video`, `image`, `lottie`) —
- * studio/media or studio/lottie with the file in its `file` slot. A file, or any overlay with `anchor` / `rect` /
- * `scale`, gets a box (default anchor decided by the planner: the target when the step has one, else the centre).
- */
-export function overlayUseOf(spec: OverlaySpec): OverlayUseSpec {
-  const file = mediaSegmentUse(spec, { overlay: true, ...(spec.loop !== undefined ? { loop: spec.loop } : {}) });
-  const out: OverlayUseSpec = file
-    ? { component: file.id, slots: { ...(spec.slots ?? {}), ...file.slots }, params: file.params }
-    : { component: spec.component ?? '', slots: { ...(spec.slots ?? {}) }, params: structuredClone(spec.params ?? {}) };
-  if (file || spec.anchor !== undefined || spec.rect !== undefined || spec.scale !== undefined) {
-    const box: NonNullable<OverlayUseSpec['box']> = {};
-    if (spec.anchor !== undefined) box.anchor = spec.anchor;
-    if (spec.rect !== undefined) box.rect = { ...spec.rect };
-    if (spec.scale !== undefined) box.scale = spec.scale;
-    out.box = box;
-  }
-  return out;
 }
 
 // ── Probing ───────────────────────────────────────────────────────────────────

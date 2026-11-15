@@ -11,8 +11,8 @@
  * returns the first frame at or after the time). Both sources therefore give the same picture, the last step's
  * included (its hold ends at the very end of the capture, past the last frame's start).
  */
-import type { Timeline, TimelineEvent, TimelineScene, TimelineTrack } from '@retake/core/model';
-import { ACTION_NAMES } from '@retake/core/model';
+import type { Timeline, TimelineEvent, TimelineScene, TimelineTrack } from '@retake/core/run';
+import { ACTION_NAMES } from '@retake/core/language';
 import { SCENARIO_COMPARE_MAX_BYTES } from '@retake/core/scenario';
 import { parseRunRecord } from '@retake/core/run';
 import { parseTimeline } from '@retake/core/run';

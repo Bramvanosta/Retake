@@ -14,13 +14,14 @@
  */
 import { join, resolve } from 'node:path';
 import { FORMAT_VERSIONS, errorMessage } from '@retake/core/base';
-import { isCaptureScene } from '@retake/core/model';
+import { isCaptureScene } from '@retake/core/language';
 import { parseRunId } from '@retake/core/ids';
 import { listSteps, resolveStepRef, sceneId } from '@retake/core/language';
 import { resolveEnvironment } from '@retake/core/environment';
 import { hookStepNames, resolveNamedHook } from '@retake/core/hooks';
 import { finishRun, startedRun } from '@retake/core/run';
-import type { HookStep, RunError, RunPause, Timeline, TimelineEvent } from '@retake/core/model';
+import type { HookStep } from '@retake/core/hooks';
+import type { RunError, RunPause, Timeline, TimelineEvent } from '@retake/core/run';
 import type { HookContext, HookPhase } from '@retake/core/hooks';
 import type { RunEnd, RunProgress, RunRecord, RunningRun } from '@retake/core/run';
 import type { InspectReport } from '@retake/runner-web/types';

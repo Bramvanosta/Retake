@@ -9,7 +9,7 @@ import { basename, join } from 'node:path';
 import { DEFAULT_FILM, isFilmName, parseRunRecord, parseTimeline, parseTimelineHead } from '../run-record.js';
 import type { FileProblem, Read, RunRead, TimelineHead } from '../run-record.js';
 import type { RunFolderFacts } from '../take.js';
-import type { Timeline } from '../types.js';
+import type { Timeline } from '../types/run.js';
 
 /** A run.json bigger than this is not read (it is not one the runner wrote). */
 export const RUN_RECORD_MAX = 32 * 1024 * 1024;

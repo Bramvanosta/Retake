@@ -8,7 +8,8 @@ import { hasErrors } from './issues.js';
 import { parseScenario } from './scenario.js';
 import type { ScenarioCheckOptions } from './scenario.js';
 import { normalizeTarget } from './targets.js';
-import type { LoadedScenario, TargetObject, TargetSpec } from './types.js';
+import type { LoadedScenario } from './types/scenario.js';
+import type { TargetObject, TargetSpec } from './types/language.js';
 
 /** The id of the one scene of an inspection scenario. */
 export const INSPECT_SCENE = 'inspect';

@@ -5,7 +5,7 @@
  * fingerprint are the package's, unchanged. Made by the composition roots only (ports.ts enginePorts).
  */
 import { join } from 'node:path';
-import type { HookStep } from '@retake/core/model';
+import type { HookStep } from '@retake/core/hooks';
 import { EngineError } from '../errors.js';
 import { hooks } from '../lazy.js';
 import { runFolderOf } from '../outputs/outputs.js';

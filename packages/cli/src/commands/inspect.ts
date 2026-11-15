@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { parseYaml } from '@retake/core/base';
 import { resolveEnvironment } from '@retake/core/environment';
 import { InspectTargetSchema } from '@retake/engine/shell';
-import type { TargetSpec } from '@retake/core/model';
+import type { TargetSpec } from '@retake/core/language';
 import { inspectInProcess, inspectRoot, newInspectId, pageOfUrl, prepareInspect } from '@retake/engine/shell';
 import type { InspectSourceDraft } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';

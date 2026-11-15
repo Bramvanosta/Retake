@@ -11,7 +11,7 @@ import {
   tildePath,
 } from '@retake/engine/shell';
 import type { LoginCommandOf, PersonaState } from '@retake/engine';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { ResolvedPersona } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';

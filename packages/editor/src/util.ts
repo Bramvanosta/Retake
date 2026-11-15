@@ -1,5 +1,5 @@
 /** Small pure helpers of the planner (no I/O, no clocks, no randomness). */
-import type { Timeline, TimelineEvent } from '@retake/core/model';
+import type { Timeline, TimelineEvent } from '@retake/core/run';
 
 /** Round to `d` decimals (stable JSON, no float noise like 0.30000000000000004). */
 export function round(x: number, d = 3): number {

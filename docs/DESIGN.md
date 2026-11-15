@@ -1,8 +1,8 @@
 # Retake — design & package contracts
 
 This document is the build contract between packages. The product brief is `docs/SPEC.md`.
-Shared data types live in `packages/core/src/types.ts` (the source of truth). This file says
-who does what and the exact public API of each package.
+Shared data types live in `packages/core/src/types/<context>.ts`, one file per context of the domain (the source of
+truth). This file says who does what and the exact public API of each package.
 
 Conventions: TypeScript, ESM (`"type": "module"`, NodeNext, relative imports end in `.js`),
 Node 22, pnpm workspace, `tsc -b` builds every package to `dist/`, tests with vitest
@@ -55,23 +55,27 @@ PATH: `programLookup()`; whether its file system ignores case: `nodeFileFacts.ig
 
 **Contexts and their entries** (L7.35, audit 2026-11-10 D1). The domain is fifteen contexts, in an order where each
 imports only those before it: `base` (the kernel: issues, error kinds, format versions, canonical JSON, printable text,
-token templating, YAML validation), `model` (the shared contracts: types.ts — not split by context yet —, the primitive
-schemas, user media, the ports, the render settings, the confinement of agent work, the checks' shared context), `ids`,
-`language` (steps, targets, pages, tutorial switches, the video's edit info), `environment` (pages, hosts, access,
-writes, the product clock, personas), `policy` (the agent policy), `hooks`, `project` (the workspace, project.yaml, the
+token templating, YAML validation), `model` (the shared contracts: points and boxes, component kinds and references, a
+user file's fields and its checks, the primitive schemas, the ports, the render settings, the confinement of agent work,
+the checks' shared context), `ids`, `language` (steps, targets, pages, tutorial switches, overlays, scenes, the video's
+edit info, the language's primitive schemas), `environment` (pages, hosts, access, writes, the product clock, personas),
+`policy` (the agent policy), `hooks`, `project` (the workspace, project.yaml, the capture and pacing settings, the
 layout), `sandbox`, `scenario` (the file read, checked and edited; the agent's trust checks), `comments`, `run` (the run
-record, takes, the timeline schema, recordings, inspection), `render` (the render record, ffprobe's answers, the GPU
-status, the export formats), `theme` (template.yaml, components, theme edits, brand inputs, the site) and `schema` (the
-JSON Schemas). Each is an entry, `@retake/core/<context>` (`src/entries/<context>.ts`), exporting the names of the files
-it holds; the root `@retake/core` is every entry at once, kept for the tests and scripts. The map is data
-(`scripts/audit/lib.mjs` `CORE_CONTEXTS`) and the import-rules ratchet holds it: `core-context` (a file importing a later
-context is a hit — a type-only import of `model` is free —, a file of no context, an entry reaching outside its own; two
-entries at L7.35: the scenario's checks read the default theme's components, a script's draft the inspection's path
-grammar) and `core-root` (a package's sources import an entry, never the root). The job vocabulary is the engine's
-(`packages/engine/src/jobs/job-input.ts`, D7), and the domain names no channel: the words of a refusal of confined work
-are a value it is handed (`Confinement`, `confinement.ts`: the words, what follows "a file an agent can write", the
-operation that lists themes, who approves a hook; `AGENT_CONFINEMENT` when none is given — the MCP server's words), which
-the engine maps its callers onto (`caller.ts` `confinementOf`, D6).
+record, takes, the timeline and its schema, recordings, inspection, the edit replanned against a take), `render` (the
+render record, ffprobe's answers, the GPU status, the export formats), `theme` (template.yaml, components, theme edits,
+brand inputs, the site) and `schema` (the JSON Schemas). Each context declares its own types (`src/types/<context>.ts`;
+a problem's shape, `ValidationIssue`, is base's `issues.ts`). Each is an entry, `@retake/core/<context>`
+(`src/entries/<context>.ts`), exporting the names of the files it holds; the root `@retake/core` is every entry at once,
+kept for the tests and scripts. The map is data (`scripts/audit/lib.mjs` `CORE_CONTEXTS`) and the import-rules ratchet
+holds it: `core-context` (a file importing a later context is a hit, a type as much as a value — the wholes a context's
+logic is handed, the loaded project and its file, the loaded sandbox, the scenario and the theme, may be named as types
+by the earlier contexts listed with each (`CORE_WHOLES`; base and model name none) —, a file of no context, an entry
+reaching outside its own; two entries at L7.35: the scenario's checks read the default theme's components, a script's
+draft the inspection's path grammar) and `core-root` (a package's sources import an entry, never the root). The job
+vocabulary is the engine's (`packages/engine/src/jobs/job-input.ts`, D7), and the domain names no channel: the words of
+a refusal of confined work are a value it is handed (`Confinement`, `confinement.ts`: the words, what follows "a file an
+agent can write", the operation that lists themes, who approves a hook; `AGENT_CONFINEMENT` when none is given — the MCP
+server's words), which the engine maps its callers onto (`caller.ts` `confinementOf`, D6).
 
 - **FileFacts** and **VideoProber** (`file-facts.ts`): what a domain rule learns from the machine. FileFacts is the
   disk — kind (a file, a folder, something else, or nothing), real path (as given / as the file system spells it),

@@ -1,6 +1,8 @@
 import { mediaFileOf, mediaSegmentUse } from './media.js';
-import { COMPONENT_KINDS, FRAME_STYLE_LAYOUTS } from './types.js';
-import type { ComponentId, ComponentKind, ComponentRef, MediaFileKind, Template, TemplateMediaRef } from './types.js';
+import { COMPONENT_KINDS } from './types/model.js';
+import { FRAME_STYLE_LAYOUTS } from './types/language.js';
+import type { ComponentId, ComponentKind, ComponentRef, MediaFileKind } from './types/model.js';
+import type { Template, TemplateMediaRef } from './types/theme.js';
 
 /** A theme's default component for one kind, and where the choice came from. */
 export interface ThemeComponent {

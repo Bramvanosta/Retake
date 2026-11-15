@@ -4,7 +4,8 @@
  * with the visible elements closest to each — five renamed labels show in one failed take, not in five.
  */
 import { describeTarget, hasLocator, normalizeStep, normalizeTarget, pickTarget } from '@retake/core/language';
-import type { MissingTarget, NearElement, NormalizedStep, Scene, TargetObject, TargetSpec } from '@retake/core/model';
+import type { MissingTarget, NearElement } from '@retake/core/run';
+import type { NormalizedStep, Scene, TargetObject, TargetSpec } from '@retake/core/language';
 import { StepError } from './errors.js';
 import type { Runtime } from './runtime.js';
 

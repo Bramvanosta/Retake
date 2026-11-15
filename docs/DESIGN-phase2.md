@@ -1,8 +1,9 @@
 # Retake — phase 2 contracts: components, themes, editor, review
 
 Types: `packages/components/src/types.ts` (component contract), `packages/editor/src/plan-types.ts` (EditPlan),
-`packages/core/src/types.ts` (scenario, timeline, template — and `ComponentKind`, `COMPONENT_KINDS`, `ComponentRef`,
-which `@retake/components` re-exports: core is their single source of truth). Reference look: `docs/reference/look.md`.
+`packages/core/src/types/` (one file per context: the scenario language, the timeline, the template — and, in
+`types/model.ts`, `ComponentKind`, `COMPONENT_KINDS`, `ComponentRef`, which `@retake/components` re-exports: core is their
+single source of truth). Reference look: `docs/reference/look.md`.
 Product rules: docs/SPEC.md §0, §9–§12.
 
 ## 1. Components (`packages/components`)
@@ -373,7 +374,7 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
   are over).
 
 ### 1.9 Your own files (L2.12)
-- **Scenario / template** (core `types.ts` `MediaFileFields`, `media.ts`, `checks/media.ts`): `intro`, `outro`, `card`,
+- **Scenario / template** (core `types/model.ts` `MediaFileFields`, `media.ts`, `checks/media.ts`, `overlay-use.ts`): `intro`, `outro`, `card`,
   `interstitial` take `{video | image | lottie, from, to, fit, background, volume, duration}`; a step `overlay` takes
   `{video | image | lottie, at, anchor | rect, scale, fit, duration, loop, volume}` (`OverlaySpec.component` optional);
   a template's `components.intro / outro / interstitial` may be a file (`TemplateMediaRef`, relative to the template

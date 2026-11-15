@@ -9,7 +9,7 @@ import { dirname, extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext } from 'playwright-core';
 import { pathInside } from '@retake/core/base';
-import type { BrowserConfig } from '@retake/core/model';
+import type { BrowserConfig } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import { launchOptions, refuseUnsandboxed } from '../launch.js';
 import { launchTarget } from '../session.js';

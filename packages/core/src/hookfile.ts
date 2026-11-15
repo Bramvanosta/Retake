@@ -6,7 +6,9 @@ import { checkTokens } from './checks/tokens.js';
 import type { FilesWith } from './file-facts.js';
 import { hasErrors } from './issues.js';
 import { HookStepSchema } from './schemas/hooks.js';
-import type { HookStep, LoadedProject, ValidationIssue } from './types.js';
+import type { HookStep } from './types/hooks.js';
+import type { LoadedProject } from './types/project.js';
+import type { ValidationIssue } from './issues.js';
 import { checkYamlDocument } from './validation/document.js';
 import type { LocatedIssue } from './validation/located.js';
 

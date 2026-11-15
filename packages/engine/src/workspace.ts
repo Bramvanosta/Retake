@@ -1,7 +1,7 @@
 import { join, resolve } from 'node:path';
 import { WORKSPACE_FILE } from '@retake/core/project';
 import { workPolicy } from '@retake/core/policy';
-import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core/model';
+import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { Outputs } from './outputs/outputs.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';

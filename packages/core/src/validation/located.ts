@@ -1,5 +1,5 @@
 import type { IssuePath } from '../issues.js';
-import type { ValidationIssue } from '../types.js';
+import type { ValidationIssue } from '../issues.js';
 
 /** Internal issue: `loc` says which YAML node to point at when it differs from `path`. */
 export interface LocatedIssue extends ValidationIssue {

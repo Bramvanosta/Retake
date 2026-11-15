@@ -1,9 +1,11 @@
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { TemplateError, resolvePageUrl } from '@retake/core/base';
-import { isCaptureScene, isCard, isInterstitial, overlayUseOf } from '@retake/core/model';
+import { isCaptureScene, isCard, isInterstitial, overlayUseOf } from '@retake/core/language';
 import { describeTarget, isPoint, normalizeStep, normalizeTarget, resolveScenePages, sceneId, templateSceneEntry } from '@retake/core/language';
-import type { CameraHint, CaptionSpec, MenuArgs, MissingTarget, NormalizedStep, OverlaySpec, Scenario, Scene, SceneEntry, TargetSpec, TimelineEvent, TimelineScene } from '@retake/core/model';
+import type { CameraHint, CaptionSpec, MenuArgs, NormalizedStep, OverlaySpec, Scene, SceneEntry, TargetSpec } from '@retake/core/language';
+import type { MissingTarget, TimelineEvent, TimelineScene } from '@retake/core/run';
+import type { Scenario } from '@retake/core/scenario';
 import type { RunProgress, RunningRun } from '@retake/core/run';
 import { ACTIONS, primaryTarget } from './actions/index.js';
 import type { ActionResult } from './actions/types.js';

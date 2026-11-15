@@ -942,7 +942,7 @@ describe('the import-rules ratchet', () => {
     const rootHits = (rel: string, text: string): string[] => (lib.coreRootHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Found[]).map((h) => `${h.file} → ${h.spec}`);
     const contexts = lib.CORE_CONTEXTS as Array<{ name: string; files: string[] }>;
 
-    it('a file imports its own context and the ones before it; a later one is a hit, a type-only import of model is free', () => {
+    it('a file imports its own context and the ones before it; a later one is a hit, its types as much as its values', () => {
       const f = 'packages/core/src/hook-writes.ts';
       expect(lib.coreContextOf(f)).toBe('hooks');
       // Before it (base, model, environment, policy) and its own (destructive): free.
@@ -959,16 +959,56 @@ describe('the import-rules ratchet', () => {
           "import { parseScenario } from './scenario.js';\nimport type { RunRecord } from './run-record.js';\nexport { renderIdOf } from './render-record.js';\nconst t = await import('./template.js');\n",
         ),
       ).toEqual([`${f} → packages/core/src/scenario.ts`, `${f} → packages/core/src/run-record.ts`, `${f} → packages/core/src/render-record.ts`, `${f} → packages/core/src/template.ts`]);
-      // base sits before model: a type of model is free there, a value is not.
+      // Each context declares its types: a type of an earlier context is free, one of a later context is a hit (no
+      // context's types are free for all: base sits before model, and model's types are a hit there).
+      expect(ctx(f, "import type { Step } from './types/language.js';\nimport type { HookStep } from './types/hooks.js';\n")).toEqual([]);
+      expect(ctx(f, "import type { Timeline } from './types/run.js';\n")).toEqual([`${f} → packages/core/src/types/run.ts`]);
       const b = 'packages/core/src/issues.ts';
-      expect(ctx(b, "import type { ValidationIssue } from './types.js';\n")).toEqual([]);
-      expect(ctx(b, "import { ACTION_NAMES } from './types.js';\n")).toEqual([`${b} → packages/core/src/types.ts`]);
+      expect(ctx(b, "import type { BBox } from './types/model.js';\n")).toEqual([`${b} → packages/core/src/types/model.ts`]);
       // Folders resolve: checks/ and schemas/ files are named by their path.
       expect(ctx('packages/core/src/checks/hooks.ts', "import { parseScenario } from '../scenario.js';\nimport { issue } from '../validation/located.js';\n")).toEqual([
         'packages/core/src/checks/hooks.ts → packages/core/src/scenario.ts',
       ]);
       // The io side, other packages and node modules are not this check's (R1 holds io).
       expect(ctx(f, "import { readFileSync } from 'node:fs';\nimport { x } from '@retake/core/io';\nimport { y } from './io/files.js';\n")).toEqual([]);
+    });
+
+    it('the wholes a context is handed (CORE_WHOLES): named as types from their file by an earlier context, nothing else', () => {
+      expect(lib.CORE_WHOLES).toEqual({
+        'types/project': { names: ['LoadedProject', 'ProjectConfig'], contexts: ['language', 'environment', 'hooks'] },
+        'types/sandbox': { names: ['LoadedSandbox'], contexts: ['project'] },
+        'types/scenario': { names: ['Scenario'], contexts: ['language', 'environment', 'hooks'] },
+        'types/theme': { names: ['Template'], contexts: ['scenario'] },
+      });
+      // Each whole is declared by its file, a file of a context, and is named by contexts before it only.
+      const rankOf = (n: string) => contexts.findIndex((c) => c.name === n);
+      for (const [file, { names, contexts: by }] of Object.entries(lib.CORE_WHOLES as Record<string, { names: string[]; contexts: string[] }>)) {
+        for (const c of by) expect(rankOf(c), `${file} by ${c}`).toBeLessThan(rankOf(lib.coreContextOf(`packages/core/src/${file}.ts`) as string));
+        expect(lib.coreContextOf(`packages/core/src/${file}.ts`), file).toBeDefined();
+        const text = readFileSync(join(ROOT, 'packages', 'core', 'src', `${file}.ts`), 'utf8');
+        for (const n of names) expect(text, n).toMatch(new RegExp(`^export (interface|type) ${n}\\b`, 'm'));
+      }
+      // An environment's lookup reads the project it is given; a hook's check, the scenario: free.
+      const env = 'packages/core/src/env.ts';
+      expect(ctx(env, "import type { LoadedProject, ProjectConfig } from './types/project.js';\nimport type { Scenario } from './types/scenario.js';\n")).toEqual([]);
+      expect(ctx(env, "import { type LoadedProject } from './types/project.js';\n")).toEqual([]);
+      // A whole is free for the contexts listed with it only: the theme for the scenario's checks, none for base.
+      expect(ctx('packages/core/src/checks/scenario.ts', "import type { Template } from '../types/theme.js';\n")).toEqual([]);
+      expect(ctx(env, "import type { Template } from './types/theme.js';\n")).toEqual([`${env} → packages/core/src/types/theme.ts`]);
+      const base = 'packages/core/src/templating.ts';
+      expect(ctx(base, "import type { LoadedProject } from './types/project.js';\n")).toEqual([`${base} → packages/core/src/types/project.ts`]);
+      // An indexed access reaches a part of a whole, an empty import names none: hits.
+      expect(ctx(env, "import type { ProjectConfig } from './types/project.js';\nlet p: ProjectConfig['pacing'];\n")).toEqual([`${env} → packages/core/src/types/project.ts`]);
+      expect(ctx(env, "import type { Scenario } from './types/scenario.js';\nlet e: Scenario['scenes'][number];\n")).toEqual([`${env} → packages/core/src/types/scenario.ts`]);
+      expect(ctx(env, "import type {} from './types/project.js';\n")).toEqual([`${env} → packages/core/src/types/project.ts`]);
+      // Another name beside a whole, a value, a whole from another file, a re-export, a namespace, import() types: hits.
+      expect(ctx(env, "import type { LoadedProject, CaptureSettings } from './types/project.js';\n")).toEqual([`${env} → packages/core/src/types/project.ts`]);
+      expect(ctx(env, "import { DEFAULT_CAPTURE } from './types/project.js';\n")).toEqual([`${env} → packages/core/src/types/project.ts`]);
+      expect(ctx(env, "import type { Scenario } from './scenario.js';\n")).toEqual([`${env} → packages/core/src/scenario.ts`]);
+      expect(ctx(env, "export type { Scenario } from './types/scenario.js';\n")).toEqual([`${env} → packages/core/src/types/scenario.ts`]);
+      expect(ctx(env, "import type * as s from './types/scenario.js';\n")).toEqual([`${env} → packages/core/src/types/scenario.ts`]);
+      expect(ctx(env, "let p: import('./types/project.js').LoadedProject;\n")).toEqual([`${env} → packages/core/src/types/project.ts`]);
+      expect(ctx(env, "import type { Scenario } from './types/scenario.js';\nlet t: import('./types/scenario.js').Scenario;\n")).toEqual([`${env} → packages/core/src/types/scenario.ts`]);
     });
 
     it('a file of no context, an entry outside its context, an entry or the root imported by a context file: each a hit', () => {
@@ -995,7 +1035,20 @@ describe('the import-rules ratchet', () => {
     it('the contexts are the entries: one file each, every core file in one, every entry an export of the package, and the lists that name them agree', () => {
       const names = contexts.map((c) => c.name);
       expect(names).toEqual(['base', 'model', 'ids', 'language', 'environment', 'policy', 'hooks', 'project', 'sandbox', 'scenario', 'comments', 'run', 'render', 'theme', 'schema']);
-      expect(lib.CORE_SHARED_CONTEXT).toBe('model');
+      expect(lib.CORE_SHARED_CONTEXT).toBeUndefined();
+      // Every context but base, ids, policy, render and schema declares its types in types/<context>.ts.
+      expect(contexts.filter((c) => c.files.includes(`types/${c.name}`)).map((c) => c.name)).toEqual([
+        'model',
+        'language',
+        'environment',
+        'hooks',
+        'project',
+        'sandbox',
+        'scenario',
+        'comments',
+        'run',
+        'theme',
+      ]);
       const listed = contexts.flatMap((c) => c.files);
       expect(new Set(listed).size).toBe(listed.length);
       const src = join(ROOT, 'packages', 'core', 'src');

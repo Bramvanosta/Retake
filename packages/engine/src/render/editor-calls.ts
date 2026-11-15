@@ -6,10 +6,12 @@
  * else (the import-rules ratchet's `loader-use`); the planner's pure values (`@retake/editor/plan`) are free.
  */
 import { isAbsolute, join } from 'node:path';
-import type { LoadedProject, LoadedTemplate, WorkFileFacts } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoadedTemplate } from '@retake/core/theme';
+import type { WorkFileFacts } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { ComponentRegistry } from '@retake/components/geometry';
-import type { Timeline } from '@retake/core/model';
+import type { Timeline } from '@retake/core/run';
 import type { FoundRender } from '@retake/editor';
 import type { PlanRunOptions, PlannedRun, RenderAttempt, RunRef } from '@retake/editor/plan';
 import type { RenderSettings } from '@retake/core/model';

@@ -25,7 +25,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { STARTER_TEMPLATES_DIR, assertOutsideBundle, ffmpegBin, loadTemplate, runMediaTool } from '@retake/core/io';
 import { errorMessage, pathInside } from '@retake/core/base';
-import type { LoadedTemplate, RenderSettings, WorkFileFacts } from '@retake/core/model';
+import type { LoadedTemplate } from '@retake/core/theme';
+import type { RenderSettings, WorkFileFacts } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { GpuInfo } from '@retake/core/render';
 import {

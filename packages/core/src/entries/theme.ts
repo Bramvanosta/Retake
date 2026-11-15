@@ -8,6 +8,7 @@
  * that declares it; the root `@retake/core` is every entry at once, for tests and scripts (the packages' sources import
  * an entry: the `core-root` check).
  */
+export * from '../types/theme.js';
 export * from '../template.js';
 export * from '../components.js';
 export * from '../theme-edits.js';

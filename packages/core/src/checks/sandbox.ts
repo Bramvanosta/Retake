@@ -16,7 +16,7 @@ import type { IssuePath } from '../issues.js';
 import { KEY_RE } from '../schemas/primitives.js';
 import { shellHostRefs } from '../shell-hosts.js';
 import { collectSecretRefs, listTemplateTokens } from '../templating.js';
-import type { LoadedProject } from '../types.js';
+import type { LoadedProject } from '../types/project.js';
 import type { LocatedIssue } from '../validation/located.js';
 import { suggestion } from '../validation/suggest.js';
 import { checkAuth } from './auth.js';

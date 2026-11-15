@@ -9,7 +9,8 @@
  * Resolution order of component ids: workspace `components/` → built-in library → (V2) cloud marketplace cache.
  */
 
-import type { ComponentKind, ValidationIssue } from '@retake/core/model';
+import type { ComponentKind } from '@retake/core/model';
+import type { ValidationIssue } from '@retake/core/base';
 
 /** A caption to show, in output frames [from, to) relative to the segment (or the video for plans). */
 export interface CaptionCue {

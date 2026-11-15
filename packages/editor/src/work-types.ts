@@ -5,7 +5,11 @@
  * them, so the engine names them through that domain entry; the render modules that use them import them from here.
  */
 import type { ExportFormatName } from '@retake/core/render';
-import type { ComponentKind, LoadedProject, LoadedTemplate, Scenario, Timeline } from '@retake/core/model';
+import type { ComponentKind } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoadedTemplate } from '@retake/core/theme';
+import type { Scenario } from '@retake/core/scenario';
+import type { Timeline } from '@retake/core/run';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { LatestPick } from '@retake/core/run';
 import type { ComponentManifest, ComponentRegistry } from '@retake/components/geometry';

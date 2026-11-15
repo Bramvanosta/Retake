@@ -7,6 +7,7 @@
  * Each name is exported by the entry of the file that declares it; the root `@retake/core` is every entry at once, for
  * tests and scripts (the packages' sources import an entry: the `core-root` check).
  */
+export * from '../types/hooks.js';
 export * from '../hook-run.js';
 export * from '../hook-writes.js';
 export * from '../named-hooks.js';

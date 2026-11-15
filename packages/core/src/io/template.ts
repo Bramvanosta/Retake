@@ -6,7 +6,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { ConfigError, issuesMessage } from '../issues.js';
 import { TEMPLATE_FILE, parseTemplateYaml } from '../template.js';
 import type { TemplateEntry } from '../template.js';
-import type { LoadedProject, LoadedTemplate } from '../types.js';
+import type { LoadedProject } from '../types/project.js';
+import type { LoadedTemplate } from '../types/theme.js';
 import { suggestion } from '../validation/suggest.js';
 import { starterTemplatesDir } from './bundle.js';
 import { nodeWorkspaceDisk } from './file-facts.js';

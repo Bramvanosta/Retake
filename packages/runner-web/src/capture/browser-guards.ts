@@ -6,7 +6,8 @@
 import type { Page } from 'playwright-core';
 import { loginMatchers, networkHost } from '@retake/core/environment';
 import { personaPageOrigins } from '@retake/core/scenario';
-import type { LoadedProject, TimelineWrite } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { TimelineWrite } from '@retake/core/environment';
 import type { PersonaPlan, ResolvedPersona, WritePolicy } from '@retake/core/environment';
 import type { HookContext } from '@retake/core/hooks';
 import { LoginGuard, checkPersona, signInMatchers } from '../auth.js';

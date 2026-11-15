@@ -8,7 +8,7 @@ import { AGENT_SHELL_GRAMMAR, agentShellCwdProblems, agentShellEnvProblems, agen
 import { shellHostRefs } from '@retake/core/hooks';
 import { projectPath } from '@retake/core/project';
 import { sandboxOf } from '@retake/core/sandbox';
-import type { ShellHookSpec } from '@retake/core/model';
+import type { ShellHookSpec } from '@retake/core/hooks';
 import { nodeFileFacts } from '@retake/core/io';
 import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';

@@ -6,7 +6,7 @@ import { join, relative } from 'node:path';
 import { RETAKE_VERSION, errorMessage } from '@retake/core/base';
 import { WORKSPACE_FILE, WORKSPACE_GITIGNORE, statePath } from '@retake/core/project';
 import { clientPath, engineLocation } from '@retake/core/io';
-import type { WorkspaceConfig } from '@retake/core/model';
+import type { WorkspaceConfig } from '@retake/core/project';
 import { tildePath } from '../auth.js';
 import { stableNodePath } from '../integrations/config-snippet.js';
 import type { OpenedWorkspace } from '../workspace.js';

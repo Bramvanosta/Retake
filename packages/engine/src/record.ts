@@ -43,7 +43,9 @@ import { PERSONA_NONE, resolveEnvironment, resolvePersonas, resolveRunAccess } f
 import { projectPath, statePath } from '@retake/core/project';
 import { parseScenario } from '@retake/core/scenario';
 import { INSPECT_PACING, draftFromRecording, draftInvalidIssue, inspectPathProblem, isPageOrigin } from '@retake/core/run';
-import type { LoadedProject, LoadedScenario, ResolvedEnvironment } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoadedScenario } from '@retake/core/scenario';
+import type { ResolvedEnvironment } from '@retake/core/environment';
 import type { ResolvedPersona } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { DraftIssue, RecordedEvent, RunProgress, RunRecord } from '@retake/core/run';

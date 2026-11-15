@@ -26,7 +26,9 @@ import { inspectPathProblem, inspectScenario, isPageOrigin } from '@retake/core/
 import { pageOfUrl } from '../page-url.js';
 export { pageOfUrl } from '../page-url.js';
 import { JOB_INPUT_VERSION } from './job-input.js';
-import type { LoadedProject, LoadedScenario, TargetSpec } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoadedScenario } from '@retake/core/scenario';
+import type { TargetSpec } from '@retake/core/language';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { RunProgress, RunRecord } from '@retake/core/run';
 import type { InspectJobInput } from './job-input.js';

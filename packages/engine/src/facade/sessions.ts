@@ -1,6 +1,8 @@
 /** The sessions a run of a scenario signs in and a persona's state as a client sees it (the façade's auth and admission). */
 import type { EngineEnv } from '../env.js';
-import type { LoadedProject, RunMode, Scenario } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { RunMode } from '@retake/core/run';
+import type { Scenario } from '@retake/core/scenario';
 import { personaStateView, scenarioPersonaStates } from '../auth.js';
 import type { PersonaState } from '../auth.js';
 import type { Caller } from '../caller.js';

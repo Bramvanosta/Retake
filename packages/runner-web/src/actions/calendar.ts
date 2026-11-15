@@ -1,4 +1,4 @@
-import type { DateArgs, TargetSpec } from '@retake/core/model';
+import type { DateArgs, TargetSpec } from '@retake/core/language';
 import { isoDay, parseDay } from '@retake/core/base';
 import { normalizeTarget } from '@retake/core/language';
 import { StepError } from '../errors.js';

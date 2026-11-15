@@ -5,7 +5,7 @@ import type { Page } from 'playwright-core';
 import { collectSecretRefs, interpolate, interpolateDeep } from '@retake/core/base';
 import { isPoint } from '@retake/core/language';
 import { projectFileProblem, secretRefsProblem } from '@retake/core/scenario';
-import type { EmitArgs, EvalArgs, HookArgs, NormalizedArgsMap, NotifyArgs, ScreenshotArgs, TargetSpec } from '@retake/core/model';
+import type { EmitArgs, EvalArgs, HookArgs, NormalizedArgsMap, NotifyArgs, ScreenshotArgs, TargetSpec } from '@retake/core/language';
 import { nodeFileFacts } from '@retake/core/io';
 import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';

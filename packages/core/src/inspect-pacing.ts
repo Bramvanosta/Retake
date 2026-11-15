@@ -3,7 +3,7 @@
  * re-exports both unchanged): an inspection's replay and a recording's check replay. Pure data: the runner merges it
  * over the project's and the scenario's pacing, the engine writes it into a check replay's scenario.
  */
-import type { Pacing } from './types.js';
+import type { Pacing } from './types/project.js';
 
 /** `hold`, `wait`, a step's `hold:` and a scene's still last at most this long during an inspection's replay (s). */
 export const INSPECT_PAUSE_CAP_S = 0.2;

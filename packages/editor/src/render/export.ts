@@ -28,7 +28,7 @@ import {
   templateFolderId,
 } from '@retake/core/io';
 import type { ErrorKind } from '@retake/core/base';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { H264Encoder, NamedRenderFound } from '@retake/core/io';
 import type { PlanVariant } from '../plan-types.js';
 import { PlanTrustError } from './plan-run.js';

@@ -34,7 +34,7 @@ import { ffprobePackets, packetsArgs, readFfprobeJson, renderOfFile, sameRender 
 import { readPlainFile, ffprobeBin, startMediaTool } from '@retake/core/io';
 import { runFolderOf } from '../outputs/outputs.js';
 import type { RenderOutputs } from '../outputs/outputs.js';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { FieldAt, FieldValue } from '@retake/core/scenario';
 import type { RenderEntry } from '@retake/core/render';

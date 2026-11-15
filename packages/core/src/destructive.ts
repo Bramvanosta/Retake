@@ -5,7 +5,7 @@ import { shellRuns } from './shell-runs.js';
 import type { ShellRun } from './shell-runs.js';
 import { commandName, commandWordAt, heredocs, shellCommands, shellTokens, shellWords } from './shell-words.js';
 import type { ShellToken } from './shell-words.js';
-import type { HookKind, HookStep, HttpHookSpec, ShellHookSpec, SqlHookSpec } from './types.js';
+import type { HookKind, HookStep, HttpHookSpec, ShellHookSpec, SqlHookSpec } from './types/hooks.js';
 
 const SQL_WRITE = new Set(['DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'UPDATE']);
 /** Words after which DELETE/UPDATE are clauses, not statements: ON DELETE CASCADE, FOR UPDATE, BEFORE UPDATE… */

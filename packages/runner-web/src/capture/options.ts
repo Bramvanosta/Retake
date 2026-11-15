@@ -2,7 +2,12 @@
  * What a capture run is given (runScenario's options, whatever drives the product) and what it tells its caller while
  * it films (onFilming).
  */
-import type { BrowserConfig, Confinement, LoadedProject, LoadedScenario, LoadedTemplate, RunMode, RunSandbox } from '@retake/core/model';
+import type { BrowserConfig, LoadedProject } from '@retake/core/project';
+import type { Confinement } from '@retake/core/model';
+import type { LoadedScenario } from '@retake/core/scenario';
+import type { LoadedTemplate } from '@retake/core/theme';
+import type { RunMode } from '@retake/core/run';
+import type { RunSandbox } from '@retake/core/sandbox';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { CaptureHookRunner, ConfirmHook, HookResult, HookTrust, TrustedHookFiles } from '@retake/core/hooks';
 import type { RunProgress } from '@retake/core/run';

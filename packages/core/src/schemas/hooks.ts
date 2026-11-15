@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { HookKind } from '../types.js';
+import type { HookKind } from '../types/hooks.js';
 import { keyedUnion } from './keyed.js';
 import { keyString, nonEmpty, positiveSeconds, slugString } from './primitives.js';
 

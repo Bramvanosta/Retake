@@ -6,7 +6,7 @@
 import { protectedBy } from './access.js';
 import type { ProtectedHost, RunAccess } from './access.js';
 import { hostMatches, normalizeAllowEntry, normalizeHost, networkHost } from './hosts.js';
-import type { ResolvedEnvironment, TimelineWrite, WriteMockSpec, WriteRuleSpec } from './types.js';
+import type { ResolvedEnvironment, TimelineWrite, WriteMockSpec, WriteRuleSpec } from './types/environment.js';
 import { GUIDE } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
 import { errorMessage } from './util.js';

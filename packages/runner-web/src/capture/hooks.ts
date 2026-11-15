@@ -6,7 +6,10 @@
 import { join } from 'node:path';
 import { resolveNamedHook } from '@retake/core/hooks';
 import type { TemplateContext } from '@retake/core/base';
-import type { Confinement, HookStep, LoadedProject, Scenario } from '@retake/core/model';
+import type { Confinement } from '@retake/core/model';
+import type { HookStep } from '@retake/core/hooks';
+import type { LoadedProject } from '@retake/core/project';
+import type { Scenario } from '@retake/core/scenario';
 import type { RunAccess } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { CaptureHookRunner, ConfirmHook, HookContext, HookJournal, HookResult, HookTrust, TrustedHookFiles } from '@retake/core/hooks';

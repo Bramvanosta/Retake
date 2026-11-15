@@ -10,7 +10,10 @@ import { LOTTIE_FILE_EXTENSIONS, MEDIA_COMPONENTS, VIDEO_FILE_EXTENSIONS, fileEx
 import { isImagePath } from '@retake/core/language';
 import { resolveThemeComponents } from '@retake/core/theme';
 import { probeVideoFile } from '@retake/core/io';
-import type { LoadedProject, LoadedTemplate, MediaFileFields, Timeline } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoadedTemplate } from '@retake/core/theme';
+import type { MediaFileFields } from '@retake/core/model';
+import type { Timeline } from '@retake/core/run';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { PlanInputFile } from './planner/input.js';
 import { errorMessage, isLoadedUrl } from '@retake/core/base';

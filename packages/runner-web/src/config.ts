@@ -1,5 +1,5 @@
-import { DEFAULT_CAPTURE, DEFAULT_PACING } from '@retake/core/model';
-import type { BrowserConfig, CaptureSettings, LoadedProject, Pacing } from '@retake/core/model';
+import { DEFAULT_CAPTURE, DEFAULT_PACING } from '@retake/core/project';
+import type { BrowserConfig, CaptureSettings, LoadedProject, Pacing } from '@retake/core/project';
 
 function defined<T extends object>(o: Partial<T> | undefined): Partial<T> {
   const out: Partial<T> = {};

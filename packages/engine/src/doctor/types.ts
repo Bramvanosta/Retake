@@ -4,7 +4,7 @@
  * product's probes are machine-probes.ts `machineProbes(ports)`: the system's (its PATH, its programs, its files, the
  * network) and the ports' (the capture browser, the render path and browser, the sandboxes).
  */
-import type { BrowserConfig, LoadedProject } from '@retake/core/model';
+import type { BrowserConfig, LoadedProject } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { BundleInfo } from '@retake/core/io';
 import type { ChromiumProbe } from '@retake/runner-web/types';

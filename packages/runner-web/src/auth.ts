@@ -18,7 +18,10 @@ import { describeTarget, isAbsoluteUrl, normalizeStep, normalizeTarget, splitPag
 import { PERSONA_CHECK_TIMEOUT_S, environmentLoginPatterns, loginCommand, loginMatchers, matchLoginUrl, resolveCheckUrl, urlOriginPath } from '@retake/core/environment';
 import { writeTextAtomic } from '@retake/core/io';
 import type { TemplateContext } from '@retake/core/base';
-import type { LoadedProject, LoginStep, NormalizedStep, OpenArgs, PressArgs, RunSessionStatus, Step, TargetObject, TargetSpec, TypeArgs, WaitForArgs } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoginStep } from '@retake/core/environment';
+import type { NormalizedStep, OpenArgs, PressArgs, Step, TargetObject, TargetSpec, TypeArgs, WaitForArgs } from '@retake/core/language';
+import type { RunSessionStatus } from '@retake/core/run';
 import type { LoginMatcher, ResolvedPersona } from '@retake/core/environment';
 import { LoginPageError, PreflightError, RunnerError, errorMessage, isCancelled } from './errors.js';
 import type { RunSecrets } from './secrets.js';

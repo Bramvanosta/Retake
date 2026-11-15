@@ -9,7 +9,7 @@ import { errorMessage, expandHome } from '@retake/core/base';
 import { agentArgsProblems, agentProgramProblem, workspaceFolders } from '@retake/core/policy';
 import { UNSAFE_TEST_RESOLVE_ENV, unsafeTestResolve } from '@retake/core/theme';
 import { nodeFileFacts, resolveMediaTools } from '@retake/core/io';
-import type { BrowserConfig, WorkspaceConfig } from '@retake/core/model';
+import type { BrowserConfig, WorkspaceConfig } from '@retake/core/project';
 import type { BundleInfo, MediaToolSource, MediaTools } from '@retake/core/io';
 import type { ChromiumProbe } from '@retake/runner-web/types';
 import { formatMs } from '../format.js';

@@ -11,7 +11,7 @@
  * with.
  */
 import type { OutputFolder } from './outputs/outputs.js';
-import type { LoadedProject } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
 import type { RunRecord } from '@retake/core/run';
 import { executeRun } from './execute-run.js';
 import type { ExecuteRunOptions, PreparedRun, RunPorts, RunRequest } from './execute-run.js';

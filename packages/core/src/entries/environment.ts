@@ -7,6 +7,7 @@
  * by the entry of the file that declares it; the root `@retake/core` is every entry at once, for tests and scripts (the
  * packages' sources import an entry: the `core-root` check).
  */
+export * from '../types/environment.js';
 export * from '../env.js';
 export * from '../hosts.js';
 export * from '../access.js';

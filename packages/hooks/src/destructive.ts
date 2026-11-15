@@ -1,5 +1,5 @@
 import { destructiveReason } from '@retake/core/hooks';
-import type { HookStep } from '@retake/core/model';
+import type { HookStep } from '@retake/core/hooks';
 import type { DestructiveOptions } from '@retake/core/hooks';
 
 /**

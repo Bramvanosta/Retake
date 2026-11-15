@@ -6,7 +6,8 @@
  * the shell's player and leases are first needed: after the theme, the registry and the target are settled). A theme
  * whose intro / outro is its own video, image or Lottie (B10) is not previewed — said.
  */
-import type { ComponentKind, LoadedTemplate } from '@retake/core/model';
+import type { ComponentKind } from '@retake/core/model';
+import type { LoadedTemplate } from '@retake/core/theme';
 import { isTemplateMediaRef } from '@retake/core/theme';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { ComponentPreviewSpec, PreviewSamples } from '@retake/editor/plan';

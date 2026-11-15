@@ -41,7 +41,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page, Response, Route } from 'playwright-core';
 import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, SITE_RESERVED_SUFFIXES } from '@retake/core/theme';
-import type { BrowserConfig } from '@retake/core/model';
+import type { BrowserConfig } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { SiteTestTarget } from '@retake/core/theme';
 import { CancelledError, RunnerError } from '../errors.js';

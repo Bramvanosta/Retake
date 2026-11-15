@@ -1,7 +1,7 @@
 /** The façade's `auth` (createEngine): the personas' stored state, a sign-in job and its cancel, the sessions a scenario's run signs in. */
 import { projectRef } from '@retake/core/project';
 import { parseScenario } from '@retake/core/scenario';
-import type { RunMode } from '@retake/core/model';
+import type { RunMode } from '@retake/core/run';
 import { projectPersonaStates } from '../auth.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { getScenario } from '../scenarios.js';

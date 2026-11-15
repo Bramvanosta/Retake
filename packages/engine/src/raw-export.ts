@@ -7,7 +7,9 @@
  * and waited at its heavy-work gate in between; it prints the progress, the note and the result its own way.
  */
 import type { Outputs } from './outputs/outputs.js';
-import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { LoadedTemplate } from '@retake/core/theme';
+import type { Timeline } from '@retake/core/run';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { ExportCaptureOptions, RawExportProgress, RawExportResult } from '@retake/runner-web/types';
 import type { CaptureRunner } from './capture/runner.js';

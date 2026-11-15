@@ -1,4 +1,5 @@
-import type { ScopeSpec, TargetObject, TargetSpec, PointSpec } from './types.js';
+import type { ScopeSpec, TargetObject, TargetSpec } from './types/language.js';
+import type { PointSpec } from './types/model.js';
 
 /** "#id", ".class", "[attr]" at the start. */
 const CSS_START = /^(#[A-Za-z_-]|\.[A-Za-z_-]|\[[A-Za-z_-])/;

@@ -6,8 +6,10 @@ import type { FileFacts } from './file-facts.js';
 import { normalizeEnvironments } from './env.js';
 import { hasErrors } from './issues.js';
 import { ProjectFileSchema } from './schemas/project.js';
-import { DEFAULT_CAPTURE } from './types.js';
-import type { CaptureSettings, FrameStyle, ProjectConfig, ValidationIssue } from './types.js';
+import { DEFAULT_CAPTURE } from './types/project.js';
+import type { CaptureSettings, ProjectConfig } from './types/project.js';
+import type { FrameStyle } from './types/language.js';
+import type { ValidationIssue } from './issues.js';
 import { checkYamlDocument } from './validation/document.js';
 
 export const PROJECT_FILE = 'project.yaml';

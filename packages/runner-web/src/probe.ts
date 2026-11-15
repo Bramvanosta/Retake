@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 import { bundleInfo, insideBundle } from '@retake/core/io';
-import type { BrowserConfig } from '@retake/core/model';
+import type { BrowserConfig } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { BundleInfo } from '@retake/core/io';
 import { browserSandbox, launchOptions } from './launch.js';

@@ -1,19 +1,11 @@
 import { z } from 'zod';
-import { ACTION_NAMES, CURSOR_ICONS, ENVIRONMENT_ACCESS, SANDBOX_PROVIDERS, SANDBOX_RESET_STRATEGIES } from '../types.js';
-import type { Timeline } from '../types.js';
-import {
-  BBoxSchema,
-  ComponentParamsSchema,
-  EaseSpecSchema,
-  FrameSpecSchema,
-  PointSchema,
-  TargetSpecSchema,
-  SceneTransitionSchema,
-  TutorialSwitchSchema,
-  mediaFileShape,
-  fileVersion,
-  nonEmpty,
-} from './primitives.js';
+import { ACTION_NAMES } from '../types/language.js';
+import { CURSOR_ICONS } from '../types/run.js';
+import { ENVIRONMENT_ACCESS, SANDBOX_PROVIDERS } from '../types/environment.js';
+import { SANDBOX_RESET_STRATEGIES } from '../types/sandbox.js';
+import type { Timeline } from '../types/run.js';
+import { BBoxSchema, ComponentParamsSchema, PointSchema, mediaFileShape, fileVersion, nonEmpty } from './primitives.js';
+import { EaseSpecSchema, FrameSpecSchema, TargetSpecSchema, SceneTransitionSchema, TutorialSwitchSchema } from './language.js';
 import { OverlayAnchorSchema, OverlayAtSchema } from './steps.js';
 
 const t = () => z.number().min(0).describe('Capture time in seconds.');

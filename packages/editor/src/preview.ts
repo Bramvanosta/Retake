@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { LoadedTemplate } from '@retake/core/model';
+import type { LoadedTemplate } from '@retake/core/theme';
 import { PREVIEW_SAMPLES_DIR, applyParamDefaults, evalLayoutGeometry, fillSlots, isMultiPaneGeometry, previewMoment } from '@retake/components';
 import type { LayoutPaneRects } from '@retake/components';
 import { planPaneLayout } from './panes.js';

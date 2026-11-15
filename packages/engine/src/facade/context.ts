@@ -4,7 +4,10 @@
  * caches the screens share — made once per engine, then handed to the builder of each sub-API (src/facade/*-api.ts).
  */
 import { loginCommand as coreLoginCommand } from '@retake/core/environment';
-import type { LoadedProject, RunMode, Scenario, WorkFileFacts } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { RunMode } from '@retake/core/run';
+import type { Scenario } from '@retake/core/scenario';
+import type { WorkFileFacts } from '@retake/core/model';
 import type { AgentChannel } from '../caller.js';
 import { admission } from '../admission.js';
 import type { Admission } from '../admission.js';

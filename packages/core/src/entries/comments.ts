@@ -7,4 +7,5 @@
  * `@retake/core` is every entry at once, for tests and scripts (the packages' sources import an entry: the `core-root`
  * check).
  */
+export * from '../types/comments.js';
 export * from '../comments.js';

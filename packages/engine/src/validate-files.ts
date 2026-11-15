@@ -7,7 +7,10 @@
 import { ConfigError, errorMessage } from '@retake/core/base';
 import { SandboxConfigError } from '@retake/core/sandbox';
 import { ScenarioError, parseScenario } from '@retake/core/scenario';
-import type { LoadedProject, Template, ValidationIssue, WorkFileFacts } from '@retake/core/model';
+import type { LoadedProject } from '@retake/core/project';
+import type { Template } from '@retake/core/theme';
+import type { ValidationIssue } from '@retake/core/base';
+import type { WorkFileFacts } from '@retake/core/model';
 import type { OpenedWorkspace } from './workspace.js';
 import { openProject } from './workspace.js';
 

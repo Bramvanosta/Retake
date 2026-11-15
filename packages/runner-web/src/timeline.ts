@@ -1,9 +1,8 @@
+import type { CaptureSettings } from '@retake/core/project';
 import type {
-  CaptureSettings,
   CursorEffect,
   CursorSample,
   TimelineTrack,
-  ViewportPreset,
   RunMode,
   Timeline,
   TimelineEvent,
@@ -17,8 +16,8 @@ import type {
   TimelineArtefact,
   TimelineEnvironment,
   TimelineScene,
-  TimelineVideo,
-} from '@retake/core/model';
+} from '@retake/core/run';
+import type { ViewportPreset, TimelineVideo } from '@retake/core/language';
 import { round3, wallNow } from './util.js';
 
 /**

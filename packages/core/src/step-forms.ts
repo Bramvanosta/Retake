@@ -19,8 +19,8 @@ import { firstHiddenChar, hiddenCharName } from './scenario-edit.js';
 import { ACTION_ARG_SCHEMAS, ACTION_DESCRIPTIONS, stepCommonShape } from './schemas/steps.js';
 import { normalizeStep, stepActionKeys } from './steps.js';
 import { normalizeTarget } from './targets.js';
-import { ACTION_NAMES } from './types.js';
-import type { ActionName } from './types.js';
+import { ACTION_NAMES } from './types/language.js';
+import type { ActionName } from './types/language.js';
 
 export type FormFieldKind = 'text' | 'number' | 'integer' | 'boolean' | 'enum';
 /** A value a form field holds. */

@@ -7,7 +7,7 @@ import { canonicalJson } from '../canonical-json.js';
 import { SCENARIO_COMPARE_MAX_BYTES, filmedChanges } from '../filmed.js';
 import type { ScenarioSinceRun } from '../filmed.js';
 import { projectPath } from '../layout.js';
-import type { LoadedProject } from '../types.js';
+import type { LoadedProject } from '../types/project.js';
 import { parseYaml } from '../validation/yaml-source.js';
 import { readPlainFile } from './plain-file.js';
 

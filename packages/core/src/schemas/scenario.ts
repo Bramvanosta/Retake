@@ -2,24 +2,8 @@ import { z } from 'zod';
 import { keyedUnion } from './keyed.js';
 import { HookStepSchema, NamedHooksSchema } from './hooks.js';
 import { ClockSpecSchema, WriteMockSchema } from './project.js';
-import {
-  CaptionSpecSchema,
-  ComponentParamsSchema,
-  FrameSpecSchema,
-  PointSchema,
-  SlotsSchema,
-  TargetSpecSchema,
-  SceneTransitionSchema,
-  TutorialSwitchSchema,
-  componentIdSchema,
-  fileVersion,
-  keyString,
-  mediaFileShape,
-  nonEmpty,
-  positiveSeconds,
-  seconds,
-  slugString,
-} from './primitives.js';
+import { CaptionSpecSchema, FrameSpecSchema, TargetSpecSchema, SceneTransitionSchema, TutorialSwitchSchema } from './language.js';
+import { ComponentParamsSchema, PointSchema, SlotsSchema, componentIdSchema, fileVersion, keyString, mediaFileShape, nonEmpty, positiveSeconds, seconds, slugString } from './primitives.js';
 import { CapturePartialSchema, PacingPartialSchema, RunDefaultsSchema } from './settings.js';
 import { StepSchema, speedSchema } from './steps.js';
 

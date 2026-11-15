@@ -3,7 +3,7 @@ import { collectSecretRefs } from '@retake/core/base';
 import { sqlDestructiveKeyword, sqlSource, sqlWriteStatement } from '@retake/core/hooks';
 import { databasesFor, databasesSource, sandboxOf } from '@retake/core/sandbox';
 import type { TemplateContext } from '@retake/core/base';
-import type { SqlHookSpec } from '@retake/core/model';
+import type { SqlHookSpec } from '@retake/core/hooks';
 import { checkHostAllowed } from '../allow-list.js';
 import { databaseTarget, describeTarget, sandboxDatabaseProblem } from '../db-url.js';
 import type { DatabaseTarget } from '../db-url.js';

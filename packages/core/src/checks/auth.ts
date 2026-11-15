@@ -2,7 +2,7 @@ import { AUTH_KEYS, PERSONA_NONE, isGlobalAuth, loginPatternForm } from '../auth
 import type { IssuePath } from '../issues.js';
 import { splitPageOpen } from '../pages.js';
 import { describeTarget } from '../targets.js';
-import type { TargetSpec } from '../types.js';
+import type { TargetSpec } from '../types/language.js';
 import { suggestion } from '../validation/suggest.js';
 import type { CheckContext } from './context.js';
 import { isObj } from './context.js';

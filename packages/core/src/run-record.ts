@@ -19,22 +19,9 @@ import { asRead, firstPath, isObj, lenient } from './record-read.js';
 import type { LenientTables } from './record-read.js';
 import type { z } from 'zod';
 import { StoredRunEngineSchema, StoredRunPerfSchema, StoredRunRecordSchema, StoredRunStateSchemas, UnknownStatusRunSchema } from './schemas/timeline.js';
-import type {
-  EnvironmentAccess,
-  OptionalFailure,
-  RunEngine,
-  RunError,
-  RunMode,
-  RunOutlineStep,
-  RunPause,
-  RunPerf,
-  RunPerfCpu,
-  RunSandbox,
-  RunSessionStatus,
-  RunStatus,
-  Timeline,
-  TimelineEvent,
-} from './types.js';
+import type { EnvironmentAccess } from './types/environment.js';
+import type { OptionalFailure, RunEngine, RunError, RunMode, RunOutlineStep, RunPause, RunPerf, RunPerfCpu, RunSessionStatus, RunStatus, Timeline, TimelineEvent } from './types/run.js';
+import type { RunSandbox } from './types/sandbox.js';
 
 // ── The states ───────────────────────────────────────────────────────────────
 

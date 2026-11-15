@@ -3,8 +3,10 @@
  * the `hook: <name>` steps that run them during a take. A scenario's name wins over project.yaml's. Each entry runs
  * under the hook's name unless it has its own (logs, journals, approvals).
  */
-import type { HookStep, NamedHooks, Scenario, Scene } from './types.js';
-import { isCaptureScene } from './types.js';
+import type { HookStep, NamedHooks } from './types/hooks.js';
+import type { Scenario } from './types/scenario.js';
+import type { Scene } from './types/language.js';
+import { isCaptureScene } from './types/language.js';
 
 export interface ResolvedNamedHook {
   name: string;

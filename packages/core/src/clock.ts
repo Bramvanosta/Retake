@@ -3,7 +3,7 @@
  * when the capture starts, so dates and times the product shows are the same on every take. Pure helpers: parsing,
  * validation and the instant a clock names (the runner installs it in the browser).
  */
-import type { ClockSpec, ResolvedClock } from './types.js';
+import type { ClockSpec, ResolvedClock } from './types/environment.js';
 import { GUIDE } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
 
