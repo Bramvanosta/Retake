@@ -22,7 +22,7 @@
  *   server refuses one it did not have, or one moved to another line).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import type { ValidationIssue } from '@retake/core/base';
 import { CallError, errorText } from '../api.js';
 import { scenarioBlocks, scenarioEdit, scenarioValidate } from '../data/scenarios.js';
@@ -62,31 +62,18 @@ export function hiddenLines(text: string): string[] {
   return out;
 }
 
-function Editor({
-  v,
-  slug,
-  name,
-  focus,
-  reload,
-  onClose,
-  onSaved,
-}: {
-  v: View;
-  slug: string;
-  name: string;
-  focus: { line: number } | null;
-  reload: () => void;
-  onClose: () => void;
-  onSaved?: (hash: string) => void;
-}) {
-  const key = scenarioKey(slug, name);
+type Conflict = { mine: string; disk: Disk };
+type SaveError = { message: string; issues: ValidationIssue[] };
+
+/** The editor's state: the draft (kept in drafts.ts), what is on disk, and what the screen says about a save. */
+function useYamlState(v: View, key: string) {
   const [draft, setLocal] = useState<Draft>(() => getDraft(key) ?? { text: diskOf(v).text, base: diskOf(v) });
   const [disk, setDisk] = useState<Disk | null>(null);
   const [dismissed, setDismissed] = useState<string | null>(null);
-  const [conflict, setConflict] = useState<{ mine: string; disk: Disk } | null>(null);
+  const [conflict, setConflict] = useState<Conflict | null>(null);
   const [kept, setKept] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<{ message: string; issues: ValidationIssue[] } | null>(null);
+  const [error, setError] = useState<SaveError | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<{ hash: string; warnings: number } | null>(null);
   const [live, setLive] = useState<{ text: string; issues: ValidationIssue[] } | null>(null);
@@ -105,8 +92,39 @@ function Editor({
     },
     [key],
   );
+  return {
+    draft,
+    disk,
+    setDisk,
+    dismissed,
+    setDismissed,
+    conflict,
+    setConflict,
+    kept,
+    setKept,
+    notice,
+    setNotice,
+    error,
+    setError,
+    saving,
+    setSaving,
+    saved,
+    setSaved,
+    live,
+    setLive,
+    draftRef,
+    savingRef,
+    superseded,
+    area,
+    update,
+  };
+}
 
-  // The view changed (an event, a focus, this tab's own save): a new version on disk?
+type YamlState = ReturnType<typeof useYamlState>;
+
+/** The view changed (an event, a focus, this tab's own save): a new version on disk? */
+function useDiskFollow(v: View, s: YamlState): void {
+  const { savingRef, superseded, draftRef, update, setDisk, setSaved, setNotice } = s;
   useEffect(() => {
     if (savingRef.current || superseded.current.has(v.hash)) return;
     const d = diskOf(v);
@@ -123,9 +141,11 @@ function Editor({
       return;
     }
     setDisk(d);
-  }, [v, update]);
+  }, [v, update, savingRef, superseded, draftRef, setDisk, setSaved, setNotice]);
+}
 
-  // "Show in YAML" while editing: the caret to that line.
+/** "Show in YAML" while editing: the caret to that line. */
+function useCaretAt(area: RefObject<HTMLTextAreaElement | null>, focus: { line: number } | null): void {
   useEffect(() => {
     const el = area.current;
     if (!focus || !el) return;
@@ -134,9 +154,11 @@ function Editor({
     el.focus({ preventScroll: true });
     el.setSelectionRange(at, at);
     el.scrollTop = Math.max(0, (focus.line - 4) * (parseFloat(getComputedStyle(el).lineHeight) || 19));
-  }, [focus]);
+  }, [focus, area]);
+}
 
-  // Live issues: 400 ms after the last keystroke, one call in flight (the newest text read after it ends).
+/** Live issues: 400 ms after the last keystroke, one call in flight (the newest text read after it ends). */
+function useLiveCheck(slug: string, name: string, draft: Draft, setLive: YamlState['setLive']): void {
   const inflight = useRef(false);
   const pending = useRef<string | null>(null);
   const check = useCallback(
@@ -158,15 +180,35 @@ function Editor({
           if (next !== null && next !== text) check(next);
         });
     },
-    [slug, name],
+    [slug, name, setLive],
   );
   useEffect(() => {
     if (!isDirty(draft) || draft.text.length > YAML_MAX) return;
     const t = setTimeout(() => check(draft.text), 400);
     return () => clearTimeout(t);
   }, [draft, check]);
+}
 
-  const save = useCallback(
+/** A save answered 409: the version on disk beside the person's text, or why it could not be read. */
+async function showConflict(slug: string, name: string, mine: string, setConflict: (c: Conflict) => void, setError: (e: SaveError) => void): Promise<void> {
+  try {
+    const now = await scenarioBlocks({ project: slug, name });
+    setConflict({ mine, disk: diskOf(now) });
+  } catch (e2) {
+    if (!(e2 instanceof SessionEnded)) setError({ message: errorText(e2), issues: [] });
+  }
+}
+
+/** Why a save failed, in words, with the issues the server sent back. */
+function saveError(e: unknown): SaveError {
+  const issues = e instanceof CallError && Array.isArray(e.error.details?.issues) ? (e.error.details.issues as ValidationIssue[]) : [];
+  return { message: issues.length ? `${plural(issues.filter((i) => i.severity === 'error').length, 'error')} in this text: nothing was written, your text is kept.` : errorText(e), issues };
+}
+
+/** The save through `scenario_edit` `replace_text`: over the version the text was based on, or over `over`. */
+function useYamlSave(slug: string, name: string, s: YamlState, reload: () => void, onSaved: ((hash: string) => void) | undefined) {
+  const { savingRef, draftRef, superseded, update, setError, setSaving, setDisk, setConflict, setNotice, setSaved } = s;
+  return useCallback(
     async (over?: Disk) => {
       if (savingRef.current) return;
       const cur = draftRef.current;
@@ -199,24 +241,68 @@ function Editor({
         reload();
       } catch (e) {
         if (e instanceof SessionEnded) return;
-        if (e instanceof CallError && e.error.code === 'conflict') {
-          try {
-            const now = await scenarioBlocks({ project: slug, name });
-            setConflict({ mine: cur.text, disk: diskOf(now) });
-          } catch (e2) {
-            if (!(e2 instanceof SessionEnded)) setError({ message: errorText(e2), issues: [] });
-          }
-        } else {
-          const issues = e instanceof CallError && Array.isArray(e.error.details?.issues) ? (e.error.details.issues as ValidationIssue[]) : [];
-          setError({ message: issues.length ? `${plural(issues.filter((i) => i.severity === 'error').length, 'error')} in this text: nothing was written, your text is kept.` : errorText(e), issues });
-        }
+        if (e instanceof CallError && e.error.code === 'conflict') await showConflict(slug, name, cur.text, setConflict, setError);
+        else setError(saveError(e));
       } finally {
         savingRef.current = false;
         setSaving(false);
       }
     },
-    [slug, name, update, reload, onSaved],
+    [slug, name, update, reload, onSaved, savingRef, draftRef, superseded, setError, setSaving, setDisk, setConflict, setNotice, setSaved],
   );
+}
+
+/** Cmd/Ctrl+S saves. */
+function useSaveKey(save: () => Promise<void>): void {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        void save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [save]);
+}
+
+/** The save state in words. */
+function stateWords(file: string, saving: boolean, conflict: boolean, dirty: boolean, saved: { hash: string; warnings: number } | null): string {
+  return saving
+    ? 'Saving…'
+    : conflict
+      ? `Not saved: ${file} changed on disk`
+      : dirty
+        ? 'Unsaved changes'
+        : saved
+          ? `Saved · ${saved.hash.slice(0, 12)}${saved.warnings ? ` · ${plural(saved.warnings, 'warning')}` : ''}`
+          : 'No changes';
+}
+
+function Editor({
+  v,
+  slug,
+  name,
+  focus,
+  reload,
+  onClose,
+  onSaved,
+}: {
+  v: View;
+  slug: string;
+  name: string;
+  focus: { line: number } | null;
+  reload: () => void;
+  onClose: () => void;
+  onSaved?: (hash: string) => void;
+}) {
+  const key = scenarioKey(slug, name);
+  const s = useYamlState(v, key);
+  const { draft, disk, setDisk, dismissed, setDismissed, conflict, setConflict, kept, setKept, notice, setNotice, error, setError, saving, saved, setSaved, live, draftRef, area, update } = s;
+  useDiskFollow(v, s);
+  useCaretAt(area, focus);
+  useLiveCheck(slug, name, draft, s.setLive);
+  const save = useYamlSave(slug, name, s, reload, onSaved);
 
   const loadDisk = (d: Disk) => {
     const cur = draftRef.current;
@@ -229,27 +315,10 @@ function Editor({
     setError(null);
   };
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        void save();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [save]);
+  useSaveKey(save);
 
   const dirty = isDirty(draft);
-  const state = saving
-    ? 'Saving…'
-    : conflict
-      ? `Not saved: ${v.file} changed on disk`
-      : dirty
-        ? 'Unsaved changes'
-        : saved
-          ? `Saved · ${saved.hash.slice(0, 12)}${saved.warnings ? ` · ${plural(saved.warnings, 'warning')}` : ''}`
-          : 'No changes';
+  const state = stateWords(v.file, saving, conflict !== null, dirty, saved);
   const showDisk = disk !== null && !conflict && disk.hash !== dismissed;
   const hidden = hiddenLines(draft.text);
   const liveIssues = dirty && live && live.text === draft.text ? live.issues : null;
@@ -257,26 +326,18 @@ function Editor({
 
   return (
     <section className="yv-editor" aria-label={`Editing ${v.file}`} data-testid="yaml-editor">
-      <Head file={v.file}>
-        <Button size="sm" variant="primary" disabled={saving || !dirty || conflict !== null} onClick={() => void save()} aria-keyshortcuts="Meta+S Control+S">
-          {saving ? 'Saving…' : 'Save'}
-        </Button>
-        <Button size="sm" variant="ghost" disabled={saving || !dirty || conflict !== null} onClick={() => update({ text: draft.base.text, base: draft.base })}>
-          Discard changes
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={saving || dirty}
-          why={dirty ? 'Save or discard your changes first' : undefined}
-          onClick={() => {
-            setDraft(key, undefined);
-            onClose();
-          }}
-        >
-          Close the editor
-        </Button>
-      </Head>
+      <EditorHead
+        file={v.file}
+        saving={saving}
+        dirty={dirty}
+        conflict={conflict !== null}
+        onSave={() => void save()}
+        onDiscard={() => update({ text: draft.base.text, base: draft.base })}
+        onClose={() => {
+          setDraft(key, undefined);
+          onClose();
+        }}
+      />
       {notice && (
         <Callout state="idle" title={notice}>
           <div>
@@ -299,6 +360,62 @@ function Editor({
         />
       )}
       {kept !== null && <KeptText text={kept} onDismiss={() => setKept(null)} />}
+      <EditorWarnings error={error} hidden={hidden} />
+      <EditPane
+        name={name}
+        draft={draft}
+        area={area}
+        conflict={conflict !== null}
+        state={state}
+        liveIssues={liveIssues}
+        shownIssues={shownIssues}
+        onChange={(text) => {
+          setError(null);
+          setNotice(null);
+          update({ text, base: draftRef.current.base });
+        }}
+      />
+    </section>
+  );
+}
+
+/** The editor's toolbar line: Save, Discard changes, Close the editor. */
+function EditorHead({
+  file,
+  saving,
+  dirty,
+  conflict,
+  onSave,
+  onDiscard,
+  onClose,
+}: {
+  file: string;
+  saving: boolean;
+  dirty: boolean;
+  conflict: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Head file={file}>
+      <Button size="sm" variant="primary" disabled={saving || !dirty || conflict} onClick={onSave} aria-keyshortcuts="Meta+S Control+S">
+        {saving ? 'Saving…' : 'Save'}
+      </Button>
+      <Button size="sm" variant="ghost" disabled={saving || !dirty || conflict} onClick={onDiscard}>
+        Discard changes
+      </Button>
+      <Button size="sm" variant="ghost" disabled={saving || dirty} why={dirty ? 'Save or discard your changes first' : undefined} onClick={onClose}>
+        Close the editor
+      </Button>
+    </Head>
+  );
+}
+
+/** A save refused (its message and issues) and the draft's lines that hold hidden characters. */
+function EditorWarnings({ error, hidden }: { error: SaveError | null; hidden: string[] }) {
+  return (
+    <>
       {error && (
         <Callout state="fail" role="alert" title="Not saved">
           <p className="sb-pre" data-testid="yaml-save-error">
@@ -316,52 +433,72 @@ function Editor({
           </p>
         </Callout>
       )}
-      <div className="yv-edit" hidden={conflict !== null}>
-        <TextArea
-          id="yaml-text"
-          label={`YAML of ${name}`}
-          labelHidden
-          mono
-          tall
-          rows={24}
-          value={draft.text}
-          inputRef={area}
-          maxLength={YAML_MAX}
-          readOnly={conflict !== null}
-          spellCheck={false}
-          autoCorrect={false}
-          describedBy="yaml-count yaml-state"
-          // The draft's mark is drafts.ts's (scenario:<slug>/<name>): the quit question lists it once.
-          unsaved={null}
-          onChange={(text) => {
-            setError(null);
-            setNotice(null);
-            update({ text, base: draftRef.current.base });
-          }}
-        />
-        <div className="yv-bar">
-          <span id="yaml-state" className="yv-state" role="status" aria-live="polite" data-testid="yaml-state">
-            {shown(state)}
-          </span>
-          <span className="sb-spacer" />
-          <span id="yaml-count" className={draft.text.length >= YAML_MAX ? 'yv-count is-full' : 'yv-count'}>
-            {shown(`${draft.text.length.toLocaleString('en')} / ${YAML_MAX.toLocaleString('en')} characters`)}
-          </span>
-          <Kbd keys={['⌘S', 'Ctrl+S']} />
-        </div>
-        {shownIssues !== null && (
-          <div className="yv-live" aria-live="polite" data-testid="yaml-live">
-            {liveIssues === null ? (
-              <p className="sc-quiet">Checking…</p>
-            ) : liveIssues.length === 0 ? (
-              <p className="sc-quiet">No issue in this text.</p>
-            ) : (
-              <IssueLines issues={liveIssues} testId="yaml-live-issues" />
-            )}
-          </div>
-        )}
+    </>
+  );
+}
+
+/** The text area, its bar (the save state, the counter, the keys) and the live issues. */
+function EditPane({
+  name,
+  draft,
+  area,
+  conflict,
+  state,
+  liveIssues,
+  shownIssues,
+  onChange,
+}: {
+  name: string;
+  draft: Draft;
+  area: RefObject<HTMLTextAreaElement | null>;
+  conflict: boolean;
+  state: string;
+  liveIssues: ValidationIssue[] | null;
+  shownIssues: ValidationIssue[] | null;
+  onChange: (text: string) => void;
+}) {
+  return (
+    <div className="yv-edit" hidden={conflict}>
+      <TextArea
+        id="yaml-text"
+        label={`YAML of ${name}`}
+        labelHidden
+        mono
+        tall
+        rows={24}
+        value={draft.text}
+        inputRef={area}
+        maxLength={YAML_MAX}
+        readOnly={conflict}
+        spellCheck={false}
+        autoCorrect={false}
+        describedBy="yaml-count yaml-state"
+        // The draft's mark is drafts.ts's (scenario:<slug>/<name>): the quit question lists it once.
+        unsaved={null}
+        onChange={onChange}
+      />
+      <div className="yv-bar">
+        <span id="yaml-state" className="yv-state" role="status" aria-live="polite" data-testid="yaml-state">
+          {shown(state)}
+        </span>
+        <span className="sb-spacer" />
+        <span id="yaml-count" className={draft.text.length >= YAML_MAX ? 'yv-count is-full' : 'yv-count'}>
+          {shown(`${draft.text.length.toLocaleString('en')} / ${YAML_MAX.toLocaleString('en')} characters`)}
+        </span>
+        <Kbd keys={['⌘S', 'Ctrl+S']} />
       </div>
-    </section>
+      {shownIssues !== null && (
+        <div className="yv-live" aria-live="polite" data-testid="yaml-live">
+          {liveIssues === null ? (
+            <p className="sc-quiet">Checking…</p>
+          ) : liveIssues.length === 0 ? (
+            <p className="sc-quiet">No issue in this text.</p>
+          ) : (
+            <IssueLines issues={liveIssues} testId="yaml-live-issues" />
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

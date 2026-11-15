@@ -79,7 +79,8 @@ export async function readFrameSource(runDir: string, src: RawSource): Promise<F
 }
 
 /** Fallback: decode the source's CFR video once (JPEG q 2), frame m stamped at m / fps. */
-export async function decodeVideoFrames(runDir: string, src: RawSource, fps: number, tmp: string, ffmpeg: string, signal?: AbortSignal): Promise<FrameSource> {
+export async function decodeVideoFrames(runDir: string, src: RawSource, o: { fps: number; tmp: string; ffmpeg: string; signal?: AbortSignal | undefined }): Promise<FrameSource> {
+  const { fps, tmp, ffmpeg, signal } = o;
   const video = join(runDir, src.video);
   if (!existsSync(video)) throw new EncodeError(`the run has neither its frames nor its video for ${src.track === 'main' ? 'the capture' : `page ${src.track}`} (${video})`);
   const dir = join(tmp, `decoded-${src.track}`);

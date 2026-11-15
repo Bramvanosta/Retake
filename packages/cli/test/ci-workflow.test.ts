@@ -85,6 +85,7 @@ describe('the CI workflow (ci.yml)', () => {
       'set -eu',
       'node scripts/set-version.mjs --check',
       'node scripts/audit/rules.mjs . --check',
+      'node scripts/audit/size-limits.mjs --check',
       'node scripts/requirements.mjs --untested 1',
       'node scripts/requirements.mjs --check-cites',
       'npx tsc -p tsconfig.test.json',

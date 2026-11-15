@@ -276,13 +276,12 @@ function route(path: string, assets: Map<string, UiAsset>): RouteSpec | undefine
   return ROUTES[path];
 }
 
-export async function startStudioServer(o: StudioServerOptions): Promise<StudioServer> {
-  const log = o.log ?? (() => undefined);
-  const assets = await buildUi();
+/** The engine of a Studio server: its worker started on a submit, with a clean environment. */
+async function studioEngine(o: StudioServerOptions): Promise<Engine> {
   // The Studio starts the worker when a run is submitted, with a clean environment — cleaned of every folder of the workspace (its projects, templates and components folders may lie outside the root).
   const root = resolve(o.root);
   const folders = await studioPorts.reads.loadWorkspaceConfig(root).then(workspaceFolders, () => [root]);
-  const engine = await createEngine({
+  return createEngine({
     root: o.root,
     client: 'ui',
     autoStartWorker: o.startWorker !== false,
@@ -290,6 +289,255 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     ...(o.workerSpawn ? { workerSpawn: o.workerSpawn } : {}),
     ...(o.workerIdleExitMs !== undefined ? { workerIdleExitMs: o.workerIdleExitMs } : {}),
   });
+}
+
+/** The server's port and counts (the StudioServer getters read them). */
+interface Counters {
+  port: number;
+  calls: number;
+  crossSite: number;
+  sessions: number;
+}
+
+/** The answers of one server: its headers (the player origin in `frame-src` once it listens), JSON, errors, bodies. */
+interface Replies {
+  headers(kind: 'api' | 'static'): Record<string, string>;
+  send(res: ServerResponse, status: number, body: unknown, kind?: 'api' | 'static', extra?: Record<string, string>): void;
+  fail(res: ServerResponse, status: number, code: string, message: string, extra?: Record<string, string>): void;
+  /** The JSON object of a body (an empty body is `{}`); undefined after answering 400 / 413. */
+  jsonBody(req: IncomingMessage, res: ServerResponse, max: number): Promise<Record<string, unknown> | undefined>;
+}
+
+function replies(frameSrc: () => string | undefined): Replies {
+  const headers = (kind: 'api' | 'static') => {
+    const src = frameSrc();
+    return securityHeaders(kind, src ? { frameSrc: src } : {});
+  };
+  const send = (res: ServerResponse, status: number, body: unknown, kind: 'api' | 'static' = 'api', extra: Record<string, string> = {}) => {
+    const text = JSON.stringify(body);
+    res.writeHead(status, { ...headers(kind), 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': String(Buffer.byteLength(text)), ...extra });
+    res.end(text);
+  };
+  const fail = (res: ServerResponse, status: number, code: string, message: string, extra: Record<string, string> = {}) => send(res, status, { ok: false, error: { code, message } }, 'api', extra);
+  const jsonBody = async (req: IncomingMessage, res: ServerResponse, max: number): Promise<Record<string, unknown> | undefined> => {
+    let buf: Buffer;
+    try {
+      buf = await readBody(req, max);
+    } catch (e) {
+      if (e instanceof BodyTooLargeError) {
+        fail(res, 413, 'too_large', e.message, { Connection: 'close' });
+        return undefined;
+      }
+      throw e;
+    }
+    if (buf.length === 0) return {};
+    let v: unknown;
+    try {
+      v = JSON.parse(buf.toString('utf8'));
+    } catch {
+      fail(res, 400, 'invalid', 'the body is not JSON');
+      return undefined;
+    }
+    if (!v || typeof v !== 'object' || Array.isArray(v)) {
+      fail(res, 400, 'invalid', 'the body must be a JSON object (the arguments)');
+      return undefined;
+    }
+    return v as Record<string, unknown>;
+  };
+  return { headers, send, fail, jsonBody };
+}
+
+/** What a request's handler reads: the server's parts, built once by startStudioServer. */
+interface RequestContext {
+  assets: Map<string, UiAsset>;
+  engine: Engine;
+  getEngine: () => Promise<Engine>;
+  live: Live;
+  runLive: RunLive;
+  tools: Map<string, ToolDef>;
+  token: string;
+  codes: BootstrapCodes;
+  counters: Counters;
+  writeListeners: Set<() => void>;
+  player: () => PlayerServer;
+  r: Replies;
+}
+
+/** A static asset (from memory, with its ETag): true when `path` is one. */
+function serveAsset(c: RequestContext, req: IncomingMessage, res: ServerResponse, path: string): boolean {
+  const a = c.assets.get(path);
+  if (!a) return false;
+  const h = { ...c.r.headers('static'), 'Content-Type': a.type, 'Content-Length': String(a.bytes.length), ETag: a.etag };
+  if (req.headers['if-none-match'] === a.etag) {
+    res.writeHead(304, h).end();
+    return true;
+  }
+  res.writeHead(200, h);
+  res.end(req.method === 'HEAD' ? undefined : a.bytes);
+  return true;
+}
+
+/** The fixed `/v1` routes (info, events, live, session, bootstrap): true when `path` is one of them. */
+async function serveRoute(c: RequestContext, req: IncomingMessage, res: ServerResponse, path: string): Promise<boolean> {
+  const { send, fail, jsonBody } = c.r;
+  if (path === '/v1/info') {
+    const p = c.player();
+    const counters = { sessions: c.counters.sessions, streams: c.live.streamCount, player_media_bytes_read: p.mediaBytesRead, player_range_requests: p.rangeRequests };
+    send(res, 200, { ok: true, data: { ...c.engine.info(), http_api: ENGINE_HTTP_API, ops: UI_OPS, counters } });
+    return true;
+  }
+  if (path === '/v1/events') {
+    c.live.open(req, res, (status, code, message) => fail(res, status, code, message));
+    return true;
+  }
+  if (path === '/v1/live') {
+    const body = await jsonBody(req, res, SMALL_BODY_MAX);
+    if (!body) return true;
+    await c.runLive.open(res, body, (status, code, message) => fail(res, status, code, message));
+    return true;
+  }
+  if (path === '/v1/session') {
+    const body = await jsonBody(req, res, SMALL_BODY_MAX);
+    if (!body) return true;
+    if (typeof body.code === 'string' && c.codes.redeem(body.code)) {
+      c.counters.sessions++;
+      send(res, 200, { ok: true, token: c.token });
+    } else fail(res, 401, 'unauthorized', 'this link was already used or has expired: run retake ui again');
+    return true;
+  }
+  if (path === '/v1/bootstrap') {
+    if (!(await jsonBody(req, res, SMALL_BODY_MAX))) return true;
+    const code = c.codes.mint();
+    // The player origin: a desktop shell attaching to this server allows navigations to it (no secret: the
+    // capabilities under it are).
+    send(res, 200, { ok: true, code, url: `http://127.0.0.1:${c.counters.port}/#c=${code}`, player: c.player().origin });
+    return true;
+  }
+  return false;
+}
+
+/** An op's error as the page gets it: path-free words, its fix, docs and details. */
+function callError(e: { code: EngineErrorCode; message: string; fix?: string; docs?: string; details?: unknown }, root: string) {
+  // Every error's words are path-free: the workspace's part cut off, any other absolute path shortened —
+  // in the message and every string of the details (an engine or scenario error may quote a file's absolute path).
+  // The `fix` is kept as it is: a command the person copies into a terminal (`retake -C <workspace> …`), the same
+  // one the screen already shows before the click.
+  return {
+    code: e.code,
+    message: pathFree(e.message, root),
+    ...(e.fix ? { fix: e.fix } : {}),
+    ...(e.docs ? { docs: e.docs } : {}),
+    ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}),
+  };
+}
+
+/** `POST /v1/call/<op>`: the op of that name run through `invoke`, its answer, then the write listeners. */
+async function serveCall(c: RequestContext, req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
+  const { send, fail, jsonBody } = c.r;
+  const op = path.slice(CALL_PREFIX.length);
+  const tool = c.tools.get(op);
+  if (!tool) {
+    await drainBody(req);
+    fail(res, 404, 'not_found', `unknown op ${op}: this Studio allows ${UI_OPS.join(', ')}`);
+    return;
+  }
+  const args = await jsonBody(req, res, CALL_BODY_MAX);
+  if (!args) return;
+  const ac = new AbortController();
+  res.on('close', () => {
+    if (!res.writableEnded) ac.abort();
+  });
+  c.counters.calls++;
+  const r = await invoke(tool, c.getEngine, args, { shell: 'studio', startedIn: process.cwd(), signal: ac.signal });
+  if (!r.ok) {
+    const e = r.error;
+    const status = OP_STATUS[op as UiOp]?.[e.code] ?? ERROR_STATUS[e.code];
+    send(res, status, { ok: false, error: callError(e, c.engine.workspace.root) }, 'api', status === 429 ? { 'Retry-After': '1' } : {});
+    return;
+  }
+  send(res, 200, { ok: true, summary: r.output.summary, data: capUntrusted(r.output.data), ...(r.output.images?.length ? { images: r.output.images } : {}) });
+  if (!tool.annotations.readOnlyHint && !NO_NUDGE.has(op)) for (const f of c.writeListeners) f();
+}
+
+/** One request: the gate, then a static asset, a fixed route or an op. */
+async function handleRequest(c: RequestContext, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const site = req.headers['sec-fetch-site'];
+  if (req.headers.origin === 'null' || site === 'cross-site' || site === 'same-site') c.counters.crossSite++;
+  const g = checkRequest(req, { port: c.counters.port, token: c.token, route: (p) => route(p, c.assets) });
+  if (!g.ok) {
+    // The body is never used: drained (bounded) so the client reads the answer; the connection closes after it.
+    if (await drainBody(req)) c.r.fail(res, g.status, g.code, g.message, { ...(g.allow ? { Allow: g.allow } : {}), Connection: 'close' });
+    return;
+  }
+  if (serveAsset(c, req, res, g.path)) return;
+  if (await serveRoute(c, req, res, g.path)) return;
+  // POST /v1/call/<op>
+  await serveCall(c, req, res, g.path);
+}
+
+/** The parts the StudioServer handle exposes beside its counters. */
+interface ServerParts {
+  server: Server;
+  url: string;
+  codes: BootstrapCodes;
+  counters: Counters;
+  token: string;
+  started: PlayerServer;
+  writeListeners: Set<() => void>;
+  rest: Pick<StudioServer, 'bundles' | 'previewAllow' | 'live' | 'runLive' | 'unsaved' | 'desktop' | 'setup' | 'update' | 'engine'>;
+}
+
+function serverHandle(p: ServerParts): StudioServer {
+  const { server, url, codes, counters, started, writeListeners } = p;
+  const { live, runLive } = p.rest;
+  let closed: Promise<void> | undefined;
+  return {
+    url,
+    port: counters.port,
+    token: p.token,
+    mintCode: () => codes.mint(),
+    launchUrl: () => `${url}#c=${codes.mint()}`,
+    get calls() {
+      return counters.calls;
+    },
+    get streams() {
+      return live.streamCount;
+    },
+    get sessions() {
+      return counters.sessions;
+    },
+    get crossSite() {
+      return counters.crossSite;
+    },
+    player: started,
+    bundles: p.rest.bundles,
+    previewAllow: p.rest.previewAllow,
+    live,
+    runLive,
+    unsaved: p.rest.unsaved,
+    desktop: p.rest.desktop,
+    setup: p.rest.setup,
+    update: p.rest.update,
+    onWrite: (f) => {
+      writeListeners.add(f);
+      return () => writeListeners.delete(f);
+    },
+    engine: p.rest.engine,
+    close: () =>
+      (closed ??= (runLive.close(), Promise.all([live.close(), started.close()])).then(
+        () =>
+          new Promise<void>((resolve) => {
+            server.close(() => resolve());
+            server.closeAllConnections();
+          }),
+      )),
+  };
+}
+
+export async function startStudioServer(o: StudioServerOptions): Promise<StudioServer> {
+  const log = o.log ?? (() => undefined);
+  const assets = await buildUi();
+  const engine = await studioEngine(o);
   const getEngine = async () => engine;
   const live = await Live.start({ ws: engine.workspace, queue: engine.queue, folder: engine.folder, ...(o.sqlite ? { sqlite: o.sqlite } : {}), ...(o.pollMs ? { pollMs: o.pollMs } : {}), log });
   // The player origin starts after the Studio's listener (it must know the Studio's port): the timeline op reads it
@@ -326,151 +574,24 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();
   const codes = new BootstrapCodes();
-  let port = 0;
-  let calls = 0;
-  let crossSite = 0;
-  let sessions = 0;
+  const counters: Counters = { port: 0, calls: 0, crossSite: 0, sessions: 0 };
   /** The player origin, once it listens: the one origin a Studio page may frame. */
   let frameSrc: string | undefined;
-  const headers = (kind: 'api' | 'static') => securityHeaders(kind, frameSrc ? { frameSrc } : {});
-
-  const send = (res: ServerResponse, status: number, body: unknown, kind: 'api' | 'static' = 'api', extra: Record<string, string> = {}) => {
-    const text = JSON.stringify(body);
-    res.writeHead(status, { ...headers(kind), 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': String(Buffer.byteLength(text)), ...extra });
-    res.end(text);
-  };
-  const fail = (res: ServerResponse, status: number, code: string, message: string, extra: Record<string, string> = {}) => send(res, status, { ok: false, error: { code, message } }, 'api', extra);
-
-  /** The JSON object of a body (an empty body is `{}`); undefined after answering 400 / 413. */
-  const jsonBody = async (req: IncomingMessage, res: ServerResponse, max: number): Promise<Record<string, unknown> | undefined> => {
-    let buf: Buffer;
-    try {
-      buf = await readBody(req, max);
-    } catch (e) {
-      if (e instanceof BodyTooLargeError) {
-        fail(res, 413, 'too_large', e.message, { Connection: 'close' });
-        return undefined;
-      }
-      throw e;
-    }
-    if (buf.length === 0) return {};
-    let v: unknown;
-    try {
-      v = JSON.parse(buf.toString('utf8'));
-    } catch {
-      fail(res, 400, 'invalid', 'the body is not JSON');
-      return undefined;
-    }
-    if (!v || typeof v !== 'object' || Array.isArray(v)) {
-      fail(res, 400, 'invalid', 'the body must be a JSON object (the arguments)');
-      return undefined;
-    }
-    return v as Record<string, unknown>;
-  };
-
-  const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-    const site = req.headers['sec-fetch-site'];
-    if (req.headers.origin === 'null' || site === 'cross-site' || site === 'same-site') crossSite++;
-    const g = checkRequest(req, { port, token, route: (p) => route(p, assets) });
-    if (!g.ok) {
-      // The body is never used: drained (bounded) so the client reads the answer; the connection closes after it.
-      if (await drainBody(req)) fail(res, g.status, g.code, g.message, { ...(g.allow ? { Allow: g.allow } : {}), Connection: 'close' });
-      return;
-    }
-    const a = assets.get(g.path);
-    if (a) {
-      const h = { ...headers('static'), 'Content-Type': a.type, 'Content-Length': String(a.bytes.length), ETag: a.etag };
-      if (req.headers['if-none-match'] === a.etag) {
-        res.writeHead(304, h).end();
-        return;
-      }
-      res.writeHead(200, h);
-      res.end(req.method === 'HEAD' ? undefined : a.bytes);
-      return;
-    }
-    if (g.path === '/v1/info') {
-      const p = playerNow();
-      const counters = { sessions, streams: live.streamCount, player_media_bytes_read: p.mediaBytesRead, player_range_requests: p.rangeRequests };
-      send(res, 200, { ok: true, data: { ...engine.info(), http_api: ENGINE_HTTP_API, ops: UI_OPS, counters } });
-      return;
-    }
-    if (g.path === '/v1/events') {
-      live.open(req, res, (status, code, message) => fail(res, status, code, message));
-      return;
-    }
-    if (g.path === '/v1/live') {
-      const body = await jsonBody(req, res, SMALL_BODY_MAX);
-      if (!body) return;
-      await runLive.open(res, body, (status, code, message) => fail(res, status, code, message));
-      return;
-    }
-    if (g.path === '/v1/session') {
-      const body = await jsonBody(req, res, SMALL_BODY_MAX);
-      if (!body) return;
-      if (typeof body.code === 'string' && codes.redeem(body.code)) {
-        sessions++;
-        send(res, 200, { ok: true, token });
-      } else fail(res, 401, 'unauthorized', 'this link was already used or has expired: run retake ui again');
-      return;
-    }
-    if (g.path === '/v1/bootstrap') {
-      if (!(await jsonBody(req, res, SMALL_BODY_MAX))) return;
-      const code = codes.mint();
-      // The player origin: a desktop shell attaching to this server allows navigations to it (no secret: the
-      // capabilities under it are).
-      send(res, 200, { ok: true, code, url: `http://127.0.0.1:${port}/#c=${code}`, player: playerNow().origin });
-      return;
-    }
-    // POST /v1/call/<op>
-    const op = g.path.slice(CALL_PREFIX.length);
-    const tool = tools.get(op);
-    if (!tool) {
-      await drainBody(req);
-      fail(res, 404, 'not_found', `unknown op ${op}: this Studio allows ${UI_OPS.join(', ')}`);
-      return;
-    }
-    const args = await jsonBody(req, res, CALL_BODY_MAX);
-    if (!args) return;
-    const ac = new AbortController();
-    res.on('close', () => {
-      if (!res.writableEnded) ac.abort();
-    });
-    calls++;
-    const r = await invoke(tool, getEngine, args, { shell: 'studio', startedIn: process.cwd(), signal: ac.signal });
-    if (!r.ok) {
-      const e = r.error;
-      const status = OP_STATUS[op as UiOp]?.[e.code] ?? ERROR_STATUS[e.code];
-      // Every error's words are path-free: the workspace's part cut off, any other absolute path shortened —
-      // in the message and every string of the details (an engine or scenario error may quote a file's absolute path).
-      // The `fix` is kept as it is: a command the person copies into a terminal (`retake -C <workspace> …`), the same
-      // one the screen already shows before the click.
-      const root = engine.workspace.root;
-      const error = {
-        code: e.code,
-        message: pathFree(e.message, root),
-        ...(e.fix ? { fix: e.fix } : {}),
-        ...(e.docs ? { docs: e.docs } : {}),
-        ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}),
-      };
-      send(res, status, { ok: false, error }, 'api', status === 429 ? { 'Retry-After': '1' } : {});
-      return;
-    }
-    send(res, 200, { ok: true, summary: r.output.summary, data: capUntrusted(r.output.data), ...(r.output.images?.length ? { images: r.output.images } : {}) });
-    if (!tool.annotations.readOnlyHint && !NO_NUDGE.has(op)) for (const f of writeListeners) f();
-  };
+  const r = replies(() => frameSrc);
+  const c: RequestContext = { assets, engine, getEngine, live, runLive, tools, token, codes, counters, writeListeners, player: playerNow, r };
 
   const server: Server = createServer((req, res) => {
-    handle(req, res).catch((e: unknown) => {
+    handleRequest(c, req, res).catch((e: unknown) => {
       log(`retake ui: ${req.method ?? ''} ${(req.url ?? '').split('?')[0]} failed: ${e instanceof Error ? e.name : 'error'}`);
-      if (!res.headersSent) fail(res, 500, 'internal', 'internal error');
+      if (!res.headersSent) r.fail(res, 500, 'internal', 'internal error');
       else res.destroy();
     });
   });
   const bundles = new PlayerBundles();
   try {
-    port = await listenLoopback(server, o.port ?? 0);
+    counters.port = await listenLoopback(server, o.port ?? 0);
     player = await startPlayerServer({
-      studioPort: port,
+      studioPort: counters.port,
       // Built-in components, and the workspace components the person allowed (by content) in this session.
       bundle: async () => bundles.get(await engine.components.registry(), (id, hash) => previewAllow.has(id, hash)),
       log,
@@ -483,48 +604,6 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     throw e;
   }
   frameSrc = player.origin;
-  const started: PlayerServer = player;
-  const url = `http://127.0.0.1:${port}/`;
-  let closed: Promise<void> | undefined;
-  return {
-    url,
-    port,
-    token,
-    mintCode: () => codes.mint(),
-    launchUrl: () => `${url}#c=${codes.mint()}`,
-    get calls() {
-      return calls;
-    },
-    get streams() {
-      return live.streamCount;
-    },
-    get sessions() {
-      return sessions;
-    },
-    get crossSite() {
-      return crossSite;
-    },
-    player: started,
-    bundles,
-    previewAllow,
-    live,
-    runLive,
-    unsaved,
-    desktop,
-    setup: { state: setupState, context: setupContext },
-    update: updateState,
-    onWrite: (f) => {
-      writeListeners.add(f);
-      return () => writeListeners.delete(f);
-    },
-    engine,
-    close: () =>
-      (closed ??= (runLive.close(), Promise.all([live.close(), started.close()])).then(
-        () =>
-          new Promise<void>((resolve) => {
-            server.close(() => resolve());
-            server.closeAllConnections();
-          }),
-      )),
-  };
+  const rest = { bundles, previewAllow, live, runLive, unsaved, desktop, setup: { state: setupState, context: setupContext }, update: updateState, engine };
+  return serverHandle({ server, url: `http://127.0.0.1:${counters.port}/`, codes, counters, token, started: player, writeListeners, rest });
 }

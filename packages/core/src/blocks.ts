@@ -835,7 +835,17 @@ function withForm(raw: unknown): { form?: StepFormValues } {
   return form ? { form } : {};
 }
 
-function stepBlock(raw: unknown, index: number, sceneId: string, seq: At, src: Src, sceneIrreversible: boolean, stepsLocked: string | undefined): StepBlock {
+/** What every step of one scene shares: its id, its steps' node, the source, whether it is irreversible, why its steps are locked. */
+interface StepBlockScene {
+  sceneId: string;
+  seq: At;
+  src: Src;
+  sceneIrreversible: boolean;
+  stepsLocked: string | undefined;
+}
+
+function stepBlock(raw: unknown, index: number, scene: StepBlockScene): StepBlock {
+  const { sceneId, seq, src, sceneIrreversible, stepsLocked } = scene;
   const at = childAt(seq, index);
   const comment = commentOf(seq, at, index);
   const range = rangeOf(at, src);
@@ -958,7 +968,8 @@ function entryBlock(entry: unknown, index: number, scenes: At, src: Src, page: s
   const irreversible = entry.irreversible === true;
   const stepsAt = childAt(at, 'steps');
   const stepsLocked = stepsLockedWhy(stepsAt.node, stepsAt.aliased) ?? stepsDashWhy(src.text, stepsAt.node);
-  const steps = (Array.isArray(entry.steps) ? entry.steps : []).map((raw, i) => stepBlock(raw, i, sceneId, stepsAt, src, irreversible, stepsLocked));
+  const stepScene: StepBlockScene = { sceneId, seq: stepsAt, src, sceneIrreversible: irreversible, stepsLocked };
+  const steps = (Array.isArray(entry.steps) ? entry.steps : []).map((raw, i) => stepBlock(raw, i, stepScene));
   const pages = pagesOf(entry.pages);
   const open = str(entry.open);
   const caption = captionOf(entry.caption);

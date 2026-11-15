@@ -461,21 +461,23 @@ function stepLabels(text: string | undefined): Record<string, string> {
   return out;
 }
 
-async function buildView(
-  memos: TimelineMemos,
-  ws: OpenedWorkspace,
+/** What one timeline view is built from. */
+interface BuildViewOptions {
   /** The stores port (its folders): the comment pins' scenario text. */
-  stores: Pick<ProjectStores, 'folder'>,
-  cli: string,
-  project: LoadedProject,
-  req: TimelineViewRequest,
-  file: { hash?: string; yaml?: string; blocked?: string },
-  t0: number,
-  themes: ThemeChoices,
-  proposal?: ProposalPreview,
+  stores: Pick<ProjectStores, 'folder'>;
+  cli: string;
+  project: LoadedProject;
+  req: TimelineViewRequest;
+  file: { hash?: string; yaml?: string; blocked?: string };
+  t0: number;
+  themes: ThemeChoices;
+  proposal?: ProposalPreview;
   /** The take shown is the default one (none was asked for): it is among the choices even when the list ends before it. */
-  defaulted = false,
-): Promise<TimelineViewResult> {
+  defaulted?: boolean;
+}
+
+async function buildView(memos: TimelineMemos, ws: OpenedWorkspace, opts: BuildViewOptions): Promise<TimelineViewResult> {
+  const { stores, cli, project, req, file, t0, themes, proposal, defaulted = false } = opts;
   const { registry } = await memos.registry.get(ws);
   let planned: PlannedRun;
   let source: RenderEditSource;
@@ -684,7 +686,17 @@ export async function timelineView(
   }
   const hit = p !== undefined;
   if (!p) {
-    const built = buildView(memos, ws, o.stores, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, themes, proposal, asked === undefined);
+    const built = buildView(memos, ws, {
+      stores: o.stores,
+      cli,
+      project,
+      req: { ...req, ...(runId ? { run_id: runId } : {}) },
+      file,
+      t0,
+      themes,
+      ...(proposal ? { proposal } : {}),
+      defaulted: asked === undefined,
+    });
     p = built;
     memos.views.set(key, built);
     if (memos.views.size > VIEW_MEMO_MAX) {

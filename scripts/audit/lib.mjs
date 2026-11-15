@@ -203,7 +203,24 @@ export const DOMAIN_ENTRIES = ['@retake/components/geometry', '@retake/editor/pl
  * I/O and renderer imports, R12 keeps each on the components' geometry entry; both read one file at a time — the
  * transitive proof is packages/review/test/checks-entry.test.ts, which walks the entry's imports.
  */
-export const REVIEW_PURE = ['checks-entry', 'checks', 'pixel-checks', 'pixel-maths', 'spans', 'timeline', 'anchor', 'diff', 'types', 'images', 'report-lines'];
+export const REVIEW_PURE = [
+  'checks-entry',
+  'checks',
+  'checks-base',
+  'checks-captions',
+  'checks-camera',
+  'checks-overlays',
+  'checks-environment',
+  'pixel-checks',
+  'pixel-maths',
+  'spans',
+  'timeline',
+  'anchor',
+  'diff',
+  'types',
+  'images',
+  'report-lines',
+];
 const reviewPure = (f) => f.startsWith('packages/review/src/') && f.endsWith('.ts') && REVIEW_PURE.includes(f.slice('packages/review/src/'.length, -3));
 /** Core's side that touches the machine (`@retake/core/io`): R1 holds for the rest of core, which never imports it. */
 export const CORE_IO_DIR = 'packages/core/src/io/';

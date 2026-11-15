@@ -204,50 +204,55 @@ export interface PrunePorts {
   stores: Pick<ProjectStores, 'folder'>;
 }
 
-/** See the module comment. */
-export async function pruneProject(ports: PrunePorts, project: LoadedProject, req: PruneRequest = {}): Promise<PruneResult> {
-  const { outputs } = ports;
-  const keepRenders = req.keep_renders ?? DEFAULT_KEEP_RENDERS;
-  if (!Number.isInteger(keepRenders) || keepRenders < 1) throw new EngineError('invalid', `keep_renders ${String(req.keep_renders)}: a whole number from 1`);
-  const dry = req.dry_run !== false;
-  const busy = req.busy ?? (() => false);
-  const items: PruneItem[] = [];
-  /** The member of the Outputs port an item's paths are in (sized and removed there). */
-  const folderOf = (kind: PruneItem['kind']) => (kind === 'run' ? outputs.runs : kind === 'render' ? outputs.renders : outputs.reviews);
+/** What the comment threads keep: the renders and takes they name, and what stays because some do not read. */
+interface ThreadFacts {
+  /** The render each thread was made (or resolved) on. */
+  threadRenders: Set<string>;
+  /** That render's take. */
+  threadRuns: Set<string>;
+  /** Every render and take stays (the threads are not listed, or not all read). */
+  keepAll: boolean;
+  /** Why the threads are not listed at all (the result's sentence). */
+  notListed?: string;
+  /** The scenarios whose threads are not all read. */
+  keepOf: string[];
+}
 
-  // Comment threads: the render each was made (or resolved) on, and that render's take.
-  const threadRenders = new Set<string>();
-  const threadRuns = new Set<string>();
-  // Every render and take stays (the threads are not listed), or those of these scenarios (some threads are not read).
-  let keepAll = false;
-  let notListed: string | undefined;
-  const keepOf: string[] = [];
+/** Comment threads: the render each was made (or resolved) on, and that render's take. */
+async function threadFacts(ports: PrunePorts, project: LoadedProject): Promise<ThreadFacts> {
+  const { outputs } = ports;
+  const f: ThreadFacts = { threadRenders: new Set(), threadRuns: new Set(), keepAll: false, keepOf: [] };
   try {
     const { list, unread } = await listCommentsAndUnread({ renders: outputs.renders, stores: ports.stores }, project, { status: 'all' });
     for (const t of list.threads) {
-      threadRenders.add(t.render_id);
-      threadRuns.add(t.run_id);
-      if (t.resolution?.render_id) threadRenders.add(t.resolution.render_id);
+      f.threadRenders.add(t.render_id);
+      f.threadRuns.add(t.run_id);
+      if (t.resolution?.render_id) f.threadRenders.add(t.resolution.render_id);
     }
     // Not "no thread" either: a file or a folder that does not read as threads may hold one of its scenario.
-    if (unread.all) keepAll = true;
-    else keepOf.push(...unread.scenarios);
+    if (unread.all) f.keepAll = true;
+    else f.keepOf.push(...unread.scenarios);
   } catch (e) {
     // Not "no threads": what a thread could keep is unknown, so every render and every take stays.
     const why = (e as NodeJS.ErrnoException | null)?.code;
-    keepAll = true;
-    notListed = `the comment threads of ${project.slug} cannot be listed${typeof why === 'string' && /^[A-Z0-9_]{1,40}$/.test(why) ? ` (${why})` : ''}: every render and take is kept (make ${projectRef('comments')}/ of the project readable, then prune again)`;
+    f.keepAll = true;
+    f.notListed = `the comment threads of ${project.slug} cannot be listed${typeof why === 'string' && /^[A-Z0-9_]{1,40}$/.test(why) ? ` (${why})` : ''}: every render and take is kept (make ${projectRef('comments')}/ of the project readable, then prune again)`;
   }
-  /**
-   * Whether an unread thread may name this render or take: one of a scenario whose threads are not all read — by the
-   * scenario its record names or by the one its id names, without regard to case (a folder of comments/ on a disk that
-   * ignores case may differ from its scenario by case only). `held`: the unread scenarios something stays for.
-   */
+  return f;
+}
+
+/**
+ * Whether an unread thread may name this render or take: one of a scenario whose threads are not all read — by the
+ * scenario its record names or by the one its id names, without regard to case (a folder of comments/ on a disk that
+ * ignores case may differ from its scenario by case only). `held`: the unread scenarios something stays for.
+ */
+function unreadJudge(f: ThreadFacts) {
+  const { keepAll, keepOf } = f;
   const held = new Set<string>();
   const unreadBy = (...is: Array<(s: string) => boolean>): boolean => {
     let any = keepAll;
     for (const s of keepOf) {
-      if (is.some((f) => f(s))) {
+      if (is.some((g) => g(s))) {
         held.add(s);
         any = true;
       }
@@ -265,13 +270,27 @@ export async function pruneProject(ports: PrunePorts, project: LoadedProject, re
       (s) => sameName(r.scenario, s),
       (s) => runIdOfScenario(r.id, s),
     );
+  return { held, unreadRender, unreadRun };
+}
 
-  // Renders: the last `keepRenders` succeeded of each scenario and variant, and those a thread names — core's rule
-  // (renderKeeper), fed every `*.json` of renders/ as the one reader answers it. A record file that is a link was not
-  // opened by the reader: what it says all the same is prune's own read through the link.
+/** One pass of prune: what it reads through, what is busy, and the items it lists. */
+interface PrunePass {
+  outputs: Outputs;
+  project: LoadedProject;
+  busy: (id: string) => boolean;
+  items: PruneItem[];
+}
+
+/**
+ * Renders: the last `keepRenders` succeeded of each scenario and variant, and those a thread names — core's rule
+ * (renderKeeper), fed every `*.json` of renders/ as the one reader answers it. A record file that is a link was not
+ * opened by the reader: what it says all the same is prune's own read through the link.
+ */
+async function pruneRenders(p: PrunePass, keepRenders: number, f: ThreadFacts, unreadRender: (r: { id: string; scenario: string }) => boolean) {
+  const { outputs, project, busy, items } = p;
   const rendersDir = outputs.renders.dirOf(project.dir);
   const rendersFiles = await outputs.renders.names(rendersDir);
-  const renderRule = renderKeeper({ keep: keepRenders, thread: (id) => threadRenders.has(id), busy, unread: unreadRender });
+  const renderRule = renderKeeper({ keep: keepRenders, thread: (id) => f.threadRenders.has(id), busy, unread: unreadRender });
   const renderEntries = await outputs.renders.entries(rendersDir);
   for (const entry of renderEntries) {
     const linked = entry.link && !entry.read.ok && entry.read.problem === 'not-a-file';
@@ -292,13 +311,17 @@ export async function pruneProject(ports: PrunePorts, project: LoadedProject, re
     // (No path comes from text inside a file: an item's id is its file's name, and its files are names of renders/.)
     const paths = r.paths.map((f) => join(rendersDir, f));
     let bytes = 0;
-    for (const p of paths) bytes += await outputs.renders.size(p);
+    for (const path of paths) bytes += await outputs.renders.size(path);
     items.push({ kind: 'render', id: r.id, scenario: r.scenario, reason: r.reason, bytes, paths });
   }
-  const listedRenders = new Set(keeps.items.map((i) => i.id));
-  let rendersKept = keeps.kept_files;
+  return { keeps, rendersAlone };
+}
 
-  // Reviews: review/<render id>/ of the renders kept.
+type RenderKeeps = Awaited<ReturnType<typeof pruneRenders>>['keeps'];
+
+/** Reviews: review/<render id>/ of the renders kept; how many stay. */
+async function pruneReviews(p: PrunePass, keeps: RenderKeeps, listedRenders: Set<string>): Promise<number> {
+  const { outputs, project, busy, items } = p;
   const reviewDir = outputs.reviews.dirOf(project.dir);
   let reviewsKept = 0;
   for (const name of await outputs.reviews.names(reviewDir)) {
@@ -314,10 +337,16 @@ export async function pruneProject(ports: PrunePorts, project: LoadedProject, re
     const known = listedRenders.has(name);
     items.push({ kind: 'review', id: name, reason: known ? 'review of an older render' : 'review of a deleted render', bytes: await outputs.reviews.size(path), paths: [path] });
   }
+  return reviewsKept;
+}
 
-  // Takes: per scenario the last succeeded capture, the last one that can be edited and the last complete one (core's
-  // rule 3), and every take a kept render or a thread uses. Only a take of the shape the tool makes is ever a
-  // candidate (a folder named by hand stays), read newest first by the one reader of the run folders.
+/**
+ * Takes: per scenario the last succeeded capture, the last one that can be edited and the last complete one (core's
+ * rule 3), and every take a kept render or a thread uses. Only a take of the shape the tool makes is ever a
+ * candidate (a folder named by hand stays), read newest first by the one reader of the run folders.
+ */
+async function pruneRuns(p: PrunePass, keeps: RenderKeeps, threadRuns: Set<string>, unreadRun: (r: { id: string; scenario: string }) => boolean) {
+  const { outputs, project, busy, items } = p;
   const runsDir = runsDirOf(project.dir);
   const keeper = pruneKeeper();
   for (const name of orderRuns((await outputs.runs.names(runsDir)).filter(isMadeRunId))) {
@@ -362,46 +391,96 @@ export async function pruneProject(ports: PrunePorts, project: LoadedProject, re
     items.push({ kind: 'run', id: r.id, scenario: r.scenario, reason, bytes: await outputs.runs.size(path), paths: [path] });
   }
   keptTakes.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+  return { runsKept, keptTakes };
+}
 
-  // What stays for the threads that were not read: said with the scenarios something of theirs is here for.
-  let threadsUnread = notListed;
-  if (threadsUnread === undefined && keepAll) threadsUnread = `some comment threads of ${project.slug} cannot be read (the comment list says which): every render and take is kept`;
+/** What stays for the threads that were not read: said with the scenarios something of theirs is here for. */
+function threadsUnreadOf(project: LoadedProject, f: ThreadFacts, held: Set<string>): string | undefined {
+  let threadsUnread = f.notListed;
+  if (threadsUnread === undefined && f.keepAll) threadsUnread = `some comment threads of ${project.slug} cannot be read (the comment list says which): every render and take is kept`;
   else if (threadsUnread === undefined && held.size) {
-    const names = keepOf.filter((s) => held.has(s));
+    const names = f.keepOf.filter((s) => held.has(s));
     const named = names.slice(0, 5).join(', ') + (names.length > 5 ? ` and ${names.length - 5} more` : '');
     threadsUnread = `some comment threads of ${project.slug} cannot be read (the comment list says which): every render and take of ${named} is kept`;
   }
+  return threadsUnread;
+}
+
+/** Only what a person approved, of what can still go now: the items narrowed in place, and what else stays. */
+async function onlyApproved(p: PrunePass, only: ReadonlyMap<string, readonly string[]>, folderOf: (kind: PruneItem['kind']) => Outputs['runs' | 'renders' | 'reviews']) {
+  const { items } = p;
+  const kept = { runs: 0, renders: 0, reviews: 0 };
+  const now = new Set(items.map(pruneKey));
+  const skipped: NonNullable<PruneResult['skipped']> = [...only.keys()]
+    .filter((k) => !now.has(k))
+    .sort()
+    .map((k) => {
+      const at = k.indexOf(':');
+      return { kind: k.slice(0, at) as PruneItem['kind'], id: k.slice(at + 1) };
+    });
+  const unasked = items.filter((i) => !only.has(pruneKey(i)));
+  for (const i of unasked) {
+    if (i.kind === 'run') kept.runs++;
+    else if (i.kind === 'render') kept.renders++;
+    else kept.reviews++;
+  }
+  const approved: PruneItem[] = [];
+  for (const i of items) {
+    const then = only.get(pruneKey(i));
+    if (!then) continue;
+    const paths = i.paths.filter((path) => then.includes(path));
+    let bytes = 0;
+    for (const path of paths) bytes += await folderOf(i.kind).size(path);
+    approved.push({ ...i, paths, bytes });
+  }
+  items.splice(0, items.length, ...approved);
+  return { skipped, notAsked: unasked.length, kept };
+}
+
+/** The files of renders/ left alone: counted by reason (fixed words), named under `untrusted` only. */
+function aloneReasonsOf(rendersAlone: Array<{ file: string; why: RenderNot }>): NonNullable<PruneResult['renders_alone']>['reasons'] {
+  const aloneReasons: NonNullable<PruneResult['renders_alone']>['reasons'] = [];
+  for (const a of rendersAlone) {
+    const reason = aloneReasons.find((x) => x.why === a.why);
+    if (reason) reason.count++;
+    else aloneReasons.push({ why: a.why, count: 1, reason: renderNotWords(a.why) });
+  }
+  return aloneReasons;
+}
+
+/** See the module comment. */
+export async function pruneProject(ports: PrunePorts, project: LoadedProject, req: PruneRequest = {}): Promise<PruneResult> {
+  const { outputs } = ports;
+  const keepRenders = req.keep_renders ?? DEFAULT_KEEP_RENDERS;
+  if (!Number.isInteger(keepRenders) || keepRenders < 1) throw new EngineError('invalid', `keep_renders ${String(req.keep_renders)}: a whole number from 1`);
+  const dry = req.dry_run !== false;
+  const busy = req.busy ?? (() => false);
+  const items: PruneItem[] = [];
+  /** The member of the Outputs port an item's paths are in (sized and removed there). */
+  const folderOf = (kind: PruneItem['kind']) => (kind === 'run' ? outputs.runs : kind === 'render' ? outputs.renders : outputs.reviews);
+  const pass: PrunePass = { outputs, project, busy, items };
+
+  const threads = await threadFacts(ports, project);
+  const { held, unreadRender, unreadRun } = unreadJudge(threads);
+  const { keeps, rendersAlone } = await pruneRenders(pass, keepRenders, threads, unreadRender);
+  const listedRenders = new Set(keeps.items.map((i) => i.id));
+  let rendersKept = keeps.kept_files;
+  let reviewsKept = await pruneReviews(pass, keeps, listedRenders);
+  const takes = await pruneRuns(pass, keeps, threads.threadRuns, unreadRun);
+  let runsKept = takes.runsKept;
+  const { keptTakes } = takes;
+  const threadsUnread = threadsUnreadOf(project, threads, held);
 
   // Only what a person approved, of what can still go now.
   let skipped: PruneResult['skipped'];
   let notAsked: number | undefined;
   if (req.only) {
-    const only = req.only;
-    const now = new Set(items.map(pruneKey));
-    skipped = [...only.keys()]
-      .filter((k) => !now.has(k))
-      .sort()
-      .map((k) => {
-        const at = k.indexOf(':');
-        return { kind: k.slice(0, at) as PruneItem['kind'], id: k.slice(at + 1) };
-      });
-    const unasked = items.filter((i) => !only.has(pruneKey(i)));
-    notAsked = unasked.length;
-    for (const i of unasked) {
-      if (i.kind === 'run') runsKept++;
-      else if (i.kind === 'render') rendersKept++;
-      else reviewsKept++;
-    }
-    const approved: PruneItem[] = [];
-    for (const i of items) {
-      const then = only.get(pruneKey(i));
-      if (!then) continue;
-      const paths = i.paths.filter((p) => then.includes(p));
-      let bytes = 0;
-      for (const p of paths) bytes += await folderOf(i.kind).size(p);
-      approved.push({ ...i, paths, bytes });
-    }
-    items.splice(0, items.length, ...approved);
+    const approved = await onlyApproved(pass, req.only, folderOf);
+    skipped = approved.skipped;
+    notAsked = approved.notAsked;
+    runsKept += approved.kept.runs;
+    rendersKept += approved.kept.renders;
+    reviewsKept += approved.kept.reviews;
   }
 
   const problems: string[] = [];
@@ -416,13 +495,7 @@ export async function pruneProject(ports: PrunePorts, project: LoadedProject, re
   }
   const order = { run: 0, render: 1, review: 2 } as const;
   items.sort((a, b) => order[a.kind] - order[b.kind] || a.id.localeCompare(b.id));
-  // The files of renders/ left alone: counted by reason (fixed words), named under `untrusted` only.
-  const aloneReasons: NonNullable<PruneResult['renders_alone']>['reasons'] = [];
-  for (const a of rendersAlone) {
-    const reason = aloneReasons.find((x) => x.why === a.why);
-    if (reason) reason.count++;
-    else aloneReasons.push({ why: a.why, count: 1, reason: renderNotWords(a.why) });
-  }
+  const aloneReasons = aloneReasonsOf(rendersAlone);
   const rendersUnread =
     keeps.too_big > 0
       ? `${keeps.too_big} ${keeps.too_big === 1 ? 'file' : 'files'} of ${projectRef('renders')}/ ${keeps.too_big === 1 ? 'is' : 'are'} too big to read: every render, review and take is kept`

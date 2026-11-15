@@ -154,7 +154,15 @@ export async function findNamedRender(
     // The by-id rule, as the engine's (core byIdProblem): a link, a newer format, a file that does not read, another id.
     const problem = byIdProblem(entry, arg);
     if (problem) return fail(problem.message);
-    return judge(fs, dir, entry, join(dir, `${arg}.json`), projectRef('renders', `${arg}.json`), o.verb, false, `render "${arg}": `);
+    return judge(entry, {
+      fs,
+      dir,
+      file: join(dir, `${arg}.json`),
+      shown: projectRef('renders', `${arg}.json`),
+      verb: o.verb,
+      renamedOk: false,
+      by: `render "${arg}": `,
+    });
   }
   if (arg === 'latest') {
     const latest = latestNamedRender(await readRendersFolder(dir, { fs }), o.scenario !== undefined ? { scenario: o.scenario } : {});
@@ -166,19 +174,19 @@ export async function findNamedRender(
       );
     }
     const file = join(dir, `${latest.pick.entry.name}.json`);
-    const found = await judge(fs, dir, latest.pick.entry, file, file, o.verb, true);
+    const found = await judge(latest.pick.entry, { fs, dir, file, shown: file, verb: o.verb, renamedOk: true });
     return found.ok ? { ok: true, render: { ...found.render, latest } } : found;
   }
   const byId = join(dir, `${arg}.json`);
   if (!/[\\/]/.test(arg)) {
     const entry = await readNamedRender(byId, { fs });
-    if (there(entry)) return judge(fs, dir, entry, byId, byId, o.verb, true);
+    if (there(entry)) return judge(entry, { fs, dir, file: byId, shown: byId, verb: o.verb, renamedOk: true });
   }
   if (isAbsolute(arg) || arg.startsWith('.') || /[\\/]/.test(arg) || /\.(json|mp4)$/.test(arg)) {
     const file = resolve(arg);
     const json = extname(file) === '.json' ? file : join(dirname(file), `${basename(file, extname(file))}.json`);
     const entry = await readNamedRender(json, { fs });
-    if (there(entry)) return judge(fs, dir, entry, json, json, o.verb, true);
+    if (there(entry)) return judge(entry, { fs, dir, file: json, shown: json, verb: o.verb, renamedOk: true });
     // (A video is no record: whether it is there is asked of the disk, not of the records' seam.)
     if (o.videoAlone && existsSync(file)) return fail(`${file} has no render record next to it (${basename(json)}): review needs the plan the video was rendered from`);
   }
@@ -221,7 +229,8 @@ async function namesTaken(fs: RecordFs, dir: string, file: string, names: readon
  * A record file that was there, judged for a use: a record (its plan there), or one sentence. `renamedOk`: a record
  * that says another id may be used (a terminal). `by`: how a sentence opens when the render was named by its id.
  */
-async function judge(fs: RecordFs, dir: string, entry: RenderEntry, file: string, shown: string, verb: NamedRenderVerb, renamedOk: boolean, by = ''): Promise<NamedRenderFind> {
+async function judge(entry: RenderEntry, o: { fs: RecordFs; dir: string; file: string; shown: string; verb: NamedRenderVerb; renamedOk: boolean; by?: string }): Promise<NamedRenderFind> {
+  const { fs, dir, file, shown, verb, renamedOk, by = '' } = o;
   const r = entry.read;
   let record: StoredRenderRecord | UnknownStatusRender;
   if (r.ok) record = r.value;

@@ -52,12 +52,15 @@ export async function stepShots(
  */
 export async function videoStepShots(
   events: readonly TimelineEvent[],
-  screenshotsDir: string,
-  videoOf: (ev: TimelineEvent) => { video: string; count: number } | null,
-  fps: number,
-  ffmpeg: string,
-  log: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void,
+  o: {
+    screenshotsDir: string;
+    videoOf: (ev: TimelineEvent) => { video: string; count: number } | null;
+    fps: number;
+    ffmpeg: string;
+    log: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
+  },
 ): Promise<string[]> {
+  const { screenshotsDir, videoOf, fps, ffmpeg, log } = o;
   const byVideo = new Map<string, Array<{ ev: TimelineEvent; n: number }>>();
   for (const ev of events) {
     if (ev.step < 0 || ev.status === 'skipped') continue;

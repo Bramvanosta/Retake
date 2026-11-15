@@ -171,7 +171,7 @@ describe('the capture lifecycle over a driver', () => {
       (run) =>
         (driver = new FakeDriver(run, {
           film: async () => {
-            throw new StepFailure('the button is gone', 'one', 0, 'click');
+            throw new StepFailure('the button is gone', { scene: 'one', step: 0, action: 'click' });
           },
         })),
     );

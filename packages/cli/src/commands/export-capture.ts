@@ -62,13 +62,18 @@ export interface RawExportEvent {
  */
 export async function rawExportOfRun(
   ui: Ui,
-  ports: Pick<EnginePorts, 'capture'>,
-  ws: OpenedWorkspace,
-  project: LoadedProject,
-  runDir: string,
-  flags: ReturnType<typeof parseRawFlags>,
-  opts: { json?: boolean; jsonLines?: boolean; signal?: AbortSignal },
+  opts: {
+    ports: Pick<EnginePorts, 'capture'>;
+    ws: OpenedWorkspace;
+    project: LoadedProject;
+    runDir: string;
+    flags: ReturnType<typeof parseRawFlags>;
+    json?: boolean;
+    jsonLines?: boolean;
+    signal?: AbortSignal;
+  },
 ): Promise<RawExportResult> {
+  const { ports, ws, project, runDir, flags } = opts;
   const t0 = performance.now();
   const status = (p: RawExportProgress) => {
     if (opts.json) return;
@@ -149,7 +154,7 @@ export async function exportCaptureCommand(ui: Ui, global: GlobalOptions, projec
   const onSigint = () => ac.abort();
   process.once('SIGINT', onSigint);
   try {
-    const r = await rawExportOfRun(ui, global.ports, ws, project, runDir, flags, { json: opts.json, signal: ac.signal });
+    const r = await rawExportOfRun(ui, { ports: global.ports, ws, project, runDir, flags, json: opts.json, signal: ac.signal });
     return r.manifest.warnings.length > 0 && r.manifest.clips.length === 0 ? EXIT.failure : EXIT.ok;
   } finally {
     process.removeListener('SIGINT', onSigint);

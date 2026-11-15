@@ -2,9 +2,10 @@
 #  - checks (macOS 15, Apple silicon, the machine Retake is made for):
 #    - the pinned Node.js, then pnpm;
 #    - the packages built;
-#    - the repository's own guards: one version, the import-rules ratchet, every phase-1 requirement tested, every
-#      cited test title present, the test files type-checked (tsconfig.test.json), the lint ratchet (scripts/lint.mjs:
-#      Biome's linter held to scripts/lint-baseline.json).
+#    - the repository's own guards: one version, the import-rules ratchet, the size ratchet (scripts/audit/size-limits.mjs:
+#      file and function lengths, parameter lists and nesting held to scripts/audit/size-baseline.json), every phase-1
+#      requirement tested, every cited test title present, the test files type-checked (tsconfig.test.json), the lint
+#      ratchet (scripts/lint.mjs: Biome's linter held to scripts/lint-baseline.json).
 #    - the deterministic tier of the tests (`pnpm test:ci`, scripts/test-ci.mjs): the files scripts/test-ci.json lists
 #      under `ci` — no browser, no ffmpeg, no Docker, no Postgres, no timing calibrated on the Mac —, run without
 #      those tools whatever the runner has. The rest of the suite (captures, renders, the Studio in a browser, the
@@ -61,6 +62,7 @@ jobs:
           set -eu
           node scripts/set-version.mjs --check
           node scripts/audit/rules.mjs . --check
+          node scripts/audit/size-limits.mjs --check
           node scripts/requirements.mjs --untested 1
           node scripts/requirements.mjs --check-cites
           npx tsc -p tsconfig.test.json

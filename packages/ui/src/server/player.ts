@@ -264,189 +264,211 @@ interface Scope {
 
 const newScope = (): Scope => ({ cap: newCap(), files: new Map(), idByKey: new Map(), plans: new Map() });
 
+/** One player server's state: its scopes (null once closed), port, origin and counts. */
+interface PlayerState {
+  /** Scopes by name, least recently used first; null once closed. */
+  scopes: Map<string, Scope> | null;
+  /** The gate's token: the player has no token route, so none is ever given. */
+  unusedToken: string;
+  port: number;
+  origin: string;
+  requests: number;
+  mediaBytesRead: number;
+  rangeRequests: number;
+}
+
+/** A scope, made on its first use (the least recently used one dropped beyond PLAYER_SCOPES_MAX). */
+function scopeNamed(st: PlayerState, name: string): Scope | undefined {
+  const scopes = st.scopes;
+  if (scopes === null) return undefined;
+  let sc = scopes.get(name);
+  if (sc) {
+    scopes.delete(name);
+    scopes.set(name, sc);
+    return sc;
+  }
+  sc = newScope();
+  scopes.set(name, sc);
+  while (scopes.size > PLAYER_SCOPES_MAX) scopes.delete(scopes.keys().next().value!);
+  return sc;
+}
+
+/** The scope whose capability this is (compared in constant time with each), or undefined. */
+function scopeOfCap(st: PlayerState, given: string): Scope | undefined {
+  let found: Scope | undefined;
+  for (const sc of st.scopes?.values() ?? []) if (secretEquals(given, sc.cap)) found = sc;
+  return found;
+}
+
+function notFound(res: ServerResponse): void {
+  res.writeHead(404, { ...COMMON_HEADERS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Length': '9' });
+  res.end('not found');
+}
+
+/** PlayerServer.register: the file's URL in the scope, or undefined (refused). */
+function registerFile(st: PlayerState, file: string, within: readonly string[], scope: string): string | undefined {
+  const sc = scopeNamed(st, scope);
+  if (!sc) return undefined;
+  const real = realpathOr(file, undefined);
+  if (!real) return undefined;
+  if (
+    !within.some((d) => {
+      const r = realpathOr(d, undefined);
+      return r !== undefined && pathInside(real, r, { self: false, dotDotPrefix: true });
+    })
+  )
+    return undefined;
+  try {
+    // The path given is no link (its folders may be: the real path is what is read, then never through a link).
+    if (lstatSync(file).isSymbolicLink()) return undefined;
+  } catch {
+    return undefined;
+  }
+  let fd: number | undefined;
+  let key: string;
+  let rec: FileRecord;
+  try {
+    fd = openSync(real, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    const info = fstatSync(fd);
+    // One name only: a hard link inside the folders may be a file that lies outside them too.
+    if (!info.isFile() || info.nlink > 1) return undefined;
+    key = `${info.dev}:${info.ino}:${info.size}:${info.mtimeMs}`;
+    rec = { real, name: servedName(real), ext: extname(real).toLowerCase(), dev: info.dev, ino: info.ino, size: info.size, mtimeMs: info.mtimeMs };
+  } catch {
+    return undefined;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+  let id = sc.idByKey.get(key);
+  if (id === undefined) {
+    if (sc.files.size >= PLAYER_FILES_MAX) return undefined;
+    id = newId();
+    sc.idByKey.set(key, id);
+    sc.files.set(id, rec);
+  }
+  return `${st.origin}/m/${sc.cap}/${id}/${sc.files.get(id)!.name}`;
+}
+
+/** A registered file's answer: 304, 416, the whole file or a range (HEAD: the headers only). */
+async function serveFile(st: PlayerState, req: IncomingMessage, res: ServerResponse, rec: FileRecord, id: string): Promise<void> {
+  const pm = await playerMaking();
+  const fd = openRecorded(rec);
+  if (fd === undefined) return notFound(res);
+  const etag = `"${id}"`;
+  const headers: Record<string, string> = { ...COMMON_HEADERS, ...MEDIA_HEADERS, 'Content-Type': pm.contentTypes[rec.ext] ?? 'application/octet-stream', 'Accept-Ranges': 'bytes', ETag: etag };
+  if (req.headers['if-none-match'] === etag) {
+    closeSync(fd);
+    res.writeHead(304, headers).end();
+    return;
+  }
+  const range = pm.parseRange(typeof req.headers.range === 'string' ? req.headers.range : undefined, rec.size);
+  if (range === 'invalid') {
+    closeSync(fd);
+    res.writeHead(416, { ...headers, 'Content-Range': `bytes */${rec.size}`, 'Content-Length': '0' }).end();
+    return;
+  }
+  const [start, end] = range ?? [0, rec.size - 1];
+  const length = rec.size === 0 ? 0 : end - start + 1;
+  res.writeHead(range ? 206 : 200, { ...headers, 'Content-Length': String(length), ...(range ? { 'Content-Range': `bytes ${start}-${end}/${rec.size}` } : {}) });
+  if (req.method === 'HEAD' || length === 0) {
+    closeSync(fd);
+    res.end();
+    return;
+  }
+  if (range) st.rangeRequests++;
+  const stream = createReadStream('', { fd, start, end, autoClose: true });
+  stream.on('error', () => res.destroy());
+  // Bytes read for the response (not "sent" — the read-ahead of a response the frame aborts counts too; counting
+  // completed writes instead gave 0 under WKWebView, whose media requests never saw a write complete).
+  stream.on('data', (c) => (st.mediaBytesRead += c.length));
+  res.on('close', () => stream.destroy());
+  stream.pipe(res);
+}
+
+/** `GET /s/<cap>/frame`: the frame document. */
+async function serveFrame(st: PlayerState, o: PlayerServerOptions, req: IncomingMessage, res: ServerResponse, cap: string): Promise<string> {
+  if (!scopeOfCap(st, cap)) return notFound(res), 'frame';
+  const b = await o.bundle();
+  const sc = scopeOfCap(st, cap);
+  if (!sc) return notFound(res), 'frame';
+  const html = Buffer.from(frameHtml(sc.cap, b.hash, o.studioPort), 'utf8');
+  res.writeHead(200, {
+    ...COMMON_HEADERS,
+    'Content-Security-Policy': frameCsp(st.origin, sc.cap, o.studioPort),
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'Content-Length': String(html.length),
+  });
+  res.end(req.method === 'HEAD' ? undefined : html);
+  return 'frame';
+}
+
+/** `GET /s/<cap>/(b|boot).<hash>.js`: a script of the current bundle. */
+async function serveScript(st: PlayerState, o: PlayerServerOptions, req: IncomingMessage, res: ServerResponse, m: RegExpExecArray): Promise<string> {
+  if (!scopeOfCap(st, m[1])) return notFound(res), 'script';
+  const b = await o.bundle();
+  if (b.hash !== m[3] || !scopeOfCap(st, m[1])) return notFound(res), 'script';
+  const body = m[2] === 'b' ? b.js : b.boot;
+  res.writeHead(200, { ...COMMON_HEADERS, 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'private, max-age=86400, immutable', 'Content-Length': String(body.length) });
+  res.end(req.method === 'HEAD' ? undefined : body);
+  return 'script';
+}
+
+/** `GET /m/<cap>/plan/<id>.json`: a plan kept in the scope. */
+function servePlanBody(st: PlayerState, req: IncomingMessage, res: ServerResponse, m: RegExpExecArray): string {
+  const body = scopeOfCap(st, m[1])?.plans.get(m[2]);
+  if (!body) return notFound(res), 'plan';
+  res.writeHead(200, { ...COMMON_HEADERS, ...MEDIA_HEADERS, 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': String(body.length) });
+  res.end(req.method === 'HEAD' ? undefined : body);
+  return 'plan';
+}
+
+/** One request: the gate, then the route of its path; answers the route family. */
+async function handleRequest(st: PlayerState, o: PlayerServerOptions, req: IncomingMessage, res: ServerResponse): Promise<string> {
+  st.requests++;
+  const g = checkRequest(req, { port: st.port, token: st.unusedToken, allowNullOrigin: true, route: (p) => (p.startsWith('/s/') || p.startsWith('/m/') ? ASSET_ROUTE : undefined) });
+  if (!g.ok) {
+    res.writeHead(g.status, { ...COMMON_HEADERS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'close', ...(g.allow ? { Allow: g.allow } : {}) });
+    res.end(g.message);
+    return 'gate';
+  }
+  const path = g.path;
+  let m = FRAME_PATH.exec(path);
+  if (m) return serveFrame(st, o, req, res, m[1]);
+  m = SCRIPT_PATH.exec(path);
+  if (m) return serveScript(st, o, req, res, m);
+  m = PLAN_PATH.exec(path);
+  if (m) return servePlanBody(st, req, res, m);
+  m = FILE_PATH.exec(path);
+  if (m) {
+    const rec = scopeOfCap(st, m[1])?.files.get(m[2]);
+    if (!rec || rec.name !== m[3]) return notFound(res), 'media';
+    await serveFile(st, req, res, rec, m[2]);
+    return 'media';
+  }
+  notFound(res);
+  return 'other';
+}
+
+/** Keep a plan body in the scope (as it is now: a release meanwhile drops it with the scope) and give its URLs. */
+async function servePlan(st: PlayerState, scope: string, body: Buffer): Promise<PublishedPreview> {
+  if (body.length > PLAYER_PLAN_MAX) throw (await playerMaking()).planError(`the preview plan is over ${PLAYER_PLAN_MAX} bytes`);
+  const id = createHash('sha256').update(body).digest('base64url').slice(0, 22);
+  const sc = scopeNamed(st, scope);
+  if (!sc) throw new Error('the preview server is closed');
+  sc.plans.delete(id);
+  sc.plans.set(id, body);
+  while (sc.plans.size > PLAYER_PLANS_KEEP) sc.plans.delete(sc.plans.keys().next().value!);
+  return { frame_url: `${st.origin}/s/${sc.cap}/frame`, plan_url: `${st.origin}/m/${sc.cap}/plan/${id}.json` };
+}
+
 export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerServer> {
   const log = o.log ?? (() => undefined);
-  const unusedToken = newSecret();
-  /** Scopes by name, least recently used first; null once closed. */
-  let scopes: Map<string, Scope> | null = new Map();
-  let port = 0;
-  let requests = 0;
-  let mediaBytesRead = 0;
-  let rangeRequests = 0;
-  let origin = '';
-
-  /** A scope, made on its first use (the least recently used one dropped beyond PLAYER_SCOPES_MAX). */
-  const scopeNamed = (name: string): Scope | undefined => {
-    if (scopes === null) return undefined;
-    let sc = scopes.get(name);
-    if (sc) {
-      scopes.delete(name);
-      scopes.set(name, sc);
-      return sc;
-    }
-    sc = newScope();
-    scopes.set(name, sc);
-    while (scopes.size > PLAYER_SCOPES_MAX) scopes.delete(scopes.keys().next().value!);
-    return sc;
-  };
-  /** The scope whose capability this is (compared in constant time with each), or undefined. */
-  const scopeOfCap = (given: string): Scope | undefined => {
-    let found: Scope | undefined;
-    for (const sc of scopes?.values() ?? []) if (secretEquals(given, sc.cap)) found = sc;
-    return found;
-  };
-  const notFound = (res: ServerResponse) => {
-    res.writeHead(404, { ...COMMON_HEADERS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Length': '9' });
-    res.end('not found');
-  };
-
-  const register = (file: string, within: readonly string[], scope = DEFAULT_SCOPE): string | undefined => {
-    const sc = scopeNamed(scope);
-    if (!sc) return undefined;
-    const real = realpathOr(file, undefined);
-    if (!real) return undefined;
-    if (
-      !within.some((d) => {
-        const r = realpathOr(d, undefined);
-        return r !== undefined && pathInside(real, r, { self: false, dotDotPrefix: true });
-      })
-    )
-      return undefined;
-    try {
-      // The path given is no link (its folders may be: the real path is what is read, then never through a link).
-      if (lstatSync(file).isSymbolicLink()) return undefined;
-    } catch {
-      return undefined;
-    }
-    let fd: number | undefined;
-    let key: string;
-    let rec: FileRecord;
-    try {
-      fd = openSync(real, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
-      const st = fstatSync(fd);
-      // One name only: a hard link inside the folders may be a file that lies outside them too.
-      if (!st.isFile() || st.nlink > 1) return undefined;
-      key = `${st.dev}:${st.ino}:${st.size}:${st.mtimeMs}`;
-      rec = { real, name: servedName(real), ext: extname(real).toLowerCase(), dev: st.dev, ino: st.ino, size: st.size, mtimeMs: st.mtimeMs };
-    } catch {
-      return undefined;
-    } finally {
-      if (fd !== undefined) closeSync(fd);
-    }
-    let id = sc.idByKey.get(key);
-    if (id === undefined) {
-      if (sc.files.size >= PLAYER_FILES_MAX) return undefined;
-      id = newId();
-      sc.idByKey.set(key, id);
-      sc.files.set(id, rec);
-    }
-    return `${origin}/m/${sc.cap}/${id}/${sc.files.get(id)!.name}`;
-  };
-
-  const serveFile = async (req: IncomingMessage, res: ServerResponse, rec: FileRecord, id: string) => {
-    const pm = await playerMaking();
-    const fd = openRecorded(rec);
-    if (fd === undefined) return notFound(res);
-    const etag = `"${id}"`;
-    const headers: Record<string, string> = { ...COMMON_HEADERS, ...MEDIA_HEADERS, 'Content-Type': pm.contentTypes[rec.ext] ?? 'application/octet-stream', 'Accept-Ranges': 'bytes', ETag: etag };
-    if (req.headers['if-none-match'] === etag) {
-      closeSync(fd);
-      res.writeHead(304, headers).end();
-      return;
-    }
-    const range = pm.parseRange(typeof req.headers.range === 'string' ? req.headers.range : undefined, rec.size);
-    if (range === 'invalid') {
-      closeSync(fd);
-      res.writeHead(416, { ...headers, 'Content-Range': `bytes */${rec.size}`, 'Content-Length': '0' }).end();
-      return;
-    }
-    const [start, end] = range ?? [0, rec.size - 1];
-    const length = rec.size === 0 ? 0 : end - start + 1;
-    res.writeHead(range ? 206 : 200, { ...headers, 'Content-Length': String(length), ...(range ? { 'Content-Range': `bytes ${start}-${end}/${rec.size}` } : {}) });
-    if (req.method === 'HEAD' || length === 0) {
-      closeSync(fd);
-      res.end();
-      return;
-    }
-    if (range) rangeRequests++;
-    const stream = createReadStream('', { fd, start, end, autoClose: true });
-    stream.on('error', () => res.destroy());
-    // Bytes read for the response (not "sent" — the read-ahead of a response the frame aborts counts too; counting
-    // completed writes instead gave 0 under WKWebView, whose media requests never saw a write complete).
-    stream.on('data', (c) => (mediaBytesRead += c.length));
-    res.on('close', () => stream.destroy());
-    stream.pipe(res);
-  };
-
-  const handle = async (req: IncomingMessage, res: ServerResponse): Promise<string> => {
-    requests++;
-    const g = checkRequest(req, { port, token: unusedToken, allowNullOrigin: true, route: (p) => (p.startsWith('/s/') || p.startsWith('/m/') ? ASSET_ROUTE : undefined) });
-    if (!g.ok) {
-      res.writeHead(g.status, { ...COMMON_HEADERS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'close', ...(g.allow ? { Allow: g.allow } : {}) });
-      res.end(g.message);
-      return 'gate';
-    }
-    const path = g.path;
-    let m = FRAME_PATH.exec(path);
-    if (m) {
-      if (!scopeOfCap(m[1])) return notFound(res), 'frame';
-      const b = await o.bundle();
-      const sc = scopeOfCap(m[1]);
-      if (!sc) return notFound(res), 'frame';
-      const html = Buffer.from(frameHtml(sc.cap, b.hash, o.studioPort), 'utf8');
-      res.writeHead(200, {
-        ...COMMON_HEADERS,
-        'Content-Security-Policy': frameCsp(origin, sc.cap, o.studioPort),
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-store',
-        'Content-Length': String(html.length),
-      });
-      res.end(req.method === 'HEAD' ? undefined : html);
-      return 'frame';
-    }
-    m = SCRIPT_PATH.exec(path);
-    if (m) {
-      if (!scopeOfCap(m[1])) return notFound(res), 'script';
-      const b = await o.bundle();
-      if (b.hash !== m[3] || !scopeOfCap(m[1])) return notFound(res), 'script';
-      const body = m[2] === 'b' ? b.js : b.boot;
-      res.writeHead(200, { ...COMMON_HEADERS, 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'private, max-age=86400, immutable', 'Content-Length': String(body.length) });
-      res.end(req.method === 'HEAD' ? undefined : body);
-      return 'script';
-    }
-    m = PLAN_PATH.exec(path);
-    if (m) {
-      const body = scopeOfCap(m[1])?.plans.get(m[2]);
-      if (!body) return notFound(res), 'plan';
-      res.writeHead(200, { ...COMMON_HEADERS, ...MEDIA_HEADERS, 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': String(body.length) });
-      res.end(req.method === 'HEAD' ? undefined : body);
-      return 'plan';
-    }
-    m = FILE_PATH.exec(path);
-    if (m) {
-      const rec = scopeOfCap(m[1])?.files.get(m[2]);
-      if (!rec || rec.name !== m[3]) return notFound(res), 'media';
-      await serveFile(req, res, rec, m[2]);
-      return 'media';
-    }
-    notFound(res);
-    return 'other';
-  };
-
-  /** Keep a plan body in the scope (as it is now: a release meanwhile drops it with the scope) and give its URLs. */
-  const servePlan = async (scope: string, body: Buffer): Promise<PublishedPreview> => {
-    if (body.length > PLAYER_PLAN_MAX) throw (await playerMaking()).planError(`the preview plan is over ${PLAYER_PLAN_MAX} bytes`);
-    const id = createHash('sha256').update(body).digest('base64url').slice(0, 22);
-    const sc = scopeNamed(scope);
-    if (!sc) throw new Error('the preview server is closed');
-    sc.plans.delete(id);
-    sc.plans.set(id, body);
-    while (sc.plans.size > PLAYER_PLANS_KEEP) sc.plans.delete(sc.plans.keys().next().value!);
-    return { frame_url: `${origin}/s/${sc.cap}/frame`, plan_url: `${origin}/m/${sc.cap}/plan/${id}.json` };
-  };
+  const st: PlayerState = { scopes: new Map(), unusedToken: newSecret(), port: 0, origin: '', requests: 0, mediaBytesRead: 0, rangeRequests: 0 };
+  const register = (file: string, within: readonly string[], scope = DEFAULT_SCOPE): string | undefined => registerFile(st, file, within, scope);
 
   const server: Server = createServer((req, res) => {
-    handle(req, res).catch((e: unknown) => {
+    handleRequest(st, o, req, res).catch((e: unknown) => {
       // The route family only: a path here holds the capability.
       const family = (req.url ?? '').startsWith('/s/') ? 'frame' : (req.url ?? '').startsWith('/m/') ? 'media' : 'other';
       log(`retake player: a ${family} request failed: ${e instanceof Error ? e.name : 'error'}`);
@@ -456,58 +478,60 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
       } else res.destroy();
     });
   });
-  port = await listenLoopback(server, o.port ?? 0);
-  origin = `http://127.0.0.1:${port}`;
+  st.port = await listenLoopback(server, o.port ?? 0);
+  st.origin = `http://127.0.0.1:${st.port}`;
+  const { origin, port } = st;
   let closed: Promise<void> | undefined;
 
   return {
     origin,
     port,
     frameUrl: (scope = DEFAULT_SCOPE) => {
-      const sc = scopeNamed(scope);
+      const sc = scopeNamed(st, scope);
       return sc ? `${origin}/s/${sc.cap}/frame` : `${origin}/s/revoked/frame`;
     },
     register,
     async publish(view, po = {}) {
       const scope = po.scope ?? DEFAULT_SCOPE;
-      if (!scopeNamed(scope)) throw new Error('the preview server is closed');
+      if (!scopeNamed(st, scope)) throw new Error('the preview server is closed');
       const pm = await playerMaking();
       const within = [view.folders.project, view.folders.run, view.folders.theme];
       const preview = pm.previewPlan(view.plan, {
         urlFor: (_asset, file) => register(resolve(file), within, scope),
         forbid: [...within, ...(po.forbid ?? [])],
       });
-      return servePlan(scope, Buffer.from(JSON.stringify(preview), 'utf8'));
+      return servePlan(st, scope, Buffer.from(JSON.stringify(preview), 'utf8'));
     },
     async publishPreview(spec, po) {
       const scope = po.scope ?? DEFAULT_SCOPE;
-      const sc = scopeNamed(scope);
+      const sc = scopeNamed(st, scope);
       if (!sc) throw new Error('the preview server is closed');
       await checkPreviewSpec(spec, `${origin}/m/${sc.cap}/`, po.forbid);
-      return servePlan(scope, Buffer.from(JSON.stringify({ format: COMPONENT_PREVIEW_FORMAT, spec }), 'utf8'));
+      return servePlan(st, scope, Buffer.from(JSON.stringify({ format: COMPONENT_PREVIEW_FORMAT, spec }), 'utf8'));
     },
     rotate() {
+      const scopes = st.scopes;
       if (scopes === null) return;
       for (const name of [...scopes.keys()]) scopes.set(name, newScope());
     },
     release(scope) {
-      scopes?.delete(scope);
+      st.scopes?.delete(scope);
     },
     get scopes() {
-      return scopes?.size ?? 0;
+      return st.scopes?.size ?? 0;
     },
     get requests() {
-      return requests;
+      return st.requests;
     },
     get mediaBytesRead() {
-      return mediaBytesRead;
+      return st.mediaBytesRead;
     },
     get rangeRequests() {
-      return rangeRequests;
+      return st.rangeRequests;
     },
     close: () =>
       (closed ??= new Promise<void>((done) => {
-        scopes = null;
+        st.scopes = null;
         server.close(() => done());
         server.closeAllConnections();
       })),

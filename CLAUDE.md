@@ -69,6 +69,7 @@ node scripts/test-guard.mjs [--base <ref>] [<path>]            # migrated tests:
 node scripts/coverage.mjs [files]                             # line coverage on demand, no dependency (--files <re>: least covered; --json <file>)
 RETAKE_WRITE_SNAPSHOTS=1 npx vitest run <golden test>          # every golden (JSON, text, PNG): records, then fails — review the diff and rerun without it
 node scripts/audit/rules.mjs . --check | --write-baseline   # the import-rules ratchet (packages/core/test/import-rules.test.ts; baseline scripts/audit/baseline.json, each group with a reason)
+node scripts/audit/size-limits.mjs --check | --write-baseline   # the size ratchet: file, function, parameters, nesting (baseline scripts/audit/size-baseline.json, strict)
 python3 scripts/validate-raw.py <exports/package>             # optional: check a raw package (opentimelineio)
 node packages/cli/dist/bin.js mcp --print-config               # MCP server registration for Claude Code / desktop (--http: over HTTP)
 node packages/cli/dist/bin.js ui                               # the Studio web app on 127.0.0.1 (one server per workspace)

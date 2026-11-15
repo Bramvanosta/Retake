@@ -135,8 +135,11 @@ async function prefetchSecrets(secrets: RunSecrets, sc: Scenario, until: { scene
   }
 }
 
-/** Run a scenario with `driverOf`'s driver (runScenario: the browser's). */
-export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) => CaptureDriver): Promise<RunRecord> {
+/** What the options settle before anything is recorded. */
+type RunSettings = Pick<CaptureRun, 'sc' | 'env' | 'access' | 'runClock' | 'pacing' | 'capture' | 'hooksMode' | 'until'>;
+
+/** The options checked and settled: a refused option fails here, before the run folder is made. */
+function settleRun(opts: RunOptions): RunSettings {
   const { project, scenario: loaded, mode } = opts;
   const sc = loaded.scenario;
   const env = resolveEnvironment(project, opts.env ?? sc.env);
@@ -157,25 +160,14 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
       throw new RunnerError(`--until "${opts.until}" matches no step (use <scene>.<step id|index>, a unique step id, or a scene id)`);
     }
   }
-  const runsDir = resolve(opts.runsDir);
-  // The run folder is the caller's, reserved before the run (the engine's at submit: core reserveRunId, so two runs of
-  // one scenario started in the same second never share one). Its id names a folder of runs/: one that is no run id is
-  // refused before any folder is made.
-  const runId = parseRunId(opts.runId);
-  if (runId === null) throw new RunnerError(`run id ${JSON.stringify(String(opts.runId).slice(0, 60))} is not a run id (a folder name of runs/: letters, digits, ".", "_" and "-", never a path)`);
-  const dir = join(runsDir, runId);
-  const screenshotsDir = join(dir, 'screenshots');
-  const framesDir = join(dir, 'frames');
-  await mkdir(screenshotsDir, { recursive: true });
-  await writeFile(join(dir, 'scenario.yaml'), loaded.text);
+  return { sc, env, access, runClock, pacing, capture, hooksMode, until };
+}
 
-  const listed = listSteps(sc);
-  // The steps this run executes (all, or up to --until).
-  const toRun = until ? listed.filter((s) => s.sceneIndex < until!.sceneIndex || (s.sceneIndex === until!.sceneIndex && s.step.index <= until!.stepIndex)) : listed;
-  const total = toRun.length;
-  // The sandbox of a sandbox environment, with the reset made before the take when there was one (--sandbox).
-  const sandbox: RunSandbox | undefined = env.sandbox ? (opts.sandbox?.name === env.name ? { ...opts.sandbox } : { name: env.name, provider: env.sandbox.provider }) : undefined;
-  // The run's record while it is in flight; its end makes another one (finishRun), which is what the last save writes.
+/** The run's record while it is in flight; its end makes another one (finishRun), which is what the last save writes. */
+function newRunRecord(opts: RunOptions, s: RunSettings, at: { runId: NonNullable<ReturnType<typeof parseRunId>>; dir: string; total: number; sandbox: RunSandbox | undefined }): RunningRun {
+  const { project, scenario: loaded, mode } = opts;
+  const { env, access, runClock, hooksMode } = s;
+  const { runId, dir, total, sandbox } = at;
   const record: RunningRun = startedRun({
     version: FORMAT_VERSIONS.run,
     id: runId,
@@ -202,6 +194,70 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
   if (opts.until !== undefined) record.options.until = opts.until;
   if (access.allow_writes) record.options.allow_writes = true;
   if (opts.hideCursor) record.options.cursor = 'hidden';
+  return record;
+}
+
+/** The run's own fields; the filming notices are added by captureRun. */
+type RunBase = Omit<CaptureRun, 'captureStarted' | 'failure' | 'endT' | 'startCapture' | 'stopFilming' | 'filmingPause'>;
+
+/** The run the driver sees, with its filming notices (onFilming: `start`, `stop`, pauses and resumes). */
+function captureRun(base: RunBase, onFilming: RunOptions['onFilming']): CaptureRun {
+  /** Captures first: onFilming said `start` and not yet `stop`. */
+  let filming = false;
+  const run: CaptureRun = {
+    ...base,
+    captureStarted: false,
+    failure: null,
+    endT: 0,
+    startCapture: () => {
+      base.clock.t0Wall = wallNow();
+      (run as { captureStarted: boolean }).captureStarted = true;
+      if (onFilming) {
+        filming = true;
+        tell(onFilming, 'start');
+      }
+    },
+    stopFilming: () => {
+      if (!filming) return undefined;
+      filming = false;
+      return tell(onFilming!, 'stop');
+    },
+    filmingPause: onFilming ? (on: boolean) => void tell(onFilming, on ? 'resume' : 'pause') : undefined,
+  };
+  return run;
+}
+
+/** An opened run: its folder, record and log made, the steps it executes, the shell hooks' process groups. */
+interface OpenedRun {
+  run: CaptureRun;
+  toRun: ReturnType<typeof listSteps>;
+  /** The process groups of the shell hooks running now (a second signal kills them). */
+  hookGroups: Set<number>;
+}
+
+/** The run folder, its record and log, the timeline builder and the template context. */
+async function openRun(opts: RunOptions, s: RunSettings): Promise<OpenedRun> {
+  const { project, scenario: loaded, mode } = opts;
+  const { sc, env, access, runClock, capture, until } = s;
+  const runsDir = resolve(opts.runsDir);
+  // The run folder is the caller's, reserved before the run (the engine's at submit: core reserveRunId, so two runs of
+  // one scenario started in the same second never share one). Its id names a folder of runs/: one that is no run id is
+  // refused before any folder is made.
+  const runId = parseRunId(opts.runId);
+  if (runId === null) throw new RunnerError(`run id ${JSON.stringify(String(opts.runId).slice(0, 60))} is not a run id (a folder name of runs/: letters, digits, ".", "_" and "-", never a path)`);
+  const dir = join(runsDir, runId);
+  const screenshotsDir = join(dir, 'screenshots');
+  const framesDir = join(dir, 'frames');
+  await mkdir(screenshotsDir, { recursive: true });
+  await writeFile(join(dir, 'scenario.yaml'), loaded.text);
+
+  const listed = listSteps(sc);
+  // The steps this run executes (all, or up to --until).
+  const toRun = until ? listed.filter((s) => s.sceneIndex < until.sceneIndex || (s.sceneIndex === until.sceneIndex && s.step.index <= until.stepIndex)) : listed;
+  const total = toRun.length;
+  // The sandbox of a sandbox environment, with the reset made before the take when there was one (--sandbox).
+  const sandbox: RunSandbox | undefined = env.sandbox ? (opts.sandbox?.name === env.name ? { ...opts.sandbox } : { name: env.name, provider: env.sandbox.provider }) : undefined;
+  const record = newRunRecord(opts, s, { runId, dir, total, sandbox });
   // Secret values ({{env:…}}, {{keychain:…}}) are masked wherever the run writes: run.json, log.jsonl, the progress
   // events, timeline.json, error snippets and the returned record (R-RUN-17).
   const secrets = new RunSecrets(opts.resolveSecret);
@@ -223,7 +279,6 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
 
   const abort = new AbortController();
   const signal = opts.signal ? AbortSignal.any([opts.signal, abort.signal]) : abort.signal;
-  /** The process groups of the shell hooks running now (a second signal kills them). */
   const hookGroups = new Set<number>();
   const clock = new CaptureClock();
   const video = timelineVideo(sc, project.config, opts.template?.name);
@@ -240,10 +295,7 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
   // The environment's mailbox (a sandbox's own, else the project's).
   const mailbox = mailboxFor(project, env.name);
   const readsMail = mailbox !== undefined && toRun.some((l) => l.step.action === 'wait_for_email');
-  /** Captures first: onFilming said `start` and not yet `stop`. */
-  let filming = false;
-  const onFilming = mode === 'capture' ? opts.onFilming : undefined;
-  const run: CaptureRun = {
+  const base: RunBase = {
     opts,
     project,
     loaded,
@@ -252,9 +304,9 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     env,
     access,
     runClock,
-    pacing,
+    pacing: s.pacing,
     capture,
-    hooksMode,
+    hooksMode: s.hooksMode,
     until,
     total,
     runId,
@@ -273,131 +325,116 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     template,
     mailbox,
     readsMail,
-    captureStarted: false,
-    failure: null,
-    endT: 0,
-    startCapture: () => {
-      clock.t0Wall = wallNow();
-      (run as { captureStarted: boolean }).captureStarted = true;
-      if (onFilming) {
-        filming = true;
-        tell(onFilming, 'start');
-      }
-    },
-    stopFilming: () => {
-      if (!filming) return undefined;
-      filming = false;
-      return tell(onFilming!, 'stop');
-    },
-    filmingPause: onFilming ? (on: boolean) => void tell(onFilming, on ? 'resume' : 'pause') : undefined,
   };
-  const driver = driverOf(run);
-  const removeSignals = installSignalHandlers(
-    (sig) => abort.abort(new CancelledError(`run cancelled (${sig})`)),
-    hookGroups,
-    () => driver.cleanupSync(),
-  );
-  let hooks: HooksState | null = null;
+  return { run: captureRun(base, mode === 'capture' ? opts.onFilming : undefined), toRun, hookGroups };
+}
 
-  try {
-    throwIfAborted(signal);
-    // Work submitted through MCP or from the Studio (core agent-trust): the scenario names no secret, its files
-    // stay in the project (code never from a file an agent can write) and the URLs it opens are on the environment's
-    // origins — refused before anything runs.
-    if (opts.hookTrust === 'mcp') {
-      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? AGENT_CONFINEMENT, env, files: nodeFileFacts });
-      if (problems.length) throw new RunnerError(`refused (work submitted ${confinementWords(opts.hookVia)}): ${problems.join('; ')}`);
-    }
-    // A read-only run refuses hooks that write before anything runs: no browser, no session copy, no hook.
-    if (access.mode === 'read-only' && hooksMode === 'run') {
-      const writing = writingHooks(
-        { setup: sc.setup, teardown: sc.teardown, step: stepHookList(sc, project) },
-        { projectDir: project.dir, files: nodeFileFacts, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}), ...(opts.hookVia ? { via: opts.hookVia } : {}) },
-      );
-      if (writing.length) throw new RunnerError(readOnlyRunRefusal(writing, access));
-    }
-    await driver.prepare();
-    // Every secret the run uses, before the product opens and the setup hooks run: a keychain prompt never stalls the
-    // capture, and a missing one fails the run up front.
-    await prefetchSecrets(secrets, sc, until, readsMail ? (mailbox ?? null) : null);
-    driver.identify();
-    // The steps this run executes (the Studio's step list), described as step_start will describe them — once
-    // every secret is known (the prefetched ones, the sandbox accounts' passwords), so a value written as is in a step
-    // is masked here too.
-    emit({
-      type: 'outline',
-      steps: toRun.map((l) => ({
-        scene: sceneId(l.scene, l.sceneIndex),
-        step: l.step.index,
-        action: l.step.action,
-        desc: describeStep(secrets.redactDeep(l.step)),
-        ...(l.scene.offscreen === true ? { offscreen: true as const } : {}),
-      })),
-    });
-    await driver.open();
-
-    // `hook:` steps run named hooks during the take, in the same context as the setup's (journal, saved results).
-    const hookSteps = hookStepNames(sc).length > 0;
-    if (hookSteps) record.hooks.steps = hooksMode === 'skip' ? 'skipped' : 'ok';
-    const hasHooks = (sc.setup?.length ?? 0) + (sc.teardown?.length ?? 0) > 0 || hookSteps;
-    if (hasHooks && hooksMode === 'skip') {
-      if (sc.setup?.length) record.hooks.setup = 'skipped';
-      if (sc.teardown?.length) record.hooks.teardown = 'skipped';
-      if (hookSteps)
-        driver.setHookSteps(async (name) => {
-          log('info', `hook step "${name}" not run: the run's hooks are skipped`);
-          return { hook: name, skipped: true };
-        });
-    } else if (hasHooks) {
-      const deps: SetupDeps = {
-        ...(opts.resolveSecret ? { resolveSecret: opts.resolveSecret } : {}),
-        policy: opts.policy,
-        project,
-        env,
-        access,
-        template,
-        runId,
-        dir,
-        emit,
-        log,
-        record,
-        ...driver.hooks(),
-        signal,
-        running: hookGroups,
-        ...(opts.hookTrust ? { trust: opts.hookTrust } : {}),
-        ...(opts.hookVia ? { via: opts.hookVia } : {}),
-        ...(opts.trustedHookFiles ? { trustedFiles: opts.trustedHookFiles } : {}),
-        ...(opts.hookTrust === 'mcp' && sc.vars && Object.keys(sc.vars).length ? { agentVars: Object.keys(sc.vars) } : {}),
-        ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
-        ...(opts.recordHookRun ? { recordHookRun: opts.recordHookRun } : {}),
-      };
-      hooks = await openHooks(hookRunner!, deps);
-      await setupHooks(hooks, sc.setup ?? [], deps);
-      if (hookSteps) driver.setHookSteps(stepHookRunner(hooks, sc, deps));
-    }
-    // The video's title, intro, outro and tutorial switches are templated once the setup hooks saved their results.
-    const meta = timeline.meta;
-    // All of it is text the video shows: `{{page}}` reads the page's display URL.
-    if (meta.video) meta.video = templated(() => templateVideo(meta.video!, { ...template, pages: displayPages(env) }), record);
-
-    await driver.film();
-  } catch (e) {
-    run.failure = await driver.failed(e);
-  } finally {
-    // Off camera from here: the driver stops filming (teardown, diagnosis and artefacts are not filmed).
-    await driver.stop();
-    if (hooks) {
-      try {
-        record.hooks.teardown = await teardownHooks(hooks, sc.teardown ?? [], emit, log);
-      } catch (e) {
-        record.hooks.teardown = 'failed';
-        log('error', `teardown failed: ${errorMessage(e)}`);
-      }
-    }
-    await driver.close();
-    removeSignals();
+/**
+ * Work submitted through MCP or from the Studio (core agent-trust): the scenario names no secret, its files stay in
+ * the project (code never from a file an agent can write) and the URLs it opens are on the environment's origins —
+ * refused before anything runs. A read-only run refuses hooks that write before anything runs: no browser, no session
+ * copy, no hook.
+ */
+function refuseBeforeStart(run: CaptureRun): void {
+  const { opts, project, sc, env, access, hooksMode } = run;
+  if (opts.hookTrust === 'mcp') {
+    const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? AGENT_CONFINEMENT, env, files: nodeFileFacts });
+    if (problems.length) throw new RunnerError(`refused (work submitted ${confinementWords(opts.hookVia)}): ${problems.join('; ')}`);
   }
+  if (access.mode === 'read-only' && hooksMode === 'run') {
+    const writing = writingHooks(
+      { setup: sc.setup, teardown: sc.teardown, step: stepHookList(sc, project) },
+      { projectDir: project.dir, files: nodeFileFacts, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}), ...(opts.hookVia ? { via: opts.hookVia } : {}) },
+    );
+    if (writing.length) throw new RunnerError(readOnlyRunRefusal(writing, access));
+  }
+}
 
+/**
+ * The steps this run executes (the Studio's step list), described as step_start will describe them — once every
+ * secret is known (the prefetched ones, the sandbox accounts' passwords), so a value written as is in a step is
+ * masked here too.
+ */
+function emitOutline(run: CaptureRun, toRun: OpenedRun['toRun']): void {
+  run.emit({
+    type: 'outline',
+    steps: toRun.map((l) => ({
+      scene: sceneId(l.scene, l.sceneIndex),
+      step: l.step.index,
+      action: l.step.action,
+      desc: describeStep(run.secrets.redactDeep(l.step)),
+      ...(l.scene.offscreen === true ? { offscreen: true as const } : {}),
+    })),
+  });
+}
+
+/**
+ * The run's hooks: skipped (said in the record, `hook:` steps answered as skipped), or opened and the setup run.
+ * `opened.state` is set as soon as the hooks are open, so the teardown runs even when the setup fails.
+ */
+async function startHooks(run: CaptureRun, driver: CaptureDriver, hookGroups: Set<number>, opened: { state: HooksState | null }): Promise<void> {
+  const { opts, project, sc, env, access, template, runId, dir, emit, log, record, signal, hooksMode } = run;
+  // `hook:` steps run named hooks during the take, in the same context as the setup's (journal, saved results).
+  const hookSteps = hookStepNames(sc).length > 0;
+  if (hookSteps) record.hooks.steps = hooksMode === 'skip' ? 'skipped' : 'ok';
+  const hasHooks = (sc.setup?.length ?? 0) + (sc.teardown?.length ?? 0) > 0 || hookSteps;
+  if (hasHooks && hooksMode === 'skip') {
+    if (sc.setup?.length) record.hooks.setup = 'skipped';
+    if (sc.teardown?.length) record.hooks.teardown = 'skipped';
+    if (hookSteps)
+      driver.setHookSteps(async (name) => {
+        log('info', `hook step "${name}" not run: the run's hooks are skipped`);
+        return { hook: name, skipped: true };
+      });
+  } else if (hasHooks) {
+    const deps: SetupDeps = {
+      ...(opts.resolveSecret ? { resolveSecret: opts.resolveSecret } : {}),
+      policy: opts.policy,
+      project,
+      env,
+      access,
+      template,
+      runId,
+      dir,
+      emit,
+      log,
+      record,
+      ...driver.hooks(),
+      signal,
+      running: hookGroups,
+      ...(opts.hookTrust ? { trust: opts.hookTrust } : {}),
+      ...(opts.hookVia ? { via: opts.hookVia } : {}),
+      ...(opts.trustedHookFiles ? { trustedFiles: opts.trustedHookFiles } : {}),
+      ...(opts.hookTrust === 'mcp' && sc.vars && Object.keys(sc.vars).length ? { agentVars: Object.keys(sc.vars) } : {}),
+      ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
+      ...(opts.recordHookRun ? { recordHookRun: opts.recordHookRun } : {}),
+    };
+    const hooks = await openHooks(opts.hookRunner!, deps);
+    opened.state = hooks;
+    await setupHooks(hooks, sc.setup ?? [], deps);
+    if (hookSteps) driver.setHookSteps(stepHookRunner(hooks, sc, deps));
+  }
+}
+
+/** How the run ended: succeeded, or failed / cancelled with the error (a failed step's place and evidence). */
+function runEnd(failure: unknown, warnings: string[]): RunEnd {
+  const at = new Date().toISOString();
+  if (failure === null) return { status: 'succeeded', at, warnings };
+  const err: RunError = { message: errorMessage(failure) };
+  if (failure instanceof StepFailure) {
+    err.scene = failure.scene;
+    err.step = failure.step;
+    err.action = failure.action;
+    if (failure.screenshot) err.screenshot = failure.screenshot;
+    if (failure.dom) err.dom = failure.dom;
+    if (failure.missing) err.missing_targets = failure.missing;
+  }
+  return { status: isCancelled(failure) ? 'cancelled' : 'failed', at, warnings, error: err };
+}
+
+/** The take finished: the timeline written (unless discarded), the record ended and saved, the log closed. */
+async function endRun(run: CaptureRun, driver: CaptureDriver): Promise<RunRecord> {
+  const { dir, timeline, secrets, record, files, emit } = run;
   const take = await driver.finish();
   const tl = timeline.build({ ...take.capture, duration: run.endT });
   const timelineFile = join(dir, 'timeline.json');
@@ -409,29 +446,58 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
       run.failure ??= e;
     }
   }
-
-  const failure = run.failure;
-  const warnings = [...timeline.warnings];
-  const at = new Date().toISOString();
-  let end: RunEnd;
-  if (failure === null) {
-    end = { status: 'succeeded', at, warnings };
-  } else {
-    const err: RunError = { message: errorMessage(failure) };
-    if (failure instanceof StepFailure) {
-      err.scene = failure.scene;
-      err.step = failure.step;
-      err.action = failure.action;
-      if (failure.screenshot) err.screenshot = failure.screenshot;
-      if (failure.dom) err.dom = failure.dom;
-      if (failure.missing) err.missing_targets = failure.missing;
-    }
-    end = { status: isCancelled(failure) ? 'cancelled' : 'failed', at, warnings, error: err };
-  }
   // The only change of status: the record of the run that ended (the step it was at is dropped).
-  const done = finishRun(record, end);
+  const done = finishRun(record, runEnd(run.failure, [...timeline.warnings]));
   files.finish(done);
   emit({ type: 'run_end', run: { ...done } });
   await files.close().catch(() => undefined);
   return secrets.redactRecord(done);
+}
+
+/** Run a scenario with `driverOf`'s driver (runScenario: the browser's). */
+export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) => CaptureDriver): Promise<RunRecord> {
+  const { run, toRun, hookGroups } = await openRun(opts, settleRun(opts));
+  const { sc, signal, secrets, until, readsMail, mailbox, record, timeline, template, env, log, emit } = run;
+  const driver = driverOf(run);
+  const removeSignals = installSignalHandlers(
+    (sig) => run.abort.abort(new CancelledError(`run cancelled (${sig})`)),
+    hookGroups,
+    () => driver.cleanupSync(),
+  );
+  const hooks: { state: HooksState | null } = { state: null };
+
+  try {
+    throwIfAborted(signal);
+    refuseBeforeStart(run);
+    await driver.prepare();
+    // Every secret the run uses, before the product opens and the setup hooks run: a keychain prompt never stalls the
+    // capture, and a missing one fails the run up front.
+    await prefetchSecrets(secrets, sc, until, readsMail ? (mailbox ?? null) : null);
+    driver.identify();
+    emitOutline(run, toRun);
+    await driver.open();
+    await startHooks(run, driver, hookGroups, hooks);
+    // The video's title, intro, outro and tutorial switches are templated once the setup hooks saved their results.
+    const meta = timeline.meta;
+    // All of it is text the video shows: `{{page}}` reads the page's display URL.
+    if (meta.video) meta.video = templated(() => templateVideo(meta.video!, { ...template, pages: displayPages(env) }), record);
+
+    await driver.film();
+  } catch (e) {
+    run.failure = await driver.failed(e);
+  } finally {
+    // Off camera from here: the driver stops filming (teardown, diagnosis and artefacts are not filmed).
+    await driver.stop();
+    if (hooks.state) {
+      try {
+        record.hooks.teardown = await teardownHooks(hooks.state, sc.teardown ?? [], emit, log);
+      } catch (e) {
+        record.hooks.teardown = 'failed';
+        log('error', `teardown failed: ${errorMessage(e)}`);
+      }
+    }
+    await driver.close();
+    removeSignals();
+  }
+  return endRun(run, driver);
 }

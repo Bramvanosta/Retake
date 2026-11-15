@@ -245,7 +245,7 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
     const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'exporting', noWait: opts.wait === false });
     try {
       // --json: stdout stays JSON lines — the package is one `raw_export` event after run_end.
-      await rawExportOfRun(ui, global.ports, ws, project, record.dir, { ...rawFlags, cursor: rawCursor }, { json, jsonLines: json });
+      await rawExportOfRun(ui, { ports: global.ports, ws, project, runDir: record.dir, flags: { ...rawFlags, cursor: rawCursor }, json, jsonLines: json });
     } catch (e) {
       return fail(`raw export: ${errorMessage(e)}`);
     } finally {

@@ -64,7 +64,9 @@ export interface NotificationLayout {
   unit: number;
 }
 
-function text(t: string | undefined, width: number, size: number, weight: number, maxLines: number, family: string, unit: number): NotificationText | undefined {
+/** One text block fitted to `width`: at most `size` × `unit` px (down to 86 %), at most `maxLines` lines. */
+function text(t: string | undefined, o: { width: number; size: number; weight: number; maxLines: number; family: string; unit: number }): NotificationText | undefined {
+  const { width, size, weight, maxLines, family, unit } = o;
   if (!t?.trim()) return undefined;
   const lineHeight = 1.3;
   const r = fitText({ text: t.trim(), width, maxFontSize: size * unit, minFontSize: size * unit * 0.86, maxLines, lineHeight, fontFamily: family, fontWeight: weight });
@@ -85,9 +87,9 @@ export function layoutNotification(style: NotificationStyle, c: NotificationCont
     const icon = 48 * u;
     const textX = pad + icon + 14 * u;
     const textW = w - textX - pad;
-    const t = text(title, textW, 15, 600, 2, font, u);
-    const st = text(c.subtitle, textW, 14, 600, 1, font, u);
-    const b = text(c.body, textW, 14, 400, 3, font, u);
+    const t = text(title, { width: textW, size: 15, weight: 600, maxLines: 2, family: font, unit: u });
+    const st = text(c.subtitle, { width: textW, size: 14, weight: 600, maxLines: 1, family: font, unit: u });
+    const b = text(c.body, { width: textW, size: 14, weight: 400, maxLines: 3, family: font, unit: u });
     const content = Math.max(icon, textH(t) + textH(st) + textH(b) + 2 * u);
     return { style, w, h: header + content + pad + 4 * u, pad, icon, radius: 8 * u, header, title: t, subtitle: st, body: b, textX, textW, unit: u };
   }
@@ -97,9 +99,9 @@ export function layoutNotification(style: NotificationStyle, c: NotificationCont
     const icon = 44 * u;
     const textX = pad;
     const textW = w - 2 * pad - (c.icon ? icon + 12 * u : 0);
-    const t = text(title, textW, 17, 600, 1, font, u);
-    const st = text(c.subtitle, textW, 15, 600, 1, font, u);
-    const b = text(c.body, textW, 15, 400, 2, font, u);
+    const t = text(title, { width: textW, size: 17, weight: 600, maxLines: 1, family: font, unit: u });
+    const st = text(c.subtitle, { width: textW, size: 15, weight: 600, maxLines: 1, family: font, unit: u });
+    const b = text(c.body, { width: textW, size: 15, weight: 400, maxLines: 2, family: font, unit: u });
     return { style, w, h: pad + header + 6 * u + textH(t) + textH(st) + textH(b) + pad, pad, icon, radius: 24 * u, header, title: t, subtitle: st, body: b, textX, textW, unit: u };
   }
   if (style === 'in-app') {
@@ -107,9 +109,9 @@ export function layoutNotification(style: NotificationStyle, c: NotificationCont
     const icon = c.icon || c.glyph ? 36 * u : 0;
     const textX = 6 * u + pad + (icon ? icon + 14 * u : 0);
     const textW = w - textX - pad;
-    const t = text(title, textW, 17, 600, 2, font, u);
-    const st = text(c.subtitle, textW, 15, 600, 1, font, u);
-    const b = text(c.body, textW, 15, 400, 3, font, u);
+    const t = text(title, { width: textW, size: 17, weight: 600, maxLines: 2, family: font, unit: u });
+    const st = text(c.subtitle, { width: textW, size: 15, weight: 600, maxLines: 1, family: font, unit: u });
+    const b = text(c.body, { width: textW, size: 15, weight: 400, maxLines: 3, family: font, unit: u });
     const content = Math.max(icon, textH(t) + textH(st) + textH(b) + 2 * u);
     return { style, w, h: content + 2 * pad, pad, icon, radius: 12 * u, title: t, subtitle: st, body: b, textX, textW, unit: u };
   }
@@ -120,9 +122,9 @@ export function layoutNotification(style: NotificationStyle, c: NotificationCont
   const textX = pad + icon + 13 * u;
   const timeW = 46 * u;
   const textW = w - textX - pad;
-  const t = text(title, textW - timeW, 17, 600, 1, font, u);
-  const st = text(c.subtitle, textW, 16, 600, 1, font, u);
-  const b = text(c.body, textW, 16, 400, 2, font, u);
+  const t = text(title, { width: textW - timeW, size: 17, weight: 600, maxLines: 1, family: font, unit: u });
+  const st = text(c.subtitle, { width: textW, size: 16, weight: 600, maxLines: 1, family: font, unit: u });
+  const b = text(c.body, { width: textW, size: 16, weight: 400, maxLines: 2, family: font, unit: u });
   const content = Math.max(icon, textH(t) + textH(st) + textH(b));
   return { style, w, h: content + 2 * pad, pad, icon, radius: (ios ? 24 : 18) * u, title: t, subtitle: st, body: b, textX, textW, unit: u };
 }

@@ -161,7 +161,7 @@ export async function applyProposal(
     } catch (e) {
       problems.push(`the apply was written to ${edited.file} but not recorded in the thread (${errorMessage(e).split('\n')[0]}): the thread reads the proposal as applied from the file`);
     }
-    const thread = written?.thread ?? (await threadView(scope.stores, project.dir, r.thread, r.hash, await renderIndex(o.renders, project.dir)));
+    const thread = written?.thread ?? (await threadView(scope.stores, project.dir, { thread: r.thread, hash: r.hash, renders: await renderIndex(o.renders, project.dir) }));
     return {
       thread,
       hash: written?.hash ?? r.hash,

@@ -23,6 +23,7 @@
  * under the name it was started with — a channel, not a proof of a person.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ScenarioRenderView } from '@retake/engine';
 import type { ThreadAnswer } from '../../server/comment-ops.js';
 import { Txt, When } from '../bits.js';
 import { CHANNEL_NOTE, renderWords } from '../words/comment-words.js';
@@ -32,6 +33,7 @@ import { commentsEventAction, useEvents } from '../events.js';
 import { FrameViewer } from './FrameViewer.js';
 import type { Shown } from './FrameViewer.js';
 import { useRenders, useReportEntry } from './Renders.js';
+import type { RendersState } from './Renders.js';
 import { ReviewChrome, useReviewRender } from './ReviewScreen.js';
 import { hrefTo } from '../route.js';
 import { usePaletteGroup } from '../shell/command-bus.js';
@@ -51,27 +53,26 @@ function useThrottledTick(ms: number): [number, () => void] {
 
 const renderKey = (r: { render_id: string; created_at: string }) => `${r.render_id}\0${r.created_at}`;
 
-export function CommentsScreen({ slug, name, thread, at }: { slug: string; name: string; thread?: string; at?: { render: string; frame: number } }) {
-  const renders = useRenders(slug, name);
-  useReportEntry(slug, name, renders);
-  const rr = useReviewRender(slug, name, renders);
-  const succeeded = useMemo(() => (renders.loaded.state === 'ready' ? renders.loaded.data.renders.filter((r) => r.status === 'succeeded') : []), [renders.loaded]);
-  const [filter, setFilter] = useState<Filter>('open');
-  const [onlyRender, setOnlyRender] = useState(false);
-  const [shown, setShown] = useState<Shown | null>(null);
-  const [frame, setFrame] = useState(0);
-  const [region, setRegion] = useState<Region | null>(null);
-  const [opened, setOpened] = useState<ThreadAnswer | null>(null);
-  const [posted, setPosted] = useState<{ id: string; warnings: string[] } | null>(null);
-  const [tick, bump] = useThrottledTick(1000);
-  // The render whose frame is laid out (its outline read: the frame's box has its size) — the composer's focus waits for it.
-  const [laidOut, setLaidOut] = useState<string | null>(null);
-  useEvents((e) => {
-    const a = commentsEventAction(e, slug, name);
-    if (a.threads || a.scenario) bump();
-  });
-
-  // Where the viewer starts, once per address: a thread's render and frame, a render's frame, else the newest render.
+/** Where the viewer starts, once per address (a thread's render and frame, a render's frame, else the newest render); what is missing said. */
+function useViewerPlace({
+  thread,
+  at,
+  opened,
+  renders,
+  succeeded,
+  shown,
+  setShown,
+  setFrame,
+}: {
+  thread: string | undefined;
+  at: { render: string; frame: number } | undefined;
+  opened: ThreadAnswer | null;
+  renders: RendersState;
+  succeeded: ScenarioRenderView[];
+  shown: Shown | null;
+  setShown: (s: Shown | null) => void;
+  setFrame: (f: number) => void;
+}) {
   const target = thread !== undefined ? `t\0${thread}` : at ? `a\0${at.render}\0${at.frame}` : 'list';
   const placed = useRef<string | null>(null);
   const [missing, setMissing] = useState<string | null>(null);
@@ -102,31 +103,18 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
     }
     setMissing(null);
     if (!shown && succeeded[0]) setShown({ render_id: succeeded[0].render_id, created_at: succeeded[0].created_at });
-  }, [target, thread, at, opened, renders.loaded.state, succeeded, shown]);
+  }, [target, thread, at, opened, renders.loaded.state, succeeded, shown, setShown, setFrame]);
   // The render shown was removed (renders/ cleaned): back to the newest.
   useEffect(() => {
     if (shown && renders.loaded.state === 'ready' && !succeeded.some((r) => r.render_id === shown.render_id && r.created_at === shown.created_at)) {
       setShown(succeeded[0] ? { render_id: succeeded[0].render_id, created_at: succeeded[0].created_at } : null);
     }
-  }, [shown, succeeded, renders.loaded.state]);
-  useEffect(() => {
-    if (thread === undefined) setOpened(null);
-  }, [thread]);
-  // "Comment posted" belongs to the thread just posted: gone once the page shows another place.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: another render or frame is the trigger to drop the posted note
-  useEffect(() => {
-    setPosted((p) => (p && p.id === thread ? p : null));
-  }, [thread, at?.render, at?.frame]);
-  // A new place for the viewer: no region carried over.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: another render shown is the trigger to drop the region
-  useEffect(() => setRegion(null), [shown?.render_id, shown?.created_at]);
+  }, [shown, succeeded, renders.loaded.state, setShown]);
+  return missing;
+}
 
-  const composing = thread === undefined;
-  const threadRegion = opened && shown && opened.render_id === shown.render_id && opened.render_created_at === shown.created_at && opened.frame === frame ? (opened.region ?? null) : null;
-  const shownRender = shown ? succeeded.find((r) => r.render_id === shown.render_id && r.created_at === shown.created_at) : undefined;
-
-  // ⌘K: "Comment at this frame" — the composer's text (no thread open), else a new thread at the frame shown: a place or
-  // a focus, never a write.
+/** ⌘K: "Comment at this frame" — the composer's text (no thread open), else a new thread at the frame shown: a place or a focus, never a write. */
+function useCommentAtFrame(slug: string, name: string, shown: Shown | null, frame: number, composing: boolean) {
   usePaletteGroup(
     'review',
     shown
@@ -146,6 +134,232 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
         ]
       : null,
   );
+}
+
+type Posted = { id: string; warnings: string[] };
+
+/** What belongs to one place is dropped when the page moves: the thread read, the posted note, the region drawn. */
+function useDropOnMove({
+  thread,
+  at,
+  shown,
+  setOpened,
+  setPosted,
+  setRegion,
+}: {
+  thread: string | undefined;
+  at: { render: string; frame: number } | undefined;
+  shown: Shown | null;
+  setOpened: (t: ThreadAnswer | null) => void;
+  setPosted: (f: (p: Posted | null) => Posted | null) => void;
+  setRegion: (r: Region | null) => void;
+}) {
+  useEffect(() => {
+    if (thread === undefined) setOpened(null);
+  }, [thread, setOpened]);
+  // "Comment posted" belongs to the thread just posted: gone once the page shows another place.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another render or frame is the trigger to drop the posted note
+  useEffect(() => {
+    setPosted((p) => (p && p.id === thread ? p : null));
+  }, [thread, at?.render, at?.frame]);
+  // A new place for the viewer: no region carried over.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another render shown is the trigger to drop the region
+  useEffect(() => setRegion(null), [shown?.render_id, shown?.created_at]);
+}
+
+/** The render asked for is not shown, and why. */
+function MissingNote({ missing }: { missing: string }) {
+  return (
+    <Callout state="idle" role="note" title="Note: render not shown">
+      <p data-testid="viewer-missing">
+        <Txt text={`${missing}.`} />
+      </p>
+    </Callout>
+  );
+}
+
+/** "Comment posted", with the post's warnings. */
+function PostedNote({ posted }: { posted: Posted }) {
+  return (
+    <Callout state={posted.warnings.length ? 'warn' : 'ok'} role="status" title={posted.warnings.length ? 'Comment posted, with a warning' : 'Comment posted'}>
+      {posted.warnings.map((w, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: one post's warnings, fixed once said, text only: the index is the identity
+        <p key={i} className="cm-pre" data-testid="posted-warning">
+          <Txt text={w} />
+        </p>
+      ))}
+    </Callout>
+  );
+}
+
+/** The viewer's heading: the frame and the render shown, and the render picker. */
+function ViewerHead({
+  shown,
+  frame,
+  shownRender,
+  succeeded,
+  setShown,
+}: {
+  shown: Shown | null;
+  frame: number;
+  shownRender: ScenarioRenderView | undefined;
+  succeeded: ScenarioRenderView[];
+  setShown: (s: Shown) => void;
+}) {
+  return (
+    <header className="cm-head">
+      <p className="cm-head-line">
+        {shown ? (
+          <>
+            <span className="cm-head-frame">
+              {'Frame '}
+              <Txt className="k-mono" text={frame.toLocaleString('en')} />
+            </span>
+            <Txt text={` · ${renderWords(shown.render_id)}`} />
+            {shownRender && (
+              <>
+                {' · rendered '}
+                <When iso={shownRender.created_at} />
+                <Txt text={` · theme ${shownRender.theme}`} />
+              </>
+            )}
+          </>
+        ) : (
+          'Frames'
+        )}
+      </p>
+      {succeeded.length > 0 && (
+        <Select
+          layout="inline"
+          label="Render"
+          testId="render-picker"
+          value={shown ? renderKey(shown) : ''}
+          options={[
+            ...(shown && !succeeded.some((r) => renderKey(r) === renderKey(shown)) ? [{ value: renderKey(shown), label: renderWords(shown.render_id) }] : []),
+            ...succeeded.map((r) => ({
+              value: renderKey(r),
+              label: `${renderWords(r.render_id)} · ${r.width}×${r.height} · ${new Date(r.created_at).toLocaleString('en', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`,
+            })),
+          ]}
+          onChange={(v) => {
+            const r = succeeded.find((x) => renderKey(x) === v);
+            if (r) setShown({ render_id: r.render_id, created_at: r.created_at });
+          }}
+        />
+      )}
+    </header>
+  );
+}
+
+/** The render list's state: loading, unreadable, or no finished render yet. */
+function RendersNotice({ slug, name, loaded, none }: { slug: string; name: string; loaded: RendersState['loaded']; none: boolean }) {
+  return (
+    <>
+      {loaded.state === 'loading' && (
+        <p className="cm-quiet" role="status">
+          Loading the renders…
+        </p>
+      )}
+      {loaded.state === 'error' && (
+        <Callout state="fail" role="alert" title="The renders cannot be read">
+          <p className="cm-pre">
+            <Txt text={loaded.error} />
+          </p>
+        </Callout>
+      )}
+      {loaded.state === 'ready' && none && (
+        <EmptyState
+          title="No finished render yet"
+          actions={
+            <LinkButton size="sm" to={{ name: 'timeline', slug, scenario: name }}>
+              Open in Edit
+            </LinkButton>
+          }
+        >
+          <p data-testid="no-render">No finished render of this scenario yet: render it from Edit (or the status bar's Render), then comment its frames here.</p>
+        </EmptyState>
+      )}
+    </>
+  );
+}
+
+/** With a thread open: "Comment this frame" opens a new one at the frame shown. */
+function CommentThisFrame({ slug, name, shown, frame }: { slug: string; name: string; shown: Shown; frame: number }) {
+  return (
+    <p className="cm-line">
+      <LinkButton size="sm" icon="plus" to={{ name: 'comments', slug, scenario: name, at: { render: shown.render_id, frame } }} testId="comment-this-frame">
+        Comment this frame
+      </LinkButton>
+      <Txt className="cm-quiet-inline" text={` a new thread at ${renderWords(shown.render_id)}, frame ${frame.toLocaleString('en')}`} />
+    </p>
+  );
+}
+
+/** The inspector: the open thread, or how comments work. */
+function CommentsInspector({
+  slug,
+  name,
+  thread,
+  tick,
+  onThread,
+  succeeded,
+  renders,
+}: {
+  slug: string;
+  name: string;
+  thread: string | undefined;
+  tick: number;
+  onThread: (t: ThreadAnswer | null) => void;
+  succeeded: ScenarioRenderView[];
+  renders: RendersState;
+}) {
+  return thread !== undefined ? (
+    <div className="cm-inspector">
+      <ThreadPanel key={thread} slug={slug} name={name} id={thread} tick={tick} onThread={onThread} renders={succeeded} rs={renders} />
+    </div>
+  ) : (
+    <InspectorSection title="How it works">
+      <ol className="cm-help">
+        <li>Pick a render and a frame (the slider, the arrow keys, or a time).</li>
+        <li>Optionally drag a region on the frame, or type it in the four fields.</li>
+        <li>Write what should change and post: the thread keeps the exact frame, its still and where it points.</li>
+      </ol>
+      <p className="cm-quiet">
+        <Txt text={CHANNEL_NOTE} />
+      </p>
+      <p className="cm-quiet">The Studio calls no model itself: Claude reads open comments and proposes changes through MCP when you ask it to.</p>
+    </InspectorSection>
+  );
+}
+
+export function CommentsScreen({ slug, name, thread, at }: { slug: string; name: string; thread?: string; at?: { render: string; frame: number } }) {
+  const renders = useRenders(slug, name);
+  useReportEntry(slug, name, renders);
+  const rr = useReviewRender(slug, name, renders);
+  const succeeded = useMemo(() => (renders.loaded.state === 'ready' ? renders.loaded.data.renders.filter((r) => r.status === 'succeeded') : []), [renders.loaded]);
+  const [filter, setFilter] = useState<Filter>('open');
+  const [onlyRender, setOnlyRender] = useState(false);
+  const [shown, setShown] = useState<Shown | null>(null);
+  const [frame, setFrame] = useState(0);
+  const [region, setRegion] = useState<Region | null>(null);
+  const [opened, setOpened] = useState<ThreadAnswer | null>(null);
+  const [posted, setPosted] = useState<Posted | null>(null);
+  const [tick, bump] = useThrottledTick(1000);
+  // The render whose frame is laid out (its outline read: the frame's box has its size) — the composer's focus waits for it.
+  const [laidOut, setLaidOut] = useState<string | null>(null);
+  useEvents((e) => {
+    const a = commentsEventAction(e, slug, name);
+    if (a.threads || a.scenario) bump();
+  });
+
+  const missing = useViewerPlace({ thread, at, opened, renders, succeeded, shown, setShown, setFrame });
+  useDropOnMove({ thread, at, shown, setOpened, setPosted, setRegion });
+
+  const composing = thread === undefined;
+  const threadRegion = opened && shown && opened.render_id === shown.render_id && opened.render_created_at === shown.created_at && opened.frame === frame ? (opened.region ?? null) : null;
+  const shownRender = shown ? succeeded.find((r) => r.render_id === shown.render_id && r.created_at === shown.created_at) : undefined;
+
+  useCommentAtFrame(slug, name, shown, frame, composing);
 
   return (
     <div className="cm-screen" data-testid="comments-screen">
@@ -167,88 +381,10 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
         <Txt text={name} />
         {' — Comments'}
       </h1>
-      {posted && (
-        <Callout state={posted.warnings.length ? 'warn' : 'ok'} role="status" title={posted.warnings.length ? 'Comment posted, with a warning' : 'Comment posted'}>
-          {posted.warnings.map((w, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: one post's warnings, fixed once said, text only: the index is the identity
-            <p key={i} className="cm-pre" data-testid="posted-warning">
-              <Txt text={w} />
-            </p>
-          ))}
-        </Callout>
-      )}
-      <header className="cm-head">
-        <p className="cm-head-line">
-          {shown ? (
-            <>
-              <span className="cm-head-frame">
-                {'Frame '}
-                <Txt className="k-mono" text={frame.toLocaleString('en')} />
-              </span>
-              <Txt text={` · ${renderWords(shown.render_id)}`} />
-              {shownRender && (
-                <>
-                  {' · rendered '}
-                  <When iso={shownRender.created_at} />
-                  <Txt text={` · theme ${shownRender.theme}`} />
-                </>
-              )}
-            </>
-          ) : (
-            'Frames'
-          )}
-        </p>
-        {succeeded.length > 0 && (
-          <Select
-            layout="inline"
-            label="Render"
-            testId="render-picker"
-            value={shown ? renderKey(shown) : ''}
-            options={[
-              ...(shown && !succeeded.some((r) => renderKey(r) === renderKey(shown)) ? [{ value: renderKey(shown), label: renderWords(shown.render_id) }] : []),
-              ...succeeded.map((r) => ({
-                value: renderKey(r),
-                label: `${renderWords(r.render_id)} · ${r.width}×${r.height} · ${new Date(r.created_at).toLocaleString('en', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`,
-              })),
-            ]}
-            onChange={(v) => {
-              const r = succeeded.find((x) => renderKey(x) === v);
-              if (r) setShown({ render_id: r.render_id, created_at: r.created_at });
-            }}
-          />
-        )}
-      </header>
-      {missing && (
-        <Callout state="idle" role="note" title="Note: render not shown">
-          <p data-testid="viewer-missing">
-            <Txt text={`${missing}.`} />
-          </p>
-        </Callout>
-      )}
-      {renders.loaded.state === 'loading' && (
-        <p className="cm-quiet" role="status">
-          Loading the renders…
-        </p>
-      )}
-      {renders.loaded.state === 'error' && (
-        <Callout state="fail" role="alert" title="The renders cannot be read">
-          <p className="cm-pre">
-            <Txt text={renders.loaded.error} />
-          </p>
-        </Callout>
-      )}
-      {renders.loaded.state === 'ready' && succeeded.length === 0 && (
-        <EmptyState
-          title="No finished render yet"
-          actions={
-            <LinkButton size="sm" to={{ name: 'timeline', slug, scenario: name }}>
-              Open in Edit
-            </LinkButton>
-          }
-        >
-          <p data-testid="no-render">No finished render of this scenario yet: render it from Edit (or the status bar's Render), then comment its frames here.</p>
-        </EmptyState>
-      )}
+      {posted && <PostedNote posted={posted} />}
+      <ViewerHead shown={shown} frame={frame} shownRender={shownRender} succeeded={succeeded} setShown={setShown} />
+      {missing && <MissingNote missing={missing} />}
+      <RendersNotice slug={slug} name={name} loaded={renders.loaded} none={succeeded.length === 0} />
       {shown && (
         <FrameViewer
           key={renderKey(shown)}
@@ -283,32 +419,9 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
           onReplaced={renders.reload}
         />
       )}
-      {shown && !composing && (
-        <p className="cm-line">
-          <LinkButton size="sm" icon="plus" to={{ name: 'comments', slug, scenario: name, at: { render: shown.render_id, frame } }} testId="comment-this-frame">
-            Comment this frame
-          </LinkButton>
-          <Txt className="cm-quiet-inline" text={` a new thread at ${renderWords(shown.render_id)}, frame ${frame.toLocaleString('en')}`} />
-        </p>
-      )}
+      {shown && !composing && <CommentThisFrame slug={slug} name={name} shown={shown} frame={frame} />}
       <ShellSlot name="inspector" inline={thread !== undefined ? 'Thread' : 'About comments'}>
-        {thread !== undefined ? (
-          <div className="cm-inspector">
-            <ThreadPanel key={thread} slug={slug} name={name} id={thread} tick={tick} onThread={setOpened} renders={succeeded} rs={renders} />
-          </div>
-        ) : (
-          <InspectorSection title="How it works">
-            <ol className="cm-help">
-              <li>Pick a render and a frame (the slider, the arrow keys, or a time).</li>
-              <li>Optionally drag a region on the frame, or type it in the four fields.</li>
-              <li>Write what should change and post: the thread keeps the exact frame, its still and where it points.</li>
-            </ol>
-            <p className="cm-quiet">
-              <Txt text={CHANNEL_NOTE} />
-            </p>
-            <p className="cm-quiet">The Studio calls no model itself: Claude reads open comments and proposes changes through MCP when you ask it to.</p>
-          </InspectorSection>
-        )}
+        <CommentsInspector slug={slug} name={name} thread={thread} tick={tick} onThread={setOpened} succeeded={succeeded} renders={renders} />
       </ShellSlot>
     </div>
   );

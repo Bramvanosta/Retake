@@ -199,11 +199,9 @@ export interface CommentReads {
 export async function threadView(
   stores: Pick<ProjectStores, 'folder'>,
   projectDir: string,
-  thread: CommentThread,
-  hash: string,
-  renders: readonly StoredRenderRecord[],
-  texts: TextCache = new Map(),
+  o: { thread: CommentThread; hash: string; renders: readonly StoredRenderRecord[]; texts?: TextCache },
 ): Promise<CommentView> {
+  const { thread, hash, renders, texts = new Map() } = o;
   const { status, resolution } = deriveStatus(thread.entries);
   const { anchor, untrusted: badAnchor } = trustedAnchor(thread.anchor);
   let stepNow: string | null | undefined;
@@ -421,7 +419,7 @@ export async function listCommentsAndUnread(reads: CommentReads, project: Loaded
       continue;
     }
     if (onRender && (r.thread.render.id !== onRender.id || r.thread.render.created_at !== onRender.created_at)) continue;
-    const view = await threadView(reads.stores, project.dir, r.thread, r.hash, renders, texts);
+    const view = await threadView(reads.stores, project.dir, { thread: r.thread, hash: r.hash, renders, texts });
     if (status !== 'all' && view.status !== status) continue;
     views.push(view);
   }
@@ -454,7 +452,7 @@ export async function getComment(reads: CommentReads, project: LoadedProject, id
   const f = await locateThread(project.dir, id);
   const r = await readThread(project.dir, f);
   if (!r.ok) throw new EngineError('invalid', r.problem);
-  return threadView(reads.stores, project.dir, r.thread, r.hash, await renderIndex(reads.renders, project.dir));
+  return threadView(reads.stores, project.dir, { thread: r.thread, hash: r.hash, renders: await renderIndex(reads.renders, project.dir) });
 }
 
 // ── Counts and pins from the thread files alone ─────────

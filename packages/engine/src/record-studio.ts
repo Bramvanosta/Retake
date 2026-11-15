@@ -890,15 +890,18 @@ function hiddenProblem(yaml: string): string | null {
  */
 export async function saveRecordedDraft(
   project: LoadedProject,
-  name: string,
-  yaml: string,
-  sceneIds: readonly string[],
-  scope: StoreScope,
-  files: WorkFileFacts,
-  reads: WorkspaceReads,
-  /** The engine's ledger of the scenario versions it showed or wrote (the saved file is one). */
-  seen: VersionLedger | undefined,
+  o: {
+    name: string;
+    yaml: string;
+    sceneIds: readonly string[];
+    scope: StoreScope;
+    files: WorkFileFacts;
+    reads: WorkspaceReads;
+    /** The engine's ledger of the scenario versions it showed or wrote (the saved file is one). */
+    seen?: VersionLedger | undefined;
+  },
 ): Promise<{ file: string; hash: string; warnings: number }> {
+  const { name, yaml, sceneIds, scope, files, reads, seen } = o;
   checkScenarioName(name);
   const hid = hiddenProblem(yaml);
   if (hid !== null)
@@ -963,7 +966,15 @@ export async function recordSave(ctx: RecordStudioContext, project: LoadedProjec
     if (errors.length) {
       throw new EngineError('invalid', 'not saved: the draft has errors — they are listed by scene and step', { details: { issues: errors } });
     }
-    const w = await saveRecordedDraft(project, req.name, d.yaml, sceneIds, ctx.scope, ctx.files, ctx.reads, ctx.seen);
+    const w = await saveRecordedDraft(project, {
+      name: req.name,
+      yaml: d.yaml,
+      sceneIds,
+      scope: ctx.scope,
+      files: ctx.files,
+      reads: ctx.reads,
+      seen: ctx.seen,
+    });
     const next: RecordAnnotations = { ...a, rev: a.rev + 1, saved: { name: req.name, file: w.file, hash: w.hash, at: stampOf(ctx.scope.clock) } };
     await writeAnnotations(dir, next);
     return { name: req.name, file: w.file, hash: w.hash, rev: next.rev, warnings: w.warnings, untrusted: { issues: d.issues } };

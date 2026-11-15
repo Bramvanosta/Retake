@@ -261,12 +261,15 @@ export function hookPersonaAuth(
 /** A js hook tab's landing check: its persona's sign-in patterns (the guard's), or null when not guarded. */
 export function hookLanding(
   guard: LoginGuard | null,
-  personas: readonly ResolvedPersona[],
-  env: { name: string; pages: Record<string, string> },
-  session: BrowserSession,
-  command: (persona: string) => string,
-  expire: (persona: string, at: string, detail: string) => void,
+  o: {
+    personas: readonly ResolvedPersona[];
+    env: { name: string; pages: Record<string, string> };
+    session: BrowserSession;
+    command: (persona: string) => string;
+    expire: (persona: string, at: string, detail: string) => void;
+  },
 ): ((key: string, url: string) => string | null) | undefined {
+  const { personas, env, session, command, expire } = o;
   if (!guard) return undefined;
   return (key, url) => {
     const tab = session.hookPages.get(key);
@@ -287,15 +290,18 @@ export function hookLanding(
  */
 export async function diagnoseSession(
   failure: StepFailure,
-  session: BrowserSession,
-  rt: Runtime | null,
-  prepared: readonly PreparedSession[],
-  envPages: Record<string, string>,
-  secrets: RunSecrets,
-  command: (persona: string) => string,
-  signal: AbortSignal,
-  expire: (persona: string, at: string, detail: string) => void,
+  o: {
+    session: BrowserSession;
+    rt: Runtime | null;
+    prepared: readonly PreparedSession[];
+    envPages: Record<string, string>;
+    secrets: RunSecrets;
+    command: (persona: string) => string;
+    signal: AbortSignal;
+    expire: (persona: string, at: string, detail: string) => void;
+  },
 ): Promise<StepFailure> {
+  const { session, rt, prepared, envPages, secrets, command, signal, expire } = o;
   const id = rt?.activeId;
   const page = id ? session.pages.get(id) : undefined;
   const realm = page && !page.isClosed() ? session.realmName(page) : undefined;
@@ -309,5 +315,5 @@ export async function diagnoseSession(
   if (r?.status !== 'expired') return failure;
   expire(p.persona.name, r.at ?? '', `${r.detail} (checked after step ${failure.scene}.${failure.step} failed)`);
   const message = `${failure.message} — the session of persona ${p.persona.name} is no longer valid (${secrets.redactText(r.detail)}): sign in again: ${command(p.persona.name)}`;
-  return new StepFailure(message, failure.scene, failure.step, failure.action, failure.screenshot, failure.dom, failure.missing);
+  return new StepFailure(message, { scene: failure.scene, step: failure.step, action: failure.action, screenshot: failure.screenshot, dom: failure.dom, missing: failure.missing });
 }

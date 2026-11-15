@@ -309,7 +309,7 @@ export class MemoryHookRunner implements HookRunner {
         const yes = ctx.confirmDestructive ? await ctx.confirmDestructive(description, reason, request) : false;
         if (!yes) {
           const result: HookResult = { ...base, kind, ...(approval ? { approval } : {}), ok: false, status: 'refused', error: `refusing hook (${reason}) without a human approval` };
-          return ctx.dryRun ? { result } : this.#journaled(journal, hook, kind, place, ctx, 'failed', result);
+          return ctx.dryRun ? { result } : this.#journaled(journal, { hook, kind, place, ctx, status: 'failed', result });
         }
       }
     }
@@ -325,18 +325,14 @@ export class MemoryHookRunner implements HookRunner {
       ...(out.message !== undefined ? { message: out.message } : out.status === 'ok' ? { message: 'ok' } : {}),
       ...(out.status !== 'ok' ? { error: out.error ?? out.status } : {}),
     };
-    return this.#journaled(journal, hook, kind, place, ctx, out.status === 'ok' ? 'ok' : 'failed', result);
+    return this.#journaled(journal, { hook, kind, place, ctx, status: out.status === 'ok' ? 'ok' : 'failed', result });
   }
 
   #journaled(
     journal: MemoryHookJournal,
-    hook: HookStep,
-    kind: HookKind,
-    place: MemoryHookPlace,
-    ctx: HookContext,
-    status: 'ok' | 'failed',
-    result: HookResult,
+    o: { hook: HookStep; kind: HookKind; place: MemoryHookPlace; ctx: HookContext; status: 'ok' | 'failed'; result: HookResult },
   ): { result: HookResult; entry: JournalEntry } {
+    const { hook, kind, place, ctx, status, result } = o;
     const at = new Date(0).toISOString();
     const rollback = status === 'ok' && journalsRollback(place.phase) ? rollbackOf(hook, kind) : undefined;
     const entry = journal.add({

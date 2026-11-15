@@ -22,6 +22,7 @@
  * slot); page text stays in boxes titled "From the page".
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { MutableRefObject } from 'react';
 import type { EntryBlock, SceneBlock, StepForms } from '@retake/core/scenario';
 import { runThumbs, scenarioForms, useScenarioBlocks } from '../data/scenarios.js';
 import { Txt, plural } from '../bits.js';
@@ -168,6 +169,186 @@ function rangeOf(v: View, s: Subject): { line: number; end_line: number } | null
 }
 
 export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string; tab: ScenarioTab }) {
+  const { pick, setPick, project, envs, sentEnv, droppedEnv, view, reload, live } = useScenarioView(slug, name);
+  // The renders (lifted from the Renders card: the status bar's Render reads its queue) and what the status bar
+  // acts on, fed from this screen's own reads (the status bar reads nothing here).
+  const renders = useRenders(slug, name, reload);
+  useFeed({ slug, name, vNow: view.state === 'ready' ? view.data : null, renders, sentEnv, live });
+  const [focus, setFocus] = useState<{ line: number; end_line: number } | null>(null);
+  // The selection (a step by its key, a scene, a card, the hooks, the video): kept while the YAML view is open and across re-reads.
+  const [subject, setSubject] = useState<Subject | null>(null);
+  const [palette, setPalette] = useState<{ at?: string } | null>(null);
+  const onShowYaml = useCallback(
+    (r: { line: number; end_line: number }) => {
+      setFocus({ line: r.line, end_line: r.end_line });
+      location.hash = hrefTo({ name: 'scenario', slug, scenario: name, tab: 'yaml' });
+    },
+    [slug, name],
+  );
+  // While the YAML view holds unsaved text, board edits are off (they would make its base stale).
+  const yamlDraft = useDirty(scenarioKey(slug, name));
+  // The board's step edits: kept across view switches; a YAML save clears their history.
+  const ed = useStepEditor(slug, name, view.state === 'ready' ? view.data : null, yamlDraft, reload, tab === 'blocks');
+  const edRef = useRef(ed);
+  edRef.current = ed;
+  const fetchThumbs = useCallback((run: string, keys: string[], signal: AbortSignal) => runThumbs({ project: slug, run, keys }, { signal }), [slug]);
+  const forms = useStepForms();
+  const v = view.state === 'ready' ? view.data : null;
+  const { resolved, effective } = useResolvedSelection(v, subject, setSubject);
+  // The inspector's button an edit came from keeps the focus once the edit's view is here (Storyboard).
+  const editFrom = useRef<string | null>(null);
+  const { scenes, slots, boardMoves } = useBoardMoves(v, edRef);
+
+  const browse = useScenesPalette(v);
+  // ⌘K's Review report with the last render's words.
+  useReportEntry(slug, name, renders);
+
+  if (view.state === 'loading' || !v) return <ScenarioLoading error={view.state === 'error' ? view.error : null} pick={pick} onDefaultRun={() => setPick(undefined)} />;
+
+  const sel = resolved!.sel;
+  const stepMoves = stepMovesOf(sel, slots, boardMoves, editFrom);
+  const where = locationOf(v, project.state === 'ready' ? project.data : null, envs, sentEnv);
+  const setEnv = (next: string) => chooseLocation(slug, name, next === where.fileDefault ? undefined : next);
+  const onBrowse = (s: Subject, at: string) => {
+    setSubject(s);
+    if (tab === 'yaml') {
+      const r = rangeOf(v, s);
+      if (r) setFocus(r);
+    } else document.getElementById(at)?.scrollIntoView({ block: 'start', behavior: 'auto' });
+  };
+  browse.current = onBrowse;
+  const issues = allIssues(v);
+  const comments = <CommentsCount slug={slug} name={name} />;
+  return (
+    <div className="sc-screen sb-screen">
+      <h1 className="k-sr">
+        <Txt text={name} />
+      </h1>
+      <ScenarioContext slug={slug} name={name} tab={tab} envList={where.envList} current={where.current} fileDefault={where.fileDefault} onEnv={setEnv} />
+      <ShellSlot name="browser">
+        <ScenesBrowser v={v} current={sel.kind === 'step' || sel.kind === 'scene' ? `scene:${sel.scene.id}` : sel.kind === 'entry' ? `entry:${sel.entry.index}` : sel.kind} onPick={onBrowse} />
+      </ShellSlot>
+      {/* Around both views: the pictures already loaded stay while the YAML view is open. */}
+      {droppedEnv !== null && (
+        <Callout state="warn" role="status" title="A location chosen earlier is gone" testId="location-dropped">
+          <Txt text={`The location ${droppedEnv} chosen earlier is no longer in project.yaml: Rehearse and Capture use the file's own${where.fileDefault ? `, ${where.fileDefault}` : ''}.`} />
+        </Callout>
+      )}
+      {/* A run of this scenario queued or running (progress, Watch live) shows on both views; Stop is the status bar's. */}
+      <Running run={v.running} live={live} slug={slug} name={name} />
+      <ThumbsProvider fetch={fetchThumbs}>
+        {tab === 'blocks' ? (
+          <>
+            <ShellSlot name="inspector" inline="Inspector">
+              <ScenarioInspector v={v} slug={slug} name={name} sel={sel} ed={ed} forms={forms} moves={stepMoves} onShowYaml={onShowYaml} comments={comments} location={where.videoLocation} />
+            </ShellSlot>
+            <TakeStrip v={v} slug={slug} name={name} pick={pick} onPick={setPick} location={where.runLocation} />
+            <FileNotices v={v} slug={slug} name={name} yamlDraft={yamlDraft} issues={issues} />
+            <StepAdding ed={ed} forms={forms} palette={palette} onPalette={setPalette} scenes={scenes} sel={sel} />
+            <Storyboard v={v} subject={effective} onSelect={setSubject} editFrom={editFrom} ed={ed} moves={boardMoves} canAdd={ed.enabled && forms !== null} onAddStep={(at) => setPalette({ at })} />
+            <BoardFooter v={v} slug={slug} name={name} renders={renders} />
+          </>
+        ) : (
+          <>
+            <ShellSlot name="inspector" inline="File">
+              <FileInspector v={v} slug={slug} name={name} issues={issues} />
+            </ShellSlot>
+            <YamlTab v={v} slug={slug} name={name} focus={focus} issues={issues} reload={reload} onSaved={ed.ownSave} />
+          </>
+        )}
+      </ThumbsProvider>
+    </div>
+  );
+}
+
+/** ⌘K's Scenes; returns the ref the browser's own pick is read from. */
+function useScenesPalette(v: View | null) {
+  // ⌘K's Scenes — each scene of the file (a pick selects it and brings it into view, as the browser does: on the
+  // YAML view, the scene's lines). A pick only selects: the palette never writes. (The browser's own pick, onBrowse,
+  // is defined after the loading return: read from a ref.)
+  const browse = useRef<((s: Subject, at: string) => void) | null>(null);
+  usePaletteGroup(
+    'scenes',
+    v
+      ? v.blocks.entries.flatMap((e) =>
+          e.type === 'scene'
+            ? [
+                {
+                  id: `scene-${e.index}`,
+                  label: e.caption?.kicker ?? e.id,
+                  hint: `scene ${e.id}`,
+                  icon: 'scene' as const,
+                  run: () => browse.current?.({ kind: 'scene', id: e.id }, `entry-${e.index}`),
+                },
+              ]
+            : [],
+        )
+      : null,
+  );
+  return browse;
+}
+
+/** The edit bar with Add a step…, and the palette once it is open. */
+function StepAdding({
+  ed,
+  forms,
+  palette,
+  onPalette,
+  scenes,
+  sel,
+}: {
+  ed: ReturnType<typeof useStepEditor>;
+  forms: StepForms | null;
+  palette: { at?: string } | null;
+  onPalette: (p: { at?: string } | null) => void;
+  scenes: SceneBlock[];
+  sel: Selected;
+}) {
+  return (
+    <>
+      <EditBar
+        ed={ed}
+        add={
+          ed.enabled && forms && !palette ? (
+            <Button size="sm" icon="plus" data-testid="palette-open" onClick={() => onPalette({})}>
+              Add a step…
+            </Button>
+          ) : null
+        }
+      />
+      {ed.enabled && forms && palette && (
+        <Palette
+          key={palette.at ?? ''}
+          forms={forms}
+          scenes={scenes}
+          selected={sel.kind === 'step' ? { scene: sel.scene, step: sel.step } : null}
+          ed={ed}
+          onClose={() => onPalette(null)}
+          {...(palette.at ? { at: palette.at } : {})}
+        />
+      )}
+    </>
+  );
+}
+
+/** The renders, closed at the board's end, and the link to record a new scenario. */
+function BoardFooter({ v, slug, name, renders }: { v: View; slug: string; name: string; renders: RendersState }) {
+  return (
+    <>
+      <Disclosure summary="Renders and review" testId="renders-section">
+        <RendersCard v={v} slug={slug} name={name} r={renders} />
+      </Disclosure>
+      <p className="sc-quiet">
+        <LinkButton size="sm" variant="ghost" to={{ name: 'record', slug }} testId="record-link">
+          Record a new scenario
+        </LinkButton>
+      </p>
+    </>
+  );
+}
+
+/** The scenario's view (the run picked, the location sent), read again on its events, and the running run's progress. */
+function useScenarioView(slug: string, name: string) {
   const key = `${slug}/${name}`;
   const [pick, setPick] = useState<string | undefined>(undefined);
   const project = useProjectView(slug);
@@ -192,10 +373,11 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   useScenarioEvents(slug, name, { reread: reload, progress, jobs: () => progress([]) });
   // A run of this scenario this tab started or stopped (the status bar, ⌘R, ⌘.): read the view again now.
   useRunChanged(slug, name, reload);
-  // The renders (lifted from the Renders card: the status bar's Render reads its queue) and what the status bar
-  // acts on, fed from this screen's own reads (the status bar reads nothing here).
-  const renders = useRenders(slug, name, reload);
-  const vNow = view.state === 'ready' ? view.data : null;
+  return { pick, setPick, project, envs, sentEnv, droppedEnv, view, reload, live };
+}
+
+/** What the status bar acts on, fed from this screen's reads, and the file it shows. */
+function useFeed({ slug, name, vNow, renders, sentEnv, live }: { slug: string; name: string; vNow: View | null; renders: RendersState; sentEnv: string | undefined; live: FedActions['live'] }) {
   const renderJob = renders.loaded.state === 'ready' ? renders.loaded.data.jobs[0] : undefined;
   const fedData = useMemo<FedActions | null>(() => {
     if (!vNow) return null;
@@ -215,38 +397,24 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   }, [vNow, renderJob, sentEnv, live]);
   useFeedActions(slug, name, fedData);
   useShownFile(slug, name, vNow?.hash ?? null);
-  const [focus, setFocus] = useState<{ line: number; end_line: number } | null>(null);
-  // The selection (a step by its key, a scene, a card, the hooks, the video): kept while the YAML view is open and across re-reads.
-  const [subject, setSubject] = useState<Subject | null>(null);
-  const [palette, setPalette] = useState<{ at?: string } | null>(null);
-  const onShowYaml = useCallback(
-    (r: { line: number; end_line: number }) => {
-      setFocus({ line: r.line, end_line: r.end_line });
-      location.hash = hrefTo({ name: 'scenario', slug, scenario: name, tab: 'yaml' });
-    },
-    [slug, name],
-  );
-  // While the YAML view holds unsaved text, board edits are off (they would make its base stale).
-  const yamlDraft = useDirty(scenarioKey(slug, name));
-  // The board's step edits: kept across view switches; a YAML save clears their history.
-  const ed = useStepEditor(slug, name, view.state === 'ready' ? view.data : null, yamlDraft, reload, tab === 'blocks');
-  const edRef = useRef(ed);
-  edRef.current = ed;
-  const fetchThumbs = useCallback((run: string, keys: string[], signal: AbortSignal) => runThumbs({ project: slug, run, keys }, { signal }), [slug]);
-  const forms = useStepForms();
-  const v = view.state === 'ready' ? view.data : null;
-  // The one resolved selection: what the board marks and the inspector shows. A picked subject that went
-  // away is replaced by its resolution in the state too — unless something else was picked meanwhile.
+}
+
+/**
+ * The one resolved selection: what the board marks and the inspector shows. A picked subject that went
+ * away is replaced by its resolution in the state too — unless something else was picked meanwhile.
+ */
+function useResolvedSelection(v: View | null, subject: Subject | null, setSubject: (s: (cur: Subject | null) => Subject | null) => void) {
   const resolved = useMemo(() => (v ? resolveSelection(v, subject) : null), [v, subject]);
   const effective = resolved?.subject ?? null;
   useEffect(() => {
     if (subject === null || effective === null || sameSubject(subject, effective)) return;
     setSubject((cur) => (cur === subject ? effective : cur));
-  }, [subject, effective]);
-  // The inspector's button an edit came from keeps the focus once the edit's view is here (Storyboard).
-  const editFrom = useRef<string | null>(null);
+  }, [subject, effective, setSubject]);
+  return { resolved, effective };
+}
 
-  // The step edits the keys, drag & drop and the inspector's buttons send (one place: the verified write path).
+/** The step edits the keys, drag & drop and the inspector's buttons send (one place: the verified write path). */
+function useBoardMoves(v: View | null, edRef: MutableRefObject<ReturnType<typeof useStepEditor>>) {
   const scenes = useMemo(() => (v ? v.blocks.entries.filter((e): e is SceneBlock => e.type === 'scene') : []), [v]);
   const slots: SceneSlots[] = useMemo(() => scenes.map((s) => ({ id: s.id, count: s.steps.length, locked: s.steps_locked !== undefined })), [scenes]);
   const refOf = useCallback(
@@ -274,76 +442,36 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
         if (at && !at.locked) edRef.current.send({ kind, at: { scene: at.scene, index: at.index, guard: at.guard } });
       },
     }),
-    [refOf, slots],
+    [refOf, slots, edRef],
   );
+  return { scenes, slots, boardMoves };
+}
 
-  // ⌘K's Scenes — each scene of the file (a pick selects it and brings it into view, as the browser does: on the
-  // YAML view, the scene's lines) — and the Review report with the last render's words. A pick only selects:
-  // the palette never writes. (The browser's own pick, onBrowse, is defined after the loading return: read from a ref.)
-  const browse = useRef<((s: Subject, at: string) => void) | null>(null);
-  usePaletteGroup(
-    'scenes',
-    v
-      ? v.blocks.entries.flatMap((e) =>
-          e.type === 'scene'
-            ? [
-                {
-                  id: `scene-${e.index}`,
-                  label: e.caption?.kicker ?? e.id,
-                  hint: `scene ${e.id}`,
-                  icon: 'scene' as const,
-                  run: () => browse.current?.({ kind: 'scene', id: e.id }, `entry-${e.index}`),
-                },
-              ]
-            : [],
-        )
-      : null,
-  );
-  useReportEntry(slug, name, renders);
+/** The inspector's Move up / Move down / Duplicate / Delete for the selected step (each remembers its button). */
+function stepMovesOf(sel: Selected, slots: SceneSlots[], boardMoves: BoardMoves, editFrom: MutableRefObject<string | null>): StepMoves {
+  return sel.kind === 'step'
+    ? {
+        up: keyboardMove(slots, { scene: sel.scene.id, index: sel.step.index }, -1) !== null,
+        down: keyboardMove(slots, { scene: sel.scene.id, index: sel.step.index }, 1) !== null,
+        move: (dir) => {
+          editFrom.current = dir < 0 ? 'up' : 'down';
+          boardMoves.move(sel.step.key, dir);
+        },
+        act: (kind) => {
+          editFrom.current = kind === 'delete_step' ? 'delete' : 'duplicate';
+          boardMoves.act(sel.step.key, kind);
+        },
+      }
+    : { up: false, down: false, move: () => undefined, act: () => undefined };
+}
 
-  if (view.state === 'loading' || !v) {
-    return (
-      // No h1 until the view is here (tests and assistive tech wait on the scenario's heading as the sign it loaded).
-      <div className="sc-screen sb-screen">
-        {view.state === 'error' ? (
-          <Callout state="fail" role="alert" title="This scenario cannot be opened">
-            <p className="sb-pre">
-              <Txt text={view.error} />
-            </p>
-            {pick && (
-              <div>
-                <Button onClick={() => setPick(undefined)}>Show the default run's pictures</Button>
-              </div>
-            )}
-          </Callout>
-        ) : (
-          <p className="sc-quiet" role="status">
-            Loading the scenario…
-          </p>
-        )}
-      </div>
-    );
-  }
+type ProjectData = Extract<ReturnType<typeof useProjectView>, { state: 'ready' }>['data'];
 
-  const sel = resolved!.sel;
-  const stepMoves: StepMoves =
-    sel.kind === 'step'
-      ? {
-          up: keyboardMove(slots, { scene: sel.scene.id, index: sel.step.index }, -1) !== null,
-          down: keyboardMove(slots, { scene: sel.scene.id, index: sel.step.index }, 1) !== null,
-          move: (dir) => {
-            editFrom.current = dir < 0 ? 'up' : 'down';
-            boardMoves.move(sel.step.key, dir);
-          },
-          act: (kind) => {
-            editFrom.current = kind === 'delete_step' ? 'delete' : 'duplicate';
-            boardMoves.act(sel.step.key, kind);
-          },
-        }
-      : { up: false, down: false, move: () => undefined, act: () => undefined };
-  // The location: the file's own, else the project's default; a choice is sent only when it differs. Only a
-  // location project.yaml has is ever shown or sent: the select and the strip say the same one.
-  const p = project.state === 'ready' ? project.data : null;
+/**
+ * The location: the file's own, else the project's default; a choice is sent only when it differs. Only a
+ * location project.yaml has is ever shown or sent: the select and the strip say the same one.
+ */
+function locationOf(v: View, p: ProjectData | null, envs: ProjectData['environments'] | null, sentEnv: string | undefined) {
   // A project without default_env runs on its first environment (core resolveEnvironment): that is the file's own then.
   const fileDefault = v.blocks.video.env ?? p?.default_env ?? p?.environments[0]?.name;
   const envList = envs ?? [];
@@ -356,130 +484,110 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   const fileEnv = fileDefault ?? (sentEnv === undefined ? v.environment?.name : undefined);
   const fileEnvFlags = envList.find((e) => e.name === fileEnv);
   const videoLocation = { file: fileEnv, fileFlags: fileEnvFlags ? envFlagWords(fileEnvFlags, false, fileEnv) : '', ...(chosen && current ? { chosen: current } : {}) };
-  const setEnv = (next: string) => chooseLocation(slug, name, next === fileDefault ? undefined : next);
-  const onBrowse = (s: Subject, at: string) => {
-    setSubject(s);
-    if (tab === 'yaml') {
-      const r = rangeOf(v, s);
-      if (r) setFocus(r);
-    } else document.getElementById(at)?.scrollIntoView({ block: 'start', behavior: 'auto' });
-  };
-  browse.current = onBrowse;
-  const issues = allIssues(v);
-  const comments = <CommentsCount slug={slug} name={name} />;
+  return { fileDefault, envList, current, runLocation, videoLocation };
+}
+
+/** The screen before its view is here: loading, or why the scenario cannot be opened. */
+function ScenarioLoading({ error, pick, onDefaultRun }: { error: string | null; pick: string | undefined; onDefaultRun: () => void }) {
   return (
+    // No h1 until the view is here (tests and assistive tech wait on the scenario's heading as the sign it loaded).
     <div className="sc-screen sb-screen">
-      <h1 className="k-sr">
-        <Txt text={name} />
-      </h1>
-      <ShellSlot name="context">
-        <div className="sb-context">
-          <SegmentedLinks
-            label="View"
-            items={[
-              { key: 'board', label: 'Board', to: { name: 'scenario', slug, scenario: name, tab: 'blocks' }, current: tab === 'blocks' },
-              { key: 'yaml', label: 'YAML', to: { name: 'scenario', slug, scenario: name, tab: 'yaml' }, current: tab === 'yaml' },
-            ]}
-          />
-          {envList.length > 0 && current && (
-            <Select
-              layout="inline"
-              label="Location"
-              testId="location-select"
-              value={current}
-              options={envList.map((e) => {
-                // A flag word that repeats the name is left out ("production · read-only", not "production · production
-                // · …").
-                const flags = envFlagWords(e, e.name === fileDefault, e.name);
-                return { value: e.name, label: `${e.name}${flags ? ` · ${flags}` : ''}` };
-              })}
-              onChange={setEnv}
-            />
+      {error !== null ? (
+        <Callout state="fail" role="alert" title="This scenario cannot be opened">
+          <p className="sb-pre">
+            <Txt text={error} />
+          </p>
+          {pick && (
+            <div>
+              <Button onClick={onDefaultRun}>Show the default run's pictures</Button>
+            </div>
           )}
-        </div>
-      </ShellSlot>
-      <ShellSlot name="browser">
-        <ScenesBrowser v={v} current={sel.kind === 'step' || sel.kind === 'scene' ? `scene:${sel.scene.id}` : sel.kind === 'entry' ? `entry:${sel.entry.index}` : sel.kind} onPick={onBrowse} />
-      </ShellSlot>
-      {/* Around both views: the pictures already loaded stay while the YAML view is open. */}
-      {droppedEnv !== null && (
-        <Callout state="warn" role="status" title="A location chosen earlier is gone" testId="location-dropped">
-          <Txt text={`The location ${droppedEnv} chosen earlier is no longer in project.yaml: Rehearse and Capture use the file's own${fileDefault ? `, ${fileDefault}` : ''}.`} />
+        </Callout>
+      ) : (
+        <p className="sc-quiet" role="status">
+          Loading the scenario…
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The title bar's context: the View (Board · YAML) and the Location. */
+function ScenarioContext({
+  slug,
+  name,
+  tab,
+  envList,
+  current,
+  fileDefault,
+  onEnv,
+}: {
+  slug: string;
+  name: string;
+  tab: ScenarioTab;
+  envList: ProjectData['environments'];
+  current: string | undefined;
+  fileDefault: string | undefined;
+  onEnv: (next: string) => void;
+}) {
+  return (
+    <ShellSlot name="context">
+      <div className="sb-context">
+        <SegmentedLinks
+          label="View"
+          items={[
+            { key: 'board', label: 'Board', to: { name: 'scenario', slug, scenario: name, tab: 'blocks' }, current: tab === 'blocks' },
+            { key: 'yaml', label: 'YAML', to: { name: 'scenario', slug, scenario: name, tab: 'yaml' }, current: tab === 'yaml' },
+          ]}
+        />
+        {envList.length > 0 && current && (
+          <Select
+            layout="inline"
+            label="Location"
+            testId="location-select"
+            value={current}
+            options={envList.map((e) => {
+              // A flag word that repeats the name is left out ("production · read-only", not "production · production
+              // · …").
+              const flags = envFlagWords(e, e.name === fileDefault, e.name);
+              return { value: e.name, label: `${e.name}${flags ? ` · ${flags}` : ''}` };
+            })}
+            onChange={onEnv}
+          />
+        )}
+      </div>
+    </ShellSlot>
+  );
+}
+
+/** The file's notices on the board: a YAML draft open, not valid YAML, its issues, the steps limit. */
+function FileNotices({ v, slug, name, yamlDraft, issues }: { v: View; slug: string; name: string; yamlDraft: boolean; issues: ReturnType<typeof allIssues> }) {
+  return (
+    <>
+      {yamlDraft && (
+        <Callout state="warn" role="note" title="Unsaved YAML changes">
+          <p data-testid="yaml-draft-open">
+            {'The board shows the file on disk. Editing the board stays off until you save or discard your changes in the '}
+            <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'yaml' })}>YAML view</a>
+            {'.'}
+          </p>
         </Callout>
       )}
-      {/* A run of this scenario queued or running (progress, Watch live) shows on both views; Stop is the status bar's. */}
-      <Running run={v.running} live={live} slug={slug} name={name} />
-      <ThumbsProvider fetch={fetchThumbs}>
-        {tab === 'blocks' ? (
-          <>
-            <ShellSlot name="inspector" inline="Inspector">
-              <ScenarioInspector v={v} slug={slug} name={name} sel={sel} ed={ed} forms={forms} moves={stepMoves} onShowYaml={onShowYaml} comments={comments} location={videoLocation} />
-            </ShellSlot>
-            <TakeStrip v={v} slug={slug} name={name} pick={pick} onPick={setPick} location={runLocation} />
-            {yamlDraft && (
-              <Callout state="warn" role="note" title="Unsaved YAML changes">
-                <p data-testid="yaml-draft-open">
-                  {'The board shows the file on disk. Editing the board stays off until you save or discard your changes in the '}
-                  <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'yaml' })}>YAML view</a>
-                  {'.'}
-                </p>
-              </Callout>
-            )}
-            {!v.blocks.parsed && (
-              <Callout state="fail" role="alert" title="This file is not valid YAML" testId="invalid-yaml">
-                The YAML view shows the text and where it breaks.
-              </Callout>
-            )}
-            {issues.length > 0 && (
-              <Callout state={v.ok ? 'warn' : 'fail'} role="note" title={`${v.ok ? 'Warnings' : 'Errors'}: ${plural(v.limit?.issues_total ?? issues.length, 'issue')} in this file`}>
-                <IssueLines issues={issues} testId="issues" />
-              </Callout>
-            )}
-            {v.limit && v.limit.steps_shown < v.limit.steps_total && (
-              <Callout state="idle" role="note" title={`Note: showing the first ${plural(v.limit.steps_shown, 'step')} of ${v.limit.steps_total.toLocaleString('en')}`}>
-                <p data-testid="steps-limit">The YAML view shows the whole file.</p>
-              </Callout>
-            )}
-            <EditBar
-              ed={ed}
-              add={
-                ed.enabled && forms && !palette ? (
-                  <Button size="sm" icon="plus" data-testid="palette-open" onClick={() => setPalette({})}>
-                    Add a step…
-                  </Button>
-                ) : null
-              }
-            />
-            {ed.enabled && forms && palette && (
-              <Palette
-                key={palette.at ?? ''}
-                forms={forms}
-                scenes={scenes}
-                selected={sel.kind === 'step' ? { scene: sel.scene, step: sel.step } : null}
-                ed={ed}
-                onClose={() => setPalette(null)}
-                {...(palette.at ? { at: palette.at } : {})}
-              />
-            )}
-            <Storyboard v={v} subject={effective} onSelect={setSubject} editFrom={editFrom} ed={ed} moves={boardMoves} canAdd={ed.enabled && forms !== null} onAddStep={(at) => setPalette({ at })} />
-            <Disclosure summary="Renders and review" testId="renders-section">
-              <RendersCard v={v} slug={slug} name={name} r={renders} />
-            </Disclosure>
-            <p className="sc-quiet">
-              <LinkButton size="sm" variant="ghost" to={{ name: 'record', slug }} testId="record-link">
-                Record a new scenario
-              </LinkButton>
-            </p>
-          </>
-        ) : (
-          <>
-            <ShellSlot name="inspector" inline="File">
-              <FileInspector v={v} slug={slug} name={name} issues={issues} />
-            </ShellSlot>
-            <YamlTab v={v} slug={slug} name={name} focus={focus} issues={issues} reload={reload} onSaved={ed.ownSave} />
-          </>
-        )}
-      </ThumbsProvider>
-    </div>
+      {!v.blocks.parsed && (
+        <Callout state="fail" role="alert" title="This file is not valid YAML" testId="invalid-yaml">
+          The YAML view shows the text and where it breaks.
+        </Callout>
+      )}
+      {issues.length > 0 && (
+        <Callout state={v.ok ? 'warn' : 'fail'} role="note" title={`${v.ok ? 'Warnings' : 'Errors'}: ${plural(v.limit?.issues_total ?? issues.length, 'issue')} in this file`}>
+          <IssueLines issues={issues} testId="issues" />
+        </Callout>
+      )}
+      {v.limit && v.limit.steps_shown < v.limit.steps_total && (
+        <Callout state="idle" role="note" title={`Note: showing the first ${plural(v.limit.steps_shown, 'step')} of ${v.limit.steps_total.toLocaleString('en')}`}>
+          <p data-testid="steps-limit">The YAML view shows the whole file.</p>
+        </Callout>
+      )}
+    </>
   );
 }

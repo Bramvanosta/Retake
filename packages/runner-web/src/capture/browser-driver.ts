@@ -319,7 +319,7 @@ class BrowserDriver implements CaptureDriver {
   hooks(): DriverHooks {
     const { project, env, log, opts } = this.run;
     const session = this.session!;
-    const loginLanding = hookLanding(this.guard, this.personas, env, session, this.commandOf, this.expire);
+    const loginLanding = hookLanding(this.guard, { personas: this.personas, env, session, command: this.commandOf, expire: this.expire });
     const writeGuard = this.writeGuard;
     const writes = writeGuard ? { policy: writeGuard.policy, ...(writeGuard.onWrite ? { onWrite: writeGuard.onWrite } : {}) } : undefined;
     return {
@@ -580,7 +580,16 @@ class BrowserDriver implements CaptureDriver {
     if (guard?.error) r.failure = guard.error;
     // A step failure on a persona's page: was it the session? One check, off camera, now that nothing is filmed.
     if (r.failure instanceof StepFailure && session && this.prepared.length)
-      r.failure = await diagnoseSession(r.failure, session, rt, this.prepared, env.pages, secrets, this.commandOf, signal, this.expire);
+      r.failure = await diagnoseSession(r.failure, {
+        session,
+        rt,
+        prepared: this.prepared,
+        envPages: env.pages,
+        secrets,
+        command: this.commandOf,
+        signal,
+        expire: this.expire,
+      });
   }
 
   async close(): Promise<void> {
@@ -734,18 +743,17 @@ class BrowserDriver implements CaptureDriver {
             },
             log,
           )
-        : await videoStepShots(
-            timeline.events,
+        : await videoStepShots(timeline.events, {
             screenshotsDir,
-            (ev) => {
+            videoOf: (ev) => {
               const t = trackOf(ev);
               const file = t ? join(dir, t.builder.info.file) : record.capture;
               return file ? { video: file, count: Math.max(1, Math.round(endT * capture.fps)) } : null;
             },
-            capture.fps,
-            ffmpegBin(opts.policy, opts.ffmpeg),
+            fps: capture.fps,
+            ffmpeg: ffmpegBin(opts.policy, opts.ffmpeg),
             log,
-          );
+          });
     }
     // What the screen did after each click (R-FLD-23, R-FLD-26): slow transitions, waits the edit shortens.
     let transitions: RunPerf['transitions'];

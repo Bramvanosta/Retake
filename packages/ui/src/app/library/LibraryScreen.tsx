@@ -30,6 +30,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExtern
 import type { KeyboardEvent } from 'react';
 import type { LibraryItem, LibraryViewAnswer } from '../../server/library-ops.js';
 import { errorText } from '../api.js';
+import type { Loaded, OpResult } from '../api.js';
 import { libraryImages, libraryRender, useLibraryComponent, useLibraryView } from '../data/library.js';
 import { Txt, plural } from '../bits.js';
 import { CreateSheet } from '../project/CreateSheet.js';
@@ -249,30 +250,10 @@ function WantLoop({ pump, component }: { pump: RenderPump; component: string }) 
   return null;
 }
 
-export function LibraryScreen({ slug, theme, component }: { slug: string; theme?: string; component?: string }) {
-  const args = useMemo(() => ({ project: slug, ...(theme ? { theme } : {}) }), [slug, theme]);
-  const [view, reload] = useLibraryView(args, `${slug}/${theme ?? ''}`);
-  const [filter, setFilter] = useState<LibraryFilter>(NO_FILTER);
-  const [playing, setPlayingSet] = useState<ReadonlySet<string>>(new Set());
-  const [selected, setSelected] = useState<string | null>(null);
-  // The grid's tab stop when nothing is selected: the card picked last (Escape keeps it), else the first.
-  const [cursor, setCursor] = useState<string | null>(null);
-  const select = useCallback((c: string | null) => {
-    setSelected(c);
-    if (c !== null) setCursor(c);
-  }, []);
-  const [creating, setCreating] = useState(false);
-  const [brief, setBrief] = useState<Brief>(NO_BRIEF);
-  // The person's words, kept in this tab only, are unsaved text the desktop app's quit question
-  // names — held here: closing the sheet keeps them.
-  useUnsavedMark(brief.words.trim() ? { kind: 'component_brief', project: slug } : null);
-  const themeRef = useRef('');
-  // The last view stays on screen while another theme's loads (a copy made by "Set as theme default" keeps its Undo).
-  const last = useRef<LibraryViewAnswer | null>(null);
-  if (view.state === 'ready') {
-    themeRef.current = view.data.theme.name;
-    last.current = view.data;
-  }
+type ViewRead = Loaded<OpResult<'library_view'>>;
+
+/** The screen's render pump, picture loader and on-screen observer, closed with the screen; the pump follows the view. */
+function useLibraryLoaders(slug: string, view: ViewRead, reload: () => void, themeRef: { current: string }) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: one pump per screen (keyed by project); `reload` is useCall's, stable for the screen's life
   const pump = useMemo(
     () =>
@@ -314,7 +295,11 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
   useEffect(() => {
     if (view.state === 'ready') pump.setView(view.data.theme.name, view.data.items, view.data.queued);
   }, [view, pump]);
-  // Live re-reads: a theme, a component, the project changed; a job while previews are queued.
+  return { pump, pumpError, images, observer };
+}
+
+/** Live re-reads: a theme, a component, the project changed; a job while previews are queued. */
+function useLiveRereads(slug: string, view: ViewRead, pump: RenderPump, reload: () => void) {
   const timer = useRef<number | null>(null);
   useEvents((e) => {
     const busy = view.state === 'ready' && (view.data.queued > 0 || view.data.items.some((i) => pump.askedOf(i.poster.key) === 'pending' || pump.askedOf(i.loop.key) === 'pending'));
@@ -326,61 +311,11 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
     }, REREAD_MS);
   });
   useEffect(() => () => void (timer.current !== null && window.clearTimeout(timer.current)), []);
-  const setPlaying = useCallback((c: string, on: boolean) => {
-    setPlayingSet((s) => {
-      const n = new Set(s);
-      if (on) n.add(c);
-      else n.delete(c);
-      return n;
-    });
-  }, []);
-  const v = view.state === 'ready' ? view.data : last.current;
-  const shownTheme = v?.theme.name ?? '';
-  // One context object per theme: the memoised cards never re-render because the screen did.
-  const ctx = useMemo<LibraryCtx>(
-    () => ({ slug, theme: shownTheme, images, pump, setPlaying, select, reload, observe: observer.observe }),
-    [slug, shownTheme, images, pump, setPlaying, select, reload, observer],
-  );
-  const shown = useMemo(() => (v ? filterItems(v.items, filter) : []), [v, filter]);
-  const groups = useMemo(() => groupByKind(shown, filter.kind), [shown, filter.kind]);
-  const openCreate = (kind?: string, like?: string) => {
-    setBrief((b) => {
-      const { like: _old, ...rest } = b;
-      return { ...rest, ...(kind && isKind(kind) ? { kind } : {}), ...(like ? { like } : {}) };
-    });
-    setCreating(true);
-  };
+}
 
-  if (!v) {
-    return (
-      <div className="lb-screen" data-testid="library">
-        {view.state === 'error' && <h1 className="lb-h1">Components</h1>}
-        {view.state === 'error' ? (
-          <Callout state="fail" role="alert" title="The library cannot be shown">
-            <p className="lb-pre">
-              <Txt text={view.error} />
-            </p>
-            {theme && (
-              <LinkButton size="sm" to={{ name: 'library', slug }}>
-                Show it in the project's theme
-              </LinkButton>
-            )}
-          </Callout>
-        ) : (
-          <p className="lb-quiet" role="status">
-            Loading the components…
-          </p>
-        )}
-      </div>
-    );
-  }
-
-  const item = component ? v.items.find((i) => i.component === component) : undefined;
-  const focus = component ? item : selected ? v.items.find((i) => i.component === selected) : undefined;
-  const sections = groups.map((g) => g.items.map((i) => i.component));
-  const isShown = (c: string | null) => c !== null && sections.some((x) => x.includes(c));
-  const tabStop = isShown(selected) ? selected : isShown(cursor) ? cursor : (sections[0]?.[0] ?? null);
-  const gridKeys = (e: KeyboardEvent<HTMLDivElement>) => {
+/** The grid's key handler (one tab stop): the arrows move the selection, Enter reaches the inspector, Escape clears. */
+function gridKeyHandler(sections: string[][], selected: string | null, select: (c: string | null) => void) {
+  return (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const btn = (e.target as HTMLElement).closest<HTMLElement>('.lb-card > .k-card');
     const card = btn?.closest<HTMLElement>('[data-testid="lib-card"]');
@@ -407,6 +342,225 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
     if (next !== at || selected !== at) select(next);
     e.currentTarget.querySelector<HTMLElement>(`[data-testid="lib-card"][data-component="${CSS.escape(next)}"] > .k-card`)?.focus();
   };
+}
+
+/** No view yet: the load's error, or its progress. */
+function LibraryUnavailable({ view, slug, theme }: { view: ViewRead; slug: string; theme?: string }) {
+  return (
+    <div className="lb-screen" data-testid="library">
+      {view.state === 'error' && <h1 className="lb-h1">Components</h1>}
+      {view.state === 'error' ? (
+        <Callout state="fail" role="alert" title="The library cannot be shown">
+          <p className="lb-pre">
+            <Txt text={view.error} />
+          </p>
+          {theme && (
+            <LinkButton size="sm" to={{ name: 'library', slug }}>
+              Show it in the project's theme
+            </LinkButton>
+          )}
+        </Callout>
+      ) : (
+        <p className="lb-quiet" role="status">
+          Loading the components…
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The status bar: the queue's state, Render all loops, Open the theme editor. */
+function LibraryActions({ v, slug, pump, loopsToRender }: { v: LibraryViewAnswer; slug: string; pump: RenderPump; loopsToRender: string[] }) {
+  return (
+    <ShellSlot name="actions">
+      <span className="sh-scenario" role="status" data-testid="lib-status">
+        {v.queued > 0 ? <StatusMark state="running" word={`${plural(v.queued, 'preview')} queued: waiting for the worker`} /> : <StatusMark state="idle" word="Idle" />}
+        <span className="sh-seg" data-drop="when">
+          {' · Posters render while their cards are on screen'}
+        </span>
+      </span>
+      <Button size="sm" variant="ghost" disabled={!loopsToRender.length} onClick={() => pump.wantLoops(loopsToRender, false)} data-testid="lib-render-all">
+        <Txt text={`Render all loops${loopsToRender.length ? ` (${loopsToRender.length})` : ''}`} />
+      </Button>
+      {okTheme(v.theme.name) && (
+        <LinkButton size="sm" variant="ghost" to={{ name: 'themes', slug, theme: v.theme.name }} testId="lib-theme-editor">
+          Open the theme editor
+        </LinkButton>
+      )}
+    </ShellSlot>
+  );
+}
+
+/** The pump's error (with Try again) and the last preview job's failure. */
+function LibraryAlerts({ v, pump, pumpError }: { v: LibraryViewAnswer; pump: RenderPump; pumpError: string | null }) {
+  return (
+    <>
+      {pumpError && (
+        <Callout state="warn" role="alert" title="No preview was queued">
+          <Txt text={pumpError} />{' '}
+          <Button size="sm" onClick={() => pump.clearError()} data-testid="lib-try-again">
+            Try again
+          </Button>
+        </Callout>
+      )}
+      {v.job_error && (
+        <Callout state="warn" role="alert" title="The last preview job failed">
+          <p className="lb-pre" data-testid="lib-job-error">
+            <Txt text={v.job_error.untrusted.message} />
+          </p>
+          <p className="lb-quiet">Its cards say "Render again"; a component that does not load is named in the registry notices.</p>
+        </Callout>
+      )}
+    </>
+  );
+}
+
+/** A component route naming no usable component. */
+function NoSuchComponent({ component, slug, theme }: { component: string; slug: string; theme: string }) {
+  return (
+    <Callout state="warn" role="alert" title="No such component in the library">
+      <Txt className="k-mono" text={component} />
+      {' is not a usable component of this workspace (the registry notices say why when it does not load). '}
+      <LinkButton size="sm" variant="ghost" to={{ name: 'library', slug, theme }}>
+        Back to the components
+      </LinkButton>
+    </Callout>
+  );
+}
+
+/** The grid page: the heading, the filters, the notices and a section of cards per kind. */
+function LibraryGrid({
+  v,
+  filter,
+  setFilter,
+  shown,
+  groups,
+  selected,
+  playing,
+  tabStop,
+  gridKeys,
+  onCreate,
+}: {
+  v: LibraryViewAnswer;
+  filter: LibraryFilter;
+  setFilter: (f: LibraryFilter) => void;
+  shown: LibraryItem[];
+  groups: Array<{ kind: string; items: LibraryItem[] }>;
+  selected: string | null;
+  playing: ReadonlySet<string>;
+  tabStop: string | null;
+  gridKeys: (e: KeyboardEvent<HTMLDivElement>) => void;
+  onCreate: () => void;
+}) {
+  return (
+    <>
+      <header className="lb-head">
+        <h1 className="lb-h1">Components</h1>
+        <Txt className="lb-count" text={`${v.items.length} in ${v.theme.name}${v.theme.project_default ? ", the project's theme" : ''}`} />
+        <span className="lb-head-end">
+          <Button size="sm" variant="primary" onClick={onCreate} data-testid="lib-create-open">
+            Create with Claude…
+          </Button>
+        </span>
+      </header>
+      <Filters items={v.items} filter={filter} set={setFilter} />
+      <Notices notices={v.notices} />
+      {groups.length === 0 && <p className="lb-quiet">No component matches.</p>}
+      {/* The grid: one tab stop; its keys move the selection (gridKeys). */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: the keys bubble from the focused card (the grid's one tab stop); the wrapper itself is not a control */}
+      <div className="lb-cards" onKeyDown={gridKeys}>
+        {groups.map((g) => (
+          <section key={g.kind} className="lb-section" data-testid="lib-section" data-kind={g.kind} aria-labelledby={`lb-h-${g.kind}`}>
+            <div className="lb-section-head">
+              <h2 id={`lb-h-${g.kind}`} className="lb-h2" data-testid="lib-section-title">
+                <Txt text={kindHeading(g.kind)} /> <Txt className="lb-num" text={`(${g.items.length})`} />
+              </h2>
+              {filter.kind === 'all' && alsoServing(shown, g.kind) > 0 && (
+                <Button size="sm" variant="ghost" onClick={() => setFilter({ ...filter, kind: g.kind })} data-testid="lib-also-serving">
+                  <Txt text={alsoServingWords(alsoServing(shown, g.kind))} />
+                </Button>
+              )}
+            </div>
+            <ul className="lb-grid">
+              {g.items.map((i) => (
+                <LibraryCard key={i.component} item={i} selected={i.component === selected} playing={playing.has(i.component)} tabStop={i.component === tabStop} testId="lib-card" />
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** The selected card, and the card picked last (the grid's tab stop when nothing is selected; Escape keeps it). */
+function useSelection() {
+  const [selected, setSelected] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const select = useCallback((c: string | null) => {
+    setSelected(c);
+    if (c !== null) setCursor(c);
+  }, []);
+  return { selected, cursor, select };
+}
+
+/** The grid's one tab stop: the selected card when shown, else the card picked last, else the first. */
+function gridTabStop(sections: string[][], selected: string | null, cursor: string | null) {
+  const isShown = (c: string | null) => c !== null && sections.some((x) => x.includes(c));
+  return isShown(selected) ? selected : isShown(cursor) ? cursor : (sections[0]?.[0] ?? null);
+}
+
+export function LibraryScreen({ slug, theme, component }: { slug: string; theme?: string; component?: string }) {
+  const args = useMemo(() => ({ project: slug, ...(theme ? { theme } : {}) }), [slug, theme]);
+  const [view, reload] = useLibraryView(args, `${slug}/${theme ?? ''}`);
+  const [filter, setFilter] = useState<LibraryFilter>(NO_FILTER);
+  const [playing, setPlayingSet] = useState<ReadonlySet<string>>(new Set());
+  const { selected, cursor, select } = useSelection();
+  const [creating, setCreating] = useState(false);
+  const [brief, setBrief] = useState<Brief>(NO_BRIEF);
+  // The person's words, kept in this tab only, are unsaved text the desktop app's quit question
+  // names — held here: closing the sheet keeps them.
+  useUnsavedMark(brief.words.trim() ? { kind: 'component_brief', project: slug } : null);
+  const themeRef = useRef('');
+  // The last view stays on screen while another theme's loads (a copy made by "Set as theme default" keeps its Undo).
+  const last = useRef<LibraryViewAnswer | null>(null);
+  if (view.state === 'ready') {
+    themeRef.current = view.data.theme.name;
+    last.current = view.data;
+  }
+  const { pump, pumpError, images, observer } = useLibraryLoaders(slug, view, reload, themeRef);
+  useLiveRereads(slug, view, pump, reload);
+  const setPlaying = useCallback((c: string, on: boolean) => {
+    setPlayingSet((s) => {
+      const n = new Set(s);
+      if (on) n.add(c);
+      else n.delete(c);
+      return n;
+    });
+  }, []);
+  const v = view.state === 'ready' ? view.data : last.current;
+  const shownTheme = v?.theme.name ?? '';
+  // One context object per theme: the memoised cards never re-render because the screen did.
+  const ctx = useMemo<LibraryCtx>(
+    () => ({ slug, theme: shownTheme, images, pump, setPlaying, select, reload, observe: observer.observe }),
+    [slug, shownTheme, images, pump, setPlaying, select, reload, observer],
+  );
+  const shown = useMemo(() => (v ? filterItems(v.items, filter) : []), [v, filter]);
+  const groups = useMemo(() => groupByKind(shown, filter.kind), [shown, filter.kind]);
+  const openCreate = (kind?: string, like?: string) => {
+    setBrief((b) => {
+      const { like: _old, ...rest } = b;
+      return { ...rest, ...(kind && isKind(kind) ? { kind } : {}), ...(like ? { like } : {}) };
+    });
+    setCreating(true);
+  };
+
+  if (!v) return <LibraryUnavailable view={view} slug={slug} theme={theme} />;
+
+  const item = component ? v.items.find((i) => i.component === component) : undefined;
+  const focus = component ? item : selected ? v.items.find((i) => i.component === selected) : undefined;
+  const sections = groups.map((g) => g.items.map((i) => i.component));
+  const tabStop = gridTabStop(sections, selected, cursor);
   const loopsToRender = shown.filter((i) => i.loop.state === 'missing' && !i.loop.queued).map((i) => i.component);
   return (
     <LibraryContext.Provider value={ctx}>
@@ -421,88 +575,27 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
         <ShellSlot name="context">
           <ThemeSelect view={v} slug={slug} />
         </ShellSlot>
-        <ShellSlot name="actions">
-          <span className="sh-scenario" role="status" data-testid="lib-status">
-            {v.queued > 0 ? <StatusMark state="running" word={`${plural(v.queued, 'preview')} queued: waiting for the worker`} /> : <StatusMark state="idle" word="Idle" />}
-            <span className="sh-seg" data-drop="when">
-              {' · Posters render while their cards are on screen'}
-            </span>
-          </span>
-          <Button size="sm" variant="ghost" disabled={!loopsToRender.length} onClick={() => pump.wantLoops(loopsToRender, false)} data-testid="lib-render-all">
-            <Txt text={`Render all loops${loopsToRender.length ? ` (${loopsToRender.length})` : ''}`} />
-          </Button>
-          {okTheme(v.theme.name) && (
-            <LinkButton size="sm" variant="ghost" to={{ name: 'themes', slug, theme: v.theme.name }} testId="lib-theme-editor">
-              Open the theme editor
-            </LinkButton>
-          )}
-        </ShellSlot>
-        {pumpError && (
-          <Callout state="warn" role="alert" title="No preview was queued">
-            <Txt text={pumpError} />{' '}
-            <Button size="sm" onClick={() => pump.clearError()} data-testid="lib-try-again">
-              Try again
-            </Button>
-          </Callout>
-        )}
-        {v.job_error && (
-          <Callout state="warn" role="alert" title="The last preview job failed">
-            <p className="lb-pre" data-testid="lib-job-error">
-              <Txt text={v.job_error.untrusted.message} />
-            </p>
-            <p className="lb-quiet">Its cards say "Render again"; a component that does not load is named in the registry notices.</p>
-          </Callout>
-        )}
+        <LibraryActions v={v} slug={slug} pump={pump} loopsToRender={loopsToRender} />
+        <LibraryAlerts v={v} pump={pump} pumpError={pumpError} />
         {component ? (
           item ? (
             <WantLoop pump={pump} component={item.component} />
           ) : (
-            <Callout state="warn" role="alert" title="No such component in the library">
-              <Txt className="k-mono" text={component} />
-              {' is not a usable component of this workspace (the registry notices say why when it does not load). '}
-              <LinkButton size="sm" variant="ghost" to={{ name: 'library', slug, theme: v.theme.name }}>
-                Back to the components
-              </LinkButton>
-            </Callout>
+            <NoSuchComponent component={component} slug={slug} theme={v.theme.name} />
           )
         ) : (
-          <>
-            <header className="lb-head">
-              <h1 className="lb-h1">Components</h1>
-              <Txt className="lb-count" text={`${v.items.length} in ${v.theme.name}${v.theme.project_default ? ", the project's theme" : ''}`} />
-              <span className="lb-head-end">
-                <Button size="sm" variant="primary" onClick={() => openCreate()} data-testid="lib-create-open">
-                  Create with Claude…
-                </Button>
-              </span>
-            </header>
-            <Filters items={v.items} filter={filter} set={setFilter} />
-            <Notices notices={v.notices} />
-            {groups.length === 0 && <p className="lb-quiet">No component matches.</p>}
-            {/* The grid: one tab stop; its keys move the selection (gridKeys). */}
-            {/* biome-ignore lint/a11y/noStaticElementInteractions: the keys bubble from the focused card (the grid's one tab stop); the wrapper itself is not a control */}
-            <div className="lb-cards" onKeyDown={gridKeys}>
-              {groups.map((g) => (
-                <section key={g.kind} className="lb-section" data-testid="lib-section" data-kind={g.kind} aria-labelledby={`lb-h-${g.kind}`}>
-                  <div className="lb-section-head">
-                    <h2 id={`lb-h-${g.kind}`} className="lb-h2" data-testid="lib-section-title">
-                      <Txt text={kindHeading(g.kind)} /> <Txt className="lb-num" text={`(${g.items.length})`} />
-                    </h2>
-                    {filter.kind === 'all' && alsoServing(shown, g.kind) > 0 && (
-                      <Button size="sm" variant="ghost" onClick={() => setFilter({ ...filter, kind: g.kind })} data-testid="lib-also-serving">
-                        <Txt text={alsoServingWords(alsoServing(shown, g.kind))} />
-                      </Button>
-                    )}
-                  </div>
-                  <ul className="lb-grid">
-                    {g.items.map((i) => (
-                      <LibraryCard key={i.component} item={i} selected={i.component === selected} playing={playing.has(i.component)} tabStop={i.component === tabStop} testId="lib-card" />
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-          </>
+          <LibraryGrid
+            v={v}
+            filter={filter}
+            setFilter={setFilter}
+            shown={shown}
+            groups={groups}
+            selected={selected}
+            playing={playing}
+            tabStop={tabStop}
+            gridKeys={gridKeyHandler(sections, selected, select)}
+            onCreate={() => openCreate()}
+          />
         )}
         {/* One place for the component inspector, keyed by the component: the grid's and the page's. */}
         {focus ? (

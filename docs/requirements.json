@@ -313,7 +313,7 @@
    "source": "SPEC §2 lesson 7",
    "requirement": "Edit avoids zooms at every cut, fades on wrong frames and 30 s of slow action, and delivers real capture with light motion, mockups, intro/outro with logo and captions.",
    "status": "done",
-   "evidence": "Checked on the acceptance renders (docs/ACCEPTANCE-phase2.md): one transition component per join (0.35 s crossfades in editorial), none over a click (review transition check), no zoom at a cut (catalogue: the scenario's single zoom inside its last scene; quote editorial: none; motion: one theme zoom 1.12× on the marked step), no 30 s of slow action (longest scene 26.2 s of dense action at 1.6×; waits sped up to ≈ 1.5 s loading states), real capture in a card / laptop mockup with light motion, intro / outro with the logo and captions on every clip. Review rules enforce it (zoom count / zoom-not-slow / long-wait / long-scene / transition-over-click, packages/review/src/checks.ts).",
+   "evidence": "Checked on the acceptance renders (docs/ACCEPTANCE-phase2.md): one transition component per join (0.35 s crossfades in editorial), none over a click (review transition check), no zoom at a cut (catalogue: the scenario's single zoom inside its last scene; quote editorial: none; motion: one theme zoom 1.12× on the marked step), no 30 s of slow action (longest scene 26.2 s of dense action at 1.6×; waits sped up to ≈ 1.5 s loading states), real capture in a card / laptop mockup with light motion, intro / outro with the logo and captions on every clip. Review rules enforce it (zoom count / zoom-not-slow in packages/review/src/checks-camera.ts, long-wait / long-scene / transition-over-click in packages/review/src/checks.ts).",
    "gap": "",
    "phase": "2",
    "lot": "L2.14"
@@ -5122,7 +5122,7 @@
    "source": "DESIGN-phase2 §3; SPEC §8",
    "requirement": "Check: cursor off-screen or outside the zoomed view at clicks.",
    "status": "done",
-   "evidence": "Clicks of the capture (events with t_click) placed on the output through srcFrames; cursor-offscreen, cursor-hidden, cursor-outside-view (at the click and 0.4 s later, viewOf = camera zoom + vertical crop), target-outside-view (packages/review/src/checks.ts checkCursor); tests packages/review/test/review.test.ts 'cursor outside the zoomed view…' and packages/review/test/checks.test.ts (fixture clicks in view).",
+   "evidence": "Clicks of the capture (events with t_click) placed on the output through srcFrames; cursor-offscreen, cursor-hidden, cursor-outside-view (at the click and 0.4 s later, viewOf = camera zoom + vertical crop), target-outside-view (packages/review/src/checks-camera.ts checkCursor); tests packages/review/test/review.test.ts 'cursor outside the zoomed view…' and packages/review/test/checks.test.ts (fixture clicks in view).",
    "gap": "",
    "phase": "2",
    "lot": "L2.6"

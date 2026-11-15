@@ -24,7 +24,7 @@ import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, 
 import type { ThemeEditView } from '@retake/engine';
 import type { ThemeListAnswer, ThemePreviewAnswer } from '../../server/theme-ops.js';
 import { CallError, errorText } from '../api.js';
-import type { Loaded } from '../api.js';
+import type { Loaded, OpResult } from '../api.js';
 import { previewAllow, timelineLeave } from '../data/edit.js';
 import { scenarioBlocks, scenarioEdit } from '../data/scenarios.js';
 import { themeCopy, themeEdit, themePreview, themeView } from '../data/themes.js';
@@ -138,21 +138,13 @@ const ThemeBrowser = memo(function ThemeBrowser({ slug, v }: { slug: string; v: 
   );
 });
 
-export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string; list: Loaded<ThemeListAnswer> }) {
-  const [view, load] = useThemeView(theme);
-  const history = useRef(new ThemeHistory());
-  const [, rerender] = useState(0);
-  const [busy, setBusy] = useState<string | null>(null);
-  const busyRef = useRef(false);
-  const [status, setStatus] = useState<Status | null>(null);
-  const [draft, setDraftState] = useState<Draft | null>(null);
-  // A colour or background picked and not written yet is unsaved for the desktop app's quit question.
-  useUnsavedMark(draft && (draft.colors || draft.background) ? { kind: 'theme_draft', project: slug } : null);
-  const [target, setTarget] = useState<PreviewTarget>('intro');
-  const [rippleFollows, setRippleFollows] = useState(true);
-  const v = view.state === 'ready' ? view.data : null;
-
-  // Live re-reads: this theme changed on disk (another window, Claude, a person), a component, a reconnection.
+/** Live re-reads: this theme changed on disk (another window, Claude, a person), a component, a reconnection. */
+function useThemeRereads(
+  slug: string,
+  theme: string,
+  load: () => Promise<ThemeEditView | null>,
+  { busyRef, history, rerender }: { busyRef: { current: boolean }; history: { current: ThemeHistory }; rerender: (f: (n: number) => number) => void },
+) {
   const timer = useRef<number | null>(null);
   useEvents((e) => {
     if (!themeEventAction(e, slug, theme) || timer.current !== null) return;
@@ -166,8 +158,10 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
     }, 250);
   });
   useEffect(() => () => void (timer.current !== null && window.clearTimeout(timer.current)), []);
+}
 
-  // ── The live frame ──
+/** The live frame: a lease left with the screen, theme_preview asked per version shown and per target, drafts throttled. */
+function useLivePreview(slug: string, theme: string, target: PreviewTarget, shownSha: string | undefined) {
   const [lease] = useState(newLease);
   useEffect(
     () => () => {
@@ -196,18 +190,41 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
   const throttle = useMemo(() => new DraftThrottle<Draft>((d) => void askPreview(d)), [askPreview]);
   useEffect(() => () => throttle.cancel(), [throttle]);
   // Each version shown (and each target) previews the written theme.
-  const shownSha = v?.sha256;
   useEffect(() => {
     if (shownSha === undefined) return;
     void askPreview(null);
   }, [shownSha, askPreview]);
-  const setDraftNow = (d: Draft) => {
-    setDraftState(d);
-    throttle.push(d);
-  };
+  return { answer, previewError, askPreview, throttle };
+}
 
-  // ── Writes ──
-  const write = async (edit: ThemeEdit, mode: 'edit' | 'undo' | 'redo' = 'edit'): Promise<boolean> => {
+/** The status line after a written edit: its label, what the server removed, kept or dropped, and its warnings. */
+function editStatus(r: OpResult<'theme_edit'>, label: string): Status {
+  const extra = [
+    r.removed.some((x) => !r.label.includes(x)) ? `removed ${r.removed.join(', ')} (it contradicted the change)` : '',
+    r.kept_params && Object.keys(r.kept_params).length ? `kept its params ${Object.keys(r.kept_params).join(', ')}` : '',
+    r.dropped_params?.length ? `dropped its params ${r.dropped_params.join(', ')}` : '',
+  ].filter(Boolean);
+  return { tone: r.warnings.length ? 'warning' : 'info', text: `${label}${extra.length ? ` — ${extra.join('; ')}` : ''}.${r.warnings.length ? ` ${r.warnings.slice(0, 3).join(' · ')}` : ''}` };
+}
+
+/** What the one write path reads and sets: the version shown, its history, the screen's state and the live frame. */
+interface WriteCtx {
+  v: ThemeEditView | null;
+  theme: string;
+  load: () => Promise<ThemeEditView | null>;
+  history: { current: ThemeHistory };
+  busyRef: { current: boolean };
+  setBusy: (b: string | null) => void;
+  setStatus: (s: Status) => void;
+  setDraftState: (d: Draft | null) => void;
+  throttle: DraftThrottle<Draft>;
+  askPreview: (d: Draft | null) => Promise<void>;
+  rerender: (f: (n: number) => number) => void;
+}
+
+/** The one write path: theme_edit on the version shown (if_match its sha256), an edit, an undo or a redo; the view read again. */
+function makeWrite({ v, theme, load, history, busyRef, setBusy, setStatus, setDraftState, throttle, askPreview, rerender }: WriteCtx) {
+  return async (edit: ThemeEdit, mode: 'edit' | 'undo' | 'redo' = 'edit'): Promise<boolean> => {
     if (!v || busyRef.current) return false;
     busyRef.current = true;
     setBusy(mode === 'undo' ? 'Undoing…' : mode === 'redo' ? 'Redoing…' : 'Saving…');
@@ -222,13 +239,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
       else if (before && nv && nv.sha256 === r.sha256 && nv.yaml !== null) history.current.push(r.label, before, { text: nv.yaml, sha256: nv.sha256 });
       else history.current.clear();
       if (nv) history.current.sync(nv.sha256);
-      const extra = [
-        r.removed.some((x) => !r.label.includes(x)) ? `removed ${r.removed.join(', ')} (it contradicted the change)` : '',
-        r.kept_params && Object.keys(r.kept_params).length ? `kept its params ${Object.keys(r.kept_params).join(', ')}` : '',
-        r.dropped_params?.length ? `dropped its params ${r.dropped_params.join(', ')}` : '',
-      ].filter(Boolean);
-      const label = mode === 'undo' ? `Undone: ${step!.label}` : mode === 'redo' ? `Redone: ${step!.label}` : r.label;
-      setStatus({ tone: r.warnings.length ? 'warning' : 'info', text: `${label}${extra.length ? ` — ${extra.join('; ')}` : ''}.${r.warnings.length ? ` ${r.warnings.slice(0, 3).join(' · ')}` : ''}` });
+      setStatus(editStatus(r, mode === 'undo' ? `Undone: ${step!.label}` : mode === 'redo' ? `Redone: ${step!.label}` : r.label));
       setDraftState(null);
       return true;
     } catch (e) {
@@ -252,6 +263,47 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
       rerender((n) => n + 1);
     }
   };
+}
+
+/** The theme's first problems. */
+function ThemeIssues({ issues }: { issues: string[] }) {
+  return (
+    <Callout state="fail" role="note" title="This theme has problems">
+      <ul className="tm-issues">
+        {issues.slice(0, 6).map((x, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the theme's first issues, replaced whole on each read, text only: the index is the identity
+          <li key={i}>
+            <Txt text={x} />
+          </li>
+        ))}
+      </ul>
+    </Callout>
+  );
+}
+
+export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string; list: Loaded<ThemeListAnswer> }) {
+  const [view, load] = useThemeView(theme);
+  const history = useRef(new ThemeHistory());
+  const [, rerender] = useState(0);
+  const [busy, setBusy] = useState<string | null>(null);
+  const busyRef = useRef(false);
+  const [status, setStatus] = useState<Status | null>(null);
+  const [draft, setDraftState] = useState<Draft | null>(null);
+  // A colour or background picked and not written yet is unsaved for the desktop app's quit question.
+  useUnsavedMark(draft && (draft.colors || draft.background) ? { kind: 'theme_draft', project: slug } : null);
+  const [target, setTarget] = useState<PreviewTarget>('intro');
+  const [rippleFollows, setRippleFollows] = useState(true);
+  const v = view.state === 'ready' ? view.data : null;
+
+  useThemeRereads(slug, theme, load, { busyRef, history, rerender });
+  const { answer, previewError, askPreview, throttle } = useLivePreview(slug, theme, target, v?.sha256);
+  const setDraftNow = (d: Draft) => {
+    setDraftState(d);
+    throttle.push(d);
+  };
+
+  // ── Writes ──
+  const write = makeWrite({ v, theme, load, history, busyRef, setBusy, setStatus, setDraftState, throttle, askPreview, rerender });
   /** A control's plan: written, refused with why (said), or nothing to do (the draft dropped). */
   const send: Send = (plan) => {
     if (plan === null) {
@@ -276,32 +328,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
   const setDraft = useCallback((d: Draft) => latest.current.setDraftNow(d), []);
   const reloadView = useCallback(() => void load(), [load]);
 
-  if (view.state === 'loading') {
-    return (
-      <div className="tm-screen">
-        <p className="tm-quiet" role="status">
-          <Txt text={`Loading theme ${theme}…`} />
-        </p>
-      </div>
-    );
-  }
-  if (view.state === 'error' || !v) {
-    return (
-      <div className="tm-screen">
-        <h1 className="tm-h1">
-          <Txt text={theme} />
-        </h1>
-        <Callout state={view.state === 'error' && view.code === 'not_found' ? 'warn' : 'fail'} role="alert" title="This theme cannot be opened">
-          <p className="tm-pre">
-            <Txt text={view.state === 'error' ? view.error : ''} />
-          </p>
-          <LinkButton size="sm" to={{ name: 'themes', slug }}>
-            Back to the themes
-          </LinkButton>
-        </Callout>
-      </div>
-    );
-  }
+  if (view.state === 'loading' || view.state === 'error' || !v) return <ThemeUnavailable view={view} slug={slug} theme={theme} />;
   const editable = v.editable === true;
   const off = !editable || busy !== null;
   const listed = list.state === 'ready' ? list.data : null;
@@ -313,94 +340,173 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
   return (
     <div className="tm-screen tm-editor" data-testid="theme-editor" data-theme={v.name} data-sha={v.sha256} data-editable={editable ? 'yes' : 'no'}>
       <ThemeBrowser slug={slug} v={v} />
-      <ShellSlot name="actions">
-        <span className="sh-scenario" data-testid="theme-state">
-          {busy ? (
-            <StatusMark state="running" word={`Busy: ${busy}`} />
-          ) : editable ? (
-            <StatusMark state="idle" word="Ready · each change is saved and checked" />
-          ) : (
-            <StatusMark state="idle" word="Read-only: copy it to edit it" />
-          )}
-        </span>
-        <Button size="sm" variant="ghost" icon="undo" data-testid="theme-undo" disabled={!editable || busy !== null || !undo} onClick={() => void write(undo!.edit, 'undo')}>
-          Undo
-        </Button>
-        <Button size="sm" variant="ghost" icon="redo" data-testid="theme-redo" disabled={!editable || busy !== null || !redo} onClick={() => void write(redo!.edit, 'redo')}>
-          Redo
-        </Button>
-        <LinkButton size="sm" variant="ghost" to={{ name: 'themes', slug }}>
-          Extract from a website…
-        </LinkButton>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={scenarios.length === 0}
-          onClick={() => {
-            const el = document.getElementById(USE_SELECT);
-            el?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-            el?.focus();
-          }}
-        >
-          Use in a scenario…
-        </Button>
-      </ShellSlot>
-      <header className="tm-head">
-        <h1 className="tm-h1">
-          <Txt text={v.name} />
-        </h1>
-        <span className="tm-tags">
-          <Tag>{editable ? 'Editable · in this workspace' : 'Read-only'}</Tag>
-          <Tag>{v.source === 'starter' ? 'Starter' : 'Workspace'}</Tag>
-          <span className="tm-quiet" data-testid="theme-used-by">
-            <Txt text={usedByWords(v.used_by, slug)} />
-          </span>
-        </span>
-      </header>
+      <ThemeActions
+        slug={slug}
+        busy={busy}
+        editable={editable}
+        canUndo={!!undo}
+        canRedo={!!redo}
+        noScenario={scenarios.length === 0}
+        onUndo={() => void write(undo!.edit, 'undo')}
+        onRedo={() => void write(redo!.edit, 'redo')}
+      />
+      <ThemeHead v={v} slug={slug} editable={editable} />
       {!editable && <CopyToEdit slug={slug} theme={v.name} why={v.editable === true ? '' : v.editable.why} taken={listed?.themes.map((t) => t.name) ?? []} />}
-      {v.issues.length > 0 && (
-        <Callout state="fail" role="note" title="This theme has problems">
-          <ul className="tm-issues">
-            {v.issues.slice(0, 6).map((x, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: the theme's first issues, replaced whole on each read, text only: the index is the identity
-              <li key={i}>
-                <Txt text={x} />
-              </li>
-            ))}
-          </ul>
-        </Callout>
-      )}
+      {v.issues.length > 0 && <ThemeIssues issues={v.issues} />}
       <p className="tm-status" role="status" aria-live="polite" data-tone={status?.tone ?? 'info'} data-testid="theme-status">
         {busy ? <Txt text={busy} /> : status ? <Txt text={status.text} /> : editable ? 'Each change is written at once (Undo takes it back).' : ''}
       </p>
-      <section className="tm-live" aria-labelledby="tm-live-h">
-        <div className="tm-live-head">
-          <h2 id="tm-live-h" className="tm-h2">
-            Live preview
-          </h2>
-          <span className="tm-quiet">No render: the preview follows each change</span>
-          <span className="tm-live-target" data-testid="chips-target">
-            <Segmented<PreviewTarget> label="Show" size="sm" value={target} onChange={setTarget} options={(['intro', 'clip', 'outro'] as const).map((t) => ({ value: t, label: TARGET_WORDS[t] }))} />
-          </span>
-        </div>
-        {answer ? (
-          <LiveFrame v={answer} drafting={draft !== null} onAgain={() => void askPreview(draft)} />
-        ) : previewError ? null : (
-          <p className="tm-quiet" role="status">
-            Loading the preview…
-          </p>
-        )}
-        {previewError && (
-          <p className="tm-failure" role="status" data-testid="theme-preview-error">
-            <Txt text={previewError} />
-          </p>
-        )}
-      </section>
+      <LivePreview target={target} setTarget={setTarget} answer={answer} previewError={previewError} drafting={draft !== null} onAgain={() => void askPreview(draft)} />
       <UseInScenario slug={slug} theme={v.name} scenarios={scenarios} onChanged={reloadView} />
       <ShellSlot name="inspector" inline="Fields">
         <ThemeFields v={v} slug={slug} off={off} draft={draft} paper={paper} rippleFollows={rippleFollows} setRippleFollows={setRippleFollows} listed={listed} send={stableSend} setDraft={setDraft} />
       </ShellSlot>
     </div>
+  );
+}
+
+/** The theme not shown: loading, or why it cannot be opened. */
+function ThemeUnavailable({ view, slug, theme }: { view: Loaded<ThemeEditView>; slug: string; theme: string }) {
+  if (view.state === 'loading') {
+    return (
+      <div className="tm-screen">
+        <p className="tm-quiet" role="status">
+          <Txt text={`Loading theme ${theme}…`} />
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="tm-screen">
+      <h1 className="tm-h1">
+        <Txt text={theme} />
+      </h1>
+      <Callout state={view.state === 'error' && view.code === 'not_found' ? 'warn' : 'fail'} role="alert" title="This theme cannot be opened">
+        <p className="tm-pre">
+          <Txt text={view.state === 'error' ? view.error : ''} />
+        </p>
+        <LinkButton size="sm" to={{ name: 'themes', slug }}>
+          Back to the themes
+        </LinkButton>
+      </Callout>
+    </div>
+  );
+}
+
+/** The status bar: the editor's state, Undo, Redo, Extract from a website…, Use in a scenario… */
+function ThemeActions({
+  slug,
+  busy,
+  editable,
+  canUndo,
+  canRedo,
+  noScenario,
+  onUndo,
+  onRedo,
+}: {
+  slug: string;
+  busy: string | null;
+  editable: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  noScenario: boolean;
+  onUndo(): void;
+  onRedo(): void;
+}) {
+  return (
+    <ShellSlot name="actions">
+      <span className="sh-scenario" data-testid="theme-state">
+        {busy ? (
+          <StatusMark state="running" word={`Busy: ${busy}`} />
+        ) : editable ? (
+          <StatusMark state="idle" word="Ready · each change is saved and checked" />
+        ) : (
+          <StatusMark state="idle" word="Read-only: copy it to edit it" />
+        )}
+      </span>
+      <Button size="sm" variant="ghost" icon="undo" data-testid="theme-undo" disabled={!editable || busy !== null || !canUndo} onClick={onUndo}>
+        Undo
+      </Button>
+      <Button size="sm" variant="ghost" icon="redo" data-testid="theme-redo" disabled={!editable || busy !== null || !canRedo} onClick={onRedo}>
+        Redo
+      </Button>
+      <LinkButton size="sm" variant="ghost" to={{ name: 'themes', slug }}>
+        Extract from a website…
+      </LinkButton>
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={noScenario}
+        onClick={() => {
+          const el = document.getElementById(USE_SELECT);
+          el?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+          el?.focus();
+        }}
+      >
+        Use in a scenario…
+      </Button>
+    </ShellSlot>
+  );
+}
+
+/** The heading: the theme's name, whether it can be edited, its source and what uses it. */
+function ThemeHead({ v, slug, editable }: { v: ThemeEditView; slug: string; editable: boolean }) {
+  return (
+    <header className="tm-head">
+      <h1 className="tm-h1">
+        <Txt text={v.name} />
+      </h1>
+      <span className="tm-tags">
+        <Tag>{editable ? 'Editable · in this workspace' : 'Read-only'}</Tag>
+        <Tag>{v.source === 'starter' ? 'Starter' : 'Workspace'}</Tag>
+        <span className="tm-quiet" data-testid="theme-used-by">
+          <Txt text={usedByWords(v.used_by, slug)} />
+        </span>
+      </span>
+    </header>
+  );
+}
+
+/** The live preview section: the target control, then the frame, its progress or its error. */
+function LivePreview({
+  target,
+  setTarget,
+  answer,
+  previewError,
+  drafting,
+  onAgain,
+}: {
+  target: PreviewTarget;
+  setTarget: (t: PreviewTarget) => void;
+  answer: ThemePreviewAnswer | null;
+  previewError: string | null;
+  drafting: boolean;
+  onAgain(): void;
+}) {
+  return (
+    <section className="tm-live" aria-labelledby="tm-live-h">
+      <div className="tm-live-head">
+        <h2 id="tm-live-h" className="tm-h2">
+          Live preview
+        </h2>
+        <span className="tm-quiet">No render: the preview follows each change</span>
+        <span className="tm-live-target" data-testid="chips-target">
+          <Segmented<PreviewTarget> label="Show" size="sm" value={target} onChange={setTarget} options={(['intro', 'clip', 'outro'] as const).map((t) => ({ value: t, label: TARGET_WORDS[t] }))} />
+        </span>
+      </div>
+      {answer ? (
+        <LiveFrame v={answer} drafting={drafting} onAgain={onAgain} />
+      ) : previewError ? null : (
+        <p className="tm-quiet" role="status">
+          Loading the preview…
+        </p>
+      )}
+      {previewError && (
+        <p className="tm-failure" role="status" data-testid="theme-preview-error">
+          <Txt text={previewError} />
+        </p>
+      )}
+    </section>
   );
 }
 

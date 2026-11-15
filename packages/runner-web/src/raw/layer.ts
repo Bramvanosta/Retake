@@ -202,8 +202,12 @@ export function drawCursorFrame(frame: Buffer, width: number, height: number, at
   return dirty;
 }
 
-/** ffmpeg arguments of a layer: raw RGBA in, ProRes 4444 (prores_aw, straight alpha, BT.709) or VP9 + alpha out. */
-export function layerArgs(format: RawLayerFormat, width: number, height: number, fps: number, frames: number, out: string, timecode: string): string[] {
+/**
+ * ffmpeg arguments of a layer: raw RGBA in, ProRes 4444 (prores_aw, straight alpha, BT.709) or VP9 + alpha out.
+ * `frames`: how many frames are written.
+ */
+export function layerArgs(format: RawLayerFormat, o: { width: number; height: number; fps: number; frames: number; out: string; timecode: string }): string[] {
+  const { width, height, fps, frames, out, timecode } = o;
   const input = ['-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${width}x${height}`, '-framerate', String(fps), '-i', 'pipe:0'];
   const tags = ['-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709'];
   if (format === 'webm') {
@@ -287,7 +291,7 @@ export async function encodeCursorLayer(opts: {
 }): Promise<void> {
   const { width, height } = opts;
   const bin = ffmpegBin(opts.policy, opts.ffmpeg);
-  const tool = startMediaTool(bin, layerArgs(opts.format, width, height, opts.fps, opts.frames.length, opts.out, opts.timecode), {
+  const tool = startMediaTool(bin, layerArgs(opts.format, { width, height, fps: opts.fps, frames: opts.frames.length, out: opts.out, timecode: opts.timecode }), {
     stdio: ['pipe', 'ignore', 'pipe'],
     stderr: { keep: 'tail', max: 4000 },
   });

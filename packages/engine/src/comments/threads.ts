@@ -155,13 +155,9 @@ export async function runInputs(projectDir: string, record: RenderForWork, warni
 export async function writeStill(
   projectDir: string,
   id: string,
-  video: string,
-  frame: number,
-  region: CommentRegion | undefined,
-  warnings: string[],
-  policy: WorkPolicy,
-  frames: Pick<FrameTools, 'still'>,
+  o: { video: string; frame: number; region?: CommentRegion | undefined; warnings: string[]; policy: WorkPolicy; frames: Pick<FrameTools, 'still'> },
 ): Promise<string | null> {
+  const { video, frame, region, warnings, policy, frames } = o;
   const final = commentStillFile(projectDir, id);
   const tmp = join(dirname(final), `${id}.${randomBytes(4).toString('hex')}.tmp.jpg`);
   try {
@@ -334,8 +330,8 @@ export async function addComment(
     throw new EngineError('invalid', `the comment does not make a valid thread: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   }
   const written = await storeOf(project, scope).writeText(commentRef(record.scenario, id), `${JSON.stringify(parsed.data, null, 2)}\n`, { ifMatch: null, what: 'thread' });
-  await writeStill(project.dir, id, record.file, frame, req.region, warnings, policy, frames);
-  return { thread: await threadView(scope.stores, project.dir, parsed.data, written.sha256, await renderIndex(renders, project.dir)), warnings };
+  await writeStill(project.dir, id, { video: record.file, frame, region: req.region, warnings, policy, frames });
+  return { thread: await threadView(scope.stores, project.dir, { thread: parsed.data, hash: written.sha256, renders: await renderIndex(renders, project.dir) }), warnings };
 }
 
 export interface CommentWritten {
@@ -368,7 +364,11 @@ export async function writeAppended(
   const next = appendedThread(f.id, r, entry);
   // The thread's lock already serialises every write of its file: no second (write) lock inside it.
   const written = await storeOf(project, scope).writeText(f.ref, next.text, { ifMatch: r.hash, locked: true, what: 'thread' });
-  return { thread: await threadView(scope.stores, project.dir, next.thread, written.sha256, await renderIndex(o.renders, project.dir)), entry: entry.id, hash: written.sha256 };
+  return {
+    thread: await threadView(scope.stores, project.dir, { thread: next.thread, hash: written.sha256, renders: await renderIndex(o.renders, project.dir) }),
+    entry: entry.id,
+    hash: written.sha256,
+  };
 }
 
 /**

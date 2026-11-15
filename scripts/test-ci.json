@@ -123,6 +123,7 @@
     "packages/core/test/shell-hosts.test.ts",
     "packages/core/test/shell-words.test.ts",
     "packages/core/test/site-url.test.ts",
+    "packages/core/test/size-limits.test.ts",
     "packages/core/test/step-edits.test.ts",
     "packages/core/test/step-match.test.ts",
     "packages/core/test/step-values.test.ts",

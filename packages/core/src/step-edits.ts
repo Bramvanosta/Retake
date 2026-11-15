@@ -712,7 +712,8 @@ function pairEnd(text: string, p: Pair<Node, Node | null>): number {
  * One raw operation applied to the text (the step at `entry` / `index`); `want`: the step it must parse to — the whole
  * file must then parse to the file's value with that step (an anchored value changed under an alias elsewhere: refused).
  */
-function applyRawOpText(ctx: Ctx, text: string, entry: number, index: number, op: RawOp, want: unknown, what: string): string {
+function applyRawOpText(ctx: Ctx, text: string, o: { entry: number; index: number; op: RawOp; want: unknown; what: string }): string {
+  const { entry, index, op, want, what } = o;
   const whole = cloneValue(ctx.value);
   (whole.scenes[entry] as { steps: unknown[] }).steps[index] = want;
   const check = (out: string): boolean => verifyStepText(out, whole);
@@ -838,7 +839,7 @@ function setStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'set_step' }>): StepE
   const step = structuredClone(raw) as Record<string, unknown>;
   for (const op of ops) {
     applyRawOp(step, op);
-    text = applyRawOpText(ctx, text, scene.entry, edit.at.index, op, step, what);
+    text = applyRawOpText(ctx, text, { entry: scene.entry, index: edit.at.index, op, want: step, what });
   }
   // A file without a final line break keeps it so (a line added at its end brought one).
   if (!ctx.text.endsWith('\n') && text.endsWith('\n')) text = text.slice(0, text.endsWith(ctx.eol) ? -ctx.eol.length : -1);

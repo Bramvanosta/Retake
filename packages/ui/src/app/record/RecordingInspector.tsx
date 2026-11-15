@@ -26,6 +26,245 @@ export function StopControl({ v, ui, act, compact }: { v: RecordViewAnswer; ui: 
   );
 }
 
+type Untrusted = NonNullable<RecordViewAnswer['untrusted']>;
+
+/** Started with: the recording's facts, and its Name (Enter saves, or says why it cannot). */
+function StartedWith({
+  v,
+  ui,
+  name,
+  setName,
+  problem,
+  save,
+}: {
+  v: RecordViewAnswer;
+  ui: RecordingUi;
+  name: string;
+  setName: (name: string) => void;
+  problem: ReturnType<typeof nameProblem>;
+  save: () => void;
+}) {
+  const facts = [
+    ...(v.env ? [{ key: 'env', label: 'Location', value: <Txt text={`${v.env}${v.access === 'read-only' ? ' · read-only' : ''}`} /> }] : []),
+    ...(v.page ? [{ key: 'page', label: 'Page', value: <Txt text={v.page} /> }] : []),
+    ...(v.page ? [{ key: 'path', label: 'Path', value: <Txt className="k-mono" text={v.path ?? '/'} /> }] : []),
+    ...(v.persona !== null || v.started_at !== null ? [{ key: 'persona', label: 'Persona', value: v.persona ? <Txt text={v.persona} /> : 'Signed out' }] : []),
+    { key: 'by', label: 'Started by', value: startedByWords(v.started_by) },
+    ...(v.started_at ? [{ key: 'at', label: 'Started', value: <When iso={v.started_at} /> }] : []),
+  ];
+  return (
+    <InspectorSection title="Started with" testId="record-started-with">
+      <Facts rows={facts} label="Started with" />
+      {v.can.annotate ? (
+        <TextField
+          label="Name"
+          layout="row"
+          mono
+          testId="record-save-name"
+          value={name}
+          onChange={setName}
+          unsaved={null}
+          maxLength={NAME_MAX}
+          spellCheck={false}
+          autoComplete="off"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              save();
+            }
+          }}
+          {...(problem
+            ? { error: problem }
+            : ui.taken === name
+              ? {
+                  error: (
+                    <span data-testid="record-save-taken" role="alert">
+                      <Txt text={`scenarios/${name}.yaml exists: choose another name (a scenario is never overwritten from here).`} />
+                    </span>
+                  ),
+                }
+              : { hint: 'Save writes a new file, scenarios/<name>.yaml — never an existing one.' })}
+        />
+      ) : (
+        v.name && <Facts rows={[{ key: 'name', label: 'Name', value: <Txt className="k-mono" text={v.name} /> }]} />
+      )}
+    </InspectorSection>
+  );
+}
+
+/** The selected step: its scene, target, page, who made it, and Add after this step. */
+function SelectedStep({ v, sel }: { v: RecordViewAnswer; sel: NonNullable<ReturnType<typeof selectedRow>> }) {
+  return (
+    <InspectorSection
+      title={
+        <>
+          {shown(`Step ${sel.row.step.index + 1} · `)}
+          <Txt text={sel.row.step.label} />
+        </>
+      }
+      testId="record-step-inspector"
+    >
+      <Facts
+        rows={[
+          { key: 'scene', label: 'Scene', value: <Txt className="k-mono" text={sel.scene.scene} /> },
+          ...(sel.row.step.target ? [{ key: 'target', label: 'Target', value: <Txt text={sel.row.step.target} /> }] : []),
+          ...(sel.scene.page ? [{ key: 'page', label: 'Page', value: <Txt text={`${sel.scene.page}${sel.scene.open ? ` ${sel.scene.open}` : ''}`} /> }] : []),
+          { key: 'made', label: 'Made by', value: sel.row.source?.role === 'insert' ? 'you (an insert)' : sel.row.source?.role === 'helper' ? 'the recorder' : 'your action in the window' },
+          ...(sel.row.alt && sel.row.alt.options.length > 1 ? [{ key: 'pick', label: 'Way to find', value: chosenOf(sel.row).picked ? 'picked by you' : 'the recorder’s suggestion' }] : []),
+        ]}
+      />
+      {v.can.annotate && (
+        <p>
+          <Button size="sm" data-testid="record-add-after" onClick={() => document.querySelector<HTMLElement>('[data-testid="record-inserts"] [role="toolbar"] button[tabindex="0"]')?.focus()}>
+            Add after this step
+          </Button>
+        </p>
+      )}
+    </InspectorSection>
+  );
+}
+
+/** The window's or the recording's controls: Stop, Save as new scenario, Discard. */
+function RecordingControls({
+  v,
+  ui,
+  act,
+  stopHere,
+  name,
+  saveWhy,
+  save,
+}: {
+  v: RecordViewAnswer;
+  ui: RecordingUi;
+  act: RecordingActions;
+  stopHere: boolean;
+  name: string;
+  saveWhy: string | null;
+  save: () => void;
+}) {
+  return (
+    <InspectorSection title={v.can.stop ? 'The window' : 'This recording'} testId="record-controls">
+      {v.can.stop && stopHere && <StopControl v={v} ui={ui} act={act} />}
+      {v.can.annotate && !v.saved && (
+        <div className="rc-control">
+          <Button variant="primary" data-testid="record-save" disabled={saveWhy !== null} aria-describedby="rec-save-why" onClick={save}>
+            Save as new scenario
+          </Button>
+          <span id="rec-save-why" className="sc-quiet" data-testid="record-save-why">
+            {shown(saveWhy ?? `It writes a new file, scenarios/${name}.yaml, then opens it.`)}
+          </span>
+        </div>
+      )}
+      {v.can.discard && (
+        <div className="rc-control">
+          <Button variant="destructive" data-testid="record-discard" disabled={ui.discarding} onClick={() => act.confirm(true)}>
+            {ui.discarding ? 'Discarding…' : 'Discard'}
+          </Button>
+        </div>
+      )}
+    </InspectorSection>
+  );
+}
+
+/** The draft's check: its outcome, where it failed, what the page said. */
+function CheckSection({ check, c }: { check: NonNullable<RecordViewAnswer['check']>; c: Untrusted['check'] | undefined }) {
+  const w = checkWords(check);
+  const failedAt = checkFailedAt(c);
+  return (
+    <InspectorSection title="Check" testId="record-check-section">
+      <Callout
+        state={check.status === 'passed' && w.tone === 'info' ? 'ok' : TONE_MARK[w.tone]}
+        role="note"
+        title={check.events_changed ? `Stale: ${w.title.charAt(0).toLowerCase()}${w.title.slice(1)}` : w.title}
+      >
+        <p data-testid="record-check" data-status={check.status}>
+          {shown(w.detail)}
+        </p>
+        {failedAt && c?.failed_at && (
+          <p data-testid="record-check-at" data-recorded={failedAt.recorded ? 'true' : 'false'}>
+            {shown(failedAt.recorded ? 'At recorded ' : 'At ')}
+            <Txt text={stepWords(failedAt.scene, failedAt.step)} />
+            {' ('}
+            <Txt text={c.failed_at.action} />
+            {shown(failedAt.recorded ? ') — not a row on screen any more' : ')')}
+          </p>
+        )}
+        {c?.error && (
+          <p className="rc-pre rc-from-page">
+            <span className="rc-quiet">From the page: </span>
+            <Txt text={c.error} />
+          </p>
+        )}
+      </Callout>
+      <p className="sc-quiet">{shown(CHECK_SCOPE_NOTE)}</p>
+    </InspectorSection>
+  );
+}
+
+/** The secret fields: the placeholders the draft types instead of what was typed. */
+function PlaceholdersSection({ placeholders }: { placeholders: Untrusted['placeholders'] }) {
+  const placeholderKeys = contentKeys(placeholders, (p) => `${p.name}:${p.scene}:${p.step}`);
+  return (
+    <InspectorSection title="Secret fields" testId="record-placeholders">
+      <p>What was typed there is never kept or shown: the draft types a placeholder instead.</p>
+      <ul className="rc-list">
+        {placeholders.map((p, i) => (
+          <li key={placeholderKeys[i]}>
+            <Txt className="k-mono" text={`{{vars.${p.name}}}`} /> {shown(PLACEHOLDER_WORDS[p.kind] ?? 'a secret')}
+            {', '}
+            <Txt text={stepWords(p.scene, p.step)} />
+            {shown(p.project_var ? ' — project.yaml’s var of that name is used.' : ' — CHANGE-ME in the draft.')}
+          </li>
+        ))}
+      </ul>
+      <p className="sc-quiet">
+        Put a showable demo value under <code className="k-mono">vars:</code> in project.yaml with that name (it is used at once), never the real one; or, once saved, put an{' '}
+        <code className="k-mono">{'{{env:…}}'}</code> reference in the scenario in your editor (that scenario then runs from a terminal only).
+      </p>
+    </InspectorSection>
+  );
+}
+
+/** The recording's writes, and the first 20 the page named. */
+function WritesSection({ writes, labels }: { writes: string; labels: Untrusted['writes'] }) {
+  const labelKeys = contentKeys(labels.slice(0, 20), (wr) => `${wr.label}:${wr.outcome}`);
+  return (
+    <InspectorSection title="Writes" testId="record-writes">
+      <p>{shown(writes)}</p>
+      {labels.length > 0 && (
+        <>
+          <p className="rc-quiet">From the page:</p>
+          <ul className="rc-list">
+            {labels.slice(0, 20).map((wr, i) => (
+              <li key={labelKeys[i]}>
+                <Txt className="k-mono" text={wr.label} />
+                <span className="rc-quiet">{shown(` — ${wr.outcome}`)}</span>
+              </li>
+            ))}
+          </ul>
+          {labels.length > 20 && <p className="sc-quiet">{shown(plural(labels.length - 20, 'more write'))}</p>}
+        </>
+      )}
+    </InspectorSection>
+  );
+}
+
+/** The recording's warnings. */
+function WarningsSection({ warnings }: { warnings: string[] }) {
+  const warningKeys = contentKeys(warnings, (wa) => wa);
+  return (
+    <InspectorSection title="Warnings">
+      <ul className="rc-list">
+        {warnings.map((wa, i) => (
+          <li key={warningKeys[i]}>
+            <Txt text={wa} />
+          </li>
+        ))}
+      </ul>
+    </InspectorSection>
+  );
+}
+
 /** The inspector: Started with, the selected step, Stop / Save / Discard, the check, issues, placeholders, writes. */
 export function RecordingInspector({
   v,
@@ -54,141 +293,15 @@ export function RecordingInspector({
     if (saveWhy === null) act.save(name);
     else say(saveWhy);
   };
-  const w = v.check ? checkWords(v.check) : null;
-  const c = u?.check;
-  const failedAt = checkFailedAt(c);
   const writes = writesWords(v.writes, v.access);
-  const labels = u?.writes ?? [];
   // The draft changes as the person records (steps added, moved, removed): each row keyed by what it says.
   const issueKeys = contentKeys(u?.issues ?? [], (i) => `${i.code}:${i.scene ?? ''}:${i.step ?? ''}:${i.message}`);
-  const placeholderKeys = contentKeys(u?.placeholders ?? [], (p) => `${p.name}:${p.scene}:${p.step}`);
-  const labelKeys = contentKeys(labels.slice(0, 20), (wr) => `${wr.label}:${wr.outcome}`);
-  const warningKeys = contentKeys(v.warnings, (wa) => wa);
-  const facts = [
-    ...(v.env ? [{ key: 'env', label: 'Location', value: <Txt text={`${v.env}${v.access === 'read-only' ? ' · read-only' : ''}`} /> }] : []),
-    ...(v.page ? [{ key: 'page', label: 'Page', value: <Txt text={v.page} /> }] : []),
-    ...(v.page ? [{ key: 'path', label: 'Path', value: <Txt className="k-mono" text={v.path ?? '/'} /> }] : []),
-    ...(v.persona !== null || v.started_at !== null ? [{ key: 'persona', label: 'Persona', value: v.persona ? <Txt text={v.persona} /> : 'Signed out' }] : []),
-    { key: 'by', label: 'Started by', value: startedByWords(v.started_by) },
-    ...(v.started_at ? [{ key: 'at', label: 'Started', value: <When iso={v.started_at} /> }] : []),
-  ];
   return (
     <>
-      <InspectorSection title="Started with" testId="record-started-with">
-        <Facts rows={facts} label="Started with" />
-        {v.can.annotate ? (
-          <TextField
-            label="Name"
-            layout="row"
-            mono
-            testId="record-save-name"
-            value={name}
-            onChange={setName}
-            unsaved={null}
-            maxLength={NAME_MAX}
-            spellCheck={false}
-            autoComplete="off"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                save();
-              }
-            }}
-            {...(problem
-              ? { error: problem }
-              : ui.taken === name
-                ? {
-                    error: (
-                      <span data-testid="record-save-taken" role="alert">
-                        <Txt text={`scenarios/${name}.yaml exists: choose another name (a scenario is never overwritten from here).`} />
-                      </span>
-                    ),
-                  }
-                : { hint: 'Save writes a new file, scenarios/<name>.yaml — never an existing one.' })}
-          />
-        ) : (
-          v.name && <Facts rows={[{ key: 'name', label: 'Name', value: <Txt className="k-mono" text={v.name} /> }]} />
-        )}
-      </InspectorSection>
-      {sel && (
-        <InspectorSection
-          title={
-            <>
-              {shown(`Step ${sel.row.step.index + 1} · `)}
-              <Txt text={sel.row.step.label} />
-            </>
-          }
-          testId="record-step-inspector"
-        >
-          <Facts
-            rows={[
-              { key: 'scene', label: 'Scene', value: <Txt className="k-mono" text={sel.scene.scene} /> },
-              ...(sel.row.step.target ? [{ key: 'target', label: 'Target', value: <Txt text={sel.row.step.target} /> }] : []),
-              ...(sel.scene.page ? [{ key: 'page', label: 'Page', value: <Txt text={`${sel.scene.page}${sel.scene.open ? ` ${sel.scene.open}` : ''}`} /> }] : []),
-              { key: 'made', label: 'Made by', value: sel.row.source?.role === 'insert' ? 'you (an insert)' : sel.row.source?.role === 'helper' ? 'the recorder' : 'your action in the window' },
-              ...(sel.row.alt && sel.row.alt.options.length > 1 ? [{ key: 'pick', label: 'Way to find', value: chosenOf(sel.row).picked ? 'picked by you' : 'the recorder’s suggestion' }] : []),
-            ]}
-          />
-          {v.can.annotate && (
-            <p>
-              <Button size="sm" data-testid="record-add-after" onClick={() => document.querySelector<HTMLElement>('[data-testid="record-inserts"] [role="toolbar"] button[tabindex="0"]')?.focus()}>
-                Add after this step
-              </Button>
-            </p>
-          )}
-        </InspectorSection>
-      )}
-      {((v.can.stop && stopHere) || v.can.annotate || v.can.discard) && (
-        <InspectorSection title={v.can.stop ? 'The window' : 'This recording'} testId="record-controls">
-          {v.can.stop && stopHere && <StopControl v={v} ui={ui} act={act} />}
-          {v.can.annotate && !v.saved && (
-            <div className="rc-control">
-              <Button variant="primary" data-testid="record-save" disabled={saveWhy !== null} aria-describedby="rec-save-why" onClick={save}>
-                Save as new scenario
-              </Button>
-              <span id="rec-save-why" className="sc-quiet" data-testid="record-save-why">
-                {shown(saveWhy ?? `It writes a new file, scenarios/${name}.yaml, then opens it.`)}
-              </span>
-            </div>
-          )}
-          {v.can.discard && (
-            <div className="rc-control">
-              <Button variant="destructive" data-testid="record-discard" disabled={ui.discarding} onClick={() => act.confirm(true)}>
-                {ui.discarding ? 'Discarding…' : 'Discard'}
-              </Button>
-            </div>
-          )}
-        </InspectorSection>
-      )}
-      {v.check && w && (
-        <InspectorSection title="Check" testId="record-check-section">
-          <Callout
-            state={v.check.status === 'passed' && w.tone === 'info' ? 'ok' : TONE_MARK[w.tone]}
-            role="note"
-            title={v.check.events_changed ? `Stale: ${w.title.charAt(0).toLowerCase()}${w.title.slice(1)}` : w.title}
-          >
-            <p data-testid="record-check" data-status={v.check.status}>
-              {shown(w.detail)}
-            </p>
-            {failedAt && c?.failed_at && (
-              <p data-testid="record-check-at" data-recorded={failedAt.recorded ? 'true' : 'false'}>
-                {shown(failedAt.recorded ? 'At recorded ' : 'At ')}
-                <Txt text={stepWords(failedAt.scene, failedAt.step)} />
-                {' ('}
-                <Txt text={c.failed_at.action} />
-                {shown(failedAt.recorded ? ') — not a row on screen any more' : ')')}
-              </p>
-            )}
-            {c?.error && (
-              <p className="rc-pre rc-from-page">
-                <span className="rc-quiet">From the page: </span>
-                <Txt text={c.error} />
-              </p>
-            )}
-          </Callout>
-          <p className="sc-quiet">{shown(CHECK_SCOPE_NOTE)}</p>
-        </InspectorSection>
-      )}
+      <StartedWith v={v} ui={ui} name={name} setName={setName} problem={problem} save={save} />
+      {sel && <SelectedStep v={v} sel={sel} />}
+      {((v.can.stop && stopHere) || v.can.annotate || v.can.discard) && <RecordingControls v={v} ui={ui} act={act} stopHere={stopHere} name={name} saveWhy={saveWhy} save={save} />}
+      {v.check && <CheckSection check={v.check} c={u?.check} />}
       {u && u.issues.length > 0 && (
         <InspectorSection title={`To look at (${u.issues.length})`} testId="record-issues-section">
           <ul className="rc-list rc-issues" data-testid="record-issues">
@@ -207,55 +320,9 @@ export function RecordingInspector({
           </ul>
         </InspectorSection>
       )}
-      {u && u.placeholders.length > 0 && (
-        <InspectorSection title="Secret fields" testId="record-placeholders">
-          <p>What was typed there is never kept or shown: the draft types a placeholder instead.</p>
-          <ul className="rc-list">
-            {u.placeholders.map((p, i) => (
-              <li key={placeholderKeys[i]}>
-                <Txt className="k-mono" text={`{{vars.${p.name}}}`} /> {shown(PLACEHOLDER_WORDS[p.kind] ?? 'a secret')}
-                {', '}
-                <Txt text={stepWords(p.scene, p.step)} />
-                {shown(p.project_var ? ' — project.yaml’s var of that name is used.' : ' — CHANGE-ME in the draft.')}
-              </li>
-            ))}
-          </ul>
-          <p className="sc-quiet">
-            Put a showable demo value under <code className="k-mono">vars:</code> in project.yaml with that name (it is used at once), never the real one; or, once saved, put an{' '}
-            <code className="k-mono">{'{{env:…}}'}</code> reference in the scenario in your editor (that scenario then runs from a terminal only).
-          </p>
-        </InspectorSection>
-      )}
-      {writes && (
-        <InspectorSection title="Writes" testId="record-writes">
-          <p>{shown(writes)}</p>
-          {labels.length > 0 && (
-            <>
-              <p className="rc-quiet">From the page:</p>
-              <ul className="rc-list">
-                {labels.slice(0, 20).map((wr, i) => (
-                  <li key={labelKeys[i]}>
-                    <Txt className="k-mono" text={wr.label} />
-                    <span className="rc-quiet">{shown(` — ${wr.outcome}`)}</span>
-                  </li>
-                ))}
-              </ul>
-              {labels.length > 20 && <p className="sc-quiet">{shown(plural(labels.length - 20, 'more write'))}</p>}
-            </>
-          )}
-        </InspectorSection>
-      )}
-      {v.warnings.length > 0 && (
-        <InspectorSection title="Warnings">
-          <ul className="rc-list">
-            {v.warnings.map((wa, i) => (
-              <li key={warningKeys[i]}>
-                <Txt text={wa} />
-              </li>
-            ))}
-          </ul>
-        </InspectorSection>
-      )}
+      {u && u.placeholders.length > 0 && <PlaceholdersSection placeholders={u.placeholders} />}
+      {writes && <WritesSection writes={writes} labels={u?.writes ?? []} />}
+      {v.warnings.length > 0 && <WarningsSection warnings={v.warnings} />}
     </>
   );
 }

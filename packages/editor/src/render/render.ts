@@ -308,17 +308,55 @@ function softwarePolicy(p: RenderPolicy): RenderPolicy {
   return { ...withGl(p, 'software', { keepConcurrency: true }), encoder: { asked: 'libx264', source: p.encoder.source } };
 }
 
-/**
- * Render a plan to `out` (.mp4). The video is encoded under a temporary name next to `out` and renamed when complete:
- * a failure or a cancellation (AbortSignal → Remotion cancel signal) leaves nothing under `out`.
- *
- * The policy (./policy.ts) picks the GL, the encoder (before the render: VideoToolbox's size limit and probe) and the
- * concurrency. One fallback: when the GPU path itself fails (`gpuPathFailure`: the GPU process, the GL context,
- * the hardware encoder or its pipe — never a cancel, a timeout, a full disk or an error of the plan), the video is
- * rendered once more from frame 0 in software with libx264, to a fresh temporary file, through a new session (its
- * browser reported and guarded again); progress never goes back (stage `retrying`, clamped), a cancel still cancels.
- */
-export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanResult> {
+type Library = Awaited<ReturnType<typeof rendererLibrary>>;
+type MediaProgress = Parameters<NonNullable<Parameters<Library['renderMedia']>[0]['onProgress']>>[0];
+
+/** A render in progress: its options and checked inputs, its progress so far, and what its attempts tried. */
+interface RenderRun {
+  opts: RenderPlanOptions;
+  out: string;
+  root: string;
+  /** The policy asked (an explicit concurrency option over it). */
+  policy: RenderPolicy;
+  range: [number, number] | undefined;
+  total: number;
+  size: { width: number; height: number; fps: number };
+  report: (p: RenderProgress) => void;
+  /** The progress reached (it never goes back) and whether the fallback runs. */
+  high: number;
+  highFrames: number;
+  retrying: boolean;
+  warnings: string[];
+  bundleMs: number;
+  fallback: { reason: string } | undefined;
+  /** What the last attempt tried (a failed render's record keeps it). */
+  tried: RenderPathRecord | undefined;
+  /** The policy attempt 1 rendered with (its concurrency is the fallback's). */
+  first: RenderPolicy | undefined;
+  /** The ffmpeg the current attempt encodes with, and what the first attempt failed with while ours encoded. */
+  ff: EncodeFfmpegChoice | undefined;
+  ownFailed: string | undefined;
+  /** The version of our ffmpeg while it encoded the first attempt (the record of a retry keeps it). */
+  ownVersion: string | undefined;
+}
+
+/** One attempt: its number, the policy its session renders with, its temporary file, its cancel signal and encoder. */
+interface Attempt {
+  n: 1 | 2;
+  p: RenderPolicy;
+  lib: Library;
+  partial: string;
+  cancelSignal: ReturnType<Library['makeCancelSignal']>['cancelSignal'];
+  cancel: () => void;
+  /** A failure a test seam made mid-render. */
+  injected: Error | undefined;
+  encoder: RenderEncoder;
+  /** When the attempt's rendering started (performance.now()). */
+  tr: number;
+}
+
+/** A render's checked inputs: the output file, the root, the policy, the frame range. */
+function startRender(opts: RenderPlanOptions): RenderRun {
   const out = resolve(opts.out);
   if (extname(out).toLowerCase() !== '.mp4') throw new RenderError(`render output must be an .mp4 file: ${out}`);
   const root = handedRoot(opts.root);
@@ -330,39 +368,46 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
   }
   const total = range ? range[1] - range[0] + 1 : opts.plan.durationInFrames;
   const size = { width: opts.plan.width, height: opts.plan.height, fps: opts.plan.fps };
-  guardEncoderPipe();
-  // Progress never goes back: a fallback starts again from frame 0 under `retrying`, clamped to what was reached.
-  const report = opts.onProgress ?? (() => undefined);
-  let high = 0;
-  let highFrames = 0;
-  let retrying = false;
-  const emit = (p: RenderProgress) => {
-    const overall = Math.max(high, p.overall);
-    high = overall;
-    const next: RenderProgress = { ...p, overall };
-    if (p.renderedFrames !== undefined) {
-      highFrames = Math.max(highFrames, p.renderedFrames);
-      next.renderedFrames = highFrames;
-    }
-    if (retrying && (p.stage === 'bundling' || p.stage === 'rendering')) next.stage = 'retrying';
-    report(next);
+  return {
+    opts,
+    out,
+    root,
+    policy,
+    range,
+    total,
+    size,
+    report: opts.onProgress ?? (() => undefined),
+    high: 0,
+    highFrames: 0,
+    retrying: false,
+    warnings: [],
+    bundleMs: 0,
+    fallback: undefined,
+    tried: undefined,
+    first: undefined,
+    ff: undefined,
+    ownFailed: undefined,
+    ownVersion: undefined,
   };
-  if (cancelled(opts.signal)) throw new RenderCancelledError();
-  emit({ stage: 'bundling', progress: 0, overall: 0 });
-  await mkdir(dirname(out), { recursive: true });
-  const warnings: string[] = [];
-  let bundleMs = 0;
-  let fallback: { reason: string } | undefined;
-  /** What the last attempt tried (a failed render's record keeps it). */
-  let tried: RenderPathRecord | undefined;
-  /** The policy attempt 1 rendered with (its concurrency is the fallback's). */
-  let first: RenderPolicy | undefined;
-  /** The ffmpeg the current attempt encodes with, and what the first attempt failed with while ours encoded. */
-  let ff: EncodeFfmpegChoice | undefined;
-  let ownFailed: string | undefined;
-  /** The version of our ffmpeg while it encoded the first attempt (the record of a retry keeps it). */
-  let ownVersion: string | undefined;
-  const pathOf = (used: RenderGl, encoder: RenderEncoder, renderer?: string): RenderPathRecord => ({
+}
+
+/** Progress never goes back: a fallback starts again from frame 0 under `retrying`, clamped to what was reached. */
+function emitProgress(st: RenderRun, p: RenderProgress): void {
+  const overall = Math.max(st.high, p.overall);
+  st.high = overall;
+  const next: RenderProgress = { ...p, overall };
+  if (p.renderedFrames !== undefined) {
+    st.highFrames = Math.max(st.highFrames, p.renderedFrames);
+    next.renderedFrames = st.highFrames;
+  }
+  if (st.retrying && (p.stage === 'bundling' || p.stage === 'rendering')) next.stage = 'retrying';
+  st.report(next);
+}
+
+/** The record of the path a render took: its policy, what drew and encoded it, the fallback and the ffmpeg. */
+function pathOf(st: RenderRun, used: RenderGl, encoder: RenderEncoder, renderer?: string): RenderPathRecord {
+  const { policy, fallback, ff, ownFailed, ownVersion } = st;
+  return {
     gl: { asked: policy.gl.asked, source: policy.gl.source, resolved: policy.gl.resolved, used, ...(renderer && used === 'angle' ? { renderer } : {}) },
     encoder: { asked: policy.encoder.asked, source: policy.encoder.source, used: encoder },
     concurrency_source: policy.concurrencySource,
@@ -379,222 +424,294 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
           },
         }
       : {}),
-  });
-  const attempt = async (asked: RenderPolicy, n: 1 | 2): Promise<RenderPlanResult> => {
-    const t0 = performance.now();
-    const session = await openSession({
-      plan: opts.plan,
-      workPolicy: opts.workPolicy,
-      root,
-      registry: opts.registry,
-      cacheDir: opts.cacheDir,
-      signal: opts.signal,
-      onBundleProgress: (q, cached) => emit({ stage: 'bundling', progress: q, overall: 0.1 * q, cached }),
-      ...(opts.network ? { network: opts.network } : {}),
-      ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
-      policy: asked,
-      ...(opts.seams ? { seams: opts.seams } : {}),
-    }).catch((e: unknown) => {
-      if (cancelled(opts.signal)) throw new RenderCancelledError();
-      throw e;
-    });
-    if (n === 1) bundleMs = Math.round(performance.now() - t0);
-    const p = session.policy;
-    if (n === 1) first = p;
-    const partial = join(dirname(out), `.${basename(out, '.mp4')}.partial-${randomBytes(4).toString('hex')}.mp4`);
-    const { renderMedia, selectComposition, makeCancelSignal } = await rendererLibrary();
-    const { cancelSignal, cancel } = makeCancelSignal();
-    const onAbort = () => cancel();
-    let injected: Error | undefined;
-    opts.signal?.addEventListener('abort', onAbort);
-    let encoder: RenderEncoder = 'libx264';
-    const tr = performance.now();
-    try {
-      if (cancelled(opts.signal)) throw new RenderCancelledError();
-      // Nothing of the attempt before is said of this one until its own choice is made.
-      ff = undefined;
-      tried = pathOf(session.gl, encoder, rendererWords(session.gpu));
-      const choice: EncodeChoice =
-        n === 1 && opts.seams?.encoder
-          ? { encoder: opts.seams.encoder, ffmpeg: { used: 'library' } }
-          : await chooseEncode(p, session.gl, size, {
-              workPolicy: opts.workPolicy,
-              // The second attempt follows the setting's rule for the path it runs on (software: `auto` takes the
-              // library's, `own` ours) — unless the first failed while ours encoded: then the library's, whatever was asked.
-              ...(n === 2 && ownFailed !== undefined ? { library: true } : {}),
-              ...(opts.seams?.videotoolbox ? { videotoolbox: opts.seams.videotoolbox } : {}),
-              ...(opts.seams?.ownFfmpeg ? { own: opts.seams.ownFfmpeg } : {}),
-              ...(opts.seams?.ownEncodes ? { ownEncodes: opts.seams.ownEncodes } : {}),
-              ...(opts.signal ? { signal: opts.signal } : {}),
-            });
-      encoder = choice.encoder;
-      ff = choice.ffmpeg;
-      if (ff.used === 'own') ownVersion = ff.version;
-      tried = pathOf(session.gl, encoder, rendererWords(session.gpu));
-      if (choice.note) session.warnings.push(choice.note);
-      // Asked by name and not used: said. Under `auto` the record's note is enough (a machine without one is ordinary),
-      // unless a program or the system said something about it: those words go here, never into the record.
-      if (ff.used === 'library' && ff.note && !ff.byRule) {
-        const said = ff.detail ? ` — ${ff.detail}` : '';
-        if (p.ffmpeg.asked === 'own') session.warnings.push(`this machine's ffmpeg was asked for the encode (render.ffmpeg: own) and the rendering library's was used: ${ff.note}${said}`);
-        else if (said) session.warnings.push(`this machine's ffmpeg does not encode this render (${ff.note})${said}`);
-      }
-      const own = ff.used === 'own' && ff.binariesDirectory ? ff.binariesDirectory : undefined;
-      const inputProps = videoProps(session.served);
-      const composition = await selectComposition({
-        ...COMMON,
-        serveUrl: session.serveUrl,
-        id: COMPOSITION_IDS[opts.plan.variant],
-        inputProps,
-        puppeteerInstance: session.puppeteer,
-        browserExecutable: session.executable,
-        ...(session.remotion.port !== undefined ? { port: session.remotion.port } : {}),
-      });
-      if (composition.durationInFrames !== opts.plan.durationInFrames) {
-        throw new RenderError(`composition has ${composition.durationInFrames} frames, the plan ${opts.plan.durationInFrames}`);
-      }
-      emit({ stage: 'rendering', progress: 0, overall: 0.1, totalFrames: total, renderedFrames: 0, encodedFrames: 0 });
-      await opts.seams?.beforeRender?.(n, { gl: session.gl, encoder });
-      if (cancelled(opts.signal)) throw new RenderCancelledError();
-      await renderMedia({
-        ...COMMON,
-        composition,
-        serveUrl: session.serveUrl,
-        codec: RENDER_ENCODING.codec,
-        ...remotionEncoding(encoder, size),
-        pixelFormat: RENDER_ENCODING.pixel_format,
-        // Limited-range BT.709 (plain yuv420p, tagged): what players and platforms expect from an h264 MP4.
-        colorSpace: 'bt709',
-        imageFormat: 'jpeg',
-        jpegQuality: FRAME_JPEG_QUALITY,
-        enforceAudioTrack: true,
-        outputLocation: partial,
-        overwrite: true,
-        inputProps,
-        concurrency: p.concurrency,
-        ...(range ? { frameRange: range } : {}),
-        cancelSignal,
-        puppeteerInstance: session.puppeteer,
-        // Guarded: no program — a page that fails ends the render, never a browser Remotion opens itself.
-        browserExecutable: session.executable,
-        ...(session.chromium.gl ? { chromiumOptions: session.chromium } : {}),
-        ...session.remotion,
-        // Our ffmpeg encodes the frames (./encode-tools.ts): the folder that dispatches to it, its arguments rewritten,
-        // and frames over the pipe it reads (no shared-memory capture, which only the library's ffmpeg knows).
-        ...(own ? { binariesDirectory: own, ffmpegOverride: rewritePreStitcher, disableSharedMemoryCapture: true } : {}),
-        onProgress: (q) => {
-          const f = opts.seams?.failAfter;
-          if (f && f.attempt === n && !injected && q.renderedFrames >= f.frames) {
-            injected = new Error(f.message);
-            cancel();
-          }
-          if (q.renderedFrames < total) {
-            emit({
-              stage: 'rendering',
-              progress: q.renderedFrames / total,
-              overall: 0.1 + 0.85 * (q.renderedFrames / total),
-              totalFrames: total,
-              renderedFrames: q.renderedFrames,
-              encodedFrames: q.encodedFrames,
-              eta_s: q.renderEstimatedTime > 0 ? Math.round(q.renderEstimatedTime / 1000) : undefined,
-            });
-          } else {
-            emit({ stage: 'encoding', progress: q.encodedFrames / total, overall: 0.95 + 0.05 * (q.encodedFrames / total), totalFrames: total, renderedFrames: total, encodedFrames: q.encodedFrames });
-          }
-        },
-      });
-      if (cancelled(opts.signal)) throw new RenderCancelledError();
-      // What drew it, read again at the end: Chromium leaves the GPU by itself when its GPU process keeps failing.
-      let used = session.gl;
-      let gpu = session.gpu;
-      if (used === 'angle') {
-        const end = await (opts.seams?.gpuInfo ?? renderGpuInfo)(session.puppeteer);
-        if (end) gpu = end;
-        if (end && !end.accelerated) {
-          used = 'software';
-          session.warnings.push(`the render browser left the GPU during the render (${rendererWords(end) ?? 'no renderer reported'}): part of it was drawn in software`);
-        }
-      }
-      await ensureAudioTrack(partial, opts.workPolicy);
-      await rename(partial, out);
-      const sizeBytes = (await stat(out)).size;
-      const renderer = rendererWords(gpu);
-      warnings.push(...session.warnings, ...(session.guard?.warnings() ?? []));
-      return {
-        file: out,
-        bundle: session.bundle,
-        browser: session.browser,
-        concurrency: p.concurrency,
-        bundle_ms: bundleMs,
-        render_ms: Math.round(performance.now() - tr),
-        size_bytes: sizeBytes,
-        warnings: [...new Set(warnings)],
-        path: pathOf(used, encoder, renderer),
-        encoding: encodingRecord(encoder, size),
-      };
-    } catch (caught) {
-      const e = injected ?? caught;
-      // Nothing half-written is kept, whatever comes next (a fallback writes a fresh temporary file).
-      await rm(partial, { force: true }).catch(() => undefined);
-      warnings.push(...session.warnings, ...(session.guard?.warnings() ?? []));
-      if (cancelled(opts.signal) || e instanceof RenderCancelledError) throw new RenderCancelledError();
-      // A guarded render whose page failed: Remotion was refused a browser of its own (session.executable). On the GPU
-      // path that is our one software retry (guarded, a new session); otherwise the render fails, plainly.
-      if (session.guard && !(e instanceof RenderError) && guardedPageFailure(e)) {
-        if (n === 1 && session.gl === 'angle') throw new GpuPathFailed(guardedPageFailed());
-        throw new RenderError(`render failed: ${guardedPageFailed()}`);
-      }
-      const gpu = n === 1 ? gpuPathFailureOf(e, { gl: session.gl, encoder }) : null;
-      // The hardware encoder's signs (its lines, its pipe closing) are also how the ffmpeg that runs it fails: when
-      // ours was encoding, the record says both, and the retry takes the library's.
-      if (gpu) throw new GpuPathFailed(gpu.reason, { gpu: true, own: gpu.sign === 'encoder' && ff?.used === 'own' ? (ff.path ?? '') : undefined });
-      // Our ffmpeg failed at the encode: the one retry, with the library's (in software, the path that must work).
-      const ownReason =
-        n === 1 && ff?.used === 'own' ? ownEncodeFailure(e, { ...(ff.version ? { version: ff.version } : {}), ...(ff.binariesDirectory ? { folder: ff.binariesDirectory } : {}) }) : null;
-      if (ownReason) throw new GpuPathFailed(ownReason, { gpu: false, own: ff?.path ?? '' });
-      if (e instanceof RenderError) throw e;
-      throw new RenderError(`render failed: ${errorMessage(e)}`);
-    } finally {
-      opts.signal?.removeEventListener('abort', onAbort);
-      await session.close();
-      // Remotion may leave its in-progress fast-start file behind when cancelled mid-mux.
-      await removeLeftovers(dirname(out), basename(partial));
-    }
   };
-  /** A failure carries what was tried and the warnings so far (the failed record keeps them). */
-  const failed = (e: unknown): never => {
-    if (e instanceof RenderError && !(e instanceof RenderCancelledError)) {
-      e.path = tried;
-      e.renderWarnings = [...new Set(warnings)];
-    }
-    throw e;
-  };
-  try {
-    return await attempt(policy, 1);
-  } catch (e) {
-    if (!(e instanceof GpuPathFailed)) return failed(e);
+}
+
+/** The session of an attempt; a cancel while it opens is a cancel. */
+function openAttemptSession(st: RenderRun, asked: RenderPolicy): Promise<Session> {
+  const { opts, root } = st;
+  return openSession({
+    plan: opts.plan,
+    workPolicy: opts.workPolicy,
+    root,
+    registry: opts.registry,
+    cacheDir: opts.cacheDir,
+    signal: opts.signal,
+    onBundleProgress: (q, cached) => emitProgress(st, { stage: 'bundling', progress: q, overall: 0.1 * q, cached }),
+    ...(opts.network ? { network: opts.network } : {}),
+    ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
+    policy: asked,
+    ...(opts.seams ? { seams: opts.seams } : {}),
+  }).catch((e: unknown) => {
     if (cancelled(opts.signal)) throw new RenderCancelledError();
-    if (e.own !== undefined) {
-      // Ours was encoding: not taken again by this process (a render after this one keeps its path, with the library's).
-      ownFailed = e.reason;
-      if (e.own) noteOwnEncodeFailed(e.own);
+    throw e;
+  });
+}
+
+/** The encoder and ffmpeg of an attempt, chosen for its session's path; what was asked and not used is said. */
+async function chooseAttemptEncode(st: RenderRun, session: Session, a: Attempt): Promise<void> {
+  const { opts, size } = st;
+  const { n, p } = a;
+  // Nothing of the attempt before is said of this one until its own choice is made.
+  st.ff = undefined;
+  st.tried = pathOf(st, session.gl, a.encoder, rendererWords(session.gpu));
+  const choice: EncodeChoice =
+    n === 1 && opts.seams?.encoder
+      ? { encoder: opts.seams.encoder, ffmpeg: { used: 'library' } }
+      : await chooseEncode(p, session.gl, size, {
+          workPolicy: opts.workPolicy,
+          // The second attempt follows the setting's rule for the path it runs on (software: `auto` takes the
+          // library's, `own` ours) — unless the first failed while ours encoded: then the library's, whatever was asked.
+          ...(n === 2 && st.ownFailed !== undefined ? { library: true } : {}),
+          ...(opts.seams?.videotoolbox ? { videotoolbox: opts.seams.videotoolbox } : {}),
+          ...(opts.seams?.ownFfmpeg ? { own: opts.seams.ownFfmpeg } : {}),
+          ...(opts.seams?.ownEncodes ? { ownEncodes: opts.seams.ownEncodes } : {}),
+          ...(opts.signal ? { signal: opts.signal } : {}),
+        });
+  a.encoder = choice.encoder;
+  const ff = choice.ffmpeg;
+  st.ff = ff;
+  if (ff.used === 'own') st.ownVersion = ff.version;
+  st.tried = pathOf(st, session.gl, a.encoder, rendererWords(session.gpu));
+  if (choice.note) session.warnings.push(choice.note);
+  // Asked by name and not used: said. Under `auto` the record's note is enough (a machine without one is ordinary),
+  // unless a program or the system said something about it: those words go here, never into the record.
+  if (ff.used === 'library' && ff.note && !ff.byRule) {
+    const said = ff.detail ? ` — ${ff.detail}` : '';
+    if (p.ffmpeg.asked === 'own') session.warnings.push(`this machine's ffmpeg was asked for the encode (render.ffmpeg: own) and the rendering library's was used: ${ff.note}${said}`);
+    else if (said) session.warnings.push(`this machine's ffmpeg does not encode this render (${ff.note})${said}`);
+  }
+}
+
+/** Remotion's progress of an attempt as the render's (a test seam may fail the attempt here). */
+function onAttemptProgress(st: RenderRun, a: Attempt, q: MediaProgress): void {
+  const { opts, total } = st;
+  const f = opts.seams?.failAfter;
+  if (f && f.attempt === a.n && !a.injected && q.renderedFrames >= f.frames) {
+    a.injected = new Error(f.message);
+    a.cancel();
+  }
+  if (q.renderedFrames < total) {
+    emitProgress(st, {
+      stage: 'rendering',
+      progress: q.renderedFrames / total,
+      overall: 0.1 + 0.85 * (q.renderedFrames / total),
+      totalFrames: total,
+      renderedFrames: q.renderedFrames,
+      encodedFrames: q.encodedFrames,
+      eta_s: q.renderEstimatedTime > 0 ? Math.round(q.renderEstimatedTime / 1000) : undefined,
+    });
+  } else {
+    emitProgress(st, {
+      stage: 'encoding',
+      progress: q.encodedFrames / total,
+      overall: 0.95 + 0.05 * (q.encodedFrames / total),
+      totalFrames: total,
+      renderedFrames: total,
+      encodedFrames: q.encodedFrames,
+    });
+  }
+}
+
+/** The composition selected and its frames rendered and encoded to the attempt's temporary file. */
+async function renderAttemptMedia(st: RenderRun, session: Session, a: Attempt): Promise<void> {
+  const { opts, total, range, size } = st;
+  const { renderMedia, selectComposition } = a.lib;
+  const { n, encoder } = a;
+  const own = st.ff?.used === 'own' && st.ff.binariesDirectory ? st.ff.binariesDirectory : undefined;
+  const inputProps = videoProps(session.served);
+  const composition = await selectComposition({
+    ...COMMON,
+    serveUrl: session.serveUrl,
+    id: COMPOSITION_IDS[opts.plan.variant],
+    inputProps,
+    puppeteerInstance: session.puppeteer,
+    browserExecutable: session.executable,
+    ...(session.remotion.port !== undefined ? { port: session.remotion.port } : {}),
+  });
+  if (composition.durationInFrames !== opts.plan.durationInFrames) {
+    throw new RenderError(`composition has ${composition.durationInFrames} frames, the plan ${opts.plan.durationInFrames}`);
+  }
+  emitProgress(st, { stage: 'rendering', progress: 0, overall: 0.1, totalFrames: total, renderedFrames: 0, encodedFrames: 0 });
+  await opts.seams?.beforeRender?.(n, { gl: session.gl, encoder });
+  if (cancelled(opts.signal)) throw new RenderCancelledError();
+  await renderMedia({
+    ...COMMON,
+    composition,
+    serveUrl: session.serveUrl,
+    codec: RENDER_ENCODING.codec,
+    ...remotionEncoding(encoder, size),
+    pixelFormat: RENDER_ENCODING.pixel_format,
+    // Limited-range BT.709 (plain yuv420p, tagged): what players and platforms expect from an h264 MP4.
+    colorSpace: 'bt709',
+    imageFormat: 'jpeg',
+    jpegQuality: FRAME_JPEG_QUALITY,
+    enforceAudioTrack: true,
+    outputLocation: a.partial,
+    overwrite: true,
+    inputProps,
+    concurrency: a.p.concurrency,
+    ...(range ? { frameRange: range } : {}),
+    cancelSignal: a.cancelSignal,
+    puppeteerInstance: session.puppeteer,
+    // Guarded: no program — a page that fails ends the render, never a browser Remotion opens itself.
+    browserExecutable: session.executable,
+    ...(session.chromium.gl ? { chromiumOptions: session.chromium } : {}),
+    ...session.remotion,
+    // Our ffmpeg encodes the frames (./encode-tools.ts): the folder that dispatches to it, its arguments rewritten,
+    // and frames over the pipe it reads (no shared-memory capture, which only the library's ffmpeg knows).
+    ...(own ? { binariesDirectory: own, ffmpegOverride: rewritePreStitcher, disableSharedMemoryCapture: true } : {}),
+    onProgress: (q) => onAttemptProgress(st, a, q),
+  });
+}
+
+/** A rendered attempt: what drew it checked again, the audio track made sure of, the file moved to `out`. */
+async function finishAttempt(st: RenderRun, session: Session, a: Attempt): Promise<RenderPlanResult> {
+  const { opts, out, size, warnings } = st;
+  // What drew it, read again at the end: Chromium leaves the GPU by itself when its GPU process keeps failing.
+  let used = session.gl;
+  let gpu = session.gpu;
+  if (used === 'angle') {
+    const end = await (opts.seams?.gpuInfo ?? renderGpuInfo)(session.puppeteer);
+    if (end) gpu = end;
+    if (end && !end.accelerated) {
+      used = 'software';
+      session.warnings.push(`the render browser left the GPU during the render (${rendererWords(end) ?? 'no renderer reported'}): part of it was drawn in software`);
     }
-    if (e.gpu) {
-      fallback = { reason: e.reason };
-      warnings.push(
-        `the render failed on the GPU path (${e.reason})${e.own !== undefined ? " while this machine's ffmpeg was encoding" : ''} and was rendered again in software${e.own !== undefined ? " with the rendering library's" : ''}`,
-      );
-    } else warnings.push(`the encode failed with this machine's ffmpeg (${e.reason}) and the video was rendered again in software with the rendering library's`);
-    retrying = true;
-    emit({ stage: 'retrying', progress: 0, overall: high, totalFrames: total, renderedFrames: highFrames });
-    try {
-      return await attempt(softwarePolicy(first ?? policy), 2);
-    } catch (e2) {
-      // The software attempt failed too: said with the GPU path's reason (the error is the software attempt's).
-      if (e2 instanceof RenderError && !(e2 instanceof RenderCancelledError))
-        e2.message = `render failed in software, after ${e.gpu ? 'the GPU path failed' : "this machine's ffmpeg failed at the encode"} (${e.reason}): ${e2.message.replace(/^render failed: /, '')}`;
-      return failed(e2);
-    }
+  }
+  await ensureAudioTrack(a.partial, opts.workPolicy);
+  await rename(a.partial, out);
+  const sizeBytes = (await stat(out)).size;
+  const renderer = rendererWords(gpu);
+  warnings.push(...session.warnings, ...(session.guard?.warnings() ?? []));
+  return {
+    file: out,
+    bundle: session.bundle,
+    browser: session.browser,
+    concurrency: a.p.concurrency,
+    bundle_ms: st.bundleMs,
+    render_ms: Math.round(performance.now() - a.tr),
+    size_bytes: sizeBytes,
+    warnings: [...new Set(warnings)],
+    path: pathOf(st, used, a.encoder, renderer),
+    encoding: encodingRecord(a.encoder, size),
+  };
+}
+
+/** A failed attempt: its temporary file removed, then a cancel, the one fallback (GpuPathFailed) or the render's error. */
+async function attemptFailed(st: RenderRun, session: Session, a: Attempt, caught: unknown): Promise<never> {
+  const { opts, warnings, ff } = st;
+  const { n, encoder } = a;
+  const e = a.injected ?? caught;
+  // Nothing half-written is kept, whatever comes next (a fallback writes a fresh temporary file).
+  await rm(a.partial, { force: true }).catch(() => undefined);
+  warnings.push(...session.warnings, ...(session.guard?.warnings() ?? []));
+  if (cancelled(opts.signal) || e instanceof RenderCancelledError) throw new RenderCancelledError();
+  // A guarded render whose page failed: Remotion was refused a browser of its own (session.executable). On the GPU
+  // path that is our one software retry (guarded, a new session); otherwise the render fails, plainly.
+  if (session.guard && !(e instanceof RenderError) && guardedPageFailure(e)) {
+    if (n === 1 && session.gl === 'angle') throw new GpuPathFailed(guardedPageFailed());
+    throw new RenderError(`render failed: ${guardedPageFailed()}`);
+  }
+  const gpu = n === 1 ? gpuPathFailureOf(e, { gl: session.gl, encoder }) : null;
+  // The hardware encoder's signs (its lines, its pipe closing) are also how the ffmpeg that runs it fails: when
+  // ours was encoding, the record says both, and the retry takes the library's.
+  if (gpu) throw new GpuPathFailed(gpu.reason, { gpu: true, own: gpu.sign === 'encoder' && ff?.used === 'own' ? (ff.path ?? '') : undefined });
+  // Our ffmpeg failed at the encode: the one retry, with the library's (in software, the path that must work).
+  const ownReason = n === 1 && ff?.used === 'own' ? ownEncodeFailure(e, { ...(ff.version ? { version: ff.version } : {}), ...(ff.binariesDirectory ? { folder: ff.binariesDirectory } : {}) }) : null;
+  if (ownReason) throw new GpuPathFailed(ownReason, { gpu: false, own: ff?.path ?? '' });
+  if (e instanceof RenderError) throw e;
+  throw new RenderError(`render failed: ${errorMessage(e)}`);
+}
+
+/** One attempt of the render through its own session: the encode chosen, the frames rendered, the file moved to `out`. */
+async function renderAttempt(st: RenderRun, asked: RenderPolicy, n: 1 | 2): Promise<RenderPlanResult> {
+  const { opts, out } = st;
+  const t0 = performance.now();
+  const session = await openAttemptSession(st, asked);
+  if (n === 1) st.bundleMs = Math.round(performance.now() - t0);
+  const p = session.policy;
+  if (n === 1) st.first = p;
+  const partial = join(dirname(out), `.${basename(out, '.mp4')}.partial-${randomBytes(4).toString('hex')}.mp4`);
+  const lib = await rendererLibrary();
+  const { cancelSignal, cancel } = lib.makeCancelSignal();
+  const onAbort = () => cancel();
+  const a: Attempt = { n, p, lib, partial, cancelSignal, cancel, injected: undefined, encoder: 'libx264', tr: 0 };
+  opts.signal?.addEventListener('abort', onAbort);
+  a.tr = performance.now();
+  try {
+    if (cancelled(opts.signal)) throw new RenderCancelledError();
+    await chooseAttemptEncode(st, session, a);
+    await renderAttemptMedia(st, session, a);
+    if (cancelled(opts.signal)) throw new RenderCancelledError();
+    return await finishAttempt(st, session, a);
+  } catch (caught) {
+    return await attemptFailed(st, session, a, caught);
+  } finally {
+    opts.signal?.removeEventListener('abort', onAbort);
+    await session.close();
+    // Remotion may leave its in-progress fast-start file behind when cancelled mid-mux.
+    await removeLeftovers(dirname(out), basename(partial));
+  }
+}
+
+/** A failure carries what was tried and the warnings so far (the failed record keeps them). */
+function failedRender(st: RenderRun, e: unknown): never {
+  if (e instanceof RenderError && !(e instanceof RenderCancelledError)) {
+    e.path = st.tried;
+    e.renderWarnings = [...new Set(st.warnings)];
+  }
+  throw e;
+}
+
+/** The one fallback after the GPU path or our ffmpeg failed: rendered again from frame 0 in software. */
+async function retryInSoftware(st: RenderRun, e: GpuPathFailed): Promise<RenderPlanResult> {
+  const { opts, warnings } = st;
+  if (cancelled(opts.signal)) throw new RenderCancelledError();
+  if (e.own !== undefined) {
+    // Ours was encoding: not taken again by this process (a render after this one keeps its path, with the library's).
+    st.ownFailed = e.reason;
+    if (e.own) noteOwnEncodeFailed(e.own);
+  }
+  if (e.gpu) {
+    st.fallback = { reason: e.reason };
+    warnings.push(
+      `the render failed on the GPU path (${e.reason})${e.own !== undefined ? " while this machine's ffmpeg was encoding" : ''} and was rendered again in software${e.own !== undefined ? " with the rendering library's" : ''}`,
+    );
+  } else warnings.push(`the encode failed with this machine's ffmpeg (${e.reason}) and the video was rendered again in software with the rendering library's`);
+  st.retrying = true;
+  emitProgress(st, { stage: 'retrying', progress: 0, overall: st.high, totalFrames: st.total, renderedFrames: st.highFrames });
+  try {
+    return await renderAttempt(st, softwarePolicy(st.first ?? st.policy), 2);
+  } catch (e2) {
+    // The software attempt failed too: said with the GPU path's reason (the error is the software attempt's).
+    if (e2 instanceof RenderError && !(e2 instanceof RenderCancelledError))
+      e2.message = `render failed in software, after ${e.gpu ? 'the GPU path failed' : "this machine's ffmpeg failed at the encode"} (${e.reason}): ${e2.message.replace(/^render failed: /, '')}`;
+    return failedRender(st, e2);
+  }
+}
+
+/**
+ * Render a plan to `out` (.mp4). The video is encoded under a temporary name next to `out` and renamed when complete:
+ * a failure or a cancellation (AbortSignal → Remotion cancel signal) leaves nothing under `out`.
+ *
+ * The policy (./policy.ts) picks the GL, the encoder (before the render: VideoToolbox's size limit and probe) and the
+ * concurrency. One fallback: when the GPU path itself fails (`gpuPathFailure`: the GPU process, the GL context,
+ * the hardware encoder or its pipe — never a cancel, a timeout, a full disk or an error of the plan), the video is
+ * rendered once more from frame 0 in software with libx264, to a fresh temporary file, through a new session (its
+ * browser reported and guarded again); progress never goes back (stage `retrying`, clamped), a cancel still cancels.
+ */
+export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanResult> {
+  const st = startRender(opts);
+  guardEncoderPipe();
+  if (cancelled(opts.signal)) throw new RenderCancelledError();
+  emitProgress(st, { stage: 'bundling', progress: 0, overall: 0 });
+  await mkdir(dirname(st.out), { recursive: true });
+  try {
+    return await renderAttempt(st, st.policy, 1);
+  } catch (e) {
+    if (!(e instanceof GpuPathFailed)) return failedRender(st, e);
+    return await retryInSoftware(st, e);
   }
 }
 

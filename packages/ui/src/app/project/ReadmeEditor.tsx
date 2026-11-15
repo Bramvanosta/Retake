@@ -44,12 +44,13 @@ const diskOf = (v: ProjectView): Disk => ({ text: normalizeEol(v.readme ?? ''), 
 /** What a save writes: the text with a final line break (the tool would add it) and the file's own line breaks. */
 const fileText = (text: string, eol: Draft['base']['eol']) => toEol(text.endsWith('\n') ? text : `${text}\n`, eol);
 
-function Editor({ view }: { view: ProjectView }) {
+/** The editor's state: the draft (kept in drafts.ts), what is on disk, and what the screen says about a save. */
+function useReadmeState(view: ProjectView) {
   const slug = view.slug;
   const [draft, setLocal] = useState<Draft>(() => getDraft(readmeKey(slug)) ?? { text: diskOf(view).text, base: diskOf(view) });
   const [disk, setDisk] = useState<Disk | null>(null);
   const [dismissed, setDismissed] = useState<string | null | undefined>(undefined);
-  const [conflict, setConflict] = useState<{ mine: string; disk: Disk } | null>(null);
+  const [conflict, setConflict] = useState<Conflict | null>(null);
   const [kept, setKept] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +70,38 @@ function Editor({ view }: { view: ProjectView }) {
     },
     [slug],
   );
+  return {
+    draft,
+    disk,
+    setDisk,
+    dismissed,
+    setDismissed,
+    conflict,
+    setConflict,
+    kept,
+    setKept,
+    notice,
+    setNotice,
+    error,
+    setError,
+    saving,
+    setSaving,
+    savedHash,
+    setSavedHash,
+    draftRef,
+    savingRef,
+    epoch,
+    update,
+  };
+}
 
+type ReadmeState = ReturnType<typeof useReadmeState>;
+type Conflict = { mine: string; disk: Disk };
+
+/** README.md on disk followed: the first view, then a re-read on each event naming it and on focus. */
+function useDiskWatch(view: ProjectView, s: ReadmeState): void {
+  const slug = view.slug;
+  const { draftRef, savingRef, epoch, update, setDisk, setSavedHash, setNotice } = s;
   const seeDisk = useCallback(
     (d: Disk) => {
       const cur = draftRef.current;
@@ -86,7 +118,7 @@ function Editor({ view }: { view: ProjectView }) {
       }
       setDisk(d);
     },
-    [update],
+    [update, draftRef, setDisk, setSavedHash, setNotice],
   );
 
   const mounted = useRef(true);
@@ -100,7 +132,7 @@ function Editor({ view }: { view: ProjectView }) {
     } catch {
       // offline or the session ended: the shell says so
     }
-  }, [slug, seeDisk]);
+  }, [slug, seeDisk, savingRef, epoch]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the view of the first load only (later re-reads come from events and focus); a new slug starts again
   useEffect(() => {
@@ -118,8 +150,22 @@ function Editor({ view }: { view: ProjectView }) {
   useEvents((e) => {
     if ((e.type === 'workspace' && e.readme.includes(slug)) || e.type === 'resync') void reread();
   });
+}
 
-  const save = useCallback(
+/** A save answered 409: the version on disk beside the person's text, or why it could not be read. */
+async function showConflict(slug: string, mine: string, setConflict: (c: Conflict) => void, setError: (m: string) => void): Promise<void> {
+  try {
+    const v = await projectGet({ project: slug });
+    setConflict({ mine, disk: diskOf(v) });
+  } catch (e2) {
+    if (!(e2 instanceof SessionEnded)) setError(errorText(e2));
+  }
+}
+
+/** The save: over the version the text was based on, or over `over` (the conflict's "Save mine over it"). */
+function useReadmeSave(slug: string, s: ReadmeState) {
+  const { draftRef, savingRef, epoch, update, setError, setSaving, setDisk, setConflict, setNotice, setSavedHash } = s;
+  return useCallback(
     async (over?: Disk) => {
       if (savingRef.current) return;
       const cur = draftRef.current;
@@ -146,22 +192,53 @@ function Editor({ view }: { view: ProjectView }) {
         setSavedHash(r.hash);
       } catch (e) {
         if (e instanceof SessionEnded) return;
-        if (e instanceof CallError && e.error.code === 'conflict') {
-          try {
-            const v = await projectGet({ project: slug });
-            setConflict({ mine: cur.text, disk: diskOf(v) });
-          } catch (e2) {
-            if (!(e2 instanceof SessionEnded)) setError(errorText(e2));
-          }
-        } else setError(errorText(e));
+        if (e instanceof CallError && e.error.code === 'conflict') await showConflict(slug, cur.text, setConflict, setError);
+        else setError(errorText(e));
       } finally {
         savingRef.current = false;
         epoch.current++;
         setSaving(false);
       }
     },
-    [slug, update],
+    [slug, update, savingRef, draftRef, epoch, setError, setSaving, setDisk, setConflict, setNotice, setSavedHash],
   );
+}
+
+/** Cmd/Ctrl+S saves. */
+function useSaveKey(save: () => Promise<void>): void {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        void save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [save]);
+}
+
+/** The save state in words. */
+function stateWords(s: { saving: boolean; conflict: boolean; dirty: boolean; savedHash: string | null; missing: boolean }): string {
+  return s.saving
+    ? 'Saving…'
+    : s.conflict
+      ? 'Not saved: README.md changed on disk'
+      : s.dirty
+        ? 'Unsaved changes'
+        : s.savedHash
+          ? `Saved · ${s.savedHash.slice(0, 12)}`
+          : s.missing
+            ? 'No README.md yet'
+            : 'No changes';
+}
+
+function Editor({ view }: { view: ProjectView }) {
+  const slug = view.slug;
+  const s = useReadmeState(view);
+  const { draft, disk, setDisk, dismissed, setDismissed, conflict, setConflict, kept, setKept, notice, setNotice, error, setError, saving, savedHash, setSavedHash, draftRef, update } = s;
+  useDiskWatch(view, s);
+  const save = useReadmeSave(slug, s);
 
   const loadDisk = (d: Disk) => {
     const cur = draftRef.current;
@@ -173,30 +250,11 @@ function Editor({ view }: { view: ProjectView }) {
     setSavedHash(null);
   };
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        void save();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [save]);
+  useSaveKey(save);
 
   const dirty = isDirty(draft);
   const missing = draft.base.hash === null;
-  const state = saving
-    ? 'Saving…'
-    : conflict
-      ? 'Not saved: README.md changed on disk'
-      : dirty
-        ? 'Unsaved changes'
-        : savedHash
-          ? `Saved · ${savedHash.slice(0, 12)}`
-          : missing
-            ? 'No README.md yet'
-            : 'No changes';
+  const state = stateWords({ saving, conflict: conflict !== null, dirty, savedHash, missing });
   const showDisk = disk !== null && !conflict && disk.hash !== dismissed;
 
   return (
@@ -245,46 +303,80 @@ function Editor({ view }: { view: ProjectView }) {
         </Callout>
       )}
 
-      <div className="rd-edit" hidden={conflict !== null}>
-        <div className="rd-bar">
-          <Button size="sm" variant="primary" disabled={saving || !dirty || conflict !== null} onClick={() => void save()} aria-keyshortcuts="Meta+S Control+S">
-            {saving ? 'Saving…' : 'Save'}
-          </Button>
-          <Button size="sm" variant="ghost" disabled={saving || !dirty || conflict !== null} onClick={() => update({ text: draft.base.text, base: draft.base })}>
-            Discard changes
-          </Button>
-          <span id="readme-state" className="rd-state" role="status" aria-live="polite" data-testid="save-state">
-            <Txt text={state} />
-          </span>
-          <span className="rd-spacer" />
-          <span id="readme-count" className={draft.text.length >= README_MAX ? 'rd-count is-at-limit' : 'rd-count'}>
-            <Txt text={`${draft.text.length.toLocaleString('en')} / ${README_MAX.toLocaleString('en')} characters`} />
-          </span>
-          <span className="rd-keys">
-            <Kbd keys={['⌘', 'S']} />
-            {' / '}
-            <Kbd keys={['Ctrl', 'S']} />
-          </span>
-        </div>
-        <TextArea
-          id="readme-text"
-          label="Text of README.md"
-          labelHidden
-          tall
-          rows={24}
-          value={draft.text}
-          maxLength={README_MAX}
-          readOnly={conflict !== null}
-          spellCheck
-          unsaved={null}
-          describedBy="readme-count readme-state"
-          onChange={(text) => {
-            setError(null);
-            setNotice(null);
-            update({ text, base: draftRef.current.base });
-          }}
-        />
+      <EditArea
+        draft={draft}
+        state={state}
+        saving={saving}
+        dirty={dirty}
+        conflict={conflict !== null}
+        onSave={() => void save()}
+        onDiscard={() => update({ text: draft.base.text, base: draft.base })}
+        onChange={(text) => {
+          setError(null);
+          setNotice(null);
+          update({ text, base: draftRef.current.base });
+        }}
+      />
+    </div>
+  );
+}
+
+/** The text area under its bar: Save, Discard, the save state, the counter and the keys. */
+function EditArea({
+  draft,
+  state,
+  saving,
+  dirty,
+  conflict,
+  onSave,
+  onDiscard,
+  onChange,
+}: {
+  draft: Draft;
+  state: string;
+  saving: boolean;
+  dirty: boolean;
+  conflict: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
+  onChange: (text: string) => void;
+}) {
+  return (
+    <div className="rd-edit" hidden={conflict}>
+      <div className="rd-bar">
+        <Button size="sm" variant="primary" disabled={saving || !dirty || conflict} onClick={onSave} aria-keyshortcuts="Meta+S Control+S">
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+        <Button size="sm" variant="ghost" disabled={saving || !dirty || conflict} onClick={onDiscard}>
+          Discard changes
+        </Button>
+        <span id="readme-state" className="rd-state" role="status" aria-live="polite" data-testid="save-state">
+          <Txt text={state} />
+        </span>
+        <span className="rd-spacer" />
+        <span id="readme-count" className={draft.text.length >= README_MAX ? 'rd-count is-at-limit' : 'rd-count'}>
+          <Txt text={`${draft.text.length.toLocaleString('en')} / ${README_MAX.toLocaleString('en')} characters`} />
+        </span>
+        <span className="rd-keys">
+          <Kbd keys={['⌘', 'S']} />
+          {' / '}
+          <Kbd keys={['Ctrl', 'S']} />
+        </span>
       </div>
+      <TextArea
+        id="readme-text"
+        label="Text of README.md"
+        labelHidden
+        tall
+        rows={24}
+        value={draft.text}
+        maxLength={README_MAX}
+        readOnly={conflict}
+        spellCheck
+        unsaved={null}
+        describedBy="readme-count readme-state"
+        onChange={onChange}
+      />
     </div>
   );
 }

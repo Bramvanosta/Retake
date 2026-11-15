@@ -36,17 +36,22 @@ export const ERROR_DOM_MAX = 64 * 1024;
 
 /** A non-optional step failed: the run aborts (teardown still runs). */
 export class StepFailure extends Error {
-  constructor(
-    message: string,
-    readonly scene: string,
-    readonly step: number,
-    readonly action: string,
-    readonly screenshot?: string,
-    readonly dom?: string,
-    /** The target was not found: the scene's later targets missing from the page too (R-FLD-10). */
-    readonly missing?: MissingTarget[],
-  ) {
+  readonly scene: string;
+  readonly step: number;
+  readonly action: string;
+  readonly screenshot?: string;
+  readonly dom?: string;
+  /** The target was not found: the scene's later targets missing from the page too (R-FLD-10). */
+  readonly missing?: MissingTarget[];
+
+  constructor(message: string, o: { scene: string; step: number; action: string; screenshot?: string | undefined; dom?: string | undefined; missing?: MissingTarget[] | undefined }) {
     super(message);
+    this.scene = o.scene;
+    this.step = o.step;
+    this.action = o.action;
+    this.screenshot = o.screenshot;
+    this.dom = o.dom;
+    this.missing = o.missing;
     this.name = 'StepFailure';
   }
 }
@@ -444,15 +449,14 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
     }
     // A missing target: the scene's other targets missing from this page too, in the same error (R-FLD-10).
     const missing = isNotFound(e) ? await missingTargets(rt, scene, step) : [];
-    throw new StepFailure(
-      `scene ${scene.id}, step ${step.index} (${step.action} ${desc}): ${ev.error}${rt.secrets.redactText(formatMissing(missing))}`,
-      scene.id,
-      step.index,
-      step.action,
-      art.screenshot,
-      art.dom,
-      missing.length ? missing : undefined,
-    );
+    throw new StepFailure(`scene ${scene.id}, step ${step.index} (${step.action} ${desc}): ${ev.error}${rt.secrets.redactText(formatMissing(missing))}`, {
+      scene: scene.id,
+      step: step.index,
+      action: step.action,
+      screenshot: art.screenshot,
+      dom: art.dom,
+      missing: missing.length ? missing : undefined,
+    });
   } finally {
     try {
       ev.page = rt.activeId ?? undefined;

@@ -80,7 +80,10 @@ export function looksLikeToken(s: string): boolean {
 declare const __retakeRecHash: typeof secretHash;
 declare const __retakeRecToken: typeof looksLikeToken;
 
-/** The in-page recorder (see the file comment). Self-contained: serialised with `toString()`. */
+/**
+ * The in-page recorder (see the file comment). Self-contained: serialised with `toString()`. Its state comes first,
+ * then the steps that install it (in the order the listeners are registered), then its helpers, by section.
+ */
 export function pageRecorder(cfg: RecorderConfig): void {
   const g = globalThis as unknown as Record<string, unknown>;
   if (g.__retakeRecInstalled) return;
@@ -107,7 +110,63 @@ export function pageRecorder(cfg: RecorderConfig): void {
   }
   const on = (type: string, fn: (e: Event) => void): void => addEventListener(type, fn, { capture: true, passive: true });
   if (!isTop) {
-    // A frame is not recorded: a content-free notice per second of interaction.
+    noticeFrame();
+    return;
+  }
+
+  // Secret memory.
+  const values = new Set<string>();
+  let sorted: string[] | null = null;
+  const hashed = new Map<number, Set<string>>();
+  /** The value a secret field holds while it is typed in (each new one replaces the last: never a prefix kept). */
+  const partials = new Map<Element, string>();
+  /** Shortest start of a remembered secret that makes typed text secret (the first part of a split typing). */
+  const SECRET_PREFIX_MIN = 4;
+  // Sign-in pages: the runner says where recording is allowed.
+  type Msg = { path: string; at: number; e: Record<string, unknown> };
+  let armed: string | null = null;
+  const denied = new Set<string>();
+  const asked = new Set<string>();
+  let queue: Array<{ url: string; m: Msg }> = [];
+  // What changed on the page.
+  let added = new WeakSet<Node>();
+  let lastMutation = now();
+  // Elements.
+  const secretEls = new WeakSet<Element>();
+  const secretKinds = new WeakMap<Element, SecretFieldKind>();
+  const TEXT_TYPES = ['', 'text', 'search', 'email', 'url', 'tel', 'password', 'number'];
+  // Typing.
+  interface Field {
+    el: Element;
+    v0: string;
+    last: string;
+    info: Record<string, unknown> | null;
+    keyed: number;
+    pasted: boolean;
+    autofill: boolean;
+  }
+  let field: Field | null = null;
+  const focusValue = new WeakMap<Element, string>();
+  // Keys.
+  let pendingKey: { key: string; mods: string[]; el: Element; info: Record<string, unknown> | null; timer: ReturnType<typeof setTimeout> } | null = null;
+  // Scroll: what the person scrolled (wheel, keys, scrollbar), net per container after a pause.
+  let userScrollAt = -1e9;
+  /** Baselines: a container's position before the person's scroll (dropped 1.2 s after, when it did not move). */
+  const starts = new Map<EventTarget, { x: number; y: number; el: Element | null; at: number }>();
+  let scrollTimer: ReturnType<typeof setTimeout> | undefined;
+
+  g.__retakeRecVerdict = verdict;
+  observeMutations();
+  listenTyping();
+  listenKeys();
+  listenPointer();
+  listenScroll();
+  g.__retakeRecFlush = flushAll;
+  on('pagehide', flushAll);
+  raw({ k: 'hello', url: here(), w: innerWidth, h: innerHeight });
+
+  /** A frame is not recorded: a content-free notice per second of interaction. */
+  function noticeFrame(): void {
     let last = -1e9;
     const note = (e: Event): void => {
       if (!e.isTrusted || now() - last < 1000) return;
@@ -116,48 +175,45 @@ export function pageRecorder(cfg: RecorderConfig): void {
     };
     on('pointerdown', note);
     on('keydown', note);
-    return;
+  }
+  function flushAll(): void {
+    commit(false);
+    flushKey();
+    flushScroll();
   }
 
   // ── Secret memory ──────────────────────────────────────────────────────────
-  const values = new Set<string>();
-  let sorted: string[] | null = null;
-  const hashed = new Map<number, Set<string>>();
-  const addHash = (n: number, h: string): void => {
+  function addHash(n: number, h: string): void {
     let set = hashed.get(n);
     if (!set) hashed.set(n, (set = new Set()));
     set.add(h);
-  };
-  const remember = (v: string): void => {
+  }
+  function remember(v: string): void {
     if (v.length < cfg.secret_min || values.has(v) || values.size >= 4000) return;
     values.add(v);
     sorted = null;
-  };
-  /** The value a secret field holds while it is typed in (each new one replaces the last: never a prefix kept). */
-  const partials = new Map<Element, string>();
-  const partial = (el: Element, v: string): void => {
+  }
+  function partial(el: Element, v: string): void {
     if (v.length >= cfg.secret_min) partials.set(el, v);
     else partials.delete(el);
-  };
-  /** Shortest start of a remembered secret that makes typed text secret (the first part of a split typing). */
-  const SECRET_PREFIX_MIN = 4;
+  }
   /** Does `text` end with the start (SECRET_PREFIX_MIN characters or more) of a value the memory knows? */
-  const secretPrefix = (text: string): boolean => {
+  function secretPrefix(text: string): boolean {
     if (text.length < SECRET_PREFIX_MIN) return false;
     for (const v of [...values, ...partials.values()]) {
       for (let n = Math.min(v.length, text.length); n >= SECRET_PREFIX_MIN; n--) if (text.endsWith(v.slice(0, n))) return true;
     }
     return false;
-  };
+  }
   /** A final secret value: remembered here, and told to the runner as its salted hash. */
-  const share = (v: string): void => {
+  function share(v: string): void {
     remember(v);
     if (v.length < cfg.secret_min) return;
     const h = __retakeRecHash(v, cfg.salt);
     if (hashed.get(v.length)?.has(h)) return;
     addHash(v.length, h);
     raw({ k: 'secret', n: v.length, h });
-  };
+  }
   function mask(s: string): { s: string; hit: boolean } {
     let out = s;
     let hit = false;
@@ -203,24 +259,22 @@ export function pageRecorder(cfg: RecorderConfig): void {
   }
 
   // ── Sign-in pages: the runner says where recording is allowed ──────────────
-  type Msg = { path: string; at: number; e: Record<string, unknown> };
-  let armed: string | null = null;
-  const denied = new Set<string>();
-  const asked = new Set<string>();
-  let queue: Array<{ url: string; m: Msg }> = [];
-  const here = (): string => location.origin + location.pathname;
-  const ask = (url: string): void => {
+  function here(): string {
+    return location.origin + location.pathname;
+  }
+  function ask(url: string): void {
     if (asked.has(url)) return;
     asked.add(url);
     raw({ k: 'where', url });
-  };
-  const deliver = (m: Msg): void => {
+  }
+  function deliver(m: Msg): void {
     const count = { n: 0 };
     const e = maskDeep(m.e, count) as Record<string, unknown>;
     const path = mask(m.path).s;
     raw({ k: 'ev', age: Math.max(0, Math.round(now() - m.at)), path, e, ...(count.n ? { redacted: count.n } : {}) });
-  };
-  g.__retakeRecVerdict = (url: string, ok: boolean, hashes: SecretHash[]): void => {
+  }
+  /** The runner's answer for a page: record it (the events held for it delivered) or not (they are dropped). */
+  function verdict(url: string, ok: boolean, hashes: SecretHash[]): void {
     for (const [n, h] of hashes ?? []) addHash(n, h);
     if (ok) {
       armed = url;
@@ -238,7 +292,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
     }
     queue = keep;
     if (dropped) raw({ k: 'discarded', reason: 'sign_in', count: dropped });
-  };
+  }
   function emit(e: Record<string, unknown>, flush = true): void {
     if (flush) flushScroll();
     if (e.kind === 'pointer' || e.kind === 'type' || e.kind === 'key' || e.kind === 'select_native' || e.kind === 'file') added = new WeakSet();
@@ -256,29 +310,27 @@ export function pageRecorder(cfg: RecorderConfig): void {
   }
 
   // ── What changed on the page ──────────────────────────────────────────────
-  let added = new WeakSet<Node>();
-  let lastMutation = now();
-  new MutationObserver((records) => {
-    lastMutation = now();
-    for (const r of records) for (const n of Array.from(r.addedNodes)) added.add(n);
-  }).observe(document, { childList: true, subtree: true, attributes: true, characterData: true });
-  const appeared = (el: Element | null): boolean => {
+  function observeMutations(): void {
+    new MutationObserver((records) => {
+      lastMutation = now();
+      for (const r of records) for (const n of Array.from(r.addedNodes)) added.add(n);
+    }).observe(document, { childList: true, subtree: true, attributes: true, characterData: true });
+  }
+  function appeared(el: Element | null): boolean {
     for (let n: Node | null = el, i = 0; n && i < 4096; i++) {
       if (added.has(n)) return true;
       n = n.nodeType === 11 ? (n as ShadowRoot).host : n.parentNode;
     }
     return false;
-  };
+  }
 
   // ── Elements ──────────────────────────────────────────────────────────────
-  const secretEls = new WeakSet<Element>();
-  const secretKinds = new WeakMap<Element, SecretFieldKind>();
   /** Sticky: once secret, always secret (a "show password" toggle, a value moved to another field). */
-  const secretOf = (el: Element | null, fallback?: SecretFieldKind): SecretFieldKind | null => {
+  function secretOf(el: Element | null, fallback?: SecretFieldKind): SecretFieldKind | null {
     if (!el) return null;
     let kind: SecretFieldKind | null = null;
     try {
-      kind = kit.secretField(el);
+      kind = kit!.secretField(el);
     } catch {
       kind = null;
     }
@@ -290,7 +342,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
       secretKinds.set(el, fallback);
     }
     return secretEls.has(el) ? (secretKinds.get(el) ?? 'secret') : null;
-  };
+  }
   /**
    * The element acted on, as the kit's inventory entry describes it. `alts`: an action whose step targets this element
    * (a press, a keyboard activation, typing, a native select, a file): up to three alternative targets too —
@@ -368,13 +420,12 @@ export function pageRecorder(cfg: RecorderConfig): void {
       desc: `${role ?? tag}${text ? ` "${text.slice(0, 50)}"` : ''}`,
     };
   }
-  const deepTarget = (e: Event): Element | null => {
+  function deepTarget(e: Event): Element | null {
     const t = e.composedPath()[0] as Node | undefined;
     if (t && t.nodeType === 1) return t as Element;
     const u = e.target as Node | null;
     return u && u.nodeType === 1 ? (u as Element) : null;
-  };
-  const TEXT_TYPES = ['', 'text', 'search', 'email', 'url', 'tel', 'password', 'number'];
+  }
   /** The text field an event happened in: an input of a text type, a textarea, a contenteditable's editing host. */
   function editable(t: Element | null): Element | null {
     if (!t) return null;
@@ -387,20 +438,11 @@ export function pageRecorder(cfg: RecorderConfig): void {
     }
     return null;
   }
-  const fieldText = (el: Element): string => (el.localName === 'input' || el.localName === 'textarea' ? (el as HTMLInputElement).value : ((el as HTMLElement).innerText ?? el.textContent ?? ''));
+  function fieldText(el: Element): string {
+    return el.localName === 'input' || el.localName === 'textarea' ? (el as HTMLInputElement).value : ((el as HTMLElement).innerText ?? el.textContent ?? '');
+  }
 
   // ── Typing ────────────────────────────────────────────────────────────────
-  interface Field {
-    el: Element;
-    v0: string;
-    last: string;
-    info: Record<string, unknown> | null;
-    keyed: number;
-    pasted: boolean;
-    autofill: boolean;
-  }
-  let field: Field | null = null;
-  const focusValue = new WeakMap<Element, string>();
   function begin(el: Element, fromInput = false): Field {
     if (field && field.el === el) return field;
     commit(false);
@@ -443,17 +485,6 @@ export function pageRecorder(cfg: RecorderConfig): void {
     });
     return true;
   }
-  on('focusin', (e) => {
-    const el = editable(deepTarget(e));
-    if (!el || (field && field.el === el)) return;
-    const v = fieldText(el);
-    focusValue.set(el, v);
-    if (secretOf(el)) remember(v);
-  });
-  on('focusout', (e) => {
-    const t = deepTarget(e);
-    if (field && t && (field.el === t || field.el.contains(t))) commit(false);
-  });
   /** Text pasted or dropped into a field: a value that looks like a key or a token makes the field secret. */
   function inserted(el: Element, text: string): void {
     const f = begin(el);
@@ -464,59 +495,67 @@ export function pageRecorder(cfg: RecorderConfig): void {
       share(text.trim());
     }
   }
-  on('paste', (e) => {
-    if (!e.isTrusted) return;
-    const el = editable(deepTarget(e));
-    if (!el) return;
-    inserted(el, (e as ClipboardEvent).clipboardData?.getData('text') ?? '');
-  });
-  on('drop', (e) => {
-    if (!e.isTrusted) return;
-    const t = deepTarget(e);
-    const el = editable(t);
-    if (el) {
-      let text = '';
-      try {
-        text = (e as DragEvent).dataTransfer?.getData('text') ?? '';
-      } catch {
-        text = '';
+  function listenTyping(): void {
+    on('focusin', (e) => {
+      const el = editable(deepTarget(e));
+      if (!el || (field && field.el === el)) return;
+      const v = fieldText(el);
+      focusValue.set(el, v);
+      if (secretOf(el)) remember(v);
+    });
+    on('focusout', (e) => {
+      const t = deepTarget(e);
+      if (field && t && (field.el === t || field.el.contains(t))) commit(false);
+    });
+    on('paste', (e) => {
+      if (!e.isTrusted) return;
+      const el = editable(deepTarget(e));
+      if (!el) return;
+      inserted(el, (e as ClipboardEvent).clipboardData?.getData('text') ?? '');
+    });
+    on('drop', (e) => {
+      if (!e.isTrusted) return;
+      const t = deepTarget(e);
+      const el = editable(t);
+      if (el) {
+        let text = '';
+        try {
+          text = (e as DragEvent).dataTransfer?.getData('text') ?? '';
+        } catch {
+          text = '';
+        }
+        inserted(el, text);
+        return;
       }
-      inserted(el, text);
-      return;
-    }
-    const files = Array.from((e as DragEvent).dataTransfer?.files ?? []);
-    if (!files.length) return;
-    commit(false);
-    emit({ kind: 'file', el: info(t, true), via: 'drop', names: files.slice(0, 20).map((f) => f.name.slice(0, 200)) });
-  });
-  on('input', (e) => {
-    if (!e.isTrusted) return;
-    const el = editable(deepTarget(e));
-    if (!el) return;
-    const f = begin(el, true);
-    // A value that changed with no key, paste or drop before it: the browser's autofill (kept as a secret).
-    if (now() - f.keyed > 1000) f.autofill = true;
-    f.last = fieldText(el);
-    if (secretOf(el)) partial(el, f.last);
-  });
+      const files = Array.from((e as DragEvent).dataTransfer?.files ?? []);
+      if (!files.length) return;
+      commit(false);
+      emit({ kind: 'file', el: info(t, true), via: 'drop', names: files.slice(0, 20).map((f) => f.name.slice(0, 200)) });
+    });
+    on('input', (e) => {
+      if (!e.isTrusted) return;
+      const el = editable(deepTarget(e));
+      if (!el) return;
+      const f = begin(el, true);
+      // A value that changed with no key, paste or drop before it: the browser's autofill (kept as a secret).
+      if (now() - f.keyed > 1000) f.autofill = true;
+      f.last = fieldText(el);
+      if (secretOf(el)) partial(el, f.last);
+    });
+  }
 
   // ── Keys ──────────────────────────────────────────────────────────────────
-  const NAMED = ['Escape', 'Enter', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', 'Backspace', 'Delete'];
-  /** Keys sent from inside a text field (they say nothing of its text). */
-  const IN_FIELD = ['Escape', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'];
-  const SCROLL_KEYS = ['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown', ' '];
-  /** Keys that would tell how a hidden field's text is made (words, corrections). */
-  const HIDDEN_FIELD_KEYS = [' ', 'Backspace', 'Delete'];
   /**
    * The focus is inside a closed shadow root: the event's deepest target is its host, which has the focus without being
    * focusable itself (a closed root's field cannot be seen from here, so it may be a secret one).
    */
-  const hiddenFocus = (t: Element | null): boolean => {
+  function hiddenFocus(t: Element | null): boolean {
     if (!t || t !== document.activeElement || t === document.body || t === document.documentElement || t.shadowRoot) return false;
     return !t.matches('a[href],area[href],button,input,select,textarea,iframe,summary,[tabindex],[contenteditable]:not([contenteditable="false"])');
-  };
-  const modsOf = (e: KeyboardEvent): string[] => [e.ctrlKey && 'Control', e.metaKey && 'Meta', e.altKey && 'Alt', e.shiftKey && 'Shift'].filter(Boolean) as string[];
-  let pendingKey: { key: string; mods: string[]; el: Element; info: Record<string, unknown> | null; timer: ReturnType<typeof setTimeout> } | null = null;
+  }
+  function modsOf(e: KeyboardEvent): string[] {
+    return [e.ctrlKey && 'Control', e.metaKey && 'Meta', e.altKey && 'Alt', e.shiftKey && 'Shift'].filter(Boolean) as string[];
+  }
   function flushKey(): void {
     const p = pendingKey;
     if (!p) return;
@@ -524,104 +563,114 @@ export function pageRecorder(cfg: RecorderConfig): void {
     clearTimeout(p.timer);
     emit({ kind: 'key', key: p.key, modifiers: p.mods, el: p.info });
   }
-  on('keydown', (ev) => {
-    const e = ev as KeyboardEvent;
-    if (!e.isTrusted || e.isComposing) return;
-    const t = deepTarget(e);
-    const mods = modsOf(e);
-    const k = e.key;
-    const ed = editable(t);
-    if (!ed && SCROLL_KEYS.includes(k)) noteUserScroll(t);
-    if (ed) {
-      const f = begin(ed);
-      f.keyed = now();
-      if (e.repeat) return;
-      const multi = ed.localName !== 'input';
-      if (k === 'Enter' && !multi && !mods.length) {
-        if (!commit(true)) emit({ kind: 'key', key: 'Enter', modifiers: [], el: info(ed) });
+  function listenKeys(): void {
+    const NAMED = ['Escape', 'Enter', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', 'Backspace', 'Delete'];
+    /** Keys sent from inside a text field (they say nothing of its text). */
+    const IN_FIELD = ['Escape', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'];
+    const SCROLL_KEYS = ['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown', ' '];
+    /** Keys that would tell how a hidden field's text is made (words, corrections). */
+    const HIDDEN_FIELD_KEYS = [' ', 'Backspace', 'Delete'];
+    on('keydown', (ev) => {
+      const e = ev as KeyboardEvent;
+      if (!e.isTrusted || e.isComposing) return;
+      const t = deepTarget(e);
+      const mods = modsOf(e);
+      const k = e.key;
+      const ed = editable(t);
+      if (!ed && SCROLL_KEYS.includes(k)) noteUserScroll(t);
+      if (ed) {
+        const f = begin(ed);
+        f.keyed = now();
+        if (e.repeat) return;
+        const multi = ed.localName !== 'input';
+        if (k === 'Enter' && !multi && !mods.length) {
+          if (!commit(true)) emit({ kind: 'key', key: 'Enter', modifiers: [], el: info(ed) });
+          return;
+        }
+        if (IN_FIELD.includes(k) && !mods.some((m) => m === 'Control' || m === 'Meta')) {
+          commit(false);
+          emit({ kind: 'key', key: k, modifiers: mods, el: info(ed) });
+        }
         return;
       }
-      if (IN_FIELD.includes(k) && !mods.some((m) => m === 'Control' || m === 'Meta')) {
-        commit(false);
-        emit({ kind: 'key', key: k, modifiers: mods, el: info(ed) });
+      if (e.repeat) return;
+      const shortcut = (mods.includes('Control') || mods.includes('Meta')) && /^[a-z0-9]$/i.test(k);
+      if (!shortcut && !NAMED.includes(k)) return;
+      if (!shortcut && HIDDEN_FIELD_KEYS.includes(k) && hiddenFocus(t)) return;
+      flushKey();
+      commit(false);
+      const focusEl = t && t !== document.body && t !== document.documentElement ? t : null;
+      const activation = !shortcut && (k === 'Enter' || k === ' ') && focusEl !== null;
+      const what = focusEl ? info(focusEl, activation) : null;
+      if (activation && focusEl) {
+        // A keyboard activation: its click (detail 0) makes it a press; else it stays a key.
+        pendingKey = { key: k, mods, el: focusEl, info: what, timer: setTimeout(flushKey, 1000) };
+        return;
       }
-      return;
-    }
-    if (e.repeat) return;
-    const shortcut = (mods.includes('Control') || mods.includes('Meta')) && /^[a-z0-9]$/i.test(k);
-    if (!shortcut && !NAMED.includes(k)) return;
-    if (!shortcut && HIDDEN_FIELD_KEYS.includes(k) && hiddenFocus(t)) return;
-    flushKey();
-    commit(false);
-    const focusEl = t && t !== document.body && t !== document.documentElement ? t : null;
-    const activation = !shortcut && (k === 'Enter' || k === ' ') && focusEl !== null;
-    const what = focusEl ? info(focusEl, activation) : null;
-    if (activation && focusEl) {
-      // A keyboard activation: its click (detail 0) makes it a press; else it stays a key.
-      pendingKey = { key: k, mods, el: focusEl, info: what, timer: setTimeout(flushKey, 1000) };
-      return;
-    }
-    emit({ kind: 'key', key: shortcut ? k.toLowerCase() : k, modifiers: mods, el: what });
-  });
-  on('keyup', (ev) => {
-    const e = ev as KeyboardEvent;
-    if (pendingKey && e.key === pendingKey.key) {
-      clearTimeout(pendingKey.timer);
-      pendingKey.timer = setTimeout(flushKey, 50);
-    }
-  });
+      emit({ kind: 'key', key: shortcut ? k.toLowerCase() : k, modifiers: mods, el: what });
+    });
+    on('keyup', (ev) => {
+      const e = ev as KeyboardEvent;
+      if (pendingKey && e.key === pendingKey.key) {
+        clearTimeout(pendingKey.timer);
+        pendingKey.timer = setTimeout(flushKey, 50);
+      }
+    });
+  }
 
   // ── Pointer ───────────────────────────────────────────────────────────────
-  on('pointerdown', (ev) => {
-    const e = ev as PointerEvent;
-    if (!e.isTrusted) return;
-    const t = deepTarget(e);
-    // A press on a scrollbar (the document's, or an element's beyond its client box) starts a scroll.
-    const scrollable = (n: Element) => n.clientWidth > 0 && (n.scrollHeight > n.clientHeight + 1 || n.scrollWidth > n.clientWidth + 1);
-    if (t && (t === document.documentElement || (scrollable(t) && (e.offsetX > t.clientWidth || e.offsetY > t.clientHeight)))) noteUserScroll(t);
-    if (field && !(t && (field.el === t || field.el.contains(t)))) commit(false);
-    flushKey();
-    const t0 = now();
-    const quiet = Math.max(0, Math.round(t0 - lastMutation));
-    const el = info(t, true);
-    emit({ kind: 'pointer', button: e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left', via: 'pointer', el, quiet_ms: quiet, ms: Math.round(now() - t0) });
-  });
-  on('click', (ev) => {
-    const e = ev as MouseEvent;
-    if (!e.isTrusted || e.detail !== 0 || !pendingKey) return;
-    const t = deepTarget(e);
-    const p = pendingKey;
-    pendingKey = null;
-    clearTimeout(p.timer);
-    const same = t && (t === p.el || p.el.contains(t) || t.contains(p.el));
-    emit({ kind: 'pointer', button: 'left', via: 'keyboard', el: same ? p.info : info(t, true), quiet_ms: Math.max(0, Math.round(now() - lastMutation)), ms: 0 });
-  });
-  on('dblclick', (e) => {
-    if (e.isTrusted) emit({ kind: 'dblclick' });
-  });
-  on('change', (e) => {
-    if (!e.isTrusted) return;
-    const t = deepTarget(e);
-    if (!t) return;
-    if (t.localName === 'select') {
-      commit(false);
-      const s = t as HTMLSelectElement;
-      const opt = s.selectedOptions[0];
-      emit({ kind: 'select_native', el: info(t, true), option: (opt ? opt.label || opt.text : '').trim().slice(0, 200) });
-    } else if (t.localName === 'input' && (t as HTMLInputElement).type === 'file') {
-      commit(false);
-      const files = Array.from((t as HTMLInputElement).files ?? []);
-      emit({ kind: 'file', el: info(t, true), via: 'input', names: files.slice(0, 20).map((f) => f.name.slice(0, 200)) });
-    }
-  });
+  function listenPointer(): void {
+    on('pointerdown', (ev) => {
+      const e = ev as PointerEvent;
+      if (!e.isTrusted) return;
+      const t = deepTarget(e);
+      // A press on a scrollbar (the document's, or an element's beyond its client box) starts a scroll.
+      const scrollable = (n: Element) => n.clientWidth > 0 && (n.scrollHeight > n.clientHeight + 1 || n.scrollWidth > n.clientWidth + 1);
+      if (t && (t === document.documentElement || (scrollable(t) && (e.offsetX > t.clientWidth || e.offsetY > t.clientHeight)))) noteUserScroll(t);
+      if (field && !(t && (field.el === t || field.el.contains(t)))) commit(false);
+      flushKey();
+      const t0 = now();
+      const quiet = Math.max(0, Math.round(t0 - lastMutation));
+      const el = info(t, true);
+      emit({ kind: 'pointer', button: e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left', via: 'pointer', el, quiet_ms: quiet, ms: Math.round(now() - t0) });
+    });
+    on('click', (ev) => {
+      const e = ev as MouseEvent;
+      if (!e.isTrusted || e.detail !== 0 || !pendingKey) return;
+      const t = deepTarget(e);
+      const p = pendingKey;
+      pendingKey = null;
+      clearTimeout(p.timer);
+      const same = t && (t === p.el || p.el.contains(t) || t.contains(p.el));
+      emit({ kind: 'pointer', button: 'left', via: 'keyboard', el: same ? p.info : info(t, true), quiet_ms: Math.max(0, Math.round(now() - lastMutation)), ms: 0 });
+    });
+    on('dblclick', (e) => {
+      if (e.isTrusted) emit({ kind: 'dblclick' });
+    });
+    on('change', (e) => {
+      if (!e.isTrusted) return;
+      const t = deepTarget(e);
+      if (!t) return;
+      if (t.localName === 'select') {
+        commit(false);
+        const s = t as HTMLSelectElement;
+        const opt = s.selectedOptions[0];
+        emit({ kind: 'select_native', el: info(t, true), option: (opt ? opt.label || opt.text : '').trim().slice(0, 200) });
+      } else if (t.localName === 'input' && (t as HTMLInputElement).type === 'file') {
+        commit(false);
+        const files = Array.from((t as HTMLInputElement).files ?? []);
+        emit({ kind: 'file', el: info(t, true), via: 'input', names: files.slice(0, 20).map((f) => f.name.slice(0, 200)) });
+      }
+    });
+  }
 
   // ── Scroll: what the person scrolled (wheel, keys, scrollbar), net per container after a pause ──
-  let userScrollAt = -1e9;
-  /** Baselines: a container's position before the person's scroll (dropped 1.2 s after, when it did not move). */
-  const starts = new Map<EventTarget, { x: number; y: number; el: Element | null; at: number }>();
-  let scrollTimer: ReturnType<typeof setTimeout> | undefined;
-  const docEl = (): Element => document.scrollingElement ?? document.documentElement;
-  const posOf = (c: Element): { x: number; y: number } => ({ x: c.scrollLeft, y: c.scrollTop });
+  function docEl(): Element {
+    return document.scrollingElement ?? document.documentElement;
+  }
+  function posOf(c: Element): { x: number; y: number } {
+    return { x: c.scrollLeft, y: c.scrollTop };
+  }
   /** Before a scroll the person starts: the positions of the document and of the target's scrolling ancestors. */
   function noteUserScroll(t: Element | null): void {
     userScrollAt = now();
@@ -637,9 +686,6 @@ export function pageRecorder(cfg: RecorderConfig): void {
       if (n.scrollHeight > n.clientHeight + 1 || n.scrollWidth > n.clientWidth + 1) base(n, n, n);
     }
   }
-  on('wheel', (e) => {
-    if (e.isTrusted) noteUserScroll(deepTarget(e));
-  });
   function flushScroll(): void {
     clearTimeout(scrollTimer);
     for (const [key, s] of [...starts]) {
@@ -659,21 +705,17 @@ export function pageRecorder(cfg: RecorderConfig): void {
       emit({ kind: 'scroll', container: key === document ? 'document' : 'element', el: key === document ? null : info(c), dx, dy }, false);
     }
   }
-  on('scroll', () => {
-    if (now() - userScrollAt > 1000) return;
-    userScrollAt = now();
-    clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(flushScroll, 400);
-  });
-
-  const flushAll = (): void => {
-    commit(false);
-    flushKey();
-    flushScroll();
-  };
-  g.__retakeRecFlush = flushAll;
-  on('pagehide', flushAll);
-  raw({ k: 'hello', url: here(), w: innerWidth, h: innerHeight });
+  function listenScroll(): void {
+    on('wheel', (e) => {
+      if (e.isTrusted) noteUserScroll(deepTarget(e));
+    });
+    on('scroll', () => {
+      if (now() - userScrollAt > 1000) return;
+      userScrollAt = now();
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(flushScroll, 400);
+    });
+  }
 }
 
 /** The recorder's script, evaluated after the kit in its isolated world. */

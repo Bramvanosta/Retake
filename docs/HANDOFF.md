@@ -75,6 +75,57 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.57)
+- **L7.57 done (2026-11-15; branch `claude/arch-l7`)** — CC-N1: a size ratchet and the worst offenders split.
+  - Code: `scripts/audit/size-limits.mjs` (TypeScript AST over `packages/*/src`: file lines > 1,000, function lines
+    > 100 (`static {}` blocks too), parameters > 5 (`this` left out), nesting > 5 (if / loops / switch / try /
+    conditional; `else if`, a `catch` / `finally` and a conditional chain add no depth; a nested function starts at
+    0)), baseline `scripts/audit/size-baseline.json` (176 entries in 8 groups, each with a reason). Strict: a new,
+    raised, lowered or stale entry fails until the code is split or `--write-baseline` records today. Keys are name
+    paths, never positions: an anonymous callback is named by the call it is passed to and that call's (or its chain's
+    first call's, or its outer call's) first string or identifier argument (`useEffect(…)`, `action('add')`), an IIFE
+    `<iife>`, a returned function `<returned>`; two functions over a limit sharing a key fail as ambiguous (name one).
+    In CI's guards (`node scripts/audit/size-limits.mjs --check`). Before → after: files over 1,000 lines 8 → 7,
+    over 500 91 → 96; functions over 100 lines 158 → 124, over 50 480 → 503; parameter lists over 5 57 → 38; nesting
+    over 5 10 → 7.
+  - Split (no exported name, output or DOM change; hooks wrapped in custom hooks in their order, sub-components
+    hook-free): Studio screens GalleryScreen Column 583, SetupSheet 438, Timeline 425, Storyboard 408, AppShell 365,
+    ShootPrepare 362, ScenarioScreen 316, YamlTab Editor 302, LibraryScreen 268, ThemeEditor 265, CommentsScreen 262,
+    ReadmeEditor 244, RecordingInspector 232 (each now ≤ 100); Studio server setupOps 259, startStudioServer 252,
+    startPlayerServer 249; runner-web recordSession 406, inventoryMemo 363, extractSite 346, runCapture 299,
+    exportCapture 297, pageRecorder (still one function, serialised: 30-odd named inner helpers, each ≤ 54 lines);
+    review reviewRenderOnce 392, checkCaptions, checkCamera, and `review/checks.ts` 1,413 → 351 lines into
+    `checks-base / -captions / -camera / -overlays / -environment.ts` (re-exported; `REVIEW_PURE` lists them);
+    editor planSegments 291, renderPlan 279 (nesting 6), planRunTiming 248, buildComponentPreview 258; engine
+    memoryRun 299 (nesting 6), createJobRunner 242, pruneProject 238; core scanCommand 289 (mechanical moves only).
+  - Options objects for 17 internal functions (buildView 11, history 10, diagnoseSession 9, judge 8, writeStill 8,
+    saveRecordedDraft 8, rawExportOfRun, stepBlock, applyRawOpText, `#journaled`, layerArgs, StepFailure, kit `text`,
+    hookLanding, videoStepShots, decodeVideoFrames, threadView, and the editor's inner segDuration / segmentSeconds);
+    public ones kept (addComment, scenarioHooksCheck, WorkspaceIndex, renderStatusOutput, reviewOutput,
+    notificationMotion), commander callbacks and per-frame pixel helpers kept, each group in the baseline with why.
+  - Tests: new `packages/core/test/size-limits.test.ts` (7; in the ci tier). `import-rules.test.ts` pins the longer
+    `REVIEW_PURE`. Behaviour: each touched area's tests alone (about 100 files across the sub-agents, the Studio
+    e2e files of every split screen included: setup, shoot, timeline, scenario, yaml, shell, editor, library, themes,
+    comments, record, kit); the gallery's rendered markup byte-identical but React's `useId` values; planRunTiming
+    compared on 3,000 random inputs and buildComponentPreview on 492 specs, identical; planner-golden green.
+  - Mutations (15, all red): lowered ignored, lowered not found, ambiguous not reported, ambiguous recorded as an entry,
+    IIFE named by its text, no call qualifier, chain read from its last call, static block not measured, catch counted,
+    conditional chain counted, else-if counted, nested function not reset, `this` counted, stale ignored, raise
+    ignored. Live: a line added to or removed from a baselined file fails `--check`; a command inserted above the
+    comment commands leaves every key as it was.
+  - Gates: clean build (every `packages/*/dist` and `*.tsbuildinfo` removed, `npx tsc -b` 0), `pnpm typecheck`,
+    `pnpm lint` (baseline 0), `pnpm format:check`, `rules.mjs --check` (62), `size-limits.mjs --check` (176),
+    `test-guard` no decrease, `--check-cites` with the requirement edits.
+  - Not done (in the baseline, with reasons): the 7 files over 1,000 lines (recording.ts 1,786, agent-policy.ts,
+    compose.ts, record-studio.ts, shell-hosts.ts 1,128 — grew 42 by its scanCommand helpers —, session.ts,
+    blocks.ts); 123 functions over 100 lines (next: StatusActions useStatusActions 224, FrameViewer 223,
+    BrowserDriver.finish 224, LibraryInspector SetDefault 211, TracksImpl 207, ProposalCard 206, ThemeEditor
+    LiveFrame 144, pixel-checks checkPixels 148); 25 parameter lists of 6 not reviewed; 7 nesting-6 spots.
+  - Requirement evidence paths: R-LES-10 `review/src/checks.ts` (zoom count / zoom-not-slow) → `review/src/checks-camera.ts`;
+    R-REV-14 `review/src/checks.ts checkCursor` → `review/src/checks-camera.ts checkCursor` (edits file).
+  - Docs to touch (lead's files): HANDOFF's and CLAUDE.md's guard lists gain `node scripts/audit/size-limits.mjs --check`
+    (`--write-baseline` after a change, write the reason of a new group).
+
 ## State (after L7.56)
 - **L7.56 done (2026-11-15; branch `claude/arch-l7`)** — CC-S8b, CC-N2 (named casts), CC-N3, the last two store-new
   entries. `scripts/lint-baseline.json` 456 → 0 diagnostics (`rules: {}`); no rule turned off, biome.json unchanged.

@@ -461,7 +461,7 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   } catch (e) {
     if (isCancel(e) || ports.signal?.aborted) {
       await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-      await history(ws, ports.clock, project, req, 'cancelled', started, id, 0, false, ports.history !== false);
+      await history(ws, { clock: ports.clock, project, req, state: 'cancelled', started, id, steps: 0, saved: false, on: ports.history !== false });
       throw new EngineError('cancelled', 'recording cancelled: nothing was kept');
     }
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
@@ -505,7 +505,7 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
 
   if (session.counts.actions === 0) {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-    await history(ws, ports.clock, project, req, 'succeeded', started, id, 0, false, ports.history !== false);
+    await history(ws, { clock: ports.clock, project, req, state: 'succeeded', started, id, steps: 0, saved: false, on: ports.history !== false });
     return { ...base, dir: null, draft: null, saved: null, not_saved: 'nothing_recorded', check: { status: 'skipped', scope: null, reason: 'nothing_recorded', steps_passed: 0, steps_total: 0 } };
   }
 
@@ -566,22 +566,16 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
     check = await checkReplay({ project, runs: ws.outputs.runs, policy: ws.policy, envName: env.name, dir, draftFile, yaml: draft.yaml, firstWrite: draft.firstWrite, pacing: INSPECT_PACING, ports });
   }
   await recordJson({ saved: saved ? saved.file : null, not_saved: notSaved ?? null, check });
-  await history(ws, ports.clock, project, req, 'succeeded', started, id, draft.stats.steps, saved !== null, ports.history !== false);
+  await history(ws, { clock: ports.clock, project, req, state: 'succeeded', started, id, steps: draft.stats.steps, saved: saved !== null, on: ports.history !== false });
   return { ...base, dir, draft: draftFile, saved, ...(notSaved ? { not_saved: notSaved } : {}), check };
 }
 
+/** The history line of one recording. */
 async function history(
   ws: OpenedWorkspace,
-  clock: Clock,
-  project: LoadedProject,
-  req: RecordRequest,
-  state: string,
-  started: number,
-  id: string,
-  steps: number,
-  saved: boolean,
-  on = true,
+  o: { clock: Clock; project: LoadedProject; req: RecordRequest; state: string; started: number; id: string; steps: number; saved: boolean; on?: boolean },
 ): Promise<void> {
+  const { clock, project, req, state, started, id, steps, saved, on = true } = o;
   if (!on) return;
   await bestEffort(
     appendHistory(

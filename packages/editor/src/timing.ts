@@ -206,17 +206,20 @@ function containing<T extends Interval>(list: readonly T[], x: number): T | unde
   return list.find((i) => i.a <= x && x < i.b);
 }
 
-/** Plan the time map of a run (see the module comment). Pure. */
-export function planRunTiming(input: RunTimingInput): RunTiming {
-  const { clips, srcFps, outFps } = input;
-  const r = srcFps / outFps;
-  const P0 = clips[0].A;
-  const P1 = clips[clips.length - 1].B;
+/** A cut while the run is planned (before the output frame after it is known). */
+type DraftCut = Interval & { clip: number; idle: Interval; reason: RunCut['reason'] };
 
-  const prot = protectedSpans(clips, srcFps, input.trimIdle);
-  const protMerged = mergeIntervals(prot);
+/** The parts of a span inside each clip of the run, with the clip's index. */
+function perClip(clips: readonly RunClipInput[], span: Interval, visit: (x: Interval, c: RunClipInput, ci: number) => void): void {
+  clips.forEach((c, ci) => {
+    const x = intersect(span, { a: c.A, b: c.B });
+    if (x) visit(x, c, ci);
+  });
+}
 
-  // Step speeds (a step's own span, before its hold).
+/** Spans played at their own speed: a step's own `speed` (a step's span, before its hold), then waits and quick runs. */
+function runSpeeds(input: RunTimingInput): Array<Interval & { v: number }> {
+  const { clips, srcFps } = input;
   const stepSpeeds: Array<Interval & { v: number }> = [];
   for (const c of clips) {
     for (const e of c.events) {
@@ -226,95 +229,113 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
       }
     }
   }
-
   // Waiting played faster (after the explicit step speeds: those win).
   for (const w of input.waits ?? []) {
-    clips.forEach((c) => {
-      const x = intersect({ a: w.t_start * srcFps, b: w.t_end * srcFps }, { a: c.A, b: c.B });
-      if (x && x.b - x.a > 1) stepSpeeds.push({ ...x, v: Math.max(WAIT_SPEED, c.baseSpeed) });
+    perClip(clips, { a: w.t_start * srcFps, b: w.t_end * srcFps }, (x, c) => {
+      if (x.b - x.a > 1) stepSpeeds.push({ ...x, v: Math.max(WAIT_SPEED, c.baseSpeed) });
     });
   }
   for (const w of input.quick ?? []) {
-    clips.forEach((c) => {
-      const x = intersect({ a: w.t_start * srcFps, b: w.t_end * srcFps }, { a: c.A, b: c.B });
-      if (x && x.b - x.a > 1) stepSpeeds.push({ ...x, v: Math.max(QUICK_RUN_SPEED, c.baseSpeed) });
+    perClip(clips, { a: w.t_start * srcFps, b: w.t_end * srcFps }, (x, c) => {
+      if (x.b - x.a > 1) stepSpeeds.push({ ...x, v: Math.max(QUICK_RUN_SPEED, c.baseSpeed) });
     });
   }
+  return stepSpeeds;
+}
 
-  const cuts: Array<Interval & { clip: number; idle: Interval; reason: RunCut['reason'] }> = [];
+/** Cuts a span whole in each clip, but the parts already in `held`; each cut joins `held`. */
+function cutWhole(clips: readonly RunClipInput[], span: Interval, held: Interval[], cut: (piece: Interval, ci: number) => void): void {
+  perClip(clips, span, (x, _c, ci) => {
+    if (x.b - x.a < EPS) return;
+    for (const piece of subtractIntervals(x, held)) {
+      if (piece.b - piece.a < EPS) continue;
+      cut(piece, ci);
+      held.push(piece);
+    }
+  });
+}
+
+/**
+ * Cuts of idle trimming: page loads the capture held and freezes cut whole, idle gaps and waits after a click shortened.
+ * Pushed onto `cuts`.
+ */
+function trimCuts(input: RunTimingInput, protMerged: Interval[], offcamera: Interval[], cuts: DraftCut[]): void {
+  const { clips, srcFps } = input;
+  // Page loads the capture held (R-ISS-08): cut whole — inside protected spans too, a frozen frame is never what a mark
+  // or a hold shows —, up to the first source frame showing the painted page (no frozen frame after the cut).
+  const held: Interval[] = [...offcamera];
+  const loads = (input.loading ?? []).filter((l) => l.t_end - l.t_start >= LOADING_CUT_MIN_S - EPS);
+  // Several pages' loads (a multi-page run) may overlap: one cut each.
+  for (const h of mergeIntervals(loads.map((l) => ({ a: l.t_start * srcFps, b: Math.ceil(l.t_end * srcFps - EPS) })))) {
+    perClip(clips, h, (x, _c, ci) => {
+      if (x.b - x.a < EPS) return;
+      for (const piece of subtractIntervals(x, offcamera)) {
+        if (piece.b - piece.a < EPS) continue;
+        cuts.push({ ...piece, clip: ci, idle: piece, reason: 'loading' });
+        held.push(piece);
+      }
+    });
+  }
+  // Freezes of the capture: the frozen frames but the first, cut whole like a held load (never inside one).
+  for (const f of input.frozen ?? []) {
+    const fz = { a: Math.ceil(f.t_start * srcFps - EPS) + 1, b: Math.ceil(f.t_end * srcFps - EPS) };
+    if (fz.b - fz.a < 1 - EPS) continue;
+    cutWhole(clips, fz, held, (piece, ci) => cuts.push({ ...piece, clip: ci, idle: piece, reason: 'frozen' }));
+  }
+  // Idle trims: the part of an idle interval outside protected spans and held loads, when longer than the threshold.
+  const kept = mergeIntervals([...protMerged, ...held]);
+  const minLen = input.idleThresholdS * srcFps;
+  const keepHalf = (IDLE_KEEP_S / 2) * srcFps;
+  for (const gap of input.idle) {
+    perClip(clips, { a: gap.t_start * srcFps, b: gap.t_end * srcFps }, (x, _c, ci) => {
+      for (const piece of subtractIntervals(x, kept)) {
+        if (piece.b - piece.a > minLen + EPS) cuts.push({ a: piece.a + keepHalf, b: piece.b - keepHalf, clip: ci, idle: piece, reason: 'idle' });
+      }
+    });
+  }
+  // Waits after a click (R-FLD-26): outside protected spans, held loads and the idle cuts just made.
+  const keptBusy = mergeIntervals([...kept, ...cuts.filter((c) => c.reason === 'idle')]);
+  for (const w of input.busy ?? []) {
+    perClip(clips, { a: w.t_start * srcFps, b: w.t_end * srcFps }, (x, _c, ci) => {
+      for (const piece of subtractIntervals(x, keptBusy)) {
+        const a = piece.a + BUSY_KEEP_BEFORE_S * srcFps;
+        const b = piece.b - BUSY_KEEP_AFTER_S * srcFps;
+        if (b - a >= BUSY_CUT_MIN_S * srcFps - EPS) cuts.push({ a, b, clip: ci, idle: piece, reason: 'busy' });
+      }
+    });
+  }
+}
+
+/** The run's cuts, in source order: hook steps always, idle trimming's cuts with `trimIdle`. */
+function runCutsOf(input: RunTimingInput, protMerged: Interval[]): DraftCut[] {
+  const { clips, srcFps } = input;
+  const cuts: DraftCut[] = [];
   // Hook steps: what the take did off camera is cut whole, whatever the trimming.
   const offcamera: Interval[] = [];
   for (const h of mergeIntervals((input.offcamera ?? []).map((o) => ({ a: o.t_start * srcFps, b: o.t_end * srcFps })))) {
-    clips.forEach((c, ci) => {
-      const x = intersect(h, { a: c.A, b: c.B });
-      if (!x || x.b - x.a < EPS) return;
+    perClip(clips, h, (x, _c, ci) => {
+      if (x.b - x.a < EPS) return;
       cuts.push({ ...x, clip: ci, idle: x, reason: 'hook' });
       offcamera.push(x);
     });
   }
-  if (input.trimIdle) {
-    // Page loads the capture held (R-ISS-08): cut whole — inside protected spans too, a frozen frame is never what a mark
-    // or a hold shows —, up to the first source frame showing the painted page (no frozen frame after the cut).
-    const held: Interval[] = [...offcamera];
-    const loads = (input.loading ?? []).filter((l) => l.t_end - l.t_start >= LOADING_CUT_MIN_S - EPS);
-    // Several pages' loads (a multi-page run) may overlap: one cut each.
-    for (const h of mergeIntervals(loads.map((l) => ({ a: l.t_start * srcFps, b: Math.ceil(l.t_end * srcFps - EPS) })))) {
-      clips.forEach((c, ci) => {
-        const x = intersect(h, { a: c.A, b: c.B });
-        if (!x || x.b - x.a < EPS) return;
-        for (const piece of subtractIntervals(x, offcamera)) {
-          if (piece.b - piece.a < EPS) continue;
-          cuts.push({ ...piece, clip: ci, idle: piece, reason: 'loading' });
-          held.push(piece);
-        }
-      });
-    }
-    // Freezes of the capture: the frozen frames but the first, cut whole like a held load (never inside one).
-    for (const f of input.frozen ?? []) {
-      const fz = { a: Math.ceil(f.t_start * srcFps - EPS) + 1, b: Math.ceil(f.t_end * srcFps - EPS) };
-      if (fz.b - fz.a < 1 - EPS) continue;
-      clips.forEach((c, ci) => {
-        const x = intersect(fz, { a: c.A, b: c.B });
-        if (!x || x.b - x.a < EPS) return;
-        for (const piece of subtractIntervals(x, held)) {
-          if (piece.b - piece.a < EPS) continue;
-          cuts.push({ ...piece, clip: ci, idle: piece, reason: 'frozen' });
-          held.push(piece);
-        }
-      });
-    }
-    // Idle trims: the part of an idle interval outside protected spans and held loads, when longer than the threshold.
-    const kept = mergeIntervals([...protMerged, ...held]);
-    const minLen = input.idleThresholdS * srcFps;
-    const keepHalf = (IDLE_KEEP_S / 2) * srcFps;
-    for (const gap of input.idle) {
-      const g = { a: gap.t_start * srcFps, b: gap.t_end * srcFps };
-      clips.forEach((c, ci) => {
-        const x = intersect(g, { a: c.A, b: c.B });
-        if (!x) return;
-        for (const piece of subtractIntervals(x, kept)) {
-          if (piece.b - piece.a > minLen + EPS) cuts.push({ a: piece.a + keepHalf, b: piece.b - keepHalf, clip: ci, idle: piece, reason: 'idle' });
-        }
-      });
-    }
-    // Waits after a click (R-FLD-26): outside protected spans, held loads and the idle cuts just made.
-    const keptBusy = mergeIntervals([...kept, ...cuts.filter((c) => c.reason === 'idle')]);
-    for (const w of input.busy ?? []) {
-      const g = { a: w.t_start * srcFps, b: w.t_end * srcFps };
-      clips.forEach((c, ci) => {
-        const x = intersect(g, { a: c.A, b: c.B });
-        if (!x) return;
-        for (const piece of subtractIntervals(x, keptBusy)) {
-          const a = piece.a + BUSY_KEEP_BEFORE_S * srcFps;
-          const b = piece.b - BUSY_KEEP_AFTER_S * srcFps;
-          if (b - a >= BUSY_CUT_MIN_S * srcFps - EPS) cuts.push({ a, b, clip: ci, idle: piece, reason: 'busy' });
-        }
-      });
-    }
-  }
+  if (input.trimIdle) trimCuts(input, protMerged, offcamera, cuts);
   cuts.sort((x, y) => x.a - y.a);
+  return cuts;
+}
 
-  // Elementary pieces between every boundary.
+/** What the elementary pieces are cut from: protected spans, own speeds and cuts. */
+interface RunSpans {
+  protMerged: Interval[];
+  stepSpeeds: Array<Interval & { v: number }>;
+  cuts: DraftCut[];
+}
+
+/** Elementary pieces between every boundary, neighbours of the same clip, speed and flags joined. */
+function elementaryPieces(clips: readonly RunClipInput[], spans: RunSpans): Elementary[] {
+  const { protMerged, stepSpeeds, cuts } = spans;
+  const P0 = clips[0].A;
+  const P1 = clips[clips.length - 1].B;
   const bounds = new Set<number>([P0, P1]);
   for (const c of clips) {
     bounds.add(c.A);
@@ -343,9 +364,14 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
       pieces.push({ a, b, clip, v, protected: isProt, cut });
     }
   }
+  return pieces;
+}
 
-  // Slivers (unprotected pieces shorter than one source frame, e.g. the millisecond between a final hold and the
-  // scene end) take the speed of the piece before them: no ramp for nothing.
+/**
+ * Slivers (unprotected pieces shorter than one source frame, e.g. the millisecond between a final hold and the
+ * scene end) take the speed of the piece before them: no ramp for nothing. In place.
+ */
+function absorbSlivers(pieces: Elementary[]): void {
   for (let n = 0; n < pieces.length; n++) {
     const x = pieces[n];
     if (x.cut || x.protected || x.b - x.a >= 1) continue;
@@ -367,8 +393,10 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
     const isProt = sliver(x) ? y.protected : x.protected;
     pieces.splice(n - 1, 2, { a: x.a, b: y.b, clip: x.clip, v: x.v, protected: isProt, cut: x.cut });
   }
+}
 
-  // Ramps between kept pieces of different speeds: inside the unprotected side (the faster one when both are free).
+/** Ramps between kept pieces of different speeds: inside the unprotected side (the faster one when both are free). In place. */
+function placeRamps(pieces: Elementary[], outFps: number): void {
   const R = SPEED_RAMP_S * outFps;
   const kept = pieces.filter((p) => !p.cut);
   for (let n = 0; n + 1 < kept.length; n++) {
@@ -379,50 +407,61 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
     if (hostIsX) x.rampOut = { R, v: y.v };
     else y.rampIn = { R, v: x.v };
   }
+}
 
-  // Map pieces.
+/** The map pieces of a kept piece from output frame `q` (ramp in, steady part, ramp out); returns the output frame after it. */
+function mapKeptPiece(piece: Elementary, r: number, q: number, map: MapPiece[]): number {
+  const len = piece.b - piece.a;
+  let rIn = piece.rampIn?.R ?? 0;
+  let rOut = piece.rampOut?.R ?? 0;
+  let dIn = piece.rampIn ? rIn * r * ((piece.rampIn.v + piece.v) / 2) : 0;
+  let dOut = piece.rampOut ? rOut * r * ((piece.rampOut.v + piece.v) / 2) : 0;
+  if (dIn + dOut > len) {
+    const s = len / (dIn + dOut);
+    rIn *= s;
+    rOut *= s;
+    dIn *= s;
+    dOut *= s;
+  }
+  let pos = piece.a;
+  const base = { clip: piece.clip, v: piece.v, protected: piece.protected, cut: false };
+  if (piece.rampIn && rIn > 1e-9) {
+    map.push({ ...base, p0: pos, p1: pos + dIn, q0: q, q1: q + rIn, u: piece.rampIn.v * r, w: piece.v * r, ramp: true });
+    pos += dIn;
+    q += rIn;
+  }
+  const mid = len - dIn - dOut;
+  if (mid > 1e-9) {
+    const dq = mid / (piece.v * r);
+    map.push({ ...base, p0: pos, p1: pos + mid, q0: q, q1: q + dq, u: piece.v * r, w: piece.v * r, ramp: false });
+    pos += mid;
+    q += dq;
+  }
+  if (piece.rampOut && rOut > 1e-9) {
+    map.push({ ...base, p0: pos, p1: pos + dOut, q0: q, q1: q + rOut, u: piece.v * r, w: piece.rampOut.v * r, ramp: true });
+    pos += dOut;
+    q += rOut;
+  }
+  return q;
+}
+
+/** The output → source map of the pieces and its output length (frames). */
+function mapPieces(pieces: Elementary[], r: number): { map: MapPiece[]; length: number } {
   const map: MapPiece[] = [];
   let q = 0;
   for (const piece of pieces) {
-    const len = piece.b - piece.a;
     if (piece.cut) {
       map.push({ p0: piece.a, p1: piece.b, q0: q, q1: q, u: 0, w: 0, clip: piece.clip, v: piece.v, protected: false, cut: true, ramp: false });
       continue;
     }
-    let rIn = piece.rampIn?.R ?? 0;
-    let rOut = piece.rampOut?.R ?? 0;
-    let dIn = piece.rampIn ? rIn * r * ((piece.rampIn.v + piece.v) / 2) : 0;
-    let dOut = piece.rampOut ? rOut * r * ((piece.rampOut.v + piece.v) / 2) : 0;
-    if (dIn + dOut > len) {
-      const s = len / (dIn + dOut);
-      rIn *= s;
-      rOut *= s;
-      dIn *= s;
-      dOut *= s;
-    }
-    let pos = piece.a;
-    const base = { clip: piece.clip, v: piece.v, protected: piece.protected, cut: false };
-    if (piece.rampIn && rIn > 1e-9) {
-      map.push({ ...base, p0: pos, p1: pos + dIn, q0: q, q1: q + rIn, u: piece.rampIn.v * r, w: piece.v * r, ramp: true });
-      pos += dIn;
-      q += rIn;
-    }
-    const mid = len - dIn - dOut;
-    if (mid > 1e-9) {
-      const dq = mid / (piece.v * r);
-      map.push({ ...base, p0: pos, p1: pos + mid, q0: q, q1: q + dq, u: piece.v * r, w: piece.v * r, ramp: false });
-      pos += mid;
-      q += dq;
-    }
-    if (piece.rampOut && rOut > 1e-9) {
-      map.push({ ...base, p0: pos, p1: pos + dOut, q0: q, q1: q + rOut, u: piece.v * r, w: piece.rampOut.v * r, ramp: true });
-      pos += dOut;
-      q += rOut;
-    }
+    q = mapKeptPiece(piece, r, q, map);
   }
-  const length = q;
+  return { map, length: q };
+}
 
-  // Sample every output frame.
+/** The source position and frame of every output frame, frames held to the run's [P0, P1). */
+function sampleFrames(map: MapPiece[], length: number, run: { P0: number; P1: number }): { p: number[]; src: number[] } {
+  const { P0, P1 } = run;
   const p: number[] = [];
   const src: number[] = [];
   let idx = 0;
@@ -435,8 +474,11 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
     p.push(pos);
     src.push(Math.min(P1 - 1, Math.max(P0, Math.floor(pos + EPS))));
   }
+  return { p, src };
+}
 
-  // Output frames of each clip (source frames are non-decreasing).
+/** Output frames of each clip (source frames are non-decreasing); an empty clip gets [0, 0). */
+function clipRangesOf(clips: readonly RunClipInput[], src: number[]): Array<{ k0: number; k1: number }> {
   const clipRanges = clips.map(() => ({ k0: -1, k1: -1 }));
   src.forEach((f, k) => {
     const ci = clips.findIndex((c) => c.A <= f && f < c.B);
@@ -451,6 +493,28 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
       range.k1 = 0;
     }
   }
+  return clipRanges;
+}
+
+/** Plan the time map of a run (see the module comment). Pure. */
+export function planRunTiming(input: RunTimingInput): RunTiming {
+  const { clips, srcFps, outFps } = input;
+  const r = srcFps / outFps;
+  const P0 = clips[0].A;
+  const P1 = clips[clips.length - 1].B;
+
+  const prot = protectedSpans(clips, srcFps, input.trimIdle);
+  const protMerged = mergeIntervals(prot);
+  const stepSpeeds = runSpeeds(input);
+  const cuts = runCutsOf(input, protMerged);
+
+  const pieces = elementaryPieces(clips, { protMerged, stepSpeeds, cuts });
+  absorbSlivers(pieces);
+  placeRamps(pieces, outFps);
+
+  const { map, length } = mapPieces(pieces, r);
+  const { p, src } = sampleFrames(map, length, { P0, P1 });
+  const clipRanges = clipRangesOf(clips, src);
 
   const runCuts: RunCut[] = cuts.map((c) => ({ ...c, at: firstFrameAtOrAfter(p, c.b) }));
   return { srcFps, outFps, pieces: map, length, p, src, clipRanges, cuts: runCuts, protectedSpans: prot };

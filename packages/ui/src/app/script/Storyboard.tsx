@@ -163,13 +163,96 @@ export function Storyboard({
   /** The inspector's button an edit came from (`data-step-action`), or null: it keeps the focus after the edit. */
   editFrom: MutableRefObject<string | null>;
 }) {
+  const ix = useBoardIndex(v);
+  const { scenes, sceneNo, order, index, optIds } = ix;
+  const selected = subject?.kind === 'step' && index.has(subject.key) ? subject.key : null;
+  const sel = useBoardSelection(ix, selected, onSelect);
+  const { listRef, onPick, onPress, onListFocus } = sel;
+  const { edRef, editFromRef, onKey } = useBoardKeys(ix, sel, ed, moves, editFrom);
+  const canEdit = ed.enabled && !ed.busy;
+  useEditFocus(ix, sel, ed, v.hash, editFrom);
+  const { dragKey, dropAt, onDragStart, onDragEnd, dragFor } = useStepDrag(scenes, edRef, editFromRef);
+  const { source, boardRef, grid } = useBoardLayout(v);
+  const cannotTell = v.source?.notice === 'cannot_tell';
+  const { setup, teardown, named } = v.blocks.hooks;
+  const firstScene = scenes.find((s) => s.steps.length > 0)?.id ?? null;
+  const selScene = selected !== null ? order[index.get(selected)!]?.scene : null;
+  // The one tab stop: the list holding the selection, else the selected scene's, else the first scene's.
+  const tabScene = selScene ?? (subject?.kind === 'scene' && scenes.some((s) => s.id === subject.id && s.steps.length > 0) ? subject.id : firstScene);
+  const names = (hs: typeof setup) => hs.map((h) => h.name ?? h.kind ?? 'hook');
+  const frames: BoardFrames = { selected, optIds, canEdit, dropAt, dragKey, source, cannotTell, onPick, onPress, onDragStart, onDragEnd };
+  return (
+    <div className="sb-board" data-testid="blocks" aria-busy={ed.busy} ref={boardRef}>
+      <BoardHead v={v} scenes={scenes.length} canEdit={canEdit} />
+      {(setup.length > 0 || named.length > 0) && (
+        <div id="entry-before" className="sb-entry">
+          <RowCard
+            tile="Before"
+            quiet
+            title="Before filming"
+            meta={hooksLine(setup.length, names(setup)) + (named.length ? ` · ${plural(named.length, 'named hook')} during the take` : '')}
+            selected={subject?.kind === 'before'}
+            onSelect={() => onSelect({ kind: 'before' })}
+            testId="before-filming"
+          />
+        </div>
+      )}
+      {v.blocks.entries.map((e) =>
+        e.type !== 'scene' ? (
+          <EntryRow key={`${e.type}-${e.index}`} e={e} subject={subject} onSelect={onSelect} />
+        ) : (
+          <SceneSection
+            key={`scene-${e.index}`}
+            e={e}
+            n={sceneNo.get(e.index)}
+            v={v}
+            subject={subject}
+            onSelect={onSelect}
+            canAdd={canAdd}
+            onAddStep={onAddStep}
+            hasSel={selScene === e.id}
+            tabbable={e.id === tabScene}
+            grid={grid}
+            listRef={listRef(e.id)}
+            onKey={onKey}
+            onListFocus={onListFocus}
+            drag={dragFor(e.id)}
+            frames={frames}
+          />
+        ),
+      )}
+      {teardown.length > 0 && (
+        <div id="entry-after" className="sb-entry">
+          <RowCard
+            tile="After"
+            quiet
+            title="After filming"
+            meta={hooksLine(teardown.length, names(teardown))}
+            selected={subject?.kind === 'after'}
+            onSelect={() => onSelect({ kind: 'after' })}
+            testId="after-filming"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The board's scenes and its steps in order: each step's place, its option id, each scene's number and step count. */
+function useBoardIndex(v: View) {
   const scenes = useMemo(() => v.blocks.entries.filter((e): e is SceneBlock => e.type === 'scene'), [v.blocks]);
   const sceneNo = useMemo(() => new Map(scenes.map((s, i) => [s.index, i + 1])), [scenes]);
   const order = useMemo(() => scenes.flatMap((s, si) => s.steps.map((st) => ({ key: st.key, scene: s.id, si, index: st.index }))), [scenes]);
   const index = useMemo(() => new Map(order.map((o, i) => [o.key, i])), [order]);
   const optIds = useMemo(() => new Map(order.map((o, i) => [o.key, `step-opt-${i}`])), [order]);
   const counts = useMemo(() => scenes.map((s) => s.steps.length), [scenes]);
-  const selected = subject?.kind === 'step' && index.has(subject.key) ? subject.key : null;
+  return { scenes, sceneNo, order, index, optIds, counts };
+}
+type BoardIndex = ReturnType<typeof useBoardIndex>;
+
+/** The selection in the frames: the lists, go (select, focus, scroll), a pick, a press, a list taking the focus. */
+function useBoardSelection(ix: BoardIndex, selected: string | null, onSelect: (s: Subject) => void) {
+  const { scenes, order, index, optIds } = ix;
   const lists = useRef(new Map<string, HTMLUListElement>());
   const listRef = useCallback(
     (scene: string) => (el: HTMLUListElement | null) => {
@@ -230,13 +313,20 @@ export function Storyboard({
     },
     [firstOfList, go, sceneOfList],
   );
+  return { lists, listRef, selRef, go, onPick, onPress, sceneOfList, firstOfList, onListFocus };
+}
+type BoardSelection = ReturnType<typeof useBoardSelection>;
+
+/** The frames' keys: Alt+arrows move the selected step, Delete deletes it, the grid keys move the selection. */
+function useBoardKeys(ix: BoardIndex, sel: BoardSelection, ed: StepEditor, moves: BoardMoves, editFrom: MutableRefObject<string | null>) {
+  const { scenes, order, index, counts } = ix;
+  const { selRef, go, firstOfList, sceneOfList } = sel;
   const edRef = useRef(ed);
   edRef.current = ed;
   const movesRef = useRef(moves);
   movesRef.current = moves;
   const editFromRef = useRef(editFrom);
   editFromRef.current = editFrom;
-  const canEdit = ed.enabled && !ed.busy;
   const onKey = useCallback(
     (ev: KeyboardEvent<HTMLUListElement>) => {
       const key = selRef.current;
@@ -270,14 +360,21 @@ export function Storyboard({
       const target = scenes[to.scene]?.steps[to.index];
       if (target) go(index.get(target.key) ?? 0, true);
     },
-    [order, index, counts, scenes, go, firstOfList, sceneOfList],
+    [order, index, counts, scenes, go, firstOfList, sceneOfList, selRef],
   );
+  return { edRef, editFromRef, onKey };
+}
+
+/** Where the selection and the focus go after an edit (the step its view selects; the inspector's button it came from). */
+function useEditFocus(ix: BoardIndex, sel: BoardSelection, ed: StepEditor, hash: View['hash'], editFrom: MutableRefObject<string | null>) {
+  const { order, index } = ix;
+  const { lists, selRef, go } = sel;
   // After an edit, its view selects the moved step / the copy / the neighbour, and the focus stays in the frames — once:
   // the same version read again (a file event, a run ending) never takes the selection back from a step picked since.
   const selectFor = ed.select;
   const selectedFor = useRef<typeof selectFor>(null);
   useEffect(() => {
-    if (!selectFor || selectFor.hash !== v.hash || selectedFor.current === selectFor) return;
+    if (!selectFor || selectFor.hash !== hash || selectedFor.current === selectFor) return;
     const i = index.get(selectFor.key);
     if (i === undefined) return;
     selectedFor.current = selectFor;
@@ -285,7 +382,7 @@ export function Storyboard({
     // An edit from an inspector button: the focus is that button's once editing is back on (the effect below).
     const fromButton = editFrom.current !== null;
     go(i, !fromButton && (active === null || active === document.body || !!active.closest?.('.k-frames, [data-testid="inspector"], [data-testid="edit-bar"]')));
-  }, [selectFor, v.hash, index, go, editFrom]);
+  }, [selectFor, hash, index, go, editFrom]);
   // After an edit from the inspector's Move up / Move down / Duplicate / Delete, the focus stays on that button
   // while it is there and enabled (a second Enter moves the step again); else it goes to the frames.
   const wasBusy = useRef(false);
@@ -307,25 +404,30 @@ export function Storyboard({
     const key = selRef.current;
     const at = key !== null ? order[index.get(key) ?? -1] : undefined;
     if (at) lists.current.get(at.scene)?.focus({ preventScroll: true });
-  }, [ed.busy, editFrom, order, index]);
+  }, [ed.busy, editFrom, order, index, selRef, lists]);
+}
 
-  // Drag & drop: the drag state lives here (see the header).
+/** Drag & drop: the drag state lives here (see the header); anything dragged from elsewhere is refused. */
+function useStepDrag(scenes: SceneBlock[], edRef: MutableRefObject<StepEditor>, editFromRef: MutableRefObject<MutableRefObject<string | null>>) {
   const dragState = useRef<StepRef | null>(null);
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<{ scene: string; gap: number } | null>(null);
   const dropRef = useRef(dropAt);
   dropRef.current = dropAt;
   const lockedScenes = useMemo(() => new Set(scenes.filter((s) => s.steps_locked !== undefined).map((s) => s.id)), [scenes]);
-  const onDragStart = useCallback((ev: DragEvent<HTMLElement>, step: StepBlock, scene: string) => {
-    if (!edRef.current.enabled || edRef.current.busy || step.guard === undefined || step.locked !== undefined) {
-      ev.preventDefault();
-      return;
-    }
-    dragState.current = { scene, index: step.index, guard: step.guard };
-    ev.dataTransfer.effectAllowed = 'move';
-    ev.dataTransfer.setData(STEP_DRAG_TYPE, step.key);
-    setDragKey(step.key);
-  }, []);
+  const onDragStart = useCallback(
+    (ev: DragEvent<HTMLElement>, step: StepBlock, scene: string) => {
+      if (!edRef.current.enabled || edRef.current.busy || step.guard === undefined || step.locked !== undefined) {
+        ev.preventDefault();
+        return;
+      }
+      dragState.current = { scene, index: step.index, guard: step.guard };
+      ev.dataTransfer.effectAllowed = 'move';
+      ev.dataTransfer.setData(STEP_DRAG_TYPE, step.key);
+      setDragKey(step.key);
+    },
+    [edRef],
+  );
   const onDragEnd = useCallback(() => {
     dragState.current = null;
     setDragKey(null);
@@ -354,7 +456,7 @@ export function Storyboard({
         return true;
       },
     }),
-    [lockedScenes],
+    [lockedScenes, editFromRef, edRef],
   );
   useEffect(() => {
     const over = (e: globalThis.DragEvent) => {
@@ -376,7 +478,11 @@ export function Storyboard({
       window.removeEventListener('drop', dropped);
     };
   }, []);
+  return { dragKey, dropAt, onDragStart, onDragEnd, dragFor };
+}
 
+/** The source run every frame shares (one object), and the board's columns and row height for a skipped scene. */
+function useBoardLayout(v: View) {
   // One object per source run: a prop of every memoised frame, so a selection re-renders two frames, not all.
   const sourceRun = v.source?.run;
   const sourceMode = v.source?.mode;
@@ -402,18 +508,34 @@ export function Storyboard({
     measure();
     return () => ro.disconnect();
   }, []);
-  const cannotTell = v.source?.notice === 'cannot_tell';
-  const { setup, teardown, named } = v.blocks.hooks;
-  const firstScene = scenes.find((s) => s.steps.length > 0)?.id ?? null;
-  const selScene = selected !== null ? order[index.get(selected)!]?.scene : null;
-  // The one tab stop: the list holding the selection, else the selected scene's, else the first scene's.
-  const tabScene = selScene ?? (subject?.kind === 'scene' && scenes.some((s) => s.id === subject.id && s.steps.length > 0) ? subject.id : firstScene);
-  const names = (hs: typeof setup) => hs.map((h) => h.name ?? h.kind ?? 'hook');
+  return { source, boardRef, grid };
+}
+
+/** A card, an interstitial or an unreadable entry: a row card between the scenes. */
+function EntryRow({ e, subject, onSelect }: { e: Exclude<EntryBlock, SceneBlock>; subject: Subject | null; onSelect: (s: Subject) => void }) {
+  const len = e.type === 'unknown' ? (e.range ? `line ${e.range.line}` : '') : e.duration !== undefined ? `${e.duration} s` : 'default length';
+  const what = e.type === 'card' ? `Card · ${e.component ?? "the theme's card"}` : e.type === 'interstitial' ? 'Text between scenes' : 'Cannot be read';
   return (
-    <div className="sb-board" data-testid="blocks" aria-busy={ed.busy} ref={boardRef}>
+    <div id={`entry-${e.index}`} className="sb-entry">
+      <RowCard
+        tile={e.type === 'card' ? 'Card' : e.type === 'interstitial' ? 'Text' : '?'}
+        title={entryTitle(e)}
+        meta={`${what}${len ? ` · ${len}` : ''}${e.issues.length ? ` · ${plural(e.issues.length, 'issue')}` : ''}`}
+        selected={subject?.kind === 'entry' && subject.index === e.index}
+        onSelect={() => onSelect({ kind: 'entry', index: e.index })}
+        testId={e.type === 'unknown' ? 'unknown-entry' : e.type}
+      />
+    </div>
+  );
+}
+
+/** The step count and the file, and the frames' keys in words. */
+function BoardHead({ v, scenes, canEdit }: { v: View; scenes: number; canEdit: boolean }) {
+  return (
+    <>
       {/* The step count and the file, on the board. */}
       <p className="sc-quiet sb-count" data-testid="board-count">
-        {shown(`${plural(v.blocks.step_count, 'step')} in ${plural(scenes.length, 'scene')} · `)}
+        {shown(`${plural(v.blocks.step_count, 'step')} in ${plural(scenes, 'scene')} · `)}
         <Txt className="k-mono" text={v.file} />
       </p>
       <p id="steps-keys" className="sc-quiet sb-keys">
@@ -421,131 +543,158 @@ export function Storyboard({
           ? 'Arrows move through the frames (↑ ↓ by row); Alt+arrows move the selected step one place, or drag a frame; Delete removes it; ⌘Z / Ctrl+Z undoes.'
           : 'Arrows move through the frames (↑ ↓ by row); Home and End go to the first and last step.'}
       </p>
-      {(setup.length > 0 || named.length > 0) && (
-        <div id="entry-before" className="sb-entry">
-          <RowCard
-            tile="Before"
-            quiet
-            title="Before filming"
-            meta={hooksLine(setup.length, names(setup)) + (named.length ? ` · ${plural(named.length, 'named hook')} during the take` : '')}
-            selected={subject?.kind === 'before'}
-            onSelect={() => onSelect({ kind: 'before' })}
-            testId="before-filming"
-          />
-        </div>
-      )}
-      {v.blocks.entries.map((e) => {
-        if (e.type !== 'scene') {
-          const len = e.type === 'unknown' ? (e.range ? `line ${e.range.line}` : '') : e.duration !== undefined ? `${e.duration} s` : 'default length';
-          const what = e.type === 'card' ? `Card · ${e.component ?? "the theme's card"}` : e.type === 'interstitial' ? 'Text between scenes' : 'Cannot be read';
-          return (
-            <div key={`${e.type}-${e.index}`} id={`entry-${e.index}`} className="sb-entry">
-              <RowCard
-                tile={e.type === 'card' ? 'Card' : e.type === 'interstitial' ? 'Text' : '?'}
-                title={entryTitle(e)}
-                meta={`${what}${len ? ` · ${len}` : ''}${e.issues.length ? ` · ${plural(e.issues.length, 'issue')}` : ''}`}
-                selected={subject?.kind === 'entry' && subject.index === e.index}
-                onSelect={() => onSelect({ kind: 'entry', index: e.index })}
-                testId={e.type === 'unknown' ? 'unknown-entry' : e.type}
-              />
-            </div>
-          );
-        }
-        const n = sceneNo.get(e.index);
-        const headId = `scene-h-${e.index}`;
-        const hasSel = selScene === e.id;
-        const length = sceneLengthWords(v.scenes[e.id]?.captured_s, v.source?.mode);
-        const where = e.pages ? plural(e.pages.length, 'page') : `${e.page ?? '—'}, ${e.continues ? 'continues' : (e.open ?? '/')}`;
-        const sceneSelected = subject?.kind === 'scene' && subject.id === e.id;
-        return (
-          <section
-            key={`scene-${e.index}`}
-            id={`entry-${e.index}`}
-            className="sb-scene"
-            aria-labelledby={headId}
-            data-testid="scene"
-            data-scene={e.id}
-            // Off screen, a scene is laid out at its own height and not painted; its width is the board's.
-            style={{ contentVisibility: 'auto', containIntrinsicBlockSize: `auto ${sceneIntrinsicPx(e.steps.length, grid.cols, grid.rowPx)}px` }}
-          >
-            <div className="sb-scene-head">
-              <div className="sb-scene-titles">
-                <h2 id={headId} className="sb-scene-title">
-                  <Txt text={e.caption?.kicker ?? e.id} />
-                </h2>
-                {e.caption && (
-                  <p className="sb-caption" data-testid="caption">
-                    <Txt text={e.caption.text} />
-                  </p>
-                )}
-                {(e.skip || e.offscreen || e.irreversible) && (
-                  <p className="sb-flags">
-                    <SceneFlags e={e} />
-                  </p>
-                )}
-              </div>
-              <div className="sb-scene-tools">
-                <Button variant="ghost" size="sm" aria-pressed={sceneSelected} onClick={() => onSelect({ kind: 'scene', id: e.id })} data-testid="scene-meta">
-                  {shown(`Scene ${n} · ${where} · ${length}`)}
-                </Button>
-                {canAdd && e.steps_locked === undefined && (
-                  <Button size="sm" icon="plus" onClick={() => onAddStep(e.id)} data-testid="scene-add">
-                    Add step
-                  </Button>
-                )}
-              </div>
-            </div>
-            {e.comment && <Txt className="sb-pre sc-quiet" text={e.comment} />}
-            {e.note !== undefined && <Txt className="sc-quiet" text={`Note: ${e.note}`} />}
-            <IssueLines issues={e.issues} />
-            <FrameGrid
-              label={`Steps of scene ${e.id}`}
-              activeId={hasSel && selected ? optIds.get(selected) : undefined}
-              tabbable={e.id === tabScene}
-              describedBy="steps-keys"
-              listRef={listRef(e.id)}
-              onKeyDown={onKey}
-              onFocus={onListFocus}
-              drag={dragFor(e.id)}
-              empty={`No steps.${canEdit && !e.steps_locked ? ' Drop a step here to move it into this scene.' : ''}`}
-              emptyTarget={dropAt?.scene === e.id}
-            >
-              {e.steps.map((s) => (
-                <StepFrame
-                  key={s.key}
-                  step={s}
-                  scene={e.id}
-                  optId={optIds.get(s.key)!}
-                  binding={v.steps[s.key]}
-                  source={source}
-                  cannotTell={cannotTell}
-                  selected={s.key === selected}
-                  onPick={onPick}
-                  onPress={onPress}
-                  canDrag={canEdit && s.locked === undefined && s.guard !== undefined}
-                  drop={dropAt?.scene === e.id ? dropSide(dropAt.gap, s.index) : null}
-                  dragging={dragKey === s.key}
-                  onDragStart={onDragStart}
-                  onDragEnd={onDragEnd}
-                />
-              ))}
-            </FrameGrid>
-          </section>
-        );
-      })}
-      {teardown.length > 0 && (
-        <div id="entry-after" className="sb-entry">
-          <RowCard
-            tile="After"
-            quiet
-            title="After filming"
-            meta={hooksLine(teardown.length, names(teardown))}
-            selected={subject?.kind === 'after'}
-            onSelect={() => onSelect({ kind: 'after' })}
-            testId="after-filming"
-          />
-        </div>
-      )}
+    </>
+  );
+}
+
+/** What every scene's frames share: the selection, the source run, the drag and the frame callbacks. */
+interface BoardFrames {
+  selected: string | null;
+  optIds: Map<string, string>;
+  canEdit: boolean;
+  dropAt: { scene: string; gap: number } | null;
+  dragKey: string | null;
+  source: { run: string; mode: string } | null;
+  cannotTell: boolean;
+  onPick: (key: string) => void;
+  onPress: (key: string) => void;
+  onDragStart: FrameProps['onDragStart'];
+  onDragEnd: () => void;
+}
+
+/** A scene's head: its title, caption and flags, its meta (selects the scene) and Add step. */
+function SceneHead({
+  e,
+  n,
+  v,
+  subject,
+  onSelect,
+  canAdd,
+  onAddStep,
+}: {
+  e: SceneBlock;
+  n: number | undefined;
+  v: View;
+  subject: Subject | null;
+  onSelect: (s: Subject) => void;
+  canAdd: boolean;
+  onAddStep: (scene: string) => void;
+}) {
+  const length = sceneLengthWords(v.scenes[e.id]?.captured_s, v.source?.mode);
+  const where = e.pages ? plural(e.pages.length, 'page') : `${e.page ?? '—'}, ${e.continues ? 'continues' : (e.open ?? '/')}`;
+  const sceneSelected = subject?.kind === 'scene' && subject.id === e.id;
+  return (
+    <div className="sb-scene-head">
+      <div className="sb-scene-titles">
+        <h2 id={`scene-h-${e.index}`} className="sb-scene-title">
+          <Txt text={e.caption?.kicker ?? e.id} />
+        </h2>
+        {e.caption && (
+          <p className="sb-caption" data-testid="caption">
+            <Txt text={e.caption.text} />
+          </p>
+        )}
+        {(e.skip || e.offscreen || e.irreversible) && (
+          <p className="sb-flags">
+            <SceneFlags e={e} />
+          </p>
+        )}
+      </div>
+      <div className="sb-scene-tools">
+        <Button variant="ghost" size="sm" aria-pressed={sceneSelected} onClick={() => onSelect({ kind: 'scene', id: e.id })} data-testid="scene-meta">
+          {shown(`Scene ${n} · ${where} · ${length}`)}
+        </Button>
+        {canAdd && e.steps_locked === undefined && (
+          <Button size="sm" icon="plus" onClick={() => onAddStep(e.id)} data-testid="scene-add">
+            Add step
+          </Button>
+        )}
+      </div>
     </div>
+  );
+}
+
+/** A filmed scene: its head, its notes and issues, and its frames. */
+function SceneSection({
+  e,
+  n,
+  v,
+  subject,
+  onSelect,
+  canAdd,
+  onAddStep,
+  hasSel,
+  tabbable,
+  grid,
+  listRef,
+  onKey,
+  onListFocus,
+  drag,
+  frames,
+}: {
+  e: SceneBlock;
+  n: number | undefined;
+  v: View;
+  subject: Subject | null;
+  onSelect: (s: Subject) => void;
+  canAdd: boolean;
+  onAddStep: (scene: string) => void;
+  hasSel: boolean;
+  tabbable: boolean;
+  grid: { cols: number; rowPx: number };
+  listRef: (el: HTMLUListElement | null) => void;
+  onKey: (ev: KeyboardEvent<HTMLUListElement>) => void;
+  onListFocus: (ev: { target: EventTarget; currentTarget: HTMLElement }) => void;
+  drag: FrameDrag;
+  frames: BoardFrames;
+}) {
+  const { selected, optIds, canEdit, dropAt, dragKey, source, cannotTell, onPick, onPress, onDragStart, onDragEnd } = frames;
+  return (
+    <section
+      id={`entry-${e.index}`}
+      className="sb-scene"
+      aria-labelledby={`scene-h-${e.index}`}
+      data-testid="scene"
+      data-scene={e.id}
+      // Off screen, a scene is laid out at its own height and not painted; its width is the board's.
+      style={{ contentVisibility: 'auto', containIntrinsicBlockSize: `auto ${sceneIntrinsicPx(e.steps.length, grid.cols, grid.rowPx)}px` }}
+    >
+      <SceneHead e={e} n={n} v={v} subject={subject} onSelect={onSelect} canAdd={canAdd} onAddStep={onAddStep} />
+      {e.comment && <Txt className="sb-pre sc-quiet" text={e.comment} />}
+      {e.note !== undefined && <Txt className="sc-quiet" text={`Note: ${e.note}`} />}
+      <IssueLines issues={e.issues} />
+      <FrameGrid
+        label={`Steps of scene ${e.id}`}
+        activeId={hasSel && selected ? optIds.get(selected) : undefined}
+        tabbable={tabbable}
+        describedBy="steps-keys"
+        listRef={listRef}
+        onKeyDown={onKey}
+        onFocus={onListFocus}
+        drag={drag}
+        empty={`No steps.${canEdit && !e.steps_locked ? ' Drop a step here to move it into this scene.' : ''}`}
+        emptyTarget={dropAt?.scene === e.id}
+      >
+        {e.steps.map((s) => (
+          <StepFrame
+            key={s.key}
+            step={s}
+            scene={e.id}
+            optId={optIds.get(s.key)!}
+            binding={v.steps[s.key]}
+            source={source}
+            cannotTell={cannotTell}
+            selected={s.key === selected}
+            onPick={onPick}
+            onPress={onPress}
+            canDrag={canEdit && s.locked === undefined && s.guard !== undefined}
+            drop={dropAt?.scene === e.id ? dropSide(dropAt.gap, s.index) : null}
+            dragging={dragKey === s.key}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+          />
+        ))}
+      </FrameGrid>
+    </section>
   );
 }

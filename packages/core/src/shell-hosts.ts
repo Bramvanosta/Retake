@@ -782,10 +782,8 @@ function computed(t: Tok | undefined): boolean {
   return t?.text.startsWith(DYN) ?? false;
 }
 
-function scanCommand(cmd: Cmd, s: Scan): Ran | null {
-  const { c, scope } = s;
-  const words = cmd.words;
-  // URLs anywhere, also as `--opt=URL`; never inside a larger word (SQL, JSON bodies).
+/** URLs anywhere, also as `--opt=URL`; never inside a larger word (SQL, JSON bodies). */
+function wordUrls(words: Tok[], c: Collector): void {
   for (const t of words) {
     if (t.assign) continue;
     const via = t.vars?.length ? t.vars[0] : 'URL';
@@ -793,91 +791,82 @@ function scanCommand(cmd: Cmd, s: Scan): Ran | null {
     const opt = /^--?[\w-]+=(.+)$/s.exec(t.text);
     if (opt) c.addUrl(opt[1], via);
   }
-  const at = commandAt(words, s);
-  if (!at) {
-    // Assignment-only command: kept for the rest of the script.
-    for (const t of words) if (t.assign) assignment(t.text, { ...s, c: new Collector() }, scope.local);
-    return null;
-  }
-  const { name, args, scoped } = at;
-  const ran: Ran = { name };
-  const setComputed = (n: string | undefined) => {
-    if (n && /^[A-Za-z_]\w*$/.test(n)) scope.local.set(n, DYN);
-  };
+}
 
+/** A variable whose value is computed or read from input: unknown from here on. */
+function setComputed(scope: Scope, n: string | undefined): void {
+  if (n && /^[A-Za-z_]\w*$/.test(n)) scope.local.set(n, DYN);
+}
+
+/** The builtins that set or unset variables (and `source`): true when the command is done with. */
+function variableCommand(name: string, args: Tok[], s: Scan): boolean {
+  const { scope } = s;
   if (DECLARE.has(name)) {
     for (const a of args) {
       if (/^[A-Za-z_]\w*\+?=/.test(a.text)) assignment(a.text, s, scope.local);
       else if (a.text.includes(DYN)) scope.opaque = true; // export $(cat .env | xargs)
     }
-    return ran;
+    return true;
   }
   if (name === 'unset') {
     for (const a of args) if (!a.text.startsWith('-')) scope.local.set(a.text, undefined);
-    return ran;
+    return true;
   }
   // Variables set from input or computed: their values are unknown.
   if (name === 'read') {
     const { opts, operands } = parseArgs(args, 'adinNptu', new Set());
-    setComputed(opts.find((o) => o.name === '-a')?.value);
-    if (!operands.length) setComputed('REPLY');
-    for (const o of operands) setComputed(o.text);
-    return ran;
+    setComputed(scope, opts.find((o) => o.name === '-a')?.value);
+    if (!operands.length) setComputed(scope, 'REPLY');
+    for (const o of operands) setComputed(scope, o.text);
+    return true;
   }
   if (name === 'mapfile' || name === 'readarray') {
-    for (const o of parseArgs(args, 'dnOsuCc', new Set()).operands) setComputed(o.text);
-    return ran;
+    for (const o of parseArgs(args, 'dnOsuCc', new Set()).operands) setComputed(scope, o.text);
+    return true;
   }
   if (name === 'printf') {
     const v = parseArgs(args, 'v', new Set()).opts.find((o) => o.name === '-v');
-    if (v) setComputed(v.value);
+    if (v) setComputed(scope, v.value);
   }
   if (name === 'for' || name === 'select') {
-    setComputed(args[0]?.text);
-    return ran;
+    setComputed(scope, args[0]?.text);
+    return true;
   }
   if (name === 'getopts') {
-    setComputed(args[1]?.text);
-    return ran;
+    setComputed(scope, args[1]?.text);
+    return true;
   }
   if (name === 'source' || name === '.') {
     scope.opaque = true;
-    return ran;
+    return true;
   }
-  if (name === 'echo' || name === 'printf') {
-    ran.echoed = args
-      .filter((a) => name === 'printf' || !/^-[neE]+$/.test(a.text))
-      .map((a) => a.text)
-      .join(' ');
-    return ran;
-  }
-  if (SHELLS.has(name)) {
-    // `sh -c SCRIPT`, `sh <<< SCRIPT`, `sh` / `sh -s` reading stdin (a heredoc, a pipe), or `sh FILE` (not read).
-    let script: string | undefined;
-    let stdin = true;
-    for (let i = 0; i < args.length; i++) {
-      const w = args[i].text;
-      if (/^[-+][oO]$/.test(w) || w === '--rcfile' || w === '--init-file') i++;
-      else if (/^-[a-zA-Z]*c[a-zA-Z]*$/.test(w)) {
-        script = args[i + 1]?.text ?? '';
-        break;
-      } else if (/^-[a-zA-Z]*s[a-zA-Z]*$/.test(w)) break;
-      else if (!/^[-+]/.test(w) || w === '--') {
-        stdin = w === '--' && !args[i + 1];
-        break;
-      }
+  return false;
+}
+
+/** `sh -c SCRIPT`, `sh <<< SCRIPT`, `sh` / `sh -s` reading stdin (a heredoc, a pipe), or `sh FILE` (not read). */
+function shellCommand(cmd: Cmd, args: Tok[], s: Scan, ran: Ran): void {
+  let script: string | undefined;
+  let stdin = true;
+  for (let i = 0; i < args.length; i++) {
+    const w = args[i].text;
+    if (/^[-+][oO]$/.test(w) || w === '--rcfile' || w === '--init-file') i++;
+    else if (/^-[a-zA-Z]*c[a-zA-Z]*$/.test(w)) {
+      script = args[i + 1]?.text ?? '';
+      break;
+    } else if (/^-[a-zA-Z]*s[a-zA-Z]*$/.test(w)) break;
+    else if (!/^[-+]/.test(w) || w === '--') {
+      stdin = w === '--' && !args[i + 1];
+      break;
     }
-    const nested = { ...s, depth: s.depth + 1 };
-    if (script !== undefined) scanScript(script, nested);
-    else if (cmd.herestring !== undefined) scanScript(cmd.herestring, nested);
-    else if (stdin) ran.stdinShell = true;
-    return ran;
   }
-  if (name === 'eval') {
-    if (args.some((a) => a.text.includes(DYN))) scope.opaque = true;
-    scanScript(args.map((a) => a.text).join(' '), { ...s, depth: s.depth + 1 });
-    return ran;
-  }
+  const nested = { ...s, depth: s.depth + 1 };
+  if (script !== undefined) scanScript(script, nested);
+  else if (cmd.herestring !== undefined) scanScript(cmd.herestring, nested);
+  else if (stdin) ran.stdinShell = true;
+}
+
+/** The code an interpreter runs inline (`node -e`, `python -c`…): the URLs in it. */
+function inlineCode(name: string, args: Tok[], c: Collector): void {
   for (const [interpreter, codeOpt] of INLINE_CODE) {
     if (!interpreter.test(name)) continue;
     for (let i = 0; i < args.length; i++) {
@@ -886,189 +875,242 @@ function scanCommand(cmd: Cmd, s: Scan): Ran | null {
       else if (codeOpt.test(args[i].text) && args[i + 1]) c.addUrlsIn(args[i + 1].text, `${name} ${args[i].text}`);
     }
   }
+}
+
+/** psql and the libpq tools, mysql and its family: `-h`, conninfo strings, URLs, else the host variables. */
+function databaseHosts(name: string, args: Tok[], s: Scan, scoped: Map<string, string | undefined>): void {
+  const { c } = s;
+  const before = c.refs.length;
+  let explicit = false;
+  for (let i = 0; i < args.length; ) {
+    const v = optionValue(args, i, '-h', '--host');
+    if (v) {
+      explicit = true;
+      c.addList(v[0], `${name} -h`);
+      i = v[1];
+      continue;
+    }
+    const w = args[i].text;
+    const dbname = LIBPQ.has(name) ? (optionValue(args, i, '-d', '--dbname') ?? null) : null;
+    const target = dbname ? dbname[0] : w;
+    const info = conninfoHosts(target);
+    if (info) {
+      for (const h of info) {
+        explicit = true;
+        c.addList(h, `${name} host=`);
+      }
+    } else if (/^[a-z][a-z0-9+.-]*:\/\//i.test(target)) explicit = true;
+    else if (dbname && target.startsWith(DYN)) {
+      explicit = true;
+      c.add(DYN, `${name} -d`); // a computed database name may be a URL or a conninfo string
+    }
+    i = dbname ? dbname[1] : i + 1;
+  }
+  const pg = PG_ARG_OPTS[name];
+  if (pg && computed(parseArgs(args, pg[0], pg[1]).operands[0])) {
+    explicit = true;
+    c.add(DYN, `${name} dbname`);
+  }
+  if (!explicit && c.refs.length === before) {
+    for (const v of LIBPQ.has(name) ? ['PGHOST', 'PGHOSTADDR'] : ['MYSQL_HOST']) {
+      const h = envValue(v, s, scoped);
+      if (h) c.addList(h, `${v} for ${name}`);
+    }
+  }
+}
+
+/** curl / wget options that name a host: proxies, `--resolve`, `--connect-to`, wget `-e *_proxy=`. */
+function downloadOptionHosts(curl: boolean, o: { name: string; value?: string }, targets: string[], c: Collector): void {
+  if (o.value === undefined) return;
+  if (curl && o.name === '--url') targets.push(o.value);
+  else if (curl && CURL_PROXY_OPTS.has(o.name)) c.addProxy(o.value, `curl ${o.name}`);
+  else if (curl && o.name === '--resolve') {
+    // [+]host:port:addr[,addr]…: curl connects to the addresses.
+    const m = /^\+?(?:\[[^\]]*\]|[^:]*):[^:]*:([\s\S]*)$/.exec(o.value);
+    for (const a of m ? m[1].split(',') : []) c.add(a.trim(), 'curl --resolve');
+  } else if (curl && o.name === '--connect-to') {
+    // HOST1:PORT1:HOST2:PORT2: curl connects to HOST2 (empty: HOST1, the URL's).
+    const m = /^(?:\[[^\]]*\]|[^:]*):[^:]*:(\[[^\]]*\]|[^:]*):/.exec(o.value);
+    if (m?.[1]) c.add(m[1], 'curl --connect-to');
+  } else if (!curl && (o.name === '-e' || o.name === '--execute')) {
+    const m = /^\s*((?:https?|ftp)_proxy)\s*=\s*(\S+)/i.exec(o.value);
+    if (m) c.addProxy(m[2], `wget -e ${m[1]}`);
+  }
+}
+
+/** curl and wget: their options' hosts, and every operand as a URL. */
+function downloadHosts(name: string, args: Tok[], c: Collector): void {
+  const curl = name === 'curl';
+  const { opts, operands } = parseArgs(args, curl ? CURL_ARG_OPTS : WGET_ARG_OPTS, curl ? CURL_LONG_ARG_OPTS : WGET_LONG_ARG_OPTS);
+  const targets = operands.map((t) => t.text);
+  for (const o of opts) downloadOptionHosts(curl, o, targets, c);
+  // A URL without its scheme (`curl api.example.com/x` means http://): every operand is a URL.
+  for (const w of targets) {
+    if (w.includes('://')) continue;
+    const m = /^(\[[^\]]+\]|[\w.-]+)(:\d+)?(?:[/?#]|$)/.exec(w);
+    if (!m) continue;
+    const host = m[1];
+    const looksLikeHost =
+      host.includes(DYN) ||
+      /^(localhost|\d{1,3}(\.\d{1,3}){3}|\[.*\])$/i.test(host) ||
+      (/\.[a-z]{2,}$/i.test(host) && !FILE_EXTENSION.test(host)) ||
+      (/^[a-z][\w-]*$/i.test(host) && (m[2] !== undefined || /[/?#]$/.test(m[0]))); // api:8080, api/reset
+    if (looksLikeHost) c.add(host, name);
+  }
+}
+
+/** HTTPie and xh: `--proxy`, `--resolve`, and the URL operand (after an optional method). */
+function httpieHosts(name: string, args: Tok[], c: Collector): void {
+  const { opts, operands } = parseArgs(args, HTTPIE_ARG_OPTS, HTTPIE_LONG_ARG_OPTS);
+  for (const o of opts) {
+    if (o.value === undefined) continue;
+    // --proxy=http:http://host:3128 (protocol:URL); xh --resolve host:address.
+    if (o.name === '--proxy') c.addProxy(o.value.replace(/^[a-z]+:(?!\/\/)/i, ''), `${name} --proxy`);
+    if (o.name === '--resolve') c.add(o.value.slice(o.value.indexOf(':') + 1), `${name} --resolve`);
+  }
+  const first = operands[0];
+  const url = operands.length > 1 && first && /^[A-Za-z]+$/.test(first.text) && (first.text === first.text.toUpperCase() || HTTP_METHODS.has(first.text.toLowerCase())) ? operands[1] : first;
+  if (url && !url.text.includes('://') && !url.text.startsWith(':')) {
+    const m = /^(\[[^\]]+\]|[^/:?#]+)/.exec(url.text);
+    if (m) c.add(m[1], name);
+  }
+}
+
+/** redis-cli, mongosh and mongo: their host option, and a mongo address operand. */
+function storeHosts(name: string, args: Tok[], c: Collector): void {
+  for (let i = 0; i < args.length; i++) {
+    const v = optionValue(args, i, name === 'redis-cli' ? '-h' : '--host', '--host');
+    if (v) {
+      c.addList(v[0], `${name} ${name === 'redis-cli' ? '-h' : '--host'}`);
+      i = v[1] - 1;
+    }
+  }
+  if (name !== 'redis-cli') {
+    // `mongosh [address] [file.js…]`: an address is a URL, `host[:port]/db` or a database name.
+    const longArgs = new Set([
+      '--host',
+      '--port',
+      '--username',
+      '--password',
+      '--authenticationDatabase',
+      '--authenticationMechanism',
+      '--eval',
+      '--file',
+      '--tlsCAFile',
+      '--tlsCertificateKeyFile',
+      '--tlsCertificateKeyFilePassword',
+      '--apiVersion',
+    ]);
+    const address = parseArgs(args, 'upf', longArgs).operands.find((t) => !/\.(js|mongodb)$/.test(t.text));
+    if (computed(address)) c.add(DYN, `${name} address`);
+    else if (address && !address.text.includes('://') && /^[^/]+\/./.test(address.text)) c.addList(address.text.split('/')[0], `${name} address`);
+  }
+}
+
+/** ssh, sftp, mosh and autossh: their options' hosts and the destination. */
+function sshHosts(name: string, args: Tok[], s: Scan): void {
+  const { c } = s;
+  sshOptionHosts(args, name, s);
+  const dest = name === 'mosh' ? firstOperand(args, new Set(), MOSH_ARG_OPTS) : firstOperand(args, name === 'sftp' ? SFTP_ARG_OPTS : SSH_ARG_OPTS);
+  if (dest && !c.addUrl(dest.text, name)) {
+    const host = name === 'sftp' ? (remoteOperandHost(dest.text, false) ?? sshHost(dest.text)) : sshHost(dest.text);
+    c.add(name === 'sftp' ? stripPort(host) : host, name);
+  }
+}
+
+/** scp and rsync: their options' hosts and every remote operand. */
+function copyHosts(name: string, args: Tok[], s: Scan): void {
+  const { c } = s;
+  sshOptionHosts(args, name, s);
+  const argOpts = name === 'scp' ? SCP_ARG_OPTS : RSYNC_ARG_OPTS;
+  for (let i = 0; i < args.length; i++) {
+    const w = args[i].text;
+    if (w.startsWith('-')) {
+      if (!w.startsWith('--') && w.length === 2 && argOpts.has(w[1])) i++;
+      continue;
+    }
+    const host = remoteOperandHost(w, false);
+    if (host) c.add(host, name);
+  }
+}
+
+/** git: only the commands that name a repository: `git commit -m "deploy@staging: …"` names none. */
+function gitHosts(args: Tok[], c: Collector): void {
+  let i = 0;
+  while (i < args.length && args[i].text.startsWith('-')) i += GIT_GLOBAL_ARG_OPTS.has(args[i].text) ? 2 : 1;
+  const command = args[i]?.text ?? '';
+  const rest = args.slice(i + 1);
+  const repository = (t: Tok | string | undefined, via: string) => {
+    const w = typeof t === 'string' ? t : t?.text;
+    if (w === undefined || w.includes('://')) return; // a URL: read above
+    if (w.startsWith(DYN)) c.add(DYN, via);
+    const host = remoteOperandHost(w, false);
+    if (host) c.add(host, via);
+  };
+  if (GIT_REPO_ARG_OPTS[command] !== undefined) {
+    const parsed = parseArgs(rest, GIT_REPO_ARG_OPTS[command], GIT_LONG_ARG_OPTS);
+    repository(parsed.operands[0], `git ${command}`);
+    repository(parsed.opts.find((o) => o.name === '--repo')?.value, `git ${command}`);
+  } else if (command === 'remote' || command === 'submodule') {
+    const ops = parseArgs(rest, 'tmb', GIT_LONG_ARG_OPTS).operands;
+    if (command === 'remote' && (ops[0]?.text === 'add' || ops[0]?.text === 'set-url')) repository(ops[2], 'git remote');
+    if (command === 'submodule' && ops[0]?.text === 'add') repository(ops[1], 'git submodule');
+  }
+}
+
+/** nc, netcat and telnet: the proxy and the destination (none when listening). */
+function netcatHosts(name: string, args: Tok[], c: Collector): void {
+  const { opts, operands } = parseArgs(args, name === 'telnet' ? TELNET_ARG_OPTS : NC_ARG_OPTS, new Set());
+  if (opts.some((o) => o.name === '-l')) return; // listening: no destination
+  const proxy = name === 'telnet' ? undefined : opts.find((o) => o.name === '-x')?.value;
+  if (proxy) c.addProxy(proxy, `${name} -x`);
+  const dest = operands[0];
+  if (computed(dest)) c.add(DYN, name);
+  else if (dest && !/^\d+$/.test(dest.text)) c.add(dest.text, name);
+}
+
+function scanCommand(cmd: Cmd, s: Scan): Ran | null {
+  const { c, scope } = s;
+  const words = cmd.words;
+  wordUrls(words, c);
+  const at = commandAt(words, s);
+  if (!at) {
+    // Assignment-only command: kept for the rest of the script.
+    for (const t of words) if (t.assign) assignment(t.text, { ...s, c: new Collector() }, scope.local);
+    return null;
+  }
+  const { name, args, scoped } = at;
+  const ran: Ran = { name };
+  if (variableCommand(name, args, s)) return ran;
+  if (name === 'echo' || name === 'printf') {
+    ran.echoed = args
+      .filter((a) => name === 'printf' || !/^-[neE]+$/.test(a.text))
+      .map((a) => a.text)
+      .join(' ');
+    return ran;
+  }
+  if (SHELLS.has(name)) {
+    shellCommand(cmd, args, s, ran);
+    return ran;
+  }
+  if (name === 'eval') {
+    if (args.some((a) => a.text.includes(DYN))) scope.opaque = true;
+    scanScript(args.map((a) => a.text).join(' '), { ...s, depth: s.depth + 1 });
+    return ran;
+  }
+  inlineCode(name, args, c);
   if (name === 'deno' && args[0]?.text === 'eval') {
     for (const a of args.slice(1)) c.addUrlsIn(a.text, 'deno eval');
     return ran;
   }
-  if (LIBPQ.has(name) || MYSQL.has(name)) {
-    const before = c.refs.length;
-    let explicit = false;
-    for (let i = 0; i < args.length; ) {
-      const v = optionValue(args, i, '-h', '--host');
-      if (v) {
-        explicit = true;
-        c.addList(v[0], `${name} -h`);
-        i = v[1];
-        continue;
-      }
-      const w = args[i].text;
-      const dbname = LIBPQ.has(name) ? (optionValue(args, i, '-d', '--dbname') ?? null) : null;
-      const target = dbname ? dbname[0] : w;
-      const info = conninfoHosts(target);
-      if (info) {
-        for (const h of info) {
-          explicit = true;
-          c.addList(h, `${name} host=`);
-        }
-      } else if (/^[a-z][a-z0-9+.-]*:\/\//i.test(target)) explicit = true;
-      else if (dbname && target.startsWith(DYN)) {
-        explicit = true;
-        c.add(DYN, `${name} -d`); // a computed database name may be a URL or a conninfo string
-      }
-      i = dbname ? dbname[1] : i + 1;
-    }
-    const pg = PG_ARG_OPTS[name];
-    if (pg && computed(parseArgs(args, pg[0], pg[1]).operands[0])) {
-      explicit = true;
-      c.add(DYN, `${name} dbname`);
-    }
-    if (!explicit && c.refs.length === before) {
-      for (const v of LIBPQ.has(name) ? ['PGHOST', 'PGHOSTADDR'] : ['MYSQL_HOST']) {
-        const h = envValue(v, s, scoped);
-        if (h) c.addList(h, `${v} for ${name}`);
-      }
-    }
-    return ran;
-  }
-  if (name === 'curl' || name === 'wget') {
-    const curl = name === 'curl';
-    const { opts, operands } = parseArgs(args, curl ? CURL_ARG_OPTS : WGET_ARG_OPTS, curl ? CURL_LONG_ARG_OPTS : WGET_LONG_ARG_OPTS);
-    const targets = operands.map((t) => t.text);
-    for (const o of opts) {
-      if (o.value === undefined) continue;
-      if (curl && o.name === '--url') targets.push(o.value);
-      else if (curl && CURL_PROXY_OPTS.has(o.name)) c.addProxy(o.value, `curl ${o.name}`);
-      else if (curl && o.name === '--resolve') {
-        // [+]host:port:addr[,addr]…: curl connects to the addresses.
-        const m = /^\+?(?:\[[^\]]*\]|[^:]*):[^:]*:([\s\S]*)$/.exec(o.value);
-        for (const a of m ? m[1].split(',') : []) c.add(a.trim(), 'curl --resolve');
-      } else if (curl && o.name === '--connect-to') {
-        // HOST1:PORT1:HOST2:PORT2: curl connects to HOST2 (empty: HOST1, the URL's).
-        const m = /^(?:\[[^\]]*\]|[^:]*):[^:]*:(\[[^\]]*\]|[^:]*):/.exec(o.value);
-        if (m?.[1]) c.add(m[1], 'curl --connect-to');
-      } else if (!curl && (o.name === '-e' || o.name === '--execute')) {
-        const m = /^\s*((?:https?|ftp)_proxy)\s*=\s*(\S+)/i.exec(o.value);
-        if (m) c.addProxy(m[2], `wget -e ${m[1]}`);
-      }
-    }
-    // A URL without its scheme (`curl api.example.com/x` means http://): every operand is a URL.
-    for (const w of targets) {
-      if (w.includes('://')) continue;
-      const m = /^(\[[^\]]+\]|[\w.\uE000-]+)(:\d+)?(?:[/?#]|$)/.exec(w);
-      if (!m) continue;
-      const host = m[1];
-      const looksLikeHost =
-        host.includes(DYN) ||
-        /^(localhost|\d{1,3}(\.\d{1,3}){3}|\[.*\])$/i.test(host) ||
-        (/\.[a-z]{2,}$/i.test(host) && !FILE_EXTENSION.test(host)) ||
-        (/^[a-z][\w-]*$/i.test(host) && (m[2] !== undefined || /[/?#]$/.test(m[0]))); // api:8080, api/reset
-      if (looksLikeHost) c.add(host, name);
-    }
-    return ran;
-  }
-  if (HTTPIE.has(name)) {
-    const { opts, operands } = parseArgs(args, HTTPIE_ARG_OPTS, HTTPIE_LONG_ARG_OPTS);
-    for (const o of opts) {
-      if (o.value === undefined) continue;
-      // --proxy=http:http://host:3128 (protocol:URL); xh --resolve host:address.
-      if (o.name === '--proxy') c.addProxy(o.value.replace(/^[a-z]+:(?!\/\/)/i, ''), `${name} --proxy`);
-      if (o.name === '--resolve') c.add(o.value.slice(o.value.indexOf(':') + 1), `${name} --resolve`);
-    }
-    const first = operands[0];
-    const url = operands.length > 1 && first && /^[A-Za-z]+$/.test(first.text) && (first.text === first.text.toUpperCase() || HTTP_METHODS.has(first.text.toLowerCase())) ? operands[1] : first;
-    if (url && !url.text.includes('://') && !url.text.startsWith(':')) {
-      const m = /^(\[[^\]]+\]|[^/:?#]+)/.exec(url.text);
-      if (m) c.add(m[1], name);
-    }
-    return ran;
-  }
-  if (name === 'redis-cli' || name === 'mongosh' || name === 'mongo') {
-    for (let i = 0; i < args.length; i++) {
-      const v = optionValue(args, i, name === 'redis-cli' ? '-h' : '--host', '--host');
-      if (v) {
-        c.addList(v[0], `${name} ${name === 'redis-cli' ? '-h' : '--host'}`);
-        i = v[1] - 1;
-      }
-    }
-    if (name !== 'redis-cli') {
-      // `mongosh [address] [file.js…]`: an address is a URL, `host[:port]/db` or a database name.
-      const longArgs = new Set([
-        '--host',
-        '--port',
-        '--username',
-        '--password',
-        '--authenticationDatabase',
-        '--authenticationMechanism',
-        '--eval',
-        '--file',
-        '--tlsCAFile',
-        '--tlsCertificateKeyFile',
-        '--tlsCertificateKeyFilePassword',
-        '--apiVersion',
-      ]);
-      const address = parseArgs(args, 'upf', longArgs).operands.find((t) => !/\.(js|mongodb)$/.test(t.text));
-      if (computed(address)) c.add(DYN, `${name} address`);
-      else if (address && !address.text.includes('://') && /^[^/]+\/./.test(address.text)) c.addList(address.text.split('/')[0], `${name} address`);
-    }
-    return ran;
-  }
-  if (name === 'ssh' || name === 'sftp' || name === 'mosh' || name === 'autossh') {
-    sshOptionHosts(args, name, s);
-    const dest = name === 'mosh' ? firstOperand(args, new Set(), MOSH_ARG_OPTS) : firstOperand(args, name === 'sftp' ? SFTP_ARG_OPTS : SSH_ARG_OPTS);
-    if (dest && !c.addUrl(dest.text, name)) {
-      const host = name === 'sftp' ? (remoteOperandHost(dest.text, false) ?? sshHost(dest.text)) : sshHost(dest.text);
-      c.add(name === 'sftp' ? stripPort(host) : host, name);
-    }
-    return ran;
-  }
-  if (name === 'scp' || name === 'rsync') {
-    sshOptionHosts(args, name, s);
-    const argOpts = name === 'scp' ? SCP_ARG_OPTS : RSYNC_ARG_OPTS;
-    for (let i = 0; i < args.length; i++) {
-      const w = args[i].text;
-      if (w.startsWith('-')) {
-        if (!w.startsWith('--') && w.length === 2 && argOpts.has(w[1])) i++;
-        continue;
-      }
-      const host = remoteOperandHost(w, false);
-      if (host) c.add(host, name);
-    }
-    return ran;
-  }
-  if (name === 'git') {
-    // Only the commands that name a repository: `git commit -m "deploy@staging: …"` names none.
-    let i = 0;
-    while (i < args.length && args[i].text.startsWith('-')) i += GIT_GLOBAL_ARG_OPTS.has(args[i].text) ? 2 : 1;
-    const command = args[i]?.text ?? '';
-    const rest = args.slice(i + 1);
-    const repository = (t: Tok | string | undefined, via: string) => {
-      const w = typeof t === 'string' ? t : t?.text;
-      if (w === undefined || w.includes('://')) return; // a URL: read above
-      if (w.startsWith(DYN)) c.add(DYN, via);
-      const host = remoteOperandHost(w, false);
-      if (host) c.add(host, via);
-    };
-    if (GIT_REPO_ARG_OPTS[command] !== undefined) {
-      const parsed = parseArgs(rest, GIT_REPO_ARG_OPTS[command], GIT_LONG_ARG_OPTS);
-      repository(parsed.operands[0], `git ${command}`);
-      repository(parsed.opts.find((o) => o.name === '--repo')?.value, `git ${command}`);
-    } else if (command === 'remote' || command === 'submodule') {
-      const ops = parseArgs(rest, 'tmb', GIT_LONG_ARG_OPTS).operands;
-      if (command === 'remote' && (ops[0]?.text === 'add' || ops[0]?.text === 'set-url')) repository(ops[2], 'git remote');
-      if (command === 'submodule' && ops[0]?.text === 'add') repository(ops[1], 'git submodule');
-    }
-    return ran;
-  }
-  if (name === 'nc' || name === 'netcat' || name === 'telnet') {
-    const { opts, operands } = parseArgs(args, name === 'telnet' ? TELNET_ARG_OPTS : NC_ARG_OPTS, new Set());
-    if (opts.some((o) => o.name === '-l')) return ran; // listening: no destination
-    const proxy = name === 'telnet' ? undefined : opts.find((o) => o.name === '-x')?.value;
-    if (proxy) c.addProxy(proxy, `${name} -x`);
-    const dest = operands[0];
-    if (computed(dest)) c.add(DYN, name);
-    else if (dest && !/^\d+$/.test(dest.text)) c.add(dest.text, name);
-    return ran;
-  }
+  if (LIBPQ.has(name) || MYSQL.has(name)) databaseHosts(name, args, s, scoped);
+  else if (name === 'curl' || name === 'wget') downloadHosts(name, args, c);
+  else if (HTTPIE.has(name)) httpieHosts(name, args, c);
+  else if (name === 'redis-cli' || name === 'mongosh' || name === 'mongo') storeHosts(name, args, c);
+  else if (name === 'ssh' || name === 'sftp' || name === 'mosh' || name === 'autossh') sshHosts(name, args, s);
+  else if (name === 'scp' || name === 'rsync') copyHosts(name, args, s);
+  else if (name === 'git') gitHosts(args, c);
+  else if (name === 'nc' || name === 'netcat' || name === 'telnet') netcatHosts(name, args, c);
   return ran;
 }
 

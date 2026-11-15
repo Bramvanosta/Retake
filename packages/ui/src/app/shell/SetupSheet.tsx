@@ -77,13 +77,24 @@ function SaidCallout({ said, testId, children }: { said: Said; testId: string; c
   );
 }
 
-export function SetupSheet({ route }: { route: Route }) {
+type Confirm = 'desktop' | 'desktop-replace' | 'cli-remove' | null;
+/** One step's action: `key` (step:op) marks its button busy; `run` calls its op; `ok` words its answer. */
+type Act = (key: string, run: () => Promise<Record<string, unknown>>, ok?: (d: Record<string, unknown>) => Said | null) => void;
+/** Open (or close) an inline confirmation, and where the focus goes then. */
+type ConfirmTo = (c: Confirm, item: string, prefer: string[]) => void;
+/** What a step's item shows and does: the status, the sheet's state, its actions. */
+type StepProps = { st: SetupStatus; placed: boolean; busy: Busy; confirm: Confirm; said: Said | null; act: Act; confirmTo: ConfirmTo };
+/** Not moved to Applications: the steps that record the app's path wait. */
+const HELD = { state: 'attention' as const, word: 'Blocked: move the app first' };
+
+/** The sheet's state and what opens it: the first start, the shell's event, `#/setup`. */
+function useSetupState(route: Route) {
   const [open, setOpen] = useState(false);
   const [st, setSt] = useState<SetupStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
   const [said, setSaid] = useState<Said | null>(null);
-  const [confirm, setConfirm] = useState<'desktop' | 'desktop-replace' | 'cli-remove' | null>(null);
+  const [confirm, setConfirm] = useState<Confirm>(null);
   const first = useRef(true);
   const polling = useRef<number | null>(null);
   const focusNext = useRef<FocusNext | null>(null);
@@ -133,6 +144,11 @@ export function SetupSheet({ route }: { route: Route }) {
       load();
     }
   }, [route.name, load]);
+  return { open, setOpen, st, loadError, busy, setBusy, said, setSaid, confirm, setConfirm, polling, focusNext, desktopInView, load };
+}
+
+/** While the sheet is open: the status read again, the Claude Desktop step watched, the focus placed. */
+function useSetupWatch({ open, st, busy, confirm, said, polling, focusNext, desktopInView, load }: ReturnType<typeof useSetupState>) {
   // While open: the status again every 2 s (the folder panel's answer, the notification answer, Claude Desktop quitting);
   // the window back in front reads the process list at once (Claude Desktop quit meanwhile).
   useEffect(() => {
@@ -145,7 +161,7 @@ export function SetupSheet({ route }: { route: Route }) {
       polling.current = null;
       window.removeEventListener('focus', onFocus);
     };
-  }, [open, load]);
+  }, [open, load, polling]);
   // The Claude Desktop step in view: only then is the process list read.
   useEffect(() => {
     if (!open || !st?.available) return;
@@ -165,7 +181,7 @@ export function SetupSheet({ route }: { route: Route }) {
       io.disconnect();
       desktopInView.current = false;
     };
-  }, [open, st?.available, load]);
+  }, [open, st?.available, load, desktopInView]);
   // Where the focus goes once the sheet shows what changed (a section opened, a confirmation opened or closed, an
   // action answered): see placeFocus.
   // biome-ignore lint/correctness/useExhaustiveDependencies: a confirmation opened or closed, or an answer said, is a trigger to place the focus asked in focusNext
@@ -180,14 +196,20 @@ export function SetupSheet({ route }: { route: Route }) {
     });
     return () => window.cancelAnimationFrame(id);
   }, [open, st, busy, confirm, said]);
+}
+
+export function SetupSheet({ route }: { route: Route }) {
+  const sheet = useSetupState(route);
+  useSetupWatch(sheet);
+  const { open, setOpen, st, loadError, busy, setBusy, said, setSaid, confirm, setConfirm, focusNext, load } = sheet;
   /** Open (or close) an inline confirmation: the focus goes to its first button (or back to its opener). */
-  const confirmTo = (c: typeof confirm, item: string, prefer: string[]) => {
+  const confirmTo: ConfirmTo = (c, item, prefer) => {
     setConfirm(c);
     focusNext.current = { item, prefer, always: true };
   };
 
   /** One step's action: `key` (step:op) marks its button busy; `run` calls its op (a literal op name at each call). */
-  const act = (key: string, run: () => Promise<Record<string, unknown>>, ok?: (d: Record<string, unknown>) => Said | null) => {
+  const act: Act = (key, run, ok) => {
     if (busy) return;
     const step = key.split(':')[0]!;
     setBusy(key);
@@ -223,283 +245,6 @@ export function SetupSheet({ route }: { route: Route }) {
     if (route.name === 'setup') location.hash = hrefTo({ name: 'projects' });
   };
 
-  const placed = st?.location === 'ok';
-  const isBusy = (k: string) => busy === k;
-  const said_ = (step: string) =>
-    said && said.step === step ? (
-      <SaidCallout said={said} testId={`setup-${step}-said`}>
-        {said.output?.length ? (
-          <div className="sh-setup-output">
-            {said.output.map((s, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: one step's output lines in order, text only: the index is the line number
-              <div key={i}>
-                <code className="k-mono">
-                  <Txt text={`${s.line} → ${s.code === null ? 'stopped' : `exit ${s.code}`}`} />
-                </code>
-                {s.output ? <Txt className="sh-setup-pre k-mono" text={s.output} /> : null}
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </SaidCallout>
-    ) : null;
-
-  const body = () => {
-    if (!st) return loadError ? <Callout state="fail" role="alert" title={<Txt text={loadError} />} /> : <p>Reading the set-up…</p>;
-    if (!st.available) return <Callout state="idle" role="note" title={unavailableSentence(st.reason)} testId="setup-unavailable" />;
-    const cli = st.cli!;
-    const cc = st.claude_code!;
-    const cd = st.claude_desktop!;
-    // Not moved to Applications: the steps that record the app's path wait.
-    const held = { state: 'attention' as const, word: 'Blocked: move the app first' };
-    const c = placed ? cliStep(cli) : held;
-    const d = placed ? desktopStep(cd) : held;
-    const ccStep = !placed ? held : cc.claude ? { state: 'idle' as const, word: 'Ready' } : { state: 'idle' as const, word: 'Missing: not found' };
-    const n = notificationsStep(st.notifications);
-    return (
-      <>
-        {!placed && <Callout state="attention" role="alert" title={<Txt text={st.location_words ?? ''} />} testId="setup-location" />}
-        <Checklist label="Set-up steps">
-          <ChecklistItem state="ok" word="Open" title="Workspace" testId="setup-workspace">
-            <Txt className="k-mono sh-setup-path" text={st.workspace ?? ''} />
-            <p>Your projects live here. File › Open Workspace… changes it.</p>
-          </ChecklistItem>
-          <ChecklistItem state="ok" word={st.home_from_env ? 'Set by RETAKE_HOME' : 'Default'} title={`${APP_NAME} home`} testId="setup-home">
-            <Txt className="k-mono sh-setup-path" text={st.home ?? ''} />
-            <p>Signed-in profiles and the approval key live here.</p>
-          </ChecklistItem>
-          <ChecklistItem
-            state={c.state}
-            word={c.word}
-            title="Command line"
-            testId="setup-cli"
-            actions={
-              <>
-                {cli.state !== 'ours' && cli.state !== 'foreign' && !installedElsewhere(cli) && (
-                  <Button
-                    variant="primary"
-                    disabled={!placed || !!busy}
-                    busy={isBusy('cli:setup_cli_install')}
-                    data-testid="setup-cli-install"
-                    onClick={() =>
-                      act(
-                        'cli:setup_cli_install',
-                        () => setupCliInstall({ folder: cli.chosen ? 'chosen' : 'default', replace: cli.state === 'other_app' }),
-                        (r) => ({ step: 'cli', state: 'ok', text: `Installed: ${String(r.path)}` }),
-                      )
-                    }
-                  >
-                    {cli.state === 'other_app' ? 'Replace' : 'Install retake'}
-                  </Button>
-                )}
-                <Button disabled={!placed || !!busy} busy={isBusy('cli:setup_cli_choose')} data-testid="setup-cli-choose" onClick={() => act('cli:setup_cli_choose', () => setupCliChoose({}))}>
-                  Choose a Folder…
-                </Button>
-                {cli.installed && confirm !== 'cli-remove' && (
-                  <Button variant="ghost" disabled={!!busy} data-testid="setup-cli-remove" onClick={() => confirmTo('cli-remove', 'setup-cli', ['setup-cli-remove-confirm', 'setup-cli-remove-keep'])}>
-                    Uninstall…
-                  </Button>
-                )}
-              </>
-            }
-          >
-            <p>
-              <Txt text={cliSentence(cli)} />
-            </p>
-            {cli.chosen_error && <Callout state="fail" role="alert" title={<Txt text={cli.chosen_error} />} />}
-            {panelSentence(cli) && <Callout state="attention" role="status" title={panelSentence(cli)!} testId="setup-cli-panel" />}
-            <p>
-              <Txt text={pathSentence(cli)} />
-            </p>
-            {!cli.on_path && <Blocker fix={{ copy: cli.path_line, label: 'Copy line' }} testId="setup-cli-path" />}
-            <p>Check it: open a new Terminal window and run retake doctor.</p>
-            {confirm === 'cli-remove' && (
-              // biome-ignore lint/a11y/useSemanticElements: an inline confirmation (text and two buttons); <fieldset> would bring its own border, padding and min-width
-              <div className="sh-setup-confirm" role="group" aria-label="Uninstall the command">
-                <p>
-                  <Txt text={cli.installed ? `Remove ${cli.installed}? Only this app's link is removed: nothing else is touched.` : 'The command is not installed by this app.'} />
-                </p>
-                <Button
-                  variant="destructive"
-                  disabled={!cli.installed || !!busy}
-                  busy={isBusy('cli:setup_cli_remove')}
-                  data-testid="setup-cli-remove-confirm"
-                  onClick={() =>
-                    act(
-                      'cli:setup_cli_remove',
-                      () => setupCliRemove({}),
-                      (r) => ({ step: 'cli', state: 'ok', text: `Removed: ${String(r.path)}` }),
-                    )
-                  }
-                >
-                  Uninstall
-                </Button>
-                <Button data-testid="setup-cli-remove-keep" onClick={() => confirmTo(null, 'setup-cli', ['setup-cli-remove'])}>
-                  Keep it
-                </Button>
-              </div>
-            )}
-            {said_('cli')}
-          </ChecklistItem>
-          <ChecklistItem
-            state={ccStep.state}
-            word={ccStep.word}
-            title="Claude Code"
-            testId="setup-claude-code"
-            actions={
-              <Button
-                variant="primary"
-                disabled={!placed || !cc.claude || !cc.plugin || !!busy}
-                busy={isBusy('claude-code:setup_claude_code_run')}
-                data-testid="setup-claude-code-run"
-                onClick={() =>
-                  act(
-                    'claude-code:setup_claude_code_run',
-                    () => setupClaudeCodeRun({}),
-                    (r) => {
-                      const steps = ((r.untrusted as { steps?: Said['output'] } | undefined)?.steps ?? []).slice(0, 4);
-                      return {
-                        step: 'claude-code',
-                        state: r.ok ? 'ok' : r.timed_out ? 'attention' : 'fail',
-                        text: r.ok
-                          ? 'Registered with Claude Code'
-                          : r.timed_out
-                            ? 'Claude Code did not finish within 60 s (it may be asking a question): run the lines in Terminal'
-                            : 'Claude Code refused: its output is below',
-                        output: steps,
-                      };
-                    },
-                  )
-                }
-              >
-                Run
-              </Button>
-            }
-          >
-            <p>
-              The {APP_NAME} plugin, with this app&apos;s Node.js and engine and this workspace. Run uses{' '}
-              {cc.claude ? <Txt className="k-mono" text={cc.claude} /> : 'claude from ~/.local/bin, /opt/homebrew/bin, /usr/local/bin or ~/.claude/local'}; or copy the lines into Terminal.
-            </p>
-            <p>
-              Claude Code&apos;s settings: <Txt className="k-mono" text={cc.config_dir} />
-            </p>
-            {cc.lines.length > 0 && <Blocker fix={{ copy: cc.lines.join('\n'), label: 'Copy lines' }} testId="setup-claude-code-lines" />}
-            {said_('claude-code')}
-          </ChecklistItem>
-          <ChecklistItem
-            state={d.state}
-            word={d.word}
-            title="Claude Desktop"
-            testId="setup-claude-desktop"
-            actions={
-              d.state !== 'ok' && cd.state !== 'unreadable' && confirm !== 'desktop' && confirm !== 'desktop-replace' ? (
-                <Button
-                  disabled={!placed || !cd.folder || !!busy}
-                  data-testid="setup-claude-desktop-add"
-                  onClick={() => confirmTo(cd.state === 'replace' ? 'desktop-replace' : 'desktop', 'setup-claude-desktop', ['setup-claude-desktop-confirm', 'setup-claude-desktop-cancel'])}
-                >
-                  {cd.state === 'replace' ? 'Replace…' : 'Add to Claude Desktop…'}
-                </Button>
-              ) : undefined
-            }
-          >
-            <p>
-              Adds this entry to <Txt className="k-mono" text={cd.file} />
-              {cd.folder ? (
-                <>
-                  {' '}
-                  (a backup of the file goes to <Txt className="k-mono" text={cd.backups} /> first):
-                </>
-              ) : (
-                ' — the folder is missing: open Claude Desktop once first.'
-              )}
-            </p>
-            <Txt className="sh-setup-pre k-mono" text={cd.entry} />
-            <Blocker fix={{ copy: cd.entry, label: 'Copy entry' }} testId="setup-claude-desktop-copy" />
-            {st.untrusted?.desktop_current && (
-              <>
-                <p>The entry there now:</p>
-                <Txt className="sh-setup-pre k-mono" text={st.untrusted.desktop_current} />
-              </>
-            )}
-            {st.untrusted?.desktop_problem && <Callout state="fail" role="alert" title={<Txt text={st.untrusted.desktop_problem} />} />}
-            {runningSentence(cd.running) && <Callout state="attention" role="status" title={runningSentence(cd.running)!} testId="setup-claude-desktop-running" />}
-            {(confirm === 'desktop' || confirm === 'desktop-replace') && (
-              // biome-ignore lint/a11y/useSemanticElements: an inline confirmation (text and two buttons); <fieldset> would bring its own border, padding and min-width
-              <div className="sh-setup-confirm" role="group" aria-label="Add to Claude Desktop">
-                <p>
-                  <Txt
-                    text={
-                      confirm === 'desktop-replace'
-                        ? `Replace the retake entry in ${cd.file}? A backup is made first.`
-                        : `Write this entry into ${cd.file}? A backup is made first; every other setting stays.`
-                    }
-                  />
-                </p>
-                <Button
-                  variant="primary"
-                  disabled={!placed || (cd.running !== false && cd.running !== undefined) || !!busy}
-                  busy={isBusy('desktop:setup_claude_desktop_add')}
-                  data-testid="setup-claude-desktop-confirm"
-                  onClick={() =>
-                    act(
-                      'desktop:setup_claude_desktop_add',
-                      () => setupClaudeDesktopAdd({ replace: confirm === 'desktop-replace' }),
-                      (r) => ({
-                        step: 'desktop',
-                        state: 'ok',
-                        text: r.kind === 'same' ? 'Claude Desktop already has this entry' : `Added: open Claude Desktop again to use it.${r.backup ? ` The file as it was: ${String(r.backup)}` : ''}`,
-                      }),
-                    )
-                  }
-                >
-                  {confirm === 'desktop-replace' ? 'Replace' : 'Add'}
-                </Button>
-                <Button data-testid="setup-claude-desktop-cancel" onClick={() => confirmTo(null, 'setup-claude-desktop', ['setup-claude-desktop-add'])}>
-                  Cancel
-                </Button>
-              </div>
-            )}
-            {said_('desktop')}
-          </ChecklistItem>
-          <ChecklistItem
-            state={n.state}
-            word={n.word}
-            title="Notifications"
-            testId="setup-notifications"
-            actions={
-              st.notifications !== 'on' ? (
-                <Button
-                  disabled={!!busy}
-                  busy={isBusy('notifications:setup_notifications')}
-                  data-testid="setup-notifications-allow"
-                  onClick={() =>
-                    act(
-                      'notifications:setup_notifications',
-                      () => setupNotifications({}),
-                      () => ({ step: 'notifications', state: 'attention', text: `macOS asks you now (or System Settings › Notifications › ${APP_NAME}, if you said no before)` }),
-                    )
-                  }
-                >
-                  Allow…
-                </Button>
-              ) : undefined
-            }
-          >
-            <p>A capture, render or review that ends while the window is not in front tells you.</p>
-            {said_('notifications')}
-          </ChecklistItem>
-          <ChecklistItem state="ok" word="Not needed" title="Screen recording" testId="setup-screen">
-            <p>{`Captures are headless: ${APP_NAME} never asks for screen recording. retake login and --headed runs open ordinary windows.`}</p>
-          </ChecklistItem>
-          <ChecklistItem state="idle" word="Pending: asked when needed" title="Local network" testId="setup-network">
-            <p>macOS asks the first time a capture opens a site on your local network.</p>
-          </ChecklistItem>
-        </Checklist>
-      </>
-    );
-  };
-
   return (
     <Sheet
       open={open}
@@ -509,9 +254,313 @@ export function SetupSheet({ route }: { route: Route }) {
       escapeAction="escape"
       actions={[{ id: 'done', label: 'Done', variant: 'primary', isDefault: true, testId: 'setup-done' }]}
       onAction={close}
-      content={body()}
+      content={<SetupBody st={st} loadError={loadError} busy={busy} confirm={confirm} said={said} act={act} confirmTo={confirmTo} />}
     >
       {`Each step is optional and happens only when you click it. Help › Set Up ${APP_NAME}… brings this back.`}
     </Sheet>
+  );
+}
+
+/** A step's outcome under its item, with the lines Claude Code ran and their output. */
+function StepSaid({ said, step }: { said: Said | null; step: string }) {
+  if (!said || said.step !== step) return null;
+  return (
+    <SaidCallout said={said} testId={`setup-${step}-said`}>
+      {said.output?.length ? (
+        <div className="sh-setup-output">
+          {said.output.map((s, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: one step's output lines in order, text only: the index is the line number
+            <div key={i}>
+              <code className="k-mono">
+                <Txt text={`${s.line} → ${s.code === null ? 'stopped' : `exit ${s.code}`}`} />
+              </code>
+              {s.output ? <Txt className="sh-setup-pre k-mono" text={s.output} /> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </SaidCallout>
+  );
+}
+
+/** The sheet's content: the status being read, why set-up is off, or the checklist of steps. */
+function SetupBody({ st, loadError, ...rest }: Omit<StepProps, 'st' | 'placed'> & { st: SetupStatus | null; loadError: string | null }) {
+  if (!st) return loadError ? <Callout state="fail" role="alert" title={<Txt text={loadError} />} /> : <p>Reading the set-up…</p>;
+  if (!st.available) return <Callout state="idle" role="note" title={unavailableSentence(st.reason)} testId="setup-unavailable" />;
+  const placed = st.location === 'ok';
+  const step: StepProps = { st, placed, ...rest };
+  return (
+    <>
+      {!placed && <Callout state="attention" role="alert" title={<Txt text={st.location_words ?? ''} />} testId="setup-location" />}
+      <Checklist label="Set-up steps">
+        <ChecklistItem state="ok" word="Open" title="Workspace" testId="setup-workspace">
+          <Txt className="k-mono sh-setup-path" text={st.workspace ?? ''} />
+          <p>Your projects live here. File › Open Workspace… changes it.</p>
+        </ChecklistItem>
+        <ChecklistItem state="ok" word={st.home_from_env ? 'Set by RETAKE_HOME' : 'Default'} title={`${APP_NAME} home`} testId="setup-home">
+          <Txt className="k-mono sh-setup-path" text={st.home ?? ''} />
+          <p>Signed-in profiles and the approval key live here.</p>
+        </ChecklistItem>
+        <CliItem {...step} />
+        <ClaudeCodeItem {...step} />
+        <DesktopItem {...step} />
+        <NotificationsItem {...step} />
+        <ChecklistItem state="ok" word="Not needed" title="Screen recording" testId="setup-screen">
+          <p>{`Captures are headless: ${APP_NAME} never asks for screen recording. retake login and --headed runs open ordinary windows.`}</p>
+        </ChecklistItem>
+        <ChecklistItem state="idle" word="Pending: asked when needed" title="Local network" testId="setup-network">
+          <p>macOS asks the first time a capture opens a site on your local network.</p>
+        </ChecklistItem>
+      </Checklist>
+    </>
+  );
+}
+
+/** The command line step: Install (or Replace), Choose a Folder…, Uninstall… and its confirmation, the PATH line. */
+function CliItem({ st, placed, busy, confirm, said, act, confirmTo }: StepProps) {
+  const cli = st.cli!;
+  const c = placed ? cliStep(cli) : HELD;
+  return (
+    <ChecklistItem
+      state={c.state}
+      word={c.word}
+      title="Command line"
+      testId="setup-cli"
+      actions={
+        <>
+          {cli.state !== 'ours' && cli.state !== 'foreign' && !installedElsewhere(cli) && (
+            <Button
+              variant="primary"
+              disabled={!placed || !!busy}
+              busy={busy === 'cli:setup_cli_install'}
+              data-testid="setup-cli-install"
+              onClick={() =>
+                act(
+                  'cli:setup_cli_install',
+                  () => setupCliInstall({ folder: cli.chosen ? 'chosen' : 'default', replace: cli.state === 'other_app' }),
+                  (r) => ({ step: 'cli', state: 'ok', text: `Installed: ${String(r.path)}` }),
+                )
+              }
+            >
+              {cli.state === 'other_app' ? 'Replace' : 'Install retake'}
+            </Button>
+          )}
+          <Button disabled={!placed || !!busy} busy={busy === 'cli:setup_cli_choose'} data-testid="setup-cli-choose" onClick={() => act('cli:setup_cli_choose', () => setupCliChoose({}))}>
+            Choose a Folder…
+          </Button>
+          {cli.installed && confirm !== 'cli-remove' && (
+            <Button variant="ghost" disabled={!!busy} data-testid="setup-cli-remove" onClick={() => confirmTo('cli-remove', 'setup-cli', ['setup-cli-remove-confirm', 'setup-cli-remove-keep'])}>
+              Uninstall…
+            </Button>
+          )}
+        </>
+      }
+    >
+      <p>
+        <Txt text={cliSentence(cli)} />
+      </p>
+      {cli.chosen_error && <Callout state="fail" role="alert" title={<Txt text={cli.chosen_error} />} />}
+      {panelSentence(cli) && <Callout state="attention" role="status" title={panelSentence(cli)!} testId="setup-cli-panel" />}
+      <p>
+        <Txt text={pathSentence(cli)} />
+      </p>
+      {!cli.on_path && <Blocker fix={{ copy: cli.path_line, label: 'Copy line' }} testId="setup-cli-path" />}
+      <p>Check it: open a new Terminal window and run retake doctor.</p>
+      {confirm === 'cli-remove' && (
+        // biome-ignore lint/a11y/useSemanticElements: an inline confirmation (text and two buttons); <fieldset> would bring its own border, padding and min-width
+        <div className="sh-setup-confirm" role="group" aria-label="Uninstall the command">
+          <p>
+            <Txt text={cli.installed ? `Remove ${cli.installed}? Only this app's link is removed: nothing else is touched.` : 'The command is not installed by this app.'} />
+          </p>
+          <Button
+            variant="destructive"
+            disabled={!cli.installed || !!busy}
+            busy={busy === 'cli:setup_cli_remove'}
+            data-testid="setup-cli-remove-confirm"
+            onClick={() =>
+              act(
+                'cli:setup_cli_remove',
+                () => setupCliRemove({}),
+                (r) => ({ step: 'cli', state: 'ok', text: `Removed: ${String(r.path)}` }),
+              )
+            }
+          >
+            Uninstall
+          </Button>
+          <Button data-testid="setup-cli-remove-keep" onClick={() => confirmTo(null, 'setup-cli', ['setup-cli-remove'])}>
+            Keep it
+          </Button>
+        </div>
+      )}
+      <StepSaid said={said} step="cli" />
+    </ChecklistItem>
+  );
+}
+
+/** Claude Code's answer to Run, in words, with its first output lines. */
+function claudeCodeSaid(r: Record<string, unknown>): Said {
+  const steps = ((r.untrusted as { steps?: Said['output'] } | undefined)?.steps ?? []).slice(0, 4);
+  return {
+    step: 'claude-code',
+    state: r.ok ? 'ok' : r.timed_out ? 'attention' : 'fail',
+    text: r.ok
+      ? 'Registered with Claude Code'
+      : r.timed_out
+        ? 'Claude Code did not finish within 60 s (it may be asking a question): run the lines in Terminal'
+        : 'Claude Code refused: its output is below',
+    output: steps,
+  };
+}
+
+/** The Claude Code step: Run registers the plugin; the lines to copy instead. */
+function ClaudeCodeItem({ st, placed, busy, said, act }: StepProps) {
+  const cc = st.claude_code!;
+  const ccStep = !placed ? HELD : cc.claude ? { state: 'idle' as const, word: 'Ready' } : { state: 'idle' as const, word: 'Missing: not found' };
+  return (
+    <ChecklistItem
+      state={ccStep.state}
+      word={ccStep.word}
+      title="Claude Code"
+      testId="setup-claude-code"
+      actions={
+        <Button
+          variant="primary"
+          disabled={!placed || !cc.claude || !cc.plugin || !!busy}
+          busy={busy === 'claude-code:setup_claude_code_run'}
+          data-testid="setup-claude-code-run"
+          onClick={() => act('claude-code:setup_claude_code_run', () => setupClaudeCodeRun({}), claudeCodeSaid)}
+        >
+          Run
+        </Button>
+      }
+    >
+      <p>
+        The {APP_NAME} plugin, with this app&apos;s Node.js and engine and this workspace. Run uses{' '}
+        {cc.claude ? <Txt className="k-mono" text={cc.claude} /> : 'claude from ~/.local/bin, /opt/homebrew/bin, /usr/local/bin or ~/.claude/local'}; or copy the lines into Terminal.
+      </p>
+      <p>
+        Claude Code&apos;s settings: <Txt className="k-mono" text={cc.config_dir} />
+      </p>
+      {cc.lines.length > 0 && <Blocker fix={{ copy: cc.lines.join('\n'), label: 'Copy lines' }} testId="setup-claude-code-lines" />}
+      <StepSaid said={said} step="claude-code" />
+    </ChecklistItem>
+  );
+}
+
+/** The Claude Desktop step: the entry to add, the one there now, Add… (or Replace…) and its confirmation. */
+function DesktopItem({ st, placed, busy, confirm, said, act, confirmTo }: StepProps) {
+  const cd = st.claude_desktop!;
+  const d = placed ? desktopStep(cd) : HELD;
+  return (
+    <ChecklistItem
+      state={d.state}
+      word={d.word}
+      title="Claude Desktop"
+      testId="setup-claude-desktop"
+      actions={
+        d.state !== 'ok' && cd.state !== 'unreadable' && confirm !== 'desktop' && confirm !== 'desktop-replace' ? (
+          <Button
+            disabled={!placed || !cd.folder || !!busy}
+            data-testid="setup-claude-desktop-add"
+            onClick={() => confirmTo(cd.state === 'replace' ? 'desktop-replace' : 'desktop', 'setup-claude-desktop', ['setup-claude-desktop-confirm', 'setup-claude-desktop-cancel'])}
+          >
+            {cd.state === 'replace' ? 'Replace…' : 'Add to Claude Desktop…'}
+          </Button>
+        ) : undefined
+      }
+    >
+      <p>
+        Adds this entry to <Txt className="k-mono" text={cd.file} />
+        {cd.folder ? (
+          <>
+            {' '}
+            (a backup of the file goes to <Txt className="k-mono" text={cd.backups} /> first):
+          </>
+        ) : (
+          ' — the folder is missing: open Claude Desktop once first.'
+        )}
+      </p>
+      <Txt className="sh-setup-pre k-mono" text={cd.entry} />
+      <Blocker fix={{ copy: cd.entry, label: 'Copy entry' }} testId="setup-claude-desktop-copy" />
+      {st.untrusted?.desktop_current && (
+        <>
+          <p>The entry there now:</p>
+          <Txt className="sh-setup-pre k-mono" text={st.untrusted.desktop_current} />
+        </>
+      )}
+      {st.untrusted?.desktop_problem && <Callout state="fail" role="alert" title={<Txt text={st.untrusted.desktop_problem} />} />}
+      {runningSentence(cd.running) && <Callout state="attention" role="status" title={runningSentence(cd.running)!} testId="setup-claude-desktop-running" />}
+      {(confirm === 'desktop' || confirm === 'desktop-replace') && (
+        // biome-ignore lint/a11y/useSemanticElements: an inline confirmation (text and two buttons); <fieldset> would bring its own border, padding and min-width
+        <div className="sh-setup-confirm" role="group" aria-label="Add to Claude Desktop">
+          <p>
+            <Txt
+              text={
+                confirm === 'desktop-replace'
+                  ? `Replace the retake entry in ${cd.file}? A backup is made first.`
+                  : `Write this entry into ${cd.file}? A backup is made first; every other setting stays.`
+              }
+            />
+          </p>
+          <Button
+            variant="primary"
+            disabled={!placed || (cd.running !== false && cd.running !== undefined) || !!busy}
+            busy={busy === 'desktop:setup_claude_desktop_add'}
+            data-testid="setup-claude-desktop-confirm"
+            onClick={() =>
+              act(
+                'desktop:setup_claude_desktop_add',
+                () => setupClaudeDesktopAdd({ replace: confirm === 'desktop-replace' }),
+                (r) => ({
+                  step: 'desktop',
+                  state: 'ok',
+                  text: r.kind === 'same' ? 'Claude Desktop already has this entry' : `Added: open Claude Desktop again to use it.${r.backup ? ` The file as it was: ${String(r.backup)}` : ''}`,
+                }),
+              )
+            }
+          >
+            {confirm === 'desktop-replace' ? 'Replace' : 'Add'}
+          </Button>
+          <Button data-testid="setup-claude-desktop-cancel" onClick={() => confirmTo(null, 'setup-claude-desktop', ['setup-claude-desktop-add'])}>
+            Cancel
+          </Button>
+        </div>
+      )}
+      <StepSaid said={said} step="desktop" />
+    </ChecklistItem>
+  );
+}
+
+/** The notifications step: Allow… asks macOS. */
+function NotificationsItem({ st, busy, said, act }: StepProps) {
+  const n = notificationsStep(st.notifications);
+  return (
+    <ChecklistItem
+      state={n.state}
+      word={n.word}
+      title="Notifications"
+      testId="setup-notifications"
+      actions={
+        st.notifications !== 'on' ? (
+          <Button
+            disabled={!!busy}
+            busy={busy === 'notifications:setup_notifications'}
+            data-testid="setup-notifications-allow"
+            onClick={() =>
+              act(
+                'notifications:setup_notifications',
+                () => setupNotifications({}),
+                () => ({ step: 'notifications', state: 'attention', text: `macOS asks you now (or System Settings › Notifications › ${APP_NAME}, if you said no before)` }),
+              )
+            }
+          >
+            Allow…
+          </Button>
+        ) : undefined
+      }
+    >
+      <p>A capture, render or review that ends while the window is not in front tells you.</p>
+      <StepSaid said={said} step="notifications" />
+    </ChecklistItem>
   );
 }

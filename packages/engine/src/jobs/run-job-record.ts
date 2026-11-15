@@ -123,246 +123,292 @@ export function unknownInput(input: unknown): string | null {
   return null;
 }
 
+/** The filming marker of a capture take: written at capture time 0, paused with the take, removed at its end. */
+function filmingOf(c: JobRunnerContext, id: string, event: (e: JobEventBody) => void): { on: (state: FilmingEvent) => FilmingReport | undefined; close: () => void } {
+  const { root, self, log } = c;
+  let marker: FilmingMarker | null = null;
+  let beside: TakeBeside | undefined;
+  const close = () => {
+    if (!marker) return;
+    marker.closeSync();
+    marker = null;
+    c.onFilming?.(false);
+  };
+  return {
+    on: (state) => {
+      if (state === 'start' && !marker) {
+        marker = FilmingMarker.open({ root, source: 'job', owner: self, env: c.env });
+        if (!marker) log(`job ${id}: no filming marker (the captures folder cannot be used): heavy work elsewhere is not held`);
+        c.onFilming?.(true);
+        // What films or renders beside the take (run.json perf.machine), and one warning when another take films.
+        beside = new TakeBeside({
+          root,
+          env: c.env,
+          own: () => marker?.name,
+          ...(c.heavySlowed ? { slowed: c.heavySlowed } : {}),
+          onFirst: (where) =>
+            event({ type: 'log', level: 'warn', message: `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine` }),
+        });
+        beside.start();
+      } else if (state === 'pause' || state === 'resume') {
+        marker?.setPaused(state === 'pause');
+        c.onFilming?.(state === 'resume');
+      } else if (state === 'stop') {
+        close();
+        const report = beside?.stop();
+        beside = undefined;
+        return report;
+      }
+      return undefined;
+    },
+    close: () => {
+      beside?.stop();
+      beside = undefined;
+      close();
+    },
+  };
+}
+
+/** One job as it runs: its event sequence and write chain, its record, its pending progress. */
+interface JobRun {
+  id: string;
+  seq: number;
+  chain: Promise<unknown>;
+  rec: JobRecord;
+  /** The final write is made: no progress after it. */
+  closed: boolean;
+  progressTimer?: NodeJS.Timeout;
+  latest?: JobProgress;
+}
+
+/** The markers a client sets while a job runs: its cancel, a `record` job's stop, a run's pause gate. */
+interface JobControls {
+  controller: AbortController;
+  // A run's pause marker (a client creates and removes it), polled with the cancel marker; the runner reads the
+  // gate between steps (a capture does not film the pause).
+  pauseGate: { requested: boolean; maxMs?: number };
+  // A `record` job's stop marker (the Studio's Stop): the window closes as if the person closed it, the draft is
+  // made and its check replay runs (a worker signal, currentStop, skips the check).
+  stopAsked: AbortController;
+}
+
+type ParsedJob = ReturnType<typeof JobInputSchema.parse>;
+
+/** Events after those already written, in order (a failed write is logged, never thrown). */
+function appendEvents(c: JobRunnerContext, st: JobRun, events: JobEventBody[]): void {
+  st.chain = st.chain.then(async () => {
+    try {
+      st.seq = await c.queue.append(st.id, st.seq, events);
+    } catch (e) {
+      c.log(`job ${st.id}: events not written (${errorMessage(e)})`);
+    }
+  });
+}
+
+/** The job's final state: job.json, its last events, the history line. */
+async function finishJob(c: JobRunnerContext, st: JobRun, rec: JobRecord, error?: JobErrorView): Promise<void> {
+  const { id } = st;
+  await st.chain;
+  const final: JobRecord = { ...rec, finished_at: stampOf(c.clock), ...(error ? { error } : {}) };
+  await c.writeOrExit(final);
+  appendEvents(c, st, [
+    { type: 'state', state: final.state },
+    { type: 'result', ...(final.result ? { result: final.result } : {}), ...(error ? { error } : {}) },
+  ]);
+  await st.chain;
+  c.done.add(id);
+  await appendHistory(c.root, historyOf(final), c.clock);
+  c.log(`job ${id}: ${final.state}${error ? ` (${error.message.split('\n')[0]})` : ''}`);
+}
+
+/** A job closed without running (cancelled before its claim, unknown or invalid input), or its parsed input. */
+async function claimedInput(c: JobRunnerContext, st: JobRun, stored: JobRecord): Promise<ParsedJob | null> {
+  // A cancel asked before the claim closes the job without running it (its reserved run too).
+  if ((await c.queue.cancelOf(st.id)) !== undefined) {
+    if (stored.input.kind === 'run') {
+      await finaliseRun(c, stored.input, 'cancelled', 'cancelled before it started');
+    }
+    if (stored.input.kind === 'render') await releaseLock(c, stored.input);
+    await finishJob(c, st, { ...stored, state: 'cancelled' }, { code: 'cancelled', message: 'cancelled before it started' });
+    return null;
+  }
+  // A job this worker does not know is refused without running (never parsed as another kind).
+  const unknown = unknownInput(stored.input);
+  if (unknown) {
+    await finishJob(
+      c,
+      st,
+      { ...stored, state: 'failed' },
+      {
+        code: 'invalid',
+        message: `refused without running: this worker (Retake ${RETAKE_VERSION}, build ${c.build}) does not know job ${unknown} — submit it again once the client and the worker run the same build`,
+      },
+    );
+    return null;
+  }
+  const parsed = JobInputSchema.safeParse(stored.input);
+  if (!parsed.success) {
+    await finishJob(c, st, { ...stored, state: 'failed' }, { code: 'invalid', message: `invalid job input: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}` });
+    return null;
+  }
+  return parsed.data;
+}
+
+/** Progress: job.json at most every 500 ms; nothing after the final write. */
+function flushProgress(c: JobRunnerContext, st: JobRun): void {
+  st.progressTimer = undefined;
+  if (st.closed || !st.latest) return;
+  st.rec = { ...st.rec, progress: st.latest };
+  const snapshot = st.rec;
+  st.chain = st.chain.then(() =>
+    st.closed ? undefined : c.queue.write(snapshot).catch((e: unknown) => c.log(`job ${st.id}: its progress could not be written (${errorMessage(e)}): it shows the last one written`)),
+  );
+}
+
+/** Every 250 ms: the cancel marker, a `record` job's stop marker and a run's pause marker. */
+function pollMarkers(c: JobRunnerContext, id: string, kind: JobRecord['kind'], k: JobControls): NodeJS.Timeout {
+  const { queue, log, capture } = c;
+  const { controller, pauseGate, stopAsked } = k;
+  return setInterval(() => {
+    void queue.cancelOf(id).then((asked) => {
+      if (asked !== undefined && !controller.signal.aborted) {
+        log(`job ${id}: cancel requested`);
+        controller.abort(capture.cancelled('run cancelled (cancel requested)'));
+      }
+    });
+    if (kind === 'record' && !stopAsked.signal.aborted) {
+      void queue.stopOf(id).then(
+        (asked) => {
+          if (asked !== undefined && !stopAsked.signal.aborted) {
+            log(`job ${id}: stop requested`);
+            stopAsked.abort();
+          }
+        },
+        () => undefined,
+      );
+    }
+    if (kind === 'run') {
+      void queue.pauseOf(id).then(
+        (mark) => {
+          const asked = mark !== undefined;
+          if (asked !== pauseGate.requested) log(`job ${id}: ${asked ? 'pause' : 'resume'} requested`);
+          pauseGate.requested = asked;
+        },
+        () => undefined,
+      );
+    }
+  }, 250);
+}
+
+/** A render browser is recorded at once (pid + start time): a worker killed mid-render leaves it running. */
+function recordBrowser(c: JobRunnerContext, st: JobRun, b: { pid: number; user_data_dir?: string }): void {
+  st.chain = st.chain.then(async () => {
+    const t = await bestEffort(processStart(b.pid), 'a process start that cannot be read is recorded without it (recovery then signals nothing)', null);
+    await c.queue
+      .recordBrowser(st.id, { pid: b.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}), ...(b.user_data_dir ? { user_data_dir: b.user_data_dir } : {}) })
+      .catch((e: unknown) => c.log(`job ${st.id}: its render browser could not be recorded (${errorMessage(e)}): a worker that dies now leaves that browser running`));
+  });
+}
+
+/** The kind's handler on the verified input: the record takes its outcome; its error, if any, is returned. */
+async function handleClaimed(c: JobRunnerContext, st: JobRun, input: ParsedJob, k: JobControls): Promise<JobErrorView | undefined> {
+  const { id } = st;
+  const { root, ws, cli, queue, files, self, log, slot } = c;
+  const event = (e: JobEventBody) => appendEvents(c, st, [e]);
+  // Only approvals a submit signed count (signing.ts): the others are dropped, their hooks refused.
+  const { approvals, rejected } = await verifiedApprovals(input, { jobId: id, root, env: c.env });
+  if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed for it with this Retake home's key (not written by its submit): ignored` });
+  const job = { ...input, ...(approvalsOf(input) ? { approvals } : {}) } as typeof input;
+  // Every kind runs with trust `mcp` (hooks, seed steps): only the approvals taken at submit count.
+  const base: JobBase = { ws, cli, queue, signal: k.controller.signal, event, ...portsOf(c) };
+  const onProgress = (p: JobProgress) => {
+    st.latest = p;
+    if (!st.progressTimer) st.progressTimer = setTimeout(() => flushProgress(c, st), 500);
+  };
+  const outcome = await handleJob(job, {
+    id,
+    base,
+    interrupts: () => c.interrupts(k.controller.signal),
+    progress: onProgress,
+    browser: (b) => recordBrowser(c, st, b),
+    renderer: c.renderer,
+    files,
+    self,
+    log,
+    pause: k.pauseGate,
+    filming: () => filmingOf(c, id, event),
+    stopAsked: k.stopAsked,
+    slot,
+    ...(c.recordWindow ? { recordWindow: c.recordWindow } : {}),
+    ...(c.freeBytes ? { freeBytes: c.freeBytes } : {}),
+  });
+  st.rec = { ...st.rec, result: outcome.result, ...(outcome.progress && st.latest ? { progress: st.latest } : {}), state: outcome.state };
+  return outcome.error;
+}
+
+/** One claimed job, from its claim to its final state (see the file's comment). */
+async function runJob(c: JobRunnerContext, stored: JobRecord): Promise<void> {
+  const { cli, worker, log, slot, clock } = c;
+  const id = stored.id;
+  const st: JobRun = { id, seq: 0, chain: Promise.resolve(), rec: stored, closed: false };
+  const input = await claimedInput(c, st, stored);
+  if (!input) return;
+  const controller = new AbortController();
+  slot.current = controller;
+  st.rec = { ...stored, state: 'running', started_at: stampOf(clock), worker, ...(c.supervisor ? { supervisor: c.supervisor } : {}) };
+  await c.writeOrExit(st.rec);
+  appendEvents(c, st, [{ type: 'state', state: 'running' }]);
+  log(`job ${id}: running (${stored.kind} ${jobProject(stored.input) ?? 'workspace'})`);
+
+  const k: JobControls = { controller, pauseGate: { requested: false }, stopAsked: new AbortController() };
+  const cancelPoll = pollMarkers(c, id, stored.kind, k);
+  let error: JobErrorView | undefined;
+  try {
+    error = await handleClaimed(c, st, input, k);
+  } catch (e) {
+    const err = toEngineError(e);
+    const cancelled = controller.signal.aborted || err.code === 'cancelled';
+    st.rec = { ...st.rec, state: cancelled ? 'cancelled' : 'failed' };
+    error = { code: cancelled ? 'cancelled' : err.code, message: err.message, ...(err.fix ? { fix: err.fix } : {}) };
+  } finally {
+    clearInterval(cancelPoll);
+    if (st.progressTimer) clearTimeout(st.progressTimer);
+    st.closed = true;
+    slot.current = undefined;
+  }
+  // A job process whose worker stopped (job-child.ts): it ended itself, as interrupted rather than cancelled.
+  const orphan = c.abortedBecause?.();
+  if (orphan && st.rec.state === 'cancelled') {
+    error = interrupted(st.rec, cli, orphan).error;
+    st.rec = { ...st.rec, state: 'interrupted' };
+  }
+  if (stored.kind === 'render' || stored.kind === 'export' || stored.kind === 'preview') {
+    // The render browser is closed: its record must not outlive the job (a reused pid is never killed anyway).
+    await st.chain;
+    await c.queue.recordBrowser(id, null).catch(() => undefined);
+  }
+  await finishJob(c, st, st.rec, error);
+}
+
+async function releaseLock(c: JobRunnerContext, input: RenderJobInput): Promise<void> {
+  try {
+    const { releaseRenderLock } = await import('./render-job.js');
+    await releaseRenderLock(c.ws, input);
+  } catch (e) {
+    c.log(`render ${input.render_id}: lock not released (${errorMessage(e)})`);
+  }
+}
+
+async function finaliseRun(c: JobRunnerContext, input: RunJobInput, status: 'cancelled' | 'failed', message: string): Promise<void> {
+  try {
+    const project = await openProjectBySlug(c.ws, input.project);
+    await finaliseReservedRun(c.ws.outputs.runs, join(runsDirOf(project.dir), input.run_id), status, message, c.clock);
+  } catch (e) {
+    c.log(`run ${input.run_id}: not finalised (${errorMessage(e)})`);
+  }
+}
+
 /** Running claimed jobs with `c` (a worker, or a job process). */
 export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobRecord) => Promise<void> } {
-  const { root, ws, queue, files, cli, build, worker, self, log, interrupts, slot, done, writeOrExit, clock, capture } = c;
-
-  /** The filming marker of a capture take: written at capture time 0, paused with the take, removed at its end. */
-  const filmingOf = (id: string, event: (e: JobEventBody) => void): { on: (state: FilmingEvent) => FilmingReport | undefined; close: () => void } => {
-    let marker: FilmingMarker | null = null;
-    let beside: TakeBeside | undefined;
-    const close = () => {
-      if (!marker) return;
-      marker.closeSync();
-      marker = null;
-      c.onFilming?.(false);
-    };
-    return {
-      on: (state) => {
-        if (state === 'start' && !marker) {
-          marker = FilmingMarker.open({ root, source: 'job', owner: self, env: c.env });
-          if (!marker) log(`job ${id}: no filming marker (the captures folder cannot be used): heavy work elsewhere is not held`);
-          c.onFilming?.(true);
-          // What films or renders beside the take (run.json perf.machine), and one warning when another take films.
-          beside = new TakeBeside({
-            root,
-            env: c.env,
-            own: () => marker?.name,
-            ...(c.heavySlowed ? { slowed: c.heavySlowed } : {}),
-            onFirst: (where) =>
-              event({ type: 'log', level: 'warn', message: `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine` }),
-          });
-          beside.start();
-        } else if (state === 'pause' || state === 'resume') {
-          marker?.setPaused(state === 'pause');
-          c.onFilming?.(state === 'resume');
-        } else if (state === 'stop') {
-          close();
-          const report = beside?.stop();
-          beside = undefined;
-          return report;
-        }
-        return undefined;
-      },
-      close: () => {
-        beside?.stop();
-        beside = undefined;
-        close();
-      },
-    };
-  };
-
-  const runJob = async (stored: JobRecord): Promise<void> => {
-    const id = stored.id;
-    let seq = 0;
-    let chain: Promise<unknown> = Promise.resolve();
-    const append = (events: JobEventBody[]) => {
-      chain = chain.then(async () => {
-        try {
-          seq = await queue.append(id, seq, events);
-        } catch (e) {
-          log(`job ${id}: events not written (${errorMessage(e)})`);
-        }
-      });
-    };
-    const finish = async (rec: JobRecord, error?: JobErrorView) => {
-      await chain;
-      const final: JobRecord = { ...rec, finished_at: stampOf(clock), ...(error ? { error } : {}) };
-      await writeOrExit(final);
-      append([
-        { type: 'state', state: final.state },
-        { type: 'result', ...(final.result ? { result: final.result } : {}), ...(error ? { error } : {}) },
-      ]);
-      await chain;
-      done.add(id);
-      await appendHistory(root, historyOf(final), clock);
-      log(`job ${id}: ${final.state}${error ? ` (${error.message.split('\n')[0]})` : ''}`);
-    };
-
-    // A cancel asked before the claim closes the job without running it (its reserved run too).
-    if ((await queue.cancelOf(id)) !== undefined) {
-      if (stored.input.kind === 'run') {
-        await finaliseRun(stored.input, 'cancelled', 'cancelled before it started');
-      }
-      if (stored.input.kind === 'render') await releaseLock(stored.input);
-      await finish({ ...stored, state: 'cancelled' }, { code: 'cancelled', message: 'cancelled before it started' });
-      return;
-    }
-    // A job this worker does not know is refused without running (never parsed as another kind).
-    const unknown = unknownInput(stored.input);
-    if (unknown) {
-      await finish(
-        { ...stored, state: 'failed' },
-        {
-          code: 'invalid',
-          message: `refused without running: this worker (Retake ${RETAKE_VERSION}, build ${build}) does not know job ${unknown} — submit it again once the client and the worker run the same build`,
-        },
-      );
-      return;
-    }
-    const parsed = JobInputSchema.safeParse(stored.input);
-    if (!parsed.success) {
-      await finish({ ...stored, state: 'failed' }, { code: 'invalid', message: `invalid job input: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}` });
-      return;
-    }
-    const controller = new AbortController();
-    slot.current = controller;
-    let rec: JobRecord = { ...stored, state: 'running', started_at: stampOf(clock), worker, ...(c.supervisor ? { supervisor: c.supervisor } : {}) };
-    await writeOrExit(rec);
-    append([{ type: 'state', state: 'running' }]);
-    log(`job ${id}: running (${stored.kind} ${jobProject(stored.input) ?? 'workspace'})`);
-
-    // Progress: job.json at most every 500 ms; nothing after the final write.
-    let closed = false;
-    let progressTimer: NodeJS.Timeout | undefined;
-    let latest: JobProgress | undefined;
-    const flushProgress = () => {
-      progressTimer = undefined;
-      if (closed || !latest) return;
-      rec = { ...rec, progress: latest };
-      const snapshot = rec;
-      chain = chain.then(() =>
-        closed ? undefined : queue.write(snapshot).catch((e: unknown) => log(`job ${id}: its progress could not be written (${errorMessage(e)}): it shows the last one written`)),
-      );
-    };
-    // A run's pause marker (a client creates and removes it), polled with the cancel marker; the runner reads the
-    // gate between steps (a capture does not film the pause).
-    const pauseGate: { requested: boolean; maxMs?: number } = { requested: false };
-    // A `record` job's stop marker (the Studio's Stop): the window closes as if the person closed it, the draft is
-    // made and its check replay runs (a worker signal, currentStop, skips the check).
-    const stopAsked = new AbortController();
-    const cancelPoll = setInterval(() => {
-      void queue.cancelOf(id).then((asked) => {
-        if (asked !== undefined && !controller.signal.aborted) {
-          log(`job ${id}: cancel requested`);
-          controller.abort(capture.cancelled('run cancelled (cancel requested)'));
-        }
-      });
-      if (stored.kind === 'record' && !stopAsked.signal.aborted) {
-        void queue.stopOf(id).then(
-          (asked) => {
-            if (asked !== undefined && !stopAsked.signal.aborted) {
-              log(`job ${id}: stop requested`);
-              stopAsked.abort();
-            }
-          },
-          () => undefined,
-        );
-      }
-      if (stored.kind === 'run') {
-        void queue.pauseOf(id).then(
-          (mark) => {
-            const asked = mark !== undefined;
-            if (asked !== pauseGate.requested) log(`job ${id}: ${asked ? 'pause' : 'resume'} requested`);
-            pauseGate.requested = asked;
-          },
-          () => undefined,
-        );
-      }
-    }, 250);
-    let error: JobErrorView | undefined;
-    try {
-      const event = (e: JobEventBody) => append([e]);
-      // Only approvals a submit signed count (signing.ts): the others are dropped, their hooks refused.
-      const { approvals, rejected } = await verifiedApprovals(parsed.data, { jobId: id, root, env: c.env });
-      if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed for it with this Retake home's key (not written by its submit): ignored` });
-      const job = { ...parsed.data, ...(approvalsOf(parsed.data) ? { approvals } : {}) } as typeof parsed.data;
-      // Every kind runs with trust `mcp` (hooks, seed steps): only the approvals taken at submit count.
-      const base: JobBase = { ws, cli, queue, signal: controller.signal, event, ...portsOf(c) };
-      const onProgress = (p: JobProgress) => {
-        latest = p;
-        if (!progressTimer) progressTimer = setTimeout(flushProgress, 500);
-      };
-      // A render browser is recorded at once (pid + start time): a worker killed mid-render leaves it running.
-      const recordBrowser = (b: { pid: number; user_data_dir?: string }) => {
-        chain = chain.then(async () => {
-          const t = await bestEffort(processStart(b.pid), 'a process start that cannot be read is recorded without it (recovery then signals nothing)', null);
-          await queue
-            .recordBrowser(id, { pid: b.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}), ...(b.user_data_dir ? { user_data_dir: b.user_data_dir } : {}) })
-            .catch((e: unknown) => log(`job ${id}: its render browser could not be recorded (${errorMessage(e)}): a worker that dies now leaves that browser running`));
-        });
-      };
-      const outcome = await handleJob(job, {
-        id,
-        base,
-        interrupts: () => interrupts(controller.signal),
-        progress: onProgress,
-        browser: recordBrowser,
-        renderer: c.renderer,
-        files,
-        self,
-        log,
-        pause: pauseGate,
-        filming: () => filmingOf(id, event),
-        stopAsked,
-        slot,
-        ...(c.recordWindow ? { recordWindow: c.recordWindow } : {}),
-        ...(c.freeBytes ? { freeBytes: c.freeBytes } : {}),
-      });
-      rec = { ...rec, result: outcome.result, ...(outcome.progress && latest ? { progress: latest } : {}), state: outcome.state };
-      if (outcome.error) error = outcome.error;
-    } catch (e) {
-      const err = toEngineError(e);
-      const cancelled = controller.signal.aborted || err.code === 'cancelled';
-      rec = { ...rec, state: cancelled ? 'cancelled' : 'failed' };
-      error = { code: cancelled ? 'cancelled' : err.code, message: err.message, ...(err.fix ? { fix: err.fix } : {}) };
-    } finally {
-      clearInterval(cancelPoll);
-      if (progressTimer) clearTimeout(progressTimer);
-      closed = true;
-      slot.current = undefined;
-    }
-    // A job process whose worker stopped (job-child.ts): it ended itself, as interrupted rather than cancelled.
-    const orphan = c.abortedBecause?.();
-    if (orphan && rec.state === 'cancelled') {
-      error = interrupted(rec, cli, orphan).error;
-      rec = { ...rec, state: 'interrupted' };
-    }
-    if (stored.kind === 'render' || stored.kind === 'export' || stored.kind === 'preview') {
-      // The render browser is closed: its record must not outlive the job (a reused pid is never killed anyway).
-      await chain;
-      await queue.recordBrowser(id, null).catch(() => undefined);
-    }
-    await finish(rec, error);
-  };
-
-  async function releaseLock(input: RenderJobInput): Promise<void> {
-    try {
-      const { releaseRenderLock } = await import('./render-job.js');
-      await releaseRenderLock(ws, input);
-    } catch (e) {
-      log(`render ${input.render_id}: lock not released (${errorMessage(e)})`);
-    }
-  }
-
-  async function finaliseRun(input: RunJobInput, status: 'cancelled' | 'failed', message: string): Promise<void> {
-    try {
-      const project = await openProjectBySlug(ws, input.project);
-      await finaliseReservedRun(ws.outputs.runs, join(runsDirOf(project.dir), input.run_id), status, message, clock);
-    } catch (e) {
-      log(`run ${input.run_id}: not finalised (${errorMessage(e)})`);
-    }
-  }
-
-  return { runJob };
+  return { runJob: (stored) => runJob(c, stored) };
 }

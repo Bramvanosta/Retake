@@ -1652,7 +1652,24 @@ describe('the import-rules ratchet', () => {
     // No type-only allowance: the rule reads the specifier, whatever the import's form.
     expect((lib.RULES as { id: string; typeOnlyCheck?: boolean }[]).find((r) => r.id === 'R12')!.typeOnlyCheck).toBeUndefined();
     const pure = lib.REVIEW_PURE as string[];
-    expect(pure).toEqual(['checks-entry', 'checks', 'pixel-checks', 'pixel-maths', 'spans', 'timeline', 'anchor', 'diff', 'types', 'images', 'report-lines']);
+    expect(pure).toEqual([
+      'checks-entry',
+      'checks',
+      'checks-base',
+      'checks-captions',
+      'checks-camera',
+      'checks-overlays',
+      'checks-environment',
+      'pixel-checks',
+      'pixel-maths',
+      'spans',
+      'timeline',
+      'anchor',
+      'diff',
+      'types',
+      'images',
+      'report-lines',
+    ]);
     const files = Object.fromEntries([
       ...pure.map(
         (n) =>

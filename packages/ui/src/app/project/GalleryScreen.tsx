@@ -100,8 +100,8 @@ function Frame() {
   return <Picture format="png" base64={FRAME_PNG} max={POSTER_DATA_MAX} width={248} height={140} alt="" />;
 }
 
-function Column({ appearance }: { appearance: Appearance }) {
-  const name = appearance === 'dark' ? 'Dark' : 'Light';
+/** The gallery's sample state, one set per column (each control writes its own). */
+function useGalleryState() {
   const [seg, setSeg] = useState<'blocks' | 'yaml' | 'both'>('blocks');
   const [on, setOn] = useState(true);
   const [off, setOff] = useState(false);
@@ -131,15 +131,73 @@ function Column({ appearance }: { appearance: Appearance }) {
   // What the colour fields wrote (the kit's ColorField behaviours are tested on it: studio-e2e-kit).
   const [writes, setWrites] = useState<string[]>([]);
   const [dark, setDark] = useState('');
-  const commands: Command[] = [
-    { id: 'projects', label: 'Projects', group: 'Go to', icon: 'folder', run: () => (location.hash = '#/') },
-    { id: 'gallery', label: 'UI gallery', group: 'Go to', hint: 'this page', icon: 'components', run: () => setAnswer('UI gallery') },
-    { id: 'hello', label: 'Say hello', group: 'Commands', hint: 'writes the last answer', run: () => setAnswer('hello') },
-    { id: 'inspector', label: 'Toggle the sample inspector', group: 'Commands', kbd: ['⌥', '⌘', 'I'], run: () => setAnswer('inspector') },
-  ];
+  return {
+    seg,
+    setSeg,
+    on,
+    setOn,
+    off,
+    setOff,
+    title,
+    setTitle,
+    note,
+    setNote,
+    take,
+    setTake,
+    card,
+    setCard,
+    poster,
+    setPoster,
+    frame,
+    setFrame,
+    rowCard,
+    setRowCard,
+    stepRow,
+    setStepRow,
+    way,
+    setWay,
+    caption,
+    setCaption,
+    pressed,
+    setPressed,
+    sheet,
+    setSheet,
+    busy,
+    setBusy,
+    palette,
+    setPalette,
+    answer,
+    setAnswer,
+    fit,
+    setFit,
+    link,
+    setLink,
+    chip,
+    setChip,
+    seg2,
+    setSeg2,
+    at,
+    setAt,
+    speed,
+    setSpeed,
+    colour,
+    setColour,
+    dragged,
+    setDragged,
+    writes,
+    setWrites,
+    dark,
+    setDark,
+  };
+}
+
+type GalleryState = ReturnType<typeof useGalleryState>;
+
+/** Buttons, icon buttons, segmented controls, switches and fields. */
+function GalleryBasics({ name, s }: { name: string; s: GalleryState }) {
+  const { seg, setSeg, on, setOn, off, setOff, title, setTitle, note, setNote, take, setTake, pressed, setPressed } = s;
   return (
-    <div className="k-scope gl-column" data-appearance={appearance} data-testid={`scope-${appearance}`}>
-      <h2 className="gl-scope">{name}</h2>
+    <>
       <Section title="Buttons">
         {VARIANTS.map(([v, label]) => (
           <Button key={v} variant={v}>
@@ -232,6 +290,15 @@ function Column({ appearance }: { appearance: Appearance }) {
         </FieldRow>
         <TextArea label="Caption" value="Every frame carries its number." onChange={() => undefined} unsaved={null} rows={2} />
       </Section>
+    </>
+  );
+}
+
+/** Status and app marks, time and progress, a toolbar and the status bar. */
+function GalleryStatus({ appearance, name, s }: { appearance: Appearance; name: string; s: GalleryState }) {
+  const { setAnswer, fit, setFit, link, setLink } = s;
+  return (
+    <>
       <Section title="Status marks">
         {MARK_STATES.map((s) => (
           <StatusMark key={s} state={s} word={WORDS[s]} />
@@ -310,6 +377,15 @@ function Column({ appearance }: { appearance: Appearance }) {
           }
         />
       </Section>
+    </>
+  );
+}
+
+/** A source list, inspector sections, cards and a listbox of productions. */
+function GalleryLists({ name, s }: { name: string; s: GalleryState }) {
+  const { card, setCard, poster, setPoster, setAnswer } = s;
+  return (
+    <>
       <Section title="Source list">
         <SourceList
           label={`Sample browser (${name})`}
@@ -369,6 +445,15 @@ function Column({ appearance }: { appearance: Appearance }) {
           />
         </div>
       </Section>
+    </>
+  );
+}
+
+/** The storyboard's and the recorder's parts. */
+function GalleryBoard({ appearance, name, s }: { appearance: Appearance; name: string; s: GalleryState }) {
+  const { frame, setFrame, rowCard, setRowCard, stepRow, setStepRow, way, setWay, caption, setCaption } = s;
+  return (
+    <>
       <Section title="Storyboard (frames, a row card, a callout, a switch row)">
         <div className="gl-pane">
           <FrameGrid
@@ -425,6 +510,15 @@ function Column({ appearance }: { appearance: Appearance }) {
           ]}
         />
       </Section>
+    </>
+  );
+}
+
+/** The editor's and the review's parts. */
+function GalleryEdit({ appearance, s }: { appearance: Appearance; s: GalleryState }) {
+  const { chip, setChip, seg2, setSeg2, at, setAt, speed, setSpeed } = s;
+  return (
+    <>
       <Section title="Edit (choice chips, tracks, a scrubber, a number field, a tag)">
         <div className="gl-pane">
           <span id={`gl-chips-${appearance}`}>Layout</span>
@@ -486,110 +580,131 @@ function Column({ appearance }: { appearance: Appearance }) {
           ]}
         />
       </Section>
-      <Section title="Library and themes (a data table, a colour field)">
-        <DataTable
-          caption="Slots"
-          columns={[
-            { key: 'slot', label: 'Slot' },
-            { key: 'type', label: 'Type' },
-            { key: 'max', label: 'Max', numeric: true },
-            { key: 'what', label: 'What it is' },
-          ]}
-          rows={[
-            { key: 'title', cells: ['title', 'text', 60, 'The call to action.'] },
-            { key: 'kicker', cells: ['kicker', 'text', 40, null] },
-          ]}
+    </>
+  );
+}
+
+/** The library's and the themes' parts: a data table and colour fields. */
+function GalleryThemes({ appearance, s }: { appearance: Appearance; s: GalleryState }) {
+  const { colour, setColour, dragged, setDragged, writes, setWrites, dark, setDark } = s;
+  return (
+    <Section title="Library and themes (a data table, a colour field)">
+      <DataTable
+        caption="Slots"
+        columns={[
+          { key: 'slot', label: 'Slot' },
+          { key: 'type', label: 'Type' },
+          { key: 'max', label: 'Max', numeric: true },
+          { key: 'what', label: 'What it is' },
+        ]}
+        rows={[
+          { key: 'title', cells: ['title', 'text', 60, 'The call to action.'] },
+          { key: 'kicker', cells: ['kicker', 'text', 40, null] },
+        ]}
+      />
+      <div className="gl-pane">
+        <ColorField
+          label="Accent"
+          hint="kicker, rules, cursor ripple"
+          value={colour}
+          picker={pickerValue(dragged ?? colour)}
+          {...(okHex(colour) ? { swatch: colour } : {})}
+          {...(dragged !== null ? { draft: dragged } : {})}
+          onDraft={setDragged}
+          onCommit={(hex) => {
+            setColour(hex);
+            setDragged(null);
+            setWrites((w) => [...w, `accent ${hex}`]);
+          }}
+          testId={`gl-colour-${appearance}`}
         />
-        <div className="gl-pane">
-          <ColorField
-            label="Accent"
-            hint="kicker, rules, cursor ripple"
-            value={colour}
-            picker={pickerValue(dragged ?? colour)}
-            {...(okHex(colour) ? { swatch: colour } : {})}
-            {...(dragged !== null ? { draft: dragged } : {})}
-            onDraft={setDragged}
-            onCommit={(hex) => {
-              setColour(hex);
-              setDragged(null);
-              setWrites((w) => [...w, `accent ${hex}`]);
-            }}
-            testId={`gl-colour-${appearance}`}
-          />
-          <ColorField
-            label="Dark"
-            hint="optional"
-            value={dark}
-            picker={pickerValue(dark)}
-            unset={!okHex(dark)}
-            removable
-            onDraft={() => undefined}
-            onCommit={(hex) => {
-              setDark(hex);
-              setWrites((w) => [...w, `dark ${hex}`]);
-            }}
-            onRemove={() => {
-              setDark('');
-              setWrites((w) => [...w, 'dark removed']);
-            }}
-            testId={`gl-dark-${appearance}`}
-          />
-          <span className="gl-answer" data-testid={`gl-colour-writes-${appearance}`}>
-            {writes.length ? `Written: ${writes.join(' · ')}` : 'Nothing written'}
-          </span>
-        </div>
-      </Section>
-      <Section title="Comments (a diff table, a region over a frame)">
-        <div className="gl-region">
-          <Frame />
-          <RegionOverlay region={{ x: 0.2, y: 0.25, w: 0.5, h: 0.45 }} label="Region 1" />
-        </div>
-        <DiffTable
-          label="The proposed change, line by line"
-          title="scenarios/quote.yaml · line 104"
-          rows={[
-            { kind: 'gap', sign: '…', word: '3 unchanged lines not shown', base: null, line: null, pieces: [], rtl: false },
-            {
-              kind: 'context',
-              sign: '',
-              word: 'unchanged',
-              base: 103,
-              line: 103,
-              pieces: [
-                { kind: 'space', count: 4 },
-                { kind: 'text', text: 'component: studio/overlay-callout' },
-              ],
-              rtl: false,
-            },
-            {
-              kind: 'del',
-              sign: '−',
-              word: 'removed',
-              base: 104,
-              line: null,
-              pieces: [
-                { kind: 'space', count: 4 },
-                { kind: 'text', text: 'duration: 2.5' },
-              ],
-              rtl: false,
-            },
-            {
-              kind: 'add',
-              sign: '+',
-              word: 'added',
-              base: null,
-              line: 104,
-              pieces: [
-                { kind: 'space', count: 4 },
-                { kind: 'text', text: 'duration: 3.5' },
-                { kind: 'char', code: 'U+200B' },
-              ],
-              rtl: false,
-            },
-            { kind: 'add', sign: '+', word: 'added', base: null, line: 105, pieces: [{ kind: 'text', text: '# עברית: a note' }], rtl: true },
-          ]}
+        <ColorField
+          label="Dark"
+          hint="optional"
+          value={dark}
+          picker={pickerValue(dark)}
+          unset={!okHex(dark)}
+          removable
+          onDraft={() => undefined}
+          onCommit={(hex) => {
+            setDark(hex);
+            setWrites((w) => [...w, `dark ${hex}`]);
+          }}
+          onRemove={() => {
+            setDark('');
+            setWrites((w) => [...w, 'dark removed']);
+          }}
+          testId={`gl-dark-${appearance}`}
         />
-      </Section>
+        <span className="gl-answer" data-testid={`gl-colour-writes-${appearance}`}>
+          {writes.length ? `Written: ${writes.join(' · ')}` : 'Nothing written'}
+        </span>
+      </div>
+    </Section>
+  );
+}
+
+/** The comments' parts: a region over a frame and a diff table. */
+function GalleryComments() {
+  return (
+    <Section title="Comments (a diff table, a region over a frame)">
+      <div className="gl-region">
+        <Frame />
+        <RegionOverlay region={{ x: 0.2, y: 0.25, w: 0.5, h: 0.45 }} label="Region 1" />
+      </div>
+      <DiffTable
+        label="The proposed change, line by line"
+        title="scenarios/quote.yaml · line 104"
+        rows={[
+          { kind: 'gap', sign: '…', word: '3 unchanged lines not shown', base: null, line: null, pieces: [], rtl: false },
+          {
+            kind: 'context',
+            sign: '',
+            word: 'unchanged',
+            base: 103,
+            line: 103,
+            pieces: [
+              { kind: 'space', count: 4 },
+              { kind: 'text', text: 'component: studio/overlay-callout' },
+            ],
+            rtl: false,
+          },
+          {
+            kind: 'del',
+            sign: '−',
+            word: 'removed',
+            base: 104,
+            line: null,
+            pieces: [
+              { kind: 'space', count: 4 },
+              { kind: 'text', text: 'duration: 2.5' },
+            ],
+            rtl: false,
+          },
+          {
+            kind: 'add',
+            sign: '+',
+            word: 'added',
+            base: null,
+            line: 104,
+            pieces: [
+              { kind: 'space', count: 4 },
+              { kind: 'text', text: 'duration: 3.5' },
+              { kind: 'char', code: 'U+200B' },
+            ],
+            rtl: false,
+          },
+          { kind: 'add', sign: '+', word: 'added', base: null, line: 105, pieces: [{ kind: 'text', text: '# עברית: a note' }], rtl: true },
+        ]}
+      />
+    </Section>
+  );
+}
+
+/** Facts, disclosure, blockers, a checklist and an empty state. */
+function GalleryNotices({ name }: { name: string }) {
+  return (
+    <>
       <Section title="Facts and disclosure">
         <div className="gl-pane">
           <Facts
@@ -628,58 +743,90 @@ function Column({ appearance }: { appearance: Appearance }) {
           Write the steps of a demo; the Studio films them.
         </EmptyState>
       </Section>
-      <Section title="Menu, sheet, palette">
-        <Menu
-          label={`Take actions (${name})`}
-          text="Take"
-          items={[
-            { id: 'dup', label: 'Duplicate', kbd: ['⌘', 'D'] },
-            { id: 'rename', label: 'Rename…' },
-            { id: 'export', label: 'Export', disabled: true },
-            'separator',
-            { id: 'delete', label: 'Delete take', danger: true },
-          ]}
-          onSelect={(id) => setAnswer(id)}
-        />
-        <Button onClick={() => setSheet(true)}>Discard the take…</Button>
-        <Button onClick={() => setBusy(true)}>Render the take…</Button>
-        <Button onClick={() => setPalette(true)} kbd={['⌘', 'K']}>
-          Open the palette
-        </Button>
-        <span className="gl-answer" data-testid={`answer-${appearance}`}>
-          Last answer: {answer}
-        </span>
-        <Sheet
-          open={sheet}
-          destructive
-          title="Discard the take?"
-          actions={[
-            { id: 'cancel', label: 'Cancel', isCancel: true },
-            { id: 'discard', label: 'Discard', variant: 'destructive', isDefault: true },
-          ]}
-          onAction={(id) => {
-            setSheet(false);
-            setAnswer(id);
-          }}
-        >
-          Its frames and its timeline go; the scenario stays.
-        </Sheet>
-        <Sheet
-          open={busy}
-          title="Rendering the take"
-          actions={[
-            { id: 'wait', label: 'Keep waiting', isCancel: true, isDefault: true },
-            { id: 'stop', label: 'Stop rendering', variant: 'destructive' },
-          ]}
-          onAction={(id) => {
-            setAnswer(id);
-            if (id === 'stop') setBusy(false);
-          }}
-        >
-          The render goes on while this stays open; Escape keeps waiting.
-        </Sheet>
-        <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} />
-      </Section>
+    </>
+  );
+}
+
+/** A menu, sheets and the command palette. */
+function GalleryOverlays({ appearance, name, s }: { appearance: Appearance; name: string; s: GalleryState }) {
+  const { sheet, setSheet, busy, setBusy, palette, setPalette, answer, setAnswer } = s;
+  const commands: Command[] = [
+    { id: 'projects', label: 'Projects', group: 'Go to', icon: 'folder', run: () => (location.hash = '#/') },
+    { id: 'gallery', label: 'UI gallery', group: 'Go to', hint: 'this page', icon: 'components', run: () => setAnswer('UI gallery') },
+    { id: 'hello', label: 'Say hello', group: 'Commands', hint: 'writes the last answer', run: () => setAnswer('hello') },
+    { id: 'inspector', label: 'Toggle the sample inspector', group: 'Commands', kbd: ['⌥', '⌘', 'I'], run: () => setAnswer('inspector') },
+  ];
+  return (
+    <Section title="Menu, sheet, palette">
+      <Menu
+        label={`Take actions (${name})`}
+        text="Take"
+        items={[
+          { id: 'dup', label: 'Duplicate', kbd: ['⌘', 'D'] },
+          { id: 'rename', label: 'Rename…' },
+          { id: 'export', label: 'Export', disabled: true },
+          'separator',
+          { id: 'delete', label: 'Delete take', danger: true },
+        ]}
+        onSelect={(id) => setAnswer(id)}
+      />
+      <Button onClick={() => setSheet(true)}>Discard the take…</Button>
+      <Button onClick={() => setBusy(true)}>Render the take…</Button>
+      <Button onClick={() => setPalette(true)} kbd={['⌘', 'K']}>
+        Open the palette
+      </Button>
+      <span className="gl-answer" data-testid={`answer-${appearance}`}>
+        Last answer: {answer}
+      </span>
+      <Sheet
+        open={sheet}
+        destructive
+        title="Discard the take?"
+        actions={[
+          { id: 'cancel', label: 'Cancel', isCancel: true },
+          { id: 'discard', label: 'Discard', variant: 'destructive', isDefault: true },
+        ]}
+        onAction={(id) => {
+          setSheet(false);
+          setAnswer(id);
+        }}
+      >
+        Its frames and its timeline go; the scenario stays.
+      </Sheet>
+      <Sheet
+        open={busy}
+        title="Rendering the take"
+        actions={[
+          { id: 'wait', label: 'Keep waiting', isCancel: true, isDefault: true },
+          { id: 'stop', label: 'Stop rendering', variant: 'destructive' },
+        ]}
+        onAction={(id) => {
+          setAnswer(id);
+          if (id === 'stop') setBusy(false);
+        }}
+      >
+        The render goes on while this stays open; Escape keeps waiting.
+      </Sheet>
+      <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} />
+    </Section>
+  );
+}
+
+function Column({ appearance }: { appearance: Appearance }) {
+  const name = appearance === 'dark' ? 'Dark' : 'Light';
+  const s = useGalleryState();
+  return (
+    <div className="k-scope gl-column" data-appearance={appearance} data-testid={`scope-${appearance}`}>
+      <h2 className="gl-scope">{name}</h2>
+      <GalleryBasics name={name} s={s} />
+      <GalleryStatus appearance={appearance} name={name} s={s} />
+      <GalleryLists name={name} s={s} />
+      <GalleryBoard appearance={appearance} name={name} s={s} />
+      <GalleryEdit appearance={appearance} s={s} />
+      <GalleryThemes appearance={appearance} s={s} />
+      <GalleryComments />
+      <GalleryNotices name={name} />
+      <GalleryOverlays appearance={appearance} name={name} s={s} />
     </div>
   );
 }
