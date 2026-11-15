@@ -1957,6 +1957,28 @@ its GPU History (Window → GPU History).
    Note the memory pressure and whether anything swaps; the GPU path's tree sums ≈ 2.7 GB of RSS on a 1080p render
    (today's ≈ 4.1 GB; an upper bound, shared pages counted per process) — say if it fails or crawls.
 
+## 18. Sandbox resets and persona sessions (L8.2)
+
+The tests cover the reset ladder against a fake Postgres, a real one and Docker, and the sessions without a browser;
+here it is a product of yours with a docker-compose sandbox (strategy `snapshot`) and, if it signs in with Firebase, a
+Firebase Auth emulator in `reset.firebase_auth`.
+
+1. **A seed change.** `retake sandbox status <project>`: `snapshot  current · base kept` (a sandbox made before L8.2:
+   `no base`). Change one line of the seed, then `retake sandbox status`: `outdated (the seed changed …)`, and what the
+   next reset does. `retake sandbox reset <project>`: `snapshot outdated (…): base restored … · seed … · snapshot
+   taken` — or, without a base, the outdated snapshot restored and a warning naming `down --volumes` (it deletes every
+   volume of the sandbox). Film a take: no row an earlier take created is there.
+2. **A base.** If the sandbox had none: `retake sandbox down <project> --volumes`, then `up` (the first seed says `base
+   kept`); the next seed change restores it.
+3. **Firebase sessions** (a `firebase_auth` sandbox, a persona with `login` steps, a hook `auth: {persona}` in a
+   scenario): `retake run <project> <scenario> --sandbox`. The reset line says `… Firebase Auth accounts put back —
+   <persona> signs in again at the next take, off camera`; the run's preflight line says the persona was signed in
+   automatically because the reset signed it out; the hook's request gets 200 (not 401). `retake hooks run <project>
+   <file> --env <sandbox>` with that hook, right after a reset, refuses naming the reset and `retake login`.
+4. **Through Claude.** In a project without a sandbox, ask Claude for one: it asks before `sandbox_init`, names the line
+   it added to project.yaml, proposes compose.yaml / sandbox.yaml text without writing them, and asks before
+   `sandbox_up` pulls images.
+
 ## 20. Open-licence fonts by reference: one real fetch, on purpose (L8.1b)
 
 The tests never reach the npm registry (a fake registry in process, a loopback one for the child processes). What a

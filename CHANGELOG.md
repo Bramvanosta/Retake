@@ -26,6 +26,10 @@ release — for the person about to click Install and Restart.
 - The workspace journal, `.retake/journal.jsonl`: every file Retake writes for you (a scenario, the README, a comment
   thread, a theme, a component, a new project, a sandbox scaffold) and every hook it runs, with who did it (you in a
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
+- Claude can scaffold a sandbox (MCP `sandbox_init`, with your go-ahead): the same files as `retake sandbox init` and
+  the `sandboxes:` line of project.yaml, never over a file. compose.yaml and sandbox.yaml stay yours to fill in —
+  Claude proposes their text — and it asks before `sandbox_up` downloads images. The sandbox guide has new recipes: a
+  monorepo without app images, apps on your Mac with the infrastructure in Docker, and an external sign-in.
 
 ### Changed
 - A wide logo (3:1 or wider) is drawn once: the intro, the outro and the brand mark show it alone, sized by its width
@@ -43,6 +47,15 @@ release — for the person about to click Install and Restart.
 - Fixed: an agent could replace a theme a person made in the Studio's New theme sheet (`replace: true`). A theme now
   records who made it; through MCP only one made through MCP is replaced or updated. A theme made before this version
   is no longer replaced through MCP: make a new one, or replace it yourself with `retake theme create --replace`.
+- A sandbox whose snapshot is outdated (the seed changed, an image was rebuilt, `reset.firebase_auth` was added) never
+  seeds on what the last take left any more: it starts again from its base — the database as it was before its first
+  seed, kept from now on — or, for a sandbox snapshotted before, from its outdated snapshot, and tells you how to get a
+  base (`retake sandbox down … --volumes`, then `up`). With neither, an empty database gets its first seed and a base;
+  one that already holds data is refused before anything changes.
+  `retake sandbox status` says what the next reset will do.
+- A reset that puts a Firebase Auth emulator's accounts back signs the sandbox's personas out: each take signs them in
+  again with their login steps, off camera (a persona without them is refused, naming sandbox.yaml), and a hook's
+  `auth: {persona}` outside a take refuses instead of sending its request without a token.
 - The Studio uses a large screen: no screen is held to a 1200 px column any more, the browser and the inspector grow
   with the window (up to 300 and 480 px), a wide storyboard shows more frames a row, and Edit's preview takes the
   height the tracks leave (it shrank to a strip when no note sat above it). Welcome is rebuilt: a greeting and the

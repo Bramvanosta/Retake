@@ -9,7 +9,7 @@
  * 0700 folders; per-run copies live in the system temp folder (0700) and are removed when the browser closes.
  */
 import { constants as fsConstants } from 'node:fs';
-import { chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rm } from 'node:fs/promises';
+import { chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rm, stat } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import type { BrowserContext, Page } from 'playwright-core';
@@ -261,6 +261,56 @@ export interface PreparedSession {
   realm: RealmSpec;
   /** Where its session comes from: a copy of the master profile, the snapshot alone, or nothing (never signed in). */
   source: 'copy' | 'snapshot' | 'fresh';
+  /**
+   * When its sandbox's reset put the Firebase Auth emulator's accounts back, after its session was saved — the
+   * session is then signed out (source `fresh`): a take signs it in again with its login steps, off camera.
+   */
+  signedOut?: string;
+}
+
+/** What prepareSessions does with a session a sandbox reset signed out: start it signed out, or refuse. */
+export type SignedOutRule = 'fresh' | 'refuse';
+
+export interface PrepareSessionsOptions {
+  runId: string;
+  log: Log;
+  /** The first line of a failure when the sessions are not for a run (a check, the js hooks of the CLI). */
+  failure?: string;
+  /**
+   * A session its sandbox's reset signed out — `fresh` (default): started signed out (a run's preflight signs it in
+   * with its login steps; a check reports it); `refuse` (hooks outside a take, which have no preflight): refused,
+   * naming the reason, rather than a request sent without its session.
+   */
+  signedOut?: SignedOutRule;
+  /** The project's slug, for the command a refusal names. */
+  project?: string;
+}
+
+/**
+ * When the persona's sandbox last put the Firebase Auth accounts back, if that is after its session was saved (the
+ * snapshot's `retake.created_at`, else its file's time); null when it was not, when the persona is no such sandbox
+ * account, has no saved session, or the state cannot be read (nothing changes then).
+ */
+export async function signedOutByReset(persona: ResolvedPersona, snapshot: SessionSnapshot | null, hasProfile: boolean): Promise<string | null> {
+  if (!persona.sandboxState || (!snapshot && !hasProfile)) return null;
+  let at: unknown;
+  try {
+    at = (JSON.parse(await readFile(persona.sandboxState, 'utf8')) as { accounts_at?: unknown }).accounts_at;
+  } catch {
+    return null;
+  }
+  const put = typeof at === 'string' ? Date.parse(at) : NaN;
+  if (Number.isNaN(put)) return null;
+  const meta = snapshot?.retake?.created_at;
+  let saved = typeof meta === 'string' ? Date.parse(meta) : NaN;
+  if (Number.isNaN(saved) && snapshot && persona.snapshot) saved = (await stat(persona.snapshot).catch(() => null))?.mtimeMs ?? NaN;
+  return !Number.isNaN(saved) && saved > put ? null : (at as string);
+}
+
+/** "the sandbox reset of 21:31:07 (…)": why a persona's saved session is signed out. */
+export function signedOutText(at: string): string {
+  const d = new Date(at);
+  return `signed out by the sandbox reset of ${Number.isNaN(d.getTime()) ? at : d.toTimeString().slice(0, 8)} (it put the Firebase Auth emulator's accounts back)`;
 }
 
 /** First line of a failure of the preflight (and of prepareSessions for a run). */
@@ -278,8 +328,26 @@ function personaLabel(p: Pick<ResolvedPersona, 'name' | 'env'>): string {
  * One persona's session for prepareSessions, pushed on `out` (a profile copy before it is filled: its folder is then
  * removed with the others on a failure).
  */
-async function prepareSession(persona: ResolvedPersona, opts: { runId: string; log: Log; failure?: string }, out: PreparedSession[]): Promise<void> {
+async function prepareSession(persona: ResolvedPersona, opts: PrepareSessionsOptions, out: PreparedSession[]): Promise<void> {
   const snapshot = persona.snapshot ? await readSnapshot(persona.snapshot) : null;
+  // Accounts put back by the sandbox's reset sign out a session saved before — never copied, never sent.
+  const signedOut = await signedOutByReset(persona, snapshot, persona.session === 'profile' && !!persona.profileDir && (await isProfileDir(persona.profileDir)));
+  if (signedOut) {
+    if (opts.signedOut === 'refuse') {
+      throw preflightFailure(
+        [
+          `  ${personaLabel(persona)}: ${signedOutText(signedOut)}`,
+          persona.login?.length
+            ? `    a take signs it in again off camera (its login steps); outside a take, sign it in: ${loginCommand({ project: opts.project ?? '<project>', env: persona.env, persona: persona.legacy ? undefined : persona.name })}`
+            : preflightHint('login-steps', '', persona.name),
+        ],
+        opts.failure,
+      );
+    }
+    opts.log('debug', `${personaLabel(persona)}: ${signedOutText(signedOut)} — starts signed out`);
+    out.push({ persona, realm: { name: persona.name }, source: 'fresh', signedOut });
+    return;
+  }
   if (persona.legacy && persona.snapshot && !snapshot) {
     throw preflightFailure(
       [`  ${personaLabel(persona)}: its auth.storage_state file does not exist: ${persona.snapshot}`, '    export it again, or name the account in auth.personas and sign it in with `retake login`'],
@@ -331,9 +399,10 @@ async function prepareSession(persona: ResolvedPersona, opts: { runId: string; l
  * held by a running browser (the `retake login` window) is refused: Chromium writes cookies lazily, a copy taken then
  * may miss them. The legacy `auth.storage_state` file must exist (only a missing legacy profile starts
  * signed out). Stale copies of killed processes are swept first; on failure the copies made so far are removed.
- * `failure`: the first line of a failure when the sessions are not for a run (a check, the js hooks of the CLI).
+ * `failure`: the first line of a failure when the sessions are not for a run (a check, the js hooks of the CLI). 
+ * a session its sandbox's reset signed out (signedOutByReset) is never copied (`signedOut`: started signed out, or refused).
  */
-export async function prepareSessions(personas: readonly ResolvedPersona[], opts: { runId: string; log: Log; failure?: string }): Promise<PreparedSession[]> {
+export async function prepareSessions(personas: readonly ResolvedPersona[], opts: PrepareSessionsOptions): Promise<PreparedSession[]> {
   const out: PreparedSession[] = [];
   const swept = await sweepStaleSessionCopies();
   if (swept.length) opts.log('debug', `removed ${swept.length} session cop${swept.length === 1 ? 'y' : 'ies'} a killed run left in ${tmpdir()}`);
@@ -664,6 +733,21 @@ export interface PreflightDeps extends LoginDeps {
   onPersona?: (persona: string, status: RunSessionStatus, detail?: string) => void;
 }
 
+/** The line under a failed persona of the preflight: what to do about it. */
+function preflightHint(hint: 'once' | 'again' | 'reach' | 'login-steps', command: string, persona: string): string {
+  switch (hint) {
+    case 'login-steps':
+      // Every take's reset signs it out again: a session saved by `retake login` would not last.
+      return `    give accounts.${persona} login steps in sandbox.yaml: a take then signs it in with them, off camera (a session saved by retake login lasts only until the next reset)`;
+    case 'once':
+      return `    sign in once: ${command}`;
+    case 'again':
+      return `    sign in again: ${command}`;
+    default:
+      return `    is the app running? Then sign in again if needed: ${command}`;
+  }
+}
+
 /**
  * Check every persona of a run before anything else runs (no setup hook, no recorder yet), each in its own browser, in
  * parallel. A persona that is not signed in and declares `login` steps is signed in automatically (its secrets
@@ -683,16 +767,10 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
       /* a listener error must not break the preflight */
     }
   };
-  const fail = (p: PreparedSession, why: string, hint: 'once' | 'again' | 'reach') => {
+  const fail = (p: PreparedSession, why: string, hint: 'once' | 'again' | 'reach' | 'login-steps') => {
     tell(p, 'failed', why);
     failures.push(`  ${personaLabel(p.persona)}: ${why}`);
-    failures.push(
-      hint === 'once'
-        ? `    sign in once: ${command(p.persona)}`
-        : hint === 'again'
-          ? `    sign in again: ${command(p.persona)}`
-          : `    is the app running? Then sign in again if needed: ${command(p.persona)}`,
-    );
+    failures.push(preflightHint(hint, command(p.persona), p.persona.name));
   };
   const checked = await Promise.all(prepared.map(async (p) => ({ p, r: await checkPersona(await session.contextOf(p.persona.name), p.persona, deps) })));
   const toLogin: Array<{ p: PreparedSession; why: string; r: PersonaCheckResult }> = [];
@@ -712,10 +790,10 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
       fail(p, `could not be checked — ${r.detail}`, 'reach');
       statuses.push({ persona: p.persona, status: 'error', detail: r.detail, at: r.at });
     } else {
-      const why = never ? 'never signed in' : `expired — ${r.detail}`;
+      const why = p.signedOut ? signedOutText(p.signedOut) : never ? 'never signed in' : `expired — ${r.detail}`;
       if (p.persona.login?.length) toLogin.push({ p, why, r });
       else {
-        fail(p, why, never ? 'once' : 'again');
+        fail(p, why, p.signedOut ? 'login-steps' : never ? 'once' : 'again');
         // "never" is not stored: there is no session to describe.
         if (!never) statuses.push({ persona: p.persona, status: 'expired', detail: r.detail, at: r.at });
       }

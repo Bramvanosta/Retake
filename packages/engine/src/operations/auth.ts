@@ -13,6 +13,7 @@ import type { ToolContext } from './define.js';
 import { envName, projectSlug } from './schema.js';
 import { waitJob, waitS } from './wait.js';
 import { plural } from './words.js';
+import { firebaseAuthText, resetLadderText } from '../format.js';
 
 export const authStatus = defineOperation({
   name: 'auth_status',
@@ -63,9 +64,13 @@ export function environmentJobSummary(job: JobRecord): string {
       );
     if (r.reset) {
       const seed = r.reset.restored ? `snapshot${r.reset.snapshot ? ` of ${r.reset.snapshot.database}` : ''} restored` : `seed ${plural(r.reset.seed.steps, 'step')}`;
+      const o = r.reset.outdated;
+      const words = resetLadderText(r.reset);
+      const ladder = words ? `${words} · ` : '';
       lines.push(
-        `reset (${r.reset.strategy}): ${seed}${r.reset.mailbox === 'cleared' ? ' · mailbox emptied' : ''}${r.reset.restarted.length ? ` · restarted ${r.reset.restarted.join(', ')}` : ''}${r.reset.firebase_auth ? ` · ${plural(r.reset.firebase_auth.accounts, 'Firebase Auth account')} put back` : ''}${r.reset.hooks?.steps ? ` · ${plural(r.reset.hooks.steps, 'reset hook')}` : ''}${r.reset.superseded ? ` · ${plural(r.reset.superseded, 'pending rollback')} superseded` : ''}`,
+        `reset (${r.reset.strategy}): ${ladder}${seed}${r.reset.mailbox === 'cleared' ? ' · mailbox emptied' : ''}${r.reset.restarted.length ? ` · restarted ${r.reset.restarted.join(', ')}` : ''}${r.reset.firebase_auth ? ` · ${firebaseAuthText(r.reset.firebase_auth)}` : ''}${r.reset.hooks?.steps ? ` · ${plural(r.reset.hooks.steps, 'reset hook')}` : ''}${r.reset.superseded ? ` · ${plural(r.reset.superseded, 'pending rollback')} superseded` : ''}`,
       );
+      if (o?.hint) lines.push(`${o.hint} (sandbox down is the user's to run, in their terminal)`);
     } else lines.push('no seed needed (already seeded with the current seed)');
     lines.push(
       `pages: ${Object.entries(r.pages)

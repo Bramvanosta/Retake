@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * The Postgres tests (packages/hooks/test/sql.test.ts and agent-sql.test.ts, packages/sandbox/test/
- * snapshot-earlier-name.test.ts) — `pnpm test:pg`. They run by default in
+ * snapshot-earlier-name.test.ts and snapshot-base.test.ts) — `pnpm test:pg`. They run by default in
  * `pnpm test` wherever Docker runs and the image is here (each file starts its own throwaway container:
  * packages/test-support/src/postgres.ts) and skip otherwise, saying why; this script runs them and fails instead:
  *   1. checks that Docker runs and that the image postgres:17-alpine is present (it never pulls: it prints the
@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const IMAGE = 'postgres:17-alpine';
 const LABEL = 'retake.test=pg';
-export const PG_FILES = ['packages/hooks/test/sql.test.ts', 'packages/hooks/test/agent-sql.test.ts', 'packages/sandbox/test/snapshot-earlier-name.test.ts'];
+export const PG_FILES = ['packages/hooks/test/sql.test.ts', 'packages/hooks/test/agent-sql.test.ts', 'packages/sandbox/test/snapshot-earlier-name.test.ts', 'packages/sandbox/test/snapshot-base.test.ts'];
 
 const args = process.argv.slice(2);
 const all = args.includes('--all');

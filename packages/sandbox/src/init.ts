@@ -36,9 +36,10 @@ export interface InitSandboxOptions {
   /**
    * Writes one file of the project (an absolute path; its folders made): the engine's project store, which writes over
    * an existing file on the version it read (`if_match`: `previous`, the text this package read, else the file as it is
-   * just before) and journals it. This package writes no file itself.
+   * just before; `null`: created, never over a file — the scaffold's files without `force`) and journals it. This
+   * package writes no file itself.
    */
-  write: (file: string, text: string, previous?: string) => Promise<void>;
+  write: (file: string, text: string, previous?: string | null) => Promise<void>;
 }
 
 export interface InitSandboxResult {
@@ -165,7 +166,9 @@ export async function initSandbox(project: LoadedProject, opts: InitSandboxOptio
   const files: string[] = [];
   for (const rel of scaffold) {
     const target = join(dir, rel);
-    await opts.write(target, render(await readFile(join(SCAFFOLD_DIR, rel), 'utf8')));
+    // Create-only without force (`null`: no file expected — one that appeared since the check is a conflict, never
+    // overwritten); with force, over the file as it is.
+    await opts.write(target, render(await readFile(join(SCAFFOLD_DIR, rel), 'utf8')), opts.force ? undefined : null);
     files.push(target);
   }
 

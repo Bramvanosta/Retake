@@ -79,7 +79,7 @@ export const projectGet = defineOperation({
   async run({ project }, { engine }) {
     const p = await engine.projects.get(project);
     const found = sandboxAdvice(p);
-    const advice = found ? sandboxAdviceText(found, p.slug) : null;
+    const advice = found ? sandboxAdviceText(found, p.slug, 'retake', 'mcp') : null;
     const envs = p.environments.map(
       (e) =>
         `${e.name}${e.production ? ' (production' + (e.access === 'read-only' ? ', read-only)' : ')') : e.access === 'read-only' ? ' (read-only)' : ''}${e.sandbox ? ' (sandbox)' : ''}: pages ${Object.keys(e.pages).join(', ') || 'none'}${e.personas.length ? `; personas ${e.personas.map((x) => x.name).join(', ')}` : ''}`,
@@ -108,7 +108,7 @@ export const projectGet = defineOperation({
         // R-FLD-30: a local environment holding state and no sandbox — never reset it by hand between takes.
         ...(advice
           ? [
-              `sandbox: ${advice.detail}. Instead of resetting it by hand (SQL, the mailbox's API), ask the user for a sandbox — ${advice.hint}; then run_capture {sandbox: true} resets it before every take. sandbox.yaml is the user's file (never written through this server).`,
+              `sandbox: ${advice.detail}. Instead of resetting it by hand (SQL, the mailbox's API), offer the user a sandbox — ${advice.hint}, which resets it before every take. compose.yaml and sandbox.yaml are the user's files: propose their text in chat, never write them yourself; sandbox_up pulls their images (ask first).`,
             ]
           : []),
       ].join('\n'),

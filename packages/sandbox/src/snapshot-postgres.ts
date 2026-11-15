@@ -17,6 +17,18 @@
  * changed) is renamed to the present one at the next reset or snapshot (`adoptEarlier`), comment and seed kept; when
  * both exist, the earlier one is dropped. A template is only ever looked for under these two names.
  *
+ * R-SBX-10: the base `<db>__retake_base` (comment `retake base`) is the database as the
+ * services leave it right before its first seed — taken only when Retake never touched that database's data —, never
+ * taken again from a seeded one. When the snapshot is outdated, the reset restores the base (else the outdated
+ * snapshot) before it seeds again: a seed never runs on a take's data (sandbox reset-plan.ts).
+ *
+ *   base:    as take, into app__retake_base with the comment 'retake base' (before the first seed)
+ *   each copy is made as app__retake_next, marked, then renamed over the old one (a failed copy keeps the old)
+ *   restore: as above, from app__retake_base (an outdated snapshot), then the seed and a new snapshot
+ *
+ * Postgres cuts identifiers at 63 bytes: a database name over MAX_DATABASE_BYTES is refused (its templates' names
+ * would be cut, then collide).
+ *
  * Every reset first repairs ALLOW_CONNECTIONS (a take or restore interrupted after blocking connections). Nothing
  * between DROP and CREATE looks at the abort signal: an interrupt lets the CREATE finish. One query per statement
  * (CREATE DATABASE cannot run inside a multi-statement query).
@@ -37,6 +49,14 @@ import { SandboxError, errorMessage } from './errors.js';
 export const SNAPSHOT_SUFFIX = '__retake_snap';
 /** The template's suffix before it took its present name: read at a reset, renamed to SNAPSHOT_SUFFIX, never made. */
 export const EARLIER_SNAPSHOT_SUFFIX = '__ds_snapshot'; // old-name: the template's name in sandboxes made before
+/** Suffix of the base (`<db>__retake_base`): the database before its first seed. Same length as SNAPSHOT_SUFFIX. */
+export const BASE_SUFFIX = '__retake_base';
+/** Suffix of a copy being made (copyAs): renamed to its template's name once marked. Same length as SNAPSHOT_SUFFIX. */
+export const NEXT_SUFFIX = '__retake_next';
+/** The base's comment. */
+export const BASE_COMMENT = 'retake base';
+/** Longest database name a snapshot reset takes: its templates' names (+13 bytes) must fit Postgres's 63. */
+export const MAX_DATABASE_BYTES = 50;
 /** server_version_num of Postgres 13 (DROP DATABASE … WITH (FORCE)). */
 export const MIN_PG_VERSION_NUM = 130_000;
 const CONNECT_TIMEOUT_MS = 10_000;
@@ -79,6 +99,49 @@ export interface SnapshotTarget extends PgEndpoint {
   template: string;
   /** `<database>` + EARLIER_SNAPSHOT_SUFFIX: the template's earlier name, adopted (adoptEarlier) or dropped. */
   earlier: string;
+  /** `<database>` + BASE_SUFFIX: the database before its first seed. */
+  base: string;
+}
+
+/** What the state file keeps of the base (provider_state.base). */
+export interface BaseState {
+  /** The database it is the base of. */
+  database: string;
+  /** Owner of the database when the base was taken. */
+  owner: string;
+  taken_at: string;
+  ms: number;
+}
+
+/** The template now: there at all, and holding this seed. */
+export interface TemplateState {
+  present: boolean;
+  valid: boolean;
+}
+
+/**
+ * What a reset does with the sandbox's Postgres (PostgresSnapshot; a test hands the Sandbox a fake one to see the order
+ * of the calls without a database).
+ */
+export interface SnapshotPort {
+  readonly target: SnapshotTarget;
+  close(): Promise<void>;
+  broken(): Promise<string | null>;
+  repair(): Promise<boolean>;
+  adoptEarlier(): Promise<'renamed' | 'dropped' | null>;
+  /** The template under its present name (`earlier`: or under its earlier one, for a status that renames nothing). */
+  templateState(hash: string, opts?: { earlier?: boolean }): Promise<TemplateState>;
+  /** The base of this database is there (a template with the base's comment). */
+  hasBase(): Promise<boolean>;
+  ensureDatabase(owner?: string): Promise<boolean>;
+  /** Copy the database (not seeded yet) as the base. */
+  takeBase(): Promise<{ owner: string; ms: number }>;
+  /** The database holds no relation of its own (missing, or nothing outside the system schemas). */
+  isEmpty(): Promise<boolean>;
+  /** Copy the database (just seeded) as the template. */
+  take(hash: string): Promise<{ owner: string; ms: number }>;
+  /** Drop the database and create it again from the template (`from: 'base'`: from the base), owned by `owner` (else its owner now). */
+  restore(owner: string | undefined, from?: 'snapshot' | 'base'): Promise<{ ms: number }>;
 }
 
 /** What the state file keeps of the snapshot (provider_state.snapshot). */
@@ -138,15 +201,28 @@ export async function snapshotTarget(
   const url = await resolveDatabaseUrl(project, dbs[key].url, resolveSecret);
   const endpoint = pgEndpoint(url, `sandbox ${sandbox.env}: database ${key}`);
   if (!endpoint.database) throw new SandboxError(`sandbox ${sandbox.env}: database ${key}: its URL names no database (postgres://…/<db>)`);
+  const bytes = Buffer.byteLength(endpoint.database, 'utf8');
+  if (bytes > MAX_DATABASE_BYTES) {
+    throw new SandboxError(
+      `sandbox ${sandbox.env}: database ${key} is named "${endpoint.database}" (${bytes} bytes): a snapshot reset keeps copies named <database>${SNAPSHOT_SUFFIX}, <database>${BASE_SUFFIX} and <database>${NEXT_SUFFIX}, and Postgres cuts names at 63 bytes — give it a name of ${MAX_DATABASE_BYTES} bytes or fewer`,
+    );
+  }
   if (['postgres', 'template0', 'template1'].includes(endpoint.database.toLowerCase())) {
     throw new SandboxError(`sandbox ${sandbox.env}: database ${key} is "${endpoint.database}": a snapshot reset drops and recreates its database — give the sandbox a database of its own`);
   }
-  return { key, url, ...endpoint, template: `${endpoint.database}${SNAPSHOT_SUFFIX}`, earlier: `${endpoint.database}${EARLIER_SNAPSHOT_SUFFIX}` };
+  return {
+    key,
+    url,
+    ...endpoint,
+    template: `${endpoint.database}${SNAPSHOT_SUFFIX}`,
+    earlier: `${endpoint.database}${EARLIER_SNAPSHOT_SUFFIX}`,
+    base: `${endpoint.database}${BASE_SUFFIX}`,
+  };
 }
 
-async function connect(endpoint: PgEndpoint): Promise<pg.Client> {
+async function connect(endpoint: PgEndpoint, timeoutMs = CONNECT_TIMEOUT_MS): Promise<pg.Client> {
   const { host, port, database, user, password } = endpoint;
-  const client = new pg.Client({ host, port, database, user, password, connectionTimeoutMillis: CONNECT_TIMEOUT_MS, application_name: APPLICATION_NAME });
+  const client = new pg.Client({ host, port, database, user, password, connectionTimeoutMillis: timeoutMs, application_name: APPLICATION_NAME });
   // Errors also reject the pending query; this only keeps a dropped connection from crashing the process.
   client.on('error', () => undefined);
   try {
@@ -189,7 +265,7 @@ interface DatabaseRow {
 }
 
 /** A maintenance connection (database `postgres`, else `template1`) to the server of a snapshot target. */
-export class PostgresSnapshot {
+export class PostgresSnapshot implements SnapshotPort {
   private constructor(
     readonly target: SnapshotTarget,
     private readonly client: pg.Client,
@@ -197,13 +273,13 @@ export class PostgresSnapshot {
     readonly version: number,
   ) {}
 
-  /** Connect and check the server (Postgres 13 or later). Throws SandboxError. */
-  static async open(target: SnapshotTarget, env: string): Promise<PostgresSnapshot> {
+  /** Connect and check the server (Postgres 13 or later). Throws SandboxError. `timeoutMs`: of the connection (a status waits less). */
+  static async open(target: SnapshotTarget, env: string, opts: { timeoutMs?: number } = {}): Promise<PostgresSnapshot> {
     let client: pg.Client | null = null;
     let last: unknown;
     for (const db of ['postgres', 'template1']) {
       try {
-        client = await connect({ ...target, database: db });
+        client = await connect({ ...target, database: db }, opts.timeoutMs);
         break;
       } catch (e) {
         last = e;
@@ -277,8 +353,18 @@ export class PostgresSnapshot {
 
   /** The template holds this seed. */
   async valid(hash: string): Promise<boolean> {
-    const t = await this.database(this.target.template);
-    return !!t && t.template && t.comment === snapshotComment(hash);
+    return (await this.templateState(hash)).valid;
+  }
+
+  async templateState(hash: string, opts: { earlier?: boolean } = {}): Promise<TemplateState> {
+    let t = await this.database(this.target.template);
+    if (!t?.template && opts.earlier && this.target.earlier !== this.target.template) t = await this.database(this.target.earlier);
+    return t?.template ? { present: true, valid: t.comment === snapshotComment(hash) } : { present: false, valid: false };
+  }
+
+  async hasBase(): Promise<boolean> {
+    const b = await this.database(this.target.base);
+    return !!b && b.template && b.comment === BASE_COMMENT;
   }
 
   /** The database exists (an interrupted restore may have dropped it); created empty with `owner` if not. */
@@ -289,23 +375,48 @@ export class PostgresSnapshot {
   }
 
   /** Copy the database (just seeded) as the template. */
-  async take(hash: string): Promise<{ owner: string; ms: number }> {
+  take(hash: string): Promise<{ owner: string; ms: number }> {
+    return this.copyAs(this.target.template, snapshotComment(hash), 'after the seed');
+  }
+
+  /**
+   * Copy the database, not seeded yet, as its base. A database of that name that is not a base (someone's own) is never
+   * dropped: refused.
+   */
+  async takeBase(): Promise<{ owner: string; ms: number }> {
+    const found = await this.database(this.target.base);
+    if (found && !(found.template && found.comment === BASE_COMMENT)) {
+      throw new SandboxError(`database ${this.target.base} exists and is not a base Retake took: rename or drop it — a snapshot reset keeps the database before its first seed under that name`);
+    }
+    return this.copyAs(this.target.base, BASE_COMMENT, 'before the seed');
+  }
+
+  /**
+   * Copy the database as template `name` with `comment` (its sessions ended, connections blocked during the copy). The
+   * copy is made under NEXT_SUFFIX, marked (template, no connections, its comment), and only then takes the place of the
+   * old one: a failed or interrupted copy leaves the previous template as it was, and `name` never names an unmarked
+   * copy (a leftover `<db>__retake_next` is dropped by the next copy).
+   */
+  private async copyAs(name: string, comment: string, when: string): Promise<{ owner: string; ms: number }> {
     const t0 = Date.now();
-    const { database, template } = this.target;
+    const { database } = this.target;
     const db = await this.database(database);
-    if (!db) throw new SandboxError(`database ${database} does not exist after the seed: nothing to snapshot`);
+    if (!db) throw new SandboxError(`database ${database} does not exist ${when}: nothing to snapshot`);
     const app = quoteIdent(database);
-    const tpl = quoteIdent(template);
+    const next = `${database}${NEXT_SUFFIX}`;
+    const tmp = quoteIdent(next);
+    const tpl = quoteIdent(name);
+    // A copy an interrupted take left: never in use (it is renamed or dropped as soon as it is made).
+    if (await this.database(next)) {
+      await this.q(`ALTER DATABASE ${tmp} WITH IS_TEMPLATE false`);
+      await this.q(`DROP DATABASE IF EXISTS ${tmp} WITH (FORCE)`);
+    }
     await this.q(`ALTER DATABASE ${app} WITH ALLOW_CONNECTIONS false`);
     let failed: { error: unknown } | undefined;
     try {
       // The app's pool cannot reconnect while it is copied; the copy needs no other session on it.
       await this.q(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`, [database]);
-      if (await this.database(template)) {
-        await this.q(`ALTER DATABASE ${tpl} WITH IS_TEMPLATE false`);
-        await this.q(`DROP DATABASE IF EXISTS ${tpl} WITH (FORCE)`);
-      }
-      await this.q(`CREATE DATABASE ${tpl} TEMPLATE ${app}`);
+      await this.q(`CREATE DATABASE ${tmp} TEMPLATE ${app}`);
     } catch (e) {
       failed = { error: e };
     }
@@ -317,20 +428,56 @@ export class PostgresSnapshot {
       if (!failed) throw new SandboxError(`database ${database} was left refusing connections after its snapshot (${errorMessage(e)}): the next reset lets them in again`);
     }
     if (failed) throw failed.error;
-    await this.q(`ALTER DATABASE ${tpl} WITH ALLOW_CONNECTIONS false IS_TEMPLATE true`);
-    await this.q(`COMMENT ON DATABASE ${tpl} IS ${quoteLiteral(snapshotComment(hash))}`);
+    // Marked before it takes the name: `name` is a whole template or nothing.
+    await this.q(`ALTER DATABASE ${tmp} WITH ALLOW_CONNECTIONS false IS_TEMPLATE true`);
+    await this.q(`COMMENT ON DATABASE ${tmp} IS ${quoteLiteral(comment)}`);
+    if (await this.database(name)) {
+      await this.q(`ALTER DATABASE ${tpl} WITH IS_TEMPLATE false`);
+      await this.q(`DROP DATABASE IF EXISTS ${tpl} WITH (FORCE)`);
+    }
+    await this.q(`ALTER DATABASE ${tmp} RENAME TO ${tpl}`);
     return { owner: db.owner, ms: Date.now() - t0 };
   }
 
-  /** Drop the database and create it again from the template (sessions on it are terminated). */
-  async restore(owner: string): Promise<{ ms: number }> {
+  /**
+   * The database holds no relation of its own (missing, or nothing outside the system schemas): what a sandbox's
+   * database is before anything wrote to it. Read only.
+   */
+  async isEmpty(): Promise<boolean> {
+    if (!(await this.database(this.target.database))) return true;
+    const c = await connect({ ...this.target }, CONNECT_TIMEOUT_MS);
+    try {
+      const r = await c.query(
+        `SELECT count(*)::int AS n FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname NOT LIKE 'pg\\_toast%' AND n.nspname NOT LIKE 'pg\\_temp%' AND c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')`,
+      );
+      return Number((r.rows[0] as { n?: number } | undefined)?.n ?? 0) === 0;
+    } finally {
+      await c.end().catch(() => undefined);
+    }
+  }
+
+  /**
+   * Drop the database and create it again from the template — or from the base (`from: 'base'`) — (sessions on it are
+   * terminated), owned by `owner`, else by its owner now, else by the copy's.
+   */
+  async restore(owner: string | undefined, from: 'snapshot' | 'base' = 'snapshot'): Promise<{ ms: number }> {
     const t0 = Date.now();
     const app = quoteIdent(this.target.database);
-    if (await this.database(this.target.database)) await this.q(`ALTER DATABASE ${app} WITH ALLOW_CONNECTIONS false`);
+    const source = from === 'base' ? this.target.base : this.target.template;
+    const now = await this.database(this.target.database);
+    const who = owner ?? now?.owner ?? (await this.database(source))?.owner;
+    if (now) await this.q(`ALTER DATABASE ${app} WITH ALLOW_CONNECTIONS false`);
     // From here to CREATE nothing checks the abort signal: an interrupt lets the database come back.
     await this.q(`DROP DATABASE IF EXISTS ${app} WITH (FORCE)`);
-    await this.q(`CREATE DATABASE ${app} TEMPLATE ${quoteIdent(this.target.template)} OWNER ${quoteIdent(owner)}`);
+    await this.q(`CREATE DATABASE ${app} TEMPLATE ${quoteIdent(source)}${who ? ` OWNER ${quoteIdent(who)}` : ''}`);
     return { ms: Date.now() - t0 };
+  }
+
+  /** Remove the base (tests). */
+  async dropBase(): Promise<void> {
+    if (!(await this.hasBase())) return;
+    await this.q(`ALTER DATABASE ${quoteIdent(this.target.base)} WITH IS_TEMPLATE false`);
+    await this.q(`DROP DATABASE IF EXISTS ${quoteIdent(this.target.base)} WITH (FORCE)`);
   }
 
   /** Remove the template, under either name (tests, a stale one). */

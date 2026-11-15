@@ -23,8 +23,10 @@ Retake server's instructions; when those instructions or a tool's description sa
 3. Agree on the video in a sentence or two: the one flow it shows, who watches it, about how long (1 to 2 minutes).
 4. **The environment between takes.** Every take must start from the same data. When `project_get` says the project
    films a local copy of the product with a database or a mailbox and has no sandbox, propose one to the user before
-   the first take: a `sandbox.yaml` (theirs to write — `retake sandbox init <project>` in their terminal scaffolds it;
-   [examples](reference/sandbox.md)) that starts the product, seeds it and resets it before every take. Then
+   the first take: with their go-ahead, `sandbox_init {project}` writes Retake's docker-compose scaffold (and its
+   `sandboxes:` line in project.yaml; never over a file); the user then fills its compose.yaml and sandbox.yaml —
+   propose the text in chat, never write those files yourself ([examples](reference/sandbox.md)) — so that it starts
+   the product, seeds it and resets it before every take. `sandbox_up` pulls the compose file's images: ask first. Then
    `run_capture {project, scenario, sandbox: true}`. Never reset data yourself between takes (SQL, a mailbox API, a
    script): that is the sandbox's job.
 

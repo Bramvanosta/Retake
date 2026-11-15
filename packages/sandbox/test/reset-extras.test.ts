@@ -8,7 +8,7 @@
  */
 import { resolveSecretRef } from '@retake/core/io';
 import { packageHooks } from './hook-runner.js';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -125,6 +125,10 @@ describe('a reset puts back a Firebase Auth emulator and runs reset.hooks (hotfi
       // The reset (strategy reseed): emptied before the seed, the seed's account saved, the restart, put back, the hook.
       const r = await sb.reset();
       expect(r).toMatchObject({ restarted: ['auth'], firebase_auth: { accounts: 1 }, hooks: { steps: 1 } });
+      // R-SBX-11: when — the state's accounts_at, read by the next take's prepareSessions.
+      const st = JSON.parse(await readFile(join(dir, '.retake', 'sandbox', 'sandbox', 'state.json'), 'utf8')) as { accounts_at?: string };
+      expect(st.accounts_at).toBe(r.firebase_auth?.at);
+      expect(Date.parse(st.accounts_at ?? '')).toBeGreaterThanOrEqual(Date.parse(up.reset!.firebase_auth!.at));
       expect((await state()).emails).toEqual(['owner@example.com']);
       expect((await state()).hooks).toBe(1); // the restarted service counts from 0: the hook ran after the restart
     } finally {

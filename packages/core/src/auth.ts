@@ -109,6 +109,12 @@ export interface ResolvedPersona {
    * missing (every take after a reset), which is expected rather than a warning.
    */
   sandbox?: true;
+  /**
+   * R-SBX-11: a sandbox account whose reset puts a Firebase Auth emulator's accounts back
+   * (`reset.firebase_auth`) — the sandbox's state file, whose `accounts_at` says when: a session saved before that is
+   * signed out (its ID token names accounts the emulator no longer has), so a take signs it in again off camera.
+   */
+  sandboxState?: string;
   /** Values its login steps type that are secrets as written (a sandbox account's plain password): masked like {{env:…}} values. */
   secrets?: string[];
 }
@@ -170,6 +176,7 @@ export function resolvePersonas(project: Pick<LoadedProject, 'slug' | 'dir' | 'c
       snapshot: files.snapshot,
       statusFile: files.statusFile,
       ...(sandbox ? { sandbox: true as const } : {}),
+      ...(sandbox?.manifest.reset?.firebase_auth && sandbox.stateFile ? { sandboxState: sandbox.stateFile } : {}),
       ...(sandbox?.secrets[name]?.length ? { secrets: [...sandbox.secrets[name]] } : {}),
     };
   });

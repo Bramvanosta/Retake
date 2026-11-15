@@ -140,6 +140,7 @@ describe('retake mcp over stdio', () => {
       'sandbox_status',
       'sandbox_up',
       'sandbox_reset',
+      'sandbox_init',
     ]);
     for (const t of tools) {
       expect(t.inputSchema.type, t.name).toBe('object');
@@ -174,6 +175,7 @@ describe('retake mcp over stdio', () => {
           'auth_login',
           'sandbox_up',
           'sandbox_reset',
+          'sandbox_init',
         ].includes(t.name),
       );
       expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site', 'font_fetch'].includes(t.name));
@@ -478,7 +480,7 @@ describe('retake mcp: lifecycle and registration', () => {
   });
 
   it('every tool has a zod schema that publishes as an object schema', () => {
-    expect(TOOLS).toHaveLength(48);
+    expect(TOOLS).toHaveLength(49);
     for (const t of TOOLS) expect(t.input.safeParse({ __nope: 1 }).success, t.name).toBe(false);
   });
 });

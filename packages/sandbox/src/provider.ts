@@ -138,6 +138,27 @@ export interface OwnerUse {
   why: string;
 }
 
+/**
+ * Where a database service keeps its data: a volume `down --volumes` removes (named by the compose project, or
+ * anonymous), a folder of this machine (a bind mount) or an external volume — both left by `down --volumes` —, or not
+ * known (no mount under /var/lib/postgresql).
+ */
+export interface DataStorage {
+  kind: 'volume' | 'bind' | 'external' | 'unknown';
+  /** The folder or the volume's name (bind, external). */
+  where?: string;
+}
+
+/** The services around a sandbox's database (capability `snapshots`): what a restore restarts, and where the data lives. */
+export interface ServicesAround {
+  /** The compose services running now, in the compose files' order. */
+  running: string[];
+  /** service → the services it depends on (`depends_on`). */
+  depends: Record<string, string[]>;
+  /** Where the database's service keeps its data. */
+  storage: DataStorage;
+}
+
 export interface ServiceLogFile {
   service: string;
   file: string;
@@ -243,4 +264,9 @@ export interface Provider {
   address(ctx: ProviderContext, port: number): Promise<string | undefined>;
   /** More inputs of the seed hash (capability `hashInputs`; docker-compose: the services' image ids — a rebuilt app makes the seed stale); none without it. */
   hashInputs(ctx: ProviderContext): Promise<string[]>;
+  /**
+   * The running services, their dependencies, and where database service `database` keeps its data (capability
+   * `snapshots`: a restore of an outdated snapshot restarts the others; a refusal says what `down --volumes` removes).
+   */
+  servicesAround(ctx: ProviderContext, database: string): Promise<ServicesAround>;
 }

@@ -22,3 +22,4 @@ export type {
   UpResult,
 } from './provider.js';
 export type { InitSandboxOptions, InitSandboxResult } from './init.js';
+export type { OutdatedWhy, ResetPlan } from './reset-plan.js';

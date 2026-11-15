@@ -4147,7 +4147,7 @@
  {
   "name": "sandbox_up",
   "title": "Start a sandbox",
-  "description": "Start a sandbox of a project (a disposable, local copy of the product, sandbox.yaml), as a job: what is not running is started, health is checked, and it is seeded when it never was or its seed changed. Seed steps that run shell commands are approved by the user first (an approval form; else refused with the command a human runs). Nothing outside the sandbox is touched.",
+  "description": "Start a sandbox of a project (a disposable, local copy of the product, sandbox.yaml), as a job: what is not running is started, health is checked, and it is seeded when it never was or its seed changed. Seed steps that run shell commands are approved by the user first (an approval form; else refused with the command a human runs). A docker-compose sandbox pulls the images its compose file names that are not on this machine yet (a download nothing asks about): ask the user before the first up. Nothing outside the sandbox is touched.",
   "inputSchema": {
    "type": "object",
    "properties": {
@@ -4223,6 +4223,38 @@
   "annotations": {
    "readOnlyHint": false,
    "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "sandbox_init",
+  "title": "Scaffold a sandbox",
+  "description": "Write Retake's docker-compose sandbox scaffold into a project (the tool's own files: sandbox.yaml, compose.yaml with a placeholder app, Postgres and Mailpit on free local ports, a demo seed, README.md) and add its `sandboxes.<env>` line to project.yaml — nothing else of project.yaml changes, no existing file is ever overwritten, nothing is started or pulled. Offer it with the user's go-ahead when project_get says a sandbox is missing. The user then fills compose.yaml and sandbox.yaml (the product's images or source, its seed, its accounts) — propose the text in chat; do not write those files yourself. sandbox_up then pulls the images the compose file names (a download): ask the user first.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "project": {
+     "type": "string",
+     "maxLength": 100,
+     "pattern": "^[a-z0-9][a-z0-9-]*$",
+     "description": "Project slug (from project_list)."
+    },
+    "env": {
+     "description": "The sandbox environment to create (default \"sandbox\"): lower-case letters, digits, \"-\" and \"_\"; not a name of project.yaml environments.",
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 100
+    }
+   },
+   "required": [
+    "project"
+   ],
+   "additionalProperties": false
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
    "idempotentHint": false,
    "openWorldHint": false
   }

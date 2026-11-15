@@ -43,6 +43,7 @@ function target(): SnapshotTarget {
     password: decodeURIComponent(u.password),
     template: `${DB}${SNAPSHOT_SUFFIX}`,
     earlier: `${DB}${EARLIER_SNAPSHOT_SUFFIX}`,
+    base: `${DB}__retake_base`,
   };
 }
 

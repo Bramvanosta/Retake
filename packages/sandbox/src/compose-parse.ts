@@ -25,16 +25,23 @@ export interface ComposeConfig {
   ports: PublishedPort[];
   /** service → its image (`image:`, else the name a build gives it: `<project>-<service>`). */
   images: Record<string, string>;
+  /** service → the services it depends on (`depends_on`, list or map form). */
+  depends: Record<string, string[]>;
 }
 
 /** `docker compose config --format json` → services, published TCP ports (ranges expanded), images. */
 export function parseComposeConfig(text: string, projectName: string): ComposeConfig {
-  const doc = JSON.parse(text) as { services?: Record<string, { image?: string; ports?: Array<{ published?: string | number; host_ip?: string; protocol?: string }> }> };
+  const doc = JSON.parse(text) as {
+    services?: Record<string, { image?: string; depends_on?: string[] | Record<string, unknown>; ports?: Array<{ published?: string | number; host_ip?: string; protocol?: string }> }>;
+  };
   const services = Object.keys(doc.services ?? {});
   const ports: PublishedPort[] = [];
   const images: Record<string, string> = {};
+  const depends: Record<string, string[]> = {};
   for (const [service, svc] of Object.entries(doc.services ?? {})) {
     images[service] = svc.image ?? `${projectName}-${service}`;
+    const on = Array.isArray(svc.depends_on) ? svc.depends_on : svc.depends_on && typeof svc.depends_on === 'object' ? Object.keys(svc.depends_on) : [];
+    if (on.length) depends[service] = on.map(String);
     for (const p of svc.ports ?? []) {
       if ((p.protocol ?? 'tcp') !== 'tcp' || p.published === undefined || p.published === '') continue;
       const m = /^(\d+)(?:-(\d+))?$/.exec(String(p.published));
@@ -44,7 +51,23 @@ export function parseComposeConfig(text: string, projectName: string): ComposeCo
       for (let port = from; port <= to && port - from < 1000; port++) ports.push({ service, port, host: p.host_ip ?? '' });
     }
   }
-  return { services, ports, images };
+  return { services, ports, images, depends };
+}
+
+/** Where a database container keeps its data, from `docker inspect --format '{{json .Mounts}}'` (the volume's compose project read by the caller). */
+export function dataMount(mountsJson: string): { type: 'bind' | 'volume'; name: string } | null {
+  let mounts: Array<{ Type?: string; Name?: string; Source?: string; Destination?: string }>;
+  try {
+    mounts = JSON.parse(mountsJson) as typeof mounts;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(mounts)) return null;
+  const m = mounts.find((x) => typeof x.Destination === 'string' && /^\/var\/lib\/postgresql(\/|$)/.test(x.Destination));
+  if (!m) return null;
+  if (m.Type === 'bind') return { type: 'bind', name: String(m.Source ?? '') };
+  if (m.Type === 'volume') return { type: 'volume', name: String(m.Name ?? '') };
+  return null;
 }
 
 /** A container `docker ps --filter publish=<port>` lists: its compose project and folder, the TCP ports it publishes. */

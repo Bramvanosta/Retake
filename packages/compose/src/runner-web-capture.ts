@@ -68,7 +68,11 @@ export function runnerWebCapture(): CaptureRunner {
       open: async (o): Promise<HookBrowser> => {
         const rw = await load();
         const capture = o.project.config.capture;
-        const prepared = o.persona ? await rw.prepareSessions([o.persona], { runId: o.runId, log: o.log, ...(o.failure !== undefined ? { failure: o.failure } : {}) }) : [];
+        // Hooks outside a take have no preflight to sign a persona in again — a session a sandbox reset signed
+        // out is refused, never sent without its token.
+        const prepared = o.persona
+          ? await rw.prepareSessions([o.persona], { runId: o.runId, log: o.log, signedOut: 'refuse', project: o.project.slug, ...(o.failure !== undefined ? { failure: o.failure } : {}) })
+          : [];
         const persona = o.persona;
         return rw.openSession({
           policy: o.policy,

@@ -213,6 +213,10 @@ describe('sandbox advice (R-FLD-30)', () => {
     const t = sandboxAdviceText(a!, 'northfield');
     expect(t.detail).toBe('none — environment local films this machine with database main and the mailbox: each take starts from whatever the last one (or a hand-made reset) left');
     expect(t.hint).toMatch(/retake sandbox init northfield writes a sandbox\.yaml to fill in \(docs\/guide\/sandbox\.md\), then retake run northfield <scenario> --env sandbox --sandbox$/);
+    // Through MCP, the tool that scaffolds it — the user fills its files.
+    expect(sandboxAdviceText(a!, 'northfield', 'retake', 'mcp').hint).toMatch(
+      /: sandbox_init \{project: "northfield"\} writes Retake's scaffold \(with the user's go-ahead\), the user fills its compose\.yaml and sandbox\.yaml \(docs\/guide\/sandbox\.md\), then run_capture \{sandbox: true\}$/,
+    );
     expect(sandboxAdvice(project(['reset: [{http: {method: POST, url: "{{console}}/api/reset"}}]']))).toEqual({ env: 'local', holds: ['reset hooks'] });
     expect(sandboxAdvice(project())).toBeNull();
     const remote = parseProjectYaml(['name: R', 'environments:', '  staging: {app: "https://app.staging.example.com"}', 'mailbox: {provider: mailpit, url: "http://localhost:8025"}', ''].join('\n'));

@@ -11,7 +11,7 @@ import type { InspectJobInput } from '../jobs/job-input.js';
 import type { PersonaStateView } from '../auth.js';
 import type { CreateProjectRequest, ProjectSummary, ProjectView } from '../projects.js';
 import type { RunStatusView, RunSummary } from '../runs.js';
-import type { SandboxStatusView } from '../sandbox.js';
+import type { SandboxInitResultView, SandboxStatusView } from '../sandbox.js';
 import type { SaveResult, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from '../scenarios.js';
 import type { ScriptDraftView } from '../authoring.js';
 import type { WorkerLockRecord } from '../jobs/lock.js';
@@ -619,6 +619,11 @@ export interface Engine {
     up(req: SandboxSubmitRequest, o?: { approver?: Approver }): Promise<{ job: JobRecord; env: string; worker?: { pid?: number; spawned: boolean } }>;
     /** Queue a sandbox reset (back to the seed; the sandbox must be up). */
     reset(req: SandboxSubmitRequest, o?: { approver?: Approver }): Promise<{ job: JobRecord; env: string; worker?: { pid?: number; spawned: boolean } }>;
+    /**
+     * Write Retake's docker-compose scaffold into the project and its `sandboxes.<env>` line into project.yaml —
+     * never over a file (no force), through the project store (journaled as the caller). Nothing is started.
+     */
+    init(project: string, env?: string): Promise<SandboxInitResultView>;
   };
 }
 

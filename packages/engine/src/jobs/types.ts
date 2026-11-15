@@ -139,8 +139,12 @@ export interface SandboxJobResult {
     snapshot?: { action: 'restored' | 'taken'; ms: number; database: string };
     restarted: string[];
     superseded: number;
-    /** Hotfix v0.2.5: the Firebase Auth emulator's accounts put back. */
-    firebase_auth?: { accounts: number };
+    /** Hotfix v0.2.5: the Firebase Auth emulator's accounts put back (and when — personas saved before sign in again). */
+    firebase_auth?: { accounts: number; at?: string; personas?: { login: string[]; no_login: string[] } };
+    /** The base (the database before its first seed) taken, or restored before seeding an outdated snapshot again. */
+    base?: { action: 'taken' | 'restored'; ms: number };
+    /** The snapshot was outdated: why, what the seed started from, the services restarted first, how to get a base. */
+    outdated?: { why: string; reason: string; from: 'base' | 'snapshot'; restarted: string[]; hint?: string };
     /** Hotfix v0.2.5: reset.hooks run. */
     hooks?: { steps: number; ms: number };
   } | null;

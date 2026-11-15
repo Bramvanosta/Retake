@@ -103,7 +103,7 @@ describe.skipIf(!can)('retake mcp: themes and components', () => {
     for (const n of ['template_preview', 'component_preview', 'component_create'])
       expect(by.get(n)?.annotations, n).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: false });
     expect(by.get('component_create')?.inputSchema.required).toEqual(['id', 'kind', 'description']);
-    expect(client.getInstructions()).toContain('component code, existing themes and project.yaml are never written through this server');
+    expect(client.getInstructions()).toContain('component code, themes a person made or changed and project.yaml (but the `sandboxes.<env>` line sandbox_init adds) are never written through this server');
   });
 
   it("template_list: the themes by name, the project's marked; template gives one in detail", async () => {
